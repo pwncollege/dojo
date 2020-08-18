@@ -1,0 +1,21 @@
+#!/bin/sh
+
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t 9p -o trans=virtio,version=9p2000.L,nosuid hostshare /home/ctf
+for f in $(ls *.ko); do
+    insmod $f
+done
+sysctl -w kernel.perf_event_paranoid=1
+
+cat <<EOF
+
+
+Boot took $(cut -d' ' -f1 /proc/uptime) seconds
+
+
+Welcome to pwn.college
+
+
+EOF
+exec su -l ctf
