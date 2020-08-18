@@ -1,30 +1,17 @@
 # pwn-college
 
-This repository includes the plugin necessary for making CTFd behave in the way that pwn.college requires. It also includes a custom docker-compose.yml file for CTFd.
+This repository has the artifacts necessary for deploying a pwn.college instance.
 
 ## Setup
 
 ```bash
-git clone https://github.com/CTFd/CTFd
-cp pwn-college/docker-compose.yml CTFd
-cp -r pwn-college/plugins/pwncollege CTFd/CTFd/plugins
-```
+docker build -t pwncollege_challenge containers/pwncollege_challenge
 
-Modify `CTFd/plugins/pwncollege/settings.py` to correct, unique instance name.
-Modify `CTFd/docker-compose.yml` with correct `VIRTUAL_HOST` and `LETSENCRYPT_HOST`.
+cp -r CTFd-pwn-college-plugin CTFd/CTFd/plugins
 
-For web terminal (using nginx-proxy and X-Accel-Redirect):
-```bash
-cp default_location /etc/nginx/vhost.d
-```
-
-```bash
-docker build -t pwncollege_challenge pwncollege/challenges
-
-cd CTFd
 docker-compose up -d
 
-docker run --detach --name nginx-proxy --publish 80:80 --publish 443:443 --volume /etc/nginx/certs --volume /etc/nginx/vhost.d:/etc/nginx/vhost.d --volume /usr/share/nginx/html --volume /var/run/docker.sock:/tmp/docker.sock:ro jwilder/nginx-proxy
+docker run --detach --name nginx-proxy --publish 80:80 --publish 443:443 --volume /etc/nginx/certs --volume conf/nginx/vhost.d:/etc/nginx/vhost.d --volume /usr/share/nginx/html --volume /var/run/docker.sock:/tmp/docker.sock:ro jwilder/nginx-proxy
 
 docker run --detach --name nginx-proxy-letsencrypt --volumes-from nginx-proxy --volume /var/run/docker.sock:/var/run/docker.sock:ro --env "DEFAULT_EMAIL=example@example.com" jrcs/letsencrypt-nginx-proxy-companion
 
