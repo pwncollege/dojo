@@ -14,13 +14,13 @@ services:
       - ACCESS_LOG=-
       - ERROR_LOG=-
       - REVERSE_PROXY=true
-      - PWN_COLLEGE_INSTANCE=ctf
+      # - PWN_COLLEGE_INSTANCE=
       # - HOST_DATA_PATH=
       # - SECRET_KEY=
       # - BINARY_NINJA_API_KEY=
-      - VIRTUAL_HOST=ctf.pwn.college
+      # - VIRTUAL_HOST=
       - VIRTUAL_PORT=8000
-      - LETSENCRYPT_HOST=ctf.pwn.college
+      # - LETSENCRYPT_HOST=ctf.pwn.college
     volumes:
       - .data/CTFd/logs:/var/log/CTFd
       - .data/CTFd/uploads:/var/uploads
