@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+import pathlib
 
 import docker
 
@@ -8,7 +9,7 @@ import docker
 # /etc/ssh/sshd_config
 #
 # Match User ctf
-#       AuthorizedKeysCommand /opt/pwn-college/auth.py ctfd_db_1 ctf
+#       AuthorizedKeysCommand /opt/ctf.pwn.college/auth.py ctfpwncollege_db_1 ctf
 #       AuthorizedKeysCommandUser root
 #       X11Forwarding no
 #       AllowTcpForwarding no
@@ -28,6 +29,8 @@ def main():
     db_container_name = sys.argv[1]
     user_container_prefix = sys.argv[2]
 
+    enter_path = pathlib.Path(__file__).parent.resolve() / "enter.py"
+
     client = docker.from_env()
 
     try:
@@ -35,15 +38,17 @@ def main():
     except docker.errors.NotFound:
         error(f"Error: db container '{db_container_name}' not found")
 
-    result = container.exec_run("mysql -pctfd -Dctfd -sNe 'select value, user_id from `keys`;'")
+    result = container.exec_run(
+        "mysql -pctfd -Dctfd -sNe 'select value, user_id from ssh_keys;'"
+    )
     if result.exit_code != 0:
         error(f"Error: db query exited with code '{result.exit_code}'")
 
-    for row in result.output.strip().split(b'\n'):
-        key, user_id = row.decode().split('\t')
+    for row in result.output.strip().split(b"\n"):
+        key, user_id = row.decode().split("\t")
 
-        print(f'command="/opt/pwn-college/enter.py {user_container_prefix}_user_{user_id}" {key}')
+        print(f'command="{enter_path} {user_container_prefix}_user_{user_id}" {key}')
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
