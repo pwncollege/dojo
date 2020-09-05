@@ -5,6 +5,7 @@ services:
     build: CTFd
     user: root
     restart: always
+    container_name: pwn-college_ctfd
     environment:
       - UPLOAD_FOLDER=/var/uploads
       - DATABASE_URL=mysql+pymysql://ctfd:ctfd@db/ctfd
@@ -37,6 +38,7 @@ services:
   db:
     image: mariadb:10.4.12
     restart: always
+    container_name: pwn-college_db
     environment:
       - MYSQL_ROOT_PASSWORD=ctfd
       - MYSQL_USER=ctfd
@@ -51,6 +53,7 @@ services:
 
   cache:
     image: redis:4
+    container_name: pwn-college_redis
     restart: always
     volumes:
       - .data/redis:/data
