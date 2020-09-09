@@ -68,6 +68,7 @@ RUN apt-get update && \
                        libstdc++6:i386 \
                        libc6-dev-i386 \
                        libcapstone-dev \
+                       libseccomp-dev \
         	       libedit-dev
 
 RUN useradd -s /bin/bash -m ctf
