@@ -24,7 +24,8 @@ services:
     volumes:
       - .data/CTFd/logs:/var/log/CTFd
       - .data/CTFd/uploads:/var/uploads
-      - ./CTFd:/opt/CTFd:ro
+      - ./CTFd:/opt/CTFd
+      - ./CTFd-pwn-college-plugin:/opt/CTFd/CTFd/plugins/CTFd-pwn-college-plugin
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - .data/challenges:/challenges:ro
     depends_on:
