@@ -38,6 +38,7 @@ RUN apt-get update && \
                        wget \
                        tcpdump \
                        exiftool \
+                       hexedit \
                        patchelf \
                        binutils \
                        bsdmainutils \
@@ -70,6 +71,8 @@ RUN apt-get update && \
                        libcapstone-dev \
                        libseccomp-dev \
         	       libedit-dev
+
+RUN yes | unminimize
 
 RUN useradd -s /bin/bash -m ctf
 
