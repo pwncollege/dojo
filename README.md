@@ -38,3 +38,9 @@ mkdir data-nosuid/$i
 sudo mount --bind data/$i data-nosuid/$i
 sudo mount -o remount,nosuid data-nosuid/$i
 ```
+
+## Global Resources
+
+```sh
+sysctl -w kernel.pty.max=1048576
+```
