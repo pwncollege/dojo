@@ -3,6 +3,7 @@ FROM ubuntu:20.04
 RUN rm /etc/dpkg/dpkg.cfg.d/excludes
 
 ENV DEBIAN_FRONTEND noninteractive
+ENV LC_CTYPE=C.UTF-8
 
 RUN dpkg --add-architecture i386
 RUN apt-get update && \
@@ -60,6 +61,7 @@ RUN apt-get update && \
                        manpages-dev \
                        libtool-bin \
                        bison \
+                       flex \
                        libini-config-dev \
                        libssl-dev \
                        libffi-dev \
@@ -68,7 +70,6 @@ RUN apt-get update && \
                        libncurses5:i386 \
                        libstdc++6:i386 \
                        libc6-dev-i386 \
-                       libcapstone-dev \
                        libseccomp-dev \
         	       libedit-dev
 
@@ -79,18 +80,40 @@ RUN useradd -s /bin/bash -m ctf
 RUN ln -s /usr/bin/pip3 /usr/bin/pip
 RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
 
-RUN pip install pwntools angr
+RUN git clone https://github.com/aquynh/capstone /opt/capstone && cd /opt/capstone && ./make.sh && ./make.sh install
 
-RUN su ctf -c 'wget -q -O- https://github.com/hugsy/gef/raw/master/scripts/gef.sh | sh'
-ENV LC_CTYPE=C.UTF-8
+RUN git clone https://github.com/radareorg/radare2 /opt/radare2 && cd /opt/radare2 && sys/install.sh
+RUN r2pm init && r2pm -i r2ghidra-dec
 
-RUN git clone https://github.com/yrp604/rappel /tmp/rappel && cd /tmp/rappel && make && cp bin/rappel /usr/bin/rappel
+RUN pip install git+git://github.com/Gallopsled/pwntools.git#egg=pwntools jupyter angr r2pipe
+
+RUN git clone https://github.com/pwndbg/pwndbg /opt/pwndbg && cd /opt/pwndbg && ./setup.sh
+
+RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
+
+RUN git clone https://github.com/yrp604/rappel /opt/rappel && cd /opt/rappel && make && cp bin/rappel /usr/bin/rappel
 
 RUN wget https://github.com/0vercl0k/rp/releases/download/v2-beta/rp-lin-x64 -O /usr/bin/rp++ && chmod +x /usr/bin/rp++
 
-RUN find / -type f -perm -4000 | xargs -r chmod u-s
+# TODO: remove this after regenerating old capstone challenge
+# TODO: or remove the src install if apt gets updated
+RUN apt-get update && apt-get install -y libcapstone-dev
 
 RUN mkdir /opt/pwn-college
 
-RUN echo 'pwn_college{0000000000000000000000000000000000000000}' > /flag
+COPY .tmux.conf /opt/pwn-college/
+COPY .gdbinit /opt/pwn-college/
+COPY .radare2rc /opt/pwn-college/
+
+RUN ln -sf /opt/pwn-college/.tmux.conf /home/ctf/.tmux.conf
+RUN ln -sf /opt/pwn-college/.gdbinit /home/ctf/.gdbinit
+RUN ln -sf /opt/pwn-college/.radare2rc /home/ctf/.radare2rc
+
+RUN ln -sf /opt/pwn-college/.tmux.conf /root/.tmux.conf
+RUN ln -sf /opt/pwn-college/.gdbinit /root/.gdbinit
+RUN ln -sf /opt/pwn-college/.radare2rc /root/.radare2rc
+
+RUN echo 'pwn_college{missing}' > /flag
 RUN chmod 400 /flag
+
+RUN find / -type f -perm -4000 | xargs -r chmod u-s

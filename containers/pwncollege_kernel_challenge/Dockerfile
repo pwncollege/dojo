@@ -1,4 +1,4 @@
-FROM pwncollege_challenge
+FROM pwncollege/pwncollege_challenge
 
 RUN apt-get update && \
     apt-get install -y qemu-system-x86 \
@@ -40,11 +40,11 @@ RUN make -j16 bzImage
 RUN cp arch/x86/boot/bzImage /opt/pwn-college/bzImage
 
 WORKDIR /opt/pwn-college
-RUN wget https://busybox.net/downloads/busybox-1.31.1.tar.bz2
-RUN tar xf busybox-1.31.1.tar.bz2
-RUN rm busybox-1.31.1.tar.bz2
+RUN wget https://busybox.net/downloads/busybox-1.32.0.tar.bz2
+RUN tar xf busybox-1.32.0.tar.bz2
+RUN rm busybox-1.32.0.tar.bz2
 
-WORKDIR busybox-1.31.1
+WORKDIR busybox-1.32.0
 RUN make defconfig
 RUN sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/g' .config
 RUN make -j16
@@ -59,7 +59,7 @@ RUN echo 'root:x:0:0:root:/root:/bin/sh' >> etc/passwd && \
     echo 'ctf:x:1000:1000:ctf:/home/ctf:/bin/sh' >> etc/passwd
 
 WORKDIR /opt/pwn-college
-RUN cp -a busybox-1.31.1/_install/* fs
+RUN cp -a busybox-1.32.0/_install/* fs
 
 COPY init fs
 
