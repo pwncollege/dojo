@@ -10,11 +10,11 @@ RUN apt-get update && \
 RUN find / -type f -perm -4000 | xargs -r chmod u-s
 
 WORKDIR /opt/pwn-college
-RUN wget https://mirrors.edge.kernel.org/pub/linux/kernel/v4.x/linux-4.19.87.tar.gz
-RUN tar xf linux-4.19.87.tar.gz
-RUN rm linux-4.19.87.tar.gz
+RUN wget https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/linux-5.4.tar.gz
+RUN tar xf linux-5.4.tar.gz
+RUN rm linux-5.4.tar.gz
 
-WORKDIR linux-4.19.87
+WORKDIR linux-5.4
 RUN make defconfig
 RUN echo 'CONFIG_NET_9P=y' >> .config && \
     echo 'CONFIG_NET_9P_DEBUG=n' >> .config && \
@@ -35,7 +35,15 @@ RUN echo 'CONFIG_NET_9P=y' >> .config && \
     echo 'CONFIG_CRYPTO_DEV_VIRTIO=y' >> .config && \
     echo 'CONFIG_BALLOON_COMPACTION=y' >> .config && \
     echo 'CONFIG_PCI=y' >> .config && \
-    echo 'CONFIG_PCI_HOST_GENERIC=y' >> .config
+    echo 'CONFIG_PCI_HOST_GENERIC=y' >> .config && \
+    echo "CONFIG_GDB_SCRIPTS=y" >> .config && \
+    echo "CONFIG_DEBUG_INFO=y" >> .config && \
+    echo "CONFIG_DEBUG_INFO_REDUCED=n" >> .config && \
+    echo "CONFIG_DEBUG_INFO_SPLIT=n" >> .config && \
+    echo "CONFIG_DEBUG_FS=y" >> .config && \
+    echo "CONFIG_DEBUG_INFO_DWARF4=y" >> .config && \
+    echo "CONFIG_DEBUG_INFO_BTF=y" >> .config && \
+    echo "CONFIG_FRAME_POINTER=y" >> .config
 RUN make -j16 bzImage
 RUN cp arch/x86/boot/bzImage /opt/pwn-college/bzImage
 
