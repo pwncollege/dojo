@@ -20,7 +20,7 @@ if id ctf | grep -q sudo; then
         -nographic \
         -monitor none \
         -s \
-        -append "console=ttyS0"
+        -append "console=ttyS0 nokaslr"
 else
     /usr/bin/qemu-system-x86_64 \
         -kernel /opt/pwn-college/bzImage \
@@ -29,5 +29,5 @@ else
         -device virtio-9p-pci,id=fs0,fsdev=fsdev0,mount_tag=hostshare \
         -nographic \
         -monitor none \
-        -append "console=ttyS0"
+        -append "console=ttyS0 nokaslr"
 fi
