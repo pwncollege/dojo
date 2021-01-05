@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block stylesheets %}
+{% endblock %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>Grades</h1>
+  </div>
+</div>
+<div class="container">
+  <div id="grades" class="row">
+    <div class="col-md-12">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <td scope="col"><b>Category</b></td>
+            <td scope="col"><b>Due</b></td>
+            <td scope="col"><b>Completed</b></td>
+            <td scope="col"><b>Grade</b></td>
+          </tr>
+        </thead>
+        <tbody>
+          {% for grade in grades %}
+          <tr>
+            <td>{{ grade.category }}</td>
+            <td>{{ grade.due }}</td>
+            <td>{{ grade.completed }}</td>
+            <td>{{ grade.grade }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

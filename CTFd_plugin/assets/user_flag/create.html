@@ -1,0 +1,15 @@
+<label>
+  User Flag<br>
+  <small>The flag is unique for each user</small>
+</label>
+
+<div class="form-group">
+  <select class="form-control custom-select col-md-6" name="data">
+    <option value="">Default</option>
+    <option value="cheater">Accept cheater flags</option>
+    <option value="multi">Use category multi-flags</option>
+    <option value="cheater,multi">Accept cheater flags, use category multi-flags</option>
+  </select>
+</div>
+<input type="hidden" class="form-control" name="content" value="{{ content }}">
+<input type="hidden" name="type" value="user">

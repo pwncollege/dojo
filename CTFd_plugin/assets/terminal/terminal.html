@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block stylesheets %}
+{{ super() }}
+<link rel="stylesheet" href="plugins/CTFd-pwn-college-plugin/assets/terminal/xterm.css" />
+{% endblock %}
+
+{% block content %}
+<div id="terminal" style="margin: 10px;"></div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script defer src="plugins/CTFd-pwn-college-plugin/assets/terminal/xterm.js"></script>
+<script defer src="plugins/CTFd-pwn-college-plugin/assets/terminal/terminal.js"></script>
+{% endblock %}

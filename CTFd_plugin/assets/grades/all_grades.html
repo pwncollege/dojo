@@ -1,0 +1,52 @@
+{% extends "admin/base.html" %}
+
+{% block stylesheets %}
+{% endblock %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>All Grades</h1>
+  </div>
+</div>
+<div class="container">
+  <div id="grades" class="row">
+    <div class="col-md-12">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            {% for key in grades[0] %}
+            <td scope="col"><b>{{ key }}</b></td>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for user_grades in grades %}
+          <tr>
+            {% for key, value in user_grades.items() %}
+            {% if key == 'id' %}
+            <td><a href="{{ generate_account_url(value, admin=True) }}">{{ value }}</a></td>
+            {% else %}
+            <td>{{ value }}</td>
+            {% endif %}
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          {% for statistic in statistics %}
+          <tr>
+            {% for value in statistic.values() %}
+            <td>{{ value }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}
