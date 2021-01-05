@@ -12,6 +12,8 @@ RUN apt-get update && \
                        build-essential \
                        gcc-multilib \
                        g++-multilib \
+                       clang \
+                       llvm \
                        gdb \
                        gdb-multiarch \
                        python-is-python3 \
@@ -40,6 +42,7 @@ RUN apt-get update && \
                        tcpdump \
                        exiftool \
                        hexedit \
+                       parallel \
                        patchelf \
                        binutils \
                        bsdmainutils \
@@ -59,19 +62,21 @@ RUN apt-get update && \
                        upx-ucl \
                        man-db \
                        manpages-dev \
-                       libtool-bin \
                        bison \
                        flex \
+                       libtool-bin \
                        libini-config-dev \
                        libssl-dev \
                        libffi-dev \
                        libglib2.0-dev \
-                       libc6:i386 \
-                       libncurses5:i386 \
-                       libstdc++6:i386 \
-                       libc6-dev-i386 \
                        libseccomp-dev \
-        	       libedit-dev
+                       libedit-dev \
+                       libpixman-1-dev \
+                       libc6:i386 \
+                       libc6-dev-i386 \
+                       libstdc++6:i386 \
+                       libncurses5:i386
+
 
 RUN yes | unminimize
 
@@ -85,6 +90,8 @@ RUN git clone https://github.com/aquynh/capstone /opt/capstone && cd /opt/capsto
 RUN git clone https://github.com/radareorg/radare2 /opt/radare2 && cd /opt/radare2 && sys/install.sh
 RUN r2pm init && r2pm -i r2ghidra-dec
 
+RUN git clone https://github.com/aflplusplus/aflplusplus /opt/aflplusplus && cd /opt/aflplusplus && make distrib && make install
+
 RUN pip install git+git://github.com/Gallopsled/pwntools.git#egg=pwntools jupyter angr r2pipe
 
 RUN git clone https://github.com/pwndbg/pwndbg /opt/pwndbg && cd /opt/pwndbg && ./setup.sh
@@ -94,6 +101,10 @@ RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 RUN git clone https://github.com/yrp604/rappel /opt/rappel && cd /opt/rappel && make && cp bin/rappel /usr/bin/rappel
 
 RUN wget https://github.com/0vercl0k/rp/releases/download/v2-beta/rp-lin-x64 -O /usr/bin/rp++ && chmod +x /usr/bin/rp++
+
+RUN git clone https://github.com/pwncollege/all-binutils /opt/all-binutils
+
+RUN git clone https://github.com/pwncollege/babyauto-crackmes /opt/babyauto-crackmes
 
 # TODO: remove this after regenerating old capstone challenge
 # TODO: or remove the src install if apt gets updated

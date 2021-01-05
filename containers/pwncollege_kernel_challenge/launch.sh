@@ -4,8 +4,11 @@ cd /opt/pwn-college
 
 umask 377
 
-cp /flag fs
-cp /*.ko fs
+cp -p /flag fs
+
+for f in $(find / -maxdepth 1 -perm -4000 ! -name 'launch'); do
+    cp -pr $f fs
+done
 
 pushd fs
 find . -print0 | cpio --null -ov --format=newc | gzip -9 > /opt/pwn-college/initramfs.cpio.gz

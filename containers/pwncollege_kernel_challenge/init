@@ -3,8 +3,10 @@
 mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t 9p -o trans=virtio,version=9p2000.L,nosuid hostshare /home/ctf
-for f in $(ls *.ko); do
-    insmod $f
+for dir in / $(find / -maxdepth 1 -perm -4000 -type d); do
+    for f in $(find $dir -maxdepth 1 -perm -4000 -name '*.ko'); do
+        insmod $f
+    done
 done
 sysctl -w kernel.perf_event_paranoid=1
 
