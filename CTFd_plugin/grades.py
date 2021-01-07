@@ -1,7 +1,6 @@
 import datetime
 
 from flask import Blueprint, render_template, request
-from sqlalchemy.sql import or_
 from CTFd.models import db, Challenges, Solves, Awards, Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only

@@ -23,6 +23,7 @@ from .scoreboard import scoreboard_listing
 from .download import download, download_namespace
 from .terminal import terminal
 from .binary_ninja import binary_ninja_namespace
+from .belts import belts_namespace
 from .grades import grades
 
 
@@ -57,6 +58,7 @@ def load(app):
     api.add_namespace(ssh_key_namespace, "/ssh_key")
     api.add_namespace(download_namespace, "/download")
     api.add_namespace(binary_ninja_namespace, "/binary_ninja")
+    api.add_namespace(belts_namespace, "/belts")
     app.register_blueprint(blueprint, url_prefix="/pwncollege_api/v1")
 
     app.register_blueprint(download)
