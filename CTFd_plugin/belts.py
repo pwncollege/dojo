@@ -40,10 +40,10 @@ def belts(categories):
         .order_by(db.func.max(Solves.date))
     )
 
-    belts = [
-        {"user_id": user_id, "user_name": user_name, "date": date.isoformat()}
-        for user_id, user_name, date in belted_users
-    ]
+    belts = {
+        user_id: {"handle": handle, "date": date.isoformat()}
+        for user_id, handle, date in belted_users
+    }
 
     return belts
 
