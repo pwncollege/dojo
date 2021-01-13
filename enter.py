@@ -30,7 +30,9 @@ def main():
             "-c",
             original_command,
         ],
-        {},
+        {
+            "HOME": os.environ["HOME"],
+        },
     )
 
     print(sys.argv)
