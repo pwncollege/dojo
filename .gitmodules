@@ -3,4 +3,4 @@
 	url = https://github.com/pwncollege/CTFd-pwn-college-plugin
 [submodule "CTFd"]
 	path = CTFd
-	url = https://github.com/CTFd/CTFd
+	url = https://github.com/pwncollege/CTFd
