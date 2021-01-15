@@ -43,4 +43,5 @@ sudo mount -o remount,nosuid data-nosuid/$i
 
 ```sh
 sysctl -w kernel.pty.max=1048576
+echo core >/proc/sys/kernel/core_pattern
 ```
