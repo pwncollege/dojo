@@ -63,5 +63,7 @@ $(function () {
         socket.send('\x03');
     };
 
+    setInterval(() => socket.send(''), 5000);
+
     terminal.focus();
 });
