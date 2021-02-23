@@ -87,7 +87,7 @@ RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
 
 RUN git clone https://github.com/aquynh/capstone /opt/capstone && cd /opt/capstone && ./make.sh && ./make.sh install
 
-RUN git clone https://github.com/radareorg/radare2 /opt/radare2 && cd /opt/radare2 && git checkout 5.1.0 && sys/install.sh
+RUN git clone --branch=5.1.0 --depth=1 https://github.com/radareorg/radare2 /opt/radare2 && cd /opt/radare2 && sys/install.sh
 RUN r2pm init && r2pm -i r2ghidra
 
 RUN git clone https://github.com/aflplusplus/aflplusplus /opt/aflplusplus && cd /opt/aflplusplus && make distrib && make install
