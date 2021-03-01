@@ -29,7 +29,7 @@ if [ -z "$(docker ps -q -f name=nginx-proxy-letsencrypt)" ]; then
     # --env "DEFAULT_EMAIL=example@example.com" \
 fi
 
-if ! docker network inspect autotest_network -f '{{range .Containers}}{{println .Name}}{{end}}' | grep -q nginx-proxy; then
+if ! docker network inspect "${PWN_COLLEGE_INSTANCE}_network" -f '{{range .Containers}}{{println .Name}}{{end}}' | grep -q nginx-proxy; then
     docker network connect "${PWN_COLLEGE_INSTANCE}_network" nginx-proxy
 fi
 
