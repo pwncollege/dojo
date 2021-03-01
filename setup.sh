@@ -52,6 +52,8 @@ LETSENCRYPT_HOST=${INSTANCE}.pwn.college
 EOF
 fi
 
+export $(cat config.env | xargs)
+
 color_echo $YELLOW "[+] Setting up homes"
 
 mkdir -p $DIR/.data/homes
@@ -77,7 +79,9 @@ for i in $(seq 0 $NUM_USERS); do
     mkdir -p $DIR/.data/challenges/$i
 done
 if [ ! -e $DIR/.data/challenges/global ]; then
-    ln -s $DIR/.data/challenges/0 $DIR/.data/challenges/global
+    pushd $DIR/.data/challenges
+    ln -s 0 global
+    popd
 fi
 
 color_echo $YELLOW "[+] Configuring global resources"
@@ -116,4 +120,7 @@ docker pull jrcs/letsencrypt-nginx-proxy-companion
 color_echo $YELLOW "[+] Setup docker compose"
 
 docker-compose build
-docker network create "${INSTANCE}_network"
+
+if [ -z "$(docker network ls -q -f name=${INSTANCE}_network)" ]; then
+    docker network create "${INSTANCE}_network"
+fi
