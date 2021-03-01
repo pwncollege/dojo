@@ -1,4 +1,4 @@
-# pwn-college
+# pwn.college
 
 This repository has the artifacts necessary for deploying a pwn.college instance.
 
