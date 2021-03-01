@@ -76,5 +76,7 @@ services:
 
 networks:
     default:
+        external:
+            name: "${COMPOSE_PROJECT_NAME}_network"
     internal:
         internal: true

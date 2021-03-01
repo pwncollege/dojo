@@ -30,11 +30,13 @@ export $INSTANCE
 color_echo $YELLOW "[+] Install dependencies"
 
 apt update
-apt install python-is-python3 python3-dev python3-pip
+apt install -y python-is-python3 python3-dev python3-pip
 if [ ! -x /usr/bin/docker ]; then
     wget -O - https://get.docker.io/ | sh
 fi
-python3 -m pip install docker
+python3 -m pip install docker docker-compose
+
+git -C $DIR submodule update --init
 
 color_echo $YELLOW "[+] Creating config file"
 
@@ -44,10 +46,9 @@ COMPOSE_PROJECT_NAME=$INSTANCE
 PWN_COLLEGE_INSTANCE=$INSTANCE
 HOST_DATA_PATH=$DIR/.data
 SECRET_KEY=$(openssl rand -hex 16)
-# BINARY_NINJA_API_KEY=
-VIRTUAL_HOST=$INSTANCE.pwn.college
+VIRTUAL_HOST=${INSTANCE}.pwn.college
 VIRTUAL_PORT=8000
-LETSENCRYPT_HOST=$INSTANCE.pwn.college
+LETSENCRYPT_HOST=${INSTANCE}.pwn.college
 EOF
 fi
 
@@ -89,13 +90,14 @@ color_echo $YELLOW "[+] Setting up SSH"
 
 if [ -z "$(getent passwd $INSTANCE)" ]; then
     useradd -m $INSTANCE
+    usermod -aG docker $INSTANCE
 fi
 
 if ! grep -q "Match User $INSTANCE" /etc/ssh/sshd_config; then
     cat <<EOF >> /etc/ssh/sshd_config
 
 Match User $INSTANCE
-      AuthorizedKeysCommand $DIR/auth.py $INSTANCE_db $INSTANCE
+      AuthorizedKeysCommand $DIR/auth.py ${INSTANCE}_db $INSTANCE
       AuthorizedKeysCommandUser root
       X11Forwarding no
       AllowTcpForwarding no
@@ -110,3 +112,8 @@ docker pull pwncollege/pwncollege_challenge
 docker pull pwncollege/pwncollege_kernel_challenge
 docker pull jwilder/nginx-proxy
 docker pull jrcs/letsencrypt-nginx-proxy-companion
+
+color_echo $YELLOW "[+] Setup docker compose"
+
+docker-compose build
+docker network create "${INSTANCE}_network"
