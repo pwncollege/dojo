@@ -25,8 +25,6 @@ color_echo ()
 
 cd $DIR
 
-export $INSTANCE
-
 color_echo $YELLOW "[+] Install dependencies"
 
 apt update
