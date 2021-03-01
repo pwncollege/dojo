@@ -117,6 +117,7 @@ docker pull jrcs/letsencrypt-nginx-proxy-companion
 
 color_echo $YELLOW "[+] Setup docker compose"
 
+cp -r $DIR/CTFd_plugin/. $DIR/CTFd/CTFd/plugins/CTFd-pwn-college-plugin/
 docker-compose build
 
 if [ -z "$(docker network ls -q -f name=${INSTANCE}_network)" ]; then
