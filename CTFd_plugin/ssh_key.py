@@ -82,7 +82,7 @@ class UpdateKey(Resource):
         key_value = data.get("key", "")
 
         if key_value:
-            key_re = "ssh-(rsa|ed25519|ecdsa|dsa) AAAA[0-9A-Za-z+/]+[=]{0,2}"
+            key_re = "ssh-(rsa|ed25519|dss) AAAA[0-9A-Za-z+/]+[=]{0,2}"
             key_match = re.match(key_re, key_value)
             if not key_match:
                 return (
