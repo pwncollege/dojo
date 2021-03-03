@@ -19,6 +19,7 @@ services:
       - ACCESS_LOG=-
       - ERROR_LOG=-
       - REVERSE_PROXY=true
+      - SERVER_SENT_EVENTS=false
       - VIRTUAL_PORT=8000
     env_file:
       - ./config.env
