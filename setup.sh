@@ -93,6 +93,12 @@ color_echo $YELLOW "[+] Setting up SSH"
 if [ -z "$(getent passwd $INSTANCE)" ]; then
     useradd -m $INSTANCE
     usermod -aG docker $INSTANCE
+    mkdir -p /home/$INSTANCE/.docker
+    cat <<EOF >> /home/$INSTANCE/.docker/config.json
+{
+    "detachKeys": "ctrl-q,ctrl-q"
+}
+EOF
 fi
 
 if ! grep -q "Match User $INSTANCE" /etc/ssh/sshd_config; then
