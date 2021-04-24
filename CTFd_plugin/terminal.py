@@ -1,4 +1,6 @@
-from flask import Blueprint, Response, render_template
+import docker
+from flask import request, Blueprint, Response, render_template
+from flask_restx import Namespace, Resource
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
@@ -6,6 +8,15 @@ from .settings import INSTANCE
 
 
 terminal = Blueprint("terminal", __name__, template_folder="assets/terminal/")
+terminal_namespace = Namespace("terminal", description="Endpoint to manage terminal")
+
+
+@terminal.route("/terminal")
+@authed_only
+def view_terminal():
+    user = get_current_user()
+    container_name = f"{INSTANCE}_user_{user.id}"
+    return render_template("terminal.html")
 
 
 @terminal.route("/terminal_ws")
@@ -24,9 +35,31 @@ def terminal_ws():
     return response
 
 
-@terminal.route("/terminal")
-@authed_only
-def view_terminal():
-    user = get_current_user()
-    container_name = f"{INSTANCE}_user_{user.id}"
-    return render_template("terminal.html")
+@terminal_namespace.route("/resize")
+class TerminalResize(Resource):
+    @authed_only
+    def post(self):
+        data = request.get_json()
+        try:
+            width = int(data.get("width"))
+            height = int(data.get("height"))
+        except (ValueError, TypeError):
+            return {"success": False, "error": "Invalid width or height"}
+
+        docker_client = docker.from_env()
+
+        user = get_current_user()
+        container_name = f"{INSTANCE}_user_{user.id}"
+
+        try:
+            container = docker_client.containers.get(container_name)
+        except docker.errors.NotFound:
+            return {"success": False, "error": "No active container"}
+
+        try:
+            container.resize(height, width)
+        except Exception as e:
+            print(f"Docker failed: {e}", file=sys.stderr, flush=True)
+            return {"success": False, "error": "Docker failed"}
+
+        return {"success": True}
