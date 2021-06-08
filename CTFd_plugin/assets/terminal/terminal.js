@@ -1,69 +1,70 @@
 $(function () {
-    var terminal = new window.Terminal();
-    terminal.open($('#terminal')[0]);
-
-    function resize() {
-        $('#terminal').height($('html').outerHeight() - $('nav').outerHeight() - $('footer').outerHeight() - 20);
-
-        setTimeout(() => {
-            const MINIMUM_COLS = 2;
-            const MINIMUM_ROWS = 1;
-
-            const core = terminal._core;
-
-            const parentElementStyle = window.getComputedStyle(terminal.element.parentElement);
-            const parentElementHeight = parseInt(parentElementStyle.getPropertyValue('height'));
-            const parentElementWidth = Math.max(0, parseInt(parentElementStyle.getPropertyValue('width')));
-            const elementStyle = window.getComputedStyle(terminal.element);
-            const elementPadding = {
-                top: parseInt(elementStyle.getPropertyValue('padding-top')),
-                bottom: parseInt(elementStyle.getPropertyValue('padding-bottom')),
-                right: parseInt(elementStyle.getPropertyValue('padding-right')),
-                left: parseInt(elementStyle.getPropertyValue('padding-left'))
-            };
-            const elementPaddingVer = elementPadding.top + elementPadding.bottom;
-            const elementPaddingHor = elementPadding.right + elementPadding.left;
-            const availableHeight = parentElementHeight - elementPaddingVer;
-            const availableWidth = parentElementWidth - elementPaddingHor - core.viewport.scrollBarWidth;
-            const geometry = {
-                cols: Math.max(MINIMUM_COLS, Math.floor(availableWidth / core._renderService.dimensions.actualCellWidth)),
-                rows: Math.max(MINIMUM_ROWS, Math.floor(availableHeight / core._renderService.dimensions.actualCellHeight))
-            };
-
-            core._renderService.clear();
-            terminal.resize(geometry.cols, geometry.rows);
-        }, 0);
-    }
-
-    $(window).resize(resize);
-    resize();
-
     var url = new URL('/terminal_ws', window.location.href);
     url.protocol = url.protocol.replace('http', 'ws');
+    const webSocket = new WebSocket(url);
 
-    var socket = new WebSocket(url);
-    socket.binaryType = 'arraybuffer';
-
-    terminal.onData((data) => {
-        if (socket.readyState == 1) {
-            socket.send(data);
+    const terminal = new Terminal({
+        fontFamily: "'Source Code Pro', monospace",
+        theme: {
+            foreground: '#dcdfe4',
+            background: '#282c34',
+            cursor: '#a3b3cc',
+            black: '#282c34',
+            brightBlack: '#282c34',
+            red: '#e06c75',
+            brightRed: '#e06c75',
+            green: '#98c379',
+            brightGreen: '#98c379',
+            yellow: '#e5c07b',
+            brightYellow: '#e5c07b',
+            blue: '#61afef',
+            brightBlue: '#61afef',
+            magenta: '#c678dd',
+            brightMagenta: '#c678dd',
+            cyan: '#56b6c2',
+            brightCyan: '#56b6c2',
+            white: '#dcdfe4',
+            brightWhite: '#dcdfe4'
         }
     });
+    const fitAddon = new FitAddon.FitAddon();
+    const attachAddon = new AttachAddon.AttachAddon(webSocket);
+    terminal.loadAddon(fitAddon);
+    terminal.loadAddon(attachAddon);
+    terminal.open(document.getElementById('terminal'));
 
-    socket.onmessage = (event) => {
-        const data = event.data;
-        terminal.write(typeof data === 'string' ? data : new Uint8Array(data));
+    function resize() {
+        fitAddon.fit();
+        var params = {
+            width: terminal.cols,
+            height: terminal.rows,
+        };
+        CTFd.fetch("/pwncollege_api/v1/terminal/resize", {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(params)
+        }).then(function (response) {
+            return response.json();
+        }).then(function (result) {
+        });
+    }
+
+    window.onresize = () => {
+        resize();
+    }
+    resize();
+
+    webSocket.onopen = (event) => {
+        webSocket.send('\x0c');
     };
-
-    socket.onclose = (event) => {
+    webSocket.onclose = (event) => {
         $('#terminal').css('opacity', '0.5');
     };
-
-    socket.onopen = (event) => {
-        socket.send('\x03');
-    };
-
-    setInterval(() => socket.send(''), 5000);
+    setInterval(() => webSocket.send(''), 5000);
 
     terminal.focus();
 });
