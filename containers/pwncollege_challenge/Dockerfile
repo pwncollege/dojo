@@ -82,7 +82,6 @@ RUN yes | unminimize
 
 RUN useradd -s /bin/bash -m ctf
 
-RUN ln -s /usr/bin/pip3 /usr/bin/pip
 RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
 
 RUN git clone https://github.com/aquynh/capstone /opt/capstone && cd /opt/capstone && ./make.sh && ./make.sh install
