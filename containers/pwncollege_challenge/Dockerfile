@@ -118,9 +118,7 @@ RUN ln -sf /opt/pwn-college/.tmux.conf /home/ctf/.tmux.conf
 RUN ln -sf /opt/pwn-college/.gdbinit /home/ctf/.gdbinit
 RUN ln -sf /opt/pwn-college/.radare2rc /home/ctf/.radare2rc
 
-RUN ln -sf /opt/pwn-college/.tmux.conf /root/.tmux.conf
-RUN ln -sf /opt/pwn-college/.gdbinit /root/.gdbinit
-RUN ln -sf /opt/pwn-college/.radare2rc /root/.radare2rc
+RUN ln -sf /home/ctf /root
 
 RUN echo 'pwn_college{missing}' > /flag
 RUN chmod 400 /flag
