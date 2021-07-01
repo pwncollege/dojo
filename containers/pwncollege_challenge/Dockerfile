@@ -93,8 +93,9 @@ RUN git clone https://github.com/aflplusplus/aflplusplus /opt/aflplusplus && cd 
 RUN pip install git+git://github.com/Gallopsled/pwntools.git#egg=pwntools jupyter angr r2pipe
 
 RUN git clone https://github.com/pwndbg/pwndbg /opt/pwndbg && cd /opt/pwndbg && ./setup.sh
-
 RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
+
+RUN git clone https://github.com/hugsy/gef /opt/gef
 
 RUN git clone https://github.com/yrp604/rappel /opt/rappel && cd /opt/rappel && make && cp bin/rappel /usr/bin/rappel
 
