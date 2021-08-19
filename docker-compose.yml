@@ -74,15 +74,15 @@ services:
       - ./data/homes:/var/homes:shared
       - /var/run/docker.sock:/tmp/docker.sock:ro
 
-  # acme-companion:
-  #   image: nginxproxy/acme-companion
-  #   container_name: ctfd_acme
-  #   volumes_from:
-  #     - nginx-proxy
-  #   volumes:
-  #     - certs:/etc/nginx/certs:rw
-  #     - acme:/etc/acme.sh
-  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  acme-companion:
+    image: nginxproxy/acme-companion
+    container_name: ctfd_acme
+    volumes_from:
+      - nginx-proxy
+    volumes:
+      - certs:/etc/nginx/certs:rw
+      - acme:/etc/acme.sh
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
 volumes:
   conf:
