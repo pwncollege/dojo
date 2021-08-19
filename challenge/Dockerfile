@@ -156,6 +156,8 @@ RUN ln -sf /home/hacker /root
 RUN echo 'pwn.college{uninitialized}' > /flag
 RUN chmod 400 /flag
 
+RUN mkdir /challenge
+
 RUN find / -type f -perm -4000 | xargs -r chmod u-s
 
 WORKDIR /home/hacker

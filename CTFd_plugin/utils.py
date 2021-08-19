@@ -42,27 +42,27 @@ def unserialize_user_flag(user_flag, *, secret=None):
     return account_id, challenge_id, challenge_data
 
 
-def challenge_path(account_id, category, challenge):
-    account_id = str(account_id)
+def challenge_paths(user, challenge, *, secret=None):
+    if secret is None:
+        secret = current_app.config["SECRET_KEY"]
 
-    def is_safe(segment):
-        return segment != "." and segment != ".." and "/" not in segment
+    category_global = CHALLENGES_DIR / challenge.category / "_global"
+    challenge_global = CHALLENGES_DIR / challenge.category / challenge.name / "_global"
 
-    if not is_safe(account_id) or not is_safe(category) or not is_safe(challenge):
-        return None
+    if category_global.exists():
+        yield from category_global.iterdir()
 
-    path = CHALLENGES_DIR / category / challenge
-    if path.exists():
-        return path
+    if challenge_global.exists():
+        yield from category_global.iterdir()
 
+    options = [
+        option
+        for option in (CHALLENGES_DIR / challenge.category / challenge.name).iterdir()
+        if not (option.name.startswith(".") or option.name.startswith("_"))
+    ]
 
-def challenge_paths():
-    for path in CHALLENGES_DIR.glob("*/*"):
-        if path.parent.name.startswith("."):
-            continue
-        if path.name.startswith("."):
-            continue
-        yield path
+    option = options[hash((user.id, challenge.id, secret)) % len(options)]
+    yield from option.iterdir()
 
 
 def simple_tar(path, name=None):

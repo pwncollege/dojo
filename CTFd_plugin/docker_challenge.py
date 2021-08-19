@@ -25,7 +25,7 @@ from CTFd.plugins.challenges import BaseChallenge
 from CTFd.plugins.flags import get_flag_class
 
 from .settings import VIRTUAL_HOST, HOST_DATA_PATH
-from .utils import serialize_user_flag, challenge_path, simple_tar
+from .utils import serialize_user_flag, challenge_paths, simple_tar
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -103,15 +103,6 @@ class RunDocker(Resource):
             return {"success": False, "error": "Invalid challenge"}
 
         user = get_current_user()
-
-        host_path = challenge_path(user.id, challenge.category, challenge.name)
-        if not host_path:
-            print(
-                f"ERROR: Challenge data does not exist for {user.id}, {challenge.category}, {challenge.name}",
-                file=sys.stderr,
-                flush=True,
-            )
-            return {"success": False, "error": "Challenge data does not exist"}
 
         self.setup_home(user)
 
@@ -236,12 +227,11 @@ class RunDocker(Resource):
 
     @staticmethod
     def insert_challenge(container, user, challenge):
-        host_path = challenge_path(user.id, challenge.category, challenge.name)
-        suid_path = f"/{challenge.category}_{challenge.name}"
-        with simple_tar(host_path, suid_path) as tar:
-            container.put_archive("/", tar)
-        container.exec_run(f"chown -R root:root {suid_path}")
-        container.exec_run(f"chmod -R 4755 {suid_path}")
+        for path in challenge_paths(user, challenge):
+            with simple_tar(path, f"/challenge/{path.name}") as tar:
+                container.put_archive("/", tar)
+        container.exec_run("chown -R root:root /challenge")
+        container.exec_run("chmod -R 4755 /challenge")
 
     @staticmethod
     def insert_flag(container, flag):

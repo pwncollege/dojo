@@ -20,7 +20,6 @@ from .docker_challenge import DockerChallenge, docker_namespace
 from .user_flag import UserFlag, user_flag_namespace
 from .ssh_key import SSHKeys, SSHKeyForm, ssh_key_settings, ssh_key_namespace
 from .scoreboard import scoreboard_listing
-from .download import download, download_namespace
 from .terminal import terminal, terminal_namespace
 from .challenges import challenges_listing, challenges
 from .workspace import workspace
@@ -58,7 +57,6 @@ def load(app):
     api.add_namespace(docker_namespace, "/docker")
     api.add_namespace(user_flag_namespace, "/user_flag")
     api.add_namespace(ssh_key_namespace, "/ssh_key")
-    api.add_namespace(download_namespace, "/download")
     api.add_namespace(terminal_namespace, "/terminal")
     api.add_namespace(binary_ninja_namespace, "/binary_ninja")
     api.add_namespace(belts_namespace, "/belts")

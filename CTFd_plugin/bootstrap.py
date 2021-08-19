@@ -1,8 +1,10 @@
+import re
+
 from CTFd.models import db, Admins, Pages, Flags
 from CTFd.utils import config, get_config, set_config
 
 from .docker_challenge import DockerChallenges
-from .utils import challenge_paths
+from .utils import CHALLENGES_DIR
 
 
 def bootstrap():
@@ -33,9 +35,27 @@ def bootstrap():
 
         set_config("setup", True)
 
-    for path in challenge_paths():
-        name = path.name
-        category = path.parent.name
+    def natural_key(text):
+        def atof(text):
+            try:
+                retval = float(text)
+            except ValueError:
+                retval = text
+            return retval
+
+        return [
+            atof(c) for c in re.split(r"[+-]?([0-9]+(?:[.][0-9]*)?|[.][0-9]+)", text)
+        ]
+
+    challenges = sorted(
+        ((path.parent.name, path.name) for path in CHALLENGES_DIR.glob("*/*")),
+        key=lambda k: (k[0], natural_key(k[1])),
+    )
+    for category, name in challenges:
+        if name.startswith(".") or name.startswith("_"):
+            continue
+        if category.startswith(".") or category.startswith("_"):
+            continue
 
         challenge = DockerChallenges.query.filter_by(
             name=name, category=category

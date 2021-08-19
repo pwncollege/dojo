@@ -99,26 +99,6 @@ def view_challenges(permalink):
             user_solves = set(e[0] for e in user_solves)
             current_challenge_id = get_current_challenge_id()
 
-
-
-    lectures = [
-        {
-            "name": "Shellcoding: Introduction",
-            "video": "https://www.youtube.com/embed/715v_-YnpT8?list=PL-ymxv0nOtqo9oqE5X2cDasbmWVhyVy14",
-            "slides": "https://docs.google.com/presentation/d/1kkfh-dhgxfIZPB1ziyW2JQiC1MbQWn8c7e24kOoDxJ4",
-        },
-        {
-            "name": "Shellcoding: Common Challenges",
-            "video": "https://www.youtube.com/embed/i1jXV8W-CYQ?list=PL-ymxv0nOtqo9oqE5X2cDasbmWVhyVy14",
-            "slides": "https://docs.google.com/presentation/d/1BHsKKkodMLXcHyqJCU0wDgexQ8jHEEiAU9Uq_Z9mibY",
-        },
-        {
-            "name": "Shellcoding: Data Execution Prevention",
-            "video": "https://www.youtube.com/embed/GH4NBLtPmyo?list=PL-ymxv0nOtqo9oqE5X2cDasbmWVhyVy14",
-            "slides": "https://docs.google.com/presentation/d/1tH6jbnpX2_T5ZeDzZBfpLZ-ngpIZp3g25PPQaTr52JU",
-        },
-    ]
-
     return render_template(
         "challenges.html",
         module=module,
