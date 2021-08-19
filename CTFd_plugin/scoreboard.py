@@ -19,7 +19,7 @@ def email_group_asset(email):
         group = "student.png"
     else:
         group = "hacker.png"
-    return f"plugins/CTFd-pwn-college-plugin/assets/scoreboard/{group}"
+    return f"plugins/pwncollege_plugin/assets/scoreboard/{group}"
 
 
 def get_category_standings(admin=False):

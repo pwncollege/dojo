@@ -1,11 +1,16 @@
 version: '3.3'
 
 services:
+  challenge:
+    build: challenge
+    entrypoint: /bin/true
+
   ctfd:
-    container_name: "${COMPOSE_PROJECT_NAME}_ctfd"
+    container_name: ctfd
     build: CTFd
     user: root
     restart: always
+    privileged: true
     ulimits:
         nofile:
             soft: 32768
@@ -20,24 +25,20 @@ services:
       - ERROR_LOG=-
       - REVERSE_PROXY=true
       - SERVER_SENT_EVENTS=false
-      - VIRTUAL_PORT=8000
     env_file:
-      - ./config.env
+      - ./data/config.env
     volumes:
-      - .data/CTFd/logs:/var/log/CTFd
-      - .data/CTFd/uploads:/var/uploads
+      - ./data/CTFd/logs:/var/log/CTFd
+      - ./data/CTFd/uploads:/var/uploads
+      - ./data/homes:/var/homes:shared
+      - ./data/challenges:/var/challenges:ro
       - ./CTFd:/opt/CTFd:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - .data/challenges:/challenges:ro
     depends_on:
       - db
-      # - home_daemon
-    networks:
-        default:
-        internal:
 
   db:
-    container_name: "${COMPOSE_PROJECT_NAME}_db"
+    container_name: ctfd_db
     image: mariadb:10.4.12
     restart: always
     environment:
@@ -46,38 +47,46 @@ services:
       - MYSQL_PASSWORD=ctfd
       - MYSQL_DATABASE=ctfd
     volumes:
-      - .data/mysql:/var/lib/mysql
-    networks:
-        internal:
+      - ./data/mysql:/var/lib/mysql
     # This command is required to set important mariadb defaults
     command: [mysqld, --character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci, --wait_timeout=28800, --log-warnings=0]
 
   cache:
-    container_name: "${COMPOSE_PROJECT_NAME}_cache"
+    container_name: ctfd_cache
     image: redis:4
     restart: always
     volumes:
-      - .data/redis:/data
-    networks:
-        internal:
+      - ./data/redis:/data
 
-  # home_daemon:
-  #   build: home_daemon
-  #   user: root
-  #   restart: always
-  #   privileged: true
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    container_name: ctfd_proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - conf:/etc/nginx/conf.d
+      - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx-proxy/etc/passwd:/etc/passwd
+      - html:/usr/share/nginx/html
+      - dhparam:/etc/nginx/dhparam
+      - certs:/etc/nginx/certs:ro
+      - ./data/homes:/var/homes:shared
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+
+  # acme-companion:
+  #   image: nginxproxy/acme-companion
+  #   container_name: ctfd_acme
+  #   volumes_from:
+  #     - nginx-proxy
   #   volumes:
-  #     - type: bind
-  #       source: .data/homes
-  #       target: /homes
-  #       bind:
-  #           propagation: shared
-  #   networks:
-  #       internal:
+  #     - certs:/etc/nginx/certs:rw
+  #     - acme:/etc/acme.sh
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
 
-networks:
-    default:
-        external:
-            name: "${COMPOSE_PROJECT_NAME}_network"
-    internal:
-        internal: true
+volumes:
+  conf:
+  html:
+  dhparam:
+  certs:
+  acme:

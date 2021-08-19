@@ -1,0 +1,14 @@
+[Unit]
+Description=pwn.college docker-compose service
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+WorkingDirectory=/opt/pwn.college
+ExecStart=/usr/local/bin/docker-compose up -d --build --remove-orphans
+ExecStop=/usr/local/bin/docker-compose down
+
+[Install]
+WantedBy=multi-user.target

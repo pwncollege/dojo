@@ -5,7 +5,7 @@ from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.security.signing import serialize
 
-from .settings import INSTANCE, BINARY_NINJA_API_KEY
+from .settings import VIRTUAL_HOST, BINARY_NINJA_API_KEY
 from .docker_challenge import DockerChallenges
 
 
@@ -35,7 +35,8 @@ class GenerateSession(Resource):
 
         token = serialize({"account_id": account_id, "challenge_id": challenge_id})
 
-        download_url = f"https://{INSTANCE}.pwn.college/download/{token}"
+        # TODO: this is broken
+        download_url = f"https://{VIRTUAL_HOST}/download/{token}"
 
         category = challenge.category
         challenge = challenge.name

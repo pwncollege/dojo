@@ -56,6 +56,15 @@ function workon(challenge_id, practice=false) {
         },
         body: JSON.stringify(params)
     }).then(function (response) {
+        if (response.status === 403) {
+            // User is not logged in or CTF is paused.
+            window.location =
+                CTFd.config.urlRoot +
+                "/login?next=" +
+                CTFd.config.urlRoot +
+                window.location.pathname +
+                window.location.hash;
+        }
         return response.json();
     }).then(function (result) {
         var result_notification = $('#result-notification');
@@ -76,7 +85,12 @@ function workon(challenge_id, practice=false) {
             result_notification.addClass('alert alert-info alert-dismissable text-center');
         }
         else {
-            result_message.html(result.error);
+            var message = "";
+            message += "Error:";
+            message += "<br>";
+            message += "<code>" + result.error + "</code>";
+            message += "<br>";
+            result_message.html(message);
             result_notification.addClass('alert alert-warning alert-dismissable text-center');
         }
 

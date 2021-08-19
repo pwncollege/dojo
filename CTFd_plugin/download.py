@@ -10,7 +10,7 @@ from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.security.signing import serialize, unserialize
 
-from .settings import INSTANCE
+from .settings import VIRTUAL_HOST
 from .utils import challenge_path
 from .docker_challenge import DockerChallenges
 
@@ -104,5 +104,5 @@ class GenerateDownload(Resource):
 
         return {
             "success": True,
-            "url": f"https://{INSTANCE}.pwn.college/download/{token}",
+            "url": f"https://{VIRTUAL_HOST}/download/{token}",
         }

@@ -1,39 +1,21 @@
 #!/bin/sh
 
-set -e
+DIR="$(readlink -f $(dirname $0))"
 
-cd "$(dirname "$0")"
-
-export $(cat config.env | xargs)
-
-if [ -z "$(docker ps -q -f name=nginx-proxy)" ]; then
-    docker run \
-           --detach \
-           --name nginx-proxy \
-           --publish 80:80 \
-           --publish 443:443 \
-           --volume /etc/nginx/certs \
-           --volume $PWD/conf/nginx/vhost.d:/etc/nginx/vhost.d \
-           --volume /usr/share/nginx/html \
-           --volume /var/run/docker.sock:/tmp/docker.sock:ro \
-           jwilder/nginx-proxy
+if [ ! -f "$DIR/data/config.env" ] && [ -z "$SETUP_HOSTNAME" ]; then
+    echo "Error: instance not setup; rerun with SETUP_HOSTNAME environment variable!"
+    exit 1
 fi
 
-if [ -z "$(docker ps -q -f name=nginx-proxy-letsencrypt)" ]; then
-    docker run \
-           --detach \
-           --name nginx-proxy-letsencrypt \
-           --volumes-from nginx-proxy \
-           --volume /var/run/docker.sock:/var/run/docker.sock:ro \
-           jrcs/letsencrypt-nginx-proxy-companion
-    # --env "DEFAULT_EMAIL=example@example.com" \
-fi
-
-if ! docker network inspect "${PWN_COLLEGE_INSTANCE}_network" -f '{{range .Containers}}{{println .Name}}{{end}}' | grep -q nginx-proxy; then
-    docker network connect "${PWN_COLLEGE_INSTANCE}_network" nginx-proxy
-fi
-
-cp -r CTFd_plugin/. CTFd/CTFd/plugins/CTFd-pwn-college-plugin/
-docker-compose down
-docker-compose up -d
-docker-compose logs -f
+docker run \
+       --privileged \
+       --detach \
+       --rm \
+       --volume $PWD/data/docker:/var/lib/docker \
+       --volume $PWD/data:/opt/pwn.college/data \
+       --publish 22:22 \
+       --publish 80:80 \
+       --publish 443:443 \
+       --env SETUP_HOSTNAME="$SETUP_HOSTNAME" \
+       --name pwn.college \
+       pwn.college

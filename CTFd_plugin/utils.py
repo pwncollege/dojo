@@ -1,11 +1,14 @@
 import os
 import re
+import pathlib
+import tempfile
+import tarfile
 
 from flask import current_app
 from itsdangerous.url_safe import URLSafeSerializer
 from itsdangerous.exc import BadSignature
 
-from .settings import INSTANCE
+CHALLENGES_DIR = pathlib.Path("/var/challenges")
 
 
 def serialize_user_flag(account_id, challenge_id, challenge_data=None, *, secret=None):
@@ -48,11 +51,27 @@ def challenge_path(account_id, category, challenge):
     if not is_safe(account_id) or not is_safe(category) or not is_safe(challenge):
         return None
 
-    paths = [
-        os.path.join("/", "challenges", account_id, category, challenge),
-        os.path.join("/", "challenges", "global", category, challenge),
-    ]
+    path = CHALLENGES_DIR / category / challenge
+    if path.exists():
+        return path
 
-    for path in paths:
-        if os.path.exists(path):
-            return path
+
+def challenge_paths():
+    for path in CHALLENGES_DIR.glob("*/*"):
+        if path.parent.name.startswith("."):
+            continue
+        if path.name.startswith("."):
+            continue
+        yield path
+
+
+def simple_tar(path, name=None):
+    f = tempfile.NamedTemporaryFile()
+    t = tarfile.open(mode="w", fileobj=f)
+
+    abs_path = os.path.abspath(path)
+    t.add(abs_path, arcname=(name or os.path.basename(path)))
+
+    t.close()
+    f.seek(0)
+    return f

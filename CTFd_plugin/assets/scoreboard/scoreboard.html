@@ -1,5 +1,20 @@
 {% extends "base.html" %}
 
+{% block stylesheets %}
+<style>
+  .scoreboard-name {
+      color: rgb(99, 192, 245);
+      text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
+  }
+
+  .scoreboard-symbol {
+      margin: auto;
+      height: 3em;
+  }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <div class="jumbotron">
   <div class="container">
@@ -9,33 +24,28 @@
 <div class="container">
   {% include "components/errors.html" %}
 
-  <div id="score-graph" class="row d-flex align-items-center">
-    <div class="col-md-12 text-center">
-      <i class="fas fa-circle-notch fa-spin fa-3x fa-fw spinner"></i>
-    </div>
-  </div>
+  <h2>All Time Rankings</h2>
 
-  {% if standings %}
   <div id="scoreboard" class="row">
     <div class="col-md-12">
       <table class="table table-striped">
 	<thead>
 	  <tr>
-	    <td scope="col" width="10px"><b>Place</b></td>
-            <td scope="col" width="10px"></td>
-	    <td scope="col"><b>Team</b></td>
-	    <td scope="col"><b>Score</b></td>
+	    <td scope="col" class="col-md-1"><b>Rank</b></td>
+            <td scope="col" class="col-md-1"></td>
+	    <td scope="col" class="col-md-9"><b>Hacker</b></td>
+	    <td scope="col" class="col-md-1"><b>Score</b></td>
 	  </tr>
 	</thead>
 	<tbody>
 	  {% for standing in standings %}
 	  <tr>
-	    <th scope="row" class="text-center">{{ loop.index }}</th>
-            <td style="padding-top: 0px; padding-bottom: 0px;">
-              <img src="{{ email_group_asset(standing.email) }}" style="height: 3em;">
+	    <th scope="row">#{{ loop.index }}</th>
+            <td class="p-0">
+              <img src="{{ email_group_asset(standing.email) }}" class="scoreboard-symbol">
             </td>
 	    <td>
-	      <a href="{{ generate_account_url(standing.account_id) }}">
+	      <a href="{{ generate_account_url(standing.account_id) }}" class="scoreboard-name text-decoration-none">
 		{{ standing.name | truncate(50) }}
 	      </a>
 	    </td>
@@ -46,14 +56,9 @@
       </table>
     </div>
   </div>
-  {% endif %}
 </div>
 {% endblock %}
 
-{% block scripts %}
-<script defer src="{{ url_for('views.themes', path='js/echarts.bundle.js') }}"></script>
-{% endblock %}
-
 {% block entrypoint %}
-<script defer src="{{ url_for('views.themes', path='js/pages/scoreboard.js') }}"></script>
+<script defer src="/plugins/pwncollege_plugin/assets/scoreboard/scoreboard.js"></script>
 {% endblock %}

@@ -4,8 +4,6 @@ from flask_restx import Namespace, Resource
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
-from .settings import INSTANCE
-
 
 terminal = Blueprint("terminal", __name__, template_folder="assets/terminal/")
 terminal_namespace = Namespace("terminal", description="Endpoint to manage terminal")
@@ -15,7 +13,7 @@ terminal_namespace = Namespace("terminal", description="Endpoint to manage termi
 @authed_only
 def view_terminal():
     user = get_current_user()
-    container_name = f"{INSTANCE}_user_{user.id}"
+    container_name = f"user_{user.id}"
     return render_template("terminal.html")
 
 
@@ -25,7 +23,7 @@ def terminal_ws():
     response = Response()
 
     user = get_current_user()
-    container_name = f"{INSTANCE}_user_{user.id}"
+    container_name = f"user_{user.id}"
 
     redirect_uri = f"http://unix:/tmp/docker.sock:/containers/{container_name}/attach/ws?logs=0&stream=1&stdin=1&stdout=1&stderr=1"
 
@@ -44,22 +42,22 @@ class TerminalResize(Resource):
             width = int(data.get("width"))
             height = int(data.get("height"))
         except (ValueError, TypeError):
-            return {"success": False, "error": "Invalid width or height"}
+            return {"success": False, "error": "ERROR: Invalid width or height"}
 
         docker_client = docker.from_env()
 
         user = get_current_user()
-        container_name = f"{INSTANCE}_user_{user.id}"
+        container_name = f"user_{user.id}"
 
         try:
             container = docker_client.containers.get(container_name)
         except docker.errors.NotFound:
-            return {"success": False, "error": "No active container"}
+            return {"success": False, "error": "ERROR: No active container"}
 
         try:
             container.resize(height, width)
         except Exception as e:
-            print(f"Docker failed: {e}", file=sys.stderr, flush=True)
+            print(f"ERROR: Docker failed: {e}", file=sys.stderr, flush=True)
             return {"success": False, "error": "Docker failed"}
 
         return {"success": True}

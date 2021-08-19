@@ -1,0 +1,7 @@
+UsePAM yes
+
+Match User hacker
+      AuthorizedKeysCommand /opt/pwn.college/ssh/auth.py
+      AuthorizedKeysCommandUser root
+      X11Forwarding no
+      AllowTcpForwarding no

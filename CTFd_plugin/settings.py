@@ -1,13 +1,13 @@
 import os
 import sys
 
-INSTANCE = os.getenv("PWN_COLLEGE_INSTANCE")
+VIRTUAL_HOST = os.getenv("VIRTUAL_HOST")
 HOST_DATA_PATH = os.getenv("HOST_DATA_PATH")
 BINARY_NINJA_API_KEY = os.getenv("BINARY_NINJA_API_KEY")
 
-if not INSTANCE:
+if not VIRTUAL_HOST:
     raise RuntimeError(
-        "Configuration Error: PWN_COLLEGE_INSTANCE must be set in the environment"
+        "Configuration Error: VIRTUAL_HOST must be set in the environment"
     )
 
 if not HOST_DATA_PATH:

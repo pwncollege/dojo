@@ -1,0 +1,99 @@
+body {
+    background: #151515 url(https://pwn.college/assets/images/bkg.png) 0 0;
+}
+
+.modal-content {
+    background-color: #151515 !important;
+}
+
+body, table, .form-control:focus, .close {
+    color: #eaeaea !important;
+}
+
+.navbar-brand, .nav-link, h1, h2 {
+    color: #b5e853 !important;
+}
+
+a {
+    color: #63c0f5;
+    text-shadow: 0 0 5px rgba(104,182,255,0.15);
+}
+
+nav {
+    border-bottom: 1px dashed #b5e853;
+}
+
+.modal-dialog {
+    margin-top: 15%;
+}
+
+.modal-content {
+    border: 1px dashed #b5e853;
+}
+
+.navbar-brand, .nav-link, body, p, h1, h2, h3, h4, td {
+    font-family: Monaco, "Bitstream Vera Sans Mono", "Lucida Console", Terminal, monospace !important;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.1),0 0 5px rgba(181,232,83,0.1),0 0 10px rgba(181,232,83,0.1);
+}
+
+.navbar-brand::before {
+    content: "./"
+}
+
+.nav-tabs {
+    border-bottom: 1px solid #6c757d;
+}
+
+.nav-link.active {
+    border-color: #6c757d #6c757d #151515 !important;
+}
+
+.nav-link:hover:not(.active) {
+    border-color: #6c757d !important;
+}
+
+.challenge-button {
+    margin-bottom: 1.5rem !important
+}
+
+.challenge-button > p {
+    margin-top: 1rem;
+}
+
+.challenge-name {
+    padding-bottom: 1rem;
+}
+
+.challenge-button > span, .challenge-value {
+    display: none;
+}
+
+.bg-dark, .jumbotron, .nav-link.active, .form-control {
+    background-color: inherit !important;
+}
+
+.table-striped tbody tr:nth-of-type(2n+1) {
+    background-color: rgba(255,255,255,0.1);
+}
+
+#score-graph, #score-graph > div, #score-graph > div > canvas {
+    position: absolute !important;
+    display: none !important;
+}
+
+#scoreboard > div > table > tbody > tr > td > img {
+    filter: drop-shadow(0px 0px 3px white);
+}
+
+#scoreboard > div > table > thead > tr > td:nth-child(3) > b {
+    display: none;
+}
+
+#scoreboard > div > table > thead > tr > td:nth-child(3)::after {
+    content: "Hacker";
+    font-weight: bold;
+}

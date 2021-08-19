@@ -52,8 +52,8 @@ class MultiSolves(db.Model):
 class UserFlag(BaseFlag):
     name = "user"
     templates = {  # Nunjucks templates used for key editing & viewing
-        "create": "/plugins/CTFd-pwn-college-plugin/assets/user_flag/create.html",
-        "update": "/plugins/CTFd-pwn-college-plugin/assets/user_flag/edit.html",
+        "create": "/plugins/pwncollege_plugin/assets/user_flag/create.html",
+        "update": "/plugins/pwncollege_plugin/assets/user_flag/edit.html",
     }
 
     @staticmethod

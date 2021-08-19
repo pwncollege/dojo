@@ -1,0 +1,27 @@
+#!/bin/sh
+
+if [ ! -f /opt/pwn.college/data/config.env ]; then
+    cat <<EOF >> /opt/pwn.college/data/config.env
+SECRET_KEY=$(openssl rand -hex 16)
+HOST_DATA_PATH=/opt/pwn.college/data
+VIRTUAL_HOST=localhost.pwn.college
+VIRTUAL_PORT=8000
+LETSENCRYPT_HOST=localhost.pwn.college
+EOF
+fi
+
+if [ ! -f /opt/pwn.college/data/homes/homefs ]; then
+    mkdir -p /opt/pwn.college/data/homes
+    mkdir -p /opt/pwn.college/data/homes/data
+    mkdir -p /opt/pwn.college/data/homes/nosuid
+    dd if=/dev/zero of=/opt/pwn.college/data/homes/homefs bs=1M count=0 seek=1000
+    mkfs.ext4 -O ^has_journal /opt/pwn.college/data/homes/homefs
+    mount /opt/pwn.college/data/homes/homefs -o X-mount.mkdir /opt/pwn.college/data/homes/homefs_mount
+    rm -rf /opt/pwn.college/data/homes/homefs_mount/lost+found/
+    cp -a /etc/skel/. /opt/pwn.college/data/homes/homefs_mount
+    chown -R hacker:hacker /opt/pwn.college/data/homes/homefs_mount
+    umount /opt/pwn.college/data/homes/homefs_mount
+    rm -rf /opt/pwn.college/data/homes/homefs_mount
+fi
+
+exec /usr/bin/systemd
