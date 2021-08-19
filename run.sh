@@ -7,6 +7,10 @@ if [ ! -f "$DIR/data/config.env" ] && [ -z "$SETUP_HOSTNAME" ]; then
     exit 1
 fi
 
+docker build -t pwn.college .
+
+docker kill pwn.college
+
 docker run \
        --privileged \
        --detach \

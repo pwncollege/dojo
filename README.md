@@ -6,6 +6,5 @@ Deploy a pwn.college instance!
 
 ```sh
 curl -fsSL https://get.docker.com | /bin/sh
-docker build -t pwn.college .
 SETUP_HOSTNAME=<DOMAIN> ./run.sh
 ```
