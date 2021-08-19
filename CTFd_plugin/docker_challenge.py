@@ -190,7 +190,7 @@ class RunDocker(Resource):
             init=True,
             cap_add=["SYS_PTRACE"],
             security_opt=[f"seccomp={SECCOMP}"],
-            pids_limit=100,
+            pids_limit=1024,
             mem_limit="4000m",
             detach=True,
             tty=True,
