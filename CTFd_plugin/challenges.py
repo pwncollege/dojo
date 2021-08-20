@@ -1,16 +1,12 @@
 import yaml
 from flask import Blueprint, render_template, abort
 from CTFd.models import db, Solves, Challenges
+from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.decorators.visibility import check_challenge_visibility
 
 from .docker_challenge import get_current_challenge_id
-from .utils import CHALLENGES_DIR
-
-
-with open(CHALLENGES_DIR / "modules.yml") as f:
-    modules = yaml.load(f.read(), Loader=yaml.BaseLoader)
 
 
 challenges = Blueprint(
@@ -20,6 +16,8 @@ challenges = Blueprint(
 
 @check_challenge_visibility
 def challenges_listing():
+    modules = yaml.load(get_config("modules"), Loader=yaml.BaseLoader)
+
     challenges = (
         Challenges.query.filter(Challenges.state == "visible")
         .group_by(Challenges.category)
@@ -57,6 +55,8 @@ def challenges_listing():
 @challenges.route("/challenges/<permalink>")
 @check_challenge_visibility
 def view_challenges(permalink):
+    modules = yaml.load(get_config("modules"), Loader=yaml.BaseLoader)
+
     for module in modules:
         if module.get("permalink") == permalink:
             break

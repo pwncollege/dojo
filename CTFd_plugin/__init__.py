@@ -15,7 +15,7 @@ from CTFd.plugins import (
 from CTFd.plugins.challenges import CHALLENGE_CLASSES
 from CTFd.plugins.flags import FLAG_CLASSES
 
-from .bootstrap import bootstrap
+from .bootstrap import bootstrap_namespace, Bootstrap
 from .docker_challenge import DockerChallenge, docker_namespace
 from .user_flag import UserFlag, user_flag_namespace
 from .ssh_key import SSHKeys, SSHKeyForm, ssh_key_settings, ssh_key_namespace
@@ -54,6 +54,7 @@ def load(app):
 
     blueprint = Blueprint("pwncollege_api", __name__)
     api = Api(blueprint, version="v1", doc=current_app.config.get("SWAGGER_UI"))
+    api.add_namespace(bootstrap_namespace, "/bootstrap")
     api.add_namespace(docker_namespace, "/docker")
     api.add_namespace(user_flag_namespace, "/user_flag")
     api.add_namespace(ssh_key_namespace, "/ssh_key")
@@ -71,4 +72,4 @@ def load(app):
 
     app.register_blueprint(workspace)
 
-    bootstrap()
+    Bootstrap.bootstrap()

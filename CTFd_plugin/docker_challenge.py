@@ -129,7 +129,7 @@ class RunDocker(Resource):
         flag = "practice" if practice else serialize_user_flag(user.id, challenge.id)
         self.insert_flag(container, flag)
 
-        return {"success": True, "ssh": f"ssh hacker@{VIRTUAL_HOST}"}
+        return {"success": True}
 
     @authed_only
     def get(self):
