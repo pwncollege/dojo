@@ -24,3 +24,13 @@ The `_global` directories contain "global" files that will always be inserted in
 The `<i>` directories contain additional files which enable user-randomized challenges.
 
 These files will end up in the challenge instance container in `/challenges`. Everything will be root-suid.
+
+#### modules.yml
+
+This file specifies some module metadata.
+The basic structure looks something like:
+```
+- name: Example module
+  permalink: example
+  category: example
+```
