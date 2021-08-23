@@ -8,6 +8,7 @@ fi
 if [ ! -f /opt/pwn.college/data/config.env ]; then
     cat <<EOF >> /opt/pwn.college/data/config.env
 SECRET_KEY=$(openssl rand -hex 16)
+DOCKER_PSLR=$(openssl rand -hex 16)
 HOST_DATA_PATH=/opt/pwn.college/data
 VIRTUAL_HOST=$SETUP_HOSTNAME
 VIRTUAL_PORT=8000

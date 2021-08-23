@@ -3,7 +3,7 @@ from flask import request, Blueprint, Response, render_template
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
-from .docker_challenge import get_current_challenge_id
+from .docker_challenge import get_current_challenge_id, random_home_path
 
 
 workspace = Blueprint("workspace", __name__, template_folder="assets/workspace/")
@@ -27,7 +27,7 @@ def forward_workspace(path):
     response = Response()
 
     user = get_current_user()
-    redirect_uri = f"http://unix:/var/homes/nosuid/{user.id}/.local/share/code-server/workspace.socket:/{path}"
+    redirect_uri = f"http://unix:/var/homes/nosuid/{random_home_path(user)}/.local/share/code-server/workspace.socket:/{path}"
 
     response.headers["X-Accel-Redirect"] = "/internal/"
     response.headers["redirect_uri"] = redirect_uri

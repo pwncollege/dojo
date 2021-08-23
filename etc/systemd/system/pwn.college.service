@@ -7,7 +7,7 @@ After=docker.service
 Type=oneshot
 RemainAfterExit=true
 WorkingDirectory=/opt/pwn.college
-ExecStart=/usr/local/bin/docker-compose up -d --build --remove-orphans
+ExecStart=/usr/local/bin/docker-compose --env-file=/opt/pwn.college/data/config.env up -d --build --remove-orphans
 ExecStop=/usr/local/bin/docker-compose down
 
 [Install]

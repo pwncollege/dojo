@@ -64,6 +64,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      - DOCKER_HOST=unix:///tmp/${DOCKER_PSLR}/docker.sock
     volumes:
       - conf:/etc/nginx/conf.d
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
@@ -72,7 +74,7 @@ services:
       - dhparam:/etc/nginx/dhparam
       - certs:/etc/nginx/certs:ro
       - ./data/homes:/var/homes:shared
-      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - /var/run/docker.sock:/tmp/${DOCKER_PSLR}/docker.sock:ro
 
   acme-companion:
     image: nginxproxy/acme-companion

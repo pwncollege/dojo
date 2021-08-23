@@ -1,3 +1,4 @@
+PasswordAuthentication no
 UsePAM yes
 
 Match User hacker

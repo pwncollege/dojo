@@ -3,6 +3,7 @@ import re
 import pathlib
 import tempfile
 import tarfile
+import hashlib
 
 from flask import current_app
 from itsdangerous.url_safe import URLSafeSerializer
@@ -75,3 +76,10 @@ def simple_tar(path, name=None):
     t.close()
     f.seek(0)
     return f
+
+
+def random_home_path(user, *, secret=None):
+    if secret is None:
+        secret = current_app.config["SECRET_KEY"]
+
+    return hashlib.sha256(f"{secret}_{user.id}".encode()).hexdigest()[:16]

@@ -25,7 +25,7 @@ from CTFd.plugins.challenges import BaseChallenge
 from CTFd.plugins.flags import get_flag_class
 
 from .settings import VIRTUAL_HOST, HOST_DATA_PATH
-from .utils import serialize_user_flag, challenge_paths, simple_tar
+from .utils import serialize_user_flag, challenge_paths, simple_tar, random_home_path
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -140,7 +140,7 @@ class RunDocker(Resource):
         homes = pathlib.Path("/var/homes")
         homefs = homes / "homefs"
         user_data = homes / "data" / str(user.id)
-        user_nosuid = homes / "nosuid" / str(user.id)
+        user_nosuid = homes / "nosuid" / random_home_path(user)
 
         assert homefs.exists()
         user_data.parent.mkdir(exist_ok=True)
@@ -181,7 +181,7 @@ class RunDocker(Resource):
             mounts=[
                 docker.types.Mount(
                     "/home/hacker",
-                    f"{HOST_DATA_PATH}/homes/nosuid/{user.id}",
+                    f"{HOST_DATA_PATH}/homes/nosuid/{random_home_path(user)}",
                     "bind",
                     propagation="shared",
                 ),
