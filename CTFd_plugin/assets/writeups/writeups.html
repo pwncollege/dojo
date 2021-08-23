@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block stylesheets %}
+<style>
+  .embed-responsive-a {
+      padding-top: 141.42%;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>Writeups</h1>
+  </div>
+</div>
+<div class="container">
+  <div class="row">
+    <div class="col-md-2 offset-md-1">
+      <div class="nav flex-column nav-pills" role="tablist">
+        <a class="nav-link active" id="upload-tab" data-toggle="pill" href="#writeups-upload" role="tab">Upload</a>
+        {% for week in weeks %}
+	<a class="nav-link" id="writeups-week{{ loop.index }}-tab" data-toggle="pill" href="#writeups-week{{ loop.index }}" role="tab">Week #{{ loop.index }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="col-md-8">
+      <div class="tab-content" id="v-pills-tabContent">
+	<div class="tab-pane fade show active" id="writeups-upload" role="tabpanel">
+          <h2>Upload</h2>
+          <br>
+          {% if countdown %}
+          <h3>{{ countdown }}</h3>
+          <br>
+          {% endif %}
+          <form method="post" enctype="multipart/form-data">
+            <div class="row">
+              <input name='nonce' type='hidden' value="{{ Session.nonce }}">
+	      <div class="col-md-6">
+                <input type="file" id="upload-writeup-week1" name="writeup" accept="application/pdf">
+              </div>
+	      <div class="col-md-6">
+                <input type="submit" value="Upload">
+              </div>
+            </div>
+          </form>
+        </div>
+        {% for week, writeup in weeks.items() %}
+	<div class="tab-pane fade" id="writeups-week{{ loop.index }}" role="tabpanel">
+          <h2>Week #{{ loop.index }}</h2>
+          <br>
+          {% if writeup %}
+          <div class="embed-responsive embed-responsive-a">
+            <embed src="/writeups/{{ writeup.id }}">
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

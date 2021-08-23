@@ -25,6 +25,7 @@ from .challenges import challenges_listing, challenges
 from .workspace import workspace
 from .binary_ninja import binary_ninja_namespace
 from .belts import belts_namespace
+from .writeups import writeups
 from .grades import grades
 
 
@@ -71,5 +72,7 @@ def load(app):
     app.register_blueprint(challenges)
 
     app.register_blueprint(workspace)
+
+    app.register_blueprint(writeups)
 
     Bootstrap.bootstrap()
