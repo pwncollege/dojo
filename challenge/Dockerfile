@@ -10,6 +10,7 @@ RUN apt-get update && \
     dpkg -l | grep ^ii | cut -d' ' -f3 | grep -v '^libgcc-s1:amd64$' | xargs apt-get install -y --reinstall && \
     apt-get install -y sudo \
                        build-essential \
+                       git \
                        gcc-multilib \
                        g++-multilib \
                        clang \
@@ -23,15 +24,17 @@ RUN apt-get update && \
                        ipython3 \
                        default-jdk \
                        net-tools \
+                       iproute2 \
                        nasm \
                        cmake \
                        rubygems \
                        emacs \
                        vim \
                        nano \
+                       ed \
+                       zsh \
                        tmux \
                        screen \
-                       git \
                        binwalk \
                        strace \
                        ltrace \
@@ -46,6 +49,8 @@ RUN apt-get update && \
                        hexedit \
                        parallel \
                        patchelf \
+                       genisoimage \
+                       whiptail \
                        binutils \
                        bsdmainutils \
                        bsdutils \
