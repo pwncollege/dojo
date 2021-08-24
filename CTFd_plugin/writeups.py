@@ -20,6 +20,7 @@ class WriteupFiles(Files):
 class WriteupComments(Comments):
     __mapper_args__ = {"polymorphic_identity": "writeup"}
     writeup_id = db.Column(db.Integer, db.ForeignKey("files.id", ondelete="CASCADE"))
+    accepted = db.Column(db.Boolean)
 
 
 @writeups.route("/writeups", methods=["GET", "POST"])
@@ -32,7 +33,7 @@ def view_writeups():
         (
             first_deadline + datetime.timedelta(weeks=i) - datetime.timedelta(days=4),
             first_deadline + datetime.timedelta(weeks=i),
-        ): None
+        ): (None, None)
         for i in range(16)
     }
 
@@ -51,7 +52,12 @@ def view_writeups():
     for writeup in writeups:
         for start, end in weeks:
             if start < writeup.date < end:
-                weeks[(start, end)] = writeup
+                comment = (
+                    WriteupComments.query.filter_by(writeup_id=writeup.id)
+                    .order_by(WriteupComments.date.desc())
+                    .first()
+                )
+                weeks[(start, end)] = (writeup, comment)
 
     countdown = None
     now = datetime.datetime.utcnow()
@@ -77,24 +83,45 @@ def view_writeup(writeup_id):
     return send_file(safe_join(uploader.base_path, writeup.location))
 
 
-@writeups.route("/admin/writeups/<int:user_id>")
+@writeups.route("/admin/writeups", methods=["GET", "POST"])
 @admins_only
-def view_admin_writeups(user_id):
-    user = Users.query.filter_by(id=user_id).first()
-
+def view_admin_writeups():
     first_deadline = datetime.datetime.fromisoformat("2021-08-24 06:59:00")
     weeks = {
         (
             first_deadline + datetime.timedelta(weeks=i) - datetime.timedelta(days=4),
             first_deadline + datetime.timedelta(weeks=i),
-        ): None
+        ): {}
         for i in range(16)
     }
 
-    writeups = WriteupFiles.query.filter_by(user_id=user.id).order_by(WriteupFiles.date)
+    if request.method == "POST":
+        user = get_current_user()
+
+        writeup_id = int(request.form["writeup_id"])
+        content = request.form["comment"]
+        accepted = request.form["accepted"].lower() == "accept"
+
+        comment = WriteupComments(
+            type="writeup",
+            content=content,
+            author_id=user.id,
+            writeup_id=writeup_id,
+            accepted=accepted,
+        )
+        db.session.add(comment)
+        db.session.commit()
+
+    writeups = WriteupFiles.query.order_by(WriteupFiles.date)
     for writeup in writeups:
         for start, end in weeks:
             if start < writeup.date < end:
-                weeks[(start, end)] = writeup
+                user = Users.query.filter_by(id=writeup.user_id).first()
+                comment = (
+                    WriteupComments.query.filter_by(writeup_id=writeup.id)
+                    .order_by(WriteupComments.date.desc())
+                    .first()
+                )
+                weeks[(start, end)][user] = (writeup, comment)
 
-    return render_template("writeups.html", weeks=weeks)
+    return render_template("admin_writeups.html", weeks=weeks)

@@ -5,6 +5,11 @@
   .embed-responsive-a {
       padding-top: 141.42%;
   }
+
+  .comment {
+      border-color: inherit;
+      box-shadow: inherit;
+  }
 </style>
 {% endblock %}
 
@@ -35,9 +40,9 @@
           {% endif %}
           <form method="post" enctype="multipart/form-data">
             <div class="row">
-              <input name='nonce' type='hidden' value="{{ Session.nonce }}">
+              <input name="nonce" type="hidden" value="{{ Session.nonce }}">
 	      <div class="col-md-6">
-                <input type="file" id="upload-writeup-week1" name="writeup" accept="application/pdf">
+                <input type="file" name="writeup" accept="application/pdf">
               </div>
 	      <div class="col-md-6">
                 <input type="submit" value="Upload">
@@ -45,14 +50,20 @@
             </div>
           </form>
         </div>
-        {% for week, writeup in weeks.items() %}
+        {% for week, (writeup, comment) in weeks.items() %}
 	<div class="tab-pane fade" id="writeups-week{{ loop.index }}" role="tabpanel">
           <h2>Week #{{ loop.index }}</h2>
           <br>
           {% if writeup %}
+          {% if comment %}
+          <h3>{{ "Accepted" if comment.accepted else "Rejected" }}</h3>
+          {% endif %}
           <div class="embed-responsive embed-responsive-a">
-            <embed src="/writeups/{{ writeup.id }}">
+            <embed data-src="/writeups/{{ writeup.id }}">
           </div>
+          {% if comment %}
+          <textarea readonly class="form-control comment" rows="2">{{ comment.content }}</textarea>
+          {% endif %}
           {% endif %}
         </div>
         {% endfor %}
@@ -60,4 +71,8 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script defer src="/plugins/pwncollege_plugin/assets/writeups/writeups.js"></script>
 {% endblock %}

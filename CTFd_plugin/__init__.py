@@ -74,5 +74,6 @@ def load(app):
     app.register_blueprint(workspace)
 
     app.register_blueprint(writeups)
+    register_admin_plugin_menu_bar("Writeups", "/admin/writeups")
 
     Bootstrap.bootstrap()

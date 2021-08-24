@@ -192,7 +192,7 @@ $(() => {
                 return $(this).data("src");
             });
         });
-    })
+    });
 
     $("#challenge-input").keyup(function(event) {
         if (event.keyCode == 13) {
