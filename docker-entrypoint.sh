@@ -30,4 +30,6 @@ if [ ! -f /opt/pwn.college/data/homes/homefs ]; then
     rm -rf /opt/pwn.college/data/homes/homefs_mount
 fi
 
+mkdir -p /opt/pwn.college/data/logging
+
 exec /usr/bin/systemd

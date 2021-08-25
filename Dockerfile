@@ -26,6 +26,7 @@ RUN mkdir -p /opt/pwn.college
 ADD docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 ADD script /opt/pwn.college/script
 ADD ssh /opt/pwn.college/ssh
+ADD logging /opt/pwn.college/logging
 ADD nginx-proxy /opt/pwn.college/nginx-proxy
 ADD challenge /opt/pwn.college/challenge
 ADD CTFd /opt/pwn.college/CTFd
@@ -35,10 +36,12 @@ ADD docker-compose.yml /opt/pwn.college/docker-compose.yml
 
 ADD etc/ssh/sshd_config /etc/ssh/sshd_config
 ADD etc/systemd/system/pwn.college.service /etc/systemd/system/pwn.college.service
+ADD etc/systemd/system/pwn.college.logging.service /etc/systemd/system/pwn.college.logging.service
 
 RUN find /opt/pwn.college/script -type f -exec ln -s {} /usr/bin/ \;
 
 RUN ln -s /etc/systemd/system/pwn.college.service /etc/systemd/system/multi-user.target.wants/pwn.college.service
+RUN ln -s /etc/systemd/system/pwn.college.logging.service /etc/systemd/system/multi-user.target.wants/pwn.college.logging.service
 
 WORKDIR /opt/pwn.college
 ENTRYPOINT ["/opt/pwn.college/docker-entrypoint.sh"]

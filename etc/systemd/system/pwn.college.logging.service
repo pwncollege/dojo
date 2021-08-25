@@ -1,0 +1,15 @@
+[Unit]
+Description=pwn.college logging service
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+WorkingDirectory=/opt/pwn.college
+ExecStart=/opt/pwn.college/logging/docker_events.py
+StandardOutput=append:/opt/pwn.college/data/logging/docker_events.log
+StandardError=append:/opt/pwn.college/data/logging/docker_events.errors.log
+
+[Install]
+WantedBy=multi-user.target
