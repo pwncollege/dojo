@@ -24,6 +24,9 @@ function renderSubmissionResponse(response, card) {
     const result_message = card.find("#result-message");
     const result_notification = card.find("#result-notification");
     const answer_input = card.find("#challenge-input");
+    const unsolved_flag = card.find(".challenge-unsolved");
+    const total_solves = card.find(".total-solves");
+
     result_notification.removeClass();
     result_message.text(result.message);
 
@@ -54,22 +57,12 @@ function renderSubmissionResponse(response, card) {
         );
         result_notification.slideDown();
 
-        if (
-            $(".challenge-solves")
-                .text()
-                .trim()
-        ) {
-            // Only try to increment solves if the text isn't hidden
-            $(".challenge-solves").text(
-                parseInt(
-                    $(".challenge-solves")
-                        .text()
-                        .split(" ")[0]
-                ) +
-                    1 +
-                    " Solves"
-            );
-        }
+        unsolved_flag.removeClass("challenge-unsolved");
+        unsolved_flag.addClass("challenge-solved");
+
+        total_solves.text(
+            (parseInt(total_solves.text().split(" ")[0]) + 1) + " solves"
+        );
 
         answer_input.val("");
         answer_input.removeClass("wrong");
@@ -114,10 +107,10 @@ function startChallenge(event) {
     const challenge_id = parseInt(card.find('#challenge-id').val())
     const practice = event.currentTarget.id == "challenge-practice";
 
-    $("#challenge-start").addClass("disabled-button");
-    $("#challenge-start").prop("disabled", true);
-    $("#challenge-practice").addClass("disabled-button");
-    $("#challenge-practice").prop("disabled", true);
+    card.find("#challenge-start").addClass("disabled-button");
+    card.find("#challenge-start").prop("disabled", true);
+    card.find("#challenge-practice").addClass("disabled-button");
+    card.find("#challenge-practice").prop("disabled", true);
 
     var params = {
         'challenge_id': challenge_id,
@@ -170,10 +163,10 @@ function startChallenge(event) {
         result_notification.slideDown();
 
         setTimeout(function() {
-            $("#challenge-start").removeClass("disabled-button");
-            $("#challenge-start").prop("disabled", false);
-            $("#challenge-practice").removeClass("disabled-button");
-            $("#challenge-practice").prop("disabled", false);
+            card.find("#challenge-start").removeClass("disabled-button");
+            card.find("#challenge-start").prop("disabled", false);
+            card.find("#challenge-practice").removeClass("disabled-button");
+            card.find("#challenge-practice").prop("disabled", false);
 
             card.find(".alert").slideUp();
             card.find("#challenge-submit").removeClass("disabled-button");
@@ -194,9 +187,10 @@ $(() => {
         });
     });
 
-    $("#challenge-input").keyup(function(event) {
+    $(".challenge-input").keyup(function (event) {
         if (event.keyCode == 13) {
-            $("#challenge-submit").click();
+            const submit = $(event.currentTarget).closest(".card").find("#challenge-submit");
+            submit.click();
         }
     });
 
