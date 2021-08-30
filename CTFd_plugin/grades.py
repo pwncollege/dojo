@@ -93,8 +93,8 @@ def compute_grades(user_id, when=None):
     grades.append({
         "category": "overall",
         "due": "",
-        "solves": f"{solves_total}/{num_available}",
-        "makeup": f"{makeup_solves_total}/{num_available}",
+        "solves": f"{solves_total}/{available_total}",
+        "makeup": f"{makeup_solves_total}/{available_total}",
         "grade": overall_grade,
     })
 
