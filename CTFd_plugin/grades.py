@@ -24,10 +24,10 @@ def compute_grades(user_id, when=None):
         for module in modules
         if "category" in module and "deadline" in module
     }
-    late_penalties = {
-        module["category"]: float(module["late_penalty"])
+    lates = {
+        module["category"]: float(module["late"])
         for module in modules
-        if "category" in module and "late_penalty" in module
+        if "category" in module and "late" in module
     }
 
     grades = []
@@ -64,8 +64,8 @@ def compute_grades(user_id, when=None):
         solves_total += num_solves
         makeup_solves_total += makeup_num_solves
 
-        late_value = late_penalties.get(category, 0.0)
-        grade = (num_solves + late_value * (makeup_num_solves - num_solves)) / num_available
+        late = lates.get(category, 0.0)
+        grade = (num_solves + late * (makeup_num_solves - num_solves)) / num_available
 
         now = datetime.datetime.utcnow()
         if deadline and deadline > now:
