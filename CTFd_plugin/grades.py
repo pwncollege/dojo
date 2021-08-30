@@ -1,28 +1,14 @@
 import datetime
 
+import yaml
 from flask import Blueprint, render_template, request
 from CTFd.models import db, Challenges, Solves, Awards, Users
+from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 
 
 grades = Blueprint("grades", __name__, template_folder="assets/grades/")
-
-deadlines = {
-    "babysuid": datetime.datetime(2020, 9, 2, 23),
-    "babyshell": datetime.datetime(2020, 9, 9, 23),
-    "babyjail": datetime.datetime(2020, 9, 16, 23),
-    "babyrev": datetime.datetime(2020, 9, 30, 23),
-    "babymem": datetime.datetime(2020, 10, 7, 23),
-    "toddler1": datetime.datetime(2020, 10, 21, 23),
-    "babyrop": datetime.datetime(2020, 10, 28, 23),
-    "babykernel": datetime.datetime(2020, 11, 4, 23),
-    "babyheap": datetime.datetime(2020, 11, 18, 23),
-    "babyrace": datetime.datetime(2020, 11, 25, 23),
-    "toddler2": datetime.datetime(2020, 12, 16, 23),
-    "babyauto": datetime.datetime(2020, 12, 16, 23, 1),
-}
-
 
 def average(data):
     data = list(data)
@@ -32,11 +18,21 @@ def average(data):
 
 
 def compute_grades(user_id, when=None):
+    modules = yaml.load(get_config("modules"), Loader=yaml.BaseLoader)
+    deadlines = {
+        module["category"]: datetime.datetime.fromisoformat(module["deadline"])
+        for module in modules
+        if "category" in module and "deadline" in module
+    }
+    late_penalties = {
+        module["category"]: module["late_penalty"]
+        for module in modules
+        if "category" in module and "late_penalty" in module
+    }
+
     grades = []
     available_total = 0
     solves_total = 0
-
-    makeup_grades = []
     makeup_solves_total = 0
 
     challenges = (
@@ -68,59 +64,39 @@ def compute_grades(user_id, when=None):
         solves_total += num_solves
         makeup_solves_total += makeup_num_solves
 
+        late_value = late_penalties.get(category, 0.0)
+        grade = (num_solves + late_value * (makeup_num_solves - num_solves)) / num_available
+
+        now = datetime.datetime.utcnow()
+        if deadline and deadline < now:
+            remainder = datetime.timedelta(seconds=int((deadline - now).total_seconds()))
+            due = f"{deadline} ({remainder})"
+        elif deadline:
+            due = f"{deadline}"
+        else:
+            due = ""
+
         grades.append(
             {
                 "category": category,
-                "due": str(deadline or ""),
-                "completed": f"{num_solves}/{num_available}",
-                "grade": num_solves / num_available,
+                "due": due,
+                "solves": f"{num_solves}/{num_available}",
+                "makeup": f"{makeup_num_solves}/{num_available}",
+                "grade": grade,
             }
         )
-
-        if category == "babyauto":
-            continue
-        makeup_grades.append(makeup_num_solves / num_available)
 
     max_time = datetime.datetime.max
     grades.sort(key=lambda k: (deadlines.get(k["category"], max_time), k["category"]))
 
-    weighted_grades = [g["grade"] for g in grades if g["category"] != "babyauto"]
-    makeup_grade = average(makeup_grades)
-    weighted_grades += [makeup_grade] * len(weighted_grades)
-    overall_grade = average(weighted_grades)
-    overall_grade += (
-        next(g["grade"] for g in grades if g["category"] == "babyauto") * 0.10
-    )
-
-    num_awards = Awards.query.filter_by(user_id=user_id).count()
-    extra_credit = num_awards * 0.01
-    grades.append(
-        {
-            "category": "extra",
-            "due": "",
-            "completed": f"{num_awards}",
-            "grade": extra_credit,
-        }
-    )
-    overall_grade += extra_credit
-
-    grades.append(
-        {
-            "category": "makeup",
-            "due": "",
-            "completed": f"{makeup_solves_total}/{available_total}",
-            "grade": makeup_grade,
-        }
-    )
-
-    grades.append(
-        {
-            "category": "overall",
-            "due": "",
-            "completed": f"{solves_total}/{available_total}",
-            "grade": overall_grade,
-        }
-    )
+    overall_grade = average(grade["grade"] for grade in grades)
+    grades.append({
+        "category": "overall",
+        "due": "",
+        "solves": f"{solves_total}/{num_available}",
+        "makeup": f"{makeup_solves_total}/{num_available}",
+        "grade": overall_grade,
+    })
 
     return grades
 
@@ -147,33 +123,27 @@ def view_grades():
     return render_template("grades.html", grades=grades)
 
 
-@grades.route("/grades/all", methods=["GET"])
+@grades.route("/admin/grades", methods=["GET"])
 @admins_only
 def view_all_grades():
     when = request.args.get("when")
     if when:
         when = datetime.datetime.fromtimestamp(int(when))
 
-    # TODO: this is the class student ids, should probably exist in a db
-    students = [1]
+    students = yaml.load(get_config("students"), Loader=yaml.BaseLoader)
 
     grades = []
-    for user_id in students:
+    for student in students:
+        user_id = student["dojo_id"]
+        if user_id == -1:
+            continue
         category_grades = compute_grades(user_id, when)
         user = Users.query.filter_by(id=user_id).first()
         user_grades = {
             "email": user.email,
             "id": user_id,
-            "overall": [
-                e["grade"] for e in category_grades if e["category"] == "overall"
-            ][0],
-            "makeup": [
-                e["grade"] for e in category_grades if e["category"] == "makeup"
-            ][0],
-            "extra": [e["grade"] for e in category_grades if e["category"] == "extra"][
-                0
-            ],
         }
+        category_grades.insert(0, category_grades.pop())  # Move overall to the start
         for category_grade in category_grades:
             category = category_grade["category"]
             grade = category_grade["grade"]
@@ -211,4 +181,4 @@ def view_all_grades():
                 continue
             statistic[key] = f"{value * 100.0:.2f}%"
 
-    return render_template("all_grades.html", grades=grades, statistics=statistics)
+    return render_template("admin_grades.html", grades=grades, statistics=statistics)

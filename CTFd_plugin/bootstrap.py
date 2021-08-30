@@ -38,6 +38,10 @@ class Bootstrap(Resource):
             modules = f.read()
         set_config("modules", modules)
 
+        with open(CHALLENGES_DIR / "students.yml") as f:
+            students = f.read()
+        set_config("students", students)
+
         if not config.is_setup():
             admin = Admins(
                 name="admin",

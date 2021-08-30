@@ -76,4 +76,7 @@ def load(app):
     app.register_blueprint(writeups)
     register_admin_plugin_menu_bar("Writeups", "/admin/writeups")
 
+    app.register_blueprint(grades)
+    register_admin_plugin_menu_bar("Grades", "/admin/grades")
+
     Bootstrap.bootstrap()

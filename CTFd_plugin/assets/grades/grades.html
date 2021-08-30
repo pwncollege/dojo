@@ -17,7 +17,7 @@
           <tr>
             <td scope="col"><b>Category</b></td>
             <td scope="col"><b>Due</b></td>
-            <td scope="col"><b>Completed</b></td>
+            <td scope="col"><b>Solves</b></td>
             <td scope="col"><b>Grade</b></td>
           </tr>
         </thead>
@@ -26,7 +26,7 @@
           <tr>
             <td>{{ grade.category }}</td>
             <td>{{ grade.due }}</td>
-            <td>{{ grade.completed }}</td>
+            <td>{{ grade.makeup }} ({{ grade.solves }})</td>
             <td>{{ grade.grade }}</td>
           </tr>
           {% endfor %}
