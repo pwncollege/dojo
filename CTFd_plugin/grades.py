@@ -25,7 +25,7 @@ def compute_grades(user_id, when=None):
         if "category" in module and "deadline" in module
     }
     late_penalties = {
-        module["category"]: module["late_penalty"]
+        module["category"]: float(module["late_penalty"])
         for module in modules
         if "category" in module and "late_penalty" in module
     }
@@ -134,7 +134,7 @@ def view_all_grades():
 
     grades = []
     for student in students:
-        user_id = student["dojo_id"]
+        user_id = int(student["dojo_id"])
         if user_id == -1:
             continue
         category_grades = compute_grades(user_id, when)
