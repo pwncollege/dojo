@@ -68,11 +68,12 @@ services:
       - DOCKER_HOST=unix:///tmp/${DOCKER_PSLR}/docker.sock
     volumes:
       - conf:/etc/nginx/conf.d
-      - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
-      - ./nginx-proxy/etc/passwd:/etc/passwd
       - html:/usr/share/nginx/html
       - dhparam:/etc/nginx/dhparam
       - certs:/etc/nginx/certs:ro
+      - ./nginx-proxy/etc/nginx/conf.d/pwncollege.conf:/etc/nginx/conf.d/pwncollege.conf
+      - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx-proxy/etc/passwd:/etc/passwd
       - ./data/homes:/var/homes:shared
       - /var/run/docker.sock:/tmp/${DOCKER_PSLR}/docker.sock:ro
 
