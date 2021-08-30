@@ -68,7 +68,7 @@ def compute_grades(user_id, when=None):
         grade = (num_solves + late_value * (makeup_num_solves - num_solves)) / num_available
 
         now = datetime.datetime.utcnow()
-        if deadline and deadline < now:
+        if deadline and deadline > now:
             remainder = datetime.timedelta(seconds=int((deadline - now).total_seconds()))
             due = f"{deadline} ({remainder})"
         elif deadline:
