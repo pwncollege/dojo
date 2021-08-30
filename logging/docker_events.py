@@ -18,11 +18,9 @@ def main():
         try:
             container = client.containers.get(container_id)
             challenge_id = int(container.attrs["Config"]["Env"][0].split("=")[1])
+            print(time, container_id, name, challenge_id, flush=True)
         except Exception as e:
             print(e, file=sys.stderr, flush=True)
-            challenge_id = -1
-
-        print(time, container_id, name, challenge_id, flush=True)
 
 
 if __name__ == "__main__":
