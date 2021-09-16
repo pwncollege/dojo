@@ -152,11 +152,9 @@ COPY .tmux.conf /opt/pwn.college/.tmux.conf
 COPY .gdbinit /opt/pwn.college/.gdbinit
 COPY .radare2rc /opt/pwn.college/.radare2rc
 
-RUN ln -sf /opt/pwn.college/.tmux.conf /home/hacker/.tmux.conf
-RUN ln -sf /opt/pwn.college/.gdbinit /home/hacker/.gdbinit
-RUN ln -sf /opt/pwn.college/.radare2rc /home/hacker/.radare2rc
-
-RUN ln -sf /home/hacker /root
+RUN ln -sf /home/hacker/.tmux.conf /root/.tmux.conf
+RUN ln -sf /home/hacker/.gdbinit /root/.gdbinit
+RUN ln -sf /home/hacker/.radare2rc /root/.radare2rc
 
 RUN echo 'pwn.college{uninitialized}' > /flag
 RUN chmod 400 /flag
