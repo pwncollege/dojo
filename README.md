@@ -9,7 +9,7 @@ CTFd provides for a concept of users, challenges, and users solving those challe
 From there, this repository provides infrastructure which expands upon these capabilities.
 
 The pwn.college infrastructure allows users the ability to "start" challenges, which spins up a private docker container for that user.
-This docker container will have the associated challenge binary injected into the container as root-suid, as well as the flag to be submitted as readable only the the root user.
+This docker container will have the associated challenge binary injected into the container as root-suid, as well as the flag to be submitted as readable only by the the root user.
 Users may enter this container via `ssh`, by supplying a public ssh key in their profile settings, or via vscode in the browser ([code-server](https://github.com/cdr/code-server)).
 The associated challenge binary may be either global, which means all users will get the same binary, or instanced, which means that different users will receive different variants of the same challenge.
 
