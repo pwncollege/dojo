@@ -54,7 +54,7 @@ def challenge_paths(user, challenge, *, secret=None):
         yield from category_global.iterdir()
 
     if challenge_global.exists():
-        yield from category_global.iterdir()
+        yield from challenge_global.iterdir()
 
     options = [
         option
