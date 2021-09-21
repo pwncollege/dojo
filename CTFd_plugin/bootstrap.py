@@ -98,11 +98,22 @@ class Bootstrap(Resource):
             db.session.add(challenge)
             db.session.commit()
 
-            flag = Flags(
-                challenge_id=challenge.id,
-                type="user",
-                content="",
-                data="cheater",
-            )
+            global_flag_file = CHALLENGES_DIR / category / name / "_global" / "_flag"
+            if global_flag_file.exists():
+                with open(global_flag_file, 'r') as fp:
+                    flag_txt = fp.read().strip()
+                flag = Flags(
+                    challenge_id=challenge.id,
+                    type="static",
+                    content=flag_txt,
+                    data="",
+                )
+            else:
+                flag = Flags(
+                    challenge_id=challenge.id,
+                    type="user",
+                    content="",
+                    data="cheater",
+                )
             db.session.add(flag)
             db.session.commit()

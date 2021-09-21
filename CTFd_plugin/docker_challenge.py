@@ -25,7 +25,7 @@ from CTFd.plugins.challenges import BaseChallenge
 from CTFd.plugins.flags import get_flag_class
 
 from .settings import VIRTUAL_HOST, HOST_DATA_PATH
-from .utils import serialize_user_flag, challenge_paths, simple_tar, random_home_path
+from .utils import serialize_user_flag, challenge_paths, simple_tar, random_home_path, CHALLENGES_DIR
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -126,8 +126,17 @@ class RunDocker(Resource):
 
         self.insert_challenge(container, user, challenge)
 
-        flag = "practice" if practice else serialize_user_flag(user.id, challenge.id)
-        self.insert_flag(container, flag)
+        global_flag_file = CHALLENGES_DIR / challenge.category / challenge.name / "_global" / "_flag"
+        manual = False
+        if practice:
+            flag = 'practice'
+        elif global_flag_file.exists():
+            with open(global_flag_file, 'r') as fp:
+                flag = fp.read()
+            manual = True
+        else:
+            flag = serialize_user_flag(user.id, challenge.id)
+        self.insert_flag(container, flag, manual=manual)
         self.build_challenge(container)
 
         return {"success": True}
@@ -235,8 +244,11 @@ class RunDocker(Resource):
         container.exec_run("chmod -R 4755 /challenge")
 
     @staticmethod
-    def insert_flag(container, flag):
-        container.exec_run(f"/bin/sh -c \"echo 'pwn.college{{{flag}}}' > /flag\"")
+    def insert_flag(container, flag, manual=False):
+        if manual:
+            container.exec_run(f"/bin/sh -c \"echo '{flag.strip()}' > /flag\"")
+        else:
+            container.exec_run(f"/bin/sh -c \"echo 'pwn.college{{{flag}}}' > /flag\"")
 
     @staticmethod
     def build_challenge(container):
