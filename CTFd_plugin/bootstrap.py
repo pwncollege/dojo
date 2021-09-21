@@ -72,7 +72,7 @@ class Bootstrap(Resource):
             ]
 
         challenges = sorted(
-            ((path.parent.name, path.name) for path in CHALLENGES_DIR.glob("*/*")),
+            ((path.parent.name, path.name) for path in CHALLENGES_DIR.glob("*/*") if path.is_dir()),
             key=lambda k: (k[0], natural_key(k[1])),
         )
         for category, name in challenges:
