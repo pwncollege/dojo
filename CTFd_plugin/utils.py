@@ -62,8 +62,9 @@ def challenge_paths(user, challenge, *, secret=None):
         if not (option.name.startswith(".") or option.name.startswith("_"))
     ]
 
-    option = options[hash((user.id, challenge.id, secret)) % len(options)]
-    yield from option.iterdir()
+    if options:
+        option = options[hash((user.id, challenge.id, secret)) % len(options)]
+        yield from option.iterdir()
 
 
 def simple_tar(path, name=None):

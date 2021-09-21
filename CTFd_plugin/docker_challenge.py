@@ -128,6 +128,7 @@ class RunDocker(Resource):
 
         flag = "practice" if practice else serialize_user_flag(user.id, challenge.id)
         self.insert_flag(container, flag)
+        self.build_challenge(container)
 
         return {"success": True}
 
@@ -236,3 +237,7 @@ class RunDocker(Resource):
     @staticmethod
     def insert_flag(container, flag):
         container.exec_run(f"/bin/sh -c \"echo 'pwn.college{{{flag}}}' > /flag\"")
+
+    @staticmethod
+    def build_challenge(container):
+        container.exec_run("/bin/sh -c \"make -C /challenge release || true\"")

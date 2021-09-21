@@ -37,6 +37,7 @@ SETUP_HOSTNAME=<DOMAIN> ./run.sh
 Place the challenges in `data/challenges`.
 The structure is as follows:
 - `data/challenges/modules.yml`
+- `data/challenges/students.yml`
 - `data/challenges/<CATEGORY>/_global/`
 - `data/challenges/<CATEGORY>/<CHALLENGE>/`
 - `data/challenges/<CATEGORY>/<CHALLENGE>/_global/`
@@ -65,3 +66,7 @@ The basic structure looks something like:
           slides: 1YlTxeZg03P234EgG4E4JNGcit6LZovAxfYGL1YSLwfc
 ```
 Only name and permalink are required; the other fields are optional.
+
+### students.yml
+
+TODO: document this. In the meantime you can just make this an empty file.
