@@ -51,10 +51,12 @@ def challenge_paths(user, challenge, *, secret=None):
     challenge_global = CHALLENGES_DIR / challenge.category / challenge.name / "_global"
 
     if category_global.exists():
-        yield from category_global.iterdir()
+        yield from (x for x in category_global.iterdir() if \
+                not (x.name.startswith(".") or x.name.startswith("_")))
 
     if challenge_global.exists():
-        yield from challenge_global.iterdir()
+        yield from (x for x in challenge_global.iterdir() if \
+                not (x.name.startswith(".") or x.name.startswith("_")))
 
     options = [
         option
