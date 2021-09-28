@@ -32,4 +32,6 @@ fi
 
 mkdir -p /opt/pwn.college/data/logging
 
+echo core > /proc/sys/kernel/core_pattern
+
 exec /usr/bin/systemd
