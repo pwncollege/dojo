@@ -164,6 +164,6 @@ RUN mkdir /challenge
 RUN find / -type f -perm -4000 | xargs -r chmod u-s
 
 # TODO move these deps somewhere else, or maybe to some per-challenge dependencies field I don't know about
-RUN apt-get install tidy
+RUN apt-get install -y tidy
 
 WORKDIR /home/hacker
