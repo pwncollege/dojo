@@ -27,6 +27,9 @@ def main():
     original_command = os.getenv("SSH_ORIGINAL_COMMAND", "/bin/bash")
     ssh_tty = os.getenv("SSH_TTY") is not None
 
+    if not ssh_tty:
+        print = lambda *args, **kwargs: None
+
     attempts = 0
     while attempts < 30:
         try:
@@ -67,6 +70,8 @@ def main():
             if status == 0:
                 break
             print()
+            print("\r", " " * 80, f"\rConnecting")
+            time.sleep(0.5)
     else:
         print("\r", " " * 80, "\rError: failed to connect!")
 
