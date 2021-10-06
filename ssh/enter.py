@@ -71,7 +71,7 @@ def main():
             if status == 0:
                 break
             print()
-            print("\r", " " * 80, f"\rConnecting")
+            print("\r", " " * 80, f"\rConnecting", end="")
             time.sleep(0.5)
     else:
         print("\r", " " * 80, "\rError: failed to connect!")
