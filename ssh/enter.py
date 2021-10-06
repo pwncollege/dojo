@@ -28,6 +28,7 @@ def main():
     ssh_tty = os.getenv("SSH_TTY") is not None
 
     if not ssh_tty:
+        global print
         print = lambda *args, **kwargs: None
 
     attempts = 0
