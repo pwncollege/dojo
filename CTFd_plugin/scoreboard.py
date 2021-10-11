@@ -11,6 +11,8 @@ from CTFd.utils.modes import get_model
 from CTFd.utils.config.visibility import scores_visible
 from CTFd.utils.decorators.visibility import check_score_visibility
 
+from .belts import get_belts
+
 
 def email_group_asset(email):
     if email.endswith("@asu.edu"):
@@ -22,45 +24,14 @@ def email_group_asset(email):
     return f"plugins/pwncollege_plugin/assets/scoreboard/{group}"
 
 
-def get_category_standings(admin=False):
-    Model = get_model()
-
-    scores = (
-        Solves.query.join(Challenges, Challenges.id == Solves.challenge_id)
-        .filter(Challenges.state == "visible")
-        .join(Model, Model.id == Solves.account_id)
-        .filter(Model.hidden == False)
-    )
-
-    freeze = get_config("freeze")
-    if not admin and freeze:
-        scores = scores.filter(Solves.date < unix_time_to_utc(freeze))
-
-    scores = scores.group_by(Challenges.category, Solves.account_id).with_entities(
-        Challenges.category,
-        Solves.account_id,
-        Model.name,
-        Model.email,
-        db.func.count(),
-        db.func.max(Solves.date),
-    )
-
-    result = collections.defaultdict(list)
-    for category, account_id, name, email, count, date in scores:
-        result[category].append(
-            {
-                "account_id": account_id,
-                "name": name,
-                "email": email,
-                "score": count,
-                "date": date,
-            }
-        )
-
-    for ranks in result.values():
-        ranks.sort(key=lambda k: (-1 * k["score"], k["date"]))
-
-    return result
+def belt_asset(color):
+    if color == "blue":
+        belt = "blue.svg"
+    elif color == "yellow":
+        belt = "yellow.svg"
+    else:
+        belt = "white.svg"
+    return f"plugins/pwncollege_plugin/assets/scoreboard/{belt}"
 
 
 @check_score_visibility
@@ -77,12 +48,17 @@ def scoreboard_listing():
     Model = get_model()
     standings = get_standings(fields=[Model.email])
 
-    category_standings = get_category_standings()
+    belts = {
+        user_id: color
+        for color, users in get_belts()["colors"].items()
+        for user_id in users
+    }
 
     return render_template(
         "scoreboard.html",
-        standings=standings,
-        category_standings=category_standings,
         infos=infos,
+        standings=standings,
+        belts=belts,
         email_group_asset=email_group_asset,
+        belt_asset=belt_asset,
     )

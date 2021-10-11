@@ -11,6 +11,10 @@
       margin: auto;
       height: 3em;
   }
+
+  .scoreboard-belt {
+      height: 1.5em;
+  }
 </style>
 {% endblock %}
 
@@ -33,7 +37,8 @@
 	  <tr>
 	    <td scope="col" class="col-md-1"><b>Rank</b></td>
             <td scope="col" class="col-md-1"></td>
-	    <td scope="col" class="col-md-9"><b>Hacker</b></td>
+	    <td scope="col" class="col-md-8"><b>Hacker</b></td>
+	    <td scope="col" class="col-md-1"></td>
 	    <td scope="col" class="col-md-1"><b>Score</b></td>
 	  </tr>
 	</thead>
@@ -49,6 +54,9 @@
 		{{ standing.name | truncate(50) }}
 	      </a>
 	    </td>
+            <td>
+              <img src="{{ belt_asset(belts.get(standing.account_id)) }}" class="scoreboard-belt">
+            </td>
 	    <td>{{ standing.score }}</td>
 	  </tr>
 	  {% endfor %}
