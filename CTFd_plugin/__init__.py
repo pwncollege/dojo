@@ -16,17 +16,17 @@ from CTFd.plugins.challenges import CHALLENGE_CLASSES
 from CTFd.plugins.flags import FLAG_CLASSES
 
 from .bootstrap import bootstrap_namespace, Bootstrap
+from .challenges import challenges_listing, challenges
+from .scoreboard import scoreboard_listing
 from .docker_challenge import DockerChallenge, docker_namespace
 from .user_flag import UserFlag, user_flag_namespace
-from .ssh_key import SSHKeys, SSHKeyForm, ssh_key_settings, ssh_key_namespace
-from .scoreboard import scoreboard_listing
-from .terminal import terminal, terminal_namespace
-from .challenges import challenges_listing, challenges
+from .ssh_key import SSHKeys, SSHKeyForm, ssh_key_namespace
+from .discord import discord
+from .settings import settings
 from .workspace import workspace
-from .binary_ninja import binary_ninja_namespace
 from .belts import belts_namespace
-from .writeups import writeups
 from .grades import grades
+from .writeups import writeups
 
 
 def load(app):
@@ -39,13 +39,13 @@ def load(app):
     )
 
     CHALLENGE_CLASSES["docker"] = DockerChallenge
-
     FLAG_CLASSES["user"] = UserFlag
 
-    ssh_key_template_path = os.path.join(dir_path, "assets", "ssh_key", "settings.html")
-    override_template("settings.html", open(ssh_key_template_path).read())
-    app.view_functions["views.settings"] = ssh_key_settings
     Forms.keys = {"SSHKeyForm": SSHKeyForm}
+
+    settings_template_path = os.path.join(dir_path, "assets", "settings", "settings.html")
+    override_template("settings.html", open(settings_template_path).read())
+    app.view_functions["views.settings"] = settings
 
     scoreboard_template_path = os.path.join(
         dir_path, "assets", "scoreboard", "scoreboard.html"
@@ -59,8 +59,6 @@ def load(app):
     api.add_namespace(docker_namespace, "/docker")
     api.add_namespace(user_flag_namespace, "/user_flag")
     api.add_namespace(ssh_key_namespace, "/ssh_key")
-    api.add_namespace(terminal_namespace, "/terminal")
-    api.add_namespace(binary_ninja_namespace, "/binary_ninja")
     api.add_namespace(belts_namespace, "/belts")
     app.register_blueprint(blueprint, url_prefix="/pwncollege_api/v1")
 
@@ -71,12 +69,14 @@ def load(app):
     app.view_functions["challenges.listing"] = challenges_listing
     app.register_blueprint(challenges)
 
-    app.register_blueprint(workspace)
+    app.register_blueprint(discord)
 
-    app.register_blueprint(writeups)
-    register_admin_plugin_menu_bar("Writeups", "/admin/writeups")
+    app.register_blueprint(workspace)
 
     app.register_blueprint(grades)
     register_admin_plugin_menu_bar("Grades", "/admin/grades")
+
+    app.register_blueprint(writeups)
+    register_admin_plugin_menu_bar("Writeups", "/admin/writeups")
 
     Bootstrap.bootstrap()

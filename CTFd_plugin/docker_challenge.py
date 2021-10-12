@@ -24,7 +24,7 @@ from CTFd.utils.uploads import delete_file
 from CTFd.plugins.challenges import BaseChallenge
 from CTFd.plugins.flags import get_flag_class
 
-from .settings import VIRTUAL_HOST, HOST_DATA_PATH
+from .config import VIRTUAL_HOST, HOST_DATA_PATH
 from .utils import serialize_user_flag, challenge_paths, simple_tar, random_home_path
 
 

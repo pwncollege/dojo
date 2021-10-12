@@ -14,7 +14,10 @@
     <div class="col-md-2 offset-md-1">
       <div class="nav flex-column nav-pills" role="tablist">
         <a class="nav-link active" id="settings-profile-tab" data-toggle="pill" href="#profile" role="tab">Profile</a>
-        <a class="nav-link" id="settings-tokens-tab" data-toggle="pill" href="#key" role="tab">SSH Key</a>
+        <a class="nav-link" id="settings-key-tab" data-toggle="pill" href="#key" role="tab">SSH Key</a>
+        {% if discord_enabled %}
+        <a class="nav-link" id="settings-discord-tab" data-toggle="pill" href="#discord" role="tab">Discord</a>
+        {% endif %}
       </div>
     </div>
     <div class="col-md-8">
@@ -79,7 +82,7 @@
               <b>{{ form.key.label }}</b>
               <small class="form-text text-muted">Required for accessing challenges over SSH</small>
               <br>
-              {{ form.key(class="form-control", value=key or "") }}
+              {{ form.key(class="form-control", value=ssh_key or "") }}
             </div>
 
             <div id="key-results" class="form-group">
@@ -91,6 +94,24 @@
           </form>
           {% endwith %}
         </div>
+        {% if discord_enabled %}
+        <div class="tab-pane fade" id="discord" role="tabpanel">
+          <a href="/discord/connect" class="text-decoration-none">
+            <img id="discord-avatar" src="{{ discord_avatar_asset(discord_user) }}">
+            <br>
+            <h2 class="text-center">
+              {% if discord_user %}
+              {{ discord_user["username"] }}
+              {% else %}
+              <i>Connect Discord Account</i>
+              {% endif %}
+            </h2>
+            <br>
+            <div id="discord-results" class="form-group">
+            </div>
+          </a>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -102,5 +123,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script defer src="/plugins/pwncollege_plugin/assets/ssh_key/settings.js"></script>
+<script defer src="/plugins/pwncollege_plugin/assets/settings/settings.js"></script>
 {% endblock %}

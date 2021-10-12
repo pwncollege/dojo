@@ -5,7 +5,7 @@ from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.security.signing import serialize
 
-from .settings import VIRTUAL_HOST, BINARY_NINJA_API_KEY
+from .config import VIRTUAL_HOST, BINARY_NINJA_API_KEY
 from .docker_challenge import DockerChallenges
 
 

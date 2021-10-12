@@ -10,6 +10,7 @@ from CTFd.utils.decorators import authed_only, admins_only
 
 grades = Blueprint("grades", __name__, template_folder="assets/grades/")
 
+
 def average(data):
     data = list(data)
     if not data:
