@@ -2,7 +2,6 @@ import collections
 
 from flask import render_template
 from CTFd.models import db, Solves, Challenges
-from CTFd.cache import cache, make_cache_key
 from CTFd.utils import config, get_config
 from CTFd.utils.helpers import get_infos
 from CTFd.utils.scores import get_standings
@@ -35,7 +34,6 @@ def belt_asset(color):
 
 
 @check_score_visibility
-@cache.cached(timeout=60, key_prefix=make_cache_key)
 def scoreboard_listing():
     infos = get_infos()
 

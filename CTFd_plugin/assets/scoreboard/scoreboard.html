@@ -30,6 +30,7 @@
 
   <h2>All Time Rankings</h2>
 
+  {% cache 60, CacheKeys.PUBLIC_SCOREBOARD_TABLE %}
   <div id="scoreboard" class="row">
     <div class="col-md-12">
       <table class="table table-striped">
@@ -64,9 +65,10 @@
       </table>
     </div>
   </div>
+  {% endcache %}
+
 </div>
 {% endblock %}
 
 {% block entrypoint %}
-<script defer src="/plugins/pwncollege_plugin/assets/scoreboard/scoreboard.js"></script>
 {% endblock %}
