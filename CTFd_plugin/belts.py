@@ -70,7 +70,7 @@ def get_belts():
         )
 
         for user_id, handle, date in belted_users:
-            result["colors"][color][user_id] = date
+            result["colors"][color][user_id] = str(date)
             result["info"][user_id] = {
                 "handle": Users.name
             }
