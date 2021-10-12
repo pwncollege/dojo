@@ -83,7 +83,7 @@ def get_belts():
     return result
 
 
-@belts_namespace.route("/")
+@belts_namespace.route("")
 class Belts(Resource):
     def get(self):
         return get_belts()
