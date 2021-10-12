@@ -39,11 +39,6 @@ class BeltInfos(db.Model):
     website = db.Column(db.Text)
 
 
-class SSHKeyForm(BaseForm):
-    key = StringField("SSH Key")
-    submit = SubmitField("Update")
-
-
 def get_belts():
     color_categories = {
         "yellow": yellow_categories,
