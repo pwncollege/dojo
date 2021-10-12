@@ -12,7 +12,7 @@ import splitmind
   .right(cmd='tty; tail -f /dev/null', size="65%", clearing=False)
   .tell_splitter(set_title='Input / Output')
   .above(display="stack", size="75%")
-  .above(display="legend", size="25")
+  .above(display="legend", size="25%")
   .show("regs", on="legend")
   .below(of="backtrace", cmd="ipython", size="30%")
   .show("expressions", on="backtrace")
