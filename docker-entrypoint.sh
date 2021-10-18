@@ -41,6 +41,7 @@ done
 
 mkdir -p /opt/pwn.college/data/logging
 
+sysctl -w kernel.pty.max=1048576
 echo core > /proc/sys/kernel/core_pattern
 
 exec /usr/bin/systemd
