@@ -128,6 +128,18 @@ WORKDIR /
 
 RUN curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin --version 3.10.2
 RUN mkdir -p /opt/code-server/extensions && code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
+RUN mv /usr/lib/code-server/lib/vscode/node_modules/vscode-ripgrep/bin/rg /usr/lib/code-server/lib/vscode/node_modules/vscode-ripgrep/bin/rg.orig && \
+    echo '#!/usr/bin/python \n\
+          \n\
+          import sys \n\
+          import os \n\
+          \n\
+          sys.argv[0] += ".orig" \n\
+          sys.argv.remove("--follow") \n\
+          os.execv(sys.argv[0], sys.argv)' \
+    | awk '{$1=$1};1' > /usr/lib/code-server/lib/vscode/node_modules/vscode-ripgrep/bin/rg && \
+    chmod +x /usr/lib/code-server/lib/vscode/node_modules/vscode-ripgrep/bin/rg
+
 
 RUN git clone https://github.com/aquynh/capstone /opt/capstone && cd /opt/capstone && ./make.sh && ./make.sh install
 RUN git clone --branch=5.1.0 --depth=1 https://github.com/radareorg/radare2 /opt/radare2 && cd /opt/radare2 && sys/install.sh
