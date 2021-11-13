@@ -169,15 +169,20 @@ class RunDocker(Resource):
             container.wait(condition="removed")
         except docker.errors.NotFound:
             pass
-        hostname = (
-            "practice_" if practice else ""
-        ) + f"{challenge.category}_{challenge.name}"
+        challenge_name = f"{challenge.category}_{challenge.name}"
+        hostname = challenge_name
+        if practice:
+            hostname = f"practice_{hostname}"
         return docker_client.containers.run(
             challenge.docker_image_name,
             ["/bin/su", "hacker", "/opt/pwn.college/docker-entrypoint.sh"],
             name=container_name,
             hostname=hostname,
-            environment={"CHALLENGE_ID": str(challenge.id)},
+            environment={
+                "CHALLENGE_ID": str(challenge.id),
+                "CHALLENGE_NAME": challenge_name,
+                "PRACTICE": str(bool(practice)),
+            },
             mounts=[
                 docker.types.Mount(
                     "/home/hacker",
@@ -187,6 +192,11 @@ class RunDocker(Resource):
                 ),
             ],
             network="none",
+            extra_hosts={
+                hostname: "127.0.0.1",
+                "kernel": "127.0.0.1",
+                f"kernel_{hostname}": "127.0.0.1",
+            },
             init=True,
             cap_add=["SYS_PTRACE"],
             security_opt=[f"seccomp={SECCOMP}"],
@@ -223,7 +233,6 @@ class RunDocker(Resource):
             chmod 4755 /usr/bin/sudo;
             usermod -aG sudo hacker;
             echo 'hacker ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers;
-            echo '127.0.0.1\t{hostname}' >> /etc/hosts;
             \""""
         )
 

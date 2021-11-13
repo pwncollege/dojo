@@ -18,6 +18,7 @@ RUN apt-get update && \
                        gdb \
                        gdb-multiarch \
                        qemu-system-x86 \
+                       openssh-server \
                        python-is-python3 \
                        python3-dev \
                        python3-pip \
@@ -89,7 +90,8 @@ RUN apt-get update && \
 
 RUN yes | unminimize
 
-RUN useradd -s /bin/bash -m hacker
+RUN useradd -s /bin/bash -m hacker && \
+    passwd -d hacker
 
 RUN mkdir /opt/linux && wget -O - https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/linux-5.4.tar.gz | tar xzC /opt/linux
 WORKDIR /opt/linux/linux-5.4
@@ -121,10 +123,17 @@ RUN echo 'CONFIG_NET_9P=y' >> .config && \
     echo "CONFIG_DEBUG_FS=y" >> .config && \
     echo "CONFIG_DEBUG_INFO_DWARF4=y" >> .config && \
     echo "CONFIG_DEBUG_INFO_BTF=y" >> .config && \
-    echo "CONFIG_FRAME_POINTER=y" >> .config
+    echo "CONFIG_FRAME_POINTER=y" >> .config && \
+    echo "CONFIG_DEVPTS_FS=y" >> .config
 RUN make -j$(nproc) bzImage
 RUN cp arch/x86/boot/bzImage ../bzImage
 WORKDIR /
+
+RUN echo '    StrictHostKeyChecking no' >> /etc/ssh/ssh_config && \
+    echo '    UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config && \
+    echo '    LogLevel ERROR' >> /etc/ssh/ssh_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config && \
+    sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config
 
 RUN curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin --version 3.10.2
 RUN mkdir -p /opt/code-server/extensions && code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
@@ -163,16 +172,21 @@ COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 COPY .tmux.conf /opt/pwn.college/.tmux.conf
 COPY .gdbinit /opt/pwn.college/.gdbinit
 COPY .radare2rc /opt/pwn.college/.radare2rc
+COPY kernel /opt/pwn.college/kernel
 
-RUN ln -sf /home/hacker/.tmux.conf /root/.tmux.conf
-RUN ln -sf /home/hacker/.gdbinit /root/.gdbinit
-RUN ln -sf /home/hacker/.radare2rc /root/.radare2rc
+RUN ln -sf /home/hacker/.tmux.conf /root/.tmux.conf && \
+    ln -sf /home/hacker/.gdbinit /root/.gdbinit && \
+    ln -sf /home/hacker/.radare2rc /root/.radare2rc
 
-RUN echo 'pwn.college{uninitialized}' > /flag
-RUN chmod 400 /flag
+RUN gcc /opt/pwn.college/kernel/launch.c -o /opt/pwn.college/kernel/launch
+
+RUN echo 'pwn.college{uninitialized}' > /flag && \
+    chmod 400 /flag
 
 RUN mkdir /challenge
 
 RUN find / -type f -perm -4000 | xargs -r chmod u-s
+
+RUN chmod u+s /opt/pwn.college/kernel/launch
 
 WORKDIR /home/hacker
