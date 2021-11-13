@@ -18,6 +18,7 @@ RUN apt-get update && \
                        gdb \
                        gdb-multiarch \
                        qemu-system-x86 \
+                       kmod \
                        openssh-server \
                        python-is-python3 \
                        python3-dev \
