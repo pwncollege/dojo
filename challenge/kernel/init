@@ -7,12 +7,20 @@ mount -t sysfs sys /sys
 mount -t devpts -o x-mount.mkdir devpts /dev/pts
 mount -t 9p -o trans=virtio,version=9p2000.L,nosuid /home/hacker /home/hacker
 
-python -c "import socket; socket.sethostname('kernel_$(cat /etc/hostname)')"
+# `hostname` command does not allow '_'
+python - <<'EOF'
+import socket
+with open("/etc/hostname") as f:
+  hostname = f.read().strip()
+  socket.sethostname(f"kernel_{hostname}")
+EOF
 
 ip link set dev lo up
 ip addr add 10.0.2.15/24 dev eth0
-ip route add 10.0.2.0/24 via 10.0.2.2 dev eth0 2>/dev/null || true  # ignore: Error: Nexthop has invalid gateway.
+ip route add 10.0.2.0/24 via 10.0.2.2 dev eth0 2>/dev/null || true  # Error: Nexthop has invalid gateway.
 ip link set dev eth0 up
+
+find /challenge -name '*.ko' -exec insmod {} \;
 
 service ssh start
 

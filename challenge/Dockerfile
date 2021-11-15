@@ -127,14 +127,16 @@ RUN echo 'CONFIG_NET_9P=y' >> .config && \
     echo "CONFIG_FRAME_POINTER=y" >> .config && \
     echo "CONFIG_DEVPTS_FS=y" >> .config
 RUN make -j$(nproc) bzImage
-RUN cp arch/x86/boot/bzImage ../bzImage
+RUN cp arch/x86/boot/bzImage ../bzImage && \
+    ln -s $PWD/vmlinux ../vmlinux
 WORKDIR /
 
 RUN echo '    StrictHostKeyChecking no' >> /etc/ssh/ssh_config && \
     echo '    UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config && \
     echo '    LogLevel ERROR' >> /etc/ssh/ssh_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config && \
-    sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config
+    sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
 
 RUN curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin --version 3.10.2
 RUN mkdir -p /opt/code-server/extensions && code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
@@ -149,7 +151,6 @@ RUN mv /usr/lib/code-server/lib/vscode/node_modules/vscode-ripgrep/bin/rg /usr/l
           os.execv(sys.argv[0], sys.argv)' \
     | awk '{$1=$1};1' > /usr/lib/code-server/lib/vscode/node_modules/vscode-ripgrep/bin/rg && \
     chmod +x /usr/lib/code-server/lib/vscode/node_modules/vscode-ripgrep/bin/rg
-
 
 RUN git clone https://github.com/aquynh/capstone /opt/capstone && cd /opt/capstone && ./make.sh && ./make.sh install
 RUN git clone --branch=5.1.0 --depth=1 https://github.com/radareorg/radare2 /opt/radare2 && cd /opt/radare2 && sys/install.sh
@@ -170,16 +171,20 @@ RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
 
 RUN mkdir /opt/pwn.college
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
+COPY setuid_python.c /opt/pwn.college/setuid_python.c
+COPY kernel /opt/pwn.college/kernel
 COPY .tmux.conf /opt/pwn.college/.tmux.conf
 COPY .gdbinit /opt/pwn.college/.gdbinit
 COPY .radare2rc /opt/pwn.college/.radare2rc
-COPY kernel /opt/pwn.college/kernel
+
+RUN gcc /opt/pwn.college/setuid_python.c -o /opt/pwn.college/python && \
+    rm /opt/pwn.college/setuid_python.c
+
+RUN ln -s /opt/pwn.college/kernel/kernel /usr/local/bin/kernel
 
 RUN ln -sf /home/hacker/.tmux.conf /root/.tmux.conf && \
     ln -sf /home/hacker/.gdbinit /root/.gdbinit && \
     ln -sf /home/hacker/.radare2rc /root/.radare2rc
-
-RUN gcc /opt/pwn.college/kernel/launch.c -o /opt/pwn.college/kernel/launch
 
 RUN echo 'pwn.college{uninitialized}' > /flag && \
     chmod 400 /flag
@@ -188,6 +193,6 @@ RUN mkdir /challenge
 
 RUN find / -type f -perm -4000 | xargs -r chmod u-s
 
-RUN chmod u+s /opt/pwn.college/kernel/launch
+RUN chmod u+s /opt/pwn.college/python /opt/pwn.college/kernel/kernel
 
 WORKDIR /home/hacker

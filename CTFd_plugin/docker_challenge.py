@@ -233,6 +233,7 @@ class RunDocker(Resource):
             chmod 4755 /usr/bin/sudo;
             usermod -aG sudo hacker;
             echo 'hacker ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers;
+            passwd -d root;
             \""""
         )
 
