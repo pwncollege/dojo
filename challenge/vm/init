@@ -12,7 +12,7 @@ python - <<'EOF'
 import socket
 with open("/etc/hostname") as f:
   hostname = f.read().strip()
-  socket.sethostname(f"kernel_{hostname}")
+  socket.sethostname(f"vm_{hostname}")
 EOF
 
 ip link set dev lo up

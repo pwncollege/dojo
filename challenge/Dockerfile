@@ -117,17 +117,17 @@ RUN echo 'CONFIG_NET_9P=y' >> .config && \
     echo 'CONFIG_BALLOON_COMPACTION=y' >> .config && \
     echo 'CONFIG_PCI=y' >> .config && \
     echo 'CONFIG_PCI_HOST_GENERIC=y' >> .config && \
-    echo "CONFIG_GDB_SCRIPTS=y" >> .config && \
-    echo "CONFIG_DEBUG_INFO=y" >> .config && \
-    echo "CONFIG_DEBUG_INFO_REDUCED=n" >> .config && \
-    echo "CONFIG_DEBUG_INFO_SPLIT=n" >> .config && \
-    echo "CONFIG_DEBUG_FS=y" >> .config && \
-    echo "CONFIG_DEBUG_INFO_DWARF4=y" >> .config && \
-    echo "CONFIG_DEBUG_INFO_BTF=y" >> .config && \
-    echo "CONFIG_FRAME_POINTER=y" >> .config && \
-    echo "CONFIG_DEVPTS_FS=y" >> .config
+    echo 'CONFIG_GDB_SCRIPTS=y' >> .config && \
+    echo 'CONFIG_DEBUG_INFO=y' >> .config && \
+    echo 'CONFIG_DEBUG_INFO_REDUCED=n' >> .config && \
+    echo 'CONFIG_DEBUG_INFO_SPLIT=n' >> .config && \
+    echo 'CONFIG_DEBUG_FS=y' >> .config && \
+    echo 'CONFIG_DEBUG_INFO_DWARF4=y' >> .config && \
+    echo 'CONFIG_DEBUG_INFO_BTF=y' >> .config && \
+    echo 'CONFIG_FRAME_POINTER=y' >> .config && \
+    echo 'CONFIG_DEVPTS_FS=y' >> .config
 RUN make -j$(nproc) bzImage
-RUN cp arch/x86/boot/bzImage ../bzImage && \
+RUN ln -s $PWD/arch/x86/boot/bzImage ../bzImage && \
     ln -s $PWD/vmlinux ../vmlinux
 WORKDIR /
 
@@ -147,7 +147,7 @@ RUN mv /usr/lib/code-server/lib/vscode/node_modules/vscode-ripgrep/bin/rg /usr/l
           import os \n\
           \n\
           sys.argv[0] += ".orig" \n\
-          sys.argv.remove("--follow") \n\
+          if "--follow" in sys.argv: sys.argv.remove("--follow") \n\
           os.execv(sys.argv[0], sys.argv)' \
     | awk '{$1=$1};1' > /usr/lib/code-server/lib/vscode/node_modules/vscode-ripgrep/bin/rg && \
     chmod +x /usr/lib/code-server/lib/vscode/node_modules/vscode-ripgrep/bin/rg
@@ -172,7 +172,7 @@ RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
 RUN mkdir /opt/pwn.college
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 COPY setuid_python.c /opt/pwn.college/setuid_python.c
-COPY kernel /opt/pwn.college/kernel
+COPY vm /opt/pwn.college/vm
 COPY .tmux.conf /opt/pwn.college/.tmux.conf
 COPY .gdbinit /opt/pwn.college/.gdbinit
 COPY .radare2rc /opt/pwn.college/.radare2rc
@@ -180,7 +180,7 @@ COPY .radare2rc /opt/pwn.college/.radare2rc
 RUN gcc /opt/pwn.college/setuid_python.c -o /opt/pwn.college/python && \
     rm /opt/pwn.college/setuid_python.c
 
-RUN ln -s /opt/pwn.college/kernel/kernel /usr/local/bin/kernel
+RUN ln -s /opt/pwn.college/vm/vm /usr/local/bin/vm
 
 RUN ln -sf /home/hacker/.tmux.conf /root/.tmux.conf && \
     ln -sf /home/hacker/.gdbinit /root/.gdbinit && \
@@ -193,6 +193,6 @@ RUN mkdir /challenge
 
 RUN find / -type f -perm -4000 | xargs -r chmod u-s
 
-RUN chmod u+s /opt/pwn.college/python /opt/pwn.college/kernel/kernel
+RUN chmod u+s /opt/pwn.college/python /opt/pwn.college/vm/vm
 
 WORKDIR /home/hacker

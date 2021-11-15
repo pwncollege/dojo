@@ -194,8 +194,8 @@ class RunDocker(Resource):
             network="none",
             extra_hosts={
                 hostname: "127.0.0.1",
-                "kernel": "127.0.0.1",
-                f"kernel_{hostname}": "127.0.0.1",
+                "vm": "127.0.0.1",
+                f"vm_{hostname}": "127.0.0.1",
             },
             init=True,
             cap_add=["SYS_PTRACE"],

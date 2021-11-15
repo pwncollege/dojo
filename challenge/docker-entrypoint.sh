@@ -16,6 +16,6 @@ start-stop-daemon --start \
                   >>/tmp/code-server/code-server.log \
                   2>&1
 
-find /challenge -name '*.ko' -exec false {} + || kernel start
+find /challenge -name '*.ko' -exec false {} + || vm start
 
 exec /bin/sleep 6h

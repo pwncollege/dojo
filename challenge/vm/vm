@@ -12,7 +12,7 @@ import argparse
 def initialize():
     os.setegid(os.geteuid())
     try:
-        os.mkdir("/tmp/kernel")
+        os.mkdir("/tmp/vm")
     except FileExistsError:
         pass
 
@@ -41,7 +41,7 @@ def start():
         "-smp", "2",
         "-nographic",
         "-monitor", "none",
-        "-append", "rw rootfstype=9p rootflags=trans=virtio console=ttyS0 init=/opt/pwn.college/kernel/init nokaslr",
+        "-append", "rw rootfstype=9p rootflags=trans=virtio console=ttyS0 init=/opt/pwn.college/vm/init nokaslr",
     ]
 
     if is_practice():
@@ -50,7 +50,7 @@ def start():
     argv = [
         "/usr/sbin/start-stop-daemon",
         "--start",
-        "--pidfile", "/tmp/kernel/kernel.pid",
+        "--pidfile", "/tmp/vm/vm.pid",
         "--make-pidfile",
         "--background",
         "--no-close",
@@ -62,7 +62,7 @@ def start():
 
     subprocess.run(argv,
                    stdin=subprocess.DEVNULL,
-                   stdout=open("/tmp/kernel/kernel.log", "a"),
+                   stdout=open("/tmp/vm/vm.log", "a"),
                    stderr=subprocess.STDOUT)
 
 
@@ -70,21 +70,21 @@ def stop():
     argv = [
         "/usr/sbin/start-stop-daemon",
         "--stop",
-        "--pidfile", "/tmp/kernel/kernel.pid",
+        "--pidfile", "/tmp/vm/vm.pid",
         "--remove-pidfile",
         "--quiet",
     ]
 
     subprocess.run(argv,
                    stdin=subprocess.DEVNULL,
-                   stdout=open("/tmp/kernel/kernel.log", "a"),
+                   stdout=open("/tmp/vm/vm.log", "a"),
                    stderr=subprocess.STDOUT)
 
 
 def connect():
     for _ in range(50):
         try:
-            connection = socket.create_connection(("kernel", 22), timeout=30)
+            connection = socket.create_connection(("vm", 22), timeout=30)
         except ConnectionRefusedError:
             pass
         else:
@@ -94,15 +94,15 @@ def connect():
                 break
         time.sleep(0.1)
     else:
-        print("Error: could not connect to kernel!", file=sys.stderr)
+        print("Error: could not connect to vm!", file=sys.stderr)
         exit(1)
 
-    execve(["/usr/bin/ssh", "kernel"])
+    execve(["/usr/bin/ssh", "vm"])
 
 
 def debug():
     if not is_practice():
-        print("Error: kernel can only be debugged in practice mode!", file=sys.stderr)
+        print("Error: vm can only be debugged in practice mode!", file=sys.stderr)
         exit(1)
         return
     execve([
@@ -113,12 +113,12 @@ def debug():
 
 
 def logs():
-    if os.path.exists("/tmp/kernel/kernel.log"):
+    if os.path.exists("/tmp/vm/vm.log"):
         execve([
             "/usr/bin/tail",
             "-F",
             "-n+1",
-            "/tmp/kernel/kernel.log",
+            "/tmp/vm/vm.log",
         ])
 
 
@@ -127,12 +127,12 @@ def main():
 
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
-    connect_parser = subparsers.add_parser("connect", help="connect to kernel")
-    start_parser = subparsers.add_parser("start", help="start kernel")
-    stop_parser = subparsers.add_parser("stop", help="stop kernel")
-    restart_parser = subparsers.add_parser("restart", help="restart kernel")
-    debug_parser = subparsers.add_parser("debug", help="debug kernel")
-    logs_parser = subparsers.add_parser("logs", help="show kernel logs")
+    connect_parser = subparsers.add_parser("connect", help="connect to vm")
+    start_parser = subparsers.add_parser("start", help="start vm")
+    stop_parser = subparsers.add_parser("stop", help="stop vm")
+    restart_parser = subparsers.add_parser("restart", help="restart vm")
+    debug_parser = subparsers.add_parser("debug", help="debug vm")
+    logs_parser = subparsers.add_parser("logs", help="show vm logs")
     args = parser.parse_args()
 
     commands = {
