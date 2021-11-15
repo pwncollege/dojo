@@ -80,6 +80,7 @@ RUN apt-get update && \
                        libini-config-dev \
                        libssl-dev \
                        libffi-dev \
+                       libgmp-dev \
                        libglib2.0-dev \
                        libseccomp-dev \
                        libedit-dev \
@@ -137,6 +138,14 @@ RUN echo '    StrictHostKeyChecking no' >> /etc/ssh/ssh_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config && \
     sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+
+RUN mkdir /opt/gdb && wget -O - https://ftp.gnu.org/gnu/gdb/gdb-11.1.tar.gz | tar xzC /opt/gdb && \
+    cd /opt/gdb/gdb-11.1 && \
+    mkdir build && \
+    cd build && \
+    ../configure --prefix=/usr --with-python=/usr/bin/python3 && \
+    make -j$(nproc) && \
+    make install
 
 RUN curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin --version 3.10.2
 RUN mkdir -p /opt/code-server/extensions && code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
