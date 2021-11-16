@@ -5,6 +5,9 @@ import sys
 import socket
 import subprocess
 import time
+import tempfile
+import shutil
+import textwrap
 import grp
 import argparse
 
@@ -133,6 +136,39 @@ def debug():
     ])
 
 
+def build(path):
+    if not allow_debug():
+        print("Error: do not have permission to debug!", file=sys.stderr)
+        exit(1)
+
+    os.setuid(os.geteuid())
+
+    with open(path, "r") as f:
+        src = f.read()
+
+    with tempfile.TemporaryDirectory() as workdir:
+        with open(f"{workdir}/debug.c", "w") as f:
+            f.write(src)
+
+        with open(f"{workdir}/Makefile", "w") as f:
+            f.write(
+                textwrap.dedent(
+                    f"""
+                    obj-m += debug.o
+
+                    all:
+                    \tmake -C /opt/linux/linux-5.4 M={workdir} modules
+                    clean:
+                    \tmake -C /opt/linux/linux-5.4 M={workdir} clean
+                    """
+                )
+            )
+
+        subprocess.run(["make", "-C", workdir], stdout=sys.stderr)
+
+        shutil.copy(f"{workdir}/debug.ko", "/challenge/debug.ko")
+
+
 def logs():
     if os.path.exists("/tmp/vm/vm.log"):
         execve([
@@ -156,6 +192,8 @@ def main():
     stop_parser = subparsers.add_parser("stop", help="stop vm")
     restart_parser = subparsers.add_parser("restart", help="restart vm")
     debug_parser = subparsers.add_parser("debug", help="debug vm")
+    build_parser = subparsers.add_parser("build", help="build vm kernel module")
+    build_parser.add_argument("build_path")
     logs_parser = subparsers.add_parser("logs", help="show vm logs")
     args = parser.parse_args()
 
@@ -166,6 +204,7 @@ def main():
         "stop": lambda: stop(),
         "restart": lambda: (stop(), start()),
         "debug": lambda: debug(),
+        "build": lambda: build(args.build_path),
         "logs": lambda: logs(),
     }
 
