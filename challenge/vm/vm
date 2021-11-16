@@ -81,7 +81,7 @@ def stop():
                    stderr=subprocess.STDOUT)
 
 
-def connect():
+def wait():
     for _ in range(50):
         try:
             connection = socket.create_connection(("vm", 22), timeout=30)
@@ -97,7 +97,15 @@ def connect():
         print("Error: could not connect to vm!", file=sys.stderr)
         exit(1)
 
+
+def connect():
+    wait()
     execve(["/usr/bin/ssh", "vm"])
+
+
+def exec_(*args):
+    wait()
+    execve(["/usr/bin/ssh", "vm", "--", *args])
 
 
 def debug():
@@ -128,6 +136,9 @@ def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
     connect_parser = subparsers.add_parser("connect", help="connect to vm")
+    exec_parser = subparsers.add_parser("exec", help="exec command in vm")
+    exec_parser.add_argument("exec_command")
+    exec_parser.add_argument("exec_command_args", nargs=argparse.REMAINDER)
     start_parser = subparsers.add_parser("start", help="start vm")
     stop_parser = subparsers.add_parser("stop", help="stop vm")
     restart_parser = subparsers.add_parser("restart", help="restart vm")
@@ -137,6 +148,7 @@ def main():
 
     commands = {
         "connect": lambda: (start(), connect()),
+        "exec": lambda: (start(), exec_(args.exec_command, *args.exec_command_args)),
         "start": lambda: start(),
         "stop": lambda: stop(),
         "restart": lambda: (stop(), start()),
