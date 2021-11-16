@@ -200,7 +200,7 @@ def main():
     commands = {
         "connect": lambda: (start(), connect()),
         "exec": lambda: (start(), exec_(args.exec_command, *args.exec_command_args)),
-        "start": lambda: start(),
+        "start": lambda: (stop(), start()),
         "stop": lambda: stop(),
         "restart": lambda: (stop(), start()),
         "debug": lambda: debug(),
