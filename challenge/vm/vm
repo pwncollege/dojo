@@ -33,6 +33,20 @@ def allow_debug():
     return os.getuid() == 0 or "sudo" in groups
 
 
+def extra_boot_flags():
+    nokaslr = True
+    if allow_debug():
+        nokaslr = True
+    elif "babykernel_level10" in socket.gethostname():
+        # Temporarily hardcode disable nokaslr on specifically level 10 until this usecase is better supported
+        nokaslr = False
+
+    result = []
+    if nokaslr:
+        result.append("nokaslr")
+    return result
+
+
 def execve(argv):
     os.seteuid(os.getuid())
     os.setegid(os.getgid())
@@ -40,6 +54,8 @@ def execve(argv):
 
 
 def start():
+    flags = " ".join(flag for flag in extra_boot_flags())
+
     qemu_argv = [
         "/usr/bin/qemu-system-x86_64",
         "-kernel", "/opt/linux/bzImage",
@@ -53,7 +69,7 @@ def start():
         "-smp", "2",
         "-nographic",
         "-monitor", "none",
-        "-append", "rw rootfstype=9p rootflags=trans=virtio console=ttyS0 init=/opt/pwn.college/vm/init nokaslr",
+        "-append", f"rw rootfstype=9p rootflags=trans=virtio console=ttyS0 init=/opt/pwn.college/vm/init {flags}",
     ]
 
     if allow_debug():
