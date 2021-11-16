@@ -17,8 +17,17 @@ def initialize():
         pass
 
 
-def is_practice():
-    return "sudo" in [grp.getgrgid(g).gr_name for g in os.getgroups()]
+def vm_hostname():
+    with open("/etc/hosts") as f:
+        if "127.0.0.1\tvm" in f.read():
+            return "vm"
+        else:
+            return "127.0.0.1"
+
+
+def allow_debug():
+    groups = [grp.getgrgid(g).gr_name for g in os.getgroups()]
+    return os.getuid() == 0 or "sudo" in groups
 
 
 def execve(argv):
@@ -44,7 +53,7 @@ def start():
         "-append", "rw rootfstype=9p rootflags=trans=virtio console=ttyS0 init=/opt/pwn.college/vm/init nokaslr",
     ]
 
-    if is_practice():
+    if allow_debug():
         qemu_argv.append("-s")
 
     argv = [
@@ -84,7 +93,7 @@ def stop():
 def wait():
     for _ in range(50):
         try:
-            connection = socket.create_connection(("vm", 22), timeout=30)
+            connection = socket.create_connection((vm_hostname(), 22), timeout=30)
         except ConnectionRefusedError:
             pass
         else:
@@ -100,19 +109,23 @@ def wait():
 
 def connect():
     wait()
-    execve(["/usr/bin/ssh", "vm"])
+    execve(["/usr/bin/ssh", vm_hostname()])
 
 
 def exec_(*args):
     wait()
-    execve(["/usr/bin/ssh", "vm", "--", *args])
+    execve(["/usr/bin/ssh", vm_hostname(), "--", *args])
 
 
 def debug():
-    if not is_practice():
-        print("Error: vm can only be debugged in practice mode!", file=sys.stderr)
+    try:
+        socket.create_connection((vm_hostname(), 1234), timeout=30)
+    except ConnectionRefusedError:
+        if allow_debug():
+            print("Error: could not connect to debug!", file=sys.stderr)
+        else:
+            print("Error: do not have permission to debug!", file=sys.stderr)
         exit(1)
-        return
     execve([
         "/usr/bin/gdb",
         "--ex", "target remote localhost:1234",

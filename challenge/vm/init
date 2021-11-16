@@ -20,8 +20,12 @@ ip addr add 10.0.2.15/24 dev eth0
 ip route add 10.0.2.0/24 via 10.0.2.2 dev eth0 2>/dev/null || true  # Error: Nexthop has invalid gateway.
 ip link set dev eth0 up
 
-find /challenge -name '*.ko' -exec insmod {} \;
+find /challenge -name '*.ko' -exec /usr/sbin/insmod {} \;
 
 service ssh start
 
-exec /usr/sbin/docker-init /usr/bin/dmesg -- --follow
+if [ -e /usr/sbin/docker-init ]; then
+    exec /usr/sbin/docker-init /usr/bin/dmesg -- --follow
+else
+    exec /usr/bin/dmesg --follow
+fi
