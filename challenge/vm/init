@@ -7,6 +7,11 @@ mount -t sysfs sys /sys
 mount -t devpts -o x-mount.mkdir devpts /dev/pts
 mount -t 9p -o trans=virtio,version=9p2000.L,nosuid /home/hacker /home/hacker
 
+sysctl -w fs.protected_fifos=1
+sysctl -w fs.protected_hardlinks=1
+sysctl -w fs.protected_regular=2
+sysctl -w fs.protected_symlinks=1
+
 # `hostname` command does not allow '_'
 python - <<'EOF'
 import socket
