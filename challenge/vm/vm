@@ -60,6 +60,7 @@ def start():
     qemu_argv = [
         "/usr/bin/qemu-system-x86_64",
         "-kernel", "/opt/linux/bzImage",
+        "-cpu", "qemu64,smep,smap",
         "-fsdev", "local,id=rootfs,path=/,security_model=passthrough",
         "-device", "virtio-9p-pci,fsdev=rootfs,mount_tag=/dev/root",
         "-fsdev", "local,id=homefs,path=/home/hacker,security_model=passthrough",
