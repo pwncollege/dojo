@@ -35,11 +35,17 @@ def allow_debug():
 
 
 def extra_boot_flags():
+    kaslr_challenges = [
+        "babykernel_level10",
+        "toddlertwo_level13",
+    ]
+
+    challenge_hostname = socket.gethostname()
+
     nokaslr = True
     if allow_debug():
         nokaslr = True
-    elif "babykernel_level10" in socket.gethostname():
-        # Temporarily hardcode disable nokaslr on specifically level 10 until this usecase is better supported
+    elif any(challenge in challenge_hostname for challenge in kaslr_challenges):
         nokaslr = False
 
     result = []
