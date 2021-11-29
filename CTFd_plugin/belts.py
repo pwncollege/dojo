@@ -21,9 +21,9 @@ yellow_categories = [
 blue_categories = [
     *yellow_categories,
     "babyrop",
-    "babykernel",
     "babyheap",
     "babyrace",
+    "babykernel",
     "toddlertwo",
 ]
 
@@ -42,7 +42,7 @@ class BeltInfos(db.Model):
 def get_belts():
     color_categories = {
         "yellow": yellow_categories,
-        # "blue": blue_categories,
+        "blue": blue_categories,
     }
 
     result = {
