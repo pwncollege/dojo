@@ -12,6 +12,11 @@ import grp
 import argparse
 
 
+def error(msg):
+    print(msg, file=sys.stderr)
+    exit(1)
+
+
 def initialize():
     os.setegid(os.geteuid())
     try:
@@ -28,7 +33,7 @@ def vm_hostname():
             return "127.0.0.1"
 
 
-def allow_debug():
+def is_privileged():
     groups = [grp.getgrgid(g).gr_name for g in os.getgroups()]
     hostname = socket.gethostname()
     return os.getuid() == 0 or "sudo" in groups or hostname.startswith("practice_")
@@ -43,10 +48,10 @@ def extra_boot_flags():
     challenge_hostname = socket.gethostname()
 
     nokaslr = True
-    if allow_debug():
-        nokaslr = True
-    elif any(challenge in challenge_hostname for challenge in kaslr_challenges):
+    if any(challenge in challenge_hostname for challenge in kaslr_challenges):
         nokaslr = False
+    if args.nokaslr is not None:
+        nokaslr = args.nokaslr
 
     result = []
     if nokaslr:
@@ -80,7 +85,7 @@ def start():
         "-append", f"rw rootfstype=9p rootflags=trans=virtio console=ttyS0 init=/opt/pwn.college/vm/init {flags}",
     ]
 
-    if allow_debug():
+    if is_privileged():
         qemu_argv.append("-s")
 
     argv = [
@@ -136,8 +141,7 @@ def wait():
                 break
         time.sleep(0.1)
     else:
-        print("Error: could not connect to vm!", file=sys.stderr)
-        exit(1)
+        error("Error: could not connect to vm!")
 
 
 def connect():
@@ -157,11 +161,8 @@ def debug():
     try:
         socket.create_connection((vm_hostname(), 1234), timeout=30)
     except ConnectionRefusedError:
-        if allow_debug():
-            print("Error: could not connect to debug!", file=sys.stderr)
-        else:
-            print("Error: do not have permission to debug!", file=sys.stderr)
-        exit(1)
+        error("Error: could not connect to debug!")
+
     execve([
         "/usr/bin/gdb",
         "--ex", "target remote localhost:1234",
@@ -170,10 +171,6 @@ def debug():
 
 
 def build(path):
-    if not allow_debug():
-        print("Error: do not have permission to debug!", file=sys.stderr)
-        exit(1)
-
     os.setuid(os.geteuid())
 
     with open(path, "r") as f:
@@ -219,22 +216,47 @@ def logs():
 
 
 def main():
+    global args
+
     initialize()
 
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
+
     connect_parser = subparsers.add_parser("connect", help="connect to vm")
+
     exec_parser = subparsers.add_parser("exec", help="exec command in vm")
     exec_parser.add_argument("exec_command")
     exec_parser.add_argument("exec_command_args", nargs=argparse.REMAINDER)
+
     start_parser = subparsers.add_parser("start", help="start vm")
+
     stop_parser = subparsers.add_parser("stop", help="stop vm")
+
     restart_parser = subparsers.add_parser("restart", help="restart vm")
-    debug_parser = subparsers.add_parser("debug", help="debug vm")
-    build_parser = subparsers.add_parser("build", help="build vm kernel module")
-    build_parser.add_argument("build_path")
+
     logs_parser = subparsers.add_parser("logs", help="show vm logs")
+
+    debug_parser = subparsers.add_parser("debug", help="privileged: debug vm")
+
+    build_parser = subparsers.add_parser("build", help="privileged: build vm kernel module")
+    build_parser.add_argument("build_path")
+
+    parser.add_argument('--kaslr', dest='nokaslr', action='store_false', help="privileged: enable kaslr")
+    parser.add_argument('--no-kaslr', dest='nokaslr', action='store_true', help="privileged: disable kaslr")
+    parser.set_defaults(nokaslr=None)
+
     args = parser.parse_args()
+
+    if not is_privileged():
+        privilege_checks = {
+            "modify boot flags": args.nokaslr is None,
+            "debug": args.command != "debug",
+            "build": args.command != "build",
+        }
+        for description, validated in privilege_checks.items():
+            if not validated:
+                error(f"Error: do not have permission to {description}")
 
     commands = {
         "connect": lambda: (start(), connect()),
