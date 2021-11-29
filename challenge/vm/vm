@@ -15,7 +15,7 @@ import argparse
 def initialize():
     os.setegid(os.geteuid())
     try:
-        os.mkdir("/tmp/vm")
+        os.mkdir("/run/vm")
     except FileExistsError:
         pass
 
@@ -86,11 +86,12 @@ def start():
     argv = [
         "/usr/sbin/start-stop-daemon",
         "--start",
-        "--pidfile", "/tmp/vm/vm.pid",
+        "--pidfile", "/run/vm/vm.pid",
         "--make-pidfile",
         "--background",
         "--no-close",
         "--quiet",
+        "--oknodo",
         "--startas", qemu_argv[0],
         "--",
         *qemu_argv[1:]
@@ -98,23 +99,28 @@ def start():
 
     subprocess.run(argv,
                    stdin=subprocess.DEVNULL,
-                   stdout=open("/tmp/vm/vm.log", "a"),
-                   stderr=subprocess.STDOUT)
+                   stdout=open("/run/vm/vm.log", "a"),
+                   stderr=subprocess.STDOUT,
+                   check=True)
 
 
 def stop():
     argv = [
         "/usr/sbin/start-stop-daemon",
         "--stop",
-        "--pidfile", "/tmp/vm/vm.pid",
+        "--pidfile", "/run/vm/vm.pid",
         "--remove-pidfile",
         "--quiet",
+        "--oknodo",
     ]
 
     subprocess.run(argv,
                    stdin=subprocess.DEVNULL,
-                   stdout=open("/tmp/vm/vm.log", "a"),
-                   stderr=subprocess.STDOUT)
+                   stdout=open("/run/vm/vm.log", "a"),
+                   stderr=subprocess.STDOUT,
+                   check=True)
+
+    os.unlink("/run/vm/vm.log")
 
 
 def wait():
@@ -141,7 +147,10 @@ def connect():
 
 def exec_(*args):
     wait()
-    execve(["/usr/bin/ssh", vm_hostname(), "--", *args])
+    if sys.stdout.isatty():
+        execve(["/usr/bin/ssh", "-t", vm_hostname(), "--", *args])
+    else:
+        execve(["/usr/bin/ssh", vm_hostname(), "--", *args])
 
 
 def debug():
@@ -188,19 +197,25 @@ def build(path):
                 )
             )
 
-        subprocess.run(["make", "-C", workdir], stdout=sys.stderr)
+        subprocess.run(["make", "-C", workdir], stdout=sys.stderr, check=True)
 
         shutil.copy(f"{workdir}/debug.ko", "/challenge/debug.ko")
 
 
 def logs():
-    if os.path.exists("/tmp/vm/vm.log"):
-        execve([
-            "/usr/bin/tail",
-            "-F",
-            "-n+1",
-            "/tmp/vm/vm.log",
-        ])
+    argv = [
+        "/usr/bin/tail",
+        "-F",
+        "-n+1",
+        "/run/vm/vm.log",
+    ]
+
+    while True:
+        subprocess.run(argv,
+                       stdin=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL)
+
+        time.sleep(0.1)
 
 
 def main():
