@@ -1,11 +1,16 @@
+import math
 import datetime
 
 import yaml
+import requests
 from flask import Blueprint, render_template, request
 from CTFd.models import db, Challenges, Solves, Awards, Users
 from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
+
+from .writeups import WriteupComments, writeup_weeks, all_writeups
+from .discord import DiscordUsers, discord_reputation
 
 
 grades = Blueprint("grades", __name__, template_folder="assets/grades/")
@@ -16,6 +21,33 @@ def average(data):
     if not data:
         return 0.0
     return sum(data) / len(data)
+
+
+def helpful_credit(reputation, max_reputation):
+    if not reputation or not max_reputation:
+        return 0.0
+    return round(100 * (math.log2(reputation + 0.1) / math.log2(max_reputation + 0.1))) / 1000
+
+
+def shared_helpful_extra_credit():
+    students = yaml.load(get_config("students"), Loader=yaml.BaseLoader)
+    student_ids = set(int(student["dojo_id"]) for student in students)
+
+    all_reputation = discord_reputation()
+    max_reputation = max(all_reputation, default=None)
+
+    discord_users = {
+        discord.discord_id: discord_user.user_id
+        for discord_user in DiscordUsers.query.all()
+    }
+
+    all_shared_credit = [
+        helpful_credit(reputation, max_reputation)
+        for discord_id, reputation in all_reputation.items()
+        if discord_users.get(discord_id) not in student_ids
+    ]
+
+    return sum(all_shared_credit) / len(students)
 
 
 def compute_grades(user_id, when=None):
@@ -77,25 +109,76 @@ def compute_grades(user_id, when=None):
         else:
             due = ""
 
-        grades.append(
-            {
+        grades.append({
                 "category": category,
                 "due": due,
-                "solves": f"{num_solves}/{num_available}",
-                "makeup": f"{makeup_num_solves}/{num_available}",
+                "solves": f"{makeup_num_solves}/{num_available} ({num_solves}/{num_available})",
                 "grade": grade,
-            }
-        )
+        })
 
     max_time = datetime.datetime.max
     grades.sort(key=lambda k: (deadlines.get(k["category"], max_time), k["category"]))
 
-    overall_grade = average(grade["grade"] for grade in grades)
+    weeks_accepted = {week: None for week in writeup_weeks()}
+    for week, writeup in all_writeups(user_id):
+        comment = (
+            WriteupComments.query.filter_by(writeup_id=writeup.id)
+            .order_by(WriteupComments.date.desc())
+            .first()
+        )
+        weeks_accepted[week] = comment and comment.accepted
+    accepted = len([... for week, accepted in weeks_accepted.items() if accepted])
+    ctf_grade = float(accepted)
+    grades.append({
+        "category": "EC: ctf",
+        "due": "",
+        "solves": f"{accepted}/{len(weeks_accepted)}",
+        "grade": ctf_grade,
+    })
+
+    reputation = 0
+    helpful_personal_grade = 0.0
+    discord_user = DiscordUsers.query.filter_by(user_id=user_id).first()
+    if discord_user:
+        all_reputation = discord_reputation()
+        reputation = all_reputation.get(discord_user.id, 0)
+        max_reputation = max(all_reputation.values(), default=None)
+        helpful_personal_grade = helpful_credit(reputation, max_reputation)
+    grades.append({
+        "category": "EC: helpful personal",
+        "due": "",
+        "solves": f"{reputation}",
+        "grade": helpful_personal_grade,
+    })
+
+    helpful_shared_grade = shared_helpful_extra_credit()
+    grades.append({
+        "category": "EC: helpful shared",
+        "due": "",
+        "solves": "",
+        "grade": helpful_shared_grade,
+    })
+
+    memes = 0
+    memes_grade = float(memes)
+    grades.append({
+        "category": "EC: memes",
+        "due": "TODO",
+        "solves": f"{memes}",
+        "grade": memes_grade,
+    })
+
+    overall_grade = (
+        average(grade["grade"] for grade in grades) +
+        ctf_grade +
+        helpful_personal_grade +
+        helpful_shared_grade +
+        memes_grade
+    )
     grades.append({
         "category": "overall",
         "due": "",
-        "solves": f"{solves_total}/{available_total}",
-        "makeup": f"{makeup_solves_total}/{available_total}",
+        "solves": f"{makeup_solves_total}/{available_total} ({solves_total}/{available_total})",
         "grade": overall_grade,
     })
 

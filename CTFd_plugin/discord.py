@@ -5,6 +5,7 @@ from flask import request, Blueprint, redirect, abort, current_app
 from sqlalchemy.exc import IntegrityError
 from itsdangerous.url_safe import URLSafeTimedSerializer
 from CTFd.models import db
+from CTFd.cache import cache
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
@@ -114,6 +115,25 @@ def discord_avatar_asset(discord_user):
     discord_id = discord_user["id"]
     discord_avatar = discord_user["avatar"]
     return f"https://cdn.discordapp.com/avatars/{discord_id}/{discord_avatar}.png"
+
+
+@cache.memoize(timeout=1800)
+def discord_reputation():
+    result = {}
+    offset = 0
+    while True:
+        url = f"https://yagpdb.xyz/api/{DISCORD_GUILD_ID}/reputation/leaderboard"
+        params = {
+            "limit": 100,
+            "offset": offset,
+        }
+        response = requests.get(url, params=params)
+        for row in response.json():
+            result[row["user_id"]] = row["points"]
+        if len(response.json()) != 100:
+            break
+        offset += 100
+    return result
 
 
 discord = Blueprint("discord", __name__)
