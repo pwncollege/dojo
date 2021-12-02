@@ -119,6 +119,14 @@ def compute_grades(user_id, when=None):
     max_time = datetime.datetime.max
     grades.sort(key=lambda k: (deadlines.get(k["category"], max_time), k["category"]))
 
+    module_average_grade = average(grade["grade"] for grade in grades)
+    grades.append({
+        "category": "module average",
+        "due": "",
+        "solves": f"{makeup_solves_total}/{available_total} ({solves_total}/{available_total})",
+        "grade": module_average_grade,
+    })
+
     weeks_accepted = {week: None for week in writeup_weeks()}
     for week, writeup in all_writeups(user_id):
         comment = (
@@ -141,7 +149,7 @@ def compute_grades(user_id, when=None):
     discord_user = DiscordUsers.query.filter_by(user_id=user_id).first()
     if discord_user:
         all_reputation = discord_reputation()
-        reputation = all_reputation.get(discord_user.user_id, 0)
+        reputation = all_reputation.get(discord_user.discord_id, 0)
         max_reputation = max(all_reputation.values(), default=None)
         helpful_personal_grade = helpful_credit(reputation, max_reputation)
     grades.append({
@@ -169,7 +177,7 @@ def compute_grades(user_id, when=None):
     })
 
     overall_grade = (
-        average(grade["grade"] for grade in grades) +
+        module_average_grade +
         ctf_grade +
         helpful_personal_grade +
         helpful_shared_grade +
@@ -178,7 +186,7 @@ def compute_grades(user_id, when=None):
     grades.append({
         "category": "overall",
         "due": "",
-        "solves": f"{makeup_solves_total}/{available_total} ({solves_total}/{available_total})",
+        "solves": "",
         "grade": overall_grade,
     })
 
