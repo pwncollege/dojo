@@ -141,7 +141,7 @@ def compute_grades(user_id, when=None):
     discord_user = DiscordUsers.query.filter_by(user_id=user_id).first()
     if discord_user:
         all_reputation = discord_reputation()
-        reputation = all_reputation.get(discord_user.id, 0)
+        reputation = all_reputation.get(discord_user.user_id, 0)
         max_reputation = max(all_reputation.values(), default=None)
         helpful_personal_grade = helpful_credit(reputation, max_reputation)
     grades.append({
