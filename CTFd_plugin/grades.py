@@ -37,7 +37,7 @@ def shared_helpful_extra_credit():
     max_reputation = max(all_reputation, default=None)
 
     discord_users = {
-        discord.discord_id: discord_user.user_id
+        discord_user.discord_id: discord_user.user_id
         for discord_user in DiscordUsers.query.all()
     }
 
