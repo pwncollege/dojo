@@ -129,7 +129,7 @@ def discord_reputation():
         }
         response = requests.get(url, params=params)
         for row in response.json():
-            result[row["user_id"]] = row["points"]
+            result[str(row["user_id"])] = row["points"]
         if len(response.json()) != 100:
             break
         offset += 100

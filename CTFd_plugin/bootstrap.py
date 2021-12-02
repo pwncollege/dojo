@@ -2,10 +2,12 @@ import re
 
 from flask_restx import Namespace, Resource
 from CTFd.models import db, Admins, Pages, Flags
+from CTFd.cache import cache
 from CTFd.utils import config, get_config, set_config
 from CTFd.utils.decorators import admins_only
 
 from .docker_challenge import DockerChallenges
+from .discord import discord_reputation
 from .utils import CHALLENGES_DIR
 
 
@@ -41,6 +43,9 @@ class Bootstrap(Resource):
         with open(CHALLENGES_DIR / "students.yml") as f:
             students = f.read()
         set_config("students", students)
+
+        cache.delete_memoized(discord_reputation)
+        discord_reputation()
 
         if not config.is_setup():
             admin = Admins(
