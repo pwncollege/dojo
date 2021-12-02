@@ -37,8 +37,8 @@ def writeup_weeks():
 def all_writeups(user_id=None):
     writeups = WriteupFiles.query
     if user_id:
-        writeups.filter_by(user_id=user_id)
-    writeups.order_by(WriteupFiles.date)
+        writeups = writeups.filter_by(user_id=user_id)
+    writeups = writeups.order_by(WriteupFiles.date)
 
     weeks = writeup_weeks()
 

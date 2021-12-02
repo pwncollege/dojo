@@ -34,7 +34,7 @@ def shared_helpful_extra_credit():
     student_ids = set(int(student["dojo_id"]) for student in students)
 
     all_reputation = discord_reputation()
-    max_reputation = max(all_reputation, default=None)
+    max_reputation = max(all_reputation.values(), default=None)
 
     discord_users = {
         discord_user.discord_id: discord_user.user_id
@@ -128,7 +128,7 @@ def compute_grades(user_id, when=None):
         )
         weeks_accepted[week] = comment and comment.accepted
     accepted = len([... for week, accepted in weeks_accepted.items() if accepted])
-    ctf_grade = float(accepted)
+    ctf_grade = accepted / 100
     grades.append({
         "category": "EC: ctf",
         "due": "",
