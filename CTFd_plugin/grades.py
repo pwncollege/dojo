@@ -171,7 +171,7 @@ def compute_grades(user_id, when=None):
 
     meme_weeks = yaml.load(get_config("memes"), Loader=yaml.BaseLoader)
     memes_count = sum(int(discord_user.discord_id in week["users"]) for week in meme_weeks) if discord_user else 0
-    memes_grade = memes_count * 0.5
+    memes_grade = memes_count / 200
     grades.append({
         "category": "EC: memes",
         "due": "",
