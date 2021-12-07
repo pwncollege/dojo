@@ -44,6 +44,10 @@ class Bootstrap(Resource):
             students = f.read()
         set_config("students", students)
 
+        with open(CHALLENGES_DIR / "memes.yml") as f:
+            memes = f.read()
+        set_config("memes", memes)
+
         cache.delete_memoized(discord_reputation)
         discord_reputation()
 

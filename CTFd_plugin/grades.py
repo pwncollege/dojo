@@ -144,9 +144,10 @@ def compute_grades(user_id, when=None):
         "grade": ctf_grade,
     })
 
+    discord_user = DiscordUsers.query.filter_by(user_id=user_id).first()
+
     reputation = 0
     helpful_personal_grade = 0.0
-    discord_user = DiscordUsers.query.filter_by(user_id=user_id).first()
     if discord_user:
         all_reputation = discord_reputation()
         reputation = all_reputation.get(discord_user.discord_id, 0)
@@ -167,12 +168,14 @@ def compute_grades(user_id, when=None):
         "grade": helpful_shared_grade,
     })
 
-    memes = 0
-    memes_grade = float(memes)
+
+    meme_weeks = yaml.load(get_config("memes"), Loader=yaml.BaseLoader)
+    memes_count = sum(int(discord_user.discord_id in week["users"]) for week in meme_weeks) if discord_user else 0
+    memes_grade = memes_count * 0.5
     grades.append({
         "category": "EC: memes",
-        "due": "TODO",
-        "solves": f"{memes}",
+        "due": "",
+        "solves": f"{memes_count}/{len(meme_weeks)}",
         "grade": memes_grade,
     })
 

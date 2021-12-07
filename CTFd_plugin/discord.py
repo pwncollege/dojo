@@ -26,6 +26,7 @@ class DiscordUsers(db.Model):
 
 
 def bot_join_server():
+    # "Server Members Intent" also required
     params = dict(client_id=DISCORD_CLIENT_ID, scope="bot", permissions=268437504, guild_id=DISCORD_GUILD_ID)
     url = requests.Request("GET", f"{OAUTH_ENDPOINT}/authorize", params=params).prepare().url
     return url
