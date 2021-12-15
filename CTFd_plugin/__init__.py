@@ -1,3 +1,4 @@
+import sys
 import os
 
 from flask import Blueprint, current_app
@@ -80,4 +81,5 @@ def load(app):
     app.register_blueprint(writeups)
     register_admin_plugin_menu_bar("Writeups", "/admin/writeups")
 
-    Bootstrap.bootstrap()
+    if os.path.basename(sys.argv[0]) != "manage.py":
+        Bootstrap.bootstrap()
