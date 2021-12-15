@@ -49,11 +49,11 @@ def get_belts():
     }
 
     result = {
-        "colors": {
+        "dates": {
             color: {}
             for color in color_categories
         },
-        "info": {},
+        "users": {},
     }
 
     for color, categories in color_categories.items():
@@ -73,9 +73,10 @@ def get_belts():
         )
 
         for user_id, handle, date in belted_users:
-            result["colors"][color][user_id] = str(date)
-            result["info"][user_id] = {
-                "handle": handle
+            result["dates"][color][user_id] = str(date)
+            result["users"][user_id] = {
+                "handle": handle,
+                "color": color,
             }
 
     return result
