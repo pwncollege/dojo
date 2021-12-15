@@ -120,6 +120,9 @@ def discord_avatar_asset(discord_user):
 
 @cache.memoize(timeout=1800)
 def discord_reputation():
+    if not DISCORD_GUILD_ID:
+        return {}
+
     result = {}
     offset = 0
     while True:
