@@ -85,15 +85,15 @@ nav {
     display: none !important;
 }
 
-#scoreboard > div > table > tbody > tr > td > img {
+.scoreboard > div > table > tbody > tr > td > img {
     filter: drop-shadow(0px 0px 3px white);
 }
 
-#scoreboard > div > table > thead > tr > td:nth-child(3) > b {
+.scoreboard > div > table > thead > tr > td:nth-child(3) > b {
     display: none;
 }
 
-#scoreboard > div > table > thead > tr > td:nth-child(3)::after {
+.scoreboard > div > table > thead > tr > td:nth-child(3)::after {
     content: "Hacker";
     font-weight: bold;
 }

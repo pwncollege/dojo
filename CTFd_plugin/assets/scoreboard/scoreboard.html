@@ -15,6 +15,25 @@
   .scoreboard-belt {
       height: 1.5em;
   }
+
+  .scoreboard-row-me {
+      background-color: rgba(255,255,255,0.3) !important;
+      border: 2px solid rgba(255,255,255,0.8);
+  }
+
+  .scoreboard-page {
+      display: inline-block;
+      padding: 0.5em 1em 0.5em 1em;
+  }
+
+  .scoreboard-page-unselected > a {
+      color: gray;
+  }
+
+  .scoreboard-page-selected > a {
+      font-weight: bold;
+  }
+
 </style>
 {% endblock %}
 
@@ -28,11 +47,26 @@
 <div class="container">
   {% include "components/errors.html" %}
 
-  <h2>All Time Rankings</h2>
+  <h2 class="row">Site Stats</h2>
 
-  {% cache 60, CacheKeys.PUBLIC_SCOREBOARD_TABLE %}
-  <div id="scoreboard" class="row">
-    <div class="col-md-12">
+  <div class="row">
+    <p>
+      <b>Hacking Now:</b> <code>{{ stats["active"] }}</code>
+      <br>
+      <b>Hackers:</b> <code>{{ stats["users"] }}</code>
+      <br>
+      <b>Challenges:</b> <code>{{ stats["challenges"] }}</code>
+      <br>
+      <b>Solves:</b> <code>{{ stats["solves"] }}</code>
+    </p>
+  </div>
+
+  <br>
+
+  <h2 class="row">Weekly Top 10</h2>
+
+  <div class="scoreboard row">
+    <div class="col-md-12 p-0">
       <table class="table table-striped">
 	<thead>
 	  <tr>
@@ -43,32 +77,41 @@
 	    <td scope="col" class="col-md-1"><b>Score</b></td>
 	  </tr>
 	</thead>
-	<tbody>
-	  {% for standing in standings %}
-	  <tr>
-	    <th scope="row">#{{ loop.index }}</th>
-            <td class="p-0">
-              <img src="{{ email_group_asset(standing.email) }}" class="scoreboard-symbol">
-            </td>
-	    <td>
-	      <a href="{{ generate_account_url(standing.account_id) }}" class="scoreboard-name text-decoration-none">
-		{{ standing.name | truncate(50) }}
-	      </a>
-	    </td>
-            <td>
-              <img src="{{ belt_asset(belts.get(standing.account_id)) }}" class="scoreboard-belt">
-            </td>
-	    <td>{{ standing.score }}</td>
-	  </tr>
-	  {% endfor %}
+	<tbody id="scoreboard-weekly">
 	</tbody>
       </table>
     </div>
   </div>
-  {% endcache %}
+
+  <br>
+
+  <h2 class="row">All Time Rankings</h2>
+
+  <div class="scoreboard row">
+    <div class="col-md-12 p-0">
+      <table class="table table-striped">
+	<thead>
+	  <tr>
+	    <td scope="col" class="col-md-1"><b>Rank</b></td>
+            <td scope="col" class="col-md-1"></td>
+	    <td scope="col" class="col-md-8"><b>Hacker</b></td>
+	    <td scope="col" class="col-md-1"></td>
+	    <td scope="col" class="col-md-1"><b>Score</b></td>
+	  </tr>
+	</thead>
+	<tbody id="scoreboard-overall">
+	</tbody>
+      </table>
+    </div>
+    <div>
+      <ul id="scoreboard-overall-pages" class="p-0">
+      </ul>
+    </div>
+  </div>
 
 </div>
 {% endblock %}
 
-{% block entrypoint %}
+{% block scripts %}
+<script defer src="/plugins/pwncollege_plugin/assets/scoreboard/scoreboard.js"></script>
 {% endblock %}

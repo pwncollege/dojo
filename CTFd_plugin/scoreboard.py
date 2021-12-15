@@ -1,12 +1,16 @@
 import collections
+import math
+import datetime
 
+import docker
 from flask import render_template
-from CTFd.models import db, Solves, Challenges
+from flask_restx import Namespace, Resource
+from CTFd.cache import cache
+from CTFd.models import db, Users, Solves, Challenges
 from CTFd.utils import config, get_config
 from CTFd.utils.helpers import get_infos
-from CTFd.utils.scores import get_standings
-from CTFd.utils.user import is_admin
-from CTFd.utils.modes import get_model
+from CTFd.utils.user import get_current_user, is_admin
+from CTFd.utils.modes import get_model, generate_account_url
 from CTFd.utils.config.visibility import scores_visible
 from CTFd.utils.decorators.visibility import check_score_visibility
 
@@ -20,7 +24,7 @@ def email_group_asset(email):
         group = "student.png"
     else:
         group = "hacker.png"
-    return f"plugins/pwncollege_plugin/assets/scoreboard/{group}"
+    return f"/plugins/pwncollege_plugin/assets/scoreboard/{group}"
 
 
 def belt_asset(color):
@@ -30,7 +34,70 @@ def belt_asset(color):
         belt = "yellow.svg"
     else:
         belt = "white.svg"
-    return f"plugins/pwncollege_plugin/assets/scoreboard/{belt}"
+    return f"/plugins/pwncollege_plugin/assets/scoreboard/{belt}"
+
+
+@cache.memoize(timeout=60)
+def get_standings(count=None, fields=None, filters=None):
+    if fields is None:
+        fields = []
+    if filters is None:
+        filters = []
+    Model = get_model()
+
+    score = db.func.sum(Challenges.value).label("score")
+    standings_query = (
+        db.session.query(
+            Solves.account_id,
+            Model.name,
+            score,
+            *fields,
+        )
+        .join(Challenges)
+        .join(Model, Model.id == Solves.account_id)
+        .group_by(Solves.account_id)
+        .filter(Challenges.value != 0, Model.banned == False, Model.hidden == False, *filters)
+        .order_by(score.desc(), db.func.max(Solves.id))
+    )
+
+    if count is None:
+        standings = standings_query.all()
+    else:
+        standings = standings_query.limit(count).all()
+
+    return standings
+
+
+def standing_info(place, standing):
+    belts = get_belts()["colors"]
+    return {
+        "place": place,
+        "name": standing.name,
+        "score": int(standing.score),
+        "url": generate_account_url(standing.account_id),
+        "symbol": email_group_asset(standing.email),
+        "belt": belt_asset(belts.get(standing.account_id)),
+    }
+
+
+@cache.memoize(timeout=60)
+def get_stats():
+    docker_client = docker.from_env()
+    containers = docker_client.containers.list(filters=dict(name="user_"))
+    now = datetime.datetime.now()
+    active = 0.0
+    for container in containers:
+        created = container.attrs["Created"].split(".")[0]
+        uptime = now - datetime.datetime.fromisoformat(created)
+        hours = max(uptime.seconds // (60 * 60), 1)
+        active += 1 / hours
+
+    return {
+        "active": int(active),
+        "users": int(Users.query.count()),
+        "challenges": int(Challenges.query.count()),
+        "solves": int(Solves.query.count()),
+    }
 
 
 @check_score_visibility
@@ -43,20 +110,56 @@ def scoreboard_listing():
     if is_admin() is True and scores_visible() is False:
         infos.append("Scores are not currently visible to users")
 
-    Model = get_model()
-    standings = get_standings(fields=[Model.email])
-
-    belts = {
-        user_id: color
-        for color, users in get_belts()["colors"].items()
-        for user_id in users
-    }
+    stats = get_stats()
 
     return render_template(
         "scoreboard.html",
         infos=infos,
-        standings=standings,
-        belts=belts,
-        email_group_asset=email_group_asset,
-        belt_asset=belt_asset,
+        stats=stats,
     )
+
+
+
+
+scoreboard_namespace = Namespace("scoreboard")
+
+
+@scoreboard_namespace.route("/overall/<int:page>")
+class ScoreboardOverall(Resource):
+    def get(self, page):
+        Model = get_model()
+        standings = get_standings(fields=[Model.email])
+
+        page_size = 20
+        start = page_size * page
+        end = page_size * (page + 1)
+        page_standings = list((start + i + 1, standing) for i, standing in enumerate(standings[start:end]))
+
+        result = {
+            "page_standings": [standing_info(place, standing) for place, standing in page_standings],
+            "num_pages": math.ceil(len(standings) / page_size),
+        }
+
+        user = get_current_user()
+        if user:
+            place, standing = next((i + 1, standing) for i, standing in enumerate(standings)
+                                   if standing.account_id == user.id)
+            result["me"] = standing_info(place, standing)
+
+        return result
+
+
+@scoreboard_namespace.route("/weekly")
+class ScoreboardWeekly(Resource):
+    def get(self):
+        Model = get_model()
+
+        week_filter = Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=7))
+        standings = get_standings(count=10, fields=[Model.email], filters=[week_filter])
+
+        page_standings = list((i + 1, standing) for i, standing in enumerate(standings))
+
+        result = {
+            "page_standings": [standing_info(place, standing) for place, standing in page_standings],
+        }
+        return result

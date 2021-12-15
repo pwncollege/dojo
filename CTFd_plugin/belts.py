@@ -1,7 +1,9 @@
 import collections
 
 from flask_restx import Namespace, Resource
+from CTFd.cache import cache
 from CTFd.models import db, Users, Challenges, Solves
+
 
 belts_namespace = Namespace("belts", description="Endpoint to manage belts")
 
@@ -39,6 +41,7 @@ class BeltInfos(db.Model):
     website = db.Column(db.Text)
 
 
+@cache.memoize(timeout=60)
 def get_belts():
     color_categories = {
         "yellow": yellow_categories,
@@ -72,7 +75,7 @@ def get_belts():
         for user_id, handle, date in belted_users:
             result["colors"][color][user_id] = str(date)
             result["info"][user_id] = {
-                "handle": Users.name
+                "handle": handle
             }
 
     return result
