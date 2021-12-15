@@ -173,6 +173,9 @@ class RunDocker(Resource):
         hostname = challenge_name
         if practice:
             hostname = f"practice_{hostname}"
+        devices = []
+        if os.path.exists("/dev/kvm"):
+            devices.append("/dev/kvm:/dev/kvm:rwm")
         return docker_client.containers.run(
             challenge.docker_image_name,
             ["/bin/su", "hacker", "/opt/pwn.college/docker-entrypoint.sh"],
@@ -191,6 +194,7 @@ class RunDocker(Resource):
                     propagation="shared",
                 ),
             ],
+            devices=devices,
             network="none",
             extra_hosts={
                 hostname: "127.0.0.1",

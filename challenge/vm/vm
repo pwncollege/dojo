@@ -68,10 +68,12 @@ def execve(argv):
 def start():
     flags = " ".join(flag for flag in extra_boot_flags())
 
+    kvm = os.path.exists("/dev/kvm")
+    cpu = "host" if kvm else "qemu64"
     qemu_argv = [
         "/usr/bin/qemu-system-x86_64",
         "-kernel", "/opt/linux/bzImage",
-        "-cpu", "qemu64,smep,smap",
+        "-cpu", f"{cpu},smep,smap",
         "-fsdev", "local,id=rootfs,path=/,security_model=passthrough",
         "-device", "virtio-9p-pci,fsdev=rootfs,mount_tag=/dev/root",
         "-fsdev", "local,id=homefs,path=/home/hacker,security_model=passthrough",
@@ -84,6 +86,8 @@ def start():
         "-monitor", "none",
         "-append", f"rw rootfstype=9p rootflags=trans=virtio console=ttyS0 init=/opt/pwn.college/vm/init {flags}",
     ]
+    if kvm:
+        qemu_argv.append("-enable-kvm")
 
     if is_privileged():
         qemu_argv.append("-s")
