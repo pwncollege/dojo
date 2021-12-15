@@ -68,8 +68,8 @@ def execve(argv):
 def start():
     flags = " ".join(flag for flag in extra_boot_flags())
 
-    cpu = "host" if os.path.exists("/dev/kvm") else "qemu64"
-
+    kvm = os.path.exists("/dev/kvm")
+    cpu = "host" if kvm else "qemu64"
     qemu_argv = [
         "/usr/bin/qemu-system-x86_64",
         "-kernel", "/opt/linux/bzImage",
@@ -86,6 +86,8 @@ def start():
         "-monitor", "none",
         "-append", f"rw rootfstype=9p rootflags=trans=virtio console=ttyS0 init=/opt/pwn.college/vm/init {flags}",
     ]
+    if kvm:
+        qemu_argv.append("-enable-kvm")
 
     if is_privileged():
         qemu_argv.append("-s")
