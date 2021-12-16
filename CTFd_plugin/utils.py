@@ -56,11 +56,11 @@ def challenge_paths(user, challenge, *, secret=None):
     if challenge_global.exists():
         yield from challenge_global.iterdir()
 
-    options = [
+    options = sorted(
         option
         for option in (CHALLENGES_DIR / challenge.category / challenge.name).iterdir()
         if not (option.name.startswith(".") or option.name.startswith("_"))
-    ]
+    )
 
     option_hash = hashlib.sha256(f"{secret}_{user.id}_{challenge.id}".encode()).digest()
     option = options[int.from_bytes(option_hash[:8], "little") % len(options)]
