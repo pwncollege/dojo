@@ -83,7 +83,7 @@ def standing_info(place, standing):
 @cache.memoize(timeout=60)
 def get_stats():
     docker_client = docker.from_env()
-    containers = docker_client.containers.list(filters=dict(name="user_"))
+    containers = docker_client.containers.list(filters=dict(name="user_"), ignore_removed=True)
     now = datetime.datetime.now()
     active = 0.0
     for container in containers:
@@ -117,8 +117,6 @@ def scoreboard_listing():
         infos=infos,
         stats=stats,
     )
-
-
 
 
 scoreboard_namespace = Namespace("scoreboard")
