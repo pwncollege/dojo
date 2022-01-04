@@ -16,7 +16,8 @@ challenges = Blueprint(
 
 @check_challenge_visibility
 def challenges_listing():
-    modules = yaml.load(get_config("modules"), Loader=yaml.BaseLoader)
+    user = get_current_user()
+    modules = yaml.safe_load(get_config("modules"))
 
     challenges = (
         Challenges.query.filter(Challenges.state == "visible")
@@ -30,7 +31,6 @@ def challenges_listing():
         category: {"count": count, "solves": 0} for category, count in challenges
     }
 
-    user = get_current_user()
     if user:
         solves = (
             Solves.query.filter(Solves.user_id == user.id)
@@ -55,7 +55,8 @@ def challenges_listing():
 @challenges.route("/challenges/<permalink>")
 @check_challenge_visibility
 def view_challenges(permalink):
-    modules = yaml.load(get_config("modules"), Loader=yaml.BaseLoader)
+    user = get_current_user()
+    modules = yaml.safe_load(get_config("modules"))
 
     for module in modules:
         if module.get("permalink") == permalink:
@@ -85,7 +86,6 @@ def view_challenges(permalink):
         )
         challenges = [dict(zip(labels, challenge)) for challenge in challenges]
 
-        user = get_current_user()
         if user:
             user_solves = (
                 Solves.query.filter(Solves.user_id == user.id)

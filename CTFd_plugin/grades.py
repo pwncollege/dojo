@@ -30,7 +30,7 @@ def helpful_credit(reputation, max_reputation):
 
 
 def shared_helpful_extra_credit():
-    students = yaml.load(get_config("students"), Loader=yaml.BaseLoader)
+    students = yaml.safe_load(get_config("students"))
     student_ids = set(int(student["dojo_id"]) for student in students)
 
     all_reputation = discord_reputation()
@@ -51,7 +51,7 @@ def shared_helpful_extra_credit():
 
 
 def compute_grades(user_id, when=None):
-    modules = yaml.load(get_config("modules"), Loader=yaml.BaseLoader)
+    modules = yaml.safe_load(get_config("modules"))
     deadlines = {
         module["category"]: datetime.datetime.fromisoformat(module["deadline"])
         for module in modules
@@ -169,7 +169,7 @@ def compute_grades(user_id, when=None):
     })
 
 
-    meme_weeks = yaml.load(get_config("memes"), Loader=yaml.BaseLoader)
+    meme_weeks = yaml.safe_load(get_config("memes"))
     memes_count = sum(int(discord_user.discord_id in week["users"]) for week in meme_weeks) if discord_user else 0
     memes_grade = memes_count / 200
     grades.append({
@@ -225,7 +225,7 @@ def view_all_grades():
     if when:
         when = datetime.datetime.fromtimestamp(int(when))
 
-    students = yaml.load(get_config("students"), Loader=yaml.BaseLoader)
+    students = yaml.safe_load(get_config("students"))
 
     grades = []
     for student in students:
