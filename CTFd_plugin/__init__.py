@@ -22,6 +22,7 @@ from .scoreboard import scoreboard_listing, scoreboard_namespace
 from .docker_challenge import DockerChallenge, docker_namespace
 from .user_flag import UserFlag, user_flag_namespace
 from .ssh_key import SSHKeys, SSHKeyForm, ssh_key_namespace
+from .private_dojo import private_dojo_namespace
 from .discord import discord
 from .settings import settings
 from .workspace import workspace
@@ -61,6 +62,7 @@ def load(app):
     api.add_namespace(docker_namespace, "/docker")
     api.add_namespace(user_flag_namespace, "/user_flag")
     api.add_namespace(ssh_key_namespace, "/ssh_key")
+    api.add_namespace(private_dojo_namespace, "/private_dojo")
     api.add_namespace(belts_namespace, "/belts")
     app.register_blueprint(blueprint, url_prefix="/pwncollege_api/v1")
 

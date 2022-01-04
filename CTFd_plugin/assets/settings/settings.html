@@ -15,6 +15,7 @@
       <div class="nav flex-column nav-pills" role="tablist">
         <a class="nav-link active" id="settings-profile-tab" data-toggle="pill" href="#profile" role="tab">Profile</a>
         <a class="nav-link" id="settings-key-tab" data-toggle="pill" href="#key" role="tab">SSH Key</a>
+        <a class="nav-link" id="settings-private-dojos-tab" data-toggle="pill" href="#private-dojos" role="tab">Private Dojos</a>
         {% if discord_enabled %}
         <a class="nav-link" id="settings-discord-tab" data-toggle="pill" href="#discord" role="tab">Discord</a>
         {% endif %}
@@ -22,6 +23,7 @@
     </div>
     <div class="col-md-8">
       <div class="tab-content" id="v-pills-tabContent">
+
         <div class="tab-pane fade show active" id="profile" role="tabpanel">
           {% include "components/errors.html" %}
 
@@ -75,9 +77,10 @@
           </form>
           {% endwith %}
         </div>
+
         <div class="tab-pane fade" id="key" role="tabpanel">
           {% with form = Forms.keys.SSHKeyForm() %}
-          <form method="POST" id="user-key-form">
+          <form method="POST" id="key-form">
             <div class="form-group">
               <b>{{ form.key.label }}</b>
               <small class="form-text text-muted">Required for accessing challenges over SSH</small>
@@ -94,6 +97,60 @@
           </form>
           {% endwith %}
         </div>
+
+        <div class="tab-pane fade" id="private-dojos" role="tabpanel">
+          <h3>Enter Dojo</h3>
+          <form method="POST" id="private-dojo-enter-form">
+            <div class="form-group">
+              <b><label for="enter-name">Dojo Name</label></b>
+              <select class="form-control custom-select" id="enter-name" name="id">
+                <option value="">Global Dojo</option>
+                {% for dojo in private_dojos %}
+                <option {% if dojo.active %}selected{% endif %} value="{{ dojo.id }}">{{ dojo.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group text-right">
+              <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Enter">
+            </div>
+          </form>
+
+          <hr>
+
+          <h3>Join Dojo</h3>
+          <form method="POST" id="private-dojo-join-form">
+            <div class="form-group">
+              <b><label for="join-code">Dojo Code</label></b>
+              <input class="form-control" id="join-code" name="code" type="text" value="">
+            </div>
+            <div class="form-group text-right">
+              <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Join">
+            </div>
+          </form>
+
+          <hr>
+
+          <h3>Initialize Dojo</h3>
+          <form method="POST" id="private-dojo-initialize-form">
+            <div class="form-group">
+              <b><label for="initialize-name">Dojo Name</label></b>
+              <input class="form-control" id="initialize-name" name="name" type="text" value="{{ user_dojo.name if user_dojo else "" }}">
+            </div>
+            <div class="form-group">
+              <b><label for="initialize-code">Dojo Code</label></b>
+              <input readonly class="form-control" id="initialize-code" name="code" type="text" value="{{ user_dojo.code if user_dojo else "" }}">
+            </div>
+            <div class="form-group text-right">
+              <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Initialize">
+            </div>
+          </form>
+
+          <hr>
+
+          <div id="private-dojo-results" class="form-group">
+          </div>
+        </div>
+
         {% if discord_enabled %}
         <div class="tab-pane fade" id="discord" role="tabpanel">
           <a href="/discord/connect" class="text-decoration-none">

@@ -14,6 +14,7 @@ from CTFd.utils.modes import get_model, generate_account_url
 from CTFd.utils.config.visibility import scores_visible
 from CTFd.utils.decorators.visibility import check_score_visibility
 
+from .private_dojo import PrivateDojoMembers, active_dojo_id
 from .belts import get_belts
 
 
@@ -38,12 +39,17 @@ def belt_asset(color):
 
 
 @cache.memoize(timeout=60)
-def get_standings(count=None, fields=None, filters=None):
+def get_standings(count=None, fields=None, filters=None, *, dojo_id=None):
     if fields is None:
         fields = []
     if filters is None:
         filters = []
     Model = get_model()
+
+    private_dojo_filters = []
+    if dojo_id is not None:
+        private_dojo_members = db.session.query(PrivateDojoMembers.user_id).filter_by(dojo_id=dojo_id).subquery()
+        private_dojo_filters.append(Solves.account_id.in_(private_dojo_members))
 
     score = db.func.sum(Challenges.value).label("score")
     standings_query = (
@@ -56,7 +62,8 @@ def get_standings(count=None, fields=None, filters=None):
         .join(Challenges)
         .join(Model, Model.id == Solves.account_id)
         .group_by(Solves.account_id)
-        .filter(Challenges.value != 0, Model.banned == False, Model.hidden == False, *filters)
+        .filter(Challenges.value != 0, Model.banned == False, Model.hidden == False,
+                *filters, *private_dojo_filters)
         .order_by(score.desc(), db.func.max(Solves.id))
     )
 
@@ -125,8 +132,11 @@ scoreboard_namespace = Namespace("scoreboard")
 @scoreboard_namespace.route("/overall/<int:page>")
 class ScoreboardOverall(Resource):
     def get(self, page):
+        user = get_current_user()
+        dojo_id = active_dojo_id(user.id) if user else None
+
         Model = get_model()
-        standings = get_standings(fields=[Model.email])
+        standings = get_standings(fields=[Model.email], dojo_id=dojo_id)
 
         page_size = 20
         start = page_size * page
@@ -138,7 +148,6 @@ class ScoreboardOverall(Resource):
             "num_pages": math.ceil(len(standings) / page_size),
         }
 
-        user = get_current_user()
         if user:
             place, standing = next((i + 1, standing) for i, standing in enumerate(standings)
                                    if standing.account_id == user.id)
@@ -150,10 +159,13 @@ class ScoreboardOverall(Resource):
 @scoreboard_namespace.route("/weekly")
 class ScoreboardWeekly(Resource):
     def get(self):
+        user = get_current_user()
+        dojo_id = active_dojo_id(user.id) if user else None
+
         Model = get_model()
 
         week_filter = Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=7))
-        standings = get_standings(count=10, fields=[Model.email], filters=[week_filter])
+        standings = get_standings(count=10, fields=[Model.email], filters=[week_filter], dojo_id=dojo_id)
 
         page_standings = list((i + 1, standing) for i, standing in enumerate(standings))
 
