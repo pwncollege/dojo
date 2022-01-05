@@ -1,16 +1,16 @@
 var error_template =
     '<div class="alert alert-danger alert-dismissable" role="alert">\n' +
     '  <span class="sr-only">Error:</span>\n' +
-    "  {0}\n" +
+    '  <span id="message"></span>' +
     '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
-    "</div>";
+    '</div>';
 
 var success_template =
     '<div class="alert alert-success alert-dismissable submit-row" role="alert">\n' +
-    "  <strong>Success!</strong>\n" +
-    "   {0}\n" +
+    '  <strong>Success!</strong>\n' +
+    '  <span id="message"></span>' +
     '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
-    "</div>";
+    '</div>';
 
 $(() => {
     const keyForm = $("#key-form");
@@ -32,7 +32,8 @@ $(() => {
             return response.json()
         }).then(result => {
             if (result.success) {
-                keyResults.html(success_template.format("Your public key has been updated"));
+                keyResults.html(success_template);
+                keyResults.find("#message").text("Your public key has been updated");
             } else {
                 result.keys(result.errors).map((error) => {
                     const input = $(keyForm.find("input[name={0}]".format(error)));
@@ -62,9 +63,11 @@ $(() => {
                 return response.json()
             }).then(result => {
                 if (result.success) {
-                    privateDojoResults.html(success_template.format(success(result)));
+                    privateDojoResults.html(success_template);
+                    privateDojoResults.find("#message").text(success(result));
                 } else {
-                    privateDojoResults.html(error_template.format(result.error));
+                    privateDojoResults.html(error_template);
+                    privateDojoResults.find("#message").text(result.error);
                 }
             });
         });

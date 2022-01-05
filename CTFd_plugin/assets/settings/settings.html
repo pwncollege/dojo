@@ -137,6 +137,10 @@
               <input class="form-control" id="initialize-name" name="name" type="text" value="{{ user_dojo.name if user_dojo else "" }}">
             </div>
             <div class="form-group">
+              <b><label for="initialize-name">Dojo Data</label></b>
+              <textarea class="form-control" id="initialize-data" name="data" rows="4" placeholder="Customize Available Challenges (leave blank for default)">{{ user_dojo.data if user_dojo else "" }}</textarea>
+            </div>
+            <div class="form-group">
               <b><label for="initialize-code">Dojo Code</label></b>
               <input readonly class="form-control" id="initialize-code" name="code" type="text" value="{{ user_dojo.code if user_dojo else "" }}">
             </div>

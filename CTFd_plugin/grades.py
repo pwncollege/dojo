@@ -9,6 +9,7 @@ from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 
+from .private_dojo import active_dojo_id, dojo_modules
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 from .discord import DiscordUsers, discord_reputation
 
@@ -51,9 +52,9 @@ def shared_helpful_extra_credit():
 
 
 def compute_grades(user_id, when=None):
-    modules = yaml.safe_load(get_config("modules"))
+    modules = dojo_modules(active_dojo_id(user_id))
     deadlines = {
-        module["category"]: datetime.datetime.fromisoformat(module["deadline"])
+        module["category"]: module["deadline"]
         for module in modules
         if "category" in module and "deadline" in module
     }
