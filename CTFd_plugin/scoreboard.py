@@ -5,6 +5,7 @@ import datetime
 import docker
 from flask import render_template
 from flask_restx import Namespace, Resource
+from sqlalchemy.sql import or_, and_
 from CTFd.cache import cache
 from CTFd.models import db, Users, Solves, Challenges
 from CTFd.utils import config, get_config
@@ -14,7 +15,7 @@ from CTFd.utils.modes import get_model, generate_account_url
 from CTFd.utils.config.visibility import scores_visible
 from CTFd.utils.decorators.visibility import check_score_visibility
 
-from .private_dojo import PrivateDojoMembers, active_dojo_id
+from .private_dojo import PrivateDojoMembers, active_dojo_id, dojo_modules
 from .belts import get_belts
 
 
@@ -48,8 +49,19 @@ def get_standings(count=None, fields=None, filters=None, *, dojo_id=None):
 
     private_dojo_filters = []
     if dojo_id is not None:
-        private_dojo_members = db.session.query(PrivateDojoMembers.user_id).filter_by(dojo_id=dojo_id).subquery()
-        private_dojo_filters.append(Solves.account_id.in_(private_dojo_members))
+        modules = dojo_modules(dojo_id)
+        challenges_filter = or_(*(
+            and_(Challenges.category == module_challenge["category"],
+                 Challenges.name.in_(module_challenge["names"]))
+            if module_challenge.get("names") else
+            Challenges.category == module_challenge["category"]
+            for module in modules
+            for module_challenge in module.get("challenges", [])
+        ))
+        private_dojo_filters.append(challenges_filter)
+
+        members = db.session.query(PrivateDojoMembers.user_id).filter_by(dojo_id=dojo_id)
+        private_dojo_filters.append(Solves.account_id.in_(members.subquery()))
 
     score = db.func.sum(Challenges.value).label("score")
     standings_query = (

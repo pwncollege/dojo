@@ -96,7 +96,7 @@ def validate_dojo_data(data):
         assert False, f"YAML Error:\n{e}"
 
     if data is None:
-        return None
+        return
 
     def type_assert(object_, type_, name):
         assert isinstance(object_, type_), f"YAML Type Error: {name} expected type `{type_.__name__}`, got `{type(object_).__name__}`"
@@ -118,21 +118,28 @@ def validate_dojo_data(data):
             else:
                 type_assert(value, type_, f"field `{name}`")
 
-        type_check("name", "[\w ]+", required=True)
+        type_check("name", "[\S ]{1,50}", required=True)
         type_check("permalink", "\w+", required=True)
-        type_check("category", "\w+", required=False)
+
+        type_check("challenges", list, required=False)
+        for challenge in module.get("challenges", []):
+            type_assert(challenge, dict, "challenge")
+            type_check("category", "\w+", required=True, container=challenge)
+
+            type_check("names", list, required=False, container=challenge)
+            for name in challenge.get("names", []):
+                type_assert(name, str, "challenge name")
+
         type_check("deadline", datetime.datetime, required=False)
         type_check("late", float, required=False)
 
         type_check("lectures", list, required=False)
         for lecture in module.get("lectures", []):
             type_assert(lecture, dict, "lecture")
-            type_check("name", "[\w :]+", required=True, container=lecture)
+            type_check("name", "[\S ]{1,100}", required=True, container=lecture)
             type_check("video", "[\w-]+", required=True, container=lecture)
             type_check("playlist", "[\w-]+", required=True, container=lecture)
             type_check("slides", "[\w-]+", required=True, container=lecture)
-
-    return yaml.safe_dump(data, sort_keys=False)
 
 
 @private_dojo_namespace.route("/initialize")
@@ -156,7 +163,7 @@ class InitializeDojo(Resource):
                     400
                 )
             try:
-                dojo_data = validate_dojo_data(dojo_data)
+                validate_dojo_data(dojo_data)
             except AssertionError as e:
                 return (
                     {"success": False, "error": str(e)},

@@ -48,14 +48,12 @@
 <div class="container">
   <ul class="card-list">
     {% for module in modules %}
-    {% set count = challenges[module.category]["count"] if module.category in challenges else 0 %}
-    {% set solves = challenges[module.category]["solves"] if module.category in challenges else 0 %}
     <a class="text-decoration-none" href="/challenges/{{ module.permalink }}">
       <li class="card card-small">
         <div class="card-body">
           <h4 class="card-title">{{ module.name }}</h4>
           <p class="card-text">
-            {{ solves }} / {{ count }}
+            {{ module.challenges_solved }} / {{ module.challenges_count }}
           </p>
         </div>
       </li>

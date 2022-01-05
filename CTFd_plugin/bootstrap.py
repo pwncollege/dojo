@@ -7,6 +7,7 @@ from CTFd.utils import config, get_config, set_config
 from CTFd.utils.decorators import admins_only
 
 from .docker_challenge import DockerChallenges
+from .private_dojo import validate_dojo_data
 from .discord import discord_reputation
 from .utils import CHALLENGES_DIR
 
@@ -38,6 +39,7 @@ class Bootstrap(Resource):
 
         with open(CHALLENGES_DIR / "modules.yml") as f:
             modules = f.read()
+        validate_dojo_data(modules)
         set_config("modules", modules)
 
         with open(CHALLENGES_DIR / "students.yml") as f:
