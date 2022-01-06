@@ -80,7 +80,7 @@
 
         <div class="tab-pane fade" id="key" role="tabpanel">
           {% with form = Forms.keys.SSHKeyForm() %}
-          <form method="POST" id="key-form">
+          <form method="post" id="key-form" autocomplete="off">
             <div class="form-group">
               <b>{{ form.key.label }}</b>
               <small class="form-text text-muted">Required for accessing challenges over SSH</small>
@@ -100,7 +100,7 @@
 
         <div class="tab-pane fade" id="private-dojos" role="tabpanel">
           <h3>Enter Dojo</h3>
-          <form method="POST" id="private-dojo-enter-form">
+          <form method="post" id="private-dojo-enter-form" autocomplete="off">
             <div class="form-group">
               <b><label for="enter-name">Dojo Name</label></b>
               <select class="form-control custom-select" id="enter-name" name="id">
@@ -118,7 +118,7 @@
           <hr>
 
           <h3>Join Dojo</h3>
-          <form method="POST" id="private-dojo-join-form">
+          <form method="post" id="private-dojo-join-form" autocomplete="off">
             <div class="form-group">
               <b><label for="join-code">Dojo Code</label></b>
               <input class="form-control" id="join-code" name="code" type="text" value="">
@@ -131,7 +131,7 @@
           <hr>
 
           <h3>Initialize Dojo</h3>
-          <form method="POST" id="private-dojo-initialize-form">
+          <form method="post" id="private-dojo-initialize-form" autocomplete="off">
             <div class="form-group">
               <b><label for="initialize-name">Dojo Name</label></b>
               <input class="form-control" id="initialize-name" name="name" type="text" value="{{ user_dojo.name if user_dojo else "" }}">
