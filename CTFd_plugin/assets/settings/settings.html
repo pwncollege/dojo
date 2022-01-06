@@ -106,7 +106,7 @@
               <select class="form-control custom-select" id="enter-name" name="id">
                 <option value="">Global Dojo</option>
                 {% for dojo in private_dojos %}
-                <option {% if dojo.id == active_dojo_id %}selected{% endif %} value="{{ dojo.id }}">{{ dojo.name }}</option>
+                <option {% if dojo.id == active_dojo %}selected{% endif %} value="{{ dojo.id }}">{{ dojo.name }}</option>
                 {% endfor %}
               </select>
             </div>
