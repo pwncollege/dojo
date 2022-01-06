@@ -59,15 +59,22 @@ These files will end up in the challenge instance container in `/challenges`. Ev
 This file specifies some module metadata.
 The basic structure looks something like:
 ```
-- name: Introduction
-  permalink: introduction
-  category: intro
-  deadline: "2021-08-31 23:00:00"
+- name: Example Module
+  permalink: example
+  challenges:
+    - category: babymem
+    - category: babysuid
+      names:
+        - level1
+        - level2
+  deadline: 2022-12-31 23:00:00
   late: 0.5
   lectures:
-        - name: "Introduction: What is Computer Systems Security"
-          video: bJTThdqui0g
-          playlist: PL-ymxv0nOtqrxUaIefx0qEC7_155oPEb7
-          slides: 1YlTxeZg03P234EgG4E4JNGcit6LZovAxfYGL1YSLwfc
+    - name: "Introduction: What is Computer Systems Security"
+      video: bJTThdqui0g
+      playlist: PL-ymxv0nOtqrxUaIefx0qEC7_155oPEb7
+      slides: 1YlTxeZg03P234EgG4E4JNGcit6LZovAxfYGL1YSLwfc
 ```
 Only name and permalink are required; the other fields are optional.
+When specifying a challenge, only the category subfield is required (defaults to including all challenges in the category).
+When sepcifying a lecture, all subfields are required.
