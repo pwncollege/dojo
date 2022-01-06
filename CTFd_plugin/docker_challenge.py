@@ -35,6 +35,9 @@ with open(f"{dir_path}/seccomp.json") as f:
 
 def get_current_challenge_id():
     user = get_current_user()
+    if not user:
+        return None
+
     docker_client = docker.from_env()
     container_name = f"user_{user.id}"
 

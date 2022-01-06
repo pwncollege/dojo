@@ -16,9 +16,9 @@ challenges = Blueprint(
 
 def module_challenges(module, user_id=None):
     solves = db.func.count(Solves.id).label("solves")
-    user_solved_query = [(Solves.user_id == user_id).label("solved")] if user_id is not None else []
+    solved = db.func.max(Solves.user_id == user_id).label("solved")
     challenges = (
-        db.session.query(Challenges.id, Challenges.name, Challenges.category, solves, *user_solved_query)
+        db.session.query(Challenges.id, Challenges.name, Challenges.category, solves, solved)
         .filter(Challenges.state == "visible",
                 or_(*(
                     and_(Challenges.category == module_challenge["category"],
@@ -30,6 +30,7 @@ def module_challenges(module, user_id=None):
         .outerjoin(Solves, Solves.challenge_id == Challenges.id)
         .group_by(Challenges.id)
     ).all()
+    print("!", challenges)
     return challenges
 
 

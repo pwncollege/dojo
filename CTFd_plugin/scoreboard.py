@@ -1,4 +1,5 @@
 import collections
+import contextlib
 import math
 import datetime
 
@@ -161,9 +162,10 @@ class ScoreboardOverall(Resource):
         }
 
         if user:
-            place, standing = next((i + 1, standing) for i, standing in enumerate(standings)
-                                   if standing.account_id == user.id)
-            result["me"] = standing_info(place, standing)
+            with contextlib.suppress(StopIteration):
+                place, standing = next((i + 1, standing) for i, standing in enumerate(standings)
+                                       if standing.account_id == user.id)
+                result["me"] = standing_info(place, standing)
 
         return result
 

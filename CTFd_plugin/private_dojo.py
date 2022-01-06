@@ -40,14 +40,8 @@ private_dojo_namespace = Namespace(
 
 
 def user_dojos(user_id):
-    active = PrivateDojoActives.dojo_id.isnot(None).label("active")
-    return (
-        db.session.query(PrivateDojos.id, PrivateDojos.name, active)
-        .join(PrivateDojoMembers, PrivateDojos.id == PrivateDojoMembers.dojo_id)
-        .filter(PrivateDojoMembers.user_id == user_id)
-        .outerjoin(PrivateDojoActives, PrivateDojos.id == PrivateDojoActives.dojo_id)
-        .all()
-    )
+    members = db.session.query(PrivateDojoMembers.dojo_id).filter(PrivateDojoMembers.user_id == user_id)
+    return PrivateDojos.query.filter(PrivateDojos.id.in_(members.subquery())).all()
 
 
 def active_dojo_id(user_id):
