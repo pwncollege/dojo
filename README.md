@@ -63,10 +63,9 @@ The basic structure looks something like:
   permalink: example
   challenges:
     - category: babymem
-    - category: babysuid
       names:
-        - level1
-        - level2
+        - level1.0
+        - level2.0
   deadline: 2022-12-31 23:00:00
   late: 0.5
   lectures:
