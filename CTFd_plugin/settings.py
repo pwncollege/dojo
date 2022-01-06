@@ -29,7 +29,7 @@ def settings():
     ssh_key = ssh_key.value if ssh_key else None
 
     private_dojos = user_dojos(user.id)
-    active_dojo = active_dojo_id(user.id)
+    active_dojo_id = active_dojo_id(user.id)
     user_dojo = PrivateDojos.query.filter_by(id=user.id).first()
 
     discord_user = get_discord_user(user.id)
