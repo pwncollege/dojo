@@ -37,17 +37,27 @@ class Bootstrap(Resource):
 
         set_config("ctf_theme", "pwncollege_theme")
 
-        with open(CHALLENGES_DIR / "modules.yml") as f:
-            modules = f.read()
+        modules_path = CHALLENGES_DIR / "modules.yml"
+        modules = modules_path.read_text() if modules_path.exists() else (
+            """
+            - name: Introduction
+              permalink: introduction
+              lectures:
+                - name: "Introduction: What is Computer Systems Security"
+                  video: bJTThdqui0g
+                  playlist: PL-ymxv0nOtqrxUaIefx0qEC7_155oPEb7
+                  slides: 1YlTxeZg03P234EgG4E4JNGcit6LZovAxfYGL1YSLwfc
+            """
+        )
         validate_dojo_data(modules)
         set_config("modules", modules)
 
-        with open(CHALLENGES_DIR / "students.yml") as f:
-            students = f.read()
+        students_path = CHALLENGES_DIR / "students.yml"
+        students = students_path.read_text() if students_path.exists() else "[]"
         set_config("students", students)
 
-        with open(CHALLENGES_DIR / "memes.yml") as f:
-            memes = f.read()
+        memes_path = CHALLENGES_DIR / "memes.yml"
+        memes = memes_path.read_text() if memes_path.exists() else "[]"
         set_config("memes", memes)
 
         cache.delete_memoized(discord_reputation)
