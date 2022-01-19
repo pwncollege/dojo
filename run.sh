@@ -23,3 +23,5 @@ docker run \
        --env SETUP_HOSTNAME="$SETUP_HOSTNAME" \
        --name pwn.college \
        pwn.college
+
+docker exec pwn.college logs
