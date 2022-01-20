@@ -37,11 +37,11 @@ Finally, run the infrastructure which will be hosted on domain <DOMAIN> with:
 ```sh
 SETUP_HOSTNAME=<DOMAIN> ./run.sh
 ```
-  
+
 It will take some time to initialize everything and build the challenge docker image.
-  
-Once things are setup, you should be able to access the dojo and login to the default admin account with the credentials `admin`/`admin`.
-You can (and should) change these admin credentials in the admin panel.
+
+Once things are setup, you should be able to access the dojo and login with the admin credentials found in `data/initial_credentials`
+You can change these admin credentials in the admin panel.
 
 ## Challenges
 

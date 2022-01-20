@@ -28,6 +28,7 @@ services:
     env_file:
       - ./data/config.env
     volumes:
+      - ./data:/var/data
       - ./data/CTFd/logs:/var/log/CTFd
       - ./data/CTFd/uploads:/var/uploads
       - ./data/homes:/var/homes:shared

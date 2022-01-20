@@ -1,3 +1,4 @@
+import os
 import re
 
 from flask_restx import Namespace, Resource
@@ -64,10 +65,14 @@ class Bootstrap(Resource):
         discord_reputation()
 
         if not config.is_setup():
+            admin_password = os.urandom(8).hex()
+            with open("/var/data/initial_credentials", "w") as f:
+                f.write(f"admin:{admin_password}\n")
+
             admin = Admins(
                 name="admin",
                 email="admin@example.com",
-                password="admin",
+                password=admin_password,
                 type="admin",
                 hidden=True,
             )
