@@ -66,9 +66,6 @@ class Bootstrap(Resource):
 
         if not config.is_setup():
             admin_password = os.urandom(8).hex()
-            with open("/var/data/initial_credentials", "w") as f:
-                f.write(f"admin:{admin_password}\n")
-
             admin = Admins(
                 name="admin",
                 email="admin@example.com",
@@ -81,6 +78,9 @@ class Bootstrap(Resource):
             db.session.add(admin)
             db.session.add(page)
             db.session.commit()
+
+            with open("/var/data/initial_credentials", "w") as f:
+                f.write(f"admin:{admin_password}\n")
 
             set_config("setup", True)
 
