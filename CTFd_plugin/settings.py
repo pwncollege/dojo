@@ -1,4 +1,3 @@
-
 from flask import url_for, render_template
 from CTFd.models import UserTokens
 from CTFd.utils import get_config

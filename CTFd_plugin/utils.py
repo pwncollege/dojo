@@ -7,7 +7,6 @@ import hashlib
 
 from flask import current_app
 from itsdangerous.url_safe import URLSafeSerializer
-from itsdangerous.exc import BadSignature
 
 CHALLENGES_DIR = pathlib.Path("/var/challenges")
 

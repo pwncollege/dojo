@@ -1,15 +1,15 @@
 import sys
 import datetime
 
-from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.exc import IntegrityError
+from itsdangerous.exc import BadSignature
 from CTFd.models import db, Challenges
 from CTFd.plugins.flags import BaseFlag, FlagException
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
-from .utils import unserialize_user_flag, BadSignature
+from .utils import unserialize_user_flag
 
 
 class Cheaters(db.Model):

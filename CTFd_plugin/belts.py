@@ -1,5 +1,3 @@
-import collections
-
 from flask_restx import Namespace, Resource
 from CTFd.cache import cache
 from CTFd.models import db, Users, Challenges, Solves

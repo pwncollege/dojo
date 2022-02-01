@@ -1,6 +1,6 @@
 import datetime
 
-from flask import request, session, Blueprint, render_template, abort, send_file
+from flask import request, Blueprint, render_template, abort, send_file
 from flask.helpers import safe_join
 from CTFd.models import db, Users, Files, Comments
 from CTFd.utils.user import get_current_user, is_admin

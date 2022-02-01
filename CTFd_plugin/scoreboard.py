@@ -1,4 +1,3 @@
-import collections
 import contextlib
 import math
 import datetime
@@ -9,7 +8,7 @@ from flask_restx import Namespace, Resource
 from sqlalchemy.sql import or_, and_
 from CTFd.cache import cache
 from CTFd.models import db, Users, Solves, Challenges
-from CTFd.utils import config, get_config
+from CTFd.utils import config
 from CTFd.utils.helpers import get_infos
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.modes import get_model, generate_account_url

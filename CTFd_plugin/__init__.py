@@ -5,14 +5,8 @@ from flask import Blueprint, current_app
 from flask_restx import Api
 from CTFd.models import db
 from CTFd.forms import Forms
-from CTFd.utils.decorators import authed_only
-from CTFd.utils.user import get_current_user
-from CTFd.utils.plugins import register_script, override_template
-from CTFd.plugins import (
-    register_plugin_assets_directory,
-    register_user_page_menu_bar,
-    register_admin_plugin_menu_bar,
-)
+from CTFd.utils.plugins import override_template
+from CTFd.plugins import register_plugin_assets_directory, register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES
 from CTFd.plugins.flags import FLAG_CLASSES
 
@@ -21,7 +15,7 @@ from .challenges import challenges_listing, challenges
 from .scoreboard import scoreboard_listing, scoreboard_namespace
 from .docker_challenge import DockerChallenge, docker_namespace
 from .user_flag import UserFlag, user_flag_namespace
-from .ssh_key import SSHKeys, SSHKeyForm, ssh_key_namespace
+from .ssh_key import SSHKeyForm, ssh_key_namespace
 from .private_dojo import private_dojo_namespace
 from .discord import discord
 from .settings import settings

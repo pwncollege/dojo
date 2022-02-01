@@ -5,26 +5,14 @@ import subprocess
 import pathlib
 
 import docker
-import requests
 from flask import request, Blueprint
 from flask_restx import Namespace, Resource
-from CTFd.models import (
-    db,
-    Solves,
-    Fails,
-    Flags,
-    Challenges,
-    ChallengeFiles,
-    Tags,
-    Hints,
-)
-from CTFd.utils.user import get_ip, get_current_user
+from CTFd.models import db, Challenges
+from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
-from CTFd.utils.uploads import delete_file
 from CTFd.plugins.challenges import BaseChallenge
-from CTFd.plugins.flags import get_flag_class
 
-from .config import VIRTUAL_HOST, HOST_DATA_PATH
+from .config import HOST_DATA_PATH
 from .utils import serialize_user_flag, challenge_paths, simple_tar, random_home_path
 
 
@@ -234,9 +222,8 @@ class RunDocker(Resource):
 
     @staticmethod
     def grant_sudo(container):
-        hostname = container.attrs["Config"]["Hostname"]
         container.exec_run(
-            f"""/bin/sh -c \"
+            """/bin/sh -c \"
             chmod 4755 /usr/bin/sudo;
             usermod -aG sudo hacker;
             echo 'hacker ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers;

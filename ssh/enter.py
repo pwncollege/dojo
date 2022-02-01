@@ -41,7 +41,7 @@ def main():
 
         if status == "running":
             attempts = 0
-            print("\r", " " * 80, f"\rConnected!")
+            print("\r", " " * 80, "\rConnected!")
         else:
             attempts += 1
             print("\r", " " * 80, f"\rConnecting -- instance status: {status}", end="")
@@ -71,7 +71,7 @@ def main():
             if status == 0:
                 break
             print()
-            print("\r", " " * 80, f"\rConnecting", end="")
+            print("\r", " " * 80, "\rConnecting", end="")
             time.sleep(0.5)
     else:
         print("\r", " " * 80, "\rError: failed to connect!")

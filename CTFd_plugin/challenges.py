@@ -2,7 +2,6 @@ from flask import Blueprint, render_template, abort
 from sqlalchemy.sql import or_, and_
 from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
-from CTFd.utils.decorators import authed_only
 from CTFd.utils.decorators.visibility import check_challenge_visibility
 
 from .docker_challenge import get_current_challenge_id

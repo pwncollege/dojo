@@ -4,7 +4,7 @@ import re
 from flask_restx import Namespace, Resource
 from CTFd.models import db, Admins, Pages, Flags
 from CTFd.cache import cache
-from CTFd.utils import config, get_config, set_config
+from CTFd.utils import config, set_config
 from CTFd.utils.decorators import admins_only
 
 from .docker_challenge import DockerChallenges

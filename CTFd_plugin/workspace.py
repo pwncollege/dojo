@@ -1,4 +1,3 @@
-import docker
 from flask import request, Blueprint, Response, render_template
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
