@@ -8,9 +8,10 @@ from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 
+from .models import DiscordUsers
 from .private_dojo import active_dojo_id, dojo_modules
 from .writeups import WriteupComments, writeup_weeks, all_writeups
-from .discord import DiscordUsers, discord_reputation
+from .discord import discord_reputation
 
 
 grades = Blueprint("grades", __name__, template_folder="assets/grades/")

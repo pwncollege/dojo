@@ -7,7 +7,7 @@ from CTFd.cache import cache
 from CTFd.utils import config, set_config
 from CTFd.utils.decorators import admins_only
 
-from .challenge import DojoChallenges
+from .models import DojoChallenges
 from .private_dojo import validate_dojo_data
 from .discord import discord_reputation
 from .utils import CHALLENGES_DIR

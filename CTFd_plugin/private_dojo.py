@@ -11,27 +11,7 @@ from CTFd.utils import get_config
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 
-
-class PrivateDojos(db.Model):
-    __tablename__ = "private_dojos"
-    id = db.Column(
-        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    name = db.Column(db.Text)
-    code = db.Column(db.Text, unique=True)
-    data = db.Column(db.Text)
-
-
-class PrivateDojoMembers(db.Model):
-    __tablename__ = "private_dojo_members"
-    dojo_id = db.Column(db.Integer, db.ForeignKey("private_dojos.id", ondelete="CASCADE"), primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-
-
-class PrivateDojoActives(db.Model):
-    __tablename__ = "private_dojo_actives"
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    dojo_id = db.Column(db.Integer, db.ForeignKey("private_dojos.id", ondelete="CASCADE"))
+from .models import PrivateDojos, PrivateDojoMembers, PrivateDojoActives
 
 
 private_dojo_namespace = Namespace(

@@ -10,13 +10,7 @@ from CTFd.forms.fields import SubmitField
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 
-
-class SSHKeys(db.Model):
-    __tablename__ = "ssh_keys"
-    user_id = db.Column(
-        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    value = db.Column(db.Text, unique=True)
+from .models import SSHKeys
 
 
 class SSHKeyForm(BaseForm):
