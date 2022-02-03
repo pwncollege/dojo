@@ -13,7 +13,7 @@ from CTFd.plugins.flags import FLAG_CLASSES
 from .bootstrap import bootstrap_namespace, Bootstrap
 from .challenges import challenges_listing, challenges
 from .scoreboard import scoreboard_listing, scoreboard_namespace
-from .docker_challenge import DockerChallenge, docker_namespace
+from .challenge import DojoChallenge, docker_namespace
 from .flag import DojoFlag
 from .ssh_key import SSHKeyForm, ssh_key_namespace
 from .private_dojo import private_dojo_namespace
@@ -34,7 +34,7 @@ def load(app):
         app, base_path="/plugins/pwncollege_plugin/assets/"
     )
 
-    CHALLENGE_CLASSES["docker"] = DockerChallenge
+    CHALLENGE_CLASSES["dojo"] = DojoChallenge
     FLAG_CLASSES["dojo"] = DojoFlag
 
     Forms.keys = {"SSHKeyForm": SSHKeyForm}
