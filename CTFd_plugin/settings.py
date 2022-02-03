@@ -6,7 +6,7 @@ from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 
 from .models import PrivateDojos, SSHKeys
-from .api.v1.private_dojo import user_dojos, active_dojo_id
+from .utils import user_dojos, active_dojo_id
 from .discord import get_discord_user, discord_avatar_asset
 from .config import DISCORD_CLIENT_ID
 
