@@ -7,7 +7,7 @@ from CTFd.cache import cache
 from CTFd.utils import config, set_config
 from CTFd.utils.decorators import admins_only
 
-from .docker_challenge import DockerChallenges
+from .challenge import DojoChallenges
 from .private_dojo import validate_dojo_data
 from .discord import discord_reputation
 from .utils import CHALLENGES_DIR
@@ -107,13 +107,13 @@ class Bootstrap(Resource):
             if category.startswith(".") or category.startswith("_"):
                 continue
 
-            challenge = DockerChallenges.query.filter_by(
+            challenge = DojoChallenges.query.filter_by(
                 name=name, category=category
             ).first()
             if challenge:
                 continue
 
-            challenge = DockerChallenges(
+            challenge = DojoChallenges(
                 name=name,
                 category=category,
                 description="",

@@ -4,7 +4,7 @@ from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators.visibility import check_challenge_visibility
 
-from .docker_challenge import get_current_challenge_id
+from .challenge import get_current_challenge_id
 from .private_dojo import active_dojo_id, dojo_modules
 
 
