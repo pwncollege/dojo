@@ -7,7 +7,6 @@ from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.exc import IntegrityError
 from CTFd.models import db
-from CTFd.utils import get_config
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 
@@ -17,26 +16,6 @@ from ...models import PrivateDojos, PrivateDojoMembers, PrivateDojoActives
 private_dojo_namespace = Namespace(
     "private_dojo", description="Endpoint to manage private dojos"
 )
-
-
-def user_dojos(user_id):
-    members = db.session.query(PrivateDojoMembers.dojo_id).filter(PrivateDojoMembers.user_id == user_id)
-    return PrivateDojos.query.filter(PrivateDojos.id.in_(members.subquery())).all()
-
-
-def active_dojo_id(user_id):
-    active = PrivateDojoActives.query.filter_by(user_id=user_id).first()
-    if not active:
-        return None
-    return active.dojo_id
-
-
-def dojo_modules(dojo_id=None):
-    if dojo_id is not None:
-        dojo = PrivateDojos.query.filter(PrivateDojos.id == dojo_id).first()
-        if dojo and dojo.data:
-            return yaml.safe_load(dojo.data)
-    return yaml.safe_load(get_config("modules"))
 
 
 def activate_dojo(user_id, dojo_id):

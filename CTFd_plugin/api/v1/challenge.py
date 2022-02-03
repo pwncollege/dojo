@@ -12,29 +12,7 @@ from CTFd.plugins.challenges import BaseChallenge
 
 from ...config import HOST_DATA_PATH
 from ...models import DojoChallenges
-from ...utils import serialize_user_flag, challenge_paths, simple_tar, random_home_path, SECCOMP
-
-
-def get_current_challenge_id():
-    user = get_current_user()
-    if not user:
-        return None
-
-    docker_client = docker.from_env()
-    container_name = f"user_{user.id}"
-
-    try:
-        container = docker_client.containers.get(container_name)
-    except docker.errors.NotFound:
-        return
-
-    for env in container.attrs["Config"]["Env"]:
-        if env.startswith("CHALLENGE_ID"):
-            try:
-                challenge_id = int(env[len("CHALLENGE_ID=") :])
-                return challenge_id
-            except ValueError:
-                pass
+from ...utils import get_current_challenge_id, serialize_user_flag, challenge_paths, simple_tar, random_home_path, SECCOMP
 
 
 class DojoChallenge(BaseChallenge):

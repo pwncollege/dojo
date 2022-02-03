@@ -16,7 +16,7 @@ from CTFd.utils.config.visibility import scores_visible
 from CTFd.utils.decorators.visibility import check_score_visibility
 
 from ...models import PrivateDojoMembers
-from .private_dojo import active_dojo_id, dojo_modules
+from ...utils import active_dojo_id, dojo_modules
 from .belts import get_belts
 
 
