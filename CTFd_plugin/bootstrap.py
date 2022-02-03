@@ -124,11 +124,6 @@ class Bootstrap(Resource):
             db.session.add(challenge)
             db.session.commit()
 
-            flag = Flags(
-                challenge_id=challenge.id,
-                type="user",
-                content="",
-                data="cheater",
-            )
+            flag = Flags(challenge_id=challenge.id, type="dojo")
             db.session.add(flag)
             db.session.commit()
