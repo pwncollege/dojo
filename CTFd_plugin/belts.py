@@ -28,17 +28,6 @@ blue_categories = [
 ]
 
 
-class BeltInfos(db.Model):
-    __tablename__ = "belt_infos"
-    user_id = db.Column(
-        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    name = db.Column(db.Text)
-    emoji = db.Column(db.Text)
-    email = db.Column(db.Text)
-    website = db.Column(db.Text)
-
-
 @cache.memoize(timeout=60)
 def get_belts():
     color_categories = {

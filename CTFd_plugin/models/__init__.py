@@ -44,3 +44,14 @@ class DiscordUsers(db.Model):
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     discord_id = db.Column(db.Text, unique=True)
+
+
+class BeltInfos(db.Model):
+    __tablename__ = "belt_infos"
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    name = db.Column(db.Text)
+    emoji = db.Column(db.Text)
+    email = db.Column(db.Text)
+    website = db.Column(db.Text)
