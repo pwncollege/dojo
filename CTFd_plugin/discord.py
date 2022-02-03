@@ -9,20 +9,13 @@ from CTFd.cache import cache
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
+from .models import DiscordUsers
 from .config import VIRTUAL_HOST, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID
 
 
 OAUTH_ENDPOINT = "https://discord.com/api/oauth2"
 API_ENDPOINT = "https://discord.com/api/v9"
 REDIRECT_URI = f"https://{VIRTUAL_HOST}/discord/redirect"
-
-
-class DiscordUsers(db.Model):
-    __tablename__ = "discord_users"
-    user_id = db.Column(
-        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    discord_id = db.Column(db.Text, unique=True)
 
 
 def bot_join_server():

@@ -7,12 +7,12 @@ import pathlib
 import docker
 from flask import request
 from flask_restx import Namespace, Resource
-from CTFd.models import db, Challenges
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.plugins.challenges import BaseChallenge
 
 from .config import HOST_DATA_PATH
+from .models import DojoChallenges
 from .utils import serialize_user_flag, challenge_paths, simple_tar, random_home_path
 
 
@@ -41,13 +41,6 @@ def get_current_challenge_id():
                 return challenge_id
             except ValueError:
                 pass
-
-
-class DojoChallenges(Challenges):
-    __tablename__ = "dojo_challenges"
-    __mapper_args__ = {"polymorphic_identity": "dojo"}
-    id = db.Column(None, db.ForeignKey("challenges.id"), primary_key=True)
-    docker_image_name = db.Column(db.String(256))
 
 
 class DojoChallenge(BaseChallenge):
