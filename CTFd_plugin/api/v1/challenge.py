@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import subprocess
 import pathlib
 
@@ -11,14 +10,9 @@ from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.plugins.challenges import BaseChallenge
 
-from .config import HOST_DATA_PATH
-from .models import DojoChallenges
-from .utils import serialize_user_flag, challenge_paths, simple_tar, random_home_path
-
-
-dir_path = os.path.dirname(os.path.realpath(__file__))
-with open(f"{dir_path}/seccomp.json") as f:
-    SECCOMP = json.dumps(json.load(f))
+from ...config import HOST_DATA_PATH
+from ...models import DojoChallenges
+from ...utils import serialize_user_flag, challenge_paths, simple_tar, random_home_path, SECCOMP
 
 
 def get_current_challenge_id():

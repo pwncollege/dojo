@@ -11,7 +11,7 @@ from CTFd.utils import get_config
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 
-from .models import PrivateDojos, PrivateDojoMembers, PrivateDojoActives
+from ...models import PrivateDojos, PrivateDojoMembers, PrivateDojoActives
 
 
 private_dojo_namespace = Namespace(
