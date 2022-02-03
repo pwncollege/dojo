@@ -29,7 +29,6 @@ def module_challenges(module, user_id=None):
         .outerjoin(Solves, Solves.challenge_id == Challenges.id)
         .group_by(Challenges.id)
     ).all()
-    print("!", challenges)
     return challenges
 
 
