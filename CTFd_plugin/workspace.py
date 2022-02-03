@@ -2,7 +2,7 @@ from flask import request, Blueprint, Response, render_template
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
-from .challenge import get_current_challenge_id, random_home_path
+from .api.v1.challenge import get_current_challenge_id, random_home_path
 
 
 workspace = Blueprint("workspace", __name__, template_folder="assets/workspace/")

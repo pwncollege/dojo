@@ -10,7 +10,7 @@ from CTFd.forms.fields import SubmitField
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 
-from .models import SSHKeys
+from ...models import SSHKeys
 
 
 class SSHKeyForm(BaseForm):

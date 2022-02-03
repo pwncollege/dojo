@@ -9,6 +9,8 @@ from flask import current_app
 from itsdangerous.url_safe import URLSafeSerializer
 
 CHALLENGES_DIR = pathlib.Path("/var/challenges")
+PLUGIN_DIR = pathlib.Path(__file__).parent
+SECCOMP = (PLUGIN_DIR / "seccomp.json").read_text()
 
 
 def serialize_user_flag(account_id, challenge_id, *, secret=None):
