@@ -2,6 +2,7 @@ import contextlib
 import math
 import datetime
 
+from flask import url_for
 from flask_restx import Namespace, Resource
 from sqlalchemy.sql import or_, and_
 from CTFd.cache import cache
@@ -21,7 +22,7 @@ def email_group_asset(email):
         group = "student.png"
     else:
         group = "hacker.png"
-    return f"/plugins/dojo_plugin/assets/scoreboard/{group}"
+    return url_for("views.themes", path=f"img/dojo/{group}")
 
 
 def belt_asset(color):
@@ -31,7 +32,7 @@ def belt_asset(color):
         belt = "yellow.svg"
     else:
         belt = "white.svg"
-    return f"/plugins/dojo_plugin/assets/scoreboard/{belt}"
+    return url_for("views.themes", path=f"img/dojo/{belt}")
 
 
 @cache.memoize(timeout=60)

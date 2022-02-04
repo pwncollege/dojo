@@ -182,5 +182,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script defer src="/plugins/dojo_plugin/assets/settings/settings.js"></script>
+<script defer src="{{ url_for('views.themes', path='js/dojo/settings.js') }}"></script>
 {% endblock %}

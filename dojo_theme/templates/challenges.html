@@ -157,5 +157,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script defer src="/plugins/dojo_plugin/assets/challenges/challenges.js"></script>
+<script defer src="{{ url_for('views.themes', path='js/dojo/challenges.js') }}"></script>
 {% endblock %}
