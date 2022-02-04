@@ -8,17 +8,10 @@ from flask import request
 from flask_restx import Namespace, Resource
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
-from CTFd.plugins.challenges import BaseChallenge
 
 from ...config import HOST_DATA_PATH
 from ...models import DojoChallenges
 from ...utils import get_current_challenge_id, serialize_user_flag, challenge_paths, simple_tar, random_home_path, SECCOMP
-
-
-class DojoChallenge(BaseChallenge):
-    id = "dojo"
-    name = "dojo"
-    challenge_model = DojoChallenges
 
 
 docker_namespace = Namespace(
