@@ -4,7 +4,7 @@ import os
 from itsdangerous.exc import BadSignature
 from CTFd.models import db
 from CTFd.utils.user import get_current_user
-from CTFd.plugins import register_plugin_assets_directory, register_admin_plugin_menu_bar
+from CTFd.plugins import register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 
@@ -51,8 +51,6 @@ class DojoFlag(BaseFlag):
 
 def load(app):
     db.create_all()
-
-    register_plugin_assets_directory(app, base_path="/plugins/dojo_plugin/assets/")
 
     CHALLENGE_CLASSES["dojo"] = DojoChallenge
     FLAG_CLASSES["dojo"] = DojoFlag

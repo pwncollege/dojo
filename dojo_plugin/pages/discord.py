@@ -1,7 +1,7 @@
 import sys
 
 import requests
-from flask import request, Blueprint, redirect, abort, current_app
+from flask import request, Blueprint, url_for, redirect, abort, current_app
 from sqlalchemy.exc import IntegrityError
 from itsdangerous.url_safe import URLSafeTimedSerializer
 from CTFd.models import db
@@ -105,7 +105,7 @@ def add_role(user_id, role_name):
 
 def discord_avatar_asset(discord_user):
     if not discord_user:
-        return "plugins/dojo_plugin/assets/settings/discord_logo.svg"
+        return url_for("views.themes", path="img/dojo/discord_logo.svg")
     discord_id = discord_user["id"]
     discord_avatar = discord_user["avatar"]
     return f"https://cdn.discordapp.com/avatars/{discord_id}/{discord_avatar}.png"

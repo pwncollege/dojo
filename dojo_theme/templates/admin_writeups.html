@@ -78,5 +78,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script defer src="/plugins/dojo_plugin/assets/writeups/writeups.js"></script>
+<script defer src="{{ url_for('views.themes', path='js/dojo/writeups.js') }}"></script>
 {% endblock %}

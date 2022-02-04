@@ -115,5 +115,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script defer src="/plugins/dojo_plugin/assets/scoreboard/scoreboard.js"></script>
+<script defer src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
 {% endblock %}
