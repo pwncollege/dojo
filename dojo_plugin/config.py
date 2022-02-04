@@ -31,7 +31,7 @@ for config_option in missing_warnings:
 
 def bootstrap():
     from .models import DojoChallenges
-    from .discord import discord_reputation
+    from .pages.discord import discord_reputation
     from .utils import CHALLENGES_DIR, validate_dojo_data
 
     set_config("ctf_name", "pwn.college")
