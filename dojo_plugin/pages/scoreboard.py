@@ -27,7 +27,7 @@ def get_stats():
     }
 
 
-def scoreboard_listing():
+def scoreboard_override():
     infos = get_infos()
     stats = get_stats()
 
