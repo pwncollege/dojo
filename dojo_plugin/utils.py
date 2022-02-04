@@ -1,6 +1,7 @@
 import os
 import re
 import pathlib
+import datetime
 import tempfile
 import tarfile
 import hashlib
@@ -119,3 +120,56 @@ def dojo_modules(dojo_id=None):
         if dojo and dojo.data:
             return yaml.safe_load(dojo.data)
     return yaml.safe_load(get_config("modules"))
+
+
+def validate_dojo_data(data):
+    try:
+        data = yaml.safe_load(data)
+    except yaml.error.YAMLError as e:
+        assert False, f"YAML Error:\n{e}"
+
+    if data is None:
+        return
+
+    def type_assert(object_, type_, name):
+        assert isinstance(object_, type_), f"YAML Type Error: {name} expected type `{type_.__name__}`, got `{type(object_).__name__}`"
+
+    type_assert(data, list, "outer most")
+
+    for module in data:
+        type_assert(module, dict, "module")
+
+        def type_check(name, type_, required=True, container=module):
+            if required and name not in container:
+                assert False, f"YAML Required Error: missing field `{name}`"
+            if name not in container:
+                return
+            value = container.get(name)
+            if isinstance(type_, str):
+                match = isinstance(value, str) and re.fullmatch(type_, value)
+                assert match, f"YAML Type Error: field `{name}` must be of type `{type_}`"
+            else:
+                type_assert(value, type_, f"field `{name}`")
+
+        type_check("name", "[\S ]{1,50}", required=True)
+        type_check("permalink", "\w+", required=True)
+
+        type_check("challenges", list, required=False)
+        for challenge in module.get("challenges", []):
+            type_assert(challenge, dict, "challenge")
+            type_check("category", "\w+", required=True, container=challenge)
+
+            type_check("names", list, required=False, container=challenge)
+            for name in challenge.get("names", []):
+                type_assert(name, str, "challenge name")
+
+        type_check("deadline", datetime.datetime, required=False)
+        type_check("late", float, required=False)
+
+        type_check("lectures", list, required=False)
+        for lecture in module.get("lectures", []):
+            type_assert(lecture, dict, "lecture")
+            type_check("name", "[\S ]{1,100}", required=True, container=lecture)
+            type_check("video", "[\w-]+", required=True, container=lecture)
+            type_check("playlist", "[\w-]+", required=True, container=lecture)
+            type_check("slides", "[\w-]+", required=True, container=lecture)
