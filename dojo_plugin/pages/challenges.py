@@ -4,7 +4,7 @@ from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators.visibility import check_challenge_visibility
 
-from .utils import get_current_challenge_id, active_dojo_id, dojo_modules
+from ..utils import get_current_challenge_id, active_dojo_id, dojo_modules
 
 
 challenges = Blueprint(
