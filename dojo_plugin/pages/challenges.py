@@ -7,9 +7,7 @@ from CTFd.utils.decorators.visibility import check_challenge_visibility
 from ..utils import get_current_challenge_id, active_dojo_id, dojo_modules
 
 
-challenges = Blueprint(
-    "pwncollege_challenges", __name__, template_folder="assets/challenges/"
-)
+challenges = Blueprint("pwncollege_challenges", __name__)
 
 
 def module_challenges(module, user_id=None):
