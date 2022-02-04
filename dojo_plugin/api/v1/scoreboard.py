@@ -2,18 +2,12 @@ import contextlib
 import math
 import datetime
 
-import docker
-from flask import render_template
 from flask_restx import Namespace, Resource
 from sqlalchemy.sql import or_, and_
 from CTFd.cache import cache
-from CTFd.models import db, Users, Solves, Challenges
-from CTFd.utils import config
-from CTFd.utils.helpers import get_infos
-from CTFd.utils.user import get_current_user, is_admin
+from CTFd.models import db, Solves, Challenges
+from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
-from CTFd.utils.config.visibility import scores_visible
-from CTFd.utils.decorators.visibility import check_score_visibility
 
 from ...models import PrivateDojoMembers
 from ...utils import active_dojo_id, dojo_modules
@@ -98,45 +92,6 @@ def standing_info(place, standing):
         "symbol": email_group_asset(standing.email),
         "belt": belt_asset(belts.get(standing.account_id, {}).get("color")),
     }
-
-
-@cache.memoize(timeout=60)
-def get_stats():
-    docker_client = docker.from_env()
-    containers = docker_client.containers.list(filters=dict(name="user_"), ignore_removed=True)
-    now = datetime.datetime.now()
-    active = 0.0
-    for container in containers:
-        created = container.attrs["Created"].split(".")[0]
-        uptime = now - datetime.datetime.fromisoformat(created)
-        hours = max(uptime.seconds // (60 * 60), 1)
-        active += 1 / hours
-
-    return {
-        "active": int(active),
-        "users": int(Users.query.count()),
-        "challenges": int(Challenges.query.count()),
-        "solves": int(Solves.query.count()),
-    }
-
-
-@check_score_visibility
-def scoreboard_listing():
-    infos = get_infos()
-
-    if config.is_scoreboard_frozen():
-        infos.append("Scoreboard has been frozen")
-
-    if is_admin() is True and scores_visible() is False:
-        infos.append("Scores are not currently visible to users")
-
-    stats = get_stats()
-
-    return render_template(
-        "scoreboard.html",
-        infos=infos,
-        stats=stats,
-    )
 
 
 scoreboard_namespace = Namespace("scoreboard")
