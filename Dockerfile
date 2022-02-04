@@ -30,8 +30,8 @@ ADD logging /opt/pwn.college/logging
 ADD nginx-proxy /opt/pwn.college/nginx-proxy
 ADD challenge /opt/pwn.college/challenge
 ADD CTFd /opt/pwn.college/CTFd
-ADD CTFd_plugin /opt/pwn.college/CTFd/CTFd/plugins/pwncollege_plugin
-ADD CTFd_theme /opt/pwn.college/CTFd/CTFd/themes/pwncollege_theme
+ADD dojo_plugin /opt/pwn.college/CTFd/CTFd/plugins/dojo_plugin
+ADD dojo_theme /opt/pwn.college/CTFd/CTFd/themes/dojo_theme
 ADD docker-compose.yml /opt/pwn.college/docker-compose.yml
 
 ADD etc/ssh/sshd_config /etc/ssh/sshd_config

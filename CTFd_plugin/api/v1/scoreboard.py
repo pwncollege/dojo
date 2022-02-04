@@ -27,7 +27,7 @@ def email_group_asset(email):
         group = "student.png"
     else:
         group = "hacker.png"
-    return f"/plugins/pwncollege_plugin/assets/scoreboard/{group}"
+    return f"/plugins/dojo_plugin/assets/scoreboard/{group}"
 
 
 def belt_asset(color):
@@ -37,7 +37,7 @@ def belt_asset(color):
         belt = "yellow.svg"
     else:
         belt = "white.svg"
-    return f"/plugins/pwncollege_plugin/assets/scoreboard/{belt}"
+    return f"/plugins/dojo_plugin/assets/scoreboard/{belt}"
 
 
 @cache.memoize(timeout=60)

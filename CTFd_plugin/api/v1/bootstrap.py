@@ -36,7 +36,7 @@ class Bootstrap(Resource):
         set_config("score_visibility", "public")
         set_config("account_visibility", "public")
 
-        set_config("ctf_theme", "pwncollege_theme")
+        set_config("ctf_theme", "dojo_theme")
 
         modules_path = CHALLENGES_DIR / "modules.yml"
         modules = modules_path.read_text() if modules_path.exists() else (
