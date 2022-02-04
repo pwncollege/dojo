@@ -41,14 +41,14 @@ def challenges_override():
         module["challenges_solved"] = sum(1 for challenge in challenges if challenge.solved)
 
     return render_template(
-        "modules.html",
+        "challenges.html",
         modules=modules,
     )
 
 
 @challenges.route("/challenges/<permalink>")
 @check_challenge_visibility
-def view_challenges(permalink):
+def view_module(permalink):
     user = get_current_user()
     dojo_id = active_dojo_id(user.id) if user else None
     modules = dojo_modules(dojo_id)
@@ -63,7 +63,7 @@ def view_challenges(permalink):
     current_challenge_id = get_current_challenge_id()
 
     return render_template(
-        "challenges.html",
+        "module.html",
         module=module,
         challenges=challenges,
         current_challenge_id=current_challenge_id
