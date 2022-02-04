@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block stylesheets %}
+<style>
+  h4 {
+      color: rgb(99, 192, 245);
+      text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
+  }
+
+  .card {
+      margin-bottom: 0.5em;
+      background-color: inherit;
+  }
+
+  .card-header {
+      background-color: rgba(255,255,255,0.1);
+  }
+
+  .card-body {
+      background-color: rgba(255,255,255,0.05);
+  }
+
+  .challenge-name {
+      margin: 0px;
+      padding: 0px !important;
+      float: left;
+  }
+
+  .challenge-active {
+      color: rgb(255,40,245) !important;
+  }
+
+  .challenge-solved {
+      -webkit-text-stroke: 1px #222;
+      -webkit-text-fill-color: #b5e853;
+  }
+
+  .challenge-unsolved {
+      text-shadow: none;
+      -webkit-text-stroke: 1px #222;
+      -webkit-text-fill-color: rgba(255,255,255,0.25);
+  }
+
+  .total-solves {
+      float: right;
+      font-size: 0.75em;
+      color: #ddd;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>{{ module.name }}</h1>
+  </div>
+</div>
+<div class="container">
+
+  {% if module.lectures %}
+  <h2>Lectures</h2>
+
+  <div class="accordion" id="lectures">
+    {% for lecture in module.lectures %}
+    <div class="card">
+      <div class="card-header" id="lectureHeading{{ loop.index }}">
+        <h2 class="mb-0">
+          <button class="btn btn-link text-decoration-none collapsed" type="button" data-toggle="collapse" data-target="#lecture{{ loop.index }}" aria-expanded="false" aria-controls="lecture{{ loop.index }}">
+            <h4>{{ lecture.name }}</h4>
+          </button>
+        </h2>
+      </div>
+
+      <div id="lecture{{ loop.index }}" class="lecture collapse" aria-labelledby="lectureHeading{{ loop.index }}" data-parent="#lectures">
+        <div class="card-body">
+          <div class="embed-responsive embed-responsive-16by9">
+            <iframe class="embed-responsive-item" data-src="https://www.youtube.com/embed/{{ lecture.video }}?list={{ lecture.playlist }}&rel=0" title="YouTube video player" allowfullscreen></iframe>
+          </div>
+          <br>
+          <div class="embed-responsive embed-responsive-16by9">
+            <iframe class="embed-responsive-item" data-src="https://docs.google.com/presentation/d/{{ lecture.slides }}/embed"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <br style="font-size: 3em">
+  {% endif %}
+
+  {% if challenges %}
+  <h2>Challenges</h2>
+
+  <div class="accordion" id="challenges">
+    {% for challenge in challenges %}
+    {% set solved = "challenge-solved" if challenge.solved else "challenge-unsolved" %}
+    {% set active = "challenge-active" if challenge.id == current_challenge_id else "" %}
+    <div class="card">
+      <div class="card-header" id="challengeHeading{{ loop.index }}">
+        <h2 class="mb-0">
+          <button class="btn btn-link text-decoration-none w-100 collapsed" type="button" data-toggle="collapse" data-target="#challenge{{ loop.index }}" aria-expanded="false" aria-controls="challenge{{ loop.index }}">
+            <h4 class="challenge-name {{ active }}">
+              <span class="d-sm-block d-md-block d-lg-block">
+                <i class="fas fa-flag pr-3 {{ solved }}"></i>{{ challenge.category }} {{ challenge.name }}
+              </span>
+            </h4>
+            <span class="total-solves">{{ challenge.solves }} solves</span>
+          </button>
+        </h2>
+      </div>
+
+      <div id="challenge{{ loop.index }}" class="collapse" aria-labelledby="challengeHeading{{ loop.index }}" data-parent="#challenges">
+        <div class="card-body">
+          <div class="row">
+            <div class="col-sm-6 form-group text-center">
+              <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary w-100">
+                <span class="d-sm-block d-md-block d-lg-block">
+                  <i class="fas fa-play fa-2x pr-3"></i>Start
+                </span>
+              </button>
+            </div>
+            <div class="col-sm-6 form-group text-center">
+              <button id="challenge-practice" type="submit" class="btn btn-md btn-outline-secondary w-100">
+                <span class="d-sm-block d-md-block d-lg-block">
+                  <i class="fas fa-flask fa-2x pr-3"></i>Practice
+                </span>
+              </button>
+            </div>
+          </div>
+          <div class="row submit-row">
+            <div class="col-md-9 form-group">
+              <input id="challenge-id" class="challenge-id" type="hidden" value="{{ challenge.id }}">
+              <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
+            </div>
+            <div class="col-md-3 form-group key-submit">
+              <button id="challenge-submit" type="submit" class="challenge-submit btn btn-md btn-outline-secondary float-right w-100 h-100">
+                Submit
+              </button>
+            </div>
+          </div>
+          <div class="row notification-row">
+	    <div class="col-md-12">
+	      <div id="result-notification" class="alert alert-dismissable text-center w-100" role="alert" style="display: none;">
+		<strong id="result-message"></strong>
+	      </div>
+	    </div>
+	  </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script defer src="{{ url_for('views.themes', path='js/dojo/challenges.js') }}"></script>
+{% endblock %}
