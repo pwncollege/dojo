@@ -7,7 +7,7 @@ from CTFd.plugins import register_plugin_assets_directory, register_admin_plugin
 from CTFd.plugins.challenges import CHALLENGE_CLASSES
 from CTFd.plugins.flags import FLAG_CLASSES
 
-from .api.v1.bootstrap import Bootstrap
+from .config import bootstrap
 from .challenges import challenges_listing, challenges
 from .api.v1.scoreboard import scoreboard_listing
 from .api.v1.challenge import DojoChallenge
@@ -62,4 +62,4 @@ def load(app):
     register_admin_plugin_menu_bar("Writeups", "/admin/writeups")
 
     if os.path.basename(sys.argv[0]) != "manage.py":
-        Bootstrap.bootstrap()
+        bootstrap()
