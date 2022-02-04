@@ -26,7 +26,7 @@ def load(app):
     db.create_all()
 
     register_plugin_assets_directory(
-        app, base_path="/plugins/pwncollege_plugin/assets/"
+        app, base_path="/plugins/dojo_plugin/assets/"
     )
 
     CHALLENGE_CLASSES["dojo"] = DojoChallenge

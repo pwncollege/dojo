@@ -105,7 +105,7 @@ def add_role(user_id, role_name):
 
 def discord_avatar_asset(discord_user):
     if not discord_user:
-        return "plugins/pwncollege_plugin/assets/settings/discord_logo.svg"
+        return "plugins/dojo_plugin/assets/settings/discord_logo.svg"
     discord_id = discord_user["id"]
     discord_avatar = discord_user["avatar"]
     return f"https://cdn.discordapp.com/avatars/{discord_id}/{discord_avatar}.png"
