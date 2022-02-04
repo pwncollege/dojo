@@ -3,19 +3,11 @@ import re
 from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.exc import IntegrityError
-from wtforms import StringField
 from CTFd.models import db
-from CTFd.forms import BaseForm
-from CTFd.forms.fields import SubmitField
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 
 from ...models import SSHKeys
-
-
-class SSHKeyForm(BaseForm):
-    key = StringField("SSH Key")
-    submit = SubmitField("Update")
 
 
 ssh_key_namespace = Namespace(
@@ -37,9 +29,7 @@ class UpdateKey(Resource):
                 return (
                     {
                         "success": False,
-                        "errors": {
-                            "key": "Invalid public key<br>Expected format: %s" % key_re
-                        },
+                        "error": f"Invalid public key, expected format:<br><code>{key_re}</code>"
                     },
                     400,
                 )

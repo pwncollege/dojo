@@ -79,23 +79,21 @@
         </div>
 
         <div class="tab-pane fade" id="key" role="tabpanel">
-          {% with form = Forms.keys.SSHKeyForm() %}
           <form method="post" id="key-form" autocomplete="off">
             <div class="form-group">
-              <b>{{ form.key.label }}</b>
+              <b><label for="enter-name">SSH Key</label></b>
               <small class="form-text text-muted">Required for accessing challenges over SSH</small>
               <br>
-              {{ form.key(class="form-control", value=ssh_key or "") }}
+              <input class="form-control" id="key" name="key" type="text" value="{{ ssh_key or "" }}">
             </div>
 
             <div id="key-results" class="form-group">
             </div>
 
             <div class="form-group text-right">
-              {{ form.submit(class="btn btn-md btn-primary btn-outlined") }}
+              <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Update">
             </div>
           </form>
-          {% endwith %}
         </div>
 
         <div class="tab-pane fade" id="private-dojos" role="tabpanel">
