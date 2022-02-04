@@ -2,7 +2,6 @@ import sys
 import os
 
 from CTFd.models import db
-from CTFd.forms import Forms
 from CTFd.utils.plugins import override_template
 from CTFd.plugins import register_plugin_assets_directory, register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES
@@ -13,7 +12,6 @@ from .challenges import challenges_listing, challenges
 from .api.v1.scoreboard import scoreboard_listing
 from .api.v1.challenge import DojoChallenge
 from .flag import DojoFlag
-from .api.v1.ssh_key import SSHKeyForm
 from .discord import discord
 from .settings import settings
 from .workspace import workspace
@@ -33,8 +31,6 @@ def load(app):
 
     CHALLENGE_CLASSES["dojo"] = DojoChallenge
     FLAG_CLASSES["dojo"] = DojoFlag
-
-    Forms.keys = {"SSHKeyForm": SSHKeyForm}
 
     settings_template_path = os.path.join(dir_path, "assets", "settings", "settings.html")
     override_template("settings.html", open(settings_template_path).read())

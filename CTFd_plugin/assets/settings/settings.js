@@ -35,12 +35,8 @@ $(() => {
                 keyResults.html(success_template);
                 keyResults.find("#message").text("Your public key has been updated");
             } else {
-                result.keys(result.errors).map((error) => {
-                    const input = $(keyForm.find("input[name={0}]".format(error)));
-                    input.addClass("input-filled-invalid");
-                    input.removeClass("input-filled-valid");
-                    keyResults.append(error_template.format(result.errors[error]));
-                });
+                keyResults.html(error_template);
+                keyResults.find("#message").html(result.error);
             }
         });
     });
@@ -67,7 +63,7 @@ $(() => {
                     privateDojoResults.find("#message").text(success(result));
                 } else {
                     privateDojoResults.html(error_template);
-                    privateDojoResults.find("#message").text(result.error);
+                    privateDojoResults.find("#message").html(result.error);
                 }
             });
         });
