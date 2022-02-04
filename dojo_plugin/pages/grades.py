@@ -14,7 +14,7 @@ from .writeups import WriteupComments, writeup_weeks, all_writeups
 from .discord import discord_reputation
 
 
-grades = Blueprint("grades", __name__, template_folder="assets/grades/")
+grades = Blueprint("grades", __name__)
 
 
 def average(data):

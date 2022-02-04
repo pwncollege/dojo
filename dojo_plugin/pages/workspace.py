@@ -5,7 +5,7 @@ from CTFd.utils.decorators import authed_only
 from ..utils import get_current_challenge_id, random_home_path
 
 
-workspace = Blueprint("workspace", __name__, template_folder="assets/workspace/")
+workspace = Blueprint("workspace", __name__)
 
 
 @workspace.route("/workspace")

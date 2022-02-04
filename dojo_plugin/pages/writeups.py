@@ -8,7 +8,7 @@ from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.utils.uploads import get_uploader
 
 
-writeups = Blueprint("writeups", __name__, template_folder="assets/writeups/")
+writeups = Blueprint("writeups", __name__)
 
 
 class WriteupFiles(Files):
