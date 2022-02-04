@@ -30,7 +30,7 @@ def module_challenges(module, user_id=None):
 
 
 @check_challenge_visibility
-def challenges_listing():
+def challenges_override():
     user = get_current_user()
     dojo_id = active_dojo_id(user.id) if user else None
     modules = dojo_modules(dojo_id)

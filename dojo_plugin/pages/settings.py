@@ -12,7 +12,7 @@ from ..config import DISCORD_CLIENT_ID
 
 
 @authed_only
-def settings():
+def settings_override():
     infos = get_infos()
 
     user = get_current_user()

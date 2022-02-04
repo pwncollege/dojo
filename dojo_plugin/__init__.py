@@ -11,10 +11,10 @@ from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 from .config import bootstrap
 from .models import DojoChallenges
 from .utils import unserialize_user_flag
-from .pages.challenges import challenges_listing, challenges
-from .pages.scoreboard import scoreboard_listing
+from .pages.challenges import challenges_override, challenges
+from .pages.scoreboard import scoreboard_override
 from .pages.workspace import workspace
-from .pages.settings import settings
+from .pages.settings import settings_override
 from .pages.discord import discord
 from .pages.grades import grades
 from .pages.writeups import writeups
@@ -55,9 +55,9 @@ def load(app):
     CHALLENGE_CLASSES["dojo"] = DojoChallenge
     FLAG_CLASSES["dojo"] = DojoFlag
 
-    app.view_functions["views.settings"] = settings
-    app.view_functions["scoreboard.listing"] = scoreboard_listing
-    app.view_functions["challenges.listing"] = challenges_listing
+    app.view_functions["challenges.listing"] = challenges_override
+    app.view_functions["scoreboard.listing"] = scoreboard_override
+    app.view_functions["views.settings"] = settings_override
 
     app.register_blueprint(challenges)
     app.register_blueprint(workspace)
