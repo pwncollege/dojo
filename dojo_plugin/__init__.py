@@ -8,18 +8,15 @@ from CTFd.plugins.challenges import CHALLENGE_CLASSES
 from CTFd.plugins.flags import FLAG_CLASSES
 
 from .config import bootstrap
-
 from .api.v1.challenge import DojoChallenge
 from .flag import DojoFlag
-
 from .pages.challenges import challenges_listing, challenges
-from .api.v1.scoreboard import scoreboard_listing
+from .pages.scoreboard import scoreboard_listing
 from .pages.workspace import workspace
 from .pages.settings import settings
 from .pages.discord import discord
 from .pages.grades import grades
 from .pages.writeups import writeups
-
 from .api import api
 
 
