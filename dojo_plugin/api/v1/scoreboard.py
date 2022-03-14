@@ -4,14 +4,12 @@ import datetime
 
 from flask import url_for
 from flask_restx import Namespace, Resource
-from sqlalchemy.sql import or_, and_
 from CTFd.cache import cache
 from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
 
-from ...models import PrivateDojoMembers
-from ...utils import active_dojo_id, dojo_modules
+from ...utils import active_dojo_id, dojo_standings
 from .belts import get_belts
 
 
@@ -36,42 +34,22 @@ def belt_asset(color):
 
 
 @cache.memoize(timeout=60)
-def get_standings(count=None, fields=None, filters=None, *, dojo_id=None):
-    if fields is None:
-        fields = []
+def get_standings(count=None, filters=None, *, dojo_id=None):
     if filters is None:
         filters = []
+
     Model = get_model()
-
-    private_dojo_filters = []
-    if dojo_id is not None:
-        modules = dojo_modules(dojo_id)
-        challenges_filter = or_(*(
-            and_(Challenges.category == module_challenge["category"],
-                 Challenges.name.in_(module_challenge["names"]))
-            if module_challenge.get("names") else
-            Challenges.category == module_challenge["category"]
-            for module in modules
-            for module_challenge in module.get("challenges", [])
-        ))
-        private_dojo_filters.append(challenges_filter)
-
-        members = db.session.query(PrivateDojoMembers.user_id).filter_by(dojo_id=dojo_id)
-        private_dojo_filters.append(Solves.account_id.in_(members.subquery()))
-
     score = db.func.sum(Challenges.value).label("score")
+    fields = [
+        Solves.account_id,
+        Model.name,
+        Model.email,
+        score
+    ]
     standings_query = (
-        db.session.query(
-            Solves.account_id,
-            Model.name,
-            score,
-            *fields,
-        )
-        .join(Challenges)
-        .join(Model, Model.id == Solves.account_id)
+        dojo_standings(dojo_id, fields)
+        .filter(*filters)
         .group_by(Solves.account_id)
-        .filter(Challenges.value != 0, Model.banned == False, Model.hidden == False,
-                *filters, *private_dojo_filters)
         .order_by(score.desc(), db.func.max(Solves.id))
     )
 
@@ -104,8 +82,7 @@ class ScoreboardOverall(Resource):
         user = get_current_user()
         dojo_id = active_dojo_id(user.id) if user else None
 
-        Model = get_model()
-        standings = get_standings(fields=[Model.email], dojo_id=dojo_id)
+        standings = get_standings(dojo_id=dojo_id)
 
         page_size = 20
         start = page_size * page
@@ -132,10 +109,8 @@ class ScoreboardWeekly(Resource):
         user = get_current_user()
         dojo_id = active_dojo_id(user.id) if user else None
 
-        Model = get_model()
-
         week_filter = Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=7))
-        standings = get_standings(count=10, fields=[Model.email], filters=[week_filter], dojo_id=dojo_id)
+        standings = get_standings(count=10, filters=[week_filter], dojo_id=dojo_id)
 
         page_standings = list((i + 1, standing) for i, standing in enumerate(standings))
 

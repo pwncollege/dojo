@@ -3,12 +3,13 @@ import os
 from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.exc import IntegrityError
-from CTFd.models import db
+from CTFd.models import db, Solves, Challenges
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
+from CTFd.utils.modes import get_model
 
 from ...models import PrivateDojos, PrivateDojoMembers, PrivateDojoActives
-from ...utils import validate_dojo_data
+from ...utils import validate_dojo_data, dojo_standings
 
 
 private_dojo_namespace = Namespace(
@@ -137,3 +138,28 @@ class ActivateDojo(Resource):
             )
 
         return {"success": True}
+
+
+@private_dojo_namespace.route("/solves")
+class DojoSolves(Resource):
+    @authed_only
+    def get(self):
+        user = get_current_user()
+        dojo_id = user.id
+
+        Model = get_model()
+        fields = {
+            "account_id": Solves.account_id,
+            "account_name": Model.name,
+            "account_email": Model.email,
+            "challenge_id": Challenges.id,
+            "challenge_category": Challenges.category,
+            "challenge_name": Challenges.name,
+            "solve_time": Solves.date,
+        }
+        standings = (
+            dojo_standings(dojo_id, fields.values())
+            .order_by(Solves.id)
+            .all()
+        )
+        return [dict(zip(fields, standing)) for standing in standings]

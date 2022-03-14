@@ -1,6 +1,8 @@
 import sys
 import os
+import datetime
 
+from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
 from CTFd.models import db
 from CTFd.utils.user import get_current_user
@@ -49,7 +51,16 @@ class DojoFlag(BaseFlag):
         return True
 
 
+class DateJSONEncoder(JSONEncoder):
+    def default(self, o):
+        if isinstance(o, datetime.datetime):
+            return str(o)
+        return super().default(o)
+
+
 def load(app):
+    app.config["RESTX_JSON"] = {"cls": DateJSONEncoder}
+
     db.create_all()
 
     CHALLENGE_CLASSES["dojo"] = DojoChallenge
