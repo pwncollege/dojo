@@ -208,3 +208,40 @@ def validate_dojo_data(data):
             type_check("video", "[\w-]+", required=True, container=lecture)
             type_check("playlist", "[\w-]+", required=True, container=lecture)
             type_check("slides", "[\w-]+", required=True, container=lecture)
+
+
+def belt_challenges():
+    yellow_categories = [
+        "embryoio",
+        "babysuid",
+        "embryoasm",
+        "babyshell",
+        "babyjail",
+        "embryogdb",
+        "babyrev",
+        "babymem",
+        "toddlerone",
+    ]
+
+    blue_categories = [
+        *yellow_categories,
+        "babyrop",
+        "babyheap",
+        "babyrace",
+        "babykernel",
+        "toddlertwo",
+    ]
+
+    color_categories = {
+        "yellow": yellow_categories,
+        "blue": blue_categories,
+    }
+
+    return {
+        color: db.session.query(Challenges.id).filter(
+            Challenges.state == "visible",
+            Challenges.value > 0,
+            Challenges.category.in_(categories),
+        )
+        for color, categories in color_categories.items()
+    }

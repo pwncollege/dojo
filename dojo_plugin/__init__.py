@@ -17,7 +17,7 @@ from .pages.challenges import challenges_override, challenges
 from .pages.scoreboard import scoreboard_override
 from .pages.workspace import workspace
 from .pages.settings import settings_override
-from .pages.discord import discord
+from .pages.discord import discord, maybe_award_belt
 from .pages.grades import grades
 from .pages.writeups import writeups
 from .api import api
@@ -47,6 +47,11 @@ class DojoFlag(BaseFlag):
 
         if challenge_id != current_challenge_id:
             raise FlagException("This flag is not for this challenge!")
+
+        try:
+            maybe_award_belt(current_account_id, ignore_challenge_id=current_challenge_id)
+        except Exception as e:
+            print(f"ERROR: Maybe awarding belt failed: {e}", file=sys.stderr, flush=True)
 
         return True
 

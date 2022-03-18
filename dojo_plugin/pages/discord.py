@@ -4,13 +4,14 @@ import requests
 from flask import request, Blueprint, url_for, redirect, abort, current_app
 from sqlalchemy.exc import IntegrityError
 from itsdangerous.url_safe import URLSafeTimedSerializer
-from CTFd.models import db
+from CTFd.models import db, Users, Challenges, Solves
 from CTFd.cache import cache
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
 from ..models import DiscordUsers
 from ..config import VIRTUAL_HOST, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID
+from ..utils import belt_challenges
 
 
 OAUTH_ENDPOINT = "https://discord.com/api/oauth2"
@@ -69,6 +70,7 @@ def get_discord_id(auth_code):
     return discord_id
 
 
+@cache.memoize(timeout=1800)
 def get_discord_user(user_id):
     if not DISCORD_BOT_TOKEN:
         return
@@ -83,31 +85,86 @@ def get_discord_user(user_id):
         "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
     }
 
-    response = requests.get(f"{API_ENDPOINT}/users/{discord_id}", headers=headers)
+    response = requests.get(f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}/members/{discord_id}", headers=headers)
     return response.json()
 
 
-def add_role(user_id, role_name):
+@cache.memoize(timeout=1800)
+def get_discord_roles():
+    headers = {
+        "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
+    }
+    roles = requests.get(f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}/roles", headers=headers).json()
+    return {role["name"]: role["id"] for role in roles}
+
+
+def add_role(discord_id, role_name):
+    headers = {
+        "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
+    }
+    role_id = get_discord_roles()[role_name]
+    response = requests.put(f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}/members/{discord_id}/roles/{role_id}", headers=headers)
+    response.raise_for_status()
+
+
+def send_message(message, channel_name):
     headers = {
         "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
     }
 
-    response = requests.get(f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}/roles", headers=headers)
-    roles = response.json()
+    channels = requests.get(f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}/channels", headers=headers).json()
+    channels = [channel for channel in channels if channel["name"] == channel_name]
+    assert len(channels) == 1
+    channel_id = channels[0]["id"]
 
-    roles = [role for role in roles if role["name"] == role_name]
-    assert len(roles) == 1
-    role_id = roles[0]["id"]
-
-    response = requests.put(f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}/members/{user_id}/roles/{role_id}", headers=headers)
+    response = requests.post(f"{API_ENDPOINT}/channels/{channel_id}/messages", headers=headers, json=dict(content=message))
     response.raise_for_status()
+
+
+def maybe_award_belt(user_id, *, ignore_challenge_id=None):
+    if not DISCORD_BOT_TOKEN:
+        return
+
+    discord_user = DiscordUsers.query.filter_by(user_id=user_id).first()
+    if not discord_user:
+        return
+
+    discord_id = discord_user.discord_id
+    user = get_discord_user(user_id)
+    roles = get_discord_roles()
+
+    for color, challenges in belt_challenges().items():
+        belt_name = f"{color.title()} Belt"
+
+        if ignore_challenge_id is not None:
+            challenges = challenges.filter(Challenges.id != ignore_challenge_id)
+
+        belted_user = (
+            db.session.query(Users.id)
+            .filter(Users.id == user_id)
+            .join(Solves, Users.id == Solves.user_id)
+            .filter(Solves.challenge_id.in_(challenges.subquery()))
+            .group_by(Users.id)
+            .having(db.func.count() == challenges.count())
+        ).first()
+        if not belted_user:
+            continue
+
+        role_id = roles[belt_name]
+        if role_id in user["roles"]:
+            continue
+
+        # TODO: add_role when we have confirmed that this feature is working as expected
+        # add_role(discord_id, belt_name)
+        send_message(f"<@{discord_id}> has earned their {belt_name}! :tada:", "belting-ceremony")
+        cache.delete_memoized(get_discord_user, user_id)
 
 
 def discord_avatar_asset(discord_user):
     if not discord_user:
         return url_for("views.themes", path="img/dojo/discord_logo.svg")
-    discord_id = discord_user["id"]
-    discord_avatar = discord_user["avatar"]
+    discord_id = discord_user["user"]["id"]
+    discord_avatar = discord_user["user"]["avatar"]
     return f"https://cdn.discordapp.com/avatars/{discord_id}/{discord_avatar}.png"
 
 
@@ -175,6 +232,7 @@ def discord_redirect():
         else:
             existing_discord_user.discord_id = discord_id
         db.session.commit()
+        cache.delete_memoized(get_discord_user, user_id)
     except IntegrityError:
         db.session.rollback()
         return {"success": False, "error": "Discord user already in use"}, 400
