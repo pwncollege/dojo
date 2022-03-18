@@ -233,6 +233,7 @@ def discord_redirect():
             existing_discord_user.discord_id = discord_id
         db.session.commit()
         cache.delete_memoized(get_discord_user, user_id)
+        maybe_award_belt(user_id)
     except IntegrityError:
         db.session.rollback()
         return {"success": False, "error": "Discord user already in use"}, 400
