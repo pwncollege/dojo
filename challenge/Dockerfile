@@ -173,7 +173,7 @@ RUN wget https://github.com/0vercl0k/rp/releases/download/v2.0.2/rp-lin-x64 -O /
 
 RUN pip install git+git://github.com/Gallopsled/pwntools.git#egg=pwntools jupyter angr r2pipe asteval psutil
 
-RUN git clone https://github.com/pwndbg/pwndbg /opt/pwndbg && cd /opt/pwndbg && ./setup.sh
+RUN git clone https://github.com/pwndbg/pwndbg /opt/pwndbg
 RUN git clone https://github.com/hugsy/gef /opt/gef
 RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 
