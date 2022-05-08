@@ -154,8 +154,7 @@ def maybe_award_belt(user_id, *, ignore_challenge_id=None):
         if role_id in user["roles"]:
             continue
 
-        # TODO: add_role when we have confirmed that this feature is working as expected
-        # add_role(discord_id, belt_name)
+        add_role(discord_id, belt_name)
         send_message(f"<@{discord_id}> has earned their {belt_name}! :tada:", "belting-ceremony")
         cache.delete_memoized(get_discord_user, user_id)
 
