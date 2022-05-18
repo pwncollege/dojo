@@ -1,10 +1,13 @@
 import datetime
 
 import docker
-from flask import render_template
+from flask import Blueprint, render_template
 from CTFd.models import Users, Solves, Challenges
 from CTFd.cache import cache
 from CTFd.utils.helpers import get_infos
+
+
+scoreboard = Blueprint("pwncollege_scoreboard", __name__)
 
 
 @cache.memoize(timeout=60)
@@ -27,12 +30,14 @@ def get_stats():
     }
 
 
-def scoreboard_override():
+@scoreboard.route("/<dojo>/scoreboard")
+def listing(dojo):
     infos = get_infos()
     stats = get_stats()
 
     return render_template(
         "scoreboard.html",
+        dojo=dojo,
         infos=infos,
         stats=stats,
     )

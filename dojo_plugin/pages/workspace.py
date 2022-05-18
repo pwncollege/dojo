@@ -5,20 +5,21 @@ from CTFd.utils.decorators import authed_only
 from ..utils import get_current_challenge_id, random_home_path, redirect_user_socket
 
 
-workspace = Blueprint("workspace", __name__)
+workspace = Blueprint("pwncollege_workspace", __name__)
 
 
 @workspace.route("/workspace")
+@workspace.route("/<dojo>/workspace")
 @authed_only
-def view_workspace():
+def view_workspace(dojo=None):
     active = get_current_challenge_id() is not None
-    return render_template("workspace.html", active=active)
+    return render_template("workspace.html", dojo=dojo, active=active)
 
 
-@workspace.route("/workspace/", defaults={"path": ""})
+@workspace.route("/workspace/")
 @workspace.route("/workspace/<path:path>")
 @authed_only
-def forward_workspace(path):
+def forward_workspace(dojo, path=""):
     prefix = "/workspace/"
     assert request.full_path.startswith(prefix)
     path = request.full_path[len(prefix) :]

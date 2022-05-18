@@ -13,8 +13,24 @@
     </button>
     <div class="collapse navbar-collapse" id="base-navbars">
       <ul class="navbar-nav mr-auto">
+
+        {% if not dojo %}
+
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('challenges.listing') }}">
+          <a class="nav-link" href="{{ url_for('pwncollege_dojos.listing') }}">
+            <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Challenges">
+              <i class="fas fa-bolt d-none d-md-block d-lg-none"></i>
+            </span>
+            <span class="d-sm-block d-md-none d-lg-block">
+              <i class="fas fa-bolt pr-1"></i>Dojos
+            </span>
+          </a>
+        </li>
+
+        {% else %}
+
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('pwncollege_challenges.listing', dojo=dojo) }}">
             <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Challenges">
               <i class="fas fa-flag d-none d-md-block d-lg-none"></i>
             </span>
@@ -25,7 +41,7 @@
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('scoreboard.listing') }}">
+          <a class="nav-link" href="{{ url_for('pwncollege_scoreboard.listing', dojo=dojo) }}">
             <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Scoreboard">
               <i class="fas fa-chart-line d-none d-md-block d-lg-none"></i>
             </span>
@@ -35,8 +51,10 @@
           </a>
         </li>
 
+        {% endif %}
+
         <li class="nav-item">
-          <a class="nav-link" href="/workspace">
+          <a class="nav-link" href="{{ url_for('pwncollege_workspace.view_workspace', dojo=dojo) }}">
             <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Workspace">
               <i class="fas fa-terminal d-none d-md-block d-lg-none"></i>
             </span>
@@ -67,6 +85,7 @@
             </span>
           </a>
         </li>
+
       </ul>
 
       <hr class="d-sm-flex d-md-flex d-lg-none">
