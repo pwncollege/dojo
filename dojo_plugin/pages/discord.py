@@ -85,10 +85,11 @@ def get_discord_user(user_id):
         "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
     }
     response = requests.get(f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}/members/{discord_id}", headers=headers)
-    if response.get("message") == "Unknown Member":
+    result = response.json()
+    if result.get("message") == "Unknown Member":
         return
 
-    return response.json()
+    return result
 
 
 @cache.memoize(timeout=1800)
