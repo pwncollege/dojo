@@ -4,7 +4,7 @@ from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators.visibility import check_challenge_visibility
 
-from ..utils import get_current_challenge_id, active_dojo_id, dojo_modules
+from ..utils import get_current_challenge_id, dojo_modules
 
 
 challenges = Blueprint("pwncollege_challenges", __name__)
@@ -29,11 +29,11 @@ def module_challenges(module, user_id=None):
     return challenges
 
 
+@challenges.route("/<dojo>/challenges")
 @check_challenge_visibility
-def challenges_override():
+def listing(dojo):
     user = get_current_user()
-    dojo_id = active_dojo_id(user.id) if user else None
-    modules = dojo_modules(dojo_id)
+    modules = dojo_modules()
 
     for module in modules:
         challenges = module_challenges(module, user.id if user else None)
@@ -42,19 +42,20 @@ def challenges_override():
 
     return render_template(
         "challenges.html",
+        dojo=dojo,
         modules=modules,
     )
 
 
-@challenges.route("/challenges/<permalink>")
+@challenges.route("/<dojo>/challenges/<module>")
 @check_challenge_visibility
-def view_module(permalink):
+def view_module(dojo, module):
     user = get_current_user()
-    dojo_id = active_dojo_id(user.id) if user else None
-    modules = dojo_modules(dojo_id)
+    modules = dojo_modules()
 
+    module_permalink = module
     for module in modules:
-        if module.get("permalink") == permalink:
+        if module.get("permalink") == module_permalink:
             break
     else:
         abort(404)
@@ -64,6 +65,7 @@ def view_module(permalink):
 
     return render_template(
         "module.html",
+        dojo=dojo,
         module=module,
         challenges=challenges,
         current_challenge_id=current_challenge_id

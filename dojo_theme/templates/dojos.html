@@ -12,18 +12,18 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1>Challenges</h1>
+    <h1>Dojos</h1>
   </div>
 </div>
 <div class="container">
   <ul class="card-list">
-    {% for module in modules %}
-    <a class="text-decoration-none" href="{{ url_for('pwncollege_challenges.view_module', dojo=dojo, module=module.permalink) }}">
+    {% for dojo in dojos %}
+    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.permalink) }}">
       <li class="card card-small">
         <div class="card-body">
-          <h4 class="card-title">{{ module.name }}</h4>
+          <h4 class="card-title">{{ dojo.name }}</h4>
           <p class="card-text">
-            {{ module.challenges_solved }} / {{ module.challenges_count }}
+            {{ dojo.challenges_solved }} / {{ dojo.challenges_count }}
           </p>
         </div>
       </li>

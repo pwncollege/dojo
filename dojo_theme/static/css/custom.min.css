@@ -80,7 +80,71 @@ nav {
     background-color: rgba(255,255,255,0.1);
 }
 
-#discord-avatar {
+.card-list {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 0px;
+}
+
+.card-small {
+    width: 15em;
+    height: 15em;
+    margin: 1em;
+    padding: 0.5em;
+    background-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+    transition: all 0.2s ease;
+}
+
+.card-small:hover {
+    transform: scale(1.05);
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.card-text {
+    position: absolute;
+    bottom: 1em;
+    right: 1em;
+    color: rgb(234, 234, 234);
+    font-size: 0.75em;
+}
+
+.scoreboard-name {
+    color: rgb(99, 192, 245);
+    text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
+}
+
+.scoreboard-symbol {
+    margin: auto;
+    height: 3em;
+    filter: drop-shadow(0px 0px 3px white);
+}
+
+.scoreboard-belt {
+    height: 1.5em;
+    filter: drop-shadow(0px 0px 3px black);
+}
+
+.scoreboard-row-me {
+    background-color: rgba(255,255,255,0.3) !important;
+    border: 2px solid rgba(255,255,255,0.8);
+}
+
+.scoreboard-page {
+    display: inline-block;
+    padding: 0.5em 1em 0.5em 1em;
+}
+
+.scoreboard-page-unselected > a {
+    color: gray;
+}
+
+.scoreboard-page-selected > a {
+    font-weight: bold;
+}
+
+.discord-avatar {
     display: block;
     margin: auto;
     width: 128px;
