@@ -8,11 +8,11 @@ from ..utils import get_current_challenge_id, random_home_path, dojo_route, redi
 workspace = Blueprint("pwncollege_workspace", __name__)
 
 
-@workspace.route("/workspace", defaults={"dojo": None})
+@workspace.route("/workspace")
 @workspace.route("/<dojo>/workspace")
 @dojo_route
 @authed_only
-def view_workspace(dojo):
+def view_workspace(dojo=None):
     active = get_current_challenge_id() is not None
     return render_template("workspace.html", dojo=dojo, active=active)
 
