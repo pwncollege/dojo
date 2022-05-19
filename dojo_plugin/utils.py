@@ -131,7 +131,7 @@ def dojo_route(func):
             user = get_current_user()
             if not dojo.public:
                 user_id = user.id if user else None
-                if not DojoMembers.query.filter_by(dojo_id=dojo.id, user_id=user_id).exists():
+                if not DojoMembers.query.filter_by(dojo_id=dojo.id, user_id=user_id).first():
                     abort(404)
         bound_args.arguments["dojo"] = dojo
         return func(*bound_args.args, **bound_args.kwargs)
