@@ -17,13 +17,13 @@
 </div>
 <div class="container">
   <ul class="card-list">
-    {% for module in modules %}
-    <a class="text-decoration-none" href="{{ url_for('pwncollege_challenges.view_module', dojo=dojo, module=module.permalink) }}">
+    {% for module in dojo.modules %}
+    <a class="text-decoration-none" href="{{ url_for('pwncollege_challenges.view_module', dojo=dojo.id, module=module.id) }}">
       <li class="card card-small">
         <div class="card-body">
           <h4 class="card-title">{{ module.name }}</h4>
           <p class="card-text">
-            {{ module.challenges_solved }} / {{ module.challenges_count }}
+            {{ stats[module.id].solved }} / {{ stats[module.id].count }}
           </p>
         </div>
       </li>

@@ -18,12 +18,12 @@
 <div class="container">
   <ul class="card-list">
     {% for dojo in dojos %}
-    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.permalink) }}">
+    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.id) }}">
       <li class="card card-small">
         <div class="card-body">
           <h4 class="card-title">{{ dojo.name }}</h4>
           <p class="card-text">
-            {{ dojo.challenges_solved }} / {{ dojo.challenges_count }}
+            {{ stats[dojo.id].solved }} / {{ stats[dojo.id].count }}
           </p>
         </div>
       </li>

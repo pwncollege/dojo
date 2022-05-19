@@ -9,7 +9,7 @@ from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
 
-from ...utils import active_dojo_id, dojo_standings
+from ...utils import dojo_route, dojo_standings
 from .belts import get_belts
 
 
@@ -75,11 +75,10 @@ def standing_info(place, standing):
 
 scoreboard_namespace = Namespace("scoreboard")
 
-def get_scoreboard_data(page, filters):
+def get_scoreboard_data(page, filters, *, dojo_id=None):
     user = get_current_user()
-    dojo_id = active_dojo_id(user.id) if user else None
 
-    standings = get_standings(dojo_id=dojo_id, filters=filters)
+    standings = get_standings(filters=filters, dojo_id=dojo.id if dojo else None)
 
     page_size = 20
     start = page_size * page
@@ -99,38 +98,40 @@ def get_scoreboard_data(page, filters):
 
     return result
 
-@scoreboard_namespace.route("/overall/<int:page>")
+@scoreboard_namespace.route("/<dojo>/overall/<int:page>")
 class ScoreboardOverall(Resource):
-    def get(self, page):
-        return get_scoreboard_data(page=page, filters=None)
+    @dojo_route
+    def get(self, dojo, page):
+        return get_scoreboard_data(page=page, filters=None, dojo=dojo)
 
-@scoreboard_namespace.route("/week/<int:page>")
+@scoreboard_namespace.route("/<dojo>/week/<int:page>")
 class ScoreboarWeek(Resource):
-    def get(self, page):
+    @dojo_route
+    def get(self, dojo, page):
         week_filter = Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=7))
-        return get_scoreboard_data(page=page, filters=[week_filter])
+        return get_scoreboard_data(page=page, filters=[week_filter], dojo=dojo)
 
-@scoreboard_namespace.route("/month/<int:page>")
+@scoreboard_namespace.route("/<dojo>/month/<int:page>")
 class ScoreboardMonth(Resource):
-    def get(self, page):
+    @dojo_route
+    def get(self, dojo, page):
         month_filter = Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=31))
-        return get_scoreboard_data(page=page, filters=[month_filter])
+        return get_scoreboard_data(page=page, filters=[month_filter], dojo=dojo)
 
-@scoreboard_namespace.route("/semester/<int:page>")
+@scoreboard_namespace.route("/<dojo>/semester/<int:page>")
 class ScoreboardSemester(Resource):
-    def get(self, page):
+    @dojo_route
+    def get(self, dojo, page):
         semester_filter = Solves.date > datetime.date(year=2022, month=8, day=10)
-        return get_scoreboard_data(page=page, filters=[semester_filter])
+        return get_scoreboard_data(page=page, filters=[semester_filter], dojo=dojo)
 
 
-@scoreboard_namespace.route("/weekly")
+@scoreboard_namespace.route("/<dojo>/weekly")
 class ScoreboardWeekly(Resource):
-    def get(self):
-        user = get_current_user()
-        dojo_id = active_dojo_id(user.id) if user else None
-
+    @dojo_route
+    def get(self, dojo):
         week_filter = Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=7))
-        standings = get_standings(count=10, filters=[week_filter], dojo_id=dojo_id)
+        standings = get_standings(count=10, filters=[week_filter], dojo_id=dojo.id)
 
         page_standings = list((i + 1, standing) for i, standing in enumerate(standings))
 

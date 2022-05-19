@@ -41,6 +41,7 @@ services:
       - ./data/CTFd/uploads:/var/uploads
       - ./data/homes:/var/homes:shared
       - ./data/challenges:/var/challenges:ro
+      - ./data/dojos:/var/dojos:ro
       - ./CTFd:/opt/CTFd:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:

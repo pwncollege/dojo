@@ -30,7 +30,7 @@
         {% else %}
 
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('pwncollege_challenges.listing', dojo=dojo) }}">
+          <a class="nav-link" href="{{ url_for('pwncollege_challenges.listing', dojo=dojo.id) }}">
             <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Challenges">
               <i class="fas fa-flag d-none d-md-block d-lg-none"></i>
             </span>
@@ -41,7 +41,7 @@
         </li>
 
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('pwncollege_scoreboard.listing', dojo=dojo) }}">
+          <a class="nav-link" href="{{ url_for('pwncollege_scoreboard.listing', dojo=dojo.id) }}">
             <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Scoreboard">
               <i class="fas fa-chart-line d-none d-md-block d-lg-none"></i>
             </span>
@@ -54,7 +54,7 @@
         {% endif %}
 
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('pwncollege_workspace.view_workspace', dojo=dojo) }}">
+          <a class="nav-link" href="{{ url_for('pwncollege_workspace.view_workspace', dojo=dojo.id if dojo else None) }}">
             <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Workspace">
               <i class="fas fa-terminal d-none d-md-block d-lg-none"></i>
             </span>
