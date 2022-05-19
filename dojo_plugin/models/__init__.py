@@ -33,10 +33,14 @@ class Dojos(db.Model):
     def data(self, value):
         self.validate_data(value)
         self._data = value
+        if hasattr(self, "_config"):
+            del self._config
 
     @property
     def config(self):
-        return yaml.safe_load(self.data)
+        if not hasattr(self, "_config"):
+            self._config = yaml.safe_load(self.data)
+        return self._config
 
     @property
     def name(self):
