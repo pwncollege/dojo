@@ -40,7 +40,7 @@ class InitializeDojo(Resource):
             try:
                 dojo = Dojos.query.filter_by(owner_id=user.id).first()
                 if not dojo:
-                    dojo = Dojos(id=str(user.id), owner_id=user.id)
+                    dojo = Dojos(id=f"private-{user.id}", owner_id=user.id)
                     db.session.add(dojo)
                 dojo.join_code = random_dojo_join_code()
                 dojo.data = dojo_data
