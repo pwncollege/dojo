@@ -65,7 +65,7 @@ This file specifies some module metadata.
 The basic structure looks something like:
 ```
 - name: Example Module
-  permalink: example
+  id: example
   challenges:
     - category: babymem
       names:
@@ -79,6 +79,6 @@ The basic structure looks something like:
       playlist: PL-ymxv0nOtqrxUaIefx0qEC7_155oPEb7
       slides: 1YlTxeZg03P234EgG4E4JNGcit6LZovAxfYGL1YSLwfc
 ```
-Only name and permalink are required; the other fields are optional.
+Only name and id are required; the other fields are optional.
 When specifying a challenge, only the category subfield is required (defaults to including all challenges in the category).
 When sepcifying a lecture, all subfields are required.

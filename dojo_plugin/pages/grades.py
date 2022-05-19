@@ -9,7 +9,8 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 
 from ..models import DiscordUsers
-from ..utils import active_dojo_id, dojo_modules
+# TODO: fix on new dojo stuff
+# from ..utils import active_dojo_id, dojo_modules
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 from .discord import discord_reputation
 

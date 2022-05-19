@@ -6,6 +6,8 @@ from CTFd.models import Users, Solves, Challenges
 from CTFd.cache import cache
 from CTFd.utils.helpers import get_infos
 
+from ..utils import dojo_route
+
 
 scoreboard = Blueprint("pwncollege_scoreboard", __name__)
 
@@ -31,6 +33,7 @@ def get_stats():
 
 
 @scoreboard.route("/<dojo>/scoreboard")
+@dojo_route
 def listing(dojo):
     infos = get_infos()
     stats = get_stats()

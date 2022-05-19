@@ -31,9 +31,9 @@ for config_option in missing_warnings:
 
 
 def bootstrap():
-    from .models import DojoChallenges
+    from .models import DojoChallenges, Dojos
     from .pages.discord import discord_reputation
-    from .utils import CHALLENGES_DIR, validate_dojo_data
+    from .utils import CHALLENGES_DIR, DOJOS_DIR
 
     set_config("ctf_name", "pwn.college")
     set_config("ctf_description", "pwn.college")
@@ -52,21 +52,6 @@ def bootstrap():
     set_config("mail_useauth", True)
     set_config("mail_username", f"hacker@{VIRTUAL_HOST}")
     set_config("mail_password", "hacker")
-
-    modules_path = CHALLENGES_DIR / "modules.yml"
-    modules = modules_path.read_text() if modules_path.exists() else (
-        """
-        - name: Introduction
-          permalink: introduction
-          lectures:
-            - name: "Introduction: What is Computer Systems Security"
-              video: bJTThdqui0g
-              playlist: PL-ymxv0nOtqrxUaIefx0qEC7_155oPEb7
-              slides: 1YlTxeZg03P234EgG4E4JNGcit6LZovAxfYGL1YSLwfc
-        """
-    )
-    validate_dojo_data(modules)
-    set_config("modules", modules)
 
     students_path = CHALLENGES_DIR / "students.yml"
     students = students_path.read_text() if students_path.exists() else "[]"
@@ -141,4 +126,14 @@ def bootstrap():
 
         flag = Flags(challenge_id=challenge.id, type="dojo")
         db.session.add(flag)
+        db.session.commit()
+
+    for dojo_config_path in DOJOS_DIR.glob("*.yml"):
+        id = dojo_config_path.stem
+        data = dojo_config_path.read_text()
+        dojo = Dojos.query.filter_by(id=id).first()
+        if not dojo:
+            dojo = Dojos(id=id)
+            db.session.add(dojo)
+        dojo.data = data
         db.session.commit()

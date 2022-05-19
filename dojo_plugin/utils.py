@@ -1,25 +1,25 @@
 import os
 import re
 import pathlib
-import datetime
 import tempfile
 import tarfile
 import hashlib
+import functools
+import inspect
 
 import docker
-import yaml
-from flask import current_app, Response
+from flask import current_app, Response, abort
 from itsdangerous.url_safe import URLSafeSerializer
 from sqlalchemy.sql import or_, and_
 from CTFd.models import db, Solves, Challenges, Users
-from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
 
-from .models import PrivateDojos, PrivateDojoMembers, PrivateDojoActives
+from .models import Dojos, DojoMembers
 
 
 CHALLENGES_DIR = pathlib.Path("/var/challenges")
+DOJOS_DIR = pathlib.Path("/var/dojos")
 PLUGIN_DIR = pathlib.Path(__file__).parent
 SECCOMP = (PLUGIN_DIR / "seccomp.json").read_text()
 
@@ -117,110 +117,57 @@ def random_home_path(user, *, secret=None):
     return hashlib.sha256(f"{secret}_{user.id}".encode()).hexdigest()[:16]
 
 
-def user_dojos(user_id):
-    members = db.session.query(PrivateDojoMembers.dojo_id).filter(PrivateDojoMembers.user_id == user_id)
-    return PrivateDojos.query.filter(PrivateDojos.id.in_(members.subquery())).all()
+def dojo_route(func):
+    signature = inspect.signature(func)
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        bound_args = signature.bind(*args, **kwargs)
+        dojo = bound_args.arguments["dojo"]
+        if dojo is not None:
+            dojo = Dojos.query.filter_by(id=dojo).first()
+            if not dojo:
+                abort(404)
+            user = get_current_user()
+            if not dojo.public:
+                user_id = user.id if user else None
+                if not DojoMembers.query.filter_by(dojo_id=dojo.id, user_id=user_id).exists():
+                    abort(404)
+        bound_args.arguments["dojo"] = dojo
+        return func(*bound_args.args, **bound_args.kwargs)
+    return wrapper
 
 
-def active_dojo_id(user_id):
-    active = PrivateDojoActives.query.filter_by(user_id=user_id).first()
-    if not active:
-        return None
-    return active.dojo_id
+def user_dojos(user):
+    filters = [Dojos.public == True]
+    if user:
+        members = db.session.query(DojoMembers.dojo_id).filter(DojoMembers.user_id == user.id)
+        filters.append(Dojos.id.in_(members.subquery()))
+    return Dojos.query.filter(or_(*filters)).all()
 
 
-def dojo_modules(dojo_id=None):
-    if dojo_id is not None:
-        dojo = PrivateDojos.query.filter(PrivateDojos.id == dojo_id).first()
-        if dojo and dojo.data:
-            return yaml.safe_load(dojo.data)
-    return yaml.safe_load(get_config("modules"))
-
-
-def dojo_standings(dojo_id=None, fields=None):
+def dojo_standings(dojo_id, fields=None):
     if fields is None:
         fields = []
 
     Model = get_model()
+    dojo = Dojos.query.filter(Dojos.id == dojo_id).first()
 
-    private_dojo_filters = []
-    if dojo_id is not None:
-        modules = dojo_modules(dojo_id)
-        challenges_filter = or_(*(
-            and_(Challenges.category == module_challenge["category"],
-                 Challenges.name.in_(module_challenge["names"]))
-            if module_challenge.get("names") else
-            Challenges.category == module_challenge["category"]
-            for module in modules
-            for module_challenge in module.get("challenges", [])
-        ))
-        private_dojo_filters.append(challenges_filter)
+    dojo_filters = []
+    dojo_filters.append(dojo.challenges_query())
 
-        members = db.session.query(PrivateDojoMembers.user_id).filter_by(dojo_id=dojo_id)
-        private_dojo_filters.append(Solves.account_id.in_(members.subquery()))
+    if not dojo.public:
+        members = db.session.query(DojoMembers.user_id).filter_by(dojo_id=dojo_id)
+        dojo_filters.append(Solves.account_id.in_(members.subquery()))
 
     standings_query = (
         db.session.query(*fields)
         .join(Challenges)
         .join(Model, Model.id == Solves.account_id)
         .filter(Challenges.value != 0, Model.banned == False, Model.hidden == False,
-                *private_dojo_filters)
+                *dojo_filters)
     )
 
     return standings_query
-
-
-def validate_dojo_data(data):
-    try:
-        data = yaml.safe_load(data)
-    except yaml.error.YAMLError as e:
-        assert False, f"YAML Error:\n{e}"
-
-    if data is None:
-        return
-
-    def type_assert(object_, type_, name):
-        assert isinstance(object_, type_), f"YAML Type Error: {name} expected type `{type_.__name__}`, got `{type(object_).__name__}`"
-
-    type_assert(data, list, "outer most")
-
-    for module in data:
-        type_assert(module, dict, "module")
-
-        def type_check(name, type_, required=True, container=module):
-            if required and name not in container:
-                assert False, f"YAML Required Error: missing field `{name}`"
-            if name not in container:
-                return
-            value = container.get(name)
-            if isinstance(type_, str):
-                match = isinstance(value, str) and re.fullmatch(type_, value)
-                assert match, f"YAML Type Error: field `{name}` must be of type `{type_}`"
-            else:
-                type_assert(value, type_, f"field `{name}`")
-
-        type_check("name", "[\S ]{1,50}", required=True)
-        type_check("permalink", "\w+", required=True)
-
-        type_check("challenges", list, required=False)
-        for challenge in module.get("challenges", []):
-            type_assert(challenge, dict, "challenge")
-            type_check("category", "\w+", required=True, container=challenge)
-
-            type_check("names", list, required=False, container=challenge)
-            for name in challenge.get("names", []):
-                type_assert(name, str, "challenge name")
-
-        type_check("deadline", datetime.datetime, required=False)
-        type_check("late", float, required=False)
-
-        type_check("lectures", list, required=False)
-        for lecture in module.get("lectures", []):
-            type_assert(lecture, dict, "lecture")
-            type_check("name", "[\S ]{1,100}", required=True, container=lecture)
-            type_check("video", "[\w-]+", required=True, container=lecture)
-            type_check("playlist", "[\w-]+", required=True, container=lecture)
-            type_check("slides", "[\w-]+", required=True, container=lecture)
 
 
 def belt_challenges():
