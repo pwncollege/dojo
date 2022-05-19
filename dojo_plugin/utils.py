@@ -122,6 +122,7 @@ def dojo_route(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         bound_args = signature.bind(*args, **kwargs)
+        bound_args.apply_defaults()
         dojo = bound_args.arguments["dojo"]
         if dojo is not None:
             dojo = Dojos.query.filter_by(id=dojo).first()
