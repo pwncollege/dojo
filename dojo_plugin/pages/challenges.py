@@ -9,14 +9,14 @@ from ..utils import get_current_challenge_id, dojo_route
 challenges = Blueprint("pwncollege_challenges", __name__)
 
 
-def module_challenges(dojo, module):
+def solved_challenges(dojo, module_id=None):
     user = get_current_user()
     user_id = user.id if user else None
     solves = db.func.count(Solves.id).label("solves")
     solved = db.func.max(Solves.user_id == user_id).label("solved")
     challenges = (
         db.session.query(Challenges.id, Challenges.name, Challenges.category, solves, solved)
-        .filter(Challenges.state == "visible", dojo.challenges_query(module))
+        .filter(Challenges.state == "visible", dojo.challenges_query(module_id))
         .outerjoin(Solves, Solves.challenge_id == Challenges.id)
         .group_by(Challenges.id)
     ).all()
@@ -29,12 +29,11 @@ def module_challenges(dojo, module):
 def listing(dojo):
     stats = {}
     for module in dojo.modules:
-        challenges = module_challenges(dojo, module["id"])
+        challenges = solved_challenges(dojo, module["id"])
         stats[module["id"]] = {
             "count": len(challenges),
             "solved": sum(1 for challenge in challenges if challenge.solved),
         }
-
     return render_template("challenges.html", dojo=dojo, stats=stats)
 
 
@@ -49,7 +48,7 @@ def view_module(dojo, module):
     else:
         abort(404)
 
-    challenges = module_challenges(dojo, module_id)
+    challenges = solved_challenges(dojo, module_id)
     current_challenge_id = get_current_challenge_id()
 
     return render_template(
