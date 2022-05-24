@@ -25,8 +25,15 @@ services:
       - ERROR_LOG=-
       - REVERSE_PROXY=true
       - SERVER_SENT_EVENTS=false
-    env_file:
-      - ./data/config.env
+      - SECRET_KEY=${SECRET_KEY}
+      - HOST_DATA_PATH=/opt/pwn.college/data
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      - VIRTUAL_HOST=${HOSTNAME}
+      - VIRTUAL_PORT=8000
+      - LETSENCRYPT_HOST=${HOSTNAME}
     volumes:
       - ./data:/var/data
       - ./data/CTFd/logs:/var/log/CTFd
@@ -60,8 +67,8 @@ services:
       - ./data/redis:/data
 
   nginx-proxy:
+    container_name: nginx_proxy
     image: nginxproxy/nginx-proxy
-    container_name: ctfd_proxy
     ports:
       - "80:80"
       - "443:443"
@@ -79,8 +86,8 @@ services:
       - /var/run/docker.sock:/tmp/${DOCKER_PSLR}/docker.sock:ro
 
   acme-companion:
+    container_name: nginx_proxy_acme
     image: nginxproxy/acme-companion
-    container_name: ctfd_acme
     volumes_from:
       - nginx-proxy
     volumes:
