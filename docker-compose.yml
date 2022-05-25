@@ -66,6 +66,20 @@ services:
     volumes:
       - ./data/redis:/data
 
+  mailserver:
+    container_name: mailserver
+    image: mailserver/docker-mailserver
+    restart: always
+    environment:
+      - OVERRIDE_HOSTNAME=mail.${HOSTNAME}
+      - ONE_DIR=1
+      - LOG_LEVEL=debug
+    volumes:
+      - ./data/dms/mail-data:/var/mail
+      - ./data/dms/mail-state:/var/mail-state
+      - ./data/dms/mail-logs:/var/log/mail
+      - ./data/dms/config:/tmp/docker-mailserver
+
   nginx-proxy:
     container_name: nginx_proxy
     image: nginxproxy/nginx-proxy

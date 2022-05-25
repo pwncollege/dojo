@@ -1,6 +1,8 @@
 import sys
 import os
 import datetime
+from email.message import EmailMessage
+from email.utils import formatdate
 
 from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
@@ -61,6 +63,15 @@ class DateJSONEncoder(JSONEncoder):
         if isinstance(o, datetime.datetime):
             return str(o)
         return super().default(o)
+
+
+# TODO: CTFd should include "Date" header
+def DatedEmailMessage():
+    msg = EmailMessage()
+    msg["Date"] = formatdate()
+    return msg
+import CTFd.utils.email.smtp
+CTFd.utils.email.smtp.EmailMessage = DatedEmailMessage
 
 
 def load(app):

@@ -16,6 +16,7 @@ DISCORD_BOT_TOKEN=
 DISCORD_GUILD_ID=
 EOF
 fi
+. /opt/pwn.college/data/config.env
 
 if [ ! -f /opt/pwn.college/data/homes/homefs ]; then
     mkdir -p /opt/pwn.college/data/homes
@@ -39,6 +40,15 @@ for i in $(seq 1 1024); do
     chown --reference=/dev/loop0 /dev/loop$i
     chmod --reference=/dev/loop0 /dev/loop$i
 done
+
+if [ ! -d /opt/pwn.college/data/dms ]; then
+    mkdir -p /opt/pwn.college/data/dms
+    mkdir -p /opt/pwn.college/data/dms/mail-data
+    mkdir -p /opt/pwn.college/data/dms/mail-state
+    mkdir -p /opt/pwn.college/data/dms/mail-logs
+    mkdir -p /opt/pwn.college/data/dms/config
+    echo "reset@${HOSTNAME}|{SHA512-CRYPT}$(openssl passwd -6 reset)" > /opt/pwn.college/data/dms/config/postfix-accounts.cf
+fi
 
 mkdir -p /opt/pwn.college/data/logging
 
