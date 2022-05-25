@@ -47,7 +47,7 @@ if [ ! -d /opt/pwn.college/data/dms ]; then
     mkdir -p /opt/pwn.college/data/dms/mail-state
     mkdir -p /opt/pwn.college/data/dms/mail-logs
     mkdir -p /opt/pwn.college/data/dms/config
-    echo "reset@${HOST}|{SHA512-CRYPT}$(openssl passwd -6 reset)" > /opt/pwn.college/data/dms/config/postfix-accounts.cf
+    echo "hacker@${HOST}|{SHA512-CRYPT}$(openssl passwd -6 hacker)" > /opt/pwn.college/data/dms/config/postfix-accounts.cf
 fi
 
 mkdir -p /opt/pwn.college/data/logging
