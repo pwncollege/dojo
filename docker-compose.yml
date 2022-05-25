@@ -100,7 +100,7 @@ services:
       - ./data/homes:/var/homes:shared
       - /var/run/docker.sock:/tmp/${DOCKER_PSLR}/docker.sock:ro
 
-  acme-companion:
+  nginx-proxy-acme:
     container_name: nginx_proxy_acme
     image: nginxproxy/acme-companion
     restart: always
