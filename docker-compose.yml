@@ -83,6 +83,7 @@ services:
   nginx-proxy:
     container_name: nginx_proxy
     image: nginxproxy/nginx-proxy
+    restart: always
     ports:
       - "80:80"
       - "443:443"
@@ -102,6 +103,7 @@ services:
   acme-companion:
     container_name: nginx_proxy_acme
     image: nginxproxy/acme-companion
+    restart: always
     volumes_from:
       - nginx-proxy
     volumes:
