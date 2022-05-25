@@ -7,7 +7,7 @@ fi
 
 if [ ! -f /opt/pwn.college/data/config.env ]; then
     cat <<EOF >> /opt/pwn.college/data/config.env
-HOSTNAME=$SETUP_HOSTNAME
+HOST=$SETUP_HOSTNAME
 SECRET_KEY=$(openssl rand -hex 16)
 DOCKER_PSLR=$(openssl rand -hex 16)
 DISCORD_CLIENT_ID=
@@ -47,7 +47,7 @@ if [ ! -d /opt/pwn.college/data/dms ]; then
     mkdir -p /opt/pwn.college/data/dms/mail-state
     mkdir -p /opt/pwn.college/data/dms/mail-logs
     mkdir -p /opt/pwn.college/data/dms/config
-    echo "reset@${HOSTNAME}|{SHA512-CRYPT}$(openssl passwd -6 reset)" > /opt/pwn.college/data/dms/config/postfix-accounts.cf
+    echo "reset@${HOST}|{SHA512-CRYPT}$(openssl passwd -6 reset)" > /opt/pwn.college/data/dms/config/postfix-accounts.cf
 fi
 
 mkdir -p /opt/pwn.college/data/logging
