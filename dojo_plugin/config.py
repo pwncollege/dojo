@@ -45,6 +45,13 @@ def bootstrap():
 
     set_config("ctf_theme", "dojo_theme")
 
+    set_config("mailfrom_addr", f"reset@{VIRTUAL_HOST}")
+    set_config("mail_server", f"mailserver")
+    set_config("mail_port", 587)
+    set_config("mail_useauth", True)
+    set_config("mail_username", f"reset@{VIRTUAL_HOST}")
+    set_config("mail_password", "reset")
+
     modules_path = CHALLENGES_DIR / "modules.yml"
     modules = modules_path.read_text() if modules_path.exists() else (
         """
