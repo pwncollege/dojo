@@ -206,7 +206,7 @@ RUN wget https://out7.hex-rays.com/files/idafree80_linux.run -O /tmp/idafree80_l
 COPY desktop/ida64.desktop /usr/share/applications/
 
 RUN mkdir /opt/pwn.college
-COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
+COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
 COPY setuid_python.c /opt/pwn.college/setuid_python.c
 COPY vm /opt/pwn.college/vm
 COPY .tmux.conf /opt/pwn.college/.tmux.conf
@@ -231,4 +231,5 @@ RUN find / -type f -perm -4000 | xargs -r chmod u-s
 
 RUN chmod u+s /opt/pwn.college/python /opt/pwn.college/vm/vm
 
+USER hacker
 WORKDIR /home/hacker

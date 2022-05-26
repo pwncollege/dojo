@@ -40,13 +40,19 @@ def main():
             status = "uninitialized"
 
         if status == "running":
-            attempts = 0
-            print("\r", " " * 80, "\rConnected!")
-        else:
+            try:
+                container.get_archive("/opt/pwn.college/.initialized")
+            except docker.errors.NotFound:
+                status = "initializing"
+
+        if status != "running":
             attempts += 1
             print("\r", " " * 80, f"\rConnecting -- instance status: {status}", end="")
             time.sleep(1)
             continue
+
+        attempts = 0
+        print("\r", " " * 80, "\rConnected!")
 
         if not os.fork():
             os.execve(
