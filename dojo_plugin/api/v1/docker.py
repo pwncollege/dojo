@@ -19,57 +19,17 @@ docker_namespace = Namespace(
 )
 
 
-@docker_namespace.route("")
-class RunDocker(Resource):
-    @authed_only
-    def post(self):
-        data = request.get_json()
-        challenge_id = data.get("challenge_id")
-        practice = data.get("practice")
+def start_challenge(user, challenge, practice):
+    def exec_run(cmd, *, shell=False, assert_success=True, user="root", **kwargs):
+        if shell:
+            cmd = f"""/bin/sh -c \"
+            {cmd}
+            \""""
+        exit_code, output = container.exec_run(cmd, user=user, **kwargs)
+        if assert_success:
+            assert exit_code in (0, None), output
+        return exit_code, output
 
-        try:
-            challenge_id = int(challenge_id)
-        except (ValueError, TypeError):
-            return {"success": False, "error": "Invalid challenge id"}
-
-        challenge = DojoChallenges.query.filter_by(id=challenge_id).first()
-        if not challenge:
-            return {"success": False, "error": "Invalid challenge"}
-
-        user = get_current_user()
-
-        self.setup_home(user)
-
-        try:
-            container = self.start_container(user, challenge, practice)
-        except Exception as e:
-            print(f"ERROR: Docker failed: {e}", file=sys.stderr, flush=True)
-            return {"success": False, "error": "Docker failed"}
-
-        error = self.verify_nosuid_home(container)
-        if error:
-            print(
-                f"ERROR: {error} for {user.id}",
-                file=sys.stderr,
-                flush=True,
-            )
-            return error
-
-        if practice:
-            self.grant_sudo(container)
-
-        self.insert_challenge(container, user, challenge)
-
-        flag = "practice" if practice else serialize_user_flag(user.id, challenge.id)
-        self.insert_flag(container, flag)
-
-        return {"success": True}
-
-    @authed_only
-    def get(self):
-        return {"success": True, "challenge_id": get_current_challenge_id()}
-
-    @staticmethod
     def setup_home(user):
         homes = pathlib.Path("/var/homes")
         homefs = homes / "homefs"
@@ -93,7 +53,6 @@ class RunDocker(Resource):
                 check=True,
             )
 
-    @staticmethod
     def start_container(user, challenge, practice):
         docker_client = docker.from_env()
         try:
@@ -119,9 +78,11 @@ class RunDocker(Resource):
 
         return docker_client.containers.run(
             challenge.docker_image_name,
-            ["/bin/su", "hacker", "/opt/pwn.college/docker-entrypoint.sh"],
+            entrypoint=["/bin/sleep", "6h"],
             name=container_name,
             hostname=hostname,
+            user="hacker",
+            working_dir="/home/hacker",
             environment={
                 "CHALLENGE_ID": str(challenge.id),
                 "CHALLENGE_NAME": challenge_name,
@@ -155,40 +116,123 @@ class RunDocker(Resource):
             **kwargs
         )
 
-    @staticmethod
-    def verify_nosuid_home(container):
-        exit_code, output = container.exec_run("findmnt --output OPTIONS /home/hacker")
+    def verify_nosuid_home():
+        exit_code, output = exec_run("findmnt --output OPTIONS /home/hacker",
+                                     assert_success=False)
         if exit_code != 0:
             container.kill()
             container.wait(condition="removed")
-            return {"success": False, "error": "Home directory failed to mount"}
+            raise RuntimeError("Home directory failed to mount")
         elif b"nosuid" not in output:
             container.kill()
             container.wait(condition="removed")
-            return {
-                "success": False,
-                "error": "Home directory failed to mount as nosuid",
-            }
+            raise RuntimeError("Home directory failed to mount as nosuid")
 
-    @staticmethod
-    def grant_sudo(container):
-        container.exec_run(
-            """/bin/sh -c \"
-            chmod 4755 /usr/bin/sudo;
-            usermod -aG sudo hacker;
-            echo 'hacker ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers;
-            passwd -d root;
-            \""""
+    def grant_sudo():
+        exec_run(
+            """
+            chmod 4755 /usr/bin/sudo
+            usermod -aG sudo hacker
+            echo 'hacker ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+            passwd -d root
+            """,
+            shell=True
         )
 
-    @staticmethod
-    def insert_challenge(container, user, challenge):
+    def insert_challenge(user, challenge):
         for path in challenge_paths(user, challenge):
             with simple_tar(path, f"/challenge/{path.name}") as tar:
                 container.put_archive("/", tar)
-        container.exec_run("chown -R root:root /challenge")
-        container.exec_run("chmod -R 4755 /challenge")
+        exec_run("chown -R root:root /challenge")
+        exec_run("chmod -R 4755 /challenge")
 
-    @staticmethod
-    def insert_flag(container, flag):
-        container.exec_run(f"/bin/sh -c \"echo 'pwn.college{{{flag}}}' > /flag\"")
+    def insert_flag(flag):
+        exec_run(f"echo 'pwn.college{{{flag}}}' > /flag", shell=True)
+
+    def initialize_container():
+        exec_run(
+            """
+            /opt/pwn.college/docker-initialize.sh
+
+            if [ -x "/challenge/.init" ]; then
+                /challenge/.init
+            fi
+
+            touch /opt/pwn.college/.initialized
+
+            find /challenge -name '*.ko' -exec false {} + || vm start
+            """,
+            shell=True
+        )
+        exec_run(
+            """
+            mkdir /tmp/code-server
+            start-stop-daemon --start \
+                              --pidfile /tmp/code-server/code-server.pid \
+                              --make-pidfile \
+                              --background \
+                              --no-close \
+                              --startas /usr/bin/code-server \
+                              -- \
+                              --auth=none \
+                              --socket=/home/hacker/.local/share/code-server/workspace.socket \
+                              --extensions-dir=/opt/code-server/extensions \
+                              --disable-telemetry \
+                              </dev/null \
+                              >>/tmp/code-server/code-server.log \
+                              2>&1
+            """,
+            shell=True,
+            user="hacker"
+        )
+
+    setup_home(user)
+
+    container = start_container(user, challenge, practice)
+
+    verify_nosuid_home()
+
+    if practice:
+        grant_sudo()
+
+    insert_challenge(user, challenge)
+
+    flag = "practice" if practice else serialize_user_flag(user.id, challenge.id)
+    insert_flag(flag)
+
+    initialize_container()
+
+
+@docker_namespace.route("")
+class RunDocker(Resource):
+    @authed_only
+    def post(self):
+        data = request.get_json()
+        challenge_id = data.get("challenge_id")
+        practice = data.get("practice")
+
+        try:
+            challenge_id = int(challenge_id)
+        except (ValueError, TypeError):
+            return {"success": False, "error": "Invalid challenge id"}
+
+        challenge = DojoChallenges.query.filter_by(id=challenge_id).first()
+        if not challenge:
+            return {"success": False, "error": "Invalid challenge"}
+
+        user = get_current_user()
+
+        try:
+            start_challenge(user, challenge, practice)
+        except RuntimeError as e:
+            print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
+            return {"success": False, "error": str(e)}
+        except Exception as e:
+            print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
+            return {"success": False, "error": "Docker failed"}
+        return {"success": True}
+
+
+    @authed_only
+    def get(self):
+        return {"success": True, "challenge_id": get_current_challenge_id()}
