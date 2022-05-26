@@ -61,7 +61,6 @@ def main():
                     "docker",
                     "exec",
                     "-it" if ssh_tty else "-i",
-                    "--user=hacker",
                     container_name,
                     "/bin/bash",
                     "-c",
