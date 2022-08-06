@@ -88,7 +88,12 @@ RUN apt-get update && \
                        libc6:i386 \
                        libc6-dev-i386 \
                        libstdc++6:i386 \
-                       libncurses5:i386
+                       libncurses5:i386 \
+                       tigervnc-standalone-server \
+                       novnc \
+                       websockify \
+                       xfce4 \
+                       xfce4-terminal
 
 RUN yes | unminimize
 

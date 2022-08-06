@@ -18,6 +18,7 @@ from .utils import unserialize_user_flag
 from .pages.challenges import challenges_override, challenges
 from .pages.scoreboard import scoreboard_override
 from .pages.workspace import workspace
+from .pages.desktop import desktop
 from .pages.settings import settings_override
 from .pages.discord import discord, maybe_award_belt
 from .pages.grades import grades
@@ -88,6 +89,7 @@ def load(app):
 
     app.register_blueprint(challenges)
     app.register_blueprint(workspace)
+    app.register_blueprint(desktop)
     app.register_blueprint(discord)
     app.register_blueprint(grades)
     app.register_blueprint(writeups)
