@@ -184,6 +184,13 @@ RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 
 RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
 
+# GUI apps
+RUN wget -O - https://github.com/angr/angr-management/releases/download/nightly-20220802.1/angr-management-ubuntu.tar.gz | tar xvz -C /opt
+RUN wget -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip && cd /opt && unzip /tmp/ghidra.zip && mv /opt/ghidra_10.1.5_PUBLIC /opt/ghidra
+RUN apt install -y wireshark
+COPY launchers/angr-management.desktop /usr/share/applications/angr-management.desktop
+COPY launchers/Ghidra.desktop /usr/share/applications/Ghidra.desktop
+
 RUN mkdir /opt/pwn.college
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 COPY setuid_python.c /opt/pwn.college/setuid_python.c
