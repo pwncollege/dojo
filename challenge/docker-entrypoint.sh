@@ -63,6 +63,8 @@ start-stop-daemon --start \
                   >>/tmp/vnc/socat.log \
                   2>&1
 sleep 1
+mkdir -p /home/hacker/.config
+[ ! -d /home/hacker/.config/xfce4 ] && cp -r /usr/share/desktop-base/profiles/xdg-config/xfce4 /home/hacker/.config/xfce4
 DISPLAY=:42 xfce4-session &
 
 find /challenge -name '*.ko' -exec false {} + || vm start
