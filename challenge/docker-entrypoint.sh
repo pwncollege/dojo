@@ -63,7 +63,18 @@ start-stop-daemon --start \
                   >>/tmp/vnc/socat.log \
                   2>&1
 sleep 1
-mkdir -p /home/hacker/.config
+mkdir -p /home/hacker/.config/gtk-3.0
+[ -f /home/hacker/.config/gtk-3.0/bookmarks ] || echo "file:///challenge" > /home/hacker/.config/gtk-3.0/bookmarks
+[ -f /home/hacker/QtProject.conf ] || cat <<END > /home/hacker/.config/QtProject.conf
+[FileDialog]
+history=file:///home/hacker
+lastVisited=file:///
+qtVersion=5.15.2
+shortcuts=file:, file:///home/hacker, file:///challenge
+sidebarWidth=90
+treeViewHeader=@ByteArray(\0\0\0\xff\0\0\0\0\0\0\0\x1\0\0\0\0\0\0\0\0\x1\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x1\xec\0\0\0\x4\x1\x1\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x64\xff\xff\xff\xff\0\0\0\x81\0\0\0\0\0\0\0\x4\0\0\0\xff\0\0\0\x1\0\0\0\0\0\0\0?\0\0\0\x1\0\0\0\0\0\0\0@\0\0\0\x1\0\0\0\0\0\0\0n\0\0\0\x1\0\0\0\0\0\0\x3\xe8\0\xff\xff\xff\xff)
+viewMode=List
+END
 [ ! -d /home/hacker/.config/xfce4 ] && cp -r /usr/share/desktop-base/profiles/xdg-config/xfce4 /home/hacker/.config/xfce4
 DISPLAY=:42 xfce4-session &
 
