@@ -193,6 +193,7 @@ COPY desktop/Ghidra.desktop /usr/share/applications/
 COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
 COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
 RUN rm /etc/xdg/autostart/* # don't autostart stuff in the desktop
+RUN apt-get -y remove --purge at-spi2-core tumbler gvfs-* && apt-get -y autoremove # remove a bunch of crap that was installed by something above (TODO: instead use no-suggests or whatnot)
 
 RUN mkdir /opt/pwn.college
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
