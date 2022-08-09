@@ -82,7 +82,7 @@
       </property>
     </property>
     <property name="plugin-8" type="string" value="directorymenu">
-      <property name="base-directory" type="string" value="/home/hacker"/>
+      <property name="base-directory" type="string" value="/"/>
     </property>
   </property>
 </channel>
