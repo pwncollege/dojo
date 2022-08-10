@@ -6,7 +6,7 @@ import pathlib
 import docker
 from flask import request
 from flask_restx import Namespace, Resource
-from CTFd.utils.user import get_current_user
+from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
 from ...config import HOST_DATA_PATH, INTERNET_ACCESS
@@ -111,7 +111,7 @@ class RunDocker(Resource):
         if os.path.exists("/dev/kvm"):
             devices.append("/dev/kvm:/dev/kvm:rwm")
         kwargs = { }
-        if not INTERNET_ACCESS:
+        if not (is_admin() or INTERNET_ACCESS):
             kwargs['network'] = "none"
 
         return docker_client.containers.run(
