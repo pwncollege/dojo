@@ -110,8 +110,11 @@ class RunDocker(Resource):
         devices = []
         if os.path.exists("/dev/kvm"):
             devices.append("/dev/kvm:/dev/kvm:rwm")
+
+        # internet
+        internet_award = any(a.name == "INTERNET" for a in get_current_user().awards)
         kwargs = { }
-        if not (is_admin() or INTERNET_ACCESS):
+        if not (internet_award or is_admin() or INTERNET_ACCESS):
             kwargs['network'] = "none"
 
         return docker_client.containers.run(
