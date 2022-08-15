@@ -6,10 +6,10 @@ import pathlib
 import docker
 from flask import request
 from flask_restx import Namespace, Resource
-from CTFd.utils.user import get_current_user
+from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
-from ...config import HOST_DATA_PATH
+from ...config import HOST_DATA_PATH, INTERNET_ACCESS
 from ...models import DojoChallenges
 from ...utils import get_current_challenge_id, serialize_user_flag, challenge_paths, simple_tar, random_home_path, SECCOMP
 
@@ -110,6 +110,13 @@ class RunDocker(Resource):
         devices = []
         if os.path.exists("/dev/kvm"):
             devices.append("/dev/kvm:/dev/kvm:rwm")
+
+        # internet
+        internet_award = any(a.name == "INTERNET" for a in get_current_user().awards)
+        kwargs = { }
+        if not (internet_award or is_admin() or INTERNET_ACCESS):
+            kwargs['network'] = "none"
+
         return docker_client.containers.run(
             challenge.docker_image_name,
             ["/bin/su", "hacker", "/opt/pwn.college/docker-entrypoint.sh"],
@@ -129,7 +136,6 @@ class RunDocker(Resource):
                 ),
             ],
             devices=devices,
-            network="none",
             extra_hosts={
                 hostname: "127.0.0.1",
                 "vm": "127.0.0.1",
@@ -146,6 +152,7 @@ class RunDocker(Resource):
             tty=True,
             stdin_open=True,
             remove=True,
+            **kwargs
         )
 
     @staticmethod
