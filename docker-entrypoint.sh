@@ -33,6 +33,10 @@ if [ ! -f /opt/pwn.college/data/homes/homefs ]; then
     rm -rf /opt/pwn.college/data/homes/homefs_mount
 fi
 
+if [ ! -f /opt/pwn.college/data/shared ]; then
+    mkdir -p /opt/pwn.college/data/shared
+fi
+
 for i in $(seq 1 1024); do
     if [ -e /dev/loop$i ]; then
         continue

@@ -134,6 +134,13 @@ class RunDocker(Resource):
                     "bind",
                     propagation="shared",
                 ),
+                docker.types.Mount(
+                    "/shared",
+                    f"{HOST_DATA_PATH}/shared",
+                    "bind",
+                    read_only=True,
+                    propagation="shared",
+                ),
             ],
             devices=devices,
             extra_hosts={
