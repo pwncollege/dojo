@@ -200,6 +200,13 @@ COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
 COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
 RUN rm /etc/xdg/autostart/* # don't autostart stuff in the desktop
 
+# angr
+RUN apt-get install -y openjdk-8-jdk zlib1g:i386 libgcc1:i386 binutils-multiarch qtdeclarative5-dev debian-archive-keyring debootstrap libreadline-dev libxslt1-dev libxml2-dev python3-venv
+RUN git clone https://github.com/angr/angr-dev /opt/angr
+RUN python -m venv /opt/angr/angr-env
+RUN bash -c "source /opt/angr/angr-env/bin/activate && cd /opt/angr && ./setup.sh -i"
+RUN bash -c "source /opt/angr/angr-env/bin/activate && cd /opt/angr/pyvex && python setup.py build && cd ../angr && python setup.py build"
+
 RUN mkdir /opt/pwn.college
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 COPY setuid_python.c /opt/pwn.college/setuid_python.c
