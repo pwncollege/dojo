@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Ghidra
+Comment=Ghidra SRE
+Exec=/opt/ghidra/ghidraRun
+Icon=/opt/ghidra/docs/images/GHIDRA_1.png
+Path=
+Terminal=false
+StartupNotify=false
+Categories=Application;Development;
+X-XFCE-Source=file:///usr/share/applications/Ghidra.desktop

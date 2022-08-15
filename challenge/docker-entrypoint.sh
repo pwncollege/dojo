@@ -16,6 +16,68 @@ start-stop-daemon --start \
                   >>/tmp/code-server/code-server.log \
                   2>&1
 
+# vnc
+mkdir -p /tmp/vnc
+start-stop-daemon --start \
+                  --pidfile /tmp/vnc/vncserver.pid \
+                  --make-pidfile \
+                  --background \
+                  --no-close \
+                  --startas /usr/bin/Xtigervnc \
+                  -- \
+                  :42 \
+                  -localhost=0 \
+                  -rfbunixpath /tmp/vnc/vnc_socket \
+                  -nolisten tcp \
+                  -SecurityTypes None \
+                  -geometry 1024x768 \
+                  -depth 24 \
+                  </dev/null \
+                  >>/tmp/vnc/vncserver.log \
+                  2>&1
+start-stop-daemon --start \
+                  --pidfile /tmp/vnc/websockify.pid \
+                  --make-pidfile \
+                  --background \
+                  --no-close \
+                  --startas /usr/bin/websockify \
+                  -- \
+                  --web /usr/share/novnc/ \
+                  24152 \
+                  --unix-target=/tmp/vnc/vnc_socket \
+                  </dev/null \
+                  >>/tmp/vnc/websockify.log \
+                  2>&1
+mkdir -p /home/hacker/.vnc
+rm -f /home/hacker/.vnc/novnc.socket
+start-stop-daemon --start \
+                  --pidfile /tmp/vnc/socat.pid \
+                  --make-pidfile \
+                  --background \
+                  --no-close \
+                  --startas /usr/bin/socat \
+                  -- \
+                  UNIX-LISTEN:/home/hacker/.vnc/novnc.socket,fork \
+                  TCP-CONNECT:localhost:24152 \
+                  </dev/null \
+                  >>/tmp/vnc/socat.log \
+                  2>&1
+sleep 1
+mkdir -p /home/hacker/.config/gtk-3.0
+[ -f /home/hacker/.config/gtk-3.0/bookmarks ] || echo "file:///challenge" > /home/hacker/.config/gtk-3.0/bookmarks
+[ -f /home/hacker/QtProject.conf ] || cat <<END > /home/hacker/.config/QtProject.conf
+[FileDialog]
+history=file:///home/hacker
+lastVisited=file:///
+qtVersion=5.15.2
+shortcuts=file:, file:///home/hacker, file:///challenge
+sidebarWidth=90
+treeViewHeader=@ByteArray(\0\0\0\xff\0\0\0\0\0\0\0\x1\0\0\0\0\0\0\0\0\x1\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x1\xec\0\0\0\x4\x1\x1\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x64\xff\xff\xff\xff\0\0\0\x81\0\0\0\0\0\0\0\x4\0\0\0\xff\0\0\0\x1\0\0\0\0\0\0\0?\0\0\0\x1\0\0\0\0\0\0\0@\0\0\0\x1\0\0\0\0\0\0\0n\0\0\0\x1\0\0\0\0\0\0\x3\xe8\0\xff\xff\xff\xff)
+viewMode=List
+END
+[ ! -d /home/hacker/.config/xfce4 ] && cp -r /usr/share/desktop-base/profiles/xdg-config/xfce4 /home/hacker/.config/xfce4
+DISPLAY=:42 xfce4-session &
+
 find /challenge -name '*.ko' -exec false {} + || vm start
 
 exec /bin/sleep 6h

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block stylesheets %}
+{{ super() }}
+<style>
+  html, body {
+      margin: 0;
+      height: 100%;
+      min-height: 100%;
+  }
+  body {
+      display: flex;
+      flex-direction: column;
+  }
+  nav, footer {
+      flex: none;
+  }
+  main {
+      flex: auto;
+      margin-bottom: 0px;
+  }
+  #desktop {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      border: none;
+  }
+  #noactive {
+      height: 50%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: center;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if active %}
+<iframe id="desktop" src="/desktop/vnc.html?autoconnect=1&reconnect=1&path=/desktop/websockify&resize=remote&reconnect_delay=10">
+{% else %}
+<h1 id="noactive">No active challenge session; start a challenge!<h1>
+{% endif %}
+{% endblock %}

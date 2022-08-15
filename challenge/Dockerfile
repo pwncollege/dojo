@@ -34,6 +34,7 @@ RUN apt-get update && \
                        vim \
                        nano \
                        ed \
+                       silversearcher-ag \
                        zsh \
                        tmux \
                        screen \
@@ -178,6 +179,25 @@ RUN git clone https://github.com/hugsy/gef /opt/gef
 RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 
 RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
+
+# GUI apps (should probably use no-recommends or whatnot)
+RUN apt-get install -y tigervnc-standalone-server \
+                       novnc \
+                       websockify \
+                       xfce4 \
+                       xfce4-terminal \
+                       mousepad \
+                       xclip \
+                       wireshark && \
+    apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
+    apt-get -y autoremove
+RUN wget -q -O - https://github.com/angr/angr-management/releases/download/nightly-20220802.1/angr-management-ubuntu.tar.gz | tar xvz -C /opt
+RUN wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip && cd /opt && unzip /tmp/ghidra.zip && mv /opt/ghidra_10.1.5_PUBLIC /opt/ghidra
+COPY desktop/angr-management.desktop /usr/share/applications/
+COPY desktop/Ghidra.desktop /usr/share/applications/
+COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
+COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
+RUN rm /etc/xdg/autostart/* # don't autostart stuff in the desktop
 
 RUN mkdir /opt/pwn.college
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
