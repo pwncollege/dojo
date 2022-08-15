@@ -192,7 +192,7 @@ RUN apt-get install -y tigervnc-standalone-server \
                        wireshark && \
     apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
     apt-get -y autoremove
-RUN wget -q -O - https://github.com/angr/angr-management/releases/download/nightly-20220802.1/angr-management-ubuntu.tar.gz | tar xvz -C /opt
+RUN wget -q -O - https://github.com$(curl https://github.com/angr/angr-management/releases | grep angr-management-ubuntu.tar.gz | head -n1 | cut -d'"' -f2) | tar xvz -C /opt
 RUN wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip && cd /opt && unzip /tmp/ghidra.zip && mv /opt/ghidra_10.1.5_PUBLIC /opt/ghidra
 COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
