@@ -10,18 +10,26 @@ from ..utils import get_current_challenge_id, random_home_path
 docker_client = docker.from_env()
 desktop = Blueprint("desktop", __name__)
 
-
-@desktop.route("/desktop")
-@authed_only
-def view_desktop():
-    active = get_current_challenge_id() is not None
-    return render_template("desktop.html", active=active, user_id=get_current_user().id, view_only=0)
-
+@desktop.route("/desktop", defaults={"user_id": None})
 @desktop.route("/desktop/<int:user_id>")
 @admins_only
 def view_specific_desktop(user_id):
+    current_user = get_current_user()
+    if user_id is None:
+        user_id = current_user.id
+        active = get_current_challenge_id() is not None
+    else:
+        if not is_admin() and user_id != current_user.id:
+            abort(403)
+        active = True
+
+    user = Users.query.filter_by(id=user_id).first()
     view_only = bool(request.args.get("view_only"))
-    return render_template("desktop.html", active=True, user_id=user_id, view_only=int(view_only))
+    pwtype = "view" if view_only else "interact"
+    with open(f"/var/homes/nosuid/{random_home_path(user)}/.vnc/pass-{pwtype}") as pwfile:
+        password = pwfile.read()
+
+    return render_template("desktop.html", password=password, active=active, user_id=user_id, view_only=int(view_only))
 
 @desktop.route("/desktop/", defaults={"path": ""})
 @desktop.route("/desktop/<int:user_id>/<path:path>")
