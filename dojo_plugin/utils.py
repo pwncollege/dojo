@@ -11,7 +11,7 @@ import yaml
 from flask import current_app, Response
 from itsdangerous.url_safe import URLSafeSerializer
 from sqlalchemy.sql import or_, and_
-from CTFd.models import db, Solves, Challenges
+from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
