@@ -1,9 +1,9 @@
-from flask import request, Blueprint, Response, render_template, abort
+from flask import request, Blueprint, render_template, abort
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.models import Users
 
-from ..utils import get_current_challenge_id, random_home_path, get_active_users
+from ..utils import get_current_challenge_id, random_home_path, get_active_users, redirect_user_socket
 
 
 desktop = Blueprint("desktop", __name__)
@@ -40,16 +40,8 @@ def forward_desktop(user_id, path):
     if not is_admin() and user_id != get_current_user().id:
         abort(403)
 
-    response = Response()
-
     user = Users.query.filter_by(id=user_id).first()
-    assert user is not None
-    redirect_uri = f"http://unix:/var/homes/nosuid/{random_home_path(user)}/.vnc/novnc.socket:/{path}"
-
-    response.headers["X-Accel-Redirect"] = "/internal/"
-    response.headers["redirect_uri"] = redirect_uri
-
-    return response
+    return redirect_user_socket(user, ".vnc/novnc.socket", f"/{path}")
 
 @desktop.route("/admin/desktops", methods=["GET"])
 @admins_only
