@@ -37,7 +37,7 @@
 
 {% block content %}
 {% if active %}
-<iframe id="desktop" src="/desktop/vnc.html?autoconnect=1&reconnect=1&path=/desktop/websockify&resize=remote&reconnect_delay=10">
+<iframe id="desktop" src="/desktop/{{user_id}}/vnc.html?autoconnect=1&reconnect=1&path=/desktop/{{user_id}}/websockify&resize=remote&reconnect_delay=10">
 {% else %}
 <h1 id="noactive">No active challenge session; start a challenge!<h1>
 {% endif %}
