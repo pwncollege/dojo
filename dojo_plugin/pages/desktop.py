@@ -5,24 +5,40 @@ from CTFd.models import Users
 
 from ..utils import get_current_challenge_id, random_home_path, get_active_users, redirect_user_socket
 
-
 desktop = Blueprint("desktop", __name__)
+
+def can_connect_to(desktop_user):
+    return (
+        is_admin() or # admins can view desktops
+        desktop_user.id == get_current_user().id or # users can view their own desktops
+    )
+
+def can_control(desktop_user):
+    return (
+        is_admin() or # admins can control desktops
+        desktop_user.id == get_current_user().id # users can control their own desktops
+    )
 
 @desktop.route("/desktop", defaults={"user_id": None})
 @desktop.route("/desktop/<int:user_id>")
-@admins_only
+@authed_only
 def view_desktop(user_id):
     current_user = get_current_user()
     if user_id is None:
         user_id = current_user.id
         active = get_current_challenge_id() is not None
     else:
-        if not is_admin() and user_id != current_user.id:
-            abort(403)
         active = True
 
     user = Users.query.filter_by(id=user_id).first()
-    view_only = bool(request.args.get("view_only"))
+    if not can_connect_to(user):
+        abort(403)
+
+    if can_control(user):
+        view_only = bool(request.args.get("view_only"))
+    else:
+        view_only = True
+
     pwtype = "view" if view_only else "interact"
     with open(f"/var/homes/nosuid/{random_home_path(user)}/.vnc/pass-{pwtype}") as pwfile:
         password = pwfile.read()
@@ -37,11 +53,13 @@ def forward_desktop(user_id, path):
     assert request.full_path.startswith(prefix)
     path = request.full_path[len(prefix) :]
 
-    if not is_admin() and user_id != get_current_user().id:
+    user = Users.query.filter_by(id=user_id).first()
+    if can_connect_to(user):
+        user = Users.query.filter_by(id=user_id).first()
+        return redirect_user_socket(user, ".vnc/novnc.socket", f"/{path}")
+    else:
         abort(403)
 
-    user = Users.query.filter_by(id=user_id).first()
-    return redirect_user_socket(user, ".vnc/novnc.socket", f"/{path}")
 
 @desktop.route("/admin/desktops", methods=["GET"])
 @admins_only
