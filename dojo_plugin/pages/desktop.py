@@ -10,7 +10,7 @@ desktop = Blueprint("desktop", __name__)
 def can_connect_to(desktop_user):
     return (
         is_admin() or # admins can view desktops
-        desktop_user.id == get_current_user().id or # users can view their own desktops
+        desktop_user.id == get_current_user().id # users can view their own desktops
     )
 
 def can_control(desktop_user):
@@ -39,9 +39,12 @@ def view_desktop(user_id):
     else:
         view_only = True
 
-    pwtype = "view" if view_only else "interact"
-    with open(f"/var/homes/nosuid/{random_home_path(user)}/.vnc/pass-{pwtype}") as pwfile:
-        password = pwfile.read()
+    try:
+        pwtype = "view" if view_only else "interact"
+        with open(f"/var/homes/nosuid/{random_home_path(user)}/.vnc/pass-{pwtype}") as pwfile:
+            password = pwfile.read()
+    except FileNotFoundError:
+        active = False
 
     return render_template("desktop.html", password=password, active=active, user_id=user_id, view_only=int(view_only))
 
