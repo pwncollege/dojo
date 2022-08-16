@@ -45,6 +45,12 @@ def get_current_challenge_id():
             except ValueError:
                 pass
 
+def get_active_users():
+    docker_client = docker.from_env()
+    containers = docker_client.containers.list(filters=dict(name="user_"), ignore_removed=True)
+    uids = [ c.name.split("_")[-1] for c in containers ]
+    users = [ Users.query.filter_by(id=uid).first() for uid in uids ]
+    return users
 
 def serialize_user_flag(account_id, challenge_id, *, secret=None):
     if secret is None:

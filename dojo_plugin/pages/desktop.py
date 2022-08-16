@@ -2,12 +2,10 @@ from flask import request, Blueprint, Response, render_template, abort
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.models import Users
-import docker
 
-from ..utils import get_current_challenge_id, random_home_path
+from ..utils import get_current_challenge_id, random_home_path, get_active_users
 
 
-docker_client = docker.from_env()
 desktop = Blueprint("desktop", __name__)
 
 @desktop.route("/desktop", defaults={"user_id": None})
@@ -56,7 +54,4 @@ def forward_desktop(user_id, path):
 @desktop.route("/admin/desktops", methods=["GET"])
 @admins_only
 def view_all_desktops():
-    containers = docker_client.containers.list(filters=dict(name="user_"), ignore_removed=True)
-    uids = [ c.name.split("_")[-1] for c in containers ]
-    users = [ Users.query.filter_by(id=uid).first() for uid in uids ]
-    return render_template("admin_desktops.html", users=users)
+    return render_template("admin_desktops.html", users=get_active_users())
