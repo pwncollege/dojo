@@ -15,12 +15,13 @@ desktop = Blueprint("desktop", __name__)
 @authed_only
 def view_desktop():
     active = get_current_challenge_id() is not None
-    return render_template("desktop.html", active=active, user_id=get_current_user().id)
+    return render_template("desktop.html", active=active, user_id=get_current_user().id, view_only=0)
 
 @desktop.route("/desktop/<int:user_id>")
 @admins_only
 def view_specific_desktop(user_id):
-    return render_template("desktop.html", active=True, user_id=user_id)
+    view_only = bool(request.args.get("view_only"))
+    return render_template("desktop.html", active=True, user_id=user_id, view_only=int(view_only))
 
 @desktop.route("/desktop/", defaults={"path": ""})
 @desktop.route("/desktop/<int:user_id>/<path:path>")
