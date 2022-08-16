@@ -9,7 +9,7 @@ from flask_restx import Namespace, Resource
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
-from ...config import HOST_DATA_PATH, INTERNET_ACCESS
+from ...config import HOST_DATA_PATH, INTERNET_ACCESS, SHARE_READONLY_DIR, SHARE_READWRITE_DIR
 from ...models import DojoChallenges
 from ...utils import get_current_challenge_id, serialize_user_flag, challenge_paths, simple_tar, random_home_path, SECCOMP
 
@@ -117,6 +117,32 @@ class RunDocker(Resource):
         if not (internet_award or is_admin() or INTERNET_ACCESS):
             kwargs['network'] = "none"
 
+        # mounts
+        mounts = [ ]
+        mounts.append(docker.types.Mount(
+            "/home/hacker",
+            f"{HOST_DATA_PATH}/homes/nosuid/{random_home_path(user)}",
+            "bind",
+            propagation="shared",
+        ))
+        if SHARE_READONLY_DIR:
+            # this directory is read-write for admins and read-only for non-admins
+            mounts.append(docker.types.Mount(
+                "/shared-ro",
+                f"{HOST_DATA_PATH}/shared-ro",
+                "bind",
+                read_only=False if is_admin() else True,
+                propagation="shared",
+            ))
+        if SHARE_READWRITE_DIR:
+            # this directory is read-write for everyone
+            mounts.append(docker.types.Mount(
+                "/shared-rw",
+                f"{HOST_DATA_PATH}/shared-rw",
+                "bind",
+                propagation="shared",
+            ))
+
         return docker_client.containers.run(
             challenge.docker_image_name,
             ["/bin/su", "hacker", "/opt/pwn.college/docker-entrypoint.sh"],
@@ -127,21 +153,7 @@ class RunDocker(Resource):
                 "CHALLENGE_NAME": challenge_name,
                 "PRACTICE": str(bool(practice)),
             },
-            mounts=[
-                docker.types.Mount(
-                    "/home/hacker",
-                    f"{HOST_DATA_PATH}/homes/nosuid/{random_home_path(user)}",
-                    "bind",
-                    propagation="shared",
-                ),
-                docker.types.Mount(
-                    "/shared",
-                    f"{HOST_DATA_PATH}/shared",
-                    "bind",
-                    read_only=True,
-                    propagation="shared",
-                ),
-            ],
+            mounts=mounts,
             devices=devices,
             extra_hosts={
                 hostname: "127.0.0.1",

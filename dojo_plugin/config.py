@@ -15,6 +15,8 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
 BINARY_NINJA_API_KEY = os.getenv("BINARY_NINJA_API_KEY")
 INTERNET_ACCESS = os.getenv("INTERNET_ACCESS").lower() in [ "1", "yes", "true" ]
+SHARE_READONLY_DIR = os.getenv("SHARE_READONLY_DIR").lower() in [ "1", "yes", "true" ]
+SHARE_READWRITE_DIR = os.getenv("SHARE_READWRITE_DIR").lower() in [ "1", "yes", "true" ]
 
 missing_errors = ["VIRTUAL_HOST", "HOST_DATA_PATH"]
 missing_warnings = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID", "BINARY_NINJA_API_KEY"]
