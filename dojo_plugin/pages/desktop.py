@@ -11,7 +11,7 @@ desktop = Blueprint("desktop", __name__)
 @desktop.route("/desktop", defaults={"user_id": None})
 @desktop.route("/desktop/<int:user_id>")
 @admins_only
-def view_specific_desktop(user_id):
+def view_desktop(user_id):
     current_user = get_current_user()
     if user_id is None:
         user_id = current_user.id
