@@ -40,6 +40,7 @@ def view_desktop(user_id):
         view_only = True
 
     try:
+        password = None
         pwtype = "view" if view_only else "interact"
         with open(f"/var/homes/nosuid/{random_home_path(user)}/.vnc/pass-{pwtype}") as pwfile:
             password = pwfile.read()
