@@ -1,3 +1,5 @@
+import os
+
 from flask import request, Blueprint, render_template, abort
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
@@ -10,7 +12,8 @@ desktop = Blueprint("desktop", __name__)
 def can_connect_to(desktop_user):
     return (
         is_admin() or # admins can view desktops
-        desktop_user.id == get_current_user().id # users can view their own desktops
+        desktop_user.id == get_current_user().id or # users can view their own desktops
+        os.path.exists(f"/var/homes/nosuid/{random_home_path(desktop_user)}/LIVE") # everyone can view desktop of people going LIVE
     )
 
 def can_control(desktop_user):
