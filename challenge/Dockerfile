@@ -200,6 +200,11 @@ COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
 COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
 RUN rm /etc/xdg/autostart/* # don't autostart stuff in the desktop
 
+# IDA Freeware: only permissible for free and open deploymets of the pwn.college dojo!
+COPY desktop/ida.opt /opt/ida/ida.opt
+RUN wget https://out7.hex-rays.com/files/idafree80_linux.run -O /tmp/idafree80_linux.run && chmod 755 /tmp/idafree80_linux.run && /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt
+COPY desktop/ida64.desktop /usr/share/applications/
+
 RUN mkdir /opt/pwn.college
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 COPY setuid_python.c /opt/pwn.college/setuid_python.c

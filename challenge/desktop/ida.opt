@@ -1,0 +1,3 @@
+installpassword=mypassword
+prefix=/opt/ida
+mode=unattended
