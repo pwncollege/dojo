@@ -63,7 +63,6 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
 def redirect_user_socket(user, socket_path, url_path):
     assert user is not None
     redirect_uri = f"http://unix:/var/homes/nosuid/{random_home_path(user)}/{socket_path}:{url_path}"
-    print(redirect_uri)
     response = Response()
     response.headers["X-Accel-Redirect"] = "/internal/"
     response.headers["redirect_uri"] = redirect_uri
