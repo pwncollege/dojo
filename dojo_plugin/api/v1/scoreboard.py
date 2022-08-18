@@ -75,32 +75,52 @@ def standing_info(place, standing):
 
 scoreboard_namespace = Namespace("scoreboard")
 
+def get_scoreboard_data(page, filters):
+    user = get_current_user()
+    dojo_id = active_dojo_id(user.id) if user else None
+
+    standings = get_standings(dojo_id=dojo_id, filters=filters)
+
+    page_size = 20
+    start = page_size * page
+    end = page_size * (page + 1)
+    page_standings = list((start + i + 1, standing) for i, standing in enumerate(standings[start:end]))
+
+    result = {
+        "page_standings": [standing_info(place, standing) for place, standing in page_standings],
+        "num_pages": math.ceil(len(standings) / page_size),
+    }
+
+    if user:
+        with contextlib.suppress(StopIteration):
+            place, standing = next((i + 1, standing) for i, standing in enumerate(standings)
+                                   if standing.account_id == user.id)
+            result["me"] = standing_info(place, standing)
+
+    return result
 
 @scoreboard_namespace.route("/overall/<int:page>")
 class ScoreboardOverall(Resource):
     def get(self, page):
-        user = get_current_user()
-        dojo_id = active_dojo_id(user.id) if user else None
+        return get_scoreboard_data(page=page, filters=None)
 
-        standings = get_standings(dojo_id=dojo_id)
+@scoreboard_namespace.route("/week/<int:page>")
+class ScoreboarWeek(Resource):
+    def get(self, page):
+        week_filter = Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=7))
+        return get_scoreboard_data(page=page, filters=[week_filter])
 
-        page_size = 20
-        start = page_size * page
-        end = page_size * (page + 1)
-        page_standings = list((start + i + 1, standing) for i, standing in enumerate(standings[start:end]))
+@scoreboard_namespace.route("/month/<int:page>")
+class ScoreboardMonth(Resource):
+    def get(self, page):
+        month_filter = Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=31))
+        return get_scoreboard_data(page=page, filters=[month_filter])
 
-        result = {
-            "page_standings": [standing_info(place, standing) for place, standing in page_standings],
-            "num_pages": math.ceil(len(standings) / page_size),
-        }
-
-        if user:
-            with contextlib.suppress(StopIteration):
-                place, standing = next((i + 1, standing) for i, standing in enumerate(standings)
-                                       if standing.account_id == user.id)
-                result["me"] = standing_info(place, standing)
-
-        return result
+@scoreboard_namespace.route("/semester/<int:page>")
+class ScoreboardSemester(Resource):
+    def get(self, page):
+        semester_filter = Solves.date > datetime.date(year=2022, month=8, day=10)
+        return get_scoreboard_data(page=page, filters=[semester_filter])
 
 
 @scoreboard_namespace.route("/weekly")
