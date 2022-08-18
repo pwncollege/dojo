@@ -8,10 +8,10 @@ import hashlib
 
 import docker
 import yaml
-from flask import current_app
+from flask import current_app, Response
 from itsdangerous.url_safe import URLSafeSerializer
 from sqlalchemy.sql import or_, and_
-from CTFd.models import db, Solves, Challenges
+from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
@@ -45,6 +45,12 @@ def get_current_challenge_id():
             except ValueError:
                 pass
 
+def get_active_users():
+    docker_client = docker.from_env()
+    containers = docker_client.containers.list(filters=dict(name="user_"), ignore_removed=True)
+    uids = [ c.name.split("_")[-1] for c in containers ]
+    users = [ Users.query.filter_by(id=uid).first() for uid in uids ]
+    return users
 
 def serialize_user_flag(account_id, challenge_id, *, secret=None):
     if secret is None:
@@ -54,6 +60,14 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     user_flag = serializer.dumps(data)[::-1]
     return user_flag
 
+def redirect_user_socket(user, socket_path, url_path):
+    assert user is not None
+    redirect_uri = f"http://unix:/var/homes/nosuid/{random_home_path(user)}/{socket_path}:{url_path}"
+    print(redirect_uri)
+    response = Response()
+    response.headers["X-Accel-Redirect"] = "/internal/"
+    response.headers["redirect_uri"] = redirect_uri
+    return response
 
 def unserialize_user_flag(user_flag, *, secret=None):
     if secret is None:
