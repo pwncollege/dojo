@@ -17,7 +17,10 @@ start-stop-daemon --start \
                   2>&1
 
 # vnc
-mkdir -p /tmp/vnc
+mkdir -p /tmp/vnc /home/hacker/.vnc
+echo -e "$(head /dev/urandom | md5sum | head -c8)" > /home/hacker/.vnc/pass-interact
+echo -e "$(head /dev/urandom | md5sum | head -c8)" > /home/hacker/.vnc/pass-view
+echo -e "$(cat /home/hacker/.vnc/pass-interact)\n$(cat /home/hacker/.vnc/pass-view)" | tigervncpasswd -f > /home/hacker/.vnc/vncpass
 start-stop-daemon --start \
                   --pidfile /tmp/vnc/vncserver.pid \
                   --make-pidfile \
@@ -28,8 +31,8 @@ start-stop-daemon --start \
                   :42 \
                   -localhost=0 \
                   -rfbunixpath /tmp/vnc/vnc_socket \
+                  -rfbauth /home/hacker/.vnc/vncpass \
                   -nolisten tcp \
-                  -SecurityTypes None \
                   -geometry 1024x768 \
                   -depth 24 \
                   </dev/null \
@@ -48,7 +51,6 @@ start-stop-daemon --start \
                   </dev/null \
                   >>/tmp/vnc/websockify.log \
                   2>&1
-mkdir -p /home/hacker/.vnc
 rm -f /home/hacker/.vnc/novnc.socket
 start-stop-daemon --start \
                   --pidfile /tmp/vnc/socat.pid \

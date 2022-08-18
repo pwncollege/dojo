@@ -97,6 +97,7 @@ def load(app):
 
     register_admin_plugin_menu_bar("Grades", "/admin/grades")
     register_admin_plugin_menu_bar("Writeups", "/admin/writeups")
+    register_admin_plugin_menu_bar("Desktops", "/admin/desktops")
 
     if os.path.basename(sys.argv[0]) != "manage.py":
         bootstrap()
