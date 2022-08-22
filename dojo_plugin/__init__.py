@@ -27,6 +27,11 @@ from .pages.writeups import writeups
 from .api import api
 
 
+# TODO: upgrade to flask 2.1
+# https://github.com/pallets/werkzeug/issues/2352
+Response.autocorrect_location_header = False
+
+
 class DojoChallenge(BaseChallenge):
     id = "dojo"
     name = "dojo"
