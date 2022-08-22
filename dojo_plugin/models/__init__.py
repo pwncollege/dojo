@@ -44,11 +44,11 @@ class Dojos(db.Model):
 
     @property
     def name(self):
-        return self.config["name"]
+        return self.config.get("name", "")
 
     @property
     def modules(self):
-        return self.config["modules"]
+        return self.config.get("modules", [])
 
     def challenges_query(self, module_id=None):
         return or_(*(
