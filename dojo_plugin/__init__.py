@@ -4,6 +4,7 @@ import datetime
 from email.message import EmailMessage
 from email.utils import formatdate
 
+from flask import Response
 from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
 from CTFd.models import db
