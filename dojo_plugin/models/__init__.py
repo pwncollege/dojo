@@ -39,7 +39,7 @@ class Dojos(db.Model):
     @property
     def config(self):
         if not hasattr(self, "_config"):
-            self._config = yaml.safe_load(self.data)
+            self._config = yaml.safe_load(self.data) or {}
         return self._config
 
     @property
