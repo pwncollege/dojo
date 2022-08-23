@@ -25,34 +25,12 @@
 
   <br>
 
-  <h2 class="row">Weekly Top 10</h2>
-
-  <div class="scoreboard row">
-    <div class="col-md-12 p-0">
-      <table class="table table-striped">
-	<thead>
-	  <tr>
-	    <td scope="col" class="col-md-1"><b>Rank</b></td>
-            <td scope="col" class="col-md-1"></td>
-	    <td scope="col" class="col-md-8"><b>Hacker</b></td>
-	    <td scope="col" class="col-md-1"></td>
-	    <td scope="col" class="col-md-1"><b>Score</b></td>
-	  </tr>
-	</thead>
-	<tbody id="scoreboard-weekly">
-	</tbody>
-      </table>
-    </div>
-  </div>
-
-  <br>
-
   <h2 class="row">
     Full Rankings:&nbsp
-    <a href="javascript:loadScoreboard('overall', 'semester', 1)">Semester (default)</a> |
-    <a href="javascript:loadScoreboard('overall', 'week', 1)">Week</a> |
-    <a href="javascript:loadScoreboard('overall', 'month', 1)">Month</a> |
-    <a href="javascript:loadScoreboard('overall', 'overall', 1)">All Time</a>
+    <a href="javascript:loadScoreboard('semester', 1)">Semester (default)</a> |
+    <a href="javascript:loadScoreboard('week', 1)">Week</a> |
+    <a href="javascript:loadScoreboard('month', 1)">Month</a> |
+    <a href="javascript:loadScoreboard('overall', 1)">All Time</a>
   </h2>
 
   <div class="scoreboard row">
@@ -67,12 +45,12 @@
 	    <td scope="col" class="col-md-1"><b>Score</b></td>
 	  </tr>
 	</thead>
-	<tbody id="scoreboard-overall">
+	<tbody id="scoreboard">
 	</tbody>
       </table>
     </div>
     <div>
-      <ul id="scoreboard-overall-pages" class="p-0">
+      <ul id="scoreboard-pages" class="p-0">
       </ul>
     </div>
   </div>

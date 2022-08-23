@@ -73,8 +73,6 @@ def standing_info(place, standing):
     }
 
 
-scoreboard_namespace = Namespace("scoreboard")
-
 def get_scoreboard_data(page, filters, *, dojo=None):
     user = get_current_user()
 
@@ -97,6 +95,10 @@ def get_scoreboard_data(page, filters, *, dojo=None):
             result["me"] = standing_info(place, standing)
 
     return result
+
+
+scoreboard_namespace = Namespace("scoreboard")
+
 
 @scoreboard_namespace.route("/<dojo>/overall/<int:page>")
 class ScoreboardOverall(Resource):
@@ -124,18 +126,3 @@ class ScoreboardSemester(Resource):
     def get(self, dojo, page):
         semester_filter = Solves.date > datetime.date(year=2022, month=8, day=10)
         return get_scoreboard_data(page=page, filters=[semester_filter], dojo=dojo)
-
-
-@scoreboard_namespace.route("/<dojo>/weekly")
-class ScoreboardWeekly(Resource):
-    @dojo_route
-    def get(self, dojo):
-        week_filter = Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=7))
-        standings = get_standings(count=10, filters=[week_filter], dojo_id=dojo.id)
-
-        page_standings = list((i + 1, standing) for i, standing in enumerate(standings))
-
-        result = {
-            "page_standings": [standing_info(place, standing) for place, standing in page_standings],
-        }
-        return result
