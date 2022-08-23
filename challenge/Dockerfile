@@ -207,6 +207,7 @@ COPY desktop/ida64.desktop /usr/share/applications/
 
 RUN mkdir /opt/pwn.college
 COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
+COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 COPY setuid_python.c /opt/pwn.college/setuid_python.c
 COPY vm /opt/pwn.college/vm
 COPY .tmux.conf /opt/pwn.college/.tmux.conf

@@ -159,28 +159,12 @@ def start_challenge(user, challenge, practice):
             fi
 
             touch /opt/pwn.college/.initialized
-
-            find /challenge -name '*.ko' -exec false {} + || vm start
             """,
             shell=True
         )
         exec_run(
             """
-            mkdir /tmp/code-server
-            start-stop-daemon --start \
-                              --pidfile /tmp/code-server/code-server.pid \
-                              --make-pidfile \
-                              --background \
-                              --no-close \
-                              --startas /usr/bin/code-server \
-                              -- \
-                              --auth=none \
-                              --socket=/home/hacker/.local/share/code-server/workspace.socket \
-                              --extensions-dir=/opt/code-server/extensions \
-                              --disable-telemetry \
-                              </dev/null \
-                              >>/tmp/code-server/code-server.log \
-                              2>&1
+            /opt/pwn.college/docker-entrypoint.sh
             """,
             shell=True,
             user="hacker"
