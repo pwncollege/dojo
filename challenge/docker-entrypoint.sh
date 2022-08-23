@@ -19,9 +19,9 @@ start-stop-daemon --start \
                   2>&1
 
 mkdir -p /tmp/vnc /home/hacker/.vnc
-echo -e "$(head /dev/urandom | md5sum | head -c8)" > /home/hacker/.vnc/pass-interact
-echo -e "$(head /dev/urandom | md5sum | head -c8)" > /home/hacker/.vnc/pass-view
-echo -e "$(cat /home/hacker/.vnc/pass-interact)\n$(cat /home/hacker/.vnc/pass-view)" | tigervncpasswd -f > /home/hacker/.vnc/vncpass
+head -c32 /dev/urandom | md5sum | head -c8) > /home/hacker/.vnc/pass-interact
+head -c32 /dev/urandom | md5sum | head -c8) > /home/hacker/.vnc/pass-view
+cat /home/hacker/.vnc/pass-interact /home/hacker/.vnc/pass-view | tigervncpasswd -f > /home/hacker/.vnc/vncpass
 start-stop-daemon --start \
                   --pidfile /tmp/vnc/vncserver.pid \
                   --make-pidfile \
