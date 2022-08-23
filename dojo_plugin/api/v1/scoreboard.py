@@ -75,7 +75,7 @@ def standing_info(place, standing):
 
 scoreboard_namespace = Namespace("scoreboard")
 
-def get_scoreboard_data(page, filters, *, dojo_id=None):
+def get_scoreboard_data(page, filters, *, dojo=None):
     user = get_current_user()
 
     standings = get_standings(filters=filters, dojo_id=dojo.id if dojo else None)
