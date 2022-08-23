@@ -1,8 +1,8 @@
-function loadScoreboard(div_name, server_name, page) {
+function loadScoreboard(duration, page) {
     const dojo = init.dojo_id;
-    const scoreboard = $(`#scoreboard-${div_name}`);
+    const scoreboard = $("#scoreboard");
 
-    var endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${server_name}`;
+    var endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${duration}`;
     if (page != null)
         endpoint += `/${page - 1}`;
 
@@ -48,7 +48,7 @@ function loadScoreboard(div_name, server_name, page) {
         });
 
         if (page != null) {
-            const scoreboardPages = $(`#scoreboard-${name}-pages`);
+            const scoreboardPages = $("#scoreboard-pages");
             scoreboardPages.empty();
             const minPage = Math.max(1, page - 5);
             const maxPage = Math.min(page + 5, result.num_pages);
@@ -65,6 +65,5 @@ function loadScoreboard(div_name, server_name, page) {
 
 
 $(function() {
-    loadScoreboard("weekly");
     loadScoreboard("overall", 1);
 });
