@@ -22,6 +22,7 @@ git -C /opt/dojo submodule update --init --recursive
 ```
 
 Assuming you already have ssh running on port 22, you will want to change that so that users may ssh via port 22.
+Alternatively, you can set the `SSH_PORT` environment variable before running `run.sh` below.
 
 Change the line in `/etc/ssh/sshd_config` that says `Port 22` to `Port 2222`, and then restart ssh:
 ```sh

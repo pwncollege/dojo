@@ -17,7 +17,7 @@ docker run \
        --rm \
        --volume $PWD/data/docker:/var/lib/docker \
        --volume $PWD/data:/opt/pwn.college/data \
-       --publish 22:22 \
+       --publish ${SSH_PORT:-22}:22 \
        --publish 80:80 \
        --publish 443:443 \
        --env SETUP_HOSTNAME="$SETUP_HOSTNAME" \
