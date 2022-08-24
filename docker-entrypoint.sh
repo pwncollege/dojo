@@ -15,6 +15,8 @@ DISCORD_CLIENT_SECRET=
 DISCORD_BOT_TOKEN=
 DISCORD_GUILD_ID=
 INTERNET_ACCESS=0
+SHARE_READONLY_DIR=0
+SHARE_READWRITE_DIR=0
 EOF
 fi
 . /opt/pwn.college/data/config.env
@@ -31,6 +33,15 @@ if [ ! -f /opt/pwn.college/data/homes/homefs ]; then
     chown -R hacker:hacker /opt/pwn.college/data/homes/homefs_mount
     umount /opt/pwn.college/data/homes/homefs_mount
     rm -rf /opt/pwn.college/data/homes/homefs_mount
+fi
+
+if [ ! -f /opt/pwn.college/data/shared-ro ]; then
+    mkdir -p /opt/pwn.college/data/shared-ro
+fi
+
+if [ ! -f /opt/pwn.college/data/shared-rw ]; then
+    mkdir -p /opt/pwn.college/data/shared-rw
+    chown 1000.1000 /opt/pwn.college/data/shared-rw
 fi
 
 for i in $(seq 1 1024); do
