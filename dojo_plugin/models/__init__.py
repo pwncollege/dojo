@@ -26,6 +26,10 @@ class Dojos(db.Model):
         return self.owner_id == None
 
     @property
+    def archived(self):
+        return self.name.lower().startswith("archive")
+
+    @property
     def data(self):
         return self._data
 
