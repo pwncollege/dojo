@@ -193,7 +193,7 @@ RUN apt-get install -y tigervnc-standalone-server \
     apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
     apt-get -y autoremove
 RUN wget -q -O - https://github.com$(curl https://github.com/angr/angr-management/releases | grep angr-management-ubuntu.tar.gz | head -n1 | cut -d'"' -f2) | tar xvz -C /opt
-RUN wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip && cd /opt && unzip /tmp/ghidra.zip && mv /opt/ghidra_10.1.5_PUBLIC /opt/ghidra
+RUN wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip && cd /opt && unzip /tmp/ghidra.zip && mv /opt/ghidra_10.1.5_PUBLIC /opt/ghidra && rm /tmp/ghidra.zip
 COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
 COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
@@ -202,7 +202,7 @@ RUN rm /etc/xdg/autostart/* # don't autostart stuff in the desktop
 
 # IDA Freeware: only permissible for free and open deploymets of the pwn.college dojo!
 COPY desktop/ida.opt /opt/ida/ida.opt
-RUN wget https://out7.hex-rays.com/files/idafree80_linux.run -O /tmp/idafree80_linux.run && chmod 755 /tmp/idafree80_linux.run && /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt
+RUN wget https://out7.hex-rays.com/files/idafree80_linux.run -O /tmp/idafree80_linux.run && chmod 755 /tmp/idafree80_linux.run && /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt && rm /tmp/idafree80_linux.run
 COPY desktop/ida64.desktop /usr/share/applications/
 
 RUN mkdir /opt/pwn.college
