@@ -7,6 +7,7 @@ from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators.visibility import check_challenge_visibility
 
 from sqlalchemy import String, DateTime
+from sqlalchemy.sql import and_, or_
 
 from ..utils import get_current_challenge_id, dojo_route
 
@@ -14,7 +15,7 @@ from ..utils import get_current_challenge_id, dojo_route
 challenges = Blueprint("pwncollege_challenges", __name__)
 
 
-def solved_challenges(dojo, module_id=None):
+def solved_challenges(dojo, module=None):
     user = get_current_user()
     user_id = user.id if user else None
     solves = db.func.count(Solves.id).label("solves")
@@ -23,10 +24,13 @@ def solved_challenges(dojo, module_id=None):
         db.func.max((Solves.user_id == user_id).cast(String)+Solves.date.cast(String)),
         2, 1000
     ).cast(DateTime).label("solve_date")
+    solve_filter = (Solves.challenge_id == Challenges.id) if "time_assigned" not in module else and_(
+        Solves.challenge_id == Challenges.id, or_(Solves.date >= module["time_assigned"], Solves.user_id == user_id)
+    )
     challenges = (
         db.session.query(Challenges.id, Challenges.name, Challenges.category, solves, solve_date, solved)
-        .filter(Challenges.state == "visible", dojo.challenges_query(module_id))
-        .outerjoin(Solves, Solves.challenge_id == Challenges.id)
+        .filter(Challenges.state == "visible", dojo.challenges_query(module["id"]))
+        .outerjoin(Solves, solve_filter)
         .group_by(Challenges.id)
     ).all()
     return challenges
@@ -38,7 +42,7 @@ def solved_challenges(dojo, module_id=None):
 def listing(dojo):
     stats = {}
     for module in dojo.modules:
-        challenges = solved_challenges(dojo, module["id"])
+        challenges = solved_challenges(dojo, module)
         stats[module["id"]] = {
             "count": len(challenges),
             "solved": sum(1 for challenge in challenges if challenge.solved),
@@ -67,7 +71,7 @@ def view_module(dojo, module):
     if assigned and due and not ec_part:
         ec_part = (assigned + (due-assigned)/4)
 
-    challenges = solved_challenges(dojo, module_id)
+    challenges = solved_challenges(dojo, module)
     current_challenge_id = get_current_challenge_id()
 
     num_timely_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < due ]) if due else 0
