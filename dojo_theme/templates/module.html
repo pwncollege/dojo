@@ -56,6 +56,38 @@
   </div>
 </div>
 <div class="container">
+  {% if module.time_assigned or module.time_due %}
+  <h2>Dates</h2>
+
+  {% if module.time_assigned %}
+  <p><b>Assigned:</b>
+  <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+assigned&iso={{ module.time_assigned.isoformat() }}">
+    {{ module.time_assigned.strftime("%B %-d, %Y at %-I:%M%P") }} (Arizona time)
+  </a><br><small>(solves before this date will not appear on the default scoreboard, but will still count toward your grade)</small></p>
+  {% endif %}
+
+  {% if ec_part %}
+  <p><b>Partial Extra Credit Deadline:</b>
+  <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+partial extra credit deadline&iso={{ ec_part.isoformat() }}">
+    {{ ec_part.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
+  </a><br><small>(if you solve &gt;= a quarter of the challenges in this module by this date, you will earn 0.5% toward your final ASU grade)</small></p>
+  {% endif %}
+
+  {% if ec_full %}
+  <p><b>Full Extra Credit Deadline:</b>
+  <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+full extra credit deadline&iso={{ ec_full.isoformat() }}">
+    {{ ec_full.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
+    </a><br><small>(if you solve &gt;= half of the challenges in this module by this date, you will earn 1% toward your final ASU grade, instead of the 0.5% above)</small></p>
+  {% endif %}
+
+  {% if module.time_due %}
+  <p><b>Due:</b>
+  <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+due&iso={{ module.time_due.isoformat() }}">
+    {{ module.time_due.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
+  </a><br><small>(solves after this deadline will count for half value toward your ASU grade, but will still fully count for scoreboard purposes)</small></p>
+  {% endif %}
+
+  {% endif %}
 
   {% if module.lectures %}
   <h2>Lectures</h2>

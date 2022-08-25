@@ -1,3 +1,5 @@
+import datetime
+
 from flask import Blueprint, render_template, abort
 from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
@@ -48,6 +50,16 @@ def view_module(dojo, module):
     else:
         abort(404)
 
+    assigned = module.get("time_assigned", None)
+    due = module.get("time_due", None)
+    ec_full = module.get("time_ec_full", None)
+    ec_part = module.get("time_ec_part", None)
+
+    if assigned and due and not ec_full:
+        ec_full = (assigned + (due-assigned)/2)
+    if assigned and due and not ec_part:
+        ec_part = (assigned + (due-assigned)/4)
+
     challenges = solved_challenges(dojo, module_id)
     current_challenge_id = get_current_challenge_id()
 
@@ -55,6 +67,7 @@ def view_module(dojo, module):
         "module.html",
         dojo=dojo,
         module=module,
+        ec_part=ec_part, ec_full=ec_full,
         challenges=challenges,
         current_challenge_id=current_challenge_id
     )
