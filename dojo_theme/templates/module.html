@@ -89,6 +89,25 @@
 
   {% endif %}
 
+  {% if module.time_assigned %}
+  <h2>Grades</h2>
+  <p>This is the grade you will get on this module (if you are an ASU student enrolled in the class).
+  <p>
+  <b>On-time solves:</b> {{num_timely_solves}}
+  <br><b>Late solves:</b> {{num_late_solves}}
+  <br><b>Module grade:</b> {{ (100 * (num_timely_solves + num_late_solves//2) / challenges|length)|round(1) }}%
+  </p>
+  <p><b>Partial Extra Credit:</b> you solved {{ num_part_ec_solves }} challenges early (out of a required {{ challenges|length // 4 }}).
+  {% if num_part_ec_solves >= challenges|length // 4 and num_part_ec_solves < challenges|length // 2 %}
+  You've earned 0.5% extra credit to your final grade!
+  {% endif %}
+  <br><b>Full Extra Credit:</b> you solved {{ num_full_ec_solves }} challenges early (out of a required {{ challenges|length // 2 }}).
+  {% if num_part_ec_solves >= challenges|length // 2 %}
+  You've earned 1% extra credit to your final grade!
+  {% endif %}
+
+  {% endif %}
+
   {% if module.lectures %}
   <h2>Lectures</h2>
 
