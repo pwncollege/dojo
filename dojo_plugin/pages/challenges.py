@@ -47,6 +47,11 @@ def listing(dojo):
             "count": len(challenges),
             "solved": sum(1 for challenge in challenges if challenge.solved),
         }
+        stats[module["id"]]["active"] = (
+            "time_assigned" in module and "time_due" in module and
+            module["time_assigned"] <= pytz.UTC.localize(datetime.datetime.now()) and
+            pytz.UTC.localize(datetime.datetime.now()) <= module["time_due"]
+        )
     return render_template("challenges.html", dojo=dojo, stats=stats)
 
 
