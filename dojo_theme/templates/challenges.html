@@ -16,7 +16,7 @@
   </div>
 </div>
 <div class="container">
-  <p>These are the modules that have launched in this dojo. For live classes, currently-assigned modules are outlined in gold.</p>
+  <p>The following modules have launched in this dojo. For live classes, currently-assigned modules are outlined in gold.</p>
   <ul class="card-list">
     {% for module in dojo.modules %}
     <a class="text-decoration-none" href="{{ url_for('pwncollege_challenges.view_module', dojo=dojo.id, module=module.id) }}">
