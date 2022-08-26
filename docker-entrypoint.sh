@@ -1,11 +1,17 @@
 #!/bin/sh
 
-if [ ! -f "/opt/pwn.college/data/config.env" ] && [ -z "$SETUP_HOSTNAME" ]; then
-    echo "Error: instance not setup; rerun with SETUP_HOSTNAME environment variable!"
-    exit 1
+ls -al /opt/pwn.college/data
+
+if [ ! "$(ls -A /opt/pwn.college/data/dojos /opt/pwn.college/data/challenges)" ]; then
+    echo "Warning: initializing dojo for the first time and no data included, auto populating with data_example"
+    cp -r /opt/pwn.college/data_example/* /opt/pwn.college/data
 fi
 
 if [ ! -f /opt/pwn.college/data/config.env ]; then
+    if [ -z "$SETUP_HOSTNAME" ]; then
+        echo "Warning: initializing dojo for the first time and no SETUP_HOSTNAME specified, defaulting to localhost.pwn.college"
+        SETUP_HOSTNAME="localhost.pwn.college"
+    fi
     cat <<EOF >> /opt/pwn.college/data/config.env
 HOST=$SETUP_HOSTNAME
 SECRET_KEY=$(openssl rand -hex 16)
@@ -15,6 +21,7 @@ DISCORD_CLIENT_SECRET=
 DISCORD_BOT_TOKEN=
 DISCORD_GUILD_ID=
 EOF
+    echo "Dojo configuration is stored in data/config.env"
 fi
 . /opt/pwn.college/data/config.env
 

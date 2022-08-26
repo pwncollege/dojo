@@ -1,0 +1,3 @@
+#!/opt/pwn.college/python
+
+print(open("/flag").read())
