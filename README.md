@@ -18,7 +18,6 @@ The associated challenge binary may be either global, which means all users will
 Clone the repository and init the submodules:
 ```sh
 git clone https://github.com/pwncollege/dojo /opt/dojo
-git -C /opt/dojo submodule update --init --recursive
 ```
 
 Assuming you already have ssh running on port 22, you will want to change that so that users may ssh via port 22.
