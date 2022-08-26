@@ -18,7 +18,7 @@
 
         <li class="nav-item">
           <a class="nav-link" href="{{ url_for('pwncollege_dojos.listing') }}">
-            <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Challenges">
+            <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Dojos">
               <i class="fas fa-bolt d-none d-md-block d-lg-none"></i>
             </span>
             <span class="d-sm-block d-md-none d-lg-block">
@@ -30,12 +30,12 @@
         {% else %}
 
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('pwncollege_challenges.listing', dojo=dojo.id) }}">
-            <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Challenges">
+          <a class="nav-link" href="{{ url_for('pwncollege_modules.listing', dojo=dojo.id) }}">
+            <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Modules">
               <i class="fas fa-flag d-none d-md-block d-lg-none"></i>
             </span>
             <span class="d-sm-block d-md-none d-lg-block">
-              <i class="fas fa-flag pr-1"></i>Challenges
+              <i class="fas fa-flag pr-1"></i>Modules
             </span>
           </a>
         </li>

@@ -19,7 +19,7 @@
   <p>These modules have launched in this dojo. For live classes, currently-assigned modules are outlined in gold.</p>
   <ul class="card-list">
     {% for module in dojo.modules %}
-    <a class="text-decoration-none" href="{{ url_for('pwncollege_challenges.view_module', dojo=dojo.id, module=module.id) }}">
+    <a class="text-decoration-none" href="{{ url_for('pwncollege_modules.view_module', dojo=dojo.id, module=module.id) }}">
       <li class="card card-small{% if stats[module.id].active %} card-active{% endif %}">
         <div class="card-body">
           <h4 class="card-title">{{ module.name }}</h4>

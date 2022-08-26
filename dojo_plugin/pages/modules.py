@@ -12,7 +12,7 @@ from sqlalchemy.sql import and_, or_
 from ..utils import get_current_challenge_id, dojo_route
 
 
-challenges = Blueprint("pwncollege_challenges", __name__)
+modules = Blueprint("pwncollege_modules", __name__)
 
 
 def solved_challenges(dojo, module=None):
@@ -36,7 +36,7 @@ def solved_challenges(dojo, module=None):
     return challenges
 
 
-@challenges.route("/<dojo>/challenges")
+@modules.route("/<dojo>/modules")
 @dojo_route
 @check_challenge_visibility
 def listing(dojo):
@@ -52,10 +52,10 @@ def listing(dojo):
             module["time_assigned"] <= pytz.UTC.localize(datetime.datetime.now()) and
             pytz.UTC.localize(datetime.datetime.now()) <= module["time_due"]
         )
-    return render_template("challenges.html", dojo=dojo, stats=stats)
+    return render_template("modules.html", dojo=dojo, stats=stats)
 
 
-@challenges.route("/<dojo>/challenges/<module>")
+@modules.route("/<dojo>/modules/<module>")
 @dojo_route
 @check_challenge_visibility
 def view_module(dojo, module):

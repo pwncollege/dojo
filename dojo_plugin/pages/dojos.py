@@ -45,7 +45,7 @@ def listing():
 @dojos.route("/dojo/<dojo>")
 @dojo_route
 def view_dojo(dojo):
-    return redirect(url_for("pwncollege_challenges.listing", dojo=dojo.id))
+    return redirect(url_for("pwncollege_modules.listing", dojo=dojo.id))
 
 
 def dojos_override():
