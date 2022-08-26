@@ -7,7 +7,7 @@ services:
 
   ctfd:
     container_name: ctfd
-    build: CTFd
+    build: /opt/CTFd
     user: root
     restart: always
     privileged: true
@@ -31,7 +31,6 @@ services:
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
-      - INTERNET_ACCESS=${INTERNET_ACCESS}
       - VIRTUAL_HOST=${HOST}
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=${HOST}
@@ -42,7 +41,7 @@ services:
       - ./data/homes:/var/homes:shared
       - ./data/challenges:/var/challenges:ro
       - ./data/dojos:/var/dojos:ro
-      - ./CTFd:/opt/CTFd:ro
+      - /opt/CTFd:/opt/CTFd:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - db

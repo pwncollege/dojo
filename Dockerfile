@@ -17,6 +17,8 @@ RUN curl -fsSL https://get.docker.com | /bin/sh
 
 RUN pip install docker docker-compose
 
+RUN git clone --branch 3.4.0 https://github.com/CTFd/CTFd /opt/CTFd
+
 RUN useradd -m hacker
 RUN usermod -aG docker hacker
 RUN mkdir -p /home/hacker/.docker
@@ -29,9 +31,8 @@ ADD ssh /opt/pwn.college/ssh
 ADD logging /opt/pwn.college/logging
 ADD nginx-proxy /opt/pwn.college/nginx-proxy
 ADD challenge /opt/pwn.college/challenge
-ADD CTFd /opt/pwn.college/CTFd
-ADD dojo_plugin /opt/pwn.college/CTFd/CTFd/plugins/dojo_plugin
-ADD dojo_theme /opt/pwn.college/CTFd/CTFd/themes/dojo_theme
+ADD dojo_plugin /opt/CTFd/CTFd/plugins/dojo_plugin
+ADD dojo_theme /opt/CTFd/CTFd/themes/dojo_theme
 ADD docker-compose.yml /opt/pwn.college/docker-compose.yml
 
 ADD etc/ssh/sshd_config /etc/ssh/sshd_config
