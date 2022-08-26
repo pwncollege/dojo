@@ -15,15 +15,13 @@
       <table class="table table-striped">
         <thead>
           <tr>
-            <td scope="col"><b>Interactive Link</b></td>
-            <td scope="col"><b>View-Only Link</b></td>
+            <td scope="col"><b>Desktop Sessions</b></td>
           </tr>
         </thead>
         <tbody>
           {% for user in users %}
           <tr>
             <td><a href="/desktop/{{ user.id }}">{{ user.name }}</a></td>
-            <td><a href="/desktop/{{ user.id }}?view_only=1">{{ user.name }} (view only)</a></td>
           </tr>
           {% endfor %}
         </tbody>

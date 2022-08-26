@@ -14,6 +14,10 @@ body, table, .form-control:focus, .close {
     color: #b5e853 !important;
 }
 
+.navbar > .container {
+    justify-content: space-evenly;
+}
+
 a {
     color: #63c0f5;
     text-shadow: 0 0 5px rgba(104,182,255,0.15);

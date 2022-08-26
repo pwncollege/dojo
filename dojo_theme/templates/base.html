@@ -1,3 +1,5 @@
+{% set dojo_id = dojo.id if dojo else None %}
+
 <!DOCTYPE html>
 <html>
   <head>
@@ -22,7 +24,7 @@
 	  'start': {{ Configs.start | tojson }},
 	  'end': {{ Configs.end | tojson }},
 	  'theme_settings': {{ Configs.theme_settings | tojson }},
-          'dojo_id': "{{ dojo.id if dojo else None }}"
+          'dojo_id': "{{ dojo_id }}"
       }
     </script>
     {{ Configs.theme_header }}

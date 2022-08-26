@@ -14,10 +14,9 @@ DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
 BINARY_NINJA_API_KEY = os.getenv("BINARY_NINJA_API_KEY")
-INTERNET_ACCESS = os.getenv("INTERNET_ACCESS", None).lower() in [ "1", "yes", "true" ]
 
 missing_errors = ["VIRTUAL_HOST", "HOST_DATA_PATH"]
-missing_warnings = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID", "BINARY_NINJA_API_KEY", "INTERNET_ACCESS"]
+missing_warnings = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID", "BINARY_NINJA_API_KEY"]
 
 for config_option in missing_errors:
     config_value = globals()[config_option]

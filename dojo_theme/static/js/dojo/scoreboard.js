@@ -2,9 +2,7 @@ function loadScoreboard(duration, page) {
     const dojo = init.dojo_id;
     const scoreboard = $("#scoreboard");
 
-    var endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${duration}`;
-    if (page != null)
-        endpoint += `/${page - 1}`;
+    var endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${duration}/${page - 1}`;
 
     CTFd.fetch(endpoint, {
         method: "GET",
@@ -47,23 +45,21 @@ function loadScoreboard(duration, page) {
             scoreboard.append(row);
         });
 
-        if (page != null) {
-            const scoreboardPages = $("#scoreboard-pages");
-            scoreboardPages.empty();
-            const minPage = Math.max(1, page - 5);
-            const maxPage = Math.min(page + 5, result.num_pages);
-            for (let i = minPage; i <= maxPage; i++) {
-                const pageButton = $(`
-                <li class="scoreboard-page"><a href="javascript:loadScoreboard('${name}', ${i})">${i}</a></li>
-                `);
-                pageButton.addClass(i == page ? "scoreboard-page-selected" : "scoreboard-page-unselected");
-                scoreboardPages.append(pageButton);
-            }
+        const scoreboardPages = $("#scoreboard-pages");
+        scoreboardPages.empty();
+        const minPage = Math.max(1, page - 5);
+        const maxPage = Math.min(page + 5, result.num_pages);
+        for (let i = minPage; i <= maxPage; i++) {
+            const pageButton = $(`
+            <li class="scoreboard-page"><a href="javascript:loadScoreboard('${name}', ${i})">${i}</a></li>
+            `);
+            pageButton.addClass(i == page ? "scoreboard-page-selected" : "scoreboard-page-unselected");
+            scoreboardPages.append(pageButton);
         }
     });
 }
 
 
 $(function() {
-    loadScoreboard("overall", 1);
+    loadScoreboard("semester", 1);
 });

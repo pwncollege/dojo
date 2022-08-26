@@ -12,15 +12,16 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1>Modules<br><small>Dojo: {{ dojo.name }}</small></h1>
+    <h1>Modules<h1>
+    <br>
+    <h2>{{ dojo.name }}</h2>
   </div>
 </div>
 <div class="container">
-  <p>These modules have launched in this dojo. For live classes, currently-assigned modules are outlined in gold.</p>
   <ul class="card-list">
     {% for module in dojo.modules %}
-    <a class="text-decoration-none" href="{{ url_for('pwncollege_challenges.view_module', dojo=dojo.id, module=module.id) }}">
-      <li class="card card-small{% if stats[module.id].active %} card-active{% endif %}">
+    <a class="text-decoration-none mx-auto" href="{{ url_for('pwncollege_challenges.view_module', dojo=dojo.id, module=module.id) }}">
+      <li class="card card-small {% if stats[module.id].active %}card-active{% endif %}">
         <div class="card-body">
           <h4 class="card-title">{{ module.name }}</h4>
           <p class="card-text">
