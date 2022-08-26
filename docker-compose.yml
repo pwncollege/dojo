@@ -9,6 +9,7 @@ services:
     container_name: ctfd
     build: /opt/CTFd
     user: root
+    entrypoint: ["flask", "run", "--host", "0.0.0.0", "--port", "8000"]
     restart: always
     privileged: true
     ulimits:
@@ -34,6 +35,7 @@ services:
       - VIRTUAL_HOST=${HOST}
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=${HOST}
+      - FLASK_ENV=development
     volumes:
       - ./data:/var/data
       - ./data/CTFd/logs:/var/log/CTFd
