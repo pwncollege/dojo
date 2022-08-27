@@ -24,13 +24,15 @@ def get_stats(dojo_id):
         hours = max(uptime.seconds // (60 * 60), 1)
         active += 1 / hours
 
-    challenge_query = dojo_by_id(dojo_id).challenges_query()
+    dojo = dojo_by_id(dojo_id)
+    challenge_query = dojo.challenges_query()
+    time_query = Solves.date > dojo.config["time_created"] if "time_created" in dojo.config else True
 
     return {
         "active": int(active),
         "users": int(Users.query.count()),
         "challenges": int(Challenges.query.filter(challenge_query, Challenges.state == "visible").count()),
-        "solves": int(Solves.query.join(Challenges, Solves.challenge_id == Challenges.id).filter(challenge_query).count()),
+        "solves": int(Solves.query.join(Challenges, Solves.challenge_id == Challenges.id).filter(challenge_query, time_query).count()),
     }
 
 
