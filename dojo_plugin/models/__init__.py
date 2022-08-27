@@ -54,6 +54,12 @@ class Dojos(db.Model):
     def modules(self):
         return self.config.get("modules", [])
 
+    def module_by_id(self, module_id):
+        for module in self.modules:
+            if module.get("id") == module_id:
+                return module
+        return None
+
     def challenges_query(self, module_id=None):
         return or_(*(
             and_(Challenges.category == module_challenge["category"],

@@ -6,6 +6,7 @@ import tarfile
 import hashlib
 import functools
 import inspect
+import contextlib
 
 import docker
 from flask import current_app, Response, abort
@@ -116,6 +117,20 @@ def random_home_path(user, *, secret=None):
         secret = current_app.config["SECRET_KEY"]
     return hashlib.sha256(f"{secret}_{user.id}".encode()).hexdigest()[:16]
 
+def dojo_by_id(dojo_id):
+    dojo = Dojos.query.filter_by(id=dojo_id).first()
+    if not dojo:
+        return None
+    if dojo.public:
+        return dojo
+
+    user = get_current_user()
+    if not user:
+        return None
+    if not DojoMembers.query.filter_by(dojo_id=dojo.id, user_id=user.id).first():
+        return None
+    return dojo
+
 
 def dojo_route(func):
     signature = inspect.signature(func)
@@ -125,15 +140,19 @@ def dojo_route(func):
         bound_args.apply_defaults()
         dojo = bound_args.arguments["dojo"]
         if dojo is not None:
-            dojo = Dojos.query.filter_by(id=dojo).first()
+            dojo = dojo_by_id(dojo)
             if not dojo:
                 abort(404)
-            user = get_current_user()
-            if not dojo.public:
-                user_id = user.id if user else None
-                if not DojoMembers.query.filter_by(dojo_id=dojo.id, user_id=user_id).first():
-                    abort(404)
         bound_args.arguments["dojo"] = dojo
+
+        with contextlib.suppress(KeyError):
+            module = bound_args.arguments["module"]
+            if module is not None:
+                module = dojo.module_by_id(module)
+                if not module:
+                    abort(404)
+            bound_args.arguments["module"] = module
+
         return func(*bound_args.args, **bound_args.kwargs)
     return wrapper
 

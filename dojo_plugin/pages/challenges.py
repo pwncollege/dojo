@@ -59,13 +59,6 @@ def listing(dojo):
 @dojo_route
 @check_challenge_visibility
 def view_module(dojo, module):
-    module_id = module
-    for module in dojo.modules:
-        if module.get("id") == module_id:
-            break
-    else:
-        abort(404)
-
     assigned = module.get("time_assigned", None)
     due = module.get("time_due", None)
     ec_full = module.get("time_ec_full", None)
