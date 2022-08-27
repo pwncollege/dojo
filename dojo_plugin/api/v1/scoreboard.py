@@ -1,6 +1,7 @@
 import contextlib
 import math
 import datetime
+import pytz
 
 from flask import url_for
 from flask_restx import Namespace, Resource
@@ -35,25 +36,22 @@ def belt_asset(color):
 
 @cache.memoize(timeout=60)
 def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
-    if span is None:
-        filters = []
+    dojo = dojo_by_id(dojo_id)
+    if span in [ None, 'overall', 'dojo' ]:
+        start = None
     elif span == 'week':
-        filters = [ Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=7)) ]
+        start = pytz.UTC.localize(datetime.datetime.utcnow() - datetime.timedelta(days=7))
     elif span == 'month':
-        filters = [ Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=31)) ]
-    elif span == 'semester':
-        filters = [ Solves.date > datetime.date(year=2022, month=8, day=10) ]
-    elif span == 'overall':
-        filters = [ ]
-    elif span == 'tracking':
+        start = pytz.UTC.localize(datetime.datetime.utcnow() - datetime.timedelta(days=31))
+    elif span == 'module':
         if not module_id:
             abort(500)
-        dojo = dojo_by_id(dojo_id)
         module = dojo.module_by_id(module_id)
-        if "time_assigned" not in module:
-            filters = [ ]
-        else:
-            filters = [ Solves.date > module["time_assigned"] ]
+        start = module["time_assigned"] if "time_assigned" in module else None
+
+    if "time_created" in dojo.config and (start is None or dojo.config["time_created"] > start):
+        start = dojo.config["time_created"]
+    filters = [ Solves.date > start ] if start else [ ]
 
     Model = get_model()
     score = db.func.sum(Challenges.value).label("score")

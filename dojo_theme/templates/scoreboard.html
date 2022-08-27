@@ -28,12 +28,13 @@
   <br>
 
   <h2 class="row">
-    Rankings:&nbsp
+    Rankings:
+  </h2>
+  <p>
     <a href="javascript:loadScoreboard('week', 1)">Week</a> |
     <a href="javascript:loadScoreboard('month', 1)">Month</a> |
-    <a href="javascript:loadScoreboard('semester', 1)">Semester</a> |
-    <a href="javascript:loadScoreboard('overall', 1)">All Time</a>
-  </h2>
+    <a href="javascript:loadScoreboard('dojo', 1)">All Time</a>
+  </p>
 
   {% import "macros.html" as macros %}
   {{ macros.scoreboard() }}
@@ -41,5 +42,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script defer onload='loadScoreboard("semester", 1);' src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
+<script defer onload='loadScoreboard("dojo", 1);' src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
 {% endblock %}
