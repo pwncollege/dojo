@@ -1,16 +1,18 @@
 import datetime
+import docker
 import pytz
 
-from flask import Blueprint, render_template, abort
-from CTFd.models import db, Solves, Challenges
+from flask import Blueprint, render_template, abort, redirect
+from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators.visibility import check_challenge_visibility
+from CTFd.utils.helpers import get_infos
+from CTFd.cache import cache
 
 from sqlalchemy import String, DateTime
 from sqlalchemy.sql import and_, or_
 
-from ..utils import get_current_challenge_id, dojo_route
-
+from ..utils import get_current_challenge_id, dojo_route, dojo_by_id
 
 challenges = Blueprint("pwncollege_challenges", __name__)
 
@@ -35,12 +37,35 @@ def solved_challenges(dojo, module):
     ).all()
     return challenges
 
+@cache.memoize(timeout=60)
+def get_stats(dojo_id):
+    docker_client = docker.from_env()
+    containers = docker_client.containers.list(filters=dict(name="user_"), ignore_removed=True)
+    now = datetime.datetime.now()
+    active = 0.0
+    for container in containers:
+        created = container.attrs["Created"].split(".")[0]
+        uptime = now - datetime.datetime.fromisoformat(created)
+        hours = max(uptime.seconds // (60 * 60), 1)
+        active += 1 / hours
+
+    dojo = dojo_by_id(dojo_id)
+    challenge_query = dojo.challenges_query()
+    time_query = Solves.date > dojo.config["time_created"] if "time_created" in dojo.config else True
+
+    return {
+        "active": int(active),
+        "users": int(Users.query.count()),
+        "challenges": int(Challenges.query.filter(challenge_query, Challenges.state == "visible").count()),
+        "solves": int(Solves.query.join(Challenges, Solves.challenge_id == Challenges.id).filter(challenge_query, time_query).count()),
+    }
 
 @challenges.route("/<dojo>/challenges")
 @dojo_route
 @check_challenge_visibility
 def listing(dojo):
-    stats = {}
+    infos = get_infos()
+    stats = get_stats(dojo.id)
     for module in dojo.modules:
         challenges = solved_challenges(dojo, module)
         stats[module["id"]] = {
@@ -52,7 +77,13 @@ def listing(dojo):
             module["time_assigned"] <= pytz.UTC.localize(datetime.datetime.now()) and
             pytz.UTC.localize(datetime.datetime.now()) <= module["time_due"]
         )
-    return render_template("challenges.html", dojo=dojo, stats=stats)
+
+    return render_template(
+        "challenges.html",
+        dojo=dojo,
+        stats=stats,
+        infos=infos,
+    )
 
 
 @challenges.route("/<dojo>/challenges/<module>")
@@ -89,3 +120,8 @@ def view_module(dojo, module):
         num_part_ec_solves=num_part_ec_solves,
         current_challenge_id=current_challenge_id
     )
+
+@challenges.route("/<dojo>/scoreboard")
+def redirect_scoreboard(dojo):
+    return redirect(f"/{dojo}/challenges", code=302)
+

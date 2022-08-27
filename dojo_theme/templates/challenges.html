@@ -18,6 +18,24 @@
   </div>
 </div>
 <div class="container">
+  {% include "components/errors.html" %}
+
+  <h2 class="row">Dojo Stats</h2>
+  <div class="row">
+    <p>
+      <b>Hacking Now:</b> <code>{{ stats["active"] }}</code>
+      <br>
+      <b>Hackers:</b> <code>{{ stats["users"] }}</code>
+      <br>
+      <b>Challenges:</b> <code>{{ stats["challenges"] }}</code>
+      <br>
+      <b>Solves:</b> <code>{{ stats["solves"] }}</code>
+    </p>
+  </div>
+
+  <br style="font-size: 3em">
+
+  <h2 class="row">Dojo Modules</h2>
   <ul class="card-list">
     {% for module in dojo.modules %}
     <a class="text-decoration-none mx-auto" href="{{ url_for('pwncollege_challenges.view_module', dojo=dojo.id, module=module.id) }}">
@@ -32,5 +50,23 @@
     </a>
     {% endfor %}
   </ul>
+
+  <br style="font-size: 3em">
+
+  <h2 class="row">
+    Dojo Rankings:
+  </h2>
+  <p>
+    <a href="javascript:loadScoreboard('week', 1)">Week</a> |
+    <a href="javascript:loadScoreboard('month', 1)">Month</a> |
+    <a href="javascript:loadScoreboard('dojo', 1)">All Time</a>
+  </p>
+
+  {% import "macros.html" as macros %}
+  {{ macros.scoreboard() }}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script defer onload='loadScoreboard("dojo", 1);' src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
 {% endblock %}

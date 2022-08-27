@@ -35,8 +35,7 @@
         {{ navitem("Dojos", url_for("pwncollege_dojos.listing"), "fa-bolt") }}
 
         {% else %}
-        {{ navitem("Challenges", url_for("pwncollege_challenges.listing", dojo=dojo_id), "fa-flag") }}
-        {{ navitem("Scoreboard", url_for("pwncollege_scoreboard.listing", dojo=dojo_id), "fa-chart-line") }}
+        {{ navitem("Modules", url_for("pwncollege_challenges.listing", dojo=dojo_id), "fa-flag") }}
         {% endif %}
 
         {{ navitem("Workspace", url_for("pwncollege_workspace.view_workspace", dojo=dojo_id), "fa-terminal") }}
