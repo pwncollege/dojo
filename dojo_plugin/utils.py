@@ -165,7 +165,7 @@ def user_dojos(user):
     return Dojos.query.filter(or_(*filters)).all()
 
 
-def dojo_standings(dojo_id, fields=None):
+def dojo_standings(dojo_id, fields=None, module_id=None):
     if fields is None:
         fields = []
 
@@ -173,7 +173,7 @@ def dojo_standings(dojo_id, fields=None):
     dojo = Dojos.query.filter(Dojos.id == dojo_id).first()
 
     dojo_filters = []
-    dojo_filters.append(dojo.challenges_query())
+    dojo_filters.append(dojo.challenges_query(module_id=module_id))
 
     if not dojo.public:
         members = db.session.query(DojoMembers.user_id).filter_by(dojo_id=dojo_id)

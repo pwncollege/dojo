@@ -9,7 +9,7 @@ from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
 
-from ...utils import dojo_route, dojo_standings
+from ...utils import dojo_route, dojo_standings, dojo_by_id
 from .belts import get_belts
 
 
@@ -34,9 +34,26 @@ def belt_asset(color):
 
 
 @cache.memoize(timeout=60)
-def get_standings(count=None, filters=None, *, dojo_id=None):
-    if filters is None:
+def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
+    if span is None:
         filters = []
+    elif span == 'week':
+        filters = [ Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=7)) ]
+    elif span == 'month':
+        filters = [ Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=31)) ]
+    elif span == 'semester':
+        filters = [ Solves.date > datetime.date(year=2022, month=8, day=10) ]
+    elif span == 'overall':
+        filters = [ ]
+    elif span == 'tracking':
+        if not module_id:
+            abort(500)
+        dojo = dojo_by_id(dojo_id)
+        module = dojo.module_by_id(module_id)
+        if "time_assigned" not in module:
+            filters = [ ]
+        else:
+            filters = [ Solves.date > module["time_assigned"] ]
 
     Model = get_model()
     score = db.func.sum(Challenges.value).label("score")
@@ -47,7 +64,7 @@ def get_standings(count=None, filters=None, *, dojo_id=None):
         score
     ]
     standings_query = (
-        dojo_standings(dojo_id, fields)
+        dojo_standings(dojo_id, fields, module_id=module_id)
         .filter(*filters)
         .group_by(Solves.account_id)
         .order_by(score.desc(), db.func.max(Solves.id))
@@ -73,10 +90,10 @@ def standing_info(place, standing):
     }
 
 
-def get_scoreboard_data(page, filters, *, dojo=None):
+def get_scoreboard_data(page, span, *, dojo=None, module=None):
     user = get_current_user()
 
-    standings = get_standings(filters=filters, dojo_id=dojo.id if dojo else None)
+    standings = get_standings(span=span, dojo_id=dojo.id if dojo else None, module_id=module["id"] if module else None)
 
     page_size = 20
     start = page_size * page
@@ -99,30 +116,14 @@ def get_scoreboard_data(page, filters, *, dojo=None):
 
 scoreboard_namespace = Namespace("scoreboard")
 
-
-@scoreboard_namespace.route("/<dojo>/overall/<int:page>")
-class ScoreboardOverall(Resource):
-    @dojo_route
-    def get(self, dojo, page):
-        return get_scoreboard_data(page=page, filters=None, dojo=dojo)
-
-@scoreboard_namespace.route("/<dojo>/week/<int:page>")
-class ScoreboarWeek(Resource):
-    @dojo_route
-    def get(self, dojo, page):
-        week_filter = Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=7))
-        return get_scoreboard_data(page=page, filters=[week_filter], dojo=dojo)
-
-@scoreboard_namespace.route("/<dojo>/month/<int:page>")
-class ScoreboardMonth(Resource):
-    @dojo_route
-    def get(self, dojo, page):
-        month_filter = Solves.date > (datetime.datetime.utcnow() - datetime.timedelta(days=31))
-        return get_scoreboard_data(page=page, filters=[month_filter], dojo=dojo)
-
-@scoreboard_namespace.route("/<dojo>/semester/<int:page>")
+@scoreboard_namespace.route("/<dojo>/<span>/<int:page>")
 class ScoreboardSemester(Resource):
     @dojo_route
-    def get(self, dojo, page):
-        semester_filter = Solves.date > datetime.date(year=2022, month=8, day=10)
-        return get_scoreboard_data(page=page, filters=[semester_filter], dojo=dojo)
+    def get(self, dojo, span, page):
+        return get_scoreboard_data(page=page, span=span, dojo=dojo)
+
+@scoreboard_namespace.route("/<dojo>/<module>/<span>/<int:page>")
+class ScoreboardOverall(Resource):
+    @dojo_route
+    def get(self, dojo, module, span, page):
+        return get_scoreboard_data(page=page, module=module, span=span, dojo=dojo)
