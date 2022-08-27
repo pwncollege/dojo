@@ -57,7 +57,7 @@ function loadScoreboard(duration, page) {
         const maxPage = Math.min(page + 5, result.num_pages);
         for (let i = minPage; i <= maxPage; i++) {
             const pageButton = $(`
-            <li class="scoreboard-page"><a href="javascript:loadScoreboard('${name}', ${i})">${i}</a></li>
+            <li class="scoreboard-page"><a href="javascript:loadScoreboard('${duration}', ${i})">${i}</a></li>
             `);
             pageButton.addClass(i == page ? "scoreboard-page-selected" : "scoreboard-page-unselected");
             scoreboardPages.append(pageButton);
