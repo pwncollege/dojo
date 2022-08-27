@@ -117,13 +117,13 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
 scoreboard_namespace = Namespace("scoreboard")
 
 @scoreboard_namespace.route("/<dojo>/<span>/<int:page>")
-class ScoreboardSemester(Resource):
+class ScoreboardDojo(Resource):
     @dojo_route
     def get(self, dojo, span, page):
         return get_scoreboard_data(page=page, span=span, dojo=dojo)
 
 @scoreboard_namespace.route("/<dojo>/<module>/<span>/<int:page>")
-class ScoreboardOverall(Resource):
+class ScoreboardModule(Resource):
     @dojo_route
     def get(self, dojo, module, span, page):
         return get_scoreboard_data(page=page, module=module, span=span, dojo=dojo)
