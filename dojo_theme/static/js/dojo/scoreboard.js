@@ -1,8 +1,14 @@
 function loadScoreboard(duration, page) {
     const dojo = init.dojo_id;
+    const module = init.module_id;
     const scoreboard = $("#scoreboard");
 
-    var endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${duration}/${page - 1}`;
+    if (module && module != "None") {
+        var endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${module}/${duration}/${page - 1}`;
+    }
+    else {
+        var endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${duration}/${page - 1}`;
+    }
 
     CTFd.fetch(endpoint, {
         method: "GET",
