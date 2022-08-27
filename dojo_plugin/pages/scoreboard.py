@@ -6,14 +6,14 @@ from CTFd.models import Users, Solves, Challenges
 from CTFd.cache import cache
 from CTFd.utils.helpers import get_infos
 
-from ..utils import dojo_route
+from ..utils import dojo_route, dojo_by_id
 
 
 scoreboard = Blueprint("pwncollege_scoreboard", __name__)
 
 
 @cache.memoize(timeout=60)
-def get_stats():
+def get_stats(dojo_id):
     docker_client = docker.from_env()
     containers = docker_client.containers.list(filters=dict(name="user_"), ignore_removed=True)
     now = datetime.datetime.now()
@@ -27,7 +27,7 @@ def get_stats():
     return {
         "active": int(active),
         "users": int(Users.query.count()),
-        "challenges": int(Challenges.query.count()),
+        "challenges": int(Challenges.query.filter(dojo_by_id(dojo_id).challenges_query()).count()),
         "solves": int(Solves.query.count()),
     }
 
@@ -36,7 +36,7 @@ def get_stats():
 @dojo_route
 def listing(dojo):
     infos = get_infos()
-    stats = get_stats()
+    stats = get_stats(dojo.id)
 
     return render_template(
         "scoreboard.html",
