@@ -1,4 +1,5 @@
 {% set dojo_id = dojo.id if dojo else None %}
+{% set module_id = module.id if module else None %}
 
 <!DOCTYPE html>
 <html>
@@ -24,7 +25,8 @@
 	  'start': {{ Configs.start | tojson }},
 	  'end': {{ Configs.end | tojson }},
 	  'theme_settings': {{ Configs.theme_settings | tojson }},
-          'dojo_id': "{{ dojo_id }}"
+          'dojo_id': "{{ dojo_id }}",
+          'module_id': "{{ module_id }}"
       }
     </script>
     {{ Configs.theme_header }}
