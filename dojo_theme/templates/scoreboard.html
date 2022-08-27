@@ -35,28 +35,8 @@
     <a href="javascript:loadScoreboard('overall', 1)">All Time</a>
   </h2>
 
-  <div class="scoreboard row">
-    <div class="col-md-12 p-0">
-      <table class="table table-striped">
-	<thead>
-	  <tr>
-	    <td scope="col" class="col-md-1"><b>Rank</b></td>
-            <td scope="col" class="col-md-1"></td>
-	    <td scope="col" class="col-md-8"><b>Hacker</b></td>
-	    <td scope="col" class="col-md-1"></td>
-	    <td scope="col" class="col-md-1"><b>Score</b></td>
-	  </tr>
-	</thead>
-	<tbody id="scoreboard">
-	</tbody>
-      </table>
-    </div>
-    <div>
-      <ul id="scoreboard-pages" class="p-0">
-      </ul>
-    </div>
-  </div>
-
+  {% import "macros.html" as macros %}
+  {{ macros.scoreboard() }}
 </div>
 {% endblock %}
 
