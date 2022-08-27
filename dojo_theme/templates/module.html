@@ -229,6 +229,14 @@
     </div>
     {% endfor %}
   </div>
+
+  <br style="font-size: 3em">
+
+  <h2>Scoreboard</h2>
+  <p>This scoreboard reflects solves for challenges in this module after the module launched in this dojo.</p>
+  {% import "macros.html" as macros %}
+  {{ macros.scoreboard() }}
+
   {% endif %}
 
 </div>
@@ -236,4 +244,5 @@
 
 {% block scripts %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/challenges.js') }}"></script>
+<script defer onload='loadScoreboard("tracking", 1);' src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
 {% endblock %}
