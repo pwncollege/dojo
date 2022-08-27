@@ -15,7 +15,7 @@ from ..utils import get_current_challenge_id, dojo_route
 challenges = Blueprint("pwncollege_challenges", __name__)
 
 
-def solved_challenges(dojo, module=None):
+def solved_challenges(dojo, module):
     user = get_current_user()
     user_id = user.id if user else None
     solves = db.func.count(Solves.id).label("solves")
