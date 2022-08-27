@@ -64,8 +64,3 @@ function loadScoreboard(duration, page) {
         }
     });
 }
-
-
-$(function() {
-    loadScoreboard("semester", 1);
-});
