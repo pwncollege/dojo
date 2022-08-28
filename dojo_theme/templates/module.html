@@ -171,6 +171,10 @@
   {% if challenges %}
   <h2>Challenges</h2>
 
+  {% if module.time_assigned and module.time_assigned > utcnow %}
+  <p>Challenges will not appear until after the Assigned time above.</p>
+  {% endif %}
+
   <div class="accordion" id="challenges">
     {% for challenge in challenges %}
     {% set solved = "challenge-solved" if challenge.solved else "challenge-unsolved" %}

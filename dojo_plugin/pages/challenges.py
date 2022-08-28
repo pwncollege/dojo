@@ -103,7 +103,7 @@ def view_module(dojo, module):
     if assigned and due and not ec_part:
         ec_part = (assigned + (due-assigned)/4)
 
-    challenges = solved_challenges(dojo, module)
+    challenges = solved_challenges(dojo, module) if module_challenges_visible(dojo, module) else [ ]
     current_challenge_id = get_current_challenge_id()
 
     if get_current_user():
@@ -121,6 +121,7 @@ def view_module(dojo, module):
         "module.html",
         dojo=dojo,
         module=module,
+        utcnow=datetime.datetime.now(pytz.utc),
         render_markdown=render_markdown,
         ec_part=ec_part, ec_full=ec_full,
         challenges=challenges,
