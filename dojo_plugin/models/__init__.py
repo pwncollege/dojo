@@ -1,5 +1,6 @@
-import re
 import datetime
+import pytz
+import re
 
 import yaml
 from sqlalchemy.sql import or_, and_
@@ -60,15 +61,17 @@ class Dojos(db.Model):
                 return module
         return None
 
-    def challenges_query(self, module_id=None):
+    def challenges_query(self, module_id=None, include_unassigned=False):
         return or_(*(
-            and_(Challenges.category == module_challenge["category"],
-                 Challenges.name.in_(module_challenge["names"]))
-            if module_challenge.get("names") else
-            Challenges.category == module_challenge["category"]
-            for module in self.modules
-            if module_id is None or module["id"] == module_id
-            for module_challenge in module.get("challenges", [])
+            and_(
+                Challenges.category == module_challenge["category"],
+                Challenges.name.in_(module_challenge["names"])
+            ) if module_challenge.get("names") else (
+                Challenges.category == module_challenge["category"]
+            ) for module in self.modules if (
+                (module_id is None or module["id"] == module_id) and
+                (include_unassigned or "time_assigned" not in module or module["time_assigned"] < datetime.datetime.now(pytz.utc))
+            ) for module_challenge in module.get("challenges", [])
         ), False)
 
     @staticmethod
