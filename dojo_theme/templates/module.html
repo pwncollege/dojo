@@ -118,6 +118,11 @@
 
   <div class="accordion" id="resources">
     {% for resource in module.get("lectures", []) + module.get("resources", []) %}
+    {% if resource.header %}
+    <p><br>{{ resource.header }}</p>
+    {% endif %}
+
+    {% if resource.name %}
     <div class="card">
       <div class="card-header" id="resourceHeading{{ loop.index }}">
         <h2 class="mb-0">
@@ -162,6 +167,7 @@
         </div>
       </div>
     </div>
+    {% endif %}
     {% endfor %}
   </div>
 
