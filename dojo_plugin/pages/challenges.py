@@ -74,8 +74,8 @@ def listing(dojo):
         }
         stats[module["id"]]["active"] = (
             "time_assigned" in module and "time_due" in module and
-            module["time_assigned"] <= pytz.UTC.localize(datetime.datetime.now()) and
-            pytz.UTC.localize(datetime.datetime.now()) <= module["time_due"]
+            module["time_assigned"] <= datetime.datetime.now(pytz.utc) and
+            datetime.datetime.now(pytz.utc) <= module["time_due"]
         )
         # "hidden" controls the client-side CSS, and "hide" tells jinja2 to hide the module completely
         stats[module["id"]]["hidden"] = "time_visible" in module and module["time_visible"] >= datetime.datetime.now(pytz.utc)

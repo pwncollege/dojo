@@ -40,9 +40,9 @@ def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
     if span in [ None, 'overall', 'dojo' ]:
         start = None
     elif span == 'week':
-        start = pytz.UTC.localize(datetime.datetime.utcnow() - datetime.timedelta(days=7))
+        start = datetime.datetime.now(pytz.utc) - datetime.timedelta(days=7)
     elif span == 'month':
-        start = pytz.UTC.localize(datetime.datetime.utcnow() - datetime.timedelta(days=31))
+        start = datetime.datetime.now(pytz.utc) - datetime.timedelta(days=31)
     elif span == 'module':
         if not module_id:
             abort(500)
