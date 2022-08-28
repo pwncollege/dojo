@@ -92,7 +92,7 @@
   <br style="font-size: 3em">
   {% endif %}
 
-  {% if module.time_assigned %}
+  {% if authed() and module.time_assigned %}
   <h2>Grades</h2>
   <p>This is the grade you will get on this module (if you are an ASU student enrolled in the class).</p>
   <p>

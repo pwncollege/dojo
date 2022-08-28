@@ -103,10 +103,16 @@ def view_module(dojo, module):
     challenges = solved_challenges(dojo, module)
     current_challenge_id = get_current_challenge_id()
 
-    num_timely_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < due ]) if due else 0
-    num_late_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) >= due ]) if due else 0
-    num_full_ec_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_full ]) if ec_full else 0
-    num_part_ec_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_part ]) if ec_part else 0
+    if get_current_user():
+        num_timely_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < due ]) if due else 0
+        num_late_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) >= due ]) if due else 0
+        num_full_ec_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_full ]) if ec_full else 0
+        num_part_ec_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_part ]) if ec_part else 0
+    else:
+        num_timely_solves = 0
+        num_late_solves = 0
+        num_full_ec_solves = 0
+        num_part_ec_solves = 0
 
     return render_template(
         "module.html",
