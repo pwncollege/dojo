@@ -6,8 +6,9 @@ from flask import Blueprint, render_template, abort, redirect
 from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators.visibility import check_challenge_visibility
-from CTFd.utils.helpers import get_infos
+from CTFd.utils.helpers import get_infos, markup
 from CTFd.cache import cache
+from CTFd.utils.config.pages import build_markdown
 
 from sqlalchemy import String, DateTime
 from sqlalchemy.sql import and_, or_
@@ -108,10 +109,14 @@ def view_module(dojo, module):
     num_full_ec_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_full ]) if ec_full else 0
     num_part_ec_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_part ]) if ec_part else 0
 
+    def render_markdown(s):
+        return markup(build_markdown(s))
+
     return render_template(
         "module.html",
         dojo=dojo,
         module=module,
+        render_markdown=render_markdown,
         ec_part=ec_part, ec_full=ec_full,
         challenges=challenges,
         num_timely_solves=num_timely_solves,

@@ -155,8 +155,12 @@
 
       <div id="resource{{ loop.index }}" class="resource collapse" aria-labelledby="resourceHeading{{ loop.index }}" data-parent="#resources">
         <div class="card-body">
-          <div class="embed-responsive embed-responsive-16by9">
+          <div class="embed-responsive">
+            {% if resource.url %}
             <iframe src="{{ resource.url }}" title="Embedded Resource"></iframe>
+            {% elif resource.markdown %}
+            {{ render_markdown(resource.markdown) }}
+            {% endif %}
           </div>
         </div>
       </div>
