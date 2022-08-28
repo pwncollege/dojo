@@ -37,9 +37,9 @@
 
   <h2 class="row">Dojo Modules</h2>
   <ul class="card-list">
-    {% for module in dojo.modules %}
+    {% for module in dojo.modules if not stats[module.id].hide %}
     <a class="text-decoration-none mx-auto" href="{{ url_for('pwncollege_challenges.view_module', dojo=dojo.id, module=module.id) }}">
-      <li class="card card-small {% if stats[module.id].active %}card-active{% endif %}">
+      <li class="card card-small {% if stats[module.id].active %}card-active{% endif %} {% if stats[module.id].hidden %}card-hidden{% endif %}">
         <div class="card-body">
           <h4 class="card-title">{{ module.name }}</h4>
           <p class="card-text">

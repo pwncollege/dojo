@@ -139,6 +139,24 @@ def dojo_by_id(dojo_id):
     return dojo
 
 
+def module_visible(dojo, module):
+    user = get_current_user()
+    return (
+        "time_visible" not in module or
+        module["time_visible"] <= datetime.datetime.now(pytz.utc) or
+        is_admin() or (user and dojo.owner_id == user.id)
+    )
+
+
+def module_challenges_visible(dojo, module):
+    user = get_current_user()
+    return (
+        "time_assigned" not in module or
+        module["time_assigned"] <= datetime.datetime.now(pytz.utc) or
+        is_admin() or (user and dojo.owner_id == user.id)
+    )
+
+
 def dojo_route(func):
     signature = inspect.signature(func)
     @functools.wraps(func)
@@ -156,14 +174,7 @@ def dojo_route(func):
             module = bound_args.arguments["module"]
             if module is not None:
                 module = dojo.module_by_id(module)
-                if not module:
-                    abort(404)
-                if (
-                    "time_visible" in module and
-                    module["time_visible"] > pytz.UTC.localize(datetime.datetime.now()) and (
-                        get_current_user() is None or not (is_admin() or dojo.owner_id == get_current_user().id)
-                    )
-                ):
+                if not module or not module_visible(dojo, module):
                     abort(404)
 
             bound_args.arguments["module"] = module

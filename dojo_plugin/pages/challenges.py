@@ -12,7 +12,7 @@ from CTFd.cache import cache
 from sqlalchemy import String, DateTime
 from sqlalchemy.sql import and_, or_
 
-from ..utils import get_current_challenge_id, dojo_route, dojo_by_id, render_markdown
+from ..utils import get_current_challenge_id, dojo_route, dojo_by_id, render_markdown, module_visible, module_challenges_visible
 
 challenges = Blueprint("pwncollege_challenges", __name__)
 
@@ -77,6 +77,9 @@ def listing(dojo):
             module["time_assigned"] <= pytz.UTC.localize(datetime.datetime.now()) and
             pytz.UTC.localize(datetime.datetime.now()) <= module["time_due"]
         )
+        # "hidden" controls the client-side CSS, and "hide" tells jinja2 to hide the module completely
+        stats[module["id"]]["hidden"] = "time_visible" in module and module["time_visible"] >= datetime.datetime.now(pytz.utc)
+        stats[module["id"]]["hide"] = not module_visible(dojo, module)
 
     return render_template(
         "challenges.html",
