@@ -177,7 +177,7 @@ function startChallenge(event) {
 
 
 $(() => {
-    $(".lecture").on("show.bs.collapse", function (event) {
+    $(".resource").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
             if ($(iframe).prop("src"))
                 return;

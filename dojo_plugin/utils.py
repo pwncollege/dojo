@@ -15,6 +15,8 @@ from sqlalchemy.sql import or_, and_
 from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
+from CTFd.utils.helpers import markup
+from CTFd.utils.config.pages import build_markdown
 
 from .models import Dojos, DojoMembers
 
@@ -68,6 +70,9 @@ def redirect_user_socket(user, socket_path, url_path):
     response.headers["X-Accel-Redirect"] = "/internal/"
     response.headers["redirect_uri"] = redirect_uri
     return response
+
+def render_markdown(s):
+    return markup(build_markdown(s))
 
 def unserialize_user_flag(user_flag, *, secret=None):
     if secret is None:

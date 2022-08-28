@@ -113,37 +113,11 @@
   <br style="font-size: 3em">
   {% endif %}
 
-  {% if module.lectures %}
+  {% if module.lectures or module.resources%}
   <h2>Lectures and Reading</h2>
 
-  <div class="accordion" id="lectures">
-    {% for lecture in module.lectures %}
-    <div class="card">
-      <div class="card-header" id="lectureHeading{{ loop.index }}">
-        <h2 class="mb-0">
-          <button class="btn btn-link text-decoration-none collapsed" type="button" data-toggle="collapse" data-target="#lecture{{ loop.index }}" aria-expanded="false" aria-controls="lecture{{ loop.index }}">
-            <h4>{{ lecture.name }}</h4>
-          </button>
-        </h2>
-      </div>
-
-      <div id="lecture{{ loop.index }}" class="lecture collapse" aria-labelledby="lectureHeading{{ loop.index }}" data-parent="#lectures">
-        <div class="card-body">
-          <div class="embed-responsive embed-responsive-16by9">
-            <iframe class="embed-responsive-item" data-src="https://www.youtube.com/embed/{{ lecture.video }}?list={{ lecture.playlist }}&rel=0" title="YouTube video player" allowfullscreen></iframe>
-          </div>
-          <br>
-          <div class="embed-responsive embed-responsive-16by9">
-            <iframe class="embed-responsive-item" data-src="https://docs.google.com/presentation/d/{{ lecture.slides }}/embed"></iframe>
-          </div>
-        </div>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-
   <div class="accordion" id="resources">
-    {% for resource in module.resources %}
+    {% for resource in module.get("lectures", []) + module.get("resources", []) %}
     <div class="card">
       <div class="card-header" id="resourceHeading{{ loop.index }}">
         <h2 class="mb-0">
@@ -155,13 +129,36 @@
 
       <div id="resource{{ loop.index }}" class="resource collapse" aria-labelledby="resourceHeading{{ loop.index }}" data-parent="#resources">
         <div class="card-body">
-          <div class="embed-responsive">
-            {% if resource.url %}
-            <iframe src="{{ resource.url }}" title="Embedded Resource"></iframe>
-            {% elif resource.markdown %}
-            {{ render_markdown(resource.markdown) }}
-            {% endif %}
+          {% set makebr = 0 %}
+
+          {% if resource.video %}
+          {% if makebr %}<br>{% endif %} {% set makebr = 1 %}
+          <div class="embed-responsive embed-responsive-16by9">
+            <iframe class="embed-responsive-item" data-src="https://www.youtube.com/embed/{{ resource.video }}?list={{ resource.playlist }}&rel=0" title="YouTube video player" allowfullscreen></iframe>
           </div>
+          {% endif %}
+
+          {% if resource.slides %}
+          {% if makebr %}<br>{% endif %} {% set makebr = 1 %}
+          <div class="embed-responsive embed-responsive-16by9">
+            <iframe class="embed-responsive-item" data-src="https://docs.google.com/presentation/d/{{ resource.slides }}/embed"></iframe>
+          </div>
+          {% endif %}
+
+          {% if resource.iframe %}
+          {% if makebr %}<br>{% endif %} {% set makebr = 1 %}
+          <div class="embed-responsive embed-responsive-16by9">
+            <iframe data-src="{{ resource.iframe }}" title="Embedded Resource"></iframe>
+          </div>
+          {% endif %}
+
+          {% if resource.markdown %}
+          {% if makebr %}<br>{% endif %} {% set makebr = 1 %}
+          <div class="embed-responsive">
+            {{ render_markdown(resource.markdown) }}
+          </div>
+          {% endif %}
+
         </div>
       </div>
     </div>
