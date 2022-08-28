@@ -1,19 +1,21 @@
-import os
-import re
-import pathlib
+import contextlib
+import functools
 import tempfile
+import datetime
+import pathlib
 import tarfile
 import hashlib
-import functools
 import inspect
-import contextlib
+import pytz
+import os
+import re
 
 import docker
 from flask import current_app, Response, abort
 from itsdangerous.url_safe import URLSafeSerializer
 from sqlalchemy.sql import or_, and_
 from CTFd.models import db, Solves, Challenges, Users
-from CTFd.utils.user import get_current_user
+from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.modes import get_model
 from CTFd.utils.helpers import markup
 from CTFd.utils.config.pages import build_markdown
@@ -156,6 +158,14 @@ def dojo_route(func):
                 module = dojo.module_by_id(module)
                 if not module:
                     abort(404)
+                if (
+                    "time_visible" in module and
+                    module["time_visible"] > pytz.UTC.localize(datetime.datetime.now()) and (
+                        get_current_user() is None or not (is_admin() or dojo.owner_id == get_current_user().id)
+                    )
+                ):
+                    abort(404)
+
             bound_args.arguments["module"] = module
 
         return func(*bound_args.args, **bound_args.kwargs)
