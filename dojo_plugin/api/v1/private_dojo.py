@@ -89,7 +89,7 @@ class DojoSolves(Resource):
     @authed_only
     def get(self):
         user = get_current_user()
-        dojo_id = user.id
+        dojo_id = f"private-{user.id}"
 
         Model = get_model()
         fields = {
