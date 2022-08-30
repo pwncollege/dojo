@@ -86,6 +86,7 @@ def listing(dojo):
         dojo=dojo,
         stats=stats,
         infos=infos,
+        render_markdown=render_markdown,
     )
 
 

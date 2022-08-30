@@ -19,6 +19,10 @@
 </div>
 <div class="container">
   {% include "components/errors.html" %}
+  {% if dojo.description %}
+  <p>{{ render_markdown(dojo.description) }}</p>
+  <br style="font-size: 3em">
+  {% endif %}
 
   <h2 class="row">Dojo Stats</h2>
   <div class="row">

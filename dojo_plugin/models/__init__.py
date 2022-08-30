@@ -52,6 +52,10 @@ class Dojos(db.Model):
         return self.config.get("name", "")
 
     @property
+    def description(self):
+        return self.config.get("description", "")
+
+    @property
     def modules(self):
         return self.config.get("modules", [])
 
