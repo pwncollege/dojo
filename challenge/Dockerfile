@@ -182,7 +182,8 @@ RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
 
 # GUI apps (should probably use no-recommends or whatnot)
-RUN apt-get install -y tigervnc-standalone-server \
+RUN apt-get update && \
+    apt-get install -y tigervnc-standalone-server \
                        novnc \
                        websockify \
                        xfce4 \
