@@ -31,7 +31,10 @@ def solved_challenges(dojo, module):
     )
     challenges = (
         db.session.query(Challenges.id, Challenges.name, Challenges.category, solves, solve_date, solved)
-        .filter(Challenges.state == "visible", dojo.challenges_query(module["id"]))
+        .filter(
+            Challenges.state == "visible",
+            dojo.challenges_query(module["id"], include_unassigned=module_challenges_visible(dojo, module))
+        )
         .outerjoin(Solves, solve_filter)
         .group_by(Challenges.id)
     ).all()
