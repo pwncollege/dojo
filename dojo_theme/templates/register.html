@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block stylesheets %}
+{% endblock %}
+
+{% block content %}
+<div class="jumbotron">
+	<div class="container">
+		<h1>Register</h1>
+	</div>
+</div>
+<div class="container">
+	<div class="row">
+		<div class="col-md-6 offset-md-3">
+			{% include "components/errors.html" %}
+
+			<h2>Ground Rules</h2>
+			<p>When using this platform, please keep several ground rules in mind!</p>
+			<h3>Writeups</h3>
+			<p>The challenges created for pwn.college are educational material, and are used to grade students at Arizona State University.
+      Because of this, we would appreciate that writeups, walkthrough videos, and livestreams of challenge solutions are not posted to the internet.
+      Obviously, we can't stop you from posting things to the internet, but we worked hard to make all of this public, and we would appreciate your help in keeping pwn.college a viable educational platform.</p>
+      <h3>Bug Bounties</h3>
+      <p>Even master hackers have vulnerabilities in their software!
+      If you find a vulnerability in this platform, please <a href="mailto:pwn-college@asu.edu">email</a> us rather than pwn us.
+      We'll appreciate it, and you'll get extra credit (if you're an ASU student) or an awesome scoreboard award!</p>
+
+      <h2>Sign Up!</h2>
+			{% with form = Forms.auth.RegistrationForm() %}
+			{% from "macros/forms.html" import render_extra_fields %}
+			<form method="post" accept-charset="utf-8" autocomplete="off" role="form">
+				<div class="form-group">
+					<b>{{ form.name.label }}</b>
+					{{ form.name(class="form-control", value=name) }}
+					<small class="form-text text-muted">
+						Your username on the site
+					</small>
+				</div>
+				<div class="form-group">
+					<b>{{ form.email.label }}</b>
+					{{ form.email(class="form-control", value=email) }}
+					<small class="form-text text-muted">
+						Never shown to the public
+					</small>
+				</div>
+				<div class="form-group">
+					<b>{{ form.password.label }}</b>
+					{{ form.password(class="form-control", value=password) }}
+					<small class="form-text text-muted">
+						Password used to log into your account
+					</small>
+				</div>
+				{{ form.nonce() }}
+
+				{{ render_extra_fields(form.extra) }}
+
+				<div class="row pt-3">
+					<div class="col-md-12">
+						{{ form.submit(class="btn btn-md btn-primary btn-outlined float-right") }}
+					</div>
+				</div>
+
+				{% if Configs.tos_or_privacy %}
+				<div class="row pt-3">
+					<div class="col-md-12 text-center">
+						<small class="text-muted text-center">
+							By registering, you agree to the
+							<a href="{{ Configs.privacy_link }}" rel="noopener" target="_blank">privacy policy</a>
+							and <a href="{{ Configs.tos_link }}" rel="noopener" target="_blank">terms of service</a>
+						</small>
+					</div>
+				</div>
+				{% endif %}
+			</form>
+			{% endwith %}
+		</div>
+	</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}
