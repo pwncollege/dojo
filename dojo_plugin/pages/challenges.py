@@ -61,7 +61,7 @@ def get_stats(dojo_id):
 
     return {
         "active": int(active),
-        "users": int(Users.query.count()),
+        "users": int(Users.query.join(Solves, Solves.user_id == Users.id).join(Challenges, Solves.challenge_id == Challenges.id).filter(challenge_query, time_query).group_by(Users.id).count()),
         "challenges": int(Challenges.query.filter(challenge_query, Challenges.state == "visible").count()),
         "solves": int(Solves.query.join(Challenges, Solves.challenge_id == Challenges.id).filter(challenge_query, time_query).count()),
     }
