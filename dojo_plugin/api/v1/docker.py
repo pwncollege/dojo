@@ -19,7 +19,7 @@ docker_namespace = Namespace(
 )
 
 
-def start_challenge(user, challenge, practice):
+def start_challenge(user, dojo, challenge, practice):
     def exec_run(cmd, *, shell=False, assert_success=True, user="root", **kwargs):
         if shell:
             cmd = f"""/bin/sh -c \"
@@ -53,7 +53,7 @@ def start_challenge(user, challenge, practice):
                 check=True,
             )
 
-    def start_container(user, challenge, practice):
+    def start_container(user, dojo, challenge, practice):
         docker_client = docker.from_env()
         try:
             container_name = f"user_{user.id}"
@@ -79,6 +79,7 @@ def start_challenge(user, challenge, practice):
             user="hacker",
             working_dir="/home/hacker",
             environment={
+                "DOJO_ID": str(dojo.id),
                 "CHALLENGE_ID": str(challenge.id),
                 "CHALLENGE_NAME": challenge_name,
                 "PRACTICE": str(bool(practice)),
@@ -167,7 +168,7 @@ def start_challenge(user, challenge, practice):
 
     setup_home(user)
 
-    container = start_container(user, challenge, practice)
+    container = start_container(user, dojo, challenge, practice)
 
     verify_nosuid_home()
 
@@ -211,7 +212,7 @@ class RunDocker(Resource):
         user = get_current_user()
 
         try:
-            start_challenge(user, challenge, practice)
+            start_challenge(user, dojo, challenge, practice)
         except RuntimeError as e:
             print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
             return {"success": False, "error": str(e)}
