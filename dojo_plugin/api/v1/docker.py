@@ -11,7 +11,7 @@ from CTFd.utils.decorators import authed_only
 
 from ...config import HOST_DATA_PATH
 from ...models import DojoChallenges
-from ...utils import get_current_challenge_id, serialize_user_flag, challenge_paths, simple_tar, random_home_path, SECCOMP
+from ...utils import get_current_challenge_id, serialize_user_flag, challenge_paths, simple_tar, random_home_path, SECCOMP, dojo_by_id, is_dojo_admin
 
 
 docker_namespace = Namespace(
@@ -188,14 +188,23 @@ class RunDocker(Resource):
     def post(self):
         data = request.get_json()
         challenge_id = data.get("challenge_id")
+        dojo_id = data.get("dojo_id")
         practice = data.get("practice")
+
+        dojo = dojo_by_id(dojo_id)
+        if not dojo:
+            return {"success": False, "error": "Invalid dojo"}
 
         try:
             challenge_id = int(challenge_id)
         except (ValueError, TypeError):
             return {"success": False, "error": "Invalid challenge id"}
 
-        challenge = DojoChallenges.query.filter_by(id=challenge_id).first()
+        challenge = DojoChallenges.query.filter(
+            dojo.challenges_query(include_unassigned=is_dojo_admin(get_current_user(), dojo))
+        ).filter_by(
+            id=challenge_id
+        ).first()
         if not challenge:
             return {"success": False, "error": "Invalid challenge"}
 
