@@ -113,6 +113,7 @@ function startChallenge(event) {
     card.find("#challenge-practice").prop("disabled", true);
 
     var params = {
+        'dojo_id': init.dojo_id,
         'challenge_id': challenge_id,
         'practice': practice,
     };
