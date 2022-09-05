@@ -28,6 +28,10 @@
   <p>These are the stats of this specific dojo ({{dojo.name}}), accrued since the dojo's creation.</p>
   <div class="row">
     <p>
+      {% if dojo.config.time_created %}
+      <b>Created On:</b> <code>{{ dojo.config["time_created"].strftime("%B %-d, %Y") }}</code>
+      <br>
+      {% endif %}
       <b>Hacking Now:</b> <code>{{ stats["active"] }}</code>
       <br>
       <b>Hackers:</b> <code>{{ stats["users"] }}</code>
