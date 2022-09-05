@@ -47,6 +47,9 @@ def get_stats(dojo_id):
     now = datetime.datetime.now()
     active = 0.0
     for container in containers:
+        if not any(e == f"DOJO_ID={dojo_id}" for e in container.attrs['Config']['Env']):
+            continue
+
         created = container.attrs["Created"].split(".")[0]
         uptime = now - datetime.datetime.fromisoformat(created)
         hours = max(uptime.seconds // (60 * 60), 1)
