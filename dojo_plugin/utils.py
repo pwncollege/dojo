@@ -140,21 +140,23 @@ def dojo_by_id(dojo_id):
 
 
 def module_visible(dojo, module):
-    user = get_current_user()
     return (
         "time_visible" not in module or
         module["time_visible"] <= datetime.datetime.now(pytz.utc) or
-        is_admin() or (user and dojo.owner_id == user.id)
+        is_dojo_admin(get_current_user(), dojo)
     )
 
 
 def module_challenges_visible(dojo, module):
-    user = get_current_user()
     return (
         "time_assigned" not in module or
         module["time_assigned"] <= datetime.datetime.now(pytz.utc) or
-        is_admin() or (user and dojo.owner_id == user.id)
+        is_dojo_admin(get_current_user(), dojo)
     )
+
+
+def is_dojo_admin(user, dojo):
+    return is_admin() or (user and dojo.owner_id == user.id)
 
 
 def dojo_route(func):
