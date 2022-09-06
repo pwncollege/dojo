@@ -58,7 +58,7 @@ def start_challenge(user, dojo, challenge, practice):
         try:
             container_name = f"user_{user.id}"
             container = docker_client.containers.get(container_name)
-            container.kill()
+            container.remove(force=True)
             container.wait(condition="removed")
         except docker.errors.NotFound:
             pass
@@ -107,8 +107,6 @@ def start_challenge(user, dojo, challenge, practice):
             pids_limit=1024,
             mem_limit="4000m",
             detach=True,
-            tty=True,
-            stdin_open=True,
             remove=True,
         )
 
@@ -160,7 +158,7 @@ def start_challenge(user, dojo, challenge, practice):
         )
         exec_run(
             """
-            /opt/pwn.college/docker-entrypoint.sh
+            /opt/pwn.college/docker-entrypoint.sh &
             """,
             shell=True,
             user="hacker"
