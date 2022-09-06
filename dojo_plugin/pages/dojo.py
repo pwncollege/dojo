@@ -14,7 +14,7 @@ from sqlalchemy.sql import and_, or_
 
 from ..utils import get_current_challenge_id, dojo_route, dojo_by_id, render_markdown, module_visible, module_challenges_visible
 
-challenges = Blueprint("pwncollege_challenges", __name__)
+dojo = Blueprint("pwncollege_dojo", __name__)
 
 
 def solved_challenges(dojo, module):
@@ -66,7 +66,7 @@ def get_stats(dojo_id):
         "solves": int(Solves.query.join(Challenges, Solves.challenge_id == Challenges.id).filter(challenge_query, time_query).count()),
     }
 
-@challenges.route("/<dojo>/challenges")
+@dojo.route("/<dojo>/")
 @dojo_route
 @check_challenge_visibility
 def listing(dojo):
@@ -88,7 +88,7 @@ def listing(dojo):
         stats[module["id"]]["hide"] = not module_visible(dojo, module)
 
     return render_template(
-        "challenges.html",
+        "dojo.html",
         dojo=dojo,
         stats=stats,
         infos=infos,
@@ -96,7 +96,7 @@ def listing(dojo):
     )
 
 
-@challenges.route("/<dojo>/challenges/<module>")
+@dojo.route("/<dojo>/<module>")
 @dojo_route
 @check_challenge_visibility
 def view_module(dojo, module):
@@ -139,7 +139,14 @@ def view_module(dojo, module):
         current_challenge_id=current_challenge_id
     )
 
-@challenges.route("/<dojo>/scoreboard")
+@dojo.route("/<dojo>/scoreboard")
 def redirect_scoreboard(dojo):
-    return redirect(f"/{dojo}/challenges", code=302)
+    return redirect(f"/{dojo}/", code=302)
 
+@dojo.route("/<dojo>/challenges")
+def redirect_challenges(dojo):
+    return redirect(f"/{dojo}/", code=302)
+
+@dojo.route("/<dojo>/challenges/<module>")
+def redirect_module(dojo, module):
+    return redirect(f"/{dojo}/{module}", code=302)

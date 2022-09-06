@@ -17,7 +17,7 @@ from .config import bootstrap
 from .models import DojoChallenges
 from .utils import unserialize_user_flag
 from .pages.dojos import dojos, dojos_override
-from .pages.challenges import challenges
+from .pages.dojo import dojo
 from .pages.workspace import workspace
 from .pages.desktop import desktop
 from .pages.settings import settings_override
@@ -90,11 +90,11 @@ def load(app):
     FLAG_CLASSES["dojo"] = DojoFlag
 
     app.view_functions["views.settings"] = settings_override
-    app.view_functions["challenges.listing"] = dojos_override
+    app.view_functions["dojo.listing"] = dojos_override
     del app.view_functions["scoreboard.listing"]
 
     app.register_blueprint(dojos)
-    app.register_blueprint(challenges)
+    app.register_blueprint(dojo)
     app.register_blueprint(workspace)
     app.register_blueprint(desktop)
     app.register_blueprint(discord)
