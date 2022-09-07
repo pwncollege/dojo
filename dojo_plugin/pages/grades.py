@@ -251,7 +251,11 @@ def compute_grades(user_id, when=None):
 @dojo_route
 @authed_only
 def view_grades(dojo, user_id=None):
-    user = Users.query.filter_by(id=user_id).first() if user_id else get_current_user()
+    if not user_id or not is_admin():
+        user = get_current_user()
+    else:
+        user = Users.query.filter_by(id=user_id).first()
+
     when = request.args.get("when", None)
     if when:
         when = pytz.UTC.localize(datetime.datetime.fromtimestamp(int(when)))
