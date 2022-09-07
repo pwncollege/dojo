@@ -46,7 +46,7 @@
             <td>{{ report.total_challenges }}</td>
             <td>{% if report.earned_part_ec %}&#10004;{% endif %}</td>
             <td>{% if report.earned_full_ec %}&#10004;{% endif %}</td>
-            <td>{{ report.module_grade }}%</td>
+            <td>{{ report.module_grade|round(2) }}%</td>
           </tr>
           {% endfor %}
         </tbody>
