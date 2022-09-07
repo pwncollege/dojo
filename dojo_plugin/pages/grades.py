@@ -86,8 +86,8 @@ def module_grade_report(dojo, module, user, when=None):
     m['module_grade'] = 0
 
     if m['total_challenges'] and assigned and user:
-        m['solved_timely'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < due ])
-        m['solved_late'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) >= due ])
+        m['solved_timely'] = len([ c for c in challenges if c.solved and ( not due or pytz.UTC.localize(c.solve_date) < due) ])
+        m['solved_late'] = len([ c for c in challenges if c.solved and due and pytz.UTC.localize(c.solve_date) >= due ])
         m['module_grade'] = 100 * (m['solved_timely'] + m['solved_late']*(1-m['late_penalty'])) / len(challenges)
 
         if ec_part:
