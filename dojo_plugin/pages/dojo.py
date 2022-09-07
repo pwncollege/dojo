@@ -2,43 +2,18 @@ import datetime
 import docker
 import pytz
 
-from flask import Blueprint, render_template, abort, redirect
-from CTFd.models import db, Solves, Challenges, Users
+from flask import Blueprint, render_template, redirect
+from CTFd.models import Solves, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators.visibility import check_challenge_visibility
 from CTFd.utils.helpers import get_infos
 from CTFd.cache import cache
 
-from sqlalchemy import String, DateTime
-from sqlalchemy.sql import and_, or_
-
-from ..utils import get_current_challenge_id, dojo_route, dojo_by_id, render_markdown, module_visible, module_challenges_visible
+from ..utils import get_current_challenge_id, dojo_route, dojo_by_id, render_markdown, module_visible, module_challenges_visible, solved_challenges
+from .grades import module_grade_report
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 
-
-def solved_challenges(dojo, module):
-    user = get_current_user()
-    user_id = user.id if user else None
-    solves = db.func.count(Solves.id).label("solves")
-    solved = db.func.max(Solves.user_id == user_id).label("solved")
-    solve_date = db.func.substr(
-        db.func.max((Solves.user_id == user_id).cast(String)+Solves.date.cast(String)),
-        2, 1000
-    ).cast(DateTime).label("solve_date")
-    solve_filter = (Solves.challenge_id == Challenges.id) if "time_assigned" not in module else and_(
-        Solves.challenge_id == Challenges.id, or_(Solves.date >= module["time_assigned"], Solves.user_id == user_id)
-    )
-    challenges = (
-        db.session.query(Challenges.id, Challenges.name, Challenges.category, solves, solve_date, solved)
-        .filter(
-            Challenges.state == "visible",
-            dojo.challenges_query(module["id"], include_unassigned=module_challenges_visible(dojo, module))
-        )
-        .outerjoin(Solves, solve_filter)
-        .group_by(Challenges.id)
-    ).all()
-    return challenges
 
 @cache.memoize(timeout=60)
 def get_stats(dojo_id):
@@ -73,7 +48,7 @@ def listing(dojo):
     infos = get_infos()
     stats = get_stats(dojo.id)
     for module in dojo.modules:
-        challenges = solved_challenges(dojo, module)
+        challenges = solved_challenges(dojo, module, get_current_user())
         stats[module["id"]] = {
             "count": len(challenges),
             "solved": sum(1 for challenge in challenges if challenge.solved),

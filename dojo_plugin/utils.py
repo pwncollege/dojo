@@ -21,6 +21,8 @@ from CTFd.utils.helpers import markup
 from CTFd.utils.config.pages import build_markdown
 
 from .models import Dojos, DojoMembers
+from sqlalchemy import String, DateTime
+from sqlalchemy.sql import and_, or_
 
 
 CHALLENGES_DIR = pathlib.Path("/var/challenges")
@@ -216,6 +218,39 @@ def dojo_standings(dojo_id, fields=None, module_id=None):
     )
 
     return standings_query
+
+
+def solved_challenges(dojo, module, user, when=None):
+    """
+    Get all active challenges of a dojo, adding a '.solved' and 'solve_date' with data about
+    challenges solved by the provided user.
+    """
+    user_id = user.id if user else None
+    solves = db.func.count(Solves.id).label("solves")
+    solved = db.func.max(Solves.user_id == user_id).label("solved")
+    solve_date = db.func.substr(
+        db.func.max((Solves.user_id == user_id).cast(String)+Solves.date.cast(String)),
+        2, 1000
+    ).cast(DateTime).label("solve_date")
+
+    solve_filters = [ Solves.challenge_id == Challenges.id ]
+    if "time_assigned" in module:
+        solve_filters.append(or_(Solves.date >= module["time_assigned"], Solves.user_id == user_id))
+    if when:
+        solve_filters.append(Solves.date <= when)
+
+    challenges = (
+        db.session.query(Challenges.id, Challenges.name, Challenges.category, solves, solve_date, solved)
+        .filter(
+            Challenges.state == "visible",
+            dojo.challenges_query(module["id"], include_unassigned=module_challenges_visible(dojo, module, user))
+        )
+        .outerjoin(Solves, and_(*solve_filters))
+        .group_by(Challenges.id)
+    ).all()
+    return challenges
+
+
 
 
 def belt_challenges():
