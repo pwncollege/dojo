@@ -141,11 +141,11 @@ def dojo_by_id(dojo_id):
     return dojo
 
 
-def module_visible(dojo, module):
+def module_visible(dojo, module, user):
     return (
         "time_visible" not in module or
         module["time_visible"] <= datetime.datetime.now(pytz.utc) or
-        is_dojo_admin(get_current_user(), dojo)
+        is_dojo_admin(user, dojo)
     )
 
 
@@ -178,7 +178,7 @@ def dojo_route(func):
             module = bound_args.arguments["module"]
             if module is not None:
                 module = dojo.module_by_id(module)
-                if not module or not module_visible(dojo, module):
+                if not module or not module_visible(dojo, module, get_current_user()):
                     abort(404)
 
             bound_args.arguments["module"] = module

@@ -47,8 +47,9 @@ def get_stats(dojo_id):
 def listing(dojo):
     infos = get_infos()
     stats = get_stats(dojo.id)
+    user = get_current_user()
     for module in dojo.modules:
-        challenges = solved_challenges(dojo, module, get_current_user())
+        challenges = solved_challenges(dojo, module, user)
         stats[module["id"]] = {
             "count": len(challenges),
             "solved": sum(1 for challenge in challenges if challenge.solved),
@@ -60,7 +61,7 @@ def listing(dojo):
         )
         # "hidden" controls the client-side CSS, and "hide" tells jinja2 to hide the module completely
         stats[module["id"]]["hidden"] = "time_visible" in module and module["time_visible"] >= datetime.datetime.now(pytz.utc)
-        stats[module["id"]]["hide"] = not module_visible(dojo, module)
+        stats[module["id"]]["hide"] = not module_visible(dojo, module, user)
 
     return render_template(
         "dojo.html",
