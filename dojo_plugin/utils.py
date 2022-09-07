@@ -106,9 +106,10 @@ def challenge_paths(user, challenge, *, secret=None):
         if not (option.name.startswith(".") or option.name.startswith("_"))
     )
 
-    option_hash = hashlib.sha256(f"{secret}_{user.id}_{challenge.id}".encode()).digest()
-    option = options[int.from_bytes(option_hash[:8], "little") % len(options)]
-    yield from option.iterdir()
+    if options:
+        option_hash = hashlib.sha256(f"{secret}_{user.id}_{challenge.id}".encode()).digest()
+        option = options[int.from_bytes(option_hash[:8], "little") % len(options)]
+        yield from option.iterdir()
 
 
 def simple_tar(path, name=None):
