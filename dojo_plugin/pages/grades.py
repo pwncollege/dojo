@@ -1,3 +1,4 @@
+import statistics
 import datetime
 import pytz
 import math
@@ -14,7 +15,7 @@ from ..models import DiscordUsers
 # from ..utils import active_dojo_id, dojo_modules
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 from .discord import discord_reputation
-from ..utils import solved_challenges
+from ..utils import solved_challenges, module_visible, module_challenges_visible, dojo_route
 
 
 grades = Blueprint("grades", __name__)
@@ -67,8 +68,11 @@ def module_grade_report(dojo, module, user, when=None):
     if assigned and due and not ec_part:
         ec_part = (assigned + (due-assigned)/4)
 
+    m['name'] = module['name']
     m['total_challenges'] = len(challenges)
     m['late_penalty'] = module.get('late_penalty', module.get('late', 0.5))
+    m['time_assigned'] = assigned
+    m['time_due'] = due
     m['time_ec_part'] = ec_part
     m['time_ec_full'] = ec_full
 
@@ -78,9 +82,10 @@ def module_grade_report(dojo, module, user, when=None):
     m['earned_part_ec'] = 0
     m['solved_full_ec'] = 0
     m['earned_full_ec'] = 0
+    m['early_bird_ec'] = 0
     m['module_grade'] = 0
 
-    if user:
+    if m['total_challenges'] and user:
         m['solved_timely'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < due ])
         m['solved_late'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) >= due ])
         m['module_grade'] = 100 * (m['solved_timely'] + m['solved_late']*(1-m['late_penalty'])) / len(challenges)
@@ -91,6 +96,7 @@ def module_grade_report(dojo, module, user, when=None):
         if ec_full:
             m['solved_full_ec'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_full ])
             m['earned_full_ec'] = (m['solved_full_ec'] >= len(challenges) // 2)
+        m['early_bird_ec'] = 1.0 if m['earned_full_ec'] else 0.5 if m['earned_part_ec'] else 0
 
     return m
 
@@ -240,26 +246,45 @@ def compute_grades(user_id, when=None):
     return grades
 
 
-@grades.route("/grades", methods=["GET"])
+@grades.route("/<dojo>/grades", methods=["GET"])
+@grades.route("/<dojo>/grades/<int:user_id>", methods=["GET"])
+@dojo_route
 @authed_only
-def view_grades():
-    user_id = get_current_user().id
-    if request.args.get("id") and is_admin():
-        try:
-            user_id = int(request.args.get("id"))
-        except ValueError:
-            pass
-
-    when = request.args.get("when")
+def view_grades(dojo, user_id=None):
+    user = Users.query.filter_by(id=user_id).first() if user_id else get_current_user()
+    when = request.args.get("when", None)
     if when:
-        when = datetime.datetime.fromtimestamp(int(when))
+        when = pytz.UTC.localize(datetime.datetime.fromtimestamp(int(when)))
 
-    grades = compute_grades(user_id, when)
+    reports = [ ]
+    for module in dojo.modules:
+        if not module_visible(dojo, module, user) or not module_challenges_visible(dojo, module, user):
+            continue
+        r = module_grade_report(dojo, module, user, when=when)
+        if not r['total_challenges']:
+            continue
+        if when and r['time_assigned'] > when:
+            continue
+        reports.append(r)
 
-    for grade in grades:
-        grade["grade"] = f'{grade["grade"] * 100.0:.2f}%'
+    module_average = statistics.mean(r["module_grade"] for r in reports)
+    part_ec = sum((0.5 if r["earned_part_ec"] else 0) for r in reports)
+    full_ec = sum((1.0 if r["earned_full_ec"] else 0) for r in reports)
+    ctf_ec = 0
+    bug_ec = 0
+    meme_ec = 0
+    help_ec = 0
+    total_grade = module_average + part_ec + full_ec + ctf_ec + bug_ec + meme_ec + help_ec
 
-    return render_template("grades.html", grades=grades)
+    return render_template(
+        "grades.html",
+        module_reports=reports,
+        module_average=module_average,
+        part_ec=part_ec, full_ec=full_ec,
+        ctf_ec=ctf_ec, bug_ec=bug_ec,
+        help_ec=help_ec, meme_ec=meme_ec,
+        total_grade=total_grade
+    )
 
 
 @grades.route("/admin/grades", methods=["GET"])

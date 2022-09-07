@@ -7,24 +7,46 @@
   </div>
 </div>
 <div class="container">
+  <p>You currently have a {{ total_grade|round(2) }}% in the class.</p>
+  <h2>Overall Grade</h2>
+  <p>
+  <b>Module Average:</b> {{ module_average|round(2) }}%<br>
+  <b>Total Partial Early Bird Extra Credit:</b> {{ part_ec|round(2) }}%<br>
+  <b>Total Full Early Bird Extra Credit:</b> {{ full_ec|round(2) }}%<br>
+  <b>Total Meme Extra Credit:</b> TODO<br>
+  <b>Total Helpfulness Extra Credit:</b> TODO<br>
+  <b>Total CTF Extra Credit:</b> {{ ctf_ec }}%<br>
+  <b>Total Bug Bounty Extra Credit:</b> {{ bug_ec }}%
+  </p>
+  <hr>
+  <p><b>Total Grade:</b> {{ total_grade|round(2) }}%</p>
+  <h2>Individual Module Grades</h2>
   <div id="grades" class="row">
     <div class="col-md-12">
       <table class="table table-striped">
         <thead>
           <tr>
-            <td scope="col"><b>Category</b></td>
+            <td scope="col"><b>Module</b></td>
             <td scope="col"><b>Due</b></td>
-            <td scope="col"><b>Solves</b></td>
-            <td scope="col"><b>Grade</b></td>
+            <td scope="col"><b>On-Time Solves</b></td>
+            <td scope="col"><b>Late Solves</b></td>
+            <td scope="col"><b>Total Challenges</b></td>
+            <td scope="col"><b>Partial Early Bird</b></td>
+            <td scope="col"><b>Full Early Bird</b></td>
+            <td scope="col"><b>Module Grade</b></td>
           </tr>
         </thead>
         <tbody>
-          {% for grade in grades %}
+          {% for report in module_reports %}
           <tr>
-            <td>{{ grade.category }}</td>
-            <td>{{ grade.due }}</td>
-            <td>{{ grade.solves }}</td>
-            <td>{{ grade.grade }}</td>
+            <td>{{ report.name }}</td>
+            <td>{{ report.time_due.strftime("%Y/%-m/%-d %-I:%M%P") }}</td>
+            <td>{{ report.solved_timely }}</td>
+            <td>{{ report.solved_late }}</td>
+            <td>{{ report.total_challenges }}</td>
+            <td>{% if report.earned_part_ec %}&#10004;{% endif %}</td>
+            <td>{% if report.earned_full_ec %}&#10004;{% endif %}</td>
+            <td>{{ report.module_grade }}%</td>
           </tr>
           {% endfor %}
         </tbody>
