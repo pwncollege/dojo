@@ -96,12 +96,12 @@ def view_module(dojo, module):
 
 @dojo.route("/<dojo>/scoreboard")
 def redirect_scoreboard(dojo):
-    return redirect(f"/{dojo}/", code=302)
+    return redirect(f"/{dojo}/", code=301)
 
 @dojo.route("/<dojo>/challenges")
 def redirect_challenges(dojo):
-    return redirect(f"/{dojo}/", code=302)
+    return redirect(f"/{dojo}/", code=301)
 
 @dojo.route("/<dojo>/challenges/<module>")
 def redirect_module(dojo, module):
-    return redirect(f"/{dojo}/{module}", code=302)
+    return redirect(f"/{dojo}/{module}", code=301)

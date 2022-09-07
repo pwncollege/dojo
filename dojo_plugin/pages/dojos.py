@@ -49,4 +49,4 @@ def view_dojo(dojo):
 
 
 def dojos_override():
-    return redirect(url_for("pwncollege_dojos.listing"))
+    return redirect(url_for("pwncollege_dojos.listing"), code=301)

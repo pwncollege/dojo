@@ -90,7 +90,7 @@ def load(app):
     FLAG_CLASSES["dojo"] = DojoFlag
 
     app.view_functions["views.settings"] = settings_override
-    app.view_functions["dojo.listing"] = dojos_override
+    app.view_functions["challenges.listing"] = dojos_override
     del app.view_functions["scoreboard.listing"]
 
     app.register_blueprint(dojos)
