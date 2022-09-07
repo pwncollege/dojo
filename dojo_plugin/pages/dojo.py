@@ -75,42 +75,21 @@ def listing(dojo):
 @dojo_route
 @check_challenge_visibility
 def view_module(dojo, module):
-    assigned = module.get("time_assigned", None)
-    due = module.get("time_due", None)
-    ec_full = module.get("time_ec_full", None)
-    ec_part = module.get("time_ec_part", None)
+    module_report = module_grade_report(dojo, module, get_current_user())
 
-    if assigned and due and not ec_full:
-        ec_full = (assigned + (due-assigned)/2)
-    if assigned and due and not ec_part:
-        ec_part = (assigned + (due-assigned)/4)
-
-    challenges = solved_challenges(dojo, module) if module_challenges_visible(dojo, module) else [ ]
+    challenges = (
+        solved_challenges(dojo, module, get_current_user())
+    ) if module_challenges_visible(dojo, module, get_current_user()) else [ ]
     current_challenge_id = get_current_challenge_id()
-
-    if get_current_user():
-        num_timely_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < due ]) if due else 0
-        num_late_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) >= due ]) if due else 0
-        num_full_ec_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_full ]) if ec_full else 0
-        num_part_ec_solves = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_part ]) if ec_part else 0
-    else:
-        num_timely_solves = 0
-        num_late_solves = 0
-        num_full_ec_solves = 0
-        num_part_ec_solves = 0
 
     return render_template(
         "module.html",
         dojo=dojo,
         module=module,
+        module_report=module_report,
         utcnow=datetime.datetime.now(pytz.utc),
         render_markdown=render_markdown,
-        ec_part=ec_part, ec_full=ec_full,
         challenges=challenges,
-        num_timely_solves=num_timely_solves,
-        num_late_solves=num_late_solves,
-        num_full_ec_solves=num_full_ec_solves,
-        num_part_ec_solves=num_part_ec_solves,
         current_challenge_id=current_challenge_id
     )
 

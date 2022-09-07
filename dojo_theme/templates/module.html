@@ -68,17 +68,17 @@
   </a><br><small>(solves before this date will not appear on the default scoreboard, but will still count toward your grade)</small></p>
   {% endif %}
 
-  {% if ec_part %}
+  {% if module_report.time_ec_part %}
   <p><b>Partial Extra Credit Deadline:</b>
-  <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+partial extra credit deadline&iso={{ ec_part.isoformat() }}">
-    {{ ec_part.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
+  <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+partial extra credit deadline&iso={{ module_report.time_ec_part.isoformat() }}">
+    {{ module_report.time_ec_part.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
   </a><br><small>(if you solve &gt;= a quarter of the challenges in this module by this date, you will earn 0.5% toward your final ASU grade)</small></p>
   {% endif %}
 
-  {% if ec_full %}
+  {% if module_report.time_ec_full %}
   <p><b>Full Extra Credit Deadline:</b>
-  <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+full extra credit deadline&iso={{ ec_full.isoformat() }}">
-    {{ ec_full.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
+  <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+full extra credit deadline&iso={{ module_report.time_ec_full.isoformat() }}">
+    {{ module_report.time_ec_full.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
     </a><br><small>(if you solve &gt;= half of the challenges in this module by this date, you will earn 1% toward your final ASU grade, instead of the 0.5% above)</small></p>
   {% endif %}
 
@@ -96,16 +96,16 @@
   <h2>Grades</h2>
   <p>This is the grade you will get on this module (if you are an ASU student enrolled in the class).</p>
   <p>
-  <b>On-time solves:</b> {{num_timely_solves}}
-  <br><b>Late solves:</b> {{num_late_solves}}
-  <br><b>Module grade:</b> {{ (100 * (num_timely_solves + num_late_solves//2) / challenges|length)|round(1) }}%
+  <b>On-time solves:</b> {{module_report.solved_timely}}
+  <br><b>Late solves:</b> {{module_report.solved_late}} (late penalty: {{module_report.late_penalty}}%)
+  <br><b>Module grade:</b> {{ module_report.module_grade|round(1) }}%
   </p>
-  <p><b>Partial Extra Credit:</b> you solved {{ num_part_ec_solves }} challenges early (out of a required {{ challenges|length // 4 }}).
-  {% if num_part_ec_solves >= challenges|length // 4 and num_full_ec_solves < challenges|length // 2 %}
+  <p><b>Partial Extra Credit:</b> you solved {{ module_report.solved_part_ec }} challenges early (out of a required {{ challenges|length // 4 }}).
+  {% if module_report.earned_part_ec and not module_report.earned_full_ec %}
   You've earned 0.5% extra credit to your final grade!
   {% endif %}
-  <br><b>Full Extra Credit:</b> you solved {{ num_full_ec_solves }} challenges early (out of a required {{ challenges|length // 2 }}).
-  {% if num_full_ec_solves >= challenges|length // 2 %}
+  <br><b>Full Extra Credit:</b> you solved {{ module_report.solved_full_ec }} challenges early (out of a required {{ challenges|length // 2 }}).
+  {% if module_report.earned_full_ec %}
   You've earned 1% extra credit to your final grade!
   {% endif %}
   </p>

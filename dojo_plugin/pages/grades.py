@@ -1,5 +1,6 @@
-import math
 import datetime
+import pytz
+import math
 
 import yaml
 from flask import Blueprint, render_template, request
@@ -13,6 +14,7 @@ from ..models import DiscordUsers
 # from ..utils import active_dojo_id, dojo_modules
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 from .discord import discord_reputation
+from ..utils import solved_challenges
 
 
 grades = Blueprint("grades", __name__)
@@ -51,6 +53,46 @@ def shared_helpful_extra_credit():
 
     return sum(all_shared_credit) / len(students)
 
+def module_grade_report(dojo, module, user, when=None):
+    m = { }
+
+    challenges = solved_challenges(dojo, module, user, when=when)
+    assigned = module.get("time_assigned", None)
+    due = module.get("time_due", None)
+    ec_full = module.get("time_ec_full", None)
+    ec_part = module.get("time_ec_part", None)
+
+    if assigned and due and not ec_full:
+        ec_full = (assigned + (due-assigned)/2)
+    if assigned and due and not ec_part:
+        ec_part = (assigned + (due-assigned)/4)
+
+    m['total_challenges'] = len(challenges)
+    m['late_penalty'] = module.get('late_penalty', module.get('late', 0.5))
+    m['time_ec_part'] = ec_part
+    m['time_ec_full'] = ec_full
+
+    m['solved_timely'] = 0
+    m['solved_late'] = 0
+    m['solved_part_ec'] = 0
+    m['earned_part_ec'] = 0
+    m['solved_full_ec'] = 0
+    m['earned_full_ec'] = 0
+    m['module_grade'] = 0
+
+    if user:
+        m['solved_timely'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < due ])
+        m['solved_late'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) >= due ])
+        m['module_grade'] = 100 * (m['solved_timely'] + m['solved_late']*(1-m['late_penalty'])) / len(challenges)
+
+        if ec_part:
+            m['solved_part_ec'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_part ])
+            m['earned_part_ec'] = (m['solved_part_ec'] >= len(challenges) // 4)
+        if ec_full:
+            m['solved_full_ec'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_full ])
+            m['earned_full_ec'] = (m['solved_full_ec'] >= len(challenges) // 2)
+
+    return m
 
 def compute_grades(user_id, when=None):
     modules = dojo_modules(active_dojo_id(user_id))

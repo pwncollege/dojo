@@ -149,11 +149,11 @@ def module_visible(dojo, module):
     )
 
 
-def module_challenges_visible(dojo, module):
+def module_challenges_visible(dojo, module, user):
     return (
         "time_assigned" not in module or
         module["time_assigned"] <= datetime.datetime.now(pytz.utc) or
-        is_dojo_admin(get_current_user(), dojo)
+        is_dojo_admin(user, dojo)
     )
 
 
