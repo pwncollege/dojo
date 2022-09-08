@@ -11,11 +11,9 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 
 from ..models import DiscordUsers
-# TODO: fix on new dojo stuff
-# from ..utils import active_dojo_id, dojo_modules
+from ..utils import solved_challenges, module_visible, module_challenges_visible, dojo_route
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 from .discord import discord_reputation
-from ..utils import solved_challenges, module_visible, module_challenges_visible, dojo_route
 
 
 grades = Blueprint("grades", __name__)
@@ -85,7 +83,7 @@ def module_grade_report(dojo, module, user, when=None):
     m['early_bird_ec'] = 0
     m['module_grade'] = 0
 
-    if m['total_challenges'] and assigned and user:
+    if challenges and due and user:
         m['solved_timely'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < due ])
         m['solved_late'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) >= due ])
         m['module_grade'] = 100 * (m['solved_timely'] + m['solved_late']*(1-m['late_penalty'])) / len(challenges)
@@ -99,6 +97,7 @@ def module_grade_report(dojo, module, user, when=None):
         m['early_bird_ec'] = 1.0 if m['earned_full_ec'] else 0.5 if m['earned_part_ec'] else 0
 
     return m
+
 
 def compute_grades(user_id, when=None):
     modules = dojo_modules(active_dojo_id(user_id))
