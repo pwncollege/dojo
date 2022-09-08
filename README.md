@@ -15,7 +15,7 @@ The associated challenge binary may be either global, which means all users will
 
 ## Setup
 
-Clone the repository and init the submodules:
+Clone the repository:
 ```sh
 git clone https://github.com/pwncollege/dojo /opt/dojo
 ```
@@ -25,6 +25,7 @@ Alternatively, you can set the `SSH_PORT` environment variable before running `r
 
 Change the line in `/etc/ssh/sshd_config` that says `Port 22` to `Port 2222`, and then restart ssh:
 ```sh
+sed -i 's/Port 22/Port 2222/' /etc/ssh/sshd_config
 service ssh restart
 ```
 
@@ -33,52 +34,23 @@ The only dependency to run the infrastructure is docker, which can be installed 
 curl -fsSL https://get.docker.com | /bin/sh
 ```
 
-Finally, run the infrastructure which will be hosted on domain <DOMAIN> with:
+Finally, run the infrastructure which will be hosted on domain `<DOMAIN>` with:
 ```sh
 SETUP_HOSTNAME=<DOMAIN> ./run.sh
 ```
+If not specified, `<DOMAIN>` will default to `localhost.pwn.college`, which means you can access the infrastructure through this domain.
 
 It will take some time to initialize everything and build the challenge docker image.
 
 Once things are setup, you should be able to access the dojo and login with the admin credentials found in `data/initial_credentials`
 You can change these admin credentials in the admin panel.
 
-## Challenges
+## Customization
 
-Place the challenges in `data/challenges`.
-The structure is as follows:
-- `data/challenges/modules.yml`
-- `data/challenges/<CATEGORY>/_global/`
-- `data/challenges/<CATEGORY>/<CHALLENGE>/`
-- `data/challenges/<CATEGORY>/<CHALLENGE>/_global/`
-- `data/challenges/<CATEGORY>/<CHALLENGE>/<i>/`
+*All* dojo data will be stored in the `./data` directory.
 
-The `_global` directories contain "global" files that will always be inserted into the challenge instance container for a given category or challenge.
+You may customize the available global dojos by creating `.yml` files within the `./data/dojos` directory.
 
-The `<i>` directories contain additional files which enable user-randomized challenges.
+You may customize the available challenges by setting up challenges files within the `./data/challenges` directory.
 
-These files will end up in the challenge instance container in `/challenges`. Everything will be root-suid.
-
-### modules.yml
-
-This file specifies some module metadata.
-The basic structure looks something like:
-```
-- name: Example Module
-  id: example
-  challenges:
-    - category: babymem
-      names:
-        - level1.0
-        - level2.0
-  deadline: 2022-12-31 23:00:00
-  late: 0.5
-  lectures:
-    - name: "Introduction: What is Computer Systems Security"
-      video: bJTThdqui0g
-      playlist: PL-ymxv0nOtqrxUaIefx0qEC7_155oPEb7
-      slides: 1YlTxeZg03P234EgG4E4JNGcit6LZovAxfYGL1YSLwfc
-```
-Only name and id are required; the other fields are optional.
-When specifying a challenge, only the category subfield is required (defaults to including all challenges in the category).
-When sepcifying a lecture, all subfields are required.
+Examples for the structure of both of these are available within [data_example](./data_example). By default, upon initializing the dojo infrastructure for the first time, if customized `./data/dojos` and `./data/challenges` are not supplied, these files will be automatically loaded.
