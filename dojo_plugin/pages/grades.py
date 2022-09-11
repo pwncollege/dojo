@@ -271,7 +271,7 @@ def view_grades(dojo, user_id=None):
         reports.append(r)
 
     module_average = statistics.mean(r["module_grade"] for r in reports)
-    part_ec = sum((0.5 if r["earned_part_ec"] else 0) for r in reports)
+    part_ec = sum((0.5 if r["earned_part_ec"] and not r["earned_full_ec"] else 0) for r in reports)
     full_ec = sum((1.0 if r["earned_full_ec"] else 0) for r in reports)
     ctf_ec = 0
     bug_ec = 0
