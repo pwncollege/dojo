@@ -27,7 +27,7 @@ class WriteupComments(Comments):
 def writeup_weeks():
     date = datetime.datetime.fromisoformat
     return [
-        (date("2022-09-11T23:59:00-07:00"), date("2022-09-12T23:59:00-07:00")),
+        (date("2022-09-11T23:59:59-07:00"), date("2022-09-12T23:59:59-07:00")),
     ]
 
 
