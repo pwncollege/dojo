@@ -25,7 +25,7 @@
       <div class="nav flex-column nav-pills" role="tablist">
         <a class="nav-link active" id="upload-tab" data-toggle="pill" href="#writeups-upload" role="tab">Upload</a>
         {% for week in weeks %}
-	<a class="nav-link" id="writeups-week{{ loop.index }}-tab" data-toggle="pill" href="#writeups-week{{ loop.index }}" role="tab">Week #{{ loop.index }}</a>
+	<a class="nav-link" id="writeups-week{{ loop.index }}-tab" data-toggle="pill" href="#writeups-week{{ loop.index }}" role="tab">Writeup #{{ loop.index }}</a>
         {% endfor %}
       </div>
     </div>
@@ -52,7 +52,7 @@
         </div>
         {% for week, (writeup, comment) in weeks.items() %}
 	<div class="tab-pane fade" id="writeups-week{{ loop.index }}" role="tabpanel">
-          <h2>Week #{{ loop.index }}</h2>
+          <h2>Writeup #{{ loop.index }}</h2>
           <br>
           {% if writeup %}
           {% if comment %}

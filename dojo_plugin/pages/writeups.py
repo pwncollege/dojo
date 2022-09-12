@@ -1,4 +1,5 @@
 import datetime
+import pytz
 
 from flask import request, Blueprint, render_template, abort, send_file
 from flask.helpers import safe_join
@@ -24,13 +25,9 @@ class WriteupComments(Comments):
 
 
 def writeup_weeks():
-    first_deadline = datetime.datetime.fromisoformat("2021-08-24 06:59:00")
+    date = datetime.datetime.fromisoformat
     return [
-        (
-            first_deadline + datetime.timedelta(weeks=i) - datetime.timedelta(days=4),
-            first_deadline + datetime.timedelta(weeks=i),
-        )
-        for i in range(16)
+        (date("2022-09-11T23:59:00-07:00"), date("2022-09-12T23:59:00-07:00")),
     ]
 
 
@@ -43,8 +40,9 @@ def all_writeups(user_id=None):
     weeks = writeup_weeks()
 
     for writeup in writeups:
+        writeup_date = pytz.UTC.localize(datetime.datetime.fromisoformat(writeup.date))
         for start, end in weeks:
-            if start < writeup.date < end:
+            if start < writeup_date < end:
                 yield (start, end), writeup
 
 
@@ -75,11 +73,11 @@ def view_writeups():
         weeks[week] = (writeup, comment)
 
     countdown = None
-    now = datetime.datetime.utcnow()
+    now = pytz.UTC.localize(datetime.datetime.utcnow())
     for i, (start, end) in enumerate(weeks):
         if start < now < end:
             remainder = datetime.timedelta(seconds=int((end - now).total_seconds()))
-            countdown = f"Week #{i + 1} due in {remainder}"
+            countdown = f"Writeup #{i + 1} due in {remainder}"
             break
 
     return render_template("writeups.html", weeks=weeks, countdown=countdown)
