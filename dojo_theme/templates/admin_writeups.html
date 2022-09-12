@@ -20,7 +20,7 @@
       <div class="nav flex-column nav-pills" role="tablist">
         {% for week in weeks %}
         {% set active = "active" if loop.first  else "" %}
-	<a class="nav-link {{ active }}" id="writeups-week{{ loop.index }}-tab" data-toggle="pill" href="#writeups-week{{ loop.index }}" role="tab">Week #{{ loop.index }}</a>
+	<a class="nav-link {{ active }}" id="writeups-week{{ loop.index }}-tab" data-toggle="pill" href="#writeups-week{{ loop.index }}" role="tab">Writeup #{{ loop.index }}</a>
         {% endfor %}
       </div>
     </div>
@@ -30,7 +30,7 @@
         {% set week_index = loop.index %}
         {% set active = "show active" if loop.first  else "" %}
 	<div class="tab-pane fade {{ active }}" id="writeups-week{{ week_index }}" role="tabpanel">
-          <h2>Week #{{ loop.index }}</h2>
+          <h2>Writeup #{{ loop.index }}</h2>
           <br>
           <div class="accordion" id="writeups-week{{ week_index }}-accordion">
             {% for user, (writeup, comment) in users.items() %}

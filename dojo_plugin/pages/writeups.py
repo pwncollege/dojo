@@ -40,7 +40,7 @@ def all_writeups(user_id=None):
     weeks = writeup_weeks()
 
     for writeup in writeups:
-        writeup_date = pytz.UTC.localize(datetime.datetime.fromisoformat(writeup.date))
+        writeup_date = pytz.UTC.localize(writeup.date)
         for start, end in weeks:
             if start < writeup_date < end:
                 yield (start, end), writeup
