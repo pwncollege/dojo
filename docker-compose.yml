@@ -112,6 +112,31 @@ services:
       - acme:/etc/acme.sh
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
+  fluentd:
+    container_name: fluentd
+    build: fluentd
+    restart: always
+    volumes:
+      - ./fluentd/etc/fluent.conf:/fluentd/etc/fluent.conf
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+
+  elasticsearch:
+    container_name: elasticsearch
+    image: elasticsearch:8.1.2
+    restart: always
+    environment:
+      - xpack.security.enabled=false
+      - discovery.type=single-node
+
+  kibana:
+    container_name: kibana
+    image: kibana:8.1.2
+    restart: always
+    ports:
+      - "5601:5601"
+
 volumes:
   conf:
   html:

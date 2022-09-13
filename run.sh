@@ -15,6 +15,7 @@ docker run \
        --publish ${SSH_PORT:-22}:22 \
        --publish ${HTTP_PORT:-80}:80 \
        --publish ${HTTPS_PORT:-443}:443 \
+       --publish 5601:5601 \
        --env SETUP_HOSTNAME="$SETUP_HOSTNAME" \
        --hostname dojo \
        --name pwn.college \
