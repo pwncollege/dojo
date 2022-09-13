@@ -101,7 +101,6 @@ def module_grade_report(dojo, module, user, when=None):
     return m
 
 
-@cache.memoize(timeout=60)
 def overall_grade_report(dojo, user, when=None):
     reports = [ ]
     for module in dojo.modules:
@@ -158,6 +157,7 @@ def view_grades(dojo, user_id=None):
 @grades.route("/admin/grades/<dojo>", methods=["GET"])
 @dojo_route
 @admins_only
+@cache.memoize(timeout=1800)
 def view_all_grades(dojo):
     when = request.args.get("when")
     if when:
