@@ -10,6 +10,7 @@ from CTFd.models import db, Challenges, Solves, Users
 from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
+from CTFd.cache import cache
 
 from ..models import DiscordUsers
 from ..utils import solved_challenges, module_visible, module_challenges_visible, dojo_route, DOJOS_DIR
@@ -100,6 +101,7 @@ def module_grade_report(dojo, module, user, when=None):
     return m
 
 
+@cache.memoize(timeout=60)
 def overall_grade_report(dojo, user, when=None):
     reports = [ ]
     for module in dojo.modules:
