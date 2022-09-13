@@ -7,18 +7,18 @@
   </div>
 </div>
 <div class="container">
-  <p>You currently have a {{ total_grade|round(2) }}% in the class.</p>
+  <p>You currently have a {{ grades.total_grade|round(2) }}% in the class.</p>
   <h2>Overall Grade</h2>
   <p>
-  <b>Module Average:</b> {{ module_average|round(2) }}%<br>
-  <b>Total Partial Early Bird Extra Credit:</b> {{ part_ec|round(2) }}%<br>
-  <b>Total Full Early Bird Extra Credit:</b> {{ full_ec|round(2) }}%<br>
+  <b>Module Average:</b> {{ grades.module_average|round(2) }}%<br>
+  <b>Total Partial Early Bird Extra Credit:</b> {{ grades.part_ec|round(2) }}%<br>
+  <b>Total Full Early Bird Extra Credit:</b> {{ grades.full_ec|round(2) }}%<br>
   <b>Total Meme Extra Credit:</b> TODO<br>
   <b>Total Helpfulness Extra Credit:</b> TODO<br>
-  <b>Total CTF Extra Credit:</b> {{ ctf_ec }}%<br>
-  <b>Total Bug Bounty Extra Credit:</b> {{ bug_ec }}%
+  <b>Total CTF Extra Credit:</b> {{ grades.ctf_ec }}%<br>
+  <b>Total Bug Bounty Extra Credit:</b> {{ grades.bug_ec }}%
   </p>
-  <p><b>Total Grade:</b> {{ total_grade|round(2) }}%</p>
+  <p><b>Total Grade:</b> {{ grades.total_grade|round(2) }}%</p>
 
   <br style="font-size: 3em">
   <h2>Individual Module Grades</h2>
@@ -39,7 +39,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for report in module_reports %}
+          {% for report in grades.module_reports %}
           <tr>
             <td>{{ report.name }}</td>
             <td>{{ report.time_due.strftime("%Y/%-m/%-d %-I:%M%P") }}</td>

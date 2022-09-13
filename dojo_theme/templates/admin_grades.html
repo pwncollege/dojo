@@ -21,20 +21,34 @@
           {% for user_grades in grades %}
           <tr>
             {% for key, value in user_grades.items() %}
-            {% if key == 'id' %}
-            <td><a href="{{ generate_account_url(value, admin=True) }}">{{ value }}</a></td>
-            {% else %}
-            <td>{{ value }}</td>
-            {% endif %}
+            <td>
+              {% if key == 'id' %}
+              {% if value is not none %}
+              <a href="{{ generate_account_url(value, admin=True) }}">{{ value }}</a>
+              {% else %}
+              <b>?</b>
+              {% endif %}
+              {% elif value is number %}
+              {{ value | round(2) }}%
+              {% elif value is not none %}
+              {{ value }}
+              {% endif %}
+            </td>
             {% endfor %}
           </tr>
           {% endfor %}
         </tbody>
         <tfoot>
-          {% for statistic in statistics %}
+          {% for statistic in grade_statistics %}
           <tr>
             {% for value in statistic.values() %}
-            <td>{{ value }}</td>
+            <td>
+              {% if value is number %}
+              {{ value | round(2) }}%
+              {% elif value is not none %}
+              <b>{{ value }}</b>
+              {% endif %}
+            </td>
             {% endfor %}
           </tr>
           {% endfor %}
