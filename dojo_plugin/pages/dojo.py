@@ -69,6 +69,7 @@ def listing(dojo):
         stats=stats,
         infos=infos,
         render_markdown=render_markdown,
+        asu_student=False if user is None else user.email.endswith("asu.edu"),
     )
 
 
@@ -76,7 +77,8 @@ def listing(dojo):
 @dojo_route
 @check_challenge_visibility
 def view_module(dojo, module):
-    module_report = module_grade_report(dojo, module, get_current_user())
+    user = get_current_user()
+    module_report = module_grade_report(dojo, module, user)
 
     challenges = (
         solved_challenges(dojo, module, get_current_user())
@@ -91,6 +93,7 @@ def view_module(dojo, module):
         utcnow=datetime.datetime.now(pytz.utc),
         render_markdown=render_markdown,
         challenges=challenges,
+        asu_student=False if user is None else user.email.endswith("asu.edu"),
         current_challenge_id=current_challenge_id
     )
 

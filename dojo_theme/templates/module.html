@@ -65,24 +65,28 @@
   <p><b>Assigned:</b>
   <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+assigned&iso={{ module.time_assigned.isoformat() }}">
     {{ module.time_assigned.strftime("%B %-d, %Y at %-I:%M%P") }} (Arizona time)
-  </a><br><small>(solves before this date will not appear on the default scoreboard, but will still count toward your grade)</small></p>
+  </a><br><small>(solves before this date will not appear on the default scoreboard{% if asu_student %}, but will still count toward your grade{% endif %})</small></p>
   {% endif %}
 
-  {% if module_report.time_ec_part %}
+  {% if not asu_student %}
+  <p>For ASU extra credit dates and due dates, please log in with an <code>@asu.edu</code> email address.</p>
+  {% endif %}
+
+  {% if module_report.time_ec_part and asu_student %}
   <p><b>Partial Extra Credit Deadline:</b>
   <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+partial extra credit deadline&iso={{ module_report.time_ec_part.isoformat() }}">
     {{ module_report.time_ec_part.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
   </a><br><small>(if you solve &gt;= a quarter of the challenges in this module by this date, you will earn 0.5% toward your final ASU grade)</small></p>
   {% endif %}
 
-  {% if module_report.time_ec_full %}
+  {% if module_report.time_ec_full and asu_student %}
   <p><b>Full Extra Credit Deadline:</b>
   <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+full extra credit deadline&iso={{ module_report.time_ec_full.isoformat() }}">
     {{ module_report.time_ec_full.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
     </a><br><small>(if you solve &gt;= half of the challenges in this module by this date, you will earn 1% toward your final ASU grade, instead of the 0.5% above)</small></p>
   {% endif %}
 
-  {% if module.time_due %}
+  {% if module.time_due and asu_student %}
   <p><b>Due:</b>
   <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+due&iso={{ module.time_due.isoformat() }}">
     {{ module.time_due.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
@@ -92,7 +96,7 @@
   <br style="font-size: 3em">
   {% endif %}
 
-  {% if authed() and challenges|length and module.time_assigned %}
+  {% if authed() and asu_student and challenges|length and module.time_assigned %}
   <h2>Grades</h2>
   <p>This is the grade you will get on this module (if you are an ASU student enrolled in the class).</p>
   <p>
