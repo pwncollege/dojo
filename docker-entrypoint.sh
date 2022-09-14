@@ -33,7 +33,7 @@ done
 mkdir -p /opt/pwn.college/data/dms/config \
          /opt/pwn.college/data/dms/mail-data \
          /opt/pwn.college/data/dms/mail-state \
-         /opt/pwn.college/data/dms/mail-logs \
+         /opt/pwn.college/data/dms/mail-logs
 echo "hacker@${DOJO_HOST}|{SHA512-CRYPT}$(openssl passwd -6 hacker)" > /opt/pwn.college/data/dms/config/postfix-accounts.cf
 
 mkdir -p /opt/pwn.college/data/logging
