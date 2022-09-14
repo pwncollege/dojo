@@ -31,9 +31,9 @@ services:
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
-      - VIRTUAL_HOST=${HOST}
+      - VIRTUAL_HOST=${DOJO_HOST}
       - VIRTUAL_PORT=8000
-      - LETSENCRYPT_HOST=${HOST}
+      - LETSENCRYPT_HOST=${DOJO_HOST}
     volumes:
       - ./data:/var/data
       - ./data/CTFd/logs:/var/log/CTFd
@@ -72,7 +72,7 @@ services:
     image: mailserver/docker-mailserver
     restart: always
     environment:
-      - OVERRIDE_HOSTNAME=mail.${HOST}
+      - OVERRIDE_HOSTNAME=mail.${DOJO_HOST}
       - ONE_DIR=1
       - LOG_LEVEL=debug
     volumes:
