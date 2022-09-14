@@ -70,6 +70,9 @@ elif [ "$1" = "stop" ]; then
 elif [ "$1" = "logs" ]; then
     docker exec -it "$DOJO_HOST" docker-compose logs -f
 
+elif [ "$1" = "sh" ]; then
+    docker exec -it "$DOJO_HOST" bash
+
 elif [ "$1" = "update" ]; then
     git -C "$DIR" pull
     git -C "$DIR"/data/dojos pull
