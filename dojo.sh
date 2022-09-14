@@ -68,7 +68,7 @@ elif [ "$1" = "stop" ]; then
     done
 
 elif [ "$1" = "logs" ]; then
-    docker exec -it "$DOJO_HOST" docker logs -f "${2-ctfd}"
+    docker exec -it "$DOJO_HOST" docker-compose logs -f
 
 elif [ "$1" = "update" ]; then
     git -C "$DIR" pull
