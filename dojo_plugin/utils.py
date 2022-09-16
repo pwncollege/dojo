@@ -255,6 +255,8 @@ def solved_challenges(dojo, module, user, when=None):
 
 
 def belt_challenges():
+    # TODO: move this concept into dojo yml
+
     yellow_categories = [
         "embryoio",
         "babysuid",
@@ -285,6 +287,7 @@ def belt_challenges():
         color: db.session.query(Challenges.id).filter(
             Challenges.state == "visible",
             Challenges.value > 0,
+            Challenges.id < 1000,
             Challenges.category.in_(categories),
         )
         for color, categories in color_categories.items()
