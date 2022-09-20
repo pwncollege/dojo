@@ -68,10 +68,6 @@
   </a><br><small>(solves before this date will not appear on the default scoreboard{% if asu_student %}, but will still count toward your grade{% endif %})</small></p>
   {% endif %}
 
-  {% if not asu_student %}
-  <p>For ASU extra credit dates and due dates, please log in with an <code>@asu.edu</code> email address.</p>
-  {% endif %}
-
   {% if module_report.time_ec_part and asu_student %}
   <p><b>Partial Extra Credit Deadline:</b>
   <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+partial extra credit deadline&iso={{ module_report.time_ec_part.isoformat() }}">
@@ -86,11 +82,21 @@
     </a><br><small>(if you solve &gt;= half of the challenges in this module by this date, you will earn 1% toward your final ASU grade, instead of the 0.5% above)</small></p>
   {% endif %}
 
-  {% if module.time_due and asu_student %}
+  {% if module.time_due %}
   <p><b>Due:</b>
   <a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{ module.name }}+due&iso={{ module.time_due.isoformat() }}">
     {{ module.time_due.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
-  </a><br><small>(solves after this deadline will count for half value toward your ASU grade, but will still fully count for scoreboard purposes)</small></p>
+  </a><br><small>
+  {% if asu_student %}
+  (solves after this deadline will count for half value toward your ASU grade, but will still fully count for scoreboard purposes)
+  {% else %}
+  (after this date, the live session of the dojo will move on to the next module, though solves will still count for scoreboard ranking)
+  {% endif %}
+  </small></p>
+  {% endif %}
+
+  {% if not asu_student %}
+  <p>For ASU extra credit due dates, please log in with an <code>@asu.edu</code> email address.</p>
   {% endif %}
 
   <br style="font-size: 3em">
