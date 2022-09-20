@@ -21,7 +21,7 @@ if [ ! -f /opt/pwn.college/data/homes/homefs ]; then
     rm -rf /opt/pwn.college/data/homes/homefs_mount
 fi
 
-for i in $(seq 1 1024); do
+for i in $(seq 1 4096); do
     if [ -e /dev/loop$i ]; then
         continue
     fi
