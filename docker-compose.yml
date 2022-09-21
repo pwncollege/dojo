@@ -118,3 +118,9 @@ volumes:
   dhparam:
   certs:
   acme:
+
+networks:
+  user_firewall:
+    name: user_firewall
+    driver_opts:
+      com.docker.network.bridge.name=user_firewall

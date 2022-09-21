@@ -41,4 +41,7 @@ mkdir -p /opt/pwn.college/data/logging
 sysctl -w kernel.pty.max=1048576
 echo core > /proc/sys/kernel/core_pattern
 
+iptables -I DOCKER-USER -i user_firewall -j DROP
+iptables -I DOCKER-USER -i user_firewall -d 1.1.1.1 -j ACCEPT
+
 exec /usr/bin/systemd
