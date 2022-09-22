@@ -93,7 +93,7 @@ def start_challenge(user, dojo, challenge, practice):
                 ),
             ],
             devices=devices,
-            network_mode=None if internet else "none",
+            network=None if internet else "user_firewall",
             extra_hosts={
                 hostname: "127.0.0.1",
                 "vm": "127.0.0.1",
