@@ -99,15 +99,20 @@ def bootstrap():
             for c in re.split(r"[+-]?([0-9]+(?:[.][0-9]*)?|[.][0-9]+)", text)
         ]
 
-    for path in CHALLENGES_DIR.glob("*/"):
-        category = path.name
-        if not (path/"challenges.yml").exists():
+    for category_path in CHALLENGES_DIR.glob("*/"):
+        category = category_path.name
+        if category.startswith(".") or category.startswith("_"):
+            continue
+        if category.endswith(".yml"):
+            continue
+
+        if not (category_path/"challenges.yml").exists():
             challenges = sorted(
-                ((path.name, "") for path in CHALLENGES_DIR.glob("*/")),
+                ((path.name, "") for path in category_path.glob("*/")),
                 key=lambda k: (k[0], natural_key(k[1])),
             )
         else:
-            module_data = yaml.safe_load((path/"challenges.yml").read_text())
+            module_data = yaml.safe_load((category_path/"challenges.yml").read_text())
             challenges = [ (c["name"], c["description"]) for c in module_data ]
 
         for name, description in challenges:
@@ -115,11 +120,6 @@ def bootstrap():
                 continue
             if name.endswith(".yml"):
                 continue
-            if category.startswith(".") or category.startswith("_"):
-                continue
-            if category.endswith(".yml"):
-                continue
-
             challenge = DojoChallenges.query.filter_by(
                 name=name, category=category
             ).first()
