@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -x
 
 DIR="$(readlink -f $(dirname $_))"
 
@@ -73,12 +73,21 @@ elif [ "$1" = "logs" ]; then
 elif [ "$1" = "sh" ]; then
     docker exec -it "$DOJO_HOST" bash
 
+elif [ "$1" = "restart" ]; then
+    if [ -z "$2" ]
+    then
+        $0 stop
+        $0 run
+    else
+        docker exec -it "$DOJO_HOST" docker stop $2
+        docker exec -it "$DOJO_HOST" docker start $2
+    fi
+
 elif [ "$1" = "update" ]; then
     git -C "$DIR" pull
     git -C "$DIR"/data/dojos pull
 
-    docker exec -it "$DOJO_HOST" docker stop ctfd
-    docker exec -it "$DOJO_HOST" docker start ctfd
+    $0 restart ctfd
 
 elif [ "$1" = "backup" ]; then
     docker exec -it "$DOJO_HOST" docker stop ctfd
