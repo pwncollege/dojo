@@ -79,4 +79,9 @@ elif [ "$1" = "update" ]; then
 
     docker exec -it "$DOJO_HOST" docker stop ctfd
     docker exec -it "$DOJO_HOST" docker start ctfd
+
+elif [ "$1" = "backup" ]; then
+    docker exec -it "$DOJO_HOST" docker stop ctfd
+    cp -a "$DIR"/data/mysql "$DIR"/data/mysql.bak-$(date -Iminutes)
+    docker exec -it "$DOJO_HOST" docker start ctfd
 fi
