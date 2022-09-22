@@ -211,6 +211,18 @@
 
       <div id="challenge{{ loop.index }}" class="collapse" aria-labelledby="challengeHeading{{ loop.index }}" data-parent="#challenges">
         <div class="card-body">
+          <div class="embed-responsive">
+            {% if challenge.description %}
+            <p>{{ render_markdown(challenge.description) }}</p>
+            {% endif %}
+            <small><p><i>
+            {% if challenge.name.endswith(".0") %}
+            This is a teaching challenge, which means that it will print out useful information to help you solve it! You still need to solve it for the score and grade, though!
+            {% elif "." in challenge.name %}
+            This is a testing challenge, which means that it pulls no punches! Solve it for grades, glory, and the scoreboard!
+            {% endif %}
+            </i></p></small>
+          </div>
           <div class="row">
             <div class="col-sm-6 form-group text-center">
               <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary w-100">

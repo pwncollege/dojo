@@ -241,8 +241,10 @@ def solved_challenges(dojo, module, user, when=None):
         solve_filters.append(Solves.date <= when)
 
     challenges = (
-        db.session.query(Challenges.id, Challenges.name, Challenges.category, solves, solve_date, solved)
-        .filter(
+        db.session.query(
+            Challenges.id, Challenges.name, Challenges.category, Challenges.description,
+            solves, solve_date, solved
+        ).filter(
             Challenges.state == "visible",
             dojo.challenges_query(module["id"], include_unassigned=module_challenges_visible(dojo, module, user))
         )
