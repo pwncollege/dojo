@@ -103,7 +103,7 @@ def bootstrap():
         category = path.name
         if not (path/"challenges.yml").exists():
             challenges = sorted(
-                ((path.name, "") for path in CHALLENGES_DIR.glob("*/*")),
+                ((path.name, "") for path in CHALLENGES_DIR.glob("*/")),
                 key=lambda k: (k[0], natural_key(k[1])),
             )
         else:
@@ -113,7 +113,11 @@ def bootstrap():
         for name, description in challenges:
             if name.startswith(".") or name.startswith("_"):
                 continue
+            if name.endswith(".yml"):
+                continue
             if category.startswith(".") or category.startswith("_"):
+                continue
+            if category.endswith(".yml"):
                 continue
 
             challenge = DojoChallenges.query.filter_by(
