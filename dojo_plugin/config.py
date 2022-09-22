@@ -1,10 +1,12 @@
+import warnings
+import yaml
 import os
 import re
-import warnings
 
 from CTFd.models import db, Admins, Pages, Flags
 from CTFd.cache import cache
 from CTFd.utils import config, set_config
+from .utils import multiprocess_lock
 
 
 VIRTUAL_HOST = os.getenv("VIRTUAL_HOST")
@@ -29,6 +31,7 @@ for config_option in missing_warnings:
         warnings.warn(f"Configuration Warning: {config_option} is not set in the environment")
 
 
+@multiprocess_lock
 def bootstrap():
     from .models import DojoChallenges, Dojos
     from .pages.discord import discord_reputation

@@ -6,6 +6,7 @@ import pathlib
 import tarfile
 import hashlib
 import inspect
+import fcntl
 import pytz
 import os
 import re
@@ -254,6 +255,21 @@ def solved_challenges(dojo, module, user, when=None):
     return challenges
 
 
+# this is a MASSIVE hack and should be replaced with something less insane
+_lock_number = [ 0 ]
+def multiprocess_lock(func):
+    _lock_filename = f"/dev/shm/dojolock-{_lock_number[0]}"
+    _lock_number[0] += 1
+    open(_lock_filename, "w").close()
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        lf = open(_lock_filename, "r")
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            return func(*args, **kwargs)
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
+    return wrapper
 
 
 def belt_challenges():
