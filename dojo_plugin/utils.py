@@ -10,6 +10,7 @@ import fcntl
 import pytz
 import os
 import re
+import socket
 
 import docker
 from flask import current_app, Response, abort
@@ -30,6 +31,10 @@ CHALLENGES_DIR = pathlib.Path("/var/challenges")
 DOJOS_DIR = pathlib.Path("/var/dojos")
 PLUGIN_DIR = pathlib.Path(__file__).parent
 SECCOMP = (PLUGIN_DIR / "seccomp.json").read_text()
+USER_FIREWALL_ALLOWED = {
+    host: socket.gethostbyname(host)
+    for host in pathlib.Path("/var/user_firewall.allowed").read_text().split()
+}
 
 
 def get_current_challenge_id():

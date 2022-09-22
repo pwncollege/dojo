@@ -11,7 +11,7 @@ from CTFd.utils.decorators import authed_only
 
 from ...config import HOST_DATA_PATH
 from ...models import DojoChallenges
-from ...utils import get_current_challenge_id, serialize_user_flag, challenge_paths, simple_tar, random_home_path, SECCOMP, dojo_by_id, is_dojo_admin
+from ...utils import get_current_challenge_id, serialize_user_flag, challenge_paths, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, dojo_by_id, is_dojo_admin
 
 
 docker_namespace = Namespace(
@@ -98,6 +98,7 @@ def start_challenge(user, dojo, challenge, practice):
                 hostname: "127.0.0.1",
                 "vm": "127.0.0.1",
                 f"vm_{hostname}": "127.0.0.1",
+                **USER_FIREWALL_ALLOWED,
             },
             init=True,
             cap_add=["SYS_PTRACE"],

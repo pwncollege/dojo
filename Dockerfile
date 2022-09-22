@@ -8,6 +8,10 @@ RUN apt-get update && \
                        git \
                        curl \
                        wget \
+                       iproute2 \
+                       iputils-ping \
+                       host \
+                       htop \
                        python-is-python3 \
                        python3-dev \
                        python3-pip \
@@ -35,6 +39,7 @@ ADD dojo_theme /opt/CTFd/CTFd/themes/dojo_theme
 ADD data_example /opt/pwn.college/data_example
 ADD docker-compose.yml /opt/pwn.college/docker-compose.yml
 ADD docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
+ADD user_firewall.allowed /opt/pwn.college/user_firewall.allowed
 
 ADD etc/ssh/sshd_config /etc/ssh/sshd_config
 ADD etc/systemd/system/pwn.college.service /etc/systemd/system/pwn.college.service
