@@ -4,6 +4,8 @@ services:
   challenge:
     build: challenge
     entrypoint: /bin/true
+    networks:
+      - user_firewall
 
   ctfd:
     container_name: ctfd
@@ -123,4 +125,5 @@ networks:
   user_firewall:
     name: user_firewall
     driver_opts:
-      com.docker.network.bridge.name=user_firewall
+      com.docker.network.bridge.name: "user_firewall"
+      com.docker.network.bridge.enable_icc: "false"
