@@ -41,7 +41,11 @@ mkdir -p /opt/pwn.college/data/logging
 sysctl -w kernel.pty.max=1048576
 echo core > /proc/sys/kernel/core_pattern
 
+iptables -N DOCKER-USER
 iptables -I DOCKER-USER -i user_firewall -j DROP
 iptables -I DOCKER-USER -i user_firewall -d 1.1.1.1 -j ACCEPT
+iptables -I DOCKER-USER -i user_firewall -d 37.48.109.121 -j ACCEPT
+iptables -I DOCKER-USER -i user_firewall -d 93.184.216.34 -j ACCEPT
+iptables -I DOCKER-USER -i user_firewall -p udp --dport 53 -j ACCEPT
 
 exec /usr/bin/systemd
