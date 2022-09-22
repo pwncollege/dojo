@@ -96,36 +96,44 @@ def bootstrap():
             for c in re.split(r"[+-]?([0-9]+(?:[.][0-9]*)?|[.][0-9]+)", text)
         ]
 
-    challenges = sorted(
-        ((path.parent.name, path.name) for path in CHALLENGES_DIR.glob("*/*")),
-        key=lambda k: (k[0], natural_key(k[1])),
-    )
-    for category, name in challenges:
-        if name.startswith(".") or name.startswith("_"):
-            continue
-        if category.startswith(".") or category.startswith("_"):
-            continue
+    for path in CHALLENGES_DIR.glob("*/"):
+        category = path.name
+        if not (path/"challenges.yml").exists():
+            challenges = sorted(
+                ((path.name, "") for path in CHALLENGES_DIR.glob("*/*")),
+                key=lambda k: (k[0], natural_key(k[1])),
+            )
+        else:
+            module_data = yaml.safe_load((path/"challenges.yml").read_text())
+            challenges = [ (c["name"], c["description"]) for c in module_data ]
 
-        challenge = DojoChallenges.query.filter_by(
-            name=name, category=category
-        ).first()
-        if challenge:
-            continue
+        for name, description in challenges:
+            if name.startswith(".") or name.startswith("_"):
+                continue
+            if category.startswith(".") or category.startswith("_"):
+                continue
 
-        challenge = DojoChallenges(
-            name=name,
-            category=category,
-            description="",
-            value=1,
-            state="visible",
-            docker_image_name="pwncollege_challenge",
-        )
-        db.session.add(challenge)
-        db.session.commit()
+            challenge = DojoChallenges.query.filter_by(
+                name=name, category=category
+            ).first()
+            if not challenge:
+                challenge = DojoChallenges(
+                    name=name,
+                    category=category,
+                    description=description,
+                    value=1,
+                    state="visible",
+                    docker_image_name="pwncollege_challenge",
+                )
+                db.session.add(challenge)
+                db.session.commit()
 
-        flag = Flags(challenge_id=challenge.id, type="dojo")
-        db.session.add(flag)
-        db.session.commit()
+                flag = Flags(challenge_id=challenge.id, type="dojo")
+                db.session.add(flag)
+                db.session.commit()
+            elif challenge.description != description:
+                challenge.description = description
+                db.session.commit()
 
     for dojo_config_path in DOJOS_DIR.glob("*.yml"):
         id = dojo_config_path.stem
