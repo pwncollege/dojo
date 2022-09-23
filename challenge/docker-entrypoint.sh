@@ -78,5 +78,5 @@ sidebarWidth=90
 treeViewHeader=@ByteArray(\0\0\0\xff\0\0\0\0\0\0\0\x1\0\0\0\0\0\0\0\0\x1\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x1\xec\0\0\0\x4\x1\x1\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x64\xff\xff\xff\xff\0\0\0\x81\0\0\0\0\0\0\0\x4\0\0\0\xff\0\0\0\x1\0\0\0\0\0\0\0?\0\0\0\x1\0\0\0\0\0\0\0@\0\0\0\x1\0\0\0\0\0\0\0n\0\0\0\x1\0\0\0\0\0\0\x3\xe8\0\xff\xff\xff\xff)
 viewMode=List
 END
-[ ! -d /home/hacker/.config/xfce4 ] && cp -r /usr/share/desktop-base/profiles/xdg-config/xfce4 /home/hacker/.config/xfce4
+cp -auv /usr/share/desktop-base/profiles/xdg-config/xfce4 /home/hacker/.config/
 DISPLAY=:42 xfce4-session &
