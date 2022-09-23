@@ -101,10 +101,6 @@ def bootstrap():
     set_config("mail_username", f"hacker@{VIRTUAL_HOST}")
     set_config("mail_password", "hacker")
 
-    students_path = CHALLENGES_DIR / "students.yml"
-    students = students_path.read_text() if students_path.exists() else "[]"
-    set_config("students", students)
-
     memes_path = CHALLENGES_DIR / "memes.yml"
     memes = memes_path.read_text() if memes_path.exists() else "[]"
     set_config("memes", memes)
