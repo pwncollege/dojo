@@ -6,6 +6,6 @@ Comment=Freeware version of IDA for x64.
 Exec=/opt/ida/ida64
 Icon=/opt/ida/appico64.png
 Path=
-Terminal=false
+Terminal=true
 StartupNotify=false
 Categories=Application;Development;
