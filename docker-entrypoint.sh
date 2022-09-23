@@ -30,13 +30,19 @@ for i in $(seq 1 4096); do
     chmod --reference=/dev/loop0 /dev/loop$i
 done
 
-mkdir -p /opt/pwn.college/data/ssh_host_keys
-for key in $(ls /opt/pwn.college/data/ssh_host_keys/ssh_host_*_key*); do
-    cp -a $key /etc/ssh/
-done
-for key in $(ls /etc/ssh/ssh_host_*_key*); do
-    cp -a $key /opt/pwn.college/data/ssh_host_keys/
-done
+
+if [ ! -d /opt/pwn.college/data/ssh_host_keys ]; then
+    mkdir -p /opt/pwn.college/data/ssh_host_keys
+    rm /etc/ssh/ssh_host_*_key*
+    ssh-keygen -A
+    for key in $(ls /etc/ssh/ssh_host_*_key*); do
+        cp -a $key /opt/pwn.college/data/ssh_host_keys
+    done
+else
+    for key in $(ls /opt/pwn.college/data/ssh_host_keys/ssh_host_*_key*); do
+        cp -a $key /etc/ssh
+    done
+fi
 
 mkdir -p /opt/pwn.college/data/dms/config \
          /opt/pwn.college/data/dms/mail-data \
