@@ -5,6 +5,7 @@ import re
 import yaml
 from sqlalchemy.sql import or_, and_
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from CTFd.models import db, Challenges
 
 
@@ -20,7 +21,7 @@ class Dojos(db.Model):
     id = db.Column(db.String(16), primary_key=True)
     owner_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     join_code = db.Column(db.Text, unique=True)
-    _data = db.Column("data", db.Text)
+    _data = db.Column("data", MEDIUMTEXT)
 
     @hybrid_property
     def public(self):
