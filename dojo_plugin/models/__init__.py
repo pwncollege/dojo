@@ -67,17 +67,35 @@ class Dojos(db.Model):
         return None
 
     def challenges_query(self, module_id=None, include_unassigned=False):
-        return or_(*(
-            and_(
-                Challenges.category == module_challenge["category"],
-                Challenges.name.in_(module_challenge["names"])
-            ) if module_challenge.get("names") else (
-                Challenges.category == module_challenge["category"]
-            ) for module in self.modules if (
-                (module_id is None or module["id"] == module_id) and
-                (include_unassigned or "time_assigned" not in module or module["time_assigned"] < datetime.datetime.now(pytz.utc))
-            ) for module_challenge in module.get("challenges", [])
-        ), False)
+        if self.config.get("dojo_spec", None) == "v2":
+            module_queries = [ ]
+            for module in self.modules:
+                if module_id is not None and module["id"] != module_id:
+                    continue
+                if not include_unassigned and "time_assigned" in module and module["time_assigned"] > datetime.datetime.now(pytz.utc):
+                    continue
+                challenges = module.get("challenges", [ ])
+                categories = { c["category"] for c in challenges }
+                categorized_chals = {
+                    category: [ c["name"] for c in challenges if c["category"] == category ]
+                    for category in categories
+                }
+                module_queries.append(or_(
+                    *(and_(Challenges.category == k, Challenges.name.in_(v)) for k,v in categorized_chals.items()), False
+                ))
+            return or_(*module_queries, False)
+        else:
+            return or_(*(
+                and_(
+                    Challenges.category == module_challenge["category"],
+                    Challenges.name.in_(module_challenge["names"])
+                ) if module_challenge.get("names") else (
+                    Challenges.category == module_challenge["category"]
+                ) for module in self.modules if (
+                    (module_id is None or module["id"] == module_id) and
+                    (include_unassigned or "time_assigned" not in module or module["time_assigned"] < datetime.datetime.now(pytz.utc))
+                ) for module_challenge in module.get("challenges", [])
+            ), False)
 
     @staticmethod
     def validate_data(data):
