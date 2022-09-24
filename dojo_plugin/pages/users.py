@@ -52,6 +52,13 @@ def view_other(user_id):
         abort(404)
     return view_profile(user)
 
+@users.route("/hackers/<user_name>")
+def view_named(user_name):
+    user = Users.query.filter_by(name=user_name).first()
+    if user is None:
+        abort(404)
+    return view_profile(user)
+
 @users.route("/hacker")
 @authed_only
 def view_self():
