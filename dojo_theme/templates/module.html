@@ -195,6 +195,7 @@
     {% for challenge in challenges %}
     {% set solved = "challenge-solved" if challenge.solved else "challenge-unsolved" %}
     {% set active = "challenge-active" if challenge.id == current_challenge_id else "" %}
+    <a id="challenge-{{challenge.name}}"></a>
     <div class="card">
       <div class="card-header" id="challengeHeading{{ loop.index }}">
         <h2 class="mb-0">
