@@ -3,24 +3,26 @@ from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.models import Users
 
-from ..utils import user_dojos, dojo_challenges
+from ..utils import user_dojos, dojo_challenges, module_visible
 from ..api.v1.scoreboard import belt_asset_for
 
 users = Blueprint("pwncollege_users", __name__)
 
 def dojo_full_stats(dojo, user):
     challenges = dojo_challenges(dojo, user=user)
-    module_challenges = { m["id"]: dojo_challenges(dojo, module=m, user=user) for m in dojo.modules }
+    visible_modules = [ m for m in dojo.modules if module_visible(dojo, m, None) ]
+    module_challenges = { m["id"]: dojo_challenges(dojo, module=m, user=user) for m in visible_modules }
     return {
         "count": len(challenges),
         "solved": len([c for c in challenges if c.solved]),
+        "visible_modules": visible_modules,
         "module_stats": {
             m["id"]: {
                 "solved_names": [ c.name for c in module_challenges[m["id"]] if c.solved ],
                 "unsolved_names": [ c.name for c in module_challenges[m["id"]] if not c.solved ],
                 "count": len(module_challenges[m["id"]]),
                 "solved": len([c for c in module_challenges[m["id"]] if c.solved])
-            } for m in dojo.modules
+            } for m in visible_modules
         }
     }
 

@@ -105,13 +105,14 @@
 
 		{% macro dojo_list_stats(dojos, idx) -%}
 		  {% for dojo in dojos %}
+      {% set dojo_stats = stats[dojo.id] %}
       {{ macros.accordion_title_start("dojos", idx+loop.index) }}
       <h4 class="dojo-name">
         <span class="d-sm-block d-md-block d-lg-block">
-          <i class="fas fa-bolt pr-3 dojo-{% if stats[dojo.id].solved == stats[dojo.id].count %}solved{%else%}unsolved{%endif%}"></i>{{ dojo.name }}
+          <i class="fas fa-bolt pr-3 dojo-{% if dojo_stats.solved == dojo_stats.count %}solved{%else%}unsolved{%endif%}"></i>{{ dojo.name }}
         </span>
       </h4>
-      <span class="total-solves">{{ stats[dojo.id].solved }} / {{ stats[dojo.id].count }}</span>
+      <span class="total-solves">{{ dojo_stats.solved }} / {{ dojo_stats.count }}</span>
       {{ macros.accordion_title_end() }}
       {{ macros.accordion_body_start("dojos", idx+loop.index) }}
       <p>Progress on <a href="{{ url_for("pwncollege_dojo.listing", dojo=dojo.id) }}">{{ dojo.name }}</a>:<p>
@@ -124,8 +125,8 @@
           </tr>
         </thead>
         <tbody>
-          {% for module in dojo.modules %}
-          {% set module_stats = stats[dojo.id].module_stats[module.id] %}
+          {% for module in dojo_stats.visible_modules %}
+          {% set module_stats = dojo_stats.module_stats[module.id] %}
           <tr>
             <td><a href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo.id, module=module.id) }}">{{ module.name }}</a></td>
             <td>{{ module_stats.solved }} / {{ module_stats.count }}</td>
