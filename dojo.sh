@@ -86,6 +86,9 @@ elif [ "$1" = "restart" ]; then
 elif [ "$1" = "db" ]; then
 	docker exec -it "$DOJO_HOST" docker exec -it ctfd_db mysql -u ctfd --password=ctfd ctfd
 
+elif [ "$1" = "manage" ]; then
+	docker exec -it "$DOJO_HOST" docker exec -it ctfd python manage.py
+
 elif [ "$1" = "update" ]; then
     git -C "$DIR" pull
     git -C "$DIR"/data/dojos pull
