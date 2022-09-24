@@ -33,6 +33,9 @@ def belt_asset(color):
         belt = "white.svg"
     return url_for("views.themes", path=f"img/dojo/{belt}")
 
+def belt_asset_for(user_id):
+    belts = get_belts()["users"]
+    return belt_asset(belts.get(user_id, {}).get("color"))
 
 @cache.memoize(timeout=60)
 def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
@@ -77,14 +80,13 @@ def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
 
 
 def standing_info(place, standing):
-    belts = get_belts()["users"]
     return {
         "place": place,
         "name": standing.name,
         "score": int(standing.score),
-        "url": generate_account_url(standing.account_id),
+        "url": generate_account_url(standing.account_id).replace("users", "hackers"),
         "symbol": email_group_asset(standing.email),
-        "belt": belt_asset(belts.get(standing.account_id, {}).get("color")),
+        "belt": belt_asset_for(standing.account_id),
     }
 
 
