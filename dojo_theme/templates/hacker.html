@@ -158,20 +158,3 @@
 		</div>
 	</div>
 {% endblock %}
-
-{% block scripts %}
-	<script>
-		var stats_data = {{ {
-			'type': 'user',
-			'id': user.id,
-			'name': user.name,
-			'account_id': user.id,
-		} | tojson }};
-	</script>
-	<script defer src="{{ url_for('views.themes', path='js/echarts.bundle.js') }}"></script>
-	<script defer src="{{ url_for('views.themes', path='js/graphs.js') }}"></script>
-{% endblock %}
-
-{% block entrypoint %}
-	<script defer src="{{ url_for('views.themes', path='js/pages/stats.js') }}"></script>
-{% endblock %}
