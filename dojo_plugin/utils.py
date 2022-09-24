@@ -227,10 +227,14 @@ def dojo_standings(dojo_id, fields=None, module_id=None):
     return standings_query
 
 
-def dojo_challenges(dojo, module=None, user=None, solves_before=None):
+def dojo_challenges(dojo, module=None, user=None, admin_view=False, solves_before=None):
     """
     Get all active challenges of a dojo, adding a '.solved' and 'solve_date' with data about
     challenges solved by the provided user.
+
+    @param admin_view: whether to show not-yet-assigned challenges
+    @param solves_before: only show solves up to this date
+    @param user: show solves by this user if solves are before module assignment date
     """
     columns = [
         Challenges.id, Challenges.name, Challenges.category, Challenges.description,
@@ -256,7 +260,7 @@ def dojo_challenges(dojo, module=None, user=None, solves_before=None):
         solve_filters.append(Solves.date <= solves_before)
 
     if module:
-        challenges_query = dojo.challenges_query(module["id"], include_unassigned=module_challenges_visible(dojo, module, user))
+        challenges_query = dojo.challenges_query(module["id"], include_unassigned=admin_view)
     else:
         challenges_query = dojo.challenges_query()
 
