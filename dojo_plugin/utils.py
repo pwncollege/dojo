@@ -232,17 +232,23 @@ def dojo_challenges(dojo, module=None, user=None, solves_before=None):
     Get all active challenges of a dojo, adding a '.solved' and 'solve_date' with data about
     challenges solved by the provided user.
     """
-    user_id = user.id if user else None
-    solves = db.func.count(Solves.id).label("solves")
-    solved = db.func.max(Solves.user_id == user_id).label("solved")
-    solve_date = db.func.substr(
-        db.func.max((Solves.user_id == user_id).cast(String)+Solves.date.cast(String)),
-        2, 1000
-    ).cast(DateTime).label("solve_date")
+    columns = [
+        Challenges.id, Challenges.name, Challenges.category, Challenges.description,
+        db.func.count(Solves.id).label("solves") # number of solves
+    ]
+    if user is not None:
+        columns.append(db.func.max(Solves.user_id == user.id).label("solved")) # did the user solve the chal?
+        columns.append(db.func.substr(
+            db.func.max((Solves.user_id == user.id).cast(String)+Solves.date.cast(String)),
+            2, 1000
+        ).cast(DateTime).label("solve_date")) # _when_ did the user solve the chal?
 
     solve_filters = [ Solves.challenge_id == Challenges.id ]
     if module and "time_assigned" in module:
-        solve_filters.append(or_(Solves.date >= module["time_assigned"], Solves.user_id == user_id))
+        solve_filters.append(
+            (Solves.date >= module["time_assigned"]) if user is None else
+            or_(Solves.date >= module["time_assigned"], Solves.user_id == user.id)
+        )
     if solves_before:
         solve_filters.append(Solves.date <= solves_before)
 
@@ -252,10 +258,8 @@ def dojo_challenges(dojo, module=None, user=None, solves_before=None):
         challenges_query = dojo.challenges_query()
 
     challenges = (
-        db.session.query(
-            Challenges.id, Challenges.name, Challenges.category, Challenges.description,
-            solves, solve_date, solved
-        ).filter(Challenges.state == "visible", challenges_query)
+        db.session.query(*columns)
+        .filter(Challenges.state == "visible", challenges_query)
         .outerjoin(Solves, and_(*solve_filters))
         .group_by(Challenges.id)
     ).all()
