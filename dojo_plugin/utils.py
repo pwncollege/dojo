@@ -227,7 +227,7 @@ def dojo_standings(dojo_id, fields=None, module_id=None):
     return standings_query
 
 
-def solved_challenges(dojo, module, user, when=None):
+def dojo_challenges(dojo, module=None, user=None, solves_before=None):
     """
     Get all active challenges of a dojo, adding a '.solved' and 'solve_date' with data about
     challenges solved by the provided user.
@@ -241,19 +241,21 @@ def solved_challenges(dojo, module, user, when=None):
     ).cast(DateTime).label("solve_date")
 
     solve_filters = [ Solves.challenge_id == Challenges.id ]
-    if "time_assigned" in module:
+    if module and "time_assigned" in module:
         solve_filters.append(or_(Solves.date >= module["time_assigned"], Solves.user_id == user_id))
-    if when:
-        solve_filters.append(Solves.date <= when)
+    if solves_before:
+        solve_filters.append(Solves.date <= solves_before)
+
+    if module:
+        challenges_query = dojo.challenges_query(module["id"], include_unassigned=module_challenges_visible(dojo, module, user))
+    else:
+        challenges_query = dojo.challenges_query()
 
     challenges = (
         db.session.query(
             Challenges.id, Challenges.name, Challenges.category, Challenges.description,
             solves, solve_date, solved
-        ).filter(
-            Challenges.state == "visible",
-            dojo.challenges_query(module["id"], include_unassigned=module_challenges_visible(dojo, module, user))
-        )
+        ).filter(Challenges.state == "visible", challenges_query)
         .outerjoin(Solves, and_(*solve_filters))
         .group_by(Challenges.id)
     ).all()

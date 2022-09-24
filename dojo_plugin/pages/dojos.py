@@ -1,28 +1,18 @@
 from flask import Blueprint, render_template, redirect, url_for
-from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
 
-from ..utils import dojo_route, user_dojos
+from ..utils import dojo_route, user_dojos, dojo_challenges
 
 
 dojos = Blueprint("pwncollege_dojos", __name__)
 
-
 def dojo_stats(dojo):
-    user = get_current_user()
-    user_id = user.id if user else None
-    solves = db.func.count(Solves.id).label("solves")
-    solved = db.func.max(Solves.user_id == user_id).label("solved")
-    challenges = (
-        db.session.query(Challenges.id, Challenges.name, Challenges.category, solves, solved)
-        .filter(Challenges.state == "visible", dojo.challenges_query())
-        .outerjoin(Solves, Solves.challenge_id == Challenges.id)
-        .group_by(Challenges.id)
-    ).all()
+    challenges = dojo_challenges(dojo, user=get_current_user())
     return {
         "count": len(challenges),
         "solved": sum(1 for challenge in challenges if challenge.solved),
     }
+
 
 
 @dojos.route("/dojos")

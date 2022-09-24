@@ -13,7 +13,7 @@ from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.cache import cache
 
 from ..models import DiscordUsers
-from ..utils import solved_challenges, module_visible, module_challenges_visible, dojo_route, DOJOS_DIR
+from ..utils import dojo_challenges, module_visible, module_challenges_visible, dojo_route, DOJOS_DIR
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 from .discord import discord_reputation
 
@@ -57,7 +57,7 @@ def shared_helpful_extra_credit():
 def module_grade_report(dojo, module, user, when=None):
     m = { }
 
-    challenges = solved_challenges(dojo, module, user, when=when)
+    challenges = dojo_challenges(dojo, module, user, solves_before=when)
     assigned = module.get("time_assigned", None)
     due = module.get("time_due", None)
     ec_full = module.get("time_ec_full", None)
