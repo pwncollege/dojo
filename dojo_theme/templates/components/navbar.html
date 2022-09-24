@@ -51,7 +51,7 @@
         {{ navitem("Admin Panel", url_for("admin.view"), "fa-wrench") }}
         {% endif %}
 
-        {{ navitem("Profile", url_for("users.private"), "fa-user-circle") }}
+        {{ navitem("Profile", url_for("pwncollege_users.view_self"), "fa-user-circle") }}
         {{ navitem("Settings", url_for("views.settings"), "fa-cogs") }}
         {{ navitem("Logout", url_for("auth.logout"), "fa-sign-out-alt", shrink=True) }}
 

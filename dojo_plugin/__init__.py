@@ -20,6 +20,7 @@ from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
 from .pages.desktop import desktop
+from .pages.users import users
 from .pages.settings import settings_override
 from .pages.discord import discord, maybe_award_belt
 from .pages.grades import grades
@@ -92,12 +93,16 @@ def load(app):
     app.view_functions["views.settings"] = settings_override
     app.view_functions["challenges.listing"] = dojos_override
     del app.view_functions["scoreboard.listing"]
+    del app.view_functions["users.private"]
+    del app.view_functions["users.public"]
+    del app.view_functions["users.listing"]
 
     app.register_blueprint(dojos)
     app.register_blueprint(dojo)
     app.register_blueprint(workspace)
     app.register_blueprint(desktop)
     app.register_blueprint(discord)
+    app.register_blueprint(users)
     app.register_blueprint(grades)
     app.register_blueprint(writeups)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
