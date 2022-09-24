@@ -25,7 +25,9 @@ def email_group_asset(email):
 
 
 def belt_asset(color):
-    if color == "blue":
+    if color == "black":
+        belt = "black.svg"
+    elif color == "blue":
         belt = "blue.svg"
     elif color == "yellow":
         belt = "yellow.svg"

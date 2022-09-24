@@ -4,7 +4,7 @@ from CTFd.utils.decorators import authed_only
 from CTFd.models import Users
 
 from ..utils import user_dojos, dojo_challenges, module_visible
-from ..api.v1.scoreboard import belt_asset_for
+from ..api.v1.scoreboard import belt_asset, belt_asset_for
 
 users = Blueprint("pwncollege_users", __name__)
 
@@ -42,7 +42,7 @@ def view_profile(user):
     return render_template(
         "hacker.html",
         public_dojos=public_dojos, private_dojos=private_dojos, archived_dojos=archived_dojos, stats=stats,
-        user=user, current_user=current_user, belt=belt_asset_for(user.id)
+        user=user, current_user=current_user, belt=belt_asset("black") if user.type == "admin" else belt_asset_for(user.id)
     )
 
 @users.route("/hackers/<int:user_id>")
