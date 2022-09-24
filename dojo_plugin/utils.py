@@ -242,6 +242,9 @@ def dojo_challenges(dojo, module=None, user=None, solves_before=None):
             db.func.max((Solves.user_id == user.id).cast(String)+Solves.date.cast(String)),
             2, 1000
         ).cast(DateTime).label("solve_date")) # _when_ did the user solve the chal?
+    else:
+        columns.append(db.literal(False).label("solved"))
+        columns.append(db.literal(None).label("solve_date"))
 
     solve_filters = [ Solves.challenge_id == Challenges.id ]
     if module and "time_assigned" in module:
