@@ -38,10 +38,13 @@ fi
 
 . "$DIR"/data/config.env
 
-if [ "$1" = "build" ]; then
+ACTION="$1"
+shift
+
+if [ "$ACTION" = "build" ]; then
     docker build -t "$DOJO_HOST" .
 
-elif [ "$1" = "run" ]; then
+elif [ "$ACTION" = "run" ]; then
     $0 build
     $0 stop
 
@@ -62,41 +65,41 @@ elif [ "$1" = "run" ]; then
 
     docker exec "$DOJO_HOST" logs
 
-elif [ "$1" = "stop" ]; then
+elif [ "$ACTION" = "stop" ]; then
     while [ $(docker ps -q -f name="$DOJO_HOST") ]; do
         docker kill "$DOJO_HOST" || sleep 1
     done
 
-elif [ "$1" = "logs" ]; then
+elif [ "$ACTION" = "logs" ]; then
     docker exec -it "$DOJO_HOST" docker-compose logs -f
 
-elif [ "$1" = "sh" ]; then
-    docker exec -it "$DOJO_HOST" bash
+elif [ "$ACTION" = "sh" ]; then
+    docker exec -it "$DOJO_HOST" bash "$@"
 
-elif [ "$1" = "restart" ]; then
-    if [ -z "$2" ]
+elif [ "$ACTION" = "restart" ]; then
+    if [ -z "$1" ]
     then
         $0 stop
         $0 run
     else
-        docker exec -it "$DOJO_HOST" docker stop $2
-        docker exec -it "$DOJO_HOST" docker start $2
+        docker exec -it "$DOJO_HOST" docker stop "$@"
+        docker exec -it "$DOJO_HOST" docker start "$@"
     fi
 
-elif [ "$1" = "db" ]; then
-	docker exec -it "$DOJO_HOST" docker exec -it ctfd_db mysql -u ctfd --password=ctfd ctfd
+elif [ "$ACTION" = "db" ]; then
+	docker exec -it "$DOJO_HOST" docker exec -it ctfd_db mysql -u ctfd --password=ctfd ctfd "$@"
 
-elif [ "$1" = "manage" ]; then
-	docker exec -it "$DOJO_HOST" docker exec -it ctfd python manage.py
+elif [ "$ACTION" = "manage" ]; then
+	docker exec -it "$DOJO_HOST" docker exec -it ctfd python manage.py "$@"
 
-elif [ "$1" = "update" ]; then
+elif [ "$ACTION" = "update" ]; then
     git -C "$DIR" pull
     git -C "$DIR"/data/dojos pull
 
     $0 restart ctfd
 
-elif [ "$1" = "backup" ]; then
-    docker exec -it "$DOJO_HOST" docker stop ctfd
+elif [ "$ACTION" = "backup" ]; then
+    docker exec -it "$DOJO_HOST" docker kill ctfd
     cp -a "$DIR"/data/mysql "$DIR"/data/mysql.bak-$(date -Iminutes)
     docker exec -it "$DOJO_HOST" docker start ctfd
 fi
