@@ -9,12 +9,35 @@ from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from CTFd.models import db, Challenges
 
 
-class DojoChallenges(Challenges):
+class DojoChallenges(db.Model):
     __tablename__ = "dojo_challenges"
-    __mapper_args__ = {"polymorphic_identity": "dojo"}
-    id = db.Column(db.Integer, db.ForeignKey("challenges.id"), primary_key=True)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id"), primary_key=True)
+    dojo_id = db.Column(db.String(16), db.ForeignKey("dojos.id"), primary_key=True)
     docker_image_name = db.Column(db.String(256))
+    description_override = db.Column(db.Text, nullable=True)
+    module = db.Column(db.String(256))
+    assigned_date = db.Column(db.DateTime(), nullable=True)
+    module_idx = db.Column(db.Integer)
+    level_idx = db.Column(db.Integer)
 
+    challenge = db.relationship("Challenges", foreign_keys="DojoChallenges.challenge_id", lazy="select")
+    dojo = db.relationship("Dojos", foreign_keys="DojoChallenges.dojo_id", lazy="select")
+
+    @property
+    def description(self):
+        return str(self.description_override) or str(self.challenge.description)
+
+    @property
+    def name(self):
+        return self.challenge.name
+
+    @property
+    def category(self):
+        return self.challenge.category
+
+    @property
+    def id(self):
+        return self.challenge_id
 
 class Dojos(db.Model):
     __tablename__ = "dojos"
@@ -68,22 +91,19 @@ class Dojos(db.Model):
 
     def challenges_query(self, module_id=None, include_unassigned=False):
         if self.config.get("dojo_spec", None) == "v2":
-            module_queries = [ ]
-            for module in self.modules:
-                if module_id is not None and module["id"] != module_id:
-                    continue
-                if not include_unassigned and "time_assigned" in module and module["time_assigned"] > datetime.datetime.now(pytz.utc):
-                    continue
-                challenges = module.get("challenges", [ ])
-                categories = { c["category"] for c in challenges }
-                categorized_chals = {
-                    category: [ c["name"] for c in challenges if c["category"] == category ]
-                    for category in categories
-                }
-                module_queries.append(or_(
-                    *(and_(Challenges.category == k, Challenges.name.in_(v)) for k,v in categorized_chals.items()), False
+            filters = [
+                DojoChallenges.dojo_id == self.id,
+                DojoChallenges.challenge_id == Challenges.id,
+                Challenges.state == "visible"
+            ]
+            if module_id is not None:
+                filters.append(DojoChallenges.module == module_id)
+            if not include_unassigned:
+                filters.append(or_(
+                    DojoChallenges.assigned_date == None,
+                    DojoChallenges.assigned_date < datetime.datetime.now(pytz.utc)
                 ))
-            return or_(*module_queries, False)
+            return and_(*filters)
         else:
             return or_(*(
                 and_(

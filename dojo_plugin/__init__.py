@@ -7,14 +7,13 @@ from email.utils import formatdate
 from flask import Response
 from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
-from CTFd.models import db
+from CTFd.models import db, Challenges
 from CTFd.utils.user import get_current_user
 from CTFd.plugins import register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 
 from .config import bootstrap
-from .models import DojoChallenges
 from .utils import unserialize_user_flag
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
@@ -36,7 +35,7 @@ Response.autocorrect_location_header = False
 class DojoChallenge(BaseChallenge):
     id = "dojo"
     name = "dojo"
-    challenge_model = DojoChallenges
+    challenge_model = Challenges
 
 
 class DojoFlag(BaseFlag):
