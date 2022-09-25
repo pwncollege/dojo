@@ -11,7 +11,7 @@ users = Blueprint("pwncollege_users", __name__)
 def dojo_full_stats(dojo, user):
     challenges = dojo_challenges(dojo, user=user)
     visible_modules = [ m for m in dojo.modules if module_visible(dojo, m, None) ]
-    module_challenges = { m["id"]: dojo_challenges(dojo, module=m, user=user) for m in visible_modules }
+    module_challenges = { m["id"]: [ c for c in challenges if c.module == m["id"] ] for m in visible_modules }
     return {
         "count": len(challenges),
         "solved": len([c for c in challenges if c.solved]),

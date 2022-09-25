@@ -1,9 +1,10 @@
+import sqlalchemy
 import warnings
 import yaml
 import os
 import re
 
-from CTFd.models import db, Admins, Pages, Flags
+from CTFd.models import db, Admins, Pages, Flags, Challenges
 from CTFd.cache import cache
 from CTFd.utils import config, set_config
 from .utils import multiprocess_lock
@@ -42,11 +43,16 @@ def load_global_dojo(dojo_id, dojo_spec):
 
     assert dojo.config.get("dojo_spec", None) == "v2"
 
-    for module in dojo.config["modules"]:
+    # delete all challenges owned by this dojo
+    deleter = sqlalchemy.delete(DojoChallenges).where(DojoChallenges.dojo_id == dojo.id).execution_options(synchronize_session="fetch")
+    db.session.execute(deleter)
+
+    # re-load the dojo challenges
+    for module_idx,module in enumerate(dojo.config["modules"], start=1):
         if "challenges" not in module:
             continue
 
-        for challenge_spec in module["challenges"]:
+        for level_idx,challenge_spec in enumerate(module["challenges"], start=1):
             if "dojo" in challenge_spec:
                 # don't create challenges that are imported from other dojos
                 continue
@@ -55,17 +61,16 @@ def load_global_dojo(dojo_id, dojo_spec):
             description = challenge_spec.get("description", None)
             category = challenge_spec["category"]
 
-            challenge = DojoChallenges.query.filter_by(
+            # first, make sure the challenge exists
+            challenge = Challenges.query.filter_by(
                 name=name, category=category
             ).first()
             if not challenge:
-                challenge = DojoChallenges(
+                challenge = Challenges(
                     name=name,
                     category=category,
-                    description=description,
                     value=1,
                     state="visible",
-                    docker_image_name="pwncollege_challenge",
                 )
                 db.session.add(challenge)
                 db.session.commit()
@@ -76,6 +81,21 @@ def load_global_dojo(dojo_id, dojo_spec):
             elif description is not None and challenge.description != description:
                 challenge.description = description
                 db.session.commit()
+
+            # then create the DojoChallenge link
+            dojo_challenge = DojoChallenges(
+                challenge_id=challenge.id,
+                dojo_id=dojo.id,
+                level_idx=level_idx,
+                module_idx=module_idx,
+                description_override=description,
+                assigned_date=module.get("time_assigned", None),
+                module=module["id"],
+                docker_image_name="pwncollege_challenge",
+            )
+            db.session.add(dojo_challenge)
+
+    db.session.commit()
 
 
 @multiprocess_lock

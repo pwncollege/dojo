@@ -203,7 +203,7 @@ class RunDocker(Resource):
         challenge = DojoChallenges.query.filter(
             dojo.challenges_query(include_unassigned=is_dojo_admin(get_current_user(), dojo))
         ).filter_by(
-            id=challenge_id
+            challenge_id=challenge_id
         ).first()
         if not challenge:
             return {"success": False, "error": "Invalid challenge"}
