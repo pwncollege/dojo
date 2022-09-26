@@ -164,7 +164,7 @@ class Dojos(db.Model):
             for challenge in module.get("challenges", []):
                 container = challenge
                 type_assert(challenge, dict, "challenge")
-                type_check("category", "\w+", required=True)
+                #type_check("category", "\w+", required=True)
 
                 type_check("names", list, required=False)
                 for name in challenge.get("names", []):
