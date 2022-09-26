@@ -46,6 +46,7 @@ def load_global_dojo(dojo_id, dojo_spec):
     # delete all challenges owned by this dojo
     deleter = sqlalchemy.delete(DojoChallenges).where(DojoChallenges.dojo_id == dojo.id).execution_options(synchronize_session="fetch")
     db.session.execute(deleter)
+    db.session.commit()
 
     # re-load the dojo challenges
     for module_idx,module in enumerate(dojo.config["modules"], start=1):
