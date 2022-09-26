@@ -238,6 +238,7 @@ def dojo_challenges(dojo, module=None, user=None, admin_view=False, solves_befor
     """
     columns = [
         DojoChallenges.challenge_id, DojoChallenges.description_override, DojoChallenges.level_idx,
+        DojoChallenges.provider_dojo_id, DojoChallenges.provider_module,
         DojoChallenges.module, DojoChallenges.module_idx,
         Challenges.name, Challenges.category, Challenges.description, Challenges.id,
         db.func.count(Solves.id).label("solves") # number of solves

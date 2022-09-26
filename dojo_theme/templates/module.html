@@ -216,13 +216,16 @@
             {% if challenge.description %}
             <p>{{ render_markdown(challenge.description) }}</p>
             {% endif %}
-            <small><p><i>
+            <small><i>
             {% if challenge.name.endswith(".0") %}
-            This is a teaching challenge, which means that it will print out useful information to help you solve it! You still need to solve it for the score and grade, though!
+            <p>This is a teaching challenge, which means that it will print out useful information to help you solve it! You still need to solve it for the score and grade, though!</p>
             {% elif "." in challenge.name %}
-            This is a testing challenge, which means that it pulls no punches! Solve it for grades, glory, and the scoreboard!
+            <p>This is a testing challenge, which means that it pulls no punches! Solve it for grades, glory, and the scoreboard!</p>
             {% endif %}
-            </i></p></small>
+            {% if challenge.provider_dojo_id %}
+            <p>This challenge is imported from the <a href="{{ url_for("pwncollege_dojo.listing", dojo=challenge.provider_dojo_id) }}">{{ challenge.provider_dojo_id }}</a> dojo's <a href="{{ url_for("pwncollege_dojo.view_module", dojo=challenge.provider_dojo_id, module=challenge.provider_module) }}">{{challenge.provider_module}}</a> module{% if asu_student %} (you still have to do this for credit){% endif %}!</p>
+            {% endif %}
+            </i></small>
           </div>
           <div class="row">
             <div class="col-sm-6 form-group text-center">
