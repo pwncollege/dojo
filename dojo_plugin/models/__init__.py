@@ -12,16 +12,23 @@ from CTFd.models import db, Challenges
 class DojoChallenges(db.Model):
     __tablename__ = "dojo_challenges"
     challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id"), primary_key=True)
-    dojo_id = db.Column(db.String(16), db.ForeignKey("dojos.id"), primary_key=True)
-    docker_image_name = db.Column(db.String(256))
     description_override = db.Column(db.Text, nullable=True)
+    docker_image_name = db.Column(db.String(256))
+
+    dojo_id = db.Column(db.String(16), db.ForeignKey("dojos.id"), primary_key=True)
     module = db.Column(db.String(256))
-    assigned_date = db.Column(db.DateTime(), nullable=True)
     module_idx = db.Column(db.Integer)
     level_idx = db.Column(db.Integer)
 
+    provider_dojo_id = db.Column(db.String(16), db.ForeignKey("dojos.id"), nullable=True)
+    provider_module = db.Column(db.String(256), nullable=True)
+
+    assigned_date = db.Column(db.DateTime(), nullable=True)
+    due_date = db.Column(db.DateTime(), nullable=True)
+
     challenge = db.relationship("Challenges", foreign_keys="DojoChallenges.challenge_id", lazy="select")
     dojo = db.relationship("Dojos", foreign_keys="DojoChallenges.dojo_id", lazy="select")
+    provider_dojo = db.relationship("Dojos", foreign_keys="DojoChallenges.provider_dojo_id", lazy="select")
 
     @property
     def description(self):

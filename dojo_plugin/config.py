@@ -59,33 +59,53 @@ def load_global_dojo(dojo_id, dojo_spec):
 
             name = challenge_spec["name"]
             description = challenge_spec.get("description", None)
-            category = challenge_spec["category"]
+            category = challenge_spec.get("category", f"{dojo.id}-challenge")
 
-            # first, make sure the challenge exists
-            challenge = Challenges.query.filter_by(
-                name=name, category=category
-            ).first()
-            if not challenge:
-                challenge = Challenges(
-                    name=name,
-                    category=category,
-                    value=1,
-                    state="visible",
-                )
-                db.session.add(challenge)
-                db.session.commit()
+            import_from = challenge_spec.get("import_from", None)
+            provider_dojo_id, provider_module = (None, None) if import_from is None else import_from.split("/")
 
-                flag = Flags(challenge_id=challenge.id, type="dojo")
-                db.session.add(flag)
-                db.session.commit()
-            elif description is not None and challenge.description != description:
-                challenge.description = description
-                db.session.commit()
+            if not import_from:
+                # if this is our dojo's challenge, make sure it's in the DB
+                challenge = Challenges.query.filter_by(
+                    name=name, category=category
+                ).first()
+                if not challenge:
+                    challenge = Challenges(
+                        name=name,
+                        category=category,
+                        value=1,
+                        state="visible",
+                    )
+                    db.session.add(challenge)
+                    db.session.commit()
+
+                    flag = Flags(challenge_id=challenge.id, type="dojo")
+                    db.session.add(flag)
+                    db.session.commit()
+                elif description is not None and challenge.description != description:
+                    challenge.description = description
+                    db.session.commit()
+            else:
+                # if we're importing this from another dojo, do that
+                provider_dojo_challenge = (
+                    DojoChallenges.query
+                    .join(Challenges, Challenges.id == DojoChallenges.challenge_id)
+                    .filter(
+                        DojoChallenges.dojo_id==provider_dojo_id, DojoChallenges.module==provider_module,
+                        Challenges.name==name
+                    )
+                ).first()
+                if not provider_dojo_challenge:
+                    continue
+
+                challenge = provider_dojo_challenge.challenge
 
             # then create the DojoChallenge link
             dojo_challenge = DojoChallenges(
                 challenge_id=challenge.id,
                 dojo_id=dojo.id,
+                provider_dojo_id=provider_dojo_id,
+                provider_module=provider_module,
                 level_idx=level_idx,
                 module_idx=module_idx,
                 description_override=description,
