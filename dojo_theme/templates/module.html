@@ -213,7 +213,9 @@
       <div id="challenge{{ loop.index }}" class="collapse" aria-labelledby="challengeHeading{{ loop.index }}" data-parent="#challenges">
         <div class="card-body">
           <div class="embed-responsive">
-            {% if challenge.description %}
+            {% if challenge.description_override %}
+            <p>{{ render_markdown(challenge.description_override) }}</p>
+            {% else %}
             <p>{{ render_markdown(challenge.description) }}</p>
             {% endif %}
             <small><i>
