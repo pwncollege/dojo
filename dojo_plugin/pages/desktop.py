@@ -76,4 +76,6 @@ def forward_desktop(user_id, path=""):
 @desktop.route("/admin/desktops", methods=["GET"])
 @admins_only
 def view_all_desktops():
-    return render_template("admin_desktops.html", users=get_active_users(active_desktops=True))
+    # active_desktops=True here would filter out only desktops that have been connected to, but that is too slow in
+    # the current implementation...
+    return render_template("admin_desktops.html", users=get_active_users())
