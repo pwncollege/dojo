@@ -2,21 +2,26 @@ from flask import Blueprint, render_template, abort
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.models import db, Users, Challenges, Solves
+from CTFd.cache import cache
 
 from ..utils import user_dojos, dojo_challenges, module_visible, dojo_standings
 from ..api.v1.scoreboard import belt_asset, belt_asset_for
 
 users = Blueprint("pwncollege_users", __name__)
 
-def solve_stats(user, dojo=None):
+@cache.memoize(timeout=120)
+def standings(dojo_id=None):
     score = db.func.sum(Challenges.value).label("score")
     global_standings = (
-        dojo_standings(dojo_id=dojo.id if dojo else None, fields=[Solves.account_id, Users.name, score])
+        dojo_standings(dojo_id=dojo_id, fields=[Solves.account_id, Users.name, score])
         .group_by(Solves.account_id)
         .order_by(score.desc(), db.func.max(Solves.id))
     ).all()
-    total_solvers = len(global_standings)
+    return global_standings
 
+def user_standings(user, dojo_id=None):
+    global_standings = standings(dojo_id=dojo_id)
+    total_solvers = len(global_standings)
     try:
         gpi = next(i for i,u in enumerate(global_standings, start=1) if u.account_id == user.id)
         ending = { "1": "st", "2": "nd", "3": "rd" }
@@ -31,7 +36,7 @@ def dojo_full_stats(dojo, user):
     visible_modules = [ m for m in dojo.modules if module_visible(dojo, m, None) ]
     module_challenges = { m["id"]: [ c for c in challenges if c.module == m["id"] ] for m in visible_modules }
 
-    dojo_position, dojo_solvers = solve_stats(user, dojo=dojo)
+    dojo_position, dojo_solvers = user_standings(user, dojo_id=dojo.id)
 
     return {
         "count": len(challenges),
@@ -62,7 +67,7 @@ def view_profile(user):
     archived_dojos = [ d for d in dojos if d.archived ]
     stats = { d.id: dojo_full_stats(d, user) for d in dojos }
 
-    global_position, total_solvers = solve_stats(user)
+    global_position, total_solvers = user_standings(user)
 
     return render_template(
         "hacker.html",
