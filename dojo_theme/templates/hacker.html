@@ -47,66 +47,66 @@
 {% endblock %}
 
 {% block content %}
-	<div class="jumbotron">
-		<div class="container">
-			<h1>{{ user.name }}<br><img src="{{ belt }}" class="scoreboard-belt"></h1>
+  <div class="jumbotron">
+    <div class="container">
+      <h1>{{ user.name }}<br><img src="{{ belt }}" class="scoreboard-belt"></h1>
 
-			{% if user.affiliation %}
-				<h3 class="d-inline-block">
-					<span class="badge badge-primary">{{ user.affiliation }}</span>
-				</h3>
-			{% endif %}
+      {% if user.affiliation %}
+        <h3 class="d-inline-block">
+          <span class="badge badge-primary">{{ user.affiliation }}</span>
+        </h3>
+      {% endif %}
 
-			{% if user.country %}
-				<h3 class="d-inline-block">
-					<span class="badge badge-primary">
-						<i class="flag-{{ user.country.lower() }}"></i>
-						{{ lookup_country_code(user.country) }}
-					</span>
-				</h3>
-			{% endif %}
+      {% if user.country %}
+        <h3 class="d-inline-block">
+          <span class="badge badge-primary">
+            <i class="flag-{{ user.country.lower() }}"></i>
+            {{ lookup_country_code(user.country) }}
+          </span>
+        </h3>
+      {% endif %}
 
-			{% for field in user.fields %}
-				<h3 class="d-block">
-					{{ field.name }}: {{ field.value }}
-				</h3>
-			{% endfor %}
+      {% for field in user.fields %}
+        <h3 class="d-block">
+          {{ field.name }}: {{ field.value }}
+        </h3>
+      {% endfor %}
 
-			<div class="pt-3">
-				{% if user.website %}
-					<a href="{{ user.website }}" target="_blank" style="color: inherit;" rel="noopener">
-						<i class="fas fa-external-link-alt fa-2x px-2" data-toggle="tooltip" data-placement="top"
-						   title="{{ user.website }}"></i>
-					</a>
-				{% endif %}
-			</div>
-		</div>
-	</div>
-	<div class="container">
-		{% include "components/errors.html" %}
+      <div class="pt-3">
+        {% if user.website %}
+          <a href="{{ user.website }}" target="_blank" style="color: inherit;" rel="noopener">
+            <i class="fas fa-external-link-alt fa-2x px-2" data-toggle="tooltip" data-placement="top"
+               title="{{ user.website }}"></i>
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    {% include "components/errors.html" %}
 
     {% if awards %}
-		<h2>Awards</h2>
-		<div class="row">
-			{% for award in awards %}
-			<div class="col-md-3 col-sm-6">
-				<p class="text-center">
-					<i class="award-icon award-{{ award.icon }} fa-2x"></i>
-					<br>
-					<strong>{{ award.name }}</strong>
-				</p>
-				<p class="text-center">{{ award.category or "" }}</p>
-				<p class="text-center">{{ award.description or "" }}</p>
-				<p class="text-center">{{ award.value }}</p>
-			</div>
-			{% endfor %}
-		</div>
+    <h2>Awards</h2>
+    <div class="row">
+      {% for award in awards %}
+      <div class="col-md-3 col-sm-6">
+        <p class="text-center">
+          <i class="award-icon award-{{ award.icon }} fa-2x"></i>
+          <br>
+          <strong>{{ award.name }}</strong>
+        </p>
+        <p class="text-center">{{ award.category or "" }}</p>
+        <p class="text-center">{{ award.description or "" }}</p>
+        <p class="text-center">{{ award.value }}</p>
+      </div>
+      {% endfor %}
+    </div>
 
-		<br style="font-size: 3em">
+    <br style="font-size: 3em">
     {% endif %}
 
-		{% macro dojo_list_stats(dojos, idx) -%}
-		  {% for dojo in dojos %}
+    {% macro dojo_list_stats(dojos, idx) -%}
+      {% for dojo in dojos %}
       {% set dojo_stats = stats[dojo.id] %}
       {{ macros.accordion_title_start("dojos", idx+loop.index) }}
       <h4 class="dojo-name">
@@ -141,26 +141,26 @@
         </tbody>
       </table>
       {{ macros.accordion_body_end() }}
-		  {% endfor %}
-		{%- endmacro %}
+      {% endfor %}
+    {%- endmacro %}
 
-		<h2>Dojo Progress</h2>
-		<div class="accordion" id="dojos">
-		  {% if public_dojos|length %}
-		  <br><p>Public Dojos:</p>
-		  <p><i>Overall ranking across all public dojo challenges:</i> {{global_position}} place of {{ total_solvers }} hackers!</i></p>
-		  {{ dojo_list_stats(public_dojos, 0) }}
-		  {% endif %}
+    <h2>Dojo Progress</h2>
+    <div class="accordion" id="dojos">
+      {% if public_dojos|length %}
+      <br><p>Public Dojos:</p>
+      <p><i>Overall ranking across all public dojo challenges:</i> {{global_position}} place of {{ total_solvers }} hackers!</i></p>
+      {{ dojo_list_stats(public_dojos, 0) }}
+      {% endif %}
 
-		  {% if private_dojos|length %}
-		  <p><br>Private Dojos:<br><small>(or, the private dojos that are also visible to you)</small></p>
-		  {{ dojo_list_stats(private_dojos, public_dojos|length) }}
-		  {% endif %}
+      {% if private_dojos|length %}
+      <p><br>Private Dojos:<br><small>(or, the private dojos that are also visible to you)</small></p>
+      {{ dojo_list_stats(private_dojos, public_dojos|length) }}
+      {% endif %}
 
-		  {% if archived_dojos|length %}
-		  <p><br>Archived Dojos:</p>
-		  {{ dojo_list_stats(archived_dojos, public_dojos|length+private_dojos|length) }}
-		  {% endif %}
-		</div>
-	</div>
+      {% if archived_dojos|length %}
+      <p><br>Archived Dojos:</p>
+      {{ dojo_list_stats(archived_dojos, public_dojos|length+private_dojos|length) }}
+      {% endif %}
+    </div>
+  </div>
 {% endblock %}
