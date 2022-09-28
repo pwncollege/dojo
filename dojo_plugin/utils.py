@@ -202,19 +202,23 @@ def user_dojos(user):
     return Dojos.query.filter(or_(*filters)).all()
 
 
-def dojo_standings(dojo_id, fields=None, module_id=None):
+def dojo_standings(dojo_id=None, fields=None, module_id=None):
     if fields is None:
         fields = []
 
     Model = get_model()
-    dojo = Dojos.query.filter(Dojos.id == dojo_id).first()
 
     dojo_filters = []
-    dojo_filters.append(dojo.challenges_query(module_id=module_id))
+    if dojo_id is None:
+        dojos = Dojos.query.filter_by(public=True).all()
+        dojo_filters.append(or_(*(dojo.challenges_query(module_id=module_id) for dojo in dojos)))
+    else:
+        dojo = Dojos.query.filter(Dojos.id == dojo_id).first()
+        dojo_filters.append(dojo.challenges_query(module_id=module_id))
 
-    if not dojo.public:
-        members = db.session.query(DojoMembers.user_id).filter_by(dojo_id=dojo_id)
-        dojo_filters.append(Solves.account_id.in_(members.subquery()))
+        if not dojo.public:
+            members = db.session.query(DojoMembers.user_id).filter_by(dojo_id=dojo_id)
+            dojo_filters.append(Solves.account_id.in_(members.subquery()))
 
     standings_query = (
         db.session.query(*fields)
