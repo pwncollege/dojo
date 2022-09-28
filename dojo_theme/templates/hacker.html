@@ -112,7 +112,10 @@
           <i class="fas fa-bolt pr-3 dojo-{% if dojo_stats.solved == dojo_stats.count %}solved{%else%}unsolved{%endif%}"></i>{{ dojo.name }}
         </span>
       </h4>
-      <span class="total-solves">{{ dojo_stats.solved }} / {{ dojo_stats.count }}</span>
+      <span class="total-solves">
+        {{ dojo_stats.solved }} / {{ dojo_stats.count }} challenges solved,
+        {{ dojo_stats.position }} {% if dojo_stats.position == "1st" %}<i class="fas fa-crown pr-1"></i>{% endif %}/ {{ dojo_stats.total_solvers }} place!
+      </span>
       {{ macros.accordion_title_end() }}
       {{ macros.accordion_body_start("dojos", idx+loop.index) }}
       <p>Progress on <a href="{{ url_for("pwncollege_dojo.listing", dojo=dojo.id) }}">{{ dojo.name }}</a>:<p>

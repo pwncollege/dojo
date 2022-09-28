@@ -8,14 +8,37 @@ from ..api.v1.scoreboard import belt_asset, belt_asset_for
 
 users = Blueprint("pwncollege_users", __name__)
 
+def solve_stats(user, dojo=None):
+    score = db.func.sum(Challenges.value).label("score")
+    global_standings = (
+        dojo_standings(dojo_id=dojo.id if dojo else None, fields=[Solves.account_id, Users.name, score])
+        .group_by(Solves.account_id)
+        .order_by(score.desc(), db.func.max(Solves.id))
+    ).all()
+    total_solvers = len(global_standings)
+
+    try:
+        gpi = next(i for i,u in enumerate(global_standings, start=1) if u.account_id == user.id)
+        ending = { "1": "st", "2": "nd", "3": "rd" }
+        global_position = str(gpi)+ending.get(str(gpi)[-1], "th")
+    except StopIteration:
+        global_position = "last"
+
+    return global_position, total_solvers
+
 def dojo_full_stats(dojo, user):
     challenges = dojo_challenges(dojo, user=user)
     visible_modules = [ m for m in dojo.modules if module_visible(dojo, m, None) ]
     module_challenges = { m["id"]: [ c for c in challenges if c.module == m["id"] ] for m in visible_modules }
+
+    dojo_position, dojo_solvers = solve_stats(user, dojo=dojo)
+
     return {
         "count": len(challenges),
         "solved": len([c for c in challenges if c.solved]),
         "visible_modules": visible_modules,
+        "total_solvers": dojo_solvers,
+        "position": dojo_position,
         "module_stats": {
             m["id"]: {
                 "solved_names": [ c.name for c in module_challenges[m["id"]] if c.solved ],
@@ -39,20 +62,7 @@ def view_profile(user):
     archived_dojos = [ d for d in dojos if d.archived ]
     stats = { d.id: dojo_full_stats(d, user) for d in dojos }
 
-    score = db.func.sum(Challenges.value).label("score")
-    global_standings = (
-        dojo_standings(fields=[Solves.account_id, Users.name, score])
-        .group_by(Solves.account_id)
-        .order_by(score.desc(), db.func.max(Solves.id))
-    ).all()
-    total_solvers = len(global_standings)
-
-    try:
-        gpi = next(i for i,u in enumerate(global_standings, start=1) if u.account_id == user.id)
-        ending = { 1: "st", 2: "nd", 3: "rd" }
-        global_position = str(gpi)+ending.get(str(gpi)[-1], "th")
-    except StopIteration:
-        global_position = "last"
+    global_position, total_solvers = solve_stats(user)
 
     return render_template(
         "hacker.html",
