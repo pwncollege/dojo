@@ -82,7 +82,7 @@ elif [ "$ACTION" = "restart" ]; then
         $0 stop
         $0 run
     else
-        docker exec -it "$DOJO_HOST" docker stop "$@"
+        docker exec -it "$DOJO_HOST" docker kill "$@"
         docker exec -it "$DOJO_HOST" docker start "$@"
     fi
 
