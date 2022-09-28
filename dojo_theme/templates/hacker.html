@@ -85,6 +85,7 @@
 	<div class="container">
 		{% include "components/errors.html" %}
 
+    {% if awards %}
 		<h2>Awards</h2>
 		<div class="row">
 			{% for award in awards %}
@@ -102,6 +103,7 @@
 		</div>
 
 		<br style="font-size: 3em">
+    {% endif %}
 
 		{% macro dojo_list_stats(dojos, idx) -%}
 		  {% for dojo in dojos %}
