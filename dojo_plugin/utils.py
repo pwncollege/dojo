@@ -15,7 +15,6 @@ import socket
 import docker
 from flask import current_app, Response, abort
 from itsdangerous.url_safe import URLSafeSerializer
-from sqlalchemy.sql import or_, and_
 from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.modes import get_model
