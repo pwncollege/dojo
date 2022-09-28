@@ -142,7 +142,8 @@
 		<h2>Dojo Progress</h2>
 		<div class="accordion" id="dojos">
 		  {% if public_dojos|length %}
-		  <p><br>Public Dojos:</p>
+		  <br><p>Public Dojos:</p>
+		  <p><i>Overall ranking across all public dojo challenges:</i> {{global_position}} place of {{ total_solvers }} hackers!</i></p>
 		  {{ dojo_list_stats(public_dojos, 0) }}
 		  {% endif %}
 
