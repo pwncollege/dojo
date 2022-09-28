@@ -76,4 +76,4 @@ def forward_desktop(user_id, path=""):
 @desktop.route("/admin/desktops", methods=["GET"])
 @admins_only
 def view_all_desktops():
-    return render_template("admin_desktops.html", users=get_active_users())
+    return render_template("admin_desktops.html", users=get_active_users(active_desktops=True))

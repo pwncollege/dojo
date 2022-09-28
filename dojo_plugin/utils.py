@@ -57,9 +57,14 @@ def get_current_challenge_id():
             except ValueError:
                 pass
 
-def get_active_users():
+def get_active_users(active_desktops=False):
     docker_client = docker.from_env()
     containers = docker_client.containers.list(filters=dict(name="user_"), ignore_removed=True)
+    if active_desktops:
+        containers = [
+            c for c in containers
+            if b"accepted" in next(c.get_archive("/tmp/vnc/vncserver.log")[0])
+        ]
     uids = [ c.name.split("_")[-1] for c in containers ]
     users = [ Users.query.filter_by(id=uid).first() for uid in uids ]
     return users
