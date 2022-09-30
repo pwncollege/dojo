@@ -22,7 +22,7 @@ from CTFd.utils.helpers import markup
 from CTFd.utils.config.pages import build_markdown
 
 from .models import Dojos, DojoMembers, DojoChallenges
-from sqlalchemy import String, DateTime
+from sqlalchemy import String, DateTime, Integer
 from sqlalchemy.sql import and_, or_
 
 
@@ -330,6 +330,19 @@ def dojo_completions():
         if s.solves == chal_counts[s.dojo_id]:
             completions.setdefault(s.user_id, []).append(s.dojo_id)
     return completions
+
+def first_bloods():
+    first_blood_string = db.func.min(Solves.date.cast(String)+"|"+Solves.user_id.cast(String))
+    first_blood_query = (
+        db.session.query(Challenges.id.label("challenge_id"))
+        .join(Solves, Challenges.id == Solves.challenge_id)
+        .add_columns(
+            db.func.substring_index(first_blood_string, "|", -1).cast(Integer).label("user_id"),
+            db.func.min(Solves.date).label("timestamp")
+        ).group_by(Challenges.id)
+    ).all()
+    return first_blood_query
+
 
 def belt_challenges():
     # TODO: move this concept into dojo yml

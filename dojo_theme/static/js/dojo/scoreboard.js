@@ -49,9 +49,18 @@ function loadScoreboard(duration, page) {
             `);
             row.find(".scoreboard-name").text(user.name.slice(0, 50));
             user.completions.forEach(dojo => {
-                dojolink = $(`<a href="/${dojo.dojo_id}/" title="${dojo.alt}">${dojo.emoji}</a><span> </span>`)
+                var dojolink = $(`<a href="/${dojo.dojo_id}/" title="${dojo.alt}">${dojo.emoji}</a><span> </span>`)
                 row.find(".scoreboard-completions").append(dojolink)
             });
+
+            desc = "This emoji is awarded for being the first hacker to solve a challenge."
+            if (user.first_blood_count > 0)
+            {
+                count = ""
+                if (user.first_blood_count > 1) count = `<sub>x${user.first_blood_count}</sub>`
+                var firstblood = $(`<span title="${desc}">&#127950;${count}</span><span> </span>`)
+                row.find(".scoreboard-completions").append(firstblood)
+            }
 
             if (result.me && user.place == result.me.place)
                 row.addClass("scoreboard-row-me");
