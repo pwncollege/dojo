@@ -10,7 +10,7 @@ from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
 
-from ...utils import dojo_route, dojo_standings, dojo_by_id, dojo_completions
+from ...utils import dojo_route, dojo_standings, dojo_by_id, dojo_completions, user_dojos
 from .belts import get_belts
 
 
@@ -81,12 +81,12 @@ def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
     return standings
 
 
-def standing_info(place, standing, completions):
+def standing_info(place, standing, completions, visible_dojos):
     return {
         "place": place,
         "name": standing.name,
         "account_id": standing.account_id,
-        "completions": completions.get(standing.account_id, []),
+        "completions": [ d for d in completions.get(standing.account_id, []) if d in visible_dojos ],
         "score": int(standing.score),
         "url": generate_account_url(standing.account_id).replace("users", "hackers"),
         "symbol": email_group_asset(standing.email),
@@ -102,7 +102,7 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
 
     standings = get_standings(span=span, dojo_id=dojo.id if dojo else None, module_id=module["id"] if module else None)
     completions = cached_dojo_completions()
-
+    visible_dojos = { d.id for d in user_dojos(user) }
 
     page_size = 20
     start = page_size * page
@@ -110,7 +110,7 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
     page_standings = list((start + i + 1, standing) for i, standing in enumerate(standings[start:end]))
 
     result = {
-        "page_standings": [standing_info(place, standing, completions) for place, standing in page_standings],
+        "page_standings": [standing_info(place, standing, completions, visible_dojos) for place, standing in page_standings],
         "num_pages": math.ceil(len(standings) / page_size),
     }
 
@@ -118,7 +118,7 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
         with contextlib.suppress(StopIteration):
             place, standing = next((i + 1, standing) for i, standing in enumerate(standings)
                                    if standing.account_id == user.id)
-            result["me"] = standing_info(place, standing, completions)
+            result["me"] = standing_info(place, standing, completions, visible_dojos)
 
     return result
 
