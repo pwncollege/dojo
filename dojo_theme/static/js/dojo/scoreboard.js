@@ -58,7 +58,7 @@ function loadScoreboard(duration, page) {
             {
                 count = ""
                 if (user.first_blood_count > 1) count = `<sub>x${user.first_blood_count}</sub>`
-                var firstblood = $(`<span title="${desc}">&#127950;${count}</span><span> </span>`)
+                var firstblood = $(`<span title="${desc}">&#128640;${count}</span><span> </span>`)
                 row.find(".scoreboard-completions").append(firstblood)
             }
 
