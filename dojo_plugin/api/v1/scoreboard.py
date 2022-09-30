@@ -81,12 +81,16 @@ def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
     return standings
 
 
-def standing_info(place, standing, completions, visible_dojos):
+def standing_info(place, standing, completions, dojo_emojis):
     return {
         "place": place,
         "name": standing.name,
         "account_id": standing.account_id,
-        "completions": [ d for d in completions.get(standing.account_id, []) if d in visible_dojos ],
+        "completions": [ {
+            "dojo_id": d,
+            "emoji": dojo_emojis[d],
+            "alt": f"This emoji was earned by completing all challenges in the {d} dojo."
+        } for d in completions.get(standing.account_id, []) if d in dojo_emojis ],
         "score": int(standing.score),
         "url": generate_account_url(standing.account_id).replace("users", "hackers"),
         "symbol": email_group_asset(standing.email),
@@ -102,7 +106,7 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
 
     standings = get_standings(span=span, dojo_id=dojo.id if dojo else None, module_id=module["id"] if module else None)
     completions = cached_dojo_completions()
-    visible_dojos = { d.id for d in user_dojos(user) }
+    dojo_emojis = { d.id: d.config["completion_emoji"] for d in user_dojos(user) if "completion_emoji" in d.config }
 
     page_size = 20
     start = page_size * page
@@ -110,7 +114,7 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
     page_standings = list((start + i + 1, standing) for i, standing in enumerate(standings[start:end]))
 
     result = {
-        "page_standings": [standing_info(place, standing, completions, visible_dojos) for place, standing in page_standings],
+        "page_standings": [standing_info(place, standing, completions, dojo_emojis) for place, standing in page_standings],
         "num_pages": math.ceil(len(standings) / page_size),
     }
 
@@ -118,7 +122,7 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
         with contextlib.suppress(StopIteration):
             place, standing = next((i + 1, standing) for i, standing in enumerate(standings)
                                    if standing.account_id == user.id)
-            result["me"] = standing_info(place, standing, completions, visible_dojos)
+            result["me"] = standing_info(place, standing, completions, dojo_emojis)
 
     return result
 

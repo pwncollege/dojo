@@ -49,7 +49,7 @@ function loadScoreboard(duration, page) {
             `);
             row.find(".scoreboard-name").text(user.name.slice(0, 50));
             user.completions.forEach(dojo => {
-                dojolink = $(`<a href="/${dojo}/">${dojo}</a><span> </span>`)
+                dojolink = $(`<a href="/${dojo.dojo_id}/" title="${dojo.alt}">${dojo.emoji}</a><span> </span>`)
                 row.find(".scoreboard-completions").append(dojolink)
             });
 
