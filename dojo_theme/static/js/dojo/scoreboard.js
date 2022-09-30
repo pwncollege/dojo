@@ -39,6 +39,8 @@ function loadScoreboard(duration, page) {
                 <a href="${user.url}" class="scoreboard-name text-decoration-none">
                 </a>
               </td>
+              <td class="scoreboard-completions">
+              </td>
               <td>
                 <img src="${user.belt}" class="scoreboard-belt">
               </td>
@@ -46,6 +48,11 @@ function loadScoreboard(duration, page) {
             </tr>
             `);
             row.find(".scoreboard-name").text(user.name.slice(0, 50));
+            user.completions.forEach(dojo => {
+                dojolink = $(`<a href="/${dojo}/">${dojo}</a><span> </span>`)
+                row.find(".scoreboard-completions").append(dojolink)
+            });
+
             if (result.me && user.place == result.me.place)
                 row.addClass("scoreboard-row-me");
             scoreboard.append(row);

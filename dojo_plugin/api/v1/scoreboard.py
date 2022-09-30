@@ -10,7 +10,7 @@ from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
 
-from ...utils import dojo_route, dojo_standings, dojo_by_id
+from ...utils import dojo_route, dojo_standings, dojo_by_id, dojo_completions
 from .belts import get_belts
 
 
@@ -81,21 +81,28 @@ def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
     return standings
 
 
-def standing_info(place, standing):
+def standing_info(place, standing, completions):
     return {
         "place": place,
         "name": standing.name,
+        "account_id": standing.account_id,
+        "completions": completions.get(standing.account_id, []),
         "score": int(standing.score),
         "url": generate_account_url(standing.account_id).replace("users", "hackers"),
         "symbol": email_group_asset(standing.email),
         "belt": belt_asset_for(standing.account_id),
     }
 
+@cache.memoize(timeout=60)
+def cached_dojo_completions():
+    return dojo_completions()
 
 def get_scoreboard_data(page, span, *, dojo=None, module=None):
     user = get_current_user()
 
     standings = get_standings(span=span, dojo_id=dojo.id if dojo else None, module_id=module["id"] if module else None)
+    completions = cached_dojo_completions()
+
 
     page_size = 20
     start = page_size * page
@@ -103,7 +110,7 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
     page_standings = list((start + i + 1, standing) for i, standing in enumerate(standings[start:end]))
 
     result = {
-        "page_standings": [standing_info(place, standing) for place, standing in page_standings],
+        "page_standings": [standing_info(place, standing, completions) for place, standing in page_standings],
         "num_pages": math.ceil(len(standings) / page_size),
     }
 
@@ -111,7 +118,7 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
         with contextlib.suppress(StopIteration):
             place, standing = next((i + 1, standing) for i, standing in enumerate(standings)
                                    if standing.account_id == user.id)
-            result["me"] = standing_info(place, standing)
+            result["me"] = standing_info(place, standing, completions)
 
     return result
 
