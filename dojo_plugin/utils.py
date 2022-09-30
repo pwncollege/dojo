@@ -310,6 +310,26 @@ def multiprocess_lock(func):
             fcntl.flock(lf, fcntl.LOCK_UN)
     return wrapper
 
+def dojo_completions():
+    all_solves = (
+        db.session.query(DojoChallenges.dojo_id.label("dojo_id"))
+        .join(Solves, DojoChallenges.challenge_id == Solves.challenge_id)
+        .add_columns(db.func.count(Solves.id).label("solves"), Solves.user_id)
+        .group_by(Solves.user_id, DojoChallenges.dojo_id)
+    ).all()
+    all_challenges = (
+        db.session.query(Dojos.id.label("dojo_id"))
+        .join(DojoChallenges, DojoChallenges.dojo_id == Dojos.id)
+        .add_columns(db.func.count(DojoChallenges.challenge_id).label("challenges"))
+        .group_by(Dojos.id)
+    ).all()
+
+    chal_counts = { d.dojo_id: d.challenges for d in all_challenges }
+    completions = { }
+    for s in all_solves:
+        if s.solves == chal_counts[s.dojo_id]:
+            completions.setdefault(s.user_id, []).append(s.dojo_id)
+    return completions
 
 def belt_challenges():
     # TODO: move this concept into dojo yml
