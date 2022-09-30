@@ -5,9 +5,38 @@
   h4 {
       color: rgb(99, 192, 245);
       text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
+      font-size: 1.2rem;
   }
 </style>
 {% endblock %}
+
+{% macro dojocard(dojo) -%}
+    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.id) }}">
+      <li class="card card-small">
+        <div class="card-body">
+          <h4 class="card-title">
+            {{ dojo.name }}
+            {% if dojo.config.course %}<br><small>({{dojo.config.course}})</small>{%endif%}
+          </h4>
+          <p class="card-text">
+          {% if dojo.config.completion_emoji %}
+          {% set prize_text = "You will earn a " + dojo.config.completion_emoji + " emoji for completing this dojo." %}
+          <span title="{{prize_text}}">Award: {{ dojo.config.completion_emoji }}</span>
+          {% elif dojo.config.completion_belt %}
+          {% set prize_text = "You will earn a " + dojo.config.completion_belt + " belt for completing this dojo." %}
+          <span title="{{prize_text}}">
+            Award:
+            <img style='height:1em' src='{{ url_for('views.themes', path="img/dojo/"+dojo.config.completion_belt+".svg") }}'>
+          </span>
+          {% endif %}
+          </p>
+          <p class="card-text">
+            {{ stats[dojo.id].solved }} / {{ stats[dojo.id].count }}
+          </p>
+        </div>
+      </li>
+    </a>
+{%- endmacro %}
 
 {% block content %}
 <div class="jumbotron">
@@ -19,16 +48,7 @@
   <p>These are the currently available public dojos. Each dojo follows a certain level and flavor of material to develop your skills in a given hacking style.</p>
   <ul class="card-list">
     {% for dojo in public_dojos %}
-    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.id) }}">
-      <li class="card card-small">
-        <div class="card-body">
-          <h4 class="card-title">{{ dojo.name }}</h4>
-          <p class="card-text">
-            {{ stats[dojo.id].solved }} / {{ stats[dojo.id].count }}
-          </p>
-        </div>
-      </li>
-    </a>
+    {{ dojocard(dojo) }}
     {% endfor %}
   </ul>
 </div>
@@ -43,16 +63,7 @@
   <p>These are the private dojos of which you are currently a member.</p>
   <ul class="card-list">
     {% for dojo in private_dojos %}
-    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.id) }}">
-      <li class="card card-small">
-        <div class="card-body">
-          <h4 class="card-title">{{ dojo.name }}</h4>
-          <p class="card-text">
-            {{ stats[dojo.id].solved }} / {{ stats[dojo.id].count }}
-          </p>
-        </div>
-      </li>
-    </a>
+    {{ dojocard(dojo) }}
     {% endfor %}
   </ul>
   {% else %}
@@ -70,16 +81,7 @@
   <p>These dojos archive the hallowed knowledge of prior generations of students. While the material remains available, and some of it will continue to be used in the active dojos above, there are no guarantees.</p>
   <ul class="card-list">
     {% for dojo in archived_dojos %}
-    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.id) }}">
-      <li class="card card-small">
-        <div class="card-body">
-          <h4 class="card-title">{{ dojo.name }}</h4>
-          <p class="card-text">
-            {{ stats[dojo.id].solved }} / {{ stats[dojo.id].count }}
-          </p>
-        </div>
-      </li>
-    </a>
+    {{ dojocard(dojo) }}
     {% endfor %}
   </ul>
 </div>
