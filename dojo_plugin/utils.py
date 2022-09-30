@@ -327,8 +327,6 @@ def dojo_completions():
     chal_counts = { d.dojo_id: d.challenges for d in all_challenges }
     completions = { }
     for s in all_solves:
-        if s.dojo_id in [ "cse365", "cse466" ]:
-            continue
         if s.solves == chal_counts[s.dojo_id]:
             completions.setdefault(s.user_id, []).append(s.dojo_id)
     return completions
