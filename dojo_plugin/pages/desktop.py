@@ -48,7 +48,7 @@ def view_desktop(dojo=None, user_id=None):
     except FileNotFoundError:
         password = None
 
-    active = bool(password)
+    active = bool(password) if get_current_challenge_id() is not None else None
     view_only = int(user_id != current_user.id)
 
     return render_template("desktop.html",
