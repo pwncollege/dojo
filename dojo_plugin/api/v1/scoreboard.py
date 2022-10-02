@@ -11,7 +11,7 @@ from CTFd.models import db, Solves, Challenges
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
 
-from ...utils import dojo_route, dojo_standings, dojo_by_id, dojo_completions, user_dojos, first_bloods
+from ...utils import dojo_route, dojo_standings, dojo_by_id, dojo_completions, user_dojos, first_bloods, daily_solve_counts
 from .belts import get_belts
 
 
@@ -82,23 +82,6 @@ def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
     return standings
 
 
-def standing_info(place, standing, completions, dojo_emojis, blood_counts):
-    return {
-        "place": place,
-        "name": standing.name,
-        "account_id": standing.account_id,
-        "completions": [ {
-            "dojo_id": d,
-            "emoji": dojo_emojis[d],
-            "alt": f"This emoji was earned by completing all challenges in the {d} dojo."
-        } for d in completions.get(standing.account_id, []) if d in dojo_emojis ],
-        "first_blood_count": blood_counts[standing.account_id],
-        "score": int(standing.score),
-        "url": generate_account_url(standing.account_id).replace("users", "hackers"),
-        "symbol": email_group_asset(standing.email),
-        "belt": belt_asset_for(standing.account_id),
-    }
-
 @cache.memoize(timeout=60)
 def cached_dojo_completions():
     return dojo_completions()
@@ -107,6 +90,10 @@ def cached_dojo_completions():
 def cached_first_bloods():
     return first_bloods()
 
+@cache.memoize(timeout=60)
+def cached_daily_solve_counts():
+    return daily_solve_counts()
+
 def get_scoreboard_data(page, span, *, dojo=None, module=None):
     user = get_current_user()
 
@@ -114,6 +101,30 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
     completions = cached_dojo_completions()
     dojo_emojis = { d.id: d.config["completion_emoji"] for d in user_dojos(user) if "completion_emoji" in d.config }
     blood_counts = collections.Counter(b.user_id for b in cached_first_bloods())
+    daily_solves = { }
+    many_solve_days = { }
+    for s in cached_daily_solve_counts():
+        daily_solves[s.user_id] = max(daily_solves.get(s.user_id, 0), s.solves)
+        if s.solves >= 50:
+            many_solve_days[s.user_id] = many_solve_days.get(s.user_id, 0) + 1
+
+    def standing_info(_place, _standing):
+        return {
+            "place": _place,
+            "name": _standing.name,
+            "account_id": _standing.account_id,
+            "completions": [ {
+                "dojo_id": d,
+                "emoji": dojo_emojis[d],
+            } for d in completions.get(_standing.account_id, []) if d in dojo_emojis ],
+            "first_blood_count": blood_counts[_standing.account_id],
+            "max_solves_per_day": daily_solves.get(_standing.account_id, []),
+            "num_many_solve_days": many_solve_days.get(_standing.account_id, 0),
+            "score": int(_standing.score),
+            "url": generate_account_url(_standing.account_id).replace("users", "hackers"),
+            "symbol": email_group_asset(_standing.email),
+            "belt": belt_asset_for(_standing.account_id),
+        }
 
     page_size = 20
     start = page_size * page
@@ -121,7 +132,7 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
     page_standings = list((start + i + 1, standing) for i, standing in enumerate(standings[start:end]))
 
     result = {
-        "page_standings": [standing_info(place, standing, completions, dojo_emojis, blood_counts) for place, standing in page_standings],
+        "page_standings": [ standing_info(place, standing) for place, standing in page_standings],
         "num_pages": math.ceil(len(standings) / page_size),
     }
 
@@ -129,7 +140,7 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
         with contextlib.suppress(StopIteration):
             place, standing = next((i + 1, standing) for i, standing in enumerate(standings)
                                    if standing.account_id == user.id)
-            result["me"] = standing_info(place, standing, completions, dojo_emojis, blood_counts)
+            result["me"] = standing_info(place, standing)
 
     return result
 

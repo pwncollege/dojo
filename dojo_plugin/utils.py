@@ -343,6 +343,20 @@ def first_bloods():
     ).all()
     return first_blood_query
 
+def daily_solve_counts():
+    counts = (
+        db.session.query(
+            Solves.user_id, db.func.count(Solves.challenge_id).label("solves"),
+            db.func.year(Solves.date).label("year"),
+            db.func.month(Solves.date).label("month"),
+            db.func.day(Solves.date).label("day")
+        )
+        .join(Challenges, Challenges.id == Solves.challenge_id)
+        .filter(~Challenges.category.contains("embryo"))
+        .group_by("year", "month", "day", Solves.user_id)
+    ).all()
+    return counts
+
 
 def belt_challenges():
     # TODO: move this concept into dojo yml

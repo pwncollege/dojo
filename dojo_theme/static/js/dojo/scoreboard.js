@@ -48,6 +48,19 @@ function loadScoreboard(duration, page) {
             </tr>
             `);
             row.find(".scoreboard-name").text(user.name.slice(0, 50));
+
+            // the maximum daily solve count
+            if (user.num_many_solve_days > 0)
+            {
+                var count = ""
+                if (user.num_many_solve_days > 1) count = `<sub>x${user.num_many_solve_days}</sub>`
+                row.find(".scoreboard-completions").append($(`
+                    <span title="This emoji is earned by solving more than 50 non-embryo challenges in a single day (UTC reckoning).">
+                    &#129302;${count}
+                    </span><span> </span>
+                `));
+            }
+
             user.completions.forEach(dojo => {
                 row.find(".scoreboard-completions").append($(`
                     <span title="This emoji was earned by completing all challenges in the {dojo.id} dojo."
