@@ -38,6 +38,9 @@ def load_global_dojo(dojo_id, dojo_spec):
     if not dojo:
         dojo = Dojos(id=dojo_id)
         db.session.add(dojo)
+    elif dojo.data == dojo_spec:
+        return
+
     dojo.data = dojo_spec
     db.session.commit()
 
