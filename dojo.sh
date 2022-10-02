@@ -41,6 +41,9 @@ fi
 ACTION="$1"
 shift
 
+DOCKER_INPUT_MODE="-it"
+[ -t 0 ] || DOCKER_INPUT_MODE="-i"
+
 if [ "$ACTION" = "build" ]; then
     docker build -t "$DOJO_HOST" .
 
@@ -65,16 +68,19 @@ elif [ "$ACTION" = "run" ]; then
 
     docker exec "$DOJO_HOST" logs
 
+elif [ "$ACTION" = "docker" ]; then
+    docker exec $DOCKER_INPUT_MODE "$DOJO_HOST" docker "$@"
+
 elif [ "$ACTION" = "stop" ]; then
     while [ $(docker ps -q -f name="$DOJO_HOST") ]; do
         docker kill "$DOJO_HOST" || sleep 1
     done
 
 elif [ "$ACTION" = "logs" ]; then
-    docker exec -it "$DOJO_HOST" docker-compose logs -f
+    docker exec $DOCKER_INPUT_MODE "$DOJO_HOST" docker-compose logs -f
 
 elif [ "$ACTION" = "sh" ]; then
-    docker exec -it "$DOJO_HOST" bash "$@"
+    docker exec $DOCKER_INPUT_MODE "$DOJO_HOST" bash "$@"
 
 elif [ "$ACTION" = "restart" ]; then
     if [ -z "$1" ]
@@ -82,15 +88,15 @@ elif [ "$ACTION" = "restart" ]; then
         $0 stop
         $0 run
     else
-        docker exec -it "$DOJO_HOST" docker kill "$@"
-        docker exec -it "$DOJO_HOST" docker start "$@"
+        $0 docker kill "$@"
+        $0 docker start "$@"
     fi
 
 elif [ "$ACTION" = "db" ]; then
-	docker exec -it "$DOJO_HOST" docker exec -it ctfd_db mysql -u ctfd --password=ctfd ctfd "$@"
+	$0 docker exec $DOCKER_INPUT_MODE ctfd_db mysql -u ctfd --password=ctfd ctfd "$@"
 
 elif [ "$ACTION" = "manage" ]; then
-	docker exec -it "$DOJO_HOST" docker exec -it ctfd python manage.py "$@"
+	$0 docker exec $DOCKER_INPUT_MODE ctfd python manage.py "$@"
 
 elif [ "$ACTION" = "update" ]; then
     git -C "$DIR" pull
@@ -99,7 +105,7 @@ elif [ "$ACTION" = "update" ]; then
     $0 restart ctfd
 
 elif [ "$ACTION" = "backup" ]; then
-    docker exec -it "$DOJO_HOST" docker kill ctfd
+    $0 docker kill ctfd
     cp -a "$DIR"/data/mysql "$DIR"/data/mysql.bak-$(date -Iminutes)
-    docker exec -it "$DOJO_HOST" docker start ctfd
+    $0 docker start ctfd
 fi
