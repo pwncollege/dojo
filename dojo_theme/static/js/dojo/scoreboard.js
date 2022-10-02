@@ -49,17 +49,22 @@ function loadScoreboard(duration, page) {
             `);
             row.find(".scoreboard-name").text(user.name.slice(0, 50));
             user.completions.forEach(dojo => {
-                var dojolink = $(`<a href="/${dojo.dojo_id}/" title="${dojo.alt}">${dojo.emoji}</a><span> </span>`)
-                row.find(".scoreboard-completions").append(dojolink)
+                row.find(".scoreboard-completions").append($(`
+                    <span title="This emoji was earned by completing all challenges in the {dojo.id} dojo."
+                    <a href="/${dojo.dojo_id}/">${dojo.emoji}</a>
+                    </span><span> </span>
+                `));
             });
 
-            desc = "This emoji is awarded for being the first hacker to solve a challenge."
             if (user.first_blood_count > 0)
             {
-                count = ""
+                var count = ""
                 if (user.first_blood_count > 1) count = `<sub>x${user.first_blood_count}</sub>`
-                var firstblood = $(`<span title="${desc}">&#128640;${count}</span><span> </span>`)
-                row.find(".scoreboard-completions").append(firstblood)
+                row.find(".scoreboard-completions").append($(`
+                    <span title="This emoji is awarded for being the first hacker to solve a challenge.">
+                    &#128640;${count}
+                    </span><span> </span>
+                `));
             }
 
             if (result.me && user.place == result.me.place)
