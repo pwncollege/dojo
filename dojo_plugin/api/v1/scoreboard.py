@@ -90,35 +90,45 @@ def global_hacker_stats():
     all_users = Users.query.filter_by(banned=False, hidden=False).all()
     completions = dojo_completions()
     dojo_emojis = { d.id: d.config["completion_emoji"] for d in Dojos.query.all() if "completion_emoji" in d.config }
-    blood_counts = collections.Counter(b.user_id for b in first_bloods())
-    daily_solves = { }
+
+    _bloods = first_bloods()
+    blood_counts = collections.Counter(b.user_id for b in _bloods)
+    blood_timestamps = { }
+    for b in _bloods:
+        blood_timestamps.setdefault(b.user_id, []).append(b.timestamp)
+
+    max_daily_solves = { }
     many_solve_days = { }
     for s in daily_solve_counts():
-        daily_solves[s.user_id] = max(daily_solves.get(s.user_id, 0), s.solves)
+        max_daily_solves[s.user_id] = max(max_daily_solves.get(s.user_id, 0), s.solves)
         if s.solves >= MANY_SOLVE_THRESHOLD:
-            many_solve_days[s.user_id] = many_solve_days.get(s.user_id, 0) + 1
+            many_solve_days.setdefault(s.user_id, []).append(
+                datetime.datetime(year=s.year, month=s.month, day=s.day, hour=23, minute=59, second=59)
+            )
 
     all_stats = { }
     for user in all_users:
         badges = [ ]
 
         # many solve badges
-        if many_solve_days.get(user.id, 0):
+        if len(many_solve_days.get(user.id, [])):
             badges.append({
                 "emoji": "&#129302;", # robot emoji
-                "count": many_solve_days[user.id],
+                "count": len(many_solve_days[user.id]),
+                "timestamp": many_solve_days[user.id][0],
                 "text": f"This emoji is earned by solving more than 50 non-embryo challenges in a single day (UTC reckoning)."
             })
 
         # dojo completion badges
-        for d in completions.get(user.id, []):
-            if d in dojo_emojis:
+        for completion in completions.get(user.id, []):
+            if completion["dojo"] in dojo_emojis:
                 badges.append({
-                    "emoji": dojo_emojis[d],
+                    "emoji": dojo_emojis[completion["dojo"]],
                     "count": 1,
-                    "url": url_for("pwncollege_dojo.listing", dojo=d),
-                    "dojo": d,
-                    "text": f"This emoji was earned by completing all challenges in the {d} dojo."
+                    "url": url_for("pwncollege_dojo.listing", dojo=completion["dojo"]),
+                    "dojo": completion["dojo"],
+                    "timestamp": completion["last_solve"],
+                    "text": f"""This emoji was earned by completing all challenges in the {completion["dojo"]} dojo."""
                 })
 
         # first blood badges
@@ -126,15 +136,18 @@ def global_hacker_stats():
             badges.append({
                 "emoji": "&#128640;",
                 "count": blood_counts[user.id],
+                "timestamp": blood_timestamps[user.id][0],
                 "text": "This emoji is awarded for being the first hacker to solve a challenge."
             })
 
+        # sort badges by timestamp
+        badges.sort(key=lambda i: i.get("timestamp"))
 
         stats = {
             "badges": badges,
             "dojos_completed": completions.get(user.id, []),
             "first_blood_count": blood_counts[user.id],
-            "max_solves_per_day": daily_solves.get(user.id, []),
+            "max_solves_per_day": max_daily_solves.get(user.id, []),
             "num_many_solve_days": many_solve_days.get(user.id, 0),
         }
         all_stats[user.id] = stats
@@ -160,7 +173,7 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
             "belt": belt_asset_for(_standing.account_id),
         }
         _info.update(hacker_stats.get(_standing.account_id, {}))
-        _info["dojos_completed"] = [ (c if c in visible_dojos else "<redacted>") for c in _info["dojos_completed"] ]
+        _info["dojos_completed"] = [ (c if c["dojo"] in visible_dojos else "<redacted>") for c in _info["dojos_completed"] ]
         _info["badges"] = [ (b if ("dojo" not in b or b["dojo"] in visible_dojos) else dict(
             b, dojo="<redacted>", url="#",
             text="This emoji was earned by completing all challenges in a dojo you cannot view."

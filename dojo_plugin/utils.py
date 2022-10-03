@@ -314,8 +314,14 @@ def dojo_completions():
     all_solves = (
         db.session.query(DojoChallenges.dojo_id.label("dojo_id"))
         .join(Solves, DojoChallenges.challenge_id == Solves.challenge_id)
-        .add_columns(db.func.count(Solves.id).label("solves"), Solves.user_id)
+        .add_columns(
+            db.func.count(Solves.id).label("solves"),
+            Solves.user_id,
+            db.func.max(Solves.date).label("last_solve"),
+            db.func.min(Solves.date).label("first_solve"),
+        )
         .group_by(Solves.user_id, DojoChallenges.dojo_id)
+        .order_by("last_solve")
     ).all()
     all_challenges = (
         db.session.query(Dojos.id.label("dojo_id"))
@@ -328,7 +334,9 @@ def dojo_completions():
     completions = { }
     for s in all_solves:
         if s.solves == chal_counts[s.dojo_id]:
-            completions.setdefault(s.user_id, []).append(s.dojo_id)
+            completions.setdefault(s.user_id, []).append({
+                "dojo": s.dojo_id, "last_solve": s.last_solve, "first_solve": s.first_solve
+            })
     return completions
 
 def first_bloods():
@@ -339,7 +347,9 @@ def first_bloods():
         .add_columns(
             db.func.substring_index(first_blood_string, "|", -1).cast(Integer).label("user_id"),
             db.func.min(Solves.date).label("timestamp")
-        ).group_by(Challenges.id)
+        )
+        .group_by(Challenges.id)
+        .order_by("timestamp")
     ).all()
     return first_blood_query
 
