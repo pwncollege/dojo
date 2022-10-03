@@ -156,18 +156,18 @@
     <h2>Dojo Progress</h2>
     <div class="accordion" id="dojos">
       {% if public_dojos|length %}
-      <br><p>Public Dojos:</p>
+      <br><p><b>Public Dojos:</b></p>
       <p><i>Overall ranking across all public dojo challenges:</i> {{global_position}} place of {{ total_solvers }} hackers!</i></p>
       {{ dojo_list_stats(public_dojos, 0) }}
       {% endif %}
 
       {% if private_dojos|length %}
-      <p><br>Private Dojos:<br><small>(or, the private dojos that are also visible to you)</small></p>
+      <p><br><b>Private Dojos:</b><br><small>(at least, those that are also visible to you)</small></p>
       {{ dojo_list_stats(private_dojos, public_dojos|length) }}
       {% endif %}
 
       {% if archived_dojos|length %}
-      <p><br>Archived Dojos:</p>
+      <p><br><b>Archived Dojos:</b></p>
       {{ dojo_list_stats(archived_dojos, public_dojos|length+private_dojos|length) }}
       {% endif %}
     </div>
