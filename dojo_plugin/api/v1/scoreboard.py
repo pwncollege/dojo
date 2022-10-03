@@ -7,10 +7,11 @@ import pytz
 from flask import url_for
 from flask_restx import Namespace, Resource
 from CTFd.cache import cache
-from CTFd.models import db, Solves, Challenges
+from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
 
+from ...models import Dojos
 from ...utils import dojo_route, dojo_standings, dojo_by_id, dojo_completions, user_dojos, first_bloods, daily_solve_counts
 from .belts import get_belts
 
@@ -83,48 +84,49 @@ def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
 
 
 @cache.memoize(timeout=60)
-def cached_dojo_completions():
-    return dojo_completions()
-
-@cache.memoize(timeout=60)
-def cached_first_bloods():
-    return first_bloods()
-
-@cache.memoize(timeout=60)
-def cached_daily_solve_counts():
-    return daily_solve_counts()
-
-def get_scoreboard_data(page, span, *, dojo=None, module=None):
-    user = get_current_user()
-
-    standings = get_standings(span=span, dojo_id=dojo.id if dojo else None, module_id=module["id"] if module else None)
-    completions = cached_dojo_completions()
-    dojo_emojis = { d.id: d.config["completion_emoji"] for d in user_dojos(user) if "completion_emoji" in d.config }
-    blood_counts = collections.Counter(b.user_id for b in cached_first_bloods())
+def global_hacker_stats():
+    all_users = Users.query.filter_by(banned=False, hidden=False).all()
+    completions = dojo_completions()
+    dojo_emojis = { d.id: d.config["completion_emoji"] for d in Dojos.query.all() if "completion_emoji" in d.config }
+    blood_counts = collections.Counter(b.user_id for b in first_bloods())
     daily_solves = { }
     many_solve_days = { }
-    for s in cached_daily_solve_counts():
+    for s in daily_solve_counts():
         daily_solves[s.user_id] = max(daily_solves.get(s.user_id, 0), s.solves)
         if s.solves >= 50:
             many_solve_days[s.user_id] = many_solve_days.get(s.user_id, 0) + 1
 
+    return { user_id: {
+        "completions": [ {
+            "dojo_id": d,
+            "emoji": dojo_emojis[d],
+        } for d in completions.get(user_id, []) if d in dojo_emojis ],
+        "first_blood_count": blood_counts[user_id],
+        "max_solves_per_day": daily_solves.get(user_id, []),
+        "num_many_solve_days": many_solve_days.get(user_id, 0),
+    } for user_id in all_users }
+
+
+def get_scoreboard_data(page, span, *, dojo=None, module=None):
+    user = get_current_user()
+    visible_dojos = { d.id for d in user_dojos(user) }
+
+    standings = get_standings(span=span, dojo_id=dojo.id if dojo else None, module_id=module["id"] if module else None)
+    hacker_stats = global_hacker_stats()
+
     def standing_info(_place, _standing):
-        return {
+        _info = {
             "place": _place,
             "name": _standing.name,
             "account_id": _standing.account_id,
-            "completions": [ {
-                "dojo_id": d,
-                "emoji": dojo_emojis[d],
-            } for d in completions.get(_standing.account_id, []) if d in dojo_emojis ],
-            "first_blood_count": blood_counts[_standing.account_id],
-            "max_solves_per_day": daily_solves.get(_standing.account_id, []),
-            "num_many_solve_days": many_solve_days.get(_standing.account_id, 0),
             "score": int(_standing.score),
             "url": generate_account_url(_standing.account_id).replace("users", "hackers"),
             "symbol": email_group_asset(_standing.email),
             "belt": belt_asset_for(_standing.account_id),
         }
+        _info.update(hacker_stats.get(_standing.account_id), {})
+        _info["completions"] = [ c for c in _info["completions"] if c["dojo_id"] in visible_dojos ]
+        return _info
 
     page_size = 20
     start = page_size * page
