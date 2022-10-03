@@ -72,7 +72,7 @@ elif [ "$ACTION" = "docker" ]; then
     docker exec $DOCKER_INPUT_MODE "$DOJO_HOST" docker "$@"
 
 elif [ "$ACTION" = "stop" ]; then
-    while [ $(docker ps -q -f name="$DOJO_HOST") ]; do
+    while [ $(docker ps -a -q -f name="$DOJO_HOST") ]; do
         docker kill "$DOJO_HOST" || sleep 1
     done
 
