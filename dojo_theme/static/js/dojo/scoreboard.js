@@ -49,36 +49,15 @@ function loadScoreboard(duration, page) {
             `);
             row.find(".scoreboard-name").text(user.name.slice(0, 50));
 
-            // the maximum daily solve count
-            if (user.num_many_solve_days > 0)
-            {
-                var count = ""
-                if (user.num_many_solve_days > 1) count = `<sub>x${user.num_many_solve_days}</sub>`
+            user.badges.forEach(badge => {
+                if (!badge.url) badge.url = "#";
+                var count = badge.count <= 1 ? "" : `<sub>x${badge.count}</sub>`
                 row.find(".scoreboard-completions").append($(`
-                    <span title="This emoji is earned by solving more than 50 non-embryo challenges in a single day (UTC reckoning).">
-                    &#129302;${count}
+                    <span title="${badge.text}">
+                    <a href="${badge.url}">${badge.emoji}</a>${count}
                     </span><span> </span>
                 `));
-            }
-
-            user.completions.forEach(dojo => {
-                row.find(".scoreboard-completions").append($(`
-                    <span title="This emoji was earned by completing all challenges in the {dojo.id} dojo."
-                    <a href="/${dojo.dojo_id}/">${dojo.emoji}</a>
-                    </span><span> </span>
-                `));
-            });
-
-            if (user.first_blood_count > 0)
-            {
-                var count = ""
-                if (user.first_blood_count > 1) count = `<sub>x${user.first_blood_count}</sub>`
-                row.find(".scoreboard-completions").append($(`
-                    <span title="This emoji is awarded for being the first hacker to solve a challenge.">
-                    &#128640;${count}
-                    </span><span> </span>
-                `));
-            }
+            })
 
             if (result.me && user.place == result.me.place)
                 row.addClass("scoreboard-row-me");

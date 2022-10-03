@@ -85,6 +85,8 @@ def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
 
 @cache.memoize(timeout=60)
 def global_hacker_stats():
+    MANY_SOLVE_THRESHOLD = 50
+
     all_users = Users.query.filter_by(banned=False, hidden=False).all()
     completions = dojo_completions()
     dojo_emojis = { d.id: d.config["completion_emoji"] for d in Dojos.query.all() if "completion_emoji" in d.config }
@@ -93,18 +95,51 @@ def global_hacker_stats():
     many_solve_days = { }
     for s in daily_solve_counts():
         daily_solves[s.user_id] = max(daily_solves.get(s.user_id, 0), s.solves)
-        if s.solves >= 50:
+        if s.solves >= MANY_SOLVE_THRESHOLD:
             many_solve_days[s.user_id] = many_solve_days.get(s.user_id, 0) + 1
 
-    return { user_id: {
-        "completions": [ {
-            "dojo_id": d,
-            "emoji": dojo_emojis[d],
-        } for d in completions.get(user_id, []) if d in dojo_emojis ],
-        "first_blood_count": blood_counts[user_id],
-        "max_solves_per_day": daily_solves.get(user_id, []),
-        "num_many_solve_days": many_solve_days.get(user_id, 0),
-    } for user_id in all_users }
+    all_stats = { }
+    for user in all_users:
+        badges = [ ]
+
+        # many solve badges
+        if many_solve_days.get(user.id, 0):
+            badges.append({
+                "emoji": "&#129302;", # robot emoji
+                "count": many_solve_days[user.id],
+                "text": f"This emoji is earned by solving more than 50 non-embryo challenges in a single day (UTC reckoning)."
+            })
+
+        # dojo completion badges
+        for d in completions.get(user.id, []):
+            if d in dojo_emojis:
+                badges.append({
+                    "emoji": dojo_emojis[d],
+                    "count": 1,
+                    "url": url_for("pwncollege_dojo.listing", dojo=d),
+                    "dojo": d,
+                    "text": f"This emoji was earned by completing all challenges in the {d} dojo."
+                })
+
+        # first blood badges
+        if blood_counts.get(user.id, 0):
+            badges.append({
+                "emoji": "&#128640;",
+                "count": blood_counts[user.id],
+                "text": "This emoji is awarded for being the first hacker to solve a challenge."
+            })
+
+
+        stats = {
+            "badges": badges,
+            "dojos_completed": completions.get(user.id, []),
+            "first_blood_count": blood_counts[user.id],
+            "max_solves_per_day": daily_solves.get(user.id, []),
+            "num_many_solve_days": many_solve_days.get(user.id, 0),
+        }
+        all_stats[user.id] = stats
+
+    return all_stats
 
 
 def get_scoreboard_data(page, span, *, dojo=None, module=None):
@@ -124,8 +159,12 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
             "symbol": email_group_asset(_standing.email),
             "belt": belt_asset_for(_standing.account_id),
         }
-        _info.update(hacker_stats.get(_standing.account_id), {})
-        _info["completions"] = [ c for c in _info["completions"] if c["dojo_id"] in visible_dojos ]
+        _info.update(hacker_stats.get(_standing.account_id, {}))
+        _info["dojos_completed"] = [ (c if c in visible_dojos else "<redacted>") for c in _info["dojos_completed"] ]
+        _info["badges"] = [ (b if ("dojo" not in b or b["dojo"] in visible_dojos) else dict(
+            b, dojo="<redacted>", url="#",
+            text="This emoji was earned by completing all challenges in a dojo you cannot view."
+        )) for b in _info["badges"] ]
         return _info
 
     page_size = 20
