@@ -4,6 +4,8 @@ from CTFd.utils.decorators import authed_only
 from CTFd.models import db, Users, Challenges, Solves
 from CTFd.cache import cache
 
+import pytz
+
 from ..utils import user_dojos, dojo_challenges, module_visible, dojo_standings
 from ..api.v1.scoreboard import belt_asset, belt_asset_for
 
@@ -46,8 +48,14 @@ def dojo_full_stats(dojo, user):
         "position": dojo_position,
         "module_stats": {
             m["id"]: {
-                "solved_names": [ c.name for c in module_challenges[m["id"]] if c.solved ],
-                "unsolved_names": [ c.name for c in module_challenges[m["id"]] if not c.solved ],
+                "solved_chals": [
+                    { "name": c.name, "solve_date": c.solve_date.astimezone(pytz.timezone("America/Phoenix")), "solves": c.solves }
+                    for c in module_challenges[m["id"]] if c.solved
+                ],
+                "unsolved_chals": [
+                    { "name": c.name, "solves": c.solves }
+                    for c in module_challenges[m["id"]] if not c.solved
+                ],
                 "count": len(module_challenges[m["id"]]),
                 "solved": len([c for c in module_challenges[m["id"]] if c.solved])
             } for m in visible_modules

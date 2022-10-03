@@ -134,8 +134,17 @@
           {% set module_stats = dojo_stats.module_stats[module.id] %}
           <tr>
             <td><a href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo.id, module=module.id) }}">{{ module.name }}</a></td>
-            <td>{{ module_stats.solved }} / {{ module_stats.count }}</td>
-            <td>{% for name in module_stats.unsolved_names %}<a href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo.id, module=module.id) }}#challenge-{{name}}">{{name}}</a> {%endfor%}</td>
+            <td>
+              {{ module_stats.solved }} / {{ module_stats.count }}<br>
+              {% for chal in module_stats.solved_chals %}
+              <a title="Solved on {{ chal.solve_date.strftime("%B %-d, %Y at %-I:%M%P") }} AZ time. Solved by {{ chal.solves }} hackers." href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo.id, module=module.id) }}#challenge-{{chal.name}}">{{chal.name}}</a>
+              {%endfor%}
+            </td>
+            <td>
+              {% for chal in module_stats.unsolved_chals %}
+              <a title="Solved by {{ chal.solves }} hackers." href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo.id, module=module.id) }}#challenge-{{chal.name}}">{{chal.name}}</a>
+              {%endfor%}
+            </td>
           </td>
           {% endfor %}
         </tbody>
