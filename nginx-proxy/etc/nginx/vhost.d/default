@@ -1,1 +1,1 @@
-listen unix:/var/run/dojo.sock;
+listen unix:/var/run/dojo/dojo.sock;
