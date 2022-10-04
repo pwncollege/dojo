@@ -61,7 +61,7 @@ def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
     filters = [ Solves.date > start ] if start else [ ]
 
     Model = get_model()
-    score = db.func.sum(Challenges.value).label("score")
+    score = db.func.count(Challenges.id.distinct()).label("score")
     fields = [
         Solves.account_id,
         Model.name,
