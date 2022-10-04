@@ -3,7 +3,10 @@ function loadScoreboard(duration, page) {
     const module = init.module_id;
     const scoreboard = $("#scoreboard");
 
-    if (module && module != "None") {
+    if (!dojo || dojo == "None"){
+        var endpoint = `/pwncollege_api/v1/scoreboard/${duration}/${page - 1}`;
+    }
+    else if (module && module != "None") {
         var endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${module}/${duration}/${page - 1}`;
     }
     else {

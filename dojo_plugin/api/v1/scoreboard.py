@@ -56,7 +56,7 @@ def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
         module = dojo.module_by_id(module_id)
         start = module["time_assigned"] if "time_assigned" in module else None
 
-    if "time_created" in dojo.config and (start is None or dojo.config["time_created"] > start):
+    if dojo and "time_created" in dojo.config and (start is None or dojo.config["time_created"] > start):
         start = dojo.config["time_created"]
     filters = [ Solves.date > start ] if start else [ ]
 
@@ -200,6 +200,11 @@ def get_scoreboard_data(page, span, *, dojo=None, module=None):
 
 
 scoreboard_namespace = Namespace("scoreboard")
+
+@scoreboard_namespace.route("/<span>/<int:page>")
+class ScoreboardGlobal(Resource):
+    def get(self, span, page):
+        return get_scoreboard_data(page=page, span=span)
 
 @scoreboard_namespace.route("/<dojo>/<span>/<int:page>")
 class ScoreboardDojo(Resource):
