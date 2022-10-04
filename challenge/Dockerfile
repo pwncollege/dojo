@@ -214,6 +214,7 @@ COPY vm /opt/pwn.college/vm
 COPY .tmux.conf /opt/pwn.college/.tmux.conf
 COPY .gdbinit /opt/pwn.college/.gdbinit
 COPY .radare2rc /opt/pwn.college/.radare2rc
+COPY .pwn.conf /opt/pwn.college/.pwn.conf
 
 RUN gcc /opt/pwn.college/setuid_python.c -o /opt/pwn.college/python && \
     rm /opt/pwn.college/setuid_python.c
@@ -222,7 +223,8 @@ RUN ln -s /opt/pwn.college/vm/vm /usr/local/bin/vm
 
 RUN ln -sf /home/hacker/.tmux.conf /root/.tmux.conf && \
     ln -sf /home/hacker/.gdbinit /root/.gdbinit && \
-    ln -sf /home/hacker/.radare2rc /root/.radare2rc
+    ln -sf /home/hacker/.radare2rc /root/.radare2rc && \
+    ln -sf /home/hacker/.pwn.conf /root/.pwn.conf
 
 RUN echo 'pwn.college{uninitialized}' > /flag && \
     chmod 400 /flag
