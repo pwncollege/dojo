@@ -70,6 +70,7 @@ def module_grade_report(dojo, module, user, when=None):
 
     m['name'] = module['name']
     m['total_challenges'] = len(challenges)
+    m['ec_threshold'] = module.get("ec_threshold", len(challenges) // 2)
     m['late_penalty'] = module.get('late_penalty', module.get('late', 0.5))
     m['time_assigned'] = assigned
     m['time_due'] = due
@@ -92,10 +93,10 @@ def module_grade_report(dojo, module, user, when=None):
 
         if ec_part:
             m['solved_part_ec'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_part ])
-            m['earned_part_ec'] = (m['solved_part_ec'] >= len(challenges) // 4)
+            m['earned_part_ec'] = (m['solved_part_ec'] >= m['ec_threshold'] // 2)
         if ec_full:
             m['solved_full_ec'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_full ])
-            m['earned_full_ec'] = (m['solved_full_ec'] >= len(challenges) // 2)
+            m['earned_full_ec'] = (m['solved_full_ec'] >= m['ec_threshold'])
         m['early_bird_ec'] = 1.0 if m['earned_full_ec'] else 0.5 if m['earned_part_ec'] else 0
 
     return m

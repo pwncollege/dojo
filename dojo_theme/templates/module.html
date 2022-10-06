@@ -110,11 +110,11 @@
   <br><b>Late solves:</b> {{module_report.solved_late}} (late penalty: {{module_report.late_penalty}}%)
   <br><b>Module grade:</b> {{ module_report.module_grade|round(1) }}%
   </p>
-  <p><b>Partial Extra Credit:</b> you solved {{ module_report.solved_part_ec }} challenges early (out of a required {{ challenges|length // 4 }}).
+  <p><b>Partial Extra Credit:</b> you solved {{ module_report.solved_part_ec }} challenges early (out of a required {{ module_report.ec_threshold // 2 }}).
   {% if module_report.earned_part_ec and not module_report.earned_full_ec %}
   You've earned 0.5% extra credit to your final grade!
   {% endif %}
-  <br><b>Full Extra Credit:</b> you solved {{ module_report.solved_full_ec }} challenges early (out of a required {{ challenges|length // 2 }}).
+  <br><b>Full Extra Credit:</b> you solved {{ module_report.solved_full_ec }} challenges early (out of a required {{ module_report.ec_threshold }}).
   {% if module_report.earned_full_ec %}
   You've earned 1% extra credit to your final grade!
   {% endif %}
