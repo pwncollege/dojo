@@ -137,6 +137,10 @@ def maybe_award_belt(user_id, *, ignore_challenge_id=None):
     roles = get_discord_roles()
 
     for color, challenges in belt_challenges().items():
+        # TODO: support belt deadlines
+        if color == "yellow":
+            continue
+
         belt_name = f"{color.title()} Belt"
 
         if ignore_challenge_id is not None:

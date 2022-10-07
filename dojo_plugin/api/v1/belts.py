@@ -1,3 +1,5 @@
+import datetime
+
 from flask_restx import Namespace, Resource
 from CTFd.cache import cache
 from CTFd.models import db, Users, Solves
@@ -33,6 +35,14 @@ def get_belts():
                 "handle": handle,
                 "color": color,
             }
+
+    # TODO: support belt deadlines
+    for user_id, belt in list(result["users"].items()):
+        if belt["color"] == "yellow":
+            received = datetime.datetime.fromisoformat(results["dates"]["yellow"][user_id])
+            if received > datetime.datetime.fromisoformat("2022-10-01"):
+                del result["users"][user_id]
+                del result["dates"]["yellow"][user_id]
 
     return result
 
