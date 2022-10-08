@@ -91,6 +91,12 @@ def start_challenge(user, dojo, challenge, practice):
                     "bind",
                     propagation="shared",
                 ),
+                docker.types.Mount(
+                    "/var/run/dojo.sock",
+                    "/var/run/dojo/dojo.sock",
+                    "bind",
+                    read_only=True,
+                ),
             ],
             devices=devices,
             network=None if internet else "user_firewall",

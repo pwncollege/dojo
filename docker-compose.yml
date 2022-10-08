@@ -103,6 +103,7 @@ services:
       - ./nginx-proxy/etc/passwd:/etc/passwd
       - ./data/homes:/var/homes:shared
       - /var/run/docker.sock:/tmp/${DOCKER_PSLR}/docker.sock:ro
+      - /var/run/dojo:/var/run/dojo
 
   nginx-proxy-acme:
     container_name: nginx_proxy_acme
