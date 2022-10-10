@@ -8,11 +8,12 @@ import docker
 
 
 def main():
-    original_command = os.getenv("SSH_ORIGINAL_COMMAND", "/bin/bash")
-    tty = os.getenv("SSH_TTY") is not None
-
+    original_command = os.getenv("SSH_ORIGINAL_COMMAND")
+    tty = os.geteinv("SSH_TTY") is not None
+    simple = bool(not tty or original_command)
+    
     def print(*args, **kwargs):
-        if not tty:
+        if simple:
             return
         kwargs.update(file=sys.stderr)
         return __builtins__.print(*args, **kwargs)
@@ -54,6 +55,7 @@ def main():
         print("\r", " " * 80, "\rConnected!")
 
         if not os.fork():
+            command = ["/bin/bash", "-c", original_command] if original_command else ["/bin/bash"]
             os.execve(
                 "/usr/bin/docker",
                 [
@@ -61,9 +63,7 @@ def main():
                     "exec",
                     "-it" if tty else "-i",
                     container_name,
-                    "/bin/bash",
-                    "-c",
-                    original_command,
+                    *command,
                 ],
                 {
                     "HOME": os.environ["HOME"],
@@ -72,7 +72,7 @@ def main():
 
         else:
             _, status = os.wait()
-            if status == 0 or not tty:
+            if simple or status == 0:
                 break
             print()
             print("\r", " " * 80, "\rConnecting", end="")
