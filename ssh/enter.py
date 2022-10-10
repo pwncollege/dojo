@@ -7,14 +7,19 @@ import time
 import docker
 
 
-def error(msg):
-    print(msg, file=sys.stderr)
-    exit(1)
-
-
 def main():
+    original_command = os.getenv("SSH_ORIGINAL_COMMAND", "/bin/bash")
+    tty = os.getenv("SSH_TTY") is not None
+
+    def print(*args, **kwargs):
+        if not tty:
+            return
+        kwargs.update(file=sys.stderr)
+        return __builtins__.print(*args, **kwargs)
+
     if len(sys.argv) != 2:
-        error(f"{sys.argv[0]} <container_name>")
+        print(f"{sys.argv[0]} <container_name>")
+        exit(1)
     container_name = sys.argv[1]
 
     client = docker.from_env()
@@ -22,14 +27,8 @@ def main():
     try:
         container = client.containers.get(container_name)
     except docker.errors.NotFound:
-        error("No active challenge session; start a challenge!")
-
-    original_command = os.getenv("SSH_ORIGINAL_COMMAND", "/bin/bash")
-    ssh_tty = os.getenv("SSH_TTY") is not None
-
-    if not ssh_tty:
-        global print
-        print = lambda *args, **kwargs: None
+        print("No active challenge session; start a challenge!")
+        exit(1)
 
     attempts = 0
     while attempts < 30:
@@ -60,7 +59,7 @@ def main():
                 [
                     "docker",
                     "exec",
-                    "-it" if ssh_tty else "-i",
+                    "-it" if tty else "-i",
                     container_name,
                     "/bin/bash",
                     "-c",
@@ -73,7 +72,7 @@ def main():
 
         else:
             _, status = os.wait()
-            if status == 0:
+            if status == 0 or not tty:
                 break
             print()
             print("\r", " " * 80, "\rConnecting", end="")
