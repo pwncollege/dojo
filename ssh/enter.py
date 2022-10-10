@@ -9,7 +9,7 @@ import docker
 
 def main():
     original_command = os.getenv("SSH_ORIGINAL_COMMAND")
-    tty = os.geteinv("SSH_TTY") is not None
+    tty = os.getenv("SSH_TTY") is not None
     simple = bool(not tty or original_command)
     
     def print(*args, **kwargs):
