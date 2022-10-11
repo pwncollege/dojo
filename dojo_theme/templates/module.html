@@ -88,7 +88,7 @@
     {{ module.time_due.strftime("%B %-d, %Y at %-I:%M%P %Z") }} (Arizona time)
   </a><br><small>
   {% if asu_student %}
-  (solves after this deadline will count for half value toward your ASU grade, but will still fully count for scoreboard purposes)
+  (solves after this deadline will incur a grade penalty of {{ (module.late_penalty*100 if module.late_penalty else 50)|int }}%, but will still fully count for scoreboard purposes)
   {% else %}
   (after this date, the live session of the dojo will move on to the next module, though solves will still count for scoreboard ranking)
   {% endif %}
