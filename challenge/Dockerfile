@@ -47,7 +47,6 @@ RUN apt-get update && \
                        nmap \
                        curl \
                        wget \
-                       tcpdump \
                        exiftool \
                        hexedit \
                        parallel \
@@ -83,6 +82,7 @@ RUN apt-get update && \
                        libffi-dev \
                        libgmp-dev \
                        libglib2.0-dev \
+                       libpcap-dev \
                        libseccomp-dev \
                        libedit-dev \
                        libpixman-1-dev \
@@ -167,6 +167,7 @@ RUN mv /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg /usr/
     | awk '{$1=$1};1' > /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg && \
     chmod +x /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg
 
+RUN git clone https://github.com/the-tcpdump-group/tcpdump /opt/tcpdump && cd /opt/tcpdump && ./configure && make install
 RUN git clone https://github.com/aquynh/capstone /opt/capstone && cd /opt/capstone && ./make.sh && ./make.sh install
 RUN git clone https://github.com/radareorg/radare2 /opt/radare2 && cd /opt/radare2 && sys/install.sh
 RUN git clone https://github.com/aflplusplus/aflplusplus /opt/aflplusplus && cd /opt/aflplusplus && make distrib && make install
