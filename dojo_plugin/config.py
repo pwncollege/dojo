@@ -61,15 +61,19 @@ def load_global_dojo(dojo_id, dojo_spec):
                 # don't create challenges that are imported from other dojos
                 continue
 
-            name = challenge_spec["name"]
             description = challenge_spec.get("description", None)
-            category = challenge_spec.get("category", f"{dojo.id}-challenge")
 
-            import_from = challenge_spec.get("import_from", None)
-            provider_dojo_id, provider_module = (None, None) if import_from is None else import_from.split("/")
+            # spec dependent
+            name = None
+            category = None
+            provider_dojo_id = None
+            provider_module = None
 
-            if not import_from:
+            if "import" not in challenge_spec:
                 # if this is our dojo's challenge, make sure it's in the DB
+                name = challenge_spec["name"]
+                category = challenge_spec.get("category", f"{dojo.id}-challenge")
+
                 challenge = Challenges.query.filter_by(
                     name=name, category=category
                 ).first()
@@ -91,6 +95,7 @@ def load_global_dojo(dojo_id, dojo_spec):
                     db.session.commit()
             else:
                 # if we're importing this from another dojo, do that
+                provider_dojo_id, provider_module, name = challenge_spec["import"].split("/")
                 provider_dojo_challenge = (
                     DojoChallenges.query
                     .join(Challenges, Challenges.id == DojoChallenges.challenge_id)
