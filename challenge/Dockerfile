@@ -27,6 +27,7 @@ RUN apt-get update && \
                        default-jdk \
                        net-tools \
                        iproute2 \
+                       iputils-ping \
                        nasm \
                        cmake \
                        rubygems \
@@ -174,7 +175,16 @@ RUN git clone https://github.com/aflplusplus/aflplusplus /opt/aflplusplus && cd 
 RUN git clone https://github.com/yrp604/rappel /opt/rappel && cd /opt/rappel && make && cp bin/rappel /usr/bin/rappel
 RUN wget https://github.com/0vercl0k/rp/releases/download/v2.0.2/rp-lin-x64 -O /usr/bin/rp++ && chmod +x /usr/bin/rp++
 
-RUN pip install --force-reinstall git+https://github.com/Gallopsled/pwntools#egg=pwntools jupyter flask angr r2pipe asteval psutil
+RUN pip install --force-reinstall \
+    requests \
+    flask \
+    jupyter \
+    asteval \
+    psutil \
+    git+https://github.com/Gallopsled/pwntools#egg=pwntools \
+    git+https://github.com/secdev/scapy#egg=scapy \
+    angr \
+    r2pipe
 
 RUN git clone https://github.com/pwndbg/pwndbg /opt/pwndbg
 RUN git clone https://github.com/hugsy/gef /opt/gef
