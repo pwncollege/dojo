@@ -27,7 +27,7 @@ RUN apt-get update && \
                        default-jdk \
                        net-tools \
                        iproute2 \
-                       ethertool \
+                       ethtool \
                        nasm \
                        cmake \
                        rubygems \
