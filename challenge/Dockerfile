@@ -27,7 +27,7 @@ RUN apt-get update && \
                        default-jdk \
                        net-tools \
                        iproute2 \
-                       iputils-ping \
+                       ethertool \
                        nasm \
                        cmake \
                        rubygems \
@@ -48,6 +48,8 @@ RUN apt-get update && \
                        nmap \
                        curl \
                        wget \
+                       iputils-ping \
+                       arping \
                        exiftool \
                        hexedit \
                        parallel \
