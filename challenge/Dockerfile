@@ -248,5 +248,7 @@ RUN find / -type f -perm -4000 | xargs -r chmod u-s
 
 RUN chmod u+s /opt/pwn.college/python /opt/pwn.college/vm/vm
 
+RUN date > /opt/pwn.college/build
+
 USER hacker
 WORKDIR /home/hacker
