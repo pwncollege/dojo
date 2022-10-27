@@ -126,6 +126,7 @@
             </div>
           </form>
 
+          {% if user_dojo %}
           <h3>Legacy Private Dojo</h3>
           <form method="post" id="private-dojo-initialize-form" autocomplete="off">
             <div class="form-group">
@@ -140,6 +141,7 @@
               <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Initialize">
             </div>
           </form>
+          {% endif %}
 
           <hr>
 
