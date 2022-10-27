@@ -1,6 +1,7 @@
-import subprocess
+import tempfile
 import pathlib
 import shutil
+import docker
 import os
 import re
 
@@ -13,7 +14,7 @@ from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
 
 from ...models import Dojos, DojoMembers
-from ...utils import dojo_standings, DOJOS_DIR, DOJOS_PRIV_KEY
+from ...utils import dojo_standings, DOJOS_DIR, HOST_DOJOS_PRIV_KEY, HOST_DOJOS_DIR
 
 
 private_dojo_namespace = Namespace(
@@ -61,60 +62,68 @@ class InitializeDojo(Resource):
 
         return {"success": True, "join_code": dojo.join_code, "id": dojo.id}
 
-GIT_REGEX = "^git@github.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+def clone_dojo_repo(dojo_repo, tmp_dir):
+    docker_client = docker.from_env()
+    container = docker_client.containers.run(
+        "alpine/git",
+        [ "clone", "--quiet", "--depth", "1", dojo_repo, "/tmp/pull_dir/cloned" ],
+        environment={
+            "GIT_SSH_COMMAND":
+            f"ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=ERROR -i /tmp/deploykey"
+        },
+        mounts=[
+            docker.types.Mount(
+                "/tmp/pull_dir",
+                str(HOST_DOJOS_DIR/(tmp_dir.split("/")[-1])),
+                "bind", propagation="shared"
+            ),
+            docker.types.Mount("/tmp/deploykey", HOST_DOJOS_PRIV_KEY, "bind")
+        ],
+        detach=True,
+        cpu_quota=100000, mem_limit="1000m",
+        stdout=True, stderr=True
+    )
+    returncode = container.wait()['StatusCode']
+    output = container.logs()
+    container.remove()
+
+    N=b"\n"
+    assert b"Permission denied (publickey)" not in output, (
+        f"Dojo clone failed with <code>'Permission denied (publickey)'</code>. Most likely, the deploy key has not been"
+        f" added to the {dojo_repo} repository or the repository does not exist."
+    )
+    assert returncode == 0, (
+        f"Dojo clone failed with error code {returncode}:<br><code>{output.replace(N,b'<br>').decode('latin1')}</code>"
+    )
+
+    return tmp_dir + "/cloned"
 
 @private_dojo_namespace.route("/create")
 class CreateDojo(Resource):
     @authed_only
     def post(self):
         data = request.get_json()
-
-        dojo_repo = data.get("dojo_repo")
-        if not re.match(GIT_REGEX, dojo_repo):
-            return (
-                {"success": False, "error": f"Repository violates regular expression: <code>{GIT_REGEX}</code>."},
-                400
-            )
-
         user = get_current_user()
-        user_pull_dir = (pathlib.Path(DOJOS_DIR)/str(user.id)).with_suffix(".tmp")
-        dojo_pull_dir = user_pull_dir/dojo_repo.split("/")[-1]
-        dojo_permanent_dir = pathlib.Path(DOJOS_DIR)/str(user.id)/dojo_repo.split("/")[-1]
 
-        if user_pull_dir.exists():
-            shutil.rmtree(user_pull_dir)
-        dojo_pull_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            clone_result = subprocess.run(
-                [ "git", "clone", "--depth", "1", dojo_repo, str(dojo_pull_dir) ],
-                env={
-                    "GIT_SSH_COMMAND":
-                    f"ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=ERROR -i {DOJOS_PRIV_KEY}"
-                },
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='latin1',
-                check=False
-            )
-            N="\n"
-            assert "Permission denied (publickey)" not in clone_result.stdout, (
-                f"Dojo clone failed with <code>'Permission denied (publickey)'</code>. Most likely, the deploy key has not been"
-                f" added to the {dojo_repo} repository."
-            )
-            assert clone_result.returncode == 0, (
-                f"Dojo clone failed with error code {clone_result.returncode}:<br><code>{clone_result.stdout.replace(N,'<br>')}</code>"
-            )
+        with tempfile.TemporaryDirectory(dir=DOJOS_DIR, prefix=str(user.id), suffix=".git-clone") as pull_dir:
+            try:
+                dojo_repo = data.get("dojo_repo")
+                GIT_REGEX = "^git@github.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+                assert re.match(GIT_REGEX, dojo_repo), f"Repository violates regular expression: <code>{GIT_REGEX}</code>."
 
-            # move the pulled dojo in
-            if dojo_permanent_dir.exists():
-                shutil.rmtree(dojo_permanent_dir)
-            dojo_permanent_dir.mkdir(parents=True, exist_ok=True)
-            dojo_pull_dir.replace(dojo_permanent_dir)
-        except AssertionError as e:
-            return (
-                {"success": False, "error": e.args[0]},
-                400
-            )
-        finally:
-            shutil.rmtree(user_pull_dir)
+                cloned_dir = clone_dojo_repo(dojo_repo, pull_dir)
+
+                # move the pulled dojo in
+                dojo_permanent_dir = pathlib.Path(DOJOS_DIR)/str(user.id)/dojo_repo.split("/")[-1]
+                if dojo_permanent_dir.exists():
+                    shutil.rmtree(dojo_permanent_dir)
+                dojo_permanent_dir.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(cloned_dir, dojo_permanent_dir)
+            except AssertionError as e:
+                return (
+                    {"success": False, "error": e.args[0]},
+                    400
+                )
 
         return {"success": True}
 
