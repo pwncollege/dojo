@@ -26,6 +26,9 @@ RUN pip install docker
 RUN docker buildx install
 
 RUN git clone --branch 3.4.0 https://github.com/CTFd/CTFd /opt/CTFd
+RUN echo "USER 0" >> /opt/CTFd/Dockerfile
+RUN echo "RUN apt-get update && apt-get install -y openssh-client" >> /opt/CTFd/Dockerfile
+RUN echo "USER 1001" >> /opt/CTFd/Dockerfile
 
 RUN useradd -m hacker
 RUN usermod -aG docker hacker
