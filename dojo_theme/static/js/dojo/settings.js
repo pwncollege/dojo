@@ -69,9 +69,37 @@ $(() => {
         });
     }
 
+    function createPrivateDojoForm(form, endpoint, success) {
+        form.submit((e) => {
+            e.preventDefault();
+            privateDojoResults.empty();
+            const params = form.serializeJSON();
+            CTFd.fetch(`/pwncollege_api/v1/private_dojo/${endpoint}`, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(params)
+            }).then(response => {
+                return response.json()
+            }).then(result => {
+                if (result.success) {
+                    privateDojoResults.html(success_template);
+                    privateDojoResults.find("#message").text(success(result));
+                } else {
+                    privateDojoResults.html(error_template);
+                    privateDojoResults.find("#message").html(result.error);
+                }
+            });
+        });
+    }
+
     const privateDojoEnterForm = $("#private-dojo-enter-form");
     const privateDojoJoinForm = $("#private-dojo-join-form");
     const privateDojoInitializeForm = $("#private-dojo-initialize-form");
+    const privateDojoCreateForm = $("#private-dojo-create-form");
 
     initializePrivateDojoForm(privateDojoEnterForm, "activate", result => {
         return "Dojo successfully entered";
@@ -82,5 +110,8 @@ $(() => {
     initializePrivateDojoForm(privateDojoInitializeForm, "initialize", result => {
         $("#initialize-code").val(result.join_code);
         return "Dojo successfully initialized";
+    });
+    createPrivateDojoForm(privateDojoCreateForm, "create", result => {
+        return "Dojo successfully created!";
     });
 });

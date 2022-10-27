@@ -26,6 +26,8 @@ def settings_override():
     ssh_key = SSHKeys.query.filter_by(user_id=user.id).first()
     ssh_key = ssh_key.value if ssh_key else None
 
+    deploy_key = open("/var/data/ssh_host_keys/ssh_host_ed25519_key.pub").read().rsplit(" ", 1)[0]
+
     user_dojo = Dojos.query.filter_by(owner_id=user.id).first()
 
     discord_user = get_discord_user(user.id)
@@ -51,6 +53,7 @@ def settings_override():
         country=country,
         tokens=tokens,
         ssh_key=ssh_key,
+        deploy_key=deploy_key,
         user_dojo=user_dojo,
         discord_enabled=bool(DISCORD_CLIENT_ID),
         discord_user=discord_user,
