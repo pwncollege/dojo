@@ -1,3 +1,6 @@
+import subprocess
+import pathlib
+import shutil
 import os
 import re
 
@@ -10,7 +13,7 @@ from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
 
 from ...models import Dojos, DojoMembers
-from ...utils import dojo_standings
+from ...utils import dojo_standings, DOJOS_DIR, DOJOS_PRIV_KEY
 
 
 private_dojo_namespace = Namespace(
@@ -74,6 +77,44 @@ class CreateDojo(Resource):
             )
 
         user = get_current_user()
+        user_pull_dir = (pathlib.Path(DOJOS_DIR)/str(user.id)).with_suffix(".tmp")
+        dojo_pull_dir = user_pull_dir/dojo_repo.split("/")[-1]
+        dojo_permanent_dir = pathlib.Path(DOJOS_DIR)/str(user.id)/dojo_repo.split("/")[-1]
+
+        if user_pull_dir.exists():
+            shutil.rmtree(user_pull_dir)
+        dojo_pull_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            clone_result = subprocess.run(
+                [ "git", "clone", "--depth", "1", dojo_repo, str(dojo_pull_dir) ],
+                env={
+                    "GIT_SSH_COMMAND":
+                    f"ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=ERROR -i {DOJOS_PRIV_KEY}"
+                },
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='latin1',
+                check=False
+            )
+            N="\n"
+            assert "Permission denied (publickey)" not in clone_result.stdout, (
+                f"Dojo clone failed with <code>'Permission denied (publickey)'</code>. Most likely, the deploy key has not been"
+                f" added to the {dojo_repo} repository."
+            )
+            assert clone_result.returncode == 0, (
+                f"Dojo clone failed with error code {clone_result.returncode}:<br><code>{clone_result.stdout.replace(N,'<br>')}</code>"
+            )
+
+            # move the pulled dojo in
+            if dojo_permanent_dir.exists():
+                shutil.rmtree(dojo_permanent_dir)
+            dojo_permanent_dir.mkdir(parents=True, exist_ok=True)
+            dojo_pull_dir.replace(dojo_permanent_dir)
+        except AssertionError as e:
+            return (
+                {"success": False, "error": e.args[0]},
+                400
+            )
+        finally:
+            shutil.rmtree(user_pull_dir)
 
         return {"success": True}
 

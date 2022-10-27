@@ -8,6 +8,7 @@ from CTFd.utils.user import get_current_user
 from ..models import Dojos, SSHKeys
 from ..config import DISCORD_CLIENT_ID
 from .discord import get_discord_user, discord_avatar_asset
+from ..utils import DOJOS_PUB_KEY
 
 
 @authed_only
@@ -26,7 +27,7 @@ def settings_override():
     ssh_key = SSHKeys.query.filter_by(user_id=user.id).first()
     ssh_key = ssh_key.value if ssh_key else None
 
-    deploy_key = open("/var/data/ssh_host_keys/ssh_host_ed25519_key.pub").read().rsplit(" ", 1)[0]
+    deploy_key = open(DOJOS_PUB_KEY).read().rsplit(" ", 1)[0]
 
     user_dojo = Dojos.query.filter_by(owner_id=user.id).first()
 
