@@ -88,12 +88,9 @@ def clone_dojo_repo(dojo_repo, tmp_dir):
     container.remove()
 
     N=b"\n"
-    assert b"Permission denied (publickey)" not in output, (
-        f"Dojo clone failed with <code>'Permission denied (publickey)'</code>. Most likely, the deploy key has not been"
-        f" added to the {dojo_repo} repository or the repository does not exist."
-    )
     assert returncode == 0, (
-        f"Dojo clone failed with error code {returncode}:<br><code>{output.replace(N,b'<br>').decode('latin1')}</code>"
+        f"Dojo clone failed with error code {returncode}:<br><code>{output.replace(N,b'<br>').decode('latin1')}</code><br>"
+        "Please make sure that you properly added the deploy key to the repository settings, and properly entered the repository URL."
     )
 
     return tmp_dir + "/cloned"
