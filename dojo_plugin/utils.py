@@ -28,8 +28,9 @@ from sqlalchemy.sql import and_, or_
 
 CHALLENGES_DIR = pathlib.Path("/var/challenges")
 DOJOS_DIR = pathlib.Path("/var/dojos")
+HOST_DOJOS_DIR = pathlib.Path("/opt/pwn.college/data/dojos")
 DOJOS_PUB_KEY = "/var/data/ssh_host_keys/ssh_host_ed25519_key.pub"
-DOJOS_PRIV_KEY = "/var/data/ssh_host_keys/ssh_host_ed25519_key"
+HOST_DOJOS_PRIV_KEY = "/opt/pwn.college/data/ssh_host_keys/ssh_host_ed25519_key"
 PLUGIN_DIR = pathlib.Path(__file__).parent
 SECCOMP = (PLUGIN_DIR / "seccomp.json").read_text()
 USER_FIREWALL_ALLOWED = {
