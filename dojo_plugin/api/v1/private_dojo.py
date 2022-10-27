@@ -1,4 +1,5 @@
 import os
+import re
 
 from flask import request
 from flask_restx import Namespace, Resource
@@ -56,6 +57,25 @@ class InitializeDojo(Resource):
                 break
 
         return {"success": True, "join_code": dojo.join_code, "id": dojo.id}
+
+GIT_REGEX = "^git@github.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+
+@private_dojo_namespace.route("/create")
+class CreateDojo(Resource):
+    @authed_only
+    def post(self):
+        data = request.get_json()
+
+        dojo_repo = data.get("dojo_repo")
+        if not re.match(GIT_REGEX, dojo_repo):
+            return (
+                {"success": False, "error": f"Repository violates regular expression: <code>{GIT_REGEX}</code>."},
+                400
+            )
+
+        user = get_current_user()
+
+        return {"success": True}
 
 
 @private_dojo_namespace.route("/join")

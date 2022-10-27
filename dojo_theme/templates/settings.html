@@ -107,7 +107,26 @@
 
           <hr>
 
-          <h3>Initialize Dojo</h3>
+          <h3>Create Dojo</h3>
+          <p>
+          To create a dojo, fork the <a href="https://github.com/pwncollege/example-dojo">example dojo repository</a> into a private repo, modify it to your liking, and add our deploy key.
+          Then pull it down below:
+          </p>
+          <form method="post" id="private-dojo-create-form" autocomplete="off">
+            <div class="form-group">
+              <b><label for="initialize-name">Dojo Repository</label></b>
+              <input class="form-control" id="dojo-repo" name="dojo_repo" type="text" value="">
+            </div>
+            <div class="form-group">
+              <b><label for="deploy-key">Deploy Key</label></b>
+              <input readonly class="form-control" id="deploy-key" name="code" type="text" value="{{ deploy_key }}">
+            </div>
+            <div class="form-group text-right">
+              <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Pull!">
+            </div>
+          </form>
+
+          <h3>Legacy Private Dojo</h3>
           <form method="post" id="private-dojo-initialize-form" autocomplete="off">
             <div class="form-group">
               <b><label for="initialize-name">Dojo Configuration</label></b>
