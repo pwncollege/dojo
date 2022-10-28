@@ -180,9 +180,10 @@ RUN wget https://github.com/0vercl0k/rp/releases/download/v2.0.2/rp-lin-x64 -O /
 RUN pip install --force-reinstall \
     requests \
     flask \
+    pycryptodome \
     jupyter \
-    asteval \
     psutil \
+    asteval \
     git+https://github.com/Gallopsled/pwntools#egg=pwntools \
     git+https://github.com/secdev/scapy#egg=scapy \
     angr \
@@ -212,7 +213,7 @@ COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
 COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
 COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
-RUN rm /etc/xdg/autostart/* # don't autostart stuff in the desktop
+RUN rm /etc/xdg/autostart/*  # do not autostart stuff in the desktop
 
 # IDA Freeware: only permissible for free and open deploymets of the pwn.college dojo!
 COPY desktop/ida.opt /opt/ida/ida.opt
@@ -246,7 +247,8 @@ RUN mkdir /challenge
 
 RUN find / -type f -perm -4000 | xargs -r chmod u-s
 
-RUN chmod u+s /opt/pwn.college/python /opt/pwn.college/vm/vm
+RUN chmod u+s /opt/pwn.college/python \
+              /opt/pwn.college/vm/vm
 
 RUN date > /opt/pwn.college/build
 
