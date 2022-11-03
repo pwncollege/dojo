@@ -207,7 +207,7 @@ RUN apt-get update && \
                        wireshark && \
     apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
     apt-get -y autoremove
-RUN wget -q -O - https://github.com/angr/angr-management/releases/download/$(curl -s https://github.com/angr/angr-management/releases | grep -oP -m1 'nightly-[\d\.]+')/angr-management-ubuntu.tar.gz | tar xvz -C /opt
+RUN wget -q -O - https://github.com/angr/angr-management/releases/download/$(curl -s https://github.com/angr/angr-management/releases | grep -oP -m1 'nightly-[\d\.]+')/angr-management-ubuntu-20.04.tar.gz | tar xvz -C /opt
 RUN wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip && cd /opt && unzip /tmp/ghidra.zip && mv /opt/ghidra_10.1.5_PUBLIC /opt/ghidra && rm /tmp/ghidra.zip
 COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
