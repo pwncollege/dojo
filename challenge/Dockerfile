@@ -189,7 +189,7 @@ RUN pip install --force-reinstall \
     angr \
     r2pipe
 
-RUN git clone https://github.com/pwndbg/pwndbg /opt/pwndbg
+RUN git clone --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
 RUN git clone https://github.com/hugsy/gef /opt/gef
 RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 
