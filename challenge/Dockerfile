@@ -50,6 +50,7 @@ RUN apt-get update && \
                        wget \
                        iputils-ping \
                        arping \
+                       rsync \
                        exiftool \
                        hexedit \
                        parallel \
@@ -78,6 +79,7 @@ RUN apt-get update && \
                        bc \
                        flex \
                        cpio \
+                       firefox \
                        libelf-dev \
                        libtool-bin \
                        libini-config-dev \
@@ -181,6 +183,7 @@ RUN pip install --force-reinstall \
     requests \
     flask \
     pycryptodome \
+    selenium \
     jupyter \
     psutil \
     asteval \
