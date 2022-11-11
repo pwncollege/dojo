@@ -1,4 +1,6 @@
-FROM ubuntu:20.04
+# syntax=docker/dockerfile:1
+
+FROM ubuntu:20.04 as builder
 
 RUN rm /etc/dpkg/dpkg.cfg.d/excludes
 
@@ -8,70 +10,24 @@ ENV LC_CTYPE=C.UTF-8
 RUN dpkg --add-architecture i386
 RUN apt-get update && \
     dpkg -l | grep ^ii | cut -d' ' -f3 | grep -v '^libgcc-s1:amd64$' | xargs apt-get install -y --reinstall && \
-    apt-get install -y sudo \
-                       build-essential \
+    apt-get install -y build-essential \
                        git \
                        gcc-multilib \
                        g++-multilib \
                        clang \
                        llvm \
-                       gdb \
-                       gdb-multiarch \
-                       qemu-system-x86 \
-                       kmod \
-                       openssh-server \
                        python-is-python3 \
                        python3-dev \
                        python3-pip \
-                       ipython3 \
                        default-jdk \
-                       net-tools \
-                       iproute2 \
-                       ethtool \
                        nasm \
                        cmake \
                        rubygems \
-                       emacs \
-                       vim \
-                       nano \
-                       ed \
-                       silversearcher-ag \
-                       zsh \
-                       tmux \
-                       screen \
-                       binwalk \
-                       strace \
-                       ltrace \
                        autoconf \
-                       socat \
-                       netcat \
-                       nmap \
                        curl \
                        wget \
-                       iputils-ping \
-                       arping \
-                       rsync \
-                       exiftool \
-                       hexedit \
-                       parallel \
-                       patchelf \
-                       genisoimage \
-                       whiptail \
-                       binutils \
-                       bsdmainutils \
-                       bsdutils \
-                       debianutils \
-                       diffutils \
-                       elfutils \
-                       findutils \
-                       gnupg-utils \
-                       keyutils \
-                       pcaputils \
-                       pcre2-utils \
-                       psutils \
                        squashfs-tools \
                        unzip \
-                       virtualenvwrapper \
                        upx-ucl \
                        man-db \
                        manpages-dev \
@@ -79,7 +35,6 @@ RUN apt-get update && \
                        bc \
                        flex \
                        cpio \
-                       firefox \
                        libelf-dev \
                        libtool-bin \
                        libini-config-dev \
@@ -94,17 +49,16 @@ RUN apt-get update && \
                        libc6:i386 \
                        libc6-dev-i386 \
                        libstdc++6:i386 \
-                       libncurses5:i386 \
-                       expect
+                       libncurses5:i386
 
-RUN yes | unminimize
+################################################################################
 
-RUN useradd -s /bin/bash -m hacker && \
-    passwd -d hacker
+FROM builder as builder-kernel
 
-RUN mkdir /opt/linux && wget -O - https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/linux-5.4.tar.gz | tar xzC /opt/linux
-WORKDIR /opt/linux/linux-5.4
-RUN make defconfig
+RUN mkdir /opt/linux && \
+    wget -O - https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/linux-5.4.tar.gz | tar xzC /opt/linux
+
+RUN cd /opt/linux/linux-5.4 && make defconfig
 RUN for CONFIG in \
     CONFIG_9P_FS=y \
     CONFIG_9P_FS_POSIX_ACL=y \
@@ -137,20 +91,20 @@ RUN for CONFIG in \
     CONFIG_VIRTIO_NET=y \
     CONFIG_VIRTIO_PCI=y \
     CONFIG_VIRTIO_PCI_LEGACY=y \
-    ; do echo $CONFIG >> .config; done
-RUN make -j$(nproc) bzImage
-RUN ln -s $PWD/arch/x86/boot/bzImage ../bzImage && \
+    ; do echo $CONFIG >> /opt/linux/linux-5.4/.config; done
+
+RUN cd /opt/linux/linux-5.4 && make -j$(nproc) bzImage
+
+RUN cd /opt/linux/linux-5.4 && \
+    ln -s $PWD/arch/x86/boot/bzImage ../bzImage && \
     ln -s $PWD/vmlinux ../vmlinux
-WORKDIR /
 
-RUN echo '    StrictHostKeyChecking no' >> /etc/ssh/ssh_config && \
-    echo '    UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config && \
-    echo '    LogLevel ERROR' >> /etc/ssh/ssh_config && \
-    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config && \
-    sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+################################################################################
 
-RUN mkdir /opt/gdb && wget -O - https://ftp.gnu.org/gnu/gdb/gdb-11.1.tar.gz | tar xzC /opt/gdb && \
+FROM builder as builder-gdb
+
+RUN mkdir /opt/gdb && \
+    wget -O - https://ftp.gnu.org/gnu/gdb/gdb-11.1.tar.gz | tar xzC /opt/gdb && \
     cd /opt/gdb/gdb-11.1 && \
     mkdir build && \
     cd build && \
@@ -158,8 +112,17 @@ RUN mkdir /opt/gdb && wget -O - https://ftp.gnu.org/gnu/gdb/gdb-11.1.tar.gz | ta
     make -j$(nproc) && \
     make install
 
+RUN git clone --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
+RUN git clone https://github.com/hugsy/gef /opt/gef
+RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
+
+################################################################################
+
+FROM builder as builder-code-server
+
 RUN curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
-RUN mkdir -p /opt/code-server/extensions && code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
+RUN mkdir -p /opt/code-server/extensions && \
+    code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
 RUN mv /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg.orig && \
     echo '#!/usr/bin/python \n\
           \n\
@@ -172,33 +135,29 @@ RUN mv /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg /usr/
     | awk '{$1=$1};1' > /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg && \
     chmod +x /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg
 
+################################################################################
+
+FROM builder as builder-tcpdump
 RUN git clone https://github.com/the-tcpdump-group/tcpdump /opt/tcpdump && cd /opt/tcpdump && ./configure && make install
+
+FROM builder as builder-capstone
 RUN git clone https://github.com/aquynh/capstone /opt/capstone && cd /opt/capstone && ./make.sh && ./make.sh install
+
+FROM builder as builder-radare2
 RUN git clone https://github.com/radareorg/radare2 /opt/radare2 && cd /opt/radare2 && sys/install.sh
+
+FROM builder as builder-aflplusplus
 RUN git clone https://github.com/aflplusplus/aflplusplus /opt/aflplusplus && cd /opt/aflplusplus && make distrib && make install
+
+FROM builder as builder-rappel
 RUN git clone https://github.com/yrp604/rappel /opt/rappel && cd /opt/rappel && make && cp bin/rappel /usr/bin/rappel
+
+FROM builder as builder-rp
 RUN wget https://github.com/0vercl0k/rp/releases/download/v2.0.2/rp-lin-x64 -O /usr/bin/rp++ && chmod +x /usr/bin/rp++
 
-RUN pip install --force-reinstall \
-    requests \
-    flask \
-    pycryptodome \
-    selenium \
-    jupyter \
-    psutil \
-    asteval \
-    git+https://github.com/Gallopsled/pwntools#egg=pwntools \
-    git+https://github.com/secdev/scapy#egg=scapy \
-    angr \
-    r2pipe
+################################################################################
 
-RUN git clone --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
-RUN git clone https://github.com/hugsy/gef /opt/gef
-RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
-
-RUN wget -q -O - https://github.com/mozilla/geckodriver/releases/download/v0.32.0/geckodriver-v0.32.0-linux64.tar.gz | tar xvz -C /usr/local/bin
-
-RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
+FROM builder as builder-desktop
 
 # GUI apps (should probably use no-recommends or whatnot)
 RUN apt-get update && \
@@ -225,6 +184,83 @@ COPY desktop/ida.opt /opt/ida/ida.opt
 RUN wget https://out7.hex-rays.com/files/idafree80_linux.run -O /tmp/idafree80_linux.run && chmod 755 /tmp/idafree80_linux.run && /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt && rm /tmp/idafree80_linux.run /tmp/installbuilder_installer.log
 COPY desktop/ida64.desktop /usr/share/applications/
 
+################################################################################
+
+FROM builder as builder-tools-apt
+
+RUN apt-get update && \
+    apt-get install -y sudo \
+                       qemu-system-x86 \
+                       kmod \
+                       openssh-server \
+                       gdb \
+                       gdb-multiarch \
+                       ipython3 \
+                       net-tools \
+                       iproute2 \
+                       ethtool \
+                       emacs \
+                       vim \
+                       nano \
+                       ed \
+                       silversearcher-ag \
+                       zsh \
+                       tmux \
+                       screen \
+                       binwalk \
+                       strace \
+                       ltrace \
+                       socat \
+                       netcat \
+                       nmap \
+                       iputils-ping \
+                       arping \
+                       rsync \
+                       exiftool \
+                       hexedit \
+                       parallel \
+                       patchelf \
+                       genisoimage \
+                       whiptail \
+                       binutils \
+                       bsdmainutils \
+                       bsdutils \
+                       debianutils \
+                       diffutils \
+                       elfutils \
+                       findutils \
+                       gnupg-utils \
+                       keyutils \
+                       pcaputils \
+                       pcre2-utils \
+                       psutils \
+                       firefox \
+                       expect
+
+RUN yes | unminimize
+
+################################################################################
+
+FROM builder as builder-tools-pip
+
+RUN pip install --force-reinstall \
+    requests \
+    flask \
+    pycryptodome \
+    jupyter \
+    psutil \
+    asteval \
+    git+https://github.com/Gallopsled/pwntools#egg=pwntools \
+    git+https://github.com/secdev/scapy#egg=scapy \
+    angr \
+    r2pipe
+
+RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
+
+################################################################################
+
+FROM builder as builder-pwn.college
+
 RUN mkdir /opt/pwn.college
 COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
@@ -237,6 +273,36 @@ COPY .pwn.conf /opt/pwn.college/.pwn.conf
 
 RUN gcc /opt/pwn.college/setuid_python.c -o /opt/pwn.college/python && \
     rm /opt/pwn.college/setuid_python.c
+
+################################################################################
+
+FROM ubuntu:20.04 as challenge
+
+# TODO: probably extra slow to `COPY / /`
+COPY --link --from=builder / /
+COPY --link --from=builder-kernel /opt/linux /opt/linux
+COPY --link --from=builder-gdb / /
+COPY --link --from=builder-code-server / /
+COPY --link --from=builder-tcpdump / /
+COPY --link --from=builder-capstone / /
+COPY --link --from=builder-radare2 / /
+COPY --link --from=builder-aflplusplus / /
+COPY --link --from=builder-rappel / /
+COPY --link --from=builder-rp / /
+COPY --link --from=builder-desktop / /
+COPY --link --from=builder-tools-apt / /
+COPY --link --from=builder-tools-pip / /
+COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
+
+RUN useradd -s /bin/bash -m hacker && \
+    passwd -d hacker
+
+RUN echo '    StrictHostKeyChecking no' >> /etc/ssh/ssh_config && \
+    echo '    UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config && \
+    echo '    LogLevel ERROR' >> /etc/ssh/ssh_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config && \
+    sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
 
 RUN ln -s /opt/pwn.college/vm/vm /usr/local/bin/vm
 
