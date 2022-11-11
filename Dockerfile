@@ -21,6 +21,9 @@ RUN curl -fsSL https://get.docker.com | /bin/sh
 
 RUN pip install docker docker-compose
 
+# TODO: this can be removed with docker-v22 (buildx will be default)
+RUN docker buildx install
+
 RUN git clone --branch 3.4.0 https://github.com/CTFd/CTFd /opt/CTFd
 
 RUN useradd -m hacker
@@ -41,7 +44,6 @@ ADD docker-compose.yml /opt/pwn.college/docker-compose.yml
 ADD docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 ADD user_firewall.allowed /opt/pwn.college/user_firewall.allowed
 
-ADD etc/docker/daemon.json /etc/docker/daemon.json
 ADD etc/ssh/sshd_config /etc/ssh/sshd_config
 ADD etc/systemd/system/pwn.college.service /etc/systemd/system/pwn.college.service
 ADD etc/systemd/system/pwn.college.logging.service /etc/systemd/system/pwn.college.logging.service
