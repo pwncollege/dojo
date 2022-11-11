@@ -41,6 +41,7 @@ ADD docker-compose.yml /opt/pwn.college/docker-compose.yml
 ADD docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 ADD user_firewall.allowed /opt/pwn.college/user_firewall.allowed
 
+ADD etc/docker/daemon.json /etc/docker/daemon.json
 ADD etc/ssh/sshd_config /etc/ssh/sshd_config
 ADD etc/systemd/system/pwn.college.service /etc/systemd/system/pwn.college.service
 ADD etc/systemd/system/pwn.college.logging.service /etc/systemd/system/pwn.college.logging.service
