@@ -10,46 +10,47 @@ ENV LC_CTYPE=C.UTF-8
 RUN dpkg --add-architecture i386
 RUN apt-get update && \
     dpkg -l | grep ^ii | cut -d' ' -f3 | grep -v '^libgcc-s1:amd64$' | xargs apt-get install -y --reinstall && \
-    apt-get install -y build-essential \
-                       git \
-                       gcc-multilib \
-                       g++-multilib \
-                       clang \
-                       llvm \
-                       python-is-python3 \
-                       python3-dev \
-                       python3-pip \
-                       default-jdk \
-                       nasm \
-                       cmake \
-                       rubygems \
-                       autoconf \
-                       curl \
-                       wget \
-                       squashfs-tools \
-                       unzip \
-                       upx-ucl \
-                       man-db \
-                       manpages-dev \
-                       bison \
-                       bc \
-                       flex \
-                       cpio \
-                       libelf-dev \
-                       libtool-bin \
-                       libini-config-dev \
-                       libssl-dev \
-                       libffi-dev \
-                       libgmp-dev \
-                       libglib2.0-dev \
-                       libpcap-dev \
-                       libseccomp-dev \
-                       libedit-dev \
-                       libpixman-1-dev \
-                       libc6:i386 \
-                       libc6-dev-i386 \
-                       libstdc++6:i386 \
-                       libncurses5:i386
+    apt-get install -y \
+        build-essential \
+        git \
+        gcc-multilib \
+        g++-multilib \
+        clang \
+        llvm \
+        python-is-python3 \
+        python3-dev \
+        python3-pip \
+        default-jdk \
+        nasm \
+        cmake \
+        rubygems \
+        autoconf \
+        curl \
+        wget \
+        squashfs-tools \
+        unzip \
+        upx-ucl \
+        man-db \
+        manpages-dev \
+        bison \
+        bc \
+        flex \
+        cpio \
+        libelf-dev \
+        libtool-bin \
+        libini-config-dev \
+        libssl-dev \
+        libffi-dev \
+        libgmp-dev \
+        libglib2.0-dev \
+        libpcap-dev \
+        libseccomp-dev \
+        libedit-dev \
+        libpixman-1-dev \
+        libc6:i386 \
+        libc6-dev-i386 \
+        libstdc++6:i386 \
+        libncurses5:i386
 
 ################################################################################
 
@@ -161,81 +162,87 @@ FROM builder as builder-desktop
 
 # GUI apps (should probably use no-recommends or whatnot)
 RUN apt-get update && \
-    apt-get install -y tigervnc-standalone-server \
-                       novnc \
-                       websockify \
-                       xfce4 \
-                       xfce4-terminal \
-                       mousepad \
-                       xclip \
-                       wireshark && \
+    apt-get install -y \
+        tigervnc-standalone-server \
+        novnc \
+        websockify \
+        xfce4 \
+        xfce4-terminal \
+        mousepad \
+        xclip && \
     apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
     apt-get -y autoremove
+
 RUN wget -q -O - https://github.com/angr/angr-management/releases/download/$(curl -s https://github.com/angr/angr-management/releases | grep -oP -m1 'nightly-[\d\.]+')/angr-management-ubuntu-20.04.tar.gz | tar xvz -C /opt
+
 RUN wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip && cd /opt && unzip /tmp/ghidra.zip && mv /opt/ghidra_10.1.5_PUBLIC /opt/ghidra && rm /tmp/ghidra.zip
+
 COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
 COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
 COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
-RUN rm /etc/xdg/autostart/*  # do not autostart stuff in the desktop
 
 # IDA Freeware: only permissible for free and open deploymets of the pwn.college dojo!
 COPY desktop/ida.opt /opt/ida/ida.opt
 RUN wget https://out7.hex-rays.com/files/idafree80_linux.run -O /tmp/idafree80_linux.run && chmod 755 /tmp/idafree80_linux.run && /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt && rm /tmp/idafree80_linux.run /tmp/installbuilder_installer.log
 COPY desktop/ida64.desktop /usr/share/applications/
 
+RUN rm /etc/xdg/autostart/*  # do not autostart stuff in the desktop
+
 ################################################################################
 
 FROM builder as builder-tools-apt
 
 RUN apt-get update && \
-    apt-get install -y sudo \
-                       qemu-system-x86 \
-                       kmod \
-                       openssh-server \
-                       gdb \
-                       gdb-multiarch \
-                       ipython3 \
-                       net-tools \
-                       iproute2 \
-                       ethtool \
-                       emacs \
-                       vim \
-                       nano \
-                       ed \
-                       silversearcher-ag \
-                       zsh \
-                       tmux \
-                       screen \
-                       binwalk \
-                       strace \
-                       ltrace \
-                       socat \
-                       netcat \
-                       nmap \
-                       iputils-ping \
-                       arping \
-                       rsync \
-                       exiftool \
-                       hexedit \
-                       parallel \
-                       patchelf \
-                       genisoimage \
-                       whiptail \
-                       binutils \
-                       bsdmainutils \
-                       bsdutils \
-                       debianutils \
-                       diffutils \
-                       elfutils \
-                       findutils \
-                       gnupg-utils \
-                       keyutils \
-                       pcaputils \
-                       pcre2-utils \
-                       psutils \
-                       firefox \
-                       expect
+    apt-get install -y \
+        sudo \
+        qemu-system-x86 \
+        kmod \
+        openssh-server \
+        gdb \
+        gdb-multiarch \
+        ipython3 \
+        net-tools \
+        iproute2 \
+        ethtool \
+        emacs \
+        vim \
+        nano \
+        ed \
+        silversearcher-ag \
+        zsh \
+        tmux \
+        screen \
+        binwalk \
+        strace \
+        ltrace \
+        socat \
+        netcat \
+        nmap \
+        iputils-ping \
+        arping \
+        rsync \
+        exiftool \
+        hexedit \
+        parallel \
+        patchelf \
+        genisoimage \
+        whiptail \
+        binutils \
+        bsdmainutils \
+        bsdutils \
+        debianutils \
+        diffutils \
+        elfutils \
+        findutils \
+        gnupg-utils \
+        keyutils \
+        pcaputils \
+        pcre2-utils \
+        psutils \
+        firefox \
+        wireshark \
+        expect
 
 RUN yes | unminimize
 
@@ -244,16 +251,16 @@ RUN yes | unminimize
 FROM builder as builder-tools-pip
 
 RUN pip install --force-reinstall \
-    requests \
-    flask \
-    pycryptodome \
-    jupyter \
-    psutil \
-    asteval \
-    git+https://github.com/Gallopsled/pwntools#egg=pwntools \
-    git+https://github.com/secdev/scapy#egg=scapy \
-    angr \
-    r2pipe
+        requests \
+        flask \
+        pycryptodome \
+        jupyter \
+        psutil \
+        asteval \
+        git+https://github.com/Gallopsled/pwntools#egg=pwntools \
+        git+https://github.com/secdev/scapy#egg=scapy \
+        angr \
+        r2pipe
 
 RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
 
