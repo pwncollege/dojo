@@ -2,15 +2,19 @@
 
 FROM ubuntu:20.04 as builder
 
-RUN rm /etc/dpkg/dpkg.cfg.d/excludes
-
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_CTYPE=C.UTF-8
 
+RUN rm -f /etc/apt/apt.conf.d/docker-clean && \
+    echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
+
+RUN yes | unminimize
+
 RUN dpkg --add-architecture i386
-RUN apt-get update && \
-    dpkg -l | grep ^ii | cut -d' ' -f3 | grep -v '^libgcc-s1:amd64$' | xargs apt-get install -y --reinstall && \
-    apt-get install -y \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    apt-get install -yqq --no-install-recommends \
         build-essential \
         git \
         gcc-multilib \
@@ -160,9 +164,10 @@ RUN wget https://github.com/0vercl0k/rp/releases/download/v2.0.2/rp-lin-x64 -O /
 
 FROM builder as builder-desktop
 
-# GUI apps (should probably use no-recommends or whatnot)
-RUN apt-get update && \
-    apt-get install -y \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    apt-get install -yqq --no-install-recommends \
         tigervnc-standalone-server \
         novnc \
         websockify \
@@ -193,8 +198,10 @@ RUN rm /etc/xdg/autostart/*  # do not autostart stuff in the desktop
 
 FROM builder as builder-tools-apt
 
-RUN apt-get update && \
-    apt-get install -y \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    apt-get install -yqq --no-install-recommends \
         sudo \
         qemu-system-x86 \
         kmod \
@@ -243,8 +250,6 @@ RUN apt-get update && \
         firefox \
         wireshark \
         expect
-
-RUN yes | unminimize
 
 ################################################################################
 
