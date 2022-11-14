@@ -4,18 +4,19 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV LC_CTYPE=C.UTF-8
 
 RUN apt-get update && \
-    apt-get install -y build-essential \
-                       git \
-                       curl \
-                       wget \
-                       iproute2 \
-                       iputils-ping \
-                       host \
-                       htop \
-                       python-is-python3 \
-                       python3-dev \
-                       python3-pip \
-                       openssh-server
+    apt-get install -y \
+        build-essential \
+        git \
+        curl \
+        wget \
+        iproute2 \
+        iputils-ping \
+        host \
+        htop \
+        python-is-python3 \
+        python3-dev \
+        python3-pip \
+        openssh-server
 
 RUN curl -fsSL https://get.docker.com | /bin/sh
 

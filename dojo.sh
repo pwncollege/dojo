@@ -59,6 +59,7 @@ elif [ "$ACTION" = "run" ]; then
            --volume "$DIR"/data:/opt/pwn.college/data \
            --volume "$DIR"/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro \
            --volume "$DIR"/dojo_theme:/opt/CTFd/CTFd/themes/dojo_theme:ro \
+           --volume "$DIR"/challenge:/opt/pwn.college/challenge:ro \
            --publish "$DOJO_SSH_PORT":22 \
            --publish "$DOJO_HTTP_PORT":80 \
            --publish "$DOJO_HTTPS_PORT":443 \
