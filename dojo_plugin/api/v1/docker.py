@@ -98,6 +98,8 @@ def start_challenge(user, dojo, challenge, practice):
                 hostname: "127.0.0.1",
                 "vm": "127.0.0.1",
                 f"vm_{hostname}": "127.0.0.1",
+                "challenge.localhost": "127.0.0.1",
+                "hacker.localhost": "127.0.0.1",
                 **USER_FIREWALL_ALLOWED,
             },
             init=True,
