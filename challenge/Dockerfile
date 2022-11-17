@@ -184,7 +184,6 @@ RUN pip install --force-reinstall \
     flask \
     pycryptodome \
     selenium \
-    webdrivermanager \
     jupyter \
     psutil \
     asteval \
@@ -197,7 +196,7 @@ RUN git clone --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
 RUN git clone https://github.com/hugsy/gef /opt/gef
 RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 
-RUN webdrivermanager firefox
+RUN wget -q -O - https://github.com/mozilla/geckodriver/releases/download/v0.32.0/geckodriver-v0.32.0-linux64.tar.gz | tar xvz -C /usr/local/bin
 
 RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
 
