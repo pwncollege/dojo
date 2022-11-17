@@ -184,6 +184,7 @@ RUN pip install --force-reinstall \
     flask \
     pycryptodome \
     selenium \
+    webdrivermanager \
     jupyter \
     psutil \
     asteval \
@@ -195,6 +196,8 @@ RUN pip install --force-reinstall \
 RUN git clone --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
 RUN git clone https://github.com/hugsy/gef /opt/gef
 RUN git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
+
+RUN webdrivermanager firefox
 
 RUN ln -s /usr/bin/ipython3 /usr/bin/ipython
 
