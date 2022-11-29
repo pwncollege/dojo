@@ -158,7 +158,7 @@ class Dojos(db.Model):
             container = module
             type_assert(module, dict, "module")
             type_check("name", "[\S ]{1,50}", required=True)
-            type_check("id", "\w{1,50}", required=True)
+            type_check("id", "[\w-]{1,50}", required=True)
 
             type_check("challenges", list, required=False)
             for challenge in module.get("challenges", []):
