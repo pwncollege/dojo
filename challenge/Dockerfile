@@ -160,6 +160,9 @@ RUN git clone https://github.com/yrp604/rappel /opt/rappel && cd /opt/rappel && 
 FROM builder as builder-rp
 RUN wget https://github.com/0vercl0k/rp/releases/download/v2.0.2/rp-lin-x64 -O /usr/bin/rp++ && chmod +x /usr/bin/rp++
 
+FROM builder as builder-geckodriver
+RUN wget -q -O - https://github.com/mozilla/geckodriver/releases/download/v0.32.0/geckodriver-v0.32.0-linux64.tar.gz | tar xvz -C /usr/local/bin
+
 ################################################################################
 
 FROM builder as builder-desktop
@@ -259,6 +262,7 @@ RUN pip install --force-reinstall \
         requests \
         flask \
         pycryptodome \
+        selenium \
         jupyter \
         psutil \
         asteval \
@@ -301,6 +305,7 @@ COPY --link --from=builder-radare2 / /
 COPY --link --from=builder-aflplusplus / /
 COPY --link --from=builder-rappel / /
 COPY --link --from=builder-rp / /
+COPY --link --from=builder-geckodriver / /
 COPY --link --from=builder-desktop / /
 COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-tools-pip / /
