@@ -78,7 +78,7 @@ elif [ "$ACTION" = "stop" ]; then
     done
 
 elif [ "$ACTION" = "logs" ]; then
-    docker exec $DOCKER_INPUT_MODE "$DOJO_HOST" docker-compose logs -f
+    docker exec $DOCKER_INPUT_MODE "$DOJO_HOST" docker compose logs -f
 
 elif [ "$ACTION" = "sh" ]; then
     docker exec $DOCKER_INPUT_MODE "$DOJO_HOST" bash "$@"
