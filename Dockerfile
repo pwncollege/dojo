@@ -20,7 +20,7 @@ RUN apt-get update && \
 
 RUN curl -fsSL https://get.docker.com | /bin/sh
 
-RUN pip install docker docker-compose
+RUN pip install docker
 
 # TODO: this can be removed with docker-v22 (buildx will be default)
 RUN docker buildx install
