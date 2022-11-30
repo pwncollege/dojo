@@ -170,9 +170,8 @@ FROM builder as builder-desktop
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
-    apt-get install -yqq --no-install-recommends \
+    apt-get install -yqq \
         tigervnc-standalone-server \
-        tigervnc-common \
         novnc \
         websockify \
         xfce4 \
