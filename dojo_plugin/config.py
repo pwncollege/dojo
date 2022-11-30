@@ -120,7 +120,7 @@ def load_global_dojo(dojo_id, dojo_spec):
                 description_override=description,
                 assigned_date=module.get("time_assigned", None),
                 module=module["id"],
-                docker_image_name="pwncollege_challenge",
+                docker_image_name="pwncollege-challenge",
             )
             db.session.add(dojo_challenge)
 
