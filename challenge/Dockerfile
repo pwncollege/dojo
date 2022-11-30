@@ -254,8 +254,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         wireshark \
         expect
 
-RUN useradd -g nogroup -d /run/sshd -s /usr/sbin/nologin sshd
-
 ################################################################################
 
 FROM builder as builder-tools-pip
@@ -315,6 +313,8 @@ COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
 
 RUN useradd -s /bin/bash -m hacker && \
     passwd -d hacker
+
+RUN useradd -g nogroup -d /run/sshd -s /usr/sbin/nologin sshd
 
 RUN echo '    StrictHostKeyChecking no' >> /etc/ssh/ssh_config && \
     echo '    UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config && \
