@@ -69,29 +69,23 @@ elif [ "$ACTION" = "run" ]; then
 
     docker exec "$DOJO_HOST" logs
 
-elif [ "$ACTION" = "docker" ]; then
-    docker exec $DOCKER_INPUT_MODE "$DOJO_HOST" docker "$@"
-
 elif [ "$ACTION" = "stop" ]; then
     while [ $(docker ps -a -q -f name="$DOJO_HOST") ]; do
         docker kill "$DOJO_HOST" || sleep 1
     done
 
-elif [ "$ACTION" = "logs" ]; then
-    docker exec $DOCKER_INPUT_MODE "$DOJO_HOST" docker compose logs -f
+elif [ "$ACTION" = "restart" ]; then
+    $0 stop
+    $0 run
+
+elif [ "$ACTION" = "docker" ]; then
+    docker exec $DOCKER_INPUT_MODE "$DOJO_HOST" docker "$@"
 
 elif [ "$ACTION" = "sh" ]; then
     docker exec $DOCKER_INPUT_MODE "$DOJO_HOST" bash "$@"
 
-elif [ "$ACTION" = "restart" ]; then
-    if [ -z "$1" ]
-    then
-        $0 stop
-        $0 run
-    else
-        $0 docker kill "$@"
-        $0 docker start "$@"
-    fi
+elif [ "$ACTION" = "logs" ]; then
+    $0 docker compose --env-file=/opt/pwn.college/data/config.env  logs -f
 
 elif [ "$ACTION" = "db" ]; then
 	$0 docker exec $DOCKER_INPUT_MODE ctfd_db mysql -u ctfd --password=ctfd ctfd "$@"
@@ -103,7 +97,10 @@ elif [ "$ACTION" = "update" ]; then
     git -C "$DIR" pull
     git -C "$DIR"/data/dojos pull
 
-    $0 restart ctfd
+    $0 docker compose --env-file=/opt/pwn.college/data/config.env build
+
+    $0 docker kill ctfd
+    $0 docker start ctfd
 
 elif [ "$ACTION" = "backup" ]; then
     $0 docker kill ctfd
