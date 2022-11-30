@@ -172,6 +172,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && \
     apt-get install -yqq --no-install-recommends \
         tigervnc-standalone-server \
+        tigervnc-common \
         novnc \
         websockify \
         xfce4 \
