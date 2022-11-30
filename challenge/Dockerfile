@@ -297,7 +297,6 @@ FROM ubuntu:20.04 as challenge
 # TODO: probably extra slow to `COPY / /`
 COPY --link --from=builder / /
 COPY --link --from=builder-kernel /opt/linux /opt/linux
-COPY --link --from=builder-gdb / /
 COPY --link --from=builder-code-server / /
 COPY --link --from=builder-tcpdump / /
 COPY --link --from=builder-capstone / /
@@ -308,6 +307,7 @@ COPY --link --from=builder-rp / /
 COPY --link --from=builder-geckodriver / /
 COPY --link --from=builder-desktop / /
 COPY --link --from=builder-tools-apt / /
+COPY --link --from=builder-gdb / /
 COPY --link --from=builder-tools-pip / /
 COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
 
