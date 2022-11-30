@@ -254,6 +254,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         wireshark \
         expect
 
+RUN useradd -g nogroup -d /run/sshd -s /usr/sbin/nologin sshd
+
 ################################################################################
 
 FROM builder as builder-tools-pip
