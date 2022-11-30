@@ -14,7 +14,7 @@ RUN dpkg --add-architecture i386
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
-    apt-get install -yqq --no-install-recommends \
+    apt-get install -yqq \
         build-essential \
         git \
         gcc-multilib \
@@ -204,7 +204,7 @@ FROM builder as builder-tools-apt
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
-    apt-get install -yqq --no-install-recommends \
+    apt-get install -yqq \
         sudo \
         qemu-system-x86 \
         kmod \
