@@ -34,7 +34,7 @@ done
 if [ ! -d /opt/pwn.college/data/ssh_host_keys ]; then
     mkdir -p /opt/pwn.college/data/ssh_host_keys
     rm /etc/ssh/ssh_host_*_key*
-    ssh-keygen -A
+    ssh-keygen -A -m PEM
     for key in $(ls /etc/ssh/ssh_host_*_key*); do
         cp -a $key /opt/pwn.college/data/ssh_host_keys
     done
