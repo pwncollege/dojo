@@ -45,10 +45,25 @@ else
 fi
 
 mkdir -p /opt/pwn.college/data/dms/config \
+         /opt/pwn.college/data/dms/config/opendkim \
          /opt/pwn.college/data/dms/mail-data \
          /opt/pwn.college/data/dms/mail-state \
          /opt/pwn.college/data/dms/mail-logs
 echo "hacker@${DOJO_HOST}|{SHA512-CRYPT}$(openssl passwd -6 hacker)" > /opt/pwn.college/data/dms/config/postfix-accounts.cf
+echo "mail._domainkey.${DOJO_HOST} ${DOJO_HOST}:mail:/etc/opendkim/keys/${DOJO_HOST}/mail.private" > /opt/pwn.college/data/dms/config/opendkim/KeyTable
+echo "*@${DOJO_HOST} mail._domainkey.${DOJO_HOST}" > /opt/pwn.college/data/dms/config/opendkim/SigningTable
+echo -e "127.0.0.1\nlocalhost" > /opt/pwn.college/data/dms/config/opendkim/TrustedHosts
+mkdir -p "/opt/pwn.college/data/dms/config/opendkim/keys/${DOJO_HOST}"
+cp /opt/pwn.college/data/ssh_host_keys/ssh_host_rsa_key "/opt/pwn.college/data/dms/config/opendkim/keys/${DOJO_HOST}/mail.private"
+
+DKIM_P=$(openssl rsa -in "/opt/pwn.college/data/dms/config/opendkim/keys/${DOJO_HOST}/mail.private" -pubout -outform dem | base64 -w0)
+
+cat <<EOF > /opt/pwn.college/data/dns
+    @                  IN    MX     10 ${DOJO_HOST}.
+    @                  IN    TXT    "v=spf1 mx ~all"
+    _dmarc             IN    TXT    "v=DMARC1; p=none; rua=mailto:dmarc.report@${DOJO_HOST}; ruf=mailto:dmarc.report@${DOJO_HOST}; sp=none; ri=86400"
+    mail._domainkey    IN    TXT    "v=DKIM1; h=sha256; k=rsa; p=${DKIM_P}"
+EOF
 
 mkdir -p /opt/pwn.college/data/logging
 
