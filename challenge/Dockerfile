@@ -355,6 +355,8 @@ RUN gcc /opt/pwn.college/setuid_python.c -o /opt/pwn.college/python && \
 
 FROM ubuntu:20.04 as challenge
 
+SHELL ["/bin/bash", "-ceov", "pipefail"]
+
 ENV LC_CTYPE=C.UTF-8
 
 # TODO: probably extra slow to `COPY / /`
