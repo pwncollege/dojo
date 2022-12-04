@@ -12,7 +12,8 @@
       <div class="nav flex-column nav-pills" role="tablist">
         <a class="nav-link active" id="settings-profile-tab" data-toggle="pill" href="#profile" role="tab">Profile</a>
         <a class="nav-link" id="settings-key-tab" data-toggle="pill" href="#key" role="tab">SSH Key</a>
-        <a class="nav-link" id="settings-private-dojos-tab" data-toggle="pill" href="#private-dojos" role="tab">Private Dojos</a>
+        <a class="nav-link" id="settings-join-dojos-tab" data-toggle="pill" href="#join-dojos" role="tab">Join Dojos</a>
+        <a class="nav-link" id="settings-host-dojos-tab" data-toggle="pill" href="#host-dojos" role="tab">Host Dojos</a>
         {% if discord_enabled %}
         <a class="nav-link" id="settings-discord-tab" data-toggle="pill" href="#discord" role="tab">Discord</a>
         {% endif %}
@@ -93,7 +94,7 @@
           </form>
         </div>
 
-        <div class="tab-pane fade" id="private-dojos" role="tabpanel">
+        <div class="tab-pane fade" id="join-dojos" role="tabpanel">
           <h3>Join Dojo</h3>
           <form method="post" id="private-dojo-join-form" autocomplete="off">
             <div class="form-group">
@@ -104,9 +105,9 @@
               <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Join">
             </div>
           </form>
+        </div>
 
-          <hr>
-
+        <div class="tab-pane fade" id="host-dojos" role="tabpanel">
           <h3>Clone Dojo Repository</h3>
           <p>
           To clone a dojo repository, fork the <a href="https://github.com/pwncollege/example-dojo">example dojo repository</a> into a private repo, modify it to your liking, and <a href="https://docs.github.com/en/developers/overview/managing-deploy-keys">add our deploy key</a>.
