@@ -35,6 +35,7 @@ def load_dojo(dojo_id, dojo_spec, user="global"):
     from .models import DojoChallenges, Dojos
 
     dojo_log = logging.getLogger(f"dojos.{user}.{dojo_id}")
+    dojo_log.setLevel(logging.INFO)
     dojo_log.info("Initiating dojo load.")
 
     dojo = Dojos.query.filter_by(id=dojo_id).first()
@@ -43,8 +44,13 @@ def load_dojo(dojo_id, dojo_spec, user="global"):
         dojo_log.info("Dojo is new, adding.")
         db.session.add(dojo)
     elif dojo.data == dojo_spec:
-        dojo_log.info("Dojo is unchanged, aborting update.")
-        return
+        # make sure the previous load was fully successful (e.g., all the imports worked and weren't fixed since then)
+        num_loaded_chals = DojoChallenges.query.filter_by(dojo_id=dojo_id).count()
+        num_spec_chals = sum(len(module.get("challenges", [])) for module in dojo.config.get("modules", []))
+
+        if num_loaded_chals == num_spec_chals:
+            dojo_log.info("Dojo is unchanged, aborting update.")
+            return
 
     dojo.data = dojo_spec
     db.session.commit()
@@ -57,10 +63,13 @@ def load_dojo(dojo_id, dojo_spec, user="global"):
     db.session.execute(deleter)
     db.session.commit()
 
+    if "modules" not in dojo.config:
+        dojo_log.warning("No modules defined in dojo spec!")
+
     # re-load the dojo challenges
     for module_idx,module in enumerate(dojo.config["modules"], start=1):
         if "name" not in module:
-            dojo_log.info("Module index %d is missing 'name' field; skipping.", module_idx)
+            dojo_log.warning("Module index %d is missing 'name' field; skipping.", module_idx)
             continue
 
         if "challenges" not in module:
@@ -80,7 +89,7 @@ def load_dojo(dojo_id, dojo_spec, user="global"):
 
             if "import" not in challenge_spec:
                 if "name" not in challenge_spec:
-                    dojo_log.info("... challenge is missing a name. Skipping.")
+                    dojo_log.warning("... challenge is missing a name. Skipping.")
                     continue
 
                 # if this is our dojo's challenge, make sure it's in the DB
@@ -112,12 +121,12 @@ def load_dojo(dojo_id, dojo_spec, user="global"):
                     db.session.commit()
             else:
                 if challenge_spec["import"].count("/") != 2:
-                    dojo_log.info("... malformed import statement, should be dojo_id/module_name/challenge_name. Skipping.")
+                    dojo_log.warning("... malformed import statement, should be dojo_id/module_name/challenge_name. Skipping.")
                     continue
 
                 # if we're importing this from another dojo, do that
                 provider_dojo_id, provider_module, provider_challenge = challenge_spec["import"].split("/")
-                dojo_log.info("... importing from dojo %s, module %s, challenge %s", provider_dojo_id, provider_module, name)
+                dojo_log.info("... importing from dojo %s, module %s, challenge %s", provider_dojo_id, provider_module, provider_challenge)
 
                 provider_dojo_challenge = (
                     DojoChallenges.query
@@ -128,7 +137,7 @@ def load_dojo(dojo_id, dojo_spec, user="global"):
                     )
                 ).first()
                 if not provider_dojo_challenge:
-                    dojo_log.info("... can't find provider challenge; skipping")
+                    dojo_log.warning("... can't find provider challenge; skipping")
                     continue
 
                 challenge = provider_dojo_challenge.challenge
