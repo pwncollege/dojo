@@ -62,21 +62,28 @@ class InitializeDojo(Resource):
 
         return {"success": True, "join_code": dojo.join_code, "id": dojo.id}
 
-def clone_dojo_repo(dojo_repo, tmp_dir):
+def sandboxed_git_clone(dojo_repo, repo_dir):
+    returncode, output = sandboxed_git_command(
+        repo_dir,
+        [ "clone", "--quiet", "--depth", "1", dojo_repo, "/tmp/repo_dir" ]
+    )
+
+    N=b"\n"
+    assert returncode == 0, (
+        f"Dojo clone failed with error code {returncode}:<br><code>{output.replace(N,b'<br>').decode('latin1')}</code><br>"
+        "Please make sure that you properly added the deploy key to the repository settings, and properly entered the repository URL."
+    )
+
+def sandboxed_git_command(repo_dir, command):
     docker_client = docker.from_env()
     container = docker_client.containers.run(
-        "alpine/git",
-        [ "clone", "--quiet", "--depth", "1", dojo_repo, "/tmp/pull_dir/cloned" ],
+        "alpine/git", [ "-C", "/tmp/repo_dir" ] + command,
         environment={
             "GIT_SSH_COMMAND":
             f"ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=ERROR -i /tmp/deploykey"
         },
         mounts=[
-            docker.types.Mount(
-                "/tmp/pull_dir",
-                str(HOST_DOJOS_DIR/(tmp_dir.split("/")[-1])),
-                "bind", propagation="shared"
-            ),
+            docker.types.Mount( "/tmp/repo_dir", repo_dir, "bind", propagation="shared"),
             docker.types.Mount("/tmp/deploykey", HOST_DOJOS_PRIV_KEY, "bind")
         ],
         detach=True,
@@ -87,42 +94,51 @@ def clone_dojo_repo(dojo_repo, tmp_dir):
     output = container.logs()
     container.remove()
 
-    N=b"\n"
-    assert returncode == 0, (
-        f"Dojo clone failed with error code {returncode}:<br><code>{output.replace(N,b'<br>').decode('latin1')}</code><br>"
-        "Please make sure that you properly added the deploy key to the repository settings, and properly entered the repository URL."
-    )
+    return returncode, output
 
-    return tmp_dir + "/cloned"
-
-@private_dojo_namespace.route("/create")
-class CreateDojo(Resource):
+@private_dojo_namespace.route("/clone")
+class CloneDojoRepo(Resource):
     @authed_only
     def post(self):
         data = request.get_json()
         user = get_current_user()
 
-        with tempfile.TemporaryDirectory(dir=DOJOS_DIR, prefix=str(user.id), suffix=".git-clone") as pull_dir:
+        with tempfile.TemporaryDirectory(dir=DOJOS_DIR, prefix=str(user.id), suffix=".git-clone") as tmp_dir:
             try:
                 dojo_repo = data.get("dojo_repo")
-                GIT_REGEX = "^git@github.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
-                assert re.match(GIT_REGEX, dojo_repo), f"Repository violates regular expression: <code>{GIT_REGEX}</code>."
+                GIT_SSH_REGEX = "^git@github.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+                GIT_HTTPS_REGEX = "^https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+                assert re.match(GIT_SSH_REGEX, dojo_repo) or re.match(GIT_HTTPS_REGEX, dojo_repo), (
+                    f"Repository violates regular expression. Must match <code>{GIT_SSH_REGEX}</code> or <code>{GIT_HTTPS_REGEX}</code>."
+                )
 
-                cloned_dir = clone_dojo_repo(dojo_repo, pull_dir)
+                clone_dir = pathlib.Path(tmp_dir)/"clone"
+                clone_dir.mkdir()
+                sandboxed_git_clone(dojo_repo, str(clone_dir).replace(str(DOJOS_DIR), str(HOST_DOJOS_DIR)))
+
+                # figure out the dojo ID
+                dojo_specs = list(clone_dir.glob("*.yml"))
+                assert len(dojo_specs) == 1, f"Dojo repository must have exactly one top-level dojo spec yml named {{YOUR_DOJO_ID}}.yml. Yours has: {dojo_specs}"
+                dojo_id = dojo_specs[0].stem
+                DOJO_ID_REGEX="^[A-Za-z0-9_.-]+$"
+                assert re.match(DOJO_ID_REGEX, dojo_id), f"Your dojo ID (the extensionless name of your .yml file) must match regex {DOJO_ID_REGEX}."
+
+                # make sure the ID is unique (per-user)
+                dojo_permanent_dir = pathlib.Path(DOJOS_DIR)/str(user.id)/dojo_id
+                assert not dojo_permanent_dir.exists(), f"You already have a cloned dojo repository containing a dojo with ID {dojo_id}."
 
                 # move the pulled dojo in
-                dojo_permanent_dir = pathlib.Path(DOJOS_DIR)/str(user.id)/dojo_repo.split("/")[-1]
                 if dojo_permanent_dir.exists():
                     shutil.rmtree(dojo_permanent_dir)
                 dojo_permanent_dir.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(cloned_dir, dojo_permanent_dir)
+                shutil.move(clone_dir, dojo_permanent_dir)
             except AssertionError as e:
                 return (
                     {"success": False, "error": e.args[0]},
                     400
                 )
 
-        return {"success": True}
+        return {"success": True, "dojo_id": dojo_id}
 
 
 @private_dojo_namespace.route("/join")
