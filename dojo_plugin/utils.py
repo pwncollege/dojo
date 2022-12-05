@@ -119,7 +119,8 @@ def challenge_paths(dojo, user, challenge, *, secret=None):
     chaldir = CHALLENGES_DIR
     if dojo.owner_id:
         dojo_chal_dir = (DOJOS_DIR/str(dojo.owner_id)/dojo.id/challenge.category/challenge.name)
-        if dojo_chal_dir.exists():
+        global_chal_dir = (chaldir/challenge.category/challenge.name)
+        if not global_chal_dir.exists():
             chaldir = dojo_chal_dir.parent.parent
 
     category_global = chaldir / challenge.category / "_global"
