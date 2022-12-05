@@ -136,8 +136,8 @@ def start_challenge(user, dojo, challenge, practice):
             shell=True
         )
 
-    def insert_challenge(user, challenge):
-        for path in challenge_paths(user, challenge):
+    def insert_challenge(dojo, user, challenge):
+        for path in challenge_paths(dojo, user, challenge):
             with simple_tar(path, f"/challenge/{path.name}") as tar:
                 container.put_archive("/", tar)
         exec_run("chown -R root:root /challenge")
@@ -176,7 +176,7 @@ def start_challenge(user, dojo, challenge, practice):
     if practice:
         grant_sudo()
 
-    insert_challenge(user, challenge)
+    insert_challenge(dojo, user, challenge)
 
     flag = "practice" if practice else serialize_user_flag(user.id, challenge.id)
     insert_flag(flag)
