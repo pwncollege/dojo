@@ -2,25 +2,26 @@ import contextlib
 import functools
 import tempfile
 import datetime
+import logging
 import pathlib
 import tarfile
 import hashlib
 import inspect
+import socket
 import fcntl
 import pytz
 import os
 import re
-import socket
 
 import docker
 from flask import current_app, Response, abort
 from itsdangerous.url_safe import URLSafeSerializer
 from CTFd.models import db, Solves, Challenges, Users
-from CTFd.utils.user import get_current_user, is_admin
+from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
 from CTFd.utils.helpers import markup
 from CTFd.utils.config.pages import build_markdown
-
+from CTFd.utils.security.sanitize import sanitize_html
 from .models import Dojos, DojoMembers, DojoChallenges
 from sqlalchemy import String, DateTime, Integer
 from sqlalchemy.sql import and_, or_
@@ -210,6 +211,11 @@ def dojo_route(func):
 
         return func(*bound_args.args, **bound_args.kwargs)
     return wrapper
+
+
+ID_REGEX = "^[A-Za-z0-9_.-]+$"
+def id_regex(s):
+    return re.match(ID_REGEX, s)
 
 
 def user_dojos(user):
@@ -411,3 +417,28 @@ def belt_challenges():
         )
         for color, categories in color_categories.items()
     }
+
+# based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
+class ListHandler(logging.Handler): # Inherit from logging.Handler
+    def __init__(self, log_list):
+        logging.Handler.__init__(self)
+        self.log_list = log_list
+
+    def emit(self, record):
+        self.log_list.append(record.levelname + ": " + record.getMessage())
+
+class HTMLHandler(logging.Handler): # Inherit from logging.Handler
+    def __init__(self, start_tag="<code>", end_tag="</code>", join_tag="<br>"):
+        logging.Handler.__init__(self)
+        self.html = ""
+        self.start_tag = start_tag
+        self.end_tag = end_tag
+        self.join_tag = join_tag
+
+    def reset(self):
+        self.html = ""
+
+    def emit(self, record):
+        if self.html:
+            self.html += self.join_tag
+        self.html += f"{self.start_tag}<b>{record.levelname}</b>: {sanitize_html(record.getMessage())}{self.end_tag}"
