@@ -96,15 +96,3 @@ def view_module(dojo, module):
         asu_student=False if user is None else user.email.endswith("asu.edu"),
         current_challenge_id=current_challenge_id
     )
-
-@dojo.route("/<dojo>/scoreboard")
-def redirect_scoreboard(dojo):
-    return redirect(f"/{dojo}/", code=301)
-
-@dojo.route("/<dojo>/challenges")
-def redirect_challenges(dojo):
-    return redirect(f"/{dojo}/", code=301)
-
-@dojo.route("/<dojo>/challenges/<module>")
-def redirect_module(dojo, module):
-    return redirect(f"/{dojo}/{module}", code=301)
