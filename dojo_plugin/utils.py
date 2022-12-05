@@ -112,12 +112,18 @@ def unserialize_user_flag(user_flag, *, secret=None):
     return account_id, challenge_id
 
 
-def challenge_paths(user, challenge, *, secret=None):
+def challenge_paths(dojo, user, challenge, *, secret=None):
     if secret is None:
         secret = current_app.config["SECRET_KEY"]
 
-    category_global = CHALLENGES_DIR / challenge.category / "_global"
-    challenge_global = CHALLENGES_DIR / challenge.category / challenge.name / "_global"
+    chaldir = CHALLENGES_DIR
+    if dojo.owner_id:
+        dojo_chal_dir = (DOJOS_DIR/str(dojo.owner_id)/dojo.id/challenge.category/challenge.name)
+        if dojo_chal_dir.exists():
+            chaldir = dojo_chal_dir.parent.parent
+
+    category_global = chaldir / challenge.category / "_global"
+    challenge_global = chaldir / challenge.category / challenge.name / "_global"
 
     if category_global.exists():
         yield from category_global.iterdir()
@@ -127,7 +133,7 @@ def challenge_paths(user, challenge, *, secret=None):
 
     options = sorted(
         option
-        for option in (CHALLENGES_DIR / challenge.category / challenge.name).iterdir()
+        for option in (chaldir / challenge.category / challenge.name).iterdir()
         if not (option.name.startswith(".") or option.name.startswith("_"))
     )
 
