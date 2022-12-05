@@ -162,6 +162,8 @@ def dojo_by_id(dojo_id):
     user = get_current_user()
     if not user:
         return None
+    if user.id == dojo.owner_id:
+        return dojo
     if not DojoMembers.query.filter_by(dojo_id=dojo.id, user_id=user.id).first():
         return None
     return dojo
@@ -221,6 +223,7 @@ def id_regex(s):
 def user_dojos(user):
     filters = [Dojos.public == True]
     if user:
+        filters.append(Dojos.owner_id == user.id)
         members = db.session.query(DojoMembers.dojo_id).filter(DojoMembers.user_id == user.id)
         filters.append(Dojos.id.in_(members.subquery()))
     return Dojos.query.filter(or_(*filters)).all()
