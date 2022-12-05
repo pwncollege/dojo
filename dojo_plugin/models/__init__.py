@@ -49,7 +49,7 @@ class DojoChallenges(db.Model):
 class Dojos(db.Model):
     __tablename__ = "dojos"
     id = db.Column(db.String(16), primary_key=True)
-    owner_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
     join_code = db.Column(db.Text, unique=True)
     _data = db.Column("data", MEDIUMTEXT)
 
