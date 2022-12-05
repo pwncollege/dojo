@@ -60,7 +60,7 @@ $(() => {
             }).then(result => {
                 if (result.success) {
                     privateDojoResults.html(success_template);
-                    privateDojoResults.find("#message").text(success(result));
+                    privateDojoResults.find("#message").html(success(result));
                 } else {
                     privateDojoResults.html(error_template);
                     privateDojoResults.find("#message").html(result.error);
@@ -85,6 +85,6 @@ $(() => {
         return "Dojo successfully initialized";
     });
     initializePrivateDojoForm(privateDojoCreateForm, "create", result => {
-        location.reload();
+        return "Repository for dojo '" + result.dojo_id + "' successfully created! Logs:<br>" + result.load_logs;
     });
 });
