@@ -17,7 +17,7 @@ class DojoChallenges(db.Model):
 
     dojo_id = db.Column(db.String(16), db.ForeignKey("dojos.id"), primary_key=True)
     module = db.Column(db.String(256))
-    module_idx = db.Column(db.Integer)
+    module_idx = db.Column(db.Integer, primary_key=True)
     level_idx = db.Column(db.Integer)
 
     provider_dojo_id = db.Column(db.String(16), db.ForeignKey("dojos.id"), nullable=True)
