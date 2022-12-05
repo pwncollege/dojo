@@ -72,7 +72,7 @@ $(() => {
     const privateDojoEnterForm = $("#private-dojo-enter-form");
     const privateDojoJoinForm = $("#private-dojo-join-form");
     const privateDojoInitializeForm = $("#private-dojo-initialize-form");
-    const privateDojoCloneForm = $("#private-dojo-clone-form");
+    const privateDojoCreateForm = $("#private-dojo-create-form");
 
     initializePrivateDojoForm(privateDojoEnterForm, "activate", result => {
         return "Dojo successfully entered";
@@ -84,7 +84,7 @@ $(() => {
         $("#initialize-code").val(result.join_code);
         return "Dojo successfully initialized";
     });
-    initializePrivateDojoForm(privateDojoCloneForm, "clone", result => {
-        return "Repository for dojo '" + result.dojo_id + "' successfully cloned!";
+    initializePrivateDojoForm(privateDojoCreateForm, "create", result => {
+        location.reload();
     });
 });
