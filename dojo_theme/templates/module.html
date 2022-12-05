@@ -215,7 +215,7 @@
           <div class="embed-responsive">
             {% if challenge.description_override %}
             <p>{{ render_markdown(challenge.description_override) }}</p>
-            {% else %}
+            {% elif challenge.description %}
             <p>{{ render_markdown(challenge.description) }}</p>
             {% endif %}
             <small><i>
