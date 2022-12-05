@@ -96,8 +96,8 @@ def sandboxed_git_command(repo_dir, command):
 
     return returncode, output
 
-@private_dojo_namespace.route("/clone")
-class CloneDojoRepo(Resource):
+@private_dojo_namespace.route("/create")
+class CreateDojo(Resource):
     @authed_only
     def post(self):
         data = request.get_json()
@@ -125,7 +125,8 @@ class CloneDojoRepo(Resource):
 
                 # make sure the ID is unique (per-user)
                 dojo_permanent_dir = pathlib.Path(DOJOS_DIR)/str(user.id)/dojo_id
-                assert not dojo_permanent_dir.exists(), f"You already have a cloned dojo repository containing a dojo with ID {dojo_id}."
+                if data.get("dojo_replace", False) not in ("true", True, 1):
+                    assert not dojo_permanent_dir.exists(), f"You already have a cloned dojo repository containing a dojo with ID {dojo_id}."
 
                 # move the pulled dojo in
                 if dojo_permanent_dir.exists():

@@ -108,24 +108,40 @@
         </div>
 
         <div class="tab-pane fade" id="host-dojos" role="tabpanel">
-          <h3>Clone Dojo Repository</h3>
           <p>
-          To clone a dojo repository, fork the <a href="https://github.com/pwncollege/example-dojo">example dojo repository</a> into a private repo, modify it to your liking, and <a href="https://docs.github.com/en/developers/overview/managing-deploy-keys">add our deploy key</a>.
-          Then pull it down below:
+          To host a new dojo:
+          <ol>
+            <li>Fork the <a href="https://github.com/pwncollege/example-dojo">example dojo repository</a>. Most likely, you want the resulting repository to be private.
+            <li>Modify the repository to your liking. <b>Make sure to rename <code>example.yml</code> to the ID you want your repository to have in its eventual URL.</b> A repository with the spec file <code>leet.yml</code> will end up with a URL of TODO.
+            <li>If the resulting dojo is private, <a href="https://docs.github.com/en/developers/overview/managing-deploy-keys">add our deploy key</a> to it. The deploy key is <code>{{ deploy_key }}</code>.
+            <li>Clone the dojo using the form below. You will need to use SSH URLs (<code>git@github.com:your-user/leet-dojo</code>) for private repositories (after adding the deploy key above). You can use the HTTPS URL (<code>https://github.com/your-user/leet-dojo</code>) for public repositories.
+          </ol>
           </p>
-          <form method="post" id="private-dojo-clone-form" autocomplete="off">
+          <p>To update a dojo you host:
+          <ol>
+            <li>Make, commit, and push your changes to your git repo.
+            <li><i>Re-clone</i> the repository with the form below, making sure to check the "Replace existing dojo." checkbox. Why is recloning necessary? There are just too many crazy things that can go wrong when pulling (such as merge conflicts!).
+          </ol>
+          </p>
+
+          <hr>
+
+          <h3>Clone Dojo Repository</h3>
+          <form method="post" id="private-dojo-create-form" autocomplete="off">
             <div class="form-group">
-              <b><label for="initialize-name">Dojo Repository</label></b>
+              <b><label for="dojo-repo">Dojo Repository</label></b>
               <input class="form-control" id="dojo-repo" name="dojo_repo" type="text" value="">
             </div>
             <div class="form-group">
-              <b><label for="deploy-key">Deploy Key</label></b>
-              <input readonly class="form-control" id="deploy-key" name="code" type="text" value="{{ deploy_key }}">
+              <input id="dojo-replace" name="dojo_replace" type="checkbox" value="true">
+              <label for="dojo-replace">Replace existing dojo.</label>
             </div>
             <div class="form-group text-right">
               <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Pull!">
             </div>
           </form>
+
+          <hr>
 
           {% if user_dojo %}
           <h3>Legacy Private Dojo</h3>
