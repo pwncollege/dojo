@@ -121,10 +121,17 @@ def unserialize_user_flag(user_flag, *, secret=None):
     return account_id, challenge_id
 
 
-def challenge_paths(dojo, user, challenge, *, secret=None):
+def challenge_paths(dojo, user, dojo_challenge, *, secret=None):
     if secret is None:
         secret = current_app.config["SECRET_KEY"]
 
+    # don't allow file overrides for imported challenges. Since solves
+    # are tracked per challenge, not per dojo_challenge, this can lead
+    # to cheesing
+    if dojo_challenge.provider_dojo:
+        dojo = dojo_challenge.provider_dojo
+
+    challenge = dojo_challenge.challenge
     chaldir = CHALLENGES_DIR
     if dojo.owner_id:
         dojo_chal_dir = (DOJOS_DIR/str(dojo.owner_id)/dojo.id/challenge.category/challenge.name)
