@@ -41,6 +41,18 @@ USER_FIREWALL_ALLOWED = {
 
 
 def get_current_challenge_id():
+    try:
+        return int(current_challenge_getenv("CHALLENGE_ID"))
+    except ValueError:
+        return None
+
+def get_current_dojo_challenge_id():
+    try:
+        return current_challenge_getenv("DOJO_CHALLENGE_ID")
+    except ValueError:
+        return None
+
+def current_challenge_getenv(k):
     user = get_current_user()
     if not user:
         return None
@@ -51,15 +63,12 @@ def get_current_challenge_id():
     try:
         container = docker_client.containers.get(container_name)
     except docker.errors.NotFound:
-        return
+        return None
 
     for env in container.attrs["Config"]["Env"]:
-        if env.startswith("CHALLENGE_ID"):
-            try:
-                challenge_id = int(env[len("CHALLENGE_ID=") :])
-                return challenge_id
-            except ValueError:
-                pass
+        if env.startswith(k+"="):
+            return env[len(k+"=") :]
+    return None
 
 def get_active_users(active_desktops=False):
     docker_client = docker.from_env()
