@@ -104,7 +104,7 @@ function renderSubmissionResponse(response, card) {
 function startChallenge(event) {
     event.preventDefault();
     const card = $(event.currentTarget).closest(".card");
-    const challenge_id = parseInt(card.find('#challenge-id').val())
+    const dojo_challenge_id = card.find('#dojo-challenge-id').val()
     const practice = event.currentTarget.id == "challenge-practice";
 
     card.find("#challenge-start").addClass("disabled-button");
@@ -114,7 +114,7 @@ function startChallenge(event) {
 
     var params = {
         'dojo_id': init.dojo_id,
-        'challenge_id': challenge_id,
+        'dojo_challenge_id': dojo_challenge_id,
         'practice': practice,
     };
 

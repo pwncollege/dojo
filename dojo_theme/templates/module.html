@@ -194,7 +194,7 @@
   <div class="accordion" id="challenges">
     {% for challenge in challenges %}
     {% set solved = "challenge-solved" if challenge.solved else "challenge-unsolved" %}
-    {% set active = "challenge-active" if challenge.id == current_challenge_id else "" %}
+    {% set active = "challenge-active" if challenge.dojo_challenge_id == current_dojo_challenge_id else "" %}
     <a id="challenge-{{challenge.name}}"></a>
     <div class="card">
       <div class="card-header" id="challengeHeading{{ loop.index }}">
@@ -247,7 +247,8 @@
           </div>
           <div class="row submit-row">
             <div class="col-md-9 form-group">
-              <input id="challenge-id" class="challenge-id" type="hidden" value="{{ challenge.id }}">
+              <input id="dojo-challenge-id" class="dojo-challenge-id" type="hidden" value="{{ challenge.dojo_challenge_id }}">
+              <input id="challenge-id" class="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
               <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
             </div>
             <div class="col-md-3 form-group key-submit">

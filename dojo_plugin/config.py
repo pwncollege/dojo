@@ -112,9 +112,11 @@ def load_challenges(dojo, module_idx, module, dojo_log, challenges_dir=None):
 
             challenge = provider_dojo_challenge.challenge
 
-        dojo_log.info("... creating dojo-challenge link for challenge %d", level_idx)
+        dojo_challenge_id = f"{dojo.id}-{module['id']}-{challenge.id}"
+        dojo_log.info("... creating dojo-challenge %s for challenge #%d", dojo_challenge_id, level_idx)
         # then create the DojoChallenge link
         dojo_challenge = DojoChallenges(
+            dojo_challenge_id=dojo_challenge_id,
             challenge_id=challenge.id,
             dojo_id=dojo.id,
             provider_dojo_id=provider_dojo_id,
