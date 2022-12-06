@@ -403,7 +403,7 @@ RUN <<EOF
     mkdir /challenge
     install -m 400 <(echo 'pwn.college{uninitialized}') /flag
 
-    find / -type f -perm -4000 | xargs -r chmod u-s
+    find / -xdev -type f -perm -4000 -exec chmod u-s \;
 
     chmod u+s /opt/pwn.college/python \
               /opt/pwn.college/vm/vm
