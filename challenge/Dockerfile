@@ -11,7 +11,7 @@ RUN <<EOF
     rm -f /etc/apt/apt.conf.d/docker-clean
     echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 
-    yes | unminimize
+    (set +o pipefail; yes | unminimize)
 
     dpkg --add-architecture i386
 EOF
