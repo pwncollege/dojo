@@ -3,6 +3,7 @@ import pytz
 import re
 
 import yaml
+from sqlalchemy.orm import synonym
 from sqlalchemy.sql import or_, and_
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
@@ -11,13 +12,16 @@ from CTFd.models import db, Challenges
 
 class DojoChallenges(db.Model):
     __tablename__ = "dojo_challenges"
-    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id"), primary_key=True)
+    id = db.Column(db.String(128), primary_key=True)
+    dojo_challenge_id = synonym("id")
+
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id"))
     description_override = db.Column(db.Text, nullable=True)
     docker_image_name = db.Column(db.String(256))
 
-    dojo_id = db.Column(db.String(16), db.ForeignKey("dojos.id"), primary_key=True)
+    dojo_id = db.Column(db.String(16), db.ForeignKey("dojos.id"))
     module = db.Column(db.String(256))
-    module_idx = db.Column(db.Integer, primary_key=True)
+    module_idx = db.Column(db.Integer)
     level_idx = db.Column(db.Integer)
 
     provider_dojo_id = db.Column(db.String(16), db.ForeignKey("dojos.id"), nullable=True)
@@ -41,10 +45,6 @@ class DojoChallenges(db.Model):
     @property
     def category(self):
         return self.challenge.category
-
-    @property
-    def id(self):
-        return self.challenge_id
 
 class Dojos(db.Model):
     __tablename__ = "dojos"

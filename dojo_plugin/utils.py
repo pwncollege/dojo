@@ -284,10 +284,11 @@ def dojo_challenges(dojo, module=None, user=None, admin_view=False, solves_befor
     @param user: show solves by this user if solves are before module assignment date
     """
     columns = [
+        DojoChallenges.dojo_challenge_id,
         DojoChallenges.challenge_id, DojoChallenges.description_override, DojoChallenges.level_idx,
         DojoChallenges.provider_dojo_id, DojoChallenges.provider_module,
         DojoChallenges.module, DojoChallenges.module_idx,
-        Challenges.name, Challenges.category, Challenges.description, Challenges.id,
+        Challenges.name, Challenges.category, Challenges.description,
         db.func.count(Solves.id).label("solves") # number of solves
     ]
     if user is not None:

@@ -9,7 +9,7 @@ from CTFd.utils.decorators.visibility import check_challenge_visibility
 from CTFd.utils.helpers import get_infos
 from CTFd.cache import cache
 
-from ..utils import get_current_challenge_id, dojo_route, dojo_by_id, render_markdown, module_visible, module_challenges_visible, dojo_challenges, is_dojo_admin
+from ..utils import get_current_dojo_challenge_id, dojo_route, dojo_by_id, render_markdown, module_visible, module_challenges_visible, dojo_challenges, is_dojo_admin
 from .grades import module_grade_report
 
 dojo = Blueprint("pwncollege_dojo", __name__)
@@ -83,7 +83,7 @@ def view_module(dojo, module):
     challenges = (
         dojo_challenges(dojo, module, user=get_current_user(), admin_view=is_dojo_admin(user, dojo))
     ) if module_challenges_visible(dojo, module, get_current_user()) else [ ]
-    current_challenge_id = get_current_challenge_id()
+    current_dojo_challenge_id = get_current_dojo_challenge_id()
 
     return render_template(
         "module.html",
@@ -94,5 +94,5 @@ def view_module(dojo, module):
         render_markdown=render_markdown,
         challenges=challenges,
         asu_student=False if user is None else user.email.endswith("asu.edu"),
-        current_challenge_id=current_challenge_id
+        current_dojo_challenge_id=current_dojo_challenge_id
     )
