@@ -44,10 +44,10 @@ $(() => {
     const privateDojoResults = $("#private-dojo-results");
     function dojoForm(form, endpoint, confirmation_msg, success) {
         form.submit((e) => {
-            if (confirmation_msg && !confirm(confirmation_msg)) return;
-
             e.preventDefault();
             privateDojoResults.empty();
+            if (confirmation_msg && !confirm(confirmation_msg)) return;
+
             const params = form.serializeJSON();
             CTFd.fetch(`/pwncollege_api/v1/private_dojo/${endpoint}`, {
                 method: "POST",
