@@ -148,6 +148,23 @@
                 <td><code>{{ dojo_hashes[dojo.id] }}</code></td>
                 <td>{% if dojo.join_code %}Private. Join Code: {{ dojo.join_code }}{% else %}Public{% endif %}</td>
                 <td>
+                  {% if dojo.join_code %}
+                  <form method="post" id="private-dojo-public-form" autocomplete="off">
+                    <div class="form-group text-right">
+                      <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Make Public">
+                    </div>
+                  </form>
+                  <form method="post" id="private-dojo-codechange-form" autocomplete="off">
+                    <div class="form-group text-right">
+                      <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Change Join Code">
+                    </div>
+                  </form>
+                  {% endif %}
+                  <form method="post" id="private-dojo-delete-form" autocomplete="off">
+                    <div class="form-group text-right">
+                      <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Delete">
+                    </div>
+                  </form>
                 </td>
               </tr>
               {% endfor %}
