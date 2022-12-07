@@ -469,3 +469,40 @@ class HTMLHandler(logging.Handler): # Inherit from logging.Handler
         if self.html:
             self.html += self.join_tag
         self.html += f"{self.start_tag}<b>{record.levelname}</b>: {sanitize_html(record.getMessage())}{self.end_tag}"
+
+def ctfd_to_host_path(ctfd_path):
+    """
+    Converts a path inside the CTFd docker to a path outside the docker.
+    Unfortunately, very infra-dependent.
+    """
+
+    with contextlib.suppress(ValueError):
+        return HOST_DOJOS_DIR/ctfd_path.relative_to(DOJOS_DIR)
+
+def sandboxed_git_clone(dojo_repo, repo_dir):
+    return sandboxed_git_command(
+        repo_dir,
+        [ "clone", "--quiet", "--depth", "1", dojo_repo, "/tmp/repo_dir" ]
+    )
+
+def sandboxed_git_command(repo_dir, command):
+    docker_client = docker.from_env()
+    container = docker_client.containers.run(
+        "alpine/git", [ "-C", "/tmp/repo_dir" ] + command,
+        environment={
+            "GIT_SSH_COMMAND":
+            f"ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=ERROR -i /tmp/deploykey"
+        },
+        mounts=[
+            docker.types.Mount( "/tmp/repo_dir", repo_dir, "bind", propagation="shared"),
+            docker.types.Mount("/tmp/deploykey", HOST_DOJOS_PRIV_KEY, "bind")
+        ],
+        detach=True,
+        cpu_quota=100000, mem_limit="1000m",
+        stdout=True, stderr=True
+    )
+    returncode = container.wait()['StatusCode']
+    output = container.logs()
+    container.remove()
+
+    return returncode, output
