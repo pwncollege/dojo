@@ -42,8 +42,10 @@ $(() => {
     });
 
     const privateDojoResults = $("#private-dojo-results");
-    function initializePrivateDojoForm(form, endpoint, success) {
+    function dojoForm(form, endpoint, confirmation_msg, success) {
         form.submit((e) => {
+            if (confirmation_msg && !confirm(confirmation_msg)) return;
+
             e.preventDefault();
             privateDojoResults.empty();
             const params = form.serializeJSON();
@@ -74,17 +76,17 @@ $(() => {
     const privateDojoInitializeForm = $("#private-dojo-initialize-form");
     const privateDojoCreateForm = $("#private-dojo-create-form");
 
-    initializePrivateDojoForm(privateDojoEnterForm, "activate", result => {
+    dojoForm(privateDojoEnterForm, "activate", false, result => {
         return "Dojo successfully entered";
     });
-    initializePrivateDojoForm(privateDojoJoinForm, "join", result => {
+    dojoForm(privateDojoJoinForm, "join", false, result => {
         return "Dojo successfully joined";
     });
-    initializePrivateDojoForm(privateDojoInitializeForm, "initialize", result => {
+    dojoForm(privateDojoInitializeForm, "initialize", false, result => {
         $("#initialize-code").val(result.join_code);
         return "Dojo successfully initialized";
     });
-    initializePrivateDojoForm(privateDojoCreateForm, "create", result => {
+    dojoForm(privateDojoCreateForm, "create", false, result => {
         return "Repository for dojo '" + result.dojo_id + "' successfully created! Logs:<br>" + result.load_logs;
     });
 });
