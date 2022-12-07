@@ -71,21 +71,12 @@ $(() => {
         });
     }
 
-    const privateDojoEnterForm = $("#private-dojo-enter-form");
     const privateDojoJoinForm = $("#private-dojo-join-form");
-    const privateDojoInitializeForm = $("#private-dojo-initialize-form");
     const privateDojoCreateForm = $("#private-dojo-create-form");
     const privateDojoDeleteForm = $("#private-dojo-delete-form");
 
-    dojoForm(privateDojoEnterForm, "activate", false, result => {
-        return "Dojo successfully entered";
-    });
     dojoForm(privateDojoJoinForm, "join", false, result => {
         return "Dojo successfully joined";
-    });
-    dojoForm(privateDojoInitializeForm, "initialize", false, result => {
-        $("#initialize-code").val(result.join_code);
-        return "Dojo successfully initialized";
     });
     dojoForm(privateDojoCreateForm, "create", false, result => {
         return "Repository for dojo '" + result.dojo_id + "' successfully created! Logs:<br>" + result.load_logs;
