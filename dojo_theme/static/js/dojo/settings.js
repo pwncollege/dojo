@@ -75,6 +75,7 @@ $(() => {
     const privateDojoJoinForm = $("#private-dojo-join-form");
     const privateDojoInitializeForm = $("#private-dojo-initialize-form");
     const privateDojoCreateForm = $("#private-dojo-create-form");
+    const privateDojoDeleteForm = $("#private-dojo-delete-form");
 
     dojoForm(privateDojoEnterForm, "activate", false, result => {
         return "Dojo successfully entered";
@@ -88,5 +89,8 @@ $(() => {
     });
     dojoForm(privateDojoCreateForm, "create", false, result => {
         return "Repository for dojo '" + result.dojo_id + "' successfully created! Logs:<br>" + result.load_logs;
+    });
+    dojoForm(privateDojoDeleteForm, "delete", "You are about to delete this dojo. This action cannot be undone. Press OK to continue or Cancel to abort.", result => {
+        return "Repository '" + result.dojo_id + "' deleted!";
     });
 });

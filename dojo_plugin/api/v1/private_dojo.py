@@ -65,6 +65,17 @@ class InitializeDojo(Resource):
 
         return {"success": True, "join_code": dojo.join_code, "id": dojo.id}
 
+@private_dojo_namespace.route("/delete")
+class DeleteDojo(Resource):
+    @authed_only
+    def post(self):
+        data = request.get_json()
+        user = get_current_user()
+
+        dojo = data.get("dojo_id")
+
+        return {"success": True, "dojo_id": dojo.join_code, "id": dojo.id}
+
 @private_dojo_namespace.route("/create")
 class CreateDojo(Resource):
     @authed_only
