@@ -16,7 +16,7 @@ from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
 from ...models import Dojos, DojoMembers
-from ...utils import dojo_standings, DOJOS_DIR, HOST_DOJOS_PRIV_KEY, HOST_DOJOS_DIR, HTMLHandler, id_regex
+from ...utils import dojo_standings, DOJOS_DIR, HTMLHandler, id_regex, sandboxed_git_clone, ctfd_to_host_path
 from ...config import load_dojo
 
 
@@ -65,34 +65,6 @@ class InitializeDojo(Resource):
 
         return {"success": True, "join_code": dojo.join_code, "id": dojo.id}
 
-def sandboxed_git_clone(dojo_repo, repo_dir):
-    return sandboxed_git_command(
-        repo_dir,
-        [ "clone", "--quiet", "--depth", "1", dojo_repo, "/tmp/repo_dir" ]
-    )
-
-def sandboxed_git_command(repo_dir, command):
-    docker_client = docker.from_env()
-    container = docker_client.containers.run(
-        "alpine/git", [ "-C", "/tmp/repo_dir" ] + command,
-        environment={
-            "GIT_SSH_COMMAND":
-            f"ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=ERROR -i /tmp/deploykey"
-        },
-        mounts=[
-            docker.types.Mount( "/tmp/repo_dir", repo_dir, "bind", propagation="shared"),
-            docker.types.Mount("/tmp/deploykey", HOST_DOJOS_PRIV_KEY, "bind")
-        ],
-        detach=True,
-        cpu_quota=100000, mem_limit="1000m",
-        stdout=True, stderr=True
-    )
-    returncode = container.wait()['StatusCode']
-    output = container.logs()
-    container.remove()
-
-    return returncode, output
-
 @private_dojo_namespace.route("/create")
 class CreateDojo(Resource):
     @authed_only
@@ -112,7 +84,7 @@ class CreateDojo(Resource):
                 # clone it!
                 clone_dir = pathlib.Path(tmp_dir)/"clone"
                 clone_dir.mkdir()
-                returncode, output = sandboxed_git_clone(dojo_repo, str(clone_dir).replace(str(DOJOS_DIR), str(HOST_DOJOS_DIR)))
+                returncode, output = sandboxed_git_clone(dojo_repo, str(ctfd_to_host_path(clone_dir)))
 
                 N=b"\n"
                 assert returncode == 0, (
