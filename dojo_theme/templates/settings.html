@@ -126,6 +126,36 @@
 
           <hr>
 
+          <h3>Your Dojos</h3>
+
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <td scope="col"><b>ID</b></td>
+                <td scope="col"><b>Name</b></td>
+                <td scope="col"><b>Repository</b></td>
+                <td scope="col"><b>Commit Hash</b></td>
+                <td scope="col"><b>Visibility</b></td>
+                <td scope="col"><b>Actions</b></td>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dojo in user_dojos %}
+              <tr>
+                <td><code>{{ dojo.id }}</code></td>
+                <td>{{ dojo.name }}</td>
+                <td><code>{{ dojo_remotes[dojo.id] }}</code></td>
+                <td><code>{{ dojo_hashes[dojo.id] }}</code></td>
+                <td>{% if dojo.join_code %}Private. Join Code: {{ dojo.join_code }}{% else %}Public{% endif %}</td>
+                <td>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <hr>
+
           <h3>Clone Dojo Repository</h3>
           <form method="post" id="private-dojo-create-form" autocomplete="off">
             <div class="form-group">
