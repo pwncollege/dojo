@@ -132,8 +132,8 @@ def load_challenges(dojo, module_idx, module, dojo_log, challenges_dir=None):
 
     dojo_log.info("Done with module %s", module["id"])
 
-def load_dojo(dojo_id, dojo_spec, user=None, commit=True, challenges_dir=None, log=_LOG):
-    load_dojo_actual(dojo_id, dojo_spec, user=user, challenges_dir=challenges_dir, dojo_log=log)
+def load_dojo(dojo_id, dojo_spec, user=None, commit=True, challenges_dir=None, log=_LOG, initial_join_code=None):
+    load_dojo_actual(dojo_id, dojo_spec, user=user, challenges_dir=challenges_dir, dojo_log=log, initial_join_code=initial_join_code)
     if commit:
         log.info("Committing database changes!")
         db.session.commit()
@@ -142,7 +142,7 @@ def load_dojo(dojo_id, dojo_spec, user=None, commit=True, challenges_dir=None, l
         db.session.rollback()
 
 
-def load_dojo_actual(dojo_id, dojo_spec, user=None, challenges_dir=None, dojo_log=None):
+def load_dojo_actual(dojo_id, dojo_spec, user=None, challenges_dir=None, dojo_log=None, initial_join_code=None):
     from .models import DojoChallenges, Dojos
 
     dojo_log.info("Initiating dojo load.")
@@ -150,6 +150,7 @@ def load_dojo_actual(dojo_id, dojo_spec, user=None, challenges_dir=None, dojo_lo
     dojo = Dojos.query.filter_by(id=dojo_id).first()
     if not dojo:
         dojo = Dojos(id=dojo_id, owner_id=None if not user else user.id, data=dojo_spec)
+        dojo.join_code = initial_join_code
         dojo_log.info("Dojo is new, adding.")
         db.session.add(dojo)
     elif dojo.data == dojo_spec:
