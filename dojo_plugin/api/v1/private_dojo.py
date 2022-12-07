@@ -124,9 +124,13 @@ class CreateDojo(Resource):
 
                 # make sure we're not overwriting someone else's dojo
                 existing_dojo = Dojos.query.filter_by(id=dojo_id).first()
-                assert existing_dojo is None or existing_dojo.owner_id == user.id, (
-                    f"A dojo with the ID {dojo_id} was already created by a different user. Please choose a different ID."
-                )
+                if existing_dojo is not None:
+                    assert existing_dojo.owner_id == user.id, (
+                        f"A dojo with the ID {dojo_id} was already created by a different user. Please choose a different ID."
+                    )
+                    join_code = existing_dojo.join_code
+                else:
+                    join_code = random_dojo_join_code()
 
                 # do a test load
                 log_handler = HTMLHandler()
@@ -152,7 +156,7 @@ class CreateDojo(Resource):
                 log_handler.reset()
                 load_dojo(
                     dojo_id, (dojo_permanent_dir/(dojo_id+".yml")).read_text(),
-                    user=user, commit=True, challenges_dir=dojo_permanent_dir, log=logger
+                    user=user, commit=True, challenges_dir=dojo_permanent_dir, log=logger, initial_join_code=join_code
                 )
                 html_logs = log_handler.html
             except AssertionError as e:
