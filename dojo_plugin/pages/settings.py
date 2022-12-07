@@ -8,7 +8,7 @@ from CTFd.utils.user import get_current_user
 from ..models import Dojos, SSHKeys
 from ..config import DISCORD_CLIENT_ID
 from .discord import get_discord_user, discord_avatar_asset
-from ..utils import DOJOS_PUB_KEY
+from ..utils import DOJOS_PUB_KEY, DOJOS_DIR, ctfd_to_host_path, sandboxed_git_command
 
 
 @authed_only
@@ -29,8 +29,6 @@ def settings_override():
 
     deploy_key = open(DOJOS_PUB_KEY).read().rsplit(" ", 1)[0]
 
-    user_dojo = Dojos.query.filter_by(owner_id=user.id).first()
-
     discord_user = get_discord_user(user.id)
 
     prevent_name_change = get_config("prevent_name_change")
@@ -45,6 +43,33 @@ def settings_override():
             )
         )
 
+    # the user's dojos
+    user_dojos = [ ]
+    dojo_hashes = { }
+    dojo_remotes = { }
+    for dojo in Dojos.query.filter_by(owner_id=user.id).all():
+        if dojo.config.get("dojo_spec", "v1") != "v2":
+            continue
+
+        user_dojos.append(dojo)
+        dojo_dir = DOJOS_DIR/str(user.id)/dojo.id
+        host_path = str(ctfd_to_host_path(dojo_dir))
+        r, commit_hash = sandboxed_git_command(host_path, "rev-parse --short HEAD".split())
+        if r:
+            commit_hash = f"UNKNOWN (error {r} in <code>git rev-parse --short HEAD</code>)."
+        else:
+            commit_hash = commit_hash.decode('latin1')
+        r, remote = sandboxed_git_command(host_path, "remote -v".split())
+        if r:
+            remote = f"UNKNOWN (error {r} in <code>git remote -v</code>)."
+        else:
+            remote = remote.split()[1].decode('latin1')
+
+        dojo_hashes[dojo.id] = commit_hash
+        dojo_remotes[dojo.id] = remote
+
+
+
     return render_template(
         "settings.html",
         name=name,
@@ -55,10 +80,12 @@ def settings_override():
         tokens=tokens,
         ssh_key=ssh_key,
         deploy_key=deploy_key,
-        user_dojo=user_dojo,
         discord_enabled=bool(DISCORD_CLIENT_ID),
         discord_user=discord_user,
         discord_avatar_asset=discord_avatar_asset,
         prevent_name_change=prevent_name_change,
         infos=infos,
+        user_dojos=user_dojos,
+        dojo_hashes=dojo_hashes,
+        dojo_remotes=dojo_remotes
     )
