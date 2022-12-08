@@ -122,9 +122,6 @@ def overall_grade_report(dojo, user, when=None):
     extra_credit["Partial Early Bird"] = sum((0.5 if r["earned_part_ec"] and not r["earned_full_ec"] else 0) for r in reports)
     extra_credit["Full Early Bird"] = sum((1.0 if r["earned_full_ec"] else 0) for r in reports)
 
-    extra_credit["CTF"] = 0
-    extra_credit["Bug Bounty"] = 0
-
     for current_extra_credit in dojo.extra_credit:
         name = current_extra_credit.get("name", "???")
         id = current_extra_credit.get("id", "dojo")
