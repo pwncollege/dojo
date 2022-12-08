@@ -29,42 +29,6 @@ def random_dojo_join_code():
     return os.urandom(8).hex()
 
 
-@private_dojo_namespace.route("/initialize")
-class InitializeDojo(Resource):
-    @authed_only
-    def post(self):
-        data = request.get_json()
-
-        dojo_data = data.get("data")
-        if dojo_data and len(dojo_data) > 2 ** 20:
-            return (
-                {"success": False, "error": "YAML Size Error: maximum size allowed is 1 MiB"},
-                400
-            )
-
-        user = get_current_user()
-
-        while True:
-            try:
-                dojo = Dojos.query.filter_by(owner_id=user.id).first()
-                if not dojo:
-                    dojo = Dojos(id=f"private-{user.id}", owner_id=user.id)
-                    db.session.add(dojo)
-                dojo.join_code = random_dojo_join_code()
-                dojo.data = dojo_data
-                db.session.commit()
-            except IntegrityError:
-                db.session.rollback()
-            except AssertionError as e:
-                return (
-                    {"success": False, "error": str(e)},
-                    400
-                )
-            else:
-                break
-
-        return {"success": True, "join_code": dojo.join_code, "id": dojo.id}
-
 @private_dojo_namespace.route("/delete")
 class DeleteDojo(Resource):
     @authed_only
