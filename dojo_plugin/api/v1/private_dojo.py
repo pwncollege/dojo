@@ -72,9 +72,21 @@ class DeleteDojo(Resource):
         data = request.get_json()
         user = get_current_user()
 
-        dojo = data.get("dojo_id")
+        dojo_id = data.get("dojo_id")
+        dojo = Dojos.query.filter_by(id=dojo_id).first()
+        if not dojo or dojo.owner != user:
+            return {"success": False, "error": f"Invalid dojo specified: {data.get('dojo_id')}"}
 
-        return {"success": True, "dojo_id": dojo.join_code, "id": dojo.id}
+        dojo_dir = DOJOS_DIR/str(user.id)/dojo.id
+        if not dojo_dir.exists():
+            return {"success": False, "error": "Dojo directory does not exist."}
+
+        db.session.delete(dojo)
+        db.session.commit()
+
+        shutil.rmtree(str(dojo_dir))
+
+        return {"success": True, "dojo_id": dojo.id}
 
 @private_dojo_namespace.route("/create")
 class CreateDojo(Resource):

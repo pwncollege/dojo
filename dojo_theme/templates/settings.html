@@ -163,6 +163,7 @@
                   {% endif %}
                   <form method="post" id="private-dojo-delete-form" autocomplete="off">
                     <div class="form-group text-right">
+                      <input id="dojo-id" name="dojo_id" class="dojo-id" type="hidden" value="{{ dojo.id }}">
                       <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Delete">
                     </div>
                   </form>
