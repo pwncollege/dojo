@@ -57,7 +57,7 @@ class Dojos(db.Model):
 
     @hybrid_property
     def public(self):
-        return self.owner_id == None
+        return self.join_code == None
 
     @property
     def archived(self):
