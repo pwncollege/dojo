@@ -128,6 +128,7 @@
 
           <h3>Your Dojos</h3>
 
+          {% if user_dojos %}
           <table class="table table-striped">
             <thead>
               <tr>
@@ -170,6 +171,9 @@
               {% endfor %}
             </tbody>
           </table>
+          {% else %}
+          <p>None yet. Clone a dojo using the form below!</p>
+          {% endif %}
 
           <hr>
 
