@@ -102,7 +102,7 @@ def module_grade_report(dojo, module, user, when=None):
     return m
 
 
-def letter_grade(total_grade, module_reports=None):
+def letter_grade(dojo, total_grade, module_reports=None):
     if module_reports is None:
         module_reports = []
 
@@ -164,7 +164,7 @@ def overall_grade_report(dojo, user, when=None):
         module_average=module_average,
         extra_credit=extra_credit,
         total_grade=total_grade,
-        letter_grade=letter_grade(total_grade, reports)
+        letter_grade=letter_grade(dojo, total_grade, reports)
     )
 
 
@@ -222,7 +222,7 @@ def view_all_grades(dojo):
         {
             "id": "Average",
             "email": "",
-            "letter": letter_grade(statistics.mean(grade["overall"] for grade in grades)),
+            "letter": letter_grade(dojo, statistics.mean(grade["overall"] for grade in grades)),
             **{
                 name: statistics.mean(grade[name] for grade in grades)
                 for name in grades[0]
