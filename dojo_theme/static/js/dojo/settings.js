@@ -81,7 +81,7 @@ $(() => {
         return "Dojo successfully joined";
     });
     dojoForm(privateDojoCreateForm, "create", false, result => {
-        return "Repository for dojo '" + result.dojo_id + "' successfully created! Logs:<br>" + result.load_logs;
+        return "Dojo '" + result.dojo_id + "' successfully created! Logs:<br>" + result.load_logs;
     });
     dojoForm(privateDojoDeleteForm, "delete", "You are about to delete this dojo. This action cannot be undone. Press OK to continue or Cancel to abort.", result => {
         return "Repository '" + result.dojo_id + "' deleted!";
