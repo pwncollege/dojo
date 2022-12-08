@@ -24,6 +24,7 @@ from .pages.settings import settings_override
 from .pages.discord import discord, maybe_award_belt
 from .pages.grades import grades
 from .pages.writeups import writeups
+from .pages.dev import dev, dev_initialize
 from .api import api
 
 
@@ -104,6 +105,7 @@ def load(app):
     app.register_blueprint(users)
     app.register_blueprint(grades)
     app.register_blueprint(writeups)
+    app.register_blueprint(dev)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
 
     register_admin_plugin_menu_bar("Grades", "/admin/grades")
@@ -112,3 +114,4 @@ def load(app):
 
     if os.path.basename(sys.argv[0]) != "manage.py":
         bootstrap()
+        dev_initialize()
