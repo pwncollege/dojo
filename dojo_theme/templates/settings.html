@@ -12,8 +12,7 @@
       <div class="nav flex-column nav-pills" role="tablist">
         <a class="nav-link active" id="settings-profile-tab" data-toggle="pill" href="#profile" role="tab">Profile</a>
         <a class="nav-link" id="settings-key-tab" data-toggle="pill" href="#key" role="tab">SSH Key</a>
-        <a class="nav-link" id="settings-join-dojos-tab" data-toggle="pill" href="#join-dojos" role="tab">Join Dojos</a>
-        <a class="nav-link" id="settings-host-dojos-tab" data-toggle="pill" href="#host-dojos" role="tab">Host Dojos</a>
+        <a class="nav-link" id="settings-dojos-tab" data-toggle="pill" href="#dojos" role="tab">Dojos</a>
         {% if discord_enabled %}
         <a class="nav-link" id="settings-discord-tab" data-toggle="pill" href="#discord" role="tab">Discord</a>
         {% endif %}
@@ -94,45 +93,74 @@
           </form>
         </div>
 
-        <div class="tab-pane fade" id="join-dojos" role="tabpanel">
+        <div class="tab-pane fade" id="dojos" role="tabpanel">
+
+          <hr>
+
           <h3>Join Dojo</h3>
+          <p>
+          To join a private dojo:
+          <ol>
+            <li>Receive the dojo invite code from the private dojo's Sensei.
+            <li>Enter the code in the form below and click Join.
+            <li>The dojo should now show up in your dojo list and profile.
+          </ol>
+          </p>
           <form method="post" id="private-dojo-join-form" autocomplete="off">
             <div class="form-group">
-              <b><label for="join-code">Dojo Code</label></b>
+              <b><label for="join-code">Dojo Invite Code</label></b>
               <input class="form-control" id="join-code" name="join_code" type="text" value="">
             </div>
             <div class="form-group text-right">
               <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Join">
             </div>
           </form>
-        </div>
-
-        <div class="tab-pane fade" id="host-dojos" role="tabpanel">
-          <p>
-          To host a new dojo:
-          <ol>
-            <li>Fork the <a href="https://github.com/pwncollege/example-dojo">example dojo repository</a>. Most likely, you want the resulting repository to be private.
-            <li>Modify the repository to your liking. <b>Make sure to rename <code>example.yml</code> to the ID you want your repository to have in its eventual URL.</b> A repository with the spec file <code>leet.yml</code> will end up with a URL of TODO.
-            <li>If the resulting dojo is private, <a href="https://docs.github.com/en/developers/overview/managing-deploy-keys">add our deploy key</a> to it. The deploy key is <code>{{ deploy_key }}</code>.
-            <li>Clone the dojo using the form below. You will need to use SSH URLs (<code>git@github.com:your-user/leet-dojo</code>) for private repositories (after adding the deploy key above). You can use the HTTPS URL (<code>https://github.com/your-user/leet-dojo</code>) for public repositories.
-          </ol>
-          </p>
-          <p>To update a dojo you host:
-          <ol>
-            <li>Make, commit, and push your changes to your git repo.
-            <li><i>Re-clone</i> the repository with the form below, making sure to check the "Replace existing dojo." checkbox. Why is recloning necessary? There are just too many crazy things that can go wrong when pulling (such as merge conflicts!).
-          </ol>
-          </p>
 
           <hr>
 
-          <h3>Your Dojos</h3>
-
-          {% if user_dojos %}
+          <h3>Joined Private Dojos</h3>
+          {% if joined_dojos %}
           <table class="table table-striped">
             <thead>
               <tr>
-                <td scope="col"><b>ID</b></td>
+                <td scope="col"><b>Name</b></td>
+                <td scope="col"><b>Actions</b></td>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dojo in joined_dojos %}
+              <tr>
+                <td>{{ dojo.name }}</td>
+                <td>
+                  <form method="post" id="private-dojo-leave-form" autocomplete="off">
+                    <div class="form-group text-right">
+                      <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Leave Dojo">
+                    </div>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p>None yet. Join a dojo using the form above!</p>
+          {% endif %}
+
+          <hr>
+
+          <h3>Hosted Dojos</h3>
+          {% if user_dojos %}
+          <p>
+          Please note:
+          </p>
+          <ul>
+            <li>Dojo updates re-clone the whole repository (too many potential issues in a <code>git pull</code>).
+            <li>If you delete a dojo, and later re-create it, we don't guarantee solve persistence.
+          </ul>
+
+          <table class="table table-striped">
+            <thead>
+              <tr>
                 <td scope="col"><b>Name</b></td>
                 <td scope="col"><b>Repository</b></td>
                 <td scope="col"><b>Commit Hash</b></td>
@@ -143,28 +171,36 @@
             <tbody>
               {% for dojo in user_dojos %}
               <tr>
-                <td><code>{{ dojo.id }}</code></td>
                 <td>{{ dojo.name }}</td>
                 <td><code>{{ dojo_remotes[dojo.id] }}</code></td>
                 <td><code>{{ dojo_hashes[dojo.id] }}</code></td>
-                <td>{% if dojo.join_code %}Private. Join Code: {{ dojo.join_code }}{% else %}Public{% endif %}</td>
+                <td>{% if dojo.join_code %}Private.<br>Join Code: {{ dojo.join_code }}{% else %}Public{% endif %}</td>
                 <td>
                   {% if dojo.join_code %}
-                  <form method="post" id="private-dojo-public-form" autocomplete="off">
+                  <form method="post" id="private-dojo-publicize-form" autocomplete="off">
                     <div class="form-group text-right">
+                      <input id="dojo-id" name="dojo_id" class="dojo-id" type="hidden" value="{{ dojo.id }}">
                       <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Make Public">
                     </div>
                   </form>
-                  <form method="post" id="private-dojo-codechange-form" autocomplete="off">
+                  {% endif %}
+                  <form method="post" id="private-dojo-randomize-form" autocomplete="off">
                     <div class="form-group text-right">
-                      <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Change Join Code">
+                      <input id="dojo-id" name="dojo_id" class="dojo-id" type="hidden" value="{{ dojo.id }}">
+                      <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="{% if dojo.join_code %}Change Join Code{% else %}Make Private{% endif %}">
                     </div>
                   </form>
-                  {% endif %}
                   <form method="post" id="private-dojo-delete-form" autocomplete="off">
                     <div class="form-group text-right">
                       <input id="dojo-id" name="dojo_id" class="dojo-id" type="hidden" value="{{ dojo.id }}">
                       <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Delete">
+                    </div>
+                  </form>
+                  <form method="post" id="private-dojo-update-form" autocomplete="off">
+                    <div class="form-group text-right">
+                      <input id="dojo-replace" name="dojo_replace" type="hidden" value="true">
+                      <input id="dojo-repo" name="dojo_repo" type="hidden" value="{{ dojo_remotes[dojo.id] }}">
+                      <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Update">
                     </div>
                   </form>
                 </td>
@@ -178,15 +214,21 @@
 
           <hr>
 
-          <h3>Create Dojo</h3>
+          <h3>Host New Dojo</h3>
+          <p>
+          To host a new dojo:
+          <ol>
+            <li>Fork the <a href="https://github.com/pwncollege/example-dojo">example dojo repository</a>. Most likely, you want the resulting repository to be private.
+            <li>Modify the repository to your liking. <b>Make sure to rename <code>example.yml</code> to the ID you want your repository to have in its eventual URL.</b> A repository with the spec file <code>leet.yml</code> will end up with a URL of TODO.
+            <li>If the resulting dojo is private, <a href="https://docs.github.com/en/developers/overview/managing-deploy-keys">add our deploy key</a> to it. The deploy key is <code>{{ deploy_key }}</code>.
+            <li>Clone the dojo using the form below. You will need to use SSH URLs (<code>git@github.com:your-user/leet-dojo</code>) for private repositories (after adding the deploy key above). You can use the HTTPS URL (<code>https://github.com/your-user/leet-dojo</code>) for public repositories.
+          </ol>
+          </p>
+
           <form method="post" id="private-dojo-create-form" autocomplete="off">
             <div class="form-group">
               <b><label for="dojo-repo">Dojo Repository</label></b>
               <input class="form-control" id="dojo-repo" name="dojo_repo" type="text" value="">
-            </div>
-            <div class="form-group">
-              <input id="dojo-replace" name="dojo_replace" type="checkbox" value="true">
-              <label for="dojo-replace">Replace existing dojo.</label>
             </div>
             <div class="form-group text-right">
               <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Clone!">

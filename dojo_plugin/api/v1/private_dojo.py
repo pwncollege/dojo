@@ -16,7 +16,7 @@ from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
 from ...models import Dojos, DojoMembers
-from ...utils import dojo_standings, DOJOS_DIR, HTMLHandler, id_regex, sandboxed_git_clone, ctfd_to_host_path
+from ...utils import dojo_standings, DOJOS_DIR, HTMLHandler, id_regex, sandboxed_git_clone, ctfd_to_host_path, is_dojo_admin
 from ...config import load_dojo
 
 
@@ -29,6 +29,23 @@ def random_dojo_join_code():
     return os.urandom(8).hex()
 
 
+@private_dojo_namespace.route("/change-join-code")
+class UpdateJoinCode(Resource):
+    @authed_only
+    def post(self):
+        data = request.get_json()
+        user = get_current_user()
+
+        dojo_id = data.get("dojo_id")
+        dojo = Dojos.query.filter_by(id=dojo_id).first()
+        if not is_dojo_admin(user, dojo):
+            return {"success": False, "error": f"Invalid dojo specified: {data.get('dojo_id')}"}
+
+        dojo.join_code = random_dojo_join_code()
+        db.session.add(dojo)
+        db.session.commit()
+        return {"success": True, "dojo_id": dojo.id, "join_code": dojo.join_code}
+
 @private_dojo_namespace.route("/delete")
 class DeleteDojo(Resource):
     @authed_only
@@ -38,7 +55,7 @@ class DeleteDojo(Resource):
 
         dojo_id = data.get("dojo_id")
         dojo = Dojos.query.filter_by(id=dojo_id).first()
-        if not dojo or dojo.owner != user:
+        if not is_dojo_admin(user, dojo):
             return {"success": False, "error": f"Invalid dojo specified: {data.get('dojo_id')}"}
 
         dojo_dir = DOJOS_DIR/str(user.id)/dojo.id
