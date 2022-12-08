@@ -3,3 +3,4 @@ pyyaml==5.4.1
 ipython
 jupyter
 requests
+Flask==2.1.0
