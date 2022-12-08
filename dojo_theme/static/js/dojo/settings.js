@@ -7,9 +7,10 @@ var error_template =
 
 var success_template =
     '<div class="alert alert-success alert-dismissable submit-row" role="alert">\n' +
-    '  <strong>Success!</strong>\n' +
-    '  <span id="message"></span>' +
+    '  <p><strong>Success!</strong>\n' +
+    '  <span id="message"></span></p>' +
     '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
+    '  <p><strong>Note!</strong> You might need to refresh this page to observe the effects of this action.</p>' +
     '</div>';
 
 $(() => {
