@@ -103,6 +103,8 @@ def module_grade_report(dojo, module, user, when=None):
 
 
 def overall_grade_report(dojo, user, when=None):
+    discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
+
     reports = [ ]
     for module in dojo.modules:
         if not module_visible(dojo, module, user) or not module_challenges_visible(dojo, module, user):
@@ -115,23 +117,36 @@ def overall_grade_report(dojo, user, when=None):
         reports.append(r)
 
     module_average = statistics.mean(r["module_grade"] for r in reports)
-    part_ec = sum((0.5 if r["earned_part_ec"] and not r["earned_full_ec"] else 0) for r in reports)
-    full_ec = sum((1.0 if r["earned_full_ec"] else 0) for r in reports)
-    ctf_ec = 0
-    bug_ec = 0
-    meme_ec = 0
-    help_ec = 0
-    total_grade = module_average + part_ec + full_ec + ctf_ec + bug_ec + meme_ec + help_ec
+
+    extra_credit = {}
+    extra_credit["Partial Early Bird"] = sum((0.5 if r["earned_part_ec"] and not r["earned_full_ec"] else 0) for r in reports)
+    extra_credit["Full Early Bird"] = sum((1.0 if r["earned_full_ec"] else 0) for r in reports)
+
+    extra_credit["CTF"] = 0
+    extra_credit["Bug Bounty"] = 0
+
+    for current_extra_credit in dojo.extra_credit:
+        name = current_extra_credit.get("name", "???")
+        id = current_extra_credit.get("id", "dojo")
+        points = current_extra_credit.get("points", {})
+
+        if isinstance(points, (int, float)):
+            user_points = points
+        elif id == "dojo":
+            user_points = points.get(user.id, 0)
+        elif id == "discord":
+            user_points = points.get(discord_user.id, 0) if discord_user else 0
+        else:
+            user_points = 0
+
+        extra_credit[name] = user_points
+
+    total_grade = module_average + sum(extra_credit.values())
 
     return dict(
         module_reports=reports,
         module_average=module_average,
-        part_ec=part_ec,
-        full_ec=full_ec,
-        ctf_ec=ctf_ec,
-        bug_ec=bug_ec,
-        help_ec=help_ec,
-        meme_ec=meme_ec,
+        extra_credit=extra_credit,
         total_grade=total_grade,
     )
 

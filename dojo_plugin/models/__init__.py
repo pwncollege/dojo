@@ -90,6 +90,10 @@ class Dojos(db.Model):
     def modules(self):
         return self.config.get("modules", [])
 
+    @property
+    def extra_credit(self):
+        return self.config.get("extra_credit", [])
+
     def module_by_id(self, module_id):
         for module in self.modules:
             if module.get("id") == module_id:

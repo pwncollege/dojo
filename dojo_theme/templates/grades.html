@@ -10,13 +10,10 @@
   <p>You currently have a {{ grades.total_grade|round(2) }}% in the class.</p>
   <h2>Overall Grade</h2>
   <p>
-  <b>Module Average:</b> {{ grades.module_average|round(2) }}%<br>
-  <b>Total Partial Early Bird Extra Credit:</b> {{ grades.part_ec|round(2) }}%<br>
-  <b>Total Full Early Bird Extra Credit:</b> {{ grades.full_ec|round(2) }}%<br>
-  <b>Total Meme Extra Credit:</b> TODO<br>
-  <b>Total Helpfulness Extra Credit:</b> TODO<br>
-  <b>Total CTF Extra Credit:</b> {{ grades.ctf_ec }}%<br>
-  <b>Total Bug Bounty Extra Credit:</b> {{ grades.bug_ec }}%
+    <b>Module Average:</b> {{ grades.module_average|round(2) }}%<br>
+    {% for name, points in grades.extra_credit.items() %}
+    <b>{{ name }}:</b> {{ points|round(2) }}%<br>
+    {% endfor %}
   </p>
   <p><b>Total Grade:</b> {{ grades.total_grade|round(2) }}%</p>
 
