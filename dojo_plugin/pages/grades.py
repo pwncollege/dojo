@@ -164,7 +164,7 @@ def overall_grade_report(dojo, user, when=None):
         module_average=module_average,
         extra_credit=extra_credit,
         total_grade=total_grade,
-        letter_grade=letter_grade(total_grade, module_reports)
+        letter_grade=letter_grade(total_grade, reports)
     )
 
 
