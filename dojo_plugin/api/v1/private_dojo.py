@@ -46,6 +46,25 @@ class UpdateJoinCode(Resource):
         db.session.commit()
         return {"success": True, "dojo_id": dojo.id, "join_code": dojo.join_code}
 
+
+@private_dojo_namespace.route("/make-public")
+class MakePublic(Resource):
+    @authed_only
+    def post(self):
+        data = request.get_json()
+        user = get_current_user()
+
+        dojo_id = data.get("dojo_id")
+        dojo = Dojos.query.filter_by(id=dojo_id).first()
+        if not is_dojo_admin(user, dojo):
+            return {"success": False, "error": f"Invalid dojo specified: {data.get('dojo_id')}"}
+
+        dojo.join_code = None
+        db.session.add(dojo)
+        db.session.commit()
+        return {"success": True, "dojo_id": dojo.id}
+
+
 @private_dojo_namespace.route("/delete")
 class DeleteDojo(Resource):
     @authed_only

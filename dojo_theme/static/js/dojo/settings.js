@@ -78,6 +78,7 @@ $(() => {
     const privateDojoDeleteForm = $("#private-dojo-delete-form");
     const privateDojoUpdateForm = $("#private-dojo-update-form");
     const privateDojoRandomizeForm = $("#private-dojo-randomize-form");
+    const privateDojoPublicizeForm = $("#private-dojo-publicize-form");
 
     dojoForm(privateDojoJoinForm, "join", false, result => {
         return "Dojo successfully joined";
@@ -91,7 +92,10 @@ $(() => {
     dojoForm(privateDojoRandomizeForm, "change-join-code", "You are about to randomize your dojo's join code. The old code will no longer be valid (but students who previously joined will remain in the dojo.). This action cannot be undone. Press OK to continue or Cancel to abort.", result => {
         return "Dojo '" + result.dojo_id + "' join code rerandomized to <code>" + result.join_code + "</code>!";
     });
-    dojoForm(privateDojoDeleteForm, "delete", "You are about to delete this dojo. This action cannot be undone. Press OK to continue or Cancel to abort.", result => {
+    dojoForm(privateDojoPublicizeForm, "make-public", "You are about to make this dojo public, open for anyone to access!", result => {
+        return "Dojo '" + result.dojo_id + "' made public!";
+    });
+    dojoForm(privateDojoDeleteForm, "delete", "You are about to delete this dojo. This action cannot be undone.", result => {
         return "Dojo '" + result.dojo_id + "' deleted!";
     });
 });
