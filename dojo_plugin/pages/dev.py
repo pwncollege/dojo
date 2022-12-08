@@ -11,7 +11,7 @@ dev = Blueprint("pwncollege_dev", __name__)
 
 def dev_initialize():
     # TODO: this is terrible
-    subprocess.run(["/usr/bin/pip", "install", "jupyter", "requests"], check=True)
+    subprocess.run(["/usr/local/bin/pip", "install", "jupyter", "requests"], check=True)
 
     try:
         os.mkdir("/run/dev-server")
