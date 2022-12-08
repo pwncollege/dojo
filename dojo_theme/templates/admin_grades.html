@@ -29,7 +29,7 @@
               <b>?</b>
               {% endif %}
               {% elif value is number %}
-              {{ value | round(2) }}%
+              {{ "%.2f"|format(value) }}%
               {% elif value is not none %}
               {{ value }}
               {% endif %}
@@ -44,7 +44,7 @@
             {% for value in statistic.values() %}
             <td>
               {% if value is number %}
-              {{ value | round(2) }}%
+              {{ "%.2f"|format(value) }}%
               {% elif value is not none %}
               <b>{{ value }}</b>
               {% endif %}

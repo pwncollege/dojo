@@ -102,6 +102,25 @@ def module_grade_report(dojo, module, user, when=None):
     return m
 
 
+def letter_grade(total_grade, module_reports=None):
+    if module_reports is None:
+        module_reports = []
+
+    for dojo_grade in dojo.grades:
+        if "points" in dojo_grade and total_grade >= dojo_grade["points"]:
+            grade = dojo_grade["grade"]
+            break
+        if "modules" in dojo_grade:
+            modules = dojo_grade["modules"] % len(module_reports)
+            progress = len([report for report in module_reports if report["module_grade"]])
+            if progress >= modules:
+                grade = dojo_grade["grade"]
+    else:
+        grade = "?"
+
+    return grade
+
+
 def overall_grade_report(dojo, user, when=None):
     discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
 
@@ -145,6 +164,7 @@ def overall_grade_report(dojo, user, when=None):
         module_average=module_average,
         extra_credit=extra_credit,
         total_grade=total_grade,
+        letter_grade=letter_grade(total_grade, module_reports)
     )
 
 
@@ -188,6 +208,7 @@ def view_all_grades(dojo):
         grades.append({
             "id": user.id if user else None,
             "email": email,
+            "letter": report.get("letter_grade"),
             "overall": report.get("total_grade"),
             **{
                 module["name"]: module["module_grade"]
@@ -201,10 +222,11 @@ def view_all_grades(dojo):
         {
             "id": "Average",
             "email": "",
+            "letter": letter_grade(statistics.mean(grade["overall"] for grade in grades)),
             **{
-                name: statistics.mean(grade[name] for grade in grades if grade.get(name) is not None)
+                name: statistics.mean(grade[name] for grade in grades)
                 for name in grades[0]
-                if name not in ["id", "email"]
+                if name not in ["id", "email", "letter"]
             }
         }
     ] if grades else []

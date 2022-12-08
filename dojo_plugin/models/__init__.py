@@ -91,6 +91,10 @@ class Dojos(db.Model):
         return self.config.get("modules", [])
 
     @property
+    def grades(self):
+        return self.config.get("grades", [])
+
+    @property
     def extra_credit(self):
         return self.config.get("extra_credit", [])
 

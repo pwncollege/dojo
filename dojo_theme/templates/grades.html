@@ -7,7 +7,7 @@
   </div>
 </div>
 <div class="container">
-  <p>You currently have a {{ "%.2f"|format(grades.total_grade) }}% in the class.</p>
+  <p>You currently have a {{ "%.2f"|format(grades.total_grade) }}% ({{ grades.letter_grade }}) in the class.</p>
   <h2>Overall Grade</h2>
   <p>
     <b>Module Average:</b> {{ "%.2f"|format(grades.module_average) }}%<br>
@@ -15,7 +15,7 @@
     <b>{{ name }}:</b> {{ "%.2f"|format(points) }}%<br>
     {% endfor %}
   </p>
-  <p><b>Total Grade:</b> {{ "%.2f"|format(grades.total_grade) }}%</p>
+  <p><b>Total Grade:</b> {{ "%.2f"|format(grades.total_grade) }} ({{ grades.letter_grade }})%</p>
 
   <br style="font-size: 3em">
   <h2>Individual Module Grades</h2>
