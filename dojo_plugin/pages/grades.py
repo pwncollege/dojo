@@ -132,7 +132,7 @@ def overall_grade_report(dojo, user, when=None):
         elif id == "dojo":
             user_points = points.get(user.id, 0)
         elif id == "discord":
-            user_points = points.get(discord_user.id, 0) if discord_user else 0
+            user_points = points.get(discord_user.discord_id, 0) if discord_user else 0
         else:
             user_points = 0
 
