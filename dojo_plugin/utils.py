@@ -209,7 +209,7 @@ def module_challenges_visible(dojo, module, user):
 
 
 def is_dojo_admin(user, dojo):
-    return user and (user.type == "admin" or dojo.owner_id == user.id)
+    return user and dojo and (user.type == "admin" or dojo.owner_id == user.id)
 
 
 def dojo_route(func):
