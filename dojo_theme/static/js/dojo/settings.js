@@ -89,7 +89,7 @@ $(() => {
     dojoForm(privateDojoUpdateForm, "create", false, result => {
         return "Dojo '" + result.dojo_id + "' successfully updated! Logs:<br>" + result.load_logs;
     });
-    dojoForm(privateDojoRandomizeForm, "change-join-code", "You are about to randomize your dojo's join code. The old code will no longer be valid (but students who previously joined will remain in the dojo.). This action cannot be undone. Press OK to continue or Cancel to abort.", result => {
+    dojoForm(privateDojoRandomizeForm, "change-join-code", "You are about to set a random join code for your dojo. If the dojo was public, it will become private and only people who had joined with a join code will retain access to it. If the dojo is already private, the old code will no longer be valid but students who previously joined will remain in the dojo.", result => {
         return "Dojo '" + result.dojo_id + "' join code rerandomized to <code>" + result.join_code + "</code>!";
     });
     dojoForm(privateDojoPublicizeForm, "make-public", "You are about to make this dojo public, open for anyone to access!", result => {
