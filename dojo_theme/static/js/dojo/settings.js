@@ -46,7 +46,8 @@ $(() => {
     function dojoForm(form, endpoint, confirmation_msg, success) {
         form.submit((e) => {
             e.preventDefault();
-            privateDojoResults.empty();
+            privateDojoResults.html(error_template);
+            privateDojoResults.find("#message").html("Loading...");
             if (confirmation_msg && !confirm(confirmation_msg)) return;
 
             const params = form.serializeJSON();
