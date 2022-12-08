@@ -119,8 +119,8 @@ def overall_grade_report(dojo, user, when=None):
     module_average = statistics.mean(r["module_grade"] for r in reports)
 
     extra_credit = {}
-    extra_credit["Partial Early Bird"] = sum((0.5 if r["earned_part_ec"] and not r["earned_full_ec"] else 0) for r in reports)
-    extra_credit["Full Early Bird"] = sum((1.0 if r["earned_full_ec"] else 0) for r in reports)
+    extra_credit["Partial Early Bird"] = sum((0.5 if r["earned_part_ec"] else 0) for r in reports)
+    extra_credit["Full Early Bird"] = sum((0.5 if r["earned_full_ec"] else 0) for r in reports)
 
     for current_extra_credit in dojo.extra_credit:
         name = current_extra_credit.get("name", "???")
