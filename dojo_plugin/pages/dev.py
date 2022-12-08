@@ -2,7 +2,6 @@ import os
 import subprocess
 import urllib.parse
 
-import requests
 from flask import request, Response, Blueprint
 from CTFd.utils.decorators import admins_only
 
@@ -44,6 +43,8 @@ def dev_initialize():
 @desktop.route("/dev/<path:path>")
 @admins_only
 def dev_proxy(path):
+    import requests
+
     proxy_url = urllib.parse.urlparse(request.url)
 
     prefix = "/dev/"
