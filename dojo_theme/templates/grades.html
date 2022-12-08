@@ -7,15 +7,15 @@
   </div>
 </div>
 <div class="container">
-  <p>You currently have a {{ grades.total_grade|round(2) }}% in the class.</p>
+  <p>You currently have a {{ "%.2f"|format(grades.total_grade) }}% in the class.</p>
   <h2>Overall Grade</h2>
   <p>
-    <b>Module Average:</b> {{ grades.module_average|round(2) }}%<br>
+    <b>Module Average:</b> {{ "%.2f"|format(grades.module_average) }}%<br>
     {% for name, points in grades.extra_credit.items() %}
-    <b>{{ name }}:</b> {{ points|round(2) }}%<br>
+    <b>{{ name }}:</b> {{ "%.2f"|format(points) }}%<br>
     {% endfor %}
   </p>
-  <p><b>Total Grade:</b> {{ grades.total_grade|round(2) }}%</p>
+  <p><b>Total Grade:</b> {{ "%.2f"|format(grades.total_grade) }}%</p>
 
   <br style="font-size: 3em">
   <h2>Individual Module Grades</h2>
@@ -46,7 +46,7 @@
             <td>{{ report.total_challenges }}</td>
             <td>{% if report.earned_part_ec %}&#10004;{% endif %}</td>
             <td>{% if report.earned_full_ec %}&#10004;{% endif %}</td>
-            <td>{{ report.module_grade|round(2) }}%</td>
+            <td>{{ "%.2f"|format(report.module_grade) }}%</td>
           </tr>
           {% endfor %}
         </tbody>
