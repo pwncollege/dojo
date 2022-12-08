@@ -10,6 +10,9 @@ dev = Blueprint("pwncollege_dev", __name__)
 
 
 def dev_initialize():
+    # TODO: this is terrible
+    subprocess.run(["/usr/bin/pip", "install", "jupyter", "requests"], check=True)
+
     try:
         os.mkdir("/run/dev-server")
     except FileExistsError:
@@ -39,8 +42,8 @@ def dev_initialize():
                    check=True)
 
 
-@desktop.route("/dev/")
-@desktop.route("/dev/<path:path>")
+@dev.route("/dev/")
+@dev.route("/dev/<path:path>")
 @admins_only
 def dev_proxy(path):
     import requests
