@@ -19,7 +19,7 @@ class DojoChallenges(db.Model):
     description_override = db.Column(db.Text, nullable=True)
     docker_image_name = db.Column(db.String(256))
 
-    dojo_id = db.Column(db.String(16), db.ForeignKey("dojos.id"))
+    dojo_id = db.Column(db.String(16), db.ForeignKey("dojos.id", ondelete="CASCADE"))
     module = db.Column(db.String(256))
     module_idx = db.Column(db.Integer)
     level_idx = db.Column(db.Integer)
@@ -52,6 +52,8 @@ class Dojos(db.Model):
     owner_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
     join_code = db.Column(db.Text, unique=True)
     _data = db.Column("data", MEDIUMTEXT)
+
+    owner = db.relationship("Users", foreign_keys="Dojos.owner_id", lazy="select")
 
     @hybrid_property
     def public(self):
