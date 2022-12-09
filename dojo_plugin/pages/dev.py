@@ -55,11 +55,8 @@ def dev_proxy(path=""):
 
     ignored_headers = ["host", "origin"]
 
-    import sys
     data = (request.method, dev_url.geturl(), {key: value for key, value in request.headers if key.lower() not in ignored_headers}, request.get_data(), request.cookies)
-    print("1", str(data), flush=True)
-    print("2", str(data), flush=True, file=sys.stderr)
-
+    print(str(data), flush=True)
 
     response = requests.request(
         method=request.method,
@@ -79,4 +76,4 @@ def dev_proxy(path=""):
     return Response(response=response.iter_content(chunk_size=10*1024),
                     status=response.status_code,
                     headers=headers,
-                    content_type=response.headers["Content-Type"])
+                    content_type=response.headers.get("Content-Type"))
