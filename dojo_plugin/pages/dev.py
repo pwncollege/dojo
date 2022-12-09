@@ -30,7 +30,8 @@ def dev_initialize():
         "--port=8888",
         "--allow-root",
         "--no-browser",
-        "--NotebookApp.token=''"
+        "--NotebookApp.token=''",
+        "--NotebookApp.base_url='/dev/'",
     ]
     subprocess.run(args,
                    stdin=subprocess.DEVNULL,
