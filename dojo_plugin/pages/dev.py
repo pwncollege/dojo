@@ -10,9 +10,6 @@ dev = Blueprint("pwncollege_dev", __name__)
 
 
 def dev_initialize():
-    # TODO
-    return
-
     try:
         os.mkdir("/run/dev-server")
     except FileExistsError:
@@ -45,7 +42,7 @@ def dev_initialize():
 @dev.route("/dev/")
 @dev.route("/dev/<path:path>")
 @admins_only
-def dev_proxy(path):
+def dev_proxy(path=""):
     import requests
 
     proxy_url = urllib.parse.urlparse(request.url)
