@@ -16,7 +16,7 @@ def dev_initialize():
         pass
 
     args = [
-        "/usr/sbin/start-stop-daemon",
+        "start-stop-daemon",
         "--start",
         "--pidfile", "/tmp/dev-server/dev-server.pid",
         "--make-pidfile",
@@ -24,7 +24,7 @@ def dev_initialize():
         "--no-close",
         "--quiet",
         "--oknodo",
-        "--startas", "/usr/local/bin/jupyter",
+        "--startas", "jupyter",
         "--",
         "notebook",
         "--port=8888",
