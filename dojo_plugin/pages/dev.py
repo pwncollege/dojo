@@ -51,12 +51,14 @@ def dev_proxy(path=""):
         netloc="localhost:8888",
     )
 
+    ignored_headers = ["host", "origin"]
+
     import sys
     data = (request.method, dev_url.geturl(), {key: value for key, value in request.headers if key.lower() not in ignored_headers}, request.get_data(), request.cookies)
     print("1", str(data), flush=True)
     print("2", str(data), flush=True, file=sys.stderr)
 
-    ignored_headers = ["host", "origin"]
+
     response = requests.request(
         method=request.method,
         url=dev_url.geturl(),
