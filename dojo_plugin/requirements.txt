@@ -3,4 +3,5 @@ pyyaml==5.4.1
 ipython
 requests
 jinja2<3
+markupsafe<2
 jupyterlab==3.5

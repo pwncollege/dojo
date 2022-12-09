@@ -24,7 +24,7 @@ def dev_initialize():
         "--no-close",
         "--quiet",
         "--oknodo",
-        "--startas", "python",
+        "--startas", "/usr/local/bin/python",
         "--",
         "-m", "jupyterlab",
         "--port=8888",
@@ -50,8 +50,11 @@ def dev_proxy(path=""):
     prefix = "/dev/"
     assert proxy_url.path.startswith(prefix)
 
-    dev_url = proxy_url._replace(netloc="localhost:8888",
-                                 path=proxy_url.path[len(prefix):])
+    dev_url = proxy_url._replace(
+        scheme="http",
+        netloc="localhost:8888",
+        path=proxy_url.path[len(prefix):]
+    )
 
     response = requests.request(
         method=request.method,
