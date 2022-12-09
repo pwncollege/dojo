@@ -5,6 +5,7 @@ import urllib.parse
 import requests
 from flask import request, Response, Blueprint
 from CTFd.utils.decorators import admins_only
+from CTFd.plugins import bypass_csrf_protection
 
 
 dev = Blueprint("pwncollege_dev", __name__)
@@ -43,6 +44,7 @@ def dev_initialize():
 
 @dev.route("/dev/", methods=["GET", "POST", "PUT"])
 @dev.route("/dev/<path:path>", methods=["GET", "POST", "PUT"])
+@bypass_csrf_protection
 @admins_only
 def dev_proxy(path=""):
     proxy_url = urllib.parse.urlparse(request.url)
