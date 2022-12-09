@@ -48,13 +48,9 @@ def dev_proxy(path=""):
 
     proxy_url = urllib.parse.urlparse(request.url)
 
-    prefix = "/dev/"
-    assert proxy_url.path.startswith(prefix)
-
     dev_url = proxy_url._replace(
         scheme="http",
         netloc="localhost:8888",
-        path=proxy_url.path[len(prefix):]
     )
 
     response = requests.request(
