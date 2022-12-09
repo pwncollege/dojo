@@ -19,7 +19,7 @@ def dev_initialize():
     args = [
         "start-stop-daemon",
         "--start",
-        "--pidfile", "/tmp/dev-server/dev-server.pid",
+        "--pidfile", "/run/dev-server/dev-server.pid",
         "--make-pidfile",
         "--background",
         "--no-close",
