@@ -52,10 +52,11 @@ def dev_proxy(path=""):
         netloc="localhost:8888",
     )
 
+    ignored_headers = ["host", "origin"]
     response = requests.request(
         method=request.method,
         url=dev_url.geturl(),
-        headers={key: value for (key, value) in request.headers if key != "Host"},
+        headers={key: value for key, value in request.headers if key.lower() not in ignored_headers},
         data=request.get_data(),
         cookies=request.cookies,
         allow_redirects=False
@@ -63,7 +64,7 @@ def dev_proxy(path=""):
 
     excluded_headers = ["content-encoding", "content-length", "transfer-encoding", "connection"]
     headers = [
-        (name, value) for (name, value) in response.raw.headers.items()
+        (name, value) for name, value in response.raw.headers.items()
         if name.lower() not in excluded_headers
     ]
 
