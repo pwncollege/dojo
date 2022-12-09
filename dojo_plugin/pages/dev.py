@@ -46,11 +46,15 @@ def dev_initialize():
 @admins_only
 def dev_proxy(path=""):
     proxy_url = urllib.parse.urlparse(request.url)
-
     dev_url = proxy_url._replace(
         scheme="http",
         netloc="localhost:8888",
     )
+
+    import sys
+    data = (request.method, get_url.geturl(), {key: value for key, value in request.headers if key.lower() not in ignored_headers}, request.get_data(), request.cookies)
+    print("1", str(data), flush=True)
+    print("2", str(data), flush=True, file=sys.stderr)
 
     ignored_headers = ["host", "origin"]
     response = requests.request(

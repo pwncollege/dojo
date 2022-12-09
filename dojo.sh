@@ -99,7 +99,7 @@ elif [ "$ACTION" = "update" ]; then
 
     $0 docker compose --env-file=/opt/pwn.college/data/config.env build
     $0 docker compose --env-file=/opt/pwn.college/data/config.env kill ctfd
-    $0 docker compose --env-file=/opt/pwn.college/data/config.env rm ctfd
+    $0 docker compose --env-file=/opt/pwn.college/data/config.env rm -f ctfd
     $0 docker compose --env-file=/opt/pwn.college/data/config.env up -d ctfd
 
 elif [ "$ACTION" = "backup" ]; then
