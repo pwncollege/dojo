@@ -52,7 +52,7 @@ def dev_proxy(path=""):
     )
 
     import sys
-    data = (request.method, get_url.geturl(), {key: value for key, value in request.headers if key.lower() not in ignored_headers}, request.get_data(), request.cookies)
+    data = (request.method, dev_url.geturl(), {key: value for key, value in request.headers if key.lower() not in ignored_headers}, request.get_data(), request.cookies)
     print("1", str(data), flush=True)
     print("2", str(data), flush=True, file=sys.stderr)
 
