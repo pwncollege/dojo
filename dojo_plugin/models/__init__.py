@@ -210,6 +210,9 @@ class Dojos(db.Model):
                 name = challenge_spec["name"]
                 category = challenge_spec.get("category", f"{self.id}")
 
+                if not id_regex(name):
+                    dojo_log.warning("... challenge name (%s) is not a valid URL component. Skipping.", name)
+                    continue
                 if self.owner_id:
                     dojo_log.info("... checking challenge directory")
                     expected_dir = (dojo_dir or DOJOS_DIR/str(self.owner_id)/self.id)/category/name
