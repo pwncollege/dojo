@@ -70,6 +70,11 @@ class DojoChallenges(db.Model):
             if not global_chal_dir.exists():
                 chaldir = dojo_chal_dir.parent.parent
 
+        check_dir = chaldir.resolve()/challenge.category/challenge.name
+        if not check_dir.resolve() == check_dir:
+            # we're being path traversed
+            return
+
         category_global = chaldir / challenge.category / "_global"
         challenge_global = chaldir / challenge.category / challenge.name / "_global"
 
