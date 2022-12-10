@@ -40,7 +40,7 @@ USER_FIREWALL_ALLOWED = {
 
 ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
-    return re.match(ID_REGEX, s)
+    return re.match(ID_REGEX, s) and ".." not in s
 
 
 def get_current_challenge_id():
