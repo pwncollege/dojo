@@ -38,7 +38,10 @@ USER_FIREWALL_ALLOWED = {
     for host in pathlib.Path("/var/user_firewall.allowed").read_text().split()
 }
 
-from .models import Dojos, DojoMembers, DojoChallenges
+ID_REGEX = "^[A-Za-z0-9_.-]+$"
+def id_regex(s):
+    return re.match(ID_REGEX, s)
+
 
 def get_current_challenge_id():
     try:
@@ -199,11 +202,6 @@ def dojo_route(func):
     return wrapper
 
 
-ID_REGEX = "^[A-Za-z0-9_.-]+$"
-def id_regex(s):
-    return re.match(ID_REGEX, s)
-
-
 def user_dojos(user):
     filters = [Dojos.public == True]
     if user:
@@ -240,6 +238,40 @@ def dojo_standings(dojo_id=None, fields=None, module_id=None):
     )
 
     return standings_query
+
+
+def load_dojo(dojo_id, dojo_spec, user=None, commit=True, challenges_dir=None, log=logging.getLogger("__name__"), initial_join_code=None):
+    log.info("Initiating dojo load.")
+
+    dojo = Dojos.query.filter_by(id=dojo_id).first()
+    if not dojo:
+        dojo = Dojos(id=dojo_id, owner_id=None if not user else user.id, data=dojo_spec)
+        dojo.join_code = initial_join_code
+        log.info("Dojo is new, adding.")
+        db.session.add(dojo)
+    elif dojo.data == dojo_spec:
+        # make sure the previous load was fully successful (e.g., all the imports worked and weren't fixed since then)
+        num_loaded_chals = DojoChallenges.query.filter_by(dojo_id=dojo_id).count()
+        num_spec_chals = sum(len(module.get("challenges", [])) for module in dojo.config.get("modules", []))
+
+        if num_loaded_chals == num_spec_chals:
+            log.warning("Dojo is unchanged, aborting update.")
+            return
+    else:
+        dojo.data = dojo_spec
+        db.session.add(dojo)
+
+    if dojo.config.get("dojo_spec", None) != "v2":
+        log.warning("Incorrect dojo spec version (dojo_spec attribute). Should be 'v2'")
+
+    dojo.apply_spec(dojo_log=log, challenges_dir=challenges_dir)
+
+    if commit:
+        log.info("Committing database changes!")
+        db.session.commit()
+    else:
+        log.info("Rolling back database changes!")
+        db.session.rollback()
 
 
 # this is a MASSIVE hack and should be replaced with something less insane
@@ -416,3 +448,5 @@ def sandboxed_git_command(repo_dir, command):
     container.remove()
 
     return returncode, output
+
+from .models import Dojos, DojoMembers, DojoChallenges
