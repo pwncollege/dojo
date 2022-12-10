@@ -150,7 +150,7 @@ class CreateDojo(Resource):
                 logger.addHandler(log_handler)
                 load_dojo(
                     dojo_id, dojo_specs[0].read_text(),
-                    user=user, commit=False, challenges_dir=clone_dir, log=logger
+                    user=user, commit=False, dojo_dir=clone_dir, log=logger
                 )
                 assert "WARNING" not in log_handler.html, (
                     "A test load of your dojo resulted in the following log messages. Please fix all warnings and try again.<br>" +
@@ -167,7 +167,7 @@ class CreateDojo(Resource):
                 log_handler.reset()
                 load_dojo(
                     dojo_id, (dojo_permanent_dir/(dojo_id+".yml")).read_text(),
-                    user=user, commit=True, challenges_dir=dojo_permanent_dir, log=logger, initial_join_code=join_code
+                    user=user, commit=True, dojo_dir=dojo_permanent_dir, log=logger, initial_join_code=join_code
                 )
                 html_logs = log_handler.html
             except AssertionError as e:

@@ -152,7 +152,7 @@ class Dojos(db.Model):
                 return module
         return None
 
-    def apply_spec(self, challenges_dir, dojo_log=logging.getLogger(__name__)):
+    def apply_spec(self, dojo_log=logging.getLogger(__name__), dojo_dir=None):
         # delete all challenge mappings owned by this dojo
         dojo_log.info("Deleting existing challenge mappings (if committing).")
         deleter = sqlalchemy.delete(DojoChallenges).where(DojoChallenges.dojo == self).execution_options(synchronize_session="fetch")
@@ -185,11 +185,11 @@ class Dojos(db.Model):
                 dojo_log.info("Module %s has no challenges defined. Skipping challenge load.", module["id"])
                 continue
 
-            self._load_module_challenges(module_idx, module, dojo_log=dojo_log, challenges_dir=challenges_dir)
+            self._load_module_challenges(module_idx, module, dojo_dir=dojo_dir, dojo_log=dojo_log)
 
         dojo_log.info("Done with dojo %s", self.id)
 
-    def _load_module_challenges(self, module_idx, module, dojo_log=logging.getLogger(__name__), challenges_dir=None):
+    def _load_module_challenges(self, module_idx, module, dojo_dir=None, dojo_log=logging.getLogger(__name__)):
         dojo_log.info("Loading challenges for module %s.", module["id"])
 
         for level_idx,challenge_spec in enumerate(module["challenges"], start=1):
@@ -210,9 +210,9 @@ class Dojos(db.Model):
                 name = challenge_spec["name"]
                 category = challenge_spec.get("category", f"{self.id}")
 
-                if challenges_dir:
+                if self.owner_id:
                     dojo_log.info("... checking challenge directory")
-                    expected_dir = pathlib.Path(challenges_dir)/category/name
+                    expected_dir = (dojo_dir or DOJOS_DIR/str(self.owner_id)/self.id)/category/name
                     if not expected_dir.exists():
                         dojo_log.warning("... expected challenge directory %s does not exist; skipping!", expected_dir)
                         continue
