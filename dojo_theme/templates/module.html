@@ -202,7 +202,7 @@
           <button class="btn btn-link text-decoration-none w-100 collapsed" type="button" data-toggle="collapse" data-target="#challenge{{ loop.index }}" aria-expanded="false" aria-controls="challenge{{ loop.index }}">
             <h4 class="challenge-name {{ active }}">
               <span class="d-sm-block d-md-block d-lg-block">
-                <i class="fas fa-flag pr-3 {{ solved }}"></i>{{ challenge.category }} {{ challenge.name }}
+                <i class="fas fa-flag pr-3 {{ solved }}"></i>{{ challenge.category.split(":")[-1] }} {{ challenge.name }}
               </span>
             </h4>
             <span class="total-solves">{{ challenge.solves }} solves</span>

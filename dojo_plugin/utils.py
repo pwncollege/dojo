@@ -51,7 +51,7 @@ def get_current_challenge_id():
 
 def get_current_dojo_challenge_id():
     try:
-        return current_challenge_getenv("DOJO_CHALLENGE_ID")
+        return int(current_challenge_getenv("DOJO_CHALLENGE_ID"))
     except ValueError:
         return None
 

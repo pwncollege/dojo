@@ -62,7 +62,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             container.wait(condition="removed")
         except docker.errors.NotFound:
             pass
-        challenge_name = f"{dojo_challenge.category}_{dojo_challenge.name}"
+        challenge_name = f"{dojo_challenge.short_category}_{dojo_challenge.name}"
         hostname = challenge_name
         if practice:
             hostname = f"practice_{hostname}"
@@ -190,7 +190,11 @@ class RunDocker(Resource):
     @authed_only
     def post(self):
         data = request.get_json()
-        dojo_challenge_id = data.get("dojo_challenge_id")
+        try:
+            dojo_challenge_id = int(data.get("dojo_challenge_id"))
+        except (ValueError, KeyError):
+            return {"success": False, "error": "Invalid challenge ID"}
+
         dojo_id = data.get("dojo_id")
         practice = data.get("practice")
 
