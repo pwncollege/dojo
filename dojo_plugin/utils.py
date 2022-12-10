@@ -22,7 +22,6 @@ from CTFd.utils.modes import get_model
 from CTFd.utils.helpers import markup
 from CTFd.utils.config.pages import build_markdown
 from CTFd.utils.security.sanitize import sanitize_html
-from .models import Dojos, DojoMembers, DojoChallenges
 from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
 
@@ -39,6 +38,7 @@ USER_FIREWALL_ALLOWED = {
     for host in pathlib.Path("/var/user_firewall.allowed").read_text().split()
 }
 
+from .models import Dojos, DojoMembers, DojoChallenges
 
 def get_current_challenge_id():
     try:
@@ -119,45 +119,6 @@ def unserialize_user_flag(user_flag, *, secret=None):
     serializer = URLSafeSerializer(secret)
     account_id, challenge_id = serializer.loads(user_flag)
     return account_id, challenge_id
-
-
-def challenge_paths(dojo, user, dojo_challenge, *, secret=None):
-    if secret is None:
-        secret = current_app.config["SECRET_KEY"]
-
-    # don't allow file overrides for imported challenges. Since solves
-    # are tracked per challenge, not per dojo_challenge, this can lead
-    # to cheesing
-    if dojo_challenge.provider_dojo:
-        dojo = dojo_challenge.provider_dojo
-
-    challenge = dojo_challenge.challenge
-    chaldir = CHALLENGES_DIR
-    if dojo.owner_id:
-        dojo_chal_dir = (DOJOS_DIR/str(dojo.owner_id)/dojo.id/challenge.category/challenge.name)
-        global_chal_dir = (chaldir/challenge.category/challenge.name)
-        if not global_chal_dir.exists():
-            chaldir = dojo_chal_dir.parent.parent
-
-    category_global = chaldir / challenge.category / "_global"
-    challenge_global = chaldir / challenge.category / challenge.name / "_global"
-
-    if category_global.exists():
-        yield from category_global.iterdir()
-
-    if challenge_global.exists():
-        yield from challenge_global.iterdir()
-
-    options = sorted(
-        option
-        for option in (chaldir / challenge.category / challenge.name).iterdir()
-        if not (option.name.startswith(".") or option.name.startswith("_"))
-    )
-
-    if options:
-        option_hash = hashlib.sha256(f"{secret}_{user.id}_{challenge.id}".encode()).digest()
-        option = options[int.from_bytes(option_hash[:8], "little") % len(options)]
-        yield from option.iterdir()
 
 
 def simple_tar(path, name=None):

@@ -11,7 +11,7 @@ from CTFd.utils.decorators import authed_only
 
 from ...config import HOST_DATA_PATH
 from ...models import DojoChallenges
-from ...utils import get_current_dojo_challenge_id, serialize_user_flag, challenge_paths, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, dojo_by_id, module_challenges_visible
+from ...utils import get_current_dojo_challenge_id, serialize_user_flag, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, dojo_by_id, module_challenges_visible
 
 
 docker_namespace = Namespace(
@@ -137,8 +137,8 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             shell=True
         )
 
-    def insert_challenge(dojo, user, dojo_challenge):
-        for path in challenge_paths(dojo, user, dojo_challenge):
+    def insert_challenge(user, dojo_challenge):
+        for path in dojo_challenge.challenge_paths(user=user):
             with simple_tar(path, f"/challenge/{path.name}") as tar:
                 container.put_archive("/", tar)
         exec_run("chown -R root:root /challenge")
@@ -177,7 +177,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
     if practice:
         grant_sudo()
 
-    insert_challenge(dojo, user, dojo_challenge)
+    insert_challenge(user, dojo_challenge)
 
     flag = "practice" if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)
     insert_flag(flag)
