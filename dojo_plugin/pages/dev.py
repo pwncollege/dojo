@@ -7,6 +7,8 @@ from flask import request, Response, Blueprint
 from CTFd.utils.decorators import admins_only
 from CTFd.plugins import bypass_csrf_protection
 
+from ..utils import redirect_internal
+
 
 dev = Blueprint("pwncollege_dev", __name__)
 
@@ -29,11 +31,13 @@ def dev_initialize():
         "--startas", "/usr/local/bin/python",
         "--",
         "-m", "jupyterlab",
+        "--ip=0.0.0.0",
         "--port=8888",
         "--allow-root",
         "--no-browser",
         "--NotebookApp.token=''",
         "--NotebookApp.base_url='/dev/'",
+        "--NotebookApp.allow_origin='*'",
     ]
     subprocess.run(args,
                    stdin=subprocess.DEVNULL,
@@ -50,30 +54,6 @@ def dev_proxy(path=""):
     proxy_url = urllib.parse.urlparse(request.url)
     dev_url = proxy_url._replace(
         scheme="http",
-        netloc="localhost:8888",
+        netloc="ctfd:8888",
     )
-
-    ignored_headers = ["host", "origin"]
-
-    data = (request.method, dev_url.geturl(), {key: value for key, value in request.headers if key.lower() not in ignored_headers}, request.get_data(), request.cookies)
-    print(str(data), flush=True)
-
-    response = requests.request(
-        method=request.method,
-        url=dev_url.geturl(),
-        headers={key: value for key, value in request.headers if key.lower() not in ignored_headers},
-        data=request.get_data(),
-        cookies=request.cookies,
-        allow_redirects=False
-    )
-
-    excluded_headers = ["content-encoding", "content-length", "transfer-encoding", "connection"]
-    headers = [
-        (name, value) for name, value in response.raw.headers.items()
-        if name.lower() not in excluded_headers
-    ]
-
-    return Response(response=response.iter_content(chunk_size=10*1024),
-                    status=response.status_code,
-                    headers=headers,
-                    content_type=response.headers.get("Content-Type"))
+    return redirect_internal(dev_url.geturl())

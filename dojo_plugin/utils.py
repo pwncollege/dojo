@@ -86,13 +86,15 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     user_flag = serializer.dumps(data)[::-1]
     return user_flag
 
-def redirect_user_socket(user, socket_path, url_path):
-    assert user is not None
-    redirect_uri = f"http://unix:/var/homes/nosuid/{random_home_path(user)}/{socket_path}:{url_path}"
+def redirect_internal(redirect_uri):
     response = Response()
     response.headers["X-Accel-Redirect"] = "/internal/"
     response.headers["redirect_uri"] = redirect_uri
     return response
+
+def redirect_user_socket(user, socket_path, url_path):
+    assert user is not None
+    return redirect_internal(f"http://unix:/var/homes/nosuid/{random_home_path(user)}/{socket_path}:{url_path}")
 
 def render_markdown(s):
     return markup(build_markdown(s))
