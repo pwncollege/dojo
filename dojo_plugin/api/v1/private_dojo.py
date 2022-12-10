@@ -126,6 +126,11 @@ class CreateDojo(Resource):
                     f"Your dojo ID (the extensionless name of your .yml file) must be a valid URL component."
                 )
 
+                # make sure there aren't any symlink shenanigans
+                assert dojo_specs[0].is_file() and not dojo_specs[0].is_symlink(), (
+                    f"{dojo_specs[0].name} is not a regular file!"
+                )
+
                 # make sure we're not overwriting unintentionally
                 dojo_permanent_dir = pathlib.Path(DOJOS_DIR)/str(user.id)/dojo_id
                 if data.get("dojo_replace", False) not in ("true", True, 1):
