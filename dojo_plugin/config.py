@@ -229,10 +229,6 @@ def bootstrap():
     set_config("mail_username", f"hacker@{VIRTUAL_HOST}")
     set_config("mail_password", "hacker")
 
-    memes_path = CHALLENGES_DIR / "memes.yml"
-    memes = memes_path.read_text() if memes_path.exists() else "[]"
-    set_config("memes", memes)
-
     cache.delete_memoized(discord_reputation)
     discord_reputation()
 
