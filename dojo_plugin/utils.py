@@ -23,8 +23,8 @@ from CTFd.utils.helpers import markup
 from CTFd.utils.config.pages import build_markdown
 from CTFd.utils.security.sanitize import sanitize_html
 from .models import Dojos, DojoMembers, DojoChallenges
-from sqlalchemy import String, DateTime, Integer
-from sqlalchemy.sql import and_, or_
+from sqlalchemy import String, Integer
+from sqlalchemy.sql import or_
 
 
 CHALLENGES_DIR = pathlib.Path("/var/challenges")
@@ -279,57 +279,6 @@ def dojo_standings(dojo_id=None, fields=None, module_id=None):
     )
 
     return standings_query
-
-
-def dojo_challenges(dojo, module=None, user=None, admin_view=False, solves_before=None):
-    """
-    Get all active challenges of a dojo, adding a '.solved' and 'solve_date' with data about
-    challenges solved by the provided user.
-
-    @param admin_view: whether to show not-yet-assigned challenges
-    @param solves_before: only show solves up to this date
-    @param user: show solves by this user if solves are before module assignment date
-    """
-    columns = [
-        DojoChallenges.dojo_challenge_id,
-        DojoChallenges.challenge_id, DojoChallenges.description_override, DojoChallenges.level_idx,
-        DojoChallenges.provider_dojo_id, DojoChallenges.provider_module,
-        DojoChallenges.module, DojoChallenges.module_idx,
-        Challenges.name, Challenges.category, Challenges.description,
-        db.func.count(Solves.id).label("solves") # number of solves
-    ]
-    if user is not None:
-        columns.append(db.func.max(Solves.user_id == user.id).label("solved")) # did the user solve the chal?
-        columns.append(db.func.substr(
-            db.func.max((Solves.user_id == user.id).cast(String)+Solves.date.cast(String)),
-            2, 1000
-        ).cast(DateTime).label("solve_date")) # _when_ did the user solve the chal?
-    else:
-        columns.append(db.literal(False).label("solved"))
-        columns.append(db.literal(None).label("solve_date"))
-
-    solve_filters = [
-        or_(
-            DojoChallenges.assigned_date == None,
-            False if user is None else Solves.user_id == user.id,
-            Solves.date >= DojoChallenges.assigned_date
-        )
-    ]
-    if solves_before:
-        solve_filters.append(Solves.date < solves_before)
-
-    # fuck sqlalchemy for making me write this insanity
-    challenges = (
-        Challenges.query
-        .join(DojoChallenges, Challenges.id == DojoChallenges.challenge_id)
-        .outerjoin(Solves, and_(Challenges.id == Solves.challenge_id, *solve_filters))
-        .filter(dojo.challenges_query(module_id=module["id"] if module else None, include_unassigned=admin_view))
-        .add_columns(*columns)
-        .group_by(Challenges.id)
-        .order_by(DojoChallenges.module_idx, DojoChallenges.level_idx)
-    ).all()
-
-    return challenges
 
 
 # this is a MASSIVE hack and should be replaced with something less insane

@@ -3,11 +3,12 @@ import pytz
 import re
 
 import yaml
+from sqlalchemy import String, DateTime
 from sqlalchemy.orm import synonym
 from sqlalchemy.sql import or_, and_
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
-from CTFd.models import db, Challenges
+from CTFd.models import db, Challenges, Solves
 
 
 class DojoChallenges(db.Model):
@@ -133,6 +134,58 @@ class Dojos(db.Model):
                     (include_unassigned or "time_assigned" not in module or module["time_assigned"] < datetime.datetime.now(pytz.utc))
                 ) for module_challenge in module.get("challenges", [])
             ), False)
+
+
+    def challenges(self, module=None, user=None, admin_view=False, solves_before=None):
+        """
+        Get all active challenges of a dojo, adding a '.solved' and 'solve_date' with data about
+        challenges solved by the provided user.
+
+        @param admin_view: whether to show not-yet-assigned challenges
+        @param solves_before: only show solves up to this date
+        @param user: show solves by this user if solves are before module assignment date
+        """
+        columns = [
+            DojoChallenges.dojo_challenge_id,
+            DojoChallenges.challenge_id, DojoChallenges.description_override, DojoChallenges.level_idx,
+            DojoChallenges.provider_dojo_id, DojoChallenges.provider_module,
+            DojoChallenges.module, DojoChallenges.module_idx,
+            Challenges.name, Challenges.category, Challenges.description,
+            db.func.count(Solves.id).label("solves") # number of solves
+        ]
+        if user is not None:
+            columns.append(db.func.max(Solves.user_id == user.id).label("solved")) # did the user solve the chal?
+            columns.append(db.func.substr(
+                db.func.max((Solves.user_id == user.id).cast(String)+Solves.date.cast(String)),
+                2, 1000
+            ).cast(DateTime).label("solve_date")) # _when_ did the user solve the chal?
+        else:
+            columns.append(db.literal(False).label("solved"))
+            columns.append(db.literal(None).label("solve_date"))
+
+        solve_filters = [
+            or_(
+                DojoChallenges.assigned_date == None,
+                False if user is None else Solves.user_id == user.id,
+                Solves.date >= DojoChallenges.assigned_date
+            )
+        ]
+        if solves_before:
+            solve_filters.append(Solves.date < solves_before)
+
+        # fuck sqlalchemy for making me write this insanity
+        challenges = (
+            Challenges.query
+            .join(DojoChallenges, Challenges.id == DojoChallenges.challenge_id)
+            .outerjoin(Solves, and_(Challenges.id == Solves.challenge_id, *solve_filters))
+            .filter(self.challenges_query(module_id=module["id"] if module else None, include_unassigned=admin_view))
+            .add_columns(*columns)
+            .group_by(Challenges.id)
+            .order_by(DojoChallenges.module_idx, DojoChallenges.level_idx)
+        ).all()
+
+        return challenges
+
 
     @staticmethod
     def validate_data(data):

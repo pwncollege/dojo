@@ -6,7 +6,7 @@ from CTFd.cache import cache
 
 import pytz
 
-from ..utils import user_dojos, dojo_challenges, module_visible, dojo_standings
+from ..utils import user_dojos, module_visible, dojo_standings
 from ..api.v1.scoreboard import belt_asset, belt_asset_for
 
 users = Blueprint("pwncollege_users", __name__)
@@ -34,7 +34,7 @@ def user_standings(user, dojo_id=None):
     return global_position, total_solvers
 
 def dojo_full_stats(dojo, user):
-    challenges = dojo_challenges(dojo, user=user)
+    challenges = dojo.challenges(user=user)
     visible_modules = [ m for m in dojo.modules if module_visible(dojo, m, None) ]
     module_challenges = { m["id"]: [ c for c in challenges if c.module == m["id"] ] for m in visible_modules }
 

@@ -9,7 +9,7 @@ from CTFd.utils.decorators.visibility import check_challenge_visibility
 from CTFd.utils.helpers import get_infos
 from CTFd.cache import cache
 
-from ..utils import get_current_dojo_challenge_id, dojo_route, dojo_by_id, render_markdown, module_visible, module_challenges_visible, dojo_challenges, is_dojo_admin
+from ..utils import get_current_dojo_challenge_id, dojo_route, dojo_by_id, render_markdown, module_visible, module_challenges_visible, is_dojo_admin
 from .grades import module_grade_report
 
 dojo = Blueprint("pwncollege_dojo", __name__)
@@ -49,7 +49,7 @@ def listing(dojo):
     stats = get_stats(dojo.id)
     user = get_current_user()
     for module in dojo.modules:
-        challenges = dojo_challenges(dojo, module, user=user, admin_view=is_dojo_admin(user, dojo))
+        challenges = dojo.challenges(module, user=user, admin_view=is_dojo_admin(user, dojo))
         stats[module["id"]] = {
             "count": len(challenges),
             "solved": sum(1 for challenge in challenges if challenge.solved),
@@ -81,7 +81,7 @@ def view_module(dojo, module):
     module_report = module_grade_report(dojo, module, user)
 
     challenges = (
-        dojo_challenges(dojo, module, user=get_current_user(), admin_view=is_dojo_admin(user, dojo))
+        dojo.challenges(module, user=get_current_user(), admin_view=is_dojo_admin(user, dojo))
     ) if module_challenges_visible(dojo, module, get_current_user()) else [ ]
     current_dojo_challenge_id = get_current_dojo_challenge_id()
 

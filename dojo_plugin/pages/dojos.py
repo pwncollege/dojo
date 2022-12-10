@@ -1,13 +1,13 @@
 from flask import Blueprint, render_template, redirect, url_for
 from CTFd.utils.user import get_current_user
 
-from ..utils import dojo_route, user_dojos, dojo_challenges
+from ..utils import dojo_route, user_dojos
 
 
 dojos = Blueprint("pwncollege_dojos", __name__)
 
 def dojo_stats(dojo):
-    challenges = dojo_challenges(dojo, user=get_current_user())
+    challenges = dojo.challenges(user=get_current_user())
     return {
         "count": len(challenges),
         "solved": sum(1 for challenge in challenges if challenge.solved),
