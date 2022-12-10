@@ -1,5 +1,8 @@
+import sqlalchemy
 import datetime
 import hashlib
+import pathlib
+import logging
 import pytz
 import yaml
 import re
@@ -9,9 +12,9 @@ from sqlalchemy.orm import synonym
 from sqlalchemy.sql import or_, and_
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
-from CTFd.models import db, Challenges, Solves
+from CTFd.models import db, Challenges, Solves, Flags
 from CTFd.utils.user import get_current_user
-from ..utils import current_app, CHALLENGES_DIR, DOJOS_DIR
+from ..utils import current_app, CHALLENGES_DIR, DOJOS_DIR, id_regex
 
 
 class DojoChallenges(db.Model):
@@ -148,6 +151,140 @@ class Dojos(db.Model):
             if module.get("id") == module_id:
                 return module
         return None
+
+    def apply_spec(self, challenges_dir, dojo_log=logging.getLogger(__name__)):
+        # delete all challenge mappings owned by this dojo
+        dojo_log.info("Deleting existing challenge mappings (if committing).")
+        deleter = sqlalchemy.delete(DojoChallenges).where(DojoChallenges.dojo == self).execution_options(synchronize_session="fetch")
+        db.session.execute(deleter)
+
+        if "modules" not in self.config:
+            dojo_log.warning("No modules defined in dojo spec!")
+
+        # re-load the dojo challenges
+        seen_modules = set()
+        for module_idx,module in enumerate(self.config["modules"], start=1):
+            if "id" not in module:
+                dojo_log.warning("Module %d is missing 'id' field; skipping.", module_idx)
+                continue
+
+            if not id_regex(module["id"]):
+                dojo_log.warning("Module ID (%s) is not a valid URL component. Skipping.", module["id"])
+                continue
+
+            if module["id"] in seen_modules:
+                dojo_log.warning("Duplicate module with ID %s; skipping.", module["id"])
+                continue
+            seen_modules.add(module["id"])
+
+            if "name" not in module:
+                dojo_log.warning("Module with ID %s is missing 'name' field; skipping.", module["id"])
+                continue
+
+            if "challenges" not in module:
+                dojo_log.info("Module %s has no challenges defined. Skipping challenge load.", module["id"])
+                continue
+
+            self._load_module_challenges(module_idx, module, dojo_log=dojo_log, challenges_dir=challenges_dir)
+
+        dojo_log.info("Done with dojo %s", self.id)
+
+    def _load_module_challenges(self, module_idx, module, dojo_log=logging.getLogger(__name__), challenges_dir=None):
+        dojo_log.info("Loading challenges for module %s.", module["id"])
+
+        for level_idx,challenge_spec in enumerate(module["challenges"], start=1):
+            dojo_log.info("Loading module %s challenge %d", module["id"], level_idx)
+            description = challenge_spec.get("description", None)
+
+            # spec dependent
+            category = None
+            provider_dojo_id = None
+            provider_module = None
+
+            if "import" not in challenge_spec:
+                if "name" not in challenge_spec:
+                    dojo_log.warning("... challenge is missing a name. Skipping.")
+                    continue
+
+                # if this is our dojo's challenge, make sure it's in the DB
+                name = challenge_spec["name"]
+                category = challenge_spec.get("category", f"{self.id}")
+
+                if challenges_dir:
+                    dojo_log.info("... checking challenge directory")
+                    expected_dir = pathlib.Path(challenges_dir)/category/name
+                    if not expected_dir.exists():
+                        dojo_log.warning("... expected challenge directory %s does not exist; skipping!", expected_dir)
+                        continue
+                    dojo_log.info("... challenge directory exists. Checking for variants.")
+                    variants = list(expected_dir.iterdir())
+                    if not variants:
+                        dojo_log.warning("... the challenge needs at least one variant subdirectory. Skipping!")
+                    else:
+                        dojo_log.info("... %d variants found.", len(variants))
+
+                dojo_log.info("... challenge name: %s", name)
+
+                challenge = Challenges.query.filter_by(
+                    name=name, category=category
+                ).first()
+                if not challenge:
+                    dojo_log.info("... challenge is new; creating")
+                    challenge = Challenges(
+                        name=name,
+                        category=category,
+                        value=1,
+                        state="visible",
+                    )
+                    db.session.add(challenge)
+
+                    flag = Flags(challenge_id=challenge.id, type="dojo")
+                    db.session.add(flag)
+                elif description is not None and challenge.description != description:
+                    dojo_log.info("... challenge already exists; updating description")
+                    challenge.description = description
+            else:
+                if challenge_spec["import"].count("/") != 2:
+                    dojo_log.warning("... malformed import statement, should be dojo_id/module_name/challenge_name. Skipping.")
+                    continue
+
+                # if we're importing this from another dojo, do that
+                provider_dojo_id, provider_module, provider_challenge = challenge_spec["import"].split("/")
+                dojo_log.info("... importing from dojo %s, module %s, challenge %s", provider_dojo_id, provider_module, provider_challenge)
+
+                provider_dojo_challenge = (
+                    DojoChallenges.query
+                    .join(Challenges, Challenges.id == DojoChallenges.challenge_id)
+                    .filter(
+                        DojoChallenges.dojo_id==provider_dojo_id, DojoChallenges.module==provider_module,
+                        Challenges.name==provider_challenge
+                    )
+                ).first()
+                if not provider_dojo_challenge:
+                    dojo_log.warning("... can't find provider challenge; skipping")
+                    continue
+
+                challenge = provider_dojo_challenge.challenge
+
+            dojo_challenge_id = f"{self.id}-{module['id']}-{challenge.id}"
+            dojo_log.info("... creating dojo-challenge %s for challenge #%d", dojo_challenge_id, level_idx)
+            # then create the DojoChallenge link
+            dojo_challenge = DojoChallenges(
+                dojo_challenge_id=dojo_challenge_id,
+                challenge_id=challenge.id,
+                dojo_id=self.id,
+                provider_dojo_id=provider_dojo_id,
+                provider_module=provider_module,
+                level_idx=level_idx,
+                module_idx=module_idx,
+                description_override=description,
+                assigned_date=module.get("time_assigned", None),
+                module=module["id"],
+                docker_image_name="pwncollege-challenge",
+            )
+            db.session.add(dojo_challenge)
+
+        dojo_log.info("Done with module %s", module["id"])
 
     def challenges_query(self, module_id=None, include_unassigned=False):
         if self.config.get("dojo_spec", None) == "v2":
