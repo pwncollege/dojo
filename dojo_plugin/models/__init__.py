@@ -214,14 +214,14 @@ class Dojos(db.Model):
 
         container = data
         type_assert(data, dict, "outer")
-        type_check("name", "[\S ]{1,50}", required=True)
+        type_check("name", r"[\S ]{1,50}", required=True)
 
         type_check("modules", list, required=True)
         for module in data.get("modules"):
             container = module
             type_assert(module, dict, "module")
-            type_check("name", "[\S ]{1,50}", required=True)
-            type_check("id", "[\w-]{1,50}", required=True)
+            type_check("name", r"[\S ]{1,50}", required=True)
+            type_check("id", r"[\w-]{1,50}", required=True)
 
             type_check("challenges", list, required=False)
             for challenge in module.get("challenges", []):
@@ -241,10 +241,10 @@ class Dojos(db.Model):
             for lecture in module.get("lectures", []):
                 container = lecture
                 type_assert(lecture, dict, "lecture")
-                type_check("name", "[\S ]{1,100}", required=True)
-                type_check("video", "[\w-]+", required=True)
-                type_check("playlist", "[\w-]+", required=True)
-                type_check("slides", "[\w-]+", required=True)
+                type_check("name", r"[\S ]{1,100}", required=True)
+                type_check("video", r"[\w-]+", required=True)
+                type_check("playlist", r"[\w-]+", required=True)
+                type_check("slides", r"[\w-]+", required=True)
 
 
 
