@@ -217,7 +217,7 @@ class Dojos(db.Model):
                         dojo_log.warning("... expected challenge directory %s does not exist; skipping!", expected_dir)
                         continue
                     dojo_log.info("... challenge directory exists. Checking for variants.")
-                    variants = list(expected_dir.iterdir())
+                    variants = [ ed for ed in expected_dir.iterdir() if ed.is_dir() ]
                     if not variants:
                         dojo_log.warning("... the challenge needs at least one variant subdirectory. Skipping!")
                     else:
