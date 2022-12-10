@@ -240,7 +240,7 @@ def dojo_standings(dojo_id=None, fields=None, module_id=None):
     return standings_query
 
 
-def load_dojo(dojo_id, dojo_spec, user=None, dojo_dir=None, commit=True, log=logging.getLogger("__name__"), initial_join_code=None):
+def load_dojo(dojo_id, dojo_spec, user=None, dojo_dir=None, commit=True, log=logging.getLogger(__name__), initial_join_code=None):
     log.info("Initiating dojo load.")
 
     dojo = Dojos.query.filter_by(id=dojo_id).first()
