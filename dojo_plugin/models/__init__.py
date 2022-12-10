@@ -19,7 +19,7 @@ from ..utils import current_app, CHALLENGES_DIR, DOJOS_DIR, id_regex
 
 class DojoChallenges(db.Model):
     __tablename__ = "dojo_challenges"
-    id = db.Column(db.String(128), primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
     dojo_challenge_id = synonym("id")
 
     challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id"))
@@ -53,30 +53,44 @@ class DojoChallenges(db.Model):
     def category(self):
         return self.challenge.category
 
-    def challenge_paths(self, *, secret=None, user=None):
-        if secret is None:
-            secret = current_app.config["SECRET_KEY"]
+    @property
+    def short_category(self):
+        return self.challenge.category.split(":")[-1]
 
+    @property
+    def root_dir(self):
         # don't allow file overrides for imported challenges. Since solves
         # are tracked per challenge, not per dojo_challenge, this can lead
         # to cheesing
         dojo = self.provider_dojo or self.dojo
 
-        challenge = self.challenge
         chaldir = CHALLENGES_DIR
         if dojo.owner_id:
-            dojo_chal_dir = (DOJOS_DIR/str(dojo.owner_id)/dojo.id/challenge.category/challenge.name)
-            global_chal_dir = (chaldir/challenge.category/challenge.name)
+            dojo_chal_dir = (DOJOS_DIR/str(dojo.owner_id)/dojo.id/self.short_category/self.name)
+            global_chal_dir = (chaldir/self.short_category/self.name)
             if not global_chal_dir.exists():
                 chaldir = dojo_chal_dir.parent.parent
 
-        check_dir = chaldir.resolve()/challenge.category/challenge.name
-        if not check_dir.resolve() == check_dir:
-            # we're being path traversed
-            return
+        return chaldir.resolve()
 
-        category_global = chaldir / challenge.category / "_global"
-        challenge_global = chaldir / challenge.category / challenge.name / "_global"
+    @property
+    def category_dir(self):
+        if (self.root_dir/self.short_category).resolve() != (self.root_dir/self.short_category):
+            raise ValueError("path injection? %s %s" %(self.root_dir, self.category))
+        return self.root_dir/self.short_category
+
+    @property
+    def challenge_dir(self):
+        if (self.category_dir/self.name).resolve() != (self.category_dir/self.name):
+            raise ValueError("path injection? %s %s %s" %(self.root_dir, self.category, self.name))
+        return self.category_dir/self.name
+
+    def challenge_paths(self, *, secret=None, user=None):
+        if secret is None:
+            secret = current_app.config["SECRET_KEY"]
+
+        category_global = self.category_dir / "_global"
+        challenge_global = self.challenge_dir / "_global"
 
         if category_global.exists():
             yield from category_global.iterdir()
@@ -86,13 +100,13 @@ class DojoChallenges(db.Model):
 
         options = sorted(
             option
-            for option in (chaldir / challenge.category / challenge.name).iterdir()
+            for option in (self.challenge_dir).iterdir()
             if not (option.name.startswith(".") or option.name.startswith("_"))
         )
 
         if options:
             user = get_current_user()
-            option_hash = hashlib.sha256(f"{secret}_{user.id}_{challenge.id}".encode()).digest()
+            option_hash = hashlib.sha256(f"{secret}_{user.id}_{self.challenge.id}".encode()).digest()
             option = options[int.from_bytes(option_hash[:8], "little") % len(options)]
             yield from option.iterdir()
 
@@ -202,7 +216,6 @@ class Dojos(db.Model):
             description = challenge_spec.get("description", None)
 
             # spec dependent
-            category = None
             provider_dojo_id = None
             provider_module = None
 
@@ -232,10 +245,14 @@ class Dojos(db.Model):
                     variants = [ ed for ed in expected_dir.iterdir() if ed.is_dir() ]
                     if not variants:
                         dojo_log.warning("... the challenge needs at least one variant subdirectory. Skipping!")
+                        continue
                     else:
                         dojo_log.info("... %d variants found.", len(variants))
 
+                    category = f"{str(self.owner_id)}:{str(self.id)}:{str(category)}"
+
                 dojo_log.info("... challenge name: %s", name)
+                dojo_log.info("... challenge category: %s", category)
 
                 challenge = Challenges.query.filter_by(
                     name=name, category=category
@@ -278,11 +295,9 @@ class Dojos(db.Model):
 
                 challenge = provider_dojo_challenge.challenge
 
-            dojo_challenge_id = f"{self.id}-{module['id']}-{challenge.id}"
-            dojo_log.info("... creating dojo-challenge %s for challenge #%d", dojo_challenge_id, level_idx)
+            dojo_log.info("... creating dojo-challenge for challenge #%d", level_idx)
             # then create the DojoChallenge link
             dojo_challenge = DojoChallenges(
-                dojo_challenge_id=dojo_challenge_id,
                 challenge_id=challenge.id,
                 dojo_id=self.id,
                 provider_dojo_id=provider_dojo_id,
