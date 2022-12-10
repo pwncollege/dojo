@@ -168,7 +168,7 @@ class Dojos(db.Model):
 
         # re-load the dojo challenges
         seen_modules = set()
-        for module_idx,module in enumerate(self.config["modules"], start=1):
+        for module_idx,module in enumerate(self.config["modules"]):
             if "id" not in module:
                 dojo_log.warning("Module %d is missing 'id' field; skipping.", module_idx)
                 continue
