@@ -240,7 +240,7 @@ def dojo_standings(dojo_id=None, fields=None, module_id=None):
     return standings_query
 
 
-def load_dojo(dojo_id, dojo_spec, user=None, commit=True, challenges_dir=None, log=logging.getLogger("__name__"), initial_join_code=None):
+def load_dojo(dojo_id, dojo_spec, user=None, dojo_dir=None, commit=True, log=logging.getLogger("__name__"), initial_join_code=None):
     log.info("Initiating dojo load.")
 
     dojo = Dojos.query.filter_by(id=dojo_id).first()
@@ -264,7 +264,7 @@ def load_dojo(dojo_id, dojo_spec, user=None, commit=True, challenges_dir=None, l
     if dojo.config.get("dojo_spec", None) != "v2":
         log.warning("Incorrect dojo spec version (dojo_spec attribute). Should be 'v2'")
 
-    dojo.apply_spec(dojo_log=log, challenges_dir=challenges_dir)
+    dojo.apply_spec(dojo_log=log, dojo_dir=dojo_dir)
 
     if commit:
         log.info("Committing database changes!")
