@@ -121,7 +121,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             container.kill()
             container.wait(condition="removed")
             raise RuntimeError("Home directory failed to mount")
-        elif b"nosuid" not in output:
+        if b"nosuid" not in output:
             container.kill()
             container.wait(condition="removed")
             raise RuntimeError("Home directory failed to mount as nosuid")
