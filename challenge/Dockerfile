@@ -250,6 +250,7 @@ RUN <<EOF
     (set +o pipefail; wget -q -O - https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip | jar xv)
     chmod 755 /opt/ghidra/ghidra_10.1.5_PUBLIC/ghidraRun /opt/ghidra/ghidra_10.1.5_PUBLIC/support/launch.sh
     ln -sf ghidra_10.1.5_PUBLIC/ghidraRun ghidraRun
+    ln -sf ghidra_10.1.5_PUBLIC/docs/images/GHIDRA_1.png GHIDRA_1.png
 
     wget -O /tmp/idafree80_linux.run https://out7.hex-rays.com/files/idafree80_linux.run
     chmod 755 /tmp/idafree80_linux.run
