@@ -165,6 +165,9 @@ class Dojos(db.Model):
     def extra_credit(self):
         return self.config.get("extra_credit", [])
 
+    @property emoji(self):
+        return self.config.get("completion_emoji", None)
+
     def module_by_id(self, module_id):
         for module in self.modules:
             if module.get("id") == module_id:
@@ -176,6 +179,22 @@ class Dojos(db.Model):
         dojo_log.info("Deleting existing challenge mappings (if committing).")
         deleter = sqlalchemy.delete(DojoChallenges).where(DojoChallenges.dojo == self).execution_options(synchronize_session="fetch")
         db.session.execute(deleter)
+
+        # make sure the owner is an admin or has a "GRANT_BELT" award
+        if self.emoji and self.owner_id:
+            owner = Users.query.filter_by(id=self.owner_id).first() # somehow, self.owner is not always set properly??
+            if owner.type != "admin" and not any(award.name == "GRANT_BELT" for award in user.awards):
+                dojo_log.error("You are not authorized to award belts for dojo completion. Remove completion_belt or contact the admins.")
+                return
+
+        # make sure our emoji is valid
+        if self.emoji:
+            if len(self.emoji != 1):
+                dojo_log.error("Your completion emoji must be a single unicode character (e.g., '\U0001F408' for a cat emoji).")
+                return
+            if self.emoji in [ d.emoji for d in Dojos.query.all() ]:
+                dojo_log.error("Your completion emoji is already reserved by another dojo.")
+                return
 
         if not self.modules:
             dojo_log.warning("No modules defined in dojo spec!")
