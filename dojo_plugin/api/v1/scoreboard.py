@@ -111,13 +111,13 @@ def global_hacker_stats():
         badges = [ ]
 
         # many solve badges
-        if len(many_solve_days.get(user.id, [])):
-            badges.append({
-                "emoji": "&#129302;", # robot emoji
-                "count": len(many_solve_days[user.id]),
-                "timestamp": many_solve_days[user.id][0],
-                "text": f"This emoji is earned by solving more than 50 non-embryo challenges in a single day (UTC reckoning)."
-            })
+        #if len(many_solve_days.get(user.id, [])):
+        #   badges.append({
+        #       "emoji": "&#129302;", # robot emoji
+        #       "count": len(many_solve_days[user.id]),
+        #       "timestamp": many_solve_days[user.id][0],
+        #       "text": f"This emoji is earned by solving more than 50 non-embryo challenges in a single day (UTC reckoning)."
+        #   })
 
         # dojo completion badges
         for completion in completions.get(user.id, []):
