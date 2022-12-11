@@ -89,7 +89,7 @@ def global_hacker_stats():
 
     all_users = Users.query.filter_by(banned=False, hidden=False).all()
     completions = dojo_completions()
-    dojo_emojis = { d.id: d.config["completion_emoji"] for d in Dojos.query.all() if "completion_emoji" in d.config }
+    dojo_emojis = { d.id: d.emoji for d in Dojos.query.all() if d.emoji and d.public }
 
     _bloods = first_bloods()
     blood_counts = collections.Counter(b.user_id for b in _bloods)
