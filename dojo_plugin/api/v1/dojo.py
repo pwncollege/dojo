@@ -19,8 +19,8 @@ from ...models import Dojos, DojoMembers
 from ...utils import dojo_standings, DOJOS_DIR, HTMLHandler, id_regex, sandboxed_git_clone, ctfd_to_host_path, is_dojo_admin, load_dojo
 
 
-private_dojo_namespace = Namespace(
-    "private_dojo", description="Endpoint to manage private dojos"
+dojo_namespace = Namespace(
+    "dojo", description="Endpoint to manage private dojos"
 )
 
 
@@ -28,7 +28,7 @@ def random_dojo_join_code():
     return os.urandom(8).hex()
 
 
-@private_dojo_namespace.route("/change-join-code")
+@dojo_namespace.route("/change-join-code")
 class UpdateJoinCode(Resource):
     @authed_only
     def post(self):
@@ -46,7 +46,7 @@ class UpdateJoinCode(Resource):
         return {"success": True, "dojo_id": dojo.id, "join_code": dojo.join_code}
 
 
-@private_dojo_namespace.route("/make-public")
+@dojo_namespace.route("/make-public")
 class MakePublic(Resource):
     @authed_only
     def post(self):
@@ -64,7 +64,7 @@ class MakePublic(Resource):
         return {"success": True, "dojo_id": dojo.id}
 
 
-@private_dojo_namespace.route("/delete")
+@dojo_namespace.route("/delete")
 class DeleteDojo(Resource):
     @authed_only
     def post(self):
@@ -87,7 +87,7 @@ class DeleteDojo(Resource):
 
         return {"success": True, "dojo_id": dojo.id}
 
-@private_dojo_namespace.route("/create")
+@dojo_namespace.route("/create")
 class CreateDojo(Resource):
     @authed_only
     def post(self):
@@ -184,7 +184,7 @@ class CreateDojo(Resource):
         return {"success": True, "dojo_id": dojo_id, "load_logs": html_logs}
 
 
-@private_dojo_namespace.route("/join")
+@dojo_namespace.route("/join")
 class JoinDojo(Resource):
     @authed_only
     def post(self):
@@ -210,7 +210,7 @@ class JoinDojo(Resource):
         return {"success": True}
 
 
-@private_dojo_namespace.route("/solves")
+@dojo_namespace.route("/solves")
 class DojoSolves(Resource):
     @authed_only
     def get(self):
