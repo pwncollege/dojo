@@ -12,7 +12,7 @@ from sqlalchemy.orm import synonym
 from sqlalchemy.sql import or_, and_
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
-from CTFd.models import db, Challenges, Solves, Flags
+from CTFd.models import db, Challenges, Solves, Flags, Users
 from CTFd.utils.user import get_current_user
 from ..utils import current_app, CHALLENGES_DIR, DOJOS_DIR, id_regex
 
@@ -165,8 +165,13 @@ class Dojos(db.Model):
     def extra_credit(self):
         return self.config.get("extra_credit", [])
 
-    @property emoji(self):
+    @property
+    def emoji(self):
         return self.config.get("completion_emoji", None)
+
+    @property
+    def belt(self):
+        return self.config.get("completion_belt", None)
 
     def module_by_id(self, module_id):
         for module in self.modules:
@@ -181,19 +186,29 @@ class Dojos(db.Model):
         db.session.execute(deleter)
 
         # make sure the owner is an admin or has a "GRANT_BELT" award
-        if self.emoji and self.owner_id:
+        if self.belt and self.owner_id:
             owner = Users.query.filter_by(id=self.owner_id).first() # somehow, self.owner is not always set properly??
-            if owner.type != "admin" and not any(award.name == "GRANT_BELT" for award in user.awards):
+            if owner.type != "admin" and not any(award.name == "GRANT_BELT" for award in owner.awards):
                 dojo_log.error("You are not authorized to award belts for dojo completion. Remove completion_belt or contact the admins.")
                 return
 
         # make sure our emoji is valid
         if self.emoji:
-            if len(self.emoji != 1):
+            if len(self.emoji) != 1:
                 dojo_log.error("Your completion emoji must be a single unicode character (e.g., '\U0001F408' for a cat emoji).")
                 return
-            if self.emoji in [ d.emoji for d in Dojos.query.all() ]:
-                dojo_log.error("Your completion emoji is already reserved by another dojo.")
+            if self.emoji in [ d.emoji for d in Dojos.query.all() if d != self ]:
+                dojo_log.error("Your completion emoji (%s) is already reserved by another dojo.", self.emoji)
+                return
+            if self.emoji in [
+                b"\x00\x01\xF6\x80".decode("utf-32-be"), # rocket, for first blood
+                b"\x00\x01\xF4\x1B".decode("utf-32-be"), # bug, for bug reports
+                b"\x00\x01\xf5\x77".decode("utf-32-be"), # spider, for serious bug reports?
+                b"\x00\x01\xf3\x46".decode("utf-32-be"), # eggplant...
+                b"\x00\x01\xf3\x51".decode("utf-32-be"), # peach...
+                b"\x00\x01\xf9\x24".decode("utf-32-be"), # drool...
+            ]:
+                dojo_log.error("Please choose another completion emoji.")
                 return
 
         if not self.modules:
