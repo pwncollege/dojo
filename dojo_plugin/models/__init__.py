@@ -177,12 +177,12 @@ class Dojos(db.Model):
         deleter = sqlalchemy.delete(DojoChallenges).where(DojoChallenges.dojo == self).execution_options(synchronize_session="fetch")
         db.session.execute(deleter)
 
-        if "modules" not in self.config:
+        if not self.modules:
             dojo_log.warning("No modules defined in dojo spec!")
 
         # re-load the dojo challenges
         seen_modules = set()
-        for module_idx,module in enumerate(self.config["modules"]):
+        for module_idx,module in enumerate(self.modules):
             if "id" not in module:
                 dojo_log.warning("Module %d is missing 'id' field; skipping.", module_idx)
                 continue
