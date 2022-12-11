@@ -5,7 +5,7 @@ from .v1.bootstrap import bootstrap_namespace
 from .v1.docker import docker_namespace
 from .v1.scoreboard import scoreboard_namespace
 from .v1.ssh_key import ssh_key_namespace
-from .v1.private_dojo import private_dojo_namespace
+from .v1.dojo import dojo_namespace
 from .v1.belts import belts_namespace
 
 
@@ -16,5 +16,5 @@ api_v1.add_namespace(bootstrap_namespace, "/bootstrap")
 api_v1.add_namespace(docker_namespace, "/docker")
 api_v1.add_namespace(scoreboard_namespace, "/scoreboard")
 api_v1.add_namespace(ssh_key_namespace, "/ssh_key")
-api_v1.add_namespace(private_dojo_namespace, "/private_dojo")
+api_v1.add_namespace(dojo_namespace, "/dojo")
 api_v1.add_namespace(belts_namespace, "/belts")

@@ -51,7 +51,7 @@ $(() => {
             if (confirmation_msg && !confirm(confirmation_msg)) return;
 
             const params = form.serializeJSON();
-            CTFd.fetch(`/pwncollege_api/v1/private_dojo/${endpoint}`, {
+            CTFd.fetch(`/pwncollege_api/v1/dojo/${endpoint}`, {
                 method: "POST",
                 credentials: "same-origin",
                 headers: {
