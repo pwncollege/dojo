@@ -166,7 +166,7 @@ class CreateDojo(Resource):
                     dojo_id, dojo_specs[0].read_text(),
                     user=user, commit=False, dojo_dir=clone_dir, log=logger
                 )
-                assert "WARNING" not in log_handler.html, (
+                assert ("WARNING" not in log_handler.html) and ("ERROR" not in log_handler.html), (
                     "A test load of your dojo resulted in the following log messages. Please fix all warnings and try again.<br>" +
                     log_handler.html
                 )
