@@ -11,7 +11,7 @@ from flask_restx import Namespace, Resource
 from sqlalchemy.exc import IntegrityError
 from CTFd.models import db, Solves, Challenges
 from CTFd.utils.decorators import authed_only
-from CTFd.utils.user import get_current_user
+from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
@@ -57,6 +57,15 @@ class MakePublic(Resource):
         dojo = Dojos.query.filter_by(id=dojo_id).first()
         if not is_dojo_admin(user, dojo):
             return {"success": False, "error": f"Invalid dojo specified: {data.get('dojo_id')}"}
+
+        if not (is_admin() or any(award.name == "PUBLIC_DOJO" for award in user.awards)):
+            return {
+                "success": False,
+                "error":
+                """<p><b>You do not have authorization to make public dojos.</b></p>"""
+                """<p>For authorization to make public dojos, please email """
+                """<a href="mailto:pwn-college@asu.edu">pwn-college@asu.edu</a>.</p>"""
+            }
 
         dojo.join_code = None
         db.session.add(dojo)
