@@ -9,6 +9,7 @@ services:
 
   ctfd:
     container_name: ctfd
+    hostname: ctfd
     build: /opt/CTFd
     user: root
     restart: always

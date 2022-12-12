@@ -65,6 +65,11 @@ cat <<EOF > /opt/pwn.college/data/dns
     mail._domainkey    IN    TXT    "v=DKIM1; h=sha256; k=rsa; p=${DKIM_P}"
 EOF
 
+if [ ! -d /opt/pwn.college/data/dev ]; then
+    mkdir -p /opt/pwn.college/data/dev
+    cp -a /etc/skel/. /opt/pwn.college/data/dev
+fi
+
 mkdir -p /opt/pwn.college/data/logging
 
 sysctl -w kernel.pty.max=1048576
