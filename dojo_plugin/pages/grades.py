@@ -111,7 +111,7 @@ def letter_grade(dojo, total_grade, module_reports=None):
             grade = dojo_grade["grade"]
             break
         if "modules" in dojo_grade:
-            modules = dojo_grade["modules"] % len(module_reports)
+            modules = dojo_grade["modules"]
             progress = len([report for report in module_reports if report["module_grade"]])
             if progress >= modules:
                 grade = dojo_grade["grade"]
