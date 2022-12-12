@@ -25,6 +25,8 @@ def dev_initialize():
         "--make-pidfile",
         "--background",
         "--no-close",
+        "--quiet",
+        "--oknodo",
         "--startas", "/usr/bin/code-server",
         "--",
         "--auth=none",
