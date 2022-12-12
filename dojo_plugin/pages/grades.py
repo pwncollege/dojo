@@ -202,14 +202,20 @@ def view_all_grades(dojo):
             student_emails |= set(student["Zoom Email"] for student in csv.DictReader(csv_file))
 
     grades = []
+    unlinked_users = []
     for email in student_emails:
         user = Users.query.filter_by(email=email).first()
-        report = overall_grade_report(dojo, user, when=when) if user else {}
+        if not user:
+            unlinked_users.append({ "id":None, "email":email })
+            continue
+
+        report = overall_grade_report(dojo, user, when=when)
         grades.append({
             "id": user.id if user else None,
             "email": email,
-            "letter": report.get("letter_grade"),
-            "overall": report.get("total_grade"),
+            "letter": report["letter_grade"],
+            "overall": report["total_grade"],
+            "extra_credit": sum(report["extra_credit"].values()),
             **{
                 module["name"]: module["module_grade"]
                 for module in report.get("module_reports", [])
@@ -217,18 +223,27 @@ def view_all_grades(dojo):
         })
 
     grades.sort(key=lambda k: (k["overall"] or 0.0, -(k["id"] or float("inf"))), reverse=True)
+    __import__("pprint").pprint(grades)
 
+    all_module_stats = {
+        name: statistics.mean(
+            grade[name] for grade in grades if
+            name in grade and type(grade[name]) in (float,int)
+        )
+        for name in grades[0]
+        if name not in ["id", "email", "letter"]
+    }
     grade_statistics = [
         {
             "id": "Average",
             "email": "",
             "letter": letter_grade(dojo, statistics.mean(grade["overall"] for grade in grades)),
-            **{
-                name: statistics.mean(grade[name] for grade in grades)
-                for name in grades[0]
-                if name not in ["id", "email", "letter"]
-            }
+            "overall": report["total_grade"],
+            "extra_credit": statistics.mean(grade["extra_credit"] for grade in grades),
+            **all_module_stats
         }
     ] if grades else []
+
+    grades += unlinked_users
 
     return render_template("admin_grades.html", grades=grades, grade_statistics=grade_statistics)
