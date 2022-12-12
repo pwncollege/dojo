@@ -223,7 +223,6 @@ def view_all_grades(dojo):
         })
 
     grades.sort(key=lambda k: (k["overall"] or 0.0, -(k["id"] or float("inf"))), reverse=True)
-    __import__("pprint").pprint(grades)
 
     all_module_stats = {
         name: statistics.mean(
