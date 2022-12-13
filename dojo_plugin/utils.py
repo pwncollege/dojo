@@ -46,13 +46,13 @@ def id_regex(s):
 def get_current_challenge_id():
     try:
         return int(current_challenge_getenv("CHALLENGE_ID"))
-    except ValueError:
+    except (ValueError, TypeError):
         return None
 
 def get_current_dojo_challenge_id():
     try:
         return int(current_challenge_getenv("DOJO_CHALLENGE_ID"))
-    except ValueError:
+    except (ValueError, TypeError):
         return None
 
 def current_challenge_getenv(k):
