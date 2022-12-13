@@ -5,7 +5,7 @@ import math
 import csv
 
 import yaml
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, abort
 from CTFd.models import db, Challenges, Solves, Users
 from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
@@ -13,7 +13,7 @@ from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.cache import cache
 
 from ..models import DiscordUsers, DojoMembers
-from ..utils import module_visible, module_challenges_visible, dojo_route, DOJOS_DIR
+from ..utils import module_visible, module_challenges_visible, dojo_route, DOJOS_DIR, is_dojo_admin
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 from .discord import discord_reputation
 
@@ -188,11 +188,14 @@ def view_grades(dojo, user_id=None):
     return render_template("grades.html", grades=grades)
 
 
-@grades.route("/admin/grades/<dojo>", methods=["GET"])
+@grades.route("/<dojo>/grades/all", methods=["GET"])
 @dojo_route
-@admins_only
+@authed_only
 @cache.memoize(timeout=1800)
 def view_all_grades(dojo):
+    if not is_dojo_admin(get_current_user(), dojo):
+        abort(403)
+
     when = request.args.get("when")
     if when:
         when = datetime.datetime.fromtimestamp(int(when))
