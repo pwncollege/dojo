@@ -22,7 +22,7 @@ from ...utils import dojo_standings, DOJOS_DIR, HTMLHandler, id_regex, sandboxed
 
 
 dojo_namespace = Namespace(
-    "dojo", description="Endpoint to manage private dojos"
+    "dojo", description="Endpoint to manage dojos"
 )
 
 
