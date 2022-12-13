@@ -5,7 +5,7 @@ from CTFd.utils.helpers import get_infos, markup
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 
-from ..models import Dojos, SSHKeys
+from ..models import Dojos, SSHKeys, DojoMembers
 from ..config import DISCORD_CLIENT_ID
 from .discord import get_discord_user, discord_avatar_asset
 from ..utils import DOJOS_PUB_KEY, DOJOS_DIR, ctfd_to_host_path, sandboxed_git_command
@@ -68,7 +68,8 @@ def settings_override():
         dojo_hashes[dojo.id] = commit_hash
         dojo_remotes[dojo.id] = remote
 
-
+    # joined dojos
+    memberships = DojoMembers.query.filter_by(user=user).all()
 
     return render_template(
         "settings.html",
@@ -78,6 +79,7 @@ def settings_override():
         affiliation=affiliation,
         country=country,
         tokens=tokens,
+        dojo_memberships=memberships,
         ssh_key=ssh_key,
         deploy_key=deploy_key,
         discord_enabled=bool(DISCORD_CLIENT_ID),

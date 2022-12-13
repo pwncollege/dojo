@@ -119,21 +119,24 @@
           <hr>
 
           <h3>Joined Private Dojos</h3>
-          {% if joined_dojos %}
+          {% if dojo_memberships %}
           <table class="table table-striped">
             <thead>
               <tr>
                 <td scope="col"><b>Name</b></td>
+                <td scope="col"><b>Grade Token</b></td>
                 <td scope="col"><b>Actions</b></td>
               </tr>
             </thead>
             <tbody>
-              {% for dojo in joined_dojos %}
+              {% for membership in dojo_memberships %}
               <tr>
-                <td>{{ dojo.name }}</td>
+                <td>{{ membership.dojo.id }}</td>
+                <td>{{ membership.grade_token }}</td>
                 <td>
                   <form method="post" id="private-dojo-leave-form" autocomplete="off">
                     <div class="form-group text-right">
+                      <input id="dojo-id" name="dojo_id" class="dojo-id" type="hidden" value="{{ membership.dojo.id }}">
                       <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Leave Dojo">
                     </div>
                   </form>

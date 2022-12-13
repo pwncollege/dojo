@@ -74,6 +74,7 @@ $(() => {
     }
 
     const privateDojoJoinForm = $("#private-dojo-join-form");
+    const privateDojoLeaveForm = $("#private-dojo-leave-form");
     const privateDojoCreateForm = $("#private-dojo-create-form");
     const privateDojoDeleteForm = $("#private-dojo-delete-form");
     const privateDojoUpdateForm = $("#private-dojo-update-form");
@@ -81,7 +82,10 @@ $(() => {
     const privateDojoPublicizeForm = $("#private-dojo-publicize-form");
 
     dojoForm(privateDojoJoinForm, "join", false, result => {
-        return "Dojo successfully joined";
+        return "Dojo successfully joined!";
+    });
+    dojoForm(privateDojoLeaveForm, "leave", "You are about to leave this dojo. You will lose access to its challenges. To rejoin the dojo, you will need its current join code. When you return, your previous progress will persist.", result => {
+        return "You have left the dojo.";
     });
     dojoForm(privateDojoCreateForm, "create", false, result => {
         return "Dojo '" + result.dojo_id + "' successfully created! Logs:<br>" + result.load_logs;

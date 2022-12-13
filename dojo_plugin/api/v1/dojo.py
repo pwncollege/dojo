@@ -1,3 +1,4 @@
+import sqlalchemy
 import tempfile
 import logging
 import pathlib
@@ -9,6 +10,7 @@ import re
 from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.sql import and_
 from CTFd.models import db, Solves, Challenges
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user, is_admin
@@ -44,6 +46,24 @@ class UpdateJoinCode(Resource):
         db.session.add(dojo)
         db.session.commit()
         return {"success": True, "dojo_id": dojo.id, "join_code": dojo.join_code}
+
+
+@dojo_namespace.route("/leave")
+class Leave(Resource):
+    @authed_only
+    def post(self):
+        data = request.get_json()
+        user = get_current_user()
+
+        dojo_id = data.get("dojo_id")
+        dojo = Dojos.query.filter_by(id=dojo_id).first()
+        if not dojo:
+            return {"success": False, "error": f"Invalid dojo specified: {data.get('dojo_id')}"}
+
+        deleter = sqlalchemy.delete(DojoMembers).where(and_(DojoMembers.dojo == dojo, DojoMembers.user == user)).execution_options(synchronize_session="fetch")
+        db.session.execute(deleter)
+        db.session.commit()
+        return {"success": True, "dojo_id": dojo.id}
 
 
 @dojo_namespace.route("/make-public")
