@@ -192,7 +192,7 @@ def view_grades(dojo, user_id=None):
 @dojo_route
 @authed_only
 @cache.memoize(timeout=1800)
-def view_all_grades(dojo):
+def dojo_grades(dojo):
     user = get_current_user()
     if not is_dojo_admin(user, dojo):
         abort(403)

@@ -44,9 +44,14 @@
 
   <br style="font-size: 3em">
 
-  {% if authed() and asu_student %}
-  <h2 class="row">Dojo Grade</h2>
-  <p>If you are working through this dojo for class credit at Arizona State University, you can check your grade <a href="grades">here</a>.</p>
+  {% if authed() and (graded or asu_student or dojo_admin) %}
+  <h2 class="row">Dojo Grades</h2>
+  {% if graded or asu_student %}
+  <p>If you are working through this dojo for class credit, you can check your grade <a href="grades">here</a>.</p>
+  {% endif %}
+  {% if dojo_admin %}
+  <p>As the admin of the dojo, you can view grades for your students (who entered a grade token when joining) <a href="{{ url_for("grades.dojo_grades", dojo=dojo.id) }}">here</a>.</p>
+  {% endif %}
   <br style="font-size: 3em">
   {% endif %}
 

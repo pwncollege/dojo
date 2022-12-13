@@ -11,6 +11,7 @@ from CTFd.cache import cache
 
 from ..utils import get_current_dojo_challenge_id, dojo_route, dojo_by_id, render_markdown, module_visible, module_challenges_visible, is_dojo_admin
 from .grades import module_grade_report
+from ..models import DojoMembers
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 
@@ -63,12 +64,17 @@ def listing(dojo):
         stats[module["id"]]["hidden"] = "time_visible" in module and module["time_visible"] >= datetime.datetime.now(pytz.utc)
         stats[module["id"]]["hide"] = not module_visible(dojo, module, user)
 
+    dojo_membership = DojoMembers.query.filter_by(user=user, dojo=dojo).first()
+    graded = dojo_membership and dojo_membership.grade_token != ""
+
     return render_template(
         "dojo.html",
         dojo=dojo,
         stats=stats,
         infos=infos,
         render_markdown=render_markdown,
+        graded=graded,
+        dojo_admin=is_dojo_admin(user, dojo),
         asu_student=False if user is None else user.email.endswith("asu.edu"),
     )
 

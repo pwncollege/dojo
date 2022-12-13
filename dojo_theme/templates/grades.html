@@ -39,7 +39,7 @@
           {% for report in grades.module_reports %}
           <tr>
             <td>{{ report.name }}</td>
-            <td>{{ report.time_due.strftime("%Y/%-m/%-d %-I:%M%P") }}</td>
+            <td>{% if report.time_due %}{{ report.time_due.strftime("%Y/%-m/%-d %-I:%M%P") }}{% else %}n/a{% endif %}</td>
             <td>{{ report.solved_timely }}</td>
             <td>{{ report.solved_late }}</td>
             <td>{{ (100*report.late_penalty)|int }}%</td>
