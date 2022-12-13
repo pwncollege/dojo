@@ -43,15 +43,15 @@ def settings_override():
             )
         )
 
-    # the user's dojos
-    user_dojos = [ ]
+    # hosted dojos
+    hosted_dojos = [ ]
     dojo_hashes = { }
     dojo_remotes = { }
     for dojo in Dojos.query.filter_by(owner_id=user.id).all():
         if dojo.config.get("dojo_spec", "v1") != "v2":
             continue
 
-        user_dojos.append(dojo)
+        hosted_dojos.append(dojo)
         dojo_dir = DOJOS_DIR/str(user.id)/dojo.id
         host_path = str(ctfd_to_host_path(dojo_dir))
         r, commit_hash = sandboxed_git_command(host_path, "rev-parse --short HEAD".split())
@@ -87,7 +87,7 @@ def settings_override():
         discord_avatar_asset=discord_avatar_asset,
         prevent_name_change=prevent_name_change,
         infos=infos,
-        user_dojos=user_dojos,
+        hosted_dojos=hosted_dojos,
         dojo_hashes=dojo_hashes,
         dojo_remotes=dojo_remotes
     )

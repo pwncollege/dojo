@@ -152,7 +152,7 @@
           <hr>
 
           <h3>Hosted Dojos</h3>
-          {% if user_dojos %}
+          {% if hosted_dojos %}
           <p>
           Please note:
           </p>
@@ -172,9 +172,9 @@
               </tr>
             </thead>
             <tbody>
-              {% for dojo in user_dojos %}
+              {% for dojo in hosted_dojos %}
               <tr>
-                <td>{{ dojo.name }}</td>
+                <td><a href="{{ url_for("pwncollege_dojo.listing", dojo=dojo.id) }}">{{ dojo.name }}</a></td>
                 <td><code>{{ dojo_remotes[dojo.id] }}</code></td>
                 <td><code>{{ dojo_hashes[dojo.id] }}</code></td>
                 <td>{% if dojo.join_code %}Private.<br>Join Code: {{ dojo.join_code }}{% else %}Public{% endif %}</td>
