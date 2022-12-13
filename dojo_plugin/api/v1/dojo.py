@@ -221,6 +221,9 @@ class JoinDojo(Resource):
         join_code = data.get("join_code", "")
         grade_token = data.get("grade_token", "")
 
+        if not id_regex(grade_token):
+            return {"success": False, "error": "Invalid grade token."}
+
         user = get_current_user()
 
         dojo = Dojos.query.filter_by(join_code=join_code).first()
