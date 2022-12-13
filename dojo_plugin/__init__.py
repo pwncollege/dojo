@@ -108,7 +108,6 @@ def load(app):
     app.register_blueprint(dev)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
 
-    register_admin_plugin_menu_bar("Grades", "/admin/grades")
     register_admin_plugin_menu_bar("Writeups", "/admin/writeups")
     register_admin_plugin_menu_bar("Desktops", "/admin/desktops")
 
