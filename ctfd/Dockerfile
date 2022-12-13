@@ -18,6 +18,8 @@ RUN curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin && \
     mkdir -p /opt/code-server/extensions && \
     code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
 
+RUN pip install jupyter --no-cache-dir
+
 COPY requirements.txt /opt/CTFd/
 
 RUN pip install -r requirements.txt --no-cache-dir
