@@ -219,6 +219,7 @@ class JoinDojo(Resource):
     def post(self):
         data = request.get_json()
         join_code = data.get("join_code", "")
+        grade_token = data.get("grade_token", "")
 
         user = get_current_user()
 
@@ -229,9 +230,14 @@ class JoinDojo(Resource):
                 404
             )
 
-        member = DojoMembers(dojo_id=dojo.id, user_id=user.id)
+        membership = DojoMembers.query.filter_by(dojo=dojo, user=user).first()
+        if membership:
+            membership.grade_token = grade_token
+        else:
+            membership = DojoMembers(dojo=dojo, user=user, grade_token=grade_token)
+
         try:
-            db.session.add(member)
+            db.session.add(membership)
             db.session.commit()
         except IntegrityError:
             db.session.rollback()

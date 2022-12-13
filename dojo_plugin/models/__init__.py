@@ -496,6 +496,9 @@ class DojoMembers(db.Model):
     user_id = db.Column(
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
+    dojo = db.relationship("Dojos", foreign_keys="DojoMembers.dojo_id", lazy="select")
+    user = db.relationship("Users", foreign_keys="DojoMembers.user_id", lazy="select")
+    grade_token = db.Column(db.String(256))
 
 
 class SSHKeys(db.Model):
