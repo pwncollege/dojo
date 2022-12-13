@@ -12,7 +12,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.cache import cache
 
-from ..models import DiscordUsers
+from ..models import DiscordUsers, DojoMembers
 from ..utils import module_visible, module_challenges_visible, dojo_route, DOJOS_DIR
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 from .discord import discord_reputation
@@ -197,23 +197,29 @@ def view_all_grades(dojo):
     if when:
         when = datetime.datetime.fromtimestamp(int(when))
 
-    student_emails = set()
-    for csv_path in DOJOS_DIR.glob(f"{dojo.id}/*.csv"):
-        with open(csv_path) as csv_file:
-            student_emails |= set(student["Zoom Email"] for student in csv.DictReader(csv_file))
+    if not dojo.public:
+        grade_tokens = [ dm.grade_token for dm in DojoMembers.query.filter_by(dojo=dojo).all() ]
+    else:
+        grade_tokens = set()
+        for csv_path in DOJOS_DIR.glob(f"{dojo.id}/*.csv"):
+            with open(csv_path) as csv_file:
+                grade_tokens |= set(student["Zoom Email"] for student in csv.DictReader(csv_file))
 
     grades = []
     unlinked_users = []
-    for email in student_emails:
-        user = Users.query.filter_by(email=email).first()
-        if not user:
-            unlinked_users.append({ "id":None, "email":email })
-            continue
+    for token in grade_tokens:
+        if dojo.public:
+            user = Users.query.filter_by(email=token).first()
+            if not user:
+                unlinked_users.append({ "id":None, "grade_token":token })
+                continue
+        else:
+            user = DojoMembers.query.filter_by(dojo=dojo, grade_token=token).first().user
 
         report = overall_grade_report(dojo, user, when=when)
         grades.append({
             "id": user.id if user else None,
-            "email": email,
+            "grade_token": token,
             "letter": report["letter_grade"],
             "overall": report["total_grade"],
             "extra_credit": sum(report["extra_credit"].values()),
@@ -231,12 +237,12 @@ def view_all_grades(dojo):
             name in grade and type(grade[name]) in (float,int)
         )
         for name in grades[0]
-        if name not in ["id", "email", "letter"]
-    }
+        if name not in ["id", "grade_token", "letter"]
+    } if grades else {}
     grade_statistics = [
         {
             "id": "Average",
-            "email": "",
+            "grade_token": "",
             "letter": letter_grade(dojo, statistics.mean(grade["overall"] for grade in grades)),
             "overall": report["total_grade"],
             "extra_credit": statistics.mean(grade["extra_credit"] for grade in grades),
