@@ -226,7 +226,7 @@
           To host a new dojo:
           <ol>
             <li>Fork the <a href="https://github.com/pwncollege/example-dojo">example dojo repository</a>. Most likely, you want the resulting repository to be private.
-            <li>Modify the repository to your liking. <b>Make sure to rename <code>example.yml</code> to the ID you want your repository to have in its eventual URL.</b> A repository with the spec file <code>leet.yml</code> will end up with a URL of TODO.
+            <li>Modify the repository to your liking. <b>Make sure to rename <code>example.yml</code> to the ID you want your repository to have in its eventual URL.</b> A repository with the spec file <code>leet.yml</code> will end up with a URL of <code>https://****{{ url_for("pwncollege_dojo.listing", dojo="leet") }}</code>.
             <li>If the resulting dojo is private, <a href="https://docs.github.com/en/developers/overview/managing-deploy-keys">add our deploy key</a> to it. The deploy key is <code>{{ deploy_key }}</code>.
             <li>Clone the dojo using the form below. You will need to use SSH URLs (<code>git@github.com:your-user/leet-dojo</code>) for private repositories (after adding the deploy key above). You can use the HTTPS URL (<code>https://github.com/your-user/leet-dojo</code>) for public repositories.
           </ol>
