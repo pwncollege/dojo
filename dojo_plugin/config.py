@@ -78,8 +78,8 @@ def bootstrap():
 
         set_config("setup", True)
 
-    for dojo_config_path in DOJOS_DIR.glob("*.yml"):
-        _LOG.info("Loading dojo specification %s", dojo_config_path)
-        dojo_id = dojo_config_path.stem
-        spec = dojo_config_path.read_text()
-        load_dojo(dojo_id, spec)
+    # for dojo_config_path in DOJOS_DIR.glob("*.yml"):
+    #     _LOG.info("Loading dojo specification %s", dojo_config_path)
+    #     dojo_id = dojo_config_path.stem
+    #     spec = dojo_config_path.read_text()
+    #     load_dojo(dojo_id, spec)
