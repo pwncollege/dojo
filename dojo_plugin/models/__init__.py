@@ -67,7 +67,7 @@ class Referenceable:
 
 class Dojos(Referenceable, db.Model):
     __tablename__ = "dojos"
-    __mapper_args__ = {"polymorphic_identity": "public", "polymorphic_on": "type"}
+    __mapper_args__ = {"polymorphic_on": "type"}
 
     id = db.Column(db.Integer, primary_key=True)
     repository = db.Column(db.String(256))
@@ -83,6 +83,10 @@ class Dojos(Referenceable, db.Model):
 
 class OfficialDojos(Dojos):
     __mapper_args__ = {"polymorphic_identity": "official"}
+
+
+class PublicDojos(Referenceable, db.Model):
+    __mapper_args__ = {"polymorphic_identity": "public"}
 
 
 class PrivateDojos(Dojos):
@@ -150,9 +154,11 @@ class DojoChallenges(Referenceable, db.Model):
     dojo_id = db.Column(db.Integer, primary_key=True)
     module_index = db.Column(db.Integer, primary_key=True)
     challenge_index = db.Column(db.Integer, primary_key=True)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
     _name = db.Column("name", db.String(256), shadow=True)
     _description = db.Column("description", db.String(256), shadow=True)
 
+    challenge = db.relationship("Challenges")
     module = db.relationship("DojoModules", back_populates="challenges")
     runtime = db.relationship("DojoChallengeRuntimes", back_populates="challenge")
     duration = db.relationship("DojoChallengeDurations", back_populates="challenge")
