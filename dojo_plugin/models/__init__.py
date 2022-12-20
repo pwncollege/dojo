@@ -86,10 +86,11 @@ class Dojos(Referenceable, db.Model):
     __mapper_args__ = {"polymorphic_on": "type"}
 
     id = db.Column(db.Integer, primary_key=True)
+
     repository = db.Column(db.String(256))
     hash = db.Column(db.String(80))
     type = db.Column(db.String(80), index=True)
-    _name = Referenceable.shadowed(db.Column("name", db.String(256)))
+    _name = Referenceable.shadowed(db.Column("name", db.String(128)))
     _description = Referenceable.shadowed(db.Column("description", db.Text))
 
     users = db.relationship("DojoUsers", back_populates="dojo")
@@ -99,16 +100,22 @@ class Dojos(Referenceable, db.Model):
     modules = db.relationship("DojoModules", back_populates="dojo")
     challenges = db.relationship("DojoChallenges", back_populates="dojo")
 
-    __repr__ = columns_repr(["name", "id"])
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for module_index, module in enumerate(self.modules):
+            module.module_index = module_index
+            for challenge in module.challenges:
+                challenge.module_index = module_index
 
     @classmethod
     def viewable(cls, user_id):
         return cls.query.filter(or_(
-            cls.type=="official",
+            cls.type == "official",
             cls.id.in_(db.session.query(DojoUsers.dojo_id)
                        .filter_by(user_id=user_id)
                        .subquery())))
 
+    __repr__ = columns_repr(["name", "id"])
 
 
 class OfficialDojos(Dojos):
@@ -135,19 +142,13 @@ class DojoUsers(db.Model):
 
     dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.id", ondelete="CASCADE"), primary_key=True, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+
     type = db.Column(db.String(80), index=True)
 
     dojo = db.relationship("Dojos", back_populates="users")
     user = db.relationship("Users")
 
     __repr__ = columns_repr(["dojo", "user"])
-
-    @property
-    def solves(self):
-        pass
-        # db.session.query(Solves).filter(Solves.user==self.user,
-        #                                 self.dojo.challenges.has(
-        #                                 Solves.challenge.has(Solves.
 
 
 class DojoMembers(DojoUsers):
@@ -172,15 +173,23 @@ class DojoStudents(DojoUsers):
 
 class DojoModules(Referenceable, db.Model):
     __tablename__ = "dojo_modules"
-    __table_args__ = (db.UniqueConstraint("dojo_id", "name"),)
+    __table_args__ = (
+        db.UniqueConstraint("dojo_id", "name"),
+    )
 
     dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.id", ondelete="CASCADE"), primary_key=True)
     module_index = db.Column(db.Integer, primary_key=True)
-    _name = Referenceable.shadowed(db.Column("name", db.String(256)))
+
+    _name = Referenceable.shadowed(db.Column("name", db.String(128)))
     _description = Referenceable.shadowed(db.Column("description", db.Text))
 
     dojo = db.relationship("Dojos", back_populates="modules")
     challenges = db.relationship("DojoChallenges", back_populates="module")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for challenge_index, challenge in enumerate(self.challenges):
+            challenge.challenge_index = challenge_index
 
     @hybrid_property
     def solves(self):
@@ -203,8 +212,9 @@ class DojoChallenges(Referenceable, db.Model):
     dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.id", ondelete="CASCADE"), primary_key=True)
     module_index = db.Column(db.Integer, primary_key=True)
     challenge_index = db.Column(db.Integer, primary_key=True)
+
     challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
-    _name = Referenceable.shadowed(db.Column("name", db.String(256)))
+    _name = Referenceable.shadowed(db.Column("name", db.String(128)))
     _description = Referenceable.shadowed(db.Column("description", db.Text))
 
     challenge = db.relationship("Challenges")

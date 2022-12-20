@@ -31,7 +31,7 @@ DOJOS_DIR = pathlib.Path("/var/dojos")
 HOST_DOJOS_DIR = pathlib.Path("/opt/pwn.college/data/dojos")
 DOJOS_PUB_KEY = "/var/data/ssh_host_keys/ssh_host_ed25519_key.pub"
 HOST_DOJOS_PRIV_KEY = "/opt/pwn.college/data/ssh_host_keys/ssh_host_ed25519_key"
-PLUGIN_DIR = pathlib.Path(__file__).parent
+PLUGIN_DIR = pathlib.Path(__file__).parent.parent
 SECCOMP = (PLUGIN_DIR / "seccomp.json").read_text()
 USER_FIREWALL_ALLOWED = {
     host: socket.gethostbyname(host)
@@ -449,4 +449,4 @@ def sandboxed_git_command(repo_dir, command):
 
     return returncode, output
 
-from .models import Dojos, DojoMembers, DojoChallenges
+from ..models import Dojos, DojoMembers, DojoChallenges
