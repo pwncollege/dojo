@@ -1,12 +1,12 @@
-import sqlalchemy
+import string
 import datetime
 import hashlib
 import pathlib
 import logging
-import pytz
-import yaml
 import re
 
+import pytz
+import yaml
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import synonym
 from sqlalchemy.sql import or_, and_
@@ -97,15 +97,28 @@ class Dojos(Referenceable, db.Model):
     members = db.relationship("DojoMembers", back_populates="dojo")
     admins = db.relationship("DojoAdmins", back_populates="dojo")
     students = db.relationship("DojoStudents", back_populates="dojo")
-    modules = db.relationship("DojoModules", back_populates="dojo")
-    challenges = db.relationship("DojoChallenges", back_populates="dojo")
+    _modules = db.relationship("DojoModules", back_populates="dojo")
+    challenges = db.relationship("DojoChallenges", back_populates="dojo", viewonly=True)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for module_index, module in enumerate(self.modules):
+    @property
+    def simple_name(self):
+        return re.sub("[^a-z0-9-]+", "", self.name.lower().replace(" ", "-"))
+
+    @property
+    def unique_name(self):
+        return f"{self.simple_name}-{self.id}"
+
+    @hybrid_property
+    def modules(self):
+        return self._modules
+
+    @modules.setter
+    def modules(self, value):
+        for module_index, module in enumerate(value):
             module.module_index = module_index
             for challenge in module.challenges:
                 challenge.module_index = module_index
+        self._modules = value
 
     @classmethod
     def viewable(cls, user_id):
@@ -120,6 +133,10 @@ class Dojos(Referenceable, db.Model):
 
 class OfficialDojos(Dojos):
     __mapper_args__ = {"polymorphic_identity": "official"}
+
+    @property
+    def unique_name(self):
+        return self.simple_name
 
 
 class PublicDojos(Dojos):
@@ -183,13 +200,18 @@ class DojoModules(Referenceable, db.Model):
     _name = Referenceable.shadowed(db.Column("name", db.String(128)))
     _description = Referenceable.shadowed(db.Column("description", db.Text))
 
-    dojo = db.relationship("Dojos", back_populates="modules")
-    challenges = db.relationship("DojoChallenges", back_populates="module")
+    dojo = db.relationship("Dojos", back_populates="_modules")
+    _challenges = db.relationship("DojoChallenges", back_populates="module")
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for challenge_index, challenge in enumerate(self.challenges):
+    @hybrid_property
+    def challenges(self):
+        return self._challenges
+
+    @challenges.setter
+    def challenges(self, value):
+        for challenge_index, challenge in enumerate(value):
             challenge.challenge_index = challenge_index
+        self._challenges = value
 
     @hybrid_property
     def solves(self):
@@ -218,8 +240,8 @@ class DojoChallenges(Referenceable, db.Model):
     _description = Referenceable.shadowed(db.Column("description", db.Text))
 
     challenge = db.relationship("Challenges")
-    dojo = db.relationship("Dojos", back_populates="challenges")
-    module = db.relationship("DojoModules", back_populates="challenges")
+    dojo = db.relationship("Dojos", back_populates="challenges", viewonly=True)
+    module = db.relationship("DojoModules", back_populates="_challenges")
     runtime = db.relationship("DojoChallengeRuntimes", back_populates="challenge")
     duration = db.relationship("DojoChallengeDurations", back_populates="challenge")
 
