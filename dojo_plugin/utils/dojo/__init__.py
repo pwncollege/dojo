@@ -1,8 +1,9 @@
-from schema import Schema, Optional, Regex, Or, SchemaError
+import datetime
 
+from schema import Schema, Optional, Regex, Or, SchemaError
 from CTFd.models import db
 
-from ...models import PublicDojos, PrivateDojos, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoChallengeDurations
+from ...models import Dojos, PublicDojos, PrivateDojos, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoChallengeDurations
 
 
 DOJO_SPEC = Schema({
@@ -48,7 +49,11 @@ DOJO_SPEC = Schema({
 })
 
 
-def load_dojo(data, *, dojo_id=None):
+def load_dojo(data, *, dojo=None, dojo_id=None, dojo_repository=None, dojo_hash=None):
+    dojo_id = dojo_id or dojo.id if dojo else None
+    dojo_repository = dojo_repository or dojo.repository if dojo else None
+    dojo_hash = dojo_hash or dojo.hash if dojo else None
+
     data = DOJO_SPEC.validate(data)
 
     dojo_cls = {
@@ -58,17 +63,23 @@ def load_dojo(data, *, dojo_id=None):
 
     dojo_kwargs = dict(
         id=dojo_id,
+        repository=dojo_repository,
+        hash=dojo_hash,
         name=data.get("name"),
-        description=data.get("description")
+        description=data.get("description"),
+        type=data.get("type"),
     )
 
     if dojo_cls is PrivateDojos:
         assert "password" in data, "Missing key: 'password'"
         dojo_kwargs["password"] = data["password"]
 
-    dojo = db.session.merge(dojo_cls(**dojo_kwargs))
-
     # TODO: for all references: index -> name
+
+    if dojo_id is not None:
+        Dojos.query.filter_by(id=dojo_id).delete()
+
+    dojo = dojo_cls(**dojo_kwargs)
 
     dojo.modules = [
         DojoModules(
@@ -87,4 +98,4 @@ def load_dojo(data, *, dojo_id=None):
 
     # TODO: for all references: name -> index
 
-    db.session.commit()
+    return dojo
