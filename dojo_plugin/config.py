@@ -7,8 +7,8 @@ from CTFd.cache import cache
 from CTFd.utils import config, set_config
 from .utils import multiprocess_lock, load_dojo
 
-_LOG = logging.getLogger(__name__)
-_LOG.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 VIRTUAL_HOST = os.getenv("VIRTUAL_HOST")
 HOST_DATA_PATH = os.getenv("HOST_DATA_PATH")
@@ -34,8 +34,10 @@ for config_option in missing_warnings:
 
 @multiprocess_lock
 def bootstrap():
+    from .models import Dojos
     from .pages.discord import discord_reputation
     from .utils import CHALLENGES_DIR, DOJOS_DIR
+    from .utils.dojo import load_dojo_dir
 
     set_config("ctf_name", "pwn.college")
     set_config("ctf_description", "pwn.college")
@@ -78,8 +80,9 @@ def bootstrap():
 
         set_config("setup", True)
 
-    # for dojo_config_path in DOJOS_DIR.glob("*.yml"):
-    #     _LOG.info("Loading dojo specification %s", dojo_config_path)
-    #     dojo_id = dojo_config_path.stem
-    #     spec = dojo_config_path.read_text()
-    #     load_dojo(dojo_id, spec)
+    # for dojo_dir in DOJOS_DIR.glob("*/"):
+    #     logger.info(f"Loading dojo: {dojo_dir}")
+    #     existing_dojo = Dojos.resolve_from_unique_name(dojo_dir.name)
+    #     dojo = load_dojo_dir(dojo_dir, dojo=existing_dojo)
+    #     db.session.add(dojo)
+    #     db.session.commit()

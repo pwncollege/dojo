@@ -1,12 +1,14 @@
 import datetime
 
+import yaml
 from schema import Schema, Optional, Regex, Or, SchemaError
 from CTFd.models import db
 
-from ...models import Dojos, PublicDojos, PrivateDojos, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoChallengeDurations
+from ...models import Dojos, PublicDojos, PrivateDojos, OfficialDojos, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoChallengeDurations
 
 
 DOJO_SPEC = Schema({
+    "id": Regex(r"^[a-z0-9-]{1,32}$"),
     "name": Regex(r"^[\S ]{1,128}$"),
     Optional("description"): str,
     Optional("type", default="public"): Or("public", "private"),
@@ -18,6 +20,7 @@ DOJO_SPEC = Schema({
     },
 
     Optional("modules", default=[]): [{
+        "id": Regex(r"^[a-z0-9-]{1,32}$"),
         "name": Regex(r"^[\S ]{1,128}$"),
         Optional("description"): str,
 
@@ -29,7 +32,8 @@ DOJO_SPEC = Schema({
             "module": Regex(r"^[\S ]{1,128}$"),
         },
 
-        Optional("challenges", default=[]):  [{
+        Optional("challenges", default=[]): [{
+            "id": Regex(r"^[a-z0-9-]{1,32}$"),
             "name": Regex(r"^[\S ]{1,128}$"),
             Optional("description"): str,
 
@@ -45,29 +49,38 @@ DOJO_SPEC = Schema({
                 "challenge": Regex(r"^[\S ]{1,128}$"),
             },
         }],
+
+        Optional("resources", default=[]): [{
+            "type": Or("markdown", "video", "slides"),
+            "name": Regex(r"^[\S ]{1,128}$"),
+            "data": str,
+        }],
     }],
 })
 
 
-def load_dojo(data, *, dojo=None, dojo_id=None, dojo_repository=None, dojo_hash=None):
-    dojo_id = dojo_id or dojo.id if dojo else None
-    dojo_repository = dojo_repository or dojo.repository if dojo else None
-    dojo_hash = dojo_hash or dojo.hash if dojo else None
+def load_dojo(data, *,
+              dojo=None,
+              dojo_id=None,
+              dojo_type=None):
 
     data = DOJO_SPEC.validate(data)
+
+    dojo_id = dojo_id or (dojo.id if dojo else None)
+    dojo_type = dojo_type or (dojo.type if dojo else data["type"])
 
     dojo_cls = {
         "public": PublicDojos,
         "private": PrivateDojos,
-    }[data["type"]]
+        "official": OfficialDojos,
+    }[dojo_type]
 
     dojo_kwargs = dict(
-        id=dojo_id,
-        repository=dojo_repository,
-        hash=dojo_hash,
+        dojo_id=dojo_id,
+        type=dojo_type,
+        id=data.get("id"),
         name=data.get("name"),
         description=data.get("description"),
-        type=data.get("type"),
     )
 
     if dojo_cls is PrivateDojos:
@@ -83,10 +96,12 @@ def load_dojo(data, *, dojo=None, dojo_id=None, dojo_repository=None, dojo_hash=
 
     dojo.modules = [
         DojoModules(
+            id=module.get("id"),
             name=module.get("name"),
             description=module.get("description"),
             challenges=[
                 DojoChallenges(
+                    id=challenge.get("id"),
                     name=challenge.get("name"),
                     description=challenge.get("description"),
                 )
@@ -99,3 +114,8 @@ def load_dojo(data, *, dojo=None, dojo_id=None, dojo_repository=None, dojo_hash=
     # TODO: for all references: name -> index
 
     return dojo
+
+
+def load_dojo_dir(dir, **kwargs):
+    data = yaml.safe_load((dir / "dojo.yml").read_text())
+    return load_dojo(data, **kwargs)
