@@ -1,3 +1,6 @@
+import os
+import subprocess
+import tempfile
 import datetime
 
 import yaml
@@ -116,6 +119,24 @@ def load_dojo(data, *,
     return dojo
 
 
-def load_dojo_dir(dir, **kwargs):
-    data = yaml.safe_load((dir / "dojo.yml").read_text())
+def load_dojo_dir(dojo_dir, **kwargs):
+    dojo_yml_path = dojo_dir / "dojo.yml"
+    assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
+
+    def in_dojo_dir(path):
+        return os.path.commonpath([dojo_path, path.resolve()]) == dojo_path
+
+    for path in dojo_dir.glob("**"):
+        assert in_dojo_dir(path), f"Error: symlink `{path}` references path outside of the dojo"
+
+    data = yaml.safe_load(dojo_yml_path.read_text())
     return load_dojo(data, **kwargs)
+
+
+def dojo_clone(repository):
+    clone_dir = tempfile.TemporaryDirectory()
+    subprocess.run(["git", "clone", repository, d.name],
+                   env={"GIT_TERMINAL_PROMPT": "0"},
+                   check=True,
+                   capture_output=True)
+    return clone_dir

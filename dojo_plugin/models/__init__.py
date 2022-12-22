@@ -107,14 +107,15 @@ class Dojos(Referenceable, db.Model):
 
     @id.expression
     def id(cls):
-        return (db.cast(cls._id, db.String) +
-                db.cast("-", db.String) +
-                db.cast(cls.dojo_id, db.String)
+        # TODO: be correct for OfficialDojos as well
         # return db.case({db.cast("official", db.String): cls._id},
         #                else_=(db.cast(cls._id, db.String) +
         #                       db.cast("-", db.String) +
         #                       db.cast(cls.dojo_id, db.String)),
         #                value=db.cast(cls.type, db.String))
+        return (db.cast(cls._id, db.String) +
+                db.cast("-", db.String) +
+                db.cast(cls.dojo_id, db.String))
 
     @id.setter
     def id(self, value):
@@ -213,7 +214,7 @@ class DojoModules(Referenceable, db.Model):
     dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"), primary_key=True)
     module_index = db.Column(db.Integer, primary_key=True)
 
-    _id = db.Column("id", db.String(32), index=True)
+    id = db.Column(db.String(32), index=True)
     _name = Referenceable.shadowed(db.Column("name", db.String(128)))
     _description = Referenceable.shadowed(db.Column("description", db.Text))
 
@@ -264,7 +265,7 @@ class DojoChallenges(Referenceable, db.Model):
     challenge_index = db.Column(db.Integer, primary_key=True)
 
     challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
-    _id = db.Column("id", db.String(32), index=True)
+    id = db.Column(db.String(32), index=True)
     _name = Referenceable.shadowed(db.Column("name", db.String(128)))
     _description = Referenceable.shadowed(db.Column("description", db.Text))
 

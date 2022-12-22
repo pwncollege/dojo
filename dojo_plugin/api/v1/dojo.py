@@ -1,4 +1,5 @@
 import sqlalchemy
+import subprocess
 import tempfile
 import logging
 import pathlib
@@ -17,8 +18,9 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
-from ...models import Dojos, DojoMembers
+from ...models import Dojos, DojoMembers, DojoAdmins
 from ...utils import dojo_standings, DOJOS_DIR, HTMLHandler, id_regex, sandboxed_git_clone, ctfd_to_host_path, is_dojo_admin, load_dojo
+from ...utils.dojo import dojo_clone, load_dojo_dir
 
 
 dojo_namespace = Namespace(
@@ -123,14 +125,36 @@ class CreateDojo(Resource):
         data = request.get_json()
         user = get_current_user()
 
+        try:
+            GIT_REPO_RE = r"^(https://github.com/|git@github.com:)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+            dojo_repo = data.get("dojo_repo", "")
+            assert re.match(GIT_REPO_RE, dojo_repo), (
+                f"Repository violates regular expression. "
+                f"Must match <code>{GIT_RE}</code>."
+            )
+
+            dojo_dir = dojo_clone(dojo_repo)
+            dojo_path = Pathlib.path(dojo_dir.name)
+
+            dojo = load_dojo_dir(dojo_path)
+            dojo.repository = dojo_repo
+            dojo.admins = [DojoAdmins(user_id=user.id)]
+
+            db.session.add(dojo)
+            db.session.commit()
+
+            dojo_path.rename(DOJOS_DIR / )  # TODO: working here
+
+
+        except AssertionError as e:
+            return {"success": False, "error": str(e)}, 400
+
+        except subprocess.CalledProcessError as e:
+            return {"success": False, "error": str(e.stderr)}, 400
+
+
         with tempfile.TemporaryDirectory(dir=DOJOS_DIR, prefix=str(user.id), suffix=".git-clone") as tmp_dir:
             try:
-                dojo_repo = data.get("dojo_repo")
-                GIT_SSH_REGEX = "^git@github.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
-                GIT_HTTPS_REGEX = "^https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
-                assert re.match(GIT_SSH_REGEX, dojo_repo) or re.match(GIT_HTTPS_REGEX, dojo_repo), (
-                    f"Repository violates regular expression. Must match <code>{GIT_SSH_REGEX}</code> or <code>{GIT_HTTPS_REGEX}</code>."
-                )
 
                 # clone it!
                 clone_dir = pathlib.Path(tmp_dir)/"clone"
