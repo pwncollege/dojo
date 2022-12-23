@@ -129,8 +129,7 @@ class CreateDojo(Resource):
             GIT_REPO_RE = r"^(https://github.com/|git@github.com:)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
             dojo_repo = data.get("dojo_repo", "")
             assert re.match(GIT_REPO_RE, dojo_repo), (
-                f"Repository violates regular expression. "
-                f"Must match <code>{GIT_RE}</code>."
+                f"Repository violates regular expression. Must match <code>{GIT_RE}</code>."
             )
 
             dojo_dir = dojo_clone(dojo_repo)
@@ -143,7 +142,7 @@ class CreateDojo(Resource):
             db.session.add(dojo)
             db.session.commit()
 
-            dojo_path.rename(DOJOS_DIR / )  # TODO: working here
+            dojo_path.rename(DOJOS_DIR / dojo.type / dojo.id)
 
 
         except AssertionError as e:
@@ -152,89 +151,7 @@ class CreateDojo(Resource):
         except subprocess.CalledProcessError as e:
             return {"success": False, "error": str(e.stderr)}, 400
 
-
-        with tempfile.TemporaryDirectory(dir=DOJOS_DIR, prefix=str(user.id), suffix=".git-clone") as tmp_dir:
-            try:
-
-                # clone it!
-                clone_dir = pathlib.Path(tmp_dir)/"clone"
-                clone_dir.mkdir()
-                returncode, output = sandboxed_git_clone(dojo_repo, str(ctfd_to_host_path(clone_dir)))
-
-                N=b"\n"
-                assert returncode == 0, (
-                    f"Dojo clone failed with error code {returncode}:<br>"
-                    f"<code>{output.replace(N,b'<br>').decode('latin1')}</code><br>"
-                    "Please make sure that you properly added the deploy key to the repository settings, "
-                    "and properly entered the repository URL."
-                )
-
-                # figure out the dojo ID
-                dojo_specs = list(clone_dir.glob("*.yml"))
-                assert len(dojo_specs) == 1, (
-                    f"Dojo repository must have exactly one top-level dojo spec yml named {{YOUR_DOJO_ID}}.yml. Yours has: {dojo_specs}"
-                )
-                dojo_id = dojo_specs[0].stem
-                assert id_regex(dojo_id), (
-                    f"Your dojo ID (the extensionless name of your .yml file) must be a valid URL component."
-                )
-
-                # make sure there aren't any symlink shenanigans
-                assert dojo_specs[0].is_file() and not dojo_specs[0].is_symlink(), (
-                    f"{dojo_specs[0].name} is not a regular file!"
-                )
-
-                # make sure we're not overwriting unintentionally
-                dojo_permanent_dir = pathlib.Path(DOJOS_DIR)/str(user.id)/dojo_id
-                if data.get("dojo_replace", False) not in ("true", True, 1):
-                    assert not dojo_permanent_dir.exists(), (
-                        f"You already have a cloned dojo repository containing a dojo with ID {dojo_id}."
-                    )
-
-                # make sure we're not overwriting someone else's dojo
-                existing_dojo = Dojos.query.filter_by(id=dojo_id).first()
-                if existing_dojo is not None:
-                    assert existing_dojo.owner_id == user.id, (
-                        f"A dojo with the ID {dojo_id} was already created by a different user. Please choose a different ID."
-                    )
-                    join_code = existing_dojo.join_code
-                else:
-                    join_code = random_dojo_join_code()
-
-                # do a test load
-                log_handler = HTMLHandler()
-                logger = logging.getLogger(f"dojo-load-{user.id}-{dojo_id}")
-                logger.setLevel('DEBUG')
-                logger.addHandler(log_handler)
-                load_dojo(
-                    dojo_id, dojo_specs[0].read_text(),
-                    user=user, commit=False, dojo_dir=clone_dir, log=logger
-                )
-                assert ("WARNING" not in log_handler.html) and ("ERROR" not in log_handler.html), (
-                    "A test load of your dojo resulted in the following log messages. Please fix all warnings and try again.<br>" +
-                    log_handler.html
-                )
-
-                # move the pulled dojo in
-                if dojo_permanent_dir.exists():
-                    shutil.rmtree(dojo_permanent_dir)
-                dojo_permanent_dir.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(clone_dir, dojo_permanent_dir)
-
-                # load it for real!
-                log_handler.reset()
-                load_dojo(
-                    dojo_id, (dojo_permanent_dir/(dojo_id+".yml")).read_text(),
-                    user=user, commit=True, dojo_dir=dojo_permanent_dir, log=logger, initial_join_code=join_code
-                )
-                html_logs = log_handler.html
-            except AssertionError as e:
-                return (
-                    {"success": False, "error": e.args[0]},
-                    400
-                )
-
-        return {"success": True, "dojo_id": dojo_id, "load_logs": html_logs}
+        return {"success": True, "dojo_id": dojo.dojo_id}
 
 
 @dojo_namespace.route("/join")
