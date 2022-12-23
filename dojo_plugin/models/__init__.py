@@ -15,6 +15,8 @@ from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, Users
 from CTFd.utils.user import get_current_user
 
+from ..utils import DOJOS_DIR
+
 
 class Referenceable:
     def __init_subclass__(cls, **kwargs):
@@ -107,15 +109,12 @@ class Dojos(Referenceable, db.Model):
 
     @id.expression
     def id(cls):
-        # TODO: be correct for OfficialDojos as well
-        # return db.case({db.cast("official", db.String): cls._id},
-        #                else_=(db.cast(cls._id, db.String) +
-        #                       db.cast("-", db.String) +
-        #                       db.cast(cls.dojo_id, db.String)),
-        #                value=db.cast(cls.type, db.String))
-        return (db.cast(cls._id, db.String) +
-                db.cast("-", db.String) +
-                db.cast(cls.dojo_id, db.String))
+        unique_id = (db.cast(cls._id, db.String) +
+                     db.literal("-") +
+                     db.cast(cls.dojo_id, db.String))
+        return db.case({db.literal("official"): db.cast(cls._id, db.String)},
+                       else_=unique_id,
+                       value=cls.type)
 
     @id.setter
     def id(self, value):

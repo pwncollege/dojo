@@ -34,7 +34,7 @@ for config_option in missing_warnings:
 
 @multiprocess_lock
 def bootstrap():
-    from .models import Dojos
+    from .models import OfficialDojos
     from .pages.discord import discord_reputation
     from .utils import CHALLENGES_DIR, DOJOS_DIR
     from .utils.dojo import load_dojo_dir
@@ -80,9 +80,12 @@ def bootstrap():
 
         set_config("setup", True)
 
-    # for dojo_dir in DOJOS_DIR.glob("*/"):
-    #     logger.info(f"Loading dojo: {dojo_dir}")
-    #     existing_dojo = Dojos.resolve_from_unique_name(dojo_dir.name)
-    #     dojo = load_dojo_dir(dojo_dir, dojo=existing_dojo)
-    #     db.session.add(dojo)
-    #     db.session.commit()
+    # TODO: performance, stop this from happening N times
+
+    for dojo_dir in (DOJOS_DIR / "official").glob("*/"):
+        logger.info(f"Loading dojo: {dojo_dir}")
+        existing_dojo = OfficialDojos.query.filter_by(id=dojo_dir.name).first()
+        dojo = load_dojo_dir(dojo_dir, dojo=existing_dojo, dojo_type="official")
+        assert dojo.id == dojo_dir.name, f"{dojo.id}, {dojo_dir.name}"
+        db.session.add(dojo)
+        db.session.commit()

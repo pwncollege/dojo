@@ -69,7 +69,7 @@ def load_dojo(data, *,
 
     data = DOJO_SPEC.validate(data)
 
-    dojo_id = dojo_id or (dojo.id if dojo else None)
+    dojo_id = dojo_id or (dojo.dojo_id if dojo else None)
     dojo_type = dojo_type or (dojo.type if dojo else data["type"])
 
     dojo_cls = {
@@ -93,7 +93,7 @@ def load_dojo(data, *,
     # TODO: for all references: index -> name
 
     if dojo_id is not None:
-        Dojos.query.filter_by(id=dojo_id).delete()
+        Dojos.query.filter_by(dojo_id=dojo_id).delete()
 
     dojo = dojo_cls(**dojo_kwargs)
 
@@ -123,11 +123,8 @@ def load_dojo_dir(dojo_dir, **kwargs):
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
 
-    def in_dojo_dir(path):
-        return os.path.commonpath([dojo_path, path.resolve()]) == dojo_path
-
-    for path in dojo_dir.glob("**"):
-        assert in_dojo_dir(path), f"Error: symlink `{path}` references path outside of the dojo"
+    for path in dojo_dir.rglob("*"):
+        assert dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
 
     data = yaml.safe_load(dojo_yml_path.read_text())
     return load_dojo(data, **kwargs)
