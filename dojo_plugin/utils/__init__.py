@@ -173,7 +173,7 @@ def module_challenges_visible(dojo, module, user):
 
 
 def is_dojo_admin(user, dojo):
-    return user and dojo and (user.type == "admin" or dojo.owner_id == user.id)
+    return user and dojo and dojo.is_admin(user)
 
 
 def dojo_route(func):
@@ -449,4 +449,4 @@ def sandboxed_git_command(repo_dir, command):
 
     return returncode, output
 
-from ..models import Dojos, DojoMembers, DojoChallenges
+from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges

@@ -133,6 +133,10 @@ class Dojos(Referenceable, db.Model):
                 challenge.module_index = module_index
         self._modules = value
 
+    @property
+    def directory(self):
+        return DOJOS_DIR / dojo.type / dojo.id
+
     @classmethod
     def viewable(cls, user_id):
         return cls.query.filter(or_(

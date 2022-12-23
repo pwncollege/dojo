@@ -28,28 +28,6 @@ dojo_namespace = Namespace(
 )
 
 
-def random_dojo_join_code():
-    return os.urandom(8).hex()
-
-
-@dojo_namespace.route("/change-join-code")
-class UpdateJoinCode(Resource):
-    @authed_only
-    def post(self):
-        data = request.get_json()
-        user = get_current_user()
-
-        dojo_id = data.get("dojo_id")
-        dojo = Dojos.query.filter_by(id=dojo_id).first()
-        if not is_dojo_admin(user, dojo):
-            return {"success": False, "error": f"Invalid dojo specified: {data.get('dojo_id')}"}
-
-        dojo.join_code = random_dojo_join_code()
-        db.session.add(dojo)
-        db.session.commit()
-        return {"success": True, "dojo_id": dojo.id, "join_code": dojo.join_code}
-
-
 @dojo_namespace.route("/leave")
 class Leave(Resource):
     @authed_only
@@ -62,37 +40,10 @@ class Leave(Resource):
         if not dojo:
             return {"success": False, "error": f"Invalid dojo specified: {data.get('dojo_id')}"}
 
-        deleter = sqlalchemy.delete(DojoMembers).where(and_(DojoMembers.dojo == dojo, DojoMembers.user == user)).execution_options(synchronize_session="fetch")
-        db.session.execute(deleter)
+        DojoUsers.query.filter_by(dojo_id=dojo.dojo_id, user_id=user.id).delete()
         db.session.commit()
-        return {"success": True, "dojo_id": dojo.id}
 
-
-@dojo_namespace.route("/make-public")
-class MakePublic(Resource):
-    @authed_only
-    def post(self):
-        data = request.get_json()
-        user = get_current_user()
-
-        dojo_id = data.get("dojo_id")
-        dojo = Dojos.query.filter_by(id=dojo_id).first()
-        if not is_dojo_admin(user, dojo):
-            return {"success": False, "error": f"Invalid dojo specified: {data.get('dojo_id')}"}
-
-        if not (is_admin() or any(award.name == "PUBLIC_DOJO" for award in user.awards)):
-            return {
-                "success": False,
-                "error":
-                """<p><b>You do not have authorization to make public dojos.</b></p>"""
-                """<p>For authorization to make public dojos, please email """
-                """<a href="mailto:pwn-college@asu.edu">pwn-college@asu.edu</a>.</p>"""
-            }
-
-        dojo.join_code = None
-        db.session.add(dojo)
-        db.session.commit()
-        return {"success": True, "dojo_id": dojo.id}
+        return {"success": True}
 
 
 @dojo_namespace.route("/delete")
@@ -100,23 +51,20 @@ class DeleteDojo(Resource):
     @authed_only
     def post(self):
         data = request.get_json()
-        user = get_current_user()
-
         dojo_id = data.get("dojo_id")
-        dojo = Dojos.query.filter_by(id=dojo_id).first()
-        if not is_dojo_admin(user, dojo):
-            return {"success": False, "error": f"Invalid dojo specified: {data.get('dojo_id')}"}
 
-        dojo_dir = DOJOS_DIR/str(user.id)/dojo.id
-        if not dojo_dir.exists():
-            return {"success": False, "error": "Dojo directory does not exist."}
+        dojo = Dojos.query.filter_by(id=dojo_id).first()
+
+        if not (dojo and dojo.is_admin()):
+            return {"success": False, "error": f"Invalid dojo specified: {dojo_id}"}
 
         db.session.delete(dojo)
         db.session.commit()
 
-        shutil.rmtree(str(dojo_dir))
+        shutil.rmtree(str(dojo.directory))
 
-        return {"success": True, "dojo_id": dojo.id}
+        return {"success": True}
+
 
 @dojo_namespace.route("/create")
 class CreateDojo(Resource):
@@ -142,8 +90,7 @@ class CreateDojo(Resource):
             db.session.add(dojo)
             db.session.commit()
 
-            dojo_path.rename(DOJOS_DIR / dojo.type / dojo.id)
-
+            dojo_path.rename(dojo.directory)
 
         except AssertionError as e:
             return {"success": False, "error": str(e)}, 400
@@ -154,45 +101,12 @@ class CreateDojo(Resource):
         return {"success": True, "dojo_id": dojo.dojo_id}
 
 
-@dojo_namespace.route("/join")
-class JoinDojo(Resource):
-    @authed_only
-    def post(self):
-        data = request.get_json()
-        join_code = data.get("join_code", "")
-        grade_token = data.get("grade_token", "")
-
-        if not id_regex(grade_token):
-            return {"success": False, "error": "Invalid grade token."}
-
-        user = get_current_user()
-
-        dojo = Dojos.query.filter_by(join_code=join_code).first()
-        if not dojo:
-            return (
-                {"success": False, "error": "Private dojo not found"},
-                404
-            )
-
-        membership = DojoMembers.query.filter_by(dojo=dojo, user=user).first()
-        if membership:
-            membership.grade_token = grade_token
-        else:
-            membership = DojoMembers(dojo=dojo, user=user, grade_token=grade_token)
-
-        try:
-            db.session.add(membership)
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-
-        return {"success": True}
-
-
 @dojo_namespace.route("/solves")
 class DojoSolves(Resource):
     @authed_only
     def get(self):
+        # TODO
+
         user = get_current_user()
         dojo_id = f"private-{user.id}"
 
