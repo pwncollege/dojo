@@ -11,7 +11,8 @@ from CTFd.utils.decorators import authed_only
 
 from ...config import HOST_DATA_PATH
 from ...models import DojoChallenges
-from ...utils import get_current_dojo_challenge_id, serialize_user_flag, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, dojo_by_id, module_challenges_visible
+from ...utils import get_current_dojo_challenge_id, serialize_user_flag, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, module_challenges_visible
+from ...utils.dojo import dojo_accessible
 
 
 docker_namespace = Namespace(
@@ -78,6 +79,9 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             hostname=hostname,
             user="hacker",
             working_dir="/home/hacker",
+            labels={
+                "dojo-id": str(dojo.id),
+            },
             environment={
                 "DOJO_ID": str(dojo.id),
                 "CHALLENGE_ID": str(dojo_challenge.challenge_id),
@@ -198,7 +202,7 @@ class RunDocker(Resource):
         dojo_id = data.get("dojo_id")
         practice = data.get("practice")
 
-        dojo = dojo_by_id(dojo_id)
+        dojo = dojo_accessible(dojo_id)
         if not dojo:
             return {"success": False, "error": "Invalid dojo"}
 

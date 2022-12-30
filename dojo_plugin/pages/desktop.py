@@ -5,7 +5,8 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.models import Users
 
-from ..utils import get_current_challenge_id, random_home_path, dojo_route, get_active_users, redirect_user_socket
+from ..utils import get_current_challenge_id, random_home_path, get_active_users, redirect_user_socket
+from ..utils.dojo import dojo_route
 
 
 desktop = Blueprint("pwncollege_desktop", __name__)

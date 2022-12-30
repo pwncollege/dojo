@@ -10,8 +10,8 @@ import yaml
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import synonym
 from sqlalchemy.sql import or_, and_
-from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.dialects.mysql import MEDIUMTEXT
+from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
+from sqlalchemy.ext.associationproxy import association_proxy
 from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, Users
 from CTFd.utils.user import get_current_user
 
@@ -96,12 +96,16 @@ class Dojos(Referenceable, db.Model):
     _name = Referenceable.shadowed(db.Column("name", db.String(128)))
     _description = Referenceable.shadowed(db.Column("description", db.Text))
 
+    attributes = db.relationship("DojoAttributes", back_populates="dojo")
     users = db.relationship("DojoUsers", back_populates="dojo")
     members = db.relationship("DojoMembers", back_populates="dojo")
     admins = db.relationship("DojoAdmins", back_populates="dojo")
     students = db.relationship("DojoStudents", back_populates="dojo")
-    _modules = db.relationship("DojoModules", back_populates="dojo")
-    challenges = db.relationship("DojoChallenges", back_populates="dojo", viewonly=True)
+    _modules = db.relationship("DojoModules", order_by=lambda: DojoModules.module_index, back_populates="dojo")
+    challenges = db.relationship("DojoChallenges",
+                                 order_by=lambda: (DojoChallenges.module_index, DojoChallenges.challenge_index),
+                                 back_populates="dojo",
+                                 viewonly=True)
 
     @hybrid_property
     def id(self):
@@ -137,12 +141,15 @@ class Dojos(Referenceable, db.Model):
         return DOJOS_DIR / dojo.type / dojo.id
 
     @classmethod
-    def viewable(cls, user_id):
+    def viewable(cls, user=None):
         return cls.query.filter(or_(
             cls.type == "official",
             cls.id.in_(db.session.query(DojoUsers.dojo_id)
-                       .filter_by(user_id=user_id)
+                       .filter_by(user=user)
                        .subquery())))
+
+    def solves(self, *, user=None):
+        return DojoChallenges.solves(user=user, dojo=self)
 
     __repr__ = columns_repr(["name", "id"])
 
@@ -163,14 +170,23 @@ class OfficialDojos(Dojos):
         return cls.query.filter_by(name=simplify(name)).first()
 
 
-class PublicDojos(Dojos):
-    __mapper_args__ = {"polymorphic_identity": "public"}
-
-
 class PrivateDojos(Dojos):
     __mapper_args__ = {"polymorphic_identity": "private"}
 
     password = db.Column(db.String(128))
+
+
+class DojoAttributes(db.Model):
+    __tablename__ = "dojo_attributes"
+
+    dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"), primary_key=True, index=True)
+    attribute_id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(80), index=True)
+    value = db.Column(db.Text, unique=True)
+
+    dojo = db.relationship("Dojos", back_populates="attributes")
+
+    __repr__ = columns_repr(["dojo", "type", "value"])
 
 
 class DojoUsers(db.Model):
@@ -184,6 +200,9 @@ class DojoUsers(db.Model):
 
     dojo = db.relationship("Dojos", back_populates="users")
     user = db.relationship("Users")
+
+    def solves(self, *, module=None):
+        return DojoChallenges.solves(user=self.user, dojo=self.dojo, module=module)
 
     __repr__ = columns_repr(["dojo", "user"])
 
@@ -222,7 +241,7 @@ class DojoModules(Referenceable, db.Model):
     _description = Referenceable.shadowed(db.Column("description", db.Text))
 
     dojo = db.relationship("Dojos", back_populates="_modules")
-    _challenges = db.relationship("DojoChallenges", back_populates="module")
+    _challenges = db.relationship("DojoChallenges", order_by=lambda: DojoChallenges.challenge_index, back_populates="module")
     _resources = db.relationship("DojoResources", back_populates="module")
 
     @hybrid_property
@@ -245,11 +264,8 @@ class DojoModules(Referenceable, db.Model):
             resource.resource_index = resource_index
         self._resources = value
 
-    @hybrid_property
-    def solves(self):
-        return db.session.query(Solves).filter(Solves)
-        return Solves.query.filter_by(challenge=self.challenge)
-
+    def solves(self, *, user=None):
+        return DojoChallenges.solves(user=user, module=self)
 
     __repr__ = columns_repr(["dojo", "id"])
 
@@ -278,9 +294,21 @@ class DojoChallenges(Referenceable, db.Model):
     runtime = db.relationship("DojoChallengeRuntimes", back_populates="challenge")
     duration = db.relationship("DojoChallengeDurations", back_populates="challenge")
 
-    @hybrid_property
-    def solves(self):
-        return Solves.query.filter_by(challenge=self.challenge)
+    @hybrid_method
+    def solves(self, *, user=None, dojo=None, module=None):
+        solves_filter = {
+            Solves.user: user
+        }
+        challenges_filter = {
+            self.challenge_id: Solves.challenge_id,
+            self.dojo: dojo,
+            self.module: module,
+        }
+        return (
+            Solves.query
+            .filter(*(k == v for k, v in solves_filter.items() if v is not None))
+            .join(DojoChallenges, and_(*(k == v for k, v in challenges_filter.items() if v is not None)))
+        )
 
     __repr__ = columns_repr(["dojo", "id", "challenge_id"])
 

@@ -2,7 +2,8 @@ from flask import request, Blueprint, render_template
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
-from ..utils import get_current_challenge_id, random_home_path, dojo_route, redirect_user_socket
+from ..utils import get_current_challenge_id, random_home_path, redirect_user_socket
+from ..utils.dojo import dojo_route
 
 
 workspace = Blueprint("pwncollege_workspace", __name__)
