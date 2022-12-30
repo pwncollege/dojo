@@ -2,19 +2,23 @@ import os
 import subprocess
 import tempfile
 import datetime
+import functools
+import contextlib
+import inspect
 
 import yaml
 from schema import Schema, Optional, Regex, Or, SchemaError
+from flask import g
 from CTFd.models import db
+from CTFd.utils.user import get_current_user
 
-from ...models import Dojos, PublicDojos, PrivateDojos, OfficialDojos, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoChallengeDurations
+from ...models import Dojos, PrivateDojos, OfficialDojos, DojoUsers, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoChallengeDurations
 
 
 DOJO_SPEC = Schema({
     "id": Regex(r"^[a-z0-9-]{1,32}$"),
     "name": Regex(r"^[\S ]{1,128}$"),
     Optional("description"): str,
-    Optional("type", default="public"): Or("public", "private"),
 
     Optional("password"): Regex(r"^[\S ]{8,128}$"),
 
@@ -73,9 +77,8 @@ def load_dojo(data, *,
     dojo_type = dojo_type or (dojo.type if dojo else data["type"])
 
     dojo_cls = {
-        "public": PublicDojos,
-        "private": PrivateDojos,
         "official": OfficialDojos,
+        "private": PrivateDojos,
     }[dojo_type]
 
     dojo_kwargs = dict(
@@ -87,8 +90,7 @@ def load_dojo(data, *,
     )
 
     if dojo_cls is PrivateDojos:
-        assert "password" in data, "Missing key: 'password'"
-        dojo_kwargs["password"] = data["password"]
+        dojo_kwargs["password"] = data.get("password")
 
     # TODO: for all references: index -> name
 
@@ -137,3 +139,29 @@ def dojo_clone(repository):
                    check=True,
                    capture_output=True)
     return clone_dir
+
+
+def dojo_accessible(dojo_id):
+    return Dojos.viewable(user=get_current_user()).filter_by(id=dojo_id).first()
+
+
+def dojo_route(func):
+    signature = inspect.signature(func)
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        bound_args = signature.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+
+        dojo = dojo_accessible(bound_args.arguments["dojo"])
+        if not dojo:
+            abort(404)
+        bound_args.arguments["dojo"] = dojo
+
+        if "module" in bound_args.arguments:
+            module = DojoModules.query.filter_by(dojo=dojo, id=bound_args.arguments["module"]).first()
+            if module is None:
+                abort(404)
+            bound_args.arguments["module"] = module
+
+        return func(*bound_args.args, **bound_args.kwargs)
+    return wrapper

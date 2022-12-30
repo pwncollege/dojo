@@ -12,7 +12,8 @@ from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
 
 from ...models import Dojos
-from ...utils import dojo_route, dojo_standings, dojo_by_id, dojo_completions, user_dojos, first_bloods, daily_solve_counts
+from ...utils import dojo_standings, dojo_completions, user_dojos, first_bloods, daily_solve_counts
+from ...utils.dojo import dojo_route, dojo_accessible
 from .belts import get_belts
 
 
@@ -43,7 +44,7 @@ def belt_asset_for(user_id):
 
 @cache.memoize(timeout=60)
 def get_standings(count=None, span=None, *, dojo_id=None, module_id=None):
-    dojo = dojo_by_id(dojo_id)
+    dojo = dojo_accessible(dojo_id)
     if span in [ None, 'overall', 'dojo' ]:
         start = None
     elif span == 'week':

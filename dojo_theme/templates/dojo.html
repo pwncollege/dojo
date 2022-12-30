@@ -28,10 +28,6 @@
   <p>These are the stats of this specific dojo ({{dojo.name}}), accrued since the dojo's creation.</p>
   <div class="row">
     <p>
-      {% if dojo.config.time_created %}
-      <b>Created On:</b> <code>{{ dojo.config["time_created"].strftime("%B %-d, %Y") }}</code>
-      <br>
-      {% endif %}
       <b>Hacking Now:</b> <code>{{ stats["active"] }}</code>
       <br>
       <b>Hackers:</b> <code>{{ stats["users"] }}</code>
@@ -44,26 +40,27 @@
 
   <br style="font-size: 3em">
 
-  {% if authed() and (graded or asu_student or dojo_admin) %}
-  <h2 class="row">Dojo Grades</h2>
-  {% if graded or asu_student %}
-  <p>If you are working through this dojo for class credit, you can check your grade <a href="grades">here</a>.</p>
+  {% if dojo_user.type == "student" %}
+    <h2 class="row">Dojo Grades</h2>
+    <p>If you are working through this dojo for class credit, you can check your grade <a href="grades">here</a>.</p>
   {% endif %}
-  {% if dojo_admin %}
-  <p>As the admin of the dojo, you can view grades for your students (who entered a grade token when joining) <a href="{{ url_for("grades.dojo_grades", dojo=dojo.id) }}">here</a>.</p>
-  {% endif %}
+  {% if dojo_user.type == "admin" %}
+    <h2 class="row">Dojo Admin</h2>
+    <p>As the admin of the dojo, you can view grades for your students (who entered a grade token when joining) <a href="{{ url_for("grades.dojo_grades", dojo=dojo.id) }}">here</a>.</p>
+    {% endif %}
+
   <br style="font-size: 3em">
-  {% endif %}
 
   <h2 class="row">Dojo Modules</h2>
   <ul class="card-list">
-    {% for module in dojo.modules if not stats[module.id].hide %}
+    {% for module in dojo.modules %}
     <a class="text-decoration-none mx-auto" href="{{ url_for('pwncollege_dojo.view_module', dojo=dojo.id, module=module.id) }}">
-      <li class="card card-small {% if stats[module.id].active %}card-active{% endif %} {% if stats[module.id].hidden %}card-hidden{% endif %}">
+      {# TODO: card-active, card-hidden #}
+      <li class="card card-small">
         <div class="card-body">
           <h4 class="card-title">{{ module.name }}</h4>
           <p class="card-text">
-            {{ stats[module.id].solved }} / {{ stats[module.id].count }}
+            {{ module.solves(user=user).count() if user else 0 }} / {{ module.challenges | length }}
           </p>
         </div>
       </li>

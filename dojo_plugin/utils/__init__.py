@@ -113,7 +113,7 @@ def redirect_user_socket(user, socket_path, url_path):
     return redirect_internal(f"http://unix:/var/homes/nosuid/{random_home_path(user)}/{socket_path}:{url_path}")
 
 def render_markdown(s):
-    return markup(build_markdown(s))
+    return markup(build_markdown(s or ""))
 
 def unserialize_user_flag(user_flag, *, secret=None):
     if secret is None:
@@ -139,22 +139,6 @@ def random_home_path(user, *, secret=None):
         secret = current_app.config["SECRET_KEY"]
     return hashlib.sha256(f"{secret}_{user.id}".encode()).hexdigest()[:16]
 
-def dojo_by_id(dojo_id):
-    dojo = Dojos.query.filter_by(id=dojo_id).first()
-    if not dojo:
-        return None
-    if dojo.public:
-        return dojo
-
-    user = get_current_user()
-    if not user:
-        return None
-    if user.id == dojo.owner_id:
-        return dojo
-    if not DojoMembers.query.filter_by(dojo_id=dojo.id, user_id=user.id).first():
-        return None
-    return dojo
-
 
 def module_visible(dojo, module, user):
     return (
@@ -174,32 +158,6 @@ def module_challenges_visible(dojo, module, user):
 
 def is_dojo_admin(user, dojo):
     return user and dojo and dojo.is_admin(user)
-
-
-def dojo_route(func):
-    signature = inspect.signature(func)
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        bound_args = signature.bind(*args, **kwargs)
-        bound_args.apply_defaults()
-        dojo = bound_args.arguments["dojo"]
-        if dojo is not None:
-            dojo = dojo_by_id(dojo)
-            if not dojo:
-                abort(404)
-        bound_args.arguments["dojo"] = dojo
-
-        with contextlib.suppress(KeyError):
-            module = bound_args.arguments["module"]
-            if module is not None:
-                module = dojo.module_by_id(module)
-                if not module or not module_visible(dojo, module, get_current_user()):
-                    abort(404)
-
-            bound_args.arguments["module"] = module
-
-        return func(*bound_args.args, **bound_args.kwargs)
-    return wrapper
 
 
 def user_dojos(user):

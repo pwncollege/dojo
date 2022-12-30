@@ -3,79 +3,61 @@ import docker
 import pytz
 
 from flask import Blueprint, render_template, redirect
-from CTFd.models import Solves, Challenges, Users
+from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators.visibility import check_challenge_visibility
 from CTFd.utils.helpers import get_infos
 from CTFd.cache import cache
 
-from ..utils import get_current_dojo_challenge_id, dojo_route, dojo_by_id, render_markdown, module_visible, module_challenges_visible, is_dojo_admin
+from ..utils import get_current_dojo_challenge_id, render_markdown, module_visible, module_challenges_visible, is_dojo_admin
+from ..utils.dojo import dojo_route
 from .grades import module_grade_report
-from ..models import DojoMembers
+from ..models import Dojos, DojoUsers
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 
 
 @cache.memoize(timeout=60)
-def get_stats(dojo_id):
+def get_stats(dojo):
     docker_client = docker.from_env()
-    containers = docker_client.containers.list(filters=dict(name="user_"), ignore_removed=True)
+    filters = {
+        "name": "user_",
+        "label": f"dojo-id={dojo.id}"
+    }
+    containers = docker_client.containers.list(filters=filters, ignore_removed=True)
+
     now = datetime.datetime.now()
     active = 0.0
     for container in containers:
-        if not any(e == f"DOJO_ID={dojo_id}" for e in container.attrs['Config']['Env']):
-            continue
-
         created = container.attrs["Created"].split(".")[0]
         uptime = now - datetime.datetime.fromisoformat(created)
         hours = max(uptime.seconds // (60 * 60), 1)
         active += 1 / hours
 
-    dojo = dojo_by_id(dojo_id)
-    challenge_query = dojo.challenges_query()
-    time_query = Solves.date > dojo.config["time_created"] if "time_created" in dojo.config else True
-
     return {
         "active": int(active),
-        "users": int(Users.query.join(Solves, Solves.user_id == Users.id).join(Challenges, Solves.challenge_id == Challenges.id).filter(challenge_query, time_query).group_by(Users.id).count()),
-        "challenges": int(Challenges.query.filter(challenge_query, Challenges.state == "visible").count()),
-        "solves": int(Solves.query.join(Challenges, Solves.challenge_id == Challenges.id).filter(challenge_query, time_query).count()),
+        "users": int(dojo.solves().group_by(Solves.user_id).count()),
+        "challenges": int(len(dojo.challenges)),
+        "solves": int(dojo.solves().count()),
     }
+
 
 @dojo.route("/<dojo>/")
 @dojo_route
 @check_challenge_visibility
 def listing(dojo):
     infos = get_infos()
-    stats = get_stats(dojo.id)
     user = get_current_user()
-    for module in dojo.modules:
-        challenges = dojo.challenges(module, user=user, admin_view=is_dojo_admin(user, dojo))
-        stats[module["id"]] = {
-            "count": len(challenges),
-            "solved": sum(1 for challenge in challenges if challenge.solved),
-        }
-        stats[module["id"]]["active"] = (
-            "time_assigned" in module and "time_due" in module and
-            module["time_assigned"] <= datetime.datetime.now(pytz.utc) and
-            datetime.datetime.now(pytz.utc) <= module["time_due"]
-        )
-        # "hidden" controls the client-side CSS, and "hide" tells jinja2 to hide the module completely
-        stats[module["id"]]["hidden"] = "time_visible" in module and module["time_visible"] >= datetime.datetime.now(pytz.utc)
-        stats[module["id"]]["hide"] = not module_visible(dojo, module, user)
-
-    dojo_membership = DojoMembers.query.filter_by(user=user, dojo=dojo).first()
-    graded = dojo_membership and dojo_membership.grade_token != ""
-
+    dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user)
+    stats = get_stats(dojo)
     return render_template(
         "dojo.html",
         dojo=dojo,
+        user=user,
+        dojo_user=dojo_user,
         stats=stats,
         infos=infos,
         render_markdown=render_markdown,
-        graded=graded,
-        dojo_admin=is_dojo_admin(user, dojo),
-        asu_student=False if user is None else user.email.endswith("asu.edu"),
     )
 
 
@@ -84,21 +66,18 @@ def listing(dojo):
 @check_challenge_visibility
 def view_module(dojo, module):
     user = get_current_user()
-    module_report = module_grade_report(dojo, module, user)
-
-    challenges = (
-        dojo.challenges(module, user=get_current_user(), admin_view=is_dojo_admin(user, dojo))
-    ) if module_challenges_visible(dojo, module, get_current_user()) else [ ]
+    user_solves = set(solve.challenge_id for solve in module.solves(user=user)) if user else set()
+    total_solves = dict(module.solves()
+                        .group_by(Solves.challenge_id)
+                        .with_entities(Solves.challenge_id, db.func.count()))
     current_dojo_challenge_id = get_current_dojo_challenge_id()
-
     return render_template(
         "module.html",
         dojo=dojo,
         module=module,
-        module_report=module_report,
-        utcnow=datetime.datetime.now(pytz.utc),
+        user_solves=user_solves,
+        total_solves=total_solves,
+        user=user,
+        current_dojo_challenge_id=current_dojo_challenge_id,
         render_markdown=render_markdown,
-        challenges=challenges,
-        asu_student=False if user is None else user.email.endswith("asu.edu"),
-        current_dojo_challenge_id=current_dojo_challenge_id
     )

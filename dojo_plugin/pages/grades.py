@@ -13,7 +13,8 @@ from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.cache import cache
 
 from ..models import DiscordUsers, DojoMembers
-from ..utils import module_visible, module_challenges_visible, dojo_route, DOJOS_DIR, is_dojo_admin
+from ..utils import module_visible, module_challenges_visible, DOJOS_DIR, is_dojo_admin
+from ..utils.dojo import dojo_route
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 from .discord import discord_reputation
 

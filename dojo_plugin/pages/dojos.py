@@ -1,7 +1,9 @@
 from flask import Blueprint, render_template, redirect, url_for
 from CTFd.utils.user import get_current_user
 
-from ..utils import dojo_route, user_dojos
+from ..models import Dojos
+from ..utils import user_dojos
+from ..utils.dojo import dojo_route
 
 
 dojos = Blueprint("pwncollege_dojos", __name__)
@@ -18,18 +20,8 @@ def dojo_stats(dojo):
 @dojos.route("/dojos")
 def listing():
     user = get_current_user()
-    dojos = user_dojos(user)
-
-    private_dojos = [ d for d in dojos if not d.public and not d.archived ]
-    public_dojos = [ d for d in dojos if d.public and not d.archived ]
-    archived_dojos = [ d for d in dojos if d.archived ]
-
-    stats = {
-        dojo.id: dojo_stats(dojo)
-        for dojo in dojos
-    }
-
-    return render_template("dojos.html", public_dojos=public_dojos, private_dojos=private_dojos, archived_dojos=archived_dojos, stats=stats)
+    dojos = Dojos.viewable(user=user)
+    return render_template("dojos.html", user=user, dojos=dojos)
 
 
 @dojos.route("/dojo/<dojo>")
