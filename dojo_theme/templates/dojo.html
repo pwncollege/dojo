@@ -25,6 +25,7 @@
   {% endif %}
 
   <h2 class="row">Dojo Stats</h2>
+  <br>
   <p>These are the stats of this specific dojo ({{dojo.name}}), accrued since the dojo's creation.</p>
   <div class="row">
     <p>
@@ -41,20 +42,23 @@
   <br style="font-size: 3em">
 
   {% if dojo_user.type == "student" %}
-    <h2 class="row">Dojo Grades</h2>
+  <h2 class="row">Dojo Grades</h2>
+    <br>
     <p>If you are working through this dojo for class credit, you can check your grade <a href="grades">here</a>.</p>
   {% endif %}
   {% if dojo_user.type == "admin" %}
     <h2 class="row">Dojo Admin</h2>
-    <p>As the admin of the dojo, you can view grades for your students (who entered a grade token when joining) <a href="{{ url_for("grades.dojo_grades", dojo=dojo.id) }}">here</a>.</p>
+    <br>
+    <p>As the admin of the dojo, you can view grades for your students (who entered a grade token when joining) <a href="{{ url_for("grades.dojo_grades", dojo=dojo_id) }}">here</a>.</p>
     {% endif %}
 
   <br style="font-size: 3em">
 
   <h2 class="row">Dojo Modules</h2>
+  <br>
   <ul class="card-list">
     {% for module in dojo.modules %}
-    <a class="text-decoration-none mx-auto" href="{{ url_for('pwncollege_dojo.view_module', dojo=dojo.id, module=module.id) }}">
+    <a class="text-decoration-none mx-auto" href="{{ url_for('pwncollege_dojo.view_module', dojo=dojo_id, module=module.id) }}">
       {# TODO: card-active, card-hidden #}
       <li class="card card-small">
         <div class="card-body">
@@ -70,15 +74,13 @@
 
   <br style="font-size: 3em">
 
-  <h2 class="row">
-    Dojo Rankings:
-  </h2>
+  <h2 class="row">Dojo Rankings:</h2>
+  <br>
   <p>
     <a href="javascript:loadScoreboard(7, 1)">Week</a> |
     <a href="javascript:loadScoreboard(30, 1)">Month</a> |
     <a href="javascript:loadScoreboard(0, 1)">All Time</a>
   </p>
-
   {% import "macros.html" as macros %}
   {{ macros.scoreboard() }}
 </div>

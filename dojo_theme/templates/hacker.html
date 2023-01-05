@@ -120,7 +120,7 @@
       </span>
       {{ macros.accordion_title_end() }}
       {{ macros.accordion_body_start("dojos", idx+loop.index) }}
-      <p>Progress on <a href="{{ url_for("pwncollege_dojo.listing", dojo=dojo.id) }}">{{ dojo.name }}</a>:<p>
+      <p>Progress on <a href="{{ url_for("pwncollege_dojo.listing", dojo=dojo_id) }}">{{ dojo.name }}</a>:<p>
       <table class="table table-striped">
         <thead>
           <tr>
@@ -133,16 +133,16 @@
           {% for module in dojo_stats.visible_modules %}
           {% set module_stats = dojo_stats.module_stats[module.id] %}
           <tr>
-            <td><a href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo.id, module=module.id) }}">{{ module.name }}</a></td>
+            <td><a href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo_id, module=module_id) }}">{{ module.name }}</a></td>
             <td>
               {{ module_stats.solved }} / {{ module_stats.count }}<br>
               {% for chal in module_stats.solved_chals %}
-              <a title="Solved on {{ chal.solve_date.strftime("%B %-d, %Y at %-I:%M%P") }} AZ time. Solved by {{ chal.solves }} hackers." href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo.id, module=module.id) }}#challenge-{{chal.name}}">{{chal.name}}</a>
+              <a title="Solved on {{ chal.solve_date.strftime("%B %-d, %Y at %-I:%M%P") }} AZ time. Solved by {{ chal.solves }} hackers." href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo_id, module=module_id) }}#challenge-{{chal.name}}">{{chal.name}}</a>
               {%endfor%}
             </td>
             <td>
               {% for chal in module_stats.unsolved_chals %}
-              <a title="Solved by {{ chal.solves }} hackers." href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo.id, module=module.id) }}#challenge-{{chal.name}}">{{chal.name}}</a>
+              <a title="Solved by {{ chal.solves }} hackers." href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo_id, module=module_id) }}#challenge-{{chal.name}}">{{chal.name}}</a>
               {%endfor%}
             </td>
           </td>

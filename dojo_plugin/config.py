@@ -36,7 +36,7 @@ for config_option in missing_warnings:
 def bootstrap():
     from .models import OfficialDojos
     from .pages.discord import discord_reputation
-    from .utils import CHALLENGES_DIR, DOJOS_DIR
+    from .utils import CHALLENGES_DIR, DOJOS_DIR, DATA_DIR
     from .utils.dojo import load_dojo_dir
 
     set_config("ctf_name", "pwn.college")
@@ -75,7 +75,7 @@ def bootstrap():
         db.session.add(page)
         db.session.commit()
 
-        with open("/var/data/initial_credentials", "w") as f:
+        with open(DATA_DIR / "initial_credentials", "w") as f:
             f.write(f"admin:{admin_password}\n")
 
         set_config("setup", True)
