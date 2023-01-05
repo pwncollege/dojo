@@ -253,5 +253,5 @@
 
 {% block scripts %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/challenges.js') }}"></script>
-<script defer onload='loadScoreboard("module", 1);' src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
+<script defer onload='loadScoreboard(0, 1);' src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
 {% endblock %}

@@ -7,7 +7,7 @@ from CTFd.cache import cache
 import pytz
 
 from ..utils import user_dojos, module_visible, dojo_standings
-from ..api.v1.scoreboard import belt_asset, belt_asset_for
+from ..api.v1.scoreboard import belt_asset
 
 users = Blueprint("pwncollege_users", __name__)
 
@@ -80,7 +80,7 @@ def view_profile(user):
     return render_template(
         "hacker.html",
         public_dojos=public_dojos, private_dojos=private_dojos, archived_dojos=archived_dojos, stats=stats,
-        user=user, current_user=current_user, belt=belt_asset("black") if user.type == "admin" else belt_asset_for(user.id),
+        user=user, current_user=current_user, belt=belt_asset(None),  # TODO: belt
         global_position=global_position, total_solvers=total_solvers
     )
 
