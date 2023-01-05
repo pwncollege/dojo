@@ -1,17 +1,9 @@
 function loadScoreboard(duration, page) {
-    const dojo = init.dojo_id;
-    const module = init.module_id;
+    const dojo_id = init.dojo_id;
+    const module_id = init.module_id || "_";
     const scoreboard = $("#scoreboard");
 
-    if (!dojo || dojo == "None"){
-        var endpoint = `/pwncollege_api/v1/scoreboard/${duration}/${page - 1}`;
-    }
-    else if (module && module != "None") {
-        var endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${module}/${duration}/${page - 1}`;
-    }
-    else {
-        var endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${duration}/${page - 1}`;
-    }
+    const endpoint = `/pwncollege_api/v1/scoreboard/${dojo_id}/${module_id}/${duration}/${page}`;
 
     CTFd.fetch(endpoint, {
         method: "GET",
@@ -24,17 +16,17 @@ function loadScoreboard(duration, page) {
         return response.json()
     }).then(result => {
         scoreboard.empty();
-        const standings = result.page_standings;
+        const standings = result.standings;
         if (result.me) {
-            if (result.me.place < standings[0].place)
+            if (result.me.rank < standings[0].rank)
                 standings.splice(0, 0, result.me)
-            else if (result.me.place > standings[standings.length - 1].place)
+            else if (result.me.rank > standings[standings.length - 1].rank)
                 standings.splice(standings.length, 0, result.me)
         }
         standings.forEach(user => {
             const row = $(`
             <tr>
-              <th scope="row">#${user.place}</th>
+              <th scope="row">#${user.rank}</th>
               <td class="p-0">
                 <img src="${user.symbol}" class="scoreboard-symbol">
               </td>
@@ -62,21 +54,19 @@ function loadScoreboard(duration, page) {
                 `));
             })
 
-            if (result.me && user.place == result.me.place)
+            if (result.me && user.user_id == result.me.user_id)
                 row.addClass("scoreboard-row-me");
             scoreboard.append(row);
         });
 
         const scoreboardPages = $("#scoreboard-pages");
         scoreboardPages.empty();
-        const minPage = Math.max(1, page - 5);
-        const maxPage = Math.min(page + 5, result.num_pages);
-        for (let i = minPage; i <= maxPage; i++) {
+        result.pages.forEach(i => {
             const pageButton = $(`
             <li class="scoreboard-page"><a href="javascript:loadScoreboard('${duration}', ${i})">${i}</a></li>
             `);
             pageButton.addClass(i == page ? "scoreboard-page-selected" : "scoreboard-page-unselected");
             scoreboardPages.append(pageButton);
-        }
+        });
     });
 }
