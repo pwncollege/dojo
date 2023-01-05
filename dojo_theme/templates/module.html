@@ -127,15 +127,11 @@
 
   #}
 
-
-  {#
-
   {% if module.resources %}
   <h2>Lectures and Reading</h2>
 
   <div class="accordion" id="resources">
     {% for resource in module.resources %}
-
     <div class="card">
       <div class="card-header" id="resourceHeading{{ loop.index }}">
         <h2 class="mb-0">
@@ -147,47 +143,33 @@
 
       <div id="resource{{ loop.index }}" class="resource collapse" aria-labelledby="resourceHeading{{ loop.index }}" data-parent="#resources">
         <div class="card-body">
-          {% set makebr = 0 %}
-
-          {% if resource.video %}
-          {% if makebr %}<br>{% endif %} {% set makebr = 1 %}
+          {% if resource.type == "lecture" %}
+          {% if resource.data.video %}
+          {% set src = "https://www.youtube.com/embed/" + resource.data.video + "?" + ("list=" + resource.data.playlist + "&" if resource.data.playlist else "") + "rel=0" %}
           <div class="embed-responsive embed-responsive-16by9">
-            <iframe class="embed-responsive-item" data-src="https://www.youtube.com/embed/{{ resource.video }}?list={{ resource.playlist }}&rel=0" title="YouTube video player" allowfullscreen></iframe>
+            <iframe class="embed-responsive-item" data-src="{{ src }}" title="YouTube video player" allowfullscreen></iframe>
+          </div>
+          {% endif %}
+          {% if resource.data.slides %}
+          {% set src = "https://docs.google.com/presentation/d/" + resource.data.slides + "/embed" %}
+          <div class="embed-responsive embed-responsive-16by9">
+            <iframe class="embed-responsive-item" data-src="{{ src }}"></iframe>
           </div>
           {% endif %}
 
-          {% if resource.slides %}
-          {% if makebr %}<br>{% endif %} {% set makebr = 1 %}
-          <div class="embed-responsive embed-responsive-16by9">
-            <iframe class="embed-responsive-item" data-src="https://docs.google.com/presentation/d/{{ resource.slides }}/embed"></iframe>
-          </div>
-          {% endif %}
-
-          {% if resource.iframe %}
-          {% if makebr %}<br>{% endif %} {% set makebr = 1 %}
-          <div class="embed-responsive embed-responsive-16by9">
-            <iframe data-src="{{ resource.iframe }}" title="Embedded Resource"></iframe>
-          </div>
-          {% endif %}
-
-          {% if resource.markdown %}
-          {% if makebr %}<br>{% endif %} {% set makebr = 1 %}
+          {% elif resource.type == "markdown" %}
           <div class="embed-responsive">
-            {{ render_markdown(resource.markdown) }}
+            {{ render_markdown(resource.data) }}
           </div>
           {% endif %}
-
         </div>
       </div>
     </div>
-    {% endif %}
     {% endfor %}
   </div>
 
   <br style="font-size: 3em">
   {% endif %}
-
-  #}
 
   {% if module.challenges %}
   <h2>Challenges</h2>

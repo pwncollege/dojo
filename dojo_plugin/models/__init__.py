@@ -96,7 +96,6 @@ class Dojos(Referenceable, db.Model):
     _name = Referenceable.shadowed(db.Column("name", db.String(128)))
     _description = Referenceable.shadowed(db.Column("description", db.Text))
 
-    attributes = db.relationship("DojoAttributes", back_populates="dojo")
     users = db.relationship("DojoUsers", back_populates="dojo")
     members = db.relationship("DojoMembers", back_populates="dojo")
     admins = db.relationship("DojoAdmins", back_populates="dojo")
@@ -104,6 +103,10 @@ class Dojos(Referenceable, db.Model):
     _modules = db.relationship("DojoModules", order_by=lambda: DojoModules.module_index, back_populates="dojo")
     challenges = db.relationship("DojoChallenges",
                                  order_by=lambda: (DojoChallenges.module_index, DojoChallenges.challenge_index),
+                                 back_populates="dojo",
+                                 viewonly=True)
+    resources = db.relationship("DojoResources",
+                                 order_by=lambda: (DojoResources.module_index, DojoResources.resource_index),
                                  back_populates="dojo",
                                  viewonly=True)
 
@@ -174,19 +177,6 @@ class PrivateDojos(Dojos):
     __mapper_args__ = {"polymorphic_identity": "private"}
 
     password = db.Column(db.String(128))
-
-
-class DojoAttributes(db.Model):
-    __tablename__ = "dojo_attributes"
-
-    dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"), primary_key=True, index=True)
-    attribute_id = db.Column(db.Integer, primary_key=True)
-    type = db.Column(db.String(80), index=True)
-    value = db.Column(db.Text, unique=True)
-
-    dojo = db.relationship("Dojos", back_populates="attributes")
-
-    __repr__ = columns_repr(["dojo", "type", "value"])
 
 
 class DojoUsers(db.Model):
@@ -288,11 +278,40 @@ class DojoChallenges(Referenceable, db.Model):
     _name = Referenceable.shadowed(db.Column("name", db.String(128)))
     _description = Referenceable.shadowed(db.Column("description", db.Text))
 
-    challenge = db.relationship("Challenges")
     dojo = db.relationship("Dojos", back_populates="challenges", viewonly=True)
     module = db.relationship("DojoModules", back_populates="_challenges")
-    runtime = db.relationship("DojoChallengeRuntimes", back_populates="challenge")
-    duration = db.relationship("DojoChallengeDurations", back_populates="challenge")
+    _challenge = db.relationship("Challenges")
+    runtime = db.relationship("DojoChallengeRuntimes", uselist=False, back_populates="challenge")
+    visibility = db.relationship("DojoChallengeVisibilities", uselist=False, back_populates="challenge")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.reference and not self.challenge:
+            self.challenge = Challenges(type="dojo", flags=[Flags(type="dojo")])
+
+    @property
+    def challenge(self):
+        return self._challenge if not self.reference else self.reference.challenge
+
+    @challenge.setter
+    def challenge(self, value):
+        self._challenge = value
+
+    @hybrid_method
+    def visible(self, when=None):
+        when = when or datetime.datetime.utcnow()
+        return not self.visibility or all((
+            not self.visibility.start or when >= self.visibility.start,
+            not self.visibility.stop or when <= self.visibility.stop,
+        ))
+
+    @visible.expression
+    def visible(cls, when=None):
+        when = when or datetime.datetime.utcnow()
+        return or_(cls.visibility == None, and_(
+            cls.visibility.has(or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start)),
+            cls.visibility.has(or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop)),
+        ))
 
     @hybrid_method
     def solves(self, *, user=None, dojo=None, module=None):
@@ -333,8 +352,48 @@ class DojoChallengeRuntimes(db.Model):
     __repr__ = columns_repr(["challenge", "path"])
 
 
-class DojoChallengeDurations(db.Model):
-    __tablename__ = "dojo_challenge_durations"
+class DojoResources(db.Model):
+    __tablename__ = "dojo_resources"
+
+    __table_args__ = (
+        db.ForeignKeyConstraint(["dojo_id", "module_index"],
+                                ["dojo_modules.dojo_id", "dojo_modules.module_index"],
+                                ondelete="CASCADE"),
+    )
+
+    dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"), primary_key=True)
+    module_index = db.Column(db.Integer, primary_key=True)
+    resource_index = db.Column(db.Integer, primary_key=True)
+
+    type = db.Column(db.String(80), index=True)
+    name = db.Column(db.String(128))
+    data = db.Column(db.JSON)
+
+    dojo = db.relationship("Dojos", back_populates="resources", viewonly=True)
+    module = db.relationship("DojoModules", back_populates="_resources")
+    visibility = db.relationship("DojoResourceVisibilities", uselist=False, back_populates="resource")
+
+    @hybrid_property
+    def visible(self):
+        now = datetime.datetime.utcnow()
+        return not self.visibility or all((
+            not self.visibility.start or now >= self.visibility.start,
+            not self.visibility.stop or now <= self.visibility.stop,
+        ))
+
+    @visible.expression
+    def visible(cls):
+        now = datetime.datetime.utcnow()
+        return or_(cls.visibility == None, and_(
+            cls.visibility.has(or_(DojoResourceVisibilities.start == None, now >= DojoResourceVisibilities.start)),
+            cls.visibility.has(or_(DojoResourceVisibilities.stop == None, now <= DojoResourceVisibilities.stop)),
+        ))
+
+    __repr__ = columns_repr(["module"])
+
+
+class DojoChallengeVisibilities(db.Model):
+    __tablename__ = "dojo_challenge_visibilities"
     __table_args__ = (
         db.ForeignKeyConstraint(["dojo_id", "module_index", "challenge_index"],
                                 ["dojo_challenges.dojo_id", "dojo_challenges.module_index", "dojo_challenges.challenge_index"],
@@ -348,17 +407,16 @@ class DojoChallengeDurations(db.Model):
     start = db.Column(db.DateTime(), index=True)
     stop = db.Column(db.DateTime(), index=True)
 
-    challenge = db.relationship("DojoChallenges", back_populates="duration")
+    challenge = db.relationship("DojoChallenges", back_populates="visibility")
 
     __repr__ = columns_repr(["challenge", "start", "stop"])
 
 
-class DojoResources(db.Model):
-    __tablename__ = "dojo_resources"
-
+class DojoResourceVisibilities(db.Model):
+    __tablename__ = "dojo_resource_visibilities"
     __table_args__ = (
-        db.ForeignKeyConstraint(["dojo_id", "module_index"],
-                                ["dojo_modules.dojo_id", "dojo_modules.module_index"],
+        db.ForeignKeyConstraint(["dojo_id", "module_index", "resource_index"],
+                                ["dojo_resources.dojo_id", "dojo_resources.module_index", "dojo_resources.resource_index"],
                                 ondelete="CASCADE"),
     )
 
@@ -366,13 +424,28 @@ class DojoResources(db.Model):
     module_index = db.Column(db.Integer, primary_key=True)
     resource_index = db.Column(db.Integer, primary_key=True)
 
-    type = db.Column(db.String(80), index=True)
-    name = db.Column(db.String(128))
-    data = db.Column(db.Text)
+    start = db.Column(db.DateTime(), index=True)
+    stop = db.Column(db.DateTime(), index=True)
 
-    module = db.relationship("DojoModules", back_populates="_resources")
+    resource = db.relationship("DojoResources", back_populates="visibility")
 
-    __repr__ = columns_repr(["module"])
+    __repr__ = columns_repr(["resource", "start", "stop"])
+
+
+# class DojoChallengeGradingPolicy(db.Model):
+#     __tablename__ "dojo_challenge_grading_policy"
+#     __table_args__ = (
+#         db.ForeignKeyConstraint(["dojo_id", "module_index", "challenge_index"],
+#                                 ["dojo_challenges.dojo_id", "dojo_challenges.module_index", "dojo_challenges.challenge_index"],
+#                                 ondelete="CASCADE"),
+#     )
+
+#     dojo_id = db.Column(db.Integer, primary_key=True)
+#     module_index = db.Column(db.Integer, primary_key=True)
+#     challenge_index = db.Column(db.Integer, primary_key=True)
+
+#     due = db.Column(db.DateTime(), index=True)
+#     late_credit = db.Column(db.Float)
 
 
 class SSHKeys(db.Model):

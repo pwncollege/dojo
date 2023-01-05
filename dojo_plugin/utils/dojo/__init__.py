@@ -12,56 +12,79 @@ from flask import g
 from CTFd.models import db
 from CTFd.utils.user import get_current_user
 
-from ...models import Dojos, PrivateDojos, OfficialDojos, DojoUsers, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoChallengeDurations
+from ...models import Dojos, PrivateDojos, OfficialDojos, DojoUsers, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
 
+
+ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
+UNIQUE_ID_REGEX = Regex(r"^[a-z0-9-]{1,64}$")
+NAME_REGEX = Regex(r"^[\S ]{1,128}$")
+
+ID_NAME_DESCRIPTION = {
+    "id": ID_REGEX,
+    "name": NAME_REGEX,
+    Optional("description"): str,
+}
+
+VISIBILITY = {
+    Optional("visibility", default={}): {
+        Optional("start"): datetime.datetime,
+        Optional("stop"): datetime.datetime,
+    }
+}
 
 DOJO_SPEC = Schema({
-    "id": Regex(r"^[a-z0-9-]{1,32}$"),
-    "name": Regex(r"^[\S ]{1,128}$"),
-    Optional("description"): str,
+    **ID_NAME_DESCRIPTION,
 
     Optional("password"): Regex(r"^[\S ]{8,128}$"),
 
+    **VISIBILITY,
+
     Optional("from"): {
-        "dojo": Regex(r"^[\S ]{1,128}$"),
+        "dojo": UNIQUE_ID_REGEX,
     },
 
     Optional("modules", default=[]): [{
-        "id": Regex(r"^[a-z0-9-]{1,32}$"),
-        "name": Regex(r"^[\S ]{1,128}$"),
-        Optional("description"): str,
-
-        Optional("start"): datetime.datetime,
-        Optional("stop"): datetime.datetime,
+        **ID_NAME_DESCRIPTION,
+        **VISIBILITY,
 
         Optional("from"): {
-            "dojo": Regex(r"^[\S ]{1,128}$"),
-            "module": Regex(r"^[\S ]{1,128}$"),
+            "dojo": UNIQUE_ID_REGEX,
+            "module": ID_REGEX,
         },
 
         Optional("challenges", default=[]): [{
-            "id": Regex(r"^[a-z0-9-]{1,32}$"),
-            "name": Regex(r"^[\S ]{1,128}$"),
-            Optional("description"): str,
+            **ID_NAME_DESCRIPTION,
 
             Optional("image", default="pwncollege-challenge"): Regex(r"^[\S ]{1, 256}$"),
             Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
-            Optional("start"): datetime.datetime,
-            Optional("stop"): datetime.datetime,
+            **VISIBILITY,
 
             Optional("from"): {
-                "dojo": Regex(r"^[\S ]{1,128}$"),
-                "module": Regex(r"^[\S ]{1,128}$"),
-                "challenge": Regex(r"^[\S ]{1,128}$"),
+                "dojo": UNIQUE_ID_REGEX,
+                "module": ID_REGEX,
+                "challenge": ID_REGEX,
             },
         }],
 
-        Optional("resources", default=[]): [{
-            "type": Or("markdown", "video", "slides"),
-            "name": Regex(r"^[\S ]{1,128}$"),
-            "data": str,
-        }],
+        Optional("resources", default=[]): [Or(
+            {
+                "type": "markdown",
+                "name": NAME_REGEX,
+                "data": str,
+                **VISIBILITY,
+            },
+            {
+                "type": "lecture",
+                "name": NAME_REGEX,
+                "data": {
+                    Optional("video"): str,
+                    Optional("playlist"): str,
+                    Optional("slides"): str,
+                },
+                **VISIBILITY,
+            },
+        )],
     }],
 })
 
@@ -74,7 +97,7 @@ def load_dojo(data, *,
     data = DOJO_SPEC.validate(data)
 
     dojo_id = dojo_id or (dojo.dojo_id if dojo else None)
-    dojo_type = dojo_type or (dojo.type if dojo else data["type"])
+    dojo_type = dojo_type or (dojo.type if dojo else None)
 
     dojo_cls = {
         "official": OfficialDojos,
@@ -94,27 +117,49 @@ def load_dojo(data, *,
 
     # TODO: for all references: index -> name
 
+    existing_challenges = {}
+
     if dojo_id is not None:
+        existing_challenges.update({
+            challenge.id: challenge.challenge
+            for challenge in DojoChallenges.query.filter_by(dojo_id=dojo_id)
+        })
+
         Dojos.query.filter_by(dojo_id=dojo_id).delete()
 
     dojo = dojo_cls(**dojo_kwargs)
 
+    def visibility(cls, *args):
+        start = None
+        stop = None
+        for arg in args:
+            start = arg.get("visibility", {}).get("start") or start
+            stop = arg.get("visibility", {}).get("stop") or stop
+        if start or stop:
+            return cls(start=start, stop=stop)
+
     dojo.modules = [
         DojoModules(
-            id=module.get("id"),
-            name=module.get("name"),
-            description=module.get("description"),
+            **{kwarg: module_data.get(kwarg) for kwarg in ["id", "name", "description"]},
             challenges=[
                 DojoChallenges(
-                    id=challenge.get("id"),
-                    name=challenge.get("name"),
-                    description=challenge.get("description"),
+                    **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
+                    challenge=existing_challenges.get(challenge_data.get("id")),
+                    visibility=visibility(DojoChallengeVisibilities, data, module_data, challenge_data),
                 )
-                for challenge in module["challenges"]
-            ]
+                for challenge_data in module_data["challenges"]
+            ],
+            resources = [
+                DojoResources(
+                    **{kwarg: resource_data.get(kwarg) for kwarg in ["type", "name", "data"]},
+                    visibility=visibility(DojoResourceVisibilities, data, module_data, resource_data),
+                )
+                for resource_data in module_data["resources"]
+            ],
         )
-        for module in data["modules"]
+        for module_data in data["modules"]
     ]
+
 
     # TODO: for all references: name -> index
 
