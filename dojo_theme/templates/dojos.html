@@ -51,19 +51,6 @@
     {% endfor %}
   </ul>
 </div>
-
-<div class="jumbotron">
-  <div class="container">
-    <h1>Weekly Leaderboard</h1>
-  </div>
-</div>
-<div class="container">
-  <p>These hackers have solved the most challenges across the public dojos in the last 7 days!</p>
-
-  {% import "macros.html" as macros %}
-  {{ macros.scoreboard() }}
-</div>
-
 {% endblock %}
 
 {% block scripts %}

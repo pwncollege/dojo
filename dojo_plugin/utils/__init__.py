@@ -26,12 +26,14 @@ from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
 
 
+PLUGIN_DIR = pathlib.Path(__file__).parent.parent
 CHALLENGES_DIR = pathlib.Path("/var/challenges")
 DOJOS_DIR = pathlib.Path("/var/dojos")
-HOST_DOJOS_DIR = pathlib.Path("/opt/pwn.college/data/dojos")
-DOJOS_PUB_KEY = "/var/data/ssh_host_keys/ssh_host_ed25519_key.pub"
-HOST_DOJOS_PRIV_KEY = "/opt/pwn.college/data/ssh_host_keys/ssh_host_ed25519_key"
-PLUGIN_DIR = pathlib.Path(__file__).parent.parent
+DATA_DIR = pathlib.Path("/var/data")
+KEY_DIR = DATA_DIR / "ssh_host_keys"
+DOJO_PRIV_KEY_PATH = KEY_DIR / "ssh_host_ed25519_key"
+
+DOJO_PUB_KEY = (KEY_DIR / "ssh_host_ed25519_key.pub").read_text()
 SECCOMP = (PLUGIN_DIR / "seccomp.json").read_text()
 USER_FIREWALL_ALLOWED = {
     host: socket.gethostbyname(host)
@@ -370,41 +372,5 @@ class HTMLHandler(logging.Handler): # Inherit from logging.Handler
             self.html += self.join_tag
         self.html += f"{self.start_tag}<b>{record.levelname}</b>: {sanitize_html(record.getMessage())}{self.end_tag}"
 
-def ctfd_to_host_path(ctfd_path):
-    """
-    Converts a path inside the CTFd docker to a path outside the docker.
-    Unfortunately, very infra-dependent.
-    """
-
-    with contextlib.suppress(ValueError):
-        return HOST_DOJOS_DIR/ctfd_path.relative_to(DOJOS_DIR)
-
-def sandboxed_git_clone(dojo_repo, repo_dir):
-    return sandboxed_git_command(
-        repo_dir,
-        [ "clone", "--quiet", "--depth", "1", dojo_repo, "/tmp/repo_dir" ]
-    )
-
-def sandboxed_git_command(repo_dir, command):
-    docker_client = docker.from_env()
-    container = docker_client.containers.run(
-        "alpine/git", [ "-C", "/tmp/repo_dir" ] + command,
-        environment={
-            "GIT_SSH_COMMAND":
-            f"ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=ERROR -i /tmp/deploykey"
-        },
-        mounts=[
-            docker.types.Mount( "/tmp/repo_dir", repo_dir, "bind", propagation="shared"),
-            docker.types.Mount("/tmp/deploykey", HOST_DOJOS_PRIV_KEY, "bind")
-        ],
-        detach=True,
-        cpu_quota=100000, mem_limit="1000m",
-        stdout=True, stderr=True
-    )
-    returncode = container.wait()['StatusCode']
-    output = container.logs()
-    container.remove()
-
-    return returncode, output
 
 from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges

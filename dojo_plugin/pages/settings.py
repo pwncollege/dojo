@@ -8,7 +8,6 @@ from CTFd.utils.user import get_current_user
 from ..models import Dojos, SSHKeys, DojoMembers
 from ..config import DISCORD_CLIENT_ID
 from .discord import get_discord_user, discord_avatar_asset
-from ..utils import DOJOS_PUB_KEY, DOJOS_DIR, ctfd_to_host_path, sandboxed_git_command
 
 
 @authed_only
@@ -27,8 +26,6 @@ def settings_override():
     ssh_key = SSHKeys.query.filter_by(user_id=user.id).first()
     ssh_key = ssh_key.value if ssh_key else None
 
-    deploy_key = open(DOJOS_PUB_KEY).read().rsplit(" ", 1)[0]
-
     discord_user = get_discord_user(user.id)
 
     prevent_name_change = get_config("prevent_name_change")
@@ -43,34 +40,6 @@ def settings_override():
             )
         )
 
-    # hosted dojos
-    hosted_dojos = [ ]
-    dojo_hashes = { }
-    dojo_remotes = { }
-    for dojo in Dojos.query.filter_by(owner_id=user.id).all():
-        if dojo.config.get("dojo_spec", "v1") != "v2":
-            continue
-
-        hosted_dojos.append(dojo)
-        dojo_dir = DOJOS_DIR/str(user.id)/dojo.id
-        host_path = str(ctfd_to_host_path(dojo_dir))
-        r, commit_hash = sandboxed_git_command(host_path, "rev-parse --short HEAD".split())
-        if r:
-            commit_hash = f"UNKNOWN (error {r} in <code>git rev-parse --short HEAD</code>)."
-        else:
-            commit_hash = commit_hash.decode('latin1')
-        r, remote = sandboxed_git_command(host_path, "remote -v".split())
-        if r:
-            remote = f"UNKNOWN (error {r} in <code>git remote -v</code>)."
-        else:
-            remote = remote.split()[1].decode('latin1')
-
-        dojo_hashes[dojo.id] = commit_hash
-        dojo_remotes[dojo.id] = remote
-
-    # joined dojos
-    memberships = DojoMembers.query.filter_by(user=user).all()
-
     return render_template(
         "settings.html",
         name=name,
@@ -79,15 +48,10 @@ def settings_override():
         affiliation=affiliation,
         country=country,
         tokens=tokens,
-        dojo_memberships=memberships,
         ssh_key=ssh_key,
-        deploy_key=deploy_key,
         discord_enabled=bool(DISCORD_CLIENT_ID),
         discord_user=discord_user,
         discord_avatar_asset=discord_avatar_asset,
         prevent_name_change=prevent_name_change,
         infos=infos,
-        hosted_dojos=hosted_dojos,
-        dojo_hashes=dojo_hashes,
-        dojo_remotes=dojo_remotes
     )
