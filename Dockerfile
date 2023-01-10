@@ -41,6 +41,7 @@ ADD challenge /opt/pwn.college/challenge
 ADD ctfd /opt/CTFd/
 ADD dojo_plugin /opt/CTFd/CTFd/plugins/dojo_plugin
 ADD dojo_theme /opt/CTFd/CTFd/themes/dojo_theme
+ADD discord_bot /opt/pwn.college/discord_bot
 ADD data_example /opt/pwn.college/data_example
 ADD docker-compose.yml /opt/pwn.college/docker-compose.yml
 ADD docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
