@@ -29,9 +29,9 @@ client = PwnCollegeClient(intents=intents)
 async def on_ready():
     client.guild = client.get_guild(DISCORD_GUILD_ID)
     client.thanks_log_channel = next(channel for channel in client.guild.channels
-                                     if channel.category.name == "logs" and channel.name == "thanks")
+                                     if channel.category and channel.category.name == "logs" and channel.name == "thanks")
     client.liked_memes_log_channel = next(channel for channel in client.guild.channels
-                                          if channel.category.name == "logs" and channel.name == "liked-memes")
+                                          if channel.category and channel.category.name == "logs" and channel.name == "liked-memes")
 
     print(f"Logged in as {client.user} (ID: {client.user.id})")
     print("------")
