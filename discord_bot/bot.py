@@ -81,11 +81,9 @@ async def thank_message(interaction: discord.Interaction, message: discord.Messa
         await interaction.response.send_message("You cannot thank yourself!", ephemeral=True)
         return
 
-    thanks_log_channel = interaction.guild.get_channel_or_thread(THANKS_LOG_CHANNEL_ID)
-
     await send_logged_embed(interaction,
                             message,
-                            thanks_log_channel,
+                            client.thanks_log_channel,
                             title="Thanks",
                             logged_text=f"{interaction.user.mention} thanked {message.author.mention}",
                             ephemeral_text=f"You thanked {message.author.mention}",
