@@ -1,9 +1,9 @@
 function loadScoreboard(duration, page) {
-    const dojo_id = init.dojo_id;
-    const module_id = init.module_id || "_";
+    const dojo = init.dojo;
+    const module = init.module || "_";
     const scoreboard = $("#scoreboard");
 
-    const endpoint = `/pwncollege_api/v1/scoreboard/${dojo_id}/${module_id}/${duration}/${page}`;
+    const endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${module}/${duration}/${page}`;
 
     CTFd.fetch(endpoint, {
         method: "GET",

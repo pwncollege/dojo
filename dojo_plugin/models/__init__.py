@@ -7,6 +7,7 @@ import re
 
 import pytz
 import yaml
+from flask import current_app
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import synonym
 from sqlalchemy.sql import or_, and_
@@ -89,7 +90,7 @@ class Dojos(Referenceable, db.Model):
 
     dojo_id = db.Column(db.Integer, primary_key=True)
 
-    repository = db.Column(db.String(256))
+    repository = db.Column(db.String(256), unique=True)
     hash = db.Column(db.String(80))
     type = db.Column(db.String(80), index=True)
     _id = db.Column("id", db.String(32), index=True)
@@ -141,7 +142,7 @@ class Dojos(Referenceable, db.Model):
 
     @property
     def directory(self):
-        return DOJOS_DIR / dojo.type / dojo.id
+        return DOJOS_DIR / self.type / self.id
 
     @classmethod
     def viewable(cls, user=None):
@@ -287,6 +288,8 @@ class DojoChallenges(Referenceable, db.Model):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not self.reference and not self.challenge:
+            # TODO: attach description to challenge; issue is that dojo doesn't exist yet
+            # description = ":".join(self.dojo.id, self.module.id, self.id)
             self.challenge = Challenges(type="dojo", flags=[Flags(type="dojo")])
 
     @property
@@ -345,9 +348,36 @@ class DojoChallengeRuntimes(db.Model):
     challenge_index = db.Column(db.Integer, primary_key=True)
 
     image = db.Column(db.String(256))
-    path = db.Column(db.String(256))
+    _path = db.Column("path", db.String(256))
 
     challenge = db.relationship("DojoChallenges", back_populates="runtime")
+
+    @property
+    def path(self):
+        path = self._path if self._path else f"{self.challenge.module.id}/{self.challenge.id}"
+        return self.challenge.dojo.directory / path
+
+    @path.setter
+    def path(self, value):
+        self._path = value
+
+    def user_paths(self, user=None):
+        if user is None:
+            user = get_current_user()
+
+        secret = current_app.config["SECRET_KEY"]
+
+        for path in self.path.iterdir():
+            if path.name.startswith("_"):
+                continue
+            yield path.resolve()
+
+        option_paths = sorted(path for path in self.path.iterdir() if path.name.startswith("_"))
+        if option_paths:
+            option_hash = hashlib.sha256(f"{secret}_{user.id}_{self.challenge.challenge_id}".encode()).digest()
+            option = options[int.from_bytes(option_hash[:8], "little") % len(options)]
+            for path in option.iterdir():
+                yield path.resolve()
 
     __repr__ = columns_repr(["challenge", "path"])
 

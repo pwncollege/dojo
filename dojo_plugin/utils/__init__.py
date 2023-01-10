@@ -45,35 +45,19 @@ def id_regex(s):
     return re.match(ID_REGEX, s) and ".." not in s
 
 
-def get_current_challenge_id():
-    try:
-        return int(current_challenge_getenv("CHALLENGE_ID"))
-    except (ValueError, TypeError):
-        return None
-
-def get_current_dojo_challenge_id():
-    try:
-        return int(current_challenge_getenv("DOJO_CHALLENGE_ID"))
-    except (ValueError, TypeError):
-        return None
-
-def current_challenge_getenv(k):
+def get_current_container():
     user = get_current_user()
     if not user:
-        return None
+        return
 
     docker_client = docker.from_env()
     container_name = f"user_{user.id}"
 
     try:
-        container = docker_client.containers.get(container_name)
+        return docker_client.containers.get(container_name)
     except docker.errors.NotFound:
         return None
 
-    for env in container.attrs["Config"]["Env"]:
-        if env.startswith(k+"="):
-            return env[len(k+"=") :]
-    return None
 
 def get_active_users(active_desktops=False):
     docker_client = docker.from_env()

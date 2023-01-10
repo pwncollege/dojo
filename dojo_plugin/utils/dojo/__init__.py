@@ -8,11 +8,12 @@ import inspect
 
 import yaml
 from schema import Schema, Optional, Regex, Or, SchemaError
-from flask import g
+from flask import abort
 from CTFd.models import db
 from CTFd.utils.user import get_current_user
 
 from ...models import Dojos, PrivateDojos, OfficialDojos, DojoUsers, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
+from ...utils import get_current_container
 
 
 ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
@@ -144,6 +145,7 @@ def load_dojo(data, *,
             challenges=[
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
+                    runtime=DojoChallengeRuntimes(image="pwncollege-challenge"),  # TODO: allow users to customize image/path
                     challenge=existing_challenges.get(challenge_data.get("id")),
                     visibility=visibility(DojoChallengeVisibilities, data, module_data, challenge_data),
                 )
@@ -210,3 +212,16 @@ def dojo_route(func):
 
         return func(*bound_args.args, **bound_args.kwargs)
     return wrapper
+
+
+def get_current_dojo_challenge():
+    container = get_current_container()
+    if not container:
+        return None
+
+    return (
+        DojoChallenges.query
+        .filter_by(id=container.labels.get("challenge"))
+        .join(Dojos, Dojos.id==container.labels.get("dojo"))
+        .first()
+    )

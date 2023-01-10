@@ -24,6 +24,12 @@ def listing():
     return render_template("dojos.html", user=user, dojos=dojos)
 
 
+@dojos.route("/dojos/sync")
+def dojo_sync():
+    ...
+    # TODO
+
+
 @dojos.route("/dojo/<dojo>")
 @dojo_route
 def view_dojo(dojo):
