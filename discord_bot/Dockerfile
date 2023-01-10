@@ -4,4 +4,4 @@ RUN pip install docker-py
 
 ADD bot.py /
 
-ENTRYPOINT ["/usr/bin/python", "bot.py"]
+ENTRYPOINT ["/usr/local/bin/python", "bot.py"]
