@@ -29,9 +29,9 @@ client = PwnCollegeClient(intents=intents)
 async def on_ready():
     client.guild = client.get_guild(DISCORD_GUILD_ID)
     client.thanks_log_channel = next(channel for channel in client.guild.channels
-                                     if channel.category and channel.category.name == "logs" and channel.name == "thanks")
+                                     if channel.category and channel.category.name.lower() == "logs" and channel.name == "thanks")
     client.liked_memes_log_channel = next(channel for channel in client.guild.channels
-                                          if channel.category and channel.category.name == "logs" and channel.name == "liked-memes")
+                                          if channel.category and channel.category.name.lower() == "logs" and channel.name == "liked-memes")
 
     print(f"Logged in as {client.user} (ID: {client.user.id})")
     print("------")
@@ -71,6 +71,8 @@ async def send_logged_embed(interaction, message, log_channel, title, logged_tex
     ephemeral_url_view.add_item(discord.ui.Button(label=button_text, style=discord.ButtonStyle.url, url=logged_message.jump_url))
 
     await interaction.response.send_message(embed=ephemeral_embed, view=ephemeral_url_view, ephemeral=True)
+
+    await message.add_reaction("\N{Upwards Black Arrow}")
 
 
 @client.tree.context_menu(name="Thanks")
