@@ -5,7 +5,7 @@ import discord
 
 
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
-DISCORD_GUILD_ID = os.environ["DISCORD_GUILD_ID"]
+DISCORD_GUILD_ID = int(os.environ["DISCORD_GUILD_ID"])
 
 
 class PwnCollegeClient(discord.Client):
