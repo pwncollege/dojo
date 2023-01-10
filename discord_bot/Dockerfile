@@ -1,6 +1,6 @@
 FROM python:3.8
 
-RUN pip install docker-py
+RUN pip install discord-py
 
 ADD bot.py /
 
