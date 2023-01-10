@@ -2,7 +2,6 @@ import datetime
 
 import discord
 
-from config import DISCORD_GUILD_ID, DISCORD_BOT_TOKEN
 
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 DISCORD_GUILD_ID = os.environ["DISCORD_GUILD_ID"]
