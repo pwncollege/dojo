@@ -9,8 +9,8 @@ from CTFd.utils.decorators.visibility import check_challenge_visibility
 from CTFd.utils.helpers import get_infos
 from CTFd.cache import cache
 
-from ..utils import get_current_dojo_challenge_id, render_markdown, module_visible, module_challenges_visible, is_dojo_admin
-from ..utils.dojo import dojo_route
+from ..utils import render_markdown, module_visible, module_challenges_visible, is_dojo_admin
+from ..utils.dojo import dojo_route, get_current_dojo_challenge
 from .grades import module_grade_report
 from ..models import Dojos, DojoUsers
 
@@ -22,7 +22,7 @@ def get_stats(dojo):
     docker_client = docker.from_env()
     filters = {
         "name": "user_",
-        "label": f"dojo-id={dojo.id}"
+        "label": f"dojo={dojo.id}"
     }
     containers = docker_client.containers.list(filters=filters, ignore_removed=True)
 
@@ -70,7 +70,7 @@ def view_module(dojo, module):
     total_solves = dict(module.solves()
                         .group_by(Solves.challenge_id)
                         .with_entities(Solves.challenge_id, db.func.count()))
-    current_dojo_challenge_id = get_current_dojo_challenge_id()
+    current_dojo_challenge = get_current_dojo_challenge()
     return render_template(
         "module.html",
         dojo=dojo,
@@ -78,6 +78,6 @@ def view_module(dojo, module):
         user_solves=user_solves,
         total_solves=total_solves,
         user=user,
-        current_dojo_challenge_id=current_dojo_challenge_id,
+        current_dojo_challenge=current_dojo_challenge,
         render_markdown=render_markdown,
     )

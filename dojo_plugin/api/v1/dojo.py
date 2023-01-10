@@ -18,51 +18,13 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
-from ...models import Dojos, DojoMembers, DojoAdmins
-from ...utils.dojo import dojo_clone, load_dojo_dir
+from ...models import Dojos, OfficialDojos, DojoMembers, DojoAdmins
+from ...utils.dojo import dojo_accessible, dojo_clone, load_dojo_dir
 
 
 dojo_namespace = Namespace(
     "dojo", description="Endpoint to manage dojos"
 )
-
-
-@dojo_namespace.route("/leave")
-class Leave(Resource):
-    @authed_only
-    def post(self):
-        data = request.get_json()
-        user = get_current_user()
-
-        dojo_id = data.get("dojo_id")
-        dojo = Dojos.query.filter_by(id=dojo_id).first()
-        if not dojo:
-            return {"success": False, "error": f"Invalid dojo specified: {data.get('dojo_id')}"}
-
-        DojoUsers.query.filter_by(dojo_id=dojo.dojo_id, user_id=user.id).delete()
-        db.session.commit()
-
-        return {"success": True}
-
-
-@dojo_namespace.route("/delete")
-class DeleteDojo(Resource):
-    @authed_only
-    def post(self):
-        data = request.get_json()
-        dojo_id = data.get("dojo_id")
-
-        dojo = Dojos.query.filter_by(id=dojo_id).first()
-
-        if not (dojo and dojo.is_admin()):
-            return {"success": False, "error": f"Invalid dojo specified: {dojo_id}"}
-
-        db.session.delete(dojo)
-        db.session.commit()
-
-        shutil.rmtree(str(dojo.directory))
-
-        return {"success": True}
 
 
 @dojo_namespace.route("/create")
@@ -98,6 +60,37 @@ class CreateDojo(Resource):
             return {"success": False, "error": str(e.stderr)}, 400
 
         return {"success": True, "dojo_id": dojo.dojo_id}
+
+
+@dojo_namespace.route("/leave")
+class Leave(Resource):
+    @authed_only
+    def post(self):
+        data = request.get_json()
+        user = get_current_user()
+
+        dojo_id = data.get("dojo_id")
+
+        dojo = dojo_accessible(dojo_id)
+        if not dojo:
+            return {"success": False, "error": "Dojo not found"}
+        if isinstance(dojo, OfficialDojos):
+            return {"success": False, "error": "Cannot leave official dojo"}
+
+        dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
+        rm_dojo_dir = False
+        if isinstance(dojo_user, DojoAdmins):
+            if DojoAdmins.query.filter_by(dojo=dojo).count() == 1:
+                db.session.delete(dojo)
+                rm_dojo_dir = True
+
+        db.session.delete(dojo_user)
+        db.session.commit()
+
+        if rm_dojo_dir:
+            shutil.rmtree(str(dojo.directory))
+
+        return {"success": True}
 
 
 @dojo_namespace.route("/solves")

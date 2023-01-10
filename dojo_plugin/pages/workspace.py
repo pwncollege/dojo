@@ -2,8 +2,8 @@ from flask import request, Blueprint, render_template
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
-from ..utils import get_current_challenge_id, random_home_path, redirect_user_socket
-from ..utils.dojo import dojo_route
+from ..utils import random_home_path, redirect_user_socket
+from ..utils.dojo import dojo_route, get_current_dojo_challenge
 
 
 workspace = Blueprint("pwncollege_workspace", __name__)
@@ -14,7 +14,7 @@ workspace = Blueprint("pwncollege_workspace", __name__)
 @dojo_route
 @authed_only
 def view_workspace(dojo=None):
-    active = get_current_challenge_id() is not None
+    active = bool(get_current_dojo_challenge())
     return render_template("workspace.html", dojo=dojo, active=active)
 
 

@@ -15,6 +15,7 @@
         {% if discord_enabled %}
         <a class="nav-link" id="settings-discord-tab" data-toggle="pill" href="#discord" role="tab">Discord</a>
         {% endif %}
+	<a class="nav-link" id="settings-tokens-tab" data-toggle="pill" href="#tokens" role="tab">Access Tokens</a>
       </div>
     </div>
     <div class="col-md-8">
@@ -110,6 +111,47 @@
           </a>
         </div>
         {% endif %}
+        <div class="tab-pane fade" id="tokens" role="tabpanel">
+          {% with form = Forms.self.TokensForm() %}
+          <form method="POST" id="user-token-form">
+            <div class="form-group">
+              <b>{{ form.expiration.label }}</b>
+              {{ form.expiration(class="form-control") }}
+            </div>
+
+            <div class="form-group text-right">
+              {{ form.submit(class="btn btn-md btn-primary btn-outlined") }}
+            </div>
+          </form>
+          {% endwith %}
+
+          {% if tokens %}
+          <hr>
+          <h4 class="text-center">Active Tokens</h4>
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <td class="text-center"><b>Created</b></td>
+                <td class="text-center"><b>Expiration</b></td>
+                <td class="text-center"><b>Delete</b></td>
+              </tr>
+            </thead>
+            <tbody>
+              {% for token in tokens %}
+              <tr>
+                <td><span data-time="{{ token.created | isoformat }}"></span></td>
+                <td><span data-time="{{ token.expiration | isoformat }}"></span></td>
+                <td class="text-center">
+                  <span class="delete-token" role="button" data-token-id="{{ token.id }}">
+                    <i class="btn-fa fas fa-times"></i>
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+        </div>
       </div>
     </div>
   </div>

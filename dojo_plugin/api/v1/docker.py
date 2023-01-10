@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import pathlib
+import traceback
 
 import docker
 from flask import request
@@ -11,8 +12,8 @@ from CTFd.utils.decorators import authed_only
 
 from ...config import HOST_DATA_PATH
 from ...models import DojoChallenges
-from ...utils import get_current_dojo_challenge_id, serialize_user_flag, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, module_challenges_visible
-from ...utils.dojo import dojo_accessible
+from ...utils import serialize_user_flag, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, module_challenges_visible
+from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 
 
 docker_namespace = Namespace(
@@ -63,8 +64,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             container.wait(condition="removed")
         except docker.errors.NotFound:
             pass
-        challenge_name = f"{dojo_challenge.short_category}_{dojo_challenge.name}"
-        hostname = challenge_name
+        hostname = dojo_challenge.id
         if practice:
             hostname = f"practice_{hostname}"
         devices = []
@@ -73,21 +73,15 @@ def start_challenge(user, dojo, dojo_challenge, practice):
         internet = any(award.name == "INTERNET" for award in user.awards)
 
         return docker_client.containers.run(
-            dojo_challenge.docker_image_name,
+            dojo_challenge.runtime.image,  # WORKING HERE
             entrypoint=["/bin/sleep", "6h"],
-            name=container_name,
+            name=f"user_{user.id}",
             hostname=hostname,
             user="hacker",
             working_dir="/home/hacker",
             labels={
-                "dojo-id": str(dojo.id),
-            },
-            environment={
-                "DOJO_ID": str(dojo.id),
-                "CHALLENGE_ID": str(dojo_challenge.challenge_id),
-                "DOJO_CHALLENGE_ID": dojo_challenge.dojo_challenge_id,
-                "CHALLENGE_NAME": challenge_name,
-                "PRACTICE": str(bool(practice)),
+                "dojo": dojo.id,
+                "challenge": dojo_challenge.id,
             },
             mounts=[
                 docker.types.Mount(
@@ -142,7 +136,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
         )
 
     def insert_challenge(user, dojo_challenge):
-        for path in dojo_challenge.challenge_paths(user=user):
+        for path in dojo_challenge.runtime.user_paths(user):
             with simple_tar(path, f"/challenge/{path.name}") as tar:
                 container.put_archive("/", tar)
         exec_run("chown -R root:root /challenge")
@@ -194,37 +188,38 @@ class RunDocker(Resource):
     @authed_only
     def post(self):
         data = request.get_json()
-        try:
-            dojo_challenge_id = int(data.get("dojo_challenge_id"))
-        except (ValueError, KeyError):
-            return {"success": False, "error": "Invalid challenge ID"}
-
-        dojo_id = data.get("dojo_id")
+        dojo_id = data.get("dojo")
+        challenge_id = data.get("challenge")
         practice = data.get("practice")
+
+        user = get_current_user()
 
         dojo = dojo_accessible(dojo_id)
         if not dojo:
             return {"success": False, "error": "Invalid dojo"}
 
-        dojo_challenge = DojoChallenges.query.filter_by(id=dojo_challenge_id).first()
+        dojo_challenge = DojoChallenges.query.filter_by(dojo=dojo, id=challenge_id).first()
         if not dojo_challenge:
             return {"success": False, "error": "Invalid challenge"}
 
-        user = get_current_user()
-        if not module_challenges_visible(dojo, dojo.modules[dojo_challenge.module_idx], get_current_user()):
-            return {"success": False, "error": "Invalid challenge"}
+        # TODO: check if challenge visible
 
         try:
             start_challenge(user, dojo, dojo_challenge, practice)
         except RuntimeError as e:
             print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": str(e)}
         except Exception as e: #pylint:disable=broad-except
             print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": "Docker failed"}
         return {"success": True}
 
 
     @authed_only
     def get(self):
-        return {"success": True, "dojo_challenge_id": get_current_dojo_challenge_id()}
+        dojo_challenge = get_current_dojo_challenge()
+        if not dojo_challenge:
+            return {"success": False, "error": "No active challenge"}
+        return {"success": True, "dojo": dojo_challenge.dojo.id, "challenge": dojo_challenge.id}

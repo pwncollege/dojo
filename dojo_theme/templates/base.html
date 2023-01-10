@@ -25,8 +25,8 @@
 	  'start': {{ Configs.start | tojson }},
 	  'end': {{ Configs.end | tojson }},
 	  'theme_settings': {{ Configs.theme_settings | tojson }},
-          'dojo_id': "{{ dojo_id if dojo else "" }}",
-          'module_id': "{{ module_id if module else "" }}"
+          'dojo': "{{ dojo_id if dojo else "" }}",
+          'module': "{{ module_id if module else "" }}"
       }
     </script>
     {{ Configs.theme_header }}
