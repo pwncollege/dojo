@@ -28,8 +28,10 @@ client = PwnCollegeClient(intents=intents)
 @client.event
 async def on_ready():
     client.guild = client.get_guild(DISCORD_GUILD_ID)
-    client.thanks_log_channel = next(channel for channel in client.guild.channels if channel.name == "memes")
-    client.memes_log_channel = next(channel for channel in client.guild.channels if channel.name == "memes")
+    client.thanks_log_channel = next(channel for channel in client.guild.channels
+                                     if channel.category.name == "logs" and channel.name == "thanks")
+    client.liked_memes_log_channel = next(channel for channel in client.guild.channels
+                                          if channel.category.name == "logs" and channel.name == "liked-memes")
 
     print(f"Logged in as {client.user} (ID: {client.user.id})")
     print("------")
@@ -98,7 +100,7 @@ async def good_meme(interaction: discord.Interaction, message: discord.Message):
 
     await send_logged_embed(interaction,
                             message,
-                            client.memes_log_channel,
+                            client.liked_memes_log_channel,
                             title="Liked Meme",
                             logged_text=f"{interaction.user.mention} liked {message.author.mention}'s meme",
                             ephemeral_text=f"You liked {message.author.mention}'s meme",
