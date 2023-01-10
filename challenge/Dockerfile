@@ -245,12 +245,10 @@ COPY desktop/ida.opt /opt/ida/ida.opt
 RUN <<EOF
     wget -q -O - https://github.com/angr/angr-management/releases/download/$(curl -s https://github.com/angr/angr-management/releases | grep -oP -m1 'nightly-[\d\.]+')/angr-management-ubuntu-20.04.tar.gz | tar xvz -C /opt
 
-    mkdir /opt/ghidra
-    cd /opt/ghidra
-    (set +o pipefail; wget -q -O - https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip | jar xv)
-    chmod 755 /opt/ghidra/ghidra_10.1.5_PUBLIC/ghidraRun /opt/ghidra/ghidra_10.1.5_PUBLIC/support/launch.sh
-    ln -sf ghidra_10.1.5_PUBLIC/ghidraRun ghidraRun
-    ln -sf ghidra_10.1.5_PUBLIC/docs/images/GHIDRA_1.png GHIDRA_1.png
+    wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip
+    unzip /tmp/ghidra.zip -d /tmp
+    mv /tmp/ghidra_10.1.5_PUBLIC /opt/ghidra
+    rm /tmp/ghidra.zip
 
     wget -O /tmp/idafree80_linux.run https://out7.hex-rays.com/files/idafree80_linux.run
     chmod 755 /tmp/idafree80_linux.run
