@@ -243,7 +243,7 @@ COPY desktop/ida64.desktop /usr/share/applications/
 COPY desktop/ida.opt /opt/ida/ida.opt
 
 RUN <<EOF
-    wget -q -O - https://github.com/angr/angr-management/releases/download/$(curl -s https://github.com/angr/angr-management/releases | grep -oP -m1 'nightly-[\d\.]+')/angr-management-ubuntu-20.04.tar.gz | tar xvz -C /opt
+    wget -q -O - https://github.com/angr/angr-management/releases/download/nightly/angr-management-ubuntu-20.04.tar.gz | tar xvz -C /opt
 
     mkdir /opt/ghidra
     cd /opt/ghidra
