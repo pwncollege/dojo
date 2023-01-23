@@ -29,6 +29,10 @@ intents.voice_states = True
 client = PwnCollegeClient(intents=intents)
 
 
+def describe(user):
+    return f"{user.mention} ({user})"
+
+
 @client.event
 async def on_ready():
     client.guild = client.get_guild(DISCORD_GUILD_ID)
@@ -42,7 +46,7 @@ async def on_ready():
 
 @client.event
 async def on_voice_state_update(member, before, after):
-    print(f"{member} - {before.channel} -> {after.channel}", flush=True)
+    print(f"{describe(member)} - {before.channel} -> {after.channel}", flush=True)
 
 
 @client.tree.command()
@@ -97,7 +101,7 @@ async def thank_message(interaction: discord.Interaction, message: discord.Messa
                             ephemeral_text=f"You thanked {message.author.mention}",
                             button_text="Thanks Message")
 
-    print(f"{interaction.user.mention} thanked {message.author.mention}", flush=True)
+    print(f"{describe(interaction.user)} thanked {describe(message.author)}", flush=True)
 
 
 @client.tree.context_menu(name="Like Meme")
@@ -116,7 +120,7 @@ async def like_meme(interaction: discord.Interaction, message: discord.Message):
                             ephemeral_text=f"You liked {message.author.mention}'s meme",
                             button_text="Liked Meme")
 
-    print(f"{interaction.user.mention} liked {message.author.mention}'s meme")
+    print(f"{describe(interaction.user)} liked {describe(message.author)}'s meme")
 
 
 @client.tree.command()
@@ -148,7 +152,7 @@ async def attend(interaction: discord.Interaction, member: discord.Member):
 
     await interaction.response.send_message(embed=ephemeral_embed, view=ephemeral_url_view, ephemeral=True)
 
-    print(f"{interaction.user.mention} attended {message.author.mention}")
+    print(f"{describe(interaction.user)} attended {member}")
 
 
 client.run(DISCORD_BOT_TOKEN)
