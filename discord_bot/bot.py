@@ -32,6 +32,8 @@ async def on_ready():
                                      if channel.category and channel.category.name.lower() == "logs" and channel.name == "thanks")
     client.liked_memes_log_channel = next(channel for channel in client.guild.channels
                                           if channel.category and channel.category.name.lower() == "logs" and channel.name == "liked-memes")
+    client.attendance_log_channel = next(channel for channel in client.guild.channels
+                                         if channel.category and channel.category.name.lower() == "logs" and channel.name == "attendance")
 
     print(f"Logged in as {client.user} (ID: {client.user.id})")
     print("------")
@@ -91,7 +93,7 @@ async def thank_message(interaction: discord.Interaction, message: discord.Messa
 
 
 @client.tree.context_menu(name="Like Meme")
-async def good_meme(interaction: discord.Interaction, message: discord.Message):
+async def like_meme(interaction: discord.Interaction, message: discord.Message):
     meme_judge = next(role for role in interaction.guild.roles if role.name == "Meme Judge")
 
     if interaction.user not in meme_judge.members:
@@ -105,6 +107,38 @@ async def good_meme(interaction: discord.Interaction, message: discord.Message):
                             logged_text=f"{interaction.user.mention} liked {message.author.mention}'s meme",
                             ephemeral_text=f"You liked {message.author.mention}'s meme",
                             button_text="Liked Meme")
+
+
+@client.tree.command()
+async def attend(interaction: discord.Interaction, member: discord.Member):
+    senseis = list(role for role in interaction.guild.roles if "sensei" in role.name.lower())
+
+    if not any(interaction.user in sensei.members for sensei in senesis):
+        await interaction.response.send_message("You are not a sensei!", ephemeral=True)
+        return
+
+    now = datetime.datetime.utcnow()
+
+    logged_embed = discord.Embed(title="Attendance")
+    logged_embed.description = f"{member.mention} attended"
+
+    logged_embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
+    logged_embed.timestamp = now
+
+    logged_message = await client.attendance_log_channel.send(embed=logged_embed)
+
+    await member.send("You attended!")
+
+    ephemeral_embed = discord.Embed(title="Attendance")
+    ephemeral_embed.description = ephemeral_text
+
+    ephemeral_embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
+    ephemeral_embed.timestamp = now
+
+    ephemeral_url_view = discord.ui.View()
+    ephemeral_url_view.add_item(discord.ui.Button(label="Attendance", style=discord.ButtonStyle.url, url=logged_message.jump_url))
+
+    await interaction.response.send_message(embed=ephemeral_embed, view=ephemeral_url_view, ephemeral=True)
 
 
 client.run(DISCORD_BOT_TOKEN)
