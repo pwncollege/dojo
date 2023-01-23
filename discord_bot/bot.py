@@ -42,7 +42,7 @@ async def on_ready():
 
 @client.event
 async def on_voice_state_update(member, before, after):
-    print(f"{member.member} - {before.channel} - {after.channel}", flush=True)
+    print(f"{member.mention} - {before.channel} - {after.channel}", flush=True)
 
 
 @client.tree.command()
