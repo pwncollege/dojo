@@ -39,14 +39,10 @@ async def on_ready():
     client.attendance_log_channel = next(channel for channel in client.guild.channels
                                          if channel.category and channel.category.name.lower() == "logs" and channel.name == "attendance")
 
-    print(f"Logged in as {client.user} (ID: {client.user.id})")
-    print("------")
-
 
 @client.event
 async def on_voice_state_update(member, before, after):
-    if before.channel is None and after.channel is not None:
-        print(f"{member.name} has joined {after.channel.name}")
+    print(f"{member.member} - {before.channel} - {after.channel}", flush=True)
 
 
 @client.tree.command()
