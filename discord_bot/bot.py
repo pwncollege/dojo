@@ -8,6 +8,9 @@ DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 DISCORD_GUILD_ID = int(os.environ["DISCORD_GUILD_ID"])
 
 
+# TODO: figure out how to apply correct command permissions automatically
+
+
 class PwnCollegeClient(discord.Client):
     def __init__(self, *, intents: discord.Intents):
         super().__init__(intents=intents)
@@ -127,10 +130,8 @@ async def attend(interaction: discord.Interaction, member: discord.Member):
 
     logged_message = await client.attendance_log_channel.send(embed=logged_embed)
 
-    await member.send("You attended!")
-
     ephemeral_embed = discord.Embed(title="Attendance")
-    ephemeral_embed.description = ephemeral_text
+    ephemeral_embed.description = f"{member.mention} attended"
 
     ephemeral_embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
     ephemeral_embed.timestamp = now
