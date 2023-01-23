@@ -113,7 +113,7 @@ async def like_meme(interaction: discord.Interaction, message: discord.Message):
 async def attend(interaction: discord.Interaction, member: discord.Member):
     senseis = list(role for role in interaction.guild.roles if "sensei" in role.name.lower())
 
-    if not any(interaction.user in sensei.members for sensei in senesis):
+    if not any(interaction.user in sensei.members for sensei in senseis):
         await interaction.response.send_message("You are not a sensei!", ephemeral=True)
         return
 
