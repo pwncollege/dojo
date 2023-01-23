@@ -24,6 +24,7 @@ class PwnCollegeClient(discord.Client):
 
 intents = discord.Intents.default()
 intents.members = True
+intents.voice_states = True
 
 client = PwnCollegeClient(intents=intents)
 
@@ -40,6 +41,12 @@ async def on_ready():
 
     print(f"Logged in as {client.user} (ID: {client.user.id})")
     print("------")
+
+
+@client.event
+async def on_voice_state_update(member, before, after):
+    if before.channel is None and after.channel is not None:
+        print(f"{member.name} has joined {after.channel.name}")
 
 
 @client.tree.command()
