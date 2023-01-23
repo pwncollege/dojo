@@ -42,7 +42,7 @@ async def on_ready():
 
 @client.event
 async def on_voice_state_update(member, before, after):
-    print(f"{member.mention} - {before.channel} - {after.channel}", flush=True)
+    print(f"{member} - {before.channel} -> {after.channel}", flush=True)
 
 
 @client.tree.command()
@@ -97,6 +97,8 @@ async def thank_message(interaction: discord.Interaction, message: discord.Messa
                             ephemeral_text=f"You thanked {message.author.mention}",
                             button_text="Thanks Message")
 
+    print(f"{interaction.user.mention} thanked {message.author.mention}", flush=True)
+
 
 @client.tree.context_menu(name="Like Meme")
 async def like_meme(interaction: discord.Interaction, message: discord.Message):
@@ -113,6 +115,8 @@ async def like_meme(interaction: discord.Interaction, message: discord.Message):
                             logged_text=f"{interaction.user.mention} liked {message.author.mention}'s meme",
                             ephemeral_text=f"You liked {message.author.mention}'s meme",
                             button_text="Liked Meme")
+
+    print(f"{interaction.user.mention} liked {message.author.mention}'s meme")
 
 
 @client.tree.command()
@@ -143,6 +147,8 @@ async def attend(interaction: discord.Interaction, member: discord.Member):
     ephemeral_url_view.add_item(discord.ui.Button(label="Attendance", style=discord.ButtonStyle.url, url=logged_message.jump_url))
 
     await interaction.response.send_message(embed=ephemeral_embed, view=ephemeral_url_view, ephemeral=True)
+
+    print(f"{interaction.user.mention} attended {message.author.mention}")
 
 
 client.run(DISCORD_BOT_TOKEN)
