@@ -13,6 +13,7 @@ define () {
     echo "${name}=${value}" >> /opt/pwn.college/data/.config.env
 }
 define DOJO_HOST localhost.pwn.college
+define DOJO_ENV production
 define SECRET_KEY $(openssl rand -hex 16)
 define DOCKER_PSLR $(openssl rand -hex 16)
 define DISCORD_CLIENT_ID

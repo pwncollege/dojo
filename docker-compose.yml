@@ -16,6 +16,11 @@ services:
     user: root
     restart: always
     privileged: true
+    entrypoint: ""
+    command: >
+      /bin/sh -c '[ "$DOJO_ENV" != "development" ] &&
+                  ./docker-entrypoint.sh  ||
+                  FLASK_ENV=development WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000'
     ulimits:
         nofile:
             soft: 32768

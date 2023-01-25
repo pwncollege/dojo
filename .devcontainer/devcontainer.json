@@ -32,6 +32,9 @@
             "type": "volume"
 		}
 	],
+	"containerEnv": {
+		"DOJO_ENV": "development"
+	},
 	"overrideCommand": false,
 	"runArgs": ["--privileged"]
 }
