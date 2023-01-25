@@ -34,11 +34,4 @@
 	],
 	"overrideCommand": false,
 	"runArgs": ["--privileged"]
-	// "features": {
-	// 	"ghcr.io/devcontainers/features/docker-in-docker:1": {
-	// 		"version": "latest"
-	// 	}
-	// }
-	// "postCreateCommand": "cat /etc/os-release",
-	// "customizations": {},
 }
