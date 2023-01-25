@@ -1,0 +1,44 @@
+{
+	"name": "Existing Dockerfile",
+	"build": {
+		"context": "..",
+		"dockerfile": "../Dockerfile"
+	},
+	"forwardPorts": [22, 80, 443],
+	"mounts": [
+		{
+			"source": "${localWorkspaceFolder}/data",
+			"target": "/opt/pwn.college/data",
+			"type": "bind"
+		},
+		{
+			"source": "${localWorkspaceFolder}/challenge",
+			"target": "/opt/pwn.college/challenge",
+			"type": "bind"
+		},
+		{
+			"source": "${localWorkspaceFolder}/dojo_plugin",
+			"target": "/opt/CTFd/CTFd/plugins/dojo_plugin",
+			"type": "bind"
+		},
+		{
+			"source": "${localWorkspaceFolder}/dojo_theme",
+			"target": "/opt/CTFd/CTFd/themes/dojo_theme",
+			"type": "bind"
+		},
+		{
+			"source": "dind-var-lib-docker-${devcontainerId}",
+			"target": "/var/lib/docker",
+            "type": "volume"
+		}
+	],
+	"overrideCommand": false,
+	"runArgs": ["--privileged"]
+	// "features": {
+	// 	"ghcr.io/devcontainers/features/docker-in-docker:1": {
+	// 		"version": "latest"
+	// 	}
+	// }
+	// "postCreateCommand": "cat /etc/os-release",
+	// "customizations": {},
+}

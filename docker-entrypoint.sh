@@ -1,5 +1,25 @@
 #!/bin/sh
 
+>> /opt/pwn.college/data/config.env
+
+> /opt/pwn.college/data/.config.env
+define () {
+    name="$1"
+    default="$2"
+    re="^${name}=\K.*"
+    current="$(env | grep -oP ${re})"
+    defined="$(grep -oP ${re} /opt/pwn.college/data/config.env)"
+    value="${current:-${defined:-$default}}"
+    echo "${name}=${value}" >> /opt/pwn.college/data/.config.env
+}
+define DOJO_HOST localhost.pwn.college
+define SECRET_KEY $(openssl rand -hex 16)
+define DOCKER_PSLR $(openssl rand -hex 16)
+define DISCORD_CLIENT_ID
+define DISCORD_CLIENT_SECRET
+define DISCORD_BOT_TOKEN
+define DISCORD_GUILD_ID
+mv /opt/pwn.college/data/.config.env /opt/pwn.college/data/config.env
 . /opt/pwn.college/data/config.env
 
 if [ ! "$(ls -A /opt/pwn.college/data/dojos /opt/pwn.college/data/challenges)" ]; then

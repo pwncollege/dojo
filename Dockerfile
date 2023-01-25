@@ -38,7 +38,6 @@ ADD ssh /opt/pwn.college/ssh
 ADD logging /opt/pwn.college/logging
 ADD nginx-proxy /opt/pwn.college/nginx-proxy
 ADD challenge /opt/pwn.college/challenge
-ADD ctfd /opt/CTFd/
 ADD dojo_plugin /opt/CTFd/CTFd/plugins/dojo_plugin
 ADD dojo_theme /opt/CTFd/CTFd/themes/dojo_theme
 ADD data_example /opt/pwn.college/data_example
@@ -54,6 +53,10 @@ RUN find /opt/pwn.college/script -type f -exec ln -s {} /usr/bin/ \;
 
 RUN ln -s /etc/systemd/system/pwn.college.service /etc/systemd/system/multi-user.target.wants/pwn.college.service
 RUN ln -s /etc/systemd/system/pwn.college.logging.service /etc/systemd/system/multi-user.target.wants/pwn.college.logging.service
+
+EXPOSE 22
+EXPOSE 80
+EXPOSE 443
 
 WORKDIR /opt/pwn.college
 ENTRYPOINT ["/opt/pwn.college/docker-entrypoint.sh"]

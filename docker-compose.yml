@@ -3,6 +3,7 @@ version: '3.3'
 services:
   challenge:
     build: challenge
+    platform: linux/amd64
     entrypoint: /bin/true
     networks:
       - user_firewall
@@ -11,6 +12,7 @@ services:
     container_name: ctfd
     hostname: ctfd
     build: /opt/CTFd
+    platform: linux/amd64
     user: root
     restart: always
     privileged: true
@@ -34,7 +36,7 @@ services:
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
-      - VIRTUAL_HOST=${DOJO_HOST}
+      - VIRTUAL_HOST=${DOJO_HOST},localhost
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=${DOJO_HOST}
     volumes:
