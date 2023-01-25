@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import tempfile
 import datetime
@@ -180,11 +181,17 @@ def load_dojo_dir(dojo_dir, **kwargs):
 
 
 def dojo_clone(repository):
+    repository_re = r"[\w\-]+/[\w\-]+"
+    assert re.match(repository_re, repository), f"Invalid public key, expected format: {repository_re}"
+    
     clone_dir = tempfile.TemporaryDirectory()
-    subprocess.run(["git", "clone", repository, d.name],
-                   env={"GIT_TERMINAL_PROMPT": "0"},
-                   check=True,
-                   capture_output=True)
+    
+    result = subprocess.run(["git", "clone", f"git@github.com:{repository}", clone_dir.name],
+                             env={"GIT_TERMINAL_PROMPT": "0"},
+                             check=True,
+                             capture_output=True)
+    assert result.returncode == 0, "Failed to clone"
+
     return clone_dir
 
 

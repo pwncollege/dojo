@@ -5,6 +5,7 @@ import logging
 import pathlib
 import shutil
 import docker
+import pathlib
 import os
 import re
 
@@ -35,14 +36,9 @@ class CreateDojo(Resource):
         user = get_current_user()
 
         try:
-            GIT_REPO_RE = r"^(https://github.com/|git@github.com:)[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
             dojo_repo = data.get("dojo_repo", "")
-            assert re.match(GIT_REPO_RE, dojo_repo), (
-                f"Repository violates regular expression. Must match <code>{GIT_RE}</code>."
-            )
-
             dojo_dir = dojo_clone(dojo_repo)
-            dojo_path = Pathlib.path(dojo_dir.name)
+            dojo_path = pathlib.Path(dojo_dir.name)
 
             dojo = load_dojo_dir(dojo_path)
             dojo.repository = dojo_repo
@@ -55,9 +51,6 @@ class CreateDojo(Resource):
 
         except AssertionError as e:
             return {"success": False, "error": str(e)}, 400
-
-        except subprocess.CalledProcessError as e:
-            return {"success": False, "error": str(e.stderr)}, 400
 
         return {"success": True, "dojo_id": dojo.dojo_id}
 
