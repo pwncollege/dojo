@@ -3,7 +3,7 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1>Settings</h1>
+    <h1>User Settings</h1>
   </div>
 </div>
 <div class="container">
@@ -11,11 +11,11 @@
     <div class="col-md-2 offset-md-1">
       <div class="nav flex-column nav-pills" role="tablist">
         <a class="nav-link active" id="settings-profile-tab" data-toggle="pill" href="#profile" role="tab">Profile</a>
-        <a class="nav-link" id="settings-key-tab" data-toggle="pill" href="#key" role="tab">SSH Key</a>
+        <a class="nav-link" id="settings-ssh-key-tab" data-toggle="pill" href="#ssh-key" role="tab">SSH Key</a>
         {% if discord_enabled %}
         <a class="nav-link" id="settings-discord-tab" data-toggle="pill" href="#discord" role="tab">Discord</a>
         {% endif %}
-	<a class="nav-link" id="settings-tokens-tab" data-toggle="pill" href="#tokens" role="tab">Access Tokens</a>
+	      <a class="nav-link" id="settings-tokens-tab" data-toggle="pill" href="#tokens" role="tab">Access Tokens</a>
       </div>
     </div>
     <div class="col-md-8">
@@ -75,16 +75,16 @@
           {% endwith %}
         </div>
 
-        <div class="tab-pane fade" id="key" role="tabpanel">
-          <form method="post" id="key-form" autocomplete="off">
+        <div class="tab-pane fade" id="ssh-key" role="tabpanel">
+          <form method="post" id="ssh-key-form" autocomplete="off">
             <div class="form-group">
               <b><label for="enter-name">SSH Key</label></b>
               <small class="form-text text-muted">Required for accessing challenges over SSH</small>
               <br>
-              <input class="form-control" id="key" name="key" type="text" value="{{ ssh_key or "" }}">
+              <input class="form-control" id="ssh-key" name="ssh_key" type="text" value="{{ ssh_key or "" }}">
             </div>
 
-            <div id="key-results" class="form-group">
+            <div id="ssh-key-results" class="form-group">
             </div>
 
             <div class="form-group text-right">

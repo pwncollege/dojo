@@ -7,22 +7,21 @@ var error_template =
 
 var success_template =
     '<div class="alert alert-success alert-dismissable submit-row" role="alert">\n' +
-    '  <p><strong>Success!</strong>\n' +
-    '  <span id="message"></span></p>' +
+    '  <strong>Success!</strong>\n' +
+    '  <span id="message"></span>' +
     '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
-    '  <p><strong>Note!</strong> You might need to refresh this page to observe the effects of this action.</p>' +
     '</div>';
 
-$(() => {
-    const keyForm = $("#key-form");
-    const keyResults = $("#key-results");
-    keyForm.submit(e => {
+function form_fetch_and_show(name, endpoint, method, success_message) {
+    const form = $(`#${name}-form`);
+    const results = $(`#${name}-results`);
+    form.submit(e => {
         e.preventDefault();
-        keyResults.empty();
-        const params = keyForm.serializeJSON();
+        results.empty();
+        const params = form.serializeJSON();
 
-        CTFd.fetch("/pwncollege_api/v1/ssh_key", {
-            method: "PATCH",
+        CTFd.fetch(endpoint, {
+            method: method,
             credentials: "same-origin",
             headers: {
                 Accept: "application/json",
@@ -33,12 +32,34 @@ $(() => {
             return response.json()
         }).then(result => {
             if (result.success) {
-                keyResults.html(success_template);
-                keyResults.find("#message").text("Your public key has been updated");
+                results.html(success_template);
+                results.find("#message").text(success_message);
             } else {
-                keyResults.html(error_template);
-                keyResults.find("#message").html(result.error);
+                results.html(error_template);
+                results.find("#message").html(result.error);
             }
         });
     });
+}
+
+$(() => {
+    form_fetch_and_show("ssh-key", "/pwncollege_api/v1/ssh_key", "PATCH", "Your public key has been updated");
+    form_fetch_and_show("dojo-create", "/pwncollege_api/v1/dojo/create", "POST", "Your dojo has been updated");
+
+    $(".copy-button").click((event) => {
+        let input = $(event.target).parents(".input-group").children("input")[0];
+        input.select();
+        input.setSelectionRange(0, 128);
+        navigator.clipboard.writeText(input.value);
+
+        $(event.target).tooltip({
+            title: "Copied!",
+            trigger: "manual"
+        });
+        $(event.target).tooltip("show");
+
+        setTimeout(function() {
+          $(event.target).tooltip("hide");
+        }, 1500);
+    })
 });

@@ -6,6 +6,7 @@ import datetime
 import functools
 import contextlib
 import inspect
+import pathlib
 
 import yaml
 from schema import Schema, Optional, Regex, Or, SchemaError
@@ -14,7 +15,7 @@ from CTFd.models import db
 from CTFd.utils.user import get_current_user
 
 from ...models import Dojos, PrivateDojos, OfficialDojos, DojoUsers, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
-from ...utils import get_current_container
+from ...utils import DOJOS_DIR, get_current_container
 
 
 ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
@@ -99,9 +100,10 @@ def load_dojo(data, *,
     data = DOJO_SPEC.validate(data)
 
     dojo_id = dojo_id or (dojo.dojo_id if dojo else None)
-    dojo_type = dojo_type or (dojo.type if dojo else None)
+    dojo_type = dojo_type or (dojo.type if dojo else "dojo")
 
     dojo_cls = {
+        "dojo": Dojos,
         "official": OfficialDojos,
         "private": PrivateDojos,
     }[dojo_type]
@@ -180,17 +182,43 @@ def load_dojo_dir(dojo_dir, **kwargs):
     return load_dojo(data, **kwargs)
 
 
-def dojo_clone(repository):
-    repository_re = r"[\w\-]+/[\w\-]+"
-    assert re.match(repository_re, repository), f"Invalid public key, expected format: {repository_re}"
-    
-    clone_dir = tempfile.TemporaryDirectory()
-    
-    result = subprocess.run(["git", "clone", f"git@github.com:{repository}", clone_dir.name],
-                             env={"GIT_TERMINAL_PROMPT": "0"},
-                             check=True,
-                             capture_output=True)
-    assert result.returncode == 0, "Failed to clone"
+def generate_ssh_keypair():
+    temp_dir = tempfile.TemporaryDirectory()
+    key_dir = pathlib.Path(temp_dir.name)
+
+    public_key = key_dir / "key.pub"
+    private_key = key_dir / "key"
+
+    subprocess.run(["ssh-keygen",
+                    "-t", "ed25519",
+                    "-P", "",
+                    "-C", "",
+                    "-f", str(private_key)],
+                    check=True,
+                    capture_output=True)
+
+    return (public_key.read_text().strip(), private_key.read_text())
+
+
+def dojo_clone(repository, private_key):
+    tmp_dojos_dir = DOJOS_DIR / "tmp"
+    tmp_dojos_dir.mkdir(exist_ok=True)
+    clone_dir = tempfile.TemporaryDirectory(dir=tmp_dojos_dir)  # TODO: ignore_cleanup_errors=True
+
+    key_file = tempfile.NamedTemporaryFile("w")
+    key_file.write(private_key)
+    key_file.flush()
+
+    print(repr(private_key), flush=True)
+    print(key_file.name, flush=True)
+
+    subprocess.run(["git", "clone", f"git@github.com:{repository}", clone_dir.name],
+                   env={
+                       "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
+                       "GIT_TERMINAL_PROMPT": "0",
+                   },
+                   check=True,
+                   capture_output=True)
 
     return clone_dir
 

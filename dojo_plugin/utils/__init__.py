@@ -30,10 +30,7 @@ PLUGIN_DIR = pathlib.Path(__file__).parent.parent
 CHALLENGES_DIR = pathlib.Path("/var/challenges")
 DOJOS_DIR = pathlib.Path("/var/dojos")
 DATA_DIR = pathlib.Path("/var/data")
-KEY_DIR = DATA_DIR / "ssh_host_keys"
-DOJO_PRIV_KEY_PATH = KEY_DIR / "ssh_host_ed25519_key"
 
-DOJO_PUB_KEY = (KEY_DIR / "ssh_host_ed25519_key.pub").read_text()
 SECCOMP = (PLUGIN_DIR / "seccomp.json").read_text()
 USER_FIREWALL_ALLOWED = {
     host: socket.gethostbyname(host)

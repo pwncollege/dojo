@@ -35,19 +35,39 @@ class CreateDojo(Resource):
         data = request.get_json()
         user = get_current_user()
 
+        DOJO_EXISTS = "This repository already exists as a dojo"
+
         try:
-            dojo_repo = data.get("dojo_repo", "")
-            dojo_dir = dojo_clone(dojo_repo)
+            repository = data.get("repository", "")
+            public_key = data.get("public_key", "")
+            private_key = data.get("private_key", "").replace("\r\n", "\n")
+
+            repository_re = r"[\w\-]+/[\w\-]+"
+            assert re.match(repository_re, repository), f"Invalid repository, expected format: <code>{repository_re}</code>"
+
+            assert not Dojos.query.filter_by(repository=repository).first(), DOJO_EXISTS
+
+            dojo_dir = dojo_clone(repository, private_key)
             dojo_path = pathlib.Path(dojo_dir.name)
 
-            dojo = load_dojo_dir(dojo_path)
-            dojo.repository = dojo_repo
+            dojo = load_dojo_dir(dojo_path, dojo_type="official")  # TODO DEBUG: dojo_type should not be set
+            dojo.repository = repository
             dojo.admins = [DojoAdmins(user_id=user.id)]
 
             db.session.add(dojo)
             db.session.commit()
 
+            dojo.directory.parent.mkdir(exist_ok=True)
             dojo_path.rename(dojo.directory)
+            dojo_path.mkdir()  # TODO: ignore_cleanup_errors=True
+
+        except subprocess.CalledProcessError as e:
+            print(e, e.stderr, flush=True)
+            deploy_url = f"https://github.com/{repository}/settings/keys"
+            return {"success": False, "error": f'Failed to clone: <a href="{deploy_url}" target="_blank">add deploy key</a>'}, 400
+
+        except IntegrityError:
+            return {"success": False, "error": DOJO_EXISTS}, 400
 
         except AssertionError as e:
             return {"success": False, "error": str(e)}, 400

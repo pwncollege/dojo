@@ -24,25 +24,21 @@
   </div>
 {%- endmacro %}
 
-{% macro accordion_title_start(acc_id, idx) -%}
+{% macro accordion_title(acc_id, idx) -%}
     <div class="card">
       <div class="card-header" id="{{acc_id}}Heading{{ idx }}">
         <h2 class="mb-0">
           <button class="btn btn-link text-decoration-none collapsed" type="button" data-toggle="collapse" data-target="#{{acc_id}}{{ idx }}" aria-expanded="false" aria-controls="{{acc_id}}{{ idx }}">
-{%- endmacro %}
-
-{% macro accordion_title_end() -%}
+            {{ caller() }}
           </button>
         </h2>
       </div>
 {%- endmacro %}
 
-{% macro accordion_body_start(acc_id, idx) -%}
+{% macro accordion_body(acc_id, idx) -%}
   <div id="{{acc_id}}{{ idx }}" class="{{acc_id}} collapse" aria-labelledby="{{acc_id}}Heading{{ idx }}" data-parent="#{{acc_id}}">
     <div class="card-body">
-{%- endmacro %}
-
-{% macro accordion_body_end() -%}
+      {{ caller() }}
     </div>
   </div>
 </div>

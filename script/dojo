@@ -1,0 +1,22 @@
+#!/bin/sh
+
+cd /opt/pwn.college
+
+ACTION="$1"
+shift
+
+case "$ACTION" in
+    "db")
+        docker exec -it ctfd_db mysql -pctfd -Dctfd
+        ;;
+
+    "logs")
+        journalctl -u pwn.college -f
+        ;;
+
+    "restart")
+        for cmd in 'build ctfd' 'kill ctfd' 'rm -f ctfd' 'up -d ctfd' 'logs -f ctfd'; do
+            docker compose --env-file=/opt/pwn.college/data/config.env $cmd;
+        done
+        ;;
+esac

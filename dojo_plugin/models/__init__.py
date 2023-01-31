@@ -86,12 +86,14 @@ def columns_repr(column_names):
 
 class Dojos(Referenceable, db.Model):
     __tablename__ = "dojos"
-    __mapper_args__ = {"polymorphic_on": "type"}
+    __mapper_args__ = {"polymorphic_on": "type", "polymorphic_identity": "dojo"}
 
     dojo_id = db.Column(db.Integer, primary_key=True)
 
     repository = db.Column(db.String(256), unique=True)
     hash = db.Column(db.String(80))
+    public_key = db.Column(db.String(128), unique=True, index=True)
+    private_key = db.Column(db.String(512), unique=True)
     type = db.Column(db.String(80), index=True)
     _id = db.Column("id", db.String(32), index=True)
     _name = Referenceable.shadowed(db.Column("name", db.String(128)))
@@ -168,10 +170,6 @@ class OfficialDojos(Dojos):
     @id.setter
     def id(self, value):
         self._id = value
-
-    @classmethod
-    def from_unique_name(cls, name):
-        return cls.query.filter_by(name=simplify(name)).first()
 
 
 class PrivateDojos(Dojos):
@@ -375,7 +373,7 @@ class DojoChallengeRuntimes(db.Model):
         option_paths = sorted(path for path in self.path.iterdir() if path.name.startswith("_"))
         if option_paths:
             option_hash = hashlib.sha256(f"{secret}_{user.id}_{self.challenge.challenge_id}".encode()).digest()
-            option = options[int.from_bytes(option_hash[:8], "little") % len(options)]
+            option = option_paths[int.from_bytes(option_hash[:8], "little") % len(option_paths)]
             for path in option.iterdir():
                 yield path.resolve()
 

@@ -51,7 +51,6 @@ for i in $(seq 1 4096); do
     chmod --reference=/dev/loop0 /dev/loop$i
 done
 
-
 if [ ! -d /opt/pwn.college/data/ssh_host_keys ]; then
     mkdir -p /opt/pwn.college/data/ssh_host_keys
     rm /etc/ssh/ssh_host_*_key*
@@ -59,11 +58,11 @@ if [ ! -d /opt/pwn.college/data/ssh_host_keys ]; then
     for key in $(ls /etc/ssh/ssh_host_*_key*); do
         cp -a $key /opt/pwn.college/data/ssh_host_keys
     done
-else
-    for key in $(ls /opt/pwn.college/data/ssh_host_keys/ssh_host_*_key*); do
-        cp -a $key /etc/ssh
-    done
 fi
+ssh-keyscan github.com > /opt/pwn.college/data/ssh_host_keys/ssh_known_hosts
+for file in $(ls /opt/pwn.college/data/ssh_host_keys/*); do
+    cp -a $file /etc/ssh
+done
 
 mkdir -p /opt/pwn.college/data/dms/config \
          /opt/pwn.college/data/dms/config/opendkim \
@@ -85,11 +84,6 @@ cat <<EOF > /opt/pwn.college/data/dns
     _dmarc             IN    TXT    "v=DMARC1; p=none; rua=mailto:dmarc.report@${DOJO_HOST}; ruf=mailto:dmarc.report@${DOJO_HOST}; sp=none; ri=86400"
     mail._domainkey    IN    TXT    "v=DKIM1; h=sha256; k=rsa; p=${DKIM_P}"
 EOF
-
-if [ ! -d /opt/pwn.college/data/dev ]; then
-    mkdir -p /opt/pwn.college/data/dev
-    cp -a /etc/skel/. /opt/pwn.college/data/dev
-fi
 
 mkdir -p /opt/pwn.college/data/logging
 

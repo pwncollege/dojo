@@ -20,7 +20,7 @@ class UpdateKey(Resource):
     @authed_only
     def patch(self):
         data = request.get_json()
-        key_value = data.get("key", "")
+        key_value = data.get("ssh_key", "")
 
         if key_value:
             key_re = "ssh-(rsa|ed25519|dss) AAAA[0-9A-Za-z+/]+[=]{0,2}"

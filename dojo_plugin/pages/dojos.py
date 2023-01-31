@@ -1,9 +1,10 @@
 from flask import Blueprint, render_template, redirect, url_for
 from CTFd.utils.user import get_current_user
+from CTFd.utils.decorators import authed_only
 
 from ..models import Dojos
 from ..utils import user_dojos
-from ..utils.dojo import dojo_route
+from ..utils.dojo import dojo_route, generate_ssh_keypair
 
 
 dojos = Blueprint("pwncollege_dojos", __name__)
@@ -16,7 +17,6 @@ def dojo_stats(dojo):
     }
 
 
-
 @dojos.route("/dojos")
 def listing():
     user = get_current_user()
@@ -24,16 +24,31 @@ def listing():
     return render_template("dojos.html", user=user, dojos=dojos)
 
 
-@dojos.route("/dojos/sync")
-def dojo_sync():
-    ...
-    # TODO
-
-
 @dojos.route("/dojo/<dojo>")
 @dojo_route
 def view_dojo(dojo):
     return redirect(url_for("pwncollege_dojo.listing", dojo=dojo.id))
+
+
+@dojos.route("/dojos/settings")
+@authed_only
+def dojo_create():
+    user = get_current_user()
+    dojos = Dojos.viewable(user=user)
+    public_key, private_key = generate_ssh_keypair()
+    return render_template(
+        "dojos_settings.html",
+        user=user,
+        dojos=dojos,
+        public_key=public_key,
+        private_key=private_key,
+    )
+
+
+@dojos.route("/dojos/sync")
+def dojo_sync():
+    ...
+    # TODO
 
 
 def dojos_override():

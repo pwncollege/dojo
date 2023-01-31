@@ -5,6 +5,17 @@
 		"dockerfile": "../Dockerfile"
 	},
 	"forwardPorts": [22, 80, 443],
+	"portsAttributes": {
+        "22": {
+            "label": "SSH"
+        },
+        "80": {
+            "label": "HTTP"
+        },
+		"443": {
+            "label": "HTTPS"
+        }
+    },
 	"mounts": [
 		{
 			"source": "${localWorkspaceFolder}/data",
@@ -36,5 +47,8 @@
 		"DOJO_ENV": "development"
 	},
 	"overrideCommand": false,
-	"runArgs": ["--privileged"]
+	"runArgs": ["--privileged"],
+	"extensions": [
+		"samuelcolvin.jinjahtml"
+	]
 }
