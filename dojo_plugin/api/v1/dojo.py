@@ -14,13 +14,13 @@ from flask_restx import Namespace, Resource
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import and_
 from CTFd.models import db, Solves, Challenges
-from CTFd.utils.decorators import authed_only
+from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
 from ...models import Dojos, OfficialDojos, DojoMembers, DojoAdmins
-from ...utils.dojo import dojo_accessible, dojo_clone, load_dojo_dir
+from ...utils.dojo import dojo_accessible, dojo_clone, dojo_update, load_dojo_dir
 
 
 dojo_namespace = Namespace(
@@ -31,6 +31,7 @@ dojo_namespace = Namespace(
 @dojo_namespace.route("/create")
 class CreateDojo(Resource):
     @authed_only
+    @admins_only  # TODO: allow anyone to create a dojo
     def post(self):
         data = request.get_json()
         user = get_current_user()
@@ -52,7 +53,9 @@ class CreateDojo(Resource):
 
             dojo = load_dojo_dir(dojo_path, dojo_type="official")  # TODO DEBUG: dojo_type should not be set
             dojo.repository = repository
-            dojo.admins = [DojoAdmins(user_id=user.id)]
+            dojo.public_key = public_key
+            dojo.private_key = private_key
+            dojo.admins = [DojoAdmins(user=user)]
 
             db.session.add(dojo)
             db.session.commit()
@@ -75,45 +78,32 @@ class CreateDojo(Resource):
         return {"success": True, "dojo_id": dojo.dojo_id}
 
 
-@dojo_namespace.route("/leave")
-class Leave(Resource):
-    @authed_only
+@dojo_namespace.route("/update")
+class UpdateDojo(Resource):
     def post(self):
         data = request.get_json()
-        user = get_current_user()
 
-        dojo_id = data.get("dojo_id")
+        try:
+            update_code = data.get("update_code", "")
+            private_key = Dojos.private_key_from_update_code(update_code)
 
-        dojo = dojo_accessible(dojo_id)
-        if not dojo:
-            return {"success": False, "error": "Dojo not found"}
-        if isinstance(dojo, OfficialDojos):
-            return {"success": False, "error": "Cannot leave official dojo"}
+            dojo = Dojos.query.filter_by(private_key=private_key).first()
+            assert dojo, "Dojo not found"
 
-        dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
-        rm_dojo_dir = False
-        if isinstance(dojo_user, DojoAdmins):
-            if DojoAdmins.query.filter_by(dojo=dojo).count() == 1:
-                db.session.delete(dojo)
-                rm_dojo_dir = True
+            dojo_update(dojo)
 
-        db.session.delete(dojo_user)
-        db.session.commit()
+        except AssertionError as e:
+            return {"success": False, "error": str(e)}, 400
 
-        if rm_dojo_dir:
-            shutil.rmtree(str(dojo.directory))
+        return {"success": True, "hash": dojo.hash}
 
-        return {"success": True}
 
+# TODO: /leave
 
 @dojo_namespace.route("/solves")
 class DojoSolves(Resource):
     @authed_only
     def get(self):
-        # TODO
-
-        user = get_current_user()
-        dojo_id = f"private-{user.id}"
 
         Model = get_model()
         fields = {

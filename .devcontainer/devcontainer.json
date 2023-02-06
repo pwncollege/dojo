@@ -44,11 +44,14 @@
 		}
 	],
 	"containerEnv": {
-		"DOJO_ENV": "development"
+		"DOJO_ENV": "development",
+		"DOJO_CHALLENGE": "challenge-minimal",
+		"PYTHONPATH": "/opt/CTFd"
 	},
 	"overrideCommand": false,
 	"runArgs": ["--privileged"],
 	"extensions": [
+		"ms-python.python",
 		"samuelcolvin.jinjahtml"
 	]
 }

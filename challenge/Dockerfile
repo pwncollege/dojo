@@ -356,6 +356,43 @@ RUN gcc /opt/pwn.college/setuid_python.c -o /opt/pwn.college/python && \
 
 ################################################################################
 
+FROM ubuntu:20.04 as challenge-minimal
+
+SHELL ["/bin/bash", "-ceov", "pipefail"]
+
+ENV LC_CTYPE=C.UTF-8
+
+COPY --link --from=builder / /
+COPY --link --from=builder-tools-apt / /
+COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
+
+RUN <<EOF
+    useradd -s /bin/bash -m hacker
+    passwd -d hacker
+
+    ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
+
+    ln -sf /home/hacker/.tmux.conf /root/.tmux.conf
+    ln -sf /home/hacker/.gdbinit /root/.gdbinit
+    ln -sf /home/hacker/.radare2rc /root/.radare2rc
+    ln -sf /home/hacker/.pwn.conf /root/.pwn.conf
+
+    mkdir /challenge
+    install -m 400 <(echo 'pwn.college{uninitialized}') /flag
+
+    find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
+
+    chmod u+s /opt/pwn.college/python \
+              /opt/pwn.college/vm/vm
+EOF
+
+RUN date > /opt/pwn.college/build
+
+USER hacker
+WORKDIR /home/hacker
+
+################################################################################
+
 FROM ubuntu:20.04 as challenge
 
 SHELL ["/bin/bash", "-ceov", "pipefail"]

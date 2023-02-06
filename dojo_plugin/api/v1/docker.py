@@ -11,7 +11,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
 from ...config import HOST_DATA_PATH
-from ...models import DojoChallenges
+from ...models import Dojos, DojoChallenges
 from ...utils import serialize_user_flag, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, module_challenges_visible
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 
@@ -80,7 +80,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             user="hacker",
             working_dir="/home/hacker",
             labels={
-                "dojo": dojo.id,
+                "dojo": dojo.b64_dojo_id,
                 "challenge": dojo_challenge.id,
             },
             mounts=[

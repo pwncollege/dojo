@@ -31,6 +31,8 @@
             {% call tab_panel("Dojos", active=True) %}
                 {% for dojo in dojos %}
                     <b>{{ dojo.name }}</b>
+                    <br>
+                    <code>{{ dojo.hash[:8] }}</code>
                 {% endfor %}
             {% endcall %}
             {% call tab_panel("Create Dojo") %}

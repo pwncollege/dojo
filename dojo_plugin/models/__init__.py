@@ -1,15 +1,21 @@
+import base64
+import functools
+import os
 import string
 import datetime
 import hashlib
 import pathlib
 import logging
 import re
+import zlib
 
 import pytz
 import yaml
 from flask import current_app
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import synonym
+from sqlalchemy.orm.attributes import set_committed_value
+from sqlalchemy.orm.session import object_session
 from sqlalchemy.sql import or_, and_
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy.ext.associationproxy import association_proxy
@@ -19,62 +25,16 @@ from CTFd.utils.user import get_current_user
 from ..utils import DOJOS_DIR
 
 
-class Referenceable:
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        if set(cls.__mro__) & set(Referenceable.__subclasses__()) - set((cls,)):
-            return
-
-        primary_key = {
-            attr: value
-            for attr, value in vars(cls).items()
-            if isinstance(value, db.Column) and value.primary_key
-        }
-        reference_key = {
-            f"reference_{name}": f"{cls.__tablename__}.{name}"
-            for name in primary_key
-        }
-        reference_columns = [
-            db.Column(f"reference_{name}", key.type)
-            for name, key in primary_key.items()
-        ]
-
-        for column in reference_columns:
-            setattr(cls, column.name, column)
-        cls.reference = db.relationship(cls.__name__,
-                                        remote_side=primary_key.values(),
-                                        lazy="immediate")
-        cls.__table_args__ = getattr(cls, "__table_args__", tuple())
-        # cls.__table_args__ += (db.Index(*reference_columns),)
-        cls.__table_args__ += ((db.ForeignKeyConstraint(reference_key.keys(),
-                                                        reference_key.values(),
-                                                        ondelete="CASCADE")),)
-
-        shadowed_columns = [
-            value
-            for attr, value in vars(cls).items()
-            if isinstance(value, db.Column) and getattr(value, "shadowed", None)
-        ]
-
-        for shadowed_column in shadowed_columns:
-            @hybrid_property
-            def shadowed_property(self, *, shadowed_column=shadowed_column):
-                value = getattr(self, f"_{shadowed_column.name}")
-                if value is None and self.reference:
-                    return getattr(self.reference, shadowed_column.name)
-                return value
-
-            @shadowed_property.setter
-            def shadowed_property(self, value, *, shadowed_column=shadowed_column):
-                setattr(self, f"_{shadowed_column.name}", value)
-
-            setattr(cls, f"_{shadowed_column.name}", shadowed_column)
-            setattr(cls, shadowed_column.name, shadowed_property)
-
-    @staticmethod
-    def shadowed(column):
-        column.shadowed = True
-        return column
+def delete_before_insert(column, null=[]):
+    # https://github.com/sqlalchemy/sqlalchemy/issues/2501
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(self, value):
+            setattr(self, column, null)
+            db.session.flush()
+            return func(self, value)
+        return wrapper
+    return decorator
 
 
 def columns_repr(column_names):
@@ -84,26 +44,31 @@ def columns_repr(column_names):
     return __repr__
 
 
-class Dojos(Referenceable, db.Model):
+class Dojos(db.Model):
     __tablename__ = "dojos"
     __mapper_args__ = {"polymorphic_on": "type", "polymorphic_identity": "dojo"}
 
-    dojo_id = db.Column(db.Integer, primary_key=True)
-
-    repository = db.Column(db.String(256), unique=True)
-    hash = db.Column(db.String(80))
-    public_key = db.Column(db.String(128), unique=True, index=True)
-    private_key = db.Column(db.String(512), unique=True)
+    dojo_id = db.Column(db.Integer,
+                        primary_key=True,
+                        default=lambda: int.from_bytes(os.urandom(4), "little", signed=True))  # TODO: this can fail
     type = db.Column(db.String(80), index=True)
+
+    repository = db.Column(db.String(256), unique=True, index=True)
+    public_key = db.Column(db.String(128), unique=True, index=True)
+    private_key = db.Column(db.String(512), unique=True, index=True)
+
     _id = db.Column("id", db.String(32), index=True)
-    _name = Referenceable.shadowed(db.Column("name", db.String(128)))
-    _description = Referenceable.shadowed(db.Column("description", db.Text))
+    name = db.Column(db.String(128))
+    description = db.Column(db.Text)
 
     users = db.relationship("DojoUsers", back_populates="dojo")
     members = db.relationship("DojoMembers", back_populates="dojo")
     admins = db.relationship("DojoAdmins", back_populates="dojo")
     students = db.relationship("DojoStudents", back_populates="dojo")
-    _modules = db.relationship("DojoModules", order_by=lambda: DojoModules.module_index, back_populates="dojo")
+    _modules = db.relationship("DojoModules",
+                               order_by=lambda: DojoModules.module_index,
+                               cascade="all, delete-orphan",
+                               back_populates="dojo")
     challenges = db.relationship("DojoChallenges",
                                  order_by=lambda: (DojoChallenges.module_index, DojoChallenges.challenge_index),
                                  back_populates="dojo",
@@ -113,18 +78,21 @@ class Dojos(Referenceable, db.Model):
                                  back_populates="dojo",
                                  viewonly=True)
 
-    @hybrid_property
-    def id(self):
-        return self._id + "-" + str(self.dojo_id)
+    @staticmethod
+    def int_to_b64(i):
+        return base64.b64encode(i.to_bytes(4, "little", signed=True), b"-_").replace(b"=", b"").decode()
 
-    @id.expression
-    def id(cls):
-        unique_id = (db.cast(cls._id, db.String) +
-                     db.literal("-") +
-                     db.cast(cls.dojo_id, db.String))
-        return db.case({db.literal("official"): db.cast(cls._id, db.String)},
-                       else_=unique_id,
-                       value=cls.type)
+    @staticmethod
+    def b64_to_int(b64):
+        return int.from_bytes(base64.b64decode(b64 + "==", "-_"), "little", signed=True)
+
+    @property
+    def b64_dojo_id(self):
+        return self.int_to_b64(self.dojo_id)
+
+    @property
+    def id(self):
+        return self._id + ":" + self.b64_dojo_id
 
     @id.setter
     def id(self, value):
@@ -135,6 +103,7 @@ class Dojos(Referenceable, db.Model):
         return self._modules
 
     @modules.setter
+    @delete_before_insert("_modules")
     def modules(self, value):
         for module_index, module in enumerate(value):
             module.module_index = module_index
@@ -144,15 +113,49 @@ class Dojos(Referenceable, db.Model):
 
     @property
     def directory(self):
-        return DOJOS_DIR / self.type / self.id
+        return DOJOS_DIR / self.b64_dojo_id
+
+    @property
+    def hash(self):
+        from ..utils.dojo import dojo_git_command
+        return dojo_git_command(self, "rev-parse", "HEAD").stdout.decode().strip()
+
+    @property
+    def update_code(self):
+        data = "".join(self.private_key.strip().split("\n")[1:-1])
+        result = base64.b64encode(zlib.compress(base64.b64decode(data))).decode()
+        assert self.private_key_from_update_code(result) == self.private_key
+        return result
+
+    @staticmethod
+    def private_key_from_update_code(update_code):
+        data = base64.b64encode(zlib.decompress(base64.b64decode(update_code))).decode()
+        return "".join((
+            "-----BEGIN OPENSSH PRIVATE KEY-----\n",
+            "".join(f"{data[i:i+70]}\n" for i in range(0, len(data), 70)),
+            "-----END OPENSSH PRIVATE KEY-----\n",
+        ))
 
     @classmethod
-    def viewable(cls, user=None):
-        return cls.query.filter(or_(
-            cls.type == "official",
-            cls.id.in_(db.session.query(DojoUsers.dojo_id)
-                       .filter_by(user=user)
-                       .subquery())))
+    def viewable(cls, id=None, user=None):
+        constraints = [
+            or_(cls.type == "official",
+                cls.dojo_id.in_(db.session.query(DojoUsers.dojo_id)
+                                .filter_by(user=user)
+                                .subquery()))
+        ]
+
+        if id is not None:
+            if ":" not in id:
+                constraints.append(cls.type == "official")
+            else:
+                id, dojo_id = id.split(":", 1)
+                dojo_id = cls.b64_to_int(dojo_id)
+                constraints.append(cls.dojo_id == dojo_id)
+            constraints.append(cls._id == id)
+
+        return cls.query.filter(*constraints)
+
 
     def solves(self, *, user=None):
         return DojoChallenges.solves(user=user, dojo=self)
@@ -163,8 +166,9 @@ class Dojos(Referenceable, db.Model):
 class OfficialDojos(Dojos):
     __mapper_args__ = {"polymorphic_identity": "official"}
 
-    @hybrid_property
+    @property
     def id(self):
+        # TODO: enforce official uniqueness
         return self._id
 
     @id.setter
@@ -216,7 +220,7 @@ class DojoStudents(DojoUsers):
     dojo = db.relationship("Dojos", back_populates="students")
 
 
-class DojoModules(Referenceable, db.Model):
+class DojoModules(db.Model):
     __tablename__ = "dojo_modules"
     __table_args__ = (
         db.UniqueConstraint("dojo_id", "id"),
@@ -226,18 +230,24 @@ class DojoModules(Referenceable, db.Model):
     module_index = db.Column(db.Integer, primary_key=True)
 
     id = db.Column(db.String(32), index=True)
-    _name = Referenceable.shadowed(db.Column("name", db.String(128)))
-    _description = Referenceable.shadowed(db.Column("description", db.Text))
+    name = db.Column(db.String(128))
+    description = db.Column(db.Text)
 
     dojo = db.relationship("Dojos", back_populates="_modules")
-    _challenges = db.relationship("DojoChallenges", order_by=lambda: DojoChallenges.challenge_index, back_populates="module")
-    _resources = db.relationship("DojoResources", back_populates="module")
+    _challenges = db.relationship("DojoChallenges",
+                                  order_by=lambda: DojoChallenges.challenge_index,
+                                  cascade="all, delete-orphan",
+                                  back_populates="module")
+    _resources = db.relationship("DojoResources",
+                                 cascade="all, delete-orphan",
+                                 back_populates="module")
 
     @hybrid_property
     def challenges(self):
         return self._challenges
 
     @challenges.setter
+    @delete_before_insert("_challenges")
     def challenges(self, value):
         for challenge_index, challenge in enumerate(value):
             challenge.challenge_index = challenge_index
@@ -248,6 +258,7 @@ class DojoModules(Referenceable, db.Model):
         return self._resources
 
     @resources.setter
+    @delete_before_insert("_resources")
     def resources(self, value):
         for resource_index, resource in enumerate(value):
             resource.resource_index = resource_index
@@ -259,12 +270,14 @@ class DojoModules(Referenceable, db.Model):
     __repr__ = columns_repr(["dojo", "id"])
 
 
-class DojoChallenges(Referenceable, db.Model):
+class DojoChallenges(db.Model):
     __tablename__ = "dojo_challenges"
     __table_args__ = (
+        db.ForeignKeyConstraint(["dojo_id"], ["dojos.dojo_id"], ondelete="CASCADE"),  # TODO: should we delete, or can we NULL
         db.ForeignKeyConstraint(["dojo_id", "module_index"],
                                 ["dojo_modules.dojo_id", "dojo_modules.module_index"],
                                 ondelete="CASCADE"),
+        db.Index(["dojo_id", "module_index", "challenge_index"]),
         db.UniqueConstraint("dojo_id", "id"),
     )
 
@@ -274,29 +287,23 @@ class DojoChallenges(Referenceable, db.Model):
 
     challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
     id = db.Column(db.String(32), index=True)
-    _name = Referenceable.shadowed(db.Column("name", db.String(128)))
-    _description = Referenceable.shadowed(db.Column("description", db.Text))
+    name = db.Column(db.String(128))
+    description = db.Column(db.Text)
 
-    dojo = db.relationship("Dojos", back_populates="challenges", viewonly=True)
+    dojo = db.relationship("Dojos",
+                           foreign_keys=[dojo_id],
+                           back_populates="challenges",
+                           viewonly=True)
     module = db.relationship("DojoModules", back_populates="_challenges")
-    _challenge = db.relationship("Challenges")
-    runtime = db.relationship("DojoChallengeRuntimes", uselist=False, back_populates="challenge")
-    visibility = db.relationship("DojoChallengeVisibilities", uselist=False, back_populates="challenge")
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if not self.reference and not self.challenge:
-            # TODO: attach description to challenge; issue is that dojo doesn't exist yet
-            # description = ":".join(self.dojo.id, self.module.id, self.id)
-            self.challenge = Challenges(type="dojo", flags=[Flags(type="dojo")])
-
-    @property
-    def challenge(self):
-        return self._challenge if not self.reference else self.reference.challenge
-
-    @challenge.setter
-    def challenge(self, value):
-        self._challenge = value
+    challenge = db.relationship("Challenges")
+    runtime = db.relationship("DojoChallengeRuntimes",
+                              uselist=False,
+                              cascade="all, delete-orphan",
+                              back_populates="challenge")
+    visibility = db.relationship("DojoChallengeVisibilities",
+                                 uselist=False,
+                                 cascade="all, delete-orphan",
+                                 back_populates="challenge")
 
     @hybrid_method
     def visible(self, when=None):
@@ -399,7 +406,10 @@ class DojoResources(db.Model):
 
     dojo = db.relationship("Dojos", back_populates="resources", viewonly=True)
     module = db.relationship("DojoModules", back_populates="_resources")
-    visibility = db.relationship("DojoResourceVisibilities", uselist=False, back_populates="resource")
+    visibility = db.relationship("DojoResourceVisibilities",
+                                 uselist=False,
+                                 cascade="all, delete-orphan",
+                                 back_populates="resource")
 
     @hybrid_property
     def visible(self):
@@ -458,22 +468,6 @@ class DojoResourceVisibilities(db.Model):
     resource = db.relationship("DojoResources", back_populates="visibility")
 
     __repr__ = columns_repr(["resource", "start", "stop"])
-
-
-# class DojoChallengeGradingPolicy(db.Model):
-#     __tablename__ "dojo_challenge_grading_policy"
-#     __table_args__ = (
-#         db.ForeignKeyConstraint(["dojo_id", "module_index", "challenge_index"],
-#                                 ["dojo_challenges.dojo_id", "dojo_challenges.module_index", "dojo_challenges.challenge_index"],
-#                                 ondelete="CASCADE"),
-#     )
-
-#     dojo_id = db.Column(db.Integer, primary_key=True)
-#     module_index = db.Column(db.Integer, primary_key=True)
-#     challenge_index = db.Column(db.Integer, primary_key=True)
-
-#     due = db.Column(db.DateTime(), index=True)
-#     late_credit = db.Column(db.Float)
 
 
 class SSHKeys(db.Model):

@@ -6,6 +6,20 @@ ACTION="$1"
 shift
 
 case "$ACTION" in
+    "enter")
+        CONTAINER="user_$1"
+        shift
+        if [ -n "$USER" ]; then
+            docker exec -it "$CONTAINER" bash
+        else
+            docker exec -it --user="$USER" "$CONTAINER" bash
+        fi
+        ;;
+
+    "compose")
+        docker compose --env-file=/opt/pwn.college/data/config.env $@
+        ;;
+
     "db")
         docker exec -it ctfd_db mysql -pctfd -Dctfd
         ;;

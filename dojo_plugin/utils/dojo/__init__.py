@@ -11,7 +11,7 @@ import pathlib
 import yaml
 from schema import Schema, Optional, Regex, Or, SchemaError
 from flask import abort
-from CTFd.models import db
+from CTFd.models import db, Challenges, Flags
 from CTFd.utils.user import get_current_user
 
 from ...models import Dojos, PrivateDojos, OfficialDojos, DojoUsers, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
@@ -94,12 +94,10 @@ DOJO_SPEC = Schema({
 
 def load_dojo(data, *,
               dojo=None,
-              dojo_id=None,
               dojo_type=None):
 
     data = DOJO_SPEC.validate(data)
 
-    dojo_id = dojo_id or (dojo.dojo_id if dojo else None)
     dojo_type = dojo_type or (dojo.type if dojo else "dojo")
 
     dojo_cls = {
@@ -109,7 +107,6 @@ def load_dojo(data, *,
     }[dojo_type]
 
     dojo_kwargs = dict(
-        dojo_id=dojo_id,
         type=dojo_type,
         id=data.get("id"),
         name=data.get("name"),
@@ -119,19 +116,23 @@ def load_dojo(data, *,
     if dojo_cls is PrivateDojos:
         dojo_kwargs["password"] = data.get("password")
 
-    # TODO: for all references: index -> name
+    if dojo is None:
+        dojo = dojo_cls(**dojo_kwargs)
+    else:
+        if dojo.id != dojo_kwargs["id"]:
+            Challenges.query.filter_by(category=dojo.id).update(dict(category=dojo_kwargs["id"]))
+        for name, value in dojo_kwargs.items():
+            setattr(dojo, name, value)
 
-    existing_challenges = {}
-
-    if dojo_id is not None:
-        existing_challenges.update({
-            challenge.id: challenge.challenge
-            for challenge in DojoChallenges.query.filter_by(dojo_id=dojo_id)
-        })
-
-        Dojos.query.filter_by(dojo_id=dojo_id).delete()
-
-    dojo = dojo_cls(**dojo_kwargs)
+    existing_challenges = {challenge.id: challenge.challenge for challenge in dojo.challenges}
+    def challenge(challenge_id):
+        if challenge_id in existing_challenges:
+            print("EXISTING!!!", flush=True)
+            return existing_challenges[challenge_id]
+        result =  (Challenges.query.filter_by(category=dojo.id, name=challenge_id).first() or
+                Challenges(type="dojo", category=dojo.id, name=challenge_id, flags=[Flags(type="dojo")]))
+        print(result, flush=True)
+        return result
 
     def visibility(cls, *args):
         start = None
@@ -149,7 +150,7 @@ def load_dojo(data, *,
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                     runtime=DojoChallengeRuntimes(image="pwncollege-challenge"),  # TODO: allow users to customize image/path
-                    challenge=existing_challenges.get(challenge_data.get("id")),
+                    challenge=challenge(challenge_data.get("id")),
                     visibility=visibility(DojoChallengeVisibilities, data, module_data, challenge_data),
                 )
                 for challenge_data in module_data["challenges"]
@@ -164,9 +165,6 @@ def load_dojo(data, *,
         )
         for module_data in data["modules"]
     ]
-
-
-    # TODO: for all references: name -> index
 
     return dojo
 
@@ -209,9 +207,6 @@ def dojo_clone(repository, private_key):
     key_file.write(private_key)
     key_file.flush()
 
-    print(repr(private_key), flush=True)
-    print(key_file.name, flush=True)
-
     subprocess.run(["git", "clone", f"git@github.com:{repository}", clone_dir.name],
                    env={
                        "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
@@ -223,8 +218,27 @@ def dojo_clone(repository, private_key):
     return clone_dir
 
 
-def dojo_accessible(dojo_id):
-    return Dojos.viewable(user=get_current_user()).filter_by(id=dojo_id).first()
+def dojo_git_command(dojo, *args):
+    key_file = tempfile.NamedTemporaryFile("w")
+    key_file.write(dojo.private_key)
+    key_file.flush()
+
+    return subprocess.run(["git", "-C", str(dojo.directory), *args],
+                          env={
+                              "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
+                              "GIT_TERMINAL_PROMPT": "0",
+                          },
+                          check=True,
+                          capture_output=True)
+
+
+def dojo_update(dojo):
+    dojo_git_command(dojo, "pull")
+    return load_dojo_dir(dojo.directory, dojo=dojo)
+
+
+def dojo_accessible(id):
+    return Dojos.viewable(id=id, user=get_current_user()).first()
 
 
 def dojo_route(func):
@@ -257,6 +271,6 @@ def get_current_dojo_challenge():
     return (
         DojoChallenges.query
         .filter_by(id=container.labels.get("challenge"))
-        .join(Dojos, Dojos.id==container.labels.get("dojo"))
+        .join(Dojos, Dojos.dojo_id==Dojos.b64_to_int(container.labels.get("dojo")))
         .first()
     )

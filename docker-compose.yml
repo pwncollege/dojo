@@ -1,8 +1,10 @@
-version: '3.3'
+version: '3.4'
 
 services:
   challenge:
-    build: challenge
+    build:
+      context: ./challenge
+      target: ${DOJO_CHALLENGE}
     platform: linux/amd64
     entrypoint: /bin/true
     networks:

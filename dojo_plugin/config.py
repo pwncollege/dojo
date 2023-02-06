@@ -79,13 +79,3 @@ def bootstrap():
             f.write(f"admin:{admin_password}\n")
 
         set_config("setup", True)
-
-    # TODO: performance, stop this from happening N times
-
-    for dojo_dir in (DOJOS_DIR / "official").glob("*/"):
-        logger.info(f"Loading dojo: {dojo_dir}")
-        existing_dojo = OfficialDojos.query.filter_by(id=dojo_dir.name).first()
-        dojo = load_dojo_dir(dojo_dir, dojo=existing_dojo, dojo_type="official")
-        assert dojo.id == dojo_dir.name, f"{dojo.id}, {dojo_dir.name}"
-        db.session.add(dojo)
-        db.session.commit()
