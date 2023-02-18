@@ -1,0 +1,83 @@
+<br><br><br>
+
+<center>
+  <h1><b>pwn.college</b></h1>
+  <h3>Learn to hack!</h3>
+</center>
+
+<br><br><br>
+
+# Getting Started
+
+At the core of pwn.college is flags. How do you get those flags? Solve challenges. You can start a challenge by clicking on the `Challenges` tab at the top, selecting a module, clicking on a particular level, and hitting `Start`. In order to access that challenge, you have two options.
+
+The first option is using the `Workspace` tab. This will present you with a fully functional development environment in your browser via Visual Studio Code. You can, for instance, quickly open a new terminal by pressing `F1`, searching for `New Terminal`, and pressing enter.
+
+The second option is using `ssh`. In order to ssh into your challenge instances, you must add a public ssh key to `Settings` > `SSH Key`. You can quickly generate an ssh key by running `ssh-keygen -f key -N ''` in a terminal on your (unix-friendly) host machine. This will generate files `key` and `key.pub`, which are your private and public keys respectively. Once you have linked your ssh key to your account, you can run `ssh -i key hacker@dojo.pwn.college` to connect into your challenge instance.
+
+Once you are in a challenge instance, your goal is to get the contents of the `/flag` file. Unfortunately for you, you are executing as the `hacker` user, but `/flag` is only readable by the `root` user. Fortunately, however, there are challenge programs located inside of the `/challenge` directory, which when run, will run with the privileges of the `root` user. Solve the challenge to get the `/flag`, and then submit it in order to complete the challenge!
+
+A few things to note. Your home directory `/home/hacker` is persistent. This means that when you start a new challenge, all of the files you have saved in there will still be there. The `Practice` button can be incredibly useful for debugging your solution. When you start a challenge in this way, you will have the ability to run programs as the `root` user with the `sudo` command; however, the instance will only have a practice flag. For some of the later (kernel-focused) challenges, you will need to solve the challenge in a virtual machine. You can interact with the virtual machine using the `vm` command.
+
+<br><br><br>
+
+<div class="embed-responsive embed-responsive-16by9">
+  <iframe class="embed-responsive-item" src="https://www.youtube.com/embed/DJO1A2neZ6Y" title="pwn.college - Getting Started" allowfullscreen></iframe>
+</div>
+
+<br><br><br>
+
+# About
+
+pwn.college is an education platform for students (and other interested parties) to learn about, and practice, core cybersecurity concepts in a hands-on fashion. In martial arts terms, it is designed to take a “white belt” in cybersecurity to becoming a “blue belt”, able to approach (simple) CTFs and wargames. The philosophy of pwn.college is “practice makes perfect”.
+
+pwn.college was created by [Zardus (Yan Shoshitaishvili)](https://yancomm.net) and [kanak (Connor Nelson)](https://connornelson.com) at Arizona State University. It powers ASU’s Computer Systems Security course, CSE466, and is now open, for free, to participation for interested people around the world!
+
+<br><br><br>
+
+# Resources
+
+<div class="container">
+  <div class="row text-center">
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a class="text-decoration-none" href="https://youtube.com/pwncollege">
+          <i class="fab fa-youtube fa-7x"></i>
+          <figcaption>Lectures on<br>YouTube</figcaption>
+        </a>
+      </figure>
+    </div>
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a class="text-decoration-none" href="https://twitch.tv/pwncollege">
+          <i class="fab fa-twitch fa-7x"></i>
+          <figcaption>Live Broadcasts on<br>Twitch</figcaption>
+        </a>
+      </figure>
+    </div>
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a class="text-decoration-none" href="https://pwn.college/discord">
+          <i class="fab fa-discord fa-7x"></i>
+          <figcaption>Chat on<br>Discord</figcaption>
+        </a>
+      </figure>
+    </div>
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a class="text-decoration-none" href="https://github.com/pwncollege">
+          <i class="fab fa-github fa-7x"></i>
+          <figcaption>Open Source on<br>GitHub</figcaption>
+        </a>
+      </figure>
+    </div>
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a class="text-decoration-none" href="mailto:pwn-college@asu.edu">
+          <i class="fas fa-envelope fa-7x"></i>
+          <figcaption>Contact us via<br>Email</figcaption>
+        </a>
+      </figure>
+    </div>
+  </div>
+</div>

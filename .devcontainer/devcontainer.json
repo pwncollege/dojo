@@ -50,8 +50,12 @@
 	},
 	"overrideCommand": false,
 	"runArgs": ["--privileged"],
-	"extensions": [
-		"ms-python.python",
-		"samuelcolvin.jinjahtml"
-	]
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"samuelcolvin.jinjahtml"
+			]
+		}
+	}
 }

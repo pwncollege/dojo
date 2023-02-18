@@ -30,7 +30,7 @@
           #}
         </p>
         <p class="card-text">
-          {{ dojo.solves(user=user).count() if user else 0 }} / {{ dojo.challenges | length }}
+          {{ dojo.modules | length }} Modules
         </p>
       </div>
     </li>
@@ -44,7 +44,6 @@
   </div>
 </div>
 <div class="container">
-  <p>These are the currently available public dojos. Each dojo follows a certain level and flavor of material to develop your skills in a given hacking style.</p>
   <ul class="card-list">
     {% for dojo in dojos %}
     {{ dojo_card(dojo) }}

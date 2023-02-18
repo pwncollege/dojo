@@ -31,6 +31,8 @@ CHALLENGES_DIR = pathlib.Path("/var/challenges")
 DOJOS_DIR = pathlib.Path("/var/dojos")
 DATA_DIR = pathlib.Path("/var/data")
 
+INDEX_HTML = pathlib.Path("/var/index.html").read_text()
+
 SECCOMP = (PLUGIN_DIR / "seccomp.json").read_text()
 USER_FIREWALL_ALLOWED = {
     host: socket.gethostbyname(host)

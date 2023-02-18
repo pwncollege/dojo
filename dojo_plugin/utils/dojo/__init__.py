@@ -14,17 +14,17 @@ from flask import abort
 from CTFd.models import db, Challenges, Flags
 from CTFd.utils.user import get_current_user
 
-from ...models import Dojos, PrivateDojos, OfficialDojos, DojoUsers, DojoModules, DojoChallenges, DojoChallengeRuntimes, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
+from ...models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
 from ...utils import DOJOS_DIR, get_current_container
 
 
 ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
-UNIQUE_ID_REGEX = Regex(r"^[a-z0-9-]{1,64}$")
+UNIQUE_ID_REGEX = Regex(r"^[a-z0-9-~]{1,128}$")
 NAME_REGEX = Regex(r"^[\S ]{1,128}$")
 
 ID_NAME_DESCRIPTION = {
-    "id": ID_REGEX,
-    "name": NAME_REGEX,
+    Optional("id"): ID_REGEX,
+    Optional("name"): NAME_REGEX,
     Optional("description"): str,
 }
 
@@ -42,7 +42,7 @@ DOJO_SPEC = Schema({
 
     **VISIBILITY,
 
-    Optional("from"): {
+    Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
     },
 
@@ -50,7 +50,7 @@ DOJO_SPEC = Schema({
         **ID_NAME_DESCRIPTION,
         **VISIBILITY,
 
-        Optional("from"): {
+        Optional("import"): {
             "dojo": UNIQUE_ID_REGEX,
             "module": ID_REGEX,
         },
@@ -58,12 +58,12 @@ DOJO_SPEC = Schema({
         Optional("challenges", default=[]): [{
             **ID_NAME_DESCRIPTION,
 
-            Optional("image", default="pwncollege-challenge"): Regex(r"^[\S ]{1, 256}$"),
-            Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
+            # Optional("image", default="pwncollege-challenge"): Regex(r"^[\S ]{1, 256}$"),
+            # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
             **VISIBILITY,
 
-            Optional("from"): {
+            Optional("import"): {
                 "dojo": UNIQUE_ID_REGEX,
                 "module": ID_REGEX,
                 "challenge": ID_REGEX,
@@ -74,17 +74,15 @@ DOJO_SPEC = Schema({
             {
                 "type": "markdown",
                 "name": NAME_REGEX,
-                "data": str,
+                "content": str,
                 **VISIBILITY,
             },
             {
                 "type": "lecture",
                 "name": NAME_REGEX,
-                "data": {
-                    Optional("video"): str,
-                    Optional("playlist"): str,
-                    Optional("slides"): str,
-                },
+                Optional("video"): str,
+                Optional("playlist"): str,
+                Optional("slides"): str,
                 **VISIBILITY,
             },
         )],
@@ -92,46 +90,34 @@ DOJO_SPEC = Schema({
 })
 
 
-def load_dojo(data, *,
-              dojo=None,
-              dojo_type=None):
+def load_dojo(data, *, dojo=None):
 
-    data = DOJO_SPEC.validate(data)
-
-    dojo_type = dojo_type or (dojo.type if dojo else "dojo")
-
-    dojo_cls = {
-        "dojo": Dojos,
-        "official": OfficialDojos,
-        "private": PrivateDojos,
-    }[dojo_type]
+    try:
+        data = DOJO_SPEC.validate(data)
+    except SchemaError as e:
+        raise AssertionError(e)
 
     dojo_kwargs = dict(
-        type=dojo_type,
         id=data.get("id"),
         name=data.get("name"),
         description=data.get("description"),
+        password=data.get("password"),
     )
 
-    if dojo_cls is PrivateDojos:
-        dojo_kwargs["password"] = data.get("password")
-
     if dojo is None:
-        dojo = dojo_cls(**dojo_kwargs)
+        dojo = Dojos(**dojo_kwargs)
     else:
         if dojo.id != dojo_kwargs["id"]:
             Challenges.query.filter_by(category=dojo.id).update(dict(category=dojo_kwargs["id"]))
         for name, value in dojo_kwargs.items():
             setattr(dojo, name, value)
 
-    existing_challenges = {challenge.id: challenge.challenge for challenge in dojo.challenges}
-    def challenge(challenge_id):
-        if challenge_id in existing_challenges:
-            print("EXISTING!!!", flush=True)
-            return existing_challenges[challenge_id]
-        result =  (Challenges.query.filter_by(category=dojo.id, name=challenge_id).first() or
-                Challenges(type="dojo", category=dojo.id, name=challenge_id, flags=[Flags(type="dojo")]))
-        print(result, flush=True)
+    existing_challenges = {(challenge.module.id, challenge.id): challenge.challenge for challenge in dojo.challenges}
+    def challenge(module_id, challenge_id):
+        if (module_id, challenge_id) in existing_challenges:
+            return existing_challenges[(module_id, challenge_id)]
+        result = (Challenges.query.filter_by(category=dojo.id, name=f"{module_id}:{challenge_id}").first() or
+                  Challenges(type="dojo", category=dojo.id, name=f"{module_id}:{challenge_id}", flags=[Flags(type="dojo")]))
         return result
 
     def visibility(cls, *args):
@@ -149,8 +135,7 @@ def load_dojo(data, *,
             challenges=[
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
-                    runtime=DojoChallengeRuntimes(image="pwncollege-challenge"),  # TODO: allow users to customize image/path
-                    challenge=challenge(challenge_data.get("id")),
+                    challenge=challenge(module_data.get("id"), challenge_data.get("id")),
                     visibility=visibility(DojoChallengeVisibilities, data, module_data, challenge_data),
                 )
                 for challenge_data in module_data["challenges"]
@@ -223,7 +208,7 @@ def dojo_git_command(dojo, *args):
     key_file.write(dojo.private_key)
     key_file.flush()
 
-    return subprocess.run(["git", "-C", str(dojo.directory), *args],
+    return subprocess.run(["git", "-C", str(dojo.path), *args],
                           env={
                               "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
                               "GIT_TERMINAL_PROMPT": "0",
@@ -234,7 +219,7 @@ def dojo_git_command(dojo, *args):
 
 def dojo_update(dojo):
     dojo_git_command(dojo, "pull")
-    return load_dojo_dir(dojo.directory, dojo=dojo)
+    return load_dojo_dir(dojo.path, dojo=dojo)
 
 
 def dojo_accessible(id):
@@ -271,6 +256,6 @@ def get_current_dojo_challenge():
     return (
         DojoChallenges.query
         .filter_by(id=container.labels.get("challenge"))
-        .join(Dojos, Dojos.dojo_id==Dojos.b64_to_int(container.labels.get("dojo")))
+        .join(Dojos, Dojos.dojo_id==Dojos.hex_to_int(container.labels.get("dojo")))
         .first()
     )

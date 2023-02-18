@@ -34,9 +34,8 @@ for config_option in missing_warnings:
 
 @multiprocess_lock
 def bootstrap():
-    from .models import OfficialDojos
     from .pages.discord import discord_reputation
-    from .utils import CHALLENGES_DIR, DOJOS_DIR, DATA_DIR
+    from .utils import CHALLENGES_DIR, DOJOS_DIR, DATA_DIR, INDEX_HTML
     from .utils.dojo import load_dojo_dir
 
     set_config("ctf_name", "pwn.college")
@@ -79,3 +78,6 @@ def bootstrap():
             f.write(f"admin:{admin_password}\n")
 
         set_config("setup", True)
+
+    Pages.query.filter_by(route="index").update(dict(content=INDEX_HTML))
+    db.session.commit()

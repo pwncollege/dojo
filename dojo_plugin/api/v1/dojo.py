@@ -19,7 +19,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
-from ...models import Dojos, OfficialDojos, DojoMembers, DojoAdmins
+from ...models import Dojos, DojoMembers, DojoAdmins
 from ...utils.dojo import dojo_accessible, dojo_clone, dojo_update, load_dojo_dir
 
 
@@ -51,7 +51,7 @@ class CreateDojo(Resource):
             dojo_dir = dojo_clone(repository, private_key)
             dojo_path = pathlib.Path(dojo_dir.name)
 
-            dojo = load_dojo_dir(dojo_path, dojo_type="official")  # TODO DEBUG: dojo_type should not be set
+            dojo = load_dojo_dir(dojo_path)
             dojo.repository = repository
             dojo.public_key = public_key
             dojo.private_key = private_key
@@ -60,12 +60,11 @@ class CreateDojo(Resource):
             db.session.add(dojo)
             db.session.commit()
 
-            dojo.directory.parent.mkdir(exist_ok=True)
-            dojo_path.rename(dojo.directory)
+            dojo.path.parent.mkdir(exist_ok=True)
+            dojo_path.rename(dojo.path)
             dojo_path.mkdir()  # TODO: ignore_cleanup_errors=True
 
         except subprocess.CalledProcessError as e:
-            print(e, e.stderr, flush=True)
             deploy_url = f"https://github.com/{repository}/settings/keys"
             return {"success": False, "error": f'Failed to clone: <a href="{deploy_url}" target="_blank">add deploy key</a>'}, 400
 
@@ -91,14 +90,13 @@ class UpdateDojo(Resource):
             assert dojo, "Dojo not found"
 
             dojo_update(dojo)
+            db.session.commit()
 
         except AssertionError as e:
             return {"success": False, "error": str(e)}, 400
 
         return {"success": True, "hash": dojo.hash}
 
-
-# TODO: /leave
 
 @dojo_namespace.route("/solves")
 class DojoSolves(Resource):

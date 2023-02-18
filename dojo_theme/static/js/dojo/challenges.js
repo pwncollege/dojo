@@ -104,6 +104,7 @@ function renderSubmissionResponse(response, card) {
 function startChallenge(event) {
     event.preventDefault();
     const card = $(event.currentTarget).closest(".card");
+    const module = card.find("#module").val()
     const challenge = card.find("#challenge").val()
     const practice = event.currentTarget.id == "challenge-practice";
 
@@ -113,9 +114,10 @@ function startChallenge(event) {
     card.find("#challenge-practice").prop("disabled", true);
 
     var params = {
-        'dojo': init.dojo,
-        'challenge': challenge,
-        'practice': practice,
+        "dojo": init.dojo,
+        "module": module,
+        "challenge": challenge,
+        "practice": practice,
     };
 
     CTFd.fetch('/pwncollege_api/v1/docker', {

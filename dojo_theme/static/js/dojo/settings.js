@@ -44,7 +44,7 @@ function form_fetch_and_show(name, endpoint, method, success_message) {
 
 $(() => {
     form_fetch_and_show("ssh-key", "/pwncollege_api/v1/ssh_key", "PATCH", "Your public key has been updated");
-    form_fetch_and_show("dojo-create", "/pwncollege_api/v1/dojo/create", "POST", "Your dojo has been updated");
+    form_fetch_and_show("dojo-create", "/pwncollege_api/v1/dojo/create", "POST", "Your dojo has been created");
 
     $(".copy-button").click((event) => {
         let input = $(event.target).parents(".input-group").children("input")[0];

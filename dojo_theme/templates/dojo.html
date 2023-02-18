@@ -15,21 +15,18 @@
     <h1>The Dojo<h1>
     <br>
     <h2>{{ dojo.name }}</h2>
-    {% if user.type == "admin" %}
-    <code>{{ dojo.hash[:8] }}</code>
-    {% endif %}
   </div>
 </div>
 <div class="container">
   {% include "components/errors.html" %}
+
   {% if dojo.description %}
   <p>{{ render_markdown(dojo.description) }}</p>
-  <br style="font-size: 3em">
+  <br>
   {% endif %}
 
   <h2 class="row">Dojo Stats</h2>
   <br>
-  <p>These are the stats of this specific dojo ({{dojo.name}}), accrued since the dojo's creation.</p>
   <div class="row">
     <p>
       <b>Hacking Now:</b> <code>{{ stats["active"] }}</code>
@@ -42,7 +39,7 @@
     </p>
   </div>
 
-  <br style="font-size: 3em">
+  <br>
 
   {% if dojo_user.type == "student" %}
   <h2 class="row">Dojo Grades</h2>
@@ -55,7 +52,7 @@
     <p>As the admin of the dojo, you can view grades for your students (who entered a grade token when joining) <a href="{{ url_for("grades.dojo_grades", dojo=dojo_id) }}">here</a>.</p>
     {% endif %}
 
-  <br style="font-size: 3em">
+  <br>
 
   <h2 class="row">Dojo Modules</h2>
   <br>
@@ -75,7 +72,7 @@
     {% endfor %}
   </ul>
 
-  <br style="font-size: 3em">
+  <br>
 
   <h2 class="row">Dojo Rankings:</h2>
   <br>

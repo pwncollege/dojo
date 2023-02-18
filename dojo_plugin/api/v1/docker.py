@@ -11,7 +11,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
 from ...config import HOST_DATA_PATH
-from ...models import Dojos, DojoChallenges
+from ...models import Dojos, DojoModules, DojoChallenges
 from ...utils import serialize_user_flag, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, module_challenges_visible
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 
@@ -64,23 +64,23 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             container.wait(condition="removed")
         except docker.errors.NotFound:
             pass
-        hostname = dojo_challenge.id
+        hostname = "-".join((dojo_challenge.module.id, dojo_challenge.id))
         if practice:
-            hostname = f"practice_{hostname}"
+            hostname = f"practice~{hostname}"
         devices = []
         if os.path.exists("/dev/kvm"):
             devices.append("/dev/kvm:/dev/kvm:rwm")
         internet = any(award.name == "INTERNET" for award in user.awards)
 
         return docker_client.containers.run(
-            dojo_challenge.runtime.image,  # WORKING HERE
+            dojo_challenge.image,
             entrypoint=["/bin/sleep", "6h"],
             name=f"user_{user.id}",
             hostname=hostname,
             user="hacker",
             working_dir="/home/hacker",
             labels={
-                "dojo": dojo.b64_dojo_id,
+                "dojo": dojo.hex_dojo_id,
                 "challenge": dojo_challenge.id,
             },
             mounts=[
@@ -136,7 +136,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
         )
 
     def insert_challenge(user, dojo_challenge):
-        for path in dojo_challenge.runtime.user_paths(user):
+        for path in dojo_challenge.challenge_paths(user):
             with simple_tar(path, f"/challenge/{path.name}") as tar:
                 container.put_archive("/", tar)
         exec_run("chown -R root:root /challenge")
@@ -189,6 +189,7 @@ class RunDocker(Resource):
     def post(self):
         data = request.get_json()
         dojo_id = data.get("dojo")
+        module_id = data.get("module")
         challenge_id = data.get("challenge")
         practice = data.get("practice")
 
@@ -198,7 +199,11 @@ class RunDocker(Resource):
         if not dojo:
             return {"success": False, "error": "Invalid dojo"}
 
-        dojo_challenge = DojoChallenges.query.filter_by(dojo=dojo, id=challenge_id).first()
+        dojo_challenge = (
+            DojoChallenges.query.filter_by(id=challenge_id)
+            .join(DojoModules.query.filter_by(dojo=dojo, id=module_id).subquery())
+            .first()
+        )
         if not dojo_challenge:
             return {"success": False, "error": "Invalid challenge"}
 

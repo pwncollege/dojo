@@ -83,8 +83,9 @@ def get_scoreboard_data(dojo, module=None, duration=None, page=1, per_page=20):
     user = get_current_user()
     if user:
         me = standing(db.session.query(query.subquery()).filter_by(user_id=user.id).first())
-        pages.add((me["rank"] - 1) // per_page + 1)
-        result["me"] = me
+        if me:
+            pages.add((me["rank"] - 1) // per_page + 1)
+            result["me"] = me
 
     result["pages"] = sorted(pages)
 

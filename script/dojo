@@ -20,6 +20,10 @@ case "$ACTION" in
         docker compose --env-file=/opt/pwn.college/data/config.env $@
         ;;
 
+    "shell")
+        docker exec -it ctfd python manage.py shell
+        ;;
+
     "db")
         docker exec -it ctfd_db mysql -pctfd -Dctfd
         ;;

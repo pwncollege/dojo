@@ -58,6 +58,12 @@
   </div>
 </div>
 <div class="container">
+
+  {% if module.description %}
+  <p>{{ render_markdown(module.description) }}</p>
+  <br>
+  {% endif %}
+
   {#
 
   {% if module.time_assigned or module.time_due %}
@@ -101,7 +107,7 @@
   <p>For ASU extra credit due dates, please log in with an <code>@asu.edu</code> email address.</p>
   {% endif %}
 
-  <br style="font-size: 3em">
+  <br>
   {% endif %}
 
   {% if authed() and asu_student and challenges|length and module.time_assigned %}
@@ -122,7 +128,7 @@
   {% endif %}
   </p>
 
-  <br style="font-size: 3em">
+  <br>
   {% endif %}
 
   #}
@@ -144,14 +150,14 @@
       <div id="resource{{ loop.index }}" class="resource collapse" aria-labelledby="resourceHeading{{ loop.index }}" data-parent="#resources">
         <div class="card-body">
           {% if resource.type == "lecture" %}
-          {% if resource.data.video %}
-          {% set src = "https://www.youtube.com/embed/" + resource.data.video + "?" + ("list=" + resource.data.playlist + "&" if resource.data.playlist else "") + "rel=0" %}
+          {% if resource.video %}
+          {% set src = "https://www.youtube.com/embed/" + resource.video + "?" + ("list=" + resource.playlist + "&" if resource.playlist else "") + "rel=0" %}
           <div class="embed-responsive embed-responsive-16by9">
             <iframe class="embed-responsive-item" data-src="{{ src }}" title="YouTube video player" allowfullscreen></iframe>
           </div>
           {% endif %}
-          {% if resource.data.slides %}
-          {% set src = "https://docs.google.com/presentation/d/" + resource.data.slides + "/embed" %}
+          {% if resource.slides %}
+          {% set src = "https://docs.google.com/presentation/d/" + resource.slides + "/embed" %}
           <div class="embed-responsive embed-responsive-16by9">
             <iframe class="embed-responsive-item" data-src="{{ src }}"></iframe>
           </div>
@@ -159,7 +165,7 @@
 
           {% elif resource.type == "markdown" %}
           <div class="embed-responsive">
-            {{ render_markdown(resource.data) }}
+            {{ render_markdown(resource.content) }}
           </div>
           {% endif %}
         </div>
@@ -168,7 +174,7 @@
     {% endfor %}
   </div>
 
-  <br style="font-size: 3em">
+  <br>
   {% endif %}
 
   {% if module.challenges %}
@@ -216,6 +222,7 @@
           </div>
           <div class="row submit-row">
             <div class="col-md-9 form-group">
+              <input id="module" type="hidden" value="{{ challenge.module.id }}">
               <input id="challenge" type="hidden" value="{{ challenge.id }}">
               <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
               <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
@@ -239,7 +246,7 @@
     {% endfor %}
   </div>
 
-  <br style="font-size: 3em">
+  <br>
 
   <h2>Module Ranking</h2>
   <p>This scoreboard reflects solves for challenges in this module after the module launched in this dojo.</p>
