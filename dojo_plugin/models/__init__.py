@@ -54,7 +54,7 @@ class Dojos(db.Model):
     private_key = db.Column(db.String(512), unique=True)
     update_code = db.Column(db.String(32), unique=True, index=True)
 
-    _id = db.Column("id", db.String(32), index=True)
+    id = db.Column(db.String(32), index=True)
     name = db.Column(db.String(128))
     description = db.Column(db.Text)
 
@@ -99,6 +99,19 @@ class Dojos(db.Model):
             return self.data.get(name)
         raise AttributeError()
 
+    @classmethod
+    def from_id(cls, reference_id):
+        constraints = []
+        if "~" not in reference_id:
+            id = reference_id
+            constraints.append(cls.official)
+        else:
+            id, dojo_id = reference_id.split("~", 1)
+            dojo_id = cls.hex_to_int(dojo_id)
+            constraints.append(cls.dojo_id == dojo_id)
+        constraints.append(cls.id == id)
+        return cls.query.filter(*constraints)
+
     @staticmethod
     def int_to_hex(i):
         return f"{i & 0xFFFFFFFF:08x}"
@@ -112,14 +125,12 @@ class Dojos(db.Model):
         return self.int_to_hex(self.dojo_id)
 
     @property
-    def id(self):
-        if self.official:
-            return self._id
-        return self._id + "~" + self.hex_dojo_id
+    def unique_id(self):
+        return self.id + "~" + self.hex_dojo_id
 
-    @id.setter
-    def id(self, value):
-        self._id = value
+    @property
+    def reference_id(self):
+        return self.id if self.official else self.unique_id
 
     @hybrid_property
     def modules(self):
@@ -145,23 +156,13 @@ class Dojos(db.Model):
 
     @classmethod
     def viewable(cls, id=None, user=None):
-        constraints = [
-            or_(cls.official,
-                cls.dojo_id.in_(db.session.query(DojoUsers.dojo_id)
-                                .filter_by(user=user)
-                                .subquery()))
-        ]
-
-        if id is not None:
-            if "~" not in id:
-                constraints.append(cls.official)
-            else:
-                id, dojo_id = id.split("~", 1)
-                dojo_id = cls.hex_to_int(dojo_id)
-                constraints.append(cls.dojo_id == dojo_id)
-            constraints.append(cls._id == id)
-
-        return cls.query.filter(*constraints)
+        return (
+            (cls.from_id(id) if id is not None else cls.query)
+            .filter(or_(cls.official,
+                        cls.dojo_id.in_(db.session.query(DojoUsers.dojo_id)
+                                        .filter_by(user=user)
+                                        .subquery())))
+        )
 
     def solves(self, *, user=None):
         return DojoChallenges.solves(user=user, dojo=self)
@@ -232,6 +233,39 @@ class DojoModules(db.Model):
                                  cascade="all, delete-orphan",
                                  back_populates="module")
 
+    def __init__(self, *args, **kwargs):
+        default = kwargs.pop("default", None)
+
+        data = kwargs.pop("data", {})
+        for field in self.data_fields:
+            if field in kwargs:
+                data[field] = kwargs.pop(field)
+        kwargs["data"] = data
+
+        if default:
+            for field in ["id", "name", "description"]:
+                kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
+
+        kwargs["challenges"] = (
+            kwargs.pop("challenges", None) or
+            ([DojoChallenges(default=challenge) for challenge in default.challenges] if default else [])
+        )
+        kwargs["resources"] = (
+            kwargs.pop("resources", None) or
+            ([DojoResources(default=resource) for resource in default.resources] if default else [])
+        )
+
+        super().__init__(*args, **kwargs)
+
+    def __getattr__(self, name):
+        if name in self.data_fields:
+            return self.data.get(name)
+        raise AttributeError()
+
+    @classmethod
+    def from_id(cls, dojo_reference_id, id):
+        return cls.query.filter_by(id=id).join(Dojos.from_id(dojo_reference_id).subquery())
+
     @hybrid_property
     def challenges(self):
         return self._challenges
@@ -284,7 +318,7 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = []
+    data_fields = ["path_override"]
 
     dojo = db.relationship("Dojos",
                            foreign_keys=[dojo_id],
@@ -296,6 +330,35 @@ class DojoChallenges(db.Model):
                                  uselist=False,
                                  cascade="all, delete-orphan",
                                  back_populates="challenge")
+
+    def __init__(self, *args, **kwargs):
+        default = kwargs.pop("default", None)
+
+        data = kwargs.pop("data", {})
+        for field in self.data_fields:
+            if field in kwargs:
+                data[field] = kwargs.pop(field)
+        kwargs["data"] = data
+
+        if default:
+            if kwargs.get("challenge") is not None:
+                raise AttributeError("Import requires challenge to be None")
+
+            for field in ["id", "name", "description", "challenge"]:
+                kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
+
+            kwargs["data"]["path_override"] = str(default.path)
+
+        super().__init__(*args, **kwargs)
+
+    def __getattr__(self, name):
+        if name in self.data_fields:
+            return self.data.get(name)
+        raise AttributeError()
+
+    @classmethod
+    def from_id(cls, dojo_reference_id, module_id, id):
+        return cls.query.filter_by(id=id).join(DojoModules.from_id(dojo_reference_id, module_id).subquery())
 
     @hybrid_method
     def visible(self, when=None):
@@ -331,7 +394,9 @@ class DojoChallenges(db.Model):
 
     @property
     def path(self):
-        return self.module.path / self.id
+        return (self.module.path / self.id
+                if not self.path_override else
+                pathlib.Path(self.path_override))
 
     @property
     def image(self):
@@ -383,33 +448,27 @@ class DojoResources(db.Model):
 
 
     def __init__(self, *args, **kwargs):
+        default = kwargs.pop("default", None)
+
         data = kwargs.pop("data", {})
         for field in self.data_fields:
             if field in kwargs:
                 data[field] = kwargs.pop(field)
         kwargs["data"] = data
+
+        if default:
+            if kwargs.get("data"):
+                raise AttributeError("Import requires data to be empty")
+
+            for field in ["type", "name", "data"]:
+                kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
+
         super().__init__(*args, **kwargs)
 
     def __getattr__(self, name):
         if name in self.data_fields:
             return self.data.get(name)
         raise AttributeError()
-
-    @property
-    def content(self):
-        return self.data.get("content")
-
-    @property
-    def video(self):
-        return self.data.get("video")
-
-    @property
-    def playlist(self):
-        return self.data.get("playlist")
-
-    @property
-    def slides(self):
-        return self.data.get("slides")
 
     @hybrid_property
     def visible(self):

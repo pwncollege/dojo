@@ -227,4 +227,4 @@ class RunDocker(Resource):
         dojo_challenge = get_current_dojo_challenge()
         if not dojo_challenge:
             return {"success": False, "error": "No active challenge"}
-        return {"success": True, "dojo": dojo_challenge.dojo.id, "challenge": dojo_challenge.id}
+        return {"success": True, "dojo": dojo_challenge.dojo.reference_id, "challenge": dojo_challenge.id}

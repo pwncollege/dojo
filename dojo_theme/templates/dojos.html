@@ -11,7 +11,7 @@
 {% endblock %}
 
 {% macro dojo_card(dojo) -%}
-  <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.id) }}">
+  <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.reference_id) }}">
     <li class="card card-small">
       <div class="card-body">
         <h4 class="card-title">{{ dojo.name }}</h4>

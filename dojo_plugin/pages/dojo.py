@@ -22,7 +22,7 @@ def get_stats(dojo):
     docker_client = docker.from_env()
     filters = {
         "name": "user_",
-        "label": f"dojo={dojo.id}"
+        "label": f"dojo={dojo.reference_id}"
     }
     containers = docker_client.containers.list(filters=filters, ignore_removed=True)
 

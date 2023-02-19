@@ -1,3 +1,5 @@
+import sys
+import traceback
 import sqlalchemy
 import subprocess
 import tempfile
@@ -57,6 +59,9 @@ class CreateDojo(Resource):
             dojo.private_key = private_key
             dojo.admins = [DojoAdmins(user=user)]
 
+            if repository.split("/")[0] == "pwncollege":
+                dojo.official = True
+
             db.session.add(dojo)
             db.session.commit()
 
@@ -68,34 +73,19 @@ class CreateDojo(Resource):
             deploy_url = f"https://github.com/{repository}/settings/keys"
             return {"success": False, "error": f'Failed to clone: <a href="{deploy_url}" target="_blank">add deploy key</a>'}, 400
 
-        except IntegrityError:
+        except IntegrityError as e:
+            print(e, flush=True)
             return {"success": False, "error": DOJO_EXISTS}, 400
 
         except AssertionError as e:
             return {"success": False, "error": str(e)}, 400
 
-        return {"success": True, "dojo_id": dojo.dojo_id}
-
-
-@dojo_namespace.route("/update")
-class UpdateDojo(Resource):
-    def post(self):
-        data = request.get_json()
-
-        try:
-            update_code = data.get("update_code", "")
-            private_key = Dojos.private_key_from_update_code(update_code)
-
-            dojo = Dojos.query.filter_by(private_key=private_key).first()
-            assert dojo, "Dojo not found"
-
-            dojo_update(dojo)
-            db.session.commit()
-
-        except AssertionError as e:
+        except Exception as e:
+            print(f"ERROR: Dojo failed for {repository}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": str(e)}, 400
 
-        return {"success": True, "hash": dojo.hash}
+        return {"success": True, "dojo_id": dojo.dojo_id}
 
 
 @dojo_namespace.route("/solves")

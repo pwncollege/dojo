@@ -93,22 +93,24 @@ DOJO_SPEC = Schema({
 def load_dojo(data, *, dojo=None):
 
     try:
-        data = DOJO_SPEC.validate(data)
+        dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
         raise AssertionError(e)
 
-    dojo_kwargs = dict(
-        id=data.get("id"),
-        name=data.get("name"),
-        description=data.get("description"),
-        password=data.get("password"),
+    # TODO: we probably don't need to restrict imports to official dojos
+    import_dojo = (
+        Dojos.from_id(dojo_data["import"]["dojo"]).filter_by(official=True).first()
+        if "import" in dojo_data else None
     )
+
+    dojo_kwargs = {
+        field: dojo_data.get(field, getattr(import_dojo, field, None))
+        for field in ["id", "name", "description", "password"]
+    }
 
     if dojo is None:
         dojo = Dojos(**dojo_kwargs)
     else:
-        if dojo.id != dojo_kwargs["id"]:
-            Challenges.query.filter_by(category=dojo.id).update(dict(category=dojo_kwargs["id"]))
         for name, value in dojo_kwargs.items():
             setattr(dojo, name, value)
 
@@ -116,8 +118,8 @@ def load_dojo(data, *, dojo=None):
     def challenge(module_id, challenge_id):
         if (module_id, challenge_id) in existing_challenges:
             return existing_challenges[(module_id, challenge_id)]
-        result = (Challenges.query.filter_by(category=dojo.id, name=f"{module_id}:{challenge_id}").first() or
-                  Challenges(type="dojo", category=dojo.id, name=f"{module_id}:{challenge_id}", flags=[Flags(type="dojo")]))
+        result = (Challenges.query.filter_by(category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}").first() or
+                  Challenges(type="dojo", category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}", flags=[Flags(type="dojo")]))
         return result
 
     def visibility(cls, *args):
@@ -135,20 +137,29 @@ def load_dojo(data, *, dojo=None):
             challenges=[
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
-                    challenge=challenge(module_data.get("id"), challenge_data.get("id")),
-                    visibility=visibility(DojoChallengeVisibilities, data, module_data, challenge_data),
+                    challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
+                    visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
+                    default=(DojoChallenges.from_id(challenge_data["import"]["dojo"],
+                                                    challenge_data["import"]["module"],
+                                                    challenge_data["import"]["challenge"]).first()
+                             if "import" in challenge_data else None),
                 )
                 for challenge_data in module_data["challenges"]
-            ],
+            ] if "challenges" in module_data else None,
             resources = [
                 DojoResources(
                     **{kwarg: resource_data.get(kwarg) for kwarg in ["type", "name", "data"]},
-                    visibility=visibility(DojoResourceVisibilities, data, module_data, resource_data),
+                    visibility=visibility(DojoResourceVisibilities, dojo_data, module_data, resource_data),
                 )
                 for resource_data in module_data["resources"]
-            ],
+            ] if "resources" in module_data else None,
+            default=(DojoModules.from_id(module_data["import"]["dojo"],
+                                         module_data["import"]["module"]).first()
+                     if "import" in module_data else None),
         )
-        for module_data in data["modules"]
+        for module_data in dojo_data["modules"]
+    ] if "modules" in dojo_data else [
+        DojoModules(default=module) for module in (import_dojo.modules if import_dojo else [])
     ]
 
     return dojo

@@ -1,7 +1,10 @@
-from flask import Blueprint, render_template, redirect, url_for
+import sys
+import traceback
+from flask import Blueprint, render_template, redirect, url_for, abort
 from CTFd.models import db
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only, admins_only
+from CTFd.plugins import bypass_csrf_protection
 
 from ..models import DojoAdmins, Dojos
 from ..utils import user_dojos
@@ -28,7 +31,27 @@ def listing():
 @dojos.route("/dojo/<dojo>")
 @dojo_route
 def view_dojo(dojo):
-    return redirect(url_for("pwncollege_dojo.listing", dojo=dojo.id))
+    return redirect(url_for("pwncollege_dojo.listing", dojo=dojo.reference_id))
+
+
+@dojos.route("/dojo/<dojo>/update/<update_code>", methods=["POST"])
+@bypass_csrf_protection
+def update_dojo(dojo, update_code):
+    dojo = Dojos.from_id(dojo).first()
+    if not dojo:
+        return {"success": False, "error": "Not Found"}, 404
+
+    if dojo.update_code != update_code:
+        return {"success": False, "error": "Forbidden"}, 403
+
+    try:
+        dojo_update(dojo)
+        db.session.commit()
+    except Exception as e:
+        print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        return {"success": False, "error": str(e)}, 400
+    return {"success": True}
 
 
 @dojos.route("/dojos/settings")
