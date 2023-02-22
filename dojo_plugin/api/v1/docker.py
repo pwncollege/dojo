@@ -80,7 +80,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             user="hacker",
             working_dir="/home/hacker",
             labels={
-                "dojo": dojo.hex_dojo_id,
+                "dojo": dojo.reference_id,
                 "challenge": dojo_challenge.id,
             },
             mounts=[
