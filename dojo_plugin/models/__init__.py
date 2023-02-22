@@ -396,27 +396,25 @@ class DojoChallenges(db.Model):
 
     @hybrid_method
     def solves(self, *, user=None, dojo=None, module=None):
-        solves_filter = {
-            Solves.user: user
-        }
-        challenges_filter = {
-            self.challenge_id: Solves.challenge_id,
-            self.dojo: dojo,
-            self.module: module,
-        }
-
-        # TODO PRIORITY: DojoChallenge must be visible
-        # Solves.user.in_(DojoUsers.filter(
-        #     or_(Dojos.official,
-        #         cls.dojo_id.in_(db.session.query(DojoUsers.dojo_id)
-        #                         .filter_by(user=user)
-        #                         .subquery())))
-
-        return (
+        result = (
             Solves.query
-            .filter(*(k == v for k, v in solves_filter.items() if v is not None))
-            .join(DojoChallenges, and_(*(k == v for k, v in challenges_filter.items() if v is not None)))
+            .join(DojoChallenges, DojoChallenges.challenge_id==Solves.challenge_id)
+            .join(DojoUsers, and_(
+                DojoUsers.user_id == Solves.user_id,
+                DojoUsers.dojo_id == DojoChallenges.dojo_id,
+                DojoUsers.type != "admin"
+                ), isouter=True)
+            .join(Dojos, and_(Dojos.dojo_id == DojoChallenges.dojo_id, or_(Dojos.official, DojoUsers.user_id != None)))
         )
+
+        if user:
+            result = result.filter(Solves.user == user)
+        if dojo:
+            result = result.filter(DojoChallenges.dojo == dojo)
+        if module:
+            result = result.filter(DojoChallenges.module == module)
+
+        return result
 
     @property
     def path(self):
