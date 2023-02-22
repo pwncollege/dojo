@@ -486,8 +486,15 @@ class DojoResources(db.Model):
             if kwargs.get("data"):
                 raise AttributeError("Import requires data to be empty")
 
-            for field in ["type", "name", "data"]:
+            for field in ["type", "name"]:
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
+
+            for field in self.data_fields:
+                kwargs["data"][field] = (
+                    kwargs["data"][field]
+                    if kwargs["data"].get(field) is not None
+                    else getattr(default, field, None)
+                )
 
         super().__init__(*args, **kwargs)
 
@@ -512,7 +519,7 @@ class DojoResources(db.Model):
             cls.visibility.has(or_(DojoResourceVisibilities.stop == None, now <= DojoResourceVisibilities.stop)),
         ))
 
-    __repr__ = columns_repr(["module"])
+    __repr__ = columns_repr(["module", "name"])
 
 
 class DojoChallengeVisibilities(db.Model):

@@ -157,8 +157,8 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
                     challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
                     default=(assert_one(DojoChallenges.from_id(challenge_data["import"]["dojo"],
-                                                        challenge_data["import"]["module"],
-                                                        challenge_data["import"]["challenge"]),
+                                                               challenge_data["import"]["module"],
+                                                               challenge_data["import"]["challenge"]),
                                         f"Import challenge `{challenge_data['import']['dojo']}/{challenge_data['import']['module']}/{challenge_data['import']['challenge']}` does not exist")
                              if "import" in challenge_data else None),
                 )
@@ -166,13 +166,13 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             ] if "challenges" in module_data else None,
             resources = [
                 DojoResources(
-                    **{kwarg: resource_data.get(kwarg) for kwarg in ["type", "name", "data"]},
+                    **{kwarg: resource_data.get(kwarg) for kwarg in ["name", "type", "content", "video", "playlist", "slides"]},
                     visibility=visibility(DojoResourceVisibilities, dojo_data, module_data, resource_data),
                 )
                 for resource_data in module_data["resources"]
             ] if "resources" in module_data else None,
             default=(assert_one(DojoModules.from_id(module_data["import"]["dojo"],
-                                         module_data["import"]["module"]),
+                                                    module_data["import"]["module"]),
                                 f"Import module `{module_data['import']['dojo']}/{module_data['import']['module']}` does not exist")
                      if "import" in module_data else None),
         )
