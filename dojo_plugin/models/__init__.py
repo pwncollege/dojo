@@ -181,8 +181,8 @@ class Dojos(db.Model):
                                         .subquery())))
         )
 
-    def solves(self, *, user=None):
-        return DojoChallenges.solves(user=user, dojo=self)
+    def solves(self, **kwargs):
+        return DojoChallenges.solves(dojo=self, **kwargs)
 
     __repr__ = columns_repr(["name", "id"])
 
@@ -199,8 +199,8 @@ class DojoUsers(db.Model):
     dojo = db.relationship("Dojos", back_populates="users")
     user = db.relationship("Users")
 
-    def solves(self, *, module=None):
-        return DojoChallenges.solves(user=self.user, dojo=self.dojo, module=module)
+    def solves(self, **kwargs):
+        return DojoChallenges.solves(user=self.user, dojo=self.dojo, **kwargs)
 
     __repr__ = columns_repr(["dojo", "user"])
 
@@ -252,6 +252,7 @@ class DojoModules(db.Model):
 
     def __init__(self, *args, **kwargs):
         default = kwargs.pop("default", None)
+        default_visibility = kwargs.pop("default_visibility", None)
 
         data = kwargs.pop("data", {})
         for field in self.data_fields:
@@ -265,11 +266,17 @@ class DojoModules(db.Model):
 
         kwargs["challenges"] = (
             kwargs.pop("challenges", None) or
-            ([DojoChallenges(default=challenge) for challenge in default.challenges] if default else [])
+            ([DojoChallenges(
+                default=challenge,
+                visibility=(DojoChallengeVisibilities(**default_visibility) if default_visibility else None),
+            ) for challenge in default.challenges] if default else [])
         )
         kwargs["resources"] = (
             kwargs.pop("resources", None) or
-            ([DojoResources(default=resource) for resource in default.resources] if default else [])
+            ([DojoResources(
+                default=resource,
+                visibility=(DojoResourceVisibilities(**default_visibility) if default_visibility else None),
+            ) for resource in default.resources] if default else [])
         )
 
         super().__init__(*args, **kwargs)
@@ -309,8 +316,8 @@ class DojoModules(db.Model):
     def path(self):
         return self.dojo.path / self.id
 
-    def solves(self, *, user=None):
-        return DojoChallenges.solves(user=user, module=self)
+    def solves(self, **kwargs):
+        return DojoChallenges.solves(module=self, **kwargs)
 
     __repr__ = columns_repr(["dojo", "id"])
 
@@ -395,17 +402,25 @@ class DojoChallenges(db.Model):
         ))
 
     @hybrid_method
-    def solves(self, *, user=None, dojo=None, module=None):
+    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False):
         result = (
             Solves.query
-            .join(DojoChallenges, DojoChallenges.challenge_id==Solves.challenge_id)
+            .join(DojoChallenges, and_(
+                DojoChallenges.challenge_id==Solves.challenge_id,
+                ))
             .join(DojoUsers, and_(
                 DojoUsers.user_id == Solves.user_id,
                 DojoUsers.dojo_id == DojoChallenges.dojo_id,
-                DojoUsers.type != "admin"
+                DojoUsers.type != "admin",
                 ), isouter=True)
-            .join(Dojos, and_(Dojos.dojo_id == DojoChallenges.dojo_id, or_(Dojos.official, DojoUsers.user_id != None)))
+            .join(Dojos, and_(
+                Dojos.dojo_id == DojoChallenges.dojo_id,
+                or_(Dojos.official, DojoUsers.user_id != None),
+                ))
         )
+
+        if not ignore_visibility:
+            result = result.filter(DojoChallenges.visible(Solves.date))
 
         if user:
             result = result.filter(Solves.user == user)

@@ -97,7 +97,7 @@ def listing(dojo):
 @check_challenge_visibility
 def view_module(dojo, module):
     user = get_current_user()
-    user_solves = set(solve.challenge_id for solve in module.solves(user=user)) if user else set()
+    user_solves = set(solve.challenge_id for solve in module.solves(user=user, ignore_visibility=True)) if user else set()
     total_solves = dict(module.solves()
                         .group_by(Solves.challenge_id)
                         .with_entities(Solves.challenge_id, db.func.count()))

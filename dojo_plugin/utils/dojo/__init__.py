@@ -9,7 +9,7 @@ import inspect
 import pathlib
 
 import yaml
-from schema import Schema, Optional, Regex, Or, SchemaError
+from schema import Schema, Optional, Regex, Or, Use, SchemaError
 from flask import abort
 from sqlalchemy.orm.exc import NoResultFound
 from CTFd.models import db, Challenges, Flags
@@ -31,8 +31,8 @@ ID_NAME_DESCRIPTION = {
 
 VISIBILITY = {
     Optional("visibility", default={}): {
-        Optional("start"): datetime.datetime,
-        Optional("stop"): datetime.datetime,
+        Optional("start"): Use(datetime.datetime.fromisoformat),
+        Optional("stop"): Use(datetime.datetime.fromisoformat),
     }
 }
 
@@ -143,6 +143,8 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
         start = None
         stop = None
         for arg in args:
+            print(repr(arg), flush=True)
+            print(repr(arg.get("visibility", {})), flush=True)
             start = arg.get("visibility", {}).get("start") or start
             stop = arg.get("visibility", {}).get("stop") or stop
         if start or stop:
@@ -175,10 +177,15 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
                                                     module_data["import"]["module"]),
                                 f"Import module `{module_data['import']['dojo']}/{module_data['import']['module']}` does not exist")
                      if "import" in module_data else None),
+            default_visibility=visibility(dict, dojo_data, module_data),
         )
         for module_data in dojo_data["modules"]
     ] if "modules" in dojo_data else [
-        DojoModules(default=module) for module in (import_dojo.modules if import_dojo else [])
+        DojoModules(
+            default=module,
+            default_visibility=visibility(dict, dojo_data),
+        )
+        for module in (import_dojo.modules if import_dojo else [])
     ]
 
     with dojo.located_at(dojo_dir):
