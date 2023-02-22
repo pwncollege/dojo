@@ -16,20 +16,6 @@
       <div class="card-body">
         <h4 class="card-title">{{ dojo.name }}</h4>
         <p class="card-text">
-          {#
-          {% if dojo.config.completion_emoji %}
-            {% set prize_text = "You will earn a " + dojo.config.completion_emoji + " emoji for completing this dojo." %}
-            <span title="{{prize_text}}">Award: {{ dojo.config.completion_emoji }}</span>
-          {% elif dojo.config.completion_belt %}
-            {% set prize_text = "You will earn a " + dojo.config.completion_belt + " belt for completing this dojo." %}
-            <span title="{{prize_text}}">
-              Award:
-              <img style='height:1em' src='{{ url_for('views.themes', path="img/dojo/" + dojo.config.completion_belt + ".svg") }}'>
-            </span>
-          {% endif %}
-          #}
-        </p>
-        <p class="card-text">
           {{ dojo.modules | length }} Modules
         </p>
       </div>
@@ -44,9 +30,34 @@
   </div>
 </div>
 <div class="container">
+  <h2>Current Courses</h2>
   <ul class="card-list">
-    {% for dojo in dojos %}
-    {{ dojo_card(dojo) }}
+    {% for dojo in dojos | sort(attribute="name") %}
+      {% if dojo.type == "course" %}
+        {{ dojo_card(dojo) }}
+      {% endif %}
+    {% endfor %}
+  </ul>
+
+  <br>
+
+  <h2>Topics</h2>
+  <ul class="card-list">
+    {% for dojo in dojos | sort(attribute="name") %}
+      {% if dojo.type == "topic" %}
+        {{ dojo_card(dojo) }}
+      {% endif %}
+    {% endfor %}
+  </ul>
+
+  <br>
+
+  <h2>Other</h2>
+  <ul class="card-list">
+    {% for dojo in dojos | sort(attribute="name") %}
+      {% if dojo.type not in ["course", "topic"] %}
+        {{ dojo_card(dojo) }}
+      {% endif %}
     {% endfor %}
   </ul>
 </div>

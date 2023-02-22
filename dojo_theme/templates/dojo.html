@@ -87,5 +87,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script defer onload='loadScoreboard("dojo", 1);' src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
+<script defer onload="loadScoreboard(0, 1);" src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
 {% endblock %}

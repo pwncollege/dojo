@@ -11,6 +11,7 @@ import pathlib
 import yaml
 from schema import Schema, Optional, Regex, Or, SchemaError
 from flask import abort
+from sqlalchemy.orm.exc import NoResultFound
 from CTFd.models import db, Challenges, Flags
 from CTFd.utils.user import get_current_user
 
@@ -39,6 +40,9 @@ DOJO_SPEC = Schema({
     **ID_NAME_DESCRIPTION,
 
     Optional("password"): Regex(r"^[\S ]{8,128}$"),
+    Optional("type"): ID_REGEX,
+
+    Optional("deprecated_id"): int,  # TODO: remove
 
     **VISIBILITY,
 
@@ -90,22 +94,35 @@ DOJO_SPEC = Schema({
 })
 
 
-def load_dojo(data, *, dojo=None):
+def load_dojo_dir(dojo_dir, *, dojo=None):
+    dojo_yml_path = dojo_dir / "dojo.yml"
+    assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
 
+    for path in dojo_dir.rglob("*"):
+        assert dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
+
+    data = yaml.safe_load(dojo_yml_path.read_text())
     try:
         dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
-        raise AssertionError(e)
+        raise AssertionError(e)  # TODO: this probably shouldn't be re-raised as an AssertionError
+
+    def assert_one(query, error_message):
+        try:
+            return query.one()
+        except NoResultFound:
+            raise AssertionError(error_message)
 
     # TODO: we probably don't need to restrict imports to official dojos
     import_dojo = (
-        Dojos.from_id(dojo_data["import"]["dojo"]).filter_by(official=True).first()
+        assert_one(Dojos.from_id(dojo_data["import"]["dojo"]).filter_by(official=True),
+                   "Import dojo `{dojo_data['import']['dojo']}` does not exist")
         if "import" in dojo_data else None
     )
 
     dojo_kwargs = {
         field: dojo_data.get(field, getattr(import_dojo, field, None))
-        for field in ["id", "name", "description", "password"]
+        for field in ["id", "name", "description", "password", "type", "deprecated_id"]  # TODO: remove deprecated_id
     }
 
     if dojo is None:
@@ -139,9 +156,10 @@ def load_dojo(data, *, dojo=None):
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                     challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
-                    default=(DojoChallenges.from_id(challenge_data["import"]["dojo"],
-                                                    challenge_data["import"]["module"],
-                                                    challenge_data["import"]["challenge"]).first()
+                    default=(assert_one(DojoChallenges.from_id(challenge_data["import"]["dojo"],
+                                                        challenge_data["import"]["module"],
+                                                        challenge_data["import"]["challenge"]),
+                                        f"Import challenge `{challenge_data['import']['dojo']}/{challenge_data['import']['module']}/{challenge_data['import']['challenge']}` does not exist")
                              if "import" in challenge_data else None),
                 )
                 for challenge_data in module_data["challenges"]
@@ -153,8 +171,9 @@ def load_dojo(data, *, dojo=None):
                 )
                 for resource_data in module_data["resources"]
             ] if "resources" in module_data else None,
-            default=(DojoModules.from_id(module_data["import"]["dojo"],
-                                         module_data["import"]["module"]).first()
+            default=(assert_one(DojoModules.from_id(module_data["import"]["dojo"],
+                                         module_data["import"]["module"]),
+                                f"Import module `{module_data['import']['dojo']}/{module_data['import']['module']}` does not exist")
                      if "import" in module_data else None),
         )
         for module_data in dojo_data["modules"]
@@ -162,18 +181,18 @@ def load_dojo(data, *, dojo=None):
         DojoModules(default=module) for module in (import_dojo.modules if import_dojo else [])
     ]
 
+    with dojo.located_at(dojo_dir):
+        missing_challenge_paths = [
+            challenge
+            for module in dojo.modules
+            for challenge in module.challenges
+            if not challenge.path.exists()
+        ]
+        assert not missing_challenge_paths, "".join(
+            f"Missing challenge path: {challenge.module.id}/{challenge.id}\n"
+            for challenge in missing_challenge_paths)
+
     return dojo
-
-
-def load_dojo_dir(dojo_dir, **kwargs):
-    dojo_yml_path = dojo_dir / "dojo.yml"
-    assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
-
-    for path in dojo_dir.rglob("*"):
-        assert dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
-
-    data = yaml.safe_load(dojo_yml_path.read_text())
-    return load_dojo(data, **kwargs)
 
 
 def generate_ssh_keypair():

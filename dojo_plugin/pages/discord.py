@@ -125,6 +125,8 @@ def send_message(message, channel_name):
 
 
 def maybe_award_belt(user_id, *, ignore_challenge_id=None):
+    return  # TODO: NO BELTS
+
     if not DISCORD_BOT_TOKEN:
         return
 

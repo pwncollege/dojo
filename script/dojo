@@ -28,6 +28,10 @@ case "$ACTION" in
         docker exec -it ctfd_db mysql -pctfd -Dctfd
         ;;
 
+    "backup")
+        docker exec ctfd_db mysqldump -pctfd --single-transaction --routines --triggers ctfd > "/tmp/db-backup-$(date -Iseconds).sql"
+        ;;
+
     "logs")
         journalctl -u pwn.college -f
         ;;
@@ -37,4 +41,5 @@ case "$ACTION" in
             docker compose --env-file=/opt/pwn.college/data/config.env $cmd;
         done
         ;;
+
 esac

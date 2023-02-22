@@ -1,12 +1,14 @@
 import sys
 import traceback
+
 from flask import Blueprint, render_template, redirect, url_for, abort
+from sqlalchemy.exc import IntegrityError
 from CTFd.models import db
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.plugins import bypass_csrf_protection
 
-from ..models import DojoAdmins, Dojos
+from ..models import DojoAdmins, DojoMembers, Dojos
 from ..utils import user_dojos
 from ..utils.dojo import dojo_route, generate_ssh_keypair, dojo_update
 
@@ -34,7 +36,30 @@ def view_dojo(dojo):
     return redirect(url_for("pwncollege_dojo.listing", dojo=dojo.reference_id))
 
 
-@dojos.route("/dojo/<dojo>/update/<update_code>", methods=["POST"])
+@dojos.route("/dojo/<dojo>/join/")
+@dojos.route("/dojo/<dojo>/join/<password>")
+@authed_only
+def join_dojo(dojo, password=None):
+    # TODO SECURITY: Yes I know this is CSRF-able; no don't do it
+
+    dojo = Dojos.from_id(dojo).first()
+    if not dojo:
+        return {"success": False, "error": "Not Found"}, 404
+
+    if (dojo.password and dojo.password != password) or dojo.official:
+        return {"success": False, "error": "Forbidden"}, 403
+
+    try:
+        member = DojoMembers(dojo=dojo, user=get_current_user())
+        db.session.add(member)
+        db.session.commit()
+    except IntegrityError:
+        pass
+
+    return {"success": True}
+
+
+@dojos.route("/dojo/<dojo>/update/<update_code>", methods=["GET", "POST"])
 @bypass_csrf_protection
 def update_dojo(dojo, update_code):
     dojo = Dojos.from_id(dojo).first()

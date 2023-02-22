@@ -36,6 +36,7 @@
 
     <main role="main">
       {% block content %}
+      {{ content | safe}}
       {% endblock %}
     </main>
 

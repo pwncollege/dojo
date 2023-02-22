@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import functools
 import os
 import string
@@ -14,7 +15,7 @@ import yaml
 from flask import current_app
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import synonym
-from sqlalchemy.orm.attributes import set_committed_value
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.session import object_session
 from sqlalchemy.sql import or_, and_
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
@@ -62,7 +63,7 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(db.JSON)
-    data_fields = []
+    data_fields = ["type", "deprecated_id"]
 
     users = db.relationship("DojoUsers", back_populates="dojo")
     members = db.relationship("DojoMembers", back_populates="dojo")
@@ -97,7 +98,13 @@ class Dojos(db.Model):
     def __getattr__(self, name):
         if name in self.data_fields:
             return self.data.get(name)
-        raise AttributeError()
+        raise AttributeError(f"No attribute '{name}'")
+
+    def __setattr__(self, name, value):
+        if name in self.data_fields:
+            self.data[name] = value
+            flag_modified(self, "data")
+        super().__setattr__(name, value)
 
     @classmethod
     def from_id(cls, reference_id):
@@ -147,7 +154,17 @@ class Dojos(db.Model):
 
     @property
     def path(self):
+        if hasattr(self, "_path"):
+            return self._path
         return DOJOS_DIR / self.hex_dojo_id
+
+    @contextlib.contextmanager
+    def located_at(self, path):
+        self._path = pathlib.Path(str(path))
+        try:
+            yield self
+        finally:
+            del self._path
 
     @property
     def hash(self):
@@ -260,7 +277,7 @@ class DojoModules(db.Model):
     def __getattr__(self, name):
         if name in self.data_fields:
             return self.data.get(name)
-        raise AttributeError()
+        raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
     def from_id(cls, dojo_reference_id, id):
@@ -347,6 +364,7 @@ class DojoChallenges(db.Model):
             for field in ["id", "name", "description", "challenge"]:
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
 
+            # TODO: maybe we should track the entire import
             kwargs["data"]["path_override"] = str(default.path)
 
         super().__init__(*args, **kwargs)
@@ -354,7 +372,7 @@ class DojoChallenges(db.Model):
     def __getattr__(self, name):
         if name in self.data_fields:
             return self.data.get(name)
-        raise AttributeError()
+        raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
     def from_id(cls, dojo_reference_id, module_id, id):
@@ -386,6 +404,14 @@ class DojoChallenges(db.Model):
             self.dojo: dojo,
             self.module: module,
         }
+
+        # TODO PRIORITY: DojoChallenge must be visible
+        # Solves.user.in_(DojoUsers.filter(
+        #     or_(Dojos.official,
+        #         cls.dojo_id.in_(db.session.query(DojoUsers.dojo_id)
+        #                         .filter_by(user=user)
+        #                         .subquery())))
+
         return (
             Solves.query
             .filter(*(k == v for k, v in solves_filter.items() if v is not None))
@@ -412,7 +438,7 @@ class DojoChallenges(db.Model):
 
         option_paths = sorted(path for path in self.path.iterdir() if path.name.startswith("_"))
         if option_paths:
-            option_hash = hashlib.sha256(f"{secret}_{user.id}_{self.challenge.challenge_id}".encode()).digest()
+            option_hash = hashlib.sha256(f"{secret}_{user.id}_{self.challenge_id}".encode()).digest()
             option = option_paths[int.from_bytes(option_hash[:8], "little") % len(option_paths)]
             for path in option.iterdir():
                 yield path.resolve()
@@ -468,7 +494,7 @@ class DojoResources(db.Model):
     def __getattr__(self, name):
         if name in self.data_fields:
             return self.data.get(name)
-        raise AttributeError()
+        raise AttributeError(f"No attribute '{name}'")
 
     @hybrid_property
     def visible(self):

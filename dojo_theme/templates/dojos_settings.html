@@ -30,9 +30,11 @@
         <div class="tab-content" id="v-pills-tabContent">
             {% call tab_panel("Dojos", active=True) %}
                 {% for dojo in dojos %}
-                    <b>{{ dojo.name }}</b>
+                    <b style="font-family: 'Courier New', Courier, monospace">{{ dojo.name }}</b>
+                    <br>
+                    <code>{{ dojo.hex_dojo_id }}</code>
                     <code>{{ dojo.hash[:8] }}</code>
-                    <a href="#">Update</a>
+                    <a href="/dojo/{{ dojo.reference_id }}/update/{{ dojo.update_code }}">Update</a>
                     <br>
                 {% endfor %}
             {% endcall %}
