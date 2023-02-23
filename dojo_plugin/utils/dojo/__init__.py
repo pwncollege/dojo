@@ -38,13 +38,14 @@ VISIBILITY = {
 
 DOJO_SPEC = Schema({
     **ID_NAME_DESCRIPTION,
+    **VISIBILITY,
 
     Optional("password"): Regex(r"^[\S ]{8,128}$"),
+
     Optional("type"): ID_REGEX,
+    Optional("sort_index"): int,
 
     Optional("deprecated_id"): int,  # TODO: remove
-
-    **VISIBILITY,
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -61,11 +62,10 @@ DOJO_SPEC = Schema({
 
         Optional("challenges", default=[]): [{
             **ID_NAME_DESCRIPTION,
+            **VISIBILITY,
 
             # Optional("image", default="pwncollege-challenge"): Regex(r"^[\S ]{1, 256}$"),
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
-
-            **VISIBILITY,
 
             Optional("import"): {
                 "dojo": UNIQUE_ID_REGEX,
@@ -292,7 +292,7 @@ def get_current_dojo_challenge():
 
     return (
         DojoChallenges.query
-        .filter_by(id=container.labels.get("challenge"))
-        .join(Dojos, Dojos.dojo_id==Dojos.hex_to_int(container.labels.get("dojo")))
+        .filter(DojoChallenges.id == container.labels.get("challenge"),
+                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo")).first())
         .first()
     )
