@@ -130,6 +130,8 @@ EOF
 
 RUN <<EOF
     git clone --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
+    cd /opt/pwndbg
+    ./setup.sh
     git clone https://github.com/hugsy/gef /opt/gef
     git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 EOF
@@ -168,6 +170,7 @@ FROM builder as builder-tcpdump
 RUN <<EOF
     git clone https://github.com/the-tcpdump-group/tcpdump /opt/tcpdump
     cd /opt/tcpdump
+    ./autogen.sh
     ./configure
     make install
 EOF
