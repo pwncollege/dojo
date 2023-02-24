@@ -43,8 +43,6 @@ DOJO_SPEC = Schema({
     Optional("password"): Regex(r"^[\S ]{8,128}$"),
 
     Optional("type"): ID_REGEX,
-    Optional("sort_index"): int,
-
     Optional("deprecated_id"): int,  # TODO: remove
 
     Optional("import"): {

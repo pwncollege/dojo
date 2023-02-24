@@ -13,7 +13,7 @@ import zlib
 import pytz
 import yaml
 from flask import current_app
-from sqlalchemy import String, DateTime
+from sqlalchemy import String, DateTime, case, cast, Numeric
 from sqlalchemy.orm import synonym
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.session import object_session
@@ -63,7 +63,7 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(db.JSON)
-    data_fields = ["type", "deprecated_id"]
+    data_fields = ["type", "comparator", "deprecated_id"]
 
     users = db.relationship("DojoUsers", back_populates="dojo")
     members = db.relationship("DojoMembers", back_populates="dojo")
@@ -179,6 +179,12 @@ class Dojos(db.Model):
                         cls.dojo_id.in_(db.session.query(DojoUsers.dojo_id)
                                         .filter_by(user=user)
                                         .subquery())))
+            .order_by(
+                ~cls.official,
+                cls.data["type"],
+                cast(case([(cls.data["comparator"] == None, 1000)], else_=cls.data["comparator"]), Numeric()),
+                cls.name,
+            )
         )
 
     def solves(self, **kwargs):

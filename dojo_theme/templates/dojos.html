@@ -32,7 +32,7 @@
 <div class="container">
   <h2>Current Courses</h2>
   <ul class="card-list">
-    {% for dojo in dojos | sort(attribute="name") %}
+    {% for dojo in dojos %}
       {% if dojo.type == "course" %}
         {{ dojo_card(dojo) }}
       {% endif %}
@@ -43,7 +43,7 @@
 
   <h2>Topics</h2>
   <ul class="card-list">
-    {% for dojo in dojos | sort(attribute="name") %}
+    {% for dojo in dojos %}
       {% if dojo.type == "topic" %}
         {{ dojo_card(dojo) }}
       {% endif %}
@@ -54,7 +54,7 @@
 
   <h2>Other</h2>
   <ul class="card-list">
-    {% for dojo in dojos | sort(attribute="name") %}
+    {% for dojo in dojos %}
       {% if dojo.type not in ["course", "topic"] %}
         {{ dojo_card(dojo) }}
       {% endif %}
