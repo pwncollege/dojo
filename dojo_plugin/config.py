@@ -10,7 +10,7 @@ from .utils import multiprocess_lock, load_dojo
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-VIRTUAL_HOST = os.getenv("VIRTUAL_HOST")
+DOJO_HOST = os.getenv("DOJO_HOST")
 HOST_DATA_PATH = os.getenv("HOST_DATA_PATH")
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET")
@@ -18,7 +18,7 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
 BINARY_NINJA_API_KEY = os.getenv("BINARY_NINJA_API_KEY")
 
-missing_errors = ["VIRTUAL_HOST", "HOST_DATA_PATH"]
+missing_errors = ["DOJO_HOST", "HOST_DATA_PATH"]
 missing_warnings = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID", "BINARY_NINJA_API_KEY"]
 
 for config_option in missing_errors:
@@ -49,11 +49,11 @@ def bootstrap():
 
     set_config("ctf_theme", "dojo_theme")
 
-    set_config("mailfrom_addr", f"hacker@{VIRTUAL_HOST}")
+    set_config("mailfrom_addr", f"hacker@{DOJO_HOST}")
     set_config("mail_server", f"mailserver")
     set_config("mail_port", 587)
     set_config("mail_useauth", True)
-    set_config("mail_username", f"hacker@{VIRTUAL_HOST}")
+    set_config("mail_username", f"hacker@{DOJO_HOST}")
     set_config("mail_password", "hacker")
 
     cache.delete_memoized(discord_reputation)

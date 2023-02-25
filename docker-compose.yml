@@ -38,6 +38,7 @@ services:
       - REVERSE_PROXY=true
       - SERVER_SENT_EVENTS=false
       - SECRET_KEY=${SECRET_KEY}
+      - DOJO_HOST=${DOJO_HOST}
       - HOST_DATA_PATH=/opt/pwn.college/data
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}

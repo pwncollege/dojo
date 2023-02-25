@@ -10,13 +10,12 @@ from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
 from ..models import DiscordUsers
-from ..config import VIRTUAL_HOST, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID
+from ..config import DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID
 from ..utils import belt_challenges
 
 
 OAUTH_ENDPOINT = "https://discord.com/api/oauth2"
 API_ENDPOINT = "https://discord.com/api/v9"
-REDIRECT_URI = f"https://{VIRTUAL_HOST}/discord/redirect"
 
 
 def bot_join_server():
@@ -33,7 +32,7 @@ def oauth_url(user_id, *, secret=None):
     serializer = URLSafeTimedSerializer(secret, "DISCORD_OAUTH")
 
     state = serializer.dumps(user_id)
-    params = dict(client_id=DISCORD_CLIENT_ID, redirect_uri=REDIRECT_URI, response_type="code", scope="identify", state=state)
+    params = dict(client_id=DISCORD_CLIENT_ID, redirect_uri=url_for(discord_redirect), response_type="code", scope="identify", state=state)
     url = requests.Request("GET", f"{OAUTH_ENDPOINT}/authorize", params=params).prepare().url
     return url
 
@@ -54,7 +53,7 @@ def get_discord_id(auth_code):
         "client_secret": DISCORD_CLIENT_SECRET,
         "grant_type": "authorization_code",
         "code": auth_code,
-        "redirect_uri": REDIRECT_URI,
+        "redirect_uri": url_for(discord_redirect),
     }
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
