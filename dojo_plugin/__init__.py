@@ -13,7 +13,7 @@ from CTFd.plugins import register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 
-from .config import bootstrap
+from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
@@ -82,6 +82,8 @@ CTFd.utils.email.smtp.EmailMessage = DatedEmailMessage
 
 
 def load(app):
+    app.config["SERVER_NAME"] = DOJO_HOST
+    app.config["PREFERRED_URL_SCHEME"] = "https"
     app.config["RESTX_JSON"] = {"cls": DateJSONEncoder}
 
     db.create_all()
