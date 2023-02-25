@@ -32,7 +32,7 @@ def oauth_url(user_id, *, secret=None):
     serializer = URLSafeTimedSerializer(secret, "DISCORD_OAUTH")
 
     state = serializer.dumps(user_id)
-    params = dict(client_id=DISCORD_CLIENT_ID, redirect_uri=url_for("discord.discord_redirect", external=True), response_type="code", scope="identify", state=state)
+    params = dict(client_id=DISCORD_CLIENT_ID, redirect_uri=url_for("discord.discord_redirect", _external=True), response_type="code", scope="identify", state=state)
     url = requests.Request("GET", f"{OAUTH_ENDPOINT}/authorize", params=params).prepare().url
     return url
 
@@ -53,7 +53,7 @@ def get_discord_id(auth_code):
         "client_secret": DISCORD_CLIENT_SECRET,
         "grant_type": "authorization_code",
         "code": auth_code,
-        "redirect_uri": url_for("discord.discord_redirect", external=True),
+        "redirect_uri": url_for("discord.discord_redirect", _external=True),
     }
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
