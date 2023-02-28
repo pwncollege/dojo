@@ -34,21 +34,13 @@ def vm_hostname():
 
 
 def is_privileged():
-    groups = [grp.getgrgid(g).gr_name for g in os.getgroups()]
-    hostname = socket.gethostname()
-    return os.getuid() == 0 or "sudo" in groups or hostname.startswith("practice_")
+    groups = set(grp.getgrgid(group).gr_name for group in os.getgroups())
+    return os.getuid() == 0 or "sudo" in groups
 
 
 def extra_boot_flags():
-    kaslr_challenges = [
-        "babykernel_level10",
-        "toddlertwo_level13",
-    ]
-
-    challenge_hostname = socket.gethostname()
-
     nokaslr = True
-    if any(challenge in challenge_hostname for challenge in kaslr_challenges):
+    if os.path.exists("/challenge/.kaslr"):
         nokaslr = False
     if args.nokaslr is not None:
         nokaslr = args.nokaslr
