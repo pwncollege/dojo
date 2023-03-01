@@ -59,9 +59,10 @@ def join_dojo(dojo, password=None):
     return {"success": True}
 
 
+@dojos.route("/dojo/<dojo>/update/", methods=["GET", "POST"])
 @dojos.route("/dojo/<dojo>/update/<update_code>", methods=["GET", "POST"])
 @bypass_csrf_protection
-def update_dojo(dojo, update_code):
+def update_dojo(dojo, update_code=None):
     dojo = Dojos.from_id(dojo).first()
     if not dojo:
         return {"success": False, "error": "Not Found"}, 404
