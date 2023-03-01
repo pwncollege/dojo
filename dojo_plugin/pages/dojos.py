@@ -83,7 +83,7 @@ def update_dojo(dojo, update_code):
 @authed_only
 def dojo_settings():
     user = get_current_user()
-    dojos = Dojos.query.join(DojoAdmins.query.filter_by(user=user).subquery()).all()
+    dojos = Dojos.viewable(user=user).join(DojoAdmins.query.filter_by(user=user).subquery()).all()
     public_key, private_key = generate_ssh_keypair()
     return render_template(
         "dojos_settings.html",
