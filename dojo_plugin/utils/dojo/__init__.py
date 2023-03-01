@@ -22,6 +22,7 @@ from ...utils import DOJOS_DIR, get_current_container
 ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
 UNIQUE_ID_REGEX = Regex(r"^[a-z0-9-~]{1,128}$")
 NAME_REGEX = Regex(r"^[\S ]{1,128}$")
+DATE = Use(datetime.datetime.fromisoformat)
 
 ID_NAME_DESCRIPTION = {
     Optional("id"): ID_REGEX,
@@ -31,8 +32,8 @@ ID_NAME_DESCRIPTION = {
 
 VISIBILITY = {
     Optional("visibility", default={}): {
-        Optional("start"): Use(datetime.datetime.fromisoformat),
-        Optional("stop"): Use(datetime.datetime.fromisoformat),
+        Optional("start"): DATE,
+        Optional("stop"): DATE,
     }
 }
 
