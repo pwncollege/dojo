@@ -198,7 +198,7 @@ class Dojos(db.Model):
         if user is None:
             user = get_current_user()
         dojo_admin = DojoAdmins.query.filter_by(dojo=self, user=user).first()
-        return dojo_admin is not None or is_admin(user)
+        return dojo_admin is not None or is_admin()
 
     __repr__ = columns_repr(["name", "id"])
 
