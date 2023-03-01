@@ -65,13 +65,6 @@ class DojoFlag(BaseFlag):
         return True
 
 
-class DateJSONEncoder(JSONEncoder):
-    def default(self, o):
-        if isinstance(o, datetime.datetime):
-            return str(o)
-        return super().default(o)
-
-
 # TODO: CTFd should include "Date" header
 def DatedEmailMessage():
     msg = EmailMessage()
@@ -82,9 +75,9 @@ CTFd.utils.email.smtp.EmailMessage = DatedEmailMessage
 
 
 def load(app):
-    app.config["SERVER_NAME"] = DOJO_HOST
-    app.config["PREFERRED_URL_SCHEME"] = "https"
-    app.config["RESTX_JSON"] = {"cls": DateJSONEncoder}
+    if app.env == "production":
+        app.config["SERVER_NAME"] = DOJO_HOST
+        app.config["PREFERRED_URL_SCHEME"] = "https"
 
     db.create_all()
 
