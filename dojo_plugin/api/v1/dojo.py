@@ -48,9 +48,6 @@ def create_dojo(user, repository, public_key, private_key):
         dojo.private_key = private_key
         dojo.admins = [DojoAdmins(user=user)]
 
-        if repository.split("/")[0] == "pwncollege":
-            dojo.official = True
-
         db.session.add(dojo)
         db.session.commit()
 
@@ -79,7 +76,6 @@ def create_dojo(user, repository, public_key, private_key):
 @dojo_namespace.route("/create")
 class CreateDojo(Resource):
     @authed_only
-    @admins_only  # TODO: allow anyone to create a dojo
     def post(self):
         data = request.get_json()
         user = get_current_user()
@@ -89,26 +85,3 @@ class CreateDojo(Resource):
         private_key = data.get("private_key", "").replace("\r\n", "\n")
 
         return create_dojo(user, repository, public_key, private_key)
-
-
-@dojo_namespace.route("/solves")
-class DojoSolves(Resource):
-    @authed_only
-    def get(self):
-
-        Model = get_model()
-        fields = {
-            "account_id": Solves.account_id,
-            "account_name": Model.name,
-            "account_email": Model.email,
-            "challenge_id": Challenges.id,
-            "challenge_category": Challenges.category,
-            "challenge_name": Challenges.name,
-            "solve_time": Solves.date,
-        }
-        standings = (
-            dojo_standings(dojo_id, fields.values())
-            .order_by(Solves.id)
-            .all()
-        )
-        return [dict(zip(fields, standing)) for standing in standings]
