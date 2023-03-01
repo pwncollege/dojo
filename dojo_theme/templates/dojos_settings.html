@@ -32,10 +32,16 @@
                 {% for dojo in dojos %}
                     <b style="font-family: 'Courier New', Courier, monospace">{{ dojo.name }}</b>
                     <br>
-                    <code>{{ dojo.hex_dojo_id }}</code>
-                    <code>{{ dojo.hash[:8] }}</code>
-                    <a href="/dojo/{{ dojo.reference_id }}/update/{{ dojo.update_code }}">Update</a>
+                    <b style="font-family: 'Courier New', Courier, monospace">Reference ID: </b><code>{{ dojo.reference_id }}</code>
                     <br>
+                    <b style="font-family: 'Courier New', Courier, monospace">Dojo ID: </b><code>{{ dojo.hex_dojo_id }}</code>
+                    <br>
+                    <b style="font-family: 'Courier New', Courier, monospace">Update Code: </b><code>{{ dojo.update_code }}</code>
+                    <br>
+                    <b style="font-family: 'Courier New', Courier, monospace">Git Hash: </b><code>{{ dojo.hash[:8] }}</code>
+                    <br>
+                    <a href="/dojo/{{ dojo.reference_id }}/update/{{ dojo.update_code }}">Update</a>
+                    <hr>
                 {% endfor %}
             {% endcall %}
             {% call tab_panel("Create Dojo") %}
