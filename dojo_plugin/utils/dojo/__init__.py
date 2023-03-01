@@ -13,7 +13,7 @@ from schema import Schema, Optional, Regex, Or, Use, SchemaError
 from flask import abort
 from sqlalchemy.orm.exc import NoResultFound
 from CTFd.models import db, Challenges, Flags
-from CTFd.utils.user import get_current_user
+from CTFd.utils.user import get_current_user, is_admin
 
 from ...models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
 from ...utils import DOJOS_DIR, get_current_container
@@ -259,7 +259,8 @@ def dojo_update(dojo):
 
 
 def dojo_accessible(id):
-    return Dojos.viewable(id=id, user=get_current_user()).first()
+    user = get_current_user()
+    return Dojos.viewable(id=id, user=get_current_user()).first() or is_admin(user)
 
 
 def dojo_route(func):
