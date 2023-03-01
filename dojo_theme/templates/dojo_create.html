@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="jumbotron">
+    <div class="container">
+        <h1>Create Dojo</h1>
+    </div>
+</div>
+<div class="container">
+    <form method="post" id="dojo-create-form" autocomplete="off">
+        <div class="form-group">
+            <b><label>GitHub Repository</label></b>
+            <small class="form-text text-muted">https://github.com/<b>pwncollege/example-dojo</b></small>
+            <br>
+            <input class="form-control" name="repository" type="text" placeholder="pwncollege/example-dojo" value="">
+
+            <br>
+
+            <b><label>Deploy Key</label></b>
+            <small class="form-text text-muted">
+            Required for Private Repositories: <a href="https://docs.github.com/en/developers/overview/managing-deploy-keys#deploy-keys" target="_blank">Deploy Keys Documentation</a>
+            </small>
+            <br>
+            <div class="input-group mb-3">
+                <input class="form-control" name="public_key" type="text" value="{{ public_key }}" readonly>
+                <div class="input-group-append copy-button">
+                    <button class="btn btn-outline-secondary" type="button">
+                        <i class="fas fa-clipboard"></i>
+                        </button>
+                </div>
+            </div>
+
+            <input class="form-control" name="private_key" type="hidden" value="{{ private_key }}">
+        </div>
+
+        <br>
+
+        <div id="dojo-create-results" class="form-group">
+        </div>
+
+        <div class="form-group text-right">
+            <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Create">
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block entrypoint %}
+    <script defer src="{{ url_for('views.themes', path='js/pages/settings.js') }}"></script>
+{% endblock %}
+
+{% block scripts %}
+<script defer src="{{ url_for('views.themes', path='js/dojo/settings.js') }}"></script>
+{% endblock %}

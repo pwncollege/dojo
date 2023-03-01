@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="jumbotron">
+    <div class="container">
+        <h1>Dojo Admin</h1>
+        <br>
+        <h2>{{ dojo.name }}</h2>
+    </div>
+</div>
+<div class="container">
+    <b style="font-family: 'Courier New', Courier, monospace">Reference ID: </b><code>{{ dojo.reference_id }}</code>
+    <br>
+    <b style="font-family: 'Courier New', Courier, monospace">Dojo ID: </b><code>{{ dojo.hex_dojo_id }}</code>
+    <br>
+    <b style="font-family: 'Courier New', Courier, monospace">Update Code: </b><code>{{ dojo.update_code }}</code>
+    <br>
+    <b style="font-family: 'Courier New', Courier, monospace">Git Hash: </b><code>{{ dojo.hash[:8] }}</code> (<a href="/dojo/{{ dojo.reference_id }}/update/{{ dojo.update_code }}"><b style="font-family: 'Courier New', Courier, monospace">Update</b></a>)
+    <br>
+    <b style="font-family: 'Courier New', Courier, monospace">Admins</b>
+    <ul>
+        {% for admin in dojo.admins %}
+            <li>{{ admin.user.name }}</li>
+        {% endfor %}
+    </ul>
+    <b style="font-family: 'Courier New', Courier, monospace">Members</b>
+    <ul>
+        {% for member in dojo.members %}
+            <li>{{ member.user.name }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}
+
