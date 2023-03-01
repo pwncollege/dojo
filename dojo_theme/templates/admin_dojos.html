@@ -1,0 +1,22 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>All Dojos</h1>
+  </div>
+</div>
+<div class="container">
+    {% for dojo in dojos %}
+    <h2><a href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.name }}</a></h2>
+    <b>Admins</b>
+    <ul>
+        {% for admin in dojo.admins %}
+        <li>{{ admin.user.name }}</li>
+        {% endfor %}
+    </ul>
+    <hr>
+    {% endfor %}
+</div>
+{% endblock %}
+

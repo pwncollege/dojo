@@ -101,6 +101,7 @@ def load(app):
     app.register_blueprint(writeups)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
 
+    register_admin_plugin_menu_bar("Dojos", "/admin/dojos")
     register_admin_plugin_menu_bar("Desktops", "/admin/desktops")
 
     if os.path.basename(sys.argv[0]) != "manage.py":

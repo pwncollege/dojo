@@ -21,7 +21,7 @@ from sqlalchemy.sql import or_, and_
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy.ext.associationproxy import association_proxy
 from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, Users
-from CTFd.utils.user import get_current_user
+from CTFd.utils.user import get_current_user, is_admin
 
 from ..utils import DOJOS_DIR
 
@@ -172,6 +172,15 @@ class Dojos(db.Model):
         return dojo_git_command(self, "rev-parse", "HEAD").stdout.decode().strip()
 
     @classmethod
+    def ordering(cls):
+        return (
+            ~cls.official,
+            cls.data["type"],
+            cast(case([(cls.data["comparator"] == None, 1000)], else_=cls.data["comparator"]), Numeric()),
+            cls.name,
+        )
+
+    @classmethod
     def viewable(cls, id=None, user=None):
         return (
             (cls.from_id(id) if id is not None else cls.query)
@@ -179,16 +188,17 @@ class Dojos(db.Model):
                         cls.dojo_id.in_(db.session.query(DojoUsers.dojo_id)
                                         .filter_by(user=user)
                                         .subquery())))
-            .order_by(
-                ~cls.official,
-                cls.data["type"],
-                cast(case([(cls.data["comparator"] == None, 1000)], else_=cls.data["comparator"]), Numeric()),
-                cls.name,
-            )
+            .order_by(*cls.ordering())
         )
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(dojo=self, **kwargs)
+
+    def is_admin(self, user=None):
+        if user is None:
+            user = get_current_user()
+        dojo_admin = DojoAdmins.query.filter_by(dojo=self, user=user).first()
+        return dojo_admin is not None or is_admin(user)
 
     __repr__ = columns_repr(["name", "id"])
 

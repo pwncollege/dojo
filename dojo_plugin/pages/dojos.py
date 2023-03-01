@@ -4,7 +4,7 @@ import traceback
 from flask import Blueprint, render_template, redirect, url_for, abort
 from sqlalchemy.exc import IntegrityError
 from CTFd.models import db
-from CTFd.utils.user import get_current_user
+from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.plugins import bypass_csrf_protection
 
@@ -39,12 +39,15 @@ def view_dojo(dojo):
 @dojos.route("/dojo/<dojo>/admin")
 @dojo_route
 def admin_dojo(dojo):
-    user = get_current_user()
-
-    if not DojoAdmins.query.filter_by(dojo=dojo, user=user).first():
+    if not dojo.is_admin():
         abort(403)
-
     return render_template("dojo_admin.html", dojo=dojo)
+
+
+@dojos.route("/admin/dojos")
+@admins_only
+def view_all_dojos():
+    return render_template("admin_dojos.html", dojos=Dojos.query.order_by(*Dojos.ordering()).all())
 
 
 @dojos.route("/dojo/<dojo>/join/")
