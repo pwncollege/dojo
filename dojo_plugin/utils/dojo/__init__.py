@@ -259,8 +259,9 @@ def dojo_update(dojo):
 
 
 def dojo_accessible(id):
-    user = get_current_user()
-    return Dojos.viewable(id=id, user=get_current_user()).first() or is_admin()
+    if is_admin():
+        return Dojos.from_id(id).first()
+    return Dojos.viewable(id=id, user=get_current_user()).first()
 
 
 def dojo_route(func):
