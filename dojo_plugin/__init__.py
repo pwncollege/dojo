@@ -65,6 +65,18 @@ class DojoFlag(BaseFlag):
         return True
 
 
+def shell_context_processor():
+    import code
+    import IPython
+    import CTFd.models as ctfd_models
+    import CTFd.plugins.dojo_plugin.models as dojo_models
+    result = dict()
+    result.update(ctfd_models.__dict__.items())
+    result.update(dojo_models.__dict__.items())
+    code.interact = lambda banner, local: (locals().update(local), IPython.embed(header=banner))
+    return result
+
+
 # TODO: CTFd should include "Date" header
 def DatedEmailMessage():
     msg = EmailMessage()
@@ -106,3 +118,5 @@ def load(app):
 
     if os.path.basename(sys.argv[0]) != "manage.py":
         bootstrap()
+
+    app.shell_context_processor(shell_context_processor)

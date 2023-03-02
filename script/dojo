@@ -21,7 +21,7 @@ case "$ACTION" in
         ;;
 
     "shell")
-        docker exec -it ctfd python manage.py shell
+        docker exec -it ctfd flask shell
         ;;
 
     "db")
