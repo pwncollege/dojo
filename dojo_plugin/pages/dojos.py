@@ -1,14 +1,16 @@
+import datetime
 import sys
 import traceback
 
-from flask import Blueprint, render_template, redirect, url_for, abort
+from flask import Blueprint, Response, stream_with_context, render_template, redirect, url_for, abort
+from sqlalchemy.sql import and_
 from sqlalchemy.exc import IntegrityError
-from CTFd.models import db
+from CTFd.models import db, Solves
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.plugins import bypass_csrf_protection
 
-from ..models import DojoAdmins, DojoMembers, Dojos
+from ..models import DojoAdmins, DojoChallenges, DojoMembers, DojoModules, DojoUsers, Dojos
 from ..utils import user_dojos
 from ..utils.dojo import dojo_route, generate_ssh_keypair, dojo_update
 
@@ -30,24 +32,21 @@ def listing():
     return render_template("dojos.html", user=user, dojos=dojos)
 
 
+@dojos.route("/dojos/create")
+@authed_only
+def dojo_create():
+    public_key, private_key = generate_ssh_keypair()
+    return render_template(
+        "dojo_create.html",
+        public_key=public_key,
+        private_key=private_key,
+    )
+
+
 @dojos.route("/dojo/<dojo>")
 @dojo_route
 def view_dojo(dojo):
     return redirect(url_for("pwncollege_dojo.listing", dojo=dojo.reference_id))
-
-
-@dojos.route("/dojo/<dojo>/admin")
-@dojo_route
-def admin_dojo(dojo):
-    if not dojo.is_admin():
-        abort(403)
-    return render_template("dojo_admin.html", dojo=dojo)
-
-
-@dojos.route("/admin/dojos")
-@admins_only
-def view_all_dojos():
-    return render_template("admin_dojos.html", dojos=Dojos.query.order_by(*Dojos.ordering()).all())
 
 
 @dojos.route("/dojo/<dojo>/join/")
@@ -94,15 +93,42 @@ def update_dojo(dojo, update_code=None):
     return {"success": True}
 
 
-@dojos.route("/dojos/create")
-@authed_only
-def dojo_create():
-    public_key, private_key = generate_ssh_keypair()
-    return render_template(
-        "dojo_create.html",
-        public_key=public_key,
-        private_key=private_key,
-    )
+@dojos.route("/dojo/<dojo>/admin/")
+@dojo_route
+def view_dojo_admin(dojo):
+    if not dojo.is_admin():
+        abort(403)
+    return render_template("dojo_admin.html", dojo=dojo)
+
+
+@dojos.route("/dojo/<dojo>/admin/solves.csv")
+@dojo_route
+def view_dojo_solves(dojo):
+    if not dojo.is_admin():
+        abort(403)
+    def stream():
+        yield "user,module,challenge,time\n"
+        solves = (
+            dojo
+            .solves()
+            .join(DojoModules, and_(
+                DojoModules.dojo_id == DojoChallenges.dojo_id,
+                DojoModules.module_index == DojoChallenges.module_index))
+            .filter(DojoUsers.user_id != None)
+            .order_by(DojoChallenges.module_index, DojoChallenges.challenge_index, Solves.date)
+            .with_entities(Solves.user_id, DojoModules.id, DojoChallenges.id, Solves.date)
+        )
+        for user, module, challenge, time in solves:
+            time = time.replace(tzinfo=datetime.timezone.utc)
+            yield f"{user},{module},{challenge},{time}\n"
+    headers = {"Content-Disposition": "attachment; filename=data.csv"}
+    return Response(stream_with_context(stream()), headers=headers, mimetype="text/csv")
+
+
+@dojos.route("/admin/dojos")
+@admins_only
+def view_all_dojos():
+    return render_template("admin_dojos.html", dojos=Dojos.query.order_by(*Dojos.ordering()).all())
 
 
 def dojos_override():
