@@ -1,4 +1,5 @@
 docker==4.3.0
 pyyaml==5.4.1
-ipython
 schema
+ipython
+flask-shell-ipython
