@@ -78,7 +78,7 @@ def old_private_dojo_deprecate(id, old=None):
 def listing(dojo):
     infos = get_infos()
     user = get_current_user()
-    dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user)
+    dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
     stats = get_stats(dojo)
     return render_template(
         "dojo.html",

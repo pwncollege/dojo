@@ -12,9 +12,7 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1>The Dojo<h1>
-    <br>
-    <h2>{{ dojo.name }}</h2>
+    <h1>{{ dojo.name }}</h1>
   </div>
 </div>
 <div class="container">
@@ -25,7 +23,32 @@
   <br>
   {% endif %}
 
-  <h2 class="row">Dojo Stats</h2>
+  <div class="row text-center">
+    {% if dojo.grading and user %}
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a class="text-decoration-none" href="{{ url_for('grades.view_grades', dojo=dojo.reference_id) }}">
+          <i class="fas fa-graduation-cap fa-3x"></i>
+          <figcaption><b style="font-family: 'Courier New', Courier, monospace">Grades</b></figcaption>
+        </a>
+      </figure>
+    </div>
+    {% endif %}
+    {% if dojo_user.type == "admin" %}
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo_admin', dojo=dojo.reference_id) }}">
+          <i class="fas fa-users-cog fa-3x"></i>
+          <figcaption><b style="font-family: 'Courier New', Courier, monospace">Admin</b></figcaption>
+        </a>
+      </figure>
+    </div>
+    {% endif %}
+  </div>
+
+  <br>
+
+  <h2 class="row">Stats</h2>
   <br>
   <div class="row">
     <p>
@@ -38,19 +61,6 @@
       <b>Solves:</b> <code>{{ stats["solves"] }}</code>
     </p>
   </div>
-
-  <br>
-
-  {% if dojo_user.type == "student" %}
-  <h2 class="row">Dojo Grades</h2>
-    <br>
-    <p>If you are working through this dojo for class credit, you can check your grade <a href="grades">here</a>.</p>
-  {% endif %}
-  {% if dojo_user.type == "admin" %}
-    <h2 class="row">Dojo Admin</h2>
-    <br>
-    <p>As the admin of the dojo, you can view grades for your students (who entered a grade token when joining) <a href="{{ url_for("grades.dojo_grades", dojo=dojo_id) }}">here</a>.</p>
-    {% endif %}
 
   <br>
 
