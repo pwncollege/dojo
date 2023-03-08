@@ -29,7 +29,9 @@ def grade(dojo, users_query):
     for assessment in assessments:
         if assessment["type"] not in ["checkpoint", "due"]:
             continue
-        assessment_dates[assessment["id"]][assessment["type"]] = datetime.datetime.fromisoformat(assessment["date"])
+        assessment_dates[assessment["id"]][assessment["type"]] = (
+            datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc)
+        )
 
     def dated_count(label, date_type):
         if date_type is None:
@@ -92,7 +94,7 @@ def grade(dojo, users_query):
                     date=assessment["date"],
                     weight=assessment["weight"],
                     progress=f"{checkpoint_solves} / {(challenge_count // 3)}",
-                    credit=bool(checkpoint_solves / (challenge_count // 3)),
+                    credit=bool(checkpoint_solves // (challenge_count // 3)),
                 ))
 
             if type == "due":
