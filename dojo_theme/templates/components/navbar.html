@@ -32,8 +32,8 @@
     <div class="collapse navbar-collapse" id="base-navbars">
       <ul class="navbar-nav mr-auto">
         {{ navitem("Dojos", url_for("pwncollege_dojos.listing"), "fa-bolt") }}
-        {{ navitem("Workspace", url_for("pwncollege_workspace.view_workspace", dojo=dojo_id), "fa-terminal") }}
-        {{ navitem("Desktop", url_for("pwncollege_desktop.view_desktop", dojo=dojo_id), "fa-desktop") }}
+        {{ navitem("Workspace", url_for("pwncollege_workspace.view_workspace"), "fa-terminal") }}
+        {{ navitem("Desktop", url_for("pwncollege_desktop.view_desktop"), "fa-desktop") }}
         {{ navitem("Chat", "https://pwn.college/discord", "fa-comments") }}
       </ul>
 

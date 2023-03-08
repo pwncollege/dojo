@@ -10,12 +10,10 @@ workspace = Blueprint("pwncollege_workspace", __name__)
 
 
 @workspace.route("/workspace")
-@workspace.route("/<dojo>/workspace")
-@dojo_route
 @authed_only
-def view_workspace(dojo=None):
+def view_workspace():
     active = bool(get_current_dojo_challenge())
-    return render_template("workspace.html", dojo=dojo, active=active)
+    return render_template("workspace.html", active=active)
 
 
 @workspace.route("/workspace/")

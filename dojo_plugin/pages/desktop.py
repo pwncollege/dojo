@@ -29,11 +29,8 @@ def can_control(desktop_user):
 
 @desktop.route("/desktop")
 @desktop.route("/desktop/<int:user_id>")
-@desktop.route("/<dojo>/desktop")
-@desktop.route("/<dojo>/desktop/<int:user_id>")
-@dojo_route
 @authed_only
-def view_desktop(dojo=None, user_id=None):
+def view_desktop(user_id=None):
     current_user = get_current_user()
     if user_id is None:
         user_id = current_user.id
@@ -53,7 +50,6 @@ def view_desktop(dojo=None, user_id=None):
     view_only = int(user_id != current_user.id)
 
     return render_template("desktop.html",
-                           dojo=dojo,
                            active=active,
                            password=password,
                            user_id=user_id,
