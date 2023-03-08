@@ -1,18 +1,15 @@
-import statistics
+import collections
 import datetime
-import pytz
-import math
-import csv
 
-import yaml
 from flask import Blueprint, render_template, request, abort
+from sqlalchemy import and_, cast
 from CTFd.models import db, Challenges, Solves, Users
 from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.cache import cache
 
-from ..models import DiscordUsers, DojoMembers
+from ..models import DiscordUsers, DojoChallenges, DojoMembers, DojoModules, DojoStudents
 from ..utils import module_visible, module_challenges_visible, DOJOS_DIR, is_dojo_admin
 from ..utils.dojo import dojo_route
 from .writeups import WriteupComments, writeup_weeks, all_writeups
@@ -22,241 +19,202 @@ from .discord import discord_reputation
 grades = Blueprint("grades", __name__)
 
 
-def average(data):
-    data = list(data)
-    if not data:
-        return 0.0
-    return sum(data) / len(data)
+def grade(dojo, users_query):
+    if isinstance(users_query, Users):
+        users_query = Users.query.filter_by(id=users_query.id)
 
+    assessments = dojo.grading["assessments"]
 
-def helpful_credit(reputation, max_reputation):
-    if not reputation or not max_reputation:
-        return 0.0
-    return round(100 * (math.log2(reputation + 0.1) / math.log2(max_reputation + 0.1))) / 1000
-
-
-def shared_helpful_extra_credit():
-    students = yaml.safe_load(get_config("students"))
-    student_ids = set(int(student["dojo_id"]) for student in students)
-
-    all_reputation = discord_reputation()
-    max_reputation = max(all_reputation.values(), default=None)
-
-    discord_users = {
-        discord_user.discord_id: discord_user.user_id
-        for discord_user in DiscordUsers.query.all()
-    }
-
-    all_shared_credit = [
-        helpful_credit(reputation, max_reputation)
-        for discord_id, reputation in all_reputation.items()
-        if discord_users.get(discord_id) not in student_ids
-    ]
-
-    return sum(all_shared_credit) / len(students)
-
-def module_grade_report(dojo, module, user, when=None):
-    m = { }
-
-    challenges = dojo.challenges(module, user, solves_before=when)
-    assigned = module.get("time_assigned", None)
-    due = module.get("time_due", None)
-    ec_full = module.get("time_ec_full", None)
-    ec_part = module.get("time_ec_part", None)
-
-    if assigned and due and not ec_full:
-        ec_full = (assigned + (due-assigned)/2)
-    if assigned and due and not ec_part:
-        ec_part = (assigned + (due-assigned)/4)
-
-    m['name'] = module['name']
-    m['total_challenges'] = len(challenges)
-    m['ec_threshold'] = module.get("ec_threshold", len(challenges) // 2)
-    m['late_penalty'] = module.get('late_penalty', module.get('late', 0.5))
-    m['time_assigned'] = assigned
-    m['time_due'] = due
-    m['time_ec_part'] = ec_part
-    m['time_ec_full'] = ec_full
-
-    m['solved_timely'] = 0
-    m['solved_late'] = 0
-    m['solved_part_ec'] = 0
-    m['earned_part_ec'] = 0
-    m['solved_full_ec'] = 0
-    m['earned_full_ec'] = 0
-    m['early_bird_ec'] = 0
-    m['module_grade'] = 0
-
-    if challenges and due and user:
-        m['solved_timely'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < due ])
-        m['solved_late'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) >= due ])
-        m['module_grade'] = 100 * (m['solved_timely'] + m['solved_late']*(1-m['late_penalty'])) / len(challenges)
-
-        if ec_part:
-            m['solved_part_ec'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_part ])
-            m['earned_part_ec'] = (m['solved_part_ec'] >= m['ec_threshold'] // 2)
-        if ec_full:
-            m['solved_full_ec'] = len([ c for c in challenges if c.solved and pytz.UTC.localize(c.solve_date) < ec_full ])
-            m['earned_full_ec'] = (m['solved_full_ec'] >= m['ec_threshold'])
-        m['early_bird_ec'] = 1.0 if m['earned_full_ec'] else 0.5 if m['earned_part_ec'] else 0
-
-    return m
-
-
-def letter_grade(dojo, total_grade, module_reports=None):
-    if module_reports is None:
-        module_reports = []
-
-    for dojo_grade in dojo.grades:
-        if "points" in dojo_grade and total_grade >= dojo_grade["points"]:
-            grade = dojo_grade["grade"]
-            break
-        if "modules" in dojo_grade:
-            modules = dojo_grade["modules"]
-            progress = len([report for report in module_reports if report["module_grade"]])
-            if progress >= modules:
-                grade = dojo_grade["grade"]
-                break
-    else:
-        grade = "?"
-
-    return grade
-
-
-def overall_grade_report(dojo, user, when=None):
-    discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
-
-    reports = [ ]
-    for module in dojo.modules:
-        if not module_visible(dojo, module, user) or not module_challenges_visible(dojo, module, user):
+    assessment_dates = collections.defaultdict(lambda: collections.defaultdict(dict))
+    for assessment in assessments:
+        if assessment["type"] not in ["checkpoint", "due"]:
             continue
-        r = module_grade_report(dojo, module, user, when=when)
-        if not r['total_challenges']:
-            continue
-        if when and r['time_assigned'] > when:
-            continue
-        reports.append(r)
+        assessment_dates[assessment["id"]][assessment["type"]] = datetime.datetime.fromisoformat(assessment["date"])
 
-    module_average = statistics.mean(r["module_grade"] for r in reports)
-
-    extra_credit = {}
-    extra_credit["Partial Early Bird"] = sum((0.5 if r["earned_part_ec"] and not r["earned_full_ec"] else 0) for r in reports)
-    extra_credit["Full Early Bird"] = sum((1.0 if r["earned_full_ec"] else 0) for r in reports)
-
-    for current_extra_credit in dojo.extra_credit:
-        name = current_extra_credit.get("name", "???")
-        id = current_extra_credit.get("id", "dojo")
-        points = current_extra_credit.get("points", {})
-
-        if isinstance(points, (int, float)):
-            user_points = points
-        elif id == "dojo":
-            user_points = points.get(user.id, 0)
-        elif id == "discord":
-            user_points = points.get(discord_user.discord_id, 0) if discord_user else 0
+    def dated_count(label, date_type):
+        if date_type is None:
+            query = lambda module_id: True
         else:
-            user_points = 0
+            query = lambda module_id: (Solves.date < assessment_dates[module_id][date_type]
+                                       if date_type in assessment_dates[module_id]
+                                       else None)
+        return db.func.sum(
+            db.case([(DojoModules.id == module_id, cast(query(module_id), db.Integer))
+                     for module_id in assessment_dates],
+                    else_=None)
+        ).label(label)
 
-        extra_credit[name] = user_points
-
-    total_grade = module_average + sum(extra_credit.values())
-
-    return dict(
-        module_reports=reports,
-        module_average=module_average,
-        extra_credit=extra_credit,
-        total_grade=total_grade,
-        letter_grade=letter_grade(dojo, total_grade, reports)
+    solves = (
+        dojo
+        .solves(ignore_visibility=True)
+        .join(DojoModules, and_(
+            DojoModules.dojo_id == DojoChallenges.dojo_id,
+            DojoModules.module_index == DojoChallenges.module_index,
+        ))
+        .group_by(Solves.user_id, DojoModules.id)
+        .order_by(Solves.user_id, DojoModules.module_index)
+        .with_entities(
+            Solves.user_id,
+            DojoModules.id.label("module_id"),
+            dated_count("checkpoint_solves", "checkpoint"),
+            dated_count("due_solves", "due"),
+            dated_count("all_solves", None)
+        )
+    ).subquery()
+    user_solves = (
+        users_query
+        .join(solves, Users.id == solves.c.user_id, isouter=True)
+        .with_entities(Users.id, *(column for column in solves.c if column.name != "user_id"))
     )
 
+    module_names = {module.id: module.name for module in dojo.modules}
+    challenge_counts = {module.id: len(module.challenges) for module in dojo.modules}
 
-@grades.route("/<dojo>/grades", methods=["GET"])
-@grades.route("/<dojo>/grades/<int:user_id>", methods=["GET"])
-@dojo_route
-@authed_only
-def view_grades(dojo, user_id=None):
-    if not user_id or not is_admin():
-        user = get_current_user()
-    else:
-        user = Users.query.filter_by(id=user_id).first()
+    module_solves = {}
+    assigmments = {}
 
-    when = request.args.get("when", None)
-    if when:
-        when = pytz.UTC.localize(datetime.datetime.fromtimestamp(int(when)))
+    def result(user_id):
+        grades = []
 
-    grades = overall_grade_report(dojo=dojo, user=user, when=when)
+        for assessment in assessments:
+            type = assessment.get("type")
 
-    return render_template("grades.html", grades=grades)
+            if type == "checkpoint":
+                module_id = assessment["id"]
+                module_name = module_names.get(module_id)
+                if not module_name:
+                    continue
+                challenge_count = challenge_counts[module_id]
+                checkpoint_solves, due_solves, all_solves = module_solves.get(module_id, (0, 0, 0))
 
+                grades.append(dict(
+                    name=f"{module_name} Checkpoint",
+                    date=assessment["date"],
+                    weight=assessment["weight"],
+                    progress=f"{checkpoint_solves} / {(challenge_count // 3)}",
+                    credit=bool(checkpoint_solves / (challenge_count // 3)),
+                ))
 
-@grades.route("/<dojo>/grades/all", methods=["GET"])
-@dojo_route
-@authed_only
-@cache.memoize(timeout=1800)
-def dojo_grades(dojo):
-    user = get_current_user()
-    if not is_dojo_admin(user, dojo):
-        abort(403)
-    if dojo.public and not is_admin(user):
-        abort(403)
+            if type == "due":
+                module_id = assessment["id"]
+                module_name = module_names.get(module_id)
+                if not module_name:
+                    continue
+                challenge_count = challenge_counts[module_id]
+                checkpoint_solves, due_solves, all_solves = module_solves.get(module_id, (0, 0, 0))
+                late_solves = all_solves - due_solves
 
-    when = request.args.get("when")
-    if when:
-        when = datetime.datetime.fromtimestamp(int(when))
+                if due_solves == all_solves:
+                    grades.append(dict(
+                        name=f"{module_name}",
+                        date=assessment["date"],
+                        weight=assessment["weight"],
+                        progress=f"{due_solves} / {challenge_count}",
+                        credit=due_solves / challenge_count,
+                    ))
 
-    if not dojo.public:
-        grade_tokens = [ dm.grade_token for dm in DojoMembers.query.filter_by(dojo=dojo).all() ]
-    else:
-        grade_tokens = set()
-        for csv_path in DOJOS_DIR.glob(f"{dojo.id}/*.csv"):
-            with open(csv_path) as csv_file:
-                grade_tokens |= set(student["Zoom Email"] for student in csv.DictReader(csv_file))
+                else:
+                    late_penalty = assessment.get("late_penalty", 0.0)
+                    late_value = 1 - late_penalty
+                    grades.append(dict(
+                        name=f"{module_name}",
+                        date=assessment["date"],
+                        weight=assessment["weight"],
+                        progress=f"{due_solves} (+{late_solves}) / {challenge_count}",
+                        credit=(due_solves + late_value * late_solves) / challenge_count,
+                    ))
 
-    grades = []
-    unlinked_users = []
-    for token in grade_tokens:
-        if dojo.public:
-            user = Users.query.filter_by(email=token).first()
-            if not user:
-                unlinked_users.append({ "id":None, "grade_token":token })
-                continue
-        else:
-            user = DojoMembers.query.filter_by(dojo=dojo, grade_token=token).first().user
+            if type == "manual":
+                grades.append(dict(
+                    name=assessment["name"],
+                    # weight=assessment["weight"],
+                    progress="TODO",
+                    credit=0.0,
+                ))
 
-        report = overall_grade_report(dojo, user, when=when)
-        grades.append({
-            "id": user.id if user else None,
-            "grade_token": token,
-            "letter": report["letter_grade"],
-            "overall": report["total_grade"],
-            "extra_credit": sum(report["extra_credit"].values()),
-            **{
-                module["name"]: module["module_grade"]
-                for module in report.get("module_reports", [])
-            }
-        })
+            if type == "extra":
+                grades.append(dict(
+                    name=assessment["name"],
+                    progress="TODO",
+                    credit=0.0,
+                ))
 
-    grades.sort(key=lambda k: (k["overall"] or 0.0, -(k["id"] or float("inf"))), reverse=True)
-
-    all_module_stats = {
-        name: statistics.mean(
-            grade[name] for grade in grades if
-            name in grade and type(grade[name]) in (float,int)
+        overall_grade = (
+            sum(grade["credit"] * grade["weight"] for grade in grades if "weight" in grade) /
+            sum(grade["weight"] for grade in grades if "weight" in grade)
         )
-        for name in grades[0]
-        if name not in ["id", "grade_token", "letter"]
-    } if grades else {}
-    grade_statistics = [
-        {
-            "id": "Average",
-            "grade_token": "",
-            "letter": letter_grade(dojo, statistics.mean(grade["overall"] for grade in grades)),
-            "overall": report["total_grade"],
-            "extra_credit": statistics.mean(grade["extra_credit"] for grade in grades),
-            **all_module_stats
-        }
-    ] if grades else []
+        extra_credit = (
+            sum(grade["credit"] for grade in grades if "weight" not in grade)
+        )
+        overall_grade += extra_credit
 
-    grades += unlinked_users
+        for grade, min_score in dojo.grading["letter_grades"].items():
+            if overall_grade >= min_score:
+                letter_grade = grade
+                break
+        else:
+            letter_grade = "?"
 
-    return render_template("admin_grades.html", grades=grades, grade_statistics=grade_statistics)
+        return dict(user_id=user_id,
+                    grades=grades,
+                    overall_grade=overall_grade,
+                    letter_grade=letter_grade)
+
+    user_id = None
+    previous_user_id = None
+    for user_id, module_id, checkpoint_solves, due_solves, all_solves in user_solves:
+        if user_id != previous_user_id:
+            if previous_user_id is not None:
+                yield result(previous_user_id)
+                module_solves = {}
+            previous_user_id = user_id
+        if module_id is not None:
+            module_solves[module_id] = (
+                int(checkpoint_solves),
+                int(due_solves),
+                int(all_solves),
+            )
+    if user_id:
+        yield result(user_id)
+
+
+@grades.route("/dojo/<dojo>/grades")
+@dojo_route
+@authed_only
+def view_grades(dojo):
+    if not dojo.grading:
+        abort(404)
+
+    if request.args.get("user"):
+        if not dojo.is_admin():
+            abort(403)
+        user = Users.query.filter_by(id=request.args.get("user")).first_or_404()
+        name = f"{user.name}'s"
+    else:
+        user = get_current_user()
+        name = "Your"
+
+    grades = next(grade(dojo, user))
+
+    return render_template("grades.html", name=name, **grades)
+
+
+@grades.route("/dojo/<dojo>/admin/grades")
+@dojo_route
+@authed_only
+def view_all_grades(dojo):
+    if not dojo.grading:
+        abort(404)
+
+    if not dojo.is_admin():
+        abort(403)
+
+    users = (
+        Users
+        .query
+        .join(DojoStudents, DojoStudents.user_id == Users.id)
+        .filter(DojoStudents.dojo == dojo)
+    )
+    grades = grade(dojo, users)
+
+    return render_template("admin_grades.html", grades=grades)

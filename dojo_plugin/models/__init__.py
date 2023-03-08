@@ -63,7 +63,7 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(db.JSON)
-    data_fields = ["type", "comparator", "deprecated_id"]
+    data_fields = ["type", "comparator", "grading", "deprecated_id"]
 
     users = db.relationship("DojoUsers", back_populates="dojo")
     members = db.relationship("DojoMembers", back_populates="dojo")

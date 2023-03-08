@@ -11,7 +11,6 @@ from CTFd.cache import cache
 
 from ..utils import render_markdown, module_visible, module_challenges_visible, is_dojo_admin
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
-from .grades import module_grade_report
 from ..models import Dojos, DojoUsers
 
 dojo = Blueprint("pwncollege_dojo", __name__)
