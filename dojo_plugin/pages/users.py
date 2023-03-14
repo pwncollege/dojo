@@ -70,16 +70,15 @@ def view_profile(user):
         other_dojos = user_dojos(current_user)
         dojos = [ d for d in dojos if d in other_dojos ]
 
-    public_dojos = [ d for d in dojos if d.public and not d.archived ]
-    private_dojos = [ d for d in dojos if not d.public and not d.archived ]
-    archived_dojos = [ d for d in dojos if d.archived ]
+    official_dojos = [ d for d in dojos if d.official ]
+    other_dojos = [ d for d in dojos if not d.official ]
     stats = { d.id: dojo_full_stats(d, user) for d in dojos }
 
     global_position, total_solvers = user_standings(user)
 
     return render_template(
         "hacker.html",
-        public_dojos=public_dojos, private_dojos=private_dojos, archived_dojos=archived_dojos, stats=stats,
+        official_dojos=official_dojos, other_dojos=other_dojos, stats=stats,
         user=user, current_user=current_user, belt=belt_asset(None),  # TODO: belt
         global_position=global_position, total_solvers=total_solvers
     )

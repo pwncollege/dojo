@@ -146,11 +146,12 @@ def is_dojo_admin(user, dojo):
 
 
 def user_dojos(user):
-    filters = [Dojos.public == True]
+    filters = [Dojos.official == True]
     if user:
-        filters.append(Dojos.owner_id == user.id)
         members = db.session.query(DojoMembers.dojo_id).filter(DojoMembers.user_id == user.id)
         filters.append(Dojos.id.in_(members.subquery()))
+        admins = db.session.query(DojoAdmins.dojo_id).filter(DojoAdmins.user_id == user.id)
+        filters.append(Dojos.id.in_(admins.subquery()))
     return Dojos.query.filter(or_(*filters)).all()
 
 
@@ -162,7 +163,7 @@ def dojo_standings(dojo_id=None, fields=None, module_id=None):
 
     dojo_filters = []
     if dojo_id is None:
-        dojos = Dojos.query.filter_by(public=True).all()
+        dojos = Dojos.query.filter_by(official=True).all()
         dojo_filters.append(or_(*(dojo.challenges_query(module_id=module_id) for dojo in dojos)))
     else:
         dojo = Dojos.query.filter(Dojos.id == dojo_id).first()
