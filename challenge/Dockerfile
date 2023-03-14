@@ -181,6 +181,7 @@ RUN <<EOF
     cd /opt/capstone
     ./make.sh
     ./make.sh install
+    ln -s /lib/capstone.so /lib/capstone.so.3
 EOF
 
 FROM builder as builder-radare2
