@@ -1,53 +1,5 @@
 {% extends "base.html" %}
-
-{% block stylesheets %}
-<style>
-  h4 {
-      color: rgb(99, 192, 245);
-      text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
-  }
-
-  .card {
-      margin-bottom: 0.5em;
-      background-color: inherit;
-  }
-
-  .card-header {
-      background-color: rgba(255,255,255,0.1);
-  }
-
-  .card-body {
-      background-color: rgba(255,255,255,0.05);
-  }
-
-  .challenge-name {
-      margin: 0px;
-      padding: 0px !important;
-      float: left;
-  }
-
-  .challenge-active {
-      color: rgb(255,40,245) !important;
-  }
-
-  .challenge-solved {
-      -webkit-text-stroke: 1px #222;
-      -webkit-text-fill-color: #b5e853;
-  }
-
-  .challenge-unsolved {
-      text-shadow: none;
-      -webkit-text-stroke: 1px #222;
-      -webkit-text-fill-color: rgba(255,255,255,0.25);
-  }
-
-  .total-solves {
-      float: right;
-      font-size: 0.75em;
-      color: #ddd;
-  }
-</style>
-{% endblock %}
+{% from "macros/widgets.html" import accordion_item %}
 
 {% block content %}
 <div class="jumbotron">
@@ -138,17 +90,10 @@
 
   <div class="accordion" id="resources">
     {% for resource in module.resources %}
-    <div class="card">
-      <div class="card-header" id="resourceHeading{{ loop.index }}">
-        <h2 class="mb-0">
-          <button class="btn btn-link text-decoration-none collapsed" type="button" data-toggle="collapse" data-target="#resource{{ loop.index }}" aria-expanded="false" aria-controls="resource{{ loop.index }}">
-            <h4>{{ resource.name }}</h4>
-          </button>
-        </h2>
-      </div>
-
-      <div id="resource{{ loop.index }}" class="resource collapse" aria-labelledby="resourceHeading{{ loop.index }}" data-parent="#resources">
-        <div class="card-body">
+      {% call(header) accordion_item("resources", loop.index) %}
+        {% if header %}
+          <h4 class="accordion-item-name">{{ resource.name }}</h4>
+        {% else %}
           {% if resource.type == "lecture" %}
           {% if resource.video %}
           {% set src = "https://www.youtube.com/embed/" + resource.video + "?" + ("list=" + resource.playlist + "&" if resource.playlist else "") + "rel=0" %}
@@ -168,9 +113,8 @@
             {{ render_markdown(resource.content) }}
           </div>
           {% endif %}
-        </div>
-      </div>
-    </div>
+        {% endif %}
+      {% endcall %}
     {% endfor %}
   </div>
 
@@ -182,25 +126,17 @@
 
   <div class="accordion" id="challenges">
     {% for challenge in module.challenges %}
-    {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
-    {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
-    <a id="challenge-{{challenge.name}}"></a>
-    <div class="card">
-      <div class="card-header" id="challengeHeading{{ loop.index }}">
-        <h2 class="mb-0">
-          <button class="btn btn-link text-decoration-none w-100 collapsed" type="button" data-toggle="collapse" data-target="#challenge{{ loop.index }}" aria-expanded="false" aria-controls="challenge{{ loop.index }}">
-            <h4 class="challenge-name {{ active }}">
-              <span class="d-sm-block d-md-block d-lg-block">
-                <i class="fas fa-flag pr-3 {{ solved }}"></i>{{ challenge.name }}
-              </span>
-            </h4>
-            <span class="total-solves">{{ total_solves.get(challenge.challenge_id, 0) }} solves</span>
-          </button>
-        </h2>
-      </div>
-
-      <div id="challenge{{ loop.index }}" class="collapse" aria-labelledby="challengeHeading{{ loop.index }}" data-parent="#challenges">
-        <div class="card-body">
+      {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
+      {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
+      {% call(header) accordion_item("challenges", loop.index) %}
+        {% if header %}
+          <h4 class="accordion-item-name {{ active }}">
+            <span class="d-sm-block d-md-block d-lg-block">
+              <i class="fas fa-flag pr-3 {{ solved }}"></i>{{ challenge.name }}
+            </span>
+          </h4>
+          <span class="total-solves">{{ total_solves.get(challenge.challenge_id, 0) }} solves</span>
+        {% else %}
           <div class="embed-responsive">
             <p>{{ render_markdown(challenge.description) }}</p>
           </div>
@@ -234,15 +170,14 @@
             </div>
           </div>
           <div class="row notification-row">
-	    <div class="col-md-12">
-	      <div id="result-notification" class="alert alert-dismissable text-center w-100" role="alert" style="display: none;">
-		<strong id="result-message"></strong>
-	      </div>
-	    </div>
-	  </div>
-        </div>
-      </div>
-    </div>
+	          <div class="col-md-12">
+	            <div id="result-notification" class="alert alert-dismissable text-center w-100" role="alert" style="display: none;">
+		            <strong id="result-message"></strong>
+	            </div>
+	          </div>
+	        </div>
+        {% endif %}
+      {% endcall %}
     {% endfor %}
   </div>
 
@@ -250,8 +185,8 @@
 
   <h2>Module Ranking</h2>
   <p>This scoreboard reflects solves for challenges in this module after the module launched in this dojo.</p>
-  {% import "macros.html" as macros %}
-  {{ macros.scoreboard() }}
+  {% from "macros/scoreboard.html" import scoreboard %}
+  {{ scoreboard() }}
 
   {% endif %}
 

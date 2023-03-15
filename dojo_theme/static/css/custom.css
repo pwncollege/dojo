@@ -27,6 +27,11 @@ nav {
     border-bottom: 1px dashed #b5e853;
 }
 
+h4 {
+    color: rgb(99, 192, 245);
+    text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
+}
+
 .modal-dialog {
     margin-top: 15%;
 }
@@ -120,6 +125,48 @@ nav {
     right: 1em;
     color: rgb(234, 234, 234);
     font-size: 0.75em;
+}
+
+.accordion-item {
+    margin-bottom: 0.5em;
+    background-color: inherit;
+}
+
+.accordion-item-header {
+    padding: .75rem 1.25rem;
+    background-color: rgba(255,255,255,0.1);
+}
+
+.accordion-item-body {
+    padding: 1.25rem;
+    background-color: rgba(255,255,255,0.05);
+}
+
+.accordion-item-name {
+    margin: 0px;
+    padding: 0px !important;
+    float: left;
+}
+
+.challenge-active {
+    color: rgb(255,40,245) !important;
+}
+
+.challenge-solved {
+    -webkit-text-stroke: 1px #222;
+    -webkit-text-fill-color: #b5e853;
+}
+
+.challenge-unsolved {
+    text-shadow: none;
+    -webkit-text-stroke: 1px #222;
+    -webkit-text-fill-color: rgba(255,255,255,0.25);
+}
+
+.total-solves {
+    float: right;
+    font-size: 0.75em;
+    color: #ddd;
 }
 
 .scoreboard-name {

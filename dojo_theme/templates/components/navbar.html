@@ -1,20 +1,4 @@
-{% macro navitem(name, url, icon, shrink=False) %}
-<li class="nav-item">
-  <a class="nav-link" href="{{ url }}">
-    <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="{{ name }}">
-      <i class="fas {{ icon }} d-none d-md-block d-lg-none"></i>
-    </span>
-    <span class="d-sm-block d-md-none d-lg-block text-nowrap">
-      <i class="fas {{ icon }} pr-1"></i>
-      {% if not shrink %}
-      {{ name }}
-      {% else %}
-      <span class="d-lg-none">{{ name }}</span>
-      {% endif %}
-    </span>
-  </a>
-</li>
-{% endmacro %}
+{% from "macros/widgets.html" import navitem %}
 
 <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
   <div class="container">

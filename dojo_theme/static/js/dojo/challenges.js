@@ -1,11 +1,11 @@
 function submitChallenge(event) {
     event.preventDefault();
-    const card = $(event.currentTarget).closest(".card");
-    const challenge_id = parseInt(card.find('#challenge-id').val())
-    const submission = card.find('#challenge-input').val()
+    const item = $(event.currentTarget).closest(".accordion-item");
+    const challenge_id = parseInt(item.find('#challenge-id').val())
+    const submission = item.find('#challenge-input').val()
 
-    card.find("#challenge-submit").addClass("disabled-button");
-    card.find("#challenge-submit").prop("disabled", true);
+    item.find("#challenge-submit").addClass("disabled-button");
+    item.find("#challenge-submit").prop("disabled", true);
 
     var body = {
         'challenge_id': challenge_id,
@@ -14,18 +14,18 @@ function submitChallenge(event) {
     var params = {}
 
     return CTFd.api.post_challenge_attempt(params, body).then(function (response) {
-        return renderSubmissionResponse(response, card);
+        return renderSubmissionResponse(response, item);
     })
 };
 
-function renderSubmissionResponse(response, card) {
+function renderSubmissionResponse(response, item) {
     const result = response.data;
 
-    const result_message = card.find("#result-message");
-    const result_notification = card.find("#result-notification");
-    const answer_input = card.find("#challenge-input");
-    const unsolved_flag = card.find(".challenge-unsolved");
-    const total_solves = card.find(".total-solves");
+    const result_message = item.find("#result-message");
+    const result_notification = item.find("#result-notification");
+    const answer_input = item.find("#challenge-input");
+    const unsolved_flag = item.find(".challenge-unsolved");
+    const total_solves = item.find(".total-solves");
 
     result_notification.removeClass();
     result_message.text(result.message);
@@ -94,24 +94,24 @@ function renderSubmissionResponse(response, card) {
         }, 3000);
     }
     setTimeout(function() {
-        card.find(".alert").slideUp();
-        card.find("#challenge-submit").removeClass("disabled-button");
-        card.find("#challenge-submit").prop("disabled", false);
+        item.find(".alert").slideUp();
+        item.find("#challenge-submit").removeClass("disabled-button");
+        item.find("#challenge-submit").prop("disabled", false);
     }, 3000);
 }
 
 
 function startChallenge(event) {
     event.preventDefault();
-    const card = $(event.currentTarget).closest(".card");
-    const module = card.find("#module").val()
-    const challenge = card.find("#challenge").val()
+    const item = $(event.currentTarget).closest(".accordion-item");
+    const module = item.find("#module").val()
+    const challenge = item.find("#challenge").val()
     const practice = event.currentTarget.id == "challenge-practice";
 
-    card.find("#challenge-start").addClass("disabled-button");
-    card.find("#challenge-start").prop("disabled", true);
-    card.find("#challenge-practice").addClass("disabled-button");
-    card.find("#challenge-practice").prop("disabled", true);
+    item.find("#challenge-start").addClass("disabled-button");
+    item.find("#challenge-start").prop("disabled", true);
+    item.find("#challenge-practice").addClass("disabled-button");
+    item.find("#challenge-practice").prop("disabled", true);
 
     var params = {
         "dojo": init.dojo,
@@ -140,8 +140,8 @@ function startChallenge(event) {
         }
         return response.json();
     }).then(function (result) {
-        var result_notification = card.find('#result-notification');
-        var result_message = card.find('#result-message');
+        var result_notification = item.find('#result-notification');
+        var result_message = item.find('#result-message');
 
         result_notification.removeClass();
 
@@ -151,7 +151,7 @@ function startChallenge(event) {
             result_notification.addClass('alert alert-info alert-dismissable text-center');
 
             $(".challenge-active").removeClass("challenge-active");
-            card.find(".challenge-name").addClass("challenge-active");
+            item.find(".challenge-name").addClass("challenge-active");
         }
         else {
             var message = "";
@@ -166,21 +166,21 @@ function startChallenge(event) {
         result_notification.slideDown();
 
         setTimeout(function() {
-            card.find("#challenge-start").removeClass("disabled-button");
-            card.find("#challenge-start").prop("disabled", false);
-            card.find("#challenge-practice").removeClass("disabled-button");
-            card.find("#challenge-practice").prop("disabled", false);
+            item.find("#challenge-start").removeClass("disabled-button");
+            item.find("#challenge-start").prop("disabled", false);
+            item.find("#challenge-practice").removeClass("disabled-button");
+            item.find("#challenge-practice").prop("disabled", false);
 
-            card.find(".alert").slideUp();
-            card.find("#challenge-submit").removeClass("disabled-button");
-            card.find("#challenge-submit").prop("disabled", false);
+            item.find(".alert").slideUp();
+            item.find("#challenge-submit").removeClass("disabled-button");
+            item.find("#challenge-submit").prop("disabled", false);
         }, 3000);
     });
 }
 
 
 $(() => {
-    $(".resource").on("show.bs.collapse", function (event) {
+    $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
             if ($(iframe).prop("src"))
                 return;
@@ -192,12 +192,12 @@ $(() => {
 
     $(".challenge-input").keyup(function (event) {
         if (event.keyCode == 13) {
-            const submit = $(event.currentTarget).closest(".card").find("#challenge-submit");
+            const submit = $(event.currentTarget).closest(".accordion-item").find("#challenge-submit");
             submit.click();
         }
     });
 
-    $(".card").find("#challenge-submit").click(submitChallenge);
-    $(".card").find("#challenge-start").click(startChallenge);
-    $(".card").find("#challenge-practice").click(startChallenge);
+    $(".accordion-item").find("#challenge-submit").click(submitChallenge);
+    $(".accordion-item").find("#challenge-start").click(startChallenge);
+    $(".accordion-item").find("#challenge-practice").click(startChallenge);
 });

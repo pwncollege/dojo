@@ -61,7 +61,6 @@ def get_scoreboard_data(dojo, module=None, duration=None, page=1, per_page=20):
                        Users.email)
     )
 
-
     pagination = query.paginate(page=page, per_page=per_page)
 
     def standing(item):
