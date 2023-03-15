@@ -181,6 +181,7 @@ RUN <<EOF
     cd /opt/capstone
     ./make.sh
     ./make.sh install
+    ln -sf /lib/libcapstone.so /lib/libcapstone.so.3
 EOF
 
 FROM builder as builder-radare2
@@ -439,8 +440,6 @@ RUN <<EOF
     ln -sf /home/hacker/.gdbinit /root/.gdbinit
     ln -sf /home/hacker/.radare2rc /root/.radare2rc
     ln -sf /home/hacker/.pwn.conf /root/.pwn.conf
-
-    ln -sf /lib/libcapstone.so /lib/libcapstone.so.3
 
     mkdir /challenge
     install -m 400 <(echo 'pwn.college{uninitialized}') /flag
