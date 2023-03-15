@@ -219,4 +219,4 @@ def view_all_grades(dojo):
     )
     grades = grade(dojo, users)
 
-    return render_template("admin_grades.html", grades=grades)
+    return render_template("grades_admin.html", grades=grades)

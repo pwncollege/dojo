@@ -1,14 +1,5 @@
 {% extends "base.html" %}
 
-{% block stylesheets %}
-<style>
-  h4 {
-      color: rgb(99, 192, 245);
-      text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
-  }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="jumbotron">
   <div class="container">
@@ -91,8 +82,8 @@
     <a href="javascript:loadScoreboard(30, 1)">Month</a> |
     <a href="javascript:loadScoreboard(0, 1)">All Time</a>
   </p>
-  {% import "macros.html" as macros %}
-  {{ macros.scoreboard() }}
+  {% from "macros/scoreboard.html" import scoreboard %}
+  {{ scoreboard() }}
 </div>
 {% endblock %}
 

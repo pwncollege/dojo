@@ -1,27 +1,5 @@
 {% extends "base.html" %}
-
-{% block stylesheets %}
-<style>
-  h4 {
-      color: rgb(99, 192, 245);
-      text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
-      font-size: 1.2rem;
-  }
-</style>
-{% endblock %}
-
-{% macro dojo_card(dojo) -%}
-  <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.reference_id) }}">
-    <li class="card card-small">
-      <div class="card-body">
-        <h4 class="card-title">{{ dojo.name }}</h4>
-        <p class="card-text">
-          {{ dojo.modules | length }} Modules
-        </p>
-      </div>
-    </li>
-  </a>
-{%- endmacro %}
+{% from "macros/widgets.html" import card %}
 
 {% block content %}
 <div class="jumbotron">
@@ -34,7 +12,7 @@
   <ul class="card-list">
     {% for dojo in dojos %}
       {% if dojo.type == "course" %}
-        {{ dojo_card(dojo) }}
+        {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id), dojo.name, "{} Modules".format(dojo.modules | length)) }}
       {% endif %}
     {% endfor %}
   </ul>
@@ -45,7 +23,7 @@
   <ul class="card-list">
     {% for dojo in dojos %}
       {% if dojo.type == "topic" %}
-        {{ dojo_card(dojo) }}
+        {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id), dojo.name, "{} Modules".format(dojo.modules | length)) }}
       {% endif %}
     {% endfor %}
   </ul>
@@ -56,7 +34,7 @@
   <ul class="card-list">
     {% for dojo in dojos %}
       {% if dojo.type not in ["course", "topic"] %}
-        {{ dojo_card(dojo) }}
+        {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id), dojo.name, "{} Modules".format(dojo.modules | length)) }}
       {% endif %}
     {% endfor %}
   </ul>

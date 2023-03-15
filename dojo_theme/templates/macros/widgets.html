@@ -1,0 +1,48 @@
+{% macro navitem(name, url, icon, shrink=False) %}
+<li class="nav-item">
+  <a class="nav-link" href="{{ url }}">
+    <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="{{ name }}">
+      <i class="fas {{ icon }} d-none d-md-block d-lg-none"></i>
+    </span>
+    <span class="d-sm-block d-md-none d-lg-block text-nowrap">
+      <i class="fas {{ icon }} pr-1"></i>
+      {% if not shrink %}
+      {{ name }}
+      {% else %}
+      <span class="d-lg-none">{{ name }}</span>
+      {% endif %}
+    </span>
+  </a>
+</li>
+{% endmacro %}
+
+{% macro card(url, title, text) -%}
+  <a class="text-decoration-none" href="{{ url }}">
+    <li class="card card-small">
+      <div class="card-body">
+        <h4 class="card-title">{{ title }}</h4>
+        <p class="card-text">
+          {{ text }}
+        </p>
+      </div>
+    </li>
+  </a>
+{%- endmacro %}
+
+{% macro accordion_item(accordion_id, item_id) %}
+  <div class="accordion-item">
+    <div class="accordion-item-header" id="{{ accordion_id }}Header{{ item_id }}">
+      <h2 class="mb-0">
+        <button class="btn btn-link text-decoration-none w-100 collapsed" type="button" data-toggle="collapse" data-target="#{{ accordion_id }}Body{{ item_id }}" aria-expanded="false" aria-controls="{{ accordion_id }}Body{{ item_id }}">
+          {{ caller(True) }}
+        </button>
+      </h2>
+    </div>
+
+    <div id="{{ accordion_id }}Body{{ item_id }}" class="collapse" aria-labelledby="{{ accordion_id }}Header{{ item_id }}" data-parent="#{{ accordion_id }}">
+      <div class="accordion-item-body">
+        {{ caller(False) }}
+      </div>
+    </div>
+  </div>
+{% endmacro %}
