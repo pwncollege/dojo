@@ -47,7 +47,7 @@
         <h2>{{ dojo.name }}</h2>
         <h4>
           <i class="fas fa-flag pt-3 pr-3" title="Solves"></i>
-          <td>{{ competitor.solves or 0 }} / {{ dojo.challenges | length }}</td>
+          <td>{{ solves | length }} / {{ dojo.challenges | length }}</td>
           <i class="fas fa-trophy pt-3 pr-3 pl-5 " title="Rank"></i>
           <td>{{ competitor.rank or "-" }} / {{ competitor_count }}</td>
         </h4>
@@ -57,6 +57,7 @@
 
       <div class="accordion" id="{{dojo.reference_id}}-modules">
         {% for module in dojo.modules %}
+          {% set solves = dojo.solves(user=user, module=module, ignore_visibility=True).all() | map(attribute="challenge_id") | list %}
           {% set competitor = competitors(dojo, module, user=user) %}
           {% set competitor_count = competitors(dojo, module).count() %}
           {% call(header) accordion_item("{}-modules".format(dojo.reference_id), loop.index) %}
@@ -64,7 +65,7 @@
               <h4 class="accordion-item-name">{{ module.name }}</h4>
               <span class="total-solves">
                 <i class="fas fa-flag pr-1" title="Solves"></i>
-                <td>{{ competitor.solves or 0 }} / {{ module.challenges | length }}</td>
+                <td>{{ solves | length }} / {{ module.challenges | length }}</td>
                 <i class="fas fa-trophy pr-1 pl-3 " title="Rank"></i>
                 <td>{{ competitor.rank or "-" }} / {{ competitor_count }}</td>
               </span>
@@ -83,45 +84,4 @@
 
       <br>
     {% endfor %}
-
-    {# <div class="accordion" id="dojos">
-        <h4 class="dojo-name">
-          <span class="d-sm-block d-md-block d-lg-block">
-            <i class="fas fa-bolt pr-3 dojo-{% if dojo_stats.solved == dojo_stats.count %}solved{%else%}unsolved{%endif%}"></i>{{ dojo.name }}
-          </span>
-        </h4>
-        <span class="total-solves">
-          {{ dojo_stats.solved }} / {{ dojo_stats.count }} challenges solved,
-          {{ dojo_stats.position }} {% if dojo_stats.position == "1st" %}<i class="fas fa-crown pr-1"></i>{% endif %}/ {{ dojo_stats.total_solvers }} place!
-        </span>
-        <p>Progress on <a href="{{ url_for("pwncollege_dojo.listing", dojo=dojo_id) }}">{{ dojo.name }}</a>:<p>
-        <table class="table table-striped">
-          <thead>
-            <tr>
-              <td><b>Module</b></td>
-              <td><b>Solved</b></td>
-              <td><b>Remaining</b></td>
-            </tr>
-          </thead>
-          <tbody>
-            {% for module in dojo_stats.visible_modules %}
-            {% set module_stats = dojo_stats.module_stats[module.id] %}
-            <tr>
-              <td><a href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo_id, module=module_id) }}">{{ module.name }}</a></td>
-              <td>
-                {{ module_stats.solved }} / {{ module_stats.count }}<br>
-                {% for chal in module_stats.solved_chals %}
-                <a title="Solved on {{ chal.solve_date.strftime("%B %-d, %Y at %-I:%M%P") }} AZ time. Solved by {{ chal.solves }} hackers." href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo_id, module=module_id) }}#challenge-{{chal.name}}">{{chal.name}}</a>
-                {%endfor%}
-              </td>
-              <td>
-                {% for chal in module_stats.unsolved_chals %}
-                <a title="Solved by {{ chal.solves }} hackers." href="{{ url_for("pwncollege_dojo.view_module", dojo=dojo_id, module=module_id) }}#challenge-{{chal.name}}">{{chal.name}}</a>
-                {%endfor%}
-              </td>
-            </td>
-            {% endfor %}
-          </tbody>
-        </table>
-  </div> #}
 {% endblock %}
