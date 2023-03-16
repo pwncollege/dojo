@@ -12,7 +12,7 @@ import yaml
 from schema import Schema, Optional, Regex, Or, Use, SchemaError
 from flask import abort
 from sqlalchemy.orm.exc import NoResultFound
-from CTFd.models import db, Challenges, Flags
+from CTFd.models import db, Users, Challenges, Flags, Solves
 from CTFd.utils.user import get_current_user, is_admin
 
 from ...models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
@@ -304,3 +304,25 @@ def get_current_dojo_challenge():
                 DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo")).first())
         .first()
     )
+
+
+def dojo_scoreboard_data(dojo, module=None, duration=None, fields=None):
+    fields = fields or []
+
+    duration_filter = (
+        Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
+        if duration else True
+    )
+    order_by = (db.func.count().desc(), db.func.max(Solves.id))
+    result = (
+        DojoChallenges.solves(dojo=dojo, module=module)
+        .filter(DojoChallenges.visible(Solves.date), duration_filter)
+        .group_by(Solves.user_id)
+        .order_by(*order_by)
+        .join(Users, Users.id == Solves.user_id)
+        .with_entities(db.func.row_number().over(order_by=order_by).label("rank"),
+                       db.func.count().label("solves"),
+                       Solves.user_id,
+                       *fields)
+    )
+    return result

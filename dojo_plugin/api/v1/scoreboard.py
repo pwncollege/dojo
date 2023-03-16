@@ -13,7 +13,7 @@ from CTFd.utils.modes import get_model, generate_account_url
 
 from ...models import DojoChallenges
 from ...utils import dojo_standings, dojo_completions, user_dojos, first_bloods, daily_solve_counts
-from ...utils.dojo import dojo_route, dojo_accessible
+from ...utils.dojo import dojo_route, dojo_accessible, dojo_scoreboard_data
 from .belts import get_belts
 
 
@@ -42,25 +42,8 @@ def belt_asset(color):
     return url_for("views.themes", path=f"img/dojo/{belt}")
 
 
-def get_scoreboard_data(dojo, module=None, duration=None, page=1, per_page=20):
-    duration_filter = (
-        Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
-        if duration else True
-    )
-    order_by = (db.func.count().desc(), db.func.max(Solves.id))
-    query = (
-        DojoChallenges.solves(dojo=dojo, module=module)
-        .filter(DojoChallenges.visible(Solves.date), duration_filter)
-        .group_by(Solves.user_id)
-        .order_by(*order_by)
-        .join(Users, Users.id == Solves.user_id)
-        .with_entities(db.func.row_number().over(order_by=order_by).label("rank"),
-                       db.func.count().label("score"),
-                       Solves.user_id,
-                       Users.name,
-                       Users.email)
-    )
-
+def get_scoreboard_page(dojo, module=None, duration=None, page=1, per_page=20):
+    query = dojo_scoreboard_data(dojo, module, duration=duration, fields=[Users.name, Users.email])
     pagination = query.paginate(page=page, per_page=per_page)
 
     def standing(item):
@@ -95,10 +78,10 @@ def get_scoreboard_data(dojo, module=None, duration=None, page=1, per_page=20):
 class ScoreboardDojo(Resource):
     @dojo_route
     def get(self, dojo, duration, page):
-        return get_scoreboard_data(dojo=dojo, duration=duration, page=page)
+        return get_scoreboard_page(dojo=dojo, duration=duration, page=page)
 
 @scoreboard_namespace.route("/<dojo>/<module>/<int:duration>/<int:page>")
 class ScoreboardModule(Resource):
     @dojo_route
     def get(self, dojo, module, duration, page):
-        return get_scoreboard_data(dojo=dojo, module=module, duration=duration, page=page)
+        return get_scoreboard_page(dojo=dojo, module=module, duration=duration, page=page)

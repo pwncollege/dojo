@@ -1,50 +1,5 @@
 {% extends "base.html" %}
-{% import "macros.html" as macros %}
-
-{% block stylesheets %}
-<style>
-  h4 {
-      color: rgb(99, 192, 245);
-      text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
-  }
-
-  .card {
-      margin-bottom: 0.5em;
-      background-color: inherit;
-  }
-
-  .card-header {
-      background-color: rgba(255,255,255,0.1);
-  }
-
-  .card-body {
-      background-color: rgba(255,255,255,0.05);
-  }
-
-  .dojo-name {
-      margin: 0px;
-      padding: 0px !important;
-      float: left;
-  }
-
-  .dojo-solved {
-      -webkit-text-stroke: 1px #222;
-      -webkit-text-fill-color: #b5e853;
-  }
-
-  .dojo-unsolved {
-      text-shadow: none;
-      -webkit-text-stroke: 1px #222;
-      -webkit-text-fill-color: rgba(255,255,255,0.25);
-  }
-
-  .total-solves {
-      float: right;
-      font-size: 0.75em;
-      color: #ddd;
-  }
-</style>
-{% endblock %}
+{% from "macros/widgets.html" import accordion_item %}
 
 {% block content %}
   <div class="jumbotron">
@@ -82,33 +37,54 @@
       </div>
     </div>
   </div>
+
   <div class="container">
-    {% include "components/errors.html" %}
+    {% for dojo in dojos if dojo.solves(user=user, ignore_visibility=True).count() > 0 %}
+      {% set competitor = competitors(dojo, user=user) %}
+      {% set competitor_count = competitors(dojo).count() %}
+      {% set solves = dojo.solves(user=user, ignore_visibility=True).all() | map(attribute="challenge_id") | list %}
+      <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.listing', dojo=dojo.reference_id) }}">
+        <h2>{{ dojo.name }}</h2>
+        <h4>
+          <i class="fas fa-flag pt-3 pr-3" title="Solves"></i>
+          <td>{{ competitor.solves or 0 }} / {{ dojo.challenges | length }}</td>
+          <i class="fas fa-trophy pt-3 pr-3 pl-5 " title="Rank"></i>
+          <td>{{ competitor.rank or "-" }} / {{ competitor_count }}</td>
+        </h4>
+      </a>
 
-    {% if awards %}
-    <h2>Awards</h2>
-    <div class="row">
-      {% for award in awards %}
-      <div class="col-md-3 col-sm-6">
-        <p class="text-center">
-          <i class="award-icon award-{{ award.icon }} fa-2x"></i>
-          <br>
-          <strong>{{ award.name }}</strong>
-        </p>
-        <p class="text-center">{{ award.category or "" }}</p>
-        <p class="text-center">{{ award.description or "" }}</p>
-        <p class="text-center">{{ award.value }}</p>
+      <br>
+
+      <div class="accordion" id="{{dojo.reference_id}}-modules">
+        {% for module in dojo.modules %}
+          {% set competitor = competitors(dojo, module, user=user) %}
+          {% set competitor_count = competitors(dojo, module).count() %}
+          {% call(header) accordion_item("{}-modules".format(dojo.reference_id), loop.index) %}
+            {% if header %}
+              <h4 class="accordion-item-name">{{ module.name }}</h4>
+              <span class="total-solves">
+                <i class="fas fa-flag pr-1" title="Solves"></i>
+                <td>{{ competitor.solves or 0 }} / {{ module.challenges | length }}</td>
+                <i class="fas fa-trophy pr-1 pl-3 " title="Rank"></i>
+                <td>{{ competitor.rank or "-" }} / {{ competitor_count }}</td>
+              </span>
+            {% else %}
+              {% for challenge in module.challenges %}
+                {% set challenge_status = "challenge-solved" if challenge.challenge_id in solves else "challenge-unsolved" %}
+                <h5>
+                  <i class="fas fa-flag pr-3 pt-3 {{ challenge_status }}"></i>
+                  <td>{{ challenge.name }}</td>
+                </h5>
+              {% endfor %}
+            {% endif %}
+          {% endcall %}
+        {% endfor %}
       </div>
-      {% endfor %}
-    </div>
 
-    <br>
-    {% endif %}
+      <br>
+    {% endfor %}
 
-    {% macro dojo_list_stats(dojos, idx) -%}
-      {% for dojo in dojos %}
-      {% set dojo_stats = stats[dojo.id] %}
-      {% call macros.accordion_title("dojos", idx+loop.index) %}
+    {# <div class="accordion" id="dojos">
         <h4 class="dojo-name">
           <span class="d-sm-block d-md-block d-lg-block">
             <i class="fas fa-bolt pr-3 dojo-{% if dojo_stats.solved == dojo_stats.count %}solved{%else%}unsolved{%endif%}"></i>{{ dojo.name }}
@@ -118,8 +94,6 @@
           {{ dojo_stats.solved }} / {{ dojo_stats.count }} challenges solved,
           {{ dojo_stats.position }} {% if dojo_stats.position == "1st" %}<i class="fas fa-crown pr-1"></i>{% endif %}/ {{ dojo_stats.total_solvers }} place!
         </span>
-      {% endcall %}
-      {% call macros.accordion_body("dojos", idx+loop.index) %}
         <p>Progress on <a href="{{ url_for("pwncollege_dojo.listing", dojo=dojo_id) }}">{{ dojo.name }}</a>:<p>
         <table class="table table-striped">
           <thead>
@@ -149,22 +123,5 @@
             {% endfor %}
           </tbody>
         </table>
-      {% endcall %}
-      {% endfor %}
-    {%- endmacro %}
-
-    <h2>Dojo Progress</h2>
-    <div class="accordion" id="dojos">
-      {% if public_dojos|length %}
-      <br><p><b>Official Dojos:</b></p>
-      <p><i>Overall ranking across all official dojo challenges:</i> {{global_position}} place of {{ total_solvers }} hackers!</i></p>
-      {{ dojo_list_stats(official_dojos, 0) }}
-      {% endif %}
-
-      {% if other_dojos|length %}
-      <p><br><b>Other Dojos:</b><br><small>(at least, those that are also visible to you)</small></p>
-      {{ dojo_list_stats(other_dojos, official_dojos|length) }}
-      {% endif %}
-    </div>
-  </div>
+  </div> #}
 {% endblock %}

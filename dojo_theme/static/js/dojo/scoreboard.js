@@ -39,7 +39,7 @@ function loadScoreboard(duration, page) {
               <td>
                 <img src="${user.belt}" class="scoreboard-belt">
               </td>
-              <td><b>${user.score}</b></td>
+              <td><b>${user.solves}</b></td>
             </tr>
             `);
             row.find(".scoreboard-name").text(user.name.slice(0, 50));
