@@ -59,6 +59,8 @@ services:
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
       - /opt/CTFd:/opt/CTFd:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/pwn.college/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro
+      - /opt/pwn.college/dojo_theme:/opt/CTFd/CTFd/themes/dojo_theme:ro
     depends_on:
       - db
 

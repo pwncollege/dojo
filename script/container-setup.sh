@@ -33,6 +33,7 @@ if [ ! "$(ls -A /opt/pwn.college/data/dojos /opt/pwn.college/data/challenges)" ]
 fi
 
 if [ ! -f /opt/pwn.college/data/homes/homefs ]; then
+    echo "[+] Creating user home structure."
     mkdir -p /opt/pwn.college/data/homes
     mkdir -p /opt/pwn.college/data/homes/data
     mkdir -p /opt/pwn.college/data/homes/nosuid
@@ -46,6 +47,7 @@ if [ ! -f /opt/pwn.college/data/homes/homefs ]; then
     rm -rf /opt/pwn.college/data/homes/homefs_mount
 fi
 
+echo "[+] Creating loopback devices for home mounts. This might take a while."
 for i in $(seq 1 4096); do
     if [ -e /dev/loop$i ]; then
         continue
@@ -100,4 +102,8 @@ for host in $(cat /opt/pwn.college/user_firewall.allowed); do
     iptables -I DOCKER-USER -i user_firewall -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
 done
 
-exec /usr/bin/systemd
+if [ -d /opt/pwn.college/data/docker ]
+then
+	echo "[+] Reconfiguring docker to use persistent volume directory."
+	echo '{ "data-root": "/opt/pwn.college/data/docker" }' > /etc/docker/daemon.json
+fi

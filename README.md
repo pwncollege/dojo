@@ -20,27 +20,28 @@ Clone the repository:
 git clone https://github.com/pwncollege/dojo /opt/dojo
 ```
 
-Assuming you already have ssh running on port 22, you will want to change that so that users may ssh via port 22.
-Alternatively, you can set the `SSH_PORT` environment variable before running `run.sh` below.
-
-Change the line in `/etc/ssh/sshd_config` that says `Port 22` to `Port 2222`, and then restart ssh:
-```sh
-sed -i 's/Port 22/Port 2222/' /etc/ssh/sshd_config
-service ssh restart
-```
-
 The only dependency to run the infrastructure is docker, which can be installed with:
 ```sh
 curl -fsSL https://get.docker.com | /bin/sh
 ```
 
-Finally, run the infrastructure which will be hosted on domain `<DOMAIN>` with:
+Now, build the container:
 ```sh
-SETUP_HOSTNAME=<DOMAIN> ./run.sh
+docker build -t pwncollege/dojo .
 ```
-If not specified, `<DOMAIN>` will default to `localhost.pwn.college`, which means you can access the infrastructure through this domain.
+
+Finally, run the infrastructure which will be hosted on domain `my.domain.college` with:
+```sh
+docker run --privileged -d -v /opt/dojo:/opt/pwn.college --hostname my.domain.college -p 22:22 -p 80:80 -p 443:443 pwncollege/dojo
+```
+
+**TODO: VERIFY ACCURACY** If not specified, `<DOMAIN>` will default to `localhost.pwn.college`, which means you can access the infrastructure through this domain.
 
 It will take some time to initialize everything and build the challenge docker image.
+You can check on your container (and the progress of the initial build) with:
+```sh
+docker exec YOUR_CONTAINER_NAME dojo logs
+```
 
 Once things are setup, you should be able to access the dojo and login with the admin credentials found in `data/initial_credentials`
 You can change these admin credentials in the admin panel.

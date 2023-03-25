@@ -21,10 +21,10 @@ RUN adduser \
     ctfd
 
 COPY requirements.txt /opt/CTFd/
-COPY CTFd/plugins/dojo_plugin/requirements.txt /opt/CTFd/CTFd/plugins/dojo_plugin/
+COPY dojo-requirements.txt /opt/CTFd/
 
 RUN pip install -r requirements.txt --no-cache-dir
-RUN pip install -r CTFd/plugins/dojo_plugin/requirements.txt --no-cache-dir
+RUN pip install -r dojo-requirements.txt --no-cache-dir
 
 COPY . /opt/CTFd
 
