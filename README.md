@@ -32,10 +32,11 @@ docker build -t pwncollege/dojo .
 
 Finally, run the infrastructure which will be hosted on domain `my.domain.college` with:
 ```sh
-docker run --privileged -d -v /opt/dojo:/opt/pwn.college --hostname my.domain.college -p 22:22 -p 80:80 -p 443:443 pwncollege/dojo
+docker run --privileged -d -v /opt/dojo:/opt/pwn.college -p 22:22 -p 80:80 -p 443:443 pwncollege/dojo
 ```
 
-**TODO: VERIFY ACCURACY** If not specified, `<DOMAIN>` will default to `localhost.pwn.college`, which means you can access the infrastructure through this domain.
+The dojo will initialize itself to listen on and serve from `localhost.pwn.college` (which resolves 127.0.0.1).
+This is fine for development, but to serve your dojo to the world, you will need to update this to your actual hostname in `/opt/dojo/data/config.env`.
 
 It will take some time to initialize everything and build the challenge docker image.
 You can check on your container (and the progress of the initial build) with:
