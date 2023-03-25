@@ -57,7 +57,7 @@ services:
       - ./data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
       - ./index.html:/var/index.html:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
-      - /opt/CTFd:/opt/CTFd:ro
+      - /opt/CTFd:/opt/CTFd
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /opt/pwn.college/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro
       - /opt/pwn.college/dojo_theme:/opt/CTFd/CTFd/themes/dojo_theme:ro
