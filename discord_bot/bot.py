@@ -2,6 +2,7 @@ import asyncio
 import os
 import datetime
 import sys
+import collections
 
 import discord
 
@@ -70,6 +71,7 @@ async def on_ready():
                                           if channel.category and channel.category.name.lower() == "logs" and channel.name == "liked-memes")
     client.attendance_log_channel = next(channel for channel in client.guild.channels
                                          if channel.category and channel.category.name.lower() == "logs" and channel.name == "attendance")
+    client.voice_state_history = collections.defaultdict(list)
     run_daily(daily_attendance, "17:20:00-07:00")
 
 
