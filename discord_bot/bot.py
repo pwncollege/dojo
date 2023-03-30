@@ -1,3 +1,4 @@
+import asyncio
 import os
 import datetime
 import sys
@@ -23,7 +24,7 @@ class PwnCollegeClient(discord.Client):
 
     async def setup_hook(self):
         guild = discord.Object(id=DISCORD_GUILD_ID)
-        self.tree.copy_global_to(guild=guild)
+        # self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
 
 
@@ -32,6 +33,28 @@ intents.members = True
 intents.voice_states = True
 
 client = PwnCollegeClient(intents=intents)
+
+
+daily_tasks = set()
+def run_daily(task, daily_time):
+    time = datetime.time.fromisoformat(daily_time)
+    now = datetime.datetime.now(tz=time.tzinfo)
+    wait = ((now.replace(hour=time.hour,
+                         minute=time.minute,
+                         second=time.second,
+                         microsecond=time.microsecond,
+                         tzinfo=time.tzinfo) - now).total_seconds()
+            % datetime.timedelta(days=1).total_seconds())
+
+    async def daily_task():
+        await asyncio.sleep(wait)
+        await task()
+        await asyncio.sleep(1)
+        return run_daily(task, daily_time)
+
+    scheduled_task = asyncio.create_task(daily_task())
+    daily_tasks.add(scheduled_task)
+    scheduled_task.add_done_callback(lambda task: daily_tasks.remove(task))
 
 
 def describe(user):
@@ -47,11 +70,15 @@ async def on_ready():
                                           if channel.category and channel.category.name.lower() == "logs" and channel.name == "liked-memes")
     client.attendance_log_channel = next(channel for channel in client.guild.channels
                                          if channel.category and channel.category.name.lower() == "logs" and channel.name == "attendance")
+    run_daily(daily_attendance, "17:20:00-07:00")
 
 
 @client.event
 async def on_voice_state_update(member, before, after):
     print(f"{describe(member)} - {before.channel} -> {after.channel}", flush=True)
+
+    now = datetime.datetime.now()
+    client.voice_state_history[member].append((after.channel, now))
 
 
 @client.tree.command()
@@ -128,6 +155,19 @@ async def like_meme(interaction: discord.Interaction, message: discord.Message):
     print(f"{describe(interaction.user)} liked {describe(message.author)}'s meme")
 
 
+async def mark_attendance(member):
+    now = datetime.datetime.utcnow()
+
+    logged_embed = discord.Embed(title="Attendance")
+    logged_embed.description = f"{member.mention} attended"
+
+    logged_embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
+    logged_embed.timestamp = now
+
+    logged_message = await client.attendance_log_channel.send(embed=logged_embed)
+    return logged_message
+
+
 @client.tree.command()
 async def attend(interaction: discord.Interaction, member: discord.Member):
     senseis = list(role for role in interaction.guild.roles if "sensei" in role.name.lower())
@@ -138,13 +178,7 @@ async def attend(interaction: discord.Interaction, member: discord.Member):
 
     now = datetime.datetime.utcnow()
 
-    logged_embed = discord.Embed(title="Attendance")
-    logged_embed.description = f"{member.mention} attended"
-
-    logged_embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
-    logged_embed.timestamp = now
-
-    logged_message = await client.attendance_log_channel.send(embed=logged_embed)
+    logged_message = await mark_attendance(member)
 
     ephemeral_embed = discord.Embed(title="Attendance")
     ephemeral_embed.description = f"{member.mention} attended"
@@ -158,6 +192,33 @@ async def attend(interaction: discord.Interaction, member: discord.Member):
     await interaction.response.send_message(embed=ephemeral_embed, view=ephemeral_url_view, ephemeral=True)
 
     print(f"{describe(interaction.user)} attended {member}")
+
+
+async def daily_attendance():
+    now = datetime.datetime.now()
+    start = now - datetime.timedelta(hours=1)
+    required = datetime.timedelta(minutes=30)
+
+    print(f"daily attendance @ {now}")
+
+    for member, history in list(client.voice_state_history.items()):
+        history = ([(None, start)] +
+                   [(channel, max(time, start)) for channel, time in history] +
+                   [(None, now)])
+
+        total_time = datetime.timedelta()
+        for (prev_channel, prev_time), (channel, time) in zip(history, history[1:]):
+            if prev_channel:
+                total_time += time - prev_time
+
+        print(f"attendance - {member} - {total_time}")
+
+        if total_time >= required:
+            print(f"Automatically attended {member}")
+            await mark_attendance(member)
+
+    client.voice_state_history.clear()
+
 
 
 client.run(DISCORD_BOT_TOKEN)
