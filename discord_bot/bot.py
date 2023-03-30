@@ -25,7 +25,7 @@ class PwnCollegeClient(discord.Client):
 
     async def setup_hook(self):
         guild = discord.Object(id=DISCORD_GUILD_ID)
-        # self.tree.copy_global_to(guild=guild)
+        self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
 
 
