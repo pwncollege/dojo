@@ -9,6 +9,7 @@ RUN apt-get update && \
         git \
         curl \
         wget \
+        jq \
         iproute2 \
         iputils-ping \
         host \
@@ -19,8 +20,11 @@ RUN apt-get update && \
         openssh-server
 
 RUN curl -fsSL https://get.docker.com | /bin/sh
+RUN echo '{ "data-root": "/opt/pwn.college/data/docker" }' > /etc/docker/daemon.json
 
-RUN pip install docker
+RUN pip install \
+    docker \
+    pytest
 
 # TODO: this can be removed with docker-v22 (buildx will be default)
 RUN docker buildx install
@@ -33,19 +37,18 @@ RUN mkdir -p /home/hacker/.docker
 RUN echo '{ "detachKeys": "ctrl-q,ctrl-q" }' > /home/hacker/.docker/config.json
 
 RUN mkdir -p /opt/pwn.college
-
 ADD . /opt/pwn.college
 
-ADD ctfd/Dockerfile /opt/CTFd/Dockerfile 
-ADD dojo_plugin/requirements.txt /opt/CTFd/dojo-requirements.txt
 RUN ln -sf /opt/pwn.college/etc/ssh/sshd_config /etc/ssh/sshd_config
 RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.service /etc/systemd/system/pwn.college.service
 RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.logging.service /etc/systemd/system/pwn.college.logging.service
-
-RUN find /opt/pwn.college/script -type f -exec ln -s {} /usr/bin/ \;
-
 RUN ln -s /etc/systemd/system/pwn.college.service /etc/systemd/system/multi-user.target.wants/pwn.college.service
 RUN ln -s /etc/systemd/system/pwn.college.logging.service /etc/systemd/system/multi-user.target.wants/pwn.college.logging.service
+
+ADD ctfd/Dockerfile /opt/CTFd/Dockerfile 
+ADD dojo_plugin/requirements.txt /opt/CTFd/dojo-requirements.txt
+
+RUN find /opt/pwn.college/script -type f -exec ln -s {} /usr/bin/ \;
 
 EXPOSE 22
 EXPOSE 80

@@ -1,6 +1,7 @@
 #!/bin/sh
 
 cd /opt/pwn.college
+eval "$(find /tmp -type f -path "*/devcontainers-*/env-loginInteractiveShell.json" -exec jq -r 'to_entries | .[] | "export \(.key)=\(.value | @sh)"' {} \;)"
 
 if [ -n "$1" ]
 then
@@ -34,11 +35,11 @@ case "$ACTION" in
         ;;
 
     "db")
-        docker exec -it ctfd_db mysql -pctfd -Dctfd ctfd "$@"
+        docker exec -it db mysql -pctfd -Dctfd ctfd "$@"
         ;;
 
     "backup")
-        docker exec ctfd_db mysqldump -pctfd --single-transaction --routines --triggers ctfd > "/tmp/db-backup-$(date -Iseconds).sql"
+        docker exec db mysqldump -pctfd --single-transaction --routines --triggers ctfd > "/tmp/db-backup-$(date -Iseconds).sql"
         ;;
 
     "logs")
@@ -58,7 +59,9 @@ case "$ACTION" in
         echo "    will be built, which will take a very long time."
         exec /usr/bin/systemd
         ;;
+
     *)
         echo "Unknown command."
         exit 1
+        ;;
 esac

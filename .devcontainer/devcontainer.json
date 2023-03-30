@@ -6,10 +6,10 @@
 	},
 	"forwardPorts": [22, 80, 443],
 	"portsAttributes": {
-        "22": {
+		"22": {
             "label": "SSH"
         },
-        "80": {
+		"80": {
             "label": "HTTP"
         },
 		"443": {
@@ -18,29 +18,9 @@
     },
 	"mounts": [
 		{
-			"source": "${localWorkspaceFolder}/data",
-			"target": "/opt/pwn.college/data",
+			"source": "${localWorkspaceFolder}",
+			"target": "/opt/pwn.college",
 			"type": "bind"
-		},
-		{
-			"source": "${localWorkspaceFolder}/challenge",
-			"target": "/opt/pwn.college/challenge",
-			"type": "bind"
-		},
-		{
-			"source": "${localWorkspaceFolder}/dojo_plugin",
-			"target": "/opt/CTFd/CTFd/plugins/dojo_plugin",
-			"type": "bind"
-		},
-		{
-			"source": "${localWorkspaceFolder}/dojo_theme",
-			"target": "/opt/CTFd/CTFd/themes/dojo_theme",
-			"type": "bind"
-		},
-		{
-			"source": "dind-var-lib-docker-${devcontainerId}",
-			"target": "/var/lib/docker",
-            "type": "volume"
 		}
 	],
 	"containerEnv": {
@@ -49,11 +29,13 @@
 		"PYTHONPATH": "/opt/CTFd"
 	},
 	"overrideCommand": false,
+	"updateContentCommand": "/opt/pwn.college/.devcontainer/setup.sh",
 	"runArgs": ["--privileged"],
 	"customizations": {
 		"vscode": {
 			"extensions": [
 				"ms-python.python",
+				"ms-azuretools.vscode-docker",
 				"samuelcolvin.jinjahtml"
 			]
 		}

@@ -98,11 +98,3 @@ iptables -I DOCKER-USER -i user_firewall -j DROP
 for host in $(cat /opt/pwn.college/user_firewall.allowed); do
     iptables -I DOCKER-USER -i user_firewall -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
 done
-
-if [ -d /opt/pwn.college/data/docker ]
-then
-	echo "[+] Reconfiguring docker to use persistent volume directory."
-	echo '{ "data-root": "/opt/pwn.college/data/docker" }' > /etc/docker/daemon.json
-	[ -d /var/lib/docker ] && mv /var/lib/docker /var/lib/docker.bak
-	ln -s /opt/pwn.college/data/docker /var/lib/docker
-fi

@@ -16,7 +16,7 @@ def main():
     client = docker.from_env()
 
     try:
-        container = client.containers.get("ctfd_db")
+        container = client.containers.get("db")
     except docker.errors.NotFound:
         error("Error: ctfd is not running!")
 

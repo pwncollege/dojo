@@ -1,10 +1,15 @@
 import os
 import datetime
+import sys
 
 import discord
 
 
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
+if not DISCORD_BOT_TOKEN:
+    print("No `DISCORD_BOT_TOKEN` specified in environment, quitting.", file=sys.stderr)
+    exit(0)
+
 DISCORD_GUILD_ID = int(os.environ["DISCORD_GUILD_ID"])
 
 

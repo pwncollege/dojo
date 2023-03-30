@@ -60,11 +60,10 @@ def bootstrap():
     discord_reputation()
 
     if not config.is_setup():
-        admin_password = os.urandom(8).hex()
         admin = Admins(
             name="admin",
             email="admin@example.com",
-            password=admin_password,
+            password="admin",
             type="admin",
             hidden=True,
         )
@@ -73,9 +72,6 @@ def bootstrap():
         db.session.add(admin)
         db.session.add(page)
         db.session.commit()
-
-        with open(DATA_DIR / "initial_credentials", "w") as f:
-            f.write(f"admin:{admin_password}\n")
 
         set_config("setup", True)
 
