@@ -232,11 +232,10 @@ async def help(interaction: discord.Interaction):
     thread = await channel.create_thread(name="private-help", auto_archive_duration=1440)
     await thread.send("Remember that the goal is to be helpful, and not just answer-giving!\nAdd people to this private thread by @-ing them.")
 
-    ephemeral_embed = discord.Embed()
     ephemeral_url_view = discord.ui.View()
     ephemeral_url_view.add_item(discord.ui.Button(label="Private Help Thread", style=discord.ButtonStyle.url, url=thread.jump_url))
 
-    await interaction.response.send_message(embed=ephemeral_embed, view=ephemeral_url_view, ephemeral=True)
+    await interaction.response.send_message(view=ephemeral_url_view, ephemeral=True)
 
 
 client.run(DISCORD_BOT_TOKEN)
