@@ -225,15 +225,17 @@ async def daily_attendance():
 @client.tree.command()
 async def help(interaction: discord.Interaction):
     channel = interaction.channel
+    user = interaction.user
+
     if not (isinstance(channel, discord.TextChannel) and channel.name.startswith("help-")):
         await interaction.response.send_message(f"You can only create a private help thread from a help channel!", ephemeral=True)
         return
 
-    thread = await channel.create_thread(name="private-help", auto_archive_duration=1440)
+    thread = await channel.create_thread(name=f"private-help-{user.name}", auto_archive_duration=1440)
     await thread.send("\n".join(["Remember that the goal is to be helpful, and not just answer-giving!",
                                  "Add people to this private thread by @-ing them.",
                                  "This thread will automatically archive after no activity for 1 day."]))
-    await thread.add_user(interaction.user)
+    await thread.add_user(user)
 
     ephemeral_url_view = discord.ui.View()
     ephemeral_url_view.add_item(discord.ui.Button(label="Private Help Thread", style=discord.ButtonStyle.url, url=thread.jump_url))
