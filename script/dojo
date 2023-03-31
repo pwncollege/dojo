@@ -1,7 +1,6 @@
 #!/bin/sh
 
 cd /opt/pwn.college
-eval "$(find /tmp -type f -path "*/devcontainers-*/env-loginInteractiveShell.json" -exec jq -r 'to_entries | .[] | "export \(.key)=\(.value | @sh)"' {} \;)"
 
 if [ -n "$1" ]
 then
@@ -12,6 +11,12 @@ else
 fi
 
 case "$ACTION" in
+    "update")
+        git pull
+        dojo compose build
+        dojo compose up -d
+        ;;
+
     "enter")
         CONTAINER="user_$1"
         shift
@@ -26,12 +31,8 @@ case "$ACTION" in
         docker compose --env-file=/opt/pwn.college/data/config.env "$@"
         ;;
 
-    "shell")
+    "flask")
         docker exec -it ctfd flask shell "$@"
-        ;;
-
-    "manage")
-        docker exec -it ctfd python manage.py "$@"
         ;;
 
     "db")
