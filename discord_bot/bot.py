@@ -229,9 +229,8 @@ async def help(interaction: discord.Interaction):
         await interaction.response.send_message(f"You can only create a private help thread from a help channel!", ephemeral=True)
         return
 
-    name = f"private-help"
-    message = "Remember that the goal is to be helpful, and not just answer-giving!\nAdd people to this private thread by @-ing them."
-    thread = await channel.create_thread(name=name, message=message, private=True, auto_archive_duration=1440)
+    thread = await channel.create_thread(name="private-help", auto_archive_duration=1440)
+    await thread.send("Remember that the goal is to be helpful, and not just answer-giving!\nAdd people to this private thread by @-ing them.")
 
     ephemeral_embed = discord.Embed()
     ephemeral_url_view = discord.ui.View()
