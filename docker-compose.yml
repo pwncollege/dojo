@@ -114,6 +114,13 @@ services:
       - ./data/dms/mail-logs:/var/log/mail
       - ./data/dms/config:/tmp/docker-mailserver
 
+  registry:
+    container_name: registry
+    restart: always
+    image: registry:2
+    volumes:
+      - ./data/registry:/var/lib/registry
+
   nginx:
     container_name: nginx
     image: nginxproxy/nginx-proxy
