@@ -230,7 +230,9 @@ async def help(interaction: discord.Interaction):
         return
 
     thread = await channel.create_thread(name="private-help", auto_archive_duration=1440)
-    await thread.send("Remember that the goal is to be helpful, and not just answer-giving!\nAdd people to this private thread by @-ing them.")
+    await thread.send("\n".join(["Remember that the goal is to be helpful, and not just answer-giving!",
+                                 "Add people to this private thread by @-ing them.",
+                                 "This thread will automatically archive after no activity for 1 day."]))
     await thread.add_user(interaction.user)
 
     ephemeral_url_view = discord.ui.View()
