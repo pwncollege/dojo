@@ -45,9 +45,17 @@ def extra_boot_flags():
     if args.nokaslr is not None:
         nokaslr = args.nokaslr
 
+    nopti = False
+    if os.path.exists("/challenge/.nopti"):
+        nopti = True
+
     result = []
     if nokaslr:
         result.append("nokaslr")
+
+    if nopti:
+        result.append("nopti")
+
     return result
 
 
