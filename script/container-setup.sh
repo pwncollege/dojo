@@ -26,11 +26,6 @@ define DISCORD_GUILD_ID
 mv $DOJO_DIR/data/.config.env $DOJO_DIR/data/config.env
 . $DOJO_DIR/data/config.env
 
-if [ ! "$(ls -A $DOJO_DIR/data/dojos $DOJO_DIR/data/challenges)" ]; then
-    echo "Warning: initializing dojo for the first time and no data included, auto populating with data_example"
-    cp -r $DOJO_DIR/data_example/* $DOJO_DIR/data
-fi
-
 if [ ! -f $DOJO_DIR/data/homes/homefs ]; then
     echo "[+] Creating user home structure."
     mkdir -p $DOJO_DIR/data/homes
