@@ -15,8 +15,8 @@ define () {
     echo "${name}=${value}" >> $DOJO_DIR/data/.config.env
 }
 define DOJO_HOST localhost.pwn.college
-define DOJO_ENV production
-define DOJO_CHALLENGE challenge
+define DOJO_ENV development
+define DOJO_CHALLENGE challenge-minimal
 define SECRET_KEY $(openssl rand -hex 16)
 define DOCKER_PSLR $(openssl rand -hex 16)
 define DISCORD_CLIENT_ID
