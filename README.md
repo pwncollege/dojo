@@ -39,17 +39,10 @@ Finally, run the infrastructure which will be hosted on domain `my.domain.colleg
 docker run --privileged -d -v /opt/dojo:/opt/pwn.college -p 22:22 -p 80:80 -p 443:443 pwncollege/dojo
 ```
 
-<<<<<<< HEAD
 This will run the initial setup, including building the challenge docker image.
 If you want to build the full 70+ GB challenge image, you can add `-e DOJO_CHALLENGE=challenge` to the docker args.
 Note, however, that docker environment variables only affect the initial setup, after which `./data/config.env` should be modified instead.
 Refer to `script/container-setup.sh` for more information.
-=======
-You may want to add `-e DOJO_CHALLENGE=challenge-minimal` so that the 70GB+ challenge
-image is not built. Note, however, that docker environment variables only affect
-the initial setup, after which `./data/config.env` should be modified instead. Refer to
-`script/container-setup.sh` for more information.
->>>>>>> 2ee6f14 (Update README.md)
 
 The dojo will initialize itself to listen on and serve from `localhost.pwn.college` (which resolves 127.0.0.1).
 This is fine for development, but to serve your dojo to the world, you will need to update this to your actual hostname in `/opt/dojo/data/config.env`.
@@ -68,6 +61,5 @@ You can change these admin credentials in the admin panel.
 
 _All_ dojo data will be stored in the `./data` directory.
 
-Once logged in, you can add a dojo by visiting `/dojos/create`. Dojos are
-contained within git repositories. Refer to
-[the example dojo](https://github.com/pwncollege/example-dojo) for more information.
+Once logged in, you can add a dojo by visiting `/dojos/create`. Dojos are contained within git repositories. 
+Refer to [the example dojo](https://github.com/pwncollege/example-dojo) for more information.
