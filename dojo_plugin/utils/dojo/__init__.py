@@ -9,6 +9,7 @@ import inspect
 import pathlib
 
 import yaml
+import requests
 from schema import Schema, Optional, Regex, Or, Use, SchemaError
 from flask import abort
 from sqlalchemy.orm.exc import NoResultFound
@@ -235,7 +236,10 @@ def dojo_clone(repository, private_key):
     key_file.write(private_key)
     key_file.flush()
 
-    subprocess.run(["git", "clone", f"git@github.com:{repository}", clone_dir.name],
+    url = f"https://github.com/{repository}"
+    if requests.head(url).status_code != 200:
+        url = f"git@github.com:{repository}"
+    subprocess.run(["git", "clone", url, clone_dir.name],
                    env={
                        "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
                        "GIT_TERMINAL_PROMPT": "0",

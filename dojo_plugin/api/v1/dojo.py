@@ -56,6 +56,9 @@ def create_dojo(user, repository, public_key, private_key):
         dojo_path.mkdir()  # TODO: ignore_cleanup_errors=True
 
     except subprocess.CalledProcessError as e:
+        print(f"ERROR: Dojo failed to clone for {repository}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        print(str(e.stderr), file=sys.stderr, flush=True)
         deploy_url = f"https://github.com/{repository}/settings/keys"
         return {"success": False, "error": f'Failed to clone: <a href="{deploy_url}" target="_blank">add deploy key</a>'}, 400
 
