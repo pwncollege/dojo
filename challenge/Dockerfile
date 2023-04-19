@@ -218,6 +218,19 @@ RUN <<EOF
     wget -q -O - https://github.com/mozilla/geckodriver/releases/download/v0.32.0/geckodriver-v0.32.0-linux64.tar.gz | tar xvz -C /usr/local/bin
 EOF
 
+FROM builder as builder-busybox
+RUN <<EOF
+    VERSION="busybox-1.33.2"
+    mkdir /opt/busybox && cd "$_"
+    wget -q -O - "https://busybox.net/downloads/${VERSION}.tar.bz2" | tar xvj
+    pushd "${VERSION}"
+    make defconfig
+    sed -e 's/.*CONFIG_STATIC .*/CONFIG_STATIC=y/' -i .config
+    make -j$(nproc) install
+    popd
+    ln -s "${VERSION}/_install" /opt/busybox/fs
+EOF
+
 ################################################################################
 
 FROM builder as builder-desktop
@@ -412,6 +425,7 @@ COPY --link --from=builder-aflplusplus / /
 COPY --link --from=builder-rappel / /
 COPY --link --from=builder-rp / /
 COPY --link --from=builder-geckodriver / /
+COPY --link --from=builder-busybox / /
 COPY --link --from=builder-desktop / /
 COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-gdb / /
