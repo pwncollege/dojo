@@ -130,7 +130,7 @@ def grade(dojo, users_query):
                 grades.append(dict(
                     name=assessment["name"],
                     weight=assessment["weight"],
-                    progress=assessment.get("progress", {}).get(str(user_id)),
+                    progress=assessment.get("progress", {}).get(str(user_id), ""),
                     credit=assessment.get("credit", {}).get(str(user_id), 0.0),
                 ))
 
