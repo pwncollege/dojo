@@ -1,5 +1,6 @@
 import contextlib
 import functools
+import json
 import tempfile
 import datetime
 import logging
@@ -33,7 +34,57 @@ DATA_DIR = pathlib.Path("/var/data")
 
 INDEX_HTML = pathlib.Path("/var/index.html").read_text()
 
-SECCOMP = (PLUGIN_DIR / "seccomp.json").read_text()
+def create_seccomp():
+    seccomp = json.load(pathlib.Path("/etc/docker/seccomp.json").open())
+
+    seccomp["syscalls"].append({
+        "names": [
+            "clone",
+            "sethostname",
+            "setns",
+            "unshare",
+        ],
+        "action": "SCMP_ACT_ALLOW",
+    })
+
+    ADDR_NO_RANDOMIZE = 0x0040000
+
+    existing_personality_values = []
+    for syscalls in seccomp["syscalls"]:
+        if "personality" not in syscalls["names"]:
+            continue
+        if syscalls["action"] != "SCMP_ACT_ALLOW":
+            continue
+        assert len(syscalls["args"]) == 1
+        arg = syscalls["args"][0]
+        assert list(arg.keys()) == ["index", "value", "op"]
+        assert arg["index"] == 0, arg
+        assert arg["op"] == "SCMP_CMP_EQ"
+        existing_personality_values.append(arg["value"])
+
+    new_personality_values = []
+    for value in [0, *existing_personality_values]:
+        new_value = value | ADDR_NO_RANDOMIZE
+        if new_value not in existing_personality_values:
+            new_personality_values.append(new_value)
+            existing_personality_values.append(new_value)
+
+    for new_value in new_personality_values:
+        seccomp["syscalls"].append({
+            "names": ["personality"],
+            "action": "SCMP_ACT_ALLOW",
+            "args": [
+                {
+                    "index": 0,
+                    "value": new_value,
+                    "op": "SCMP_CMP_EQ",
+                },
+            ],
+        })
+
+    return json.dumps(seccomp)
+SECCOMP = create_seccomp()
+
 USER_FIREWALL_ALLOWED = {
     host: socket.gethostbyname(host)
     for host in pathlib.Path("/var/user_firewall.allowed").read_text().split()

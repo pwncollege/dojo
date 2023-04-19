@@ -35,6 +35,7 @@ RUN useradd -m hacker
 RUN usermod -aG docker hacker
 RUN mkdir -p /home/hacker/.docker
 RUN echo '{ "detachKeys": "ctrl-q,ctrl-q" }' > /home/hacker/.docker/config.json
+RUN wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
 
 RUN mkdir -p /opt/pwn.college
 ADD . /opt/pwn.college
@@ -45,7 +46,7 @@ RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.logging.service /etc/s
 RUN ln -s /etc/systemd/system/pwn.college.service /etc/systemd/system/multi-user.target.wants/pwn.college.service
 RUN ln -s /etc/systemd/system/pwn.college.logging.service /etc/systemd/system/multi-user.target.wants/pwn.college.logging.service
 
-ADD ctfd/Dockerfile /opt/CTFd/Dockerfile 
+ADD ctfd/Dockerfile /opt/CTFd/Dockerfile
 ADD dojo_plugin/requirements.txt /opt/CTFd/dojo-requirements.txt
 
 RUN find /opt/pwn.college/script -type f -exec ln -s {} /usr/bin/ \;
