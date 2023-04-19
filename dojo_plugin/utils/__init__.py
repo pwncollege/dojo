@@ -47,6 +47,7 @@ def create_seccomp():
         "action": "SCMP_ACT_ALLOW",
     })
 
+    READ_IMPLIES_EXEC = 0x0400000
     ADDR_NO_RANDOMIZE = 0x0040000
 
     existing_personality_values = []
@@ -63,11 +64,12 @@ def create_seccomp():
         existing_personality_values.append(arg["value"])
 
     new_personality_values = []
-    for value in [0, *existing_personality_values]:
-        new_value = value | ADDR_NO_RANDOMIZE
-        if new_value not in existing_personality_values:
-            new_personality_values.append(new_value)
-            existing_personality_values.append(new_value)
+    for new_flag in [READ_IMPLIES_EXEC, ADDR_NO_RANDOMIZE]:
+        for value in [0, *existing_personality_values]:
+            new_value = value | new_flag
+            if new_value not in existing_personality_values:
+                new_personality_values.append(new_value)
+                existing_personality_values.append(new_value)
 
     for new_value in new_personality_values:
         seccomp["syscalls"].append({
