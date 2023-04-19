@@ -129,9 +129,9 @@ def grade(dojo, users_query):
             if type == "manual":
                 grades.append(dict(
                     name=assessment["name"],
-                    # weight=assessment["weight"],
-                    progress="TODO",
-                    credit=0.0,
+                    weight=assessment["weight"],
+                    progress=assessment.get("progress", {}).get(str(user_id)),
+                    credit=assessment.get("credit", {}).get(str(user_id), 0.0),
                 ))
 
             if type == "extra":
