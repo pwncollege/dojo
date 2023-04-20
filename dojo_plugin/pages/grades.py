@@ -137,6 +137,7 @@ def grade(dojo, users_query):
             if type == "extra":
                 grades.append(dict(
                     name=assessment["name"],
+                    progress=assessment.get("progress", {}).get(str(user_id), ""),
                     credit=assessment.get("credit", {}).get(str(user_id), 0.0),
                 ))
 
