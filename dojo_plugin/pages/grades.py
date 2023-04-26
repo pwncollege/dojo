@@ -29,17 +29,29 @@ def grade(dojo, users_query):
     for assessment in assessments:
         if assessment["type"] not in ["checkpoint", "due"]:
             continue
+        assessment["extensions"] = {
+            int(user_id): days
+            for user_id, days in assessment.get("extensions", {}).items()
+        }
         assessment_dates[assessment["id"]][assessment["type"]] = (
-            datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc)
+            datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc),
+            assessment["extensions"],
         )
 
     def dated_count(label, date_type):
         if date_type is None:
             query = lambda module_id: True
         else:
-            query = lambda module_id: (Solves.date < assessment_dates[module_id][date_type]
-                                       if date_type in assessment_dates[module_id]
-                                       else None)
+            def query(module_id):
+                if date_type not in assessment_dates[module_id]:
+                    return None
+                date, extensions = assessment_dates[module_id][date_type]
+                user_date = db.case(
+                    [(Solves.user_id == user_id, date + datetime.timedelta(days=days))
+                     for user_id, days in extensions.items()],
+                    else_=date
+                ) if extensions else date
+                return Solves.date < user_date
         return db.func.sum(
             db.case([(DojoModules.id == module_id, cast(query(module_id), db.Integer))
                      for module_id in assessment_dates],
@@ -86,12 +98,17 @@ def grade(dojo, users_query):
                 module_name = module_names.get(module_id)
                 if not module_name:
                     continue
+
                 challenge_count = challenge_counts[module_id]
                 checkpoint_solves, due_solves, all_solves = module_solves.get(module_id, (0, 0, 0))
 
+                date = datetime.datetime.fromisoformat(assessment["date"])
+                extension = assessment.get("extensions", {}).get(user_id, 0)
+                user_date = date + datetime.timedelta(days=extension)
+
                 grades.append(dict(
                     name=f"{module_name} Checkpoint",
-                    date=assessment["date"],
+                    date=str(user_date) + (" *" if extension else ""),
                     weight=assessment["weight"],
                     progress=f"{checkpoint_solves} / {(challenge_count // 3)}",
                     credit=bool(checkpoint_solves // (challenge_count // 3)),
@@ -102,14 +119,19 @@ def grade(dojo, users_query):
                 module_name = module_names.get(module_id)
                 if not module_name:
                     continue
+
                 challenge_count = challenge_counts[module_id]
                 checkpoint_solves, due_solves, all_solves = module_solves.get(module_id, (0, 0, 0))
                 late_solves = all_solves - due_solves
 
+                date = datetime.datetime.fromisoformat(assessment["date"])
+                extension = assessment.get("extensions", {}).get(user_id, 0)
+                user_date = date + datetime.timedelta(days=extension)
+
                 if due_solves == all_solves:
                     grades.append(dict(
                         name=f"{module_name}",
-                        date=assessment["date"],
+                        date=str(user_date) + (" *" if extension else ""),
                         weight=assessment["weight"],
                         progress=f"{due_solves} / {challenge_count}",
                         credit=due_solves / challenge_count,
