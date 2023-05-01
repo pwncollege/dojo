@@ -70,6 +70,8 @@ def start_challenge(user, dojo, dojo_challenge, practice):
         devices = []
         if os.path.exists("/dev/kvm"):
             devices.append("/dev/kvm:/dev/kvm:rwm")
+        if os.path.exists("/dev/net/tun"):
+            devices.append("/dev/net/tun:/dev/net/tun:rwm")
         internet = any(award.name == "INTERNET" for award in user.awards)
 
         return docker_client.containers.run(
