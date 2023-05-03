@@ -6,3 +6,17 @@ location /internal/ {
     proxy_http_version 1.1;
     proxy_pass $redirect_uri; # Use URI determined by back end
 }
+
+location /v2/ {
+    limit_except GET HEAD {
+        deny all;
+    }
+
+    auth_basic off;
+    proxy_pass                          http://registry:5000;
+    proxy_set_header  Host              $http_host;
+    proxy_set_header  X-Real-IP         $remote_addr;
+    proxy_set_header  X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Proto $scheme;
+    proxy_read_timeout                  900;
+}
