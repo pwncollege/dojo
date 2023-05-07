@@ -252,7 +252,7 @@ EOF
 # TODO: can we generate desktop data with cli ???
 COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
 COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
-COPY desktop/angr-management.desktop /usr/share/applications/
+#COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
 COPY desktop/ida64.desktop /usr/share/applications/
 
@@ -260,7 +260,7 @@ COPY desktop/ida64.desktop /usr/share/applications/
 COPY desktop/ida.opt /opt/ida/ida.opt
 
 RUN <<EOF
-    wget -q -O - https://github.com/angr/angr-management/releases/download/nightly/angr-management-ubuntu-20.04.tar.gz | tar xvz -C /opt
+    #wget -q -O - https://github.com/angr/angr-management/releases/download/nightly/angr-management-ubuntu-20.04.tar.gz | tar xvz -C /opt
 
     wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip
     unzip /tmp/ghidra.zip -d /tmp
@@ -337,7 +337,6 @@ EOF
 FROM builder as builder-tools-pip
 
 RUN xargs pip install --force-reinstall <<EOF
-    angr
     asteval
     flask
     git+https://github.com/Gallopsled/pwntools#egg=pwntools
@@ -351,6 +350,17 @@ RUN xargs pip install --force-reinstall <<EOF
 EOF
 
 RUN ln -sf /usr/bin/ipython3 /usr/bin/ipython
+
+################################################################################
+
+FROM builder as builder-tools-angr
+
+RUN git clone https://github.com/angr/angr-dev /opt/angr
+RUN cd /opt/angr && ./extremely-simple-setup.sh
+RUN apt-get install -y '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev
+RUN ln -s /opt/angr/angr-management /opt/angr-management && ln -s /opt/angr-management/start.py /opt/angr-management/angr-management
+RUN echo asdfasdf
+RUN cd /opt/angr && ./git_all.sh pull
 
 ################################################################################
 
@@ -430,6 +440,7 @@ COPY --link --from=builder-desktop / /
 COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-gdb / /
 COPY --link --from=builder-tools-pip / /
+COPY --link --from=builder-tools-angr / /
 COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
 
 RUN cat >> /etc/ssh/ssh_config <<EOF
