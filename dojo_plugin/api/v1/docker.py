@@ -10,7 +10,7 @@ from flask_restx import Namespace, Resource
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
-from ...config import HOST_DATA_PATH
+from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL
 from ...models import Dojos, DojoModules, DojoChallenges
 from ...utils import serialize_user_flag, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, module_challenges_visible
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
@@ -72,7 +72,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             devices.append("/dev/kvm:/dev/kvm:rwm")
         if os.path.exists("/dev/net/tun"):
             devices.append("/dev/net/tun:/dev/net/tun:rwm")
-        internet = any(award.name == "INTERNET" for award in user.awards)
+        internet = INTERNET_FOR_ALL or any(award.name == "INTERNET" for award in user.awards)
 
         return docker_client.containers.run(
             dojo_challenge.image,

@@ -1,5 +1,6 @@
 import warnings
 import logging
+import ast
 import os
 
 from CTFd.models import db, Admins, Pages
@@ -17,6 +18,7 @@ DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
 BINARY_NINJA_API_KEY = os.getenv("BINARY_NINJA_API_KEY")
+INTERNET_FOR_ALL = bool(ast.literal_eval(os.getenv("INTERNET_FOR_ALL", "False")))
 
 missing_errors = ["DOJO_HOST", "HOST_DATA_PATH"]
 missing_warnings = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID", "BINARY_NINJA_API_KEY"]
