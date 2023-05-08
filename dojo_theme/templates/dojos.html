@@ -4,34 +4,21 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1>Dojos</h1>
+    <h1>Current Courses</h1>
   </div>
 </div>
 <div class="container">
-  <h2>Current Courses</h2>
   <ul class="card-list">
     {% for dojo in dojos %}
       {% if dojo.type == "course" %}
         {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id), dojo.name, "{} Modules".format(dojo.modules | length)) }}
       {% endif %}
     {% endfor %}
-  </ul>
-
-  <br>
-
-  <h2>Topics</h2>
-  <ul class="card-list">
     {% for dojo in dojos %}
       {% if dojo.type == "topic" %}
         {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id), dojo.name, "{} Modules".format(dojo.modules | length)) }}
       {% endif %}
     {% endfor %}
-  </ul>
-
-  <br>
-
-  <h2>Other</h2>
-  <ul class="card-list">
     {% for dojo in dojos %}
       {% if dojo.type not in ["course", "topic"] %}
         {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id), dojo.name, "{} Modules".format(dojo.modules | length)) }}
