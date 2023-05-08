@@ -254,10 +254,10 @@ COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
 COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
 #COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
-COPY desktop/ida64.desktop /usr/share/applications/
+#COPY desktop/ida64.desktop /usr/share/applications/
 
 # IDA Freeware: only permissible for free and open deployments of the dojo!
-COPY desktop/ida.opt /opt/ida/ida.opt
+#COPY desktop/ida.opt /opt/ida/ida.opt
 
 RUN <<EOF
     #wget -q -O - https://github.com/angr/angr-management/releases/download/nightly/angr-management-ubuntu-20.04.tar.gz | tar xvz -C /opt
@@ -267,10 +267,10 @@ RUN <<EOF
     mv /tmp/ghidra_10.1.5_PUBLIC /opt/ghidra
     rm /tmp/ghidra.zip
 
-    wget -O /tmp/idafree80_linux.run https://out7.hex-rays.com/files/idafree80_linux.run
-    chmod 755 /tmp/idafree80_linux.run
-    /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt
-    rm /tmp/idafree80_linux.run /tmp/installbuilder_installer.log
+    #wget -O /tmp/idafree80_linux.run https://out7.hex-rays.com/files/idafree80_linux.run
+    #chmod 755 /tmp/idafree80_linux.run
+    #/tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt
+    #rm /tmp/idafree80_linux.run /tmp/installbuilder_installer.log
 EOF
 
 RUN rm /etc/xdg/autostart/*
