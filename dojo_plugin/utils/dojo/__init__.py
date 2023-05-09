@@ -56,7 +56,7 @@ DOJO_SPEC = Schema({
         **VISIBILITY,
 
         Optional("import"): {
-            "dojo": UNIQUE_ID_REGEX,
+            Optional("dojo"): UNIQUE_ID_REGEX,
             "module": ID_REGEX,
         },
 
@@ -68,8 +68,8 @@ DOJO_SPEC = Schema({
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
             Optional("import"): {
-                "dojo": UNIQUE_ID_REGEX,
-                "module": ID_REGEX,
+                Optional("dojo"): UNIQUE_ID_REGEX,
+                Optional("module"): ID_REGEX,
                 "challenge": ID_REGEX,
             },
         }],
@@ -149,6 +149,18 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             stop = arg.get("visibility", {}).get("stop") or stop
         if start or stop:
             return cls(start=start, stop=stop)
+        
+    def import_ids(ids, *datas):
+        result = {
+            id: None
+            for id in ids
+        }
+        for data in datas:
+            for id, result in results.items():
+                results[id] = data.get("import", {}).get(id, None) or result
+        for id, result in results.items():
+            assert result is not None, f"Missing `{id}` in import"
+        return tuple(result.values())
 
     dojo.modules = [
         DojoModules(
@@ -158,10 +170,8 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                     challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
-                    default=(assert_one(DojoChallenges.from_id(challenge_data["import"]["dojo"],
-                                                               challenge_data["import"]["module"],
-                                                               challenge_data["import"]["challenge"]),
-                                        f"Import challenge `{challenge_data['import']['dojo']}/{challenge_data['import']['module']}/{challenge_data['import']['challenge']}` does not exist")
+                    default=(assert_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
+                                        f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")
                              if "import" in challenge_data else None),
                 )
                 for challenge_data in module_data["challenges"]
@@ -173,9 +183,8 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
                 )
                 for resource_data in module_data["resources"]
             ] if "resources" in module_data else None,
-            default=(assert_one(DojoModules.from_id(module_data["import"]["dojo"],
-                                                    module_data["import"]["module"]),
-                                f"Import module `{module_data['import']['dojo']}/{module_data['import']['module']}` does not exist")
+            default=(assert_one(DojoModules.from_id(*import_ids(["dojo", "module"], dojo_data, module_data)),
+                                f"Import module `{'/'.join(import_ids(['dojo', 'module'], dojo_data, module_data))}` does not exist")
                      if "import" in module_data else None),
             default_visibility=visibility(dict, dojo_data, module_data),
         )
