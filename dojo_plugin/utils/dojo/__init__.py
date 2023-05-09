@@ -160,7 +160,7 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
                 results[id] = data.get("import", {}).get(id, None) or result
         for id, result in results.items():
             assert result is not None, f"Missing `{id}` in import"
-        return tuple(result.values())
+        return tuple(results.values())
 
     dojo.modules = [
         DojoModules(
