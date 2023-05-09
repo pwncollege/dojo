@@ -151,7 +151,7 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             return cls(start=start, stop=stop)
         
     def import_ids(ids, *datas):
-        result = {
+        results = {
             id: None
             for id in ids
         }
