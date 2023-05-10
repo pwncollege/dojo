@@ -233,7 +233,7 @@ EOF
 
 ################################################################################
 
-FROM builder as builder-desktop
+FROM builder as builder-desktop-base
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -252,6 +252,13 @@ EOF
 # TODO: can we generate desktop data with cli ???
 COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
 COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
+
+RUN rm /etc/xdg/autostart/*
+
+################################################################################
+
+FROM builder as builder-desktop-reversing-tools
+
 COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
 COPY desktop/ida64.desktop /usr/share/applications/
@@ -272,8 +279,6 @@ RUN <<EOF
     /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt
     rm /tmp/idafree80_linux.run /tmp/installbuilder_installer.log
 EOF
-
-RUN rm /etc/xdg/autostart/*
 
 ################################################################################
 
@@ -378,6 +383,8 @@ SHELL ["/bin/bash", "-ceov", "pipefail"]
 ENV LC_CTYPE=C.UTF-8
 
 COPY --link --from=builder / /
+COPY --link --from=builder-code-server / /
+COPY --link --from=builder-desktop-base / /
 COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
 
@@ -426,7 +433,8 @@ COPY --link --from=builder-rappel / /
 COPY --link --from=builder-rp / /
 COPY --link --from=builder-geckodriver / /
 COPY --link --from=builder-busybox / /
-COPY --link --from=builder-desktop / /
+COPY --link --from=builder-desktop-base / /
+COPY --link --from=builder-desktop-reversing-tools / /
 COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-gdb / /
 COPY --link --from=builder-tools-pip / /
