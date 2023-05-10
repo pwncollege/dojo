@@ -19,6 +19,7 @@ define DOJO_ENV development
 define DOJO_CHALLENGE challenge-minimal
 define SECRET_KEY $(openssl rand -hex 16)
 define DOCKER_PSLR $(openssl rand -hex 16)
+define INTERNET_FOR_ALL False
 define MAIL_SERVER
 define MAIL_PORT
 define MAIL_USERNAME
