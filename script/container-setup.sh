@@ -20,6 +20,11 @@ define DOJO_CHALLENGE challenge-minimal
 define SECRET_KEY $(openssl rand -hex 16)
 define DOCKER_PSLR $(openssl rand -hex 16)
 define INTERNET_FOR_ALL False
+define MAIL_SERVER
+define MAIL_PORT
+define MAIL_USERNAME
+define MAIL_PASSWORD
+define MAIL_ADDRESS
 define DISCORD_CLIENT_ID
 define DISCORD_CLIENT_SECRET
 define DISCORD_BOT_TOKEN
@@ -64,27 +69,6 @@ ssh-keyscan github.com > $DOJO_DIR/data/ssh_host_keys/ssh_known_hosts
 for file in $(ls $DOJO_DIR/data/ssh_host_keys/*); do
     cp -a $file /etc/ssh
 done
-
-mkdir -p $DOJO_DIR/data/dms/config \
-         $DOJO_DIR/data/dms/config/opendkim \
-         $DOJO_DIR/data/dms/mail-data \
-         $DOJO_DIR/data/dms/mail-state \
-         $DOJO_DIR/data/dms/mail-logs
-echo "hacker@${DOJO_HOST}|{SHA512-CRYPT}$(openssl passwd -6 hacker)" > $DOJO_DIR/data/dms/config/postfix-accounts.cf
-echo "mail._domainkey.${DOJO_HOST} ${DOJO_HOST}:mail:/etc/opendkim/keys/${DOJO_HOST}/mail.private" > $DOJO_DIR/data/dms/config/opendkim/KeyTable
-echo "*@${DOJO_HOST} mail._domainkey.${DOJO_HOST}" > $DOJO_DIR/data/dms/config/opendkim/SigningTable
-echo -e "127.0.0.1\nlocalhost" > $DOJO_DIR/data/dms/config/opendkim/TrustedHosts
-mkdir -p "$DOJO_DIR/data/dms/config/opendkim/keys/${DOJO_HOST}"
-cp $DOJO_DIR/data/ssh_host_keys/ssh_host_rsa_key "$DOJO_DIR/data/dms/config/opendkim/keys/${DOJO_HOST}/mail.private"
-
-DKIM_P=$(openssl rsa -in "$DOJO_DIR/data/dms/config/opendkim/keys/${DOJO_HOST}/mail.private" -pubout -outform dem | base64 -w0)
-
-cat <<EOF > $DOJO_DIR/data/dns
-    @                  IN    MX     10 ${DOJO_HOST}.
-    @                  IN    TXT    "v=spf1 mx ~all"
-    _dmarc             IN    TXT    "v=DMARC1; p=none; rua=mailto:dmarc.report@${DOJO_HOST}; ruf=mailto:dmarc.report@${DOJO_HOST}; sp=none; ri=86400"
-    mail._domainkey    IN    TXT    "v=DKIM1; h=sha256; k=rsa; p=${DKIM_P}"
-EOF
 
 mkdir -p $DOJO_DIR/data/logging
 
