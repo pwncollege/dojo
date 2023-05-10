@@ -185,7 +185,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
     initialize_container()
 
 
-@docker_namespace.route("")
+@docker_namespace.route("/run")
 class RunDocker(Resource):
     @authed_only
     def post(self):

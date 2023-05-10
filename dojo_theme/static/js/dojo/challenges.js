@@ -120,7 +120,7 @@ function startChallenge(event) {
         "practice": practice,
     };
 
-    CTFd.fetch('/pwncollege_api/v1/docker', {
+    CTFd.fetch('/pwncollege_api/v1/docker/run', {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
