@@ -83,7 +83,11 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             working_dir="/home/hacker",
             labels={
                 "dojo": dojo.reference_id,
+                "module": dojo_challenge.module.id,
                 "challenge": dojo_challenge.id,
+                "user_name": user.name,
+                "user_id": str(user.id),
+                "practice": str(practice),
             },
             mounts=[
                 docker.types.Mount(
