@@ -40,6 +40,11 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - DOJO_HOST=${DOJO_HOST}
       - HOST_DATA_PATH=/opt/pwn.college/data
+      - MAIL_SERVER=${MAIL_SERVER}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_ADDRESS=${MAIL_ADDRESS}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
@@ -100,20 +105,6 @@ services:
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
-
-  mailserver:
-    container_name: mailserver
-    image: mailserver/docker-mailserver
-    restart: always
-    environment:
-      - OVERRIDE_HOSTNAME=${DOJO_HOST}
-      - ONE_DIR=1
-      - LOG_LEVEL=debug
-    volumes:
-      - ./data/dms/mail-data:/var/mail
-      - ./data/dms/mail-state:/var/mail-state
-      - ./data/dms/mail-logs:/var/log/mail
-      - ./data/dms/config:/tmp/docker-mailserver
 
   nginx:
     container_name: nginx
