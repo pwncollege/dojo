@@ -96,6 +96,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
                     "bind",
                     propagation="shared",
                 ),
+                docker.types.Mount( "/tmp", "", "tmpfs"),
             ],
             devices=devices,
             network=None if internet else "user_firewall",
