@@ -68,7 +68,7 @@ start-stop-daemon --start \
 seq 1 50 | while read; do sleep 0.1; [ -e /tmp/.X11-unix/X42 ] && break; done
 mkdir -p /home/hacker/.config/gtk-3.0
 [ -f /home/hacker/.config/gtk-3.0/bookmarks ] || echo "file:///challenge" > /home/hacker/.config/gtk-3.0/bookmarks
-[ -f /home/hacker/QtProject.conf ] || cat <<END > /home/hacker/.config/QtProject.conf
+[ -f /home/hacker/.config/QtProject.conf ] || cat <<END > /home/hacker/.config/QtProject.conf
 [FileDialog]
 history=file:///home/hacker
 lastVisited=file:///
