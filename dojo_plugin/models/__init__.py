@@ -458,6 +458,9 @@ class DojoChallenges(db.Model):
     def challenge_paths(self, user):
         secret = current_app.config["SECRET_KEY"]
 
+        if not self.path.exists():
+            return
+
         for path in self.path.iterdir():
             if path.name.startswith("_"):
                 continue
