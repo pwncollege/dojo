@@ -75,7 +75,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
         internet = INTERNET_FOR_ALL or any(award.name == "INTERNET" for award in user.awards)
 
         return docker_client.containers.run(
-            dojo_challenge.image,
+            dojo_challenge.image or "pwncollege-challenge",
             entrypoint=["/bin/sleep", "6h"],
             name=f"user_{user.id}",
             hostname=hostname,

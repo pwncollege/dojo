@@ -356,6 +356,7 @@ class DojoChallenges(db.Model):
     id = db.Column(db.String(32), index=True)
     name = db.Column(db.String(128))
     description = db.Column(db.Text)
+    image = db.Column(db.String(128))
 
     data = db.Column(db.JSON)
     data_fields = ["path_override"]
@@ -372,6 +373,7 @@ class DojoChallenges(db.Model):
                                  back_populates="challenge")
 
     def __init__(self, *args, **kwargs):
+        kwargs.setdefault("image", "pwncollege-challenge")
         default = kwargs.pop("default", None)
 
         data = kwargs.pop("data", {})
@@ -452,10 +454,6 @@ class DojoChallenges(db.Model):
         return (self.module.path / self.id
                 if not self.path_override else
                 pathlib.Path(self.path_override))
-
-    @property
-    def image(self):
-        return "pwncollege-challenge"
 
     def challenge_paths(self, user):
         secret = current_app.config["SECRET_KEY"]
