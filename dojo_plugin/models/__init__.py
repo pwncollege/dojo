@@ -353,7 +353,7 @@ class DojoChallenges(db.Model):
     challenge_index = db.Column(db.Integer, primary_key=True)
 
     challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
-    id = db.Column(db.String(32), index=True)
+    id = db.Column(db.String(128), index=True)
     name = db.Column(db.String(128))
     description = db.Column(db.Text)
     image = db.Column(db.String(128))
