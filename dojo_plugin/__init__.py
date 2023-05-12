@@ -3,8 +3,9 @@ import os
 import datetime
 from email.message import EmailMessage
 from email.utils import formatdate
+from urllib.parse import urlparse, urlunparse
 
-from flask import Response
+from flask import Response, request, redirect
 from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
 from CTFd.models import db, Challenges
@@ -83,6 +84,22 @@ import CTFd.utils.email.smtp
 CTFd.utils.email.smtp.EmailMessage = DatedEmailMessage
 
 
+def redirect_dojo():
+    parsed_url = urlparse(request.url)
+    if parsed_url.netloc.split(':')[0] != DOJO_HOST:
+        netloc = DOJO_HOST
+        if ':' in parsed_url.netloc:
+            netloc += ':' + parsed_url.netloc.split(':')[1]
+        return redirect(urlunparse((
+            parsed_url.scheme,
+            netloc,
+            parsed_url.path,
+            parsed_url.params,
+            parsed_url.query,
+            parsed_url.fragment,
+        )))
+
+
 def load(app):
     db.create_all()
 
@@ -95,6 +112,8 @@ def load(app):
     del app.view_functions["users.private"]
     del app.view_functions["users.public"]
     del app.view_functions["users.listing"]
+
+    app.before_request(redirect_dojo)
 
     app.register_blueprint(dojos)
     app.register_blueprint(dojo)
