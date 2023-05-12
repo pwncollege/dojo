@@ -56,4 +56,4 @@ EXPOSE 80
 EXPOSE 443
 
 WORKDIR /opt/pwn.college
-ENTRYPOINT ["dojo"]
+CMD ["dojo", "start"]

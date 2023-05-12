@@ -7,16 +7,18 @@ then
     ACTION="$1"
     shift
 else
-    ACTION="start"
+    ACTION="help"
 fi
 
 case "$ACTION" in
+    # HELP: update: update dojo files (warning: does `git pull`) and rebuild containers
     "update")
         git pull
         dojo compose build
         dojo compose up -d
         ;;
 
+    # HELP: enter USER_ID: enter a user's running container. Can change users via USER env var.
     "enter")
         CONTAINER="user_$1"
         shift
@@ -27,23 +29,27 @@ case "$ACTION" in
         fi
         ;;
 
+    # HELP: compose ARGS: run a docker compose command with the config.env file loaded
     "compose")
         docker compose --env-file=/opt/pwn.college/data/config.env "$@"
         ;;
 
+    # HELP: flask: drop into a flask shell in the ctfd container
     "flask")
         docker exec -it ctfd flask shell "$@"
         ;;
 
+    # HELP: db: launch a mysql client session, connected to the ctfd db
     "db")
         docker exec -it db mysql -pctfd -Dctfd ctfd "$@"
         ;;
 
-    "backup")
+    "backup") # Does a dojo db backup into the `data/backups` directory.
         mkdir -p data/backups
         docker exec db mysqldump -pctfd --single-transaction --routines --triggers ctfd | gzip > "data/backups/db-$(date -Iseconds).sql.gz"
         ;;
 
+    # HELP: resture PATH: restores a dojo db backup. Path arg is relative to the `data/backups` directory
     "restore")
         BACKUP_PATH="data/backups/$1"
         if [ -f "$BACKUP_PATH" ]; then
@@ -53,16 +59,19 @@ case "$ACTION" in
         fi
         ;;
 
+    # HELP: logs: display dojo logs
     "logs")
         journalctl -u pwn.college -f
         ;;
 
+    # HELP: restart: restarts just the ctfd container
     "restart")
         for cmd in 'build ctfd' 'kill ctfd' 'rm -f ctfd' 'up -d ctfd' 'logs -f ctfd'; do
             docker compose --env-file=/opt/pwn.college/data/config.env $cmd;
         done
         ;;
 
+    # HELP: start: start the dojo. Main entry point for the docker image.
     "start")
         echo "[+] Setting up container runtime environment."
         container-setup.sh
@@ -71,8 +80,19 @@ case "$ACTION" in
         exec /usr/bin/systemd
         ;;
 
+    # HELP: help: displays this help
+    "help")
+        echo "Usage: $0 COMMAND [ ARG ]"
+	echo
+	echo "COMMANDS:"
+	echo
+	cat "$0" | grep "[H]ELP" | sed -e "s/.*H[E]LP: /\t/"
+        ;;
+
     *)
         echo "Unknown command."
+	echo ""
+	"$0" help
         exit 1
         ;;
 esac
