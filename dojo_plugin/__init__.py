@@ -90,14 +90,15 @@ def redirect_dojo():
         netloc = DOJO_HOST
         if ':' in parsed_url.netloc:
             netloc += ':' + parsed_url.netloc.split(':')[1]
-        return redirect(urlunparse((
+        redirect_url = urlunparse((
             parsed_url.scheme,
             netloc,
             parsed_url.path,
             parsed_url.params,
             parsed_url.query,
             parsed_url.fragment,
-        )))
+        ))
+        return redirect(redirect_url, code=301)
 
 
 def load(app):
