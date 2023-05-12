@@ -84,10 +84,6 @@ CTFd.utils.email.smtp.EmailMessage = DatedEmailMessage
 
 
 def load(app):
-    if app.env == "production":
-        app.config["SERVER_NAME"] = DOJO_HOST
-        app.config["PREFERRED_URL_SCHEME"] = "https"
-
     db.create_all()
 
     CHALLENGE_CLASSES["dojo"] = DojoChallenge
