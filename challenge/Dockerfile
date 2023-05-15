@@ -335,6 +335,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         whiptail
         wireshark
         gedit
+        fortune
         zsh
 EOF
 
