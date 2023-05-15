@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -45,9 +46,13 @@ int main(int argc, char **argv, char **envp)
 #endif
 #ifdef SUID_BASH
     char *child_argv_prefix[] = { "/usr/bin/bash", "--", NULL };
+    setresuid(geteuid(), geteuid(), geteuid());
+    setresgid(getegid(), getegid(), getegid());
 #endif
 #ifdef SUID_SH
-    char *child_argv_prefix[] = { "/usr/bin/bash", "--", NULL };
+    char *child_argv_prefix[] = { "/usr/bin/sh", "--", NULL };
+    setresuid(geteuid(), geteuid(), geteuid());
+    setresgid(getegid(), getegid(), getegid());
 #endif
 
     char **child_argv = malloc(sizeof(child_argv_prefix) + argc * sizeof(char *));
