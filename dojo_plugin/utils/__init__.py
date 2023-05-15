@@ -97,10 +97,10 @@ def id_regex(s):
     return re.match(ID_REGEX, s) and ".." not in s
 
 
-def get_current_container():
-    user = get_current_user()
+def get_current_container(user=None):
+    user = user or get_current_user()
     if not user:
-        return
+        return None
 
     docker_client = docker.from_env()
     container_name = f"user_{user.id}"

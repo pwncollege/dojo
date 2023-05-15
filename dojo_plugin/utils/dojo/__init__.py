@@ -149,7 +149,7 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             stop = arg.get("visibility", {}).get("stop") or stop
         if start or stop:
             return cls(start=start, stop=stop)
-        
+
     def import_ids(ids, *datas):
         results = {
             id: None
@@ -306,8 +306,8 @@ def dojo_route(func):
     return wrapper
 
 
-def get_current_dojo_challenge():
-    container = get_current_container()
+def get_current_dojo_challenge(user=None):
+    container = get_current_container(user)
     if not container:
         return None
 

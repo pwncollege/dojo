@@ -46,7 +46,7 @@ def view_desktop(user_id=None):
     except FileNotFoundError:
         password = None
 
-    active = bool(password) if get_current_dojo_challenge() is not None else None
+    active = bool(password) if get_current_dojo_challenge(user) is not None else None
     view_only = int(user_id != current_user.id)
 
     return render_template("desktop.html",
@@ -54,6 +54,7 @@ def view_desktop(user_id=None):
                            password=password,
                            user_id=user_id,
                            view_only=view_only)
+
 
 @desktop.route("/desktop/<int:user_id>/")
 @desktop.route("/desktop/<int:user_id>/<path:path>")
