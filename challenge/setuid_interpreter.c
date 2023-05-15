@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -40,15 +41,28 @@ int main(int argc, char **argv, char **envp)
     if (!(stat.st_mode & S_ISUID))
         return ERROR_NOT_SUID;
 
-    char *python_argv_prefix[] = { "/usr/bin/python", "-I", "--", NULL };
-    char **python_argv = malloc(sizeof(python_argv_prefix) + argc * sizeof(char *));
-    int python_argc = 0;
-    for (int i = 0; python_argv_prefix[i]; i++)
-        python_argv[python_argc++] = python_argv_prefix[i];
-    python_argv[python_argc++] = path;
-    for (int i = 2; i < argc; i++)
-        python_argv[python_argc++] = argv[i];
-    python_argv[python_argc] = NULL;
+#ifdef SUID_PYTHON
+    char *child_argv_prefix[] = { "/usr/bin/python", "-I", "--", NULL };
+#endif
+#ifdef SUID_BASH
+    char *child_argv_prefix[] = { "/usr/bin/bash", "--", NULL };
+    setresuid(geteuid(), geteuid(), geteuid());
+    setresgid(getegid(), getegid(), getegid());
+#endif
+#ifdef SUID_SH
+    char *child_argv_prefix[] = { "/usr/bin/sh", "--", NULL };
+    setresuid(geteuid(), geteuid(), geteuid());
+    setresgid(getegid(), getegid(), getegid());
+#endif
 
-    execve(python_argv[0], python_argv, envp);
+    char **child_argv = malloc(sizeof(child_argv_prefix) + argc * sizeof(char *));
+    int child_argc = 0;
+    for (int i = 0; child_argv_prefix[i]; i++)
+        child_argv[child_argc++] = child_argv_prefix[i];
+    child_argv[child_argc++] = path;
+    for (int i = 2; i < argc; i++)
+        child_argv[child_argc++] = argv[i];
+    child_argv[child_argc] = NULL;
+
+    execve(child_argv[0], child_argv, envp);
 }

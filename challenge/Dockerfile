@@ -365,15 +365,17 @@ FROM builder as builder-pwn.college
 RUN mkdir /opt/pwn.college
 COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
-COPY setuid_python.c /opt/pwn.college/setuid_python.c
+COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
 COPY vm /opt/pwn.college/vm
 COPY .tmux.conf /opt/pwn.college/.tmux.conf
 COPY .gdbinit /opt/pwn.college/.gdbinit
 COPY .radare2rc /opt/pwn.college/.radare2rc
 COPY .pwn.conf /opt/pwn.college/.pwn.conf
 
-RUN gcc /opt/pwn.college/setuid_python.c -o /opt/pwn.college/python && \
-    rm /opt/pwn.college/setuid_python.c
+RUN gcc /opt/pwn.college/setuid_interpreter.c -DSUID_PYTHON -o /opt/pwn.college/python && \
+    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_BASH -o /opt/pwn.college/bash && \
+    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_SH -o /opt/pwn.college/sh && \
+    rm /opt/pwn.college/setuid_interpreter.c
 
 ################################################################################
 
@@ -406,6 +408,8 @@ RUN <<EOF
     find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
 
     chmod u+s /opt/pwn.college/python \
+              /opt/pwn.college/bash \
+              /opt/pwn.college/sh \
               /opt/pwn.college/vm/vm
 EOF
 
@@ -470,6 +474,8 @@ RUN <<EOF
     find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
 
     chmod u+s /opt/pwn.college/python \
+              /opt/pwn.college/bash \
+              /opt/pwn.college/sh \
               /opt/pwn.college/vm/vm
 EOF
 
