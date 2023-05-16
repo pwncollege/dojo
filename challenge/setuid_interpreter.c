@@ -45,12 +45,16 @@ int main(int argc, char **argv, char **envp)
     char *child_argv_prefix[] = { "/usr/bin/python", "-I", "--", NULL };
 #endif
 #ifdef SUID_BASH
-    char *child_argv_prefix[] = { "/usr/bin/bash", "--", NULL };
+    char c_arg[1024];
+    sprintf(c_arg, ". \"%s\"", path);
+    char *child_argv_prefix[] = { "/usr/bin/bash", "-c", c_arg, argv[1], NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
 #endif
 #ifdef SUID_SH
-    char *child_argv_prefix[] = { "/usr/bin/sh", "--", NULL };
+    char c_arg[1024];
+    sprintf(c_arg, ". \"%s\"", path);
+    char *child_argv_prefix[] = { "/usr/bin/sh", "-c", c_arg, argv[1],  NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
 #endif
@@ -59,7 +63,9 @@ int main(int argc, char **argv, char **envp)
     int child_argc = 0;
     for (int i = 0; child_argv_prefix[i]; i++)
         child_argv[child_argc++] = child_argv_prefix[i];
+#ifdef SUID_PYTHON
     child_argv[child_argc++] = path;
+#endif
     for (int i = 2; i < argc; i++)
         child_argv[child_argc++] = argv[i];
     child_argv[child_argc] = NULL;
