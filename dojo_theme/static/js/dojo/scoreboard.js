@@ -61,8 +61,7 @@ function loadScoreboard(duration, page) {
 
         const scoreboardPages = $("#scoreboard-pages");
         scoreboardPages.empty();A
-        if (result.pages.length > 1)
-        {
+        if (result.pages.length > 1) {
             result.pages.forEach(i => {
                 const pageButton = $(`
                 <li class="scoreboard-page"><a href="javascript:loadScoreboard('${duration}', ${i})">${i}</a></li>
