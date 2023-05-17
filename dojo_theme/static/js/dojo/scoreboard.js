@@ -60,7 +60,7 @@ function loadScoreboard(duration, page) {
         });
 
         const scoreboardPages = $("#scoreboard-pages");
-        scoreboardPages.empty();A
+        scoreboardPages.empty();//A
         if (result.pages.length > 1) {
             result.pages.forEach(i => {
                 const pageButton = $(`
