@@ -1,11 +1,12 @@
 #define _GNU_SOURCE
+#include <linux/limits.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdbool.h>
+#include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 
 #define ERROR_ARGC 1
 #define ERROR_NOT_FOUND 2
@@ -45,15 +46,15 @@ int main(int argc, char **argv, char **envp)
     char *child_argv_prefix[] = { "/usr/bin/python", "-I", "--", NULL };
 #endif
 #ifdef SUID_BASH
-    char c_arg[1024];
-    sprintf(c_arg, ". \"%s\"", path);
+    char c_arg[PATH_MAX];
+    snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
     char *child_argv_prefix[] = { "/usr/bin/bash", "-c", c_arg, argv[1], NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
 #endif
 #ifdef SUID_SH
-    char c_arg[1024];
-    sprintf(c_arg, ". \"%s\"", path);
+    char c_arg[PATH_MAX];
+    sprintf(c_arg, PATH_MAX, ". \"%s\"", path);
     char *child_argv_prefix[] = { "/usr/bin/sh", "-c", c_arg, argv[1],  NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
