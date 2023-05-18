@@ -269,9 +269,9 @@ COPY desktop/ida.opt /opt/ida/ida.opt
 RUN <<EOF
     wget -q -O - https://github.com/angr/angr-management/releases/download/nightly/angr-management-ubuntu-20.04.tar.gz | tar xvz -C /opt
 
-    wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.1.5_build/ghidra_10.1.5_PUBLIC_20220726.zip
+    wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.3_build/ghidra_10.3_PUBLIC_20230510.zip
     unzip /tmp/ghidra.zip -d /tmp
-    mv /tmp/ghidra_10.1.5_PUBLIC /opt/ghidra
+    mv /tmp/ghidra_10.3_PUBLIC /opt/ghidra
     rm /tmp/ghidra.zip
 
     wget -O /tmp/idafree80_linux.run https://out7.hex-rays.com/files/idafree80_linux.run
