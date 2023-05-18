@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         cmake
         cpio
         curl
-        default-jdk
+        openjdk-17-jdk
         flex
         g++-multilib
         gcc-multilib
