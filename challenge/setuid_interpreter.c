@@ -54,7 +54,7 @@ int main(int argc, char **argv, char **envp)
 #endif
 #ifdef SUID_SH
     char c_arg[PATH_MAX];
-    sprintf(c_arg, PATH_MAX, ". \"%s\"", path);
+    snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
     char *child_argv_prefix[] = { "/usr/bin/sh", "-c", c_arg, argv[1],  NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
