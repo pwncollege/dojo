@@ -1,14 +1,16 @@
-import os
-import sys
 import subprocess
-import pathlib
 import traceback
+import datetime
+import pathlib
+import sys
+import os
 
 import docker
 from flask import request
 from flask_restx import Namespace, Resource
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
+from CTFd.models import db
 
 from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL
 from ...models import Dojos, DojoModules, DojoChallenges
@@ -75,7 +77,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
         internet = INTERNET_FOR_ALL or any(award.name == "INTERNET" for award in user.awards)
 
         return docker_client.containers.run(
-            dojo_challenge.image,
+            dojo_challenge.image or "pwncollege-challenge",
             entrypoint=["/bin/sleep", "6h"],
             name=f"user_{user.id}",
             hostname=hostname,
@@ -83,7 +85,11 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             working_dir="/home/hacker",
             labels={
                 "dojo": dojo.reference_id,
+                "module": dojo_challenge.module.id,
                 "challenge": dojo_challenge.id,
+                "user_name": user.name,
+                "user_id": str(user.id),
+                "practice": str(practice),
             },
             mounts=[
                 docker.types.Mount(
@@ -92,6 +98,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
                     "bind",
                     propagation="shared",
                 ),
+                docker.types.Mount( "/tmp", "", "tmpfs"),
             ],
             devices=devices,
             network=None if internet else "user_firewall",
@@ -184,8 +191,54 @@ def start_challenge(user, dojo, dojo_challenge, practice):
 
     initialize_container()
 
+@docker_namespace.route("/snapshot")
+class SnapshotDocker(Resource):
+    @authed_only
+    def get(self):
+        user = get_current_user()
+        docker_client = docker.from_env()
+        try:
+            container = docker_client.containers.get(f"user_{user.id}")
+        except docker.errors.NotFound:
+            return {"success": False, "error": "No container running to snapshot. Start one!"}
 
-@docker_namespace.route("")
+        if container.labels["practice"] != "True":
+            return {"success": False, "error": "Running container is not in practice mode. Please restart in practice mode."}
+
+        label_module = container.labels["module"]
+        label_challenge = container.labels["challenge"]
+        label_name = container.labels["user_name"]
+        snapshot_time = datetime.datetime.now()
+        snapshot_name = f"{label_module}-{label_challenge}-{label_name}"
+        container.commit(f"snapshot-{snapshot_name}")
+
+        # make a dojo challenge for it
+        dojo_challenge = get_current_dojo_challenge()
+        dojo = dojo_challenge.dojo
+        snapshot_module = DojoModules.query.filter_by(dojo=dojo, id="snapshots").first()
+        if not snapshot_module:
+            snapshot_module = DojoModules(
+                id="snapshots", name="Env Snapshots",
+                description="These are environment snapshots taken by other dojo practitioners.",
+                module_index=100,
+                dojo=dojo, challenges=[], resources=[]
+            )
+            db.session.add(snapshot_module)
+
+        snapshot_chal = DojoChallenges.query.filter_by(dojo=dojo, id=snapshot_name).first()
+        if not snapshot_chal:
+            snapshot_chal = DojoChallenges(
+                id=snapshot_name, name=snapshot_name, image=f"snapshot-{snapshot_name}",
+                challenge=dojo_challenge.challenge, challenge_index=len(snapshot_module.challenges),
+                module=snapshot_module
+            )
+            db.session.add(snapshot_chal)
+        description=f"This is a snapshot of {label_name}'s environment for challenge {label_challenge} of module {label_module} at {snapshot_time.strftime('%m/%d %H:%M')}"
+
+        db.session.commit()
+        return {"success": True}
+
+@docker_namespace.route("/run")
 class RunDocker(Resource):
     @authed_only
     def post(self):
