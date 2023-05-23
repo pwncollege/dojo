@@ -21,6 +21,11 @@
 			"source": "${localWorkspaceFolder}",
 			"target": "/opt/pwn.college",
 			"type": "bind"
+		},
+		{
+			"source": "dind-var-lib-docker-${devcontainerId}",
+			"target": "/opt/pwn.college/data/docker",
+			"type": "volume"
 		}
 	],
 	"containerEnv": {
