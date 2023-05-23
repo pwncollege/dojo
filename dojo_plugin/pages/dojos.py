@@ -28,7 +28,21 @@ def dojo_stats(dojo):
 @dojos.route("/dojos")
 def listing():
     user = get_current_user()
-    dojos = Dojos.viewable(user=user)
+    typed_dojos = {
+        "Courses": [],
+        "Topics": [],
+        "More": [],
+    }
+    for dojo in Dojos.viewable(user=user):
+        if dojo.type == "course":
+            typed_dojos["Courses"].append(dojo)
+        elif dojo.type == "topic":
+            typed_dojos["Topics"].append(dojo)
+        elif dojo.type == "hidden":
+            continue
+        else:
+            typed_dojos["More"].append(dojo)
+
     return render_template("dojos.html", user=user, dojos=dojos)
 
 

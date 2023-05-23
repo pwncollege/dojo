@@ -8,37 +8,27 @@
   </div>
 </div>
 <div class="container">
-  <h2>Current Courses</h2>
-  <ul class="card-list">
-    {% for dojo in dojos %}
-      {% if dojo.type == "course" %}
+  {% for type, dojos in typed_dojos %}
+    <h2>{{ type | title }}</h2>
+    <ul class="card-list">
+      {% for dojo in dojos %}
         {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id), dojo.name, "{} Modules".format(dojo.modules | length)) }}
+      {% endfor %}
+
+      {% if type == "More" %}
+        {% call card(url_for("dojo.dojo_create"), custom=True) %}
+          <svg class="w-100 h-100">
+            <circle cx="50%" cy="50%" r="30%" stroke="gray" fill="none" stroke-width="8" stroke-dasharray="8"></circle>
+            <g stroke="gray" stroke-width="8">
+              <line x1="50%" y1="30%" x2="50%" y2="70%"></line>
+              <line x1="30%" y1="50%" x2="70%" y2="50%"></line>
+            </g>
+          </svg>
+        {% endcall %}
       {% endif %}
-    {% endfor %}
-  </ul>
-
-  <br>
-
-  <h2>Topics</h2>
-  <ul class="card-list">
-    {% for dojo in dojos %}
-      {% if dojo.type == "topic" %}
-        {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id), dojo.name, "{} Modules".format(dojo.modules | length)) }}
-      {% endif %}
-    {% endfor %}
-  </ul>
-
-  <br>
-
-  <h2>Other</h2>
-  <ul class="card-list">
-    {% for dojo in dojos %}
-      {% if dojo.type not in ["course", "topic"] %}
-        {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id), dojo.name, "{} Modules".format(dojo.modules | length)) }}
-      {% endif %}
-    {% endfor %}
-  </ul>
-</div>
+    </ul>
+    <br>
+  {% endfor %}
 {% endblock %}
 
 {% block scripts %}

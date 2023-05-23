@@ -16,14 +16,13 @@
 </li>
 {% endmacro %}
 
-{% macro card(url, title, text) -%}
+{% macro card(url, title=None, text=None, custom=False) -%}
   <a class="text-decoration-none" href="{{ url }}">
     <li class="card card-small">
       <div class="card-body">
-        <h4 class="card-title">{{ title }}</h4>
-        <p class="card-text">
-          {{ text }}
-        </p>
+        {% if title %}<h4 class="card-title">{{ title }}</h4>{% endif %}
+        {% if text %}<p class="card-text">{{ text }}</p>{% endif %}
+        {% if custom %}{{ caller() }}{% endif %}
       </div>
     </li>
   </a>
