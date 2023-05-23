@@ -114,7 +114,8 @@ def load(app):
     del app.view_functions["users.public"]
     del app.view_functions["users.listing"]
 
-    app.before_request(redirect_dojo)
+    if not app.debug:
+        app.before_request(redirect_dojo)
 
     app.register_blueprint(dojos)
     app.register_blueprint(dojo)
