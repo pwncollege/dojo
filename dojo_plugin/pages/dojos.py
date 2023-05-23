@@ -43,7 +43,7 @@ def listing():
         else:
             typed_dojos["More"].append(dojo)
 
-    return render_template("dojos.html", user=user, dojos=dojos)
+    return render_template("dojos.html", user=user, typed_dojos=typed_dojos)
 
 
 @dojos.route("/dojos/create")
