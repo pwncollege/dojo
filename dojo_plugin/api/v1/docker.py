@@ -21,7 +21,7 @@ docker_namespace = Namespace(
 )
 
 
-def start_challenge(user, dojo, dojo_challenge, practice):
+def start_challenge(user, dojo_challenge, practice):
     def exec_run(cmd, *, shell=False, assert_success=True, user="root", **kwargs):
         if shell:
             cmd = f"""/bin/sh -c \"
@@ -55,7 +55,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
                 check=True,
             )
 
-    def start_container(user, dojo, dojo_challenge, practice):
+    def start_container(user, dojo_challenge, practice):
         docker_client = docker.from_env()
         try:
             container_name = f"user_{user.id}"
@@ -82,8 +82,11 @@ def start_challenge(user, dojo, dojo_challenge, practice):
             user="hacker",
             working_dir="/home/hacker",
             labels={
-                "dojo": dojo.reference_id,
+                "dojo": dojo_challenge.dojo.reference_id,
+                "module": dojo_challenge.module.id,
                 "challenge": dojo_challenge.id,
+                "user": user.id,
+                "mode": "privileged" if practice else "standard",
             },
             mounts=[
                 docker.types.Mount(
@@ -170,7 +173,7 @@ def start_challenge(user, dojo, dojo_challenge, practice):
 
     setup_home(user)
 
-    container = start_container(user, dojo, dojo_challenge, practice)
+    container = start_container(user, dojo_challenge, practice)
 
     verify_nosuid_home()
 
@@ -212,7 +215,7 @@ class RunDocker(Resource):
         # TODO: check if challenge visible
 
         try:
-            start_challenge(user, dojo, dojo_challenge, practice)
+            start_challenge(user, dojo_challenge, practice)
         except RuntimeError as e:
             print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
@@ -229,4 +232,9 @@ class RunDocker(Resource):
         dojo_challenge = get_current_dojo_challenge()
         if not dojo_challenge:
             return {"success": False, "error": "No active challenge"}
-        return {"success": True, "dojo": dojo_challenge.dojo.reference_id, "challenge": dojo_challenge.id}
+        return {
+            "success": True,
+            "dojo": dojo_challenge.dojo.reference_id,
+            "module": dojo_challenge.module.id,
+            "challenge": dojo_challenge.id
+        }
