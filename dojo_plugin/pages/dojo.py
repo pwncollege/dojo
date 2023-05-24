@@ -72,6 +72,7 @@ def old_private_dojo_deprecate(id, old=None):
     """
     return render_template("base.html", content=deprecated)
 
+@dojo.route("/<dojo>")
 @dojo.route("/<dojo>/")
 @dojo_route
 @check_challenge_visibility
