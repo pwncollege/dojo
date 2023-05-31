@@ -38,7 +38,7 @@
         {{ navitem("Register", url_for("auth.register"), "fa-user-plus") }}
         {% endif %}
 
-        {{ navitem("Login", url_for("auth.login"), "fa-sign-in-alt") }}
+        {{ navitem("Login", url_for("auth.login", next=request.full_path), "fa-sign-in-alt") }}
         {% endif %}
       </ul>
     </div>
