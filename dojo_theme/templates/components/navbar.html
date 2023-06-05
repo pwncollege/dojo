@@ -40,7 +40,23 @@
 
         {{ navitem("Login", url_for("auth.login", next=request.full_path), "fa-sign-in-alt") }}
         {% endif %}
+
+        <li class="nav-item">
+          <a class="nav-link close-link" href="#">
+            <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="{{ name }}">
+              <i class="fas caret-up d-none d-md-block d-lg-none"></i>
+            </span>
+            <span class="d-sm-block d-md-none d-lg-block text-nowrap">
+              <i class="fas fa-caret-up pr-1"></i>
+              <span class="d-lg-none">Hide Navbar</span>
+            </span>
+          </a>
+        </li>
       </ul>
     </div>
   </div>
 </nav>
+
+<div class="navbar-pulldown">
+  <i class="fas fa-fw fa-caret-down" title="Show navigation bar"></i>
+</div>
