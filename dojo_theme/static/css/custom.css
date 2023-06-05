@@ -10,7 +10,7 @@ body, table, .form-control:focus, .close {
     color: #eaeaea !important;
 }
 
-.navbar-brand, .nav-link, h1, h2 {
+.navbar-brand, .nav-link, h1, h2, .navbar-pulldown {
     color: #b5e853 !important;
 }
 
@@ -30,6 +30,54 @@ nav {
 h4 {
     color: rgb(99, 192, 245);
     text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
+}
+
+.close-link {
+    border: none;
+    background-color: inherit;
+    padding: 0.5em 1em;
+}
+
+@keyframes navbar-slide-out {
+    0% {
+        transform: translateY(0);
+    }
+    100% {
+        transform: translateY(-100%);
+        display: hidden;
+    }
+}
+
+.navbar-hiding {
+    animation: 0.25s linear 0s navbar-slide-out;
+    animation-fill-mode: forwards;
+}
+
+.navbar-hidden {
+    display: none;
+}
+
+.main-navbar-hidden {
+    padding-top: 0 !important;
+}
+
+.navbar-pulldown {
+    display: none;
+}
+
+.navbar-pulldown.navbar-pulldown-shown {
+    display: block;
+    position: fixed;
+    background-color: inherit;
+    font-size: 0; /* remove "inline magic space" */
+    border-radius: 0.5rem;
+    cursor: pointer;
+    top: 0.25rem;
+    right: 0.25rem;
+}
+
+.navbar-pulldown > * {
+    font-size: 2rem;
 }
 
 .modal-dialog {
