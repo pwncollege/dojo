@@ -124,7 +124,7 @@ def view_dojo_solves(dojo):
         yield "user,module,challenge,time\n"
         solves = (
             dojo
-            .solves()
+            .solves(ignore_visibility=True)
             .join(DojoModules, and_(
                 DojoModules.dojo_id == DojoChallenges.dojo_id,
                 DojoModules.module_index == DojoChallenges.module_index))
