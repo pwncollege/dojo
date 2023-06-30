@@ -33,11 +33,13 @@ def get_stats(dojo):
         hours = max(uptime.seconds // (60 * 60), 1)
         active += 1 / hours
 
+    # TODO: users and solves query is slow, so we'll just leave it out for now
+    # TODO: we need to index tables for this to be fast
     return {
         "active": int(active),
-        "users": int(dojo.solves().group_by(Solves.user_id).count()),
+        "users": "-", # int(dojo.solves().group_by(Solves.user_id).count()),
         "challenges": int(len(dojo.challenges)),
-        "solves": int(dojo.solves().count()),
+        "solves": "-", # int(dojo.solves().count()),
     }
 
 
@@ -96,8 +98,10 @@ def listing(dojo):
 @check_challenge_visibility
 def view_module(dojo, module):
     user = get_current_user()
-    user_solves = set(solve.challenge_id for solve in module.solves(user=user, ignore_visibility=True)) if user else set()
-    total_solves = dict(module.solves()
+    user_solves = set(solve.challenge_id for solve in (
+        module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
+    ))
+    total_solves = dict(module.solves(ignore_visibility=True)
                         .group_by(Solves.challenge_id)
                         .with_entities(Solves.challenge_id, db.func.count()))
     current_dojo_challenge = get_current_dojo_challenge()

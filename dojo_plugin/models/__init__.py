@@ -418,7 +418,7 @@ class DojoChallenges(db.Model):
         ))
 
     @hybrid_method
-    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False):
+    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True):
         result = (
             Solves.query
             .join(DojoChallenges, and_(
@@ -427,7 +427,7 @@ class DojoChallenges(db.Model):
             .join(DojoUsers, and_(
                 DojoUsers.user_id == Solves.user_id,
                 DojoUsers.dojo_id == DojoChallenges.dojo_id,
-                DojoUsers.type != "admin",
+                DojoUsers.type != "admin" if ignore_admins else True,
                 ), isouter=True)
             .join(Dojos, and_(
                 Dojos.dojo_id == DojoChallenges.dojo_id,

@@ -65,7 +65,7 @@
         <div class="card-body">
           <h4 class="card-title">{{ module.name }}</h4>
           <p class="card-text">
-            {{ module.solves(user=user, ignore_visibility=True).count() if user else 0 }} / {{ module.challenges | length }}
+            {{ module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0 }} / {{ module.challenges | length }}
           </p>
         </div>
       </li>
