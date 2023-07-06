@@ -82,11 +82,11 @@ def start_challenge(user, dojo_challenge, practice):
             user="hacker",
             working_dir="/home/hacker",
             labels={
-                "dojo": dojo_challenge.dojo.reference_id,
-                "module": dojo_challenge.module.id,
-                "challenge": dojo_challenge.id,
-                "user": str(user.id),
-                "mode": "privileged" if practice else "standard",
+                "dojo.dojo_id": dojo_challenge.dojo.reference_id,
+                "dojo.module_id": dojo_challenge.module.id,
+                "dojo.challenge_id": dojo_challenge.id,
+                "dojo.user_id": str(user.id),
+                "dojo.mode": "privileged" if practice else "standard",
             },
             mounts=[
                 docker.types.Mount(
