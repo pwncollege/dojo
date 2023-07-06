@@ -85,6 +85,7 @@ def start_challenge(user, dojo_challenge, practice):
                 "dojo.dojo_id": dojo_challenge.dojo.reference_id,
                 "dojo.module_id": dojo_challenge.module.id,
                 "dojo.challenge_id": dojo_challenge.id,
+                "dojo.challenge_description": dojo_challenge.description,
                 "dojo.user_id": str(user.id),
                 "dojo.mode": "privileged" if practice else "standard",
             },
