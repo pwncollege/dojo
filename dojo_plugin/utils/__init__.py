@@ -271,22 +271,6 @@ def load_dojo(dojo_id, dojo_spec, user=None, dojo_dir=None, commit=True, log=log
         db.session.rollback()
 
 
-# this is a MASSIVE hack and should be replaced with something less insane
-_lock_number = [ 0 ]
-def multiprocess_lock(func):
-    _lock_filename = f"/dev/shm/dojolock-{_lock_number[0]}"
-    _lock_number[0] += 1
-    open(_lock_filename, "w").close()
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        lf = open(_lock_filename, "r")
-        fcntl.flock(lf, fcntl.LOCK_EX)
-        try:
-            return func(*args, **kwargs)
-        finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
-    return wrapper
-
 def dojo_completions():
     all_solves = (
         db.session.query(DojoChallenges.dojo_id.label("dojo_id"))

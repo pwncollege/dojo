@@ -13,7 +13,6 @@ from ..models import DiscordUsers, DojoChallenges, DojoMembers, DojoModules, Doj
 from ..utils import module_visible, module_challenges_visible, DOJOS_DIR, is_dojo_admin
 from ..utils.dojo import dojo_route
 from .writeups import WriteupComments, writeup_weeks, all_writeups
-from .discord import discord_reputation
 
 
 grades = Blueprint("grades", __name__)

@@ -175,28 +175,6 @@ def discord_avatar_asset(discord_user):
     return f"https://cdn.discordapp.com/avatars/{discord_id}/{discord_avatar}.png"
 
 
-@cache.memoize(timeout=1800)
-def discord_reputation():
-    if not DISCORD_GUILD_ID:
-        return {}
-
-    result = {}
-    offset = 0
-    while True:
-        url = f"https://yagpdb.xyz/api/{DISCORD_GUILD_ID}/reputation/leaderboard"
-        params = {
-            "limit": 100,
-            "offset": offset,
-        }
-        response = requests.get(url, params=params)
-        for row in response.json():
-            result[str(row["user_id"])] = row["points"]
-        if len(response.json()) != 100:
-            break
-        offset += 100
-    return result
-
-
 discord = Blueprint("discord", __name__)
 
 

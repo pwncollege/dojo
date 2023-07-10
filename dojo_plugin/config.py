@@ -3,10 +3,9 @@ import logging
 import ast
 import os
 
+from sqlalchemy.exc import IntegrityError
 from CTFd.models import db, Admins, Pages
-from CTFd.cache import cache
 from CTFd.utils import config, set_config
-from .utils import multiprocess_lock, load_dojo
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -39,11 +38,8 @@ for config_option in missing_warnings:
         warnings.warn(f"Configuration Warning: {config_option} is not set in the environment")
 
 
-@multiprocess_lock
 def bootstrap():
-    from .pages.discord import discord_reputation
-    from .utils import CHALLENGES_DIR, DOJOS_DIR, DATA_DIR, INDEX_HTML
-    from .utils.dojo import load_dojo_dir
+    from .utils import INDEX_HTML
 
     set_config("ctf_name", "pwn.college")
     set_config("ctf_description", "pwn.college")
@@ -64,9 +60,6 @@ def bootstrap():
     set_config("mail_useauth", bool(MAIL_USERNAME))
     set_config("mail_tls", MAIL_PORT == "587")
 
-    cache.delete_memoized(discord_reputation)
-    discord_reputation()
-
     if not config.is_setup():
         admin = Admins(
             name="admin",
@@ -75,11 +68,18 @@ def bootstrap():
             type="admin",
             hidden=True,
         )
-        page = Pages(title=None, route="index", content="", draft=False)
+        try:
+            db.session.add(admin)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
 
-        db.session.add(admin)
-        db.session.add(page)
-        db.session.commit()
+        page = Pages(title=None, route="index", content="", draft=False)
+        try:
+            db.session.add(page)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
 
         set_config("setup", True)
 
