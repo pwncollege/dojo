@@ -16,7 +16,6 @@ case "$ACTION" in
         git pull
         cp -ru /opt/pwn.college/ctfd/* /opt/CTFd/
         dojo compose up -d --build
-        dojo compose logs
         ;;
 
     # HELP: enter USER_ID: enter a user's running container. Can change users via USER env var.
