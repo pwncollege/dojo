@@ -22,7 +22,7 @@ case "$ACTION" in
     "enter")
         CONTAINER="user_$1"
         shift
-        if [ -n "$USER" ]; then
+        if [ -z "$USER" ]; then
             docker exec -it "$CONTAINER" bash
         else
             docker exec -it --user="$USER" "$CONTAINER" bash
