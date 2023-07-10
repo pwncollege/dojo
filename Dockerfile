@@ -49,8 +49,6 @@ RUN ln -s /etc/systemd/system/pwn.college.service /etc/systemd/system/multi-user
 RUN ln -s /etc/systemd/system/pwn.college.logging.service /etc/systemd/system/multi-user.target.wants/pwn.college.logging.service
 RUN ln -s /etc/systemd/system/pwn.college.backup.timer /etc/systemd/system/timers.target.wants/pwn.college.backup.timer
 
-ADD ctfd /opt/CTFd
-
 RUN find /opt/pwn.college/script -type f -exec ln -s {} /usr/bin/ \;
 
 EXPOSE 22
