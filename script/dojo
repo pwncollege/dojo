@@ -14,8 +14,9 @@ case "$ACTION" in
     # HELP: update: update dojo files (warning: does `git pull`) and rebuild containers
     "update")
         git pull
-        dojo compose build
-        dojo compose up -d
+        cp -ru /opt/pwn.college/ctfd/* /opt/CTFd/
+        dojo compose up -d --build
+        dojo compose logs
         ;;
 
     # HELP: enter USER_ID: enter a user's running container. Can change users via USER env var.
@@ -62,13 +63,6 @@ case "$ACTION" in
     # HELP: logs: display dojo logs
     "logs")
         journalctl -u pwn.college -f
-        ;;
-
-    # HELP: restart: restarts just the ctfd container
-    "restart")
-        for cmd in 'build ctfd' 'kill ctfd' 'rm -f ctfd' 'up -d ctfd' 'logs -f ctfd'; do
-            docker compose --env-file=/opt/pwn.college/data/config.env $cmd;
-        done
         ;;
 
     # HELP: start: start the dojo. Main entry point for the docker image.
