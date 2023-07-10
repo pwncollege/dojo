@@ -11,11 +11,18 @@ else
 fi
 
 case "$ACTION" in
-    # HELP: update: update dojo files (warning: does `git pull`) and rebuild containers
+    # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
     "update")
         git pull
-        cp -ru /opt/pwn.college/ctfd/* /opt/CTFd/
+        dojo sync
         dojo compose up -d --build
+        ;;
+
+    # HELP: sync: sync changed dojo files
+    "sync")
+        cp -ruv ctfd/* /opt/CTFd/
+        cp -ruv dojo_plugin /opt/CTFd/CTFd/plugins/
+        cp -ruv dojo_theme /opt/CTFd/CTFd/themes/
         ;;
 
     # HELP: enter USER_ID: enter a user's running container. Can change users via USER env var.
@@ -66,6 +73,7 @@ case "$ACTION" in
 
     # HELP: start: start the dojo. Main entry point for the docker image.
     "start")
+        dojo sync
         echo "[+] Setting up container runtime environment."
         container-setup.sh
         echo "[+] Starting systemd. If this is the first start, the challenge container"
