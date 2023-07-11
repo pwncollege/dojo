@@ -289,6 +289,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && xargs apt-get install -yqq <<EOF
         arping
         binutils
+        binutils-aarch64-linux-gnu
         binwalk
         bsdmainutils
         bsdutils
