@@ -43,37 +43,6 @@ def get_stats(dojo):
     }
 
 
-@dojo.route("/private-<int:id>/")
-@dojo.route("/private-<int:id>/<path:old>")
-def old_private_dojo_deprecate(id, old=None):
-    # TODO: delete this in June 2023, or if no dojos still have a `deprecated_id`
-
-    for dojo in Dojos.viewable(user=get_current_user()):
-        if dojo.deprecated_id == id:
-            url = f"https://dojo.pwn.college/{ dojo.reference_id }/"
-            break
-    else:
-        abort(404)
-
-    deprecated = f"""
-    <div class="jumbotron">
-        <div class="container">
-            <h1>Deprecated</h1>
-        </div>
-    </div>
-
-    <div class="container">
-        <p>
-            We no longer support <code>/private-ID/</code> dojo routes.
-            <br>
-            Do not worry though, everything you're trying to access still exists, it just has moved!
-            <br>
-            You can now access this dojo through: <a href="{url}">{url}</a>
-        </p>
-    </div>
-    """
-    return render_template("base.html", content=deprecated)
-
 @dojo.route("/<dojo>/")
 @dojo_route
 @check_challenge_visibility

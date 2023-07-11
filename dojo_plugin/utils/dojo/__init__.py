@@ -45,7 +45,6 @@ DOJO_SPEC = Schema({
     Optional("password"): Regex(r"^[\S ]{8,128}$"),
 
     Optional("type"): ID_REGEX,
-    Optional("deprecated_id"): int,  # TODO: remove
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -122,7 +121,7 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
 
     dojo_kwargs = {
         field: dojo_data.get(field, getattr(import_dojo, field, None))
-        for field in ["id", "name", "description", "password", "type", "deprecated_id"]  # TODO: remove deprecated_id
+        for field in ["id", "name", "description", "password", "type"]
     }
 
     if dojo is None:
