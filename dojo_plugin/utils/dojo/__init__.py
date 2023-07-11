@@ -45,6 +45,9 @@ DOJO_SPEC = Schema({
     Optional("password"): Regex(r"^[\S ]{8,128}$"),
 
     Optional("type"): ID_REGEX,
+    Optional("award"): {
+        Optional("emoji"): Regex(r"^\S$"),
+    },
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -121,7 +124,7 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
 
     dojo_kwargs = {
         field: dojo_data.get(field, getattr(import_dojo, field, None))
-        for field in ["id", "name", "description", "password", "type"]
+        for field in ["id", "name", "description", "password", "type", "award"]
     }
 
     if dojo is None:

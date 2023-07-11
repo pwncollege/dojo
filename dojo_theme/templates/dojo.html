@@ -39,6 +39,12 @@
 
   <br>
 
+  {% if dojo.award and dojo.award.get("emoji") %}
+  <h2 class="row">Award: <b>{{ dojo.award["emoji"] }}</b></h2>
+  <br>
+  {% endif %}
+
+
   <h2 class="row">Stats</h2>
   <br>
   <div class="row">
