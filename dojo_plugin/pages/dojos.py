@@ -63,27 +63,29 @@ def view_dojo(dojo):
     return redirect(url_for("pwncollege_dojo.listing", dojo=dojo.reference_id))
 
 
+@dojos.route("/dojo/<dojo>/join")
 @dojos.route("/dojo/<dojo>/join/")
 @dojos.route("/dojo/<dojo>/join/<password>")
 @authed_only
 def join_dojo(dojo, password=None):
-    # TODO SECURITY: Yes I know this is CSRF-able; no don't do it
-
     dojo = Dojos.from_id(dojo).first()
     if not dojo:
-        return {"success": False, "error": "Not Found"}, 404
+        abort(404)
 
-    if (dojo.password and dojo.password != password) or dojo.official:
-        return {"success": False, "error": "Forbidden"}, 403
+    if dojo.official:
+        return redirect(url_for("pwncollege_dojo.listing", dojo=dojo.reference_id))
+
+    if dojo.password and dojo.password != password:
+        abort(403)
 
     try:
         member = DojoMembers(dojo=dojo, user=get_current_user())
         db.session.add(member)
         db.session.commit()
     except IntegrityError:
-        pass
+        db.session.rollback()
 
-    return {"success": True}
+    return redirect(url_for("pwncollege_dojo.listing", dojo=dojo.reference_id))
 
 
 @dojos.route("/dojo/<dojo>/update/", methods=["GET", "POST"])
