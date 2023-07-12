@@ -18,6 +18,7 @@ from sqlalchemy.orm import synonym
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.session import object_session
 from sqlalchemy.sql import or_, and_
+from sqlalchemy.sql.functions import coalesce
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy.ext.associationproxy import association_proxy
 from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, Users
@@ -424,11 +425,11 @@ class DojoChallenges(db.Model):
             .join(DojoChallenges, and_(
                 DojoChallenges.challenge_id==Solves.challenge_id,
                 ))
-            .join(DojoUsers, and_(
+            .outerjoin(DojoUsers, and_(
                 DojoUsers.user_id == Solves.user_id,
                 DojoUsers.dojo_id == DojoChallenges.dojo_id,
                 DojoUsers.type != "admin" if ignore_admins else True,
-                ), isouter=True)
+                ))
             .join(Dojos, and_(
                 Dojos.dojo_id == DojoChallenges.dojo_id,
                 or_(Dojos.official, DojoUsers.user_id != None),
@@ -436,7 +437,16 @@ class DojoChallenges(db.Model):
         )
 
         if not ignore_visibility:
-            result = result.filter(DojoChallenges.visible(Solves.date))
+            result = (
+                result.outerjoin(DojoChallengeVisibilities, and_(
+                    DojoChallengeVisibilities.dojo_id == DojoChallenges.dojo_id,
+                    DojoChallengeVisibilities.module_index == DojoChallenges.module_index,
+                    DojoChallengeVisibilities.challenge_index == DojoChallenges.challenge_index
+                    ))
+                .filter(
+                    Solves.date >= coalesce(DojoChallengeVisibilities.start, Solves.date),
+                    Solves.date <= coalesce(DojoChallengeVisibilities.stop, Solves.date)
+                ))
 
         if user:
             result = result.filter(Solves.user == user)
