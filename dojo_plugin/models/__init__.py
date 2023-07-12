@@ -18,7 +18,6 @@ from sqlalchemy.orm import synonym
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.session import object_session
 from sqlalchemy.sql import or_, and_
-from sqlalchemy.sql.functions import coalesce
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy.ext.associationproxy import association_proxy
 from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, Users
@@ -444,8 +443,8 @@ class DojoChallenges(db.Model):
                     DojoChallengeVisibilities.challenge_index == DojoChallenges.challenge_index
                     ))
                 .filter(
-                    Solves.date >= coalesce(DojoChallengeVisibilities.start, Solves.date),
-                    Solves.date <= coalesce(DojoChallengeVisibilities.stop, Solves.date)
+                    or_(DojoChallengeVisibilities.start == None, Solves.date >= DojoChallengeVisibilities.start),
+                    or_(DojoChallengeVisibilities.stop == None, Solves.date <= DojoChallengeVisibilities.stop),
                 ))
 
         if user:
