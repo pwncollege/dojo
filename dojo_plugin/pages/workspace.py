@@ -13,7 +13,7 @@ workspace = Blueprint("pwncollege_workspace", __name__)
 @authed_only
 def view_workspace():
     active = bool(get_current_dojo_challenge())
-    return render_template("workspace.html", active=active)
+    return render_template("iframe.html", iframe_src="/workspace/", active=active)
 
 
 @workspace.route("/workspace/")

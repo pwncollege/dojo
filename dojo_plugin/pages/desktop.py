@@ -49,11 +49,8 @@ def view_desktop(user_id=None):
     active = bool(password) if get_current_dojo_challenge(user) is not None else None
     view_only = int(user_id != current_user.id)
 
-    return render_template("desktop.html",
-                           active=active,
-                           password=password,
-                           user_id=user_id,
-                           view_only=view_only)
+    iframe_src = f"/desktop/{user_id}/vnc.html?autoconnect=1&reconnect=1&path=/desktop/{user_id}/websockify&resize=remote&reconnect_delay=10&view_only={view_only}&password={password}"
+    return render_template("iframe.html", iframe_src=iframe_src, active=active)
 
 
 @desktop.route("/desktop/<int:user_id>/")

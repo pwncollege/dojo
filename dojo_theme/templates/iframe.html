@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block stylesheets %}
+{{ super() }}
 <style>
   html, body {
       margin: 0;
@@ -18,13 +19,13 @@
       flex: auto;
       margin-bottom: 0px;
   }
-  #workspace {
+  iframe {
       height: 100%;
       width: 100%;
       overflow: hidden;
       border: none;
   }
-  #noactive {
+  .inactive {
       height: 50%;
       display: flex;
       flex-direction: column;
@@ -36,8 +37,8 @@
 
 {% block content %}
 {% if active %}
-<iframe id="workspace" src="/workspace/"></iframe>
+<iframe src="{{ iframe_src }}"></iframe>
 {% else %}
-<h1 id="noactive">No active challenge session; start a challenge!<h1>
+<h1 class="inactive">No active challenge session; start a challenge!<h1>
 {% endif %}
 {% endblock %}
