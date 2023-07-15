@@ -1,5 +1,8 @@
 location /internal/ {
     internal;
+
+    deny unix:;
+
     set $redirect_uri "$upstream_http_redirect_uri";
 
     proxy_buffering off; # For performance
