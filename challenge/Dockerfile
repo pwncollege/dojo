@@ -301,6 +301,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         ethtool
         exiftool
         expect
+        fish
         findutils
         firefox
         gdb
