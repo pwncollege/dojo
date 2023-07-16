@@ -1,11 +1,10 @@
 location /internal/ {
     internal;
 
-    deny unix:;
-
     set $redirect_uri "$upstream_http_redirect_uri";
 
     proxy_buffering off; # For performance
     proxy_http_version 1.1;
     proxy_pass $redirect_uri; # Use URI determined by back end
+    proxy_ignore_headers X-Accel-Redirect;
 }
