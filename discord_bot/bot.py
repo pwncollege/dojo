@@ -3,8 +3,11 @@ import os
 import datetime
 import sys
 import collections
+from enum import Enum
 
 import discord
+import pandas as pd
+from sqlalchemy import create_engine
 
 
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
@@ -242,6 +245,70 @@ async def help(interaction: discord.Interaction):
     ephemeral_url_view.add_item(discord.ui.Button(label="Private Help Thread", style=discord.ButtonStyle.url, url=thread.jump_url))
 
     await interaction.response.send_message(view=ephemeral_url_view, ephemeral=True)
+
+
+@client.tree.command()
+async def check_belts(interaction: discord.Interaction):
+    await interaction.response.defer();
+
+    class Belt(Enum):
+        ORANGE = 0
+        YELLOW = 1
+        BLUE   = 2
+
+    engine = create_engine('mariadb+pymysql://ctfd:ctfd@db/ctfd?charset=utf8mb4')
+
+    async def check_belts(interaction: discord.Interaction, rank: Belt):
+        roles = [next(role for role in interaction.guild.roles if role.name == "Orange Belt"),
+                 next(role for role in interaction.guild.roles if role.name == "Yellow Belt"),
+                 next(role for role in interaction.guild.roles if role.name == "Blue Belt")]
+
+        courses = [62725971,    # CSE 365 - Spring 2023
+                   -2037203363, # CSE 466 - Fall 2022
+                   -695929874  # CSE 494 - Spring 2023
+                   ]
+
+        completion_cnts = [167, # CSE 365 - Spring 2023
+                           358, # CSE 466 - Fall 2022
+                           160  # CSE 494 - Spring 2023
+                        ]
+
+        role = roles[rank.value]
+        course = courses[rank.value]
+        completion = completion_cnts[rank.value]
+
+        # TODO: Hardcoded Challenge Max
+        belted = pd.read_sql(f'''
+                SELECT u.name, dis.discord_id, count(s.challenge_id)
+                    FROM dojo_challenges as d
+                        JOIN solves as s
+                            ON d.challenge_id=s.challenge_id
+                        JOIN users as u
+                            ON u.id=s.user_id
+                        JOIN discord_users as dis
+                            ON u.id=dis.user_id
+                    WHERE d.dojo_id={course}
+                    GROUP BY u.name
+                        HAVING count(s.challenge_id)={completion};
+                      ''', engine)
+
+        new_belt_cnt = 0
+        for _, row in belted.iterrows():
+            try:
+                member = await interaction.guild.fetch_member(row['discord_id'])
+            except:
+                continue
+            if role not in member.roles:
+                await interaction.followup.send(f"{role.name}: {member.display_name}", ephemeral=True)
+                new_belt_cnt += 1
+                # TODO: uncomment to rock and roll
+                #await member.add_roles(role)
+        if not new_belt_cnt:
+            await interaction.followup.send(f"no new {role.name} members", ephemeral=True)
+
+    await check_belts(interaction, Belt.ORANGE)
+    await check_belts(interaction, Belt.YELLOW)
+    await check_belts(interaction, Belt.BLUE)
 
 
 client.run(DISCORD_BOT_TOKEN)
