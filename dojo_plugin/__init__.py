@@ -20,6 +20,7 @@ from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
 from .pages.desktop import desktop
+from .pages.sensai import sensai
 from .pages.users import users
 from .pages.settings import settings_override
 from .pages.discord import discord, maybe_award_belt
@@ -121,6 +122,7 @@ def load(app):
     app.register_blueprint(dojo)
     app.register_blueprint(workspace)
     app.register_blueprint(desktop)
+    app.register_blueprint(sensai)
     app.register_blueprint(discord)
     app.register_blueprint(users)
     app.register_blueprint(grades)
