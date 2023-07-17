@@ -3,7 +3,7 @@ location /internal/ {
     set $redirect_uri "$upstream_http_redirect_uri";
 
     set $authorization "$http_authorization";
-    if ("$upstream_http_authorization") {
+    if ("$upstream_http_authorization" != "") {
         set $authorization "$upstream_http_authorization";
     }
 
