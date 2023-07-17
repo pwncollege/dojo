@@ -24,4 +24,4 @@ def view_sensai():
 def forward_sensai(path=""):
     user = get_current_user()
     path = quote(request.full_path.lstrip("/"), safe="/?=&")
-    return redirect_internal(f"http://sensai/{path}", authorization=f"User {user.id}")
+    return redirect_internal(f"http://sensai/{path}", auth=f"User {user.id}")

@@ -140,11 +140,11 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     user_flag = serializer.dumps(data)[::-1]
     return user_flag
 
-def redirect_internal(redirect_uri, authorization=None):
+def redirect_internal(redirect_uri, auth=None):
     response = Response()
-    if authorization:
+    if auth:
         response.headers["X-Accel-Redirect"] = "/internal-auth/"
-        response.headers["authorization"] = authorization
+        response.headers["redirect_auth"] = auth
     else:
         response.headers["X-Accel-Redirect"] = "/internal/"
     response.headers["redirect_uri"] = redirect_uri
