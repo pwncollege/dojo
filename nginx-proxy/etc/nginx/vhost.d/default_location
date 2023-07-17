@@ -1,10 +1,13 @@
 location /internal/ {
     internal;
-
     set $redirect_uri "$upstream_http_redirect_uri";
+    set $authorization "$upstream_http_authorization";
 
     proxy_buffering off;
     proxy_http_version 1.1;
+    if ($authorization) {
+        proxy_set_header Authorization $authorization;
+    }
     proxy_pass $redirect_uri;
 
     proxy_ignore_headers X-Accel-Redirect;
