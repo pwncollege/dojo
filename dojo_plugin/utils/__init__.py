@@ -146,8 +146,6 @@ def redirect_internal(redirect_uri, authorization=None):
     response.headers["redirect_uri"] = redirect_uri
     if authorization:
         response.headers["Authorization"] = authorization
-    elif "Authorization" in response.headers:
-        del response.headers["Authorization"]
     return response
 
 def redirect_user_socket(user, socket_path, url_path):
