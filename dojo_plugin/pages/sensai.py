@@ -12,7 +12,6 @@ sensai = Blueprint("pwncollege_sensai", __name__)
 
 
 @sensai.route("/sensai")
-@admins_only
 @authed_only
 def view_sensai():
     active = bool(get_current_dojo_challenge())
@@ -22,7 +21,6 @@ def view_sensai():
 @sensai.route("/sensai/", methods=["GET", "POST"])
 @sensai.route("/sensai/<path:path>", methods=["GET", "POST"])
 @admins_only
-@authed_only
 def forward_sensai(path=""):
     user = get_current_user()
     path = quote(request.full_path.lstrip("/"), safe="/?=&")
