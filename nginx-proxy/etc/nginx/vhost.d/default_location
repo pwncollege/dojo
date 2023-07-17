@@ -8,3 +8,16 @@ location /internal/ {
 
     proxy_ignore_headers X-Accel-Redirect;
 }
+
+location /internal-auth/ {
+    internal;
+    set $redirect_uri "$upstream_http_redirect_uri";
+    set $authorization = "$upstream_http_authorization";
+
+    proxy_buffering off;
+    proxy_http_version 1.1;
+    proxy_set_header Authorization $authorization;
+    proxy_pass $redirect_uri;
+
+    proxy_ignore_headers X-Accel-Redirect;
+}
