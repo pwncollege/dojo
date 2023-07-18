@@ -120,7 +120,6 @@ services:
       - html:/usr/share/nginx/html
       - dhparam:/etc/nginx/dhparam
       - certs:/etc/nginx/certs:ro
-      - ./nginx-proxy/etc/nginx/conf.d/pwncollege.conf:/etc/nginx/conf.d/pwncollege.conf:ro
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
       - ./nginx-proxy/etc/passwd:/etc/passwd:ro
       - ./data/homes:/var/homes:shared
