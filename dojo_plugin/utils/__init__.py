@@ -143,7 +143,7 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
 def redirect_internal(redirect_uri, auth=None):
     response = Response()
     if auth:
-        response.headers["X-Accel-Redirect"] = "/internal-auth/"
+        response.headers["X-Accel-Redirect"] = "@forward"
         response.headers["redirect_auth"] = auth
     else:
         response.headers["X-Accel-Redirect"] = "/internal/"
