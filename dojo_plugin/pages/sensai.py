@@ -21,7 +21,7 @@ def view_sensai():
 
 @sensai.route("/sensai/", methods=["GET", "POST"])
 @sensai.route("/sensai/<path:path>", methods=["GET", "POST"])
-@admins_only
+@authed_only
 @bypass_csrf_protection
 def forward_sensai(path=""):
     user = get_current_user()
