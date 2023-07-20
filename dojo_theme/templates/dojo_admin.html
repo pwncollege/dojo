@@ -10,6 +10,16 @@
 </div>
 <div class="container">
     <div class="row text-center">
+      <div class="col-lg-auto m-3">
+        <figure>
+          <a class="text-decoration-none" href="#"
+            data-copy="{{ url_for('pwncollege_dojos.join_dojo', dojo=dojo.reference_id, password=dojo.password, _external=True) }}"
+            onclick="copyToClipboard(event)">
+            <i class="fas fa-share fa-3x"></i>
+            <figcaption><b style="font-family: 'Courier New', Courier, monospace" id="tooltip">&nbsp;Share&nbsp;</b></figcaption>
+          </a>
+        </figure>
+      </div>
         <div class="col-lg-auto m-3">
           <figure>
             <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.update_dojo', dojo=dojo.reference_id, update_code=dojo.update_code) }}" target="_blank">
