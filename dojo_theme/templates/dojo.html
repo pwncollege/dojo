@@ -34,6 +34,17 @@
         </a>
       </figure>
     </div>
+
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a class="text-decoration-none" href="#"
+          data-copy="{{ url_for('pwncollege_dojos.join_dojo', dojo=dojo.reference_id, password=dojo.password) }}"
+          onclick="copyToClipboard(event)">
+          <i class="fas fa-share fa-3x"></i>
+          <figcaption><b style="font-family: 'Courier New', Courier, monospace" id="tooltip">Share</b></figcaption>
+        </a>
+      </figure>
+    </div>
     {% endif %}
   </div>
 
@@ -95,4 +106,5 @@
 
 {% block scripts %}
 <script defer onload="loadScoreboard(0, 1);" src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
+<script defer src="{{ url_for('views.themes', path='js/dojo/copy.js') }}"></script>
 {% endblock %}
