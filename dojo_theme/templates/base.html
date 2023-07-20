@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="{{ url_for('views.themes', path='css/core.css') }}">
     <link rel="stylesheet" href="{{ url_for('views.themes', path='css/custom.css') }}">
     {% block stylesheets %}
-    {% endblock %}    
+    {% endblock %}
 
     {{ Plugins.styles }}
     <script type="text/javascript">
@@ -56,6 +56,7 @@
     <script defer src="{{ url_for('views.themes', path='js/pages/main.js') }}"></script>
     {% endblock %}
 
+    <script defer src="{{ url_for('views.themes', path='js/dojo/util.js') }}"></script>
     <script defer src="{{ url_for('views.themes', path='js/dojo/navbar.js') }}"></script>
 
     {% block scripts %}

@@ -37,11 +37,11 @@
 
     <div class="col-lg-auto m-3">
       <figure>
-        <a class="text-decoration-none"
-          href="{{ url_for('pwncollege_dojos.join_dojo', dojo=dojo.reference_id, password=dojo.password) }}"
-          onclick="copyLinkToClipboard(event)" id="linkToCopy">
+        <a class="text-decoration-none" href="#"
+          data-copy="{{ url_for('pwncollege_dojos.join_dojo', dojo=dojo.reference_id, password=dojo.password) }}"
+          onclick="copyToClipboard(event)">
           <i class="fas fa-share fa-3x"></i>
-          <figcaption><b style="font-family: 'Courier New', Courier, monospace">Share</b></figcaption>
+          <figcaption><b style="font-family: 'Courier New', Courier, monospace" id="tooltip">Share</b></figcaption>
         </a>
       </figure>
     </div>
