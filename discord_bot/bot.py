@@ -1,8 +1,8 @@
 import asyncio
-import os
-import datetime
-import sys
 import collections
+import datetime
+import os
+import sys
 from enum import Enum
 
 import discord
@@ -76,7 +76,7 @@ async def on_ready():
                                          if channel.category and channel.category.name.lower() == "logs" and channel.name == "attendance")
     client.voice_state_history = collections.defaultdict(list)
     run_daily(daily_attendance, "17:20:00-07:00")
-
+    run_daily(check_belts, "18:00:00-07:00")
 
 @client.event
 async def on_voice_state_update(member, before, after):
@@ -247,9 +247,9 @@ async def help(interaction: discord.Interaction):
     await interaction.response.send_message(view=ephemeral_url_view, ephemeral=True)
 
 
-@client.tree.command()
-async def check_belts(interaction: discord.Interaction):
-    await interaction.response.defer();
+async def check_belts():
+    now = datetime.datetime.now()
+    print(f"Checking belts @ {now}")
 
     class Belt(Enum):
         ORANGE = 0
@@ -258,18 +258,18 @@ async def check_belts(interaction: discord.Interaction):
 
     engine = create_engine('mariadb+pymysql://ctfd:ctfd@db/ctfd?charset=utf8mb4')
 
-    async def check_belts(interaction: discord.Interaction, rank: Belt):
-        roles = [next(role for role in interaction.guild.roles if role.name == "Orange Belt"),
-                 next(role for role in interaction.guild.roles if role.name == "Yellow Belt"),
-                 next(role for role in interaction.guild.roles if role.name == "Blue Belt")]
+    async def check_belts(rank: Belt):
+        roles = [next(role for role in client.guild.roles if role.name == "Orange Belt"),
+                 next(role for role in client.guild.roles if role.name == "Yellow Belt"),
+                 next(role for role in client.guild.roles if role.name == "Blue Belt")]
 
         courses = [62725971,    # CSE 365 - Spring 2023
                    -2037203363, # CSE 466 - Fall 2022
-                   -695929874  # CSE 494 - Spring 2023
+                   -695929874   # CSE 494 - Spring 2023
                    ]
 
         completion_cnts = [167, # CSE 365 - Spring 2023
-                           358, # CSE 466 - Fall 2022
+                           355, # CSE 466 - Fall 2022
                            160  # CSE 494 - Spring 2023
                         ]
 
@@ -295,20 +295,17 @@ async def check_belts(interaction: discord.Interaction):
         new_belt_cnt = 0
         for _, row in belted.iterrows():
             try:
-                member = await interaction.guild.fetch_member(row['discord_id'])
+                member = await client.guild.fetch_member(row['discord_id'])
             except:
                 continue
             if role not in member.roles:
-                await interaction.followup.send(f"{role.name}: {member.display_name}", ephemeral=True)
+                now = datetime.datetime.now()
+                print(f"Awarding {role.name} to {member.display_name} @ {now}")
                 new_belt_cnt += 1
-                # TODO: uncomment to rock and roll
-                #await member.add_roles(role)
-        if not new_belt_cnt:
-            await interaction.followup.send(f"no new {role.name} members", ephemeral=True)
+                await member.add_roles(role)
 
-    await check_belts(interaction, Belt.ORANGE)
-    await check_belts(interaction, Belt.YELLOW)
-    await check_belts(interaction, Belt.BLUE)
-
+    await check_belts(Belt.ORANGE)
+    await check_belts(Belt.YELLOW)
+    await check_belts(Belt.BLUE)
 
 client.run(DISCORD_BOT_TOKEN)
