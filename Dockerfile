@@ -13,34 +13,21 @@ RUN apt-get update && \
         iproute2 \
         iputils-ping \
         host \
-        htop \
-        python-is-python3 \
-        python3-dev \
-        python3-pip \
-        openssh-server
+        htop
 
 RUN curl -fsSL https://get.docker.com | /bin/sh
 RUN echo '{ "data-root": "/opt/pwn.college/data/docker" }' > /etc/docker/daemon.json
-
-RUN pip install \
-    docker \
-    pytest
 
 # TODO: this can be removed with docker-v22 (buildx will be default)
 RUN docker buildx install
 
 RUN git clone --branch 3.4.0 https://github.com/CTFd/CTFd /opt/CTFd
 
-RUN useradd -m hacker
-RUN usermod -aG docker hacker
-RUN mkdir -p /home/hacker/.docker
-RUN echo '{ "detachKeys": "ctrl-q,ctrl-q" }' > /home/hacker/.docker/config.json
 RUN wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
 
 RUN mkdir -p /opt/pwn.college
 ADD . /opt/pwn.college
 
-RUN ln -sf /opt/pwn.college/etc/ssh/sshd_config /etc/ssh/sshd_config
 RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.service /etc/systemd/system/pwn.college.service
 RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.logging.service /etc/systemd/system/pwn.college.logging.service
 RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.backup.service /etc/systemd/system/pwn.college.backup.service

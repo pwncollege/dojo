@@ -96,6 +96,16 @@ services:
     volumes:
       - ./data/redis:/data
 
+  sshd:
+    container_name: sshd
+    build:
+      context: ./sshd
+    volumes:
+      - ./data/ssh_host_keys:/etc/ssh:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "22:22"
+
   discord-bot:
     container_name: discord_bot
     build: discord_bot
