@@ -42,7 +42,7 @@ if [ ! -f $DOJO_DIR/data/homes/homefs ]; then
     mount $DOJO_DIR/data/homes/homefs -o X-mount.mkdir $DOJO_DIR/data/homes/homefs_mount
     rm -rf $DOJO_DIR/data/homes/homefs_mount/lost+found/
     cp -a /etc/skel/. $DOJO_DIR/data/homes/homefs_mount
-    chown -R hacker:hacker $DOJO_DIR/data/homes/homefs_mount
+    chown -R 1000:1000 $DOJO_DIR/data/homes/homefs_mount
     umount $DOJO_DIR/data/homes/homefs_mount
     rm -rf $DOJO_DIR/data/homes/homefs_mount
 fi
