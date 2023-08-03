@@ -20,9 +20,9 @@ case "$ACTION" in
 
     # HELP: sync: sync changed dojo files
     "sync")
-        cp -ruv ctfd/* /opt/CTFd/
-        cp -ruv dojo_plugin /opt/CTFd/CTFd/plugins/
-        cp -ruv dojo_theme /opt/CTFd/CTFd/themes/
+        cp -rv --preserve=timestamps ctfd/* /opt/CTFd/
+        cp -rv --preserve=timestamps /opt/CTFd/CTFd/plugins/
+        cp -rv --preserve=timestamps /opt/CTFd/CTFd/themes/
         ;;
 
     # HELP: enter USER_ID: enter a user's running container. Can change users via USER env var.
