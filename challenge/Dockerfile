@@ -261,10 +261,6 @@ FROM builder as builder-desktop-reversing-tools
 
 COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
-COPY desktop/ida64.desktop /usr/share/applications/
-
-# IDA Freeware: only permissible for free and open deployments of the dojo!
-COPY desktop/ida.opt /opt/ida/ida.opt
 
 RUN <<EOF
     wget -q -O - https://github.com/angr/angr-management/releases/download/nightly/angr-management-ubuntu-20.04.tar.gz | tar xvz -C /opt
@@ -273,11 +269,23 @@ RUN <<EOF
     unzip /tmp/ghidra.zip -d /tmp
     mv /tmp/ghidra_10.3_PUBLIC /opt/ghidra
     rm /tmp/ghidra.zip
+EOF
 
-    wget -O /tmp/idafree80_linux.run https://out7.hex-rays.com/files/idafree80_linux.run
-    chmod 755 /tmp/idafree80_linux.run
-    /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt
-    rm /tmp/idafree80_linux.run /tmp/installbuilder_installer.log
+# IDA Freeware: only permissible for free and open deployments of the dojo!
+ARG INSTALL_IDA=False
+COPY desktop/ida64.desktop /usr/share/applications/
+COPY desktop/ida.opt /opt/ida/ida.opt
+RUN <<EOF
+    if [ "$INSTALL_IDA" == "True" ]
+    then
+        wget -O /tmp/idafree80_linux.run https://out7.hex-rays.com/files/idafree80_linux.run
+        chmod 755 /tmp/idafree80_linux.run
+        /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt
+        rm /tmp/idafree80_linux.run /tmp/installbuilder_installer.log
+    else
+        rm /usr/share/applications/ida64.desktop
+        rm -rf /opt/ida
+    fi
 EOF
 
 ################################################################################

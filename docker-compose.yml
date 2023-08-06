@@ -5,6 +5,8 @@ services:
     build:
       context: ./challenge
       target: ${DOJO_CHALLENGE}
+      args:
+        - INSTALL_IDA=${INSTALL_IDA}
     platform: linux/amd64
     entrypoint: /bin/true
     networks:
