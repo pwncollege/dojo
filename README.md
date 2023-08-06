@@ -36,7 +36,7 @@ docker build -t pwncollege/dojo .
 Finally, run the infrastructure which will be hosted on domain `my.domain.college` with:
 
 ```sh
-docker run --privileged -d -v /opt/dojo:/opt/pwn.college -p 22:22 -p 80:80 -p 443:443 pwncollege/dojo
+docker run --privileged -d -v /opt/dojo:/opt/pwn.college:shared -p 22:22 -p 80:80 -p 443:443 pwncollege/dojo
 ```
 
 > **Warning**
