@@ -333,6 +333,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         pcaputils
         pcre2-utils
         psutils
+        python3-ipdb
         qemu-system-x86
         rsync
         screen
