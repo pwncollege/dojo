@@ -47,5 +47,5 @@ start-stop-daemon --start \
                   </dev/null \
                   >>/tmp/vnc/socat.log \
                   2>&1
-seq 1 50 | while read; do sleep 0.1; [ -e /tmp/.X11-unix/X42 ] && break; done
+seq 1 50 | while read cnt; do sleep 0.1; [ -e /tmp/.X11-unix/X42 ] && break; done
 DISPLAY=:42 xfce4-session &
