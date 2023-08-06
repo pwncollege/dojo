@@ -367,6 +367,7 @@ FROM builder as builder-pwn.college
 
 RUN mkdir /opt/pwn.college
 COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
+COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
 COPY vm /opt/pwn.college/vm
