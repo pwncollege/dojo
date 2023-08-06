@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1
 
-FROM ubuntu:23.04 as builder
+ARG UBUNTU_VERSION=20.04
+
+FROM ubuntu:${UBUNTU_VERSION} as builder
 
 SHELL ["/bin/bash", "-ceov", "pipefail"]
 
@@ -265,8 +267,9 @@ FROM builder as builder-desktop-reversing-tools
 COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
 
+ARG UBUNTU_VERSION=20.04
 RUN <<EOF
-    wget -q -O - https://github.com/angr/angr-management/releases/download/nightly/angr-management-ubuntu-23.04.tar.gz | tar xvz -C /opt
+    wget -q -O - https://github.com/angr/angr-management/releases/download/nightly/angr-management-ubuntu-${UBUNTU_VERSION}.tar.gz | tar xvz -C /opt
 
     wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.3_build/ghidra_10.3_PUBLIC_20230510.zip
     unzip /tmp/ghidra.zip -d /tmp
@@ -395,7 +398,8 @@ RUN gcc /opt/pwn.college/setuid_interpreter.c -DSUID_PYTHON -o /opt/pwn.college/
 
 ################################################################################
 
-FROM ubuntu:23.04 as challenge-minimal
+ARG UBUNTU_VERSION=20.04
+FROM ubuntu:${UBUNTU_VERSION} as challenge-minimal
 
 SHELL ["/bin/bash", "-ceov", "pipefail"]
 
@@ -408,7 +412,7 @@ COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
 
 RUN <<EOF
-    userdel -f -r ubuntu
+    if id ubuntu; then userdel -f -r ubuntu; fi
     useradd -s /bin/bash -m hacker
     passwd -d hacker
 
@@ -437,7 +441,8 @@ WORKDIR /home/hacker
 
 ################################################################################
 
-FROM ubuntu:23.04 as challenge
+ARG UBUNTU_VERSION=20.04
+FROM ubuntu:${UBUNTU_VERSION} as challenge
 
 SHELL ["/bin/bash", "-ceov", "pipefail"]
 
@@ -469,7 +474,7 @@ RUN cat >> /etc/ssh/ssh_config <<EOF
 EOF
 
 RUN <<EOF
-    userdel -f -r ubuntu
+    if id ubuntu; then userdel -f -r ubuntu; fi
     useradd -s /bin/bash -m hacker
     passwd -d hacker
 

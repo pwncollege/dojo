@@ -7,6 +7,7 @@ services:
       target: ${DOJO_CHALLENGE}
       args:
         - INSTALL_IDA=${INSTALL_IDA}
+        - UBUNTU_VERSION=${UBUNTU_VERSION}
     platform: linux/amd64
     entrypoint: /bin/true
     networks:
