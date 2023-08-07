@@ -1,10 +1,10 @@
-# pwn.college
+# DOJO
 
-Deploy a pwn.college instance!
+Deploy a pwn.college dojo instance!
 
 ## Details
 
-The pwn.college infrastructure is based on [CTFd](https://github.com/CTFd/CTFd).
+The pwn.college dojo infrastructure is based on [CTFd](https://github.com/CTFd/CTFd).
 CTFd provides for a concept of users, challenges, and users solving those challenges by submitting flags.
 From there, this repository provides infrastructure which expands upon these capabilities.
 
