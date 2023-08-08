@@ -59,12 +59,13 @@ case "$ACTION" in
         docker exec $DOCKER_ARGS db mysql -pctfd -Dctfd ctfd "$@"
         ;;
 
-    "backup") # Does a dojo db backup into the `data/backups` directory.
+    # HELP: backup: does a dojo db backup into the `data/backups` directory.
+    "backup")
         mkdir -p data/backups
         docker exec db mysqldump -pctfd --single-transaction --routines --triggers ctfd | gzip > "data/backups/db-$(date -Iseconds).sql.gz"
         ;;
 
-    # HELP: resture PATH: restores a dojo db backup. Path arg is relative to the `data/backups` directory
+    # HELP: restore PATH: restores a dojo db backup. Path arg is relative to the `data/backups` directory
     "restore")
         BACKUP_PATH="data/backups/$1"
         if [ -f "$BACKUP_PATH" ]; then
