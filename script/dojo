@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 cd /opt/pwn.college
 
@@ -9,6 +9,9 @@ then
 else
     ACTION="help"
 fi
+
+DOCKER_ARGS=${DOCKER_ARGS:--i}
+[ -t 0 ] && DOCKER_ARGS="-t $DOCKER_ARGS"
 
 case "$ACTION" in
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
@@ -27,12 +30,17 @@ case "$ACTION" in
 
     # HELP: enter USER_ID: enter a user's running container. Can change users via USER env var.
     "enter")
-        CONTAINER="user_$1"
+        DOJO_UID="$1"
+	[ -n "${DOJO_UID//[0-9]}" ] && DOJO_UID=$(
+	    echo "select id from users where name='$DOJO_UID'" |
+            $0 db -s
+	)
+        CONTAINER="user_$DOJO_UID"
         shift
         if [ -z "$USER" ]; then
-            docker exec -it "$CONTAINER" bash
+            docker exec $DOCKER_ARGS "$CONTAINER" bash
         else
-            docker exec -it --user="$USER" "$CONTAINER" bash
+            docker exec $DOCKER_ARGS --user="$USER" "$CONTAINER" bash
         fi
         ;;
 
@@ -43,12 +51,12 @@ case "$ACTION" in
 
     # HELP: flask: drop into a flask shell in the ctfd container
     "flask")
-        docker exec -it ctfd flask shell "$@"
+        docker exec $DOCKER_ARGS ctfd flask shell "$@"
         ;;
 
     # HELP: db: launch a mysql client session, connected to the ctfd db
     "db")
-        docker exec -it db mysql -pctfd -Dctfd ctfd "$@"
+        docker exec $DOCKER_ARGS db mysql -pctfd -Dctfd ctfd "$@"
         ;;
 
     "backup") # Does a dojo db backup into the `data/backups` directory.
