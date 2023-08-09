@@ -46,12 +46,15 @@ function loadScoreboard(duration, page) {
 
             user.badges.forEach(badge => {
                 if (!badge.url) badge.url = "#";
-                var count = badge.count <= 1 ? "" : `<sub>x${badge.count}</sub>`
-                row.find(".scoreboard-completions").append($(`
-                    <span title="${badge.text}">
-                    <a href="${badge.url}">${badge.emoji}</a>${count}
-                    </span><span> </span>
-                `));
+                if (badge.award.emoji)
+                {
+                    var count = badge.count <= 1 ? "" : `<sub>x${badge.count}</sub>`
+                    row.find(".scoreboard-completions").append($(`
+                        <span title="${badge.text}">
+                        <a href="${badge.url}">${badge.award.emoji}</a>${count}
+                        </span><span> </span>
+                    `));
+                }
             })
 
             if (result.me && user.user_id == result.me.user_id)

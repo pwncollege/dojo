@@ -288,19 +288,20 @@ def dojo_completions():
         .group_by(Solves.user_id, DojoChallenges.dojo_id)
         .order_by("last_solve")
     ).all()
-    all_challenges = (
-        db.session.query(Dojos.id.label("dojo_id"))
-        .join(DojoChallenges, DojoChallenges.dojo_id == Dojos.id)
-        .add_columns(db.func.count(DojoChallenges.challenge_id).label("challenges"))
-        .group_by(Dojos.id)
-    ).all()
+    dojo_data = { d.dojo_id: d for d in (
+        db.session.query(Dojos.dojo_id)
+        .join(DojoChallenges, DojoChallenges.dojo_id == Dojos.dojo_id)
+        .add_columns(db.func.count(DojoChallenges.challenge_id).label("num_challenges"), Dojos.data, Dojos.name)
+        .group_by(Dojos.dojo_id)
+    ) }
 
-    chal_counts = { d.dojo_id: d.challenges for d in all_challenges }
     completions = { }
     for s in all_solves:
-        if s.solves == chal_counts[s.dojo_id]:
+        if s.solves == dojo_data[s.dojo_id].num_challenges:
             completions.setdefault(s.user_id, []).append({
-                "dojo": s.dojo_id, "last_solve": s.last_solve, "first_solve": s.first_solve
+                "dojo_id": s.dojo_id, "dojo_name": dojo_data[s.dojo_id].name,
+                "last_solve": s.last_solve, "first_solve": s.first_solve,
+                "award": dojo_data[s.dojo_id].data.get("award", None),
             })
     return completions
 

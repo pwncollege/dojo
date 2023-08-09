@@ -45,15 +45,24 @@ def belt_asset(color):
 def get_scoreboard_page(dojo, module=None, duration=None, page=1, per_page=20):
     query = dojo_scoreboard_data(dojo, module, duration=duration, fields=[Users.name, Users.email])
     pagination = query.paginate(page=page, per_page=per_page)
+    completions = dojo_completions()
 
     def standing(item):
         if not item:
-            return
+            return None
         result = {key: getattr(item, key) for key in item.keys()}
         result["url"] = url_for("pwncollege_users.view_other", user_id=result["user_id"])
         result["symbol"] = email_symbol_asset(result.pop("email"))
         result["belt"] = belt_asset(None)  # TODO
-        result["badges"] = []  # TODO
+
+        result["badges"] = [ {
+            "award": c["award"],
+            "url": url_for("pwncollege_dojo.listing", dojo=c["dojo_id"]),
+            "count": 1,
+            "dojo": c["dojo_id"],
+            "text": f"""This emoji was earned by completing all challenges in the {c["dojo_name"]} dojo."""
+        } for c in sorted(completions.get(result["user_id"], []), key=lambda cc: cc["last_solve"]) if c["award"] ]
+
         return result
 
     result = {
