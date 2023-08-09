@@ -34,4 +34,4 @@ def redirect_workspace_referers():
     current_path = request.path
 
     if referer_path.startswith("/workspace/") and not current_path.startswith("/workspace/"):
-        return redirect(url_for("pwncollege_workspace.forward_workspace", path=current_path))
+        return redirect(url_for("pwncollege_workspace.forward_workspace", path=current_path.lstrip("/")))
