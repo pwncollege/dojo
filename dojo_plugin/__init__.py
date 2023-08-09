@@ -18,7 +18,7 @@ from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
-from .pages.workspace import workspace
+from .pages.workspace import workspace, redirect_workspace_referers
 from .pages.desktop import desktop
 from .pages.sensai import sensai
 from .pages.users import users
@@ -128,6 +128,8 @@ def load(app):
     app.register_blueprint(grades)
     app.register_blueprint(writeups)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
+
+    app.before_request(redirect_workspace_referers)
 
     register_admin_plugin_menu_bar("Dojos", "/admin/dojos")
     register_admin_plugin_menu_bar("Desktops", "/admin/desktops")

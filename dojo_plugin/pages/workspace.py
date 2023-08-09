@@ -28,7 +28,6 @@ def forward_workspace(path=""):
     return redirect_user_socket(get_current_user(), ".local/share/code-server/workspace.socket", f"/{path}")
 
 
-@workspace.before_request
 def redirect_workspace_referers():
     referer = request.headers.get("Referer", "")
     referer_path = urlparse(referer).path
