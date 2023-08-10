@@ -12,6 +12,10 @@ def get_user_score(username):
     # POSSIBLE BUG HERE - topics and courses dojos might result in doubling
     # but since solves carry over, it should not be an issue
     # Maybe have a proper scoring system where babyarch has more weight than babysuid
+    user = Users.query.filter_by(name=username).first()
+    if not user:
+        return {"error": "user does not exist"}, 400
+
     official_dojos = Dojos.query.filter_by(official=1).all()
     official_challenge_ids = []
     user_score = 0
@@ -23,7 +27,6 @@ def get_user_score(username):
 
         max_score += len(dojo.challenges)
 
-    user = Users.query.filter_by(name=username).first()
     for solve in user.solves:
         if solve.challenge_id in official_challenge_ids:
             user_score += 1
