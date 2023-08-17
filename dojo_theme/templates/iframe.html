@@ -42,3 +42,9 @@
 <h1 class="inactive">No active challenge session; start a challenge!<h1>
 {% endif %}
 {% endblock %}
+
+{% if active %}
+{% block scripts %}
+<script defer src="{{ url_for('views.themes', path='js/dojo/iframeRedirects.js') }}"></script>
+{% endblock %}
+{% endif %}
