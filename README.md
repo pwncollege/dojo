@@ -75,3 +75,11 @@ _All_ dojo data will be stored in the `./data` directory.
 
 Once logged in, you can add a dojo by visiting `/dojos/create`. Dojos are contained within git repositories. 
 Refer to [the example dojo](https://github.com/pwncollege/example-dojo) for more information.
+
+## Contributing
+
+We love Pull Requests! 🌟
+Have a small update?
+Send a PR so everyone can benefit.
+For more substantial changes, open an issue to ensure we're on the same page.
+Together, we make this project better for all! 🚀
