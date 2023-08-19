@@ -48,7 +48,7 @@ docker run --privileged -d -v /opt/dojo:/opt/pwn.college:shared -p 22:22 -p 80:8
 > This can be accomplished by replacing the bind mount with a docker volume for `data/docker`, which will use a native Linux mount. 
 > You can apply this solution using the following Docker command (notice the additional `-v`):
 > ```
-> docker run --privileged -d -v /opt/dojo:/opt/pwn.college -v dojo-data-docker:/opt/pwn.college/data/docker -p 22:22 -p 80:80 -p 443:443 pwncollege/dojo
+> docker run --privileged -d -v /opt/dojo:/opt/pwn.college -v dojo-data-docker:/opt/pwn.college/data/docker -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
 > ```
 
 This will run the initial setup, including building the challenge docker image.
@@ -63,7 +63,7 @@ It will take some time to initialize everything and build the challenge docker i
 You can check on your container (and the progress of the initial build) with:
 
 ```sh
-docker exec YOUR_CONTAINER_NAME dojo logs
+docker exec dojo dojo logs
 ```
 
 Once things are setup, you should be able to access the dojo and login with username `admin` and password `admin`.
