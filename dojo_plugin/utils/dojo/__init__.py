@@ -211,11 +211,11 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             for challenge in missing_challenge_paths)
 
     if dojo.official:
-        # TODO: make grading official
-        grading_yml_path = dojo_dir / "grading.yml"
-        if grading_yml_path.exists():
-            grading = yaml.safe_load(grading_yml_path.read_text())
-            dojo.grading = grading
+        # TODO: make course official
+        course_yml_path = dojo_dir / "course.yml"
+        if course_yml_path.exists():
+            course = yaml.safe_load(course_yml_path.read_text())
+            dojo.course = course
 
     return dojo
 

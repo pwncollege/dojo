@@ -15,7 +15,7 @@
   {% endif %}
 
   <div class="row text-center">
-    {% if dojo.grading and user %}
+    {% if dojo.course and user %}
     <div class="col-lg-auto m-3">
       <figure>
         <a class="text-decoration-none" href="{{ url_for('course.view_course', dojo=dojo.reference_id) }}">
