@@ -194,8 +194,8 @@ def grade(dojo, users_query):
         if module_id is not None:
             module_solves[module_id] = (
                 int(checkpoint_solves) if checkpoint_solves is not None else 0,
-                int(due_solves) if checkpoint_solves is not None else 0,
-                int(all_solves) if checkpoint_solves is not None else 0,
+                int(due_solves) if due_solves is not None else 0,
+                int(all_solves) if all_solves is not None else 0,
             )
     if user_id:
         yield result(user_id)
