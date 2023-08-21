@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>Course</h1>
+  </div>
+</div>
+<div class="container">
+  <div class="row">
+    <div class="col-md-2 offset-md-1">
+      <div class="nav flex-column nav-pills" role="tablist">
+        <a class="nav-link active" id="course-grades-tab" data-toggle="pill" href="#grades" role="tab">Grades</a>
+        <a class="nav-link" id="course-identity-tab" data-toggle="pill" href="#identity" role="tab">Identity</a>
+      </div>
+    </div>
+    <div class="col-md-8">
+      <div class="tab-content" id="v-pills-tabContent">
+        <div class="tab-pane fade show active" id="grades" role="tabpanel">
+          <h3>{{ name }} current overall grade in the class: <code style="font-size: 2em">{{ letter_grade }}</code> ({{ "%.2f%%" | format(100 * overall_grade) }})</h3>
+          <br>
+          <div id="grades" class="row">
+            <div class="col-md-12">
+              <table class="table table-striped">
+                <thead>
+                  <tr>
+                    <td scope="col"><b>Name</b></td>
+                    <td scope="col"><b>Date</b></td>
+                    <td scope="col"><b>Weight</b></td>
+                    <td scope="col"><b>Progress</b></td>
+                    <td scope="col"><b>Credit</b></td>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for grade in grades %}
+                  {% if grade.credit is boolean %}
+                    {% set credit = "✓" if grade.credit else "✕" %}
+                  {% elif grade.credit is number %}
+                    {% set credit = "%.2f%%" | format(100 * grade.credit) %}
+                  {% endif %}
+                  <tr>
+                    <td>{{ grade.name }}</td>
+                    <td>{{ grade.date }}</td>
+                    <td>{{ grade.weight }}</td>
+                    <td>{{ grade.progress }}</td>
+                    <td>{{ credit }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane fade" id="identity" role="tabpanel">
+          <form method="post" id="identity-form" autocomplete="off">
+            <div class="form-group">
+              <b><label for="enter-name">{{ identity_name }}</label></b>
+              <small class="form-text text-muted">This will be shared with the admins of this dojo.</small>
+              <br>
+              <input class="form-control" id="identity" name="identity" type="text" value="{{ identity_value or "" }}">
+            </div>
+
+            <div id="identity-results" class="form-group">
+            </div>
+
+            <div class="form-group text-right">
+              <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Update">
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block entrypoint %}
+<script defer src="{{ url_for('views.themes', path='js/pages/settings.js') }}"></script>
+{% endblock %}
+
+{% block scripts %}
+<script defer src="{{ url_for('views.themes', path='js/dojo/course.js') }}"></script>
+{% endblock %}

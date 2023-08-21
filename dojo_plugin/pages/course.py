@@ -9,20 +9,20 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.cache import cache
 
-from ..models import DiscordUsers, DojoChallenges, DojoMembers, DojoModules, DojoStudents
+from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents
 from ..utils import module_visible, module_challenges_visible, DOJOS_DIR, is_dojo_admin
 from ..utils.dojo import dojo_route
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 
 
-grades = Blueprint("grades", __name__)
+course = Blueprint("course", __name__)
 
 
 def grade(dojo, users_query):
     if isinstance(users_query, Users):
         users_query = Users.query.filter_by(id=users_query.id)
 
-    assessments = dojo.grading["assessments"]
+    assessments = dojo.course["assessments"]
 
     assessment_dates = collections.defaultdict(lambda: collections.defaultdict(dict))
     for assessment in assessments:
@@ -171,7 +171,7 @@ def grade(dojo, users_query):
         )
         overall_grade += extra_credit
 
-        for grade, min_score in dojo.grading["letter_grades"].items():
+        for grade, min_score in dojo.course["letter_grades"].items():
             if overall_grade >= min_score:
                 letter_grade = grade
                 break
@@ -201,11 +201,11 @@ def grade(dojo, users_query):
         yield result(user_id)
 
 
-@grades.route("/dojo/<dojo>/grades")
+@course.route("/dojo/<dojo>/course")
 @dojo_route
 @authed_only
-def view_grades(dojo):
-    if not dojo.grading:
+def view_course(dojo):
+    if not dojo.course:
         abort(404)
 
     if request.args.get("user"):
@@ -219,14 +219,41 @@ def view_grades(dojo):
 
     grades = next(grade(dojo, user))
 
-    return render_template("grades.html", name=name, **grades)
+    student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
+    identity = {}
+    identity["identity_name"] = dojo.course.get("student_id", "Identity")
+    identity["identity_value"] = student.token if student else None
+
+    return render_template("course.html", name=name, **grades, **identity, dojo=dojo)
 
 
-@grades.route("/dojo/<dojo>/admin/grades")
+@course.route("/dojo/<dojo>/course/identity", methods=["PATCH"])
+@dojo_route
+@authed_only
+def update_identity(dojo):
+    user = get_current_user()
+    dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
+
+    if dojo_user and dojo_user.type == "admin":
+        return {"success": False, "error": "Cannot identify admin"}
+
+    identity = request.json.get("identity", None)
+    if not dojo_user:
+        dojo_user = DojoStudents(dojo=dojo, user=user, token=identity)
+        db.session.add(dojo_user)
+    else:
+        dojo_user.type = "student"
+        dojo_user.token = identity
+    db.session.commit()
+
+    return {"success": True}
+
+
+@course.route("/dojo/<dojo>/admin/grades")
 @dojo_route
 @authed_only
 def view_all_grades(dojo):
-    if not dojo.grading:
+    if not dojo.course:
         abort(404)
 
     if not dojo.is_admin():

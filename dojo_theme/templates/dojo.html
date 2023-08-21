@@ -15,12 +15,12 @@
   {% endif %}
 
   <div class="row text-center">
-    {% if dojo.grading and user %}
+    {% if dojo.course and user %}
     <div class="col-lg-auto m-3">
       <figure>
-        <a class="text-decoration-none" href="{{ url_for('grades.view_grades', dojo=dojo.reference_id) }}">
+        <a class="text-decoration-none" href="{{ url_for('course.view_course', dojo=dojo.reference_id) }}">
           <i class="fas fa-graduation-cap fa-3x"></i>
-          <figcaption><b style="font-family: 'Courier New', Courier, monospace">Grades</b></figcaption>
+          <figcaption><b style="font-family: 'Courier New', Courier, monospace">Course</b></figcaption>
         </a>
       </figure>
     </div>
