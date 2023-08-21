@@ -205,9 +205,8 @@ def grade(dojo, users_query):
 @dojo_route
 @authed_only
 def view_course(dojo):
-    # TODO: DEBUG
-    # if not dojo.course:
-    #     abort(404)
+    if not dojo.course:
+        abort(404)
 
     if request.args.get("user"):
         if not dojo.is_admin():
@@ -218,12 +217,11 @@ def view_course(dojo):
         user = get_current_user()
         name = "Your"
 
-    # grades = next(grade(dojo, user))
-    grades = {"overall_grade": 42}
+    grades = next(grade(dojo, user))
 
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
     identity = {}
-    identity["identity_name"] = "Identity" # dojo.course.get("student_id", "Identity")
+    identity["identity_name"] = dojo.course.get("student_id", "Identity")
     identity["identity_value"] = student.token if student else None
 
     return render_template("course.html", name=name, **grades, **identity, dojo=dojo)

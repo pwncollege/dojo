@@ -10,8 +10,8 @@
   <div class="row">
     <div class="col-md-2 offset-md-1">
       <div class="nav flex-column nav-pills" role="tablist">
-        <a class="nav-link active" id="settings-profile-tab" data-toggle="pill" href="#grades" role="tab">Grades</a>
-        <a class="nav-link" id="settings-identity-tab" data-toggle="pill" href="#identity" role="tab">Identity</a>
+        <a class="nav-link active" id="course-grades-tab" data-toggle="pill" href="#grades" role="tab">Grades</a>
+        <a class="nav-link" id="course-identity-tab" data-toggle="pill" href="#identity" role="tab">Identity</a>
       </div>
     </div>
     <div class="col-md-8">
@@ -73,6 +73,10 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block entrypoint %}
+<script defer src="{{ url_for('views.themes', path='js/pages/settings.js') }}"></script>
 {% endblock %}
 
 {% block scripts %}
