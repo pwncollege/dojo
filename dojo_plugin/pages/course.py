@@ -15,7 +15,7 @@ from ..utils.dojo import dojo_route
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 
 
-grades = Blueprint("grades", __name__)
+course = Blueprint("course", __name__)
 
 
 def grade(dojo, users_query):
@@ -201,10 +201,10 @@ def grade(dojo, users_query):
         yield result(user_id)
 
 
-@grades.route("/dojo/<dojo>/grades")
+@course.route("/dojo/<dojo>/course")
 @dojo_route
 @authed_only
-def view_grades(dojo):
+def view_course(dojo):
     if not dojo.grading:
         abort(404)
 
@@ -219,10 +219,10 @@ def view_grades(dojo):
 
     grades = next(grade(dojo, user))
 
-    return render_template("grades.html", name=name, **grades)
+    return render_template("course.html", name=name, **grades)
 
 
-@grades.route("/dojo/<dojo>/admin/grades")
+@course.route("/dojo/<dojo>/admin/grades")
 @dojo_route
 @authed_only
 def view_all_grades(dojo):
