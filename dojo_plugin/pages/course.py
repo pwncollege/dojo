@@ -101,6 +101,7 @@ def grade(dojo, users_query):
                 challenge_count = challenge_counts[module_id]
                 checkpoint_solves, due_solves, all_solves = module_solves.get(module_id, (0, 0, 0))
                 percent_required = assessment.get("percent_required", 0.334)
+                challenge_count_required = int(challenge_count * percent_required)
 
                 date = datetime.datetime.fromisoformat(assessment["date"])
                 extension = assessment.get("extensions", {}).get(user_id, 0)
@@ -110,8 +111,8 @@ def grade(dojo, users_query):
                     name=f"{module_name} Checkpoint",
                     date=str(user_date) + (" *" if extension else ""),
                     weight=assessment["weight"],
-                    progress=f"{checkpoint_solves} / {int(challenge_count * percent_required)}",
-                    credit=bool(checkpoint_solves // (int(challenge_count * percent_required))),
+                    progress=f"{checkpoint_solves} / {challenge_count_required}",
+                    credit=bool(checkpoint_solves // (challenge_count_required)),
                 ))
 
             if type == "due":
@@ -124,6 +125,7 @@ def grade(dojo, users_query):
                 checkpoint_solves, due_solves, all_solves = module_solves.get(module_id, (0, 0, 0))
                 late_solves = all_solves - due_solves
                 percent_required = assessment.get("percent_required", 1.0)
+                challenge_count_required = int(challenge_count * percent_required)
 
                 date = datetime.datetime.fromisoformat(assessment["date"])
                 extension = assessment.get("extensions", {}).get(user_id, 0)
@@ -134,8 +136,8 @@ def grade(dojo, users_query):
                         name=f"{module_name}",
                         date=str(user_date) + (" *" if extension else ""),
                         weight=assessment["weight"],
-                        progress=f"{due_solves} / {challenge_count}",
-                        credit=due_solves / challenge_count,
+                        progress=f"{due_solves} / {challenge_count_required}",
+                        credit=due_solves / challenge_count_required,
                     ))
 
                 else:
@@ -145,8 +147,8 @@ def grade(dojo, users_query):
                         name=f"{module_name}",
                         date=assessment["date"],
                         weight=assessment["weight"],
-                        progress=f"{due_solves} (+{late_solves}) / {int(challenge_count * percent_required)}",
-                        credit=(due_solves + late_value * late_solves) / int(challenge_count * percent_required),
+                        progress=f"{due_solves} (+{late_solves}) / {challenge_count_required}",
+                        credit=(due_solves + late_value * late_solves) / challenge_count_required,
                     ))
 
             if type == "manual":
