@@ -73,6 +73,7 @@ $(() => {
                 tab.classList.remove('active');
             });
             targetTab.classList.add('active');
+            targetTab.classList.add('show');
 
             let activeNavs = document.querySelectorAll('.nav-link.active');
             activeNavs.forEach(nav => {
