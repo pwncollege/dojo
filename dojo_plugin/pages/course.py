@@ -206,9 +206,10 @@ def grade(dojo, users_query):
 
 
 @course.route("/dojo/<dojo>/course")
+@course.route("/dojo/<dojo>/course/<resource>")
 @dojo_route
 @authed_only
-def view_course(dojo):
+def view_course(dojo, resource=None):
     if not dojo.course:
         abort(404)
 
