@@ -10,7 +10,7 @@
   {% include "components/errors.html" %}
 
   {% if dojo.description %}
-  <p>{{ render_markdown(dojo.description) }}</p>
+  <p>{{ dojo.description | markdown }}</p>
   <br>
   {% endif %}
 

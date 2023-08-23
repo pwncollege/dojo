@@ -12,7 +12,7 @@
 <div class="container">
 
   {% if module.description %}
-  <p>{{ render_markdown(module.description) }}</p>
+  <p>{{ module.description | markdown }}</p>
   <br>
   {% endif %}
 
@@ -41,7 +41,7 @@
 
           {% elif resource.type == "markdown" %}
           <div class="embed-responsive">
-            {{ render_markdown(resource.content) }}
+            {{ resource.content | markdown }}
           </div>
           {% endif %}
         {% endif %}
@@ -69,7 +69,7 @@
           <span class="total-solves">{{ total_solves.get(challenge.challenge_id, 0) }} solves</span>
         {% else %}
           <div class="embed-responsive">
-            <p>{{ render_markdown(challenge.description) }}</p>
+            <p>{{ challenge.description | markdown }}</p>
           </div>
           <div class="row">
             <div class="col-sm-6 form-group text-center">
