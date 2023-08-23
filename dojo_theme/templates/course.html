@@ -11,8 +11,10 @@
     <div class="col-md-2 offset-md-1">
       <div class="nav flex-column nav-pills" role="tablist">
         <a class="nav-link active" id="course-syllabus-tab" data-toggle="pill" href="#syllabus" role="tab">Syllabus</a>
-        <a class="nav-link" id="course-grades-tab" data-toggle="pill" href="#grades" role="tab">Grades</a>
-        <a class="nav-link" id="course-identity-tab" data-toggle="pill" href="#identity" role="tab">Identity</a>
+        {% if user %}
+          <a class="nav-link" id="course-grades-tab" data-toggle="pill" href="#grades" role="tab">Grades</a>
+          <a class="nav-link" id="course-identity-tab" data-toggle="pill" href="#identity" role="tab">Identity</a>
+        {% endif %}
       </div>
     </div>
     <div class="col-md-8">
@@ -23,59 +25,61 @@
           {% endif %}
         </div>
 
-        <div class="tab-pane fade show" id="grades" role="tabpanel">
-          <h3>{{ name }} current overall grade in the class: <code style="font-size: 2em">{{ letter_grade }}</code> ({{ "%.2f%%" | format(100 * overall_grade) }})</h3>
-          <br>
-          <div id="grades" class="row">
-            <div class="col-md-12">
-              <table class="table table-striped">
-                <thead>
-                  <tr>
-                    <td scope="col"><b>Name</b></td>
-                    <td scope="col"><b>Date</b></td>
-                    <td scope="col"><b>Weight</b></td>
-                    <td scope="col"><b>Progress</b></td>
-                    <td scope="col"><b>Credit</b></td>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for grade in grades %}
-                  {% if grade.credit is boolean %}
-                    {% set credit = "✓" if grade.credit else "✕" %}
-                  {% elif grade.credit is number %}
-                    {% set credit = "%.2f%%" | format(100 * grade.credit) %}
-                  {% endif %}
-                  <tr>
-                    <td>{{ grade.name }}</td>
-                    <td>{{ grade.date }}</td>
-                    <td>{{ grade.weight }}</td>
-                    <td>{{ grade.progress }}</td>
-                    <td>{{ credit }}</td>
-                  </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+        {% if user %}
+          <div class="tab-pane fade show" id="grades" role="tabpanel">
+            <h3>{{ name }} current overall grade in the class: <code style="font-size: 2em">{{ letter_grade }}</code> ({{ "%.2f%%" | format(100 * overall_grade) }})</h3>
+            <br>
+            <div id="grades" class="row">
+              <div class="col-md-12">
+                <table class="table table-striped">
+                  <thead>
+                    <tr>
+                      <td scope="col"><b>Name</b></td>
+                      <td scope="col"><b>Date</b></td>
+                      <td scope="col"><b>Weight</b></td>
+                      <td scope="col"><b>Progress</b></td>
+                      <td scope="col"><b>Credit</b></td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for grade in grades %}
+                    {% if grade.credit is boolean %}
+                      {% set credit = "✓" if grade.credit else "✕" %}
+                    {% elif grade.credit is number %}
+                      {% set credit = "%.2f%%" | format(100 * grade.credit) %}
+                    {% endif %}
+                    <tr>
+                      <td>{{ grade.name }}</td>
+                      <td>{{ grade.date }}</td>
+                      <td>{{ grade.weight }}</td>
+                      <td>{{ grade.progress }}</td>
+                      <td>{{ credit }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="tab-pane fade" id="identity" role="tabpanel">
-          <form method="post" id="identity-form" autocomplete="off">
-            <div class="form-group">
-              <b><label for="enter-name">{{ identity_name }}</label></b>
-              <small class="form-text text-muted">This will be shared with the admins of this dojo.</small>
-              <br>
-              <input class="form-control" id="identity" name="identity" type="text" value="{{ identity_value or "" }}">
-            </div>
+          <div class="tab-pane fade" id="identity" role="tabpanel">
+            <form method="post" id="identity-form" autocomplete="off">
+              <div class="form-group">
+                <b><label for="enter-name">{{ identity_name }}</label></b>
+                <small class="form-text text-muted">This will be shared with the admins of this dojo.</small>
+                <br>
+                <input class="form-control" id="identity" name="identity" type="text" value="{{ identity_value or "" }}">
+              </div>
 
-            <div id="identity-results" class="form-group">
-            </div>
+              <div id="identity-results" class="form-group">
+              </div>
 
-            <div class="form-group text-right">
-              <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Update">
-            </div>
-          </form>
-        </div>
+              <div class="form-group text-right">
+                <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Update">
+              </div>
+            </form>
+          </div>
+        {% endif %}
       </div>
     </div>
   </div>
