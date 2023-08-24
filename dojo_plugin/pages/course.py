@@ -131,25 +131,17 @@ def grade(dojo, users_query):
                 extension = assessment.get("extensions", {}).get(user_id, 0)
                 user_date = date + datetime.timedelta(days=extension)
 
-                if due_solves == all_solves:
-                    grades.append(dict(
-                        name=f"{module_name}",
-                        date=str(user_date) + (" *" if extension else ""),
-                        weight=assessment["weight"],
-                        progress=f"{due_solves} / {challenge_count_required}",
-                        credit=due_solves / challenge_count_required,
-                    ))
+                late_penalty = assessment.get("late_penalty", 0.0)
+                late_value = 1 - late_penalty
 
-                else:
-                    late_penalty = assessment.get("late_penalty", 0.0)
-                    late_value = 1 - late_penalty
-                    grades.append(dict(
-                        name=f"{module_name}",
-                        date=assessment["date"],
-                        weight=assessment["weight"],
-                        progress=f"{due_solves} (+{late_solves}) / {challenge_count_required}",
-                        credit=(due_solves + late_value * late_solves) / challenge_count_required,
-                    ))
+                grades.append(dict(
+                    name=f"{module_name}",
+                    date=str(user_date) + (" *" if extension else ""),
+                    weight=assessment["weight"],
+                    progress=(f"{due_solves} (+{late_solves}) / {challenge_count_required}"
+                              if late_solves else f"{due_solves} / {challenge_count_required}"),
+                    credit=min((due_solves + late_value * late_solves) / challenge_count_required, 1.0),
+                ))
 
             if type == "manual":
                 grades.append(dict(
