@@ -277,6 +277,15 @@ RUN <<EOF
     popd
 EOF
 
+FROM builder as builder-virtiofsd
+RUN <<EOF
+    mkdir /opt/virtiofsd && cd "$_"
+    wget -q -O ./build.zip "https://gitlab.com/virtio-fs/virtiofsd/-/jobs/artifacts/main/download?job=publish"
+    unzip -p ./build.zip "$(zipinfo -1 ./build.zip | head -n1)" > ./virtiofsd
+    rm -f ./build.zip
+    chmod +x ./virtiofsd
+EOF
+
 ################################################################################
 
 FROM essentials as builder-desktop-base
@@ -510,6 +519,7 @@ COPY --link --from=builder-geckodriver / /
 COPY --link --from=builder-busybox / /
 COPY --link --from=builder-glow / /
 COPY --link --from=builder-desktop-xfce / /
+COPY --link --from=builder-virtiofsd /opt/virtiofsd /opt/virtiofsd
 COPY --link --from=builder-desktop-reversing-tools / /
 COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-gdb / /
