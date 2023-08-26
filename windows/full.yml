@@ -1,0 +1,12 @@
+services:
+  windows:
+    build:
+      context: ./
+      target: ${WINDOWS_VM}
+      args:
+        - UBUNTU_VERSION=${UBUNTU_VERSION}
+    platform: linux/amd64
+    devices:
+      - /dev/kvm
+    volumes:
+      - windows:/app/build
