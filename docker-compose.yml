@@ -153,16 +153,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   windows:
-    build:
-      context: ./windows
-      target: ${WINDOWS_VM}
-      args:
-        - UBUNTU_VERSION=${UBUNTU_VERSION}
-    platform: linux/amd64
-    devices:
-      - /dev/kvm
-    volumes:
-      - windows:/app/build
+    extends:
+      file: ./windows/${WINDOWS_VM}.yml
+      service: windows
 
 volumes:
   conf:

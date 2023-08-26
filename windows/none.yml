@@ -1,0 +1,8 @@
+services:
+  windows:
+    build:
+      context: ./
+      target: none
+      args:
+        - UBUNTU_VERSION=${UBUNTU_VERSION}
+    platform: linux/amd64
