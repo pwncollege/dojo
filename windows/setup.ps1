@@ -47,7 +47,7 @@ Remove-Item C:\winfsp.msi
 # while the server ISO is plugged in, the virtio drivers are in the 2nd CDROM slot, E:
 pnputil.exe /add-driver E:\virtio-win\viofs\2k22\amd64\viofs.inf /install
 # ...but when we boot up later without the server ISO it will be in D:
-sc.exe create VirtioFsSvc binpath="D:\virtio-win\viofs\2k22\amd64\virtiofs.exe" start=auto depend= WinFsp.Launcher/VirtioFsDrv DisplayName="Virtio FS Service"
+sc.exe create VirtioFsSvc binpath="D:\virtio-win\viofs\2k22\amd64\virtiofs.exe" start=auto depend= WinFsp.Launcher DisplayName="Virtio FS Service"
 
 # -- shutdown --
 Stop-Computer -computername localhost -force
