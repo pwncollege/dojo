@@ -14,11 +14,11 @@ WORKDIR /app
 # we create a floppy disk that will hold our Autounattend.xml in the root which will
 #  allow windows install to proceed automatically.
 # We require privileges to create a loop device
-COPY ./Autounattend.xml ./ConfigureRemotingForAnsible.ps1 ./setup.ps1 ./
+COPY ./Autounattend.xml ./ConfigureRemotingForAnsible.ps1 ./setup.ps1 ./startup.ps1 ./
 RUN mkfs.fat -F 12 -C ./floppy.img 1440 \
   && mcopy -i ./floppy.img \
-    ./Autounattend.xml ./ConfigureRemotingForAnsible.ps1 ./setup.ps1 :: \
-  && rm ./Autounattend.xml ./ConfigureRemotingForAnsible.ps1 ./setup.ps1
+    ./Autounattend.xml ./ConfigureRemotingForAnsible.ps1 ./setup.ps1 ./startup.ps1 :: \
+  && rm ./Autounattend.xml ./ConfigureRemotingForAnsible.ps1 ./setup.ps1 ./startup.ps1
 
 VOLUME /app/build
 

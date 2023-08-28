@@ -43,11 +43,14 @@ if (!(Get-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -ErrorAction SilentlyCon
 Invoke-Webrequest 'https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi' -OutFile C:\winfsp.msi
 Start-Process msiexec -ArgumentList "/i C:\winfsp.msi /qn" -Wait
 Remove-Item C:\winfsp.msi
-# this is a bit confusing, but
 # while the server ISO is plugged in, the virtio drivers are in the 2nd CDROM slot, E:
+# ...but when we boot up later without the server ISO it will be in D:
 pnputil.exe /add-driver E:\virtio-win\viofs\2k22\amd64\viofs.inf /install
 # ...but when we boot up later without the server ISO it will be in D:
-sc.exe create VirtioFsSvc binpath="D:\virtio-win\viofs\2k22\amd64\virtiofs.exe" start=auto depend= WinFsp.Launcher DisplayName="Virtio FS Service"
+& "C:\Program Files (x86)\WinFsp\bin\fsreg.bat" virtiofs "D:\virtio-win\viofs\2k22\amd64\virtiofs.exe" "-t %1 -m %2"
+
+Copy-Item A:\startup.ps1 -Destination "C:\Program Files\Common Files\"
+& schtasks /create /tn "MountVirtioFs" /sc onstart /delay 0000:10 /rl highest /ru system /tr "powershell.exe -file 'C:\Program Files\Common Files\startup.ps1'"
 
 # -- shutdown --
 Stop-Computer -computername localhost -force
