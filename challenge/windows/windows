@@ -1,0 +1,281 @@
+#!/opt/pwn.college/python
+
+import os
+import sys
+import socket
+import subprocess
+import time
+import tempfile
+import shutil
+import textwrap
+import grp
+import argparse
+from pathlib import Path
+
+VOLUME_PATH = Path("/run/media/windows")
+STATEFUL_PATH = Path("/run/windows")
+IMAGE_PATH = STATEFUL_PATH / "windows_img.qcow2"
+VM_PIDFILE = STATEFUL_PATH / "vm.pid"
+VM_LOGFILE = STATEFUL_PATH / "vm.log"
+virtfs_sock_path = lambda tag: STATEFUL_PATH / f"virtfs-{tag}.sock"
+virtfs_pidfile_path = lambda tag: STATEFUL_PATH / f"virtfs-{tag}.pid"
+virtfs_log_path = lambda tag: STATEFUL_PATH / f"virtfs-{tag}.log"
+
+
+def error(msg):
+    print(msg, file=sys.stderr)
+    exit(1)
+
+
+def initialize():
+    if not VOLUME_PATH.is_dir():
+        raise AssertionError("Dojo was not configured with WINDOWS_VM=full")
+
+    os.setegid(os.geteuid())
+    try:
+        STATEFUL_PATH.mkdir()
+    except FileExistsError:
+        pass
+
+
+def vm_hostname():
+    with open("/etc/hosts") as f:
+        if "127.0.0.1\tvm" in f.read():
+            return "vm"
+        else:
+            return "127.0.0.1"
+
+
+def is_privileged():
+    groups = set(grp.getgrgid(group).gr_name for group in os.getgroups())
+    return os.getuid() == 0 or "sudo" in groups
+
+
+def execve(argv):
+    os.seteuid(os.getuid())
+    os.setegid(os.getgid())
+    os.execve(argv[0], argv, os.environ)
+
+
+def start_daemon(pidfile, logfile, argv):
+    argv = [
+        "/usr/sbin/start-stop-daemon",
+        "--start",
+        "--pidfile",
+        str(pidfile),
+        "--make-pidfile",
+        "--background",
+        "--no-close",
+        "--quiet",
+        "--oknodo",
+        "--startas",
+        argv[0],
+        "--",
+        *argv[1:],
+    ]
+
+    subprocess.run(
+        argv,
+        stdin=subprocess.DEVNULL,
+        stdout=open(logfile, "a"),
+        stderr=subprocess.STDOUT,
+        check=True,
+    )
+
+
+def reset_image():
+    try:
+        IMAGE_PATH.unlink()
+    except FileExistsError:
+        pass
+
+    subprocess.check_call(
+        [
+            "/usr/bin/qemu-img",
+            "create",
+            "-f",
+            "qcow2",
+            "-o",
+            f"backing_file={VOLUME_PATH / 'clean.qcow2'}",
+            "-o",
+            "backing_fmt=qcow2",
+            str(IMAGE_PATH),
+            "51200M",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+
+
+def kill():
+    for pidfile in STATEFUL_PATH.glob("*.pid"):
+        argv = [
+            "/usr/sbin/start-stop-daemon",
+            "--stop",
+            "--pidfile",
+            str(pidfile),
+            "--remove-pidfile",
+            "--quiet",
+            "--oknodo",
+        ]
+
+        subprocess.run(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=open(VM_LOGFILE, "a"),
+            stderr=subprocess.STDOUT,
+            check=True,
+        )
+
+    for logfile in STATEFUL_PATH.glob("*.log"):
+        logfile.unlink()
+
+
+def start():
+    if not Path("/dev/kvm").exists():
+        raise NotImplementedError(
+            "Running the windows VM without KVM is not implemented"
+        )
+
+    if not IMAGE_PATH.exists():
+        reset_image()
+
+    mem = "4096M"
+    # fmt: off
+    qemu_argv = [
+        "/usr/bin/qemu-system-x86_64",
+        "-name", "dojo",
+        "-machine", "type=pc,accel=kvm",
+        "-m", mem,
+        "-smp", "4",
+        "-display", "vnc=:12",
+        "-device", "virtio-net,netdev=user.0",
+        "-netdev", "user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::22-:22",
+        "-serial", "null",
+        "-monitor", "none",
+        "-drive", f"file={IMAGE_PATH},if=virtio,cache=writeback,discard=ignore,format=qcow2",
+        "-drive", f"file={VOLUME_PATH / 'virtio-win-processed.iso'},media=cdrom",
+        "-object", f"memory-backend-memfd,id=mem,size={mem},share=on",
+        "-numa", "node,memdev=mem"
+    ]
+    # fmt: on
+    mounts = {"challenge": "/challenge", "home": "/home/hacker"}
+    for tag, mountpoint in mounts.items():
+        sock_path = virtfs_sock_path(tag)
+        start_daemon(
+            virtfs_pidfile_path(tag),
+            virtfs_log_path(tag),
+            # fmt: off
+            [
+                "/opt/virtiofsd/virtiofsd",
+                "--writeback",
+                "--socket-path", str(sock_path),
+                "--sandbox", "none",
+                "--shared-dir", str(mountpoint)
+            ],
+            # fmt: on
+        )
+
+        # fmt: off
+        qemu_argv += [
+            "-chardev", f"socket,id={tag}-sock,path={sock_path}",
+            "-device", f"vhost-user-fs-pci,queue-size=1024,chardev={tag}-sock,tag={tag}",
+        ]
+        # fmt: on
+
+    start_daemon(VM_PIDFILE, VM_LOGFILE, qemu_argv)
+
+
+def wait():
+    for _ in range(50):
+        try:
+            connection = socket.create_connection((vm_hostname(), 22), timeout=30)
+        except ConnectionRefusedError:
+            pass
+        else:
+            data = connection.recv(3)
+            connection.close()
+            if data == b"SSH":
+                break
+        time.sleep(0.1)
+    else:
+        error("Error: could not connect to vm!")
+
+
+def connect():
+    wait()
+    execve(["/usr/bin/ssh", vm_hostname()])
+
+
+def exec_(*args):
+    wait()
+    if sys.stdout.isatty():
+        execve(["/usr/bin/ssh", "-t", vm_hostname(), "--", *args])
+    else:
+        execve(["/usr/bin/ssh", vm_hostname(), "--", *args])
+
+
+def logs():
+    argv = [
+        "/usr/bin/tail",
+        "-F",
+        "-n+1",
+        str(VM_LOGFILE),
+    ]
+
+    while True:
+        subprocess.run(argv, stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        time.sleep(0.1)
+
+
+def main():
+    global args
+
+    initialize()
+
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    connect_parser = subparsers.add_parser("connect", help="connect to vm")
+
+    exec_parser = subparsers.add_parser("exec", help="exec command in vm")
+    exec_parser.add_argument("exec_command")
+    exec_parser.add_argument("exec_command_args", nargs=argparse.REMAINDER)
+
+    start_parser = subparsers.add_parser("start", help="start vm")
+
+    stop_parser = subparsers.add_parser("stop", help="stop vm")
+
+    kill_parser = subparsers.add_parser("kill", help="kill vm")
+
+    restart_parser = subparsers.add_parser("restart", help="restart vm")
+
+    forcerestart_parser = subparsers.add_parser(
+        "forcerestart", help="kill and restart vm"
+    )
+
+    reset_parser = subparsers.add_parser("reset", help="reset VM image")
+
+    args = parser.parse_args()
+
+    commands = {
+        "connect": lambda: (start(), connect()),
+        "exec": lambda: (start(), exec_(args.exec_command, *args.exec_command_args)),
+        "start": lambda: (kill(), start()),
+        "stop": lambda: exec_("powershell", "-command", "stop-computer -force"),
+        "kill": lambda: kill(),
+        "restart": lambda: exec_("powershell", "-command", "restart-computer -force"),
+        "forcerestart": lambda: (kill(), start()),
+        "reset": lambda: reset_image(),
+    }
+
+    try:
+        commands[args.command]()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()
