@@ -60,7 +60,7 @@ CMD \
       -machine type=pc,accel=kvm \
       -m 4096M \
       -smp 4 \
-      `#-display vnc=:12` \
+      -display vnc=:12 \
       -nographic \
       -device virtio-net,netdev=user.0 \
       -netdev user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::2222-:22 \

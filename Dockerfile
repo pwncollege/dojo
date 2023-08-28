@@ -41,6 +41,7 @@ RUN find /opt/pwn.college/script -type f -exec ln -s {} /usr/bin/ \;
 EXPOSE 22
 EXPOSE 80
 EXPOSE 443
+EXPOSE 5912
 
 WORKDIR /opt/pwn.college
 CMD ["dojo", "start"]

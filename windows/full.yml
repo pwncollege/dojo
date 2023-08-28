@@ -10,3 +10,5 @@ services:
       - /dev/kvm
     volumes:
       - windows:/app/build
+    ports:
+      - "5912:5912"
