@@ -51,6 +51,7 @@ CMD \
   ) ) \
   && ( [ -f ./build/image-built ] || ( \
     echo "Creating VM image" \
+    && rm -rf ./build/clean.qcow2 \
     && qemu-img create -f qcow2 ./build/clean.qcow2 51200M \
     && echo "Installing and configuring windows (this will take a while)" \
     && qemu-system-x86_64 \
