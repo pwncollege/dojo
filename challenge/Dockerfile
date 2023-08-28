@@ -460,6 +460,7 @@ COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
 COPY vm /opt/pwn.college/vm
+COPY windows /opt/pwn.college/windows
 COPY .tmux.conf /opt/pwn.college/.tmux.conf
 COPY .gdbinit /opt/pwn.college/.gdbinit
 COPY .radare2rc /opt/pwn.college/.radare2rc
@@ -483,6 +484,7 @@ COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
 
 RUN <<EOF
     ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
+    ln -sf /opt/pwn.college/windows/windows /usr/local/bin/windows
 
     ln -sf /home/hacker/.tmux.conf /root/.tmux.conf
     ln -sf /home/hacker/.gdbinit /root/.gdbinit
@@ -560,7 +562,8 @@ RUN <<EOF
     chmod u+s /opt/pwn.college/python \
               /opt/pwn.college/bash \
               /opt/pwn.college/sh \
-              /opt/pwn.college/vm/vm    
+              /opt/pwn.college/vm/vm \
+              /opt/pwn.college/windows/windows
 
     date > /opt/pwn.college/build
 EOF
