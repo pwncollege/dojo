@@ -86,7 +86,7 @@ def start_daemon(pidfile, logfile, argv):
 def reset_image():
     try:
         IMAGE_PATH.unlink()
-    except FileExistsError:
+    except FileNotFoundError:
         pass
 
     subprocess.check_call(
