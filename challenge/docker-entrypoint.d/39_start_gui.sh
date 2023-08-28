@@ -34,6 +34,21 @@ start-stop-daemon --start \
                   </dev/null \
                   >>/tmp/vnc/websockify.log \
                   2>&1
+
+start-stop-daemon --start \
+                  --pidfile /tmp/vnc/websockify2.pid \
+                  --make-pidfile \
+                  --background \
+                  --no-close \
+                  --startas /usr/bin/websockify \
+                  -- \
+                  --web /usr/share/novnc/ \
+                  24153 \
+                  localhost:5912 \
+                  </dev/null \
+                  >>/tmp/vnc/websockify2.log \
+                  2>&1
+
 rm -f /home/hacker/.vnc/novnc.socket
 start-stop-daemon --start \
                   --pidfile /tmp/vnc/socat.pid \
@@ -47,6 +62,21 @@ start-stop-daemon --start \
                   </dev/null \
                   >>/tmp/vnc/socat.log \
                   2>&1
+
+rm -f /home/hacker/.vnc/novnc2.socket
+start-stop-daemon --start \
+                  --pidfile /tmp/vnc/socat2.pid \
+                  --make-pidfile \
+                  --background \
+                  --no-close \
+                  --startas /usr/bin/socat \
+                  -- \
+                  UNIX-LISTEN:/home/hacker/.vnc/novnc2.socket,fork \
+                  TCP-CONNECT:localhost:24153 \
+                  </dev/null \
+                  >>/tmp/vnc/socat2.log \
+                  2>&1
+
 seq 1 50 | while read cnt; do sleep 0.1; [ -e /tmp/.X11-unix/X42 ] && break; done
 
 export DISPLAY=:42
