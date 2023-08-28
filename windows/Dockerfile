@@ -49,12 +49,10 @@ CMD \
     && curl -Lo ./build/server-2022.iso \
       'https://software-static.download.prss.microsoft.com/sg/download/888969d5-f34g-4e03-ac9d-1f9786c66749/SERVER_EVAL_x64FRE_en-us.iso' \
   ) ) \
-  && ( [ -f ./build/clean.qcow2 ] || ( \
+  && ( [ -f ./build/image-built ] || ( \
     echo "Creating VM image" \
     && qemu-img create -f qcow2 ./build/clean.qcow2 51200M \
-  ) ) \
-  && ( [ -f ./build/image-built ] || ( \
-    echo "Installing and configuring windows (this will take a while)" \
+    && echo "Installing and configuring windows (this will take a while)" \
     && qemu-system-x86_64 \
       -name dojo \
       -boot once=d \
