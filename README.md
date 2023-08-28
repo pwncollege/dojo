@@ -36,7 +36,7 @@ docker build -t pwncollege/dojo .
 Finally, run the infrastructure which will be hosted on domain `my.domain.college` with:
 
 ```sh
-docker run --privileged -d -v /opt/dojo:/opt/pwn.college:shared -p 22:22 -p 80:80 -p 443:443 pwncollege/dojo
+docker run --privileged -d -v /opt/dojo:/opt/pwn.college:shared -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
 ```
 
 > **Warning**
@@ -48,7 +48,7 @@ docker run --privileged -d -v /opt/dojo:/opt/pwn.college:shared -p 22:22 -p 80:8
 > This can be accomplished by replacing the bind mount with a docker volume for `data/docker`, which will use a native Linux mount. 
 > You can apply this solution using the following Docker command (notice the additional `-v`):
 > ```
-> docker run --privileged -d -v /opt/dojo:/opt/pwn.college -v dojo-data-docker:/opt/pwn.college/data/docker -p 22:22 -p 80:80 -p 443:443 pwncollege/dojo
+> docker run --privileged -d -v /opt/dojo:/opt/pwn.college -v dojo-data-docker:/opt/pwn.college/data/docker -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
 > ```
 
 This will run the initial setup, including building the challenge docker image.
@@ -63,7 +63,7 @@ It will take some time to initialize everything and build the challenge docker i
 You can check on your container (and the progress of the initial build) with:
 
 ```sh
-docker exec YOUR_CONTAINER_NAME dojo logs
+docker exec dojo dojo logs
 ```
 
 Once things are setup, you should be able to access the dojo and login with username `admin` and password `admin`.
@@ -75,3 +75,11 @@ _All_ dojo data will be stored in the `./data` directory.
 
 Once logged in, you can add a dojo by visiting `/dojos/create`. Dojos are contained within git repositories. 
 Refer to [the example dojo](https://github.com/pwncollege/example-dojo) for more information.
+
+## Contributing
+
+We love Pull Requests! 🌟
+Have a small update?
+Send a PR so everyone can benefit.
+For more substantial changes, open an issue to ensure we're on the same page.
+Together, we make this project better for all! 🚀

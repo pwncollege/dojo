@@ -24,7 +24,7 @@ from .pages.sensai import sensai
 from .pages.users import users
 from .pages.settings import settings_override
 from .pages.discord import discord, maybe_award_belt
-from .pages.grades import grades
+from .pages.course import course
 from .pages.writeups import writeups
 from .api import api
 
@@ -125,7 +125,7 @@ def load(app):
     app.register_blueprint(sensai)
     app.register_blueprint(discord)
     app.register_blueprint(users)
-    app.register_blueprint(grades)
+    app.register_blueprint(course)
     app.register_blueprint(writeups)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
 

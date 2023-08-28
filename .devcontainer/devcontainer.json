@@ -17,11 +17,7 @@
         }
     },
 	"mounts": [
-		{
-			"source": "${localWorkspaceFolder}",
-			"target": "/opt/pwn.college",
-			"type": "bind"
-		},
+		"type=bind,source=${localWorkspaceFolder},target=/opt/pwn.college,bind-propagation=shared",
 		{
 			"source": "dind-var-lib-docker-${devcontainerId}",
 			"target": "/opt/pwn.college/data/docker",
