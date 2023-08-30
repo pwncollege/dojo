@@ -116,9 +116,6 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
         module_yml_data = yaml.safe_load(module_yml_path.read_text())
         merged_module_data = dict(module_yml_data)
         merged_module_data.update(module_data)
-        print("A YML:", module_data)
-        print("B YML:", module_yml_data)
-        print("M YML:", merged_module_data)
         data["modules"][n] = merged_module_data
 
     try:
