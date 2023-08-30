@@ -105,18 +105,36 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
 
     data = yaml.safe_load(dojo_yml_path.read_text())
 
-    # load module sub-yamls
+    # load dojo description from markdown if it exists
+    dojo_description_path = dojo_dir / "DESCRIPTION.md"
+    if dojo_description_path.exists():
+        data.setdefault("description", dojo_description_path.read_text())
+
+    # load module data from subyamls and markdown
     for n,module_data in enumerate(data.get("modules", [])):
         if "id" not in module_data:
             continue
-        module_yml_path = dojo_dir / module_data["id"] / "module.yml"
-        if not module_yml_path.exists():
-            continue
 
-        module_yml_data = yaml.safe_load(module_yml_path.read_text())
-        merged_module_data = dict(module_yml_data)
-        merged_module_data.update(module_data)
-        data["modules"][n] = merged_module_data
+        module_path = dojo_dir / module_data["id"]
+        module_yml_path = module_path / "module.yml"
+        module_description_path = module_path / "DESCRIPTION.md"
+
+        if module_description_path.exists():
+            module_data.setdefault("description", module_description_path.read_text())
+
+        if module_yml_path.exists():
+            module_yml_data = yaml.safe_load(module_yml_path.read_text())
+            merged_module_data = dict(module_yml_data)
+            merged_module_data.update(module_data)
+            data["modules"][n] = merged_module_data
+
+        for challenge_data in data["modules"][n].get("challenges", []):
+            if "id" not in challenge_data:
+                continue
+
+            chal_desc_path = module_path / challenge_data["id"] / "DESCRIPTION.md"
+            if chal_desc_path.exists():
+                challenge_data.setdefault("description", chal_desc_path.read_text())
 
     try:
         dojo_data = DOJO_SPEC.validate(data)
