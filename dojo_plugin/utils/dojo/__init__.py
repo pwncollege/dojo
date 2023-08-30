@@ -104,6 +104,23 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
         assert dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
 
     data = yaml.safe_load(dojo_yml_path.read_text())
+
+    # load module sub-yamls
+    for n,module_data in enumerate(data.get("modules", [])):
+        if "id" not in module_data:
+            continue
+        module_yml_path = dojo_dir / module_data["id"] / "module.yml"
+        if not module_yml_path.exists():
+            continue
+
+        module_yml_data = yaml.safe_load(module_yml_path.read_text())
+        merged_module_data = dict(module_yml_data)
+        merged_module_data.update(module_data)
+        print("A YML:", module_data)
+        print("B YML:", module_yml_data)
+        print("M YML:", merged_module_data)
+        data["modules"][n] = merged_module_data
+
     try:
         dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
