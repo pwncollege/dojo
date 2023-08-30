@@ -13,6 +13,7 @@ import argparse
 from pathlib import Path
 
 VOLUME_PATH = Path("/run/media/windows")
+# /run is not world writeable. this should prevent race conditions.
 STATEFUL_PATH = Path("/run/windows")
 IMAGE_PATH = STATEFUL_PATH / "windows_img.qcow2"
 VM_PIDFILE = STATEFUL_PATH / "vm.pid"
