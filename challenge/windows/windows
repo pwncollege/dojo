@@ -142,6 +142,14 @@ def start():
     if not IMAGE_PATH.exists():
         reset_image()
 
+    with open("/flag", "r") as f:
+        flag = f.read()
+    with open("/challenge/flag", "w") as f:
+        f.write(flag)
+
+    if is_privileged():
+        Path("/challenge/practice-mode-enabled").touch()
+
     mem = "4096M"
     # fmt: off
     qemu_argv = [
