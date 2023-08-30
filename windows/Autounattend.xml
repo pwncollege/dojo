@@ -136,15 +136,17 @@
                     <PlainText>true</PlainText>
                 </Password>
                 <Enabled>true</Enabled>
-                <Username>hacker</Username>
+                <Username>administrator</Username>
             </AutoLogon>
             <FirstLogonCommands>
+                <!-- Run this first to attempt to pre-empt the propmt -->
                 <SynchronousCommand wcm:action="add">
                     <CommandLine>cmd.exe /c reg add "HKLM\System\CurrentControlSet\Control\Network\NewNetworkWindowOff"</CommandLine>
                     <Description>Network prompt</Description>
                     <Order>1</Order>
                     <RequiresUserInput>true</RequiresUserInput>
                 </SynchronousCommand>
+                <!-- Ensure we can run our scripts -->
                 <SynchronousCommand wcm:action="add">
                     <CommandLine>cmd.exe /c powershell -Command "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Force"</CommandLine>
                     <Description>Set Execution Policy 64 Bit</Description>
@@ -153,7 +155,7 @@
                 </SynchronousCommand>
                 <SynchronousCommand wcm:action="add">
                     <CommandLine>cmd.exe /c powershell -File A:\setup.ps1</CommandLine>
-                    <Description>Fix public network</Description>
+                    <Description>Run setup script</Description>
                     <Order>3</Order>
                     <RequiresUserInput>true</RequiresUserInput>
                 </SynchronousCommand>
@@ -184,7 +186,7 @@
                             <Value>hacker</Value>
                             <PlainText>true</PlainText>
                         </Password>
-                        <Group>administrators</Group>
+                        <!-- <Group>administrators</Group> -->
                         <DisplayName>Hacker</DisplayName>
                         <Name>hacker</Name>
                         <Description>Hacker User</Description>
