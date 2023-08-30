@@ -52,7 +52,7 @@ pnputil.exe /add-driver E:\virtio-win\viofs\2k22\amd64\viofs.inf /install
 & "C:\Program Files (x86)\WinFsp\bin\fsreg.bat" virtiofs "D:\virtio-win\viofs\2k22\amd64\virtiofs.exe" "-t %1 -m %2"
 
 Copy-Item A:\startup.ps1 -Destination "C:\Program Files\Common Files\"
-& schtasks /create /tn "MountVirtioFs" /sc onstart /delay 0000:10 /rl highest /ru system /tr "powershell.exe -file 'C:\Program Files\Common Files\startup.ps1'"
+& schtasks /create /tn "MountVirtioFs" /sc onstart /delay 0000:10 /rl highest /ru system /tr "powershell.exe -file 'C:\Program Files\Common Files\startup.ps1'" /f
 
 # -- install chocolately --
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
