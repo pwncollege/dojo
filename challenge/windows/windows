@@ -32,6 +32,9 @@ def initialize():
     if not VOLUME_PATH.is_dir():
         raise AssertionError("Dojo was not configured with WINDOWS_VM=full")
 
+    if not (VOLUME_PATH / "image-built").exists():
+        raise AssertionError("Cannot start VM while it is building")
+
     os.setegid(os.geteuid())
     try:
         STATEFUL_PATH.mkdir()
