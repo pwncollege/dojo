@@ -95,18 +95,41 @@ DOJO_SPEC = Schema({
     }],
 })
 
+def setdefault_name(entry):
+    if "import" in entry:
+        return
+    if "name" in entry:
+        return
+    if "id" not in entry:
+        return
+    entry["name"] = entry["id"].replace("-", " ").title()
+
+def setdefault_file(data, key, file_path):
+    if file_path.exists():
+        data.setdefault("description", file_path.read_text())
+
+def setdefault_subyaml(data, subyaml_path):
+    if not subyaml_path.exists():
+        return data
+
+    topyaml_data = dict(data)
+    subyaml_data = yaml.safe_load(subyaml_path.read_text())
+    data.clear()
+    data.update(subyaml_data)
+    data.update(topyaml_data)
+
 def load_dojo_spec(dojo_dir):
     """
     The dojo yaml gets augmented with additional yamls and markdown files found in the dojo repo structure.
 
     The meta-structure is:
 
-    repo-root/dojo.yml <- top priority
+    repo-root/dojo.yml
     repo-root/DESCRIPTION.md <- if dojo description is missing
     repo-root/module-id/module.yml <- fills in missing fields for module in dojo.yml (only module id *needs* to be in dojo.yml)
     repo-root/module-id/DESCRIPTION.md <- if module description is missing
-    repo-root/module-id/challenge-id/challenge.yml <- fills in missing fields for challenge in higher-level ymls (only challenge id *needs* to be in dojo.yml)
-    repo-root/module-id/challenge-id/DESCRIPTION.md <- if module description is missing
+    repo-root/module-id/challenge-id/challenge.yml <- fills in missing fields for challenge in higher-level ymls (only challenge id *needs* to be in dojo.yml/module.yml)
+    repo-root/module-id/challenge-id/DESCRIPTION.md <- if challenge description is missing
 
     The higher-level details override the lower-level details.
     """
@@ -119,42 +142,25 @@ def load_dojo_spec(dojo_dir):
 
     data = yaml.safe_load(dojo_yml_path.read_text())
 
-    dojo_description_path = dojo_dir / "DESCRIPTION.md"
-    if dojo_description_path.exists():
-        data.setdefault("description", dojo_description_path.read_text())
+    setdefault_file(data, "description", dojo_dir / "DESCRIPTION.md")
 
-    for n,module_data in enumerate(data.get("modules", [])):
+    for module_data in data.get("modules", []):
         if "id" not in module_data:
             continue
 
-        module_path = dojo_dir / module_data["id"]
-        module_yml_path = module_path / "module.yml"
-        module_description_path = module_path / "DESCRIPTION.md"
+        module_dir = dojo_dir / module_data["id"]
+        setdefault_subyaml(module_data, module_dir / "module.yml")
+        setdefault_file(module_data, "description", module_dir / "DESCRIPTION.md")
+        setdefault_name(module_data)
 
-        if module_description_path.exists():
-            module_data.setdefault("description", module_description_path.read_text())
-
-        if module_yml_path.exists():
-            module_yml_data = yaml.safe_load(module_yml_path.read_text())
-            merged_module_data = dict(module_yml_data)
-            merged_module_data.update(module_data)
-            data["modules"][n] = merged_module_data
-
-        for i,challenge_data in enumerate(data["modules"][n].get("challenges", [])):
+        for challenge_data in module_data.get("challenges", []):
             if "id" not in challenge_data:
                 continue
 
-            chal_desc_path = module_path / challenge_data["id"] / "DESCRIPTION.md"
-            chal_yml_path = module_path / challenge_data["id"] / "challenge.yml"
-
-            if chal_desc_path.exists():
-                challenge_data.setdefault("description", chal_desc_path.read_text())
-
-            if chal_yml_path.exists():
-                chal_yml_data = yaml.safe_load(chal_yml_path.read_text())
-                merged_chal_data = dict(chal_yml_data)
-                merged_chal_data.update(challenge_data)
-                data["modules"][n]["challenges"][i] = merged_chal_data
+            challenge_dir = module_dir / challenge_data["id"]
+            setdefault_subyaml(challenge_data, challenge_dir / "challenge.yml")
+            setdefault_file(challenge_data, "description", challenge_dir / "DESCRIPTION.md")
+            setdefault_name(challenge_data)
 
     return data
 
