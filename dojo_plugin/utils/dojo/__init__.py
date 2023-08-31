@@ -95,8 +95,22 @@ DOJO_SPEC = Schema({
     }],
 })
 
+def load_dojo_spec(dojo_dir):
+    """
+    The dojo yaml gets augmented with additional yamls and markdown files found in the dojo repo structure.
 
-def load_dojo_dir(dojo_dir, *, dojo=None):
+    The meta-structure is:
+
+    repo-root/dojo.yml <- top priority
+    repo-root/DESCRIPTION.md <- if dojo description is missing
+    repo-root/module-id/module.yml <- fills in missing fields for module in dojo.yml (only module id *needs* to be in dojo.yml)
+    repo-root/module-id/DESCRIPTION.md <- if module description is missing
+    repo-root/module-id/challenge-id/challenge.yml <- fills in missing fields for challenge in higher-level ymls (only challenge id *needs* to be in dojo.yml)
+    repo-root/module-id/challenge-id/DESCRIPTION.md <- if module description is missing
+
+    The higher-level details override the lower-level details.
+    """
+
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
 
@@ -105,12 +119,10 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
 
     data = yaml.safe_load(dojo_yml_path.read_text())
 
-    # load dojo description from markdown if it exists
     dojo_description_path = dojo_dir / "DESCRIPTION.md"
     if dojo_description_path.exists():
         data.setdefault("description", dojo_description_path.read_text())
 
-    # load module data from subyamls and markdown
     for n,module_data in enumerate(data.get("modules", [])):
         if "id" not in module_data:
             continue
@@ -135,6 +147,11 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             chal_desc_path = module_path / challenge_data["id"] / "DESCRIPTION.md"
             if chal_desc_path.exists():
                 challenge_data.setdefault("description", chal_desc_path.read_text())
+
+    return data
+
+def load_dojo_dir(dojo_dir, *, dojo=None):
+    data = load_dojo_spec(dojo_dir)
 
     try:
         dojo_data = DOJO_SPEC.validate(data)
