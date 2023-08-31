@@ -17,7 +17,7 @@ WORKDIR /app
 COPY ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./
 RUN mkfs.fat -F 12 -C ./floppy.img 1440 \
   && mcopy -i ./floppy.img \
-    ./Autounattend.xml ./ConfigureRemotingForAnsible.ps1 ./setup.ps1 ./startup.ps1 :: \
+    ./Autounattend.xml ./setup.ps1 ./startup.ps1 :: \
   && rm ./Autounattend.xml ./setup.ps1 ./startup.ps1
 
 VOLUME /app/build
