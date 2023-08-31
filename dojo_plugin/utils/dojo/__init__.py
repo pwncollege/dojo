@@ -140,13 +140,21 @@ def load_dojo_spec(dojo_dir):
             merged_module_data.update(module_data)
             data["modules"][n] = merged_module_data
 
-        for challenge_data in data["modules"][n].get("challenges", []):
+        for i,challenge_data in enumerate(data["modules"][n].get("challenges", [])):
             if "id" not in challenge_data:
                 continue
 
             chal_desc_path = module_path / challenge_data["id"] / "DESCRIPTION.md"
+            chal_yml_path = module_path / challenge_data["id"] / "challenge.yml"
+
             if chal_desc_path.exists():
                 challenge_data.setdefault("description", chal_desc_path.read_text())
+
+            if chal_yml_path.exists():
+                chal_yml_data = yaml.safe_load(chal_yml_path.read_text())
+                merged_chal_data = dict(chal_yml_data)
+                merged_chal_data.update(challenge_data)
+                data["modules"][n]["challenges"][i] = merged_chal_data
 
     return data
 
