@@ -38,7 +38,7 @@ docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -p 22:22 -p
 
 This will run the initial setup, including building the challenge docker image.
 If you want to build the full 70+ GB challenge image, you can add `-e DOJO_CHALLENGE=challenge` to the docker args.
-Note, however, that docker environment variables only affect the initial setup, after which `./data/config.env` should be modified instead.
+Note that docker environment variables override the value in `./data/config.env`. 
 Refer to `script/container-setup.sh` for more information.
 
 The dojo will initialize itself to listen on and serve from `localhost.pwn.college` (which resolves 127.0.0.1).
