@@ -20,6 +20,7 @@ $denyRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
 $flagAcl.AddAccessRule($denyRule)
 Set-Acl -Path C:\flag -AclObject $flagAcl
 Set-Content -Path C:\flag -Value (Get-Content Y:\flag)
+Remove-Item -Path Y:\flag -Force
 
 if (Test-Path Y:\practice-mode-enabled) {
   Add-LocalGroupMember -Group "Administrators" -Member hacker
