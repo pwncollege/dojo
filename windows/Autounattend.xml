@@ -81,8 +81,9 @@
                     <WillShowUI>OnError</WillShowUI>
                 </ProductKey>
                 <AcceptEula>true</AcceptEula>
-                <FullName>Vagrant</FullName>
-                <Organization>Vagrant</Organization>
+                <!-- These details will show in winver -->
+                <FullName>Dojo</FullName>
+                <Organization>Dojo</Organization>
             </UserData>
         </component>
     </settings>
