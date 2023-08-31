@@ -52,11 +52,11 @@
   <br>
   {% endif %}
 
-  {% if module.challenges %}
+  {% if challenges %}
   <h2>Challenges</h2>
 
   <div class="accordion" id="challenges">
-    {% for challenge in module.challenges %}
+    {% for challenge in challenges %}
       {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
       {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
       {% call(header) accordion_item("challenges", loop.index) %}
@@ -64,6 +64,11 @@
           <h4 class="accordion-item-name {{ active }}">
             <span class="d-sm-block d-md-block d-lg-block">
               <i class="fas fa-flag pr-3 {{ solved }}"></i>{{ challenge.name }}
+              {% if not challenge.visible() %}
+              <small><small><small>
+                    <i>hidden</i> &mdash; you can see this because you are this dojo's administrator
+              </small></small></small>
+              {% endif %}
             </span>
           </h4>
           <span class="total-solves">{{ total_solves.get(challenge.challenge_id, 0) }} solves</span>
