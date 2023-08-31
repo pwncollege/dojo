@@ -28,8 +28,9 @@ $connections |foreach {
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 # Start the sshd service
 Start-Service sshd
-# Autostart sshd
-Set-Service -Name sshd -StartupType 'Automatic'
+# Make sshd start manual
+Set-Service -Name sshd -StartupType 'Manual'
+
 # set default shell to powershell
 New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
 
