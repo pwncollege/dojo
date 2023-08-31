@@ -249,6 +249,11 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             course = yaml.safe_load(course_yml_path.read_text())
             dojo.course = course
 
+            students_yml_path = dojo_dir / "students.yml"
+            if students_yml_path.exists():
+                students = yaml.safe_load(students_yml_path.read_text())
+                dojo.course["students"] = students
+
     return dojo
 
 
