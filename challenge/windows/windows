@@ -147,7 +147,13 @@ def start():
 
     with open("/flag", "r") as f:
         flag = f.read()
-    with open("/challenge/flag", "w") as f:
+    fd = os.open(
+        path="/challenge/flag",
+        flags=(os.O_WRONLY | os.O_CREAT | os.O_TRUNC),
+        mode=0o600
+    )
+    os.fchmod(fd, 0o600)
+    with open(fd, "w") as f:
         f.write(flag)
 
     if is_privileged():
