@@ -114,8 +114,8 @@ def load_dojo_spec(dojo_dir):
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
 
-    for path in dojo_dir.rglob("*"):
-        assert dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
+    for path in dojo_dir.rglob("**"):
+        assert dojo_dir == path or dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
 
     data = yaml.safe_load(dojo_yml_path.read_text())
 
