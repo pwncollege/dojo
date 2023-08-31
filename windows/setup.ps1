@@ -60,6 +60,8 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 # install options reference: https://www.tightvnc.com/doc/win/TightVNC_2.7_for_Windows_Installing_from_MSI_Packages.pdf
 choco install tightvnc -y --installArguments 'ADDLOCAL=Server SET_RFBPORT=1 VALUE_OF_RFBPORT=5912 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=abcd'
 
-# -- sysprep and shutdown --
-# this clears the administrator password and disables the administrator account
-& $env:WINDIR\system32\sysprep\sysprep.exe /generalize /oobe /reboot /unattend:A:\unattend.xml
+# -- disable admin account --
+net user administrator /active:no
+
+# -- shutdown --
+Stop-Computer -computername localhost -force
