@@ -216,6 +216,11 @@ def view_course(dojo, resource=None):
     grades = {}
     identity = {}
 
+    setup = {
+        step: "unknown"
+        for step in ["create_account", "create_discord", "join_discord", "link_discord", "link_student"]
+    }
+
     if user:
         grades = next(grade(dojo, user))
 
@@ -223,7 +228,28 @@ def view_course(dojo, resource=None):
         identity["identity_name"] = dojo.course.get("student_id", "Identity")
         identity["identity_value"] = student.token if student else None
 
-    return render_template("course.html", name=name, **grades, **identity, user=user, dojo=dojo)
+        setup["create_account"] = "complete"
+
+        if student and student.token in dojo.course.get("students", []):
+            setup["link_student"] = "complete"
+        elif student:
+            setup["link_student"] = "unknown"
+        else:
+            setup["link_student"] = "incomplete"
+
+        discord_user = DiscordUsers.query.filter_by(user=user).first()
+        if discord_user:
+            setup["create_discord"] = "complete"
+            setup["link_discord"] = "complete"
+        else:
+            setup["link_discord"] = "incomplete"
+
+    else:
+        setup["create_account"] = "incomplete"
+        setup["link_discord"] = "incomplete"
+        setup["link_student"] = "incomplete"
+
+    return render_template("course.html", name=name, **grades, **identity, **setup, user=user, dojo=dojo)
 
 
 @course.route("/dojo/<dojo>/course/identity", methods=["PATCH"])

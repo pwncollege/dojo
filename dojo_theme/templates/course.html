@@ -1,5 +1,41 @@
 {% extends "base.html" %}
 
+{% block stylesheets %}
+<style>
+  .setup-complete::before, .setup-incomplete::before, .setup-unknown::before {
+      position: absolute;
+      left: 10px;
+      font-size: 24px;
+      line-height: 1;
+  }
+
+  .setup-incomplete {
+    color: rgb(244, 67, 54);
+  }
+
+  .setup-incomplete::before {
+    content: '✗';
+  }
+
+  .setup-complete {
+    color: rgb(76, 175, 80);
+  }
+
+  .setup-complete::before {
+    content: '✓';
+  }
+
+  .setup-unknown {
+    color: rgb(255, 193, 7);
+  }
+
+  .setup-unknown::before {
+    content: '?';
+  }
+</style>
+{% endblock %}
+
+
 {% block content %}
 <div class="jumbotron">
   <div class="container">
@@ -15,6 +51,7 @@
           <a class="nav-link" id="course-grades-tab" data-toggle="pill" href="#grades" role="tab">Grades</a>
           <a class="nav-link" id="course-identity-tab" data-toggle="pill" href="#identity" role="tab">Identity</a>
         {% endif %}
+        <a class="nav-link" id="course-setup-tab" data-toggle="pill" href="#setup" role="tab">Setup</a>
       </div>
     </div>
     <div class="col-md-8">
@@ -80,6 +117,15 @@
             </form>
           </div>
         {% endif %}
+        <div class="tab-pane fade" id="setup" role="tabpanel">
+          <ol>
+            <li class="setup-{{ create_account }}">Create a pwn.college account <a href="/register">here</a>. You can use an existing account, or create a new one specifically for the course. The username <strong>will be visible publicly</strong>: if you want to be anonymous, do not use your real name.</li>
+            <li class="setup-{{ create_discord }}">Create a Discord account <a href="https://discord.gg/register">here</a>. You can use an existing account, or create a new one specifically for the course.</li>
+            <li class="setup-{{ join_discord }}">Join the pwn.college Discord server <a href="https://discord.gg/pwncollege">here</a>. This is where you will be able to discuss the challenges with your peers and see official course announcements.</li>
+            <li class="setup-{{ link_discord }}">Link your pwn.college account with your Discord <a href="/settings#discord">here</a>. As a verified student, you will receive an official course role in Discord for viewing course announcements.</li>
+            <li class="setup-{{ link_student }}">Link your pwn.college account with your {{ identity_name }} <a href="identity">here</a>. This is how we will be able to give you your official course grade.</li>
+          </ol>
+        </div>
       </div>
     </div>
   </div>
