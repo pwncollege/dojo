@@ -136,7 +136,7 @@
                     <PlainText>true</PlainText>
                 </Password>
                 <Enabled>true</Enabled>
-                <Username>administrator</Username>
+                <Username>hacker</Username>
             </AutoLogon>
             <FirstLogonCommands>
                 <!-- Run this first to attempt to pre-empt the propmt -->
@@ -186,7 +186,8 @@
                             <Value>hacker</Value>
                             <PlainText>true</PlainText>
                         </Password>
-                        <!-- <Group>administrators</Group> -->
+                        <!-- This is for setup. It will be removed before the container is made accessible. -->
+                        <Group>administrators</Group>
                         <DisplayName>Hacker</DisplayName>
                         <Name>hacker</Name>
                         <Description>Hacker User</Description>
