@@ -9,28 +9,19 @@
       line-height: 1;
   }
 
-  .setup-incomplete {
-    color: rgb(244, 67, 54);
-  }
-
   .setup-incomplete::before {
     content: '✗';
-  }
-
-  .setup-complete {
-    color: rgb(76, 175, 80);
+    color: rgb(244, 67, 54);
   }
 
   .setup-complete::before {
     content: '✓';
-  }
-
-  .setup-unknown {
-    color: rgb(255, 193, 7);
+    color: rgb(76, 175, 80);
   }
 
   .setup-unknown::before {
     content: '?';
+    color: rgb(255, 193, 7);
   }
 </style>
 {% endblock %}

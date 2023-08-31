@@ -245,9 +245,8 @@ def view_course(dojo, resource=None):
             setup["link_discord"] = "incomplete"
 
     else:
-        setup["create_account"] = "incomplete"
-        setup["link_discord"] = "incomplete"
-        setup["link_student"] = "incomplete"
+        for step in setup:
+            setup[step] = "incomplete"
 
     return render_template("course.html", name=name, **grades, **identity, **setup, user=user, dojo=dojo)
 
