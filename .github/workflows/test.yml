@@ -13,8 +13,8 @@ jobs:
         run: |
           until docker exec dojo dojo is-setup-finished
           do
-            sleep 1
-            docker exec dojo journalctl -u pwn.college  | tail -n 10
+            sleep 5
+            docker exec dojo journalctl -u pwn.college  | tail -n 5
           done
       - name: Run tests against container
         run: "pytest ./test"
