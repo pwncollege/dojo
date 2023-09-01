@@ -85,7 +85,6 @@ case "$ACTION" in
         [ -f /tmp/container-setup-done ] && journalctl -u pwn.college | grep "Finished pwn.college docker compose service"
         ;;
 
-
     # HELP: start: start the dojo. Main entry point for the docker image.
     "start")
         dojo sync
