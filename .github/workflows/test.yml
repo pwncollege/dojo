@@ -76,7 +76,7 @@ jobs:
           until docker exec dojo docker exec db mysqladmin ping -h "localhost" --silent
           do
             sleep 5
-            docker exec dojo docker logs db | tail 5
+            docker exec dojo docker logs db | tail -n 5
           done
       # - name: Move inner cache
       #   run: |
