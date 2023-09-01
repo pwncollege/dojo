@@ -11,7 +11,7 @@ jobs:
         run: "docker run --privileged -d -v /opt/dojo:/opt/pwn.college:shared -p 2222:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo"
       - name: Wait for container to be ready
         run: |
-          until docker exec dojo is-setup-finished
+          until docker exec dojo dojo is-setup-finished
           do
             sleep 1
           done
