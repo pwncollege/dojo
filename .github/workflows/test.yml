@@ -8,7 +8,7 @@ jobs:
       - name: Build Container
         run: "docker build -t pwncollege/dojo ."
       - name: Run Container
-        run: "docker run --privileged -d -v /opt/dojo:/opt/pwn.college:shared -p 2222:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo && sleep 5"
+        run: "docker run --privileged -d -v /opt/dojo:/opt/pwn.college:shared -p 2222:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo"
       - name: Wait for container to be ready
         run: |
           until docker exec dojo is-setup-finished
