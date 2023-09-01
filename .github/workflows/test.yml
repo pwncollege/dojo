@@ -32,7 +32,6 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           file: Dockerfile
           # Set the desired build target here
-          target: deploy
           push: false
           tags: pwncollege/dojo
           cache-from: type=local,src=/tmp/.buildx-cache
