@@ -51,7 +51,7 @@ jobs:
           done
       - name: Run tests against container
         run: |
-          pytest ./test || docker exec dojo journalctl -u pwn.college
+          pytest ./test || docker exec docker logs ctfd && false
           
         
       
