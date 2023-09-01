@@ -51,7 +51,7 @@ jobs:
           done
       - name: Run tests against container
         run: |
-          pytest ./test || docker exec docker logs ctfd && false
+          pytest ./test || docker exec dojo docker logs ctfd && false
           
         
       
