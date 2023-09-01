@@ -5,6 +5,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Info gathering
+        run: |
+          ls -la /tmp
+          df -h 
+
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
@@ -38,8 +43,12 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           # Note the mode=max here
           # More: https://github.com/moby/buildkit#--export-cache-options
-          # And: https://github.com/docker/buildx#--cache-tonametypetypekeyvalue
+          # And: https://github.com/docker/buildx/blob/master/docs/reference/buildx_build.md#cache-to
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
       - name: Run Container
         run: "docker run --privileged -d -v $PWD:/opt/pwn.college:shared -p 2222:22 -p 80:80 -p 443:443 --name dojo dojo-test"
       - name: Wait for container to be ready
