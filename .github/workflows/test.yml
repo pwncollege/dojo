@@ -33,14 +33,15 @@ jobs:
           file: Dockerfile
           # Set the desired build target here
           push: false
-          tags: pwncollege/dojo
+          load: true # we want this tag to be loaded to docker images
+          tags: dojo-test
           cache-from: type=local,src=/tmp/.buildx-cache
           # Note the mode=max here
           # More: https://github.com/moby/buildkit#--export-cache-options
           # And: https://github.com/docker/buildx#--cache-tonametypetypekeyvalue
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
       - name: Run Container
-        run: "docker run --privileged -d -v $PWD:/opt/pwn.college:shared -p 2222:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo"
+        run: "docker run --privileged -d -v $PWD:/opt/pwn.college:shared -p 2222:22 -p 80:80 -p 443:443 --name dojo dojo-test"
       - name: Wait for container to be ready
         run: |
           until docker exec dojo dojo is-setup-finished
