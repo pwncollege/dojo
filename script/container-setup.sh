@@ -1,8 +1,6 @@
 #!/bin/sh
 
 DOJO_DIR=/opt/pwn.college
-SETUP_DONE_LOCATION_CHECK=/tmp/container-setup-done
-rm -f "$SETUP_DONE_LOCATION_CHECK"
 
 >> $DOJO_DIR/data/config.env
 
@@ -85,4 +83,3 @@ for host in $(cat $DOJO_DIR/user_firewall.allowed); do
     iptables -I DOCKER-USER -i user_firewall -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
 done
 
-touch "$SETUP_DONE_LOCATION_CHECK"
