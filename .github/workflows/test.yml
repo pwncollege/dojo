@@ -70,13 +70,20 @@ jobs:
             sleep 5
             docker exec dojo journalctl -u pwn.college  | tail -n 5
           done
+
+      - name: Wait for db to be ready
+        run: |
+          until docker exec dojo docker exec db mysqladmin ping -h "localhost" --silent
+          do
+            sleep 5
+            docker exec dojo docker logs db | tail 5
+          done
       # - name: Move inner cache
       #   run: |
       #     rm -rf /tmp/.buildx-cache-inner
       #     mv /tmp/.buildx-cache-inner-new /tmp/.buildx-cache-inner
       - name: Run tests against container
         run: |
-          docker exec dojo docker compose logs
           pytest ./test || docker exec dojo docker compose logs
           
         
