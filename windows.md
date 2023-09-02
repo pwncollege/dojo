@@ -89,7 +89,33 @@ The startup service:
 - mounts the filesystem bridges
 - copies the flag out of the bridge (which doesn't support permissions and is therefore world readable) into the C drive, and sets up its permissions
 - removes admin unless practice mode is enabled
-- starts the SSH daemon
+- starts the SSH daemon and VNC server. 
+  These are set to manual startup mode so that users cannot connect before the startup script has properly configured permissions. 
+
+## Filesystem Sharing
+
+The filesystem sharing has a component on each side of the VM.
+The host side has a `virtiofsd` process running for each virtual filesystem that listens on a UNIX socket for connection from QEMU. 
+The guest side has a filesystem driver that connects to the virtual PCI device, and a userspace process that uses WinFsp, the windows equivalent of FUSE, to mount the filesystem and talks to the driver. 
+
+## Host
+
+The biggest concern on the host side is sandboxing. 
+We don't want users to be able to abuse the filesystem daemon to access files outside of the directories we want to mount in (such as the flag) or escalate privileges. 
+The typical sandboxing approach with user namespaces is not available to us because of the constraints of the docker container security model. 
+Instead we can either use chroot sandboxing, which requires root access, or run as hacker and use no sandboxing.
+Currently the chroot sandbox is used, however this may be changed in the future. 
+
+### Guest
+
+Information about the guest side software can be found on [the virtio-win virtiofs wiki page](https://github.com/virtio-win/kvm-guest-drivers-windows/wiki/Virtiofs).
+The userspace process defaults to mounting the first filesystem, unless command-line arguments specify a mount tag to select filesystem.
+The mountpoint also defaults to `Z:\` unless overriden. 
+The userspace process can be started as a service, but, for some reason, windows has no way to persist service command-line arguments across boots, so this can only be used if the defaults are acceptable.
+We want to have two filesystems, so our only option is to use the registry to store configuration.
+WinFsp, the user filesystem driver library similar to linux's FUSE that the virtiofs service uses, has it's own scripts that can be used to define an FS service in the registry that can then be started by a launcher binary. 
+We first use the filesystem register script to add an entry to the registry for the virtiofs service, with a template for the command-line arguments.
+Later, we can start up this service in the startup script with the launcher, specifying the command-line arguments to substitute into the template. 
 
 ## Rebuilding the VM image
 
