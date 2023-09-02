@@ -75,7 +75,7 @@ jobs:
         run: |
           docker exec dojo docker exec ctfd apt update
           docker exec dojo docker exec ctfd apt install wget
-          until docker exec dojo docker exec ctfd wget mysql:3306
+          until docker exec dojo docker exec ctfd wget db:3306
           do
             sleep 5
             docker exec dojo docker logs db | tail -n 5
