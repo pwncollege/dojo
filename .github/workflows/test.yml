@@ -73,7 +73,8 @@ jobs:
 
       - name: Wait for db to be ready
         run: |
-          until docker exec dojo docker exec db mysqladmin ping -h "localhost" --silent
+          docker exec dojo docker exec ctfd apt install wget
+          until docker exec dojo docker exec ctfd wget db:3306
           do
             sleep 5
             docker exec dojo docker logs db | tail -n 5
