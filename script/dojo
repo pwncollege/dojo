@@ -80,6 +80,11 @@ case "$ACTION" in
         journalctl -u pwn.college -f
         ;;
 
+    # HELP: is-setup-finished: use exit code to return if the system is done with setup
+    "is-setup-finished")
+        journalctl -u pwn.college | grep "Finished pwn.college docker compose service"
+        ;;
+
     # HELP: start: start the dojo. Main entry point for the docker image.
     "start")
         dojo sync

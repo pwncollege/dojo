@@ -1,0 +1,47 @@
+name: Test building and runnint dojo
+on: push
+jobs:
+  smoketest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v3
+      - name: Info gathering
+        run: |
+          ls -la /tmp
+          df -h 
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Build container
+        run:
+          docker build -t dojo-test .
+
+      - name: Run Container
+        run: "docker run --privileged -d -v $PWD:/opt/pwn.college:shared -p 2222:22 -p 80:80 -p 443:443 --name dojo dojo-test"
+
+      - name: Wait for container to be ready
+        run: |
+          until docker exec dojo dojo is-setup-finished
+          do
+            sleep 5
+            docker exec dojo journalctl -u pwn.college  | tail -n 5
+          done
+
+      - name: Wait for db to be ready
+        run: |
+          until docker exec dojo docker exec db mysql -h localhost -u ctfd -pctfd ctfd
+          do
+            sleep 5
+            docker exec dojo docker logs db | tail -n 5
+          done
+
+      - name: Run tests against container
+        run: |
+          pytest ./test || (docker exec dojo docker compose logs && false)
+          
+        
+      

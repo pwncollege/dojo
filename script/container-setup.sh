@@ -82,3 +82,4 @@ iptables -I DOCKER-USER -i user_firewall -j DROP
 for host in $(cat $DOJO_DIR/user_firewall.allowed); do
     iptables -I DOCKER-USER -i user_firewall -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
 done
+

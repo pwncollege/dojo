@@ -91,6 +91,8 @@ services:
     volumes:
       - ./data/mysql:/var/lib/mysql
     command: [mysqld, --character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci, --wait_timeout=28800, --log-warnings=0]
+    healthcheck:
+      test: "mysql -h localhost -u ctfd -pctfd ctfd"
 
   cache:
     container_name: cache
