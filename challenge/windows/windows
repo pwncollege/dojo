@@ -210,13 +210,12 @@ def wait():
     for _ in range(50):
         try:
             connection = socket.create_connection((vm_hostname(), 22), timeout=30)
-        except ConnectionRefusedError:
-            pass
-        else:
             data = connection.recv(3)
             connection.close()
             if data == b"SSH":
                 break
+        except (ConnectionRefusedError, socket.timeout):
+            pass
         time.sleep(0.1)
     else:
         error("Error: could not connect to vm!")
