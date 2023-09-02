@@ -187,7 +187,7 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
 
     dojo_kwargs = {
         field: dojo_data.get(field, getattr(import_dojo, field, None))
-        for field in ["id", "name", "description", "password", "type", "award"]
+        for field in ["id", "name", "description", "password", "type", "award", "joinable"]
     }
 
     if dojo is None:

@@ -75,6 +75,9 @@ def join_dojo(dojo, password=None):
     if dojo.official:
         return redirect(url_for("pwncollege_dojo.listing", dojo=dojo.reference_id))
 
+    if not dojo.joinable:
+        abort(403)
+
     if dojo.password and dojo.password != password:
         abort(403)
 

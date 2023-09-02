@@ -60,6 +60,7 @@ class Dojos(db.Model):
     description = db.Column(db.Text)
 
     official = db.Column(db.Boolean, index=True)
+    joinable = db.Column(db.Boolean)
     password = db.Column(db.String(128))
 
     data = db.Column(db.JSON)
