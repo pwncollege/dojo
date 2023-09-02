@@ -45,7 +45,7 @@ if (!(Get-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -ErrorAction SilentlyCon
 # -- virtfs --
 (New-Object Net.WebClient).DownloadFile("https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi", "C:\winfsp.msi")
 Start-Process msiexec -ArgumentList "/i C:\winfsp.msi /qn" -Wait
-Remove-Item C:\winfsp.msi
+Remove-Item -Force -Path C:\winfsp.msi
 # while the server ISO is plugged in, the virtio drivers are in the 2nd CDROM slot, E:
 # ...but when we boot up later without the server ISO it will be in D:
 pnputil.exe /add-driver E:\virtio-win\viofs\2k22\amd64\viofs.inf /install
@@ -62,6 +62,15 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManage
 # install options reference: https://www.tightvnc.com/doc/win/TightVNC_2.7_for_Windows_Installing_from_MSI_Packages.pdf
 choco install tightvnc -y --installArguments 'ADDLOCAL=Server SET_RFBPORT=1 VALUE_OF_RFBPORT=5912 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=abcd'
 Set-Service -Name tvnserver -StartupType "Manual"
+
+# -- install windbg --
+(New-Object Net.WebClient).DownloadFile("https://windbg.download.prss.microsoft.com/dbazure/prod/1-2308-2002-0/windbg.msixbundle", "C:\windbg.msixbundle")
+add-appxpackage -Path C:\windbg.msixbundle
+Remove-Item -Force -Path C:\windbg.msixbundle
+
+# -- install visual studio --
+choco install -y visualstudio2022community
+choco install -y visualstudio2022-workload-nativedesktop
 
 # -- disable admin account --
 net user administrator /active:no
