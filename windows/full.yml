@@ -5,6 +5,7 @@ services:
       target: ${WINDOWS_VM}
       args:
         - UBUNTU_VERSION=${UBUNTU_VERSION}
+        - INSTALL_IDA=${INSTALL_IDA}
     platform: linux/amd64
     devices:
       - /dev/kvm
