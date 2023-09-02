@@ -43,7 +43,7 @@ if (!(Get-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -ErrorAction SilentlyCon
 }
 
 # -- virtfs --
-Invoke-Webrequest 'https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi' -OutFile C:\winfsp.msi
+(New-Object Net.WebClient).DownloadFile("https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi", "C:\winfsp.msi")
 Start-Process msiexec -ArgumentList "/i C:\winfsp.msi /qn" -Wait
 Remove-Item C:\winfsp.msi
 # while the server ISO is plugged in, the virtio drivers are in the 2nd CDROM slot, E:
