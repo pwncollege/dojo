@@ -24,6 +24,11 @@ $connections |foreach {
 	Write-Host $_.GetNetwork().GetName()"changed to category"$_.GetNetwork().GetCategory()
 }
 
+# -- setup powershell profile --
+if (!(Test-Path -Path $PROFILE)) {
+  New-Item -ItemType File -Path $PROFILE -Force
+}
+
 # -- enable SSH --
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 # Start the sshd service
@@ -73,6 +78,7 @@ choco install -y visualstudio2022community
 choco install -y visualstudio2022-workload-nativedesktop
 choco install -y ida-free
 choco install -y python311 --params "CompileAll=1"
+choco install -y microsoft-windows-terminal
 
 # -- disable admin account --
 net user administrator /active:no
