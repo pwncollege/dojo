@@ -1,4 +1,4 @@
-name: Test building and runnint dojo
+name: Test building and running dojo
 on: push
 jobs:
   smoketest:
