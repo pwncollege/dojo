@@ -27,3 +27,4 @@ if (Test-Path Y:\practice-mode-enabled) {
 }
 
 Start-Service sshd
+Start-Service tvnserver
