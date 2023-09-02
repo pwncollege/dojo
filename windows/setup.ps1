@@ -73,10 +73,17 @@ Set-Service -Name tvnserver -StartupType "Manual"
 add-appxpackage -Path C:\windbg.msixbundle
 Remove-Item -Force -Path C:\windbg.msixbundle
 
+# -- install IDA --
+$InstallIDA = "{INSTALLIDA}";
+if ($InstallIDA -eq "True") {
+    (New-Object Net.WebClient).DownloadFile("https://out7.hex-rays.com/files/idafree82_windows.exe", "C:\idafree.exe")
+    Start-Process "C:\idafree.exe" -ArgumentList "--unattendedmodeui minimal --mode unattended --installpassword freeware" -Wait
+    Remove-Item -Force -Path "C:\idafree.exe"
+}
+
 # -- install tools --
 choco install -y visualstudio2022community
 choco install -y visualstudio2022-workload-nativedesktop
-choco install -y ida-free
 choco install -y python311 --params "CompileAll=1"
 choco install -y microsoft-windows-terminal
 
