@@ -176,6 +176,8 @@ RUN <<EOF
     curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
     mkdir -p /opt/code-server/extensions
     code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
+    rm -rf /root/.cache/code-server
+    rm -rf /root/.local/share/code-server
 EOF
 
 WORKDIR /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
