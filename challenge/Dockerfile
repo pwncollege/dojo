@@ -275,7 +275,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         tigervnc-standalone-server
         websockify
         fluxbox
-        eterm
+        xterm
 EOF
 
 ################################################################################
