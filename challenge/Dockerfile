@@ -2,7 +2,7 @@
 
 ARG UBUNTU_VERSION=20.04
 
-FROM ubuntu:${UBUNTU_VERSION} as builder
+FROM ubuntu:${UBUNTU_VERSION} as essentials
 
 SHELL ["/bin/bash", "-ceov", "pipefail"]
 
@@ -21,19 +21,39 @@ EOF
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && xargs apt-get install -yqq <<EOF
-        autoconf
         bc
-        bison
         build-essential
-        clang
-        cmake
         cpio
         curl
+        git
+        iproute2
+        iputils-ping
+        python-is-python3
+        python3-pip
+        socat
+        sudo
+        unzip
+        vim
+        wget
+EOF
+
+RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
+
+################################################################################
+
+FROM essentials as builder
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && xargs apt-get install -yqq <<EOF
+        autoconf
+        bison
+        clang
+        cmake
         openjdk-17-jdk
         flex
         g++-multilib
         gcc-multilib
-        git
         libc6-dev-i386
         libc6:i386
         libedit-dev
@@ -53,17 +73,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         man-db
         manpages-dev
         nasm
-        python-is-python3
         python3-dev
-        python3-pip
         rubygems
         squashfs-tools
-        unzip
         upx-ucl
-        wget
 EOF
-
-RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 
 ################################################################################
 
@@ -142,7 +156,7 @@ EOF
 
 ################################################################################
 
-FROM builder as builder-code-server
+FROM essentials as builder-code-server
 
 RUN <<EOF
     curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
@@ -237,7 +251,7 @@ EOF
 
 ################################################################################
 
-FROM builder as builder-desktop-base
+FROM essentials as builder-desktop-base
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -262,7 +276,7 @@ RUN rm /etc/xdg/autostart/*
 
 ################################################################################
 
-FROM builder as builder-desktop-reversing-tools
+FROM essentials as builder-desktop-reversing-tools
 
 COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
@@ -296,7 +310,7 @@ EOF
 
 ################################################################################
 
-FROM builder as builder-tools-apt
+FROM essentials as builder-tools-apt
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -323,8 +337,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         genisoimage
         gnupg-utils
         hexedit
-        iproute2
-        iputils-ping
         ipython3
         keyutils
         kmod
@@ -344,11 +356,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         rsync
         screen
         silversearcher-ag
-        socat
         strace
-        sudo
         tmux
-        vim
         whiptail
         wireshark
         gedit
@@ -378,7 +387,7 @@ RUN ln -sf /usr/bin/ipython3 /usr/bin/ipython
 
 ################################################################################
 
-FROM builder as builder-pwn.college
+FROM essentials as builder-pwn.college
 
 RUN mkdir /opt/pwn.college
 COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
@@ -405,10 +414,9 @@ SHELL ["/bin/bash", "-ceov", "pipefail"]
 
 ENV LC_CTYPE=C.UTF-8
 
-COPY --link --from=builder / /
+COPY --link --from=essentials / /
 COPY --link --from=builder-code-server / /
 COPY --link --from=builder-desktop-base / /
-COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
 
 RUN <<EOF
@@ -449,6 +457,7 @@ SHELL ["/bin/bash", "-ceov", "pipefail"]
 ENV LC_CTYPE=C.UTF-8
 
 # TODO: probably extra slow to `COPY / /`
+COPY --link --from=essentials / /
 COPY --link --from=builder / /
 COPY --link --from=builder-kernel /opt/linux /opt/linux
 COPY --link --from=builder-code-server / /
