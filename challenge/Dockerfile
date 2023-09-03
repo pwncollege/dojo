@@ -18,11 +18,14 @@ RUN <<EOF
     (set +o pipefail; yes | unminimize)
 
     dpkg --add-architecture i386
+
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 EOF
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install -yqq <<EOF
+    apt-get update && xargs apt-get install -yqq <<EOF && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
         curl
         socat
         sudo
@@ -39,7 +42,8 @@ FROM essentials as builder-essentials
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install -yqq <<EOF
+    apt-get update && xargs apt-get install -yqq <<EOF && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
         build-essential
 EOF
 
@@ -49,7 +53,8 @@ FROM builder-essentials as builder
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install -yqq <<EOF
+    apt-get update && xargs apt-get install -yqq <<EOF && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
         autoconf
         bc
         bison
@@ -264,7 +269,8 @@ FROM essentials as builder-desktop-base
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install -yqq <<EOF
+    apt-get update && xargs apt-get install -yqq <<EOF && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
         novnc
         tigervnc-standalone-server
         websockify
@@ -280,7 +286,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && xargs apt-get install -yqq <<EOF && \
     apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
-    apt-get -y autoremove
+    apt-get -y autoremove && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
         dbus-x11
         mousepad
         xclip
@@ -332,7 +339,8 @@ FROM essentials as builder-tools-apt
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install -yqq <<EOF
+    apt-get update && xargs apt-get install -yqq <<EOF && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
         arping
         binutils
         binutils-aarch64-linux-gnu
