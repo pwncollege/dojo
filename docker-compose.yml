@@ -4,10 +4,11 @@ services:
   challenge:
     build:
       context: ./challenge
-      target: ${DOJO_CHALLENGE}
+      target: challenge-final
       args:
         - INSTALL_IDA=${INSTALL_IDA}
         - UBUNTU_VERSION=${UBUNTU_VERSION}
+        - DOJO_CHALLENGE=${DOJO_CHALLENGE}
     platform: linux/amd64
     entrypoint: /bin/true
     networks:
