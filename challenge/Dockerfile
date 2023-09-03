@@ -310,6 +310,7 @@ FROM essentials as builder-desktop-reversing-tools
 COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
 
+ARG UBUNTU_VERSION=20.04
 RUN <<EOF
     wget -q -O - https://github.com/angr/angr-management/releases/download/nightly/angr-management-ubuntu-${UBUNTU_VERSION}.tar.gz | tar xvz -C /opt
 
@@ -322,6 +323,7 @@ EOF
 # IDA Freeware: only permissible for free and open deployments of the dojo!
 COPY desktop/ida64.desktop /usr/share/applications/
 COPY desktop/ida.opt /opt/ida/ida.opt
+ARG INSTALL_IDA=False
 RUN <<EOF
     if [ "$INSTALL_IDA" == "True" ]
     then
