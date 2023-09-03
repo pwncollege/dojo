@@ -21,39 +21,45 @@ EOF
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && xargs apt-get install -yqq <<EOF
-        bc
-        build-essential
-        cpio
         curl
-        git
-        iproute2
-        iputils-ping
         python-is-python3
-        python3-pip
         socat
         sudo
-        unzip
         vim
         wget
+        unzip
 EOF
 
 RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 
 ################################################################################
 
-FROM essentials as builder
+FROM essentials as builder-essentials
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && xargs apt-get install -yqq <<EOF
+        build-essential
+EOF
+
+################################################################################
+
+FROM builder-essentials as builder
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && xargs apt-get install -yqq <<EOF
         autoconf
+        bc
         bison
         clang
         cmake
+        cpio
         openjdk-17-jdk
         flex
         g++-multilib
         gcc-multilib
+        git
         libc6-dev-i386
         libc6:i386
         libedit-dev
@@ -74,6 +80,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         manpages-dev
         nasm
         python3-dev
+        python3-pip
         rubygems
         squashfs-tools
         upx-ucl
@@ -255,14 +262,25 @@ FROM essentials as builder-desktop-base
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && xargs apt-get install -yqq <<EOF
+        novnc
+        tigervnc-standalone-server
+        websockify
+        fluxbox
+        eterm
+EOF
+
+################################################################################
+
+FROM builder-desktop-base as builder-desktop-xfce
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && xargs apt-get install -yqq <<EOF && \
     apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
     apt-get -y autoremove
         dbus-x11
         mousepad
-        novnc
-        tigervnc-standalone-server
-        websockify
         xclip
         xfce4
         xfce4-terminal
@@ -337,6 +355,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         genisoimage
         gnupg-utils
         hexedit
+        iproute2
+        iputils-ping
         ipython3
         keyutils
         kmod
@@ -387,7 +407,7 @@ RUN ln -sf /usr/bin/ipython3 /usr/bin/ipython
 
 ################################################################################
 
-FROM essentials as builder-pwn.college
+FROM builder-essentials as builder-pwn.college
 
 RUN mkdir /opt/pwn.college
 COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
@@ -469,7 +489,7 @@ COPY --link --from=builder-rappel / /
 COPY --link --from=builder-rp / /
 COPY --link --from=builder-geckodriver / /
 COPY --link --from=builder-busybox / /
-COPY --link --from=builder-desktop-base / /
+COPY --link --from=builder-desktop-xfce / /
 COPY --link --from=builder-desktop-reversing-tools / /
 COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-gdb / /
