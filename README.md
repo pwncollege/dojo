@@ -83,3 +83,6 @@ Have a small update?
 Send a PR so everyone can benefit.
 For more substantial changes, open an issue to ensure we're on the same page.
 Together, we make this project better for all! 🚀
+
+You can run the dojo CI testcases locally using [act](https://github.com/nektos/act).
+They should run using the "medium" image.
