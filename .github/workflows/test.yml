@@ -1,0 +1,55 @@
+name: Test building and running dojo
+on: push
+jobs:
+  smoketest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v3
+      - name: Info gathering
+        run: |
+          ls -la /tmp
+          df -h 
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          python -m pip install --upgrade pip
+          pip install pytest requests
+
+      - name: Build container
+        run:
+          docker build -t dojo-test .
+
+      - name: Run Container
+        run: |
+          docker kill dojo-test && sleep 5 || true
+          docker rm dojo-test && sleep 5 || true
+          docker run --privileged -d -v $(mktemp -d /tmp/dojo-data-XXXXXX):/opt/pwn.college/data:shared \
+            -p 2222:22 -p 80:80 -p 443:443 \
+            -e DOJO_CHALLENGE=ghcr.io/pwncollege/challenge-mini \
+            --name dojo-test dojo-test
+
+      - name: Wait for container to be ready
+        run: |
+          until docker exec dojo-test dojo is-setup-finished
+          do
+            sleep 5
+            docker exec dojo-test journalctl -u pwn.college  | tail -n 5
+          done
+
+      - name: Wait for db to be ready
+        run: |
+          until docker exec dojo-test docker exec db mysql -h localhost -u ctfd -pctfd ctfd
+          do
+            sleep 5
+            docker exec dojo-test docker logs db | tail -n 5
+          done
+
+      - name: Run tests against container
+        run: |
+          pytest ./test || (docker exec dojo-test docker compose logs && false)
+          
+        
+      

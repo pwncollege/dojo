@@ -16,7 +16,7 @@ define () {
 }
 define DOJO_HOST localhost.pwn.college
 define DOJO_ENV development
-define DOJO_CHALLENGE challenge-minimal
+define DOJO_CHALLENGE challenge-mini
 define SECRET_KEY $(openssl rand -hex 16)
 define DOCKER_PSLR $(openssl rand -hex 16)
 define UBUNTU_VERSION 20.04
@@ -82,3 +82,4 @@ iptables -I DOCKER-USER -i user_firewall -j DROP
 for host in $(cat $DOJO_DIR/user_firewall.allowed); do
     iptables -I DOCKER-USER -i user_firewall -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
 done
+

@@ -58,7 +58,6 @@ def listing(dojo):
         dojo_user=dojo_user,
         stats=stats,
         infos=infos,
-        render_markdown=render_markdown,
     )
 
 
@@ -78,9 +77,9 @@ def view_module(dojo, module):
         "module.html",
         dojo=dojo,
         module=module,
+        challenges=[ c for c in module.challenges if c.visible() or is_dojo_admin(user, dojo) ],
         user_solves=user_solves,
         total_solves=total_solves,
         user=user,
         current_dojo_challenge=current_dojo_challenge,
-        render_markdown=render_markdown,
     )

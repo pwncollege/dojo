@@ -95,15 +95,78 @@ DOJO_SPEC = Schema({
     }],
 })
 
+def setdefault_name(entry):
+    if "import" in entry:
+        return
+    if "name" in entry:
+        return
+    if "id" not in entry:
+        return
+    entry["name"] = entry["id"].replace("-", " ").title()
 
-def load_dojo_dir(dojo_dir, *, dojo=None):
+def setdefault_file(data, key, file_path):
+    if file_path.exists():
+        data.setdefault("description", file_path.read_text())
+
+def setdefault_subyaml(data, subyaml_path):
+    if not subyaml_path.exists():
+        return data
+
+    topyaml_data = dict(data)
+    subyaml_data = yaml.safe_load(subyaml_path.read_text())
+    data.clear()
+    data.update(subyaml_data)
+    data.update(topyaml_data)
+
+def load_dojo_spec(dojo_dir):
+    """
+    The dojo yaml gets augmented with additional yamls and markdown files found in the dojo repo structure.
+
+    The meta-structure is:
+
+    repo-root/dojo.yml
+    repo-root/DESCRIPTION.md <- if dojo description is missing
+    repo-root/module-id/module.yml <- fills in missing fields for module in dojo.yml (only module id *needs* to be in dojo.yml)
+    repo-root/module-id/DESCRIPTION.md <- if module description is missing
+    repo-root/module-id/challenge-id/challenge.yml <- fills in missing fields for challenge in higher-level ymls (only challenge id *needs* to be in dojo.yml/module.yml)
+    repo-root/module-id/challenge-id/DESCRIPTION.md <- if challenge description is missing
+
+    The higher-level details override the lower-level details.
+    """
+
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
 
-    for path in dojo_dir.rglob("*"):
-        assert dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
+    for path in dojo_dir.rglob("**"):
+        assert dojo_dir == path or dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
 
     data = yaml.safe_load(dojo_yml_path.read_text())
+
+    setdefault_file(data, "description", dojo_dir / "DESCRIPTION.md")
+
+    for module_data in data.get("modules", []):
+        if "id" not in module_data:
+            continue
+
+        module_dir = dojo_dir / module_data["id"]
+        setdefault_subyaml(module_data, module_dir / "module.yml")
+        setdefault_file(module_data, "description", module_dir / "DESCRIPTION.md")
+        setdefault_name(module_data)
+
+        for challenge_data in module_data.get("challenges", []):
+            if "id" not in challenge_data:
+                continue
+
+            challenge_dir = module_dir / challenge_data["id"]
+            setdefault_subyaml(challenge_data, challenge_dir / "challenge.yml")
+            setdefault_file(challenge_data, "description", challenge_dir / "DESCRIPTION.md")
+            setdefault_name(challenge_data)
+
+    return data
+
+def load_dojo_dir(dojo_dir, *, dojo=None):
+    data = load_dojo_spec(dojo_dir)
+
     try:
         dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
@@ -216,6 +279,11 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
         if course_yml_path.exists():
             course = yaml.safe_load(course_yml_path.read_text())
             dojo.course = course
+
+            students_yml_path = dojo_dir / "students.yml"
+            if students_yml_path.exists():
+                students = yaml.safe_load(students_yml_path.read_text())
+                dojo.course["students"] = students
 
     return dojo
 

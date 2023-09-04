@@ -15,7 +15,7 @@ from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 
 from .config import DOJO_HOST, bootstrap
-from .utils import unserialize_user_flag
+from .utils import unserialize_user_flag, render_markdown
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace, redirect_workspace_referers
@@ -130,6 +130,8 @@ def load(app):
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
 
     app.before_request(redirect_workspace_referers)
+
+    app.jinja_env.filters["markdown"] = render_markdown
 
     register_admin_plugin_menu_bar("Dojos", "/admin/dojos")
     register_admin_plugin_menu_bar("Desktops", "/admin/desktops")

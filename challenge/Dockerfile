@@ -1,8 +1,10 @@
 # syntax=docker/dockerfile:1
 
 ARG UBUNTU_VERSION=20.04
+ARG DOJO_CHALLENGE=challenge-mini
+ARG INSTALL_IDA=False
 
-FROM ubuntu:${UBUNTU_VERSION} as builder
+FROM ubuntu:${UBUNTU_VERSION} as essentials
 
 SHELL ["/bin/bash", "-ceov", "pipefail"]
 
@@ -16,19 +18,50 @@ RUN <<EOF
     (set +o pipefail; yes | unminimize)
 
     dpkg --add-architecture i386
+
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 EOF
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install -yqq <<EOF
+    apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+        ca-certificates
+        curl
+        socat
+        sudo
+        vim
+        wget
+        unzip
+EOF
+
+RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
+
+################################################################################
+
+FROM essentials as builder-essentials
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+        build-essential
+EOF
+
+################################################################################
+
+FROM builder-essentials as builder
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
         autoconf
         bc
         bison
-        build-essential
         clang
         cmake
         cpio
-        curl
         openjdk-17-jdk
         flex
         g++-multilib
@@ -58,12 +91,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         python3-pip
         rubygems
         squashfs-tools
-        unzip
         upx-ucl
-        wget
 EOF
-
-RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 
 ################################################################################
 
@@ -142,12 +171,14 @@ EOF
 
 ################################################################################
 
-FROM builder as builder-code-server
+FROM essentials as builder-code-server
 
 RUN <<EOF
     curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
     mkdir -p /opt/code-server/extensions
     code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
+    rm -rf /root/.cache/code-server
+    rm -rf /root/.local/share/code-server
 EOF
 
 WORKDIR /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
@@ -237,18 +268,34 @@ EOF
 
 ################################################################################
 
-FROM builder as builder-desktop-base
+FROM essentials as builder-desktop-base
+
+ARG UBUNTU_VERSION=20.04
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    [ "${UBUNTU_VERSION}" == "20.04" ] && TGR=common || TGR=tools \
+    apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+        novnc
+        tigervnc-standalone-server
+        tigervnc-$TGR
+        websockify
+        fluxbox
+        xterm
+EOF
+
+################################################################################
+
+FROM builder-desktop-base as builder-desktop-xfce
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install -yqq <<EOF && \
+    apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
     apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
-    apt-get -y autoremove
+    apt-get -y autoremove && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
         dbus-x11
         mousepad
-        novnc
-        tigervnc-standalone-server
-        websockify
         xclip
         xfce4
         xfce4-terminal
@@ -262,7 +309,7 @@ RUN rm /etc/xdg/autostart/*
 
 ################################################################################
 
-FROM builder as builder-desktop-reversing-tools
+FROM essentials as builder-desktop-reversing-tools
 
 COPY desktop/angr-management.desktop /usr/share/applications/
 COPY desktop/Ghidra.desktop /usr/share/applications/
@@ -278,9 +325,9 @@ RUN <<EOF
 EOF
 
 # IDA Freeware: only permissible for free and open deployments of the dojo!
-ARG INSTALL_IDA=False
 COPY desktop/ida64.desktop /usr/share/applications/
 COPY desktop/ida.opt /opt/ida/ida.opt
+ARG INSTALL_IDA=False
 RUN <<EOF
     if [ "$INSTALL_IDA" == "True" ]
     then
@@ -296,11 +343,12 @@ EOF
 
 ################################################################################
 
-FROM builder as builder-tools-apt
+FROM essentials as builder-tools-apt
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install -yqq <<EOF
+    apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
         arping
         binutils
         binutils-aarch64-linux-gnu
@@ -344,11 +392,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         rsync
         screen
         silversearcher-ag
-        socat
         strace
-        sudo
         tmux
-        vim
         whiptail
         wireshark
         gedit
@@ -378,7 +423,7 @@ RUN ln -sf /usr/bin/ipython3 /usr/bin/ipython
 
 ################################################################################
 
-FROM builder as builder-pwn.college
+FROM builder-essentials as builder-pwn.college
 
 RUN mkdir /opt/pwn.college
 COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
@@ -398,24 +443,16 @@ RUN gcc /opt/pwn.college/setuid_interpreter.c -DSUID_PYTHON -o /opt/pwn.college/
 
 ################################################################################
 
-ARG UBUNTU_VERSION=20.04
-FROM ubuntu:${UBUNTU_VERSION} as challenge-minimal
+FROM ubuntu:${UBUNTU_VERSION} as challenge-nano
 
 SHELL ["/bin/bash", "-ceov", "pipefail"]
 
 ENV LC_CTYPE=C.UTF-8
 
-COPY --link --from=builder / /
-COPY --link --from=builder-code-server / /
-COPY --link --from=builder-desktop-base / /
-COPY --link --from=builder-tools-apt / /
+COPY --link --from=essentials / /
 COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
 
 RUN <<EOF
-    if id ubuntu; then userdel -f -r ubuntu; fi
-    useradd -s /bin/bash -m hacker
-    passwd -d hacker
-
     ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
 
     ln -sf /home/hacker/.tmux.conf /root/.tmux.conf
@@ -436,22 +473,24 @@ EOF
 
 RUN date > /opt/pwn.college/build
 
-USER hacker
-WORKDIR /home/hacker
+################################################################################
+
+FROM challenge-nano as challenge-micro
+COPY --link --from=builder-code-server / /
 
 ################################################################################
 
-ARG UBUNTU_VERSION=20.04
-FROM ubuntu:${UBUNTU_VERSION} as challenge
+FROM challenge-micro as challenge-mini
+COPY --link --from=builder-desktop-base / /
 
-SHELL ["/bin/bash", "-ceov", "pipefail"]
+################################################################################
 
-ENV LC_CTYPE=C.UTF-8
+FROM challenge-mini as challenge-full
 
 # TODO: probably extra slow to `COPY / /`
+COPY --link --from=builder-essentials / /
 COPY --link --from=builder / /
 COPY --link --from=builder-kernel /opt/linux /opt/linux
-COPY --link --from=builder-code-server / /
 COPY --link --from=builder-tcpdump / /
 COPY --link --from=builder-capstone / /
 COPY --link --from=builder-radare2 / /
@@ -460,12 +499,11 @@ COPY --link --from=builder-rappel / /
 COPY --link --from=builder-rp / /
 COPY --link --from=builder-geckodriver / /
 COPY --link --from=builder-busybox / /
-COPY --link --from=builder-desktop-base / /
+COPY --link --from=builder-desktop-xfce / /
 COPY --link --from=builder-desktop-reversing-tools / /
 COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-gdb / /
 COPY --link --from=builder-tools-pip / /
-COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
 
 RUN cat >> /etc/ssh/ssh_config <<EOF
     StrictHostKeyChecking no
@@ -474,35 +512,26 @@ RUN cat >> /etc/ssh/ssh_config <<EOF
 EOF
 
 RUN <<EOF
-    if id ubuntu; then userdel -f -r ubuntu; fi
-    useradd -s /bin/bash -m hacker
-    passwd -d hacker
-
-    useradd -g nogroup -d /run/sshd -s /usr/sbin/nologin sshd
-
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config
     sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
-
-    ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
-
-    ln -sf /home/hacker/.tmux.conf /root/.tmux.conf
-    ln -sf /home/hacker/.gdbinit /root/.gdbinit
-    ln -sf /home/hacker/.radare2rc /root/.radare2rc
-    ln -sf /home/hacker/.pwn.conf /root/.pwn.conf
-
-    mkdir /challenge
-    install -m 400 <(echo 'pwn.college{uninitialized}') /flag
-
-    find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
-
-    chmod u+s /opt/pwn.college/python \
-              /opt/pwn.college/bash \
-              /opt/pwn.college/sh \
-              /opt/pwn.college/vm/vm
 EOF
 
-RUN date > /opt/pwn.college/build
+################################################################################
+
+# legacy
+FROM challenge-mini as challenge-minimal
+FROM challenge-full as challenge
+
+################################################################################
+
+FROM ${DOJO_CHALLENGE} as challenge-final
+
+RUN <<EOF
+    if id ubuntu; then userdel -f -r ubuntu; fi
+    useradd -s /bin/bash -m hacker
+    passwd -d hacker
+EOF
 
 USER hacker
 WORKDIR /home/hacker

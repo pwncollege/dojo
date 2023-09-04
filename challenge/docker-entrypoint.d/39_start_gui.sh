@@ -48,4 +48,15 @@ start-stop-daemon --start \
                   >>/tmp/vnc/socat.log \
                   2>&1
 seq 1 50 | while read cnt; do sleep 0.1; [ -e /tmp/.X11-unix/X42 ] && break; done
-DISPLAY=:42 xfce4-session &
+
+export DISPLAY=:42
+
+if [ -e /home/hacker/.xinitrc ]
+then
+	/bin/sh /home/hacker/.xinitrc
+elif [ -x /usr/bin/xfce4-session ]
+then
+	xfce4-session &
+else
+	fluxbox &
+fi
