@@ -23,7 +23,11 @@ jobs:
           docker build -t dojo-test .
 
       - name: Run Container
-        run: "docker run --privileged -d -v $PWD:/opt/pwn.college:shared -p 2222:22 -p 80:80 -p 443:443 --name dojo dojo-test"
+        run: |
+          docker run --privileged -d -v $PWD:/opt/pwn.college:shared \
+            -p 2222:22 -p 80:80 -p 443:443 \
+            -e DOJO_CHALLENGE=pwncollege/challenge-mini \
+            --name dojo dojo-test
 
       - name: Wait for container to be ready
         run: |
