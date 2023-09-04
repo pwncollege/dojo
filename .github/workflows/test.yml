@@ -28,7 +28,6 @@ jobs:
           docker rm dojo-test && sleep 5 || true
           docker run --privileged -d -v $(mktemp -d /tmp/dojo-data-XXXXXX):/opt/pwn.college/data:shared \
             -p 2222:22 -p 80:80 -p 443:443 \
-            -e DOJO_CHALLENGE=ghcr.io/pwncollege/challenge-mini \
             --name dojo-test dojo-test
 
       - name: Wait for container to be ready
