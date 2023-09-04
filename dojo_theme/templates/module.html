@@ -56,7 +56,7 @@
   <h2>Challenges</h2>
 
   <div class="accordion" id="challenges">
-    {% for challenge in challenges %}
+    {% for challenge in module.challenges %}
       {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
       {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
       {% call(header) accordion_item("challenges", loop.index) %}
