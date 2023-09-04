@@ -16,7 +16,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-pip
           python -m pip install --upgrade pip
-          pip install pytest
+          pip install pytest requests
 
       - name: Build container
         run:
