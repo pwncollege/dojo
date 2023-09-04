@@ -35,6 +35,7 @@ jobs:
           until docker exec dojo-test dojo is-setup-finished
           do
             sleep 5
+            docker exec dojo-test journalctl -u pwn.college | grep "Failed to start pwn.college docker compose service." && exit -1
             docker exec dojo-test journalctl -u pwn.college  | tail -n 5
           done
 
