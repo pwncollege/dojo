@@ -27,27 +27,27 @@ jobs:
           docker run --privileged -d -v $PWD:/opt/pwn.college:shared \
             -p 2222:22 -p 80:80 -p 443:443 \
             -e DOJO_CHALLENGE=ghcr.io/pwncollege/challenge-mini \
-            --name dojo dojo-test
+            --name dojo-test dojo-test
 
       - name: Wait for container to be ready
         run: |
-          until docker exec dojo dojo is-setup-finished
+          until docker exec dojo-test dojo is-setup-finished
           do
             sleep 5
-            docker exec dojo journalctl -u pwn.college  | tail -n 5
+            docker exec dojo-test journalctl -u pwn.college  | tail -n 5
           done
 
       - name: Wait for db to be ready
         run: |
-          until docker exec dojo docker exec db mysql -h localhost -u ctfd -pctfd ctfd
+          until docker exec dojo-test docker exec db mysql -h localhost -u ctfd -pctfd ctfd
           do
             sleep 5
-            docker exec dojo docker logs db | tail -n 5
+            docker exec dojo-test docker logs db | tail -n 5
           done
 
       - name: Run tests against container
         run: |
-          pytest ./test || (docker exec dojo docker compose logs && false)
+          pytest ./test || (docker exec dojo-test docker compose logs && false)
           
         
       
