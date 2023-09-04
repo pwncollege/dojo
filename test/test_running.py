@@ -19,7 +19,7 @@ def login(username="admin", password="admin", success=True):
     })
     assert r.reason == "OK"
     assert "incorrect" not in r.text or not success
-    s.nonce = hexstring(r.text)
+    s.headers["CSRF-Token"] = hexstring(r.text)
     return s
 
 @pytest.mark.parametrize("endpoint", UNAUTHENTICATED_URLS)
@@ -37,7 +37,6 @@ def test_create_dojo():
     s = login("admin", "admin")
     r = s.post(
         "http://localhost.pwn.college/pwncollege_api/v1/dojo/create",
-        json={ "repository": "pwncollege/example-dojo", "public_key": "", "private_key": "" },
-        headers={"CSRF-Token": s.nonce}
+        json={ "repository": "pwncollege/example-dojo", "public_key": "", "private_key": "" }
     )
     assert r.reason == "OK"
