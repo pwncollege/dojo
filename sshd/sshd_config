@@ -1,3 +1,4 @@
+ChallengeResponseAuthentication no
 PasswordAuthentication no
 UsePAM yes
 
