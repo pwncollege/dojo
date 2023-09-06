@@ -472,8 +472,6 @@ RUN <<EOF
               /opt/pwn.college/vm/vm
 EOF
 
-RUN date > /opt/pwn.college/build
-
 ################################################################################
 
 FROM challenge-nano as challenge-micro
@@ -532,6 +530,8 @@ RUN <<EOF
     if id ubuntu; then userdel -f -r ubuntu; fi
     useradd -s /bin/bash -m hacker
     passwd -d hacker
+
+    date > /opt/pwn.college/build
 EOF
 
 USER hacker
