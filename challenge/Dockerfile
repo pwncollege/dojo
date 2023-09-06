@@ -376,6 +376,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         ipython3
         keyutils
         kmod
+        less
         ltrace
         nano
         net-tools
