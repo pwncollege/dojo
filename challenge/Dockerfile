@@ -463,13 +463,6 @@ RUN <<EOF
 
     mkdir /challenge
     install -m 400 <(echo 'pwn.college{uninitialized}') /flag
-
-    find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
-
-    chmod u+s /opt/pwn.college/python \
-              /opt/pwn.college/bash \
-              /opt/pwn.college/sh \
-              /opt/pwn.college/vm/vm
 EOF
 
 ################################################################################
@@ -528,8 +521,18 @@ FROM ${DOJO_CHALLENGE} as challenge-final
 
 RUN <<EOF
     if id ubuntu; then userdel -f -r ubuntu; fi
+    
     useradd -s /bin/bash -m hacker
     passwd -d hacker
+
+    useradd -g nogroup -d /run/sshd -s /usr/sbin/nologin sshd
+
+    find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
+    
+    chmod u+s /opt/pwn.college/python \
+              /opt/pwn.college/bash \
+              /opt/pwn.college/sh \
+              /opt/pwn.college/vm/vm    
 
     date > /opt/pwn.college/build
 EOF
