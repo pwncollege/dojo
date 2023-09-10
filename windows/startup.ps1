@@ -1,10 +1,11 @@
 Remove-LocalGroupMember -Group "Administrators" -Member hacker
 (Get-Service WinFsp.Launcher).WaitForStatus('Running')
 & "C:\Program Files (x86)\WinFsp\bin\fsreg.bat" virtiofs "D:\virtio-win\viofs\2k22\amd64\virtiofs.exe" "-t %1 -m %2"
+& "C:\Program Files (x86)\WinFsp\bin\launchctl-x64.exe" start virtiofs viofsX flag X:
 & "C:\Program Files (x86)\WinFsp\bin\launchctl-x64.exe" start virtiofs viofsY challenge Y:
 & "C:\Program Files (x86)\WinFsp\bin\launchctl-x64.exe" start virtiofs viofsZ home Z:
 
-$null > C:\flag
+echo 'pwn.college{uninitialized}' > C:\flag
 
 # crash course in the footguns of NTFS's ACL based permissions system that I learned
 #  the hard way:
@@ -27,10 +28,10 @@ $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
 )
 $flagAcl.AddAccessRule($rule)
 Set-Acl -Path C:\flag -AclObject $flagAcl
-Set-Content -Path C:\flag -Value (Get-Content Y:\flag)
-Remove-Item -Path Y:\flag -Force
+Set-Content -Path C:\flag -Value (Get-Content X:\flag)
+Remove-Item -Path X:\flag -Force
 
-if (Test-Path Y:\practice-mode-enabled) {
+if (Test-Path X:\practice-mode-enabled) {
   Add-LocalGroupMember -Group "Administrators" -Member hacker
 }
 
