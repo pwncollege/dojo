@@ -20,10 +20,12 @@ STATEFUL_PATH = Path("/run/windows")
 IMAGE_PATH = STATEFUL_PATH / "windows_img.qcow2"
 VM_PIDFILE = STATEFUL_PATH / "vm.pid"
 VM_LOGFILE = STATEFUL_PATH / "vm.log"
-virtfs_sock_path = lambda tag: STATEFUL_PATH / f"virtfs-{tag}.sock"
-virtfs_pidfile_path = lambda tag: STATEFUL_PATH / f"virtfs-{tag}.pid"
-virtfs_log_path = lambda tag: STATEFUL_PATH / f"virtfs-{tag}.log"
+STATEFUL_WORLD_WRITEABLE_PATH = STATEFUL_PATH / "world-writeable"
+virtfs_sock_path = lambda dir_path, tag: dir_path / f"virtfs-{tag}.sock"
+virtfs_pidfile_path = lambda dir_path, tag: dir_path / f"virtfs-{tag}.pid"
+virtfs_log_path = lambda dir_path, tag: dir_path / f"virtfs-{tag}.log"
 VIRTIOFSD_PATH = "/opt/virtiofsd/virtiofsd"
+FLAG_SHARE_PATH = STATEFUL_PATH / "flag-volume"
 
 
 def error(msg):
@@ -41,6 +43,15 @@ def initialize():
     os.setegid(os.geteuid())
     try:
         STATEFUL_PATH.mkdir()
+    except FileExistsError:
+        pass
+    try:
+        STATEFUL_WORLD_WRITEABLE_PATH.mkdir()
+    except FileExistsError:
+        pass
+    STATEFUL_WORLD_WRITEABLE_PATH.chmod(0o777)
+    try:
+        FLAG_SHARE_PATH.mkdir()
     except FileExistsError:
         pass
 
@@ -64,8 +75,16 @@ def execve(argv):
     os.execve(argv[0], argv, os.environ)
 
 
-def start_daemon(pidfile, logfile, argv):
-    argv = [
+def start_daemon(pidfile, logfile, child_argv, drop_privs=False):
+    def preexec_drop_privs():
+        os.seteuid(os.getuid())
+        os.setegid(os.getgid())
+
+    preexec_fn = None
+    if drop_privs:
+        preexec_fn = preexec_drop_privs
+
+    daemon_argv = [
         "/usr/sbin/start-stop-daemon",
         "--start",
         "--pidfile",
@@ -76,17 +95,18 @@ def start_daemon(pidfile, logfile, argv):
         "--quiet",
         "--oknodo",
         "--startas",
-        argv[0],
+        child_argv[0],
         "--",
-        *argv[1:],
+        *child_argv[1:],
     ]
 
     subprocess.run(
-        argv,
+        daemon_argv,
         stdin=subprocess.DEVNULL,
         stdout=open(logfile, "a"),
         stderr=subprocess.STDOUT,
         check=True,
+        preexec_fn=preexec_fn,
     )
 
 
@@ -155,8 +175,8 @@ def start():
     if not IMAGE_PATH.exists():
         reset_image()
 
-    # We need to pass the flag into the challenge for the initial boot, before the FS
-    #  bridge starts.
+    # We need to pass the flag into the VM for the initial boot, before the FS bridge
+    #  starts.
     # The FS bridge lets an unprivileged Windows user access the shared filesystem with
     #  root privileges, so it would be quite bad if we were to set up the flag again.
     # This function gets called even if the VM is already running, so we need to make
@@ -165,7 +185,7 @@ def start():
         with open("/flag", "r") as f:
             flag = f.read()
         fd = os.open(
-            path="/challenge/flag",
+            path=str(FLAG_SHARE_PATH / "flag"),
             flags=(os.O_WRONLY | os.O_CREAT | os.O_TRUNC),
             mode=0o600
         )
@@ -174,7 +194,7 @@ def start():
             f.write(flag)
 
     if is_privileged():
-        Path("/challenge/practice-mode-enabled").touch()
+        (FLAG_SHARE_PATH / "practice-mode-enabled").touch()
 
     mem = "4096M"
     # fmt: off
@@ -196,21 +216,27 @@ def start():
         "-numa", "node,memdev=mem"
     ]
     # fmt: on
-    mounts = {"challenge": "/challenge", "home": "/home/hacker"}
-    for tag, mountpoint in mounts.items():
-        sock_path = virtfs_sock_path(tag)
+    mounts = {
+        "challenge": ("/challenge", False), 
+        "home": ("/home/hacker", False), 
+        "flag": (str(FLAG_SHARE_PATH), True)
+    }
+    for tag, (mountpoint, needs_root) in mounts.items():
+        dir_path = STATEFUL_PATH if needs_root else STATEFUL_WORLD_WRITEABLE_PATH
+        sock_path = virtfs_sock_path(dir_path, tag)
         start_daemon(
-            virtfs_pidfile_path(tag),
-            virtfs_log_path(tag),
+            virtfs_pidfile_path(dir_path, tag),
+            virtfs_log_path(dir_path, tag),
             # fmt: off
             [
                 str(VIRTIOFSD_PATH),
                 "--writeback",
                 "--socket-path", str(sock_path),
-                "--sandbox", "chroot",
+                "--sandbox", "chroot" if needs_root else "none",
                 "--shared-dir", str(mountpoint)
             ],
             # fmt: on
+            drop_privs=not needs_root
         )
 
         # fmt: off
