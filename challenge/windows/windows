@@ -12,6 +12,8 @@ import grp
 import argparse
 from pathlib import Path
 
+import psutil
+
 VOLUME_PATH = Path("/run/media/windows")
 # /run is not world writeable. this should prevent race conditions.
 STATEFUL_PATH = Path("/run/windows")
@@ -21,6 +23,7 @@ VM_LOGFILE = STATEFUL_PATH / "vm.log"
 virtfs_sock_path = lambda tag: STATEFUL_PATH / f"virtfs-{tag}.sock"
 virtfs_pidfile_path = lambda tag: STATEFUL_PATH / f"virtfs-{tag}.pid"
 virtfs_log_path = lambda tag: STATEFUL_PATH / f"virtfs-{tag}.log"
+VIRTIOFSD_PATH = "/opt/virtiofsd/virtiofsd"
 
 
 def error(msg):
@@ -136,6 +139,13 @@ def kill():
         logfile.unlink()
 
 
+def fs_bridge_running():
+    for p in psutil.process_iter(["exe"]):
+        if p.info["exe"] == str(VIRTIOFSD_PATH):
+            return True
+    return False
+
+
 def start():
     if not Path("/dev/kvm").exists():
         raise NotImplementedError(
@@ -145,16 +155,23 @@ def start():
     if not IMAGE_PATH.exists():
         reset_image()
 
-    with open("/flag", "r") as f:
-        flag = f.read()
-    fd = os.open(
-        path="/challenge/flag",
-        flags=(os.O_WRONLY | os.O_CREAT | os.O_TRUNC),
-        mode=0o600
-    )
-    os.fchmod(fd, 0o600)
-    with open(fd, "w") as f:
-        f.write(flag)
+    # We need to pass the flag into the challenge for the initial boot, before the FS
+    #  bridge starts.
+    # The FS bridge lets an unprivileged Windows user access the shared filesystem with
+    #  root privileges, so it would be quite bad if we were to set up the flag again.
+    # This function gets called even if the VM is already running, so we need to make
+    #  sure the bridge isn't running.
+    if not fs_bridge_running():
+        with open("/flag", "r") as f:
+            flag = f.read()
+        fd = os.open(
+            path="/challenge/flag",
+            flags=(os.O_WRONLY | os.O_CREAT | os.O_TRUNC),
+            mode=0o600
+        )
+        os.fchmod(fd, 0o600)
+        with open(fd, "w") as f:
+            f.write(flag)
 
     if is_privileged():
         Path("/challenge/practice-mode-enabled").touch()
@@ -187,7 +204,7 @@ def start():
             virtfs_log_path(tag),
             # fmt: off
             [
-                "/opt/virtiofsd/virtiofsd",
+                str(VIRTIOFSD_PATH),
                 "--writeback",
                 "--socket-path", str(sock_path),
                 "--sandbox", "chroot",
