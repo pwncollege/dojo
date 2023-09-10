@@ -90,8 +90,11 @@ if ($InstallIDA -eq "True") {
 # -- install tools --
 choco install -y visualstudio2022community
 choco install -y visualstudio2022-workload-nativedesktop
+choco install -y git
 choco install -y python311 --params "CompileAll=1"
 choco install -y microsoft-windows-terminal
+# git requires a reboot to work, so we can't install git python packages right now...
+py -m pip install --user pwntools
 
 # -- disable admin account --
 net user administrator /active:no
