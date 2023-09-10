@@ -29,6 +29,9 @@ if (!(Test-Path -Path $PROFILE)) {
   New-Item -ItemType File -Path $PROFILE -Force
 }
 
+# -- disable windows defender --
+Uninstall-WindowsFeature -Name Windows-Defender
+
 # -- enable SSH --
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 # Start the sshd service
