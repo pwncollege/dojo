@@ -273,7 +273,7 @@ FROM essentials as builder-desktop-base
 ARG UBUNTU_VERSION=20.04
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    [ "${UBUNTU_VERSION}" == "20.04" ] && TGR=common || TGR=tools \
+    [ "${UBUNTU_VERSION}" == "20.04" ] && TGR=common || TGR=tools; \
     apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
         novnc
@@ -376,6 +376,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         ipython3
         keyutils
         kmod
+        less
         ltrace
         nano
         net-tools
@@ -462,16 +463,7 @@ RUN <<EOF
 
     mkdir /challenge
     install -m 400 <(echo 'pwn.college{uninitialized}') /flag
-
-    find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
-
-    chmod u+s /opt/pwn.college/python \
-              /opt/pwn.college/bash \
-              /opt/pwn.college/sh \
-              /opt/pwn.college/vm/vm
 EOF
-
-RUN date > /opt/pwn.college/build
 
 ################################################################################
 
@@ -529,8 +521,20 @@ FROM ${DOJO_CHALLENGE} as challenge-final
 
 RUN <<EOF
     if id ubuntu; then userdel -f -r ubuntu; fi
+    
     useradd -s /bin/bash -m hacker
     passwd -d hacker
+
+    useradd -g nogroup -d /run/sshd -s /usr/sbin/nologin sshd
+
+    find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
+    
+    chmod u+s /opt/pwn.college/python \
+              /opt/pwn.college/bash \
+              /opt/pwn.college/sh \
+              /opt/pwn.college/vm/vm    
+
+    date > /opt/pwn.college/build
 EOF
 
 USER hacker

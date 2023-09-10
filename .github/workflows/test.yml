@@ -28,7 +28,6 @@ jobs:
           docker rm dojo-test && sleep 5 || true
           docker run --privileged -d -v $(mktemp -d /tmp/dojo-data-XXXXXX):/opt/pwn.college/data:shared \
             -p 2222:22 -p 80:80 -p 443:443 \
-            -e DOJO_CHALLENGE=ghcr.io/pwncollege/challenge-mini \
             --name dojo-test dojo-test
 
       - name: Wait for container to be ready
@@ -36,6 +35,7 @@ jobs:
           until docker exec dojo-test dojo is-setup-finished
           do
             sleep 5
+            docker exec dojo-test journalctl -u pwn.college | grep "Failed to start pwn.college docker compose service." && exit -1
             docker exec dojo-test journalctl -u pwn.college  | tail -n 5
           done
 
