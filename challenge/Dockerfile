@@ -366,6 +366,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         fish
         findutils
         firefox
+        gcc-aarch64-linux-gnu
         gdb
         gdb-multiarch
         genisoimage
@@ -376,9 +377,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         ipython3
         keyutils
         kmod
+        libc6-arm64-cross
+        libc6-dev-arm64-cross
         less
         ltrace
         nano
+        neovim
         net-tools
         netcat-openbsd
         nmap
@@ -389,6 +393,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         pcre2-utils
         psutils
         python3-ipdb
+        qemu-user
         qemu-system-x86
         rsync
         screen
@@ -400,6 +405,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         gedit
         fortune
         zsh
+        zip
 EOF
 
 ################################################################################
