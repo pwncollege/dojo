@@ -272,7 +272,7 @@ RUN <<EOF
     DEB_NAME="glow_${VERSION}_amd64.deb"
     pushd /tmp
     wget -q "https://github.com/charmbracelet/glow/releases/download/v${VERSION}/${DEB_NAME}"
-    apt install "${DEB_NAME}"
+    apt install "./${DEB_NAME}"
     rm "${DEB_NAME}"
     popd
 EOF
