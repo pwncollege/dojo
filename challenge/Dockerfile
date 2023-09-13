@@ -266,6 +266,17 @@ RUN <<EOF
     ln -s "${VERSION}/_install" /opt/busybox/fs
 EOF
 
+FROM builder as builder-glow
+RUN <<EOF
+    VERSION="1.5.1"
+    DEB_NAME="glow_${VERSION}_amd64.deb"
+    pushd /tmp
+    wget -q "https://github.com/charmbracelet/glow/releases/download/v${VERSION}/${DEB_NAME}"
+    apt install "${DEB_NAME}"
+    rm "${DEB_NAME}"
+    popd
+EOF    
+
 ################################################################################
 
 FROM essentials as builder-desktop-base
@@ -497,6 +508,7 @@ COPY --link --from=builder-rappel / /
 COPY --link --from=builder-rp / /
 COPY --link --from=builder-geckodriver / /
 COPY --link --from=builder-busybox / /
+COPY --link --from=builder-glow / /
 COPY --link --from=builder-desktop-xfce / /
 COPY --link --from=builder-desktop-reversing-tools / /
 COPY --link --from=builder-tools-apt / /
