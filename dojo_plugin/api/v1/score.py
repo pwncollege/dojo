@@ -28,9 +28,9 @@ def global_scoreboard_data(fields=None):
     fields = fields or []
     order_by = (db.func.count().desc(), db.func.max(Solves.id))
     return (
-        # this should only grab official challenges because
-        # ignore_visibility=False by default
         DojoChallenges.solves()
+        .filter(Dojos.official == 1)
+        .distinct(Solves.challenge_id)
         .group_by(Solves.user_id)
         .order_by(*order_by)
         .join(Users, Users.id == Solves.user_id)
