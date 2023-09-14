@@ -1,0 +1,8 @@
+[Unit]
+Description=Timer to run pwn.college cloud backup service
+
+[Timer]
+OnCalendar=daily
+
+[Install]
+WantedBy=timers.target
