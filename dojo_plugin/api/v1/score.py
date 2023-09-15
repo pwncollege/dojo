@@ -30,14 +30,13 @@ def global_scoreboard_data(fields=None):
     return (
         DojoChallenges.solves()
         .filter(Dojos.official == 1)
-        .distinct(Solves.challenge_id)
         .group_by(Solves.user_id)
-        .order_by(*order_by)
         .join(Users, Users.id == Solves.user_id)
         .with_entities(db.func.row_number().over(order_by=order_by).label("rank"),
-            db.func.count().label("solves"),
+            db.func.count(db.distinct(Solves.challenge_id)).label("solves"),
             Solves.user_id,
             *fields)
+        .order_by(db.desc("solves"))
     )
 
 @score_namespace.route("")
@@ -63,6 +62,6 @@ class ScoreUser(Resource):
         user_count = len(Users.query.all())
         result = global_scoreboard_data()
         # if user has not solved anything, show rank as the last user `user_count`
-        rank = next((item.rank for item in result.paginate().items if item.user_id == user.id), user_count)
+        rank = next((item.rank for item in result.all() if item.user_id == user.id), user_count)
         # since chall count is the same as user_score, they can be reused
         return f"{rank}:{user_score}:{max_score}:{user_score}:{max_score}:{user_count}"
