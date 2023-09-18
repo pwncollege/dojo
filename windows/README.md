@@ -61,6 +61,7 @@ Otherwise it will rebuild the VM image into the `clean.qcow2` file in the window
 ## Building process
 
 The builder boots with the server ISO, floppy disk, and virtio CDROM attached.
+Users can monitor the building process by connecting via VNC to the top-level dojo container's port `5912`.
 First, the VM will boot the windows server ISO.
 The server ISO will read the `Autounattend.xml` file from the floppy disk.
 This file is known as an answer file, it allows the setup to process completely unattended.
@@ -75,6 +76,7 @@ The setup script does a few things to configure the image:
 - Set the virtual network to be "private" to ensure windows trusts it
 - Enable the SSH service, set the default shell to be PowerShell, and whitelist it in the firewall
 - Install the required drivers for the filesystem bridging
+- Setup the ChallengeProxy service
 - Setup the startup script as a scheduled task
 - Install the chocolately package manager
 - Install and configure the TightVNC server
