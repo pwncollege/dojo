@@ -9,14 +9,14 @@ jobs:
       - name: Info gathering
         run: |
           ls -la /tmp
-          df -h 
+          df -h
 
       - name: Install test dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-pip
           python -m pip install --upgrade pip
-          pip install pytest requests
+          pip install pytest pytest-dependency requests
 
       - name: Build container
         run:
@@ -50,6 +50,6 @@ jobs:
       - name: Run tests against container
         run: |
           pytest ./test || (docker exec dojo-test docker compose logs && false)
-          
-        
-      
+
+
+

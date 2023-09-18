@@ -15,28 +15,13 @@ The associated challenge binary may be either global, which means all users will
 
 ## Setup
 
-Clone the repository:
-
-```sh
-git clone https://github.com/pwncollege/dojo /opt/dojo
-```
-
-The only dependency to run the infrastructure is docker, which can be installed with:
-
 ```sh
 curl -fsSL https://get.docker.com | /bin/sh
-```
 
-Now, build the container:
-
-```sh
-docker build -t pwncollege/dojo .
-```
-
-Finally, run the infrastructure which will be hosted on domain `my.domain.college` with:
-
-```sh
-docker run --privileged -d -v /opt/dojo:/opt/pwn.college:shared -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
+DOJO_PATH="./dojo"
+git clone https://github.com/pwncollege/dojo "$DOJO_PATH"
+docker build -t pwncollege/dojo "$DOJO_PATH"
+docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
 ```
 
 > **Warning**
@@ -47,8 +32,8 @@ docker run --privileged -d -v /opt/dojo:/opt/pwn.college:shared -p 22:22 -p 80:8
 > In order to circumvent this issue, you must ensure that`data/docker` is not backed by a MacOS bind mount. 
 > This can be accomplished by replacing the bind mount with a docker volume for `data/docker`, which will use a native Linux mount. 
 > You can apply this solution using the following Docker command (notice the additional `-v`):
-> ```
-> docker run --privileged -d -v /opt/dojo:/opt/pwn.college -v dojo-data-docker:/opt/pwn.college/data/docker -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
+> ```sh
+> docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -v dojo-data-docker:/opt/pwn.college/data/docker -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
 > ```
 
 This will run the initial setup, including building the challenge docker image.

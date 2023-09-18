@@ -1,42 +1,98 @@
+import re
+import subprocess
+
 import requests
 import pytest
-import string
 
-UNAUTHENTICATED_URLS = ["/", "/dojos", "/login", "/register"]
-HOST="localhost.pwn.college"
+
 PROTO="http"
+HOST="localhost.pwn.college"
 
-def hexstring(text, length=64):
-    all_strings = [ w for w in text.split('"') if len(w) == length and set(w).issubset(set(string.hexdigits)) ]
-    assert len(set(all_strings)) == 1
-    return all_strings[0]
 
-def login(username="admin", password="admin", success=True):
-    s = requests.Session()
-    nonce = hexstring(s.get(f"{PROTO}://{HOST}/login").text)
-    r = s.post(f"{PROTO}://{HOST}/login", data={
-        "name": username, "password": password, "_submit": "Submit", "nonce": nonce
-    })
-    assert r.reason == "OK"
-    assert "incorrect" not in r.text or not success
-    s.headers["CSRF-Token"] = hexstring(r.text)
-    return s
+def dojo_run(*args, **kwargs):
+    kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+    container_name = "dojo-test"
+    return subprocess.run(["/usr/bin/docker", "exec", "-i", container_name, "dojo", *args], **kwargs)
 
-@pytest.mark.parametrize("endpoint", UNAUTHENTICATED_URLS)
+
+def login(username, password, *, success=True):
+    def parse_csrf_token(text):
+        match = re.search("'csrfNonce': \"(\\w+)\"", text)
+        assert match, "Failed to find CSRF token"
+        return match.group(1)
+
+    session = requests.Session()
+
+    nonce = parse_csrf_token(session.get(f"{PROTO}://{HOST}/login").text)
+    login_data = dict(name=username, password=password, nonce=nonce)
+    login_response = session.post(f"{PROTO}://{HOST}/login", data=login_data, allow_redirects=False)
+    if not success:
+        assert login_response.status_code == 200, f"Expected login failure (status code 200), but got {login_response.status_code}"
+        return session
+    assert login_response.status_code == 302, f"Expected login success (status code 302), but got {login_response.status_code}"
+
+    home_response = session.get(f"{PROTO}://{HOST}/")
+    session.headers["CSRF-Token"] = parse_csrf_token(home_response.text)
+
+    return session
+
+
+@pytest.fixture
+def admin_session():
+    session = login("admin", "admin")
+    yield session
+
+
+@pytest.mark.parametrize("endpoint", ["/", "/dojos", "/login", "/register"])
 def test_unauthenticated_return_200(endpoint):
     response = requests.get(f"{PROTO}://{HOST}{endpoint}")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
 
-def test_login():
-    unauth = login("admen", "admen", success=False)
-    assert "Admin Panel" not in unauth.get(f"{PROTO}://{HOST}").text
-    authed = login("admin", "admin")
-    assert "Admin Panel" in authed.get(f"{PROTO}://{HOST}").text
 
-def test_create_dojo():
-    s = login("admin", "admin")
-    r = s.post(
-        "http://localhost.pwn.college/pwncollege_api/v1/dojo/create",
-        json={ "repository": "pwncollege/example-dojo", "public_key": "", "private_key": "" }
-    )
-    assert r.reason == "OK"
+def test_login():
+    login("admin", "incorrect_password", success=False)
+    login("admin", "admin")
+
+
+def test_create_dojo(admin_session):
+    create_dojo_json = dict(repository="pwncollege/example-dojo", public_key="", private_key="")
+    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/create", json=create_dojo_json)
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    dojo_reference_id = response.json()["dojo"]
+
+    # TODO: add an official endpoint for making dojos official
+    id, dojo_id = dojo_reference_id.split("~", 1)
+    dojo_id = int.from_bytes(bytes.fromhex(dojo_id.rjust(8, "0")), "big", signed=True)
+    sql = f"UPDATE dojos SET official = TRUE WHERE id = '{id}' and dojo_id = {dojo_id}"
+    dojo_run("db", input=sql)
+
+
+@pytest.mark.dependency(depends=["test_create_dojo"])
+def test_start_challenge(admin_session):
+    start_challenge_json = dict(dojo="example-dojo", module="hello", challenge="apple", practice=False)
+    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/start", json=start_challenge_json)
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
+
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+@pytest.mark.parametrize("path", ["/flag", "/challenge/apple"])
+def test_challenge_container_path_exists(path):
+    try:
+        dojo_run("enter", "admin", input=f"[ -f '{path}' ]")
+    except subprocess.CalledProcessError as e:
+        assert False, f"Path does not exist: {path}"
+
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_challenge_success():
+    try:
+        dojo_run("enter", "admin", input="cat /flag")
+    except subprocess.CalledProcessError as e:
+        assert e.stderr == "cat: /flag: Permission denied"
+    else:
+        assert False, "Expected permission denied"
+
+    result = dojo_run("enter", "admin", input="/challenge/apple")
+    match = re.search("pwn.college{(\w+)}", result.text)
+    assert match, f"Expected flag, but got: {result.text}"
