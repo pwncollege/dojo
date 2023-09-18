@@ -7,10 +7,10 @@ import pytest
 
 PROTO="http"
 HOST="localhost.pwn.college"
-UNAUTHENTICATED_URLS = ["/", "/dojos", "/login", "/register"]
 
 
 def dojo_run(*args, **kwargs):
+    kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
     container_name = "dojo-test"
     return subprocess.run(["/usr/bin/docker", "exec", "-i", container_name, "dojo", *args], **kwargs)
 
@@ -43,7 +43,7 @@ def admin_session():
     yield session
 
 
-@pytest.mark.parametrize("endpoint", UNAUTHENTICATED_URLS)
+@pytest.mark.parametrize("endpoint", ["/", "/dojos", "/login", "/register"])
 def test_unauthenticated_return_200(endpoint):
     response = requests.get(f"{PROTO}://{HOST}{endpoint}")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
@@ -64,7 +64,7 @@ def test_create_dojo(admin_session):
     id, dojo_id = dojo_reference_id.split("~", 1)
     dojo_id = int.from_bytes(bytes.fromhex(dojo_id.rjust(8, "0")), "big", signed=True)
     sql = f"UPDATE dojos SET official = TRUE WHERE id = '{id}' and dojo_id = {dojo_id}"
-    dojo_run("db", input=sql, text=True, check=True)
+    dojo_run("db", input=sql)
 
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
@@ -73,3 +73,26 @@ def test_start_challenge(admin_session):
     response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/start", json=start_challenge_json)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
+
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+@pytest.mark.parametrize("path", ["/flag", "/challenge/apple"])
+def test_challenge_container_path_exists(path):
+    try:
+        dojo_run("enter", "admin", input=f"[ -f '{path}' ]")
+    except subprocess.CalledProcessError as e:
+        assert False, f"Path does not exist: {path}"
+
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_challenge_success():
+    try:
+        dojo_run("enter", "admin", input="cat /flag")
+    except subprocess.CalledProcessError as e:
+        assert e.stderr == "cat: /flag: Permission denied"
+    else:
+        assert False, "Expected permission denied"
+
+    result = dojo_run("enter", "admin", input="/challenge/apple")
+    match = re.search("pwn.college{(\w+)}", result.text)
+    assert match, f"Expected flag, but got: {result.text}"
