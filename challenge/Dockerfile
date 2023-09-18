@@ -417,6 +417,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         python3-ipdb
         qemu-user
         qemu-system-x86
+        qemu-utils
         rsync
         screen
         silversearcher-ag
