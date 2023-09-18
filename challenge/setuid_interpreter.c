@@ -43,7 +43,7 @@ int main(int argc, char **argv, char **envp)
         return ERROR_NOT_SUID;
 
 #ifdef SUID_PYTHON
-    char *child_argv_prefix[] = { "/usr/bin/python", "-I", "--", NULL };
+    char *child_argv_prefix[] = { "/usr/bin/python3", "-I", "--", NULL };
 #endif
 #ifdef SUID_BASH
     char c_arg[PATH_MAX];
