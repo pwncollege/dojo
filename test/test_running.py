@@ -10,9 +10,14 @@ HOST="localhost.pwn.college"
 UNAUTHENTICATED_URLS = ["/", "/dojos", "/login", "/register"]
 
 
+def dojo_run(*args, **kwargs):
+    container_name = "dojo-test"
+    return subprocess.run(["/usr/bin/docker", "exec", "-i", container_name, "dojo", *args], **kwargs)
+
+
 def login(username, password, *, success=True):
     def parse_csrf_token(text):
-        match = re.search("'csrfNonce': \"(\w+)\"", text)
+        match = re.search("'csrfNonce': \"(\\w+)\"", text)
         assert match, "Failed to find CSRF token"
         return match.group(1)
 
@@ -30,6 +35,7 @@ def login(username, password, *, success=True):
     session.headers["CSRF-Token"] = parse_csrf_token(home_response.text)
 
     return session
+
 
 @pytest.fixture
 def admin_session():
@@ -58,7 +64,7 @@ def test_create_dojo(admin_session):
     id, dojo_id = dojo_reference_id.split("~", 1)
     dojo_id = int.from_bytes(bytes.fromhex(dojo_id.rjust(8, "0")), "big", signed=True)
     sql = f"UPDATE dojos SET official = TRUE WHERE id = '{id}' and dojo_id = {dojo_id}"
-    subprocess.run(["/usr/bin/dojo", "db"], input=sql, text=True, check=True)
+    dojo_run("db", input=sql, text=True, check=True)
 
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
