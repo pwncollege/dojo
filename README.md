@@ -15,7 +15,7 @@ The associated challenge binary may be either global, which means all users will
 
 ## Setup
 
-```
+```sh
 curl -fsSL https://get.docker.com | /bin/sh
 
 DOJO_PATH="./dojo"
@@ -32,7 +32,7 @@ docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -p 22:22 -p
 > In order to circumvent this issue, you must ensure that`data/docker` is not backed by a MacOS bind mount. 
 > This can be accomplished by replacing the bind mount with a docker volume for `data/docker`, which will use a native Linux mount. 
 > You can apply this solution using the following Docker command (notice the additional `-v`):
-> ```
+> ```sh
 > docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -v dojo-data-docker:/opt/pwn.college/data/docker -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
 > ```
 
