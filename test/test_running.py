@@ -20,7 +20,7 @@ def login(username, password, *, success=True):
 
     nonce = parse_csrf_token(session.get(f"{PROTO}://{HOST}/login").text)
     login_data = dict(name=username, password=password, nonce=nonce)
-    login_response = session.post(f"{PROTO}://{HOST}/login", data=login_data, follow_redirects=False)
+    login_response = session.post(f"{PROTO}://{HOST}/login", data=login_data, allow_redirects=False)
     if not success:
         assert login_response.status_code == 200, f"Expected login failure (status code 200), but got {login_response.status_code}"
         return session
