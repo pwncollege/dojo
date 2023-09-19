@@ -93,7 +93,7 @@ def test_challenge_success():
     try:
         dojo_run("enter", "admin", input="cat /flag")
     except subprocess.CalledProcessError as e:
-        assert e.stderr == "cat: /flag: Permission denied", f"Expected permission denied, but got: {(e.stdout, e.stderr)}"
+        assert e.stderr == "cat: /flag: Permission denied\n", f"Expected permission denied, but got: {(e.stdout, e.stderr)}"
     else:
         assert False, f"Expected permission denied, but got no error: {(e.stdout, e.stderr)}"
 
