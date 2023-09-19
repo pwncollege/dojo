@@ -74,7 +74,7 @@ def test_create_dojo(admin_session):
 @pytest.mark.dependency(depends=["test_create_dojo"])
 def test_start_challenge(admin_session):
     start_challenge_json = dict(dojo="example", module="hello", challenge="apple", practice=False)
-    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/start", json=start_challenge_json)
+    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/docker", json=start_challenge_json)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
 
