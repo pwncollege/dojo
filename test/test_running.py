@@ -98,5 +98,5 @@ def test_challenge_privilege_escalation():
         assert False, f"Expected permission denied, but got no error: {(e.stdout, e.stderr)}"
 
     result = dojo_run("enter", "admin", input="/challenge/apple")
-    match = re.search("pwn.college{(\\w+)}", result.stdout)
+    match = re.search("pwn.college{(\\S+)}", result.stdout)
     assert match, f"Expected flag, but got: {result.stdout}"
