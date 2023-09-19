@@ -80,6 +80,6 @@ CMD \
 
 # TODO: remove server ISO file to save space
 
-FROM ubuntu:${UBUNTU_VERSION} AS none
+FROM scratch AS none
 
 CMD true
