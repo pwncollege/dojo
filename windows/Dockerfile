@@ -1,6 +1,4 @@
-ARG UBUNTU_VERSION=20.04
-
-FROM ubuntu:${UBUNTU_VERSION} AS full
+FROM ubuntu:20.04 AS full
 
 RUN echo 'APT::Install-Recommends 0;' >> /etc/apt/apt.conf.d/01norecommends \
   && echo 'APT::Install-Suggests 0;' >> /etc/apt/apt.conf.d/01norecommends \
