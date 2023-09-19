@@ -89,7 +89,7 @@ def test_challenge_container_path_exists(path):
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
-def test_challenge_success():
+def test_challenge_privilege_escalation():
     try:
         dojo_run("enter", "admin", input="cat /flag")
     except subprocess.CalledProcessError as e:
@@ -98,5 +98,5 @@ def test_challenge_success():
         assert False, f"Expected permission denied, but got no error: {(e.stdout, e.stderr)}"
 
     result = dojo_run("enter", "admin", input="/challenge/apple")
-    match = re.search("pwn.college{(\\w+)}", result.text)
-    assert match, f"Expected flag, but got: {result.text}"
+    match = re.search("pwn.college{(\\w+)}", result.stdout)
+    assert match, f"Expected flag, but got: {result.stdout}"
