@@ -98,5 +98,22 @@ py -m pip install --user pwntools
 # -- disable admin account --
 net user administrator /active:no
 
+# -- edit password policy --
+& secedit /export /cfg C:\Windows\Temp\policy-edit.inf
+(Get-Content -Path C:\Windows\Temp\policy-edit.inf) -replace "PasswordComplexity = 1", "PasswordComplexity = 0" | 
+    Set-Content -Path C:\Windows\Temp\policy-edit.inf
+& secedit /configure /db C:\windows\security\local.sdb /cfg C:\Windows\Temp\policy-edit.inf
+Remove-Item -Force C:\Windows\Temp\policy-edit.inf
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LimitBlankPasswordUse" -Value 0
+
+#$SecureString = New-Object System.Security.SecureString
+#Get-LocalUser -Name hacker | Set-LocalUser -Password $SecureString
+
+# -- edit SSH config --
+(Get-Content $env:programdata\ssh\sshd_config) `
+ -replace "#PasswordAuthentication yes", "PasswordAuthentication yes" `
+ -replace "#PermitEmptyPasswords no", "PermitEmptyPasswords yes" |
+ Set-Content $env:programdata\ssh\sshd_config
+
 # -- shutdown --
 Stop-Computer -computername localhost -force
