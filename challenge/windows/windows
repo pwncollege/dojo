@@ -12,8 +12,6 @@ import grp
 import argparse
 from pathlib import Path
 
-import psutil
-
 VOLUME_PATH = Path("/run/media/windows")
 # /run is not world writeable. this should prevent race conditions.
 STATEFUL_PATH = Path("/run/windows")
