@@ -60,7 +60,19 @@ pnputil.exe /add-driver E:\virtio-win\viofs\2k22\amd64\viofs.inf /install
 # ...but when we boot up later without the server ISO it will be in D:
 & "C:\Program Files (x86)\WinFsp\bin\fsreg.bat" virtiofs "D:\virtio-win\viofs\2k22\amd64\virtiofs.exe" "-t %1 -m %2"
 
-Copy-Item A:\challenge-proxy.exe -Destination "C:\Program Files\Common Files\"
+# -- install rust through rustup --
+# WARNING: I learned this the hard way. this binary behaves differently based on argv[0].
+#  It must be saved as rustup-init.exe and not rustup.exe.
+(New-Object Net.WebClient).DownloadFile("https://win.rustup.rs/x86_64", "C:\rustup-init.exe")
+& C:\rustup-init.exe --profile minimal -y
+Remove-Item "C:\rustup-init.exe"
+
+Copy-Item -Recurse "A:\challenge-proxy" "C:\Windows\Temp\"
+Push-Location "C:\Windows\Temp\challenge-proxy\"
+& $env:USERPROFILE\.cargo\bin\cargo build --release
+Copy-Item ".\target\release\challenge-proxy.exe" -Destination "C:\Program Files\Common Files\"
+Pop-Location
+Remove-Item -Force -Recurse "C:\Windows\Temp\challenge-proxy\"
 & sc.exe create ChallengeProxy binPath= "C:\Program Files\Common Files\challenge-proxy.exe" displayname= "Challenge Proxy" depend= TcpIp start= auto
 
 Copy-Item A:\startup.ps1 -Destination "C:\Program Files\Common Files\"

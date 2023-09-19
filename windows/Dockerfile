@@ -16,12 +16,13 @@ ARG INSTALL_IDA=False
 # we create a floppy disk that will hold our Autounattend.xml in the root which will
 #  allow windows install to proceed automatically.
 # We require privileges to create a loop device
-COPY ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./challenge-proxy.exe ./
+COPY ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./
+COPY ./challenge-proxy ./challenge-proxy
 RUN sed -i 's/{INSTALLIDA}/'"$INSTALL_IDA"'/g' ./setup.ps1 \
   && mkfs.fat -F 12 -C ./floppy.img 1440 \
-  && mcopy -i ./floppy.img \
-    ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./challenge-proxy.exe :: \
-  && rm ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./challenge-proxy.exe
+  && mcopy -si ./floppy.img \
+    ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./challenge-proxy/ :: \
+  && rm -rf ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./challenge-proxy/
 
 VOLUME /app/build
 
@@ -62,7 +63,7 @@ CMD \
       -boot once=d \
       -machine type=pc,accel=kvm \
       -m 4096M \
-      -smp 4 \
+      -smp "$(nproc)" \
       -display vnc=:12 \
       -nographic \
       -device virtio-net,netdev=user.0 \
