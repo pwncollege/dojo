@@ -160,9 +160,15 @@ def kill():
 
 
 def fs_bridge_running():
-    for p in psutil.process_iter(["exe"]):
-        if p.info["exe"] == str(VIRTIOFSD_PATH):
-            return True
+    procfs = Path("/proc")
+    pid_dirs = [d for d in procfs.iterdir() if d.name.isdigit()]
+    for pid in pid_dirs:
+        try:
+            exe_link = Path("/proc") / str(pid) / "exe"
+            if os.readlink(str(exe_link)) == str(VIRTIOFSD_PATH):
+                return True
+        except FileNotFoundError:
+            pass
     return False
 
 
