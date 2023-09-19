@@ -1,5 +1,7 @@
+#!/bin/sh
 
-if [[ -f /challenge/challenge.exe ]]; then
+if [ -f /challenge/challenge.exe ]; then
+  mkdir -p /tmp/vnc /home/hacker/.vnc
   start-stop-daemon --start \
                     --pidfile /tmp/vnc/websockify-windows.pid \
                     --make-pidfile \
