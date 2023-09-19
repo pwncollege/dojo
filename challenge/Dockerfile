@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG UBUNTU_VERSION=20.04
-ARG DOJO_CHALLENGE=challenge-full
+ARG DOJO_CHALLENGE=challenge-mini
 ARG INSTALL_IDA=False
 
 FROM ubuntu:${UBUNTU_VERSION} as essentials
