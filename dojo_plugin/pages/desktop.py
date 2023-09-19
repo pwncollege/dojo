@@ -88,7 +88,7 @@ def forward_desktop(user_id, path=""):
 @desktop.route("/desktop-win/<int:user_id>/<path:path>")
 @authed_only
 def forward_desktop_win(user_id, path=""):
-    return forward_desktop_res("desktop-win", ".vnc/novnc2.socket", user_id, path)
+    return forward_desktop_res("desktop-win", ".vnc/novnc-windows.socket", user_id, path)
 
 
 @desktop.route("/admin/desktops", methods=["GET"])
