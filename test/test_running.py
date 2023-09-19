@@ -54,6 +54,7 @@ def test_login():
     login("admin", "admin")
 
 
+@pytest.mark.dependency()
 def test_create_dojo(admin_session):
     create_dojo_json = dict(repository="pwncollege/example-dojo", public_key="", private_key="")
     response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/create", json=create_dojo_json)
