@@ -89,10 +89,10 @@ def test_challenge_success():
     try:
         dojo_run("enter", "admin", input="cat /flag")
     except subprocess.CalledProcessError as e:
-        assert e.stderr == "cat: /flag: Permission denied"
+        assert e.stderr == "cat: /flag: Permission denied", f"Expected permission denied, but got: {(e.stdout, e.stderr)}"
     else:
-        assert False, "Expected permission denied"
+        assert False, f"Expected permission denied, but got no error: {(e.stdout, e.stderr)}"
 
     result = dojo_run("enter", "admin", input="/challenge/apple")
-    match = re.search("pwn.college{(\w+)}", result.text)
+    match = re.search("pwn.college{(\\w+)}", result.text)
     assert match, f"Expected flag, but got: {result.text}"
