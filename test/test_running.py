@@ -54,6 +54,7 @@ def test_login():
     login("admin", "admin")
 
 
+@pytest.mark.dependency()
 def test_create_dojo(admin_session):
     create_dojo_json = dict(repository="pwncollege/example-dojo", public_key="", private_key="")
     response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/create", json=create_dojo_json)
@@ -63,14 +64,17 @@ def test_create_dojo(admin_session):
     # TODO: add an official endpoint for making dojos official
     id, dojo_id = dojo_reference_id.split("~", 1)
     dojo_id = int.from_bytes(bytes.fromhex(dojo_id.rjust(8, "0")), "big", signed=True)
-    sql = f"UPDATE dojos SET official = TRUE WHERE id = '{id}' and dojo_id = {dojo_id}"
+    sql = f"UPDATE dojos SET official = 1 WHERE id = '{id}' and dojo_id = {dojo_id}"
     dojo_run("db", input=sql)
+    sql = f"SELECT official FROM dojos WHERE id = '{id}' and dojo_id = {dojo_id}"
+    db_result = dojo_run("db", input=sql)
+    assert db_result.stdout == "official\n1\n", f"Failed to make dojo official: {db_result.stdout}"
 
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
 def test_start_challenge(admin_session):
-    start_challenge_json = dict(dojo="example-dojo", module="hello", challenge="apple", practice=False)
-    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/start", json=start_challenge_json)
+    start_challenge_json = dict(dojo="example", module="hello", challenge="apple", practice=False)
+    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/docker", json=start_challenge_json)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
 
@@ -85,14 +89,14 @@ def test_challenge_container_path_exists(path):
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
-def test_challenge_success():
+def test_challenge_privilege_escalation():
     try:
         dojo_run("enter", "admin", input="cat /flag")
     except subprocess.CalledProcessError as e:
-        assert e.stderr == "cat: /flag: Permission denied"
+        assert e.stderr == "cat: /flag: Permission denied\n", f"Expected permission denied, but got: {(e.stdout, e.stderr)}"
     else:
-        assert False, "Expected permission denied"
+        assert False, f"Expected permission denied, but got no error: {(e.stdout, e.stderr)}"
 
     result = dojo_run("enter", "admin", input="/challenge/apple")
-    match = re.search("pwn.college{(\w+)}", result.text)
-    assert match, f"Expected flag, but got: {result.text}"
+    match = re.search("pwn.college{(\\S+)}", result.stdout)
+    assert match, f"Expected flag, but got: {result.stdout}"

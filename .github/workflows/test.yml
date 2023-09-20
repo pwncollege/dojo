@@ -49,7 +49,7 @@ jobs:
 
       - name: Run tests against container
         run: |
-          pytest ./test || (docker exec dojo-test docker compose logs && false)
+          pytest -vrpP ./test || (docker exec dojo-test docker compose logs && false)
 
 
 

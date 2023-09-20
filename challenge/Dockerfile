@@ -165,6 +165,8 @@ RUN <<EOF
     git clone --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
     cd /opt/pwndbg
     ./setup.sh
+    ln -sf /home/hacker/.gdbinit /root/.gdbinit
+
     git clone https://github.com/hugsy/gef /opt/gef
     git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 EOF
