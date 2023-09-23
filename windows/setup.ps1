@@ -107,6 +107,13 @@ Pop-Location
 Remove-Item -Force -Recurse "C:\Windows\Temp\challenge-proxy\"
 & sc.exe create ChallengeProxy binPath= "C:\Program Files\Common Files\challenge-proxy.exe" displayname= "Challenge Proxy" depend= TcpIp start= auto
 
+if (!(Get-NetFirewallRule -Name "ChallengeProxy-In-TCP" -ErrorAction SilentlyContinue | Select-Object Name, Enabled)) {
+    Write-Output "Firewall Rule 'ChallengeProxy-In-TCP' does not exist, creating it..."
+    New-NetFirewallRule -Name 'ChallengeProxy-In-TCP' -DisplayName 'ChallengeProxy' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 4001
+} else {
+    Write-Output "Firewall rule 'ChallengeProxy-In-TCP' has been created and exists."
+}
+
 # -- disable admin account --
 net user administrator /active:no
 
