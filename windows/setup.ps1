@@ -84,6 +84,9 @@ if ($InstallIDA -eq "True") {
     Remove-Item -Force -Path "C:\idafree.exe"
 }
 
+# -- install telnet --
+Enable-WindowsOptionalFeature -Online -FeatureName "TelnetClient"
+
 # -- install tools --
 choco install -y visualstudio2022community
 choco install -y visualstudio2022-workload-nativedesktop
