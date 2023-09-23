@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -19,7 +20,28 @@ use windows_service::{
     service_dispatcher,
 };
 
-const CHALLENGE_BINARY: &'static str = "Y:\\challenge.exe";
+const CHALLENGE_DIR: &'static str = "Y:\\";
+
+fn find_challenge_binary() -> eyre::Result<PathBuf> {
+    let dir = PathBuf::from(CHALLENGE_DIR);
+    for entry in dir
+        .read_dir()
+        .wrap_err_with(|| format!("Failed to read directory {:?}", CHALLENGE_DIR))?
+    {
+        let entry =
+            entry.wrap_err_with(|| format!("Failed to read directory {:?}", CHALLENGE_DIR))?;
+        match entry.path().extension() {
+            Some(ext) if ext == "exe" => {
+                return Ok(entry.path());
+            }
+            _ => {}
+        }
+    }
+    Err(eyre::eyre!(
+        "Failed to find a .exe file in {:?}",
+        CHALLENGE_DIR
+    ))
+}
 
 async fn client_handler(mut socket: TcpStream) -> eyre::Result<()> {
     const BUFSIZE: usize = 4096;
@@ -28,12 +50,13 @@ async fn client_handler(mut socket: TcpStream) -> eyre::Result<()> {
     let mut stderr_buf = vec![0; BUFSIZE];
 
     info!("Handling connection");
-    let mut child = tokio::process::Command::new(CHALLENGE_BINARY)
+    let challenge_binary = find_challenge_binary()?;
+    let mut child = tokio::process::Command::new(&challenge_binary)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .wrap_err_with(|| format!("Failed to spawn child process {:#?}", CHALLENGE_BINARY))?;
+        .wrap_err_with(|| format!("Failed to spawn child process {:?}", &challenge_binary))?;
     let mut stdin = child.stdin.take().unwrap();
     let mut stdout = child.stdout.take().unwrap();
     let mut stderr = child.stderr.take().unwrap();
