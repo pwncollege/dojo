@@ -118,14 +118,15 @@ net user administrator /active:no
 Remove-Item -Force C:\Windows\Temp\policy-edit.inf
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LimitBlankPasswordUse" -Value 0
 
-#$SecureString = New-Object System.Security.SecureString
-#Get-LocalUser -Name hacker | Set-LocalUser -Password $SecureString
+# -- set empty password for hacker user --
+$SecureString = New-Object System.Security.SecureString
+Get-LocalUser -Name hacker | Set-LocalUser -Password $SecureString
 
 # -- edit SSH config --
-(Get-Content $env:programdata\ssh\sshd_config) `
- -replace "#PasswordAuthentication yes", "PasswordAuthentication yes" `
- -replace "#PermitEmptyPasswords no", "PermitEmptyPasswords yes" |
- Set-Content $env:programdata\ssh\sshd_config
+# to support empty passwords, we require the following settings:
+# PasswordAuthentication yes
+# PermitEmptyPasswords yes
+Copy-Item "A:\sshd_config" -Destination "$env:programdata\ssh\sshd_config"
 
 # -- shutdown --
 Stop-Computer -computername localhost -force
