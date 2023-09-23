@@ -7,7 +7,8 @@ else
   chmod -s "$(which vm)"
 fi
 
-if [ -f /challenge/challenge.exe ]; then
+if ! find /challenge -name '*.exe' -exec false {} +
+then
   windows start
 else
   chmod -s "$(which windows)"
