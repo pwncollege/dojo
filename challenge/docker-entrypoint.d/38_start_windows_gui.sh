@@ -1,6 +1,7 @@
 #!/bin/sh
 
-if [ -f /challenge/challenge.exe ]; then
+if ! find /challenge -name '*.exe' -exec false {} +
+then
   mkdir -p /tmp/vnc /home/hacker/.vnc
   start-stop-daemon --start \
                     --pidfile /tmp/vnc/websockify-windows.pid \
