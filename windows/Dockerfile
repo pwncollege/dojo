@@ -81,6 +81,6 @@ CMD \
 
 # TODO: remove server ISO file to save space
 
-FROM scratch AS none
+FROM ubuntu:20.04 AS full
 
 CMD true
