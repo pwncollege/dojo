@@ -66,11 +66,6 @@ Copy-Item A:\startup.ps1 -Destination "C:\Program Files\Common Files\"
 # -- install chocolately --
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 
-# -- install VNC server --
-# install options reference: https://www.tightvnc.com/doc/win/TightVNC_2.7_for_Windows_Installing_from_MSI_Packages.pdf
-choco install tightvnc -y --installArguments 'ADDLOCAL=Server SET_RFBPORT=1 VALUE_OF_RFBPORT=5912 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=abcd'
-Set-Service -Name tvnserver -StartupType "Manual"
-
 # -- install windbg --
 (New-Object Net.WebClient).DownloadFile("https://windbg.download.prss.microsoft.com/dbazure/prod/1-2308-2002-0/windbg.msixbundle", "C:\windbg.msixbundle")
 add-appxpackage -Path C:\windbg.msixbundle
@@ -88,12 +83,17 @@ if ($InstallIDA -eq "True") {
 Enable-WindowsOptionalFeature -Online -FeatureName "TelnetClient"
 
 # -- install tools --
-choco install -y visualstudio2022community
-choco install -y visualstudio2022-workload-nativedesktop
-choco install -y git
-choco install -y python311 --params "CompileAll=1"
+choco install --ignore-detected-reboot -y visualstudio2022community
+choco install --ignore-detected-reboot -y visualstudio2022-workload-nativedesktop
+choco install --ignore-detected-reboot -y git
+choco install --ignore-detected-reboot -y python311 --params "CompileAll=1"
 # git requires a reboot to work, so we can't install git python packages right now...
 py -m pip install --user pwntools
+
+# -- install VNC server --
+# install options reference: https://www.tightvnc.com/doc/win/TightVNC_2.7_for_Windows_Installing_from_MSI_Packages.pdf
+choco install --ignore-detected-reboot tightvnc -y --installArguments 'ADDLOCAL=Server SET_RFBPORT=1 VALUE_OF_RFBPORT=5912 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=abcd'
+Set-Service -Name tvnserver -StartupType "Manual"
 
 # -- install rust through rustup (this must be done after MSVC is installed) --
 # WARNING: I learned this the hard way. this binary behaves differently based on argv[0].
