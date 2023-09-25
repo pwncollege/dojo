@@ -5,7 +5,7 @@ RUN echo 'APT::Install-Recommends 0;' >> /etc/apt/apt.conf.d/01norecommends \
   && apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     ca-certificates apt-transport-https curl \
-    xorriso mtools dosfstools qemu-utils qemu-kvm \
+    xorriso mtools dosfstools qemu-utils qemu-kvm python3 openssh-client \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -26,6 +26,7 @@ RUN sed -i 's/{INSTALLIDA}/'"$INSTALL_IDA"'/g' ./setup.ps1 \
 
 VOLUME /app/build
 
+COPY ./shutdown.py .
 # we have to repackage the ISO file into the correct format for windows to accept it
 # we create a virtio-win directory in the root of the ISO here. This isn't *strictly*
 #  necessary but it has to correspond with the paths in the Autounattend.xml
@@ -53,9 +54,9 @@ CMD \
     && curl -Lo ./build/server-2022.iso \
       'https://software-static.download.prss.microsoft.com/sg/download/888969d5-f34g-4e03-ac9d-1f9786c66749/SERVER_EVAL_x64FRE_en-us.iso' \
   ) ) \
-  && ( [ -f ./build/image-built ] || ( \
+  && ( [ -f ./build/image-stage1-complete ] || ( \
     echo "Creating VM image" \
-    && rm -rf ./build/clean.qcow2 \
+    && rm -rf ./build/clean.qcow2 ./build/image-built \
     && qemu-img create -f qcow2 ./build/clean.qcow2 51200M \
     && echo "Installing and configuring windows (this will take a while)" \
     && qemu-system-x86_64 \
@@ -74,13 +75,34 @@ CMD \
       -drive "file=./build/server-2022.iso,media=cdrom" \
       -drive "file=./build/virtio-win-processed.iso,media=cdrom" \
       -drive file=./build/clean.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2 \
-    && rm -f ./build/monitor.sock \
+    && rm -rf ./build/monitor.sock \
+    && touch ./build/image-stage1-complete \
+  ) ) \
+  && ( [ -f ./build/image-built ] || ( \
+    echo "Performing initial bootup" \
+    && ( \
+      qemu-system-x86_64 \
+        -name dojo \
+        -boot once=d \
+        -machine type=pc,accel=kvm \
+        -m 4096M \
+        -smp "$(nproc)" \
+        -display vnc=:12 \
+        -nographic \
+        -device virtio-net,netdev=user.0 \
+        -netdev user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::2222-:22 \
+        -serial null \
+        -monitor unix:./build/monitor.sock,server,nowait \
+        -drive file=./floppy.img,format=raw,index=0,if=floppy \
+        -drive "file=./build/server-2022.iso,media=cdrom" \
+        -drive "file=./build/virtio-win-processed.iso,media=cdrom" \
+        -drive file=./build/clean.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2 \
+      & python3 ./shutdown.py \
+    ) && rm -f ./build/monitor.sock \
     && touch ./build/image-built \
     && echo "Windows image built" \
   ) )
 
-# TODO: remove server ISO file to save space
-
-FROM ubuntu:20.04 AS full
+FROM ubuntu:20.04 AS none
 
 CMD true
