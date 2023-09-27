@@ -51,6 +51,8 @@ int main(int argc, char **argv, char **envp)
     char *child_argv_prefix[] = { "/usr/bin/bash", "-c", c_arg, argv[1], NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
+    unsetenv("BASH_ENV");
+    unsetenv("ENV");
 #endif
 #ifdef SUID_SH
     char c_arg[PATH_MAX];
