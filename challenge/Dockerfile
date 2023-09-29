@@ -545,8 +545,6 @@ RUN <<EOF
     useradd -s /bin/bash -m hacker
     passwd -d hacker
 
-    useradd -g nogroup -d /run/sshd -s /usr/sbin/nologin sshd
-
     find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
     
     chmod u+s /opt/pwn.college/python \
