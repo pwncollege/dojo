@@ -36,8 +36,8 @@ Uninstall-WindowsFeature -Name Windows-Defender
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 # Start the sshd service
 Start-Service sshd
-# Make sshd start manual
-Set-Service -Name sshd -StartupType 'Manual'
+# This will be done later when the service actually exists
+#Set-Service -Name sshd -StartupType 'Manual'
 
 # set default shell to powershell
 New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
@@ -93,7 +93,8 @@ py -m pip install --user pwntools
 # -- install VNC server --
 # install options reference: https://www.tightvnc.com/doc/win/TightVNC_2.7_for_Windows_Installing_from_MSI_Packages.pdf
 choco install --ignore-detected-reboot tightvnc -y --installArguments 'ADDLOCAL=Server SET_RFBPORT=1 VALUE_OF_RFBPORT=5912 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=abcd'
-Set-Service -Name tvnserver -StartupType "Manual"
+# this will be done later when the service actually exists
+#Set-Service -Name tvnserver -StartupType 'Manual'
 
 # -- install rust through rustup (this must be done after MSVC is installed) --
 # WARNING: I learned this the hard way. this binary behaves differently based on argv[0].
@@ -120,9 +121,63 @@ if (!(Get-NetFirewallRule -Name "ChallengeProxy-In-TCP" -ErrorAction SilentlyCon
 # -- disable admin account --
 net user administrator /active:no
 
-# -- edit password policy --
+# Based on https://gist.github.com/Tras2/06670c93199b5621ce2076a36e86f41e
+function EnableWmiRemoting($namespace) {
+    $invokeparams = @{Namespace=$namespace;Path="__systemsecurity=@"}
+    $output = Invoke-WmiMethod -Name GetSecurityDescriptor @invokeparams
+    if ($output.ReturnValue -ne 0) {
+        throw "GetSecurityDescriptor failed: $($output.ReturnValue)"
+    }
+    $acl = $output.Descriptor
+    
+    $computerName = (Get-WmiObject Win32_ComputerSystem).Name
+    $acc = Get-WmiObject -Class Win32_Group -Filter "Domain='$computerName' and Name='Users'"
+
+    $WBEM_ENABLE            = 0x00001 # Enable
+    $WBEM_METHOD_EXECUTE    = 0x00002 # MethodExecute
+    $WBEM_FULL_WRITE_REP    = 0x00004 # FullWrite
+    $WBEM_PARTIAL_WRITE_REP = 0x00008 # PartialWrite
+    $WBEM_WRITE_PROVIDER    = 0x00010 # ProviderWrite
+    $WBEM_REMOTE_ACCESS     = 0x00020 # RemoteAccess
+    $WBEM_RIGHT_SUBSCRIBE   = 0x00040
+    $WBEM_RIGHT_PUBLISH     = 0x00080
+    $READ_CONTROL           = 0x20000 # ReadSecurity
+    $WRITE_DAC              = 0x40000 # WriteSecurity
+
+    # Execute Methods | Enable Account | ProviderWrite
+    $defaultMask = $WBEM_METHOD_EXECUTE + $WBEM_ENABLE + $WBEM_WRITE_PROVIDER
+    # Remote Enable
+    $accessMask = $defaultMask + $WBEM_REMOTE_ACCESS
+
+    $ace = (New-Object System.Management.ManagementClass("win32_Ace")).CreateInstance()
+    $ace.AccessMask = $accessMask
+    $ace.AceFlags = 0
+
+    $trustee = (New-Object System.Management.ManagementClass("win32_Trustee")).CreateInstance()
+    $trustee.SidString = $acc.Sid
+    $ace.Trustee = $trustee
+
+    $ACCESS_ALLOWED_ACE_TYPE = 0x0
+    $ACCESS_DENIED_ACE_TYPE  = 0x1
+    $ace.AceType = $ACCESS_ALLOWED_ACE_TYPE
+
+    $acl.DACL += $ace.psobject.immediateBaseObject
+    $output = Invoke-WmiMethod -Name SetSecurityDescriptor -ArgumentList $acl.psobject.immediateBaseObject @invokeparams
+    if ($output.ReturnValue -ne 0) {
+        throw "SetSecurityDescriptor failed: $($output.ReturnValue)"
+    }
+}
+
+EnableWmiRemoting "Root/WMI"
+EnableWmiRemoting "Root/CIMV2"
+EnableWmiRemoting "Root/StandardCimv2"
+
+# -- edit password policy & shutdown policy --
 & secedit /export /cfg C:\Windows\Temp\policy-edit.inf
-(Get-Content -Path C:\Windows\Temp\policy-edit.inf) -replace "PasswordComplexity = 1", "PasswordComplexity = 0" | 
+(Get-Content -Path C:\Windows\Temp\policy-edit.inf) `
+    -replace "PasswordComplexity = 1", "PasswordComplexity = 0" `
+    -replace "SeShutdownPrivilege .+", "`$0,hacker" `
+    -replace "SeRemoteShutdownPrivilege .+", "`$0,hacker" | 
     Set-Content -Path C:\Windows\Temp\policy-edit.inf
 & secedit /configure /db C:\windows\security\local.sdb /cfg C:\Windows\Temp\policy-edit.inf
 Remove-Item -Force C:\Windows\Temp\policy-edit.inf
