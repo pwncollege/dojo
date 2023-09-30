@@ -19,10 +19,11 @@ ARG INSTALL_IDA=False
 COPY ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./sshd_config ./
 COPY ./challenge-proxy ./challenge-proxy
 RUN sed -i 's/{INSTALLIDA}/'"$INSTALL_IDA"'/g' ./setup.ps1 \
+  && touch ./practice-mode-enabled \
   && mkfs.fat -F 12 -C ./floppy.img 1440 \
   && mcopy -si ./floppy.img \
-    ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./sshd_config ./challenge-proxy/ :: \
-  && rm -rf ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./sshd_config ./challenge-proxy/
+    ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/ :: \
+  && rm -rf ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/
 
 VOLUME /app/build
 
