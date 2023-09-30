@@ -5,6 +5,7 @@ Remove-LocalGroupMember -Group "Administrators" -Member hacker
 & "C:\Program Files (x86)\WinFsp\bin\launchctl-x64.exe" start virtiofs viofsY challenge Y:
 & "C:\Program Files (x86)\WinFsp\bin\launchctl-x64.exe" start virtiofs viofsZ home Z:
 
+Remove-iTem -Path C:\flag -Force
 echo 'pwn.college{uninitialized}' > C:\flag
 
 # crash course in the footguns of NTFS's ACL based permissions system that I learned
@@ -31,7 +32,7 @@ Set-Acl -Path C:\flag -AclObject $flagAcl
 Set-Content -Path C:\flag -Value (Get-Content X:\flag)
 Remove-Item -Path X:\flag -Force
 
-if (Test-Path X:\practice-mode-enabled) {
+if (Test-Path X:\practice-mode-enabled -or Test-Path A:\practice-mode-enabled) {
   Add-LocalGroupMember -Group "Administrators" -Member hacker
 }
 

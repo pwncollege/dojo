@@ -1,10 +1,12 @@
 import socket
 import time
 import os
+import subprocess
 from pathlib import Path
 
 vm_hostname = "127.0.0.1"
 port = 2222
+
 
 def wait():
     start = time.time()
@@ -22,10 +24,20 @@ def wait():
 
 
 def shutdown():
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.connect("./build/monitor.sock")
-    sock.sendall(b"system_powerdown\r\n")
-    sock.close()
+    subprocess.check_call(
+        [
+            "ssh",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-p",
+            str(port),
+            f"hacker@{vm_hostname}",
+            "--",
+            "Set-Service -Name sshd -StartupType Manual; "
+            + "Set-Service -Name tvnserver -StartupType Manual; "
+            + "Stop-Computer -Force",
+        ]
+    )
 
 
 def qemu_running():
