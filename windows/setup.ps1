@@ -80,7 +80,7 @@ if ($InstallIDA -eq "True") {
 }
 
 # -- install telnet --
-Enable-WindowsOptionalFeature -Online -FeatureName "TelnetClient"
+Enable-WindowsOptionalFeature -Online -NoRestart -FeatureName "TelnetClient"
 
 # -- install tools --
 choco install --ignore-detected-reboot -y visualstudio2022community
