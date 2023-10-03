@@ -35,7 +35,7 @@ Uninstall-WindowsFeature -Name Windows-Defender
 # -- enable SSH --
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 # Start the sshd service
-Start-Service sshd
+#Start-Service sshd
 # This will be done later when the service actually exists
 #Set-Service -Name sshd -StartupType 'Manual'
 
