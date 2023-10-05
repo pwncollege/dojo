@@ -1,7 +1,7 @@
 from flask import request
 from flask_restx import Namespace, Resource
 from CTFd.cache import cache
-from CTFd.models import Users, db, Solves
+from CTFd.models import Users, db, Solves, Challenges
 from CTFd.utils.decorators import ratelimit
 
 from ...models import Dojos, DojoChallenges
@@ -24,21 +24,6 @@ class ValidateUser(Resource):
 
         return int(bool(Users.query.filter_by(name=username, email=email).first()))
 
-def global_scoreboard_data(fields=None):
-    fields = fields or []
-    order_by = (db.func.count().desc(), db.func.max(Solves.id))
-    return (
-        DojoChallenges.solves()
-        .filter(Dojos.official == 1)
-        .group_by(Solves.user_id)
-        .join(Users, Users.id == Solves.user_id)
-        .with_entities(db.func.row_number().over(order_by=order_by).label("rank"),
-            db.func.count(db.distinct(Solves.challenge_id)).label("solves"),
-            Solves.user_id,
-            *fields)
-        .order_by(db.desc("solves"))
-    )
-
 @score_namespace.route("")
 class ScoreUser(Resource):
     """
@@ -55,13 +40,29 @@ class ScoreUser(Resource):
         if not user:
             return {"error": "user does not exist"}, 400
 
-        official_challenge_ids = {challenge.challenge_id for dojo in Dojos.query.filter_by(official=1).all() for challenge in dojo.challenges}
-        user_score = sum(1 for solve in user.solves if solve.challenge_id in official_challenge_ids)
-        max_score = len(official_challenge_ids)
+        official_challenges = (
+            Challenges.query
+            .join(DojoChallenges)
+            .join(Dojos)
+            .filter(Dojos.official)
+            .distinct()
+        )
+        rank = db.func.row_number().over(
+            order_by=(db.func.count(Solves.id).desc(), db.func.max(Solves.id))
+        ).label("rank")
+        scoreboard = (
+            db.session.query(rank, Solves.user_id, db.func.count(Solves.id).label("solves"))
+            .join(official_challenges.subquery())
+            .group_by(Solves.user_id)
+            .order_by(rank)
+            .all()
+        )
 
-        user_count = Users.query.count()
-        result = global_scoreboard_data()
-        # if user has not solved anything, show rank as the last user `user_count`
-        rank = next((item.rank for item in result.all() if item.user_id == user.id), user_count)
-        # since chall count is the same as user_score, they can be reused
-        return f"{rank}:{user_score}:{max_score}:{user_score}:{max_score}:{user_count}"
+        max_score = official_challenges.count()
+        user_count = len(scoreboard)
+        user_ranking = next((ranking for ranking in scoreboard if ranking.user_id == user.id), None)
+        if not user_ranking:
+            return {"error": "user is not ranked"}, 400
+
+        # rank:score:max_score:challs_solved:chall_count:user_count
+        return f"{user_ranking.rank}:{user_ranking.solves}:{max_score}:{user_ranking.solves}:{max_score}:{user_count}"
