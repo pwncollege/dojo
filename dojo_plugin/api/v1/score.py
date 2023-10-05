@@ -59,7 +59,7 @@ class ScoreUser(Resource):
         user_score = sum(1 for solve in user.solves if solve.challenge_id in official_challenge_ids)
         max_score = len(official_challenge_ids)
 
-        user_count = len(Users.query.count())
+        user_count = Users.query.count()
         result = global_scoreboard_data()
         # if user has not solved anything, show rank as the last user `user_count`
         rank = next((item.rank for item in result.all() if item.user_id == user.id), user_count)
