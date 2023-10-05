@@ -15,12 +15,12 @@ import os
 import re
 
 import docker
-from flask import current_app, Response, abort
+import bleach
+from flask import current_app, Response, Markup, abort
 from itsdangerous.url_safe import URLSafeSerializer
 from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
-from CTFd.utils.helpers import markup
 from CTFd.utils.config.pages import build_markdown
 from CTFd.utils.security.sanitize import sanitize_html
 from sqlalchemy import String, Integer
@@ -155,7 +155,24 @@ def redirect_user_socket(user, socket_path, url_path):
     return redirect_internal(f"http://unix:/var/homes/nosuid/{random_home_path(user)}/{socket_path}:{url_path}")
 
 def render_markdown(s):
-    return markup(build_markdown(s or ""))
+    raw_html = build_markdown(s or "")
+    markdown_tags = [
+        "h1", "h2", "h3", "h4", "h5", "h6",
+        "b", "i", "strong", "em", "tt",
+        "p", "br",
+        "span", "div", "blockquote", "code", "pre", "hr",
+        "ul", "ol", "li", "dd", "dt",
+        "img",
+        "a",
+        "sub", "sup",
+    ]
+    markdown_attrs = {
+        "*": ["id"],
+        "img": ["src", "alt", "title"],
+        "a": ["href", "alt", "title"],
+    }
+    clean_html = bleach.clean(raw_html, tags=markdown_tags, attributes=markdown_attrs)
+    return Markup(clean_html)
 
 def unserialize_user_flag(user_flag, *, secret=None):
     if secret is None:
