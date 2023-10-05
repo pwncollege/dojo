@@ -16,7 +16,7 @@ import re
 
 import docker
 import bleach
-from flask import current_app, Response, Markup, abort
+from flask import current_app, Response, Markup, abort, g
 from itsdangerous.url_safe import URLSafeSerializer
 from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.user import get_current_user
@@ -156,6 +156,9 @@ def redirect_user_socket(user, socket_path, url_path):
 
 def render_markdown(s):
     raw_html = build_markdown(s or "")
+    if "dojo" in g and g.dojo.official:
+        return Markup(raw_html)
+
     markdown_tags = [
         "h1", "h2", "h3", "h4", "h5", "h6",
         "b", "i", "strong", "em", "tt",

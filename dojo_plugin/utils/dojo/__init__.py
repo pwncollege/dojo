@@ -11,7 +11,7 @@ import pathlib
 import yaml
 import requests
 from schema import Schema, Optional, Regex, Or, Use, SchemaError
-from flask import abort
+from flask import abort, g
 from sqlalchemy.orm.exc import NoResultFound
 from CTFd.models import db, Users, Challenges, Flags, Solves
 from CTFd.utils.user import get_current_user, is_admin
@@ -365,6 +365,7 @@ def dojo_route(func):
         if not dojo:
             abort(404)
         bound_args.arguments["dojo"] = dojo
+        g.dojo = dojo
 
         if "module" in bound_args.arguments:
             module = DojoModules.query.filter_by(dojo=dojo, id=bound_args.arguments["module"]).first()
