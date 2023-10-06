@@ -96,10 +96,10 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
 class ScoreboardDojo(Resource):
     @dojo_route
     def get(self, dojo, duration, page):
-        return get_scoreboard_page(dojo=dojo, duration=duration, page=page)
+        return get_scoreboard_page(dojo, duration=duration, page=page)
 
 @scoreboard_namespace.route("/<dojo>/<module>/<int:duration>/<int:page>")
 class ScoreboardModule(Resource):
     @dojo_route
     def get(self, dojo, module, duration, page):
-        return get_scoreboard_page(dojo=dojo, module=module, duration=duration, page=page)
+        return get_scoreboard_page(module, duration=duration, page=page)
