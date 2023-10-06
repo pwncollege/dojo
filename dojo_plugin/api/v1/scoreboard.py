@@ -13,7 +13,7 @@ from CTFd.utils.modes import get_model, generate_account_url
 
 from ...models import DojoChallenges
 from ...utils import dojo_standings, dojo_completions, user_dojos, first_bloods, daily_solve_counts
-from ...utils.dojo import dojo_route, dojo_accessible, dojo_scoreboard_data
+from ...utils.dojo import dojo_route, dojo_accessible
 from .belts import get_belts
 
 
@@ -42,8 +42,25 @@ def belt_asset(color):
     return url_for("views.themes", path=f"img/dojo/{belt}")
 
 
-def get_scoreboard_page(dojo, module=None, duration=None, page=1, per_page=20):
-    query = dojo_scoreboard_data(dojo, module, duration=duration, fields=[Users.name, Users.email])
+def get_scoreboard_page(model, duration=None, page=1, per_page=20):
+    duration_filter = (
+        Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
+        if duration else True
+    )
+    solves = db.func.count().label("solves")
+    rank = (
+        db.func.row_number()
+        .over(order_by=(solves.desc(), db.func.max(Solves.id)))
+        .label("rank")
+    )
+    query = (
+        model.solves()
+        .join(Users, Users.id == Solves.user_id)
+        .filter(duration_filter)
+        .group_by(Solves.user_id)
+        .order_by(rank)
+        .with_entities(rank, solves, Solves.user_id, Users.name, Users.email)
+    )
     pagination = query.paginate(page=page, per_page=per_page)
 
     def standing(item):
@@ -64,6 +81,7 @@ def get_scoreboard_page(dojo, module=None, duration=None, page=1, per_page=20):
 
     user = get_current_user()
     if user:
+        # TODO PERF: This makes the entire function ~2x slower.
         me = standing(db.session.query(query.subquery()).filter_by(user_id=user.id).first())
         if me:
             pages.add((me["rank"] - 1) // per_page + 1)

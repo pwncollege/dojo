@@ -40,8 +40,7 @@
 
   <div class="container">
     {% for dojo in dojos if dojo.solves(user=user, ignore_visibility=True).count() > 0 %}
-      {% set competitor = competitors(dojo, user=user) %}
-      {% set competitor_count = competitors(dojo).count() %}
+      {% set rank, max_rank = ranking(dojo, user) %}
       {% set solves = dojo.solves(user=user, ignore_visibility=True).all() | map(attribute="challenge_id") | list %}
       <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.listing', dojo=dojo.reference_id) }}">
         <h2>{{ dojo.name }}</h2>
@@ -49,7 +48,7 @@
           <i class="fas fa-flag pt-3 pr-3" title="Solves"></i>
           <td>{{ solves | length }} / {{ dojo.challenges | length }}</td>
           <i class="fas fa-trophy pt-3 pr-3 pl-5 " title="Rank"></i>
-          <td>{{ competitor.rank or "-" }} / {{ competitor_count }}</td>
+          <td>{{ rank or "-" }} / {{ max_rank or "-" }}</td>
         </h4>
       </a>
 
@@ -58,8 +57,7 @@
       <div class="accordion" id="{{dojo.reference_id}}-modules">
         {% for module in dojo.modules %}
           {% set solves = dojo.solves(user=user, module=module, ignore_visibility=True).all() | map(attribute="challenge_id") | list %}
-          {% set competitor = competitors(dojo, module, user=user) %}
-          {% set competitor_count = competitors(dojo, module).count() %}
+          {% set rank, max_rank = ranking(module, user) %}
           {% call(header) accordion_item("{}-modules".format(dojo.reference_id), loop.index) %}
             {% if header %}
               <h4 class="accordion-item-name">{{ module.name }}</h4>
@@ -67,7 +65,7 @@
                 <i class="fas fa-flag pr-1" title="Solves"></i>
                 <td>{{ solves | length }} / {{ module.challenges | length }}</td>
                 <i class="fas fa-trophy pr-1 pl-3 " title="Rank"></i>
-                <td>{{ competitor.rank or "-" }} / {{ competitor_count }}</td>
+                <td>{{ rank or "-" }} / {{ max_rank or "-" }}</td>
               </span>
             {% else %}
               {% for challenge in module.challenges %}

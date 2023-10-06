@@ -12,31 +12,24 @@ from CTFd.cache import cache
 
 from ..models import Dojos, DojoModules, DojoChallenges
 from ..utils import DATA_DIR
-from ..utils.dojo import dojo_scoreboard_data
 
 
 users = Blueprint("pwncollege_users", __name__)
-
-
-def hacker_rank(user, dojo, module=None):
-    return (
-        dojo_scoreboard_data(dojo, module, fields=[])
-        .filter(Users.id == user.id)
-        .first()
-    )
 
 
 def view_hacker(user):
     current_user_dojos = set(Dojos.viewable(user=get_current_user()))
     dojos = [dojo for dojo in Dojos.viewable(user=user) if dojo in current_user_dojos]
 
-    def competitors(dojo, module=None, user=None):
-        query = dojo_scoreboard_data(dojo, module)
-        if user:
-            return db.session.query(query.subquery()).filter_by(user_id=user.id).first()
-        return query
+    def ranking(model, user):
+        solves = db.func.count().label("solves")
+        rank = db.func.row_number().over(order_by=(solves.desc(), db.func.max(Solves.id))).label("rank")
+        rankings = model.solves().group_by(Solves.user_id).with_entities(rank, Solves.user_id).all()
+        user_rank = next((ranking.rank for ranking in rankings if ranking.user_id == user.id), None)
+        max_rank = len(rankings)
+        return user_rank, max_rank
 
-    return render_template("hacker.html", dojos=dojos, user=user, competitors=competitors)
+    return render_template("hacker.html", dojos=dojos, user=user, ranking=ranking)
 
 @users.route("/hacker/<int:user_id>")
 def view_other(user_id):
