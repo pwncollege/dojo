@@ -427,7 +427,6 @@ class DojoChallenges(db.Model):
             .outerjoin(DojoUsers, and_(
                 DojoUsers.user_id == Solves.user_id,
                 DojoUsers.dojo_id == DojoChallenges.dojo_id,
-                DojoUsers.type != "admin" if ignore_admins else True,
                 ))
             .join(Dojos, and_(
                 Dojos.dojo_id == DojoChallenges.dojo_id,
@@ -446,6 +445,9 @@ class DojoChallenges(db.Model):
                     or_(DojoChallengeVisibilities.start == None, Solves.date >= DojoChallengeVisibilities.start),
                     or_(DojoChallengeVisibilities.stop == None, Solves.date <= DojoChallengeVisibilities.stop),
                 ))
+
+        if ignore_admins:
+            result = result.filter(DojoUsers.type != "admin")
 
         if user:
             result = result.filter(Solves.user == user)
