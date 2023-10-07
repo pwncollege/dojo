@@ -54,11 +54,11 @@
 
       <br>
 
-      <div class="accordion" id="{{dojo.hex_dojo_id}}-modules">
+      <div class="accordion" id="modules-{{dojo.hex_dojo_id}}">
         {% for module in dojo.modules %}
           {% set solves = module.solves(user=user, ignore_visibility=True, ignore_admins=False).all() | map(attribute="challenge_id") | list %}
           {% set rank, max_rank = ranking(module, user) %}
-          {% call(header) accordion_item("{}-modules".format(dojo.hex_dojo_id), loop.index) %}
+          {% call(header) accordion_item("modules-{}".format(dojo.hex_dojo_id), loop.index) %}
             {% if header %}
               <h4 class="accordion-item-name">{{ module.name }}</h4>
               <span class="total-solves">
