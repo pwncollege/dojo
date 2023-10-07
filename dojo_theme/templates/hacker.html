@@ -39,9 +39,9 @@
   </div>
 
   <div class="container">
-    {% for dojo in dojos if dojo.solves(user=user, ignore_visibility=True).count() > 0 %}
+    {% for dojo in dojos if dojo.solves(user=user, ignore_visibility=True, ignore_admins=False).count() > 0 %}
       {% set rank, max_rank = ranking(dojo, user) %}
-      {% set solves = dojo.solves(user=user, ignore_visibility=True).all() | map(attribute="challenge_id") | list %}
+      {% set solves = dojo.solves(user=user, ignore_visibility=True, ignore_admins=False).all() | map(attribute="challenge_id") | list %}
       <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.listing', dojo=dojo.reference_id) }}">
         <h2>{{ dojo.name }}</h2>
         <h4>
@@ -54,11 +54,11 @@
 
       <br>
 
-      <div class="accordion" id="{{dojo.reference_id}}-modules">
+      <div class="accordion" id="{{dojo.hex_dojo_id}}-modules">
         {% for module in dojo.modules %}
-          {% set solves = dojo.solves(user=user, module=module, ignore_visibility=True).all() | map(attribute="challenge_id") | list %}
+          {% set solves = module.solves(user=user, ignore_visibility=True, ignore_admins=False).all() | map(attribute="challenge_id") | list %}
           {% set rank, max_rank = ranking(module, user) %}
-          {% call(header) accordion_item("{}-modules".format(dojo.reference_id), loop.index) %}
+          {% call(header) accordion_item("{}-modules".format(dojo.hex_dojo_id), loop.index) %}
             {% if header %}
               <h4 class="accordion-item-name">{{ module.name }}</h4>
               <span class="total-solves">
