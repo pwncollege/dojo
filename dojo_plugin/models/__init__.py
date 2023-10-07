@@ -447,7 +447,7 @@ class DojoChallenges(db.Model):
                 ))
 
         if ignore_admins:
-            result = result.filter(DojoUsers.type != "admin")
+            result = result.filter(or_(DojoUsers.type == None, DojoUsers.type != "admin"))
 
         if user:
             result = result.filter(Solves.user == user)
