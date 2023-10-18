@@ -74,21 +74,21 @@ def forward_desktop_res(route, socket_path, user_id, path=""):
     if not can_connect_to(user):
         abort(403)
 
-    return redirect_user_socket(user, socket_path, f"/{path}")
+    return redirect_user_socket(user, socket_path, path)
 
 
 @desktop.route("/desktop/<int:user_id>/")
 @desktop.route("/desktop/<int:user_id>/<path:path>")
 @authed_only
 def forward_desktop(user_id, path=""):
-    return forward_desktop_res("desktop", ".vnc/novnc.socket", user_id, path)
+    return forward_desktop_res("desktop", 6081, user_id, path)
 
 
 @desktop.route("/desktop-win/<int:user_id>/")
 @desktop.route("/desktop-win/<int:user_id>/<path:path>")
 @authed_only
 def forward_desktop_win(user_id, path=""):
-    return forward_desktop_res("desktop-win", ".vnc/novnc-windows.socket", user_id, path)
+    return forward_desktop_res("desktop-win", 6082, user_id, path)
 
 
 @desktop.route("/admin/desktops", methods=["GET"])

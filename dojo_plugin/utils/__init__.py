@@ -140,6 +140,15 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     user_flag = serializer.dumps(data)[::-1]
     return user_flag
 
+def user_ipv4(user):
+    # Subnet: 10.0.0.0/8
+    # Reserved: 10.0.0.0/24, 10.255.255.0/24
+    # Gateway: 10.0.0.1
+    # User IPs: 10.0.1.0 - 10.255.254.255
+    user_ip = (10 << 24) + (1 << 8) + user.id
+    assert user_ip < (10 << 24) + (255 << 16) + (255 << 8)
+    return f"{user_ip >> 24 & 0xff}.{user_ip >> 16 & 0xff}.{user_ip >> 8 & 0xff}.{user_ip & 0xff}"
+
 def redirect_internal(redirect_uri, auth=None):
     response = Response()
     if auth:
@@ -150,9 +159,9 @@ def redirect_internal(redirect_uri, auth=None):
     response.headers["redirect_uri"] = redirect_uri
     return response
 
-def redirect_user_socket(user, socket_path, url_path):
+def redirect_user_socket(user, port, url_path):
     assert user is not None
-    return redirect_internal(f"http://unix:/var/homes/nosuid/{random_home_path(user)}/{socket_path}:{url_path}")
+    return redirect_internal(f"http://user_{user.id}:{port}/{url_path}")
 
 def render_markdown(s):
     raw_html = build_markdown(s or "")

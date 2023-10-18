@@ -25,7 +25,7 @@ def forward_workspace(path=""):
     prefix = "/workspace/"
     assert request.full_path.startswith(prefix)
     path = request.full_path[len(prefix):]
-    return redirect_user_socket(get_current_user(), ".local/share/code-server/workspace.socket", f"/{path}")
+    return redirect_user_socket(get_current_user(), 6080, path)
 
 
 def redirect_workspace_referers():

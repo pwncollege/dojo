@@ -141,6 +141,12 @@ services:
       - ./nginx-proxy/etc/passwd:/etc/passwd:ro
       - ./data/homes:/var/homes:shared
       - /var/run/docker.sock:/tmp/${DOCKER_PSLR}/docker.sock:ro
+    networks:
+      default:
+      user_network:
+        aliases:
+          - nginx
+        ipv4_address: 10.0.0.3
 
   nginx-certs:
     container_name: nginx_certs

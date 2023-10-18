@@ -12,7 +12,7 @@ from CTFd.utils.decorators import authed_only
 
 from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL, WINDOWS_VM_ENABLED
 from ...models import Dojos, DojoModules, DojoChallenges
-from ...utils import serialize_user_flag, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, module_challenges_visible
+from ...utils import serialize_user_flag, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, module_challenges_visible, user_ipv4
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 
 
@@ -117,6 +117,7 @@ def start_challenge(user, dojo_challenge, practice):
                 f"vm_{hostname}": "127.0.0.1",
                 "challenge.localhost": "127.0.0.1",
                 "hacker.localhost": "127.0.0.1",
+                "dojo-user": user_ipv4(user),
                 **USER_FIREWALL_ALLOWED,
             },
             init=True,
@@ -129,15 +130,6 @@ def start_challenge(user, dojo_challenge, practice):
             detach=True,
             auto_remove=True,
         )
-
-        def user_ipv4(user):
-            # Subnet: 10.0.0.0/8
-            # Reserved: 10.0.0.0/24, 10.255.255.0/24
-            # Gateway: 10.0.0.1
-            # User IPs: 10.0.1.0 - 10.255.254.255
-            user_ip = (10 << 24) + (1 << 8) + user.id
-            assert user_ip < (10 << 24) + (255 << 16) + (255 << 8)
-            return f"{user_ip >> 24 & 0xff}.{user_ip >> 16 & 0xff}.{user_ip >> 8 & 0xff}.{user_ip & 0xff}"
 
         user_network = docker_client.networks.get("user_network")
         user_network.connect(container, ipv4_address=user_ipv4(user), aliases=[f"user_{user.id}"])
