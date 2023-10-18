@@ -12,7 +12,7 @@ services:
     platform: linux/amd64
     entrypoint: /bin/true
     networks:
-      - user_firewall
+      - user_network
 
   ctfd:
     container_name: ctfd
@@ -167,8 +167,12 @@ volumes:
   windows:
 
 networks:
-  user_firewall:
-    name: user_firewall
+  user_network:
+    name: user_network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/8
     driver_opts:
-      com.docker.network.bridge.name: "user_firewall"
+      com.docker.network.bridge.name: "user_network"
       com.docker.network.bridge.enable_icc: "false"

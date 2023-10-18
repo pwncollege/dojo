@@ -64,17 +64,18 @@ def start_challenge(user, dojo_challenge, practice):
             container.wait(condition="removed")
         except docker.errors.NotFound:
             pass
+
         hostname = "-".join((dojo_challenge.module.id, dojo_challenge.id))
         if practice:
             hostname = f"practice~{hostname}"
+
         devices = []
         if os.path.exists("/dev/kvm"):
             devices.append("/dev/kvm:/dev/kvm:rwm")
         if os.path.exists("/dev/net/tun"):
             devices.append("/dev/net/tun:/dev/net/tun:rwm")
-        internet = INTERNET_FOR_ALL or any(award.name == "INTERNET" for award in user.awards)
 
-        return docker_client.containers.run(
+        container = docker_client.containers.create(
             dojo_challenge.image,
             entrypoint=["/bin/sleep", "6h"],
             name=f"user_{user.id}",
@@ -109,7 +110,7 @@ def start_challenge(user, dojo_challenge, practice):
                 else []
             ),
             devices=devices,
-            network=None if internet else "user_firewall",
+            network=None,
             extra_hosts={
                 hostname: "127.0.0.1",
                 "vm": "127.0.0.1",
@@ -126,8 +127,28 @@ def start_challenge(user, dojo_challenge, practice):
             pids_limit=1024,
             mem_limit="4000m",
             detach=True,
-            remove=True,
+            auto_remove=True,
         )
+
+        def user_ipv4(user):
+            # Subnet: 10.0.0.0/8
+            # Reserved: 10.0.0.0/24, 10.255.255.0/24
+            # Gateway: 10.0.0.1
+            # User IPs: 10.0.1.0 - 10.255.254.255
+            user_ip = (10 << 24) + (1 << 8) + user.id
+            assert user_ip < (10 << 24) + (255 << 16) + (255 << 8)
+            return f"{user_ip >> 24 & 0xff}.{user_ip >> 16 & 0xff}.{user_ip >> 8 & 0xff}.{user_ip & 0xff}"
+
+        user_network = docker_client.networks.get("user_network")
+        user_network.connect(container, ipv4_address=user_ipv4(user), aliases=[f"user_{user.id}"])
+
+        default_network = docker_client.networks.get("bridge")
+        internet_access = INTERNET_FOR_ALL or any(award.name == "INTERNET" for award in user.awards)
+        if not internet_access:
+            default_network.disconnect(container)
+
+        container.start()
+        return container
 
     def verify_nosuid_home():
         exit_code, output = exec_run("findmnt --output OPTIONS /home/hacker",

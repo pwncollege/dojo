@@ -79,8 +79,8 @@ sysctl -w kernel.pty.max=1048576
 echo core > /proc/sys/kernel/core_pattern
 
 iptables -N DOCKER-USER
-iptables -I DOCKER-USER -i user_firewall -j DROP
+iptables -I DOCKER-USER -i user_network -j DROP
 for host in $(cat $DOJO_DIR/user_firewall.allowed); do
-    iptables -I DOCKER-USER -i user_firewall -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
+    iptables -I DOCKER-USER -i user_network -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
 done
 
