@@ -1,6 +1,0 @@
-docker==4.3.0
-pyyaml==5.4.1
-schema
-bleach
-ipython
-flask-shell-ipython

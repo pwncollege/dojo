@@ -14,8 +14,7 @@ RUN apt-get update \
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY requirements.txt /opt/CTFd/
-COPY dojo-requirements.txt /opt/CTFd/
-RUN pip install --no-cache-dir -r requirements.txt -r dojo-requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /opt/CTFd
 
