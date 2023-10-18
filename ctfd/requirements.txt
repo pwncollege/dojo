@@ -37,7 +37,7 @@ WTForms==2.3.1
 python-geoacumen-city
 maxminddb==1.5.4
 tenacity==6.2.0
-pybluemonday==0.0.7
+pybluemonday==0.0.8
 
 markupsafe==1.1.1  # Fix: ImportError: cannot import name 'soft_unicode' from 'markupsafe'
 greenlet==0.4.17   # Fix: ValueError: greenlet.greenlet size changed, may indicate binary incompatibility.
