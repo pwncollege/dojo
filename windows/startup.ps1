@@ -32,7 +32,7 @@ Set-Acl -Path C:\flag -AclObject $flagAcl
 Set-Content -Path C:\flag -Value (Get-Content X:\flag)
 Remove-Item -Path X:\flag -Force
 
-if (Test-Path X:\practice-mode-enabled -or Test-Path A:\practice-mode-enabled) {
+if (Test-Path X:\practice-mode-enabled) {
   Add-LocalGroupMember -Group "Administrators" -Member hacker
 }
 
