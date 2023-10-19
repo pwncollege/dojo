@@ -21,12 +21,19 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest pytest-dependency requests
 
+      - name: Cache dojo docker data
+        uses: actions/cache@v3
+        with:
+          path: /var/lib/docker/volumes/dojo-test-data-docker
+          key: ${{ runner.os }}-dojo-test-data
+
       - name: Run dojo
         run: |
           docker run \
             --privileged \
             -d \
-            -v $(mktemp -d /tmp/dojo-data-XXXXXX):/opt/pwn.college/data:shared \
+            -v dojo-test-data:/opt/pwn.college/data:shared \
+            -v dojo-test-data-docker:/opt/pwn.college/data/docker \
             -p 2222:22 -p 80:80 -p 443:443 \
             --name dojo-test \
             dojo-test
