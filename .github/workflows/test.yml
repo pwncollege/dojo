@@ -7,6 +7,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Cache dojo
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildkit-cache
+          key: ${{ runner.os }}-dojo-buildkit-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-dojo-buildkit-
+
       - name: Info gathering
         run: |
           ls -la /tmp
@@ -21,7 +29,12 @@ jobs:
 
       - name: Build dojo
         run:
-          docker build -t dojo-test .
+          docker build \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from=type=local,src=/tmp/.buildkit-cache \
+            --cache-to=type=local,dest=/tmp/.buildkit-cache,mode=max \
+            -t dojo-test \
+            .
 
       - name: Run dojo
         run: |
