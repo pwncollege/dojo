@@ -29,11 +29,6 @@ from .pages.writeups import writeups
 from .api import api
 
 
-# TODO: upgrade to flask 2.1
-# https://github.com/pallets/werkzeug/issues/2352
-Response.autocorrect_location_header = False
-
-
 class DojoChallenge(BaseChallenge):
     id = "dojo"
     name = "dojo"
@@ -86,20 +81,21 @@ CTFd.utils.email.smtp.EmailMessage = DatedEmailMessage
 
 
 def redirect_dojo():
-    parsed_url = urlparse(request.url)
-    if parsed_url.netloc.split(':')[0] != DOJO_HOST:
-        netloc = DOJO_HOST
-        if ':' in parsed_url.netloc:
-            netloc += ':' + parsed_url.netloc.split(':')[1]
-        redirect_url = urlunparse((
-            parsed_url.scheme,
-            netloc,
-            parsed_url.path,
-            parsed_url.params,
-            parsed_url.query,
-            parsed_url.fragment,
-        ))
-        return redirect(redirect_url, code=301)
+    if "X-Forwarded-For" in request.headers:
+        parsed_url = urlparse(request.url)
+        if parsed_url.netloc.split(':')[0] != DOJO_HOST:
+            netloc = DOJO_HOST
+            if ':' in parsed_url.netloc:
+                netloc += ':' + parsed_url.netloc.split(':')[1]
+            redirect_url = urlunparse((
+                parsed_url.scheme,
+                netloc,
+                parsed_url.path,
+                parsed_url.params,
+                parsed_url.query,
+                parsed_url.fragment,
+            ))
+            return redirect(redirect_url, code=301)
 
 
 def load(app):
@@ -117,6 +113,7 @@ def load(app):
 
     if not app.debug:
         app.before_request(redirect_dojo)
+    app.before_request(redirect_workspace_referers)
 
     app.register_blueprint(dojos)
     app.register_blueprint(dojo)
@@ -128,8 +125,6 @@ def load(app):
     app.register_blueprint(course)
     app.register_blueprint(writeups)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
-
-    app.before_request(redirect_workspace_referers)
 
     app.jinja_env.filters["markdown"] = render_markdown
 
