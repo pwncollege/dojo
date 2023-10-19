@@ -32,7 +32,7 @@ jobs:
           docker run \
             --privileged \
             -d \
-            -v dojo-test-data:/opt/pwn.college/data:shared \
+            -v /tmp/dojo-test-data:/opt/pwn.college/data:shared \
             -v dojo-test-data-docker:/opt/pwn.college/data/docker \
             -p 2222:22 -p 80:80 -p 443:443 \
             --name dojo-test \
