@@ -24,7 +24,7 @@ jobs:
       - name: Cache dojo docker data
         uses: actions/cache@v3
         with:
-          path: /var/lib/docker/volumes/dojo-test-data-docker
+          path: ./dojo-test-data/docker
           key: ${{ runner.os }}-dojo-test-data
 
       - name: Run dojo
@@ -32,8 +32,7 @@ jobs:
           docker run \
             --privileged \
             -d \
-            -v /tmp/dojo-test-data:/opt/pwn.college/data:shared \
-            -v dojo-test-data-docker:/opt/pwn.college/data/docker \
+            -v ./dojo-test-data:/opt/pwn.college/data:shared \
             -p 2222:22 -p 80:80 -p 443:443 \
             --name dojo-test \
             dojo-test
