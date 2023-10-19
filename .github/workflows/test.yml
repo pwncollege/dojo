@@ -29,6 +29,7 @@ jobs:
 
       - name: Build dojo
         run: |
+          export DOCKER_BUILDKIT=1
           docker build \
             --build-arg BUILDKIT_INLINE_CACHE=1 \
             --cache-from=type=local,src=/tmp/.buildkit-cache \
