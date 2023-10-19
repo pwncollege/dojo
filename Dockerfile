@@ -21,7 +21,7 @@ RUN echo '{ "data-root": "/opt/pwn.college/data/docker" }' > /etc/docker/daemon.
 # TODO: this can be removed with docker-v22 (buildx will be default)
 RUN docker buildx install
 
-RUN git clone --branch 3.4.0 https://github.com/CTFd/CTFd /opt/CTFd
+RUN git clone --branch 3.6.0 https://github.com/CTFd/CTFd /opt/CTFd
 
 RUN wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
 

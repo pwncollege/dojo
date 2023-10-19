@@ -47,7 +47,7 @@ def view_desktop_res(route, user_id=None, password=None):
     active = bool(password) if get_current_dojo_challenge(user) is not None else None
     view_only = int(user_id != current_user.id)
 
-    iframe_src = f"/{route}/{user_id}/vnc.html?autoconnect=1&reconnect=1&path=/{route}/{user_id}/websockify&resize=remote&reconnect_delay=10&view_only={view_only}&password={password}"
+    iframe_src = f"/{route}/{user_id}/vnc.html?autoconnect=1&reconnect=1&path={route}/{user_id}/websockify&resize=remote&reconnect_delay=10&view_only={view_only}&password={password}"
     return render_template("iframe.html", iframe_src=iframe_src, active=active)
 
 
@@ -79,13 +79,18 @@ def forward_desktop_res(route, socket_path, user_id, path=""):
 
 @desktop.route("/desktop/<int:user_id>/")
 @desktop.route("/desktop/<int:user_id>/<path:path>")
+@desktop.route("/desktop/<int:user_id>/", websocket=True)
+@desktop.route("/desktop/<int:user_id>/<path:path>", websocket=True)
 @authed_only
 def forward_desktop(user_id, path=""):
+    print("FORWARDING DESKTOP", path, flush=True)
     return forward_desktop_res("desktop", 6081, user_id, path)
 
 
 @desktop.route("/desktop-win/<int:user_id>/")
 @desktop.route("/desktop-win/<int:user_id>/<path:path>")
+@desktop.route("/desktop-win/<int:user_id>/", websocket=True)
+@desktop.route("/desktop-win/<int:user_id>/<path:path>", websocket=True)
 @authed_only
 def forward_desktop_win(user_id, path=""):
     return forward_desktop_res("desktop-win", 6082, user_id, path)

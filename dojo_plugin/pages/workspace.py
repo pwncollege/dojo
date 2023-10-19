@@ -20,6 +20,8 @@ def view_workspace():
 
 @workspace.route("/workspace/")
 @workspace.route("/workspace/<path:path>")
+@workspace.route("/workspace/", websocket=True)
+@workspace.route("/workspace/<path:path>", websocket=True)
 @authed_only
 def forward_workspace(path=""):
     prefix = "/workspace/"
