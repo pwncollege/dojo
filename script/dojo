@@ -80,9 +80,19 @@ case "$ACTION" in
         journalctl -u pwn.college -f
         ;;
 
-    # HELP: is-setup-finished: use exit code to return if the system is done with setup
-    "is-setup-finished")
-        journalctl -u pwn.college | grep "Finished pwn.college docker compose service"
+    # HELP: wait: wait for the dojo to finish starting
+    "wait")
+        dojo logs | while IFS= read -r line; do
+            echo "$line"
+            case "$line" in
+                *"Finished pwn.college docker compose service"*)
+                    exit 0
+                    ;;
+                *"Failed to start pwn.college docker compose service."*)
+                    exit 1
+                    ;;
+            esac
+        done
         ;;
 
     # HELP: start: start the dojo. Main entry point for the docker image.

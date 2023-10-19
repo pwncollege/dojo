@@ -3,9 +3,10 @@ on: push
 jobs:
   smoketest:
     runs-on: ubuntu-latest
-    timeout-minutes: 23
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v3
+
       - name: Info gathering
         run: |
           ls -la /tmp
@@ -24,25 +25,17 @@ jobs:
 
       - name: Run Container
         run: |
-          docker kill dojo-test && sleep 5 || true
-          docker rm dojo-test && sleep 5 || true
-          docker run --privileged -d -v $(mktemp -d /tmp/dojo-data-XXXXXX):/opt/pwn.college/data:shared \
+          docker run \
+            --privileged \
+            -d \
+            -v $(mktemp -d /tmp/dojo-data-XXXXXX):/opt/pwn.college/data:shared \
             -p 2222:22 -p 80:80 -p 443:443 \
-            --name dojo-test dojo-test
+            --name dojo-test \
+            dojo-test
 
       - name: Wait for services to be started
         run: |
-          docker exec dojo-test dojo logs -f &
-          log_pid=$!
-
-          until docker exec dojo-test dojo is-setup-finished
-          do
-            sleep 5
-            docker exec dojo-test dojo logs | grep "Failed to start pwn.college docker compose service." && (kill $log_pid; exit 1)
-          done
-
-          kill $log_pid
-          exit 0
+          docker exec dojo-test dojo wait
 
       - name: Wait for services to be running
         run: |
