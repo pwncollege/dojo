@@ -21,11 +21,16 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest pytest-dependency requests
 
-      - name: Cache dojo docker data
+      - name: Cache dojo data docker
+        id: cache-dojo-data-docker
         uses: actions/cache@v3
         with:
-          path: ./dojo-test-data/docker
-          key: ${{ runner.os }}-dojo-test-data
+          path: ./dojo-test-data-docker.tar.gz
+          key: ${{ runner.os }}-dojo-test-data-docker
+
+      - name: Load dojo docker data
+        if: ${{ steps.cache-dojo-data-docker.outputs.cache-hit == 'true' }}
+        run: sudo tar -xzpvf ./dojo-test-data-docker.tar.gz
 
       - name: Run dojo
         run: |
@@ -53,6 +58,9 @@ jobs:
 
           kill $log_pid
           exit 0
+
+      - name: Save dojo docker data
+        run: sudo tar -czpvf ./dojo-test-data-docker.tar.gz ./dojo-test-data/docker
 
       - name: Run tests against dojo
         run: |
