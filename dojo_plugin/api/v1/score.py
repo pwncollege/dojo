@@ -22,7 +22,7 @@ class ValidateUser(Resource):
         if not username or not email:
             return {"error": "`username` and `email` parameters are required"}, 400
 
-        return int(bool(Users.query.filter_by(name=username, email=email).first()))
+        return int(bool(Users.query.filter_by(name=username, email=email, hidden=False).first()))
 
 @score_namespace.route("")
 class ScoreUser(Resource):
@@ -36,7 +36,7 @@ class ScoreUser(Resource):
         if not username:
             return {"error": "`username` parameter is required"}, 400
 
-        user = Users.query.filter_by(name=username).first()
+        user = Users.query.filter_by(name=username, hidden=False).first()
         if not user:
             return {"error": "user does not exist"}, 400
 

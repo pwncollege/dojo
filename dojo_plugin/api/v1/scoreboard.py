@@ -55,7 +55,6 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     )
     query = (
         model.solves()
-        .join(Users, Users.id == Solves.user_id)
         .filter(duration_filter)
         .group_by(Solves.user_id)
         .order_by(rank)
@@ -80,7 +79,7 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     pages = set(page for page in pagination.iter_pages() if page)
 
     user = get_current_user()
-    if user:
+    if user and not user.hidden:
         # TODO PERF: This makes the entire function ~2x slower.
         me = standing(db.session.query(query.subquery()).filter_by(user_id=user.id).first())
         if me:

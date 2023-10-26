@@ -432,6 +432,7 @@ class DojoChallenges(db.Model):
                 Dojos.dojo_id == DojoChallenges.dojo_id,
                 or_(Dojos.official, DojoUsers.user_id != None),
                 ))
+            .join(Users, Users.id == Solves.user_id)
         )
 
         if not ignore_visibility:
@@ -444,7 +445,9 @@ class DojoChallenges(db.Model):
                 .filter(
                     or_(DojoChallengeVisibilities.start == None, Solves.date >= DojoChallengeVisibilities.start),
                     or_(DojoChallengeVisibilities.stop == None, Solves.date <= DojoChallengeVisibilities.stop),
-                ))
+                )
+                .filter(Users.hidden == False)
+            )
 
         if ignore_admins:
             result = result.filter(or_(DojoUsers.type == None, DojoUsers.type != "admin"))
