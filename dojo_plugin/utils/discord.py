@@ -10,6 +10,18 @@ OAUTH_ENDPOINT = "https://discord.com/api/oauth2"
 API_ENDPOINT = "https://discord.com/api/v9"
 
 
+def guild_request(endpoint, method="GET", **json):
+    guild_endpoint = f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}"
+    headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
+    json = json or None
+    response = requests.request(method, f"{guild_endpoint}{endpoint}", headers=headers, json=json)
+    response.raise_for_status()
+    if "application/json" in response.headers.get("Content-Type", ""):
+        return response.json()
+    else:
+        return response.content
+
+
 def get_bot_join_server_url():
     # "Server Members Intent" also required
     params = dict(client_id=DISCORD_CLIENT_ID, scope="bot", permissions=268437504, guild_id=DISCORD_GUILD_ID)
@@ -47,7 +59,7 @@ def get_discord_id(auth_code):
     return discord_id
 
 
-@cache.memoize(timeout=1800)
+@cache.memoize(timeout=60)
 def get_discord_user(user_id):
     if not DISCORD_BOT_TOKEN:
         return
@@ -56,46 +68,25 @@ def get_discord_user(user_id):
     if not discord_user:
         return
 
-    discord_id = discord_user.discord_id
-
-    headers = {
-        "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
-    }
-    response = requests.get(f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}/members/{discord_id}", headers=headers)
-    result = response.json()
+    result = guild_request(f"/members/{discord_user.discord_id}")
     if result.get("message") == "Unknown Member":
         return
-
     return result
 
 
-@cache.memoize(timeout=1800)
+@cache.memoize(timeout=3600)
 def get_discord_roles():
-    headers = {
-        "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
-    }
-    roles = requests.get(f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}/roles", headers=headers).json()
+    roles = guild_request("/roles")
     return {role["name"]: role["id"] for role in roles}
 
 
 def send_message(message, channel_name):
-    headers = {
-        "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
-    }
-
-    channels = requests.get(f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}/channels", headers=headers).json()
-    channels = [channel for channel in channels if channel["name"] == channel_name]
-    assert len(channels) == 1
-    channel_id = channels[0]["id"]
-
-    response = requests.post(f"{API_ENDPOINT}/channels/{channel_id}/messages", headers=headers, json=dict(content=message))
-    response.raise_for_status()
+    channel_ids = [channel["id"] for channel in guild_request("/channels") if channel["name"] == channel_name]
+    assert len(channel_ids) == 1
+    channel_id = channel_ids[0]
+    guild_request(f"/channels/{channel_id}/messages", method="POST", json=dict(content=message))
 
 
 def add_role(discord_id, role_name):
-    headers = {
-        "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
-    }
     role_id = get_discord_roles()[role_name]
-    response = requests.put(f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}/members/{discord_id}/roles/{role_id}", headers=headers)
-    response.raise_for_status()
+    guild_request(f"/members/{discord_id}/roles/{role_id}", method="PUT")
