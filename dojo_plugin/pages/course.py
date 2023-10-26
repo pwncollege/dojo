@@ -31,7 +31,7 @@ def grade(dojo, users_query):
             continue
         assessment["extensions"] = {
             int(user_id): days
-            for user_id, days in assessment.get("extensions", {}).items()
+            for user_id, days in (assessment.get("extensions") or {}).items()
         }
         assessment_dates[assessment["id"]][assessment["type"]] = (
             datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc),
