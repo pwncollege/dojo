@@ -69,7 +69,7 @@ def view_module(dojo, module):
     user_solves = set(solve.challenge_id for solve in (
         module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
     ))
-    total_solves = dict(module.solves(ignore_visibility=True)
+    total_solves = dict(module.solves()
                         .group_by(Solves.challenge_id)
                         .with_entities(Solves.challenge_id, db.func.count()))
     current_dojo_challenge = get_current_dojo_challenge()
