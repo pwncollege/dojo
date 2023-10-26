@@ -8,7 +8,8 @@ from urllib.parse import urlparse, urlunparse
 from flask import Response, request, redirect
 from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
-from CTFd.models import db, Challenges
+from marshmallow_sqlalchemy import field_for
+from CTFd.models import db, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.plugins import register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
@@ -78,6 +79,12 @@ def DatedEmailMessage():
     return msg
 import CTFd.utils.email.smtp
 CTFd.utils.email.smtp.EmailMessage = DatedEmailMessage
+
+
+# Patch CTFd to allow users to hide their profiles
+import CTFd.schemas.users
+CTFd.schemas.users.UserSchema.hidden = field_for(Users, "hidden")
+CTFd.schemas.users.UserSchema.views["self"].append("hidden")
 
 
 def redirect_dojo():

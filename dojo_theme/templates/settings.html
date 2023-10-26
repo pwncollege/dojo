@@ -24,17 +24,17 @@
         <div class="tab-pane fade show active" id="profile" role="tabpanel">
           {% include "components/errors.html" %}
 
-          {% with form = Forms.self.SettingsForm(country=country) %}
+          {% with form = Forms.self.SettingsForm(country=user.country) %}
           {% from "macros/forms.html" import render_extra_fields %}
           <form id="user-profile-form" method="post" accept-charset="utf-8" autocomplete="off" role="form"
                 class="form-horizontal">
             <div class="form-group">
               <b>{{ form.name.label }}</b>
-              {{ form.name(class="form-control", value=name) }}
+              {{ form.name(class="form-control", value=user.name) }}
             </div>
             <div class="form-group">
               <b>{{ form.email.label }}</b>
-              {{ form.email(class="form-control", value=email) }}
+              {{ form.email(class="form-control", value=user.email) }}
             </div>
 
             <hr>
@@ -52,15 +52,22 @@
 
             <div class="form-group">
               <b>{{ form.affiliation.label }}</b>
-              {{ form.affiliation(class="form-control", value=affiliation or "") }}
+              {{ form.affiliation(class="form-control", value=user.affiliation or "") }}
             </div>
             <div class="form-group">
               <b>{{ form.website.label }}</b>
-              {{ form.website(class="form-control", value=website or "") }}
+              {{ form.website(class="form-control", value=user.website or "") }}
             </div>
             <div class="form-group">
               <b>{{ form.country.label }}</b>
-              {{ form.country(class="form-control custom-select", value=country) }}
+              {{ form.country(class="form-control custom-select", value=user.country) }}
+            </div>
+            <div class="form-group">
+              <b><label for="hidden">Visibility</label></b>
+              <select class="form-control custom-select" id="hidden" name="hidden" value="{{ user.hidden }}">
+                <option value="False" {{ "selected" if not user.hidden else "" }}>Visible</option>
+                <option value="True" {{ "selected" if user.hidden else "" }}>Hidden</option>
+              </select>
             </div>
 
 	    {{ render_extra_fields(form.extra) }}
