@@ -7,7 +7,7 @@ from CTFd.utils.user import get_current_user
 
 from ..models import Dojos, SSHKeys, DojoMembers
 from ..config import DISCORD_CLIENT_ID
-from .discord import get_discord_user, discord_avatar_asset
+from ..utils.discord import get_discord_user, discord_avatar_asset
 
 
 @authed_only
