@@ -73,13 +73,23 @@ services:
       - /opt/pwn.college/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro
       - /opt/pwn.college/dojo_theme:/opt/CTFd/CTFd/themes/dojo_theme:ro
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; response = requests.get('http://localhost:8000'); response.raise_for_status()"]
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - |
+          import requests
+          response = requests.get('http://localhost:8000')
+          response.raise_for_status()
       interval: 10s
       timeout: 10s
       retries: 3
     depends_on:
-      - db
-      - cache
+      db:
+        condition: service_healthy
+        restart: true
+      cache:
+        condition: service_started
 
   db:
     container_name: db
@@ -94,7 +104,10 @@ services:
       - ./data/mysql:/var/lib/mysql
     command: [mysqld, --character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci, --wait_timeout=28800, --log-warnings=0]
     healthcheck:
-      test: "mysql -h localhost -u ctfd -pctfd ctfd"
+      test: ["CMD", "mysqladmin", "ping", "-pctfd"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
 
   cache:
     container_name: cache

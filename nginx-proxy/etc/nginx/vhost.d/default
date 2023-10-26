@@ -1,3 +1,14 @@
+## Start of configuration add by letsencrypt container
+location ^~ /.well-known/acme-challenge/ {
+    auth_basic off;
+    auth_request off;
+    allow all;
+    root /usr/share/nginx/html;
+    try_files $uri =404;
+    break;
+}
+## End of configuration add by letsencrypt container
+
 location @forward {
     set $redirect_uri "$upstream_http_redirect_uri";
     set $redirect_auth "$upstream_http_redirect_auth";
@@ -22,13 +33,3 @@ location @forward {
     proxy_ignore_headers X-Accel-Redirect;
 }
 
-## Start of configuration add by letsencrypt container
-location ^~ /.well-known/acme-challenge/ {
-    auth_basic off;
-    auth_request off;
-    allow all;
-    root /usr/share/nginx/html;
-    try_files $uri =404;
-    break;
-}
-## End of configuration add by letsencrypt container
