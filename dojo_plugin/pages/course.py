@@ -272,7 +272,7 @@ def update_identity(dojo):
 
     students = set(dojo.course.get("students", []))
     if students and identity not in students:
-        return {"success": True, "warning": f"This identity ({identity}) is not on the official student roster"}
+        return {"success": True, "warning": f"Your identity ({identity}) is not on the official student roster"}
 
     discord_role = dojo.course.get("discord_role")
     if discord_role:
