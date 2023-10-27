@@ -275,6 +275,7 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
 
     if dojo.official:
         # TODO: make course official
+        # Consider sensitivity of `discord_role` property
         course_yml_path = dojo_dir / "course.yml"
         if course_yml_path.exists():
             course = yaml.safe_load(course_yml_path.read_text())
