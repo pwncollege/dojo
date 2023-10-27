@@ -6,12 +6,12 @@ from sqlalchemy import and_, cast
 from CTFd.models import db, Challenges, Solves, Users
 from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
-from CTFd.utils.decorators import authed_only, admins_only
+from CTFd.utils.decorators import authed_only, admins_only, ratelimit
 
 from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents
 from ..utils import module_visible, module_challenges_visible, DOJOS_DIR, is_dojo_admin
 from ..utils.dojo import dojo_route
-from ..utils.discord import get_discord_user
+from ..utils.discord import add_role, get_discord_user
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 
 
@@ -250,14 +250,18 @@ def view_course(dojo, resource=None):
 @course.route("/dojo/<dojo>/course/identity", methods=["PATCH"])
 @dojo_route
 @authed_only
+@ratelimit(method="PATCH", limit=10, interval=60)
 def update_identity(dojo):
+    if not dojo.course:
+        abort(404)
+
     user = get_current_user()
     dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
 
     if dojo_user and dojo_user.type == "admin":
         return {"success": False, "error": "Cannot identify admin"}
 
-    identity = request.json.get("identity", None)
+    identity = request.json.get("identity", "").strip()
     if not dojo_user:
         dojo_user = DojoStudents(dojo=dojo, user=user, token=identity)
         db.session.add(dojo_user)
@@ -265,6 +269,19 @@ def update_identity(dojo):
         dojo_user.type = "student"
         dojo_user.token = identity
     db.session.commit()
+
+    students = set(dojo.course.get("students", []))
+    if students and identity not in students:
+        return {"success": True, "warning": f"This identity ({identity}) is not on the official student roster"}
+
+    discord_role = dojo.course.get("discord_role")
+    if discord_role:
+        discord_user = get_discord_user(user.id)
+        if discord_user is False:
+            return {"success": True, "warning": "Your Discord account is not linked"}
+        if discord_user is None:
+            return {"success": True, "warning": "Your Discord account has not joined the official Discord server"}
+        add_role(discord_user["user"]["id"], discord_role)
 
     return {"success": True}
 

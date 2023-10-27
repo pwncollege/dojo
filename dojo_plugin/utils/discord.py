@@ -66,11 +66,11 @@ def get_discord_user(user_id):
 
     discord_user = DiscordUsers.query.filter_by(user_id=user_id).first()
     if not discord_user:
-        return
+        return False
 
     result = guild_request(f"/members/{discord_user.discord_id}")
     if result.get("message") == "Unknown Member":
-        return
+        return None
     return result
 
 

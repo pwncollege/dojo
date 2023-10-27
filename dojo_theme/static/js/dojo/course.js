@@ -5,6 +5,13 @@ var error_template =
     '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
     '</div>';
 
+var warning_template =
+    '<div class="alert alert-warning alert-dismissable" role="alert">\n' +
+    '  <span class="sr-only">Warning:</span>\n' +
+    '  <span id="message"></span>' +
+    '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
+    '</div>';
+
 var success_template =
     '<div class="alert alert-success alert-dismissable submit-row" role="alert">\n' +
     '  <strong>Success!</strong>\n' +
@@ -31,12 +38,15 @@ function form_fetch_and_show(name, endpoint, method, success_message) {
         }).then(response => {
             return response.json()
         }).then(result => {
-            if (result.success) {
-                results.html(success_template);
-                results.find("#message").text(success_message);
-            } else {
+            if (!result.success) {
                 results.html(error_template);
                 results.find("#message").html(result.error);
+            } else if (result.warning) {
+                results.html(warning_template);
+                results.find("#message").html(result.warning);
+            } else {
+                results.html(success_template);
+                results.find("#message").text(success_message);
             }
         });
     });
