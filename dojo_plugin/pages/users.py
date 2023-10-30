@@ -12,7 +12,8 @@ from CTFd.cache import cache
 
 from ..models import Dojos, DojoModules, DojoChallenges
 from ..utils import DATA_DIR
-
+from ..api.v1.belts import get_belts
+from ..api.v1.scoreboard import belt_asset
 
 users = Blueprint("pwncollege_users", __name__)
 
@@ -29,7 +30,9 @@ def view_hacker(user):
         max_rank = len(rankings)
         return user_rank, max_rank
 
-    return render_template("hacker.html", dojos=dojos, user=user, ranking=ranking)
+    info = get_belts()["users"].get(user.id)
+    belt = belt_asset(info["color"] if info else "white")
+    return render_template("hacker.html", dojos=dojos, user=user, ranking=ranking, belt=belt)
 
 @users.route("/hacker/<int:user_id>")
 def view_other(user_id):

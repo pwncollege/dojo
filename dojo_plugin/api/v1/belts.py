@@ -23,9 +23,9 @@ def get_belts():
         belted_users = (
             db.session.query(Users.id, Users.name, db.func.max(Solves.date))
             .join(Solves, Users.id == Solves.user_id)
-            .filter(Solves.challenge_id.in_(challenges.subquery()))
+            .filter(Solves.challenge_id.in_(challenges))
             .group_by(Users.id)
-            .having(db.func.count() == challenges.count())
+            .having(db.func.count() == len(challenges))
             .order_by(db.func.max(Solves.date))
         )
 
@@ -36,13 +36,14 @@ def get_belts():
                 "color": color,
             }
 
+    # Belt deadlines should just be changed with the next iteration of the course
     # TODO: support belt deadlines
-    for user_id, belt in list(result["users"].items()):
-        if belt["color"] == "yellow":
-            received = datetime.datetime.fromisoformat(result["dates"]["yellow"][user_id])
-            if received > datetime.datetime.fromisoformat("2022-10-01"):
-                del result["users"][user_id]
-                del result["dates"]["yellow"][user_id]
+    # for user_id, belt in list(result["users"].items()):
+    #     if belt["color"] == "yellow":
+    #         received = datetime.datetime.fromisoformat(result["dates"]["yellow"][user_id])
+    #         if received > datetime.datetime.fromisoformat("2022-10-01"):
+    #             del result["users"][user_id]
+    #             del result["dates"]["yellow"][user_id]
 
     return result
 

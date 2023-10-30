@@ -37,6 +37,8 @@ def belt_asset(color):
         belt = "blue.svg"
     elif color == "yellow":
         belt = "yellow.svg"
+    elif color == "orange":
+        belt = "orange.svg"
     else:
         belt = "white.svg"
     return url_for("views.themes", path=f"img/dojo/{belt}")

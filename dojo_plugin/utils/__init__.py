@@ -365,40 +365,17 @@ def daily_solve_counts():
 def belt_challenges():
     # TODO: move this concept into dojo yml
 
-    yellow_categories = [
-        "embryoio",
-        "babysuid",
-        "embryoasm",
-        "babyshell",
-        "babyjail",
-        "embryogdb",
-        "babyrev",
-        "babymem",
-        "toddlerone",
-    ]
-
-    blue_categories = [
-        *yellow_categories,
-        "babyrop",
-        "babyheap",
-        "babyrace",
-        "babykernel",
-        "toddlertwo",
-    ]
-
-    color_categories = {
-        "yellow": yellow_categories,
-        "blue": blue_categories,
-    }
-
+    orange_challenges = {challenge.challenge_id for challenge in Dojos.query.filter_by(name="CSE 365 - Spring 2023").first().challenges}
+    yellow_challenges = {challenge.challenge_id for challenge in Dojos.query.filter_by(name="CSE 466 - Fall 2022").first().challenges}
+    blue_challenges = {challenge.challenge_id for challenge in Dojos.query.filter_by(name="CSE 494 - Spring 2023").first().challenges}
+    
     return {
-        color: db.session.query(Challenges.id).filter(
-            Challenges.state == "visible",
-            Challenges.value > 0,
-            Challenges.id < 1000,
-            Challenges.category.in_(categories),
-        )
-        for color, categories in color_categories.items()
+        "orange":
+        orange_challenges,
+        "yellow":
+        orange_challenges + yellow_challenges,
+        "blue":
+        orange_challenges + yellow_challenges + blue_challenges,
     }
 
 # based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
