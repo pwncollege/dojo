@@ -311,6 +311,10 @@ def view_all_grades(dojo):
         "Average": f"{average_letter_grade} ({average_grade * 100:.2f}%)",
     }
 
+    for letter_grade in dojo.course["letter_grades"]:
+        count = sum(1 for grade in grades if grade["letter_grade"] == letter_grade)
+        grade_statistics[letter_grade] = f"{count} ({count / len(grades) * 100:.2f}%)"
+
     students = {student.user_id: student.token for student in dojo.students}
 
     return render_template("grades_admin.html",
