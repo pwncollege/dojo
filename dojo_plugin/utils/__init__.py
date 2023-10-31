@@ -373,9 +373,9 @@ def belt_challenges():
         "orange":
         orange_challenges,
         "yellow":
-        orange_challenges + yellow_challenges,
+        orange_challenges | yellow_challenges,
         "blue":
-        orange_challenges + yellow_challenges + blue_challenges,
+        orange_challenges | yellow_challenges | blue_challenges,
     }
 
 # based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
