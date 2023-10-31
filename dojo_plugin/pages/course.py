@@ -304,10 +304,12 @@ def view_all_grades(dojo):
     )
     grades = sorted(grade(dojo, users), key=lambda grade: grade["overall_grade"], reverse=True)
     average_grade = sum(grade["overall_grade"] for grade in grades) / len(grades) if grades else 0.0
-    grade_statistics = dict(user_id="Average",
-                            overall_grade=average_grade,
-                            letter_grade=letter_grade(dojo, average_grade),
-                            details=None)
+    grade_statistics = [
+        dict(user_id="Average",
+             overall_grade=average_grade,
+             letter_grade=letter_grade(dojo, average_grade),
+             details=None),
+    ]
     students = {student.user_id: student.token for student in dojo.students}
 
     return render_template("grades_admin.html",
