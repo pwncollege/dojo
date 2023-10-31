@@ -18,6 +18,13 @@ from .writeups import WriteupComments, writeup_weeks, all_writeups
 course = Blueprint("course", __name__)
 
 
+def letter_grade(dojo, grade):
+    for letter_grade, min_score in dojo.course["letter_grades"].items():
+        if grade >= min_score:
+            return letter_grade
+    return "?"
+
+
 def grade(dojo, users_query):
     if isinstance(users_query, Users):
         users_query = Users.query.filter_by(id=users_query.id)
@@ -167,17 +174,10 @@ def grade(dojo, users_query):
         )
         overall_grade += extra_credit
 
-        for grade, min_score in dojo.course["letter_grades"].items():
-            if overall_grade >= min_score:
-                letter_grade = grade
-                break
-        else:
-            letter_grade = "?"
-
         return dict(user_id=user_id,
                     grades=grades,
                     overall_grade=overall_grade,
-                    letter_grade=letter_grade)
+                    letter_grade=letter_grade(dojo, overall_grade))
 
     user_id = None
     previous_user_id = None
@@ -302,6 +302,15 @@ def view_all_grades(dojo):
         .join(DojoStudents, DojoStudents.user_id == Users.id)
         .filter(DojoStudents.dojo == dojo)
     )
-    grades = grade(dojo, users)
+    grades = sorted(grade(dojo, users), key=lambda grade: grade["overall_grade"], reverse=True)
+    average_grade = sum(grade["overall_grade"] for grade in grades) / len(grades) if grades else 0.0
+    grade_statistics = dict(user_id="Average",
+                            overall_grade=average_grade,
+                            letter_grade=letter_grade(dojo, average_grade),
+                            details=None)
+    students = {student.user_id: student.token for student in dojo.students}
 
-    return render_template("grades_admin.html", grades=grades)
+    return render_template("grades_admin.html",
+                           grades=grades,
+                           grade_statistics=grade_statistics,
+                           students=students)
