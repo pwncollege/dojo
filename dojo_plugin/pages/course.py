@@ -308,13 +308,25 @@ def view_all_grades(dojo):
 
     average_grade = sum(grade["overall_grade"] for grade in grades) / len(grades) if grades else 0.0
     average_letter_grade = get_letter_grade(dojo, average_grade)
-    grade_statistics = {
-        "Average": f"{average_letter_grade} ({average_grade * 100:.2f}%)",
-    }
-
+    average_grade_summary = f"{average_letter_grade} ({average_grade * 100:.2f}%)"
+    average_grade_details = []
+    cumulative_count = 0
     for letter_grade in dojo.course["letter_grades"]:
         count = sum(1 for grade in grades if grade["letter_grade"] == letter_grade)
-        grade_statistics[letter_grade] = f"{count} ({count / len(grades) * 100:.2f}%)"
+        cumulative_count += count
+        percent = f"{count / len(grades) * 100:.2f}%" if grades else "0.00%"
+        cumulative_percent = f"{cumulative_count / len(grades) * 100:.2f}%" if grades else "0.00%"
+        average_grade_details.append({
+            "Grade": letter_grade,
+            "Count": count,
+            "Percent": percent,
+            "Cumulative Percent": cumulative_percent,
+        })
+    grade_statistics = {
+        "Average": (average_grade_summary, average_grade_details),
+    }
+
+
 
     students = {student.user_id: student.token for student in dojo.students}
 

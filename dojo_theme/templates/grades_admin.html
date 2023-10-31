@@ -63,10 +63,31 @@
           {% endfor %}
         </tbody>
         <tfoot>
-          {% for statistic, value in grade_statistics.items() %}
+          {% for statistic, (summary, details) in grade_statistics.items() %}
           <tr>
             <td>{{ statistic }}</td>
-            <td>{{ value }}</td>
+            <td>
+              <details>
+                <summary>{{ summary }}</summary>
+                <table>
+                  <thead>
+                    <tr>
+                      {% for column in details[0] %}
+                      <td>{{ column }}</td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in details %}
+                    <tr>
+                      {% for value in row.values() %}
+                      <td>{{ value }}</td>
+                      {% endfor %}
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </details>
+            </td>
           </tr>
           {% endfor %}
         </tfoot>
