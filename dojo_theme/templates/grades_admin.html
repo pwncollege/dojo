@@ -12,10 +12,8 @@
       <table class="table table-striped">
         <thead>
           <tr>
-            <td scope="col"><b>User ID</b></td>
-            <td scope="col"><b>Overall Grade</b></td>
-            <td scope="col"><b>Letter Grade</b></td>
-            <td scope="col"><b>Details</b></td>
+            <td scope="col"><b>Student</b></td>
+            <td scope="col"><b>Grade</b></td>
           </tr>
         </thead>
         <tbody>
@@ -29,14 +27,8 @@
               {% endif %}
             </td>
             <td>
-              {{ "%.2f"|format(100 * user_grades.overall_grade) }}%
-            </td>
-            <td>
-              {{ user_grades.letter_grade }}
-            </td>
-            <td>
               <details>
-                <summary>View Details</summary>
+                <summary>{{ user_grades.letter_grade }} ({{ "%.2f"|format(100 * user_grades.overall_grade) }}%)</summary>
                 <table>
                   <thead>
                     <tr>
@@ -71,17 +63,10 @@
           {% endfor %}
         </tbody>
         <tfoot>
-          {% for statistic in grade_statistics %}
+          {% for statistic, value in grade_statistics.items() %}
           <tr>
-            {% for value in statistic.values() %}
-            <td>
-              {% if value is number %}
-              {{ "%.2f"|format(value) }}%
-              {% elif value is not none %}
-              <b>{{ value }}</b>
-              {% endif %}
-            </td>
-            {% endfor %}
+            <td>{{ statistic }}</td>
+            <td>{{ value }}</td>
           </tr>
           {% endfor %}
         </tfoot>

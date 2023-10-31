@@ -300,16 +300,17 @@ def view_all_grades(dojo):
         Users
         .query
         .join(DojoStudents, DojoStudents.user_id == Users.id)
-        .filter(DojoStudents.dojo == dojo)
+        .filter(DojoStudents.dojo == dojo,
+                DojoStudents.token.in_(dojo.course.get("students", [])))
     )
     grades = sorted(grade(dojo, users), key=lambda grade: grade["overall_grade"], reverse=True)
+
     average_grade = sum(grade["overall_grade"] for grade in grades) / len(grades) if grades else 0.0
-    grade_statistics = [
-        dict(user_id="Average",
-             overall_grade=average_grade,
-             letter_grade=letter_grade(dojo, average_grade),
-             details=None),
-    ]
+    average_letter_grade = letter_grade(dojo, average_grade)
+    grade_statistics = {
+        "Average": f"{average_letter_grade} ({average_grade * 100:.2f}%)",
+    }
+
     students = {student.user_id: student.token for student in dojo.students}
 
     return render_template("grades_admin.html",
