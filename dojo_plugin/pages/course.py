@@ -18,7 +18,7 @@ from .writeups import WriteupComments, writeup_weeks, all_writeups
 course = Blueprint("course", __name__)
 
 
-def letter_grade(dojo, grade):
+def get_letter_grade(dojo, grade):
     for letter_grade, min_score in dojo.course["letter_grades"].items():
         if grade >= min_score:
             return letter_grade
@@ -173,11 +173,12 @@ def grade(dojo, users_query):
             sum(grade["credit"] for grade in grades if "weight" not in grade)
         )
         overall_grade += extra_credit
+        letter_grade = get_letter_grade(dojo, overall_grade)
 
         return dict(user_id=user_id,
                     grades=grades,
                     overall_grade=overall_grade,
-                    letter_grade=letter_grade(dojo, overall_grade))
+                    letter_grade=letter_grade)
 
     user_id = None
     previous_user_id = None
@@ -306,7 +307,7 @@ def view_all_grades(dojo):
     grades = sorted(grade(dojo, users), key=lambda grade: grade["overall_grade"], reverse=True)
 
     average_grade = sum(grade["overall_grade"] for grade in grades) / len(grades) if grades else 0.0
-    average_letter_grade = letter_grade(dojo, average_grade)
+    average_letter_grade = get_letter_grade(dojo, average_grade)
     grade_statistics = {
         "Average": f"{average_letter_grade} ({average_grade * 100:.2f}%)",
     }
