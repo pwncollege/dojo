@@ -25,10 +25,11 @@ def get_letter_grade(dojo, grade):
     return "?"
 
 
-def grade(dojo, users_query):
+def grade(dojo, users_query, *, ignore_pending=False):
     if isinstance(users_query, Users):
         users_query = Users.query.filter_by(id=users_query.id)
 
+    now = datetime.datetime.now(datetime.timezone.utc)
     assessments = dojo.course["assessments"]
 
     assessment_dates = collections.defaultdict(lambda: collections.defaultdict(dict))
@@ -99,6 +100,10 @@ def grade(dojo, users_query):
         for assessment in assessments:
             type = assessment.get("type")
 
+            date = datetime.datetime.fromisoformat(assessment["date"]) if type in ["checkpoint", "due"] else None
+            if ignore_pending and date and date > now:
+                continue
+
             if type == "checkpoint":
                 module_id = assessment["id"]
                 module_name = module_names.get(module_id)
@@ -110,7 +115,6 @@ def grade(dojo, users_query):
                 percent_required = assessment.get("percent_required", 0.334)
                 challenge_count_required = int(challenge_count * percent_required)
 
-                date = datetime.datetime.fromisoformat(assessment["date"])
                 extension = assessment.get("extensions", {}).get(user_id, 0)
                 user_date = date + datetime.timedelta(days=extension)
 
@@ -134,7 +138,6 @@ def grade(dojo, users_query):
                 percent_required = assessment.get("percent_required", 1.0)
                 challenge_count_required = int(challenge_count * percent_required)
 
-                date = datetime.datetime.fromisoformat(assessment["date"])
                 extension = assessment.get("extensions", {}).get(user_id, 0)
                 user_date = date + datetime.timedelta(days=extension)
 
@@ -214,6 +217,8 @@ def view_course(dojo, resource=None):
         user = get_current_user()
         name = "Your"
 
+    ignore_pending = bool(request.args.get("ignore_pending"))
+
     grades = {}
     identity = {}
 
@@ -223,7 +228,7 @@ def view_course(dojo, resource=None):
     }
 
     if user:
-        grades = next(grade(dojo, user))
+        grades = next(grade(dojo, user, ignore_pending=ignore_pending))
 
         student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
         identity["identity_name"] = dojo.course.get("student_id", "Identity")
@@ -297,6 +302,8 @@ def view_all_grades(dojo):
     if not dojo.is_admin():
         abort(403)
 
+    ignore_pending = bool(request.args.get("ignore_pending"))
+
     users = (
         Users
         .query
@@ -304,7 +311,9 @@ def view_all_grades(dojo):
         .filter(DojoStudents.dojo == dojo,
                 DojoStudents.token.in_(dojo.course.get("students", [])))
     )
-    grades = sorted(grade(dojo, users), key=lambda grade: grade["overall_grade"], reverse=True)
+    grades = sorted(grade(dojo, users, ignore_pending=ignore_pending),
+                    key=lambda grade: grade["overall_grade"],
+                    reverse=True)
 
     average_grade = sum(grade["overall_grade"] for grade in grades) / len(grades) if grades else 0.0
     average_letter_grade = get_letter_grade(dojo, average_grade)
@@ -325,8 +334,6 @@ def view_all_grades(dojo):
     grade_statistics = {
         "Average": (average_grade_summary, average_grade_details),
     }
-
-
 
     students = {student.user_id: student.token for student in dojo.students}
 
