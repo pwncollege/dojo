@@ -460,6 +460,7 @@ COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
 COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
+COPY bash.bashrc /opt/pwn.college/bash.bashrc
 COPY vm /opt/pwn.college/vm
 COPY windows /opt/pwn.college/windows
 COPY .tmux.conf /opt/pwn.college/.tmux.conf
@@ -554,12 +555,14 @@ FROM ${DOJO_CHALLENGE} as challenge-final
 
 RUN <<EOF
     if id ubuntu; then userdel -f -r ubuntu; fi
-    
+
     useradd -s /bin/bash -m hacker
     passwd -d hacker
 
+    echo -e '\n/opt/pwn.college/bash.bashrc' >> /etc/bash.bashrc
+
     find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
-    
+
     chmod u+s /opt/pwn.college/python \
               /opt/pwn.college/bash \
               /opt/pwn.college/sh \
