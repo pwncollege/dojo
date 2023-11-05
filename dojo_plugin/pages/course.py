@@ -176,6 +176,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
             sum(grade["credit"] for grade in grades if "weight" not in grade)
         )
         overall_grade += extra_credit
+        overall_grade = round(overall_grade, 4)
         letter_grade = get_letter_grade(dojo, overall_grade)
 
         return dict(user_id=user_id,
