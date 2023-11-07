@@ -2,6 +2,7 @@ import datetime
 import sys
 import traceback
 
+import docker
 from flask import Blueprint, Response, stream_with_context, render_template, redirect, url_for, abort
 from sqlalchemy.sql import and_
 from sqlalchemy.exc import IntegrityError
@@ -115,6 +116,36 @@ def view_dojo_admin(dojo):
     if not dojo.is_admin():
         abort(403)
     return render_template("dojo_admin.html", dojo=dojo)
+
+
+@dojos.route("/dojo/<dojo>/admin/activity")
+@dojo_route
+def view_dojo_activity(dojo):
+    if not dojo.is_admin():
+        abort(403)
+
+    docker_client = docker.from_env()
+    filters = {
+        "name": "user_",
+        "label": f"dojo.dojo_id={dojo.reference_id}"
+    }
+    containers = docker_client.containers.list(filters=filters, ignore_removed=True)
+
+    actives = []
+    now = datetime.datetime.now()
+    for container in containers:
+        dojo_id = container.labels["dojo.dojo_id"]
+        module_id = container.labels["dojo.module_id"]
+        challenge_id = container.labels["dojo.challenge_id"]
+        challenge = DojoChallenges.from_id(dojo_id, module_id, challenge_id).first()
+        created = datetime.datetime.fromisoformat(container.attrs["Created"].split(".")[0])
+        uptime = now - created
+        actives.append(dict(challenge=challenge, uptime=uptime))
+    actives.sort(key=lambda active: active["uptime"])
+
+    solves = dojo.solves().order_by(Solves.date).all()
+
+    return render_template("dojo_activity.html", dojo=dojo, actives=actives, solves=solves)
 
 
 @dojos.route("/dojo/<dojo>/admin/solves.csv")
