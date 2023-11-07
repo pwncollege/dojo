@@ -6,7 +6,7 @@ import docker
 from flask import Blueprint, Response, stream_with_context, render_template, redirect, url_for, abort
 from sqlalchemy.sql import and_
 from sqlalchemy.exc import IntegrityError
-from CTFd.models import db, Solves
+from CTFd.models import db, Solves, Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.plugins import bypass_csrf_protection
@@ -134,13 +134,18 @@ def view_dojo_activity(dojo):
     actives = []
     now = datetime.datetime.now()
     for container in containers:
+        user_id = container.labels["dojo.user_id"]
         dojo_id = container.labels["dojo.dojo_id"]
         module_id = container.labels["dojo.module_id"]
         challenge_id = container.labels["dojo.challenge_id"]
+
+        user = Users.query.filter_by(id=user_id).first()
         challenge = DojoChallenges.from_id(dojo_id, module_id, challenge_id).first()
+
         created = datetime.datetime.fromisoformat(container.attrs["Created"].split(".")[0])
         uptime = now - created
-        actives.append(dict(challenge=challenge, uptime=uptime))
+
+        actives.append(dict(user=user, challenge=challenge, uptime=uptime))
     actives.sort(key=lambda active: active["uptime"])
 
     solves = dojo.solves().order_by(Solves.date).all()

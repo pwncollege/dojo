@@ -9,19 +9,19 @@
 <div class="container">
     <h2>Active Challenges</h2>
     {% if actives %}
-    <table class="table table-hover">
+    <table class="table">
         <thead>
             <tr>
+                <th>User</th>
                 <th>Challenge</th>
-                <th>Module</th>
                 <th>Uptime</th>
             </tr>
         </thead>
         <tbody>
             {% for active in actives %}
             <tr>
-                <td>{{ active.challenge.name }}</td>
-                <td>{{ active.challenge.module.name }}</td>
+                <td><a href="{{ generate_account_url(active.user.id, admin=True) }}">{{ active.user.name }}</a></td>
+                <td>{{ active.challenge.module.name }} - {{ active.challenge.name}}</td>
                 <td>{{ active.uptime.days }}d {{ active.uptime.seconds // 3600 }}h {{ (active.uptime.seconds // 60) % 60 }}m</td>
             </tr>
             {% endfor %}
