@@ -76,8 +76,9 @@ case "$ACTION" in
 
     # HELP: cloud-backup: upload the last day's worth of cloud backups to S3, but encrypt it at rest
     "cloud-backup")
-        [ -f $BACKUP_AES_KEY_FILE ] || (echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set to a file, but is $BACKUP_AES_KEY_FILE instead"; exit -1)
-        [ -z ${S3_BACKUP_BUCKET+x} ] && (echo "To use cloud backup, S3_BACKUP_BUCKET must be set to the S3 bucket to use"; exit -1)
+        [ -z ${BACKUP_AES_KEY_FILE+x} ]  && echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set"; exit -1
+        [ -f $BACKUP_AES_KEY_FILE ] || echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set to a file, but is $BACKUP_AES_KEY_FILE instead"; exit -1
+        [ -z ${S3_BACKUP_BUCKET+x} ] && echo "To use cloud backup, S3_BACKUP_BUCKET must be set to the S3 bucket to use"; exit -1
         set -e
         for f in $(find data/backups -mtime -1 -type f)
         do
