@@ -77,7 +77,7 @@ def view_module(dojo, module):
         "module.html",
         dojo=dojo,
         module=module,
-        challenges=[ c for c in module.challenges if c.visible() or is_dojo_admin(user, dojo) ],
+        challenges=module.visible_challenges(),
         user_solves=user_solves,
         total_solves=total_solves,
         user=user,
