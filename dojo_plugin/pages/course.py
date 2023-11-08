@@ -342,3 +342,26 @@ def view_all_grades(dojo):
                            grades=grades,
                            grade_statistics=grade_statistics,
                            students=students)
+
+@course.route("/dojo/<dojo>/admin/users/<user_id>")
+@dojo_route
+@authed_only
+def view_user_info(dojo, user_id):
+    if not dojo.course:
+        abort(404)
+
+    if not dojo.is_admin():
+        abort(403)
+
+    user = Users.query.filter_by(id=user_id).first_or_404()
+    student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
+    identity["identity_name"] = dojo.course.get("student_id", "Identity")
+    identity["identity_value"] = student.token if student else None
+
+    discord_user = get_discord_user(user.id)
+
+    return render_template("dojo_admin_user.html",
+                           dojo=dojo,
+                           user=user,
+                           discord_user=discord_user,
+                           **identity)

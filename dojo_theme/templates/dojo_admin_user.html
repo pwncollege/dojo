@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+
+{% block stylesheets %}
+<style>
+  .setup-complete::before, .setup-incomplete::before, .setup-unknown::before {
+      position: absolute;
+      left: 10px;
+      font-size: 24px;
+      line-height: 1;
+  }
+
+  .setup-incomplete::before {
+    content: '✗';
+    color: rgb(244, 67, 54);
+  }
+
+  .setup-complete::before {
+    content: '✓';
+    color: rgb(76, 175, 80);
+  }
+
+  .setup-unknown::before {
+    content: '?';
+    color: rgb(255, 193, 7);
+  }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>{{ dojo.name }} User Info for {{ user.name }}</h1>
+  </div>
+</div>
+<div class="container">
+  <div class="row">
+    <div class="col-md-2 offset-md-1">
+      <ul>
+        <li>
+          pwn.college User Name: {{ user.name }}
+        </li>
+        <li>
+          {{ identity_name }} : {{ identity_value }}
+        </li>
+        <li>
+          Authorized and linked Discord: {{ discord_user }}
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
