@@ -36,7 +36,7 @@
 </div>
 <div class="container">
   <div class="row">
-    <div class="col-md-2 offset-md-1">
+    <div class="col-md-8 offset-md-1">
       <ul>
         <li>
           pwn.college User Name: {{ user.name }}
@@ -45,7 +45,12 @@
           {{ identity_name }} : {{ identity_value }}
         </li>
         <li>
-          Authorized and linked Discord: {{ discord_user }}
+          {% if discord_user %}
+            Authorized and linked Discord Username: {{ discord_user.user.username }} <br>
+            Discord ID (unique): {{ discord_user.user.id }}
+          {% else %}
+            No linked discord
+          {% endif %}
         </li>
       </ul>
     </div>
