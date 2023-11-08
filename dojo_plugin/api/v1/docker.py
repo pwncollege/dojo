@@ -237,7 +237,8 @@ class RunDocker(Resource):
         if not dojo_challenge:
             return {"success": False, "error": "Invalid challenge"}
 
-        # TODO: check if challenge visible
+        if not dojo_challenge.visible() and not dojo.is_admin():
+            return {"success": False, "error": "Invalid challenge"}
 
         try:
             start_challenge(user, dojo_challenge, practice)
@@ -245,7 +246,7 @@ class RunDocker(Resource):
             print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": str(e)}
-        except Exception as e: #pylint:disable=broad-except
+        except Exception as e:
             print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": "Docker failed"}
