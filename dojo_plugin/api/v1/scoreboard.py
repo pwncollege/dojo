@@ -4,7 +4,7 @@ import datetime
 import math
 import pytz
 
-from flask import url_for
+from flask import url_for, abort
 from flask_restx import Namespace, Resource
 from CTFd.cache import cache
 from CTFd.models import db, Solves, Challenges, Users
@@ -43,6 +43,8 @@ def belt_asset(color):
 
 
 def get_scoreboard_page(model, duration=None, page=1, per_page=20):
+    return abort(503)
+
     duration_filter = (
         Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
         if duration else True
