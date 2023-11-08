@@ -44,7 +44,7 @@ class ScoreUser(Resource):
             Challenges.query
             .join(DojoChallenges)
             .join(Dojos)
-            .filter(Dojos.official, DojoChallenges.visible)
+            .filter(Dojos.official, DojoChallenges.visible())
             .distinct()
         )
         rank = db.func.row_number().over(
