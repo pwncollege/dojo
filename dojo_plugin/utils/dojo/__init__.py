@@ -293,7 +293,7 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
                 students = yaml.safe_load(students_yml_path.read_text())
                 dojo.course["students"] = students
 
-    custom_image = any(challenge.image for challenge in dojo.challenges)
+    custom_image = any(challenge.data.get("image") for challenge in dojo.challenges)
     admin_dojo = any(isinstance(dojo_admin.user, Admins) for dojo_admin in dojo.admins)
     assert not (custom_image and not admin_dojo), "Custom images are only allowed for admin dojos"
 
