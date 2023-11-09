@@ -13,7 +13,7 @@ import requests
 from schema import Schema, Optional, Regex, Or, Use, SchemaError
 from flask import abort, g
 from sqlalchemy.orm.exc import NoResultFound
-from CTFd.models import db, Users, Challenges, Flags, Solves
+from CTFd.models import db, Users, Challenges, Flags, Solves, Admins
 from CTFd.utils.user import get_current_user, is_admin
 
 from ...models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
@@ -23,6 +23,7 @@ from ...utils import DOJOS_DIR, get_current_container
 ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
 UNIQUE_ID_REGEX = Regex(r"^[a-z0-9-~]{1,128}$")
 NAME_REGEX = Regex(r"^[\S ]{1,128}$")
+IMAGE_REGEX = Regex(r"^[\S]{1,256}$")
 DATE = Use(datetime.datetime.fromisoformat)
 
 ID_NAME_DESCRIPTION = {
@@ -49,6 +50,8 @@ DOJO_SPEC = Schema({
         Optional("emoji"): Regex(r"^\S$"),
     },
 
+    Optional("image"): IMAGE_REGEX,
+
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
     },
@@ -56,6 +59,8 @@ DOJO_SPEC = Schema({
     Optional("modules", default=[]): [{
         **ID_NAME_DESCRIPTION,
         **VISIBILITY,
+
+        Optional("image"): IMAGE_REGEX,
 
         Optional("import"): {
             Optional("dojo"): UNIQUE_ID_REGEX,
@@ -66,7 +71,7 @@ DOJO_SPEC = Schema({
             **ID_NAME_DESCRIPTION,
             **VISIBILITY,
 
-            # Optional("image", default="pwncollege-challenge"): Regex(r"^[\S ]{1, 256}$"),
+            Optional("image"): IMAGE_REGEX,
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
             Optional("import"): {
@@ -215,17 +220,18 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
         if start or stop:
             return cls(start=start, stop=stop)
 
-    def import_ids(ids, *datas):
-        results = {
-            id: None
-            for id in ids
-        }
-        for data in datas:
-            for id, result in results.items():
-                results[id] = data.get("import", {}).get(id, None) or result
-        for id, result in results.items():
-            assert result is not None, f"Missing `{id}` in import"
-        return tuple(results.values())
+    _missing = object()
+    def shadow(attr, *datas, default=_missing):
+        for data in reversed(datas):
+            if attr in data:
+                return data[attr]
+        if default is not _missing:
+            return default
+        raise KeyError(f"Missing `{attr}` in `{datas}`")
+
+    def import_ids(attrs, *datas):
+        datas_import = [data.get("import", {}) for data in datas]
+        return tuple(shadow(id, *datas_import) for id in attrs)
 
     dojo.modules = [
         DojoModules(
@@ -233,6 +239,7 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             challenges=[
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
+                    image=shadow("image", dojo_data, module_data, challenge_data, default=None),
                     challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
                     default=(assert_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
@@ -285,6 +292,10 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             if students_yml_path.exists():
                 students = yaml.safe_load(students_yml_path.read_text())
                 dojo.course["students"] = students
+
+    custom_image = any(challenge.image for challenge in dojo.challenges)
+    admin_dojo = any(isinstance(dojo_admin.user, Admins) for dojo_admin in dojo.admins)
+    assert not (custom_image and not admin_dojo), "Custom images are only allowed for admin dojos"
 
     return dojo
 

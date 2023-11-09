@@ -361,7 +361,7 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = ["path_override"]
+    data_fields = ["image_override", "path_override"]
 
     dojo = db.relationship("Dojos",
                            foreign_keys=[dojo_id],
@@ -387,7 +387,7 @@ class DojoChallenges(db.Model):
             if kwargs.get("challenge") is not None:
                 raise AttributeError("Import requires challenge to be None")
 
-            for field in ["id", "name", "description", "challenge"]:
+            for field in ["id", "name", "description", "challenge", "image_override"]:
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
 
             # TODO: maybe we should track the entire import
@@ -472,7 +472,7 @@ class DojoChallenges(db.Model):
 
     @property
     def image(self):
-        return "pwncollege-challenge"
+        return self.image_override or "pwncollege-challenge"
 
     def challenge_paths(self, user):
         secret = current_app.config["SECRET_KEY"]
