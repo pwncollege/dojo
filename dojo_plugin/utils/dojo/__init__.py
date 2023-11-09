@@ -13,7 +13,7 @@ import requests
 from schema import Schema, Optional, Regex, Or, Use, SchemaError
 from flask import abort, g
 from sqlalchemy.orm.exc import NoResultFound
-from CTFd.models import db, Users, Challenges, Flags, Solves, Admins
+from CTFd.models import db, Users, Challenges, Flags, Solves
 from CTFd.utils.user import get_current_user, is_admin
 
 from ...models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
@@ -292,10 +292,6 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             if students_yml_path.exists():
                 students = yaml.safe_load(students_yml_path.read_text())
                 dojo.course["students"] = students
-
-    custom_image = any(challenge.data.get("image") for challenge in dojo.challenges)
-    admin_dojo = any(isinstance(dojo_admin.user, Admins) for dojo_admin in dojo.admins)
-    assert not (custom_image and not admin_dojo), "Custom images are only allowed for admin dojos"
 
     return dojo
 

@@ -20,7 +20,7 @@ from sqlalchemy.orm.session import object_session
 from sqlalchemy.sql import or_, and_
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy.ext.associationproxy import association_proxy
-from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, Users
+from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, Users, Admins
 from CTFd.utils.user import get_current_user, is_admin
 
 from ..utils import DOJOS_DIR
@@ -473,7 +473,10 @@ class DojoChallenges(db.Model):
 
     @property
     def image(self):
-        return self.data.get("image") or "pwncollege-challenge"
+        if self.data.get("image"):
+            assert any(isinstance(dojo_admin.user, Admins) for dojo_admin in self.dojo.admins), "Custom images are only allowed for admin dojos"
+            return self.data["image"]
+        return "pwncollege-challenge"
 
     def challenge_paths(self, user):
         secret = current_app.config["SECRET_KEY"]
