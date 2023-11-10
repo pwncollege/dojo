@@ -54,9 +54,9 @@ def test_login():
     login("admin", "admin")
 
 
-def create_dojo(repository, *, official=True):
+def create_dojo(repository, *, official=True, session):
     create_dojo_json = dict(repository=repository, public_key="", private_key="")
-    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/create", json=create_dojo_json)
+    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/create", json=create_dojo_json)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     dojo_reference_id = response.json()["dojo"]
 
@@ -75,12 +75,12 @@ def create_dojo(repository, *, official=True):
 
 @pytest.mark.dependency()
 def test_create_dojo(admin_session):
-    create_dojo("pwncollege/example-dojo")
+    create_dojo("pwncollege/example-dojo", session=admin_session)
 
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
 def test_create_import_dojo(admin_session):
-    create_dojo("pwncollege/example-import-dojo")
+    create_dojo("pwncollege/example-import-dojo", session=admin_session)
 
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
