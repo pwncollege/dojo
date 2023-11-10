@@ -1,5 +1,6 @@
 import re
 import subprocess
+import shutil
 
 import requests
 import pytest
@@ -12,7 +13,7 @@ HOST="localhost.pwn.college"
 def dojo_run(*args, **kwargs):
     kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
     container_name = "dojo-test"
-    return subprocess.run(["/usr/bin/docker", "exec", "-i", container_name, "dojo", *args], **kwargs)
+    return subprocess.run([shutil.which("docker"), "exec", "-i", container_name, "dojo", *args], **kwargs)
 
 
 def login(username, password, *, success=True):
@@ -55,9 +56,11 @@ def test_login():
 
 
 def create_dojo(repository, *, official=True, session):
-    create_dojo_json = dict(repository=repository, public_key="", private_key="")
+    test_public_key = f"public/{repository}"
+    test_private_key = f"private/{repository}"
+    create_dojo_json = dict(repository=repository, public_key=test_public_key, private_key=test_private_key)
     response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/create", json=create_dojo_json)
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
     dojo_reference_id = response.json()["dojo"]
 
     if official:
@@ -105,7 +108,7 @@ def test_challenge_privilege_escalation():
     try:
         dojo_run("enter", "admin", input="cat /flag")
     except subprocess.CalledProcessError as e:
-        assert e.stderr == "cat: /flag: Permission denied\n", f"Expected permission denied, but got: {(e.stdout, e.stderr)}"
+        assert "Permission denied" in e.stderr, f"Expected permission denied, but got: {(e.stdout, e.stderr)}"
     else:
         assert False, f"Expected permission denied, but got no error: {(e.stdout, e.stderr)}"
 
