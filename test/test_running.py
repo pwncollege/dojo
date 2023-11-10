@@ -54,21 +54,33 @@ def test_login():
     login("admin", "admin")
 
 
-@pytest.mark.dependency()
-def test_create_dojo(admin_session):
-    create_dojo_json = dict(repository="pwncollege/example-dojo", public_key="", private_key="")
+def create_dojo(repository, *, official=True):
+    create_dojo_json = dict(repository=repository, public_key="", private_key="")
     response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/create", json=create_dojo_json)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     dojo_reference_id = response.json()["dojo"]
 
-    # TODO: add an official endpoint for making dojos official
-    id, dojo_id = dojo_reference_id.split("~", 1)
-    dojo_id = int.from_bytes(bytes.fromhex(dojo_id.rjust(8, "0")), "big", signed=True)
-    sql = f"UPDATE dojos SET official = 1 WHERE id = '{id}' and dojo_id = {dojo_id}"
-    dojo_run("db", input=sql)
-    sql = f"SELECT official FROM dojos WHERE id = '{id}' and dojo_id = {dojo_id}"
-    db_result = dojo_run("db", input=sql)
-    assert db_result.stdout == "official\n1\n", f"Failed to make dojo official: {db_result.stdout}"
+    if official:
+        # TODO: add an official endpoint for making dojos official
+        id, dojo_id = dojo_reference_id.split("~", 1)
+        dojo_id = int.from_bytes(bytes.fromhex(dojo_id.rjust(8, "0")), "big", signed=True)
+        sql = f"UPDATE dojos SET official = 1 WHERE id = '{id}' and dojo_id = {dojo_id}"
+        dojo_run("db", input=sql)
+        sql = f"SELECT official FROM dojos WHERE id = '{id}' and dojo_id = {dojo_id}"
+        db_result = dojo_run("db", input=sql)
+        assert db_result.stdout == "official\n1\n", f"Failed to make dojo official: {db_result.stdout}"
+
+    return dojo_reference_id
+
+
+@pytest.mark.dependency()
+def test_create_dojo(admin_session):
+    create_dojo("pwncollege/example-dojo")
+
+
+@pytest.mark.dependency(depends=["test_create_dojo"])
+def test_create_import_dojo(admin_session):
+    create_dojo("pwncollege/example-import-dojo")
 
 
 @pytest.mark.dependency(depends=["test_create_dojo"])

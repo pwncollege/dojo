@@ -387,7 +387,7 @@ class DojoChallenges(db.Model):
             if kwargs.get("challenge") is not None:
                 raise AttributeError("Import requires challenge to be None")
 
-            for field in ["id", "name", "description", "challenge", "image"]:
+            for field in ["id", "name", "description", "challenge"]:
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
 
             # TODO: maybe we should track the entire import
