@@ -1,0 +1,4 @@
+#!/bin/bash
+echo
+grep -rnwI /src -e 'LLVMFuzzerTestOneInput' --exclude-dir={honggfuzz,aflplusplus,fuzztest,libfuzzer,google-cloud-sdk,inspector,pcre2} --exclude=fuzzerLogFile*
+echo  

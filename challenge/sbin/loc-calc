@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+import os
+import re
+import sys
+import signal
+import argparse
+import subprocess
+import sys
+import json
+import threading
+import shutil
+import zipfile
+from typing import Optional
+
+try:
+        project_harness = sys.argv[1]
+except IndexError:
+        summary_file = "/out/report/linux/summary.json"
+else:
+        summary_file = "/out/report_target/"+project_harness+"/linux/summary.json"
+
+returncode = -1
+try:
+    with open(summary_file, "r") as fj:
+        content = json.load(fj)
+        for dd in content['data']:
+            if "totals" in dd:
+                if "lines" in dd['totals']:
+                    loc = dd['totals']['lines']['count']
+                    loc_covered = dd['totals']['lines']['covered']
+                    loc_percent = dd['totals']['lines']['percent']
+                    print("loc count: %s"%(loc))
+                    print("loc_covered: %s"%(loc_covered))
+                    print("loc_percent: %s"%(loc_percent))
+                if "functions" in dd['totals']:
+                    functions = dd['totals']['functions']['count']
+                    functions_covered = dd['totals']['functions']['covered']
+                    functions_percent = dd['totals']['functions']['percent']
+                    print("functions count: %s"%(functions))
+                    print("functions_covered: %s"%(functions_covered))
+                    print("functions_percent: %s"%(functions_percent))
+                returncode = int(loc_percent)
+except:
+    print("Missing "+summary_file)
+    print("\nPlease compile a project first\n")
+
+exit(returncode)

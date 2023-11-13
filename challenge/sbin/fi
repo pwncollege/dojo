@@ -1,0 +1,28 @@
+#!/opt/pwn.college/bash
+export PROJECT_NAME=$1
+. /usr/local/sbin/e
+export SANITIZER=introspector
+sudo --preserve-env compile
+if [ "$?" -gt 0 ]; then
+	    exit 1
+fi
+DRIVERS=(/src/inspector/*.covreport)
+
+sudo rm -rf /out/introspector-report
+sudo mkdir -p /out/introspector-report
+sudo mv /out/inspector /out/introspector-report/inspector
+sudo mv /out/report /out/introspector-report/inspector/covreport
+
+# fix delays caused by internet references to unpkg.com & googletagmanager.com
+patch -tuN /out/introspector-report/inspector/fuzz_report.html -i /usr/local/sbin/fuzz_report.patch -r -
+
+for driver in "${DRIVERS[@]}"
+do
+    filename=$(basename -- "$driver")
+    filename="${filename%.*}"
+    sudo mv /out/report_target/$filename /out/introspector-report/inspector/covreport/$filename
+done
+echo
+echo View report on virtual desktop under Applications/Web Browser: https://fuzz.wirsz.com/desktop
+echo 
+python3 -m http.server 8008 --directory /out/introspector-report/inspector/

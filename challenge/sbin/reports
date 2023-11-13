@@ -1,0 +1,6 @@
+#!/bin/bash
+echo
+echo View report on virtual desktop under Applications/Web Browser: https://pwnfuzz.wirsz.com/desktop
+echo
+python3 -m http.server 8008 --directory /out
+  

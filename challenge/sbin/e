@@ -1,0 +1,49 @@
+#!/bin/sh
+export arch=x86_64
+export AFL_FUZZER_ARGS="-m none"
+export ARCHITECTURE='x86_64'
+export ASAN_OPTIONS="alloc_dealloc_mismatch=0:allocator_may_return_null=1:allocator_release_to_os_interval_ms=500:check_malloc_usable_size=0:detect_container_overflow=1:detect_odr_violation=0:detect_leaks=1:detect_stack_use_after_return=1:fast_unwind_on_fatal=0:handle_abort=1:handle_segv=1:handle_sigill=1:max_uar_stack_size_log=16:print_scariness=1:quarantine_size_mb=10:strict_memcmp=1:strip_path_prefix=/workspace/:symbolize=1:use_sigaltstack=1:dedup_token_length=3"
+export BAZELISK_VERSION=1.9.0
+export CC="clang"
+export CCC="clang++"
+export CFLAGS="-O1 -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION"
+export CMAKE_VERSION=3.24.2
+export CODE_COVERAGE_SRC=/opt/code_coverage
+export COVERAGE_EXTRA_ARGS=""
+export COVERAGE_FLAGS="-fsanitize=fuzzer-no-link"
+export COVERAGE_FLAGS_coverage="-fprofile-instr-generate -fcoverage-mapping -pthread -Wl,--no-as-needed -Wl,-ldl -Wl,-lm -Wno-unused-command-line-argument"
+export CXX="clang++"
+export CXXFLAGS_EXTRA="-stdlib=libc++"
+export CXXFLAGS="$CFLAGS $CXXFLAGS_EXTRA"
+export DEBIAN_FRONTEND=noninteractive
+export DFSAN_OPTIONS="warn_unimplemented=0"
+export FUZZER_ARGS="-rss_limit_mb=2560 -timeout=25"
+export FUZZER_LDFLAGS=""
+export FUZZING_ENGINE="libfuzzer"
+export FUZZING_LANGUAGE="c++"
+export FUZZINTRO_OUTDIR=/src
+export GOPATH=/root/go
+export HELPER=True
+export HTTP_PORT=""
+export HWASAN_OPTIONS=random_tags=0
+export JAVA_HOME=/usr/lib/jvm/java-15-openjdk-amd64
+export JVM_LD_LIBRARY_PATH=$JAVA_HOME/lib/server
+export LIB_FUZZING_ENGINE="/usr/lib/libFuzzingEngine.a"
+export LIB_FUZZING_ENGINE_DEPRECATED="/usr/lib/libFuzzingEngine.a"
+export MSAN_OPTIONS="print_stats=1:strip_path_prefix=/workspace/:symbolize=1:dedup_token_length=3"
+export OUT=/out
+export PATH="$PATH:/out:$GOPATH/bin:$JAVA_HOME/bin"
+export PYTHON_DEPS="zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libsqlite3-dev  libreadline-dev libffi-dev libbz2-dev liblzma-dev"
+export PYTHON_VERSION=3.8.3
+export RUN_FUZZER_MODE=noninteractive
+export SANITIZER_FLAGS_address="-fsanitize=address -fsanitize-address-use-after-scope"
+export SANITIZER_FLAGS_coverage=""
+export SANITIZER_FLAGS_hwaddress="-fsanitize=hwaddress -fuse-ld=lld -Wno-unused-command-line-argument"
+export SANITIZER_FLAGS_introspector="-O0 -flto -fno-inline-functions -fuse-ld=gold -Wno-unused-command-line-argument"
+export SANITIZER_FLAGS_memory="-fsanitize=memory -fsanitize-memory-track-origins"
+export SANITIZER_FLAGS_thread="-fsanitize=thread"
+export SANITIZER_FLAGS_undefined="-fsanitize=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unsigned-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=array-bounds,bool,builtin,enum,float-divide-by-zero,function,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr"
+export SANITIZER_FLAGS_undefined_aarch64="-fsanitize=array-bounds,bool,builtin,enum,float-divide-by-zero,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unsigned-integer-overflow,unreachable,vla-bound,vptr -fno-sanitize-recover=array-bounds,bool,builtin,enum,float-divide-by-zero,integer-divide-by-zero,null,object-size,return,returns-nonnull-attribute,shift,signed-integer-overflow,unreachable,vla-bound,vptr"
+export SRC=/src
+export UBSAN_OPTIONS="print_stacktrace=1:print_summary=1:silence_unsigned_overflow=1:strip_path_prefix=/workspace/:symbolize=1:dedup_token_length=3:silence_unsigned_overflow=1"
+export WORK=/work

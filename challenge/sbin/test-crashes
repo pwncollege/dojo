@@ -1,0 +1,3 @@
+cd /out
+DRIVERS=($(ls -p -I '*.*' -I 'llvm-symbolizer' -I "crash-*" -I "timeout-*" /out | grep -v /))
+for f in "${DRIVERS[@]}"; do for g in /out/crash*; do $f $g; done; done

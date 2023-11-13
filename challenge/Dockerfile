@@ -331,6 +331,130 @@ RUN rm /etc/xdg/autostart/*
 
 ################################################################################
 
+# From oss-fuzz/infra/base-images/base-image, base-clang, base-builder, base-runner
+
+FROM builder as builder-fuzz-tools
+
+RUN git clone https://github.com/google/oss-fuzz /opt/oss-fuzz
+
+RUN cd $SRC && \
+    git clone https://github.com/google/fuzztest && \
+    cd fuzztest && \
+    git checkout a37d133f714395cabc20dd930969a889495c9f53 && \
+    rm -rf .git
+
+RUN curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-431.0.0-linux-x86_64.tar.gz && \
+    tar -xf google-cloud-cli-431.0.0-linux-x86_64.tar.gz && \
+    ./google-cloud-sdk/install.sh && \
+    rm google-cloud-cli-431.0.0-linux-x86_64.tar.gz
+
+RUN git clone https://chromium.googlesource.com/chromium/src/tools/code_coverage /opt/code_coverage && \
+    cd /opt/code_coverage && \
+    git checkout edba4873b5e8a390e977a64c522db2df18a8b27d && \
+    pip install wheel && \
+    pip install -r requirements.txt && \
+    pip install MarkupSafe==0.23 && \
+    pip install coverage 
+    
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get update && xargs apt-get install -yqq <<EOF
+    libc6-dev
+    libgcc-9-dev
+    libnice-dev
+    patch 
+    subversion
+    sudo
+    tzdata
+    wget
+EOF
+
+COPY sbin/git-clone /opt
+RUN /opt/git-clone
+RUN rm /opt/git-clone
+
+################################################################################
+
+FROM builder as builder-fuzz-interface
+
+ADD https://commondatastorage.googleapis.com/clusterfuzz-builds/jcc/clang-jcc /usr/local/bin/
+ADD https://commondatastorage.googleapis.com/clusterfuzz-builds/jcc/clang++-jcc /usr/local/bin/
+
+COPY sbin/none              /usr/local/sbin/none
+COPY sbin/address           /usr/local/sbin/address
+COPY sbin/memory            /usr/local/sbin/memory
+COPY sbin/thread            /usr/local/sbin/thread
+COPY sbin/undefined         /usr/local/sbin/undefined
+COPY sbin/cover             /usr/local/sbin/cover
+COPY sbin/inspector         /usr/local/sbin/inspector
+COPY sbin/find-drv          /usr/local/sbin/find-drv
+COPY sbin/e                 /usr/local/sbin/e
+COPY sbin/loc-calc          /usr/local/sbin/loc-calc
+COPY sbin/reports           /usr/local/sbin/reports
+COPY sbin/fi                /usr/local/sbin/fi
+COPY sbin/loc_count         /usr/local/sbin/loc_count
+COPY sbin/loc_count2        /usr/local/sbin/loc_count2
+COPY sbin/loc_count120      /usr/local/sbin/loc_count120
+COPY sbin/test-crashes      /usr/local/sbin/test-crashes
+COPY sbin/announce          /usr/local/sbin/announce
+COPY sbin/compile.patch     /usr/local/sbin/compile.patch
+COPY sbin/fuzz_report.patch /usr/local/sbin/fuzz_report.patch
+COPY base-builder/sanitizers /usr/local/lib/sanitizers
+
+COPY base-builder/bazel_build_fuzz_tests \
+    base-builder/cargo \
+    base-builder/compile \
+    base-builder/compile_afl \
+    base-builder/compile_centipede \
+    base-builder/compile_honggfuzz \
+    base-builder/compile_fuzztests.sh \
+    base-builder/compile_go_fuzzer \
+    base-builder/compile_javascript_fuzzer \
+    base-builder/compile_libfuzzer \
+    base-builder/compile_native_go_fuzzer \
+    base-builder/compile_python_fuzzer \
+    base-builder/debug_afl \
+    # Go, JavaScript, Java, Python, Rust, and Swift installation scripts.
+    base-builder/install_go.sh \
+    base-builder/install_javascript.sh \
+    base-builder/install_java.sh \
+    base-builder/install_python.sh \
+    base-builder/install_rust.sh \
+    base-builder/install_swift.sh \
+    base-builder/python_coverage_helper.py \
+    base-builder/srcmap \
+    base-builder/write_labels.py \
+    /usr/local/bin/
+
+COPY base-runner/bad_build_check \
+    base-runner/coverage \
+    base-runner/coverage_helper \
+    base-runner/download_corpus \
+    base-runner/jacoco_report_converter.py \
+    base-runner/nyc_report_converter.py \
+    base-runner/rcfilt \
+    base-runner/reproduce \
+    base-runner/run_fuzzer \
+    base-runner/parse_options.py \
+    base-runner/profraw_update.py \
+    base-runner/targets_list \
+    base-runner/test_all.py \
+    base-runner/test_one.py \
+    base-runner/python_coverage_runner_help.py \
+    /usr/local/bin/
+
+COPY base-builder/llvmsymbol.diff $SRC
+COPY base-builder/detect_repo.py /opt/cifuzz/
+COPY base-builder/bazel.bazelrc /root/.bazelrc
+
+RUN <<EOF
+    patch -tuN /usr/local/bin/compile -i /usr/local/sbin/compile.patch -r -
+    chmod 755 /usr/local/bin/compile
+    mkdir /corpus
+EOF
+
+################################################################################
+
 FROM essentials as builder-desktop-reversing-tools
 
 COPY desktop/angr-management.desktop /usr/share/applications/
@@ -526,6 +650,8 @@ COPY --link --from=builder-busybox / /
 COPY --link --from=builder-glow / /
 COPY --link --from=builder-desktop-xfce / /
 COPY --link --from=builder-virtiofsd /opt/virtiofsd /opt/virtiofsd
+COPY --link --from=builder-fuzz-tools / /
+COPY --link --from=builder-fuzz-interface / /
 COPY --link --from=builder-desktop-reversing-tools / /
 COPY --link --from=builder-gdb / /
 COPY --link --from=builder-tools-pip / /
@@ -553,6 +679,31 @@ FROM challenge-full as challenge
 
 FROM ${DOJO_CHALLENGE} as challenge-final
 
+ENV DEBIAN_FRONTEND noninteractive
+ARG arch=x86_64
+ENV OUT=/out
+ENV SRC=/src
+ENV WORK=/work
+WORKDIR $SRC
+
+RUN mkdir -p $OUT $SRC $WORK && chmod a+rwx $OUT $SRC $WORK
+# Install newer cmake.
+ENV CMAKE_VERSION 3.24.2
+RUN wget -q https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION-Linux-$arch.sh && \
+    chmod +x cmake-$CMAKE_VERSION-Linux-$arch.sh && \
+    ./cmake-$CMAKE_VERSION-Linux-$arch.sh --skip-license --prefix="/usr/local" && \
+    rm cmake-$CMAKE_VERSION-Linux-$arch.sh && \
+    rm -rf /usr/local/doc/cmake /usr/local/bin/cmake-gui
+
+COPY base-runner/checkout_build_install_llvm.sh /root/
+RUN /root/checkout_build_install_llvm.sh
+RUN rm /root/checkout_build_install_llvm.sh
+
+COPY sbin/prereqs /opt
+RUN /opt/prereqs
+RUN rm /opt/prereqs
+
+################################################################################
 RUN <<EOF
     if id ubuntu; then userdel -f -r ubuntu; fi
 

@@ -1,0 +1,17 @@
+--- /usr/local/bin/compile	2023-08-30 03:01:07.000000000 +0000
++++ compile	2023-08-31 00:22:00.166763306 +0000
+@@ -245,10 +245,10 @@
+   unset CXXFLAGS
+   unset CFLAGS
+   export G_ANALYTICS_TAG="G-8WTFM1Y62J"
+-  apt-get install -y libjpeg-dev zlib1g-dev libyaml-dev
+-  python3 -m pip install --upgrade setuptools
+-  python3 -m pip install cxxfilt pyyaml beautifulsoup4 lxml soupsieve
+-  python3 -m pip install --prefer-binary matplotlib
++  #apt-get install -y libjpeg-dev zlib1g-dev libyaml-dev
++  #python3 -m pip install --upgrade setuptools
++  #python3 -m pip install cxxfilt pyyaml beautifulsoup4 lxml soupsieve
++  #python3 -m pip install --prefer-binary matplotlib
+ 
+   if [ "$FUZZING_LANGUAGE" = "jvm" ]; then
+     echo "GOING jvm route"

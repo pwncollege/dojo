@@ -1,0 +1,50 @@
+#!/opt/pwn.college/bash 
+. /usr/local/sbin/e
+if [ "$1" = "none" ] || [ "$1" = "address" ] || [ "$1" = "memory" ] || [ "$1" = "undefined" ] || [ "$1" = "thread" ]; then
+    export SANITIZER=$1
+    shift
+fi
+[ -z "$SANITIZER" ] && export SANITIZER='none'
+cd $SRC
+cp /usr/local/lib/libc++.a /usr/local/lib/libc++.bk
+cp /usr/local/lib/libc++experimental.a /usr/local/lib/libc++experimental.bk
+/challenge/build-image $SANITIZER
+if [ "$?" -gt 0 ]; then
+    exit 1
+fi
+echo
+echo Fuzzing ~30 seconds - Sanitizer: $SANITIZER
+echo
+if [ -z "$1" ]
+then
+    cd /out
+    export DRIVERS=($(ls -p -I '*.*' -I 'llvm-symbolizer' -I "crash-*" -I "timeout-*" -I "TEMP*" /out | grep -v /))
+else
+    export DRIVERS=$1
+fi
+for driver in "${DRIVERS[@]}"
+do
+    run_fuzzer $driver -max_total_time=30
+done
+cp /usr/local/lib/libc++.bk /usr/local/lib/libc++.a
+cp /usr/local/lib/libc++experimental.bk /usr/local/lib/libc++experimental.a
+
+/challenge/build-image coverage
+
+for driver in "${DRIVERS[@]}"
+do
+    sudo rm -rf /corpus/$driver
+    sudo mv /tmp/${driver}_corpus /corpus/$driver
+done
+
+sudo --preserve-env coverage
+echo
+for driver in "${DRIVERS[@]}"
+do
+    echo $driver
+    /usr/local/sbin/loc-calc $driver
+    echo
+done
+echo Total
+/usr/local/sbin/loc-calc
+

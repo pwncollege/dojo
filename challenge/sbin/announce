@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+import sys
+
+def percent(a, b):
+    result = int(((b - a) * 100) / a)
+    return result
+
+# Driver code
+if __name__ == "__main__" :
+    print("\nCoverage improvement: ",percent(float(sys.argv[1]), float(sys.argv[2])), "%\n")
+    exit(int(float(sys.argv[2])))

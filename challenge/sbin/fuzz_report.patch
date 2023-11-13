@@ -1,0 +1,20 @@
+--- fuzz_report.html	2023-11-12 17:45:26.544130299 +0000
++++ /home/hacker/fuzz_report.html	2023-11-12 17:57:14.582797104 +0000
+@@ -1,17 +1,6 @@
+ <html>
+  <head>
+-  <!-- Google tag (gtag.js) -->
+-  <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-8WTFM1Y62J">
+-  </script>
+-  <script>
+-   window.dataLayer = window.dataLayer || [];
+-                  function gtag(){dataLayer.push(arguments);}
+-                  gtag('js', new Date());
+-
+-                  gtag('config', 'G-8WTFM1Y62J');
+-  </script>
+   <link href="prism.css" rel="stylesheet"/>
+-  <link href="https://unpkg.com/dracula-prism/dist/css/dracula-prism.css" rel="stylesheet"/>
+  </head>
+  <body>
+   <script crossorigin="anonymous" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" src="https://code.jquery.com/jquery-3.6.0.min.js">
