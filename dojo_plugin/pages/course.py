@@ -151,7 +151,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 else:
                     progress = f"{due_solves} (+{late_solves}) / {challenge_count_required}"
 
-                if override is not None:
+                if override is None:
                     credit = min((due_solves + late_value * late_solves) / challenge_count_required, 1.0)
                 else:
                     credit = override
