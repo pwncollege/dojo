@@ -106,28 +106,35 @@ def grade(dojo, users_query, *, ignore_pending=False):
 
             if type == "checkpoint":
                 module_id = assessment["id"]
+                weight = assessment["weight"]
+                percent_required = assessment.get("percent_required", 0.334)
+                extension = assessment.get("extensions", {}).get(user_id, 0)
+
                 module_name = module_names.get(module_id)
                 if not module_name:
                     continue
 
                 challenge_count = challenge_counts[module_id]
                 checkpoint_solves, due_solves, all_solves = module_solves.get(module_id, (0, 0, 0))
-                percent_required = assessment.get("percent_required", 0.334)
                 challenge_count_required = int(challenge_count * percent_required)
-
-                extension = assessment.get("extensions", {}).get(user_id, 0)
                 user_date = date + datetime.timedelta(days=extension)
 
                 grades.append(dict(
                     name=f"{module_name} Checkpoint",
                     date=str(user_date) + (" *" if extension else ""),
-                    weight=assessment["weight"],
+                    weight=weight,
                     progress=f"{checkpoint_solves} / {challenge_count_required}",
                     credit=bool(checkpoint_solves // (challenge_count_required)),
                 ))
 
             if type == "due":
                 module_id = assessment["id"]
+                weight = assessment["weight"]
+                percent_required = assessment.get("percent_required", 1.0)
+                late_penalty = assessment.get("late_penalty", 0.0)
+                extension = assessment.get("extensions", {}).get(user_id, 0)
+                override = assessment.get("overrides", {}).get(user_id, None)
+
                 module_name = module_names.get(module_id)
                 if not module_name:
                     continue
@@ -135,22 +142,27 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 challenge_count = challenge_counts[module_id]
                 checkpoint_solves, due_solves, all_solves = module_solves.get(module_id, (0, 0, 0))
                 late_solves = all_solves - due_solves
-                percent_required = assessment.get("percent_required", 1.0)
                 challenge_count_required = int(challenge_count * percent_required)
-
-                extension = assessment.get("extensions", {}).get(user_id, 0)
                 user_date = date + datetime.timedelta(days=extension)
-
-                late_penalty = assessment.get("late_penalty", 0.0)
                 late_value = 1 - late_penalty
+
+                if not late_solves:
+                    progress = f"{due_solves} / {challenge_count_required}"
+                else:
+                    progress = f"{due_solves} (+{late_solves}) / {challenge_count_required}"
+
+                if override is not None:
+                    credit = min((due_solves + late_value * late_solves) / challenge_count_required, 1.0)
+                else:
+                    credit = override
+                    progress = f"{progress} *"
 
                 grades.append(dict(
                     name=f"{module_name}",
                     date=str(user_date) + (" *" if extension else ""),
-                    weight=assessment["weight"],
-                    progress=(f"{due_solves} (+{late_solves}) / {challenge_count_required}"
-                              if late_solves else f"{due_solves} / {challenge_count_required}"),
-                    credit=min((due_solves + late_value * late_solves) / challenge_count_required, 1.0),
+                    weight=weight,
+                    progress=progress,
+                    credit=credit,
                 ))
 
             if type == "manual":
