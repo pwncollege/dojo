@@ -34,6 +34,19 @@ find /challenge -name '*.ko' -exec /usr/sbin/insmod {} \;
 
 service ssh start
 
+echo wat > /tmp/hello
+if [ -e /challenge/target ]; then
+	# /var/lib/docker needs to be ext4 in order to use overlayfs
+	dd if=/dev/zero of=/tmp/data bs=1M count=0 seek=2000
+	yes | mkfs.ext4 -O ^has_journal /tmp/data
+	mount /tmp/data -o X-mount.mkdir /var/lib/docker
+
+	# get my cgroup mounts into /sys/fs/cgroup
+	cgroupfs-mount
+
+	sudo dockerd > /dev/null 2>&1 &
+fi
+
 if [ -e /usr/sbin/docker-init ]; then
     exec /usr/sbin/docker-init /bin/sleep -- 6h
 else
