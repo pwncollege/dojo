@@ -36,10 +36,6 @@ def grade(dojo, users_query, *, ignore_pending=False):
     for assessment in assessments:
         if assessment["type"] not in ["checkpoint", "due"]:
             continue
-        assessment["extensions"] = {
-            int(user_id): days
-            for user_id, days in (assessment.get("extensions") or {}).items()
-        }
         assessment_dates[assessment["id"]][assessment["type"]] = (
             datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc),
             assessment["extensions"],
@@ -54,7 +50,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     return None
                 date, extensions = assessment_dates[module_id][date_type]
                 user_date = db.case(
-                    [(Solves.user_id == user_id, date + datetime.timedelta(days=days))
+                    [(Solves.user_id == int(user_id), date + datetime.timedelta(days=days))
                      for user_id, days in extensions.items()],
                     else_=date
                 ) if extensions else date
@@ -108,7 +104,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 module_id = assessment["id"]
                 weight = assessment["weight"]
                 percent_required = assessment.get("percent_required", 0.334)
-                extension = assessment.get("extensions", {}).get(user_id, 0)
+                extension = assessment.get("extensions", {}).get(str(user_id), 0)
 
                 module_name = module_names.get(module_id)
                 if not module_name:
@@ -132,8 +128,8 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 weight = assessment["weight"]
                 percent_required = assessment.get("percent_required", 1.0)
                 late_penalty = assessment.get("late_penalty", 0.0)
-                extension = assessment.get("extensions", {}).get(user_id, 0)
-                override = assessment.get("overrides", {}).get(user_id, None)
+                extension = assessment.get("extensions", {}).get(str(user_id), 0)
+                override = assessment.get("overrides", {}).get(str(user_id), None)
 
                 module_name = module_names.get(module_id)
                 if not module_name:
