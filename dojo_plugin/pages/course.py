@@ -38,7 +38,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
             continue
         assessment_dates[assessment["id"]][assessment["type"]] = (
             datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc),
-            assessment["extensions"],
+            assessment.get("extensions", {}),
         )
 
     def dated_count(label, date_type):
