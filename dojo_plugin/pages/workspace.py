@@ -28,7 +28,7 @@ def view_workspace():
 @workspace.route("/workspace/<service>/<path:path>", websocket=True)
 @authed_only
 def forward_workspace(service, path=""):
-    prefix = "/workspace/"
+    prefix = f"/workspace/{service}/"
     assert request.full_path.startswith(prefix)
     path = request.full_path[len(prefix):]
 
