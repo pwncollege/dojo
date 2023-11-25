@@ -83,7 +83,6 @@ def forward_desktop_res(route, socket_path, user_id, path=""):
 @desktop.route("/desktop/<int:user_id>/<path:path>", websocket=True)
 @authed_only
 def forward_desktop(user_id, path=""):
-    print("FORWARDING DESKTOP", path, flush=True)
     return forward_desktop_res("desktop", 6081, user_id, path)
 
 
