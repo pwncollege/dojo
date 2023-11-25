@@ -63,5 +63,9 @@ def redirect_workspace_referers():
     referer_path = urlparse(referer).path
     current_path = request.path
 
+    # TODO: figure out how to implement this correctly
+    if current_path.startswith("/themes/"):
+        return
+
     if referer_path.startswith("/workspace/") and not current_path.startswith("/workspace/"):
         return redirect(url_for("pwncollege_workspace.forward_workspace", service="vscode", path=current_path.lstrip("/")))
