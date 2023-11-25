@@ -33,6 +33,7 @@ def forward_workspace(service, path=""):
     path = request.full_path[len(prefix):]
 
     if "~" not in service:
+        port = service
         try:
             user = get_current_user()
             port = int(port_names.get(port, port))
