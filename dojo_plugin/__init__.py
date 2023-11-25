@@ -19,7 +19,7 @@ from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
-from .pages.workspace import workspace, redirect_workspace_referers
+from .pages.workspace import workspace
 from .pages.desktop import desktop
 from .pages.sensai import sensai
 from .pages.users import users
@@ -115,7 +115,6 @@ def load(app):
 
     if not app.debug:
         app.before_request(redirect_dojo)
-    app.before_request(redirect_workspace_referers)
 
     app.register_blueprint(dojos)
     app.register_blueprint(dojo)

@@ -19,6 +19,38 @@ port_names = {
 }
 
 
+@workspace.route("/workspace/desktop")
+@authed_only
+def view_desktop():
+    # vnc.html?autoconnect=1&reconnect=1&path={route}/{user_id}/websockify&resize=remote&reconnect_delay=10&view_only={view_only}&password={password}
+
+    container = get_current_container()
+    data = "-".join([container.id, "desktop", "view"])
+    data = "-".join([container.id, "desktop", "interact"])
+    hashlib.sha256(container.id).hexdigest()
+
+    # current_user = get_current_user()
+    # if user_id is None:
+    #     user_id = current_user.id
+
+    # user = Users.query.filter_by(id=user_id).first()
+    # if not can_connect_to(user):
+    #     abort(403)
+
+    # if password is None:
+    #     try:
+    #         password_type = "interact" if can_control(user) else "view"
+    #         password_path = f"/var/homes/nosuid/{random_home_path(user)}/.vnc/pass-{password_type}"
+    #         password = open(password_path).read()
+    #     except FileNotFoundError:
+    #         password = None
+
+
+    active = bool(get_current_dojo_challenge())
+    iframe_src = f"/workspace/desktop/vnc.html?autoconnect=1&reconnect=1&resize=remote&reconnect_delay=10&view_only=0&password={data}"
+    return render_template("iframe.html", iframe_src=iframe_src, active=active)
+
+
 @workspace.route("/workspace/<service>")
 @authed_only
 def view_workspace(service):
@@ -56,16 +88,3 @@ def forward_workspace(service, path=""):
         abort(403)
 
     return redirect_user_socket(user, port, path)
-
-
-def redirect_workspace_referers():
-    referer = request.headers.get("Referer", "")
-    referer_path = urlparse(referer).path
-    current_path = request.path
-
-    # TODO: figure out how to implement this correctly
-    if current_path.startswith("/themes/"):
-        return
-
-    if referer_path.startswith("/workspace/") and not current_path.startswith("/workspace/"):
-        return redirect(url_for("pwncollege_workspace.forward_workspace", service="vscode", path=current_path.lstrip("/")))
