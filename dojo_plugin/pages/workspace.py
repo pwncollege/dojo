@@ -1,3 +1,4 @@
+import hashlib
 from urllib.parse import urlparse
 
 from flask import request, Blueprint, render_template, redirect, url_for, abort
@@ -5,21 +6,24 @@ from CTFd.models import Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
-from ..utils import random_home_path, redirect_user_socket
+from ..utils import random_home_path, redirect_user_socket, get_current_container
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
 
 
 workspace = Blueprint("pwncollege_workspace", __name__)
 port_names = {
+    "challenge": 80,
     "vscode": 6080,
+    "desktop": 6081,
+    "desktop-windows": 6082,
 }
 
 
-@workspace.route("/workspace")
+@workspace.route("/workspace/<service>")
 @authed_only
-def view_workspace():
+def view_workspace(service):
     active = bool(get_current_dojo_challenge())
-    return render_template("iframe.html", iframe_src="/workspace/vscode/", active=active)
+    return render_template("iframe.html", iframe_src=f"/workspace/{service}/", active=active)
 
 
 @workspace.route("/workspace/<service>/")
