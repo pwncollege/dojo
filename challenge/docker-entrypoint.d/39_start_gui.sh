@@ -2,9 +2,10 @@
 
 mkdir -p /tmp/.dojo/vnc /home/hacker/.vnc
 
-echo "$(head -c32 /dev/urandom | md5sum | head -c8)" > /home/hacker/.vnc/pass-interact
-echo "$(head -c32 /dev/urandom | md5sum | head -c8)" > /home/hacker/.vnc/pass-view
-cat /home/hacker/.vnc/pass-interact /home/hacker/.vnc/pass-view | tigervncpasswd -f > /home/hacker/.vnc/vncpass
+container_id="$(cat /proc/1/cgroup | tail -n 1 | awk -F '/' '{print $NF}')"
+password_interact="$(printf 'desktop-interact' | openssl dgst -sha256 -hmac "$container_id" | awk '{print $2}' | head -c 8)"
+password_view="$(printf 'desktop-view' | openssl dgst -sha256 -hmac "$container_id" | awk '{print $2}' | head -c 8)"
+printf '%s\n%s\n' "$password_interact" "$password_view" | tigervncpasswd -f > /tmp/.dojo/vnc/passwd
 
 start-stop-daemon --start \
                   --pidfile /tmp/.dojo/vnc/vncserver.pid \
@@ -15,8 +16,8 @@ start-stop-daemon --start \
                   -- \
                   :42 \
                   -localhost=0 \
-                  -rfbunixpath /tmp/.dojo/vnc/vnc_socket \
-                  -rfbauth /home/hacker/.vnc/vncpass \
+                  -rfbunixpath /tmp/.dojo/vnc/socket \
+                  -rfbauth /tmp/.dojo/vnc/passwd \
                   -nolisten tcp \
                   -geometry 1024x768 \
                   -depth 24 \
@@ -33,7 +34,7 @@ start-stop-daemon --start \
                   -- \
                   --web /usr/share/novnc/ \
                   dojo-user:6081 \
-                  --unix-target=/tmp/.dojo/vnc/vnc_socket \
+                  --unix-target=/tmp/.dojo/vnc/socket \
                   </dev/null \
                   >>/tmp/.dojo/vnc/websockify.log \
                   2>&1
