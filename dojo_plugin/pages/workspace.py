@@ -64,11 +64,11 @@ def view_desktop():
         "reconnect": 1,
         "reconnect_delay": 10,
         "resize": "remote",
-        "path": url_for("pwncollege_workspace.forward_workspace", service=service, path="websockify"),
+        "path": url_for("pwncollege_workspace.forward_workspace", service=service, service_path="websockify"),
         "view_only": int(view_only),
         "password": password,
     }
-    iframe_src = url_for("pwncollege_workspace.forward_workspace", service=service, path="vnc.html", **vnc_params)
+    iframe_src = url_for("pwncollege_workspace.forward_workspace", service=service, service_path="vnc.html", **vnc_params)
     active = bool(get_current_dojo_challenge(user))
     return render_template("iframe.html", iframe_src=iframe_src, active=active)
 
@@ -81,14 +81,14 @@ def view_workspace(service):
 
 
 @workspace.route("/workspace/<service>/", websocket=True)
-@workspace.route("/workspace/<service>/<path:path>", websocket=True)
+@workspace.route("/workspace/<service>/<path:service_path>", websocket=True)
 @workspace.route("/workspace/<service>/")
-@workspace.route("/workspace/<service>/<path:path>")
+@workspace.route("/workspace/<service>/<path:service_path>")
 @authed_only
-def forward_workspace(service, path=""):
+def forward_workspace(service, service_path=""):
     prefix = f"/workspace/{service}/"
     assert request.full_path.startswith(prefix)
-    path = request.full_path[len(prefix):]
+    service_path = request.full_path[len(prefix):]
 
     if service.count("~") == 0:
         port = service
@@ -131,4 +131,4 @@ def forward_workspace(service, path=""):
     else:
         abort(404)
 
-    return redirect_user_socket(user, port, path)
+    return redirect_user_socket(user, port, service_path)
