@@ -67,7 +67,7 @@ def view_desktop():
         "view_only": int(view_only),
         "password": password,
     }
-    iframe_src = url_for("pwncollege_workspace.forward_workspace", service=service, path="vnc.html", **vnc_params)
+    iframe_src = url_for("pwncollege_workspace.forward_workspace", service=service, path="vnc.html", _scheme=request.scheme, **vnc_params)
     active = bool(get_current_dojo_challenge(user))
     return render_template("iframe.html", iframe_src=iframe_src, active=active)
 
