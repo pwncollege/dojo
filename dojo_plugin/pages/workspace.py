@@ -64,6 +64,7 @@ def view_desktop():
         "reconnect": 1,
         "reconnect_delay": 10,
         "resize": "remote",
+        "path": url_for("pwncollege_workspace.forward_workspace", service=service, path="websockify"),
         "view_only": int(view_only),
         "password": password,
     }
@@ -106,6 +107,8 @@ def forward_workspace(service, path=""):
             abort(404)
 
         container = get_current_container(user)
+        if not container:
+            abort(404)
         dojo = Dojos.from_id(container.labels["dojo.dojo_id"]).first()
         if not dojo.is_admin():
             abort(403)
@@ -119,6 +122,8 @@ def forward_workspace(service, path=""):
             abort(404)
 
         container = get_current_container(user)
+        if not container:
+            abort(404)
         correct_access_code = container_password(container, service)
         if not hmac.compare_digest(access_code, correct_access_code):
             abort(403)
