@@ -3,7 +3,7 @@ import collections
 import datetime
 import os
 import sys
-from enum import Enum
+from enum import Enum, auto
 
 import discord
 import pandas as pd
@@ -249,16 +249,18 @@ async def help(interaction: discord.Interaction):
     await interaction.response.send_message(view=ephemeral_url_view, ephemeral=True)
 
 class Belt(Enum):
-    ORANGE = 0
-    YELLOW = 1
-    BLUE   = 2
-    ERROR = -1
+    ORANGE_23S  = auto()
+    ORANGE      = auto()
+    YELLOW_22   = auto()
+    YELLOW      = auto()
+    BLUE        = auto()
+    ERROR       = auto()
 
     def get_role(self):
         match self:
-            case Belt.ORANGE:
+            case Belt.ORANGE_23S | Belt.ORANGE:
                 return "Orange Belt"
-            case Belt.YELLOW:
+            case Belt.YELLOW_22 | Belt.YELLOW:
                 return "Yellow Belt"
             case Belt.BLUE:
                 return "Blue Belt"
@@ -267,9 +269,9 @@ class Belt(Enum):
 
     def get_req_belt(self):
         match self:
-            case Belt.ORANGE:
+            case Belt.ORANGE_23S | Belt.ORANGE:
                 return None
-            case Belt.YELLOW:
+            case Belt.YELLOW_22 | Belt.YELLOW:
                 return Belt.ORANGE
             case Belt.BLUE:
                 return Belt.YELLOW
@@ -278,6 +280,10 @@ class Belt(Enum):
 
     def get_course(self):
         match self:
+            case Belt.ORANGE_23S:
+                return 62725971    # CSE 365 - Spring 2023
+            case Belt.YELLOW_22:
+                return -2037203363 # CSE 466 - Fall 2022
             case Belt.ORANGE:
                 return 1520512338  # CSE 365 - Fall 2023
             case Belt.YELLOW:
@@ -287,11 +293,11 @@ class Belt(Enum):
             case _:
                 return 0
 
-async def announce_belting(member, belt: Belt):
-    belt_message = await client.belting_ceremony_channel.send(content=f"{member.mention} has earned their {belt.get_role()}! :tada:")
+async def announce_belting(member, belt: Belt, append_text=""):
+    belt_message = await client.belting_ceremony_channel.send(content=f"{member.mention} earned their {belt.get_role()} {append_text}! :tada:")
     return belt_message
 
-async def check_belts():
+async def _check_belts():
     now = datetime.datetime.now()
     print(f"Checking belts @ {now}")
 
@@ -304,21 +310,23 @@ async def check_belts():
 
         completion = pd.read_sql(f'''
             select count(*) from dojo_challenges where dojo_id={course};
-                                 ''', engine).iloc[0][0]
+                                 ''', engine).values[0][0]
 
         belted = pd.read_sql(f'''
-                SELECT u.name, dis.discord_id, count(s.challenge_id)
-                    FROM dojo_challenges as d
-                        JOIN solves as s
-                            ON d.challenge_id=s.challenge_id
-                        JOIN users as u
-                            ON u.id=s.user_id
-                        JOIN discord_users as dis
-                            ON u.id=dis.user_id
-                    WHERE d.dojo_id={course}
-                    GROUP BY u.name
-                        HAVING count(s.challenge_id)={completion};
-                      ''', engine)
+             select u.name, dis.discord_id, max(sub.date), count(sub.date)
+             FROM users as u
+              JOIN submissions as sub
+               ON u.id=.sub.user_id
+              JOIN dojo_challenges as d
+               ON d.challenge_id=sub.challenge_id
+              JOIN discord_users as dis
+               ON dis.user_id=u.id
+             WHERE d.dojo_id={belt.get_course()}
+               AND sub.type='correct'
+             GROUP BY u.name
+             HAVING count(sub.date)={completion}
+             ORDER BY max(sub.date)
+          ''', engine)
 
         for _, row in belted.iterrows():
             try:
@@ -329,10 +337,25 @@ async def check_belts():
                 now = datetime.datetime.now()
                 print(f"Awarding {belt.get_role()} to {member.display_name} @ {now}")
                 await member.add_roles(role)
-                await announce_belting(member, belt)
+                await announce_belting(member, belt, append_text=f" {discord.utils.format_dt(row['max(sub.date)'])}")
+
+
+    # TODO: remove the  previous course
+    await check_belt(Belt.ORANGE_23S)
+    await check_belt(Belt.YELLOW_22)
 
     await check_belt(Belt.ORANGE)
     await check_belt(Belt.YELLOW)
     await check_belt(Belt.BLUE)
+
+
+@client.tree.command()
+async def check_belts(interaction: discord.Interaction):
+    senseis = list(role for role in interaction.guild.roles if "sensei" in role.name.lower())
+
+    if not any(interaction.user in sensei.members for sensei in senseis):
+        await interaction.response.send_message("You are not a sensei!", ephemeral=True)
+        return
+    await _check_belts()
 
 client.run(DISCORD_BOT_TOKEN)
