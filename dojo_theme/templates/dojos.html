@@ -12,7 +12,7 @@
     <h2>{{ type | title }}</h2>
     <ul class="card-list">
       {% for dojo in dojos %}
-      {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id), dojo.name, "{} Modules : ".format(dojo.modules | length) + "{} / {}".format(dojo.solves(user=user, ignore_visibility=True, ignore_admins=False).count(), dojo.challenges | length)) }}
+      {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id), dojo.name, "{} Modules : ".format(dojo.modules | length) + "{} / {}".format(dojo.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0, dojo.challenges | length)) }}
       {% endfor %}
 
       {% if type == "More" %}
