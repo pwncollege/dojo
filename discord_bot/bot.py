@@ -263,19 +263,23 @@ async def check_belts():
                  next(role for role in client.guild.roles if role.name == "Yellow Belt"),
                  next(role for role in client.guild.roles if role.name == "Blue Belt")]
 
-        courses = [62725971,    # CSE 365 - Spring 2023
-                   -2037203363, # CSE 466 - Fall 2022
-                   -695929874   # CSE 494 - Spring 2023
-                   ]
+        req_roles = [None,
+                 next(role for role in client.guild.roles if role.name == "Orange Belt"),
+                 next(role for role in client.guild.roles if role.name == "Yellow Belt"),
+                ]
 
-        completion_cnts = [167, # CSE 365 - Spring 2023
-                           355, # CSE 466 - Fall 2022
-                           160  # CSE 494 - Spring 2023
-                        ]
+        courses = [1520512338,   # CSE 365 - Fall 2023
+                   -43038396,    # CSE 466 - Fall 2023
+                   -695929874,  # CSE 494 - Spring 2023
+                   ]
 
         role = roles[rank.value]
         course = courses[rank.value]
-        completion = completion_cnts[rank.value]
+        req_role = req_roles[rank.value]
+
+        completion = pd.read_sql(f'''
+            select count(*) from dojo_challenges where dojo_id={courses[rank.value]};
+                                 ''', engine).iloc[0][0]
 
         # TODO: Hardcoded Challenge Max
         belted = pd.read_sql(f'''
@@ -292,16 +296,14 @@ async def check_belts():
                         HAVING count(s.challenge_id)={completion};
                       ''', engine)
 
-        new_belt_cnt = 0
         for _, row in belted.iterrows():
             try:
                 member = await client.guild.fetch_member(row['discord_id'])
             except:
                 continue
-            if role not in member.roles:
+            if role not in member.roles and (req_role in member.roles or not req_role):
                 now = datetime.datetime.now()
                 print(f"Awarding {role.name} to {member.display_name} @ {now}")
-                new_belt_cnt += 1
                 await member.add_roles(role)
 
     await check_belts(Belt.ORANGE)
