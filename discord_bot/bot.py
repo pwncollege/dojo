@@ -132,6 +132,11 @@ async def thank_message(interaction: discord.Interaction, message: discord.Messa
         await interaction.response.send_message("You cannot thank yourself!", ephemeral=True)
         return
 
+    channel = message.channel
+    if channel.category and channel.category.name.lower() == "break room" and channel.name == "memes":
+        await interaction.response.send_message("You cannot thank a meme!", ephemeral=True)
+        return
+
     await send_logged_embed(interaction,
                             message,
                             client.thanks_log_channel,
