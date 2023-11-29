@@ -246,42 +246,61 @@ async def help(interaction: discord.Interaction):
 
     await interaction.response.send_message(view=ephemeral_url_view, ephemeral=True)
 
+class Belt(Enum):
+    ORANGE = 0
+    YELLOW = 1
+    BLUE   = 2
+    ERROR = -1
+
+    def get_role(self):
+        match self:
+            case Belt.ORANGE:
+                return "Orange Belt"
+            case Belt.YELLOW:
+                return "Yellow Belt"
+            case Belt.BLUE:
+                return "Blue Belt"
+            case _:
+                return "Error"
+
+    def get_req_belt(self):
+        match self:
+            case Belt.ORANGE:
+                return None
+            case Belt.YELLOW:
+                return Belt.ORANGE
+            case Belt.BLUE:
+                return Belt.YELLOW
+            case _:
+                return Belt.ERROR
+
+    def get_course(self):
+        match self:
+            case Belt.ORANGE:
+                return 1520512338  # CSE 365 - Fall 2023
+            case Belt.YELLOW:
+                return -43038396   # CSE 466 - Fall 2023
+            case Belt.BLUE:
+                return -695929874  # CSE 494 - Spring 2023
+            case _:
+                return 0
+
 
 async def check_belts():
     now = datetime.datetime.now()
     print(f"Checking belts @ {now}")
 
-    class Belt(Enum):
-        ORANGE = 0
-        YELLOW = 1
-        BLUE   = 2
-
     engine = create_engine('mariadb+pymysql://ctfd:ctfd@db/ctfd?charset=utf8mb4')
 
-    async def check_belts(rank: Belt):
-        roles = [next(role for role in client.guild.roles if role.name == "Orange Belt"),
-                 next(role for role in client.guild.roles if role.name == "Yellow Belt"),
-                 next(role for role in client.guild.roles if role.name == "Blue Belt")]
-
-        req_roles = [None,
-                 next(role for role in client.guild.roles if role.name == "Orange Belt"),
-                 next(role for role in client.guild.roles if role.name == "Yellow Belt"),
-                ]
-
-        courses = [1520512338,   # CSE 365 - Fall 2023
-                   -43038396,    # CSE 466 - Fall 2023
-                   -695929874,  # CSE 494 - Spring 2023
-                   ]
-
-        role = roles[rank.value]
-        course = courses[rank.value]
-        req_role = req_roles[rank.value]
+    async def check_belt(belt: Belt):
+        role = next(role for role in client.guild.roles if role.name == belt.get_role())
+        course = belt.get_course()
+        req_role = next(role for role in client.guild.roles if role.name == belt.get_req_belt().get_role()) if belt.get_req_belt() else None
 
         completion = pd.read_sql(f'''
-            select count(*) from dojo_challenges where dojo_id={courses[rank.value]};
+            select count(*) from dojo_challenges where dojo_id={course};
                                  ''', engine).iloc[0][0]
 
-        # TODO: Hardcoded Challenge Max
         belted = pd.read_sql(f'''
                 SELECT u.name, dis.discord_id, count(s.challenge_id)
                     FROM dojo_challenges as d
@@ -303,11 +322,11 @@ async def check_belts():
                 continue
             if role not in member.roles and (req_role in member.roles or not req_role):
                 now = datetime.datetime.now()
-                print(f"Awarding {role.name} to {member.display_name} @ {now}")
+                print(f"Awarding {belt.get_role()} to {member.display_name} @ {now}")
                 await member.add_roles(role)
 
-    await check_belts(Belt.ORANGE)
-    await check_belts(Belt.YELLOW)
-    await check_belts(Belt.BLUE)
+    await check_belt(Belt.ORANGE)
+    await check_belt(Belt.YELLOW)
+    await check_belt(Belt.BLUE)
 
 client.run(DISCORD_BOT_TOKEN)
