@@ -74,6 +74,8 @@ async def on_ready():
                                           if channel.category and channel.category.name.lower() == "logs" and channel.name == "liked-memes")
     client.attendance_log_channel = next(channel for channel in client.guild.channels
                                          if channel.category and channel.category.name.lower() == "logs" and channel.name == "attendance")
+    client.belting_ceremony_channel = next(channel for channel in client.guild.channels
+                                         if channel.category and channel.category.name.lower() == "the dojo" and channel.name == "belting-ceremony")
     client.voice_state_history = collections.defaultdict(list)
     run_daily(daily_attendance, "17:20:00-07:00")
     run_daily(check_belts, "18:00:00-07:00")
@@ -285,6 +287,9 @@ class Belt(Enum):
             case _:
                 return 0
 
+async def announce_belting(member, belt: Belt):
+    belt_message = await client.belting_ceremony_channel.send(content=f"{member.mention} has earned their {belt.get_role()}! :tada:")
+    return belt_message
 
 async def check_belts():
     now = datetime.datetime.now()
@@ -324,6 +329,7 @@ async def check_belts():
                 now = datetime.datetime.now()
                 print(f"Awarding {belt.get_role()} to {member.display_name} @ {now}")
                 await member.add_roles(role)
+                await announce_belting(member, belt)
 
     await check_belt(Belt.ORANGE)
     await check_belt(Belt.YELLOW)
