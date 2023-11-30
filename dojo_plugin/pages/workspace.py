@@ -106,7 +106,8 @@ def forward_workspace(service, service_path=""):
             abort(403)
 
     elif service.count("~") == 2:
-        port, user_id, access_code = service.split("~", 2)
+        service_name, user_id, access_code = service.split("~", 2)
+        port = service_name
         try:
             user = Users.query.filter_by(id=int(user_id)).first_or_404()
             port = int(port_names.get(port, port))
@@ -116,7 +117,7 @@ def forward_workspace(service, service_path=""):
         container = get_current_container(user)
         if not container:
             abort(404)
-        correct_access_code = container_password(container, service)
+        correct_access_code = container_password(container, service_name)
         if not hmac.compare_digest(access_code, correct_access_code):
             abort(403)
 
