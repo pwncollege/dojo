@@ -23,7 +23,7 @@ from sqlalchemy.ext.associationproxy import association_proxy
 from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, Users, Admins
 from CTFd.utils.user import get_current_user, is_admin
 
-from ..utils import DOJOS_DIR
+from ..config import DOJOS_DIR
 
 
 def delete_before_insert(column, null=[]):
