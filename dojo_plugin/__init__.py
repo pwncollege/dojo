@@ -19,6 +19,7 @@ from .models import Dojos, DojoChallenges
 from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
 from .utils.discord import get_discord_user, get_discord_roles, add_role, send_message
+from .utils.dojo import get_user_belts
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
@@ -45,24 +46,10 @@ class DojoChallenge(BaseChallenge):
         if not discord_user:
             return
 
-        # TODO: Get this from dojo.yml
-        belts = {
-            "CSE 365 - Spring 2023": "Orange Belt",
-            "CSE 466 - Fall 2022": "Yellow Belt",
-            "CSE 494 - Spring 2023": "Blue Belt",
-        }
         discord_roles = get_discord_roles()
-
-        dojos = Dojos.query.join(DojoChallenges).filter(Dojos.official, DojoChallenges.challenge == challenge)
-        for dojo in dojos:
-            belt = belts.get(dojo.name)
-            if not belt:
-                continue
-            if not dojo.completed(user):
-                continue
+        for belt in get_user_belts(user):
             if discord_roles.get(belt) in discord_user["roles"]:
                 continue
-
             user_mention = f"<@{discord_user['user']['id']}>"
             message = f"{user_mention} earned their {belt}! :tada:"
             print(message, flush=True)

@@ -397,3 +397,19 @@ def get_current_dojo_challenge(user=None):
                 DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first())
         .first()
     )
+
+
+def get_user_belts(user):
+    # TODO: Get this from dojo.yml
+    belts = {
+        "Orange Belt": ["cse365-s2023", "cse365-f2023"],
+        "Yellow Belt": ["cse466-f2022", "cse466-f2023"],
+        "Blue Belt": ["cse494-s2023"],
+    }
+    result = []
+    for belt, dojo_ids in belts.items():
+        dojos = Dojos.query.filter(Dojos.official, Dojos.id.in_(dojo_ids))
+        if not any(dojo.completed(user) for dojo in dojos):
+            break
+        result.append(belt)
+    return result
