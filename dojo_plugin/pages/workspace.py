@@ -31,33 +31,26 @@ def view_desktop():
     user_id = request.args.get("user")
     password = request.args.get("password")
 
+    if user_id and not password and not is_admin():
+        abort(403)
+
+    user = get_current_user() if not user_id else Users.query.filter_by(id=int(user_id)).first_or_404()
+    container = get_current_container(user)
+    if not container:
+        return render_template("iframe.html", active=False)
+
+    interact_password = container_password(container, "desktop", "interact")
+    view_password = container_password(container, "desktop", "view")
+
     if user_id and password:
-        user = Users.query.filter_by(id=int(user_id)).first_or_404()
-        container = get_current_container(user)
-        interact_password = container_password(container, "desktop", "interact")
-        view_password = container_password(container, "desktop", "view")
         if not hmac.compare_digest(password, interact_password) and not hmac.compare_digest(password, view_password):
             abort(403)
         password = password[:8]
-        view_only = True
-        access_code = container_password(container, "desktop")
-        service = f"desktop~{user.id}~{access_code}"
-
-    elif user_id and not password:
-        if not is_admin():
-            abort(403)
-        user = Users.query.filter_by(id=int(user_id)).first_or_404()
-        container = get_current_container(user)
-        password = container_password(container, "desktop", "interact")[:8]
-        view_only = True
-        service = f"desktop~{user.id}"
-
     else:
-        user = get_current_user()
-        container = get_current_container(user)
-        password = container_password(container, "desktop", "interact")[:8]
-        view_only = False
-        service = "desktop"
+        password = interact_password[:8]
+
+    view_only = user_id is not None
+    service = "~".join(("desktop", str(user.id), container_password(container, "desktop")))
 
     vnc_params = {
         "autoconnect": 1,
@@ -69,8 +62,7 @@ def view_desktop():
         "password": password,
     }
     iframe_src = url_for("pwncollege_workspace.forward_workspace", service=service, service_path="vnc.html", **vnc_params)
-    active = bool(get_current_dojo_challenge(user))
-    return render_template("iframe.html", iframe_src=iframe_src, active=active)
+    return render_template("iframe.html", iframe_src=iframe_src, active=True)
 
 
 @workspace.route("/workspace/<service>")
