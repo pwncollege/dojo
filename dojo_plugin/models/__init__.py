@@ -195,7 +195,7 @@ class Dojos(db.Model):
         return DojoChallenges.solves(dojo=self, **kwargs)
 
     def completed(self, user):
-        return self.solves(user=user).count() == len(self.challenges)
+        return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len(self.challenges)
 
     def is_admin(self, user=None):
         if user is None:
