@@ -15,8 +15,10 @@ from CTFd.plugins import register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 
+from .models import Dojos, DojoChallenges
 from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
+from .utils.discord import get_discord_user, get_discord_roles, add_role, send_message
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
@@ -34,6 +36,39 @@ class DojoChallenge(BaseChallenge):
     id = "dojo"
     name = "dojo"
     challenge_model = Challenges
+
+    @classmethod
+    def solve(cls, user, team, challenge, request):
+        super().solve(user, team, challenge, request)
+
+        discord_user = get_discord_user(user.id)
+        if not discord_user:
+            return
+
+        # TODO: Get this from dojo.yml
+        belts = {
+            "CSE 365 - Spring 2023": "Orange Belt",
+            "CSE 466 - Fall 2022": "Yellow Belt",
+            "CSE 494 - Spring 2023": "Blue Belt",
+        }
+        discord_roles = get_discord_roles()
+
+        dojos = Dojos.query.join(DojoChallenges).filter(Dojos.official, DojoChallenges.challenge == challenge)
+        for dojo in dojos:
+            belt = belts.get(dojo.name)
+            if not belt:
+                continue
+            if not dojo.completed(user):
+                continue
+            if discord_roles.get(belt) in discord_user["roles"]:
+                continue
+
+            user_mention = f"<@{discord_user['user']['id']}>"
+            message = f"{user_mention} earned their {belt}! :tada:"
+            print(message, flush=True)
+            # TODO: Discord instead of print
+            # add_role(discord_user["user"]["id"], belt)
+            # send_message(message, "belting-ceremony")
 
 
 class DojoFlag(BaseFlag):

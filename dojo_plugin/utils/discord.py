@@ -10,16 +10,19 @@ OAUTH_ENDPOINT = "https://discord.com/api/oauth2"
 API_ENDPOINT = "https://discord.com/api/v9"
 
 
-def guild_request(endpoint, method="GET", **json):
-    guild_endpoint = f"{API_ENDPOINT}/guilds/{DISCORD_GUILD_ID}"
+def discord_request(endpoint, method="GET", **json):
     headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
     json = json or None
-    response = requests.request(method, f"{guild_endpoint}{endpoint}", headers=headers, json=json)
+    response = requests.request(method, f"{API_ENDPOINT}{endpoint}", headers=headers, json=json)
     response.raise_for_status()
     if "application/json" in response.headers.get("Content-Type", ""):
         return response.json()
     else:
         return response.content
+
+
+def guild_request(endpoint, method="GET", **json):
+    return discord_request(f"/guilds/{DISCORD_GUILD_ID}{endpoint}", method=method, **json)
 
 
 def get_bot_join_server_url():
@@ -86,7 +89,7 @@ def send_message(message, channel_name):
     channel_ids = [channel["id"] for channel in guild_request("/channels") if channel["name"] == channel_name]
     assert len(channel_ids) == 1
     channel_id = channel_ids[0]
-    guild_request(f"/channels/{channel_id}/messages", method="POST", json=dict(content=message))
+    discord_request(f"/channels/{channel_id}/messages", method="POST", content=message)
 
 
 def add_role(discord_id, role_name):
