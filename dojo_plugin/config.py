@@ -2,6 +2,9 @@ import warnings
 import logging
 import ast
 import os
+import pathlib
+import json
+import socket
 
 from sqlalchemy.exc import IntegrityError
 from CTFd.models import db, Admins, Pages
@@ -9,6 +12,69 @@ from CTFd.utils import config, set_config
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+DOJOS_DIR = pathlib.Path("/var/dojos")
+DATA_DIR = pathlib.Path("/var/data")
+
+INDEX_HTML = pathlib.Path("/var/index.html").read_text()
+
+def create_seccomp():
+    seccomp = json.load(pathlib.Path("/etc/docker/seccomp.json").open())
+
+    seccomp["syscalls"].append({
+        "names": [
+            "clone",
+            "sethostname",
+            "setns",
+            "unshare",
+        ],
+        "action": "SCMP_ACT_ALLOW",
+    })
+
+    READ_IMPLIES_EXEC = 0x0400000
+    ADDR_NO_RANDOMIZE = 0x0040000
+
+    existing_personality_values = []
+    for syscalls in seccomp["syscalls"]:
+        if "personality" not in syscalls["names"]:
+            continue
+        if syscalls["action"] != "SCMP_ACT_ALLOW":
+            continue
+        assert len(syscalls["args"]) == 1
+        arg = syscalls["args"][0]
+        assert list(arg.keys()) == ["index", "value", "op"]
+        assert arg["index"] == 0, arg
+        assert arg["op"] == "SCMP_CMP_EQ"
+        existing_personality_values.append(arg["value"])
+
+    new_personality_values = []
+    for new_flag in [READ_IMPLIES_EXEC, ADDR_NO_RANDOMIZE]:
+        for value in [0, *existing_personality_values]:
+            new_value = value | new_flag
+            if new_value not in existing_personality_values:
+                new_personality_values.append(new_value)
+                existing_personality_values.append(new_value)
+
+    for new_value in new_personality_values:
+        seccomp["syscalls"].append({
+            "names": ["personality"],
+            "action": "SCMP_ACT_ALLOW",
+            "args": [
+                {
+                    "index": 0,
+                    "value": new_value,
+                    "op": "SCMP_CMP_EQ",
+                },
+            ],
+        })
+
+    return json.dumps(seccomp)
+SECCOMP = create_seccomp()
+
+USER_FIREWALL_ALLOWED = {
+    host: socket.gethostbyname(host)
+    for host in pathlib.Path("/var/user_firewall.allowed").read_text().split()
+}
 
 DOJO_HOST = os.getenv("DOJO_HOST")
 HOST_DATA_PATH = os.getenv("HOST_DATA_PATH")
@@ -40,8 +106,6 @@ for config_option in missing_warnings:
 
 
 def bootstrap():
-    from .utils import INDEX_HTML
-
     set_config("ctf_name", "pwn.college")
     set_config("ctf_description", "pwn.college")
     set_config("user_mode", "users")

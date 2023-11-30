@@ -11,7 +11,7 @@ from CTFd.models import db, Users, Challenges, Solves
 from CTFd.cache import cache
 
 from ..models import Dojos, DojoModules, DojoChallenges
-from ..utils import DATA_DIR
+from ..config import DATA_DIR
 
 
 users = Blueprint("pwncollege_users", __name__)
