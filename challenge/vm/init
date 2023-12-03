@@ -34,8 +34,8 @@ find /challenge -name '*.ko' -exec /usr/sbin/insmod {} \;
 
 service ssh start
 
-echo wat > /tmp/hello
-if [ -e /challenge/target ]; then
+# Note: This currently only works on custom challenge images
+if [ -e /challenge/.docker ]; then
 	# /var/lib/docker needs to be ext4 in order to use overlayfs
 	dd if=/dev/zero of=/tmp/data bs=1M count=0 seek=2000
 	yes | mkfs.ext4 -O ^has_journal /tmp/data
