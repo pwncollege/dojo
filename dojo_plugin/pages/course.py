@@ -257,7 +257,17 @@ def view_course(dojo, resource=None):
         else:
             setup["join_discord"] = "incomplete"
 
-    return render_template("course.html", name=name, **grades, **identity, **setup, discord_role=discord_role, user=user, dojo=dojo)
+    setup_complete = all(status == "complete" for status in setup.values())
+
+    return render_template("course.html",
+                           name=name,
+                           **grades,
+                           **identity,
+                           **setup,
+                           discord_role=discord_role,
+                           setup_complete=setup_complete,
+                           user=user,
+                           dojo=dojo)
 
 
 @course.route("/dojo/<dojo>/course/identity", methods=["PATCH"])

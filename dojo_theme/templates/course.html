@@ -118,7 +118,6 @@
               <li class="setup-{{ join_discord }}">Join the pwn.college Discord server <a href="https://discord.gg/pwncollege">here</a>. This is where you will be able to discuss the challenges with your peers and see official course announcements.</li>
             {% endif %}
           </ol>
-          {% set setup_complete = create_account == "complete" and link_student == "complete" and create_discord == "complete" and link_discord == "complete" and join_discord == "complete" %}
           {% if setup_complete %}
             <p>Setup complete!</p>
             <p>If you are missing your official course role in Discord, you can force it to update by updating your course identity <a href="identity">here</a>.</p>
