@@ -281,18 +281,17 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             f"Missing challenge path: {challenge.module.id}/{challenge.id}\n"
             for challenge in missing_challenge_paths)
 
-    if dojo.official:
-        # TODO: make course official
-        # Consider sensitivity of `discord_role` property
-        course_yml_path = dojo_dir / "course.yml"
-        if course_yml_path.exists():
-            course = yaml.safe_load(course_yml_path.read_text())
-            dojo.course = course
+    course_yml_path = dojo_dir / "course.yml"
+    if course_yml_path.exists():
+        course = yaml.safe_load(course_yml_path.read_text())
+        if "discord_role" in course and not dojo.official:
+            raise AssertionError("Unofficial dojos cannot have a discord role")
+        dojo.course = course
 
-            students_yml_path = dojo_dir / "students.yml"
-            if students_yml_path.exists():
-                students = yaml.safe_load(students_yml_path.read_text())
-                dojo.course["students"] = students
+        students_yml_path = dojo_dir / "students.yml"
+        if students_yml_path.exists():
+            students = yaml.safe_load(students_yml_path.read_text())
+            dojo.course["students"] = students
 
     return dojo
 
