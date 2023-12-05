@@ -360,10 +360,8 @@ def view_user_info(dojo, user_id):
 
     user = Users.query.filter_by(id=user_id).first_or_404()
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
-    identity = {}
-    identity["identity_name"] = dojo.course.get("student_id", "Identity")
-    identity["identity_value"] = student.token if student else None
-
+    identity = dict(identity_name=dojo.course.get("student_id", "Identity"),
+                    identity_value=student.token if student else None)
     discord_user = get_discord_user(user.id)
 
     return render_template("dojo_admin_user.html",
