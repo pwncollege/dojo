@@ -242,7 +242,9 @@ def view_course(dojo, resource=None):
         "unknown" if not student.official else
         "complete"
     )
-    if dojo.course.get("discord_role"):
+
+    discord_role = dojo.course.get("discord_role")
+    if discord_role:
         if DiscordUsers.query.filter_by(user=user).first():
             setup["create_discord"] = "complete"
             setup["link_discord"] = "complete"
@@ -255,7 +257,7 @@ def view_course(dojo, resource=None):
         else:
             setup["join_discord"] = "incomplete"
 
-    return render_template("course.html", name=name, **grades, **identity, **setup, user=user, dojo=dojo)
+    return render_template("course.html", name=name, **grades, **identity, **setup, discord_role=discord_role, user=user, dojo=dojo)
 
 
 @course.route("/dojo/<dojo>/course/identity", methods=["PATCH"])
