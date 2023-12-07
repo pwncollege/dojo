@@ -1,4 +1,7 @@
+import json
+import random
 import re
+import string
 import subprocess
 import shutil
 
@@ -16,32 +19,50 @@ def dojo_run(*args, **kwargs):
     return subprocess.run([shutil.which("docker"), "exec", "-i", container_name, "dojo", *args], **kwargs)
 
 
-def login(username, password, *, success=True):
-    def parse_csrf_token(text):
-        match = re.search("'csrfNonce': \"(\\w+)\"", text)
-        assert match, "Failed to find CSRF token"
-        return match.group(1)
+def workspace_run(cmd, *, user):
+    return dojo_run("enter", user, input=cmd)
 
+
+def parse_csrf_token(text):
+    match = re.search("'csrfNonce': \"(\\w+)\"", text)
+    assert match, "Failed to find CSRF token"
+    return match.group(1)
+
+
+def login(name, password, *, success=True, register=False, email=None):
     session = requests.Session()
-
-    nonce = parse_csrf_token(session.get(f"{PROTO}://{HOST}/login").text)
-    login_data = dict(name=username, password=password, nonce=nonce)
-    login_response = session.post(f"{PROTO}://{HOST}/login", data=login_data, allow_redirects=False)
+    endpoint = "login" if not register else "register"
+    nonce = parse_csrf_token(session.get(f"{PROTO}://{HOST}/{endpoint}").text)
+    data = dict(name=name, password=password, nonce=nonce)
+    if register:
+        data["email"] = email or f"{name}@example.com"
+    response = session.post(f"{PROTO}://{HOST}/{endpoint}", data=data, allow_redirects=False)
     if not success:
-        assert login_response.status_code == 200, f"Expected login failure (status code 200), but got {login_response.status_code}"
+        assert response.status_code == 200, f"Expected {endpoint} failure (status code 200), but got {response.status_code}"
         return session
-    assert login_response.status_code == 302, f"Expected login success (status code 302), but got {login_response.status_code}"
-
-    home_response = session.get(f"{PROTO}://{HOST}/")
-    session.headers["CSRF-Token"] = parse_csrf_token(home_response.text)
-
+    assert response.status_code == 302, f"Expected {endpoint} success (status code 302), but got {response.status_code}"
+    session.headers["CSRF-Token"] = parse_csrf_token(session.get(f"{PROTO}://{HOST}/").text)
     return session
+
+
+def start_challenge(dojo, module, challenge, practice=False, *, session):
+    start_challenge_json = dict(dojo=dojo, module=module, challenge=challenge, practice=practice)
+    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/docker", json=start_challenge_json)
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
 
 
 @pytest.fixture
 def admin_session():
     session = login("admin", "admin")
     yield session
+
+
+@pytest.fixture
+def random_user():
+    random_id = "".join(random.choices(string.ascii_lowercase, k=16))
+    session = login(random_id, random_id, register=True)
+    yield random_id, session
 
 
 @pytest.mark.parametrize("endpoint", ["/", "/dojos", "/login", "/register"])
@@ -53,6 +74,11 @@ def test_unauthenticated_return_200(endpoint):
 def test_login():
     login("admin", "incorrect_password", success=False)
     login("admin", "admin")
+
+
+def test_register():
+    random_id = "".join(random.choices(string.ascii_lowercase, k=16))
+    login(random_id, random_id, register=True)
 
 
 def create_dojo(repository, *, official=True, session):
@@ -88,30 +114,78 @@ def test_create_import_dojo(admin_session):
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
 def test_start_challenge(admin_session):
-    start_challenge_json = dict(dojo="example", module="hello", challenge="apple", practice=False)
-    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/docker", json=start_challenge_json)
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-    assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
+    start_challenge("example", "hello", "apple", session=admin_session)
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
 @pytest.mark.parametrize("path", ["/flag", "/challenge/apple"])
-def test_challenge_container_path_exists(path):
+def test_workspace_path_exists(path):
     try:
-        dojo_run("enter", "admin", input=f"[ -f '{path}' ]")
+        workspace_run(f"[ -f '{path}' ]", user="admin")
     except subprocess.CalledProcessError as e:
         assert False, f"Path does not exist: {path}"
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
-def test_challenge_privilege_escalation():
+def test_workspace_flag_permission():
     try:
-        dojo_run("enter", "admin", input="cat /flag")
+        workspace_run("cat /flag", user="admin")
     except subprocess.CalledProcessError as e:
         assert "Permission denied" in e.stderr, f"Expected permission denied, but got: {(e.stdout, e.stderr)}"
     else:
         assert False, f"Expected permission denied, but got no error: {(e.stdout, e.stderr)}"
 
-    result = dojo_run("enter", "admin", input="/challenge/apple")
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_workspace_challenge():
+    result = workspace_run("/challenge/apple", user="admin")
     match = re.search("pwn.college{(\\S+)}", result.stdout)
     assert match, f"Expected flag, but got: {result.stdout}"
+
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_workspace_home_mount():
+    try:
+        result = workspace_run("findmnt -J /home/hacker", user="admin")
+    except subprocess.CalledProcessError as e:
+        assert False, f"Home not mounted: {(e.stdout, e.stderr)}"
+    assert result, f"Home not mounted: {(e.stdout, e.stderr)}"
+
+    mount_info = json.loads(result.stdout)
+    assert len(mount_info.get("filesystems", [])) == 1, f"Expected exactly one filesystem, but got: {mount_info}"
+
+    filesystem = mount_info["filesystems"][0]
+    assert filesystem["target"] == "/home/hacker", f"Expected home to be mounted at /home/hacker, but got: {filesystem}"
+    assert "nosuid" in filesystem["options"], f"Expected home to be mounted nosuid, but got: {filesystem}"
+
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_workspace_no_sudo():
+    try:
+        workspace_run("sudo -v", user="admin")
+    except subprocess.CalledProcessError as e:
+        pass
+    else:
+        assert False, f"Expected sudo to fail, but got no error: {(e.stdout, e.stderr)}"
+
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_workspace_home_persistent(random_user):
+    user, session = random_user
+    start_challenge("example", "hello", "apple", session=session)
+    workspace_run("touch /home/hacker/test", user=user)
+    start_challenge("example", "hello", "apple", session=session)
+    try:
+        workspace_run("[ -f '/home/hacker/test' ]", user=user)
+    except subprocess.CalledProcessError as e:
+        assert False, f"Expected file to exist, but got: {(e.stdout, e.stderr)}"
+
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_workspace_practice_challenge(random_user):
+    user, session = random_user
+    start_challenge("example", "hello", "apple", practice=True, session=session)
+    try:
+        workspace_run("sudo -v", user=user)
+    except subprocess.CalledProcessError as e:
+        assert False, f"Expected sudo to succeed, but got: {(e.stdout, e.stderr)}"
