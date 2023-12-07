@@ -47,7 +47,7 @@ def login(username, password, *, success=True):
 
 def create_user(name, email, password):
     session = requests.Session()
-    response = session.post(f"{PROTO}://{HOST}/register", params=dict(name=name, email=email, password=password))
+    response = session.post(f"{PROTO}://{HOST}/register", data=dict(name=name, email=email, password=password))
     assert response.status_code == 302, f"Expected status code 302, but got {response.status_code}"
     return session
 
