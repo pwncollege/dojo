@@ -23,32 +23,25 @@ def workspace_run(cmd, *, user):
     return dojo_run("enter", user, input=cmd)
 
 
-def login(username, password, *, success=True):
-    def parse_csrf_token(text):
-        match = re.search("'csrfNonce': \"(\\w+)\"", text)
-        assert match, "Failed to find CSRF token"
-        return match.group(1)
+def parse_csrf_token(text):
+    match = re.search("'csrfNonce': \"(\\w+)\"", text)
+    assert match, "Failed to find CSRF token"
+    return match.group(1)
 
+
+def login(name, password, *, success=True, register=False, email=None):
     session = requests.Session()
-
-    nonce = parse_csrf_token(session.get(f"{PROTO}://{HOST}/login").text)
-    login_data = dict(name=username, password=password, nonce=nonce)
-    login_response = session.post(f"{PROTO}://{HOST}/login", data=login_data, allow_redirects=False)
+    endpoint = "login" if not register else "register"
+    nonce = parse_csrf_token(session.get(f"{PROTO}://{HOST}/{endpoint}").text)
+    data = dict(name=name, password=password, nonce=nonce)
+    if register:
+        data["email"] = email or f"{name}@example.com"
+    response = session.post(f"{PROTO}://{HOST}/{endpoint}", data=data, allow_redirects=False)
     if not success:
-        assert login_response.status_code == 200, f"Expected login failure (status code 200), but got {login_response.status_code}"
+        assert response.status_code == 200, f"Expected {endpoint} failure (status code 200), but got {response.status_code}"
         return session
-    assert login_response.status_code == 302, f"Expected login success (status code 302), but got {login_response.status_code}"
-
-    home_response = session.get(f"{PROTO}://{HOST}/")
-    session.headers["CSRF-Token"] = parse_csrf_token(home_response.text)
-
-    return session
-
-
-def create_user(name, email, password):
-    session = requests.Session()
-    response = session.post(f"{PROTO}://{HOST}/register", data=dict(name=name, email=email, password=password))
-    assert response.status_code == 302, f"Expected status code 302, but got {response.status_code}"
+    assert response.status_code == 302, f"Expected {endpoint} success (status code 302), but got {response.status_code}"
+    session.headers["CSRF-Token"] = parse_csrf_token(session.get(f"{PROTO}://{HOST}/").text)
     return session
 
 
@@ -68,7 +61,7 @@ def admin_session():
 @pytest.fixture
 def random_user():
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))
-    session = create_user(random_id, f"{random_id}@example.com", random_id)
+    session = login(random_id, random_id, register=True)
     yield random_id, session
 
 
@@ -85,7 +78,7 @@ def test_login():
 
 def test_register():
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))
-    create_user(random_id, f"{random_id}@example.com", random_id)
+    login(random_id, random_id, register=True)
 
 
 def create_dojo(repository, *, official=True, session):
