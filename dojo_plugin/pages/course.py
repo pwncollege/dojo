@@ -252,7 +252,7 @@ def view_course(dojo, resource=None):
             setup["create_discord"] = "incomplete"
             setup["link_discord"] = "incomplete"
 
-        if get_discord_user(user.id):
+        if user and get_discord_user(user.id):
             setup["join_discord"] = "complete"
         else:
             setup["join_discord"] = "incomplete"
