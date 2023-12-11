@@ -6,7 +6,7 @@ RUN apk add --no-cache \
         openssh-server-pam \
         docker-cli
 
-RUN pip3 install docker
+RUN pip3 install --break-system-packages docker
 
 RUN delgroup ping && \
     addgroup -g 999 docker && \
