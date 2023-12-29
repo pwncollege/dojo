@@ -14,8 +14,8 @@ import pytz
 import os
 import re
 
-import docker
 import bleach
+import docker
 from flask import current_app, Response, Markup, abort, g
 from itsdangerous.url_safe import URLSafeSerializer
 from CTFd.models import db, Solves, Challenges, Users
@@ -26,6 +26,7 @@ from CTFd.utils.security.sanitize import sanitize_html
 from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
 
+REDIS_SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
 
 ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
@@ -360,6 +361,5 @@ class HTMLHandler(logging.Handler): # Inherit from logging.Handler
         if self.html:
             self.html += self.join_tag
         self.html += f"{self.start_tag}<b>{record.levelname}</b>: {sanitize_html(record.getMessage())}{self.end_tag}"
-
 
 from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges
