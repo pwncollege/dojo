@@ -191,7 +191,7 @@ def test_workspace_practice_challenge(random_user):
         assert False, f"Expected sudo to succeed, but got: {(e.stdout, e.stderr)}"
 
 
-def get_all_standings(session, dojo):
+def get_all_standings(session, dojo, module=None):
     """
     Return a big list of all the standings, going through all the available pages.
     """
@@ -200,10 +200,15 @@ def get_all_standings(session, dojo):
     page_number = 1
     done = False
 
+    if module is None:
+        module = "_"
+
     while not done:
-        response = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{dojo}/_/0/{page_number}")
+        response = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{dojo}/{module}/0/{page_number}")
         assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
         response = response.json()
+
+        print(f"{response=}")
 
         to_return.extend(response["standings"])
 
@@ -225,7 +230,7 @@ def test_scoreboard(random_user):
     module = "hello"
     challenge = "apple"
 
-    prior_standings = get_all_standings(session, dojo)
+    prior_standings = get_all_standings(session, dojo, module)
 
     print(f"{prior_standings=}")
 
@@ -251,14 +256,16 @@ def test_scoreboard(random_user):
     data = {"challenge_id": challenge_id,
             "submission": flag}
     print(f"{data=}")
-    response = session.post(f"{PROTO}://{HOST}/api/v1/challenges/attempt", data=data)
+    response = session.post(f"{PROTO}://{HOST}/api/v1/challenges/attempt",
+                            json=data)
     print(f"{response=} {response.json()=}")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Expected to successfully submit flag"
 
     # check the scoreboard: is it updated?
 
-    new_standings = get_all_standings(session, dojo)
+    new_standings = get_all_standings(session, dojo, module)
+    print(f"{new_standings=}")
     assert len(prior_standings) != len(new_standings), "Expected to have a new entry in the standings"
 
     found_me = False
