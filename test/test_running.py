@@ -222,18 +222,37 @@ def test_scoreboard(random_user):
     user, session = random_user
 
     dojo = "example"
+    module = "hello"
+    challenge = "apple"
 
     prior_standings = get_all_standings(session, dojo)
 
+    print(f"{prior_standings=}")
+
+    # get the challenge_id from the dojo API so we can submit the flag
+    response = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{dojo}/{module}/challenges")
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    challenges = response.json()['challenges']
+    challenge_id = None
+    for chall in challenges:
+        if chall['id'] == challenge:
+            challenge_id = chall['challenge_id']
+            break
+
+    assert challenge_id, f"Expected to find a challenge ID for this specific challenge"
+
     # if test_workspace_challenge passed correctly, then we should get a valid flag here
-    start_challenge("example", "hello", "apple", session=session)
+    start_challenge(dojo, module, challenge, session=session)
     result = workspace_run("/challenge/apple", user=user)
     flag = result.stdout.strip()
 
+    print(f"{flag=}")
     # submit the flag
-    data = {"challenge_id": "blah",
+    data = {"challenge_id": challenge_id,
             "submission": flag}
+    print(f"{data=}")
     response = session.post(f"{PROTO}://{HOST}/api/v1/challenges/attempt", data=data)
+    print(f"{response=} {response.json()=}")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Expected to successfully submit flag"
 
@@ -248,8 +267,3 @@ def test_scoreboard(random_user):
             found_me = True
             break
     assert found_me, f"Unable to find new user {user} in new standings after solving a challenge"
-    
-    
-    
-
-
