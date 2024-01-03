@@ -226,6 +226,7 @@ def test_scoreboard(random_user):
     prior_standings = get_all_standings(session, dojo)
 
     # if test_workspace_challenge passed correctly, then we should get a valid flag here
+    start_challenge("example", "hello", "apple", session=session)
     result = workspace_run("/challenge/apple", user=user)
     flag = result.stdout.strip()
 
