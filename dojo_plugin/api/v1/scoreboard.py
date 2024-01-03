@@ -15,8 +15,9 @@ from CTFd.models import db, Solves, Challenges, Users, Submissions
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
 from sqlalchemy import event
+from sqlalchemy.orm.session import Session
 
-from ...models import Dojos, DojoChallenges
+from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities
 from ...utils import dojo_standings, dojo_completions, user_dojos, first_bloods, daily_solve_counts
 from ...utils.dojo import dojo_route, dojo_accessible
 from .belts import get_belts
@@ -73,17 +74,24 @@ def invalidate_scoreboard_cache():
     cache.delete_memoized(get_scoreboard_for)
 
 # handle cache invalidation for new solves, dojo creation, dojo challenge creation
-@event.listens_for(db.session, 'pending_to_persistent')
-def hook_object_creation(session, obj):
-    current_app.logger.info(f"{session=} {obj=}")
-    if isinstance(obj, (Solves, Dojos, DojoChallenges)):
-        invalidate_scoreboard_cache()
+@event.listens_for(Dojos, 'after_insert', propagate=True)
+@event.listens_for(Solves, 'after_insert', propagate=True)
+def hook_object_creation(mapper, connection, target):
+    invalidate_scoreboard_cache()
 
-# handle cache invalidation for user property changes
-@event.listens_for(Users.name, 'set', propagate=True)
-@event.listens_for(Users.hidden, 'set', propagate=True)
-def hook_user_attribute_change(target, value, oldvalue, initiator):
-    if value != oldvalue:
+@event.listens_for(Users, 'after_update', propagate=True)
+@event.listens_for(Dojos, 'after_update', propagate=True)
+@event.listens_for(DojoUsers, 'after_update', propagate=True)
+@event.listens_for(DojoMembers, 'after_update', propagate=True)
+@event.listens_for(DojoAdmins, 'after_update', propagate=True)
+@event.listens_for(DojoStudents, 'after_update', propagate=True)
+@event.listens_for(DojoModules, 'after_update', propagate=True)
+@event.listens_for(DojoChallenges, 'after_update', propagate=True)
+@event.listens_for(DojoChallengeVisibilities, 'after_update', propagate=True)
+def hook_object_update(mapper, connection, target):
+    # according to the docs, this is a necessary check to see if the
+    # target actually was modified (and thus an update was made)
+    if Session.object_session(target).is_modified(target, include_collections=False):
         invalidate_scoreboard_cache()
 
 def get_scoreboard_page(model, duration=None, page=1, per_page=20):
