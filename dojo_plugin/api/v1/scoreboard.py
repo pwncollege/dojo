@@ -11,16 +11,17 @@ from flask import url_for, abort, current_app
 from flask_restx import Namespace, Resource
 from flask_sqlalchemy import Pagination
 from CTFd.cache import cache
-from CTFd.models import db, Solves, Challenges, Users
+from CTFd.models import db, Solves, Challenges, Users, Submissions
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
+from sqlalchemy import event
 
-from ...models import DojoChallenges
-from ...utils import dojo_standings, dojo_completions, user_dojos, first_bloods, daily_solve_counts, REDIS_SCOREBOARD_CACHE_TIMEOUT_SECONDS
+from ...models import Dojos, DojoChallenges
+from ...utils import dojo_standings, dojo_completions, user_dojos, first_bloods, daily_solve_counts
 from ...utils.dojo import dojo_route, dojo_accessible
 from .belts import get_belts
 
-
+SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
 scoreboard_namespace = Namespace("scoreboard")
 
 def email_symbol_asset(email):
@@ -44,7 +45,7 @@ def belt_asset(color):
         belt = "white.svg"
     return url_for("views.themes", path=f"img/dojo/{belt}")
 
-@cache.memoize(timeout=REDIS_SCOREBOARD_CACHE_TIMEOUT_SECONDS)
+@cache.memoize(timeout=SCOREBOARD_CACHE_TIMEOUT_SECONDS)
 def get_scoreboard_for(model, duration):
     duration_filter = (
         Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
@@ -68,7 +69,22 @@ def get_scoreboard_for(model, duration):
     results = [{key: getattr(item, key) for key in item.keys()} for item in row_results]
     return results
 
-    
+def invalidate_scoreboard_cache():
+    cache.delete_memoized(get_scoreboard_for)
+
+# handle cache invalidation for new solves, dojo creation, dojo challenge creation
+@event.listens_for(db.session, 'pending_to_persistent')
+def hook_object_creation(session, obj):
+    current_app.logger.info(f"{session=} {obj=}")
+    if isinstance(obj, (Solves, Dojos, DojoChallenges)):
+        invalidate_scoreboard_cache()
+
+# handle cache invalidation for user property changes
+@event.listens_for(Users.name, 'set', propagate=True)
+@event.listens_for(Users.hidden, 'set', propagate=True)
+def hook_user_attribute_change(target, value, oldvalue, initiator):
+    if value != oldvalue:
+        invalidate_scoreboard_cache()
 
 def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     results = get_scoreboard_for(model, duration)

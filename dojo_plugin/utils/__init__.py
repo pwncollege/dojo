@@ -26,8 +26,6 @@ from CTFd.utils.security.sanitize import sanitize_html
 from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
 
-REDIS_SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
-
 ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
     return re.match(ID_REGEX, s) and ".." not in s
