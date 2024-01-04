@@ -208,8 +208,6 @@ def get_all_standings(session, dojo, module=None):
         assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
         response = response.json()
 
-        print(f"{response=}")
-
         to_return.extend(response["standings"])
 
         next_page = page_number + 1
@@ -232,8 +230,6 @@ def test_scoreboard(random_user):
 
     prior_standings = get_all_standings(session, dojo, module)
 
-    print(f"{prior_standings=}")
-
     # get the challenge_id from the dojo API so we can submit the flag
     response = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{dojo}/{module}/challenges")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
@@ -251,21 +247,18 @@ def test_scoreboard(random_user):
     result = workspace_run("/challenge/apple", user=user)
     flag = result.stdout.strip()
 
-    print(f"{flag=}")
     # submit the flag
     data = {"challenge_id": challenge_id,
             "submission": flag}
-    print(f"{data=}")
+
     response = session.post(f"{PROTO}://{HOST}/api/v1/challenges/attempt",
                             json=data)
-    print(f"{response=} {response.json()=}")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Expected to successfully submit flag"
 
     # check the scoreboard: is it updated?
 
     new_standings = get_all_standings(session, dojo, module)
-    print(f"{new_standings=}")
     assert len(prior_standings) != len(new_standings), "Expected to have a new entry in the standings"
 
     found_me = False
