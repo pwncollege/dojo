@@ -3,22 +3,27 @@ import contextlib
 import datetime
 import math
 import pytz
+import json
 
-from flask import url_for, abort
+import redis
+
+from flask import url_for, abort, current_app
 from flask_restx import Namespace, Resource
+from flask_sqlalchemy import Pagination
 from CTFd.cache import cache
-from CTFd.models import db, Solves, Challenges, Users
+from CTFd.models import db, Solves, Challenges, Users, Submissions
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
+from sqlalchemy import event
+from sqlalchemy.orm.session import Session
 
-from ...models import DojoChallenges
+from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities
 from ...utils import dojo_standings, dojo_completions, user_dojos, first_bloods, daily_solve_counts
 from ...utils.dojo import dojo_route, dojo_accessible
 from .belts import get_belts
 
-
+SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
 scoreboard_namespace = Namespace("scoreboard")
-
 
 def email_symbol_asset(email):
     if email.endswith("@asu.edu"):
@@ -41,8 +46,8 @@ def belt_asset(color):
         belt = "white.svg"
     return url_for("views.themes", path=f"img/dojo/{belt}")
 
-
-def get_scoreboard_page(model, duration=None, page=1, per_page=20):
+@cache.memoize(timeout=SCOREBOARD_CACHE_TIMEOUT_SECONDS)
+def get_scoreboard_for(model, duration):
     duration_filter = (
         Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
         if duration else True
@@ -60,12 +65,46 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
         .order_by(rank)
         .with_entities(rank, solves, Solves.user_id, Users.name, Users.email)
     )
-    pagination = query.paginate(page=page, per_page=per_page)
+
+    row_results = query.all()
+    results = [{key: getattr(item, key) for key in item.keys()} for item in row_results]
+    return results
+
+def invalidate_scoreboard_cache():
+    cache.delete_memoized(get_scoreboard_for)
+
+# handle cache invalidation for new solves, dojo creation, dojo challenge creation
+@event.listens_for(Dojos, 'after_insert', propagate=True)
+@event.listens_for(Solves, 'after_insert', propagate=True)
+def hook_object_creation(mapper, connection, target):
+    invalidate_scoreboard_cache()
+
+@event.listens_for(Users, 'after_update', propagate=True)
+@event.listens_for(Dojos, 'after_update', propagate=True)
+@event.listens_for(DojoUsers, 'after_update', propagate=True)
+@event.listens_for(DojoMembers, 'after_update', propagate=True)
+@event.listens_for(DojoAdmins, 'after_update', propagate=True)
+@event.listens_for(DojoStudents, 'after_update', propagate=True)
+@event.listens_for(DojoModules, 'after_update', propagate=True)
+@event.listens_for(DojoChallenges, 'after_update', propagate=True)
+@event.listens_for(DojoChallengeVisibilities, 'after_update', propagate=True)
+def hook_object_update(mapper, connection, target):
+    # according to the docs, this is a necessary check to see if the
+    # target actually was modified (and thus an update was made)
+    if Session.object_session(target).is_modified(target, include_collections=False):
+        invalidate_scoreboard_cache()
+
+def get_scoreboard_page(model, duration=None, page=1, per_page=20):
+    results = get_scoreboard_for(model, duration)
+
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    pagination = Pagination(None, page, per_page, len(results), results[start_idx:end_idx])
 
     def standing(item):
         if not item:
             return
-        result = {key: getattr(item, key) for key in item.keys()}
+        result = {key: item[key] for key in item.keys()}
         result["url"] = url_for("pwncollege_users.view_other", user_id=result["user_id"])
         result["symbol"] = email_symbol_asset(result.pop("email"))
         result["belt"] = belt_asset(None)  # TODO
@@ -80,8 +119,11 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
 
     user = get_current_user()
     if user and not user.hidden:
-        # TODO PERF: This makes the entire function ~2x slower.
-        me = standing(db.session.query(query.subquery()).filter_by(user_id=user.id).first())
+        me = None
+        for r in results:
+            if r["user_id"] == user.id:
+                me = standing(r)
+                break
         if me:
             pages.add((me["rank"] - 1) // per_page + 1)
             result["me"] = me
