@@ -22,7 +22,7 @@ from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
 from ...models import Dojos, DojoMembers, DojoAdmins
-from ...utils.dojo import dojo_accessible, dojo_clone, load_dojo_dir
+from ...utils.dojo import dojo_accessible, dojo_clone, load_dojo_dir, dojo_route
 
 
 dojo_namespace = Namespace(
@@ -88,3 +88,32 @@ class CreateDojo(Resource):
         private_key = data.get("private_key", "").replace("\r\n", "\n")
 
         return create_dojo(user, repository, public_key, private_key)
+
+
+@dojo_namespace.route("/<dojo>/modules")
+class GetDojoModules(Resource):
+    @dojo_route
+    def get(self, dojo):
+        modules = [{'id': module.id,
+                    'module_index': module.module_index,
+                    'name': module.name,
+                    'description': module.description,
+                    } for module in dojo.modules]
+
+        return {"success": True, "modules": modules}
+
+
+@dojo_namespace.route("/<dojo>/<module>/challenges")
+class GetDojoModuleChallenges(Resource):
+    @dojo_route
+    def get(self, dojo, module):
+        challenges = [{'id': challenge.id,
+                       'challenge_id': challenge.challenge_id,
+                       'module_index': challenge.module_index,
+                       'challenge_index': challenge.challenge_index,
+                       'name': challenge.name,
+                       'description': challenge.description,
+                       } for challenge in module.visible_challenges()]
+
+        return {"success": True, "challenges": challenges}
+
