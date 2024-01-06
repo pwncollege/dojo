@@ -141,6 +141,8 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 challenge_count_required = int(challenge_count * percent_required)
                 user_date = date + datetime.timedelta(days=extension)
                 late_value = 1 - late_penalty
+                max_late_solves = challenge_count_required - min(due_solves, challenge_count_required)
+                capped_late_solves = min(max_late_solves, late_solves)
 
                 if not late_solves:
                     progress = f"{due_solves} / {challenge_count_required}"
@@ -148,7 +150,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     progress = f"{due_solves} (+{late_solves}) / {challenge_count_required}"
 
                 if override is None:
-                    credit = min((due_solves + late_value * late_solves) / challenge_count_required, 1.0)
+                    credit = min((due_solves + late_value * capped_late_solves) / challenge_count_required, 1.0)
                 else:
                     credit = override
                     progress = f"{progress} *"
