@@ -325,7 +325,6 @@ async def check_belts():
 
 @client.event
 async def on_reaction_add(reaction, user):
-    print(reaction.emoji)
     if isinstance(reaction.emoji, str):
         return
 
