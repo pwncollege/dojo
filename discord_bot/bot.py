@@ -40,6 +40,8 @@ client = PwnCollegeClient(intents=intents)
 
 
 daily_tasks = set()
+
+
 def run_daily(task, daily_time):
     time = datetime.time.fromisoformat(daily_time)
     now = datetime.datetime.now(tz=time.tzinfo)
@@ -78,6 +80,11 @@ async def on_ready():
     run_daily(daily_attendance, "17:20:00-07:00")
     run_daily(check_belts, "18:00:00-07:00")
 
+    client.emoji = collections.defaultdict()
+    for emo in client.emojis:
+        client.emoji[emo.name] = emo
+
+
 @client.event
 async def on_voice_state_update(member, before, after):
     print(f"{describe(member)} - {before.channel} -> {after.channel}", flush=True)
@@ -96,7 +103,8 @@ async def show_join_date(interaction: discord.Interaction, member: discord.Membe
     await interaction.response.send_message(f"{member.mention} joined at {discord.utils.format_dt(member.joined_at)}", ephemeral=True)
 
 
-async def send_logged_embed(interaction, message, log_channel, title, logged_text, ephemeral_text, button_text):
+async def send_logged_embed(interaction, message, log_channel, title, logged_text, ephemeral_text, button_text, emoji="\N{Upwards Black Arrow}"):
+    emoji = "\N{Upwards Black Arrow}" if emoji is None else emoji
     now = datetime.datetime.utcnow()
 
     logged_embed = discord.Embed(title=title)
@@ -121,7 +129,7 @@ async def send_logged_embed(interaction, message, log_channel, title, logged_tex
 
     await interaction.response.send_message(embed=ephemeral_embed, view=ephemeral_url_view, ephemeral=True)
 
-    await message.add_reaction("\N{Upwards Black Arrow}")
+    await message.add_reaction(emoji)
 
 
 @client.tree.context_menu(name="Thanks")
@@ -130,13 +138,18 @@ async def thank_message(interaction: discord.Interaction, message: discord.Messa
         await interaction.response.send_message("You cannot thank yourself!", ephemeral=True)
         return
 
+    if interaction.channel.name == "memes":
+        await interaction.response.send_message("You cannot thank a meme!", ephemeral=True)
+        return
+
     await send_logged_embed(interaction,
                             message,
                             client.thanks_log_channel,
                             title="Thanks",
                             logged_text=f"{interaction.user.mention} thanked {message.author.mention}",
                             ephemeral_text=f"You thanked {message.author.mention}",
-                            button_text="Thanks Message")
+                            button_text="Thanks Message",
+                            emoji=client.emoji["thanks"])
 
     print(f"{describe(interaction.user)} thanked {describe(message.author)}", flush=True)
 
@@ -155,7 +168,8 @@ async def like_meme(interaction: discord.Interaction, message: discord.Message):
                             title="Liked Meme",
                             logged_text=f"{interaction.user.mention} liked {message.author.mention}'s meme",
                             ephemeral_text=f"You liked {message.author.mention}'s meme",
-                            button_text="Liked Meme")
+                            button_text="Liked Meme",
+                            emoji=client.emoji["good_meme"])
 
     print(f"{describe(interaction.user)} liked {describe(message.author)}'s meme")
 
@@ -307,5 +321,24 @@ async def check_belts():
     await check_belts(Belt.ORANGE)
     await check_belts(Belt.YELLOW)
     await check_belts(Belt.BLUE)
+
+
+@client.event
+async def on_reaction_add(reaction, user):
+    print(reaction.emoji)
+    if isinstance(reaction.emoji, str):
+        return
+
+    # Bot must thank first or else emoji is removed
+    bot_thanked = [u async for u in reaction.users() if u == client.guild.me]
+    if reaction.emoji.name == "thanks" and not bot_thanked:
+        await reaction.remove(user)
+
+    # Bot must meme first or else emoji is removed
+    bot_memed = [u async for u in reaction.users() if u == client.guild.me]
+    meme_chan = reaction.message.channel.name == "memes"
+    if reaction.emoji.name == "good_meme" and meme_chan and not bot_memed:
+        await reaction.remove(user)
+
 
 client.run(DISCORD_BOT_TOKEN)
