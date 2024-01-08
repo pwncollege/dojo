@@ -358,7 +358,8 @@ def view_all_grades(dojo):
     return render_template("grades_admin.html",
                            grades=grades,
                            grade_statistics=grade_statistics,
-                           students=students)
+                           students=students,
+                           dojo=dojo)
 
 
 @course.route("/dojo/<dojo>/admin/grades.csv")
