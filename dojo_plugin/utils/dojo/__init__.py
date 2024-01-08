@@ -403,7 +403,7 @@ def get_user_belts(user):
     belts = {
         "Orange Belt": ["intro-to-cybersecurity"],
         "Yellow Belt": ["intro-to-cybersecurity", "program-security"],
-        "Green belt": ["intro-to-cybersecurity", "program-security", "system-security"],
+        "Green Belt": ["intro-to-cybersecurity", "program-security", "system-security"],
         "Blue Belt": ["intro-to-cybersecurity", "program-security", "system-security", "software-exploitation"],
     }
     result = []
