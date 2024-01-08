@@ -30,8 +30,8 @@ def dojo_stats(dojo):
 def listing():
     user = get_current_user()
     typed_dojos = {
-        "Courses": [],
         "Topics": [],
+        "Courses": [],
         "More": [],
     }
     for dojo in Dojos.viewable(user=user):
