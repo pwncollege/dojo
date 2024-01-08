@@ -170,6 +170,62 @@ async def like_meme(interaction: discord.Interaction, message: discord.Message):
     print(f"{describe(interaction.user)} liked {describe(message.author)}'s meme")
 
 
+async def thread_forum_checkwarn(interaction, message):
+    thread = message.channel
+    if not isinstance(thread, discord.Thread):
+        await interaction.response.send_message("Only forum threads can be tagged!", ephemeral=True)
+        return (None, None)
+
+    forum = thread.parent
+    if not isinstance(forum, discord.ForumChannel):
+        await interaction.response.send_message("Only forum threads can be tagged!", ephemeral=True)
+        return (None, None)
+
+    return (thread, forum)
+
+
+async def is_any_sensei_checkwarn(interaction):
+    senseis = list(role for role in interaction.guild.roles if "sensei" in role.name.lower())
+
+    if any(interaction.user in sensei.members for sensei in senseis):
+        return True
+
+    await interaction.response.send_message("You are not a sensei!", ephemeral=True)
+    return False
+
+
+@client.tree.context_menu(name="Tag: Good Question")
+async def good_question(interaction: discord.Interaction, message: discord.Message):
+    if not await is_any_sensei_checkwarn(interaction):
+        return
+
+    thread, forum = await thread_forum_checkwarn(interaction, message)
+
+    if thread is None or forum is None:
+        return
+
+    good_q_tag = next(tag for tag in forum.available_tags if tag.name=="Good Question")
+
+    await thread.add_tags(good_q_tag)
+    await interaction.response.send_message("Tagged: Good Question", ephemeral=True)
+
+
+@client.tree.context_menu(name="Tag: Resolved")
+async def resolve_thread(interaction: discord.Interaction, message: discord.Message):
+    thread, forum = await thread_forum_checkwarn(interaction, message)
+    if thread is None or forum is None:
+        return
+
+    if interaction.user != thread.owner:
+        await interaction.response.send_message("Only OP can resolve a thread!", ephemeral=True)
+        return
+
+    resolved_tag = next(tag for tag in forum.available_tags if tag.name=="Resolved")
+
+    await thread.add_tags(resolved_tag)
+    await interaction.response.send_message("Tagged: Resolved", ephemeral=True)
+
+
 async def mark_attendance(member):
     now = datetime.datetime.utcnow()
 
@@ -185,10 +241,7 @@ async def mark_attendance(member):
 
 @client.tree.command()
 async def attend(interaction: discord.Interaction, member: discord.Member):
-    senseis = list(role for role in interaction.guild.roles if "sensei" in role.name.lower())
-
-    if not any(interaction.user in sensei.members for sensei in senseis):
-        await interaction.response.send_message("You are not a sensei!", ephemeral=True)
+    if not await is_any_sensei_checkwarn(interaction):
         return
 
     now = datetime.datetime.utcnow()
@@ -205,7 +258,6 @@ async def attend(interaction: discord.Interaction, member: discord.Member):
     ephemeral_url_view.add_item(discord.ui.Button(label="Attendance", style=discord.ButtonStyle.url, url=logged_message.jump_url))
 
     await interaction.response.send_message(embed=ephemeral_embed, view=ephemeral_url_view, ephemeral=True)
-
     print(f"{describe(interaction.user)} attended {member}")
 
 
@@ -253,7 +305,6 @@ async def help(interaction: discord.Interaction):
 
     ephemeral_url_view = discord.ui.View()
     ephemeral_url_view.add_item(discord.ui.Button(label="Private Help Thread", style=discord.ButtonStyle.url, url=thread.jump_url))
-
     await interaction.response.send_message(view=ephemeral_url_view, ephemeral=True)
 
 
@@ -272,6 +323,5 @@ async def on_reaction_add(reaction, user):
     meme_chan = reaction.message.channel.name == "memes"
     if reaction.emoji.name == "good_meme" and meme_chan and not bot_memed:
         await reaction.remove(user)
-
 
 client.run(DISCORD_BOT_TOKEN)
