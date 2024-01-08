@@ -99,7 +99,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
     module_solves = {}
 
     def result(user_id):
-        grades = []
+        assessment_grades = []
 
         for assessment in assessments:
             type = assessment.get("type")
@@ -119,7 +119,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 challenge_count_required = int(challenge_count * percent_required)
                 user_date = date + datetime.timedelta(days=extension)
 
-                grades.append(dict(
+                assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
                     date=str(user_date) + (" *" if extension else ""),
                     weight=weight,
@@ -153,7 +153,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     credit = override
                     progress = f"{progress} *"
 
-                grades.append(dict(
+                assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
                     date=str(user_date) + (" *" if extension else ""),
                     weight=weight,
@@ -162,7 +162,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 ))
 
             if type == "manual":
-                grades.append(dict(
+                assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
                     weight=assessment["weight"],
                     progress=assessment.get("progress", {}).get(str(user_id), ""),
@@ -170,25 +170,25 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 ))
 
             if type == "extra":
-                grades.append(dict(
+                assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
                     progress=assessment.get("progress", {}).get(str(user_id), ""),
                     credit=assessment.get("credit", {}).get(str(user_id), 0.0),
                 ))
 
         overall_grade = (
-            sum(grade["credit"] * grade["weight"] for grade in grades if "weight" in grade) /
-            sum(grade["weight"] for grade in grades if "weight" in grade)
+            sum(grade["credit"] * grade["weight"] for grade in assessment_grades if "weight" in grade) /
+            sum(grade["weight"] for grade in assessment_grades if "weight" in grade)
         )
         extra_credit = (
-            sum(grade["credit"] for grade in grades if "weight" not in grade)
+            sum(grade["credit"] for grade in assessment_grades if "weight" not in grade)
         )
         overall_grade += extra_credit
         overall_grade = round(overall_grade, 4)
         letter_grade = get_letter_grade(dojo, overall_grade)
 
         return dict(user_id=user_id,
-                    grades=grades,
+                    assessment_grades=assessment_grades,
                     overall_grade=overall_grade,
                     letter_grade=letter_grade)
 
@@ -393,8 +393,9 @@ def download_all_grades(dojo):
         yield from (
             ",".join(str(value) if not isinstance(value, float) else f"{value:.2f}" for value in [
                 students[grade["user_id"]], grade["user_id"], grade["letter_grade"], grade["overall_grade"],
-                *[float(assessment["credit"]) for assessment in dojo.course["assessments"]],
+                *[float(assessment_grade["credit"]) for assessment_grade in grade["assessment_grades"]],
             ]) + "\n"
+            for grade in grades
         )
 
     headers = {"Content-Disposition": "attachment; filename=data.csv"}

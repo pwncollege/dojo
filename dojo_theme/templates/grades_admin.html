@@ -40,17 +40,17 @@
                     </tr>
                   </thead>
                   <tbody>
-                    {% for grade in user_grades.grades %}
+                    {% for assessment_grade in user_grades.assessment_grades %}
                     <tr>
-                      <td>{{ grade.name }}</td>
-                      <td>{{ grade.date }}</td>
-                      <td>{{ grade.weight }}</td>
-                      <td>{{ grade.progress }}</td>
+                      <td>{{ assessment_grade.name }}</td>
+                      <td>{{ assessment_grade.date }}</td>
+                      <td>{{ assessment_grade.weight }}</td>
+                      <td>{{ assessment_grade.progress }}</td>
                       <td>
-                        {% if grade.credit is boolean %}
-                          {{ "✓" if grade.credit else "✕" }}
-                        {% elif grade.credit is number %}
-                          {{ "%.2f%%" | format(100 * grade.credit) }}
+                        {% if assessment_grade.credit is boolean %}
+                          {{ "✓" if assessment_grade.credit else "✕" }}
+                        {% elif assessment_grade.credit is number %}
+                          {{ "%.2f%%" | format(100 * assessment_grade.credit) }}
                         {% endif %}
                       </td>
                     </tr>

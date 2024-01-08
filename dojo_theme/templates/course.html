@@ -70,17 +70,17 @@
                     </tr>
                   </thead>
                   <tbody>
-                    {% for grade in grades %}
-                    {% if grade.credit is boolean %}
-                      {% set credit = "✓" if grade.credit else "✕" %}
-                    {% elif grade.credit is number %}
+                    {% for assessment_grade in assessment_grades %}
+                    {% if assessment_grade.credit is boolean %}
+                      {% set credit = "✓" if assessment_grade.credit else "✕" %}
+                    {% elif assessment_grade.credit is number %}
                       {% set credit = "%.2f%%" | format(100 * grade.credit) %}
                     {% endif %}
                     <tr>
-                      <td>{{ grade.name }}</td>
-                      <td>{{ grade.date }}</td>
-                      <td>{{ grade.weight }}</td>
-                      <td>{{ grade.progress }}</td>
+                      <td>{{ assessment_grade.name }}</td>
+                      <td>{{ assessment_grade.date }}</td>
+                      <td>{{ assessment_grade.weight }}</td>
+                      <td>{{ assessment_grade.progress }}</td>
                       <td>{{ credit }}</td>
                     </tr>
                     {% endfor %}
@@ -96,7 +96,7 @@
                 <b><label for="enter-name">{{ identity_name }}</label></b>
                 <small class="form-text text-muted">This will be shared with the admins of this dojo.</small>
                 <br>
-                <input class="form-control" id="identity" name="identity" type="text" value="{{ identity_value or "" }}">
+                <input class="form-control" id="identity" name="identity" type="text" value="{{ identity_value or '' }}">
               </div>
 
               <div id="identity-results" class="form-group">
