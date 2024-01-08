@@ -53,9 +53,8 @@ class DojoChallenge(BaseChallenge):
             user_mention = f"<@{discord_user['user']['id']}>"
             message = f"{user_mention} earned their {belt}! :tada:"
             print(message, flush=True)
-            # TODO: Discord instead of print
-            # add_role(discord_user["user"]["id"], belt)
-            # send_message(message, "belting-ceremony")
+            add_role(discord_user["user"]["id"], belt)
+            send_message(message, "belting-ceremony")
 
 
 class DojoFlag(BaseFlag):

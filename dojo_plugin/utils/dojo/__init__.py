@@ -400,16 +400,15 @@ def get_current_dojo_challenge(user=None):
 
 
 def get_user_belts(user):
-    # TODO: Get this from dojo.yml
     belts = {
-        "Orange Belt": ["cse365-s2023", "cse365-f2023"],
-        "Yellow Belt": ["cse466-f2022", "cse466-f2023"],
-        "Blue Belt": ["cse494-s2023"],
+        "Orange Belt": ["intro-to-cybersecurity"],
+        "Yellow Belt": ["intro-to-cybersecurity", "program-security"],
+        "Green belt": ["intro-to-cybersecurity", "program-security", "system-security"]
+        "Blue Belt": ["intro-to-cybersecurity", "program-security", "system-security", "software-exploitation"],
     }
     result = []
     for belt, dojo_ids in belts.items():
         dojos = Dojos.query.filter(Dojos.official, Dojos.id.in_(dojo_ids))
-        if not any(dojo.completed(user) for dojo in dojos):
-            break
-        result.append(belt)
+        if all(dojo.completed(user) for dojo in dojos):
+            result.append(belt)
     return result
