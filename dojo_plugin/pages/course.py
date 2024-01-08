@@ -94,11 +94,9 @@ def grade(dojo, users_query, *, ignore_pending=False):
         .with_entities(Users.id, *(column for column in solves.c if column.name != "user_id"))
     )
 
-    module_names = {module.id: module.name for module in dojo.modules}
     challenge_counts = {module.id: len(module.challenges) for module in dojo.modules}
 
     module_solves = {}
-    assigmments = {}
 
     def result(user_id):
         grades = []
@@ -376,6 +374,11 @@ def download_all_grades(dojo):
     ignore_pending = request.args.get("ignore_pending") is not None
 
     def stream():
+        fields = ["student", "user", "letter", "overall"]
+        fields.extend([re.sub("[^a-z0-9\-]", "", re.sub("\s+", "-", assessment_name(dojo, assessment).lower()))
+                       for assessment in dojo.course["assessments"]])
+        yield ",".join(fields) + "\n"
+
         students = {student.user_id: student.token for student in dojo.students}
         users = (
             Users
@@ -387,16 +390,12 @@ def download_all_grades(dojo):
         grades = sorted(grade(dojo, users, ignore_pending=ignore_pending),
                         key=lambda grade: grade["overall_grade"],
                         reverse=True)
-
-        fields = ["student", "user", "letter", "overall"]
-        fields.extend([re.sub("[^a-z0-9\-]", "", re.sub("\s+", "-", assessment_name(dojo, assessment).lower()))
-                       for assessment in dojo.course["assessments"]])
-        yield ",".join(fields) + "\n"
-
-        for grade in grades:
-            values = [students[grade["user_id"]], grade["user_id"], grade["letter_grade"], grade["overall_grade"]]
-            values.extend(float(assessment["credit"]) for assessment in grade["grades"])
-            yield ",".join(str(value) if not isinstance(value, float) else f"{value:.2f}" for value in values) + "\n"
+        yield from (
+            ",".join(str(value) if not isinstance(value, float) else f"{value:.2f}" for value in [
+                students[grade["user_id"]], grade["user_id"], grade["letter_grade"], grade["overall_grade"],
+                *[float(assessment["credit"]) for assessment in dojo.course["assessments"]],
+            ]) + "\n"
+        )
 
     headers = {"Content-Disposition": "attachment; filename=data.csv"}
     return Response(stream_with_context(stream()), headers=headers, mimetype="text/csv")
