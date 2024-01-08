@@ -1,5 +1,3 @@
-<br><br><br>
-
 <center>
   <h1><b>pwn.college</b></h1>
   <h3>Learn to hack!</h3>
@@ -12,9 +10,15 @@ pwn.college is an education platform for students (and other interested parties)
 
 pwn.college was created by [Zardus (Yan Shoshitaishvili)](http://yancomm.net) and [kanak (Connor Nelson)](https://connornelson.com) at Arizona State University. It powers ASU’s Introduction to Cybersecurity (CSE 365) and Computer Systems Security (CSE 466) courses, and is open, for free, to participation for interested people around the world!
 
-If you have comments, suggestions, and feedback, please email us at [pwn-college@asu.edu](mailto:pwn-college@asu.edu)!
+If you have comments, suggestions, and feedback, please email us at [pwn@pwn.college](mailto:pwn@pwn.college)!
 
-<br><br>
+<br><br><br>
+
+<div class="embed-responsive embed-responsive-16by9">
+  <iframe class="embed-responsive-item" src="https://www.youtube.com/embed/DJO1A2neZ6Y" title="pwn.college - Getting Started" allowfullscreen></iframe>
+</div>
+
+<br><br><br>
 
 # Great! How do I jump in?
 pwn.college is organized into a series of modules, that launch throughout the school year and stay open until the next iteration of the courses. For each module, students should go through the following process:
@@ -23,18 +27,17 @@ pwn.college is organized into a series of modules, that launch throughout the sc
 
 2.	Attend the LIVE CLASSES on [Twitch](https://www.twitch.tv/pwncollege), during the ASU semester.
 
-3.	Catch up on any live classes you miss by checking out RECORDED STREAMS, which are [initially saved on Twitch](https://www.twitch.tv/pwncollege/videos) right after the live stream (but time out after a week or two) and are eventually [archived to YouTube](https://www.youtube.com/pwncollege). The live classes are used to fill in gaps between prerecorded lectures and answer student questions. Prior live classes:
+3.	Catch up on any live classes you miss by checking out RECORDED STREAMS, which are [initially saved on Twitch](https://www.twitch.tv/pwncollege/videos) right after the live stream (but time out after a week or two) and are eventually [archived to YouTube](https://www.youtube.com/pwncollege). The live classes are used to fill in gaps between prerecorded lectures and answer student questions. Current live classes:
 <ul>
-  <li><a href=https://www.youtube.com/watch?v=lYR6TY5_K9A&list=PL-ymxv0nOtqoq6MHAKiYTAXq-Ccd5Vqht>CSE365 Spring 2023</a></li>
-  <li><a href=https://www.youtube.com/watch?v=1nkQoP7T7Ag&list=PL-ymxv0nOtqqQzEncNuE6jetlJAiBUda->CSE466 Fall 2022</a></li>
-  <li><a href=https://www.youtube.com/watch?v=11KN0aQ8J_I&list=PL-ymxv0nOtqqyCaGZJCTBJTdzI2QLWZey>CSE494 Spring 2023</a></li>
+  <li><a href=https://www.youtube.com/playlist?list=PL-ymxv0nOtqqYpFVmqh9Wsfebq05pssju>CSE365 Spring 2024</a></li>
+  <li><a href=https://www.youtube.com/playlist?list=PL-ymxv0nOtqr7zM7ZBREoWa-eeSaKFJQd>CSE598 Spring 2024</a></li>
 </ul>
 
 4.	Solve the **CHALLENGE PROBLEMS** hosted in the [dojos](https://pwn.college/dojos). The challenge problems are the active educational component of pwn.college. They are absolutely critical to learning: the lectures give you a starting point for the content, but the challenge problems force you to truly learn it.
 
 5.	When you run into problems with the challenges, you can GET HELP on our [discord server](https://discord.com/invite/e4UU4ytK6q). The discord is also a great place to chat with other aspiring hackers!
 
-pwn.college currently has three major stages of progression. Consider hacking as a martial art that students earn belts in as they progress. We currently have three belts in three dedicated dojos: [orange](https://pwn.college/cse365-s2023/), [yellow](https://pwn.college/cse466-f2022/), and [blue](https://pwn.college/cse494-s2023/).
+pwn.college currently has four major stages of progression. Consider hacking as a martial art that students earn belts in as they progress. We currently have four belts in four dedicated dojos: [orange](https://pwn.college/intro-to-cybersecurity/), [yellow](https://pwn.college/program-security/), [green](https://pwn.college/system-security/), and [blue](https://pwn.college/software-exploitation/).
 
 Over time, hackers become more sure in their skills, achieving *brown belt* status (and able to, for example, usefully contribute to the cybersecurity industry), before finally graduating to hacking masters: *black belts*. But this, unfortunately, must happen outside of the dojo (for now!).
 
@@ -51,28 +54,35 @@ Once you are in a challenge instance, your goal is to get the contents of the `/
 
 A few things to note. Your home directory `/home/hacker` is persistent. This means that when you start a new challenge, all of the files you have saved in there will still be there. The `Practice` button can be incredibly useful for debugging your solution. When you start a challenge in this way, you will have the ability to run programs as the `root` user with the `sudo` command; however, the instance will only have a practice flag. For some of the later (kernel-focused) challenges, you will need to solve the challenge in a virtual machine. You can interact with the virtual machine using the `vm` command.
 
-<br><br><br>
-
-<div class="embed-responsive embed-responsive-16by9">
-  <iframe class="embed-responsive-item" src="https://www.youtube.com/embed/DJO1A2neZ6Y" title="pwn.college - Getting Started" allowfullscreen></iframe>
-</div>
-
-<br><br><br>
+<br><br>
 
 # The Belts
-This course progresses hackers from white belts, to orange belts, yellow belts, and then finally refines them into blue belts. This is not just metaphor: **we have actual belts, in yellow and blue, custom-embroidered for pwn.college.**
+This course progresses hackers from white belts, to orange belts, yellow belts, green belts, and then finally refines them into blue belts. This is not just metaphor: **we have actual belts, in yellow, green, and blue, custom-embroidered for pwn.college.**
 
 ### How to earn an orange belt?
-For an orange belt, you must complete all active challenges launched in [CSE 365](https://pwn.college/cse365-s2023/).
+For an orange belt, you must complete all active challenges launched in:
+- [Intro to Cybersecurity](https://pwn.college/intro-to-cybersecurity/)
 
 ### How to earn a yellow belt?
-For a yellow belt, you must complete all active challenges launched in [CSE 365](https://pwn.college/cse365-s2023/) and [CSE 466](https://pwn.college/cse466-f2022/).
+For a yellow belt, you must complete all active challenges launched in:
+- [Intro to Cybersecurity](https://pwn.college/intro-to-cybersecurity/)
+- [Program Security](https://pwn.college/program-security/)
+
+### How to earn a green belt?
+For a green belt, you must complete all active challenges launched in:
+- [Intro to Cybersecurity](https://pwn.college/intro-to-cybersecurity/)
+- [Program Security](https://pwn.college/program-security/)
+- [System Security](https://pwn.college/system-security/)
 
 ### How to earn a blue belt?
-For a blue belt, you must complete all active challenges launched in [CSE 365](https://pwn.college/cse365-s2023/), [CSE 466](https://pwn.college/cse466-f2022/), and [CSE 494](https://pwn.college/cse494-s2023/)!
+For a blue belt, you must complete all active challenges launched in:
+- [Intro to Cybersecurity](https://pwn.college/intro-to-cybersecurity/)
+- [Program Security](https://pwn.college/program-security/)
+- [System Security](https://pwn.college/system-security/)
+- [Software Exploitation](https://pwn.college/software-exploitation/)
 
 ### How to get the actual belt?
-To get your belt,  [send us an email](malto:pwn-college@asu.edu) from the email address associated with your pwn.college account once you’ve completed the necessary challenges. We’ll then get your belt over to you (eventually)!
+To get your belt,  [send us an email](malto:pwn@pwn.college) from the email address associated with your pwn.college account once you’ve completed the necessary challenges. We’ll then get your belt over to you (eventually)!
 
 **Who has earned belts?** We maintain a [list of hackers with pwn.college belts](https://static.pwn.college/belts). Once you achieve your belt, if you provide your name, email address, and emoji, we will add you to the [list](https://static.pwn.college/belts)!
 
@@ -99,14 +109,14 @@ Want to use pwn.college in your course? You can!
 
 The videos and slides of pwn.college lectures are licensed under CC-BY-NC. You can use them freely for non-commercial purposes, but please provide attribution! Additionally, if you use pwn.college in your own education program, we would appreciate it if you email us to let us know. Evidence of wide-spread use of pwn.college for education will be a huge help for Yan’s tenure case!
 
-EDUCATORS: If you are an educational institution and are using pwn.college as part of a class, you can request a (free) private instance of the infrastructure! Please [email](mailto:pwn-college@asu.edu) us to ask!
+EDUCATORS: If you are an educational institution and are using pwn.college as part of a class, you can request a (free) private instance of the infrastructure! Please [email](mailto:pwn@pwn.college) us to ask!
 
-CONFERENCES: If you are running a conference and would like pwn.college presence there (as a form of intense weekend-long training), please [email](mailto:pwn-college@asu.edu) us!
+CONFERENCES: If you are running a conference and would like pwn.college presence there (as a form of intense weekend-long training), please [email](mailto:pwn@pwn.college) us!
 
 <br><br>
 
 # Contributing
-The [infrastructure powering pwn.college](https://github.com/pwncollege) is open source, and we welcome pull requests and issues. The modules are closed-source, because they include source code and solution scripts. If you are an educator, or otherwise someone we trust, and are interested in collaborating on the modules themselves, please email us at [pwn-college@asu.edu](pwn-college@asu.edu). Likewise, drop us a line if you are interested in collaborating on the slides!
+The [infrastructure powering pwn.college](https://github.com/pwncollege) is open source, and we welcome pull requests and issues. The modules are closed-source, because they include source code and solution scripts. If you are an educator, or otherwise someone we trust, and are interested in collaborating on the modules themselves, please email us at [pwn@pwn.college](pwn@pwn.college). Likewise, drop us a line if you are interested in collaborating on the slides!
 
 <br><br>
 
@@ -165,7 +175,7 @@ Team work makes the dream work, and the team behind pwn.college is full of dream
     </div>
     <div class="col-lg-auto m-3">
       <figure>
-        <a class="text-decoration-none" href="mailto:pwn-college@asu.edu">
+        <a class="text-decoration-none" href="mailto:pwn@pwn.college">
           <i class="fas fa-envelope fa-7x"></i>
           <figcaption>Contact us via<br>Email</figcaption>
         </a>
