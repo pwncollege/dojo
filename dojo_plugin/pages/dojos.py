@@ -35,10 +35,10 @@ def listing():
         "More": [],
     }
     for dojo in Dojos.viewable(user=user):
-        if dojo.type == "course":
-            typed_dojos["Courses"].append(dojo)
-        elif dojo.type == "topic":
+        if dojo.type == "topic":
             typed_dojos["Topics"].append(dojo)
+        elif dojo.type == "course":
+            typed_dojos["Courses"].append(dojo)
         elif dojo.type == "hidden":
             continue
         else:
