@@ -366,7 +366,7 @@ def view_all_grades(dojo):
 @course.route("/dojo/<dojo>/admin/grades.csv")
 @dojo_route
 @authed_only
-def view_all_grades(dojo):
+def download_all_grades(dojo):
     if not dojo.course:
         abort(404)
 
