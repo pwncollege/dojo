@@ -21,7 +21,7 @@
           <tr>
             <td>
               {% if user_grades.user_id is not none %}
-              <a href="{{ generate_account_url(user_grades.user_id, admin=True) }}">{{ students[user_grades.user_id] }}</a>
+              <a href="url_for('course.view_user_info', dojo=dojo.reference_id, user_id=user_grades.user_id) }}">{{ students[user_grades.user_id] }}</a>
               {% else %}
               <b>?</b>
               {% endif %}
