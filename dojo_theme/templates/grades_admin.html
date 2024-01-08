@@ -7,6 +7,16 @@
   </div>
 </div>
 <div class="container">
+  <div class="row text-center">
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a class="text-decoration-none" href="{{ url_for('course.download_all_grades', dojo=dojo.reference_id) }}" target="_blank">
+          <i class="fas fa-file-csv fa-3x"></i>
+          <figcaption><b style="font-family: 'Courier New', Courier, monospace">Download</b></figcaption>
+        </a>
+      </figure>
+    </div>
+  </div>
   <div id="grades" class="row">
     <div class="col-md-12">
       <table class="table table-striped">
