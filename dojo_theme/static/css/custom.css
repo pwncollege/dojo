@@ -175,6 +175,10 @@ h4 {
     font-size: 0.75em;
 }
 
+.card-icon {
+  width: 35%
+}
+
 .accordion-item {
     margin-bottom: 0.5em;
     background-color: inherit;

@@ -58,6 +58,7 @@ class Dojos(db.Model):
     id = db.Column(db.String(32), index=True)
     name = db.Column(db.String(128))
     description = db.Column(db.Text)
+    icon = db.Column(db.String(256))
 
     official = db.Column(db.Boolean, index=True)
     password = db.Column(db.String(128))
