@@ -67,8 +67,8 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 return Solves.date < user_date
         return db.func.sum(
             db.case([(DojoModules.id == module_id, cast(query(module_id), db.Integer))
-                     for module_id in assessment_dates],
-                    else_=None)
+                     for module_id in assessment_dates] +
+                    [(False, None)])
         ).label(label)
 
     solves = (
