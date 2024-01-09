@@ -137,6 +137,10 @@ h4 {
     background-color: rgba(255,255,255,0.1);
 }
 
+.card-body {
+  text-align: center;
+}
+
 .card-list {
     display: flex;
     flex-direction: row;
@@ -168,6 +172,11 @@ h4 {
 }
 
 .card-text {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    top: 85%;
     color: rgb(234, 234, 234);
     font-size: 0.75em;
 }
@@ -175,8 +184,9 @@ h4 {
 .card-icon {
   width: 35%;
   position: absolute;
-  bottom: 1rem;
-  right: 1rem;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .accordion-item {
