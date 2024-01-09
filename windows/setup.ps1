@@ -185,7 +185,7 @@ Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "Limit
 
 # -- set empty password for hacker user --
 $SecureString = New-Object System.Security.SecureString
-Get-LocalUser -Name hacker | Set-LocalUser -Password $SecureString
+Get-LocalUser -Name hacker | Set-LocalUser -Password $SecureString -PasswordNeverExpires $true
 
 # -- edit SSH config --
 # to support empty passwords, we require the following settings:

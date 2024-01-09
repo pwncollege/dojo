@@ -102,7 +102,7 @@ The filesystem sharing has a component on each side of the VM.
 The host side has a `virtiofsd` process running for each virtual filesystem that listens on a UNIX socket for connection from QEMU.
 The guest side has a filesystem driver that connects to the virtual PCI device, and a userspace process that uses WinFsp, the windows equivalent of FUSE, to mount the filesystem and talks to the driver.
 
-## Host
+### Host
 
 The biggest concern on the host side is sandboxing.
 We don't want users to be able to abuse the filesystem daemon to access files outside of the directories we want to mount in (such as the flag) or escalate privileges.
@@ -123,10 +123,10 @@ Later, we can start up this service in the startup script with the launcher, spe
 
 ## Rebuilding the VM image
 
-This can be done by removing the `image-built` file and updating the dojo:
+This can be done by removing the `image-stage1-complete` marker file and updating the dojo:
 
 ```sh
-sudo rm ./data/docker/volumes/pwncollege_windows/_data/image-built
+sudo rm ./data/docker/volumes/pwncollege_windows/_data/image-stage1-complete
 sudo docker exec -it dojo dojo update
 ```
 

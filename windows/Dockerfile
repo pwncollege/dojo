@@ -71,7 +71,7 @@ CMD \
       -device virtio-net,netdev=user.0 \
       -netdev user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::2222-:22 \
       -serial null \
-      -monitor unix:./build/monitor.sock,server,nowait \
+      `#-monitor unix:./build/monitor.sock,server,nowait` \
       -drive file=./floppy.img,format=raw,index=0,if=floppy \
       -drive "file=./build/server-2022.iso,media=cdrom" \
       -drive "file=./build/virtio-win-processed.iso,media=cdrom" \
@@ -93,7 +93,7 @@ CMD \
         -device virtio-net,netdev=user.0 \
         -netdev user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::2222-:22 \
         -serial null \
-        -monitor unix:./build/monitor.sock,server,nowait \
+        `#-monitor unix:./build/monitor.sock,server,nowait` \
         -drive file=./floppy.img,format=raw,index=0,if=floppy \
         -drive "file=./build/server-2022.iso,media=cdrom" \
         -drive "file=./build/virtio-win-processed.iso,media=cdrom" \
