@@ -181,7 +181,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
         overall_grade = (
             sum(grade["credit"] * grade["weight"] for grade in assessment_grades if "weight" in grade) /
             sum(grade["weight"] for grade in assessment_grades if "weight" in grade)
-        )
+        ) if assessment_grades else 1.0
         extra_credit = (
             sum(grade["credit"] for grade in assessment_grades if "weight" not in grade)
         )
