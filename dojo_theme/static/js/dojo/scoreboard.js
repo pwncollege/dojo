@@ -26,7 +26,7 @@ function loadScoreboard(duration, page) {
         standings.forEach(user => {
             const row = $(`
             <tr>
-              <th scope="row">#${user.rank}</th>
+              <td scope="row"><b>#${user.rank}</b></td>
               <td class="p-0">
                 <img src="${user.symbol}" class="scoreboard-symbol">
               </td>
