@@ -40,7 +40,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
         users_query = Users.query.filter_by(id=users_query.id)
 
     now = datetime.datetime.now(datetime.timezone.utc)
-    assessments = dojo.course["assessments"]
+    assessments = dojo.course.get("assessments", [])
 
     assessment_dates = collections.defaultdict(lambda: collections.defaultdict(dict))
     for assessment in assessments:
