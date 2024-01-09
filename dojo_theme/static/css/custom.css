@@ -168,15 +168,15 @@ h4 {
 }
 
 .card-text {
-    position: absolute;
-    bottom: 1em;
-    right: 1em;
     color: rgb(234, 234, 234);
     font-size: 0.75em;
 }
 
 .card-icon {
-  width: 35%
+  width: 35%;
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
 }
 
 .accordion-item {
