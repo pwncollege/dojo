@@ -297,3 +297,7 @@ hr {
   border-bottom: 1px dashed #b5e853;
   color: #b5e853;
 }
+
+.module-dojo a {
+    color: #b5e853 !important;
+}

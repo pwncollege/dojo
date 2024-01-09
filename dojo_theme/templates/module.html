@@ -6,7 +6,7 @@
   <div class="container">
     <h1>{{ module.name }}<h1>
     <br>
-    <h2>{{ dojo.name }}</h2>
+    <h2 class="module-dojo"><a href="{{ url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id) }}">{{ dojo.name }}</a></h2>
   </div>
 </div>
 <div class="container">
