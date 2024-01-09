@@ -120,7 +120,9 @@
           </ol>
           {% if setup_complete %}
             <p>Setup complete!</p>
-            <p>If you are missing your official course role in Discord, you can force it to update by updating your course identity <a href="identity">here</a>.</p>
+            {% if discord_role %}
+              <p>If you are missing your official course role in Discord, you can force it to update by updating your course identity <a href="identity">here</a>.</p>
+            {% endif %}
           {% else %}
             <p>Setup incomplete.</p>
           {% endif %}
