@@ -10,7 +10,7 @@ body, table, .form-control:focus, .close {
     color: #eaeaea !important;
 }
 
-.navbar-brand, .nav-link, h1, h2, h3, h4, .navbar-pulldown {
+.navbar-brand, .nav-link, h1, h2, #syllabus h3, #syllabus h4, .navbar-pulldown {
     color: #b5e853 !important;
 }
 
