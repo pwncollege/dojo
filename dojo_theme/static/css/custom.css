@@ -10,7 +10,7 @@ body, table, .form-control:focus, .close {
     color: #eaeaea !important;
 }
 
-.navbar-brand, .nav-link, h1, h2, .navbar-pulldown {
+.navbar-brand, .nav-link, h1, h2, h3, h4, .navbar-pulldown {
     color: #b5e853 !important;
 }
 
@@ -270,4 +270,30 @@ h4 {
     margin: auto;
     width: 128px;
     border-radius: 50%;
+}
+
+#syllabus ul li {
+  list-style-image:url('../img/bullet.png');
+}
+
+table {
+  width: 100%;
+  margin: 0 0 20px 0;
+}
+
+th {
+  text-align: left;
+  border-bottom: 1px dashed #b5e853;
+  padding: 5px 10px;
+}
+
+td {
+  padding: 5px 10px;
+}
+
+hr {
+  height: 0;
+  border: 0;
+  border-bottom: 1px dashed #b5e853;
+  color: #b5e853;
 }
