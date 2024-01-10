@@ -94,12 +94,13 @@ class CreateDojo(Resource):
 class GetDojoModules(Resource):
     @dojo_route
     def get(self, dojo):
-        modules = [{'id': module.id,
-                    'module_index': module.module_index,
-                    'name': module.name,
-                    'description': module.description,
-                    } for module in dojo.modules]
-
+        modules = [
+            dict(id=module.id,
+                 module_index=module.module_index,
+                 name=module.name,
+                 description=module.description)
+            for module in dojo.modules if module.visible()
+        ]
         return {"success": True, "modules": modules}
 
 
@@ -107,13 +108,13 @@ class GetDojoModules(Resource):
 class GetDojoModuleChallenges(Resource):
     @dojo_route
     def get(self, dojo, module):
-        challenges = [{'id': challenge.id,
-                       'challenge_id': challenge.challenge_id,
-                       'module_index': challenge.module_index,
-                       'challenge_index': challenge.challenge_index,
-                       'name': challenge.name,
-                       'description': challenge.description,
-                       } for challenge in module.visible_challenges()]
-
+        challenges = [
+            dict(id=challenge.id,
+                 challenge_id=challenge.challenge_id,
+                 module_index=challenge.module_index,
+                 challenge_index=challenge.challenge_index,
+                 name=challenge.name,
+                 description=challenge.description)
+            for challenge in module.visible_challenges()
+        ]
         return {"success": True, "challenges": challenges}
-
