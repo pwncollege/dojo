@@ -255,6 +255,13 @@ RUN <<EOF
     wget -q -O - https://github.com/mozilla/geckodriver/releases/download/v0.32.0/geckodriver-v0.32.0-linux64.tar.gz | tar xvz -C /usr/local/bin
 EOF
 
+FROM builder as builder-burpsuite
+RUN <<EOF
+    wget -q -O /tmp/burpsuite.sh https://portswigger.net/burp/releases/download?product=community\&version=2023.11.1.4\&type=Linux
+    sh /tmp/burpsuite.sh -q
+    rm /tmp/burpsuite.sh
+EOF
+
 FROM builder as builder-busybox
 RUN <<EOF
     VERSION="busybox-1.33.2"
@@ -522,6 +529,7 @@ COPY --link --from=builder-aflplusplus / /
 COPY --link --from=builder-rappel / /
 COPY --link --from=builder-rp / /
 COPY --link --from=builder-geckodriver / /
+COPY --link --from=builder-burpsuite / /
 COPY --link --from=builder-busybox / /
 COPY --link --from=builder-glow / /
 COPY --link --from=builder-desktop-xfce / /
