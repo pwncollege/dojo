@@ -17,4 +17,4 @@ viewMode=List
 END
 
 # Update GUI config
-[ ! -e /usr/share/desktop-base/profiles/xdg-config/xfce4 ] || cp -au /usr/share/desktop-base/profiles/xdg-config/xfce4 /home/hacker/.config/
+[ ! -e /usr/share/desktop-base/profiles/xdg-config/xfce4 ] || cp -au --no-preserve=ownership /usr/share/desktop-base/profiles/xdg-config/xfce4 /home/hacker/.config/
