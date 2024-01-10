@@ -210,22 +210,6 @@ async def good_question(interaction: discord.Interaction, message: discord.Messa
     await interaction.response.send_message("Tagged: Good Question", ephemeral=True)
 
 
-@client.tree.context_menu(name="Tag: Resolved")
-async def resolve_thread(interaction: discord.Interaction, message: discord.Message):
-    thread, forum = await thread_forum_checkwarn(interaction, message)
-    if thread is None or forum is None:
-        return
-
-    if interaction.user != thread.owner:
-        await interaction.response.send_message("Only OP can resolve a thread!", ephemeral=True)
-        return
-
-    resolved_tag = next(tag for tag in forum.available_tags if tag.name=="Resolved")
-
-    await thread.add_tags(resolved_tag)
-    await interaction.response.send_message("Tagged: Resolved", ephemeral=True)
-
-
 async def mark_attendance(member):
     now = datetime.datetime.utcnow()
 
