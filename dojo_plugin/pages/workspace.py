@@ -133,4 +133,8 @@ def forward_workspace(service, service_path=""):
     else:
         abort(404)
 
+    current_user = get_current_user()
+    if user != current_user:
+        print(f"User {current_user.id} is accessing {user.id}'s workspace (port {port})", flush=True)
+
     return redirect_user_socket(user, port, service_path)
