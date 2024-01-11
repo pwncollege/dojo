@@ -215,11 +215,11 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
         start = None
         stop = None
         for arg in args:
-            print(repr(arg), flush=True)
-            print(repr(arg.get("visibility", {})), flush=True)
             start = arg.get("visibility", {}).get("start") or start
             stop = arg.get("visibility", {}).get("stop") or stop
         if start or stop:
+            start = start.astimezone(datetime.timezone.utc) if start else None
+            stop = stop.astimezone(datetime.timezone.utc) if stop else None
             return cls(start=start, stop=stop)
 
     _missing = object()
