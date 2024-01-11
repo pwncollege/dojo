@@ -324,12 +324,16 @@ def view_all_grades(dojo):
 
     ignore_pending = request.args.get("ignore_pending") is not None
 
+    students = {student.user_id: student.token for student in dojo.students}
+    course_students = dojo.course.get("students", [])
+    missing_students = list(set(course_students) - set(students.values()))
+
     users = (
         Users
         .query
         .join(DojoStudents, DojoStudents.user_id == Users.id)
         .filter(DojoStudents.dojo == dojo,
-                DojoStudents.token.in_(dojo.course.get("students", [])))
+                DojoStudents.token.in_(course_students))
     )
     grades = sorted(grade(dojo, users, ignore_pending=ignore_pending),
                     key=lambda grade: grade["overall_grade"],
@@ -355,12 +359,11 @@ def view_all_grades(dojo):
         "Average": (average_grade_summary, average_grade_details),
     }
 
-    students = {student.user_id: student.token for student in dojo.students}
-
     return render_template("grades_admin.html",
                            grades=grades,
                            grade_statistics=grade_statistics,
                            students=students,
+                           missing_students=missing_students,
                            dojo=dojo)
 
 
@@ -377,12 +380,17 @@ def download_all_grades(dojo):
     ignore_pending = request.args.get("ignore_pending") is not None
 
     def stream():
+        assessments = dojo.course.get("assessments", [])
+
         fields = ["student", "user", "letter", "overall"]
         fields.extend([re.sub("[^a-z0-9\-]", "", re.sub("\s+", "-", assessment_name(dojo, assessment).lower()))
-                       for assessment in dojo.course.get("assessments", [])])
+                       for assessment in assessments])
         yield ",".join(fields) + "\n"
 
         students = {student.user_id: student.token for student in dojo.students}
+        course_students = dojo.course.get("students", [])
+        missing_students = list(set(course_students) - set(students.values()))
+
         users = (
             Users
             .query
@@ -399,6 +407,11 @@ def download_all_grades(dojo):
                 *[float(assessment_grade["credit"]) for assessment_grade in grade["assessment_grades"]],
             ]) + "\n"
             for grade in grades
+        )
+
+        yield from (
+            ",".join([student, "", "", ""] + [""] * len(dojo.course.get("assessments", []))) + "\n"
+            for student in missing_students
         )
 
     headers = {"Content-Disposition": "attachment; filename=data.csv"}
