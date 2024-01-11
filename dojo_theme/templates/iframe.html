@@ -45,9 +45,9 @@
 
 {% block scripts %}
 {{ super() }}
-{% if shared_urls %}
+{% if share_urls %}
 <script>
-  {% for name, url in shared_urls.items() %}
+  {% for name, url in share_urls.items() %}
   console.log("{{ name }}: {{ url }}");
   {% endfor %}
 </script>
