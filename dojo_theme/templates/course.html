@@ -55,7 +55,7 @@
 
         {% if user %}
           <div class="tab-pane fade show" id="grades" role="tabpanel">
-            <h3>{{ name }} current overall grade in the class: <code style="font-size: 2em">{{ letter_grade }}</code> ({{ "%.2f%%" | format(100 * overall_grade) }})</h3>
+            <h3>{{ name }} current grade in the class: <code style="font-size: 2em">{{ letter_grade }}</code> ({{ "%.2f%%" | format(100 * overall_grade) }})</h3>
             <br>
             <div id="grades" class="row">
               <div class="col-md-12">
