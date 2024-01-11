@@ -64,8 +64,8 @@ def view_desktop():
     iframe_src = url_for("pwncollege_workspace.forward_workspace", service=service, service_path="vnc.html", **vnc_params)
 
     share_urls = {
-        "interact": url_for("pwncollege_workspace.view_desktop", user=user.id, password=interact_password, _external=True),
-        "view": url_for("pwncollege_workspace.view_desktop", user=user.id, password=view_password, _external=True),
+        "Desktop (Interact)": url_for("pwncollege_workspace.view_desktop", user=user.id, password=interact_password, _external=True),
+        "Desktop (View)": url_for("pwncollege_workspace.view_desktop", user=user.id, password=view_password, _external=True),
     }
 
     return render_template("iframe.html",

@@ -48,7 +48,7 @@
 {% if share_urls %}
 <script>
   {% for name, url in share_urls.items() %}
-  console.log("{{ name }}: {{ url }}");
+  console.log("Share {{ name }}: {{ url | safe}}");
   {% endfor %}
 </script>
 {% endif %}
