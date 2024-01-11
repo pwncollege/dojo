@@ -30,11 +30,9 @@
           {% for user_grades in grades %}
           <tr>
             <td>
-              {% if user_grades.user_id is not none %}
-              <a href="{{ url_for('course.view_user_info', dojo=dojo.reference_id, user_id=user_grades.user_id) }}">{{ students[user_grades.user_id] }}</a>
-              {% else %}
-              <b>?</b>
-              {% endif %}
+              <a href="{{ url_for('course.view_user_info', dojo=dojo.reference_id, user_id=user_grades.user_id) }}">
+                {{ students[user_grades.user_id] }}
+              </a>
             </td>
             <td>
               <details>
@@ -68,6 +66,16 @@
                   </tbody>
                 </table>
               </details>
+            </td>
+          </tr>
+          {% endfor %}
+          {for missing_student in missing_students %}
+          <tr>
+            <td>
+              <b>{{ missing_student }}</b>
+            </td>
+            <td>
+              Missing
             </td>
           </tr>
           {% endfor %}
