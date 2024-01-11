@@ -43,13 +43,16 @@ def view_desktop():
     view_password = container_password(container, "desktop", "view")
 
     if user_id and password:
-        if not hmac.compare_digest(password, interact_password) and not hmac.compare_digest(password, view_password):
+        if hmac.compare_digest(password, interact_password):
+            view_only = False
+        elif hmac.compare_digest(password, view_password):
+            view_only = True
+        else:
             abort(403)
         password = password[:8]
     else:
         return redirect(url_for("pwncollege_workspace.view_desktop", user=user.id, password=interact_password))
 
-    view_only = user_id is not None
     service = "~".join(("desktop", str(user.id), container_password(container, "desktop")))
 
     vnc_params = {
