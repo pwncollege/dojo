@@ -4,9 +4,8 @@ RUN apk add --no-cache \
         python3 \
         py3-pip \
         openssh-server-pam \
+	docker \
         docker-cli
-
-RUN pip3 install --break-system-packages docker
 
 RUN delgroup ping && \
     addgroup -g 999 docker && \
