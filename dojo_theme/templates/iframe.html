@@ -42,3 +42,14 @@
 <h1 class="inactive">No active challenge session; start a challenge!<h1>
 {% endif %}
 {% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if shared_urls %}
+<script>
+  {% for name, url in shared_urls.items() %}
+  console.log("{{ name }}: {{ url }}");
+  {% endfor %}
+</script>
+{% endif %}
+{% endblock %}

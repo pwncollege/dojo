@@ -43,16 +43,13 @@ def view_desktop():
     view_password = container_password(container, "desktop", "view")
 
     if user_id and password:
-        if hmac.compare_digest(password, interact_password):
-            view_only = False
-        elif hmac.compare_digest(password, view_password):
-            view_only = True
-        else:
+        if not hmac.compare_digest(password, interact_password) and not hmac.compare_digest(password, view_password):
             abort(403)
         password = password[:8]
     else:
-        return redirect(url_for("pwncollege_workspace.view_desktop", user=user.id, password=interact_password))
+        password = interact_password[:8]
 
+    view_only = user_id is not None
     service = "~".join(("desktop", str(user.id), container_password(container, "desktop")))
 
     vnc_params = {
@@ -65,7 +62,16 @@ def view_desktop():
         "password": password,
     }
     iframe_src = url_for("pwncollege_workspace.forward_workspace", service=service, service_path="vnc.html", **vnc_params)
-    return render_template("iframe.html", iframe_src=iframe_src, active=True)
+
+    share_urls = {
+        "interact": url_for("pwncollege_workspace.view_desktop", user=user.id, password=interact_password, _external=True),
+        "view": url_for("pwncollege_workspace.view_desktop", user=user.id, password=view_password, _external=True),
+    }
+
+    return render_template("iframe.html",
+                           iframe_src=iframe_src,
+                           share_urls=share_urls,
+                           active=True)
 
 
 @workspace.route("/workspace/<service>")
