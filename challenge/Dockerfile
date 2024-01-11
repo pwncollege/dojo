@@ -214,10 +214,10 @@ EOF
 
 FROM builder as builder-capstone
 RUN <<EOF
-    git clone --branch 5.0.1 https://github.com/aquynh/capstone /opt/capstone
+    git clone https://github.com/capstone-engine/capstone /opt/capstone
     cd /opt/capstone
-    ./make.sh
-    ./make.sh install
+    make
+    make install
 EOF
 
 FROM builder as builder-radare2
