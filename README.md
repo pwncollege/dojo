@@ -24,6 +24,8 @@ docker build -t pwncollege/dojo "$DOJO_PATH"
 docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
 ```
 
+This will run the initial setup, including building the challenge docker image.
+
 > **Warning**
 > **(MacOS)**
 > 
@@ -36,13 +38,10 @@ docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -p 22:22 -p
 > docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -v dojo-data-docker:/opt/pwn.college/data/docker -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
 > ```
 
-This will run the initial setup, including building the challenge docker image.
-If you want to build the full 70+ GB challenge image, you can add `-e DOJO_CHALLENGE=challenge` to the docker args.
-Note that docker environment variables override the value in `./data/config.env`. 
-Refer to `script/container-setup.sh` for more information.
+### Local Setup
 
-The dojo will initialize itself to listen on and serve from `localhost.pwn.college` (which resolves 127.0.0.1).
-This is fine for development, but to serve your dojo to the world, you will need to update this to your actual hostname in `/opt/dojo/data/config.env`.
+By default, the dojo will initialize itself to listen on and serve from `localhost.pwn.college` (which resolves 127.0.0.1).
+This is fine for development, but to serve your dojo to the world, you will need to update this (see Production Setup).
 
 It will take some time to initialize everything and build the challenge docker image.
 You can check on your container (and the progress of the initial build) with:
@@ -53,6 +52,22 @@ docker exec dojo dojo logs
 
 Once things are setup, you should be able to access the dojo and login with username `admin` and password `admin`.
 You can change these admin credentials in the admin panel.
+
+### Production Setup
+
+Customizing the setup process is done through `-e KEY=value` arguments to the `docker run` command.
+You can stop the already running dojo instance with `docker stop dojo`, and then re-run the `docker run` command with the appropriately modified flags.
+
+In order to change where the host is serving from, you can modify `DOJO_HOST`; for example: `-e DOJO_HOST=localhost.pwn.college`.
+In order for this to work correctly, you must correctly point the domain at the server's IP via DNS.
+
+By default, a minimal challenge image is built.
+If you want more of the features you are used to, you can modify `DOJO_CHALLENGE`; for example: `-e HOST_HOST=challenge-mini`.
+The following options are available:
+- `challenge-nano`: A very minified setup.
+- `challenge-micro`: Adds VSCode.
+- `challenge-mini`: Adds a minified desktop (the default).
+- `challenge-full`: The full (70+ GB) setup.
 
 ## Customization
 
