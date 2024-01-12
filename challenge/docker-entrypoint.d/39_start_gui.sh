@@ -2,7 +2,7 @@
 
 mkdir -p /tmp/.dojo/vnc /home/hacker/.vnc
 
-container_id="$(cat /proc/1/cgroup | tail -n 1 | awk -F '/' '{print $NF}')"
+container_id="$(cat /.secret)"
 password_interact="$(printf 'desktop-interact' | openssl dgst -sha256 -hmac "$container_id" | awk '{print $2}' | head -c 8)"
 password_view="$(printf 'desktop-view' | openssl dgst -sha256 -hmac "$container_id" | awk '{print $2}' | head -c 8)"
 printf '%s\n%s\n' "$password_interact" "$password_view" | tigervncpasswd -f > /tmp/.dojo/vnc/passwd
