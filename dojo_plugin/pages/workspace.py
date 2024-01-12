@@ -20,7 +20,7 @@ port_names = {
 
 
 def container_password(container, *args):
-    key = container.labels["dojo.secret"].encode()
+    key = container.labels["dojo.auth_token"].encode()
     message = "-".join(args).encode()
     return hmac.HMAC(key, message, "sha256").hexdigest()
 

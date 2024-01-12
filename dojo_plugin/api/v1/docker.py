@@ -89,7 +89,7 @@ def start_challenge(user, dojo_challenge, practice):
                 "dojo.challenge_description": dojo_challenge.description,
                 "dojo.user_id": str(user.id),
                 "dojo.mode": "privileged" if practice else "standard",
-                "dojo.secret": os.urandom(32).hex(),
+                "dojo.auth_token": os.urandom(32).hex(),
             },
             mounts=[
                 docker.types.Mount(
@@ -176,8 +176,8 @@ def start_challenge(user, dojo_challenge, practice):
     def insert_flag(flag):
         exec_run(f"echo 'pwn.college{{{flag}}}' > /flag", shell=True)
 
-    def insert_secret(secret):
-        exec_run(f"echo '{secret}' > /.secret", shell=True)
+    def insert_auth_token(auth_token):
+        exec_run(f"echo '{auth_token}' > /.authtoken", shell=True)
 
     def initialize_container():
         exec_run(
@@ -214,8 +214,8 @@ def start_challenge(user, dojo_challenge, practice):
     flag = "practice" if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)
     insert_flag(flag)
 
-    secret = container.labels["dojo.secret"]
-    insert_secret(secret)
+    auth_token = container.labels["dojo.auth_token"]
+    insert_auth_token(auth_token)
 
     initialize_container()
 
