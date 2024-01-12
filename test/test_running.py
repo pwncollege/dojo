@@ -1,9 +1,10 @@
 import json
+import os
 import random
 import re
+import shutil
 import string
 import subprocess
-import shutil
 
 import requests
 import pytest
@@ -11,12 +12,11 @@ import pytest
 
 PROTO="http"
 HOST="localhost.pwn.college"
-
+CONTAINER_NAME = os.environ.get("CONTAINER_NAME", "dojo-test")
 
 def dojo_run(*args, **kwargs):
     kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
-    container_name = "dojo-test"
-    return subprocess.run([shutil.which("docker"), "exec", "-i", container_name, "dojo", *args], **kwargs)
+    return subprocess.run([shutil.which("docker"), "exec", "-i", CONTAINER_NAME, "dojo", *args], **kwargs)
 
 
 def workspace_run(cmd, *, user):
