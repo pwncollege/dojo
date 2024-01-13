@@ -1,3 +1,4 @@
+import sqlalchemy
 import datetime
 
 from flask_restx import Namespace, Resource
@@ -20,7 +21,11 @@ def get_belts():
 
     for n,(color,dojo_id) in enumerate(BELT_REQUIREMENTS.items()):
         result["dates"][color] = {}
-        dojo = Dojos.query.filter_by(id=dojo_id).first()
+        try:
+            dojo = Dojos.query.filter_by(id=dojo_id).first()
+        except sqlalchemy.exc.NoResultsFound:
+            # We are likely missing the correct dojos in the DB (e.g., custom deployment)
+            break
 
         for user,date in dojo.completions():
             if result["users"].get(user.id, {"rank_id":-1})["rank_id"] != n-1:
