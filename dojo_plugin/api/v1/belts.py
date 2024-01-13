@@ -4,7 +4,8 @@ from flask_restx import Namespace, Resource
 from CTFd.cache import cache
 from CTFd.models import db, Users, Solves
 
-from ...utils import belt_challenges
+from ...models import Dojos
+from ...utils.dojo import BELT_REQUIREMENTS
 
 
 belts_namespace = Namespace("belts", description="Endpoint to manage belts")
@@ -17,32 +18,19 @@ def get_belts():
         "users": {},
     }
 
-    for color, challenges in belt_challenges().items():
+    for n,(color,dojo_id) in enumerate(BELT_REQUIREMENTS.items()):
         result["dates"][color] = {}
+        dojo = Dojos.query.filter_by(id=dojo_id).first()
 
-        belted_users = (
-            db.session.query(Users.id, Users.name, db.func.max(Solves.date))
-            .join(Solves, Users.id == Solves.user_id)
-            .filter(Solves.challenge_id.in_(challenges.subquery()))
-            .group_by(Users.id)
-            .having(db.func.count() == challenges.count())
-            .order_by(db.func.max(Solves.date))
-        )
-
-        for user_id, handle, date in belted_users:
-            result["dates"][color][user_id] = str(date)
-            result["users"][user_id] = {
-                "handle": handle,
+        for user,date in dojo.completions():
+            if result["users"].get(user.id, {"rank_id":-1})["rank_id"] != n-1:
+                continue
+            result["dates"][color][user.id] = str(date)
+            result["users"][user.id] = {
+                "handle": user.name,
                 "color": color,
+                "rank_id": n,
             }
-
-    # TODO: support belt deadlines
-    for user_id, belt in list(result["users"].items()):
-        if belt["color"] == "yellow":
-            received = datetime.datetime.fromisoformat(result["dates"]["yellow"][user_id])
-            if received > datetime.datetime.fromisoformat("2022-10-01"):
-                del result["users"][user_id]
-                del result["dates"]["yellow"][user_id]
 
     return result
 
