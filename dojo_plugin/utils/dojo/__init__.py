@@ -399,10 +399,10 @@ def get_current_dojo_challenge(user=None):
     )
 
 BELT_REQUIREMENTS = {
-    "orange": ["intro-to-cybersecurity"],
-    "yellow": ["program-security"],
-    "green": ["system-security"],
-    "blue": ["software-exploitation"],
+    "orange": "intro-to-cybersecurity",
+    "yellow": "program-security",
+    "green": "system-security",
+    "blue": "software-exploitation",
 }
 
 def get_user_belts(user):

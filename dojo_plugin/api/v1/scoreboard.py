@@ -18,7 +18,7 @@ from sqlalchemy import event
 from sqlalchemy.orm.session import Session
 
 from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities
-from ...utils import dojo_standings, dojo_completions, user_dojos, first_bloods, daily_solve_counts
+from ...utils import dojo_standings, user_dojos, first_bloods, daily_solve_counts
 from ...utils.dojo import dojo_route, dojo_accessible
 from .belts import get_belts
 

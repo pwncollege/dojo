@@ -238,35 +238,6 @@ def load_dojo(dojo_id, dojo_spec, user=None, dojo_dir=None, commit=True, log=log
         db.session.rollback()
 
 
-def dojo_completions():
-    all_solves = (
-        db.session.query(DojoChallenges.dojo_id.label("dojo_id"))
-        .join(Solves, DojoChallenges.challenge_id == Solves.challenge_id)
-        .add_columns(
-            db.func.count(Solves.id).label("solves"),
-            Solves.user_id,
-            db.func.max(Solves.date).label("last_solve"),
-            db.func.min(Solves.date).label("first_solve"),
-        )
-        .group_by(Solves.user_id, DojoChallenges.dojo_id)
-        .order_by("last_solve")
-    ).all()
-    all_challenges = (
-        db.session.query(Dojos.id.label("dojo_id"))
-        .join(DojoChallenges, DojoChallenges.dojo_id == Dojos.id)
-        .add_columns(db.func.count(DojoChallenges.challenge_id).label("challenges"))
-        .group_by(Dojos.id)
-    ).all()
-
-    chal_counts = { d.dojo_id: d.challenges for d in all_challenges }
-    completions = { }
-    for s in all_solves:
-        if s.solves == chal_counts[s.dojo_id]:
-            completions.setdefault(s.user_id, []).append({
-                "dojo": s.dojo_id, "last_solve": s.last_solve, "first_solve": s.first_solve
-            })
-    return completions
-
 def first_bloods():
     first_blood_string = db.func.min(Solves.date.cast(String)+"|"+Solves.user_id.cast(String))
     first_blood_query = (
@@ -294,46 +265,6 @@ def daily_solve_counts():
         .group_by("year", "month", "day", Solves.user_id)
     ).all()
     return counts
-
-
-def belt_challenges():
-    # TODO: move this concept into dojo yml
-
-    yellow_categories = [
-        "embryoio",
-        "babysuid",
-        "embryoasm",
-        "babyshell",
-        "babyjail",
-        "embryogdb",
-        "babyrev",
-        "babymem",
-        "toddlerone",
-    ]
-
-    blue_categories = [
-        *yellow_categories,
-        "babyrop",
-        "babyheap",
-        "babyrace",
-        "babykernel",
-        "toddlertwo",
-    ]
-
-    color_categories = {
-        "yellow": yellow_categories,
-        "blue": blue_categories,
-    }
-
-    return {
-        color: db.session.query(Challenges.id).filter(
-            Challenges.state == "visible",
-            Challenges.value > 0,
-            Challenges.id < 1000,
-            Challenges.category.in_(categories),
-        )
-        for color, categories in color_categories.items()
-    }
 
 # based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
 class ListHandler(logging.Handler): # Inherit from logging.Handler
