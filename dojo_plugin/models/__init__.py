@@ -194,6 +194,12 @@ class Dojos(db.Model):
     def solves(self, **kwargs):
         return DojoChallenges.solves(dojo=self, **kwargs)
 
+    def completers(self):
+        sq = Solves.query.join(DojoChallenges, Solves.challenge_id == DojoChallenges.challenge_id).add_columns(
+            Solves.user_id.label("solve_user_id"), db.func.count().label("solve_count"), db.func.max(Solves.date).label("last_solve")
+        ).filter(DojoChallenges.dojo == self).group_by(Solves.user_id).subquery()
+        return Users.query.join(sq).filter_by(solve_count=len(self.challenges)).order_by(sq.columns.last_solve).all()
+
     def completed(self, user):
         return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len(self.challenges)
 
