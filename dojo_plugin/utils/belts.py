@@ -1,4 +1,5 @@
 from CTFd.cache import cache
+from flask import url_for
 from ..models import Dojos
 
 
@@ -8,6 +9,10 @@ BELT_REQUIREMENTS = {
     "green": "system-security",
     "blue": "software-exploitation",
 }
+
+def belt_asset(color):
+    belt = color + ".svg" if color in BELT_REQUIREMENTS else "white.svg"
+    return url_for("views.themes", path=f"img/dojo/{belt}")
 
 def get_user_belts(user):
     result = [ ]

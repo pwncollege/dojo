@@ -20,7 +20,7 @@ from sqlalchemy.orm.session import Session
 from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities
 from ...utils import dojo_standings, user_dojos, first_bloods, daily_solve_counts
 from ...utils.dojo import dojo_route, dojo_accessible
-from ...utils.belts import get_belts
+from ...utils.belts import get_belts, belt_asset
 
 SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
 scoreboard_namespace = Namespace("scoreboard")
@@ -33,18 +33,6 @@ def email_symbol_asset(email):
     else:
         group = "hacker.png"
     return url_for("views.themes", path=f"img/dojo/{group}")
-
-
-def belt_asset(color):
-    if color == "black":
-        belt = "black.svg"
-    elif color == "blue":
-        belt = "blue.svg"
-    elif color == "yellow":
-        belt = "yellow.svg"
-    else:
-        belt = "white.svg"
-    return url_for("views.themes", path=f"img/dojo/{belt}")
 
 @cache.memoize(timeout=SCOREBOARD_CACHE_TIMEOUT_SECONDS)
 def get_scoreboard_for(model, duration):
