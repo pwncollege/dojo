@@ -397,19 +397,3 @@ def get_current_dojo_challenge(user=None):
                 DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first())
         .first()
     )
-
-BELT_REQUIREMENTS = {
-    "orange": "intro-to-cybersecurity",
-    "yellow": "program-security",
-    "green": "system-security",
-    "blue": "software-exploitation",
-}
-
-def get_user_belts(user):
-    result = [ ]
-    for belt, dojo_id in BELT_REQUIREMENTS.items():
-        dojo = Dojos.query.filter(Dojos.official, Dojos.id == dojo_id).one()
-        if not dojo.completed(user):
-            break
-        result.append(belt.title() + " Belt")
-    return result

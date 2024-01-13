@@ -1,43 +1,8 @@
-import sqlalchemy
-import datetime
-
 from flask_restx import Namespace, Resource
-from CTFd.cache import cache
-from CTFd.models import db, Users, Solves
 
-from ...models import Dojos
-from ...utils.dojo import BELT_REQUIREMENTS
-
+from ...utils.belts import get_belts
 
 belts_namespace = Namespace("belts", description="Endpoint to manage belts")
-
-
-@cache.memoize(timeout=60)
-def get_belts():
-    result = {
-        "dates": {},
-        "users": {},
-    }
-
-    for n,(color,dojo_id) in enumerate(BELT_REQUIREMENTS.items()):
-        dojo = Dojos.query.filter_by(id=dojo_id).first()
-        if not dojo:
-            # We are likely missing the correct dojos in the DB (e.g., custom deployment)
-            break
-
-        result["dates"][color] = {}
-
-        for user,date in dojo.completions():
-            if result["users"].get(user.id, {"rank_id":-1})["rank_id"] != n-1:
-                continue
-            result["dates"][color][user.id] = str(date)
-            result["users"][user.id] = {
-                "handle": user.name,
-                "color": color,
-                "rank_id": n,
-            }
-
-    return result
 
 
 @belts_namespace.route("")
