@@ -1,6 +1,7 @@
 import datetime
 
 from CTFd.cache import cache
+from CTFd.models import Awards
 from flask import url_for
 from ..models import Dojos
 
@@ -43,9 +44,18 @@ def get_belts():
         result["dates"][color] = {}
         result["ranks"][color] = []
 
-        for user,date in dojo.completions():
-            if date > CUMULATIVE_CUTOFF and result["users"].get(user.id, {"rank_id":-1})["rank_id"] != n-1:
+        belt_awards = [ (award.user, award.date) for award in Awards.query.filter_by(name="BELT_"+color.upper()) ]
+        awarded_ids = set(u.id for u,_ in belt_awards)
+        sorted_belts = sorted(belt_awards + dojo.completions(), key=lambda d: d[1])
+
+        for user,date in sorted_belts:
+            if (
+                date > CUMULATIVE_CUTOFF and
+                user.id not in awarded_ids and
+                result["users"].get(user.id, {"rank_id":-1})["rank_id"] != n-1
+            ):
                 continue
+
             result["dates"][color][user.id] = str(date)
             result["users"][user.id] = {
                 "handle": user.name,
