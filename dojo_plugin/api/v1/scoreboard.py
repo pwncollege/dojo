@@ -95,6 +95,7 @@ def hook_object_update(mapper, connection, target):
         invalidate_scoreboard_cache()
 
 def get_scoreboard_page(model, duration=None, page=1, per_page=20):
+    belt_data = get_belts()
     results = get_scoreboard_for(model, duration)
 
     start_idx = (page - 1) * per_page
@@ -107,7 +108,7 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
         result = {key: item[key] for key in item.keys()}
         result["url"] = url_for("pwncollege_users.view_other", user_id=result["user_id"])
         result["symbol"] = email_symbol_asset(result.pop("email"))
-        result["belt"] = belt_asset(None)  # TODO
+        result["belt"] = belt_asset(belt_data["users"].get(result["user_id"], {"color":None})["color"])
         result["badges"] = []  # TODO
         return result
 
