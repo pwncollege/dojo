@@ -1,8 +1,11 @@
+import datetime
+
 from CTFd.cache import cache
 from flask import url_for
 from ..models import Dojos
 
 
+CUMULATIVE_CUTOFF = datetime.datetime(2023, 10, 1)
 BELT_REQUIREMENTS = {
     "orange": "intro-to-cybersecurity",
     "yellow": "program-security",
@@ -41,7 +44,7 @@ def get_belts():
         result["ranks"][color] = []
 
         for user,date in dojo.completions():
-            if result["users"].get(user.id, {"rank_id":-1})["rank_id"] != n-1:
+            if date > CUMULATIVE_CUTOFF and result["users"].get(user.id, {"rank_id":-1})["rank_id"] != n-1:
                 continue
             result["dates"][color][user.id] = str(date)
             result["users"][user.id] = {
