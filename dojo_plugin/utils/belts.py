@@ -23,6 +23,7 @@ def get_belts():
     result = {
         "dates": {},
         "users": {},
+        "ranks": {},
     }
 
     for n,(color,dojo_id) in enumerate(BELT_REQUIREMENTS.items()):
@@ -32,6 +33,7 @@ def get_belts():
             break
 
         result["dates"][color] = {}
+        result["ranks"][color] = []
 
         for user,date in dojo.completions():
             if result["users"].get(user.id, {"rank_id":-1})["rank_id"] != n-1:
@@ -39,10 +41,13 @@ def get_belts():
             result["dates"][color][user.id] = str(date)
             result["users"][user.id] = {
                 "handle": user.name,
+                "site": user.website,
                 "color": color,
+                "date": str(date),
                 "rank_id": n,
             }
 
+    for user_id in result["users"]:
+        result["ranks"][result["users"][user_id]["color"]].append(user_id)
+
     return result
-
-
