@@ -398,17 +398,18 @@ def get_current_dojo_challenge(user=None):
         .first()
     )
 
+BELT_REQUIREMENTS = {
+    "orange": ["intro-to-cybersecurity"],
+    "yellow": ["program-security"],
+    "green": ["system-security"],
+    "blue": ["software-exploitation"],
+}
 
 def get_user_belts(user):
-    belts = {
-        "Orange Belt": ["intro-to-cybersecurity"],
-        "Yellow Belt": ["intro-to-cybersecurity", "program-security"],
-        "Green Belt": ["intro-to-cybersecurity", "program-security", "system-security"],
-        "Blue Belt": ["intro-to-cybersecurity", "program-security", "system-security", "software-exploitation"],
-    }
-    result = []
-    for belt, dojo_ids in belts.items():
-        dojos = Dojos.query.filter(Dojos.official, Dojos.id.in_(dojo_ids))
-        if all(dojo.completed(user) for dojo in dojos):
-            result.append(belt)
+    result = [ ]
+    for belt, dojo_id in BELT_REQUIREMENTS.items():
+        dojo = Dojos.query.filter(Dojos.official, Dojos.id == dojo_id).one()
+        if not dojo.completed(user):
+            break
+        result.append(belt.title() + " Belt")
     return result
