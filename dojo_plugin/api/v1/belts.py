@@ -20,12 +20,12 @@ def get_belts():
     }
 
     for n,(color,dojo_id) in enumerate(BELT_REQUIREMENTS.items()):
-        result["dates"][color] = {}
-        try:
-            dojo = Dojos.query.filter_by(id=dojo_id).first()
-        except sqlalchemy.exc.NoResultsFound:
+        dojo = Dojos.query.filter_by(id=dojo_id).first()
+        if not dojo:
             # We are likely missing the correct dojos in the DB (e.g., custom deployment)
             break
+
+        result["dates"][color] = {}
 
         for user,date in dojo.completions():
             if result["users"].get(user.id, {"rank_id":-1})["rank_id"] != n-1:
