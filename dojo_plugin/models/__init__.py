@@ -20,7 +20,7 @@ from sqlalchemy.orm.session import object_session
 from sqlalchemy.sql import or_, and_
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy.ext.associationproxy import association_proxy
-from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, Users, Admins
+from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, Users, Admins, Awards
 from CTFd.utils.user import get_current_user, is_admin
 
 from ..config import DOJOS_DIR
@@ -652,3 +652,6 @@ class DiscordUsers(db.Model):
     user = db.relationship("Users")
 
     __repr__ = columns_repr(["user", "discord_id"])
+
+class Belts(Awards):
+    __mapper_args__ = {"polymorphic_identity": "belt"}
