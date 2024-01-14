@@ -23,7 +23,7 @@ def get_user_belts(user):
         dojo = Dojos.query.filter(Dojos.official, Dojos.id == dojo_id).one()
         if not dojo.completed(user):
             break
-        result.append(belt.title() + " Belt")
+        result.append(belt)
     return result
 
 @cache.memoize(timeout=60)
