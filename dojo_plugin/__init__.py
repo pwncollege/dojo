@@ -45,7 +45,7 @@ class DojoChallenge(BaseChallenge):
 
         current_belts = get_user_belts(user)
         for belt in current_belts:
-            belt_award = Belts.query.filter_by(user=user, name=belt).one()
+            belt_award = Belts.query.filter_by(user=user, name=belt).first()
             if belt_award:
                 continue
             db.session.add(Belts(user=user, name=belt))
