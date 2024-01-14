@@ -20,7 +20,10 @@ def belt_asset(color):
 def get_user_belts(user):
     result = [ ]
     for belt, dojo_id in BELT_REQUIREMENTS.items():
-        dojo = Dojos.query.filter(Dojos.official, Dojos.id == dojo_id).one()
+        dojo = Dojos.query.filter(Dojos.official, Dojos.id == dojo_id).first()
+        if not dojo:
+            # We are likely missing the correct dojos in the DB (e.g., custom deployment)
+            break
         if not dojo.completed(user):
             break
         result.append(belt)
