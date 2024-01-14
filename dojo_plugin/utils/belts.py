@@ -1,9 +1,8 @@
 import datetime
 
 from CTFd.cache import cache
-from CTFd.models import Awards
 from flask import url_for
-from ..models import Dojos
+from ..models import Dojos, Belts
 
 
 CUMULATIVE_CUTOFF = datetime.datetime(2023, 10, 1)
@@ -44,7 +43,7 @@ def get_belts():
         result["dates"][color] = {}
         result["ranks"][color] = []
 
-        belt_awards = [ (award.user, award.date) for award in Awards.query.filter_by(name="BELT_"+color.upper()) ]
+        belt_awards = [ (award.user, award.date) for award in Belts.query.filter_by(name=color) ]
         awarded_ids = set(u.id for u,_ in belt_awards)
         sorted_belts = sorted(belt_awards + dojo.completions(), key=lambda d: d[1])
 
