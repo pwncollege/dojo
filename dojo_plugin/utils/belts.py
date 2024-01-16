@@ -58,4 +58,7 @@ def get_belts():
     for user_id in result["users"]:
         result["ranks"][result["users"][user_id]["color"]].append(user_id)
 
+    for rank in result["ranks"].values():
+        rank.sort(key=lambda uid: result["users"][uid]["date"])
+
     return result

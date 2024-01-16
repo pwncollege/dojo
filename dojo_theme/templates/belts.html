@@ -43,7 +43,7 @@
     </p>
 
     <ul style="list-style-image: url({{ url_for("views.themes", path="img/dojo/" + belt_color + ".svg") }})">
-      {% for user_id in belt_data.ranks[belt_color]|sort(attribute='date') %}
+      {% for user_id in belt_data.ranks[belt_color] %}
       {% set user = belt_data.users[user_id] %}
       <li>
         <a href="{{ url_for("pwncollege_users.view_other", user_id=user_id) }}"><raw>{{ user.handle }}</raw></a>
