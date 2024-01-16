@@ -5,7 +5,6 @@ from flask import url_for
 from ..models import Dojos, Belts
 
 
-CUMULATIVE_CUTOFF = datetime.datetime(2023, 10, 1)
 BELT_REQUIREMENTS = {
     "orange": "intro-to-cybersecurity",
     "yellow": "program-security",
@@ -46,24 +45,13 @@ def get_belts():
         result["dates"][color] = {}
         result["ranks"][color] = []
 
-        belt_awards = [ (award.user, award.date) for award in Belts.query.filter_by(name=color) ]
-        awarded_ids = set(u.id for u,_ in belt_awards)
-        sorted_belts = sorted(belt_awards + dojo.completions(), key=lambda d: d[1])
-
-        for user,date in sorted_belts:
-            if (
-                date > CUMULATIVE_CUTOFF and
-                user.id not in awarded_ids and
-                result["users"].get(user.id, {"rank_id":-1})["rank_id"] != n-1
-            ):
-                continue
-
-            result["dates"][color][user.id] = str(date)
-            result["users"][user.id] = {
-                "handle": user.name,
-                "site": user.website,
+        for belt in Belts.query.filter_by(name=color).order_by(Belts.date):
+            result["dates"][color][belt.user.id] = str(belt.date)
+            result["users"][belt.user.id] = {
+                "handle": belt.user.name,
+                "site": belt.user.website,
                 "color": color,
-                "date": str(date),
+                "date": str(belt.date),
                 "rank_id": n,
             }
 
