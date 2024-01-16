@@ -162,13 +162,13 @@ RUN <<EOF
 EOF
 
 RUN <<EOF
-    git clone --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
+    git clone --depth 1 --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
     cd /opt/pwndbg
     ./setup.sh
     ln -sf /home/hacker/.gdbinit /root/.gdbinit
 
-    git clone https://github.com/hugsy/gef /opt/gef
-    git clone https://github.com/jerdna-regeiz/splitmind /opt/splitmind
+    git clone --depth 1 https://github.com/hugsy/gef /opt/gef
+    git clone --depth 1 https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 EOF
 
 ################################################################################
@@ -205,7 +205,7 @@ RUN chmod +x rg
 
 FROM builder as builder-tcpdump
 RUN <<EOF
-    git clone https://github.com/the-tcpdump-group/tcpdump /opt/tcpdump
+    git clone --depth 1 https://github.com/the-tcpdump-group/tcpdump /opt/tcpdump
     cd /opt/tcpdump
     ./autogen.sh
     ./configure
@@ -214,7 +214,7 @@ EOF
 
 FROM builder as builder-capstone
 RUN <<EOF
-    git clone https://github.com/capstone-engine/capstone /opt/capstone
+    git clone --depth 1 https://github.com/capstone-engine/capstone /opt/capstone
     cd /opt/capstone
     make
     make install
@@ -222,14 +222,14 @@ EOF
 
 FROM builder as builder-radare2
 RUN <<EOF
-    git clone https://github.com/radareorg/radare2 /opt/radare2
+    git clone --depth 1 https://github.com/radareorg/radare2 /opt/radare2
     cd /opt/radare2
     sys/install.sh
 EOF
 
 FROM builder as builder-aflplusplus
 RUN <<EOF
-    git clone https://github.com/aflplusplus/aflplusplus /opt/aflplusplus
+    git clone --depth 1 https://github.com/aflplusplus/aflplusplus /opt/aflplusplus
     cd /opt/aflplusplus
     make distrib
     make install
@@ -237,7 +237,7 @@ EOF
 
 FROM builder as builder-rappel
 RUN <<EOF
-    git clone https://github.com/yrp604/rappel /opt/rappel
+    git clone --depth 1 https://github.com/yrp604/rappel /opt/rappel
     cd /opt/rappel
     make
     cp bin/rappel /usr/bin/rappel
