@@ -301,3 +301,12 @@ hr {
 .module-dojo a {
     color: #b5e853 !important;
 }
+
+.module-checkpoint-due-date, .module-due-date {
+    font-size: 1.25em;
+}
+
+.module-checkpoint-due-date a, .module-due-date a {
+    color: rgb(234, 234, 234) !important;
+}
+
