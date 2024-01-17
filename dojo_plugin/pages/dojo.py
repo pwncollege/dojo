@@ -11,7 +11,7 @@ from CTFd.cache import cache
 
 from ..utils import render_markdown, module_visible, module_challenges_visible, is_dojo_admin
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
-from ..models import Dojos, DojoUsers
+from ..models import Dojos, DojoUsers, DojoStudents
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 
@@ -72,7 +72,20 @@ def view_module(dojo, module):
     total_solves = dict(module.solves()
                         .group_by(Solves.challenge_id)
                         .with_entities(Solves.challenge_id, db.func.count()))
+
     current_dojo_challenge = get_current_dojo_challenge()
+    requested_types = ['checkpoint', 'due']
+    due_info = {}
+    now = datetime.datetime.now().astimezone()
+    student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
+    if (student and student.official) or user.type == 'admin':
+        assessments = {assessment['type']: assessment for assessment in module.assessments}
+        for requested in requested_types:
+            if requested in assessments:
+                due_date = datetime.datetime.fromisoformat(assessments[requested]['date'])
+                delta = due_date - now
+                show = due_date > now
+                due_info[requested] = dict(due_date=due_date, delta=delta, show=show)
     return render_template(
         "module.html",
         dojo=dojo,
@@ -81,5 +94,6 @@ def view_module(dojo, module):
         user_solves=user_solves,
         total_solves=total_solves,
         user=user,
+        due_info=due_info,
         current_dojo_challenge=current_dojo_challenge,
     )
