@@ -23,6 +23,10 @@ a {
     text-shadow: 0 0 5px rgba(104,182,255,0.15);
 }
 
+a:hover {
+    text-decoration: none;
+}
+
 nav {
     border-bottom: 1px dashed #b5e853;
 }
