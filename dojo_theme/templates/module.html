@@ -14,13 +14,6 @@
     <h3 class="module-due-date" title="{{ assessment.date }}">{{ assessment.name }} in {{ assessment.until }}</h3>
     {% endfor %}
     {% endif %}
-
-    {% if due_info.checkpoint and due_info.checkpoint.show %}
-    <h3 class="module-checkpoint-due-date"><a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{module.dojo.name }}+{{ module.name }}+Checkpoint+Due&iso={{ due_info.checkpoint.due_date.isoformat() }}">Checkpoint due in {{due_info.checkpoint.delta.days}} days {{due_info.checkpoint.delta.seconds//3600}} hours</a></h3>
-    {% endif %}
-    {% if due_info.due and due_info.due.show %}
-    <h3 class="module-due-date"><a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{module.dojo.name }}+{{ module.name }}+Module+Due+Date&iso={{ due_info.due.due_date.isoformat() }}">Module due in {{due_info.due.delta.days}} days {{due_info.due.delta.seconds//3600}} hours</a></h3>
-    {% endif %}
   </div>
 </div>
 <div class="container">
