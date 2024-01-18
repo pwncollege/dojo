@@ -8,7 +8,7 @@
     <br>
     <h2 class="module-dojo"><a href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.name }}</a></h2>
 
-    {% if assessment %}
+    {% if assessments %}
     <br>
     {% for assessment in assessments %}
     <h3 class="module-due-date" title="{{ assessment.date }}">{{ assessment.name }} in {{ assessment.until }}</h3>
