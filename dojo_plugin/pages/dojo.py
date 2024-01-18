@@ -72,20 +72,30 @@ def view_module(dojo, module):
     total_solves = dict(module.solves()
                         .group_by(Solves.challenge_id)
                         .with_entities(Solves.challenge_id, db.func.count()))
-
     current_dojo_challenge = get_current_dojo_challenge()
-    requested_types = ['checkpoint', 'due']
-    due_info = {}
-    now = datetime.datetime.now().astimezone()
+
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
-    if (student and student.official) or user.type == 'admin':
-        assessments = {assessment['type']: assessment for assessment in module.assessments}
-        for requested in requested_types:
-            if requested in assessments:
-                due_date = datetime.datetime.fromisoformat(assessments[requested]['date'])
-                delta = due_date - now
-                show = due_date > now
-                due_info[requested] = dict(due_date=due_date, delta=delta, show=show)
+    assessments = []
+    if student or dojo.is_admin(user):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        for assessment in module.assessments:
+            date = datetime.datetime.fromisoformat(assessment["date"])
+            until = date.astimezone(datetime.timezone.utc) - now
+            if until < datetime.timedelta(0):
+                continue
+            date = str(date)
+            until = " ".join(
+                f"{count} {unit}{'s' if count != 1 else ''}" for count, unit in zip(
+                    (until.days, *divmod(until.seconds // 60, 60)),
+                    ("day", "hour", "minute")
+                ) if count
+            ) or "now"
+            assessments.append(dict(
+                name=assessment["type"].title(),
+                date=date,
+                until=until,
+            ))
+
     return render_template(
         "module.html",
         dojo=dojo,
@@ -94,6 +104,6 @@ def view_module(dojo, module):
         user_solves=user_solves,
         total_solves=total_solves,
         user=user,
-        due_info=due_info,
         current_dojo_challenge=current_dojo_challenge,
+        assessments=assessments,
     )

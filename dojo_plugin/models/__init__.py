@@ -352,10 +352,7 @@ class DojoModules(db.Model):
 
     @property
     def assessments(self):
-        course_assessments = (self.dojo.course or {}).get("assessments", [])
-        to_return = [assessment for assessment in course_assessments if assessment.get('id', None) == self.id]
-        return to_return
-
+        return [assessment for assessment in (self.dojo.course or {}).get("assessments", []) if assessment.get("id") == self.id]
 
     def visible_challenges(self, user=None):
         return [challenge for challenge in self.challenges if challenge.visible() or self.dojo.is_admin(user=user)]

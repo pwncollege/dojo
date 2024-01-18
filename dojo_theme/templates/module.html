@@ -4,9 +4,17 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1>{{ module.name }}<h1>
+    <h1>{{ module.name }}</h1>
     <br>
-    <h2 class="module-dojo"><a href="{{ url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id) }}">{{ dojo.name }}</a></h2>
+    <h2 class="module-dojo"><a href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.name }}</a></h2>
+
+    {% if assessment %}
+    <br>
+    {% for assessment in assessments %}
+    <h3 class="module-due-date" title="{{ assessment.date }}">{{ assessment.name }} in {{ assessment.until }}</h3>
+    {% endfor %}
+    {% endif %}
+
     {% if due_info.checkpoint and due_info.checkpoint.show %}
     <h3 class="module-checkpoint-due-date"><a href="https://www.timeanddate.com/worldclock/fixedtime.html?msg={{module.dojo.name }}+{{ module.name }}+Checkpoint+Due&iso={{ due_info.checkpoint.due_date.isoformat() }}">Checkpoint due in {{due_info.checkpoint.delta.days}} days {{due_info.checkpoint.delta.seconds//3600}} hours</a></h3>
     {% endif %}
