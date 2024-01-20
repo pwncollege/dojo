@@ -20,7 +20,7 @@ from sqlalchemy.orm.session import Session
 from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities
 from ...utils import dojo_standings, user_dojos, first_bloods, daily_solve_counts
 from ...utils.dojo import dojo_route, dojo_accessible
-from ...utils.belts import get_belts, belt_asset
+from ...utils.awards import get_belts, belt_asset
 
 SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
 scoreboard_namespace = Namespace("scoreboard")

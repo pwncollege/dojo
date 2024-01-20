@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template
-from ..utils.belts import get_belts
+from ..utils.awards import get_belts
 
 belts = Blueprint("pwncollege_belts", __name__)
 
