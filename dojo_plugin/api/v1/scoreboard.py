@@ -17,7 +17,7 @@ from CTFd.utils.modes import get_model, generate_account_url
 from sqlalchemy import event
 from sqlalchemy.orm.session import Session
 
-from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities
+from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities, Emojis
 from ...utils import dojo_standings, user_dojos, first_bloods, daily_solve_counts
 from ...utils.dojo import dojo_route, dojo_accessible
 from ...utils.awards import get_belts, belt_asset
@@ -89,6 +89,20 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     start_idx = (page - 1) * per_page
     end_idx = start_idx + per_page
     pagination = Pagination(None, page, per_page, len(results), results[start_idx:end_idx])
+    user = get_current_user()
+
+    viewable_dojos = { dojo.reference_id for dojo in Dojos.viewable(user=user) }
+    emojis = { }
+    for emoji in Emojis.query.order_by(Emojis.date).all():
+        if emoji.category not in viewable_dojos:
+            continue
+
+        emojis.setdefault(emoji.user.id, []).append({
+            "text": emoji.description,
+            "emoji": emoji.name,
+            "count": 1,
+            "url": url_for("pwncollege_dojo.listing", dojo=emoji.category)
+        })
 
     def standing(item):
         if not item:
@@ -97,7 +111,7 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
         result["url"] = url_for("pwncollege_users.view_other", user_id=result["user_id"])
         result["symbol"] = email_symbol_asset(result.pop("email"))
         result["belt"] = belt_asset(belt_data["users"].get(result["user_id"], {"color":None})["color"])
-        result["badges"] = []  # TODO
+        result["badges"] = emojis.get(result["user_id"], [])
         return result
 
     result = {
@@ -106,7 +120,6 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
 
     pages = set(page for page in pagination.iter_pages() if page)
 
-    user = get_current_user()
     if user and not user.hidden:
         me = None
         for r in results:
