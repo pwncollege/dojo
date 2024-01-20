@@ -40,7 +40,7 @@ def get_user_emojis(user):
         if not emoji:
             continue
         if dojo.completed(user):
-            emojis.append(emoji)
+            emojis.append((emoji, dojo.name, dojo.reference_id))
     return emojis
 
 def get_belts():
@@ -87,9 +87,10 @@ def update_awards(user):
         db.session.commit()
 
     current_emojis = get_user_emojis(user)
-    for emoji in current_emojis:
-        emoji_award = Emojis.query.filter_by(user=user, name=emoji).first()
+    for emoji,dojo_name,dojo_id in current_emojis:
+        # note: the category filter is critical, since SQL seems to be unable to query by emoji!
+        emoji_award = Emojis.query.filter_by(user=user, name=emoji, category=dojo_id).first()
         if emoji_award:
             continue
-        db.session.add(Emojis(user=user, name=emoji))
+        db.session.add(Emojis(user=user, name=emoji, description=f"Awarded for completing the {dojo_name} dojo.", category=dojo_id))
         db.session.commit()
