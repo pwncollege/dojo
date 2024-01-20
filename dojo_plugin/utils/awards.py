@@ -38,7 +38,6 @@ def get_user_emojis(user):
             emojis.append(emoji)
     return emojis
 
-@cache.memoize(timeout=60)
 def get_belts():
     result = {
         "dates": {},
