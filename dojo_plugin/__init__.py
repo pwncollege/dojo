@@ -19,7 +19,7 @@ from .models import Dojos, DojoChallenges, Belts, Emojis
 from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
 from .utils.discord import get_discord_user, get_discord_roles, add_role, send_message
-from .utils.awards import get_user_belts, get_user_emoji
+from .utils.awards import update_awards, get_user_belts
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
@@ -42,27 +42,13 @@ class DojoChallenge(BaseChallenge):
     @classmethod
     def solve(cls, user, team, challenge, request):
         super().solve(user, team, challenge, request)
-
-        current_belts = get_user_belts(user)
-        for belt in current_belts:
-            belt_award = Belts.query.filter_by(user=user, name=belt).first()
-            if belt_award:
-                continue
-            db.session.add(Belts(user=user, name=belt))
-            db.session.commit()
-
-        current_emojis = get_user_emojis(user)
-        for emoji in current_emojis:
-            emoji_award = Emojis.query.filter_by(user=user, name=emoji).first()
-            if emoji_award:
-                continue
-            db.session.add(Emojis(user=user, name=emoji))
-            db.session.commit()
+        update_awards(user)
 
         discord_user = get_discord_user(user.id)
         if not discord_user:
             return
 
+        current_belts = get_user_belts(user)
         discord_roles = get_discord_roles()
         for belt in current_belts:
             belt_role = belt.title() + " Belt"
