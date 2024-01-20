@@ -659,3 +659,6 @@ class DiscordUsers(db.Model):
 
 class Belts(Awards):
     __mapper_args__ = {"polymorphic_identity": "belt"}
+
+class Emojis(Awards):
+    __mapper_args__ = {"polymorphic_identity": "emoji"}

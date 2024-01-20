@@ -28,6 +28,16 @@ def get_user_belts(user):
         result.append(belt)
     return result
 
+def get_user_emojis(user):
+    emojis = [ ]
+    for dojo in Dojos.query.all():
+        emoji = dojo.award and dojo.award.get('emoji', None)
+        if not emoji:
+            continue
+        if dojo.completed(user):
+            emojis.append(emoji)
+    return emojis
+
 @cache.memoize(timeout=60)
 def get_belts():
     result = {
