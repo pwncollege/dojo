@@ -10,6 +10,13 @@
 <div class="container">
   {% for type, dojos in typed_dojos.items() %}
     <h2>{{ type | title }}</h2>
+    {% if type == "Topics" %}
+    <p>These dojos form the official the pwn.college curriculum. We recommend that you tackle them in order. Good luck!</p>
+    {% elif type == "Courses" %}
+    <p>We run a number of courses on this platform. For the most part, these courses import the above material, though some might introduce new concepts and challenges.</p>
+    {% elif type == "More" %}
+    <p>This section contains public dojos created by the pwn.college community. Completing these dojos will grant you emoji badges!</p>
+    {% endif %}
     <ul class="card-list">
       {% for dojo in dojos %}
       {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id),
