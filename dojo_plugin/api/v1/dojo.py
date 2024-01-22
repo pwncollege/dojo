@@ -91,7 +91,7 @@ class PromoteAdmin(Resource):
         if u:
             u.type = 'admin'
         else:
-            db.session.add(DojoAdmins(dojo=dojo, user_id=new_admin_id))
+            return {"success": False, "error": "User is not currently a dojo member."}, 400
         db.session.commit()
         return {"success": True}
 
