@@ -69,6 +69,13 @@ def random_user():
     yield random_id, session
 
 
+@pytest.fixture(scope="module")
+def singleton_user():
+    random_id = "".join(random.choices(string.ascii_lowercase, k=16))
+    session = login(random_id, random_id, register=True)
+    yield random_id, session
+
+
 @pytest.mark.parametrize("endpoint", ["/", "/dojos", "/login", "/register"])
 def test_unauthenticated_return_200(endpoint):
     response = requests.get(f"{PROTO}://{HOST}{endpoint}")
@@ -121,8 +128,8 @@ def test_start_challenge(admin_session):
     start_challenge("example", "hello", "apple", session=admin_session)
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
-def test_join_dojo(admin_session, random_user):
-    random_user_name, random_session = random_user
+def test_join_dojo(admin_session, singleton_user):
+    random_user_name, random_session = singleton_user
     response = random_session.get(f"{PROTO}://{HOST}/dojo/example/join/")
     assert response.status_code == 200
     response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
@@ -130,9 +137,8 @@ def test_join_dojo(admin_session, random_user):
     assert random_user_name in response.text and response.text.index("Members") < response.text.index(random_user_name)
 
 @pytest.mark.dependency(depends=["test_join_dojo"])
-def test_promote_dojo_member(admin_session, random_user):
-    test_join_dojo(admin_session, random_user)
-    random_user_name, _ = random_user
+def test_promote_dojo_member(admin_session, singleton_user):
+    random_user_name, _ = singleton_user
     random_user_id = get_user_id(random_user_name)
     response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/example/promote-admin", json={"user_id": random_user_id})
     assert response.status_code == 200
