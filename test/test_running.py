@@ -51,6 +51,10 @@ def start_challenge(dojo, module, challenge, practice=False, *, session):
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
 
+def get_user_id(user_name):
+    sql = f"SELECT id FROM users WHERE name = '{random_user_name}'"
+    db_result = dojo_run("db", input=sql)
+    return int(db_result.stdout.split()[1])
 
 @pytest.fixture
 def admin_session():
@@ -127,12 +131,10 @@ def test_join_dojo(admin_session, random_user):
 
 @pytest.mark.dependency(depends=["test_join_dojo"])
 def test_promote_dojo_member(admin_session, random_user):
+    test_join_dojo(admin_session, random_user)
     random_user_name, _ = random_user
-    sql = f"SELECT id FROM users WHERE name = '{random_user_name}'"
-    db_result = dojo_run("db", input=sql)
-    random_user_id = int(db_result.stdout.split()[1])
+    random_user_id = get_user_id(random_user_name)
     response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/example/promote-admin", json={"user_id": random_user_id})
-    print(response.text, f"{random_user_id=}")
     assert response.status_code == 200
     response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
