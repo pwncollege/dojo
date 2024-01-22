@@ -123,7 +123,6 @@ def test_join_dojo(admin_session, random_user):
     assert response.status_code == 200
     response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
     assert response.status_code == 200
-    print(response.text)
     assert random_user_name in response.text and response.text.index("Members") < response.text.index(random_user_name)
     sql = f"SELECT id FROM users WHERE name = '{random_user_name}'"
     db_result = dojo_run("db", input=sql)
