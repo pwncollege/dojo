@@ -132,6 +132,7 @@ def test_promote_dojo_member(admin_session, random_user):
     db_result = dojo_run("db", input=sql)
     random_user_id = int(db_result.stdout.split()[1])
     response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/example/promote-admin", json={"user_id": random_user_id})
+    print(response.text, f"{random_user_id=}")
     assert response.status_code == 200
     response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
