@@ -62,11 +62,25 @@
         {% endfor %}
     </ul>
     <b style="font-family: 'Courier New', Courier, monospace">Members</b>
-    <ul>
+    <form method="post" id="dojo-promote-admin-form" autocomplete="off">
+      <div class="form-group">
         {% for member in dojo.members %}
-            <li>{{ member.user.name }}</li>
+        <input type="radio" id="{{ member.user.id }}" name="user_id" value="{{ member.user.id }}">
+        <label for="{{ member.user.id }}"><a href="{{ url_for('pwncollege_users.view_other', user_id=member.user.id) }}"><span id="name-for-{{member.user.id}}">{{ member.user.name }}</span></a></label>
+        <br>
         {% endfor %}
-    </ul>
+        <input class="btn btn-mini btn-primary" id="_submit" name="_submit" type="submit" value="Promote to Admin">
+      </div>
+      <div id="dojo-promote-admin-results" class="form-group">
+      </div>
+    </form>
 </div>
 {% endblock %}
 
+{% block entrypoint %}
+    <script defer src="{{ url_for('views.themes', path='js/pages/settings.js') }}"></script>
+{% endblock %}
+
+{% block scripts %}
+<script defer src="{{ url_for('views.themes', path='js/dojo/settings.js') }}"></script>
+{% endblock %}

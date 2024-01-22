@@ -21,7 +21,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
-from ...models import Dojos, DojoMembers, DojoAdmins
+from ...models import Dojos, DojoMembers, DojoAdmins, DojoUsers
 from ...utils.dojo import dojo_accessible, dojo_clone, load_dojo_dir, dojo_route
 
 
@@ -75,6 +75,25 @@ def create_dojo(user, repository, public_key, private_key):
 
     return {"success": True, "dojo": dojo.reference_id}
 
+@dojo_namespace.route("/<dojo>/promote-admin")
+class PromoteAdmin(Resource):
+    @authed_only
+    @dojo_route
+    def post(self, dojo):
+        data = request.get_json()
+        if 'user_id' not in data:
+            return {"success": False, "error": "User not specified."}, 400
+        new_admin_id = data['user_id']
+        user = get_current_user()
+        if not dojo.is_admin(user):
+            return {"success": False, "error": "Requestor is not a dojo admin."}, 403
+        u = DojoUsers.query.filter_by(dojo=dojo, user_id=new_admin_id).first()
+        if u:
+            u.type = 'admin'
+        else:
+            return {"success": False, "error": "User is not currently a dojo member."}, 400
+        db.session.commit()
+        return {"success": True}
 
 @dojo_namespace.route("/create")
 class CreateDojo(Resource):

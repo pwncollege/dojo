@@ -51,6 +51,10 @@ def start_challenge(dojo, module, challenge, practice=False, *, session):
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
 
+def get_user_id(user_name):
+    sql = f"SELECT id FROM users WHERE name = '{user_name}'"
+    db_result = dojo_run("db", input=sql)
+    return int(db_result.stdout.split()[1])
 
 @pytest.fixture
 def admin_session():
@@ -60,6 +64,13 @@ def admin_session():
 
 @pytest.fixture
 def random_user():
+    random_id = "".join(random.choices(string.ascii_lowercase, k=16))
+    session = login(random_id, random_id, register=True)
+    yield random_id, session
+
+
+@pytest.fixture(scope="module")
+def singleton_user():
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))
     session = login(random_id, random_id, register=True)
     yield random_id, session
@@ -116,6 +127,23 @@ def test_create_import_dojo(admin_session):
 def test_start_challenge(admin_session):
     start_challenge("example", "hello", "apple", session=admin_session)
 
+@pytest.mark.dependency(depends=["test_create_dojo"])
+def test_join_dojo(admin_session, singleton_user):
+    random_user_name, random_session = singleton_user
+    response = random_session.get(f"{PROTO}://{HOST}/dojo/example/join/")
+    assert response.status_code == 200
+    response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
+    assert response.status_code == 200
+    assert random_user_name in response.text and response.text.index("Members") < response.text.index(random_user_name)
+
+@pytest.mark.dependency(depends=["test_join_dojo"])
+def test_promote_dojo_member(admin_session, singleton_user):
+    random_user_name, _ = singleton_user
+    random_user_id = get_user_id(random_user_name)
+    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/example/promote-admin", json={"user_id": random_user_id})
+    assert response.status_code == 200
+    response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
+    assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
 @pytest.mark.parametrize("path", ["/flag", "/challenge/apple"])

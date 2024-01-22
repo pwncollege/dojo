@@ -12,13 +12,15 @@ var success_template =
     '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
     '</div>';
 
-function form_fetch_and_show(name, endpoint, method, success_message) {
+function form_fetch_and_show(name, endpoint, method, success_message, confirm_msg=null) {
     const form = $(`#${name}-form`);
     const results = $(`#${name}-results`);
     form.submit(e => {
         e.preventDefault();
         results.empty();
         const params = form.serializeJSON();
+
+        if (confirm_msg && !confirm(confirm_msg(form, params))) return;
 
         CTFd.fetch(endpoint, {
             method: method,
@@ -45,6 +47,10 @@ function form_fetch_and_show(name, endpoint, method, success_message) {
 $(() => {
     form_fetch_and_show("ssh-key", "/pwncollege_api/v1/ssh_key", "PATCH", "Your public key has been updated");
     form_fetch_and_show("dojo-create", "/pwncollege_api/v1/dojo/create", "POST", "Your dojo has been created");
+    form_fetch_and_show("dojo-promote-admin", `/pwncollege_api/v1/dojo/${init.dojo}/promote-admin`, "POST", "User has been promoted to admin.", confirm_msg = (form, params) => {
+        var user_name = form.find(`#name-for-${params["user_id"]}`)
+        return `Promote ${user_name.text()} (UID ${params["user_id"]}) to admin?`;
+    });
 
     $(".copy-button").click((event) => {
         let input = $(event.target).parents(".input-group").children("input")[0];
