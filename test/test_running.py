@@ -116,6 +116,21 @@ def test_create_import_dojo(admin_session):
 def test_start_challenge(admin_session):
     start_challenge("example", "hello", "apple", session=admin_session)
 
+@pytest.mark.dependency(depends=["test_create_dojo"])
+def test_join_dojo(admin_session, random_user):
+    random_user, random_session = random_user
+    response = random_session.get(f"{PROTO}://{HOST}/dojo/example/join/")
+    assert response.status_code == 200
+    response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
+    assert response.status_code == 200
+    assert random_user in response.content and response.content.index("Members") < response.content.index(random_user)
+    sql = f"SELECT id FROM users WHERE name = '{random_user}'"
+    db_result = dojo_run("db", input=sql)
+    id = int([ line for line in db_result.split(b"\n") if line.startswith(b"| ")][1].split()[1])
+    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/example/promote-admin", data={"user_id": random_user_id})
+    assert response.status_code == 200
+    response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
+    assert random_user in response.content and response.content.index("Members") > response.content.index(random_user)
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
 @pytest.mark.parametrize("path", ["/flag", "/challenge/apple"])
