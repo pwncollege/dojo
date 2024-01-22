@@ -77,6 +77,7 @@ def create_dojo(user, repository, public_key, private_key):
 
 @dojo_namespace.route("/<dojo>/promote-admin")
 class PromoteAdmin(Resource):
+    @authed_only
     @dojo_route
     def post(self, dojo):
         data = request.get_json()
