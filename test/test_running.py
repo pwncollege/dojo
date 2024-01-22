@@ -124,6 +124,10 @@ def test_join_dojo(admin_session, random_user):
     response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
     assert response.status_code == 200
     assert random_user_name in response.text and response.text.index("Members") < response.text.index(random_user_name)
+
+@pytest.mark.dependency(depends=["test_join_dojo"])
+def test_promote_dojo_member(admin_session, random_user):
+    random_user_name, _ = random_user
     sql = f"SELECT id FROM users WHERE name = '{random_user_name}'"
     db_result = dojo_run("db", input=sql)
     random_user_id = int(db_result.stdout.split()[1])
