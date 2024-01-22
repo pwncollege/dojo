@@ -185,6 +185,7 @@ class Dojos(db.Model):
         return (
             (cls.from_id(id) if id is not None else cls.query)
             .filter(or_(cls.official,
+                        and_(cls.data["type"] == "public", cls.password == None),
                         cls.dojo_id.in_(db.session.query(DojoUsers.dojo_id)
                                         .filter_by(user=user)
                                         .subquery())))
