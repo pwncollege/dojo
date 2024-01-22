@@ -52,7 +52,7 @@ def start_challenge(dojo, module, challenge, practice=False, *, session):
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
 
 def get_user_id(user_name):
-    sql = f"SELECT id FROM users WHERE name = '{random_user_name}'"
+    sql = f"SELECT id FROM users WHERE name = '{user_name}'"
     db_result = dojo_run("db", input=sql)
     return int(db_result.stdout.split()[1])
 
