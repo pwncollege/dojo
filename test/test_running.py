@@ -127,8 +127,7 @@ def test_join_dojo(admin_session, random_user):
     assert random_user_name in response.text and response.text.index("Members") < response.text.index(random_user_name)
     sql = f"SELECT id FROM users WHERE name = '{random_user_name}'"
     db_result = dojo_run("db", input=sql)
-    print(db_result.stdout)
-    random_user_id = int([ line for line in db_result.stdout.split(b"\n") if line.startswith(b"| ")][1].split()[1])
+    random_user_id = int(db_result.stdout.split()[1])
     response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/example/promote-admin", data={"user_id": random_user_id})
     assert response.status_code == 200
     response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
