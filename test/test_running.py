@@ -20,7 +20,7 @@ def dojo_run(*args, **kwargs):
 
 
 def workspace_run(cmd, *, user):
-    return dojo_run("enter", user, input=cmd)
+    return dojo_run("enter", user, input=cmd, check=True)
 
 
 def parse_csrf_token(text):
@@ -51,12 +51,17 @@ def start_challenge(dojo, module, challenge, practice=False, *, session):
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
 
-def get_user_id(user_name):
-    sql = f"SELECT id FROM users WHERE name = '{user_name}'"
+def db_sql(sql):
     db_result = dojo_run("db", input=sql)
-    return int(db_result.stdout.split()[1])
+    return db_result.stdout
 
-@pytest.fixture
+def db_sql_one(sql):
+    return db_sql(sql).split()[1]
+
+def get_user_id(user_name):
+    return int(db_sql_one(f"SELECT id FROM users WHERE name = '{user_name}'"))
+
+@pytest.fixture(scope="module")
 def admin_session():
     session = login("admin", "admin")
     yield session
@@ -113,14 +118,25 @@ def create_dojo(repository, *, official=True, session):
     return dojo_reference_id
 
 
+@pytest.fixture(scope="module")
+def example_dojo_rid(admin_session):
+    return create_dojo("pwncollege/example-dojo", session=admin_session)
+
+@pytest.fixture(scope="module")
+def example_import_dojo_rid(admin_session):
+    return create_dojo("pwncollege/example-import-dojo", session=admin_session)
+
+
 @pytest.mark.dependency()
-def test_create_dojo(admin_session):
-    create_dojo("pwncollege/example-dojo", session=admin_session)
+def test_create_dojo(example_dojo_rid, admin_session):
+    assert admin_session.get(f"{PROTO}://{HOST}/{example_dojo_rid}/").status_code == 200
+    assert admin_session.get(f"{PROTO}://{HOST}/example/").status_code == 200
 
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
-def test_create_import_dojo(admin_session):
-    create_dojo("pwncollege/example-import-dojo", session=admin_session)
+def test_create_import_dojo(example_import_dojo_rid, admin_session):
+    assert admin_session.get(f"{PROTO}://{HOST}/{example_import_dojo_rid}/").status_code == 200
+    assert admin_session.get(f"{PROTO}://{HOST}/example-import/").status_code == 200
 
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
