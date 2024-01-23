@@ -362,6 +362,18 @@ def dojo_accessible(id):
         return Dojos.from_id(id).first()
     return Dojos.viewable(id=id, user=get_current_user()).first()
 
+def dojo_admin(func):
+    signature = inspect.signature(func)
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        bound_args = signature.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+
+        dojo = bound_args.arguments["dojo"]
+        if not dojo.is_admin(get_current_user()):
+            abort(403)
+        return func(*bound_args.args, **bound_args.kwargs)
+    return wrapper
 
 def dojo_route(func):
     signature = inspect.signature(func)
