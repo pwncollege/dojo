@@ -23,10 +23,15 @@ services:
     restart: always
     privileged: true
     entrypoint: ""
-    command: >
-      /bin/sh -c '[ "$DOJO_ENV" != "development" ] &&
-                  ./docker-entrypoint.sh  ||
-                  FLASK_ENV=development WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000'
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ "$DOJO_ENV" != "development" ]; then
+          ./docker-entrypoint.sh;
+        else
+          FLASK_ENV=development WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
+        fi
     ulimits:
         nofile:
             soft: 32768
