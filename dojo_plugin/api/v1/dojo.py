@@ -78,8 +78,8 @@ def create_dojo(user, repository, public_key, private_key):
 @dojo_namespace.route("/<dojo>/prune-awards")
 class PruneAwards(Resource):
     @authed_only
-    @dojo_admin
     @dojo_route
+    @dojo_admin
     def post(self, dojo):
         all_completions = set(user for user,_ in dojo.completions())
         num_pruned = 0
@@ -93,8 +93,8 @@ class PruneAwards(Resource):
 @dojo_namespace.route("/<dojo>/promote-admin")
 class PromoteAdmin(Resource):
     @authed_only
-    @dojo_admin
     @dojo_route
+    @dojo_admin
     def post(self, dojo):
         data = request.get_json()
         if 'user_id' not in data:
