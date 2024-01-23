@@ -75,6 +75,21 @@ def create_dojo(user, repository, public_key, private_key):
 
     return {"success": True, "dojo": dojo.reference_id}
 
+@dojo_namespace.route("/<dojo>/prune-awards")
+class PruneAwards(Resource):
+    @authed_only
+    @dojo_admin
+    @dojo_route
+    def post(self, dojo):
+        all_completions = set(user for user,_ in dojo.completions())
+        num_pruned = 0
+        for award in Emojis.query.where(Emojis.category==dojo.reference_id):
+            if award.user not in all_completions:
+                num_pruned += 1
+                db.session.delete(award)
+        db.session.commit()
+        return {"success": True, "pruned_awards": num_pruned, "all_completions": str(all_completions)}
+
 @dojo_namespace.route("/<dojo>/promote-admin")
 class PromoteAdmin(Resource):
     @authed_only

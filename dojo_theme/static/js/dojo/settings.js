@@ -51,6 +51,9 @@ $(() => {
         var user_name = form.find(`#name-for-${params["user_id"]}`)
         return `Promote ${user_name.text()} (UID ${params["user_id"]}) to admin?`;
     });
+    form_fetch_and_show("dojo-award-prune", `/pwncollege_api/v1/dojo/${init.dojo}/prune-awards`, "POST", "Legacy awards have been pruned.", confirm_msg = (form, params) => {
+        return `Prune all awarded emoji based on updated completion requirements?`;
+    });
 
     $(".copy-button").click((event) => {
         let input = $(event.target).parents(".input-group").children("input")[0];

@@ -161,6 +161,16 @@ def test_promote_dojo_member(admin_session, singleton_user):
     response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
 
+@pytest.mark.dependency(depends=["test_join_dojo"])
+def test_prune_dojo_awards(admin_session, singleton_user, example_dojo_rid):
+    db_sql(f"INSERT into awards (type,category,user_id,name) values ('emoji', '{example_dojo_rid}', {get_user_id(singleton_user[0])}, 'test')")
+    assert int(db_sql_one(f"SELECT count(*) from awards where category='{example_dojo_rid}'")) == 1
+    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{example_dojo_rid}/prune-awards", json={})
+    assert response.status_code == 200
+    print(response.json())
+    print(db_sql("SELECT * from awards"))
+    assert int(db_sql_one(f"SELECT count(*) from awards where category='{example_dojo_rid}'")) == 0
+
 @pytest.mark.dependency(depends=["test_start_challenge"])
 @pytest.mark.parametrize("path", ["/flag", "/challenge/apple"])
 def test_workspace_path_exists(path):
