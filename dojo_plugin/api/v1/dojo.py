@@ -22,7 +22,7 @@ from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
 from ...models import Dojos, DojoMembers, DojoAdmins, DojoUsers, Emojis
-from ...utils.dojo import dojo_accessible, dojo_clone, load_dojo_dir, dojo_route, dojo_admin
+from ...utils.dojo import dojo_accessible, dojo_clone, load_dojo_dir, dojo_route, dojo_admins_only
 
 
 dojo_namespace = Namespace(
@@ -79,7 +79,7 @@ def create_dojo(user, repository, public_key, private_key):
 class PruneAwards(Resource):
     @authed_only
     @dojo_route
-    @dojo_admin
+    @dojo_admins_only
     def post(self, dojo):
         all_completions = set(user for user,_ in dojo.completions())
         num_pruned = 0
@@ -94,7 +94,7 @@ class PruneAwards(Resource):
 class PromoteAdmin(Resource):
     @authed_only
     @dojo_route
-    @dojo_admin
+    @dojo_admins_only
     def post(self, dojo):
         data = request.get_json()
         if 'user_id' not in data:

@@ -362,7 +362,7 @@ def dojo_accessible(id):
         return Dojos.from_id(id).first()
     return Dojos.viewable(id=id, user=get_current_user()).first()
 
-def dojo_admin(func):
+def dojo_admins_only(func):
     signature = inspect.signature(func)
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
