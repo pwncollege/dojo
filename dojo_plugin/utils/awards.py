@@ -40,7 +40,7 @@ def get_user_emojis(user):
         if not emoji:
             continue
         if dojo.completed(user):
-            emojis.append((emoji, dojo.name, dojo.reference_id))
+            emojis.append((emoji, dojo.name, dojo.hex_dojo_id))
     return emojis
 
 def get_belts():

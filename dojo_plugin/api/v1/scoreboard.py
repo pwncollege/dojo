@@ -91,7 +91,7 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     pagination = Pagination(None, page, per_page, len(results), results[start_idx:end_idx])
     user = get_current_user()
 
-    viewable_dojos = { dojo.reference_id for dojo in Dojos.viewable(user=user) }
+    viewable_dojos = { dojo.hex_dojo_id:dojo for dojo in Dojos.viewable(user=user) }
     emojis = { }
     for emoji in Emojis.query.order_by(Emojis.date).all():
         if emoji.category not in viewable_dojos:
@@ -101,7 +101,7 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
             "text": emoji.description,
             "emoji": emoji.name,
             "count": 1,
-            "url": url_for("pwncollege_dojo.listing", dojo=emoji.category)
+            "url": url_for("pwncollege_dojo.listing", dojo=viewable_dojos[emoji.category])
         })
 
     def standing(item):
