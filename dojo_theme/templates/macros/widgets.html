@@ -23,8 +23,8 @@
         {% if title %}<h4 class="card-title">{{ title }}</h4>{% endif %}
         {% if text %}<p class="card-text">{{ text }}</p>{% endif %}
         <div class="card-icon">
-          {% if icon %}<img src={{ icon }}>{% endif %}
-          {% if emoji %}<big>{{ emoji }}</big>{% endif %}
+          {% if icon %}<img src="{{ icon }}">{% endif %}
+          {% if emoji %}{{ emoji }}{% endif %}
         </div>
         {% if custom %}{{ caller() }}{% endif %}
       </div>
