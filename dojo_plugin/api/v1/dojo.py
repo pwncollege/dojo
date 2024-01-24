@@ -122,7 +122,7 @@ class CreateDojo(Resource):
         private_key = data.get("private_key", "").replace("\r\n", "\n")
 
         key = f"rl:{get_ip()}:{request.endpoint}"
-        timeout = datetime.timedelta(days=1).total_seconds()
+        timeout = int(datetime.timedelta(days=1).total_seconds())
 
         if not is_admin() and cache.get(key) is not None:
             return {"success": False, "error": "You can only create 1 dojo per day."}, 429
