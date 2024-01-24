@@ -19,7 +19,7 @@ from sqlalchemy.sql import and_
 from CTFd.models import db, Solves, Challenges
 from CTFd.cache import cache
 from CTFd.utils.decorators import authed_only, admins_only
-from CTFd.utils.user import get_current_user, is_admin
+from CTFd.utils.user import get_current_user, is_admin, get_ip
 from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
@@ -121,11 +121,10 @@ class CreateDojo(Resource):
         public_key = data.get("public_key", "")
         private_key = data.get("private_key", "").replace("\r\n", "\n")
 
-        ip_address = user.get_ip()
-        key = f"rl:{ip_address}:{request.endpoint}"
+        key = f"rl:{get_ip()}:{request.endpoint}"
         timeout = datetime.timedelta(days=1).total_seconds()
-        current = cache.get(key)
-        if not is_admin() and current is not None:
+
+        if not is_admin() and cache.get(key) is not None:
             return {"success": False, "error": "You can only create 1 dojo per day."}, 429
 
         result = create_dojo(user, repository, public_key, private_key)
