@@ -457,7 +457,7 @@ class DojoChallenges(db.Model):
                 ))
             .join(Dojos, and_(
                 Dojos.dojo_id == DojoChallenges.dojo_id,
-                or_(Dojos.official, DojoUsers.user_id != None),
+                or_(Dojos.official, Dojos.data["type"] == "public", DojoUsers.user_id != None),
                 ))
             .join(Users, Users.id == Solves.user_id)
         )
