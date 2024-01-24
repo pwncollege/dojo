@@ -23,7 +23,7 @@ python - <<'EOF'
 import socket
 with open("/etc/hostname") as f:
   hostname = f.read().strip()
-  socket.sethostname(f"vm_{hostname}")
+  socket.sethostname(f"vm_{hostname}"[:64])
 EOF
 
 ip link set dev lo up
