@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import pathlib
+import re
 import traceback
 
 import docker
@@ -65,9 +66,10 @@ def start_challenge(user, dojo_challenge, practice):
         except docker.errors.NotFound:
             pass
 
-        hostname = "-".join((dojo_challenge.module.id, dojo_challenge.id))
-        if practice:
-            hostname = f"practice~{hostname}"
+        hostname = "~".join((["practice"] if practice else []) + [
+            dojo_challenge.module.id,
+            re.sub("[\s-]+", "-", re.sub("[^a-z0-9\s-]", "", dojo_challenge.name.lower()))
+        ])
 
         devices = []
         if os.path.exists("/dev/kvm"):
