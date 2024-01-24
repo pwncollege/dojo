@@ -101,7 +101,7 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
             "text": emoji.description,
             "emoji": emoji.name,
             "count": 1,
-            "url": url_for("pwncollege_dojo.listing", dojo=viewable_dojos[emoji.category])
+            "url": url_for("pwncollege_dojo.listing", dojo=viewable_dojos[emoji.category].reference_id)
         })
 
     def standing(item):
