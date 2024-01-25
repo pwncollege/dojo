@@ -23,9 +23,16 @@ def dojo_run(*args, **kwargs):
     )
 
 
-def workspace_run(cmd, *, user, **kwargs):
-    return dojo_run("enter", user, input=cmd, check=True, **kwargs)
+def workspace_run(cmd, *, user, root=False, **kwargs):
+    args = [ "enter" ]
+    if root:
+        args += [ "-s" ]
+    args += [ user ]
+    return dojo_run(*args, input=cmd, check=True, **kwargs)
 
+
+def get_flag(user):
+    return workspace_run("cat /flag", user=user, root=True).stdout
 
 def get_challenge_id(session, dojo, module, challenge):
     response = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{dojo}/{module}/challenges")
@@ -93,7 +100,14 @@ def random_user():
 
 
 @pytest.fixture(scope="module")
-def singleton_user():
+def completionist_user():
+    random_id = "".join(random.choices(string.ascii_lowercase, k=16))
+    session = login(random_id, random_id, register=True)
+    yield random_id, session
+
+
+@pytest.fixture(scope="module")
+def guest_dojo_admin():
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))
     session = login(random_id, random_id, register=True)
     yield random_id, session
@@ -162,8 +176,8 @@ def test_start_challenge(admin_session):
     start_challenge("example", "hello", "apple", session=admin_session)
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
-def test_join_dojo(admin_session, singleton_user):
-    random_user_name, random_session = singleton_user
+def test_join_dojo(admin_session, guest_dojo_admin):
+    random_user_name, random_session = guest_dojo_admin
     response = random_session.get(f"{PROTO}://{HOST}/dojo/example/join/")
     assert response.status_code == 200
     response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
@@ -171,8 +185,8 @@ def test_join_dojo(admin_session, singleton_user):
     assert random_user_name in response.text and response.text.index("Members") < response.text.index(random_user_name)
 
 @pytest.mark.dependency(depends=["test_join_dojo"])
-def test_promote_dojo_member(admin_session, singleton_user):
-    random_user_name, _ = singleton_user
+def test_promote_dojo_member(admin_session, guest_dojo_admin):
+    random_user_name, _ = guest_dojo_admin
     random_user_id = get_user_id(random_user_name)
     response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/example/promote-admin", json={"user_id": random_user_id})
     assert response.status_code == 200
@@ -180,13 +194,48 @@ def test_promote_dojo_member(admin_session, singleton_user):
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
 
 @pytest.mark.dependency(depends=["test_join_dojo"])
-def test_prune_dojo_awards(admin_session, singleton_user, example_dojo_rid):
-    example_hex_id = example_dojo_rid.split("~")[-1]
-    db_sql(f"INSERT into awards (type,category,user_id,name) values ('emoji', '{example_hex_id}', {get_user_id(singleton_user[0])}, 'test')")
-    assert int(db_sql_one(f"SELECT count(*) from awards where category='{example_hex_id}'")) == 1
+def test_dojo_completion(completionist_user):
+    user_name, session = completionist_user
+    dojo = "example"
+    for module, challenge in [
+        ("hello", "apple"), ("hello", "banana"),
+        ("world", "earth"), ("world", "mars"), ("world", "venus")
+    ]:
+        start_challenge(dojo, module, challenge, session=session)
+        challenge_id = get_challenge_id(session, dojo, module, challenge)
+        flag = get_flag(user_name)
+        response = session.post(
+            f"{PROTO}://{HOST}/api/v1/challenges/attempt",
+            json={"challenge_id": challenge_id, "submission": flag}
+        )
+        assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+        assert response.json()["success"], "Expected to successfully submit flag"
+
+    # check for emoji
+    scoreboard = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
+    print(scoreboard)
+    us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
+    assert us["solves"] == 5
+    assert len(us["badges"]) == 1
+
+@pytest.mark.dependency(depends=["test_join_dojo"])
+def test_prune_dojo_awards(admin_session, completionist_user):
+    user_name, _ = completionist_user
+    db_sql(f"DELETE FROM solves WHERE user_id={get_user_id(user_name)} LIMIT 1")
+
+    # unfortunately, the scoreboard cache makes this test impossible without going through ctfd or `dojo flask`
+    #scoreboard = admin_session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/example/_/0/1").json()
+    #us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
+    #assert us["solves"] == 4
+    #assert len(us["badges"]) == 1
+
     response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/example/prune-awards", json={})
     assert response.status_code == 200
-    assert int(db_sql_one(f"SELECT count(*) from awards where category='{example_hex_id}'")) == 0
+
+    scoreboard = admin_session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/example/_/0/1").json()
+    us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
+    assert us["solves"] == 4
+    assert len(us["badges"]) == 0
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
 @pytest.mark.parametrize("path", ["/flag", "/challenge/apple"])
