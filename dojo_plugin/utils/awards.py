@@ -94,3 +94,18 @@ def update_awards(user):
             continue
         db.session.add(Emojis(user=user, name=emoji, description=f"Awarded for completing the {dojo_name} dojo.", category=dojo_id))
         db.session.commit()
+
+def get_viewable_emojis(user):
+    viewable_dojos = { dojo.hex_dojo_id:dojo for dojo in Dojos.viewable(user=user) }
+    emojis = { }
+    for emoji in Emojis.query.order_by(Emojis.date).all():
+        if emoji.category not in viewable_dojos:
+            continue
+
+        emojis.setdefault(emoji.user.id, []).append({
+            "text": emoji.description,
+            "emoji": emoji.name,
+            "count": 1,
+            "url": url_for("pwncollege_dojo.listing", dojo=viewable_dojos[emoji.category].reference_id)
+        })
+    return emojis

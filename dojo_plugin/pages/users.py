@@ -4,7 +4,7 @@ import itertools
 import re
 
 from flask import Blueprint, Response, render_template, abort, url_for
-from sqlalchemy.sql import and_
+from sqlalchemy.sql import and_, or_
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.models import db, Users, Challenges, Solves
@@ -12,24 +12,25 @@ from CTFd.cache import cache
 
 from ..models import Dojos, DojoModules, DojoChallenges
 from ..config import DATA_DIR
+from ..utils.scores import dojo_scores, module_scores
+from ..utils.awards import get_belts, get_viewable_emojis
 
 
 users = Blueprint("pwncollege_users", __name__)
 
 
 def view_hacker(user):
-    current_user_dojos = set(Dojos.viewable(user=get_current_user()))
-    dojos = [dojo for dojo in Dojos.viewable(user=user) if dojo in current_user_dojos]
+    if user.hidden:
+        abort(404)
 
-    def ranking(model, user):
-        solves = db.func.count().label("solves")
-        rank = db.func.row_number().over(order_by=(solves.desc(), db.func.max(Solves.id))).label("rank")
-        rankings = model.solves().group_by(Solves.user_id).with_entities(rank, Solves.user_id).all()
-        user_rank = next((ranking.rank for ranking in rankings if ranking.user_id == user.id), None)
-        max_rank = len(rankings)
-        return user_rank, max_rank
+    dojos = Dojos.query.where(or_(Dojos.official, Dojos.data["type"] == "public")).all()
 
-    return render_template("hacker.html", dojos=dojos, user=user, ranking=ranking)
+    return render_template(
+        "hacker.html",
+        dojos=dojos, user=user,
+        dojo_scores=dojo_scores(), module_scores=module_scores(),
+        belts=get_belts(), badges=get_viewable_emojis(user)
+    )
 
 @users.route("/hacker/<int:user_id>")
 def view_other(user_id):

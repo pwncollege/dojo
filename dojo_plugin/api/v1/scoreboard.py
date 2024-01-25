@@ -20,7 +20,7 @@ from sqlalchemy.orm.session import Session
 from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities, Belts, Emojis
 from ...utils import dojo_standings, user_dojos, first_bloods, daily_solve_counts
 from ...utils.dojo import dojo_route, dojo_accessible
-from ...utils.awards import get_belts, belt_asset
+from ...utils.awards import get_belts, belt_asset, get_viewable_emojis
 
 SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
 scoreboard_namespace = Namespace("scoreboard")
@@ -99,19 +99,7 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     end_idx = start_idx + per_page
     pagination = Pagination(None, page, per_page, len(results), results[start_idx:end_idx])
     user = get_current_user()
-
-    viewable_dojos = { dojo.hex_dojo_id:dojo for dojo in Dojos.viewable(user=user) }
-    emojis = { }
-    for emoji in Emojis.query.order_by(Emojis.date).all():
-        if emoji.category not in viewable_dojos:
-            continue
-
-        emojis.setdefault(emoji.user.id, []).append({
-            "text": emoji.description,
-            "emoji": emoji.name,
-            "count": 1,
-            "url": url_for("pwncollege_dojo.listing", dojo=viewable_dojos[emoji.category].reference_id)
-        })
+    emojis = get_viewable_emojis(user)
 
     def standing(item):
         if not item:

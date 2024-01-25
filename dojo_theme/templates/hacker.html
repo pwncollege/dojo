@@ -4,7 +4,27 @@
 {% block content %}
   <div class="jumbotron">
     <div class="container">
-      <h1>{{ user.name }}<br><img src="{{ belt }}" class="scoreboard-belt"></h1>
+      <h1>{{ user.name }}</h1>
+      <h1>
+        <a href="{{ url_for("pwncollege_belts.view_belts") }}">
+          {% if belts.users[user.id] %}
+          <span title="Earned on {{belts.users[user.id].date}}">
+            <img src="{{ url_for("views.themes", path="img/dojo/"+belts.users[user.id].color+".svg") }}", class="scoreboard-belt">
+          </span>
+          {% else %}
+          <img src="{{ url_for("views.themes", path="img/dojo/white.svg") }}" class="scoreboard-belt">
+          {% endif %}
+        </a>
+      </h1>
+      <h2>
+        {% for badge in badges[user.id] %}
+        <span title="{{badge.text}}">
+          <a href="{{badge.url}}">{{badge.emoji}}</a>
+          </span><span>
+        </span>
+        {% endfor %}
+      </h2>
+
 
       {% if user.affiliation %}
         <h3 class="d-inline-block">
@@ -39,14 +59,15 @@
   </div>
 
   <div class="container">
-    {% for dojo in dojos if dojo.solves(user=user, ignore_visibility=True, ignore_admins=False).count() > 0 %}
-      {% set rank, max_rank = ranking(dojo, user) %}
-      {% set solves = dojo.solves(user=user, ignore_visibility=True, ignore_admins=False).all() | map(attribute="challenge_id") | list %}
+    {% for dojo in dojos if dojo_scores.user_ranks[user.id] and dojo_scores.user_ranks[user.id][dojo.id] %}
+      {% set rank = dojo_scores.user_ranks[user.id][dojo.id] %}
+      {% set max_rank = dojo_scores.dojo_ranks[dojo.id] | length %}
+      {% set solves = dojo_scores.user_solves[user.id][dojo.id] %}
       <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.listing', dojo=dojo.reference_id) }}">
         <h2>{{ dojo.name }}</h2>
         <h4>
           <i class="fas fa-flag pt-3 pr-3" title="Solves"></i>
-          <td>{{ solves | length }} / {{ dojo.challenges | length }}</td>
+          <td>{{ solves }} / {{ dojo.challenges | length }}</td>
           <i class="fas fa-trophy pt-3 pr-3 pl-5 " title="Rank"></i>
           <td>{{ rank or "-" }} / {{ max_rank or "-" }}</td>
         </h4>
@@ -56,25 +77,20 @@
 
       <div class="accordion" id="modules-{{dojo.hex_dojo_id}}">
         {% for module in dojo.modules %}
-          {% set solves = module.solves(user=user, ignore_visibility=True, ignore_admins=False).all() | map(attribute="challenge_id") | list %}
-          {% set rank, max_rank = ranking(module, user) %}
+          {% set solves = module_scores.user_solves[user.id][dojo.id][module.module_index] %}
+          {% set rank = module_scores.user_ranks[user.id][dojo.id][module.module_index] %}
+          {% set max_rank = module_scores.module_ranks[dojo.id][module.module_index] | length %}
           {% call(header) accordion_item("modules-{}".format(dojo.hex_dojo_id), loop.index) %}
             {% if header %}
               <h4 class="accordion-item-name">{{ module.name }}</h4>
               <span class="total-solves">
                 <i class="fas fa-flag pr-1" title="Solves"></i>
-                <td>{{ solves | length }} / {{ module.challenges | length }}</td>
+                <td>{{ solves }} / {{ module.challenges | length }}</td>
                 <i class="fas fa-trophy pr-1 pl-3 " title="Rank"></i>
                 <td>{{ rank or "-" }} / {{ max_rank or "-" }}</td>
               </span>
             {% else %}
-              {% for challenge in module.challenges %}
-                {% set challenge_status = "challenge-solved" if challenge.challenge_id in solves else "challenge-unsolved" %}
-                <h5>
-                  <i class="fas fa-flag pr-3 pt-3 {{ challenge_status }}"></i>
-                  <td>{{ challenge.name }}</td>
-                </h5>
-              {% endfor %}
+              TODO
             {% endif %}
           {% endcall %}
         {% endfor %}
