@@ -23,6 +23,20 @@ def workspace_run(cmd, *, user):
     return dojo_run("enter", user, input=cmd, check=True)
 
 
+def get_challenge_id(session, dojo, module, challenge):
+    response = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{dojo}/{module}/challenges")
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    challenges = response.json()['challenges']
+    challenge_id = None
+    for chall in challenges:
+        if chall['id'] == challenge:
+            challenge_id = chall['challenge_id']
+            break
+
+    assert challenge_id, "Expected to find a challenge ID for this specific challenge"
+    return challenge_id
+
+
 def parse_csrf_token(text):
     match = re.search("'csrfNonce': \"(\\w+)\"", text)
     assert match, "Failed to find CSRF token"
@@ -283,22 +297,11 @@ def test_scoreboard(random_user):
 
     prior_standings = get_all_standings(session, dojo, module)
 
-    # get the challenge_id from the dojo API so we can submit the flag
-    response = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{dojo}/{module}/challenges")
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-    challenges = response.json()['challenges']
-    challenge_id = None
-    for chall in challenges:
-        if chall['id'] == challenge:
-            challenge_id = chall['challenge_id']
-            break
-
-    assert challenge_id, f"Expected to find a challenge ID for this specific challenge"
-
     # if test_workspace_challenge passed correctly, then we should get a valid flag here
     start_challenge(dojo, module, challenge, session=session)
     result = workspace_run("/challenge/apple", user=user)
     flag = result.stdout.strip()
+    challenge_id = get_challenge_id(session, dojo, module, challenge)
 
     # submit the flag
     data = {"challenge_id": challenge_id,
