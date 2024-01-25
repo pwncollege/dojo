@@ -60,6 +60,9 @@ def get_belts():
         result["ranks"][color] = []
 
         for belt in Belts.query.filter_by(name=color).order_by(Belts.date):
+            if belt.user.hidden:
+                continue
+
             result["dates"][color][belt.user.id] = str(belt.date)
             result["users"][belt.user.id] = {
                 "handle": belt.user.name,
