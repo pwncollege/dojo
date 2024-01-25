@@ -9,18 +9,22 @@ import subprocess
 import requests
 import pytest
 
+#pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout
 
 PROTO="http"
 HOST="localhost.pwn.college"
 CONTAINER_NAME = os.environ.get("CONTAINER_NAME", "dojo-test")
 
 def dojo_run(*args, **kwargs):
-    kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
-    return subprocess.run([shutil.which("docker"), "exec", "-i", CONTAINER_NAME, "dojo", *args], **kwargs)
+    kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return subprocess.run(
+        [shutil.which("docker"), "exec", "-i", CONTAINER_NAME, "dojo", *args],
+        check=kwargs.pop("check", True), **kwargs
+    )
 
 
-def workspace_run(cmd, *, user):
-    return dojo_run("enter", user, input=cmd, check=True)
+def workspace_run(cmd, *, user, **kwargs):
+    return dojo_run("enter", user, input=cmd, check=True, **kwargs)
 
 
 def get_challenge_id(session, dojo, module, challenge):
@@ -121,11 +125,11 @@ def create_dojo(repository, *, official=True, session):
 
     if official:
         # TODO: add an official endpoint for making dojos official
-        id, dojo_id = dojo_reference_id.split("~", 1)
+        id_, dojo_id = dojo_reference_id.split("~", 1)
         dojo_id = int.from_bytes(bytes.fromhex(dojo_id.rjust(8, "0")), "big", signed=True)
-        sql = f"UPDATE dojos SET official = 1 WHERE id = '{id}' and dojo_id = {dojo_id}"
+        sql = f"UPDATE dojos SET official = 1 WHERE id = '{id_}' and dojo_id = {dojo_id}"
         dojo_run("db", input=sql)
-        sql = f"SELECT official FROM dojos WHERE id = '{id}' and dojo_id = {dojo_id}"
+        sql = f"SELECT official FROM dojos WHERE id = '{id_}' and dojo_id = {dojo_id}"
         db_result = dojo_run("db", input=sql)
         assert db_result.stdout == "official\n1\n", f"Failed to make dojo official: {db_result.stdout}"
 
@@ -189,7 +193,7 @@ def test_prune_dojo_awards(admin_session, singleton_user, example_dojo_rid):
 def test_workspace_path_exists(path):
     try:
         workspace_run(f"[ -f '{path}' ]", user="admin")
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         assert False, f"Path does not exist: {path}"
 
 
@@ -229,11 +233,11 @@ def test_workspace_home_mount():
 @pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_no_sudo():
     try:
-        workspace_run("sudo -v", user="admin")
-    except subprocess.CalledProcessError as e:
+        s = workspace_run("sudo -v", user="admin")
+    except subprocess.CalledProcessError:
         pass
     else:
-        assert False, f"Expected sudo to fail, but got no error: {(e.stdout, e.stderr)}"
+        assert False, f"Expected sudo to fail, but got no error: {(s.stdout, s.stderr)}"
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
@@ -304,13 +308,14 @@ def test_scoreboard(random_user):
     challenge_id = get_challenge_id(session, dojo, module, challenge)
 
     # submit the flag
-    data = {"challenge_id": challenge_id,
-            "submission": flag}
+    data = {
+        "challenge_id": challenge_id,
+        "submission": flag
+    }
 
-    response = session.post(f"{PROTO}://{HOST}/api/v1/challenges/attempt",
-                            json=data)
+    response = session.post(f"{PROTO}://{HOST}/api/v1/challenges/attempt", json=data)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-    assert response.json()["success"], f"Expected to successfully submit flag"
+    assert response.json()["success"], "Expected to successfully submit flag"
 
     # check the scoreboard: is it updated?
 
