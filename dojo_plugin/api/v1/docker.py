@@ -68,7 +68,7 @@ def start_challenge(user, dojo_challenge, practice):
 
         hostname = "~".join((["practice"] if practice else []) + [
             dojo_challenge.module.id,
-            re.sub("[\s-]+", "-", re.sub("[^a-z0-9\s-]", "", dojo_challenge.name.lower()))
+            re.sub("[\s.-]+", "-", re.sub("[^a-z0-9\s.-]", "", dojo_challenge.name.lower()))
         ])[:64]
 
         devices = []
