@@ -67,6 +67,9 @@ def invalidate_scoreboard_cache():
 @event.listens_for(Awards, 'after_insert', propagate=True)
 @event.listens_for(Belts, 'after_insert', propagate=True)
 @event.listens_for(Emojis, 'after_insert', propagate=True)
+@event.listens_for(Awards, 'after_delete', propagate=True)
+@event.listens_for(Belts, 'after_delete', propagate=True)
+@event.listens_for(Emojis, 'after_delete', propagate=True)
 def hook_object_creation(mapper, connection, target):
     invalidate_scoreboard_cache()
 
