@@ -69,7 +69,7 @@ def start_challenge(user, dojo_challenge, practice):
         hostname = "~".join((["practice"] if practice else []) + [
             dojo_challenge.module.id,
             re.sub("[\s-]+", "-", re.sub("[^a-z0-9\s-]", "", dojo_challenge.name.lower()))
-        ])
+        ])[:64]
 
         devices = []
         if os.path.exists("/dev/kvm"):
@@ -117,7 +117,7 @@ def start_challenge(user, dojo_challenge, practice):
             extra_hosts={
                 hostname: "127.0.0.1",
                 "vm": "127.0.0.1",
-                f"vm_{hostname}": "127.0.0.1",
+                f"vm_{hostname}"[:64]: "127.0.0.1",
                 "challenge.localhost": "127.0.0.1",
                 "hacker.localhost": "127.0.0.1",
                 "dojo-user": user_ipv4(user),
