@@ -13,6 +13,7 @@ from CTFd.cache import cache
 from ..models import Dojos, DojoModules, DojoChallenges
 from ..config import DATA_DIR
 from ..utils.scores import dojo_scores, module_scores
+from ..utils.awards import get_belts, get_viewable_emojis
 
 
 users = Blueprint("pwncollege_users", __name__)
@@ -21,7 +22,12 @@ users = Blueprint("pwncollege_users", __name__)
 def view_hacker(user):
     dojos = Dojos.query.where(or_(Dojos.official, Dojos.data["type"] == "public")).all()
 
-    return render_template("hacker.html", dojos=dojos, user=user, dojo_scores=dojo_scores(), module_scores=module_scores())
+    return render_template(
+        "hacker.html",
+        dojos=dojos, user=user,
+        dojo_scores=dojo_scores(), module_scores=module_scores(),
+        belts=get_belts(), badges=get_viewable_emojis(user)
+    )
 
 @users.route("/hacker/<int:user_id>")
 def view_other(user_id):
