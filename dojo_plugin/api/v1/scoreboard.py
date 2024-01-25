@@ -11,13 +11,13 @@ from flask import url_for, abort, current_app
 from flask_restx import Namespace, Resource
 from flask_sqlalchemy import Pagination
 from CTFd.cache import cache
-from CTFd.models import db, Solves, Challenges, Users, Submissions
+from CTFd.models import db, Solves, Challenges, Users, Submissions, Awards
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
 from sqlalchemy import event
 from sqlalchemy.orm.session import Session
 
-from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities, Emojis
+from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities, Belts, Emojis
 from ...utils import dojo_standings, user_dojos, first_bloods, daily_solve_counts
 from ...utils.dojo import dojo_route, dojo_accessible
 from ...utils.awards import get_belts, belt_asset
@@ -64,6 +64,9 @@ def invalidate_scoreboard_cache():
 # handle cache invalidation for new solves, dojo creation, dojo challenge creation
 @event.listens_for(Dojos, 'after_insert', propagate=True)
 @event.listens_for(Solves, 'after_insert', propagate=True)
+@event.listens_for(Awards, 'after_insert', propagate=True)
+@event.listens_for(Belts, 'after_insert', propagate=True)
+@event.listens_for(Emojis, 'after_insert', propagate=True)
 def hook_object_creation(mapper, connection, target):
     invalidate_scoreboard_cache()
 
@@ -76,6 +79,9 @@ def hook_object_creation(mapper, connection, target):
 @event.listens_for(DojoModules, 'after_update', propagate=True)
 @event.listens_for(DojoChallenges, 'after_update', propagate=True)
 @event.listens_for(DojoChallengeVisibilities, 'after_update', propagate=True)
+@event.listens_for(Belts, 'after_update', propagate=True)
+@event.listens_for(Emojis, 'after_update', propagate=True)
+@event.listens_for(Awards, 'after_insert', propagate=True)
 def hook_object_update(mapper, connection, target):
     # according to the docs, this is a necessary check to see if the
     # target actually was modified (and thus an update was made)
