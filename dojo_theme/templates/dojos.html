@@ -5,13 +5,18 @@
 <div class="jumbotron">
   <div class="container">
     <h1>Dojos</h1>
+    <p>
+    The material on pwn.college is split into a number of "dojos", with each dojo typically covering a high-level topic.
+    These dojos are below.
+    Enter them when you are ready.
+    </p>
   </div>
 </div>
 <div class="container">
   {% for type, dojos in typed_dojos.items() %}
     <h2>{{ type | title }}</h2>
     {% if type == "Topics" %}
-    <p>These dojos form the official the pwn.college curriculum. We recommend that you tackle them in order. Good luck!</p>
+    <p>These dojos form the official the pwn.college curriculum, and you will earn belts when you complete them. We recommend that you tackle them in order. Good luck!</p>
     {% elif type == "Courses" %}
     <p>We run a number of courses on this platform. For the most part, these courses import the above material, though some might introduce new concepts and challenges.</p>
     {% elif type == "More" %}
