@@ -6,58 +6,53 @@
 <br><br>
 
 # Welcome to pwn.college!
-pwn.college is an education platform for students (and other interested parties) to learn about, and practice, core cybersecurity concepts in a hands-on fashion. In martial arts terms, it is designed to take a “[white belt](https://pwn.college/fundamentals/)” in cybersecurity to becoming a “[blue belt](https://pwn.college/cse494-s2023/)”, able to approach (simple) CTFs and wargames. The philosophy of pwn.college is “practice makes perfect”.
+pwn.college is an education platform for students (and other interested parties) to learn about, and practice, core cybersecurity concepts in a hands-on fashion.
+In martial arts terms, it is designed to take a “[white belt](/fundamentals/)” in cybersecurity to becoming a “[blue belt](/software-exploitation)”, able to approach (simple) CTFs and wargames.
+The philosophy of pwn.college is “practice makes perfect”.
 
-pwn.college was created by [Zardus (Yan Shoshitaishvili)](http://yancomm.net) and [kanak (Connor Nelson)](https://connornelson.com) at Arizona State University. It powers ASU’s Introduction to Cybersecurity (CSE 365) and Computer Systems Security (CSE 466) courses, and is open, for free, to participation for interested people around the world!
+pwn.college was created by [Zardus (Yan Shoshitaishvili)](http://yancomm.net) and [kanak (Connor Nelson)](https://connornelson.com) at Arizona State University.
+It powers much of ASU's cybersecurity curriculum, and is open, for free, to participation for interested people around the world!
 
 If you have comments, suggestions, and feedback, please email us at [pwn@pwn.college](mailto:pwn@pwn.college)!
 
 <br><br><br>
 
-<div class="embed-responsive embed-responsive-16by9">
-  <iframe class="embed-responsive-item" src="https://www.youtube.com/embed/DJO1A2neZ6Y" title="pwn.college - Getting Started" allowfullscreen></iframe>
-</div>
+# Great! How do I jump in?
+
+pwn.college is organized into a series of dojos, each of which covers a high-level topic area.
+Please start your journey with the `Using the Dojo` dojo.
+You can access it (and many other dojos!) through the Dojos link at the top of the page or (if you promise not to forget about the Dojos link later) by [clicking here](/welcome).
+
+When you run into problems with concepts and challenges, you can get help on our [discord server](https://discord.gg/pwncollege).
+The discord is also a great place to chat with other aspiring hackers!
+
 
 <br><br><br>
 
-# Great! How do I jump in?
-pwn.college is organized into a series of modules, that launch throughout the school year and stay open until the next iteration of the courses. For each module, students should go through the following process:
+# The "School Year"
 
-1. Watch the **PRERECORDED MODULE LECTURES** on [YouTube](https://www.youtube.com/pwncollege). These classes represent the bulk of the passive educational content in pwn.college! They give you a starting point from which to approach the practice problems (Step 3, below).</li>
+pwn.college is available year-round, but during ASU's semester, we host live classes on [our Twitch channel](https://www.twitch.tv/pwncollege) to dig into the material currently being covered on pwn.college, then archive those to [our YouTube channel](https://www.youtube.com/pwncollege).
+The live classes are used to fill in gaps between prerecorded lectures and answer student questions.
 
-2.	Attend the LIVE CLASSES on [Twitch](https://www.twitch.tv/pwncollege), during the ASU semester.
+Current live classes:
 
-3.	Catch up on any live classes you miss by checking out RECORDED STREAMS, which are [initially saved on Twitch](https://www.twitch.tv/pwncollege/videos) right after the live stream (but time out after a week or two) and are eventually [archived to YouTube](https://www.youtube.com/pwncollege). The live classes are used to fill in gaps between prerecorded lectures and answer student questions. Current live classes:
 <ul>
-  <li><a href=https://www.youtube.com/playlist?list=PL-ymxv0nOtqqYpFVmqh9Wsfebq05pssju>CSE365 Spring 2024</a></li>
-  <li><a href=https://www.youtube.com/playlist?list=PL-ymxv0nOtqr7zM7ZBREoWa-eeSaKFJQd>CSE598 Spring 2024</a></li>
+  <li><a href=https://www.youtube.com/playlist?list=PL-ymxv0nOtqqYpFVmqh9Wsfebq05pssju>CSE365 &em; Introduction to Cybersecurity &em; Spring 2024</a></li>
+  <li><a href=https://www.youtube.com/playlist?list=PL-ymxv0nOtqr7zM7ZBREoWa-eeSaKFJQd>CSE598 &em; Software Exploitation &em; Spring 2024</a></li>
 </ul>
 
-4.	Solve the **CHALLENGE PROBLEMS** hosted in the [dojos](https://pwn.college/dojos). The challenge problems are the active educational component of pwn.college. They are absolutely critical to learning: the lectures give you a starting point for the content, but the challenge problems force you to truly learn it.
-
-5.	When you run into problems with the challenges, you can GET HELP on our [discord server](https://discord.com/invite/e4UU4ytK6q). The discord is also a great place to chat with other aspiring hackers!
-
-pwn.college currently has four major stages of progression. Consider hacking as a martial art that students earn belts in as they progress. We currently have four belts in four dedicated dojos: [orange](https://pwn.college/intro-to-cybersecurity/), [yellow](https://pwn.college/program-security/), [green](https://pwn.college/system-security/), and [blue](https://pwn.college/software-exploitation/).
-
-Over time, hackers become more sure in their skills, achieving *brown belt* status (and able to, for example, usefully contribute to the cybersecurity industry), before finally graduating to hacking masters: *black belts*. But this, unfortunately, must happen outside of the dojo (for now!).
-
-<br><br>
-
-# Launching Challenges
-At the core of pwn.college is flags. How do you get those flags? Solve challenges. You can start a challenge by clicking on the `Challenges` tab at the top, selecting a module, clicking on a particular level, and hitting `Start`. In order to access that challenge, you have two options.
-
-The first option is using the `Workspace` tab. This will present you with a fully functional development environment in your browser via Visual Studio Code. You can, for instance, quickly open a new terminal by pressing `F1`, searching for `New Terminal`, and pressing enter.
-
-The second option is using `ssh`. In order to ssh into your challenge instances, you must add a public ssh key to `Settings` > `SSH Key`. You can quickly generate an ssh key by running `ssh-keygen -f key -N ''` in a terminal on your (unix-friendly) host machine. This will generate files `key` and `key.pub`, which are your private and public keys respectively. Once you have linked your ssh key to your account, you can run `ssh -i key hacker@dojo.pwn.college` to connect into your challenge instance.
-
-Once you are in a challenge instance, your goal is to get the contents of the `/flag` file. Unfortunately for you, you are executing as the `hacker` user, but `/flag` is only readable by the `root` user. Fortunately, however, there are challenge programs located inside of the `/challenge` directory, which when run, will run with the privileges of the `root` user. Solve the challenge to get the `/flag`, and then submit it in order to complete the challenge!
-
-A few things to note. Your home directory `/home/hacker` is persistent. This means that when you start a new challenge, all of the files you have saved in there will still be there. The `Practice` button can be incredibly useful for debugging your solution. When you start a challenge in this way, you will have the ability to run programs as the `root` user with the `sudo` command; however, the instance will only have a practice flag. For some of the later (kernel-focused) challenges, you will need to solve the challenge in a virtual machine. You can interact with the virtual machine using the `vm` command.
 
 <br><br>
 
 # The Belts
-This course progresses hackers from white belts, to orange belts, yellow belts, green belts, and then finally refines them into blue belts. This is not just metaphor: **we have actual belts, in yellow, green, and blue, custom-embroidered for pwn.college.**
+
+
+Consider hacking as a martial art that students earn belts in as they progress and build their skills.
+This course progresses hackers from white belts, to orange belts, yellow belts, green belts, and then finally refines them into blue belts.
+This is not just metaphor: **we have actual belts, in yellow, green, and blue, custom-embroidered for pwn.college.**
+
+Eventually, hackers continue their journey beyond pwn.college, becoming certain in their skills, achieving *brown belt* status (and able to, for example, usefully contribute to the cybersecurity industry and academia), before finally graduating to hacking masters: *black belts*.
+But this, unfortunately, must happen outside of the dojo (for now!).
 
 ### How to earn an orange belt?
 For an orange belt, you must complete all active challenges launched in:
@@ -82,14 +77,18 @@ For a blue belt, you must complete all active challenges launched in:
 - [Software Exploitation](https://pwn.college/software-exploitation/)
 
 ### How to get the actual belt?
-To get your belt,  [send us an email](malto:pwn@pwn.college) from the email address associated with your pwn.college account once you’ve completed the necessary challenges. We’ll then get your belt over to you (eventually)!
+To get your belt,  [send us an email](malto:pwn@pwn.college) from the email address associated with your pwn.college account once you’ve completed the necessary challenges.
+We’ll then get your belt over to you (eventually)!
+Note that, due to logistical challenges, we're currently only _shipping_ belts to hackers after they earn their blue belt. Until then, we will belt you in person, at ASU or some security conference.
 
 **Who has earned belts?** We maintain a [list of hackers with pwn.college belts](https://pwn.college/belts). Once you achieve your belt, we will add you to the [list](https://pwn.college/belts)!
 
 <br><br>
 
 # Collaboration, Livestream, and Writeup Policy
-The challenges created for pwn.college are educational material, and are used to grade students at ASU. Because of this, we would appreciate that writeups, walkthrough videos, and livestreams of challenge solutions are not posted to the internet. Obviously, we can’t enforce this, but we worked hard to make all of this public, and we would appreciate your help in keeping pwn.college a viable educational platform.
+The challenges created for pwn.college are educational material, and are used to grade students at ASU.
+Because of this, we would appreciate that writeups, walkthrough videos, and livestreams of challenge solutions are not posted to the internet.
+Obviously, we can’t enforce this, but we worked hard to make all of this public, and we would appreciate your help in keeping pwn.college a viable educational platform.
 
 <br><br>
 
@@ -107,7 +106,10 @@ If you want to get involved with cybersecurity research, but don’t know how, c
 # Reusing pwn.college Material
 Want to use pwn.college in your course? You can!
 
-The videos and slides of pwn.college lectures are licensed under CC-BY-NC. You can use them freely for non-commercial purposes, but please provide attribution! Additionally, if you use pwn.college in your own education program, we would appreciate it if you email us to let us know. Evidence of wide-spread use of pwn.college for education will be a huge help for Yan’s tenure case!
+The videos and slides of pwn.college lectures are licensed under CC-BY-NC.
+You can use them freely for non-commercial purposes, but please provide attribution!
+Additionally, if you use pwn.college in your own education program, we would appreciate it if you email us to let us know.
+Evidence of wide-spread use of pwn.college for education will be a huge help for Yan’s tenure case!
 
 EDUCATORS: If you are an educational institution and are using pwn.college as part of a class, you can request a (free) private instance of the infrastructure! Please [email](mailto:pwn@pwn.college) us to ask!
 
@@ -116,18 +118,22 @@ CONFERENCES: If you are running a conference and would like pwn.college presence
 <br><br>
 
 # Contributing
-The [infrastructure powering pwn.college](https://github.com/pwncollege) is open source, and we welcome pull requests and issues. The modules are closed-source, because they include source code and solution scripts. If you are an educator, or otherwise someone we trust, and are interested in collaborating on the modules themselves, please email us at [pwn@pwn.college](pwn@pwn.college). Likewise, drop us a line if you are interested in collaborating on the slides!
+The [infrastructure powering pwn.college](https://github.com/pwncollege/dojo) is open source, and we welcome pull requests and issues.
+Some of the modules are closed-source, because they include source code and solution scripts, but others can be found on [github](https://github.com/pwncollege).
+If you are an educator, or otherwise someone we trust, and are interested in collaborating on the modules themselves, please email us at [pwn@pwn.college](pwn@pwn.college).
+Likewise, drop us a line if you are interested in collaborating on the slides!
 
 <br><br>
 
 # Greetz
 Team work makes the dream work, and the team behind pwn.college is full of dreamers!  They are:
 
- - [Zardus (Yan Shoshitaishvili)](https://yancomm.net) originated the idea, created the initial prototype and many of the challenges, and continues to cajole everyone else into a shared vision!</li>
+- [Zardus (Yan Shoshitaishvili)](https://yancomm.net) originated the idea, created the initial prototype and many of the challenges, and continues to cajole everyone else into a shared vision!</li>
 - [kanak (Connor Nelson)](https://connornelson.com) made the mistake of signing up to TA an “easy A” course and quickly found himself reimplementing Yan’s insane code into the amazing dojo you see today, along with the creation of many challenges.
+- [robwaz (Robert Wasinger)](https://github.com/robwaz) for the creation of the Software Exploitation dojo.
+- [Adam Doupe](https://adamdoupe.com) for helping in the brainstorming of the initial concept and helping develop the pwn.college platform.
 - [mahaloz (Zion Basque)](https://www.zionbasque.com) for contributing ROP challenges and embryoasm to pwn.college.
 - [Erik Trickel](https://twitter.com/eriktrickel) for helping in the development of pedagogical concepts underlying pwn.college.
-- [Adam Doupe](https://adamdoupe.com) for helping in the brainstorming of the initial concept.
 - redgate, for contributing to embryoasm.
 - [Pascal-0x90](https://twitter.com/pascal_0x90), for contributing to embryoasm.
 - [frqmod](https://twitter.com/frqmod), for contributing embryogdb.
