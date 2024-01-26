@@ -6,6 +6,7 @@ from flask import url_for
 from ..models import Dojos, Belts, Emojis
 
 
+BELT_ORDER = [ "orange", "yellow", "green", "purple", "blue", "brown", "red", "black" ]
 BELT_REQUIREMENTS = {
     "orange": "intro-to-cybersecurity",
     "yellow": "program-security",
@@ -50,7 +51,7 @@ def get_belts():
         "ranks": {},
     }
 
-    for color in reversed(BELT_REQUIREMENTS.keys()):
+    for color in reversed(BELT_ORDER):
         result["dates"][color] = {}
         result["ranks"][color] = []
 
