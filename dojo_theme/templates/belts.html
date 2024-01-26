@@ -17,7 +17,7 @@
   Below is a list of true hackers: those who stared at the yellow box, and rather than flinching, dove in.
   </p>
 
-  {% for belt_color in belt_data.ranks|reverse %}
+  {% for belt_color in belt_data.ranks %}
     <h2>{{belt_color.title()}} Belts</h2>
     <p>
     {% if belt_color == "blue" %}

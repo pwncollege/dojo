@@ -50,12 +50,7 @@ def get_belts():
         "ranks": {},
     }
 
-    for n,(color,dojo_id) in enumerate(BELT_REQUIREMENTS.items()):
-        dojo = Dojos.query.filter_by(id=dojo_id).first()
-        if not dojo:
-            # We are likely missing the correct dojos in the DB (e.g., custom deployment)
-            break
-
+    for color in reversed(BELT_REQUIREMENTS.keys()):
         result["dates"][color] = {}
         result["ranks"][color] = []
 
@@ -64,19 +59,16 @@ def get_belts():
                 continue
 
             result["dates"][color][belt.user.id] = str(belt.date)
+            if belt.user.id in result["users"]:
+                continue
+
+            result["ranks"][color].append(belt.user.id)
             result["users"][belt.user.id] = {
                 "handle": belt.user.name,
                 "site": belt.user.website,
                 "color": color,
                 "date": str(belt.date),
-                "rank_id": n,
             }
-
-    for user_id in result["users"]:
-        result["ranks"][result["users"][user_id]["color"]].append(user_id)
-
-    for rank in result["ranks"].values():
-        rank.sort(key=lambda uid: result["users"][uid]["date"])
 
     return result
 
