@@ -78,8 +78,6 @@ mkdir -p $DOJO_DIR/data/logging
 sysctl -w kernel.pty.max=1048576
 echo core > /proc/sys/kernel/core_pattern
 
-route add default gw 172.17.0.1
-
 iptables -N DOCKER-USER
 iptables -I DOCKER-USER -i user_network -j DROP
 for host in $(cat $DOJO_DIR/user_firewall.allowed); do
