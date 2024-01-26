@@ -1,5 +1,5 @@
 [Unit]
-Description=Create a pwn.college backup
+Description=Keep the pwn.college caches warm!
 
 [Service]
 Type=simple
