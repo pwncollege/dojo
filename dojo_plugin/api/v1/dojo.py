@@ -75,7 +75,7 @@ def create_dojo(user, repository, public_key, private_key):
         traceback.print_exc(file=sys.stderr)
         return {"success": False, "error": str(e)}, 400
 
-    return {"success": True, "dojo": dojo.reference_id}
+    return {"success": True, "dojo": dojo.reference_id}, 200
 
 @dojo_namespace.route("/<dojo>/prune-awards")
 class PruneAwards(Resource):
@@ -128,7 +128,7 @@ class CreateDojo(Resource):
             return {"success": False, "error": "You can only create 1 dojo per day."}, 429
 
         result = create_dojo(user, repository, public_key, private_key)
-        if result["success"]:
+        if result[0]["success"]:
             cache.set(key, 1, timeout=timeout)
 
         return result
