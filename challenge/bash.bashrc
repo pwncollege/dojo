@@ -11,3 +11,5 @@ if [ -e "/challenge/README.md" ] && [ ! -e "/tmp/.dojo/readme-once" ]; then
 
     touch /tmp/.dojo/readme-once
 fi
+
+[ -f "/challenge/.bashrc" ] && source /challenge/.bashrc
