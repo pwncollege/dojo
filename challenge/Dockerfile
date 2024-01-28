@@ -566,7 +566,7 @@ RUN <<EOF
     useradd -s /bin/bash -m hacker
     passwd -d hacker
 
-    echo -e '\n/opt/pwn.college/bash.bashrc' >> /etc/bash.bashrc
+    echo -e '\n. /opt/pwn.college/bash.bashrc' >> /etc/bash.bashrc
 
     find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
 
