@@ -43,6 +43,7 @@ def get_stats(dojo):
     }
 
 
+@dojo.route("/<dojo>")
 @dojo.route("/<dojo>/")
 @dojo_route
 @check_challenge_visibility
