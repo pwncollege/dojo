@@ -92,7 +92,7 @@ def update_awards(user):
         db.session.commit()
 
 def get_viewable_emojis(user):
-    viewable_dojos = { dojo.hex_dojo_id:dojo for dojo in Dojos.viewable(user=user) }
+    viewable_dojos = { dojo.hex_dojo_id:dojo for dojo in Dojos.viewable(user=user).where(Dojos.data["type"] != "example") }
     emojis = { }
     for emoji in Emojis.query.order_by(Emojis.date).all():
         if emoji.category and emoji.category not in viewable_dojos:
