@@ -31,8 +31,8 @@ def listing():
     user = get_current_user()
     typed_dojos = {
         "Topics": [],
+        "More Material": [],
         "Courses": [],
-        "More": [],
     }
     for dojo in Dojos.viewable(user=user):
         if dojo.type == "topic":
@@ -44,7 +44,7 @@ def listing():
         elif dojo.type == "example" and dojo.official:
             continue
         else:
-            typed_dojos["More"].append(dojo)
+            typed_dojos["More Material"].append(dojo)
 
     return render_template("dojos.html", user=user, typed_dojos=typed_dojos)
 
