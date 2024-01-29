@@ -171,6 +171,11 @@ class Dojos(db.Model):
         from ..utils.dojo import dojo_git_command
         return dojo_git_command(self, "rev-parse", "HEAD").stdout.decode().strip()
 
+    @property
+    def last_commit_time(self):
+        from ..utils.dojo import dojo_git_command
+        return datetime.datetime.fromisoformat(dojo_git_command(self, "show", "--no-patch", "--format=%ci", "HEAD").stdout.decode().strip().replace(" -", "-")[:-2]+":00")
+
     @classmethod
     def ordering(cls):
         return (
