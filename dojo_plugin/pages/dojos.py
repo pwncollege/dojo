@@ -41,6 +41,8 @@ def listing():
             typed_dojos["Courses"].append(dojo)
         elif dojo.type == "hidden":
             continue
+        elif dojo.type == "example" and dojo.official:
+            continue
         else:
             typed_dojos["More"].append(dojo)
 
@@ -55,6 +57,7 @@ def dojo_create():
         "dojo_create.html",
         public_key=public_key,
         private_key=private_key,
+        example_dojos=Dojos.viewable().where(Dojos.data["type"] == "example").all()
     )
 
 
