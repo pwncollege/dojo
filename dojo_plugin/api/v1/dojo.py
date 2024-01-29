@@ -92,6 +92,14 @@ class PruneAwards(Resource):
         db.session.commit()
         return {"success": True, "pruned_awards": num_pruned}
 
+@dojo_namespace.route("/<dojo>/promote-dojo")
+class PromoteDojo(Resource):
+    @admins_only
+    def post(self, dojo):
+        dojo.official = True
+        db.session.commit()
+        return {"success": True}
+
 @dojo_namespace.route("/<dojo>/promote-admin")
 class PromoteAdmin(Resource):
     @authed_only
