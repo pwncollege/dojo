@@ -24,7 +24,7 @@ from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
 from ...models import Dojos, DojoMembers, DojoAdmins, DojoUsers, Emojis
-from ...utils.dojo import dojo_accessible, dojo_clone, load_dojo_dir, dojo_route, dojo_admins_only
+from ...utils.dojo import dojo_accessible, dojo_clone, dojo_from_dir, dojo_route, dojo_admins_only
 
 
 dojo_namespace = Namespace(
@@ -44,7 +44,7 @@ def create_dojo(user, repository, public_key, private_key):
         dojo_dir = dojo_clone(repository, private_key)
         dojo_path = pathlib.Path(dojo_dir.name)
 
-        dojo = load_dojo_dir(dojo_path)
+        dojo = dojo_from_dir(dojo_path)
         dojo.repository = repository
         dojo.public_key = public_key
         dojo.private_key = private_key
