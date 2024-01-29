@@ -128,46 +128,41 @@ def test_register():
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))
     login(random_id, random_id, register=True)
 
+def make_dojo_official(dojo_rid, admin_session):
+    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{dojo_rid}/promote-dojo", json={})
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
 
-def create_dojo(repository, *, official=True, session):
+def create_dojo(repository, *, session):
     test_public_key = f"public/{repository}"
     test_private_key = f"private/{repository}"
     create_dojo_json = dict(repository=repository, public_key=test_public_key, private_key=test_private_key)
     response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/create", json=create_dojo_json)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
     dojo_reference_id = response.json()["dojo"]
-
-    if official:
-        # TODO: add an official endpoint for making dojos official
-        id_, dojo_id = dojo_reference_id.split("~", 1)
-        dojo_id = int.from_bytes(bytes.fromhex(dojo_id.rjust(8, "0")), "big", signed=True)
-        sql = f"UPDATE dojos SET official = 1 WHERE id = '{id_}' and dojo_id = {dojo_id}"
-        dojo_run("db", input=sql)
-        sql = f"SELECT official FROM dojos WHERE id = '{id_}' and dojo_id = {dojo_id}"
-        db_result = dojo_run("db", input=sql)
-        assert db_result.stdout == "official\n1\n", f"Failed to make dojo official: {db_result.stdout}"
-
     return dojo_reference_id
 
+@pytest.fixture(scope="module")
+def example_dojo(admin_session):
+    rid = create_dojo("pwncollege/example-dojo", session=admin_session)
+    make_dojo_official(rid, admin_session)
+    return rid
 
 @pytest.fixture(scope="module")
-def example_dojo_rid(admin_session):
-    return create_dojo("pwncollege/example-dojo", session=admin_session)
-
-@pytest.fixture(scope="module")
-def example_import_dojo_rid(admin_session):
-    return create_dojo("pwncollege/example-import-dojo", session=admin_session)
+def example_import_dojo(admin_session):
+    rid = create_dojo("pwncollege/example-import-dojo", session=admin_session)
+    make_dojo_official(rid, admin_session)
+    return rid
 
 
 @pytest.mark.dependency()
-def test_create_dojo(example_dojo_rid, admin_session):
-    assert admin_session.get(f"{PROTO}://{HOST}/{example_dojo_rid}/").status_code == 200
+def test_create_dojo(example_dojo, admin_session):
+    assert admin_session.get(f"{PROTO}://{HOST}/{example_dojo}/").status_code == 200
     assert admin_session.get(f"{PROTO}://{HOST}/example/").status_code == 200
 
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
-def test_create_import_dojo(example_import_dojo_rid, admin_session):
-    assert admin_session.get(f"{PROTO}://{HOST}/{example_import_dojo_rid}/").status_code == 200
+def test_create_import_dojo(example_import_dojo, admin_session):
+    assert admin_session.get(f"{PROTO}://{HOST}/{example_import_dojo}/").status_code == 200
     assert admin_session.get(f"{PROTO}://{HOST}/example-import/").status_code == 200
 
 
