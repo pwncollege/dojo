@@ -16,9 +16,9 @@ from sqlalchemy.orm.exc import NoResultFound
 from CTFd.models import db, Users, Challenges, Flags, Solves
 from CTFd.utils.user import get_current_user, is_admin
 
-from ...models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
-from ...config import DOJOS_DIR
-from ...utils import get_current_container
+from ..models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
+from ..config import DOJOS_DIR
+from ..utils import get_current_container
 
 
 ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
