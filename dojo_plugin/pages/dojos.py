@@ -43,6 +43,8 @@ def listing():
             continue
         elif dojo.type == "example" and dojo.official:
             continue
+        elif dojo.type == "welcome":
+            continue
         else:
             typed_dojos["More Material"].append(dojo)
 
