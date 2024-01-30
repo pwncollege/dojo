@@ -31,8 +31,8 @@ def listing():
     user = get_current_user()
     typed_dojos = {
         "Topics": [],
-        "More Material": [],
         "Courses": [],
+        "More Material": [],
     }
     for dojo in Dojos.viewable(user=user):
         if dojo.type == "topic":
