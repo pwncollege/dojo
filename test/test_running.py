@@ -5,6 +5,7 @@ import re
 import shutil
 import string
 import subprocess
+import pathlib
 
 import requests
 import pytest
@@ -14,6 +15,7 @@ import pytest
 PROTO="http"
 HOST="localhost.pwn.college"
 CONTAINER_NAME = os.environ.get("CONTAINER_NAME", "dojo-test")
+TEST_DOJOS_LOCATION = pathlib.Path(__file__).parent / "dojos"
 
 def dojo_run(*args, **kwargs):
     kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -141,6 +143,12 @@ def create_dojo(repository, *, session):
     dojo_reference_id = response.json()["dojo"]
     return dojo_reference_id
 
+def create_dojo_yml(spec, *, session):
+    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/create-spec", json={"spec": spec})
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
+    dojo_reference_id = response.json()["dojo"]
+    return dojo_reference_id
+
 @pytest.fixture(scope="module")
 def example_dojo(admin_session):
     rid = create_dojo("pwncollege/example-dojo", session=admin_session)
@@ -152,6 +160,10 @@ def example_import_dojo(admin_session):
     rid = create_dojo("pwncollege/example-import-dojo", session=admin_session)
     make_dojo_official(rid, admin_session)
     return rid
+
+@pytest.fixture(scope="module")
+def simple_award_dojo(admin_session):
+    return create_dojo_yml(open(TEST_DOJOS_LOCATION / "simple_award_dojo.yml").read(), session=admin_session)
 
 
 @pytest.mark.dependency()
@@ -189,12 +201,15 @@ def test_promote_dojo_member(admin_session, guest_dojo_admin):
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
 
 @pytest.mark.dependency(depends=["test_join_dojo"])
-def test_dojo_completion(completionist_user):
+def test_dojo_completion(simple_award_dojo, completionist_user):
     user_name, session = completionist_user
-    dojo = "example"
+    dojo = simple_award_dojo
+
+    response = session.get(f"{PROTO}://{HOST}/dojo/{dojo}/join/")
+    assert response.status_code == 200
     for module, challenge in [
         ("hello", "apple"), ("hello", "banana"),
-        ("world", "earth"), ("world", "mars"), ("world", "venus")
+        #("world", "earth"), ("world", "mars"), ("world", "venus")
     ]:
         start_challenge(dojo, module, challenge, session=session)
         challenge_id = get_challenge_id(session, dojo, module, challenge)
@@ -208,13 +223,12 @@ def test_dojo_completion(completionist_user):
 
     # check for emoji
     scoreboard = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
-    print(scoreboard)
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
-    assert us["solves"] == 5
+    assert us["solves"] == 2
     assert len(us["badges"]) == 1
 
 @pytest.mark.dependency(depends=["test_join_dojo"])
-def test_prune_dojo_awards(admin_session, completionist_user):
+def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user):
     user_name, _ = completionist_user
     db_sql(f"DELETE FROM solves WHERE user_id={get_user_id(user_name)} LIMIT 1")
 
@@ -224,12 +238,12 @@ def test_prune_dojo_awards(admin_session, completionist_user):
     #assert us["solves"] == 4
     #assert len(us["badges"]) == 1
 
-    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/example/prune-awards", json={})
+    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{simple_award_dojo}/prune-awards", json={})
     assert response.status_code == 200
 
-    scoreboard = admin_session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/example/_/0/1").json()
+    scoreboard = admin_session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
-    assert us["solves"] == 4
+    assert us["solves"] == 1
     assert len(us["badges"]) == 0
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
