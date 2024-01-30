@@ -95,6 +95,7 @@ class PruneAwards(Resource):
 @dojo_namespace.route("/<dojo>/promote-dojo")
 class PromoteDojo(Resource):
     @admins_only
+    @dojo_route
     def post(self, dojo):
         dojo.official = True
         db.session.commit()
