@@ -329,7 +329,7 @@ def dojo_clone(repository, private_key):
     url = f"https://github.com/{repository}"
     if requests.head(url).status_code != 200:
         url = f"git@github.com:{repository}"
-    subprocess.run(["git", "clone", url, clone_dir.name],
+    subprocess.run(["git", "clone", "--recurse-submodules", url, clone_dir.name],
                    env={
                        "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
                        "GIT_TERMINAL_PROMPT": "0",
