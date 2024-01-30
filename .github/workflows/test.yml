@@ -19,7 +19,7 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
       - name: Install test dependencies
-        run: pip install pytest pytest-dependency requests rpyc
+        run: pip install pytest pytest-dependency requests
 
       - name: Run dojo
         run: |

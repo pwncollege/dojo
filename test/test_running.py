@@ -6,8 +6,6 @@ import shutil
 import string
 import subprocess
 import pathlib
-import rpyc
-import sys
 
 import requests
 import pytest
@@ -19,36 +17,13 @@ HOST="localhost.pwn.college"
 CONTAINER_NAME = os.environ.get("CONTAINER_NAME", "dojo-test")
 TEST_DOJOS_LOCATION = pathlib.Path(__file__).parent / "dojos"
 
-def dojo_run(*args, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs):
+def dojo_run(*args, **kwargs):
+    kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return subprocess.run(
         [shutil.which("docker"), "exec", "-i", CONTAINER_NAME, "dojo", *args],
-        check=check, text=text, stdout=stdout, stderr=stderr, **kwargs
+        check=kwargs.pop("check", True), **kwargs
     )
 
-def dojo_popen(*args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs):
-    return subprocess.Popen(
-        [shutil.which("docker"), "exec", "-i", CONTAINER_NAME, "dojo", *args],
-        text=text, stdout=stdout, stderr=stderr, **kwargs
-    )
-
-def setup_module(module):
-    global _rpyc_server, _rpyc_client
-    _rpyc_server = dojo_popen("flask", "/opt/CTFd/CTFd/plugins/dojo_plugin/scripts/serve_rpyc.py", stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr)
-    assert len(_rpyc_server.stdout.read(433)) == 433
-    _rpyc_client = rpyc.utils.factory.connect_pipes(_rpyc_server.stdout, _rpyc_server.stdin, service=rpyc.core.service.ClassicService, config={'sync_request_timeout':None})
-
-    global CTFd, dojo_plugin
-    global db, Solves, Users
-    # remote imports
-    CTFd = _rpyc_client.modules.CTFd
-    dojo_plugin = CTFd.plugins.dojo_plugin
-    db = CTFd.models.db
-    Solves = CTFd.models.Solves
-    Users = CTFd.models.Users
-
-def teardown_module(module):
-    _rpyc_client.close()
-    _rpyc_server.kill()
 
 def workspace_run(cmd, *, user, root=False, **kwargs):
     args = [ "enter" ]
@@ -111,7 +86,6 @@ def db_sql_one(sql):
     return db_sql(sql).split()[1]
 
 def get_user_id(user_name):
-    #return Users.query.where(Users.name == user_name).first().id <- fails for completionist_user for some reason
     return int(db_sql_one(f"SELECT id FROM users WHERE name = '{user_name}'"))
 
 @pytest.fixture(scope="module")
@@ -256,8 +230,7 @@ def test_dojo_completion(simple_award_dojo, completionist_user):
 @pytest.mark.dependency(depends=["test_join_dojo"])
 def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user):
     user_name, _ = completionist_user
-    db.session.delete(Solves.query.where(Solves.user_id == get_user_id(user_name)).first())
-    db.session.commit()
+    db_sql(f"DELETE FROM solves WHERE user_id={get_user_id(user_name)} LIMIT 1")
 
     # unfortunately, the scoreboard cache makes this test impossible without going through ctfd or `dojo flask`
     #scoreboard = admin_session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/example/_/0/1").json()
