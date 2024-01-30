@@ -9,6 +9,7 @@ import pathlib
 import shutil
 import docker
 import pathlib
+import yaml
 import os
 import re
 
@@ -24,13 +25,33 @@ from CTFd.utils.modes import get_model
 from CTFd.utils.security.sanitize import sanitize_html
 
 from ...models import Dojos, DojoMembers, DojoAdmins, DojoUsers, Emojis
-from ...utils.dojo import dojo_accessible, dojo_clone, dojo_from_dir, dojo_route, dojo_admins_only
+from ...utils.dojo import dojo_accessible, dojo_clone, dojo_from_dir, dojo_from_spec, dojo_route, dojo_admins_only
 
 
 dojo_namespace = Namespace(
     "dojo", description="Endpoint to manage dojos"
 )
 
+def create_dojo_yml(user, spec):
+    DOJO_EXISTS = "This repository already exists as a dojo"
+    try:
+        dojo = dojo_from_spec(spec)
+        dojo.admins = [DojoAdmins(user=user)]
+
+        db.session.add(dojo)
+        db.session.commit()
+    except IntegrityError as e:
+        return {"success": False, "error": DOJO_EXISTS}, 400
+
+    except AssertionError as e:
+        return {"success": False, "error": str(e)}, 400
+
+    except Exception as e:
+        print("ERROR: Dojo from spec failed", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        return {"success": False, "error": str(e)}, 400
+
+    return {"success": True, "dojo": dojo.reference_id}, 200
 
 def create_dojo(user, repository, public_key, private_key):
     DOJO_EXISTS = "This repository already exists as a dojo"
@@ -118,6 +139,12 @@ class PromoteAdmin(Resource):
             return {"success": False, "error": "User is not currently a dojo member."}, 400
         db.session.commit()
         return {"success": True}
+
+@dojo_namespace.route("/create-spec")
+class CreateDojoSpec(Resource):
+    @admins_only
+    def post(self):
+        return create_dojo_yml(get_current_user(), yaml.safe_load(request.get_json()["spec"]))
 
 @dojo_namespace.route("/create")
 class CreateDojo(Resource):
