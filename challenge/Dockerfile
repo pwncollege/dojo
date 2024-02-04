@@ -33,6 +33,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         vim
         wget
         unzip
+        less
 EOF
 
 RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
@@ -407,7 +408,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         kmod
         libc6-arm64-cross
         libc6-dev-arm64-cross
-        less
         ltrace
         nano
         neovim
