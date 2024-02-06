@@ -81,6 +81,8 @@ def get_discord_user(user_id):
 
 @cache.memoize(timeout=3600)
 def get_discord_roles():
+    if not DISCORD_BOT_TOKEN:
+        return {}
     roles = guild_request("/roles")
     return {role["name"]: role["id"] for role in roles}
 
