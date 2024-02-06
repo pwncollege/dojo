@@ -62,7 +62,7 @@ def get_discord_id(auth_code):
     return discord_id
 
 
-@cache.memoize(timeout=60)
+@cache.memoize(timeout=3600)
 def get_discord_user(user_id):
     if not DISCORD_BOT_TOKEN:
         return

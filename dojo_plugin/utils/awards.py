@@ -61,25 +61,29 @@ def get_belts():
 
 def update_awards(user):
     current_belts = [belt.name for belt in Belts.query.filter_by(user=user)]
-    discord_user = get_discord_user(user.id)
-    discord_roles = get_discord_roles()
     for belt, dojo_id in BELT_REQUIREMENTS.items():
-        belt_role = belt.title() + " Belt"
-        missing_role = discord_user and discord_roles.get(belt_role) not in discord_user["roles"]
-        if belt in current_belts and not missing_role:
+        if belt in current_belts:
             continue
         dojo = Dojos.query.filter(Dojos.official, Dojos.id == dojo_id).first()
         if not (dojo and dojo.completed(user)):
             continue
+        db.session.add(Belts(user=user, name=belt))
+        db.session.commit()
+        current_belts.append(belt)
+
+    discord_user = get_discord_user(user.id)
+    discord_roles = get_discord_roles()
+    for belt in BELT_REQUIREMENTS:
         if belt not in current_belts:
-            db.session.add(Belts(user=user, name=belt))
-            db.session.commit()
-        if missing_role:
-            user_mention = f"<@{discord_user['user']['id']}>"
-            message = f"{user_mention} earned their {belt_role}! :tada:"
-            print(message, flush=True)
-            add_role(discord_user["user"]["id"], belt_role)
-            send_message(message, "belting-ceremony")
+            continue
+        belt_role = belt.title() + " Belt"
+        missing_role = discord_user and discord_roles.get(belt_role) not in discord_user["roles"]
+        if not missing_role:
+            continue
+        user_mention = f"<@{discord_user['user']['id']}>"
+        message = f"{user_mention} earned their {belt_role}! :tada:"
+        add_role(discord_user["user"]["id"], belt_role)
+        send_message(message, "belting-ceremony")
 
     current_emojis = get_user_emojis(user)
     for emoji,dojo_name,dojo_id in current_emojis:
