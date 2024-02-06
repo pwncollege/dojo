@@ -47,6 +47,7 @@ def main():
 
         if status != "running":
             attempts += 1
+            print("\033c", end="") # Clear the terminal when the user opens a new chall.
             print("\r", " " * 80, f"\rConnecting -- instance status: {status}", end="")
             time.sleep(1)
             continue
