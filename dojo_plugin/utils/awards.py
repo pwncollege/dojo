@@ -66,7 +66,7 @@ def update_awards(user):
             continue
         dojo = Dojos.query.filter(Dojos.official, Dojos.id == dojo_id).first()
         if not (dojo and dojo.completed(user)):
-            continue
+            break
         db.session.add(Belts(user=user, name=belt))
         db.session.commit()
         current_belts.append(belt)
