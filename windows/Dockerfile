@@ -11,7 +11,7 @@ RUN echo 'APT::Install-Recommends 0;' >> /etc/apt/apt.conf.d/01norecommends \
 WORKDIR /app
 
 # IDA Freeware: only permissible for free and open deployments of the dojo!
-ARG INSTALL_IDA=False
+ARG INSTALL_IDA=no
 
 # we create a floppy disk that will hold our Autounattend.xml in the root which will
 #  allow windows install to proceed automatically.
@@ -107,3 +107,4 @@ CMD \
 FROM ubuntu:20.04 AS none
 
 CMD true
+ue

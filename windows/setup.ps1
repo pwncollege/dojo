@@ -73,7 +73,7 @@ Remove-Item -Force -Path C:\windbg.msixbundle
 
 # -- install IDA --
 $InstallIDA = "{INSTALLIDA}";
-if ($InstallIDA -eq "True") {
+if ($InstallIDA -eq "yes") {
     (New-Object Net.WebClient).DownloadFile("https://out7.hex-rays.com/files/idafree82_windows.exe", "C:\idafree.exe")
     Start-Process "C:\idafree.exe" -ArgumentList "--unattendedmodeui minimal --mode unattended --installpassword freeware" -Wait
     Remove-Item -Force -Path "C:\idafree.exe"
@@ -195,3 +195,4 @@ Copy-Item "A:\sshd_config" -Destination "$env:programdata\ssh\sshd_config"
 
 # -- shutdown --
 Stop-Computer -computername localhost -force
+
