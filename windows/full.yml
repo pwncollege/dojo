@@ -4,7 +4,7 @@ services:
       context: ./
       target: ${WINDOWS_VM}
       args:
-        - INSTALL_IDA=${INSTALL_IDA}
+        - INSTALL_IDA_FREE=${INSTALL_IDA_FREE}
     platform: linux/amd64
     devices:
       - /dev/kvm

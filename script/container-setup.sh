@@ -41,7 +41,7 @@ define INSTALL_GDB no # needs compilation, but everyone is expecting this
 define INSTALL_GECKODRIVER no # just for web
 define INSTALL_GHIDRA no
 define INSTALL_GLOW no
-define INSTALL_IDA no # only for free dojos
+define INSTALL_IDA_FREE no # only for free dojos
 define INSTALL_KERNEL no # needs compilation
 define INSTALL_RADARE2 no # needs compilation
 define INSTALL_RAPPEL no # needs compilation

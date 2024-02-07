@@ -11,14 +11,14 @@ RUN echo 'APT::Install-Recommends 0;' >> /etc/apt/apt.conf.d/01norecommends \
 WORKDIR /app
 
 # IDA Freeware: only permissible for free and open deployments of the dojo!
-ARG INSTALL_IDA=no
+ARG INSTALL_IDA_FREE=no
 
 # we create a floppy disk that will hold our Autounattend.xml in the root which will
 #  allow windows install to proceed automatically.
 # We require privileges to create a loop device
 COPY ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./sshd_config ./
 COPY ./challenge-proxy ./challenge-proxy
-RUN sed -i 's/{INSTALLIDA}/'"$INSTALL_IDA"'/g' ./setup.ps1 \
+RUN sed -i 's/{INSTALLIDA}/'"$INSTALL_IDA_FREE"'/g' ./setup.ps1 \
   && touch ./practice-mode-enabled \
   && mkfs.fat -F 12 -C ./floppy.img 1440 \
   && mcopy -si ./floppy.img \
