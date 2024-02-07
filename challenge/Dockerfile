@@ -2,7 +2,26 @@
 
 ARG UBUNTU_VERSION=20.04
 ARG DOJO_CHALLENGE=challenge-mini
-ARG INSTALL_IDA=False
+ARG INSTALL_KERNEL=yes
+ARG INSTALL_TCPDUMP=yes
+ARG INSTALL_CAPSTONE=yes
+ARG INSTALL_RADARE2=yes
+ARG INSTALL_AFL=yes
+ARG INSTALL_RAPPEL=yes
+ARG INSTALL_RP=yes
+ARG INSTALL_GECKODRIVER=yes
+ARG INSTALL_BURPSUITE=yes
+ARG INSTALL_BUSYBOX=yes
+ARG INSTALL_GLOW=yes
+ARG INSTALL_DESKTOP_BASE=yes
+ARG INSTALL_XFCE=yes
+ARG INSTALL_VIRTIOFSD=yes
+ARG INSTALL_IDA=yes
+ARG INSTALL_GHIDRA=yes
+ARG INSTALL_ANGR_MANAGEMENT=yes
+ARG INSTALL_GDB=yes
+ARG INSTALL_TOOLS_PIP=yes
+ARG INSTALL_TOOLS_APT=yes
 
 FROM ubuntu:${UBUNTU_VERSION} as essentials
 
@@ -96,7 +115,9 @@ EOF
 
 ################################################################################
 
-FROM builder as builder-kernel
+FROM builder as builder-kernel-no
+RUN mkdir /opt/linux
+FROM builder as builder-kernel-yes
 
 RUN <<EOF
     mkdir /opt/linux
@@ -146,9 +167,12 @@ RUN <<EOF
     ln -sf $PWD/vmlinux ../vmlinux
 EOF
 
+FROM builder-kernel-${INSTALL_KERNEL} as builder-kernel
+
 ################################################################################
 
-FROM builder as builder-gdb
+FROM builder as builder-gdb-no
+FROM builder as builder-gdb-yes
 
 RUN <<EOF
     mkdir /opt/gdb
@@ -170,6 +194,8 @@ RUN <<EOF
     git clone --depth 1 https://github.com/hugsy/gef /opt/gef
     git clone --depth 1 https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 EOF
+
+FROM builder-gdb-${INSTALL_GDB} as builder-gdb
 
 ################################################################################
 
@@ -203,7 +229,8 @@ RUN chmod +x rg
 
 ################################################################################
 
-FROM builder as builder-tcpdump
+FROM builder as builder-tcpdump-no
+FROM builder as builder-tcpdump-yes
 RUN <<EOF
     git clone --depth 1 https://github.com/the-tcpdump-group/tcpdump /opt/tcpdump
     cd /opt/tcpdump
@@ -211,57 +238,73 @@ RUN <<EOF
     ./configure
     make install
 EOF
+FROM builder-tcpdump-${INSTALL_TCPDUMP} as builder-tcpdump
 
-FROM builder as builder-capstone
+FROM builder as builder-capstone-no
+FROM builder as builder-capstone-yes
 RUN <<EOF
     git clone --depth 1 https://github.com/capstone-engine/capstone /opt/capstone
     cd /opt/capstone
     make
     make install
 EOF
+FROM builder-capstone-${INSTALL_CAPSTONE} as builder-capstone
 
-FROM builder as builder-radare2
+FROM builder as builder-radare2-no
+FROM builder as builder-radare2-yes
 RUN <<EOF
     git clone --depth 1 https://github.com/radareorg/radare2 /opt/radare2
     cd /opt/radare2
     sys/install.sh
 EOF
+FROM builder-radare2-${INSTALL_RADARE2} as builder-radare2
 
-FROM builder as builder-aflplusplus
+FROM builder as builder-aflplusplus-no
+FROM builder as builder-aflplusplus-yes
 RUN <<EOF
     git clone --depth 1 https://github.com/aflplusplus/aflplusplus /opt/aflplusplus
     cd /opt/aflplusplus
     make distrib
     make install
 EOF
+FROM builder-aflplusplus-${INSTALL_AFL} as builder-aflplusplus
 
-FROM builder as builder-rappel
+FROM builder as builder-rappel-no
+FROM builder as builder-rappel-yes
 RUN <<EOF
     git clone --depth 1 https://github.com/yrp604/rappel /opt/rappel
     cd /opt/rappel
     make
     cp bin/rappel /usr/bin/rappel
 EOF
+FROM builder-rappel-${INSTALL_RAPPEL} as builder-rappel
 
-FROM builder as builder-rp
+FROM builder as builder-rp-no
+FROM builder as builder-rp-yes
 RUN <<EOF
     wget https://github.com/0vercl0k/rp/releases/download/v2.0.2/rp-lin-x64 -O /usr/bin/rp++
     chmod +x /usr/bin/rp++
 EOF
+FROM builder-rp-${INSTALL_RP} as builder-rp
 
-FROM builder as builder-geckodriver
+FROM builder as builder-geckodriver-no
+FROM builder as builder-geckodriver-yes
 RUN <<EOF
     wget -q -O - https://github.com/mozilla/geckodriver/releases/download/v0.32.0/geckodriver-v0.32.0-linux64.tar.gz | tar xvz -C /usr/local/bin
 EOF
+FROM builder-geckodriver-${INSTALL_GECKODRIVER} as builder-geckodriver
 
-FROM builder as builder-burpsuite
+FROM builder as builder-burpsuite-no
+FROM builder as builder-burpsuite-yes
 RUN <<EOF
     wget -q -O /tmp/burpsuite.sh https://portswigger.net/burp/releases/download?product=community\&version=2023.11.1.4\&type=Linux
     sh /tmp/burpsuite.sh -q
     rm /tmp/burpsuite.sh
 EOF
+FROM builder-burpsuite-${INSTALL_BURPSUITE} as builder-burpsuite
 
-FROM builder as builder-busybox
+FROM builder as builder-busybox-no
+FROM builder as builder-busybox-yes
 RUN <<EOF
     VERSION="busybox-1.33.2"
     mkdir /opt/busybox && cd "$_"
@@ -273,8 +316,10 @@ RUN <<EOF
     popd
     ln -s "${VERSION}/_install" /opt/busybox/fs
 EOF
+FROM builder-busybox-${INSTALL_BUSYBOX} as builder-busybox
 
-FROM builder as builder-glow
+FROM builder as builder-glow-no
+FROM builder as builder-glow-yes
 RUN <<EOF
     VERSION="1.5.1"
     DEB_NAME="glow_${VERSION}_amd64.deb"
@@ -284,8 +329,11 @@ RUN <<EOF
     rm "${DEB_NAME}"
     popd
 EOF
+FROM builder-glow-${INSTALL_GLOW} as builder-glow
 
-FROM builder as builder-virtiofsd
+FROM builder as builder-virtiofsd-no
+RUN mkdir /opt/virtiofsd
+FROM builder as builder-virtiofsd-yes
 RUN <<EOF
     mkdir /opt/virtiofsd && cd "$_"
     wget -q -O ./build.zip "https://gitlab.com/virtio-fs/virtiofsd/-/jobs/artifacts/main/download?job=publish"
@@ -293,10 +341,12 @@ RUN <<EOF
     rm -f ./build.zip
     chmod +x ./virtiofsd
 EOF
+FROM builder-virtiofsd-${INSTALL_VIRTIOFSD} as builder-virtiofsd
 
 ################################################################################
 
-FROM essentials as builder-desktop-base
+FROM essentials as builder-desktop-base-no
+FROM essentials as builder-desktop-base-yes
 
 ARG UBUNTU_VERSION=20.04
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -312,9 +362,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         xterm
 EOF
 
+FROM builder-desktop-base-${INSTALL_DESKTOP_BASE} as builder-desktop-base
+
 ################################################################################
 
-FROM builder-desktop-base as builder-desktop-xfce
+FROM builder-desktop-base-no as builder-desktop-xfce-no
+FROM builder-desktop-base-yes as builder-desktop-xfce-yes
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -335,43 +388,57 @@ COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
 
 RUN rm /etc/xdg/autostart/*
 
+FROM builder-desktop-xfce-${INSTALL_XFCE} as builder-desktop-xfce
+
 ################################################################################
 
-FROM essentials as builder-desktop-reversing-tools
+FROM essentials as builder-desktop-angr-management-no
+FROM essentials as builder-desktop-angr-management-yes
 
 COPY desktop/angr-management.desktop /usr/share/applications/
-COPY desktop/Ghidra.desktop /usr/share/applications/
-
 ARG UBUNTU_VERSION=20.04
 RUN <<EOF
     wget -q -O - https://github.com/angr/angr-management/releases/download/nightly/angr-management-ubuntu-${UBUNTU_VERSION}.tar.gz | tar xvz -C /opt
+EOF
 
+FROM builder-desktop-angr-management-${INSTALL_ANGR_MANAGEMENT} as builder-desktop-angr-management
+
+################################################################################
+
+FROM essentials as builder-desktop-ghidra-no
+FROM essentials as builder-desktop-ghidra-yes
+
+COPY desktop/Ghidra.desktop /usr/share/applications/
+RUN <<EOF
     wget -q -O /tmp/ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_10.3_build/ghidra_10.3_PUBLIC_20230510.zip
     unzip /tmp/ghidra.zip -d /tmp
     mv /tmp/ghidra_10.3_PUBLIC /opt/ghidra
     rm /tmp/ghidra.zip
 EOF
 
-# IDA Freeware: only permissible for free and open deployments of the dojo!
-COPY desktop/ida64.desktop /usr/share/applications/
-COPY desktop/ida.opt /opt/ida/ida.opt
-ARG INSTALL_IDA=False
-RUN <<EOF
-    if [ "$INSTALL_IDA" == "True" ]
-    then
-        wget -O /tmp/idafree80_linux.run https://out7.hex-rays.com/files/idafree80_linux.run
-        chmod 755 /tmp/idafree80_linux.run
-        /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt
-        rm /tmp/idafree80_linux.run /tmp/installbuilder_installer.log
-    else
-        rm /usr/share/applications/ida64.desktop
-        rm -rf /opt/ida
-    fi
-EOF
+FROM builder-desktop-ghidra-${INSTALL_GHIDRA} as builder-desktop-ghidra
 
 ################################################################################
 
-FROM essentials as builder-tools-apt
+FROM essentials as builder-desktop-ida-no
+FROM essentials as builder-desktop-ida-yes
+
+# IDA Freeware: only permissible for free and open deployments of the dojo!
+COPY desktop/ida64.desktop /usr/share/applications/
+COPY desktop/ida.opt /opt/ida/ida.opt
+RUN <<EOF
+    wget -O /tmp/idafree80_linux.run https://out7.hex-rays.com/files/idafree80_linux.run
+    chmod 755 /tmp/idafree80_linux.run
+    /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt
+    rm /tmp/idafree80_linux.run /tmp/installbuilder_installer.log
+EOF
+
+FROM builder-desktop-ida-${INSTALL_IDA} as builder-desktop-ida
+
+################################################################################
+
+FROM essentials as builder-tools-apt-no
+FROM essentials as builder-tools-apt-yes
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -437,9 +504,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         zip
 EOF
 
+FROM builder-tools-apt-${INSTALL_TOOLS_APT} as builder-tools-apt
+
 ################################################################################
 
-FROM builder as builder-tools-pip
+FROM builder as builder-tools-pip-no
+FROM builder as builder-tools-pip-yes
 
 RUN xargs pip install --force-reinstall <<EOF
     angr
@@ -456,6 +526,8 @@ RUN xargs pip install --force-reinstall <<EOF
 EOF
 
 RUN ln -sf /usr/bin/ipython3 /usr/bin/ipython
+
+FROM builder-tools-pip-${INSTALL_TOOLS_PIP} as builder-tools-pip
 
 ################################################################################
 
@@ -515,7 +587,7 @@ COPY --link --from=builder-desktop-base / /
 
 ################################################################################
 
-FROM challenge-mini as challenge-full
+FROM challenge-mini as challenge-granular
 
 # TODO: probably extra slow to `COPY / /`
 COPY --link --from=builder-essentials / /
@@ -533,22 +605,41 @@ COPY --link --from=builder-busybox / /
 COPY --link --from=builder-glow / /
 COPY --link --from=builder-desktop-xfce / /
 COPY --link --from=builder-virtiofsd /opt/virtiofsd /opt/virtiofsd
-COPY --link --from=builder-desktop-reversing-tools / /
+COPY --link --from=builder-desktop-ida / /
+COPY --link --from=builder-desktop-ghidra / /
+COPY --link --from=builder-desktop-angr-management / /
 COPY --link --from=builder-gdb / /
 COPY --link --from=builder-tools-pip / /
 COPY --link --from=builder-tools-apt / /
 
-RUN cat >> /etc/ssh/ssh_config <<EOF
-    StrictHostKeyChecking no
-    UserKnownHostsFile=/dev/null
-    LogLevel ERROR
-EOF
+################################################################################
 
-RUN <<EOF
-    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config
-    sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
-EOF
+FROM challenge-mini as challenge-full
+
+# here, everything is installed except for IDA, which still uses the INSTALL_IDA parameter
+
+# TODO: probably extra slow to `COPY / /`
+COPY --link --from=builder-essentials / /
+COPY --link --from=builder / /
+COPY --link --from=builder-kernel-yes /opt/linux /opt/linux
+COPY --link --from=builder-tcpdump-yes / /
+COPY --link --from=builder-capstone-yes / /
+COPY --link --from=builder-radare2-yes / /
+COPY --link --from=builder-aflplusplus-yes / /
+COPY --link --from=builder-rappel-yes / /
+COPY --link --from=builder-rp-yes / /
+COPY --link --from=builder-geckodriver-yes / /
+COPY --link --from=builder-burpsuite-yes / /
+COPY --link --from=builder-busybox-yes / /
+COPY --link --from=builder-glow-yes / /
+COPY --link --from=builder-desktop-xfce-yes / /
+COPY --link --from=builder-virtiofsd-yes /opt/virtiofsd /opt/virtiofsd
+COPY --link --from=builder-desktop-ida / /
+COPY --link --from=builder-desktop-ghidra-yes / /
+COPY --link --from=builder-desktop-angr-management-yes / /
+COPY --link --from=builder-gdb-yes / /
+COPY --link --from=builder-tools-pip-yes / /
+COPY --link --from=builder-tools-apt-yes / /
 
 ################################################################################
 
@@ -559,6 +650,24 @@ FROM challenge-full as challenge
 ################################################################################
 
 FROM ${DOJO_CHALLENGE} as challenge-final
+
+RUN <<EOF
+    if [ -f /etc/ssh/ssh_config ]
+    then
+        echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config
+        echo "UserKnownHostsFile=/dev/null" >> /etc/ssh/ssh_config
+        echo "LogLevel ERROR" >> /etc/ssh/ssh_config
+    fi
+EOF
+
+RUN <<EOF
+    if [ -f /etc/ssh/sshd_config ]
+    then
+        sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+        sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config
+        sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+    fi
+EOF
 
 RUN <<EOF
     if id ubuntu; then userdel -f -r ubuntu; fi
