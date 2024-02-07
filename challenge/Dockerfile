@@ -16,7 +16,7 @@ ARG INSTALL_GLOW=yes
 ARG INSTALL_DESKTOP_BASE=yes
 ARG INSTALL_XFCE=yes
 ARG INSTALL_VIRTIOFSD=yes
-ARG INSTALL_IDA=yes
+ARG INSTALL_IDA_FREE=yes
 ARG INSTALL_GHIDRA=yes
 ARG INSTALL_ANGR_MANAGEMENT=yes
 ARG INSTALL_GDB=yes
@@ -420,8 +420,8 @@ FROM builder-desktop-ghidra-${INSTALL_GHIDRA} as builder-desktop-ghidra
 
 ################################################################################
 
-FROM essentials as builder-desktop-ida-no
-FROM essentials as builder-desktop-ida-yes
+FROM essentials as builder-desktop-ida-free-no
+FROM essentials as builder-desktop-ida-free-yes
 
 # IDA Freeware: only permissible for free and open deployments of the dojo!
 COPY desktop/ida64.desktop /usr/share/applications/
@@ -433,7 +433,7 @@ RUN <<EOF
     rm /tmp/idafree80_linux.run /tmp/installbuilder_installer.log
 EOF
 
-FROM builder-desktop-ida-${INSTALL_IDA} as builder-desktop-ida
+FROM builder-desktop-ida-free-${INSTALL_IDA_FREE} as builder-desktop-ida-free
 
 ################################################################################
 
@@ -605,7 +605,7 @@ COPY --link --from=builder-busybox / /
 COPY --link --from=builder-glow / /
 COPY --link --from=builder-desktop-xfce / /
 COPY --link --from=builder-virtiofsd /opt/virtiofsd /opt/virtiofsd
-COPY --link --from=builder-desktop-ida / /
+COPY --link --from=builder-desktop-ida-free / /
 COPY --link --from=builder-desktop-ghidra / /
 COPY --link --from=builder-desktop-angr-management / /
 COPY --link --from=builder-gdb / /
@@ -616,7 +616,7 @@ COPY --link --from=builder-tools-apt / /
 
 FROM challenge-mini as challenge-full
 
-# here, everything is installed except for IDA, which still uses the INSTALL_IDA parameter
+# here, everything is installed except for IDA, which still uses the INSTALL_IDA_FREE parameter
 
 # TODO: probably extra slow to `COPY / /`
 COPY --link --from=builder-essentials / /
@@ -634,7 +634,7 @@ COPY --link --from=builder-busybox-yes / /
 COPY --link --from=builder-glow-yes / /
 COPY --link --from=builder-desktop-xfce-yes / /
 COPY --link --from=builder-virtiofsd-yes /opt/virtiofsd /opt/virtiofsd
-COPY --link --from=builder-desktop-ida / /
+COPY --link --from=builder-desktop-ida-free / /
 COPY --link --from=builder-desktop-ghidra-yes / /
 COPY --link --from=builder-desktop-angr-management-yes / /
 COPY --link --from=builder-gdb-yes / /
