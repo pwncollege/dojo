@@ -84,6 +84,7 @@ def update_awards(user):
         message = f"{user_mention} earned their {belt_role}! :tada:"
         add_role(discord_user["user"]["id"], belt_role)
         send_message(message, "belting-ceremony")
+        cache.delete_memoized(get_discord_user, user.id)
 
     current_emojis = get_user_emojis(user)
     for emoji,dojo_name,dojo_id in current_emojis:
