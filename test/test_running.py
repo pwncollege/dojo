@@ -10,7 +10,7 @@ import pathlib
 import requests
 import pytest
 
-#pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout
+#pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
 PROTO="http"
 HOST="localhost.pwn.college"
@@ -149,11 +149,34 @@ def create_dojo_yml(spec, *, session):
     dojo_reference_id = response.json()["dojo"]
     return dojo_reference_id
 
+def start_and_solve(user_name, session, dojo, module, challenge):
+    start_challenge(dojo, module, challenge, session=session)
+    challenge_id = get_challenge_id(session, dojo, module, challenge)
+    flag = get_flag(user_name)
+    response = session.post(
+        f"{PROTO}://{HOST}/api/v1/challenges/attempt",
+        json={"challenge_id": challenge_id, "submission": flag}
+    )
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    assert response.json()["success"], "Expected to successfully submit flag"
+
+
 @pytest.fixture(scope="module")
 def example_dojo(admin_session):
     rid = create_dojo("pwncollege/example-dojo", session=admin_session)
     make_dojo_official(rid, admin_session)
     return rid
+
+@pytest.fixture(scope="module")
+def belt_dojos(admin_session):
+    belt_dojo_rids = {
+        color: create_dojo_yml(
+            open(TEST_DOJOS_LOCATION / f"fake_{color}.yml").read(), session=admin_session
+        ) for color in [ "orange", "yellow", "green", "blue" ]
+    }
+    for rid in belt_dojo_rids.values():
+        make_dojo_official(rid, admin_session)
+    return belt_dojo_rids
 
 @pytest.fixture(scope="module")
 def example_import_dojo(admin_session):
@@ -211,15 +234,7 @@ def test_dojo_completion(simple_award_dojo, completionist_user):
         ("hello", "apple"), ("hello", "banana"),
         #("world", "earth"), ("world", "mars"), ("world", "venus")
     ]:
-        start_challenge(dojo, module, challenge, session=session)
-        challenge_id = get_challenge_id(session, dojo, module, challenge)
-        flag = get_flag(user_name)
-        response = session.post(
-            f"{PROTO}://{HOST}/api/v1/challenges/attempt",
-            json={"challenge_id": challenge_id, "submission": flag}
-        )
-        assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-        assert response.json()["success"], "Expected to successfully submit flag"
+        start_and_solve(user_name, session, dojo, module, challenge)
 
     # check for emoji
     scoreboard = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
@@ -245,6 +260,15 @@ def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user)
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 1
     assert len(us["badges"]) == 0
+
+@pytest.mark.dependency(depends=["test_dojo_completion"])
+def test_belts(belt_dojos, random_user):
+    user_name, session = random_user
+    for color,dojo in belt_dojos.items():
+        start_and_solve(user_name, session, dojo, "test", "test")
+        scoreboard = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
+        us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
+        assert color in us["belt"]
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
 @pytest.mark.parametrize("path", ["/flag", "/challenge/apple"])

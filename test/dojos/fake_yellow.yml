@@ -1,0 +1,11 @@
+id: program-security
+type: topic
+modules:
+  - id: test
+    challenges:
+      - id: test
+        import:
+          dojo: example
+          module: hello
+          challenge: banana
+      

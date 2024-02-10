@@ -1,0 +1,11 @@
+id: software-exploitation
+type: topic
+modules:
+  - id: test
+    challenges:
+      - id: test
+        import:
+          dojo: example
+          module: world
+          challenge: earth
+      
