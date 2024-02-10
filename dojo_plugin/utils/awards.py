@@ -3,6 +3,8 @@ import datetime
 from CTFd.cache import cache
 from CTFd.models import db
 from flask import url_for
+
+from .discord import get_discord_roles, get_discord_user, add_role, send_message
 from ..models import Dojos, Belts, Emojis
 
 
@@ -17,22 +19,6 @@ BELT_REQUIREMENTS = {
 def belt_asset(color):
     belt = color + ".svg" if color in BELT_REQUIREMENTS else "white.svg"
     return url_for("views.themes", path=f"img/dojo/{belt}")
-
-def get_user_belts(user):
-    result = [ ]
-    for belt, dojo_id in BELT_REQUIREMENTS.items():
-        belt_award = Belts.query.filter_by(user=user, name=belt).first()
-        if belt_award:
-            continue
-
-        dojo = Dojos.query.filter(Dojos.official, Dojos.id == dojo_id).first()
-        if not dojo:
-            # We are likely missing the correct dojos in the DB (e.g., custom deployment)
-            break
-        if not dojo.completed(user):
-            break
-        result.append(belt)
-    return result
 
 def get_user_emojis(user):
     emojis = [ ]
@@ -74,13 +60,30 @@ def get_belts():
     return result
 
 def update_awards(user):
-    current_belts = get_user_belts(user)
-    for belt in current_belts:
-        belt_award = Belts.query.filter_by(user=user, name=belt).first()
-        if belt_award:
+    current_belts = [belt.name for belt in Belts.query.filter_by(user=user)]
+    for belt, dojo_id in BELT_REQUIREMENTS.items():
+        if belt in current_belts:
             continue
+        dojo = Dojos.query.filter(Dojos.official, Dojos.id == dojo_id).first()
+        if not (dojo and dojo.completed(user)):
+            break
         db.session.add(Belts(user=user, name=belt))
         db.session.commit()
+        current_belts.append(belt)
+
+    discord_user = get_discord_user(user.id)
+    discord_roles = get_discord_roles()
+    for belt in BELT_REQUIREMENTS:
+        if belt not in current_belts:
+            continue
+        belt_role = belt.title() + " Belt"
+        missing_role = discord_user and discord_roles.get(belt_role) not in discord_user["roles"]
+        if not missing_role:
+            continue
+        user_mention = f"<@{discord_user['user']['id']}>"
+        message = f"{user_mention} earned their {belt_role}! :tada:"
+        add_role(discord_user["user"]["id"], belt_role)
+        send_message(message, "belting-ceremony")
 
     current_emojis = get_user_emojis(user)
     for emoji,dojo_name,dojo_id in current_emojis:

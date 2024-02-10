@@ -18,8 +18,7 @@ from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 from .models import Dojos, DojoChallenges, Belts, Emojis
 from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
-from .utils.discord import get_discord_user, get_discord_roles, add_role, send_message
-from .utils.awards import update_awards, get_user_belts
+from .utils.awards import update_awards
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
@@ -43,23 +42,6 @@ class DojoChallenge(BaseChallenge):
     def solve(cls, user, team, challenge, request):
         super().solve(user, team, challenge, request)
         update_awards(user)
-
-        discord_user = get_discord_user(user.id)
-        if not discord_user:
-            return
-
-        current_belts = get_user_belts(user)
-        discord_roles = get_discord_roles()
-        for belt in current_belts:
-            belt_role = belt.title() + " Belt"
-            if discord_roles.get(belt_role) in discord_user["roles"]:
-                continue
-            user_mention = f"<@{discord_user['user']['id']}>"
-            message = f"{user_mention} earned their {belt_role}! :tada:"
-            print(message, flush=True)
-            add_role(discord_user["user"]["id"], belt_role)
-            send_message(message, "belting-ceremony")
-
 
 class DojoFlag(BaseFlag):
     name = "dojo"
