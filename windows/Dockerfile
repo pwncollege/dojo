@@ -107,4 +107,3 @@ CMD \
 FROM ubuntu:20.04 AS none
 
 CMD true
-ue
