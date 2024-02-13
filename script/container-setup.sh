@@ -31,26 +31,9 @@ define DISCORD_CLIENT_ID
 define DISCORD_CLIENT_SECRET
 define DISCORD_BOT_TOKEN
 define DISCORD_GUILD_ID
-define INSTALL_AFL no # needs compilation
-define INSTALL_ANGR_MANAGEMENT no
-define INSTALL_BURPSUITE no
-define INSTALL_BUSYBOX no # needs compilation
-define INSTALL_CAPSTONE no
+define DEFAULT_INSTALL_SELECTION no # default to not installing tools
 define INSTALL_DESKTOP_BASE yes # matches the challenge-mini configuration
-define INSTALL_GDB no # needs compilation, but everyone is expecting this
-define INSTALL_GECKODRIVER no # just for web
-define INSTALL_GHIDRA no
-define INSTALL_GLOW no
-define INSTALL_IDA_FREE no # only for free dojos
-define INSTALL_KERNEL no # needs compilation
-define INSTALL_RADARE2 no # needs compilation
-define INSTALL_RAPPEL no # needs compilation
-define INSTALL_RP no
-define INSTALL_TCPDUMP no # needs compilation
-define INSTALL_TOOLS_APT no
-define INSTALL_TOOLS_PIP no
-define INSTALL_VIRTIOFSD no # just for windows
-define INSTALL_XFCE no
+define INSTALL_IDA_FREE no # explicitly disable -- only for free dojos
 
 mv $DOJO_DIR/data/.config.env $DOJO_DIR/data/config.env
 . $DOJO_DIR/data/config.env
