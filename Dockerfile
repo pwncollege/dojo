@@ -16,7 +16,7 @@ RUN apt-get update && \
         htop
 
 RUN curl -fsSL https://get.docker.com | /bin/sh
-RUN echo '{ "data-root": "/opt/pwn.college/data/docker" }' > /etc/docker/daemon.json
+RUN echo '{ "data-root": "/opt/pwn.college/data/docker", "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json
 
 # TODO: this can be removed with docker-v22 (buildx will be default)
 RUN docker buildx install

@@ -1,6 +1,0 @@
-services:
-  windows:
-    build:
-      context: ./
-      target: none
-    platform: linux/amd64

@@ -27,8 +27,10 @@ services:
         - INSTALL_TOOLS_PIP=${INSTALL_TOOLS_PIP:-${DEFAULT_INSTALL_SELECTION}}
         - INSTALL_VIRTIOFSD=${INSTALL_VIRTIOFSD:-${DEFAULT_INSTALL_SELECTION}}
         - INSTALL_XFCE=${INSTALL_XFCE:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_WINDOWS=${INSTALL_WINDOWS}
         - UBUNTU_VERSION=${UBUNTU_VERSION}
         - DOJO_CHALLENGE=${DOJO_CHALLENGE}
+      privileged: true
     platform: linux/amd64
     entrypoint: /bin/true
     networks:
@@ -79,7 +81,6 @@ services:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
       - INTERNET_FOR_ALL=${INTERNET_FOR_ALL}
-      - WINDOWS_VM=${WINDOWS_VM}
       - VIRTUAL_HOST=${DOJO_HOST},localhost
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=${DOJO_HOST}
@@ -198,18 +199,12 @@ services:
       - acme:/etc/acme.sh
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
-  windows:
-    extends:
-      file: ./windows/${WINDOWS_VM}.yml
-      service: windows
-
 volumes:
   conf:
   html:
   dhparam:
   certs:
   acme:
-  windows:
 
 networks:
   user_network:
