@@ -1,5 +1,7 @@
 #!/bin/bash
 
+PROMPT_COMMAND="history -a"
+
 mkdir -p /tmp/.dojo
 
 if [ -e "/challenge/README.md" ] && [ ! -e "/tmp/.dojo/readme-once" ]; then
