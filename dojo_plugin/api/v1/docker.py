@@ -186,10 +186,6 @@ def start_challenge(user, dojo_challenge, practice):
             """
             /opt/pwn.college/docker-initialize.sh
 
-            if [ -x "/challenge/.init" ]; then
-                /challenge/.init
-            fi
-
             touch /opt/pwn.college/.initialized
             """,
             shell=True
