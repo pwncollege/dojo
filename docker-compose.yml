@@ -1,6 +1,73 @@
 version: '3.4'
 
 services:
+  kube-server:
+    container_name: kube-server
+    hostname: kube-server
+    image: rancher/k3s:latest
+    command: server --node-taint node-role.kubernetes.io/control-plane:NoSchedule
+    tmpfs:
+      - /run
+      - /var/run
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    privileged: true
+    restart: always
+    environment:
+      - K3S_TOKEN=${K3S_TOKEN:?err}
+      - K3S_KUBECONFIG_OUTPUT=/output/kube.yaml
+    volumes:
+      - ./data/kube/kubeconfig:/output
+      - ./data/kube/node/server:/etc/rancher/node
+      - ./data/kube/server:/var/lib/rancher/k3s
+      - ./kube/k3s:/etc/rancher/k3s:ro
+      - ./kube/manifests:/var/lib/rancher/k3s/server/manifests/dojo:ro
+      - ./kube/bin:/usr/local/bin:ro
+    ports:
+      - 6443:6443  # Kubernetes API Server
+      # - 80:80      # Ingress controller port 80
+      # - 443:443    # Ingress controller port 443
+    extra_hosts:
+      - homes-nfs:10.43.0.20
+
+  kube-agent:
+    container_name: kube-agent
+    hostname: kube-agent
+    image: rancher/k3s:latest
+    tmpfs:
+      - /run
+      - /var/run
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+    privileged: true
+    restart: always
+    environment:
+      - K3S_URL=https://kube-server:6443
+      - K3S_TOKEN=${K3S_TOKEN:?err}
+    volumes:
+      - ./data/kube/node/agent:/etc/rancher/node
+      - ./data/kube/agent:/var/lib/rancher/k3s
+      - ./data/homes:/var/homes:shared
+      - ./kube/k3s:/etc/rancher/k3s:ro
+      - ./kube/bin:/usr/local/bin:ro
+    extra_hosts:
+      - homes-nfs:10.43.0.20
+
+  registry:
+    container_name: registry
+    image: registry:2
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data/registry:/var/lib/registry
+
   challenge:
     build:
       context: ./challenge
@@ -28,10 +95,13 @@ services:
         - INSTALL_XFCE=${INSTALL_XFCE:-${DEFAULT_INSTALL_SELECTION}}
         - UBUNTU_VERSION=${UBUNTU_VERSION}
         - DOJO_CHALLENGE=${DOJO_CHALLENGE}
+    image: localhost:5000/challenge
     platform: linux/amd64
     entrypoint: /bin/true
-    networks:
-      - user_network
+
+  volume_nfs:
+    build: ./volume_nfs
+    image: localhost:5000/volume-nfs
 
   ctfd:
     container_name: ctfd
@@ -65,9 +135,10 @@ services:
       - ERROR_LOG=-
       - REVERSE_PROXY=true
       - SERVER_SENT_EVENTS=false
-      - SECRET_KEY=${SECRET_KEY}
+      - SECRET_KEY=${SECRET_KEY}'
       - DOJO_HOST=${DOJO_HOST}
       - HOST_DATA_PATH=/opt/pwn.college/data
+      - KUBECONFIG=/var/kubeconfig/kube.yaml
       - MAIL_SERVER=${MAIL_SERVER}
       - MAIL_PORT=${MAIL_PORT}
       - MAIL_USERNAME=${MAIL_USERNAME}
@@ -89,6 +160,7 @@ services:
       - ./data/homes:/var/homes:shared
       - ./data/challenges:/var/challenges:ro
       - ./data/dojos:/var/dojos
+      - ./data/kube/kubeconfig:/var/kubeconfig:ro
       - ./data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
       - ./index.html:/var/index.html:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
@@ -178,12 +250,6 @@ services:
       - ./nginx-proxy/etc/passwd:/etc/passwd:ro
       - ./data/homes:/var/homes:shared
       - /var/run/docker.sock:/tmp/${DOCKER_PSLR}/docker.sock:ro
-    networks:
-      default:
-      user_network:
-        aliases:
-          - nginx
-        ipv4_address: 10.0.0.3
 
   nginx-certs:
     container_name: nginx_certs
@@ -208,14 +274,3 @@ volumes:
   certs:
   acme:
   windows:
-
-networks:
-  user_network:
-    name: user_network
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.0.0.0/8
-    driver_opts:
-      com.docker.network.bridge.name: "user_network"
-      com.docker.network.bridge.enable_icc: "false"

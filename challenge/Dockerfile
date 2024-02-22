@@ -50,6 +50,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         curl
         socat
         sudo
+        tini
         vim
         wget
         unzip

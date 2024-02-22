@@ -1,5 +1,6 @@
 # DOJO
 docker==6.1.2
+kubernetes==28.1.0
 pyyaml==5.4.1
 schema==0.7.5
 bleach==6.1.0

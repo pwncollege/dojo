@@ -14,11 +14,29 @@ DOCKER_ARGS=${DOCKER_ARGS:--i}
 [ -t 0 ] && DOCKER_ARGS="-t $DOCKER_ARGS"
 
 case "$ACTION" in
+    # HELP: up: create and start the dojo
+    "up")
+        dojo build
+        dojo compose up -d --remove-orphans
+        ;;
+
+    # HELP: down: stop and remove the dojo
+    "down")
+        dojo compose down
+        ;;
+
+    "build")
+        dojo sync
+        dojo compose build
+        dojo compose up -d registry
+        dojo compose push
+        ;;
+
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
     "update")
         git pull
-        dojo sync
-        dojo compose up -d --build
+        dojo build
+        dojo up
         ;;
 
     # HELP: sync: sync changed dojo files
@@ -28,22 +46,20 @@ case "$ACTION" in
         cp -rv --preserve=timestamps dojo_theme /opt/CTFd/CTFd/themes/
         ;;
 
-    # HELP: enter [ -s ] USER_ID: enter a user's running container. -s for entering as root
+    # HELP: enter USER_ID: enter a user's running container
     "enter")
-        USER_SWITCH=""
-        if [ "$1" == "-s" ]
-        then
-            USER_SWITCH="--user=root"
-            shift
-        fi
         DOJO_UID="$1"
         [ -n "${DOJO_UID//[0-9]}" ] && DOJO_UID=$(
             echo "select id from users where name='$DOJO_UID'" |
-            $0 db -s
+                $0 db -s
         )
-        CONTAINER="user_$DOJO_UID"
+        CONTAINER="user-$DOJO_UID"
         shift
-        docker exec $DOCKER_ARGS $USER_SWITCH "$CONTAINER" bash
+        if [ -z "$USER" ]; then
+            dojo kubectl exec $DOCKER_ARGS "$CONTAINER" -- bash
+        else
+            dojo kubectl exec $DOCKER_ARGS --user="$USER" "$CONTAINER" -- bash
+        fi
         ;;
 
     # HELP: compose ARGS: run a docker compose command with the config.env file loaded
@@ -51,9 +67,19 @@ case "$ACTION" in
         docker compose --env-file=/opt/pwn.college/data/config.env "$@"
         ;;
 
+    # HELP: bash: drop into a bash shell
+    "bash")
+        /bin/bash "$@"
+        ;;
+
     # HELP: flask: drop into a flask shell in the ctfd container
     "flask")
         docker exec $DOCKER_ARGS ctfd flask shell "$@"
+        ;;
+
+    # HELP: kubectl: control the workspace kubernetes cluster
+    "kubectl")
+        docker exec $DOCKER_ARGS -e KUBECONFIG=/output/kube.yaml kube-server kubectl "$@"
         ;;
 
     # HELP: db: launch a mysql client session, connected to the ctfd db
