@@ -112,6 +112,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         rubygems
         squashfs-tools
         upx-ucl
+        p7zip-full
+        apache2
+        php-cgi
+        mysql-server
+        php-mysql
+        libapache2-mod-php
 EOF
 
 ################################################################################
