@@ -174,7 +174,7 @@ function startChallenge(event) {
             item.find(".alert").slideUp();
             item.find("#challenge-submit").removeClass("disabled-button");
             item.find("#challenge-submit").prop("disabled", false);
-        }, 3000);
+        }, 10000);
     });
 }
 
