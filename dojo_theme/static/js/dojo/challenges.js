@@ -120,6 +120,20 @@ function startChallenge(event) {
         "practice": practice,
     };
 
+    var result_notification = item.find('#result-notification');
+    var result_message = item.find('#result-message');
+    result_notification.removeClass();
+    result_message.html("Launching Challenge.");
+    result_notification.addClass('alert alert-info alert-dismissable text-center');
+    result_notification.slideDown();
+
+    function loading() {
+        if (!result_message.html().startsWith("Launching")) return;
+        result_message.html(result_message.html()+".");
+        setTimeout(loading, 1000);
+    }
+    setTimeout(loading, 1000);
+
     CTFd.fetch('/pwncollege_api/v1/docker', {
         method: 'POST',
         credentials: 'same-origin',
