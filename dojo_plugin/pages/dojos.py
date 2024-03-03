@@ -30,6 +30,7 @@ def dojo_stats(dojo):
 def listing():
     user = get_current_user()
     typed_dojos = {
+        "Start Here": [],
         "Topics": [],
         "Courses": [],
         "More Material": [],
@@ -44,7 +45,7 @@ def listing():
         elif dojo.type == "example" and dojo.official:
             continue
         elif dojo.type == "welcome":
-            continue
+            typed_dojos["Start Here"].append(dojo)
         else:
             typed_dojos["More Material"].append(dojo)
 

@@ -15,8 +15,10 @@
 <div class="container">
   {% for type, dojos in typed_dojos.items() %}
     <h2>{{ type | title }}</h2>
-    {% if type == "Topics" %}
-    <p>These dojos form the official the pwn.college curriculum, and you will earn <a href="{{ url_for("pwncollege_belts.view_belts") }}">belts</a> when you complete them. We recommend that you tackle them in order. Good luck!</p>
+    {% if type == "Start Here" %}
+    <p>These dojos are designed to help you begin your pwn.college journey. Start here before venturing onwards!</p>
+    {% elif type == "Topics" %}
+    <p>These dojos form the official pwn.college curriculum, and you will earn <a href="{{ url_for("pwncollege_belts.view_belts") }}">belts</a> when you complete them. We recommend that you tackle them in order. Good luck!</p>
     {% elif type == "Courses" %}
     <p>We run a number of courses on this platform. For the most part, these courses import the above material, though some might introduce new concepts and challenges.</p>
     {% elif type.startswith("More") %}
