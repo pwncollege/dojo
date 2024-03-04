@@ -66,19 +66,6 @@ Copy-Item A:\startup.ps1 -Destination "C:\Program Files\Common Files\"
 # -- install chocolately --
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 
-# -- install windbg --
-(New-Object Net.WebClient).DownloadFile("https://windbg.download.prss.microsoft.com/dbazure/prod/1-2308-2002-0/windbg.msixbundle", "C:\windbg.msixbundle")
-add-appxpackage -Path C:\windbg.msixbundle
-Remove-Item -Force -Path C:\windbg.msixbundle
-
-# -- install IDA --
-$InstallIDA = "{INSTALLIDA}";
-if ($InstallIDA -eq "yes") {
-    (New-Object Net.WebClient).DownloadFile("https://out7.hex-rays.com/files/idafree82_windows.exe", "C:\idafree.exe")
-    Start-Process "C:\idafree.exe" -ArgumentList "--unattendedmodeui minimal --mode unattended --installpassword freeware" -Wait
-    Remove-Item -Force -Path "C:\idafree.exe"
-}
-
 # -- install telnet --
 Enable-WindowsOptionalFeature -Online -NoRestart -FeatureName "TelnetClient"
 
@@ -92,7 +79,7 @@ py -m pip install --user pwntools
 
 # -- install VNC server --
 # install options reference: https://www.tightvnc.com/doc/win/TightVNC_2.7_for_Windows_Installing_from_MSI_Packages.pdf
-choco install --ignore-detected-reboot tightvnc -y --installArguments 'ADDLOCAL=Server SET_RFBPORT=1 VALUE_OF_RFBPORT=5912 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=abcd'
+choco install --ignore-detected-reboot tightvnc -y --installArguments 'ADDLOCAL=Server SET_RFBPORT=1 VALUE_OF_RFBPORT=5912 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 SET_DISCONNECTACTION=2 VALUE_OF_PASSWORD=abcd'
 # this will be done later when the service actually exists
 #Set-Service -Name tvnserver -StartupType 'Manual'
 
