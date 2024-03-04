@@ -1,8 +1,8 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=bina
-Comment=binja
+Name=Binary Ninja Free
+Comment=Free Version of Binary Ninja
 Exec=/opt/binaryninja/binaryninja
 Icon=/opt/binaryninja/icon.png
 Path=
