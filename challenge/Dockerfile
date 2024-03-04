@@ -18,6 +18,7 @@ ARG INSTALL_DESKTOP_BASE=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_XFCE=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_VIRTIOFSD=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_IDA_FREE=${DEFAULT_INSTALL_SELECTION}
+ARG INSTALL_BINJA_FREE=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_GHIDRA=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_ANGR_MANAGEMENT=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_GDB=${DEFAULT_INSTALL_SELECTION}
@@ -444,6 +445,21 @@ FROM builder-desktop-ida-free-${INSTALL_IDA_FREE} as builder-desktop-ida-free
 
 ################################################################################
 
+FROM essentials as builder-desktop-binja-free-no
+FROM essentials as builder-desktop-binja-free-yes
+
+COPY desktop/binary-ninja.desktop /usr/share/applications/
+RUN <<EOF
+    wget -O /tmp/BinaryNinja-free.zip https://cdn.binary.ninja/installers/BinaryNinja-free.zip
+    unzip -d /opt /tmp/BinaryNinja-free.zip
+    wget -O /opt/binaryninja/icon.png  https://binary.ninja/icons/android-chrome-192x192.png
+    rm /tmp/BinaryNinja-free.zip
+EOF
+
+FROM builder-desktop-binja-free-${INSTALL_BINJA_FREE} as builder-desktop-binja-free
+
+################################################################################
+
 FROM essentials as builder-tools-apt-no
 FROM essentials as builder-tools-apt-yes
 
@@ -613,6 +629,7 @@ COPY --link --from=builder-glow / /
 COPY --link --from=builder-desktop-xfce / /
 COPY --link --from=builder-virtiofsd /opt/virtiofsd /opt/virtiofsd
 COPY --link --from=builder-desktop-ida-free / /
+COPY --link --from=builder-desktop-binja-free / /
 COPY --link --from=builder-desktop-ghidra / /
 COPY --link --from=builder-desktop-angr-management / /
 COPY --link --from=builder-gdb / /
@@ -623,7 +640,9 @@ COPY --link --from=builder-tools-apt / /
 
 FROM challenge-mini as challenge-full
 
-# here, everything is installed except for IDA, which still uses the INSTALL_IDA_FREE parameter
+# here, everything is installed except for
+# IDA, which still uses the INSTALL_IDA_FREE parameter
+# binja, which uses the INSTALL_BINJA_FREE parameter
 
 # TODO: probably extra slow to `COPY / /`
 COPY --link --from=builder-essentials / /
@@ -642,6 +661,7 @@ COPY --link --from=builder-glow-yes / /
 COPY --link --from=builder-desktop-xfce-yes / /
 COPY --link --from=builder-virtiofsd-yes /opt/virtiofsd /opt/virtiofsd
 COPY --link --from=builder-desktop-ida-free / /
+COPY --link --from=builder-desktop-binja-free / /
 COPY --link --from=builder-desktop-ghidra-yes / /
 COPY --link --from=builder-desktop-angr-management-yes / /
 COPY --link --from=builder-gdb-yes / /

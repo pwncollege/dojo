@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=bina
+Comment=binja
+Exec=/opt/binaryninja/binaryninja
+Icon=/opt/binaryninja/icon.png
+Path=
+Terminal=false
+StartupNotify=false
