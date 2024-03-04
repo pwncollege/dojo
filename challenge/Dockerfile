@@ -600,7 +600,7 @@ RUN <<EOF
       sed -i 's/{INSTALLIDA}/'"${INSTALL_IDA}"'/g' ./setup.ps1
       touch ./practice-mode-enabled
       mkfs.fat -F 12 -C ./build/floppy.img 1440
-      mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/ ::
+      mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./install.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/ ::
       rm -rf ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/
     fi
 EOF
