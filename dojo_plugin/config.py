@@ -123,7 +123,7 @@ def bootstrap():
     set_config("mail_password", MAIL_PASSWORD)
     set_config("mailfrom_addr", MAIL_ADDRESS)
     set_config("mail_useauth", bool(MAIL_USERNAME))
-    set_config("mail_tls", MAIL_PORT == "587")
+    set_config("mail_tls", MAIL_PORT == "465" or MAIL_PORT == "587")
 
     if not config.is_setup():
         admin = Admins(
