@@ -85,6 +85,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         cpio
         openjdk-17-jdk
         flex
+	dwarves
         g++-multilib
         gcc-multilib
         git
