@@ -82,6 +82,18 @@
       <div id="dojo-promote-admin-results" class="form-group">
       </div>
     </form>
+
+    {% if is_admin() %}
+    <b style="font-family: 'Courier New', Courier, monospace">Promote to Official Dojo</b>
+    <form method="post" id="dojo-promote-dojo-form" autocomplete="off">
+      <div class="form-group">
+        <input class="btn btn-mini btn-primary" id="_submit" name="_submit" type="submit" value="Make This Dojo Official">
+      </div>
+      <div id="dojo-promote-dojo-results" class="form-group">
+      </div>
+    </form>
+
+    {% endif %}
 </div>
 {% endblock %}
 
