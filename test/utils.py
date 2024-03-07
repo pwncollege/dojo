@@ -1,5 +1,7 @@
+import subprocess
 import requests
 import pathlib
+import shutil
 import re
 import os
 
@@ -48,3 +50,18 @@ def create_dojo_yml(spec, *, session):
 	assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
 	dojo_reference_id = response.json()["dojo"]
 	return dojo_reference_id
+
+def dojo_run(*args, **kwargs):
+	kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+	return subprocess.run(
+		[shutil.which("docker"), "exec", "-i", CONTAINER_NAME, "dojo", *args],
+		check=kwargs.pop("check", True), **kwargs
+	)
+
+
+def workspace_run(cmd, *, user, root=False, **kwargs):
+	args = [ "enter" ]
+	if root:
+		args += [ "-s" ]
+	args += [ user ]
+	return dojo_run(*args, input=cmd, check=True, **kwargs)
