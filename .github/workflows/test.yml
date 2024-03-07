@@ -54,4 +54,5 @@ jobs:
 
       - name: Run tests against dojo
         run: |
+          export MOZ_HEADLESS=1
           pytest -vrpP ./test || (docker exec dojo-test docker compose logs && false)
