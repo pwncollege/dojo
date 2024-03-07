@@ -18,10 +18,12 @@ jobs:
         with:
           python-version: '3.10'
           cache: 'pip'
+
+      - name: Prepare Firefox
+        uses: browser-actions/setup-firefox@latest
+
       - name: Install test dependencies
-        run: |
-          sudo apt-get install firefox
-          pip install pytest pytest-dependency requests selenium
+        run: pip install pytest pytest-dependency requests selenium
 
       - name: Run dojo
         run: |
