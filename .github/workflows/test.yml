@@ -21,7 +21,7 @@ jobs:
       - name: Install test dependencies
         run: |
           sudo apt-get install firefox
-          pip install pytest pytest-dependency requests
+          pip install pytest pytest-dependency requests selenium
 
       - name: Run dojo
         run: |
