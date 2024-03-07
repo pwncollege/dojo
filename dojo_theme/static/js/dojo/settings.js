@@ -51,6 +51,9 @@ $(() => {
         var user_name = form.find(`#name-for-${params["user_id"]}`)
         return `Promote ${user_name.text()} (UID ${params["user_id"]}) to admin?`;
     });
+    form_fetch_and_show("dojo-promote-dojo", `/pwncollege_api/v1/dojo/${init.dojo}/promote-dojo`, "POST", "Dojo has been made official!", confirm_msg = (form, params) => {
+        return "Make this dojo official? Official dojos are accessible by their ID, without the hex differentiator, and show up in more dojo listings.";
+    });
     form_fetch_and_show("dojo-award-prune", `/pwncollege_api/v1/dojo/${init.dojo}/prune-awards`, "POST", "Legacy awards have been pruned.", confirm_msg = (form, params) => {
         return `Prune all awarded emoji based on updated completion requirements?`;
     });
