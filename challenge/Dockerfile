@@ -587,6 +587,7 @@ COPY --link --from=essentials / /
 COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
 
 RUN <<EOF
+    ln -sf /bin/bash /opt/pwn.college/ssh-entrypoint
     ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
     ln -sf /opt/pwn.college/windows/windows /usr/local/bin/windows
 

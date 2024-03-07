@@ -11,7 +11,7 @@ def main():
     original_command = os.getenv("SSH_ORIGINAL_COMMAND")
     tty = os.getenv("SSH_TTY") is not None
     simple = bool(not tty or original_command)
-    
+
     def print(*args, **kwargs):
         if simple:
             return
@@ -56,7 +56,8 @@ def main():
         print("\r", " " * 80, "\rConnected!")
 
         if not os.fork():
-            command = ["/bin/bash", "-c", original_command] if original_command else ["/bin/bash"]
+            ssh_entrypoint = "/opt/pwn.college/ssh-entrypoint"
+            command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
             os.execve(
                 "/usr/bin/docker",
                 [
