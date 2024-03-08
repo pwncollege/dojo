@@ -50,7 +50,6 @@ def view_desktop_res(route, user_id=None, password=None):
     iframe_src = f"/{route}/{user_id}/vnc.html?autoconnect=1&reconnect=1&path={route}/{user_id}/websockify&resize=remote&reconnect_delay=10&view_only={view_only}&password={password}"
     return render_template("iframe.html", iframe_name="workspace", iframe_src=iframe_src, active=active)
 
-
 @desktop.route("/desktop")
 @desktop.route("/desktop/<int:user_id>")
 @authed_only

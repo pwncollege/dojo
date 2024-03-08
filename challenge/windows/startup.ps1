@@ -38,3 +38,4 @@ if (Test-Path X:\practice-mode-enabled) {
 
 Start-Service sshd
 Start-Service tvnserver
+Set-DisplayResolution -Width 1920 -Height 1200

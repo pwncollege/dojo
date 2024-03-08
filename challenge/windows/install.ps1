@@ -18,10 +18,6 @@ Remove-Item Microsoft.VCLibs.x86.14.00.Desktop.appx
 # choco friendly installs
 # Note: Several packages do not install correctly via choco despite
 # being packaged, hence the manual installs below
-choco install -y neovim sysinternals procexp adoptopenjdk ghidra
-
-# pip installs
-py -mpip install IPython
 
 # install windbg
 (New-Object Net.WebClient).DownloadFile("https://windbg.download.prss.microsoft.com/dbazure/prod/1-2308-2002-0/windbg.msixbundle", "C:\windbg.msixbundle")
@@ -31,9 +27,7 @@ $windbg_sc = $WScriptObj.CreateShortcut("C:\Users\hacker\Desktop/windbg.lnk")
 $windbg_sc.TargetPath = "C:\Users\Hacker\AppData\Local\Microsoft\WindowsApps\WinDbgX.exe"
 $windbg_sc.save()
 
-# install IDA
-$InstallIDA = "{INSTALLIDA}";
-if ($InstallIDA -eq "True") {
+if ("INSTALL_IDA_FREE" -eq "yes") {
     (New-Object Net.WebClient).DownloadFile("https://out7.hex-rays.com/files/idafree82_windows.exe", "C:\idafree.exe")
     Start-Process "C:\idafree.exe" -ArgumentList "--unattendedmodeui minimal --mode unattended --installpassword freeware" -Wait
     Remove-Item -Force -Path "C:\idafree.exe"
@@ -64,3 +58,7 @@ $x64dbg_sc.save()
 #$pe_sc = $WScriptObj.CreateShortcut("C:\Users\hacker\Desktop/Process Explorer.lnk")
 #$pe_sc.TargetPath = "C:\pwncollege\procexp64.exe"
 #$x64dbg_sc.save()
+
+
+# -- shutdown --
+Stop-Computer -computername localhost -force
