@@ -17,7 +17,6 @@ define () {
 define DOJO_HOST localhost.pwn.college
 define DOJO_ENV development
 define DOJO_CHALLENGE challenge-mini
-define INSTALL_WINDOWS False
 define SECRET_KEY $(openssl rand -hex 16)
 define DOCKER_PSLR $(openssl rand -hex 16)
 define UBUNTU_VERSION 20.04
@@ -35,6 +34,7 @@ define DEFAULT_INSTALL_SELECTION no # default to not installing tools
 define INSTALL_DESKTOP_BASE yes # matches the challenge-mini configuration
 define INSTALL_IDA_FREE no # explicitly disable -- only for free dojos
 define INSTALL_BINJA_FREE no # explicitly disable -- only for free dojos
+define INSTALL_WINDOWS no # explicitly disable
 
 mv $DOJO_DIR/data/.config.env $DOJO_DIR/data/config.env
 . $DOJO_DIR/data/config.env

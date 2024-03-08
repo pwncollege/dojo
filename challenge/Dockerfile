@@ -24,7 +24,7 @@ ARG INSTALL_ANGR_MANAGEMENT=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_GDB=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_TOOLS_PIP=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_TOOLS_APT=${DEFAULT_INSTALL_SELECTION}
-ARG INSTALL_WINDOWS=False
+ARG INSTALL_WINDOWS=${DEFAULT_INSTALL_SELECTION}
 
 FROM ubuntu:${UBUNTU_VERSION} as essentials
 
@@ -578,106 +578,100 @@ RUN gcc /opt/pwn.college/setuid_interpreter.c -DSUID_PYTHON -o /opt/pwn.college/
 
 ################################################################################
 
-FROM builder-tools-apt as builder-windows
+
+FROM builder-tools-apt as builder-windows-no
+FROM builder-tools-apt as builder-windows-yes
 
 WORKDIR /opt/windows
 COPY windows/Autounattend.xml windows/setup.ps1 windows/startup.ps1 windows/sshd_config ./
 COPY windows/challenge-proxy ./challenge-proxy
 COPY windows/shutdown.py .
-ARG INSTALL_IDA=False
-ARG INSTALL_WINDOWS=False
 
 RUN <<EOF
-    if [ "${INSTALL_WINDOWS}" == "True" ]; then
-      mkdir -p ./build
-      echo 'APT::Install-Recommends 0;' >> /etc/apt/apt.conf.d/01norecommends
-      echo 'APT::Install-Suggests 0;' >> /etc/apt/apt.conf.d/01norecommends
-      apt-get update
-      DEBIAN_FRONTEND=noninteractive apt-get install -y \
-          ca-certificates apt-transport-https curl \
-          xorriso mtools dosfstools qemu-utils qemu-kvm python3 openssh-client
-      rm -rf /var/lib/apt/lists/*
-      sed -i 's/{INSTALLIDA}/'"${INSTALL_IDA}"'/g' ./setup.ps1
-      touch ./practice-mode-enabled
-      mkfs.fat -F 12 -C ./build/floppy.img 1440
-      mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./install.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/ ::
-      rm -rf ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/
-    fi
+    mkdir -p ./build
+    echo 'APT::Install-Recommends 0;' >> /etc/apt/apt.conf.d/01norecommends
+    echo 'APT::Install-Suggests 0;' >> /etc/apt/apt.conf.d/01norecommends
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        ca-certificates apt-transport-https curl \
+        xorriso mtools dosfstools qemu-utils qemu-kvm python3 openssh-client
+    rm -rf /var/lib/apt/lists/*
+    sed -i 's/INSTALL_IDA_FREE/${INSTALL_IDA_FREE}/g' ./setup.ps1
+    touch ./practice-mode-enabled
+    mkfs.fat -F 12 -C ./build/floppy.img 1440
+    mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/ ::
+    rm -rf ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/
 EOF
 
 RUN <<EOF
-    if [ "${INSTALL_WINDOWS}" == "True" ]; then
-      echo "Building virtio drivers disk"
-      curl -Lo virtio-win-raw.iso \
-        'https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-virtio/virtio-win.iso'
-      WORKDIR="$(mktemp -d --suffix=.img-extract)"
-      EXTRACT_DIR="$WORKDIR/virtio-win"
-      mkdir -p "$EXTRACT_DIR"
-      xorriso -report_about SORRY -osirrox on -indev ./virtio-win-raw.iso -extract / "$EXTRACT_DIR"
-      rm ./virtio-win-raw.iso
-      xorriso \
-        -as genisoimage -rock -joliet -volid VIRTIO \
-        -output ./build/virtio-win-processed.iso \
-        "$WORKDIR"
-      rm -rf "$WORKDIR" virtio-win-raw.iso
-    fi
+    echo "Building virtio drivers disk"
+    curl -Lo virtio-win-raw.iso \
+      'https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-virtio/virtio-win.iso'
+    WORKDIR="$(mktemp -d --suffix=.img-extract)"
+    EXTRACT_DIR="$WORKDIR/virtio-win"
+    mkdir -p "$EXTRACT_DIR"
+    xorriso -report_about SORRY -osirrox on -indev ./virtio-win-raw.iso -extract / "$EXTRACT_DIR"
+    rm ./virtio-win-raw.iso
+    xorriso \
+      -as genisoimage -rock -joliet -volid VIRTIO \
+      -output ./build/virtio-win-processed.iso \
+      "$WORKDIR"
+    rm -rf "$WORKDIR" virtio-win-raw.iso
 EOF
+
 RUN <<EOF
-    if [ "${INSTALL_WINDOWS}" == "True" ]; then
-      echo "Downloading Windows Server ISO"
-      curl -Lo ./build/server-2022.iso \
-        'https://software-static.download.prss.microsoft.com/sg/download/888969d5-f34g-4e03-ac9d-1f9786c66749/SERVER_EVAL_x64FRE_en-us.iso'
-    fi
+    echo "Downloading Windows Server ISO"
+    curl -Lo ./build/server-2022.iso \
+      'https://software-static.download.prss.microsoft.com/sg/download/888969d5-f34g-4e03-ac9d-1f9786c66749/SERVER_EVAL_x64FRE_en-us.iso'
 EOF
 
 RUN --security=insecure <<EOF
-    if [ "${INSTALL_WINDOWS}" == "True" ]; then
-      echo "Creating VM image"
-      rm -rf ./build/clean.qcow2 ./build/image-built
-      qemu-img create -f qcow2 ./build/clean.qcow2 51200M
-      echo "Installing and configuring windows (this will take 20+ min)"
-      qemu-system-x86_64 \
-        -name dojo \
-        -boot once=d \
-        -machine type=pc,accel=kvm \
-        -m 4096M \
-        -smp "$(nproc)" \
-        -display vnc=:12 \
-        -nographic \
-        -device virtio-net,netdev=user.0 \
-        -netdev user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::2222-:22 \
-        -serial null \
-        -drive "file=./build/floppy.img,format=raw,index=0,if=floppy" \
-        -drive "file=./build/server-2022.iso,media=cdrom" \
-        -drive "file=./build/virtio-win-processed.iso,media=cdrom" \
-        -drive "file=./build/clean.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2"
-      rm -rf ./build/monitor.sock
-    fi
+    echo "Creating VM image"
+    rm -rf ./build/clean.qcow2 ./build/image-built
+    qemu-img create -f qcow2 ./build/clean.qcow2 51200M
+    echo "Installing and configuring windows (this will take 20+ min)"
+    qemu-system-x86_64 \
+      -name dojo \
+      -boot once=d \
+      -machine type=pc,accel=kvm \
+      -m 4096M \
+      -smp "$(nproc)" \
+      -display vnc=:12 \
+      -nographic \
+      -device virtio-net,netdev=user.0 \
+      -netdev user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::2222-:22 \
+      -serial null \
+      -drive "file=./build/floppy.img,format=raw,index=0,if=floppy" \
+      -drive "file=./build/server-2022.iso,media=cdrom" \
+      -drive "file=./build/virtio-win-processed.iso,media=cdrom" \
+      -drive "file=./build/clean.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2"
+    rm -rf ./build/monitor.sock
 EOF
+
 RUN --security=insecure <<EOF
-    if [ "${INSTALL_WINDOWS}" == "True" ]; then
-      echo "Performing initial bootup"
-      qemu-system-x86_64 \
-        -name dojo \
-        -boot once=d \
-        -machine type=pc,accel=kvm \
-        -m 4096M \
-        -smp "$(nproc)" \
-        -display vnc=:12 \
-        -nographic \
-        -device virtio-net,netdev=user.0 \
-        -netdev user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::2222-:22 \
-        -serial null \
-        -drive "file=./build/floppy.img,format=raw,index=0,if=floppy" \
-        -drive "file=./build/server-2022.iso,media=cdrom" \
-        -drive "file=./build/virtio-win-processed.iso,media=cdrom" \
-        -drive "file=./build/clean.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2" &
-      python3 ./shutdown.py
-      rm -f ./build/monitor.sock
-      touch ./build/image-built
-      echo "Windows image built"
-    fi
+    echo "Performing initial bootup"
+    qemu-system-x86_64 \
+      -name dojo \
+      -boot once=d \
+      -machine type=pc,accel=kvm \
+      -m 4096M \
+      -smp "$(nproc)" \
+      -display vnc=:12 \
+      -nographic \
+      -device virtio-net,netdev=user.0 \
+      -netdev user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::2222-:22 \
+      -serial null \
+      -drive "file=./build/floppy.img,format=raw,index=0,if=floppy" \
+      -drive "file=./build/server-2022.iso,media=cdrom" \
+      -drive "file=./build/virtio-win-processed.iso,media=cdrom" \
+      -drive "file=./build/clean.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2" &
+    python3 ./shutdown.py
+    rm -f ./build/monitor.sock
+    touch ./build/image-built
+    echo "Windows image built"
 EOF
+
+FROM builder-windows-${INSTALL_WINDOWS} as builder-windows
 
 ################################################################################
 
@@ -750,6 +744,7 @@ FROM challenge-mini as challenge-full
 # here, everything is installed except for
 # IDA, which still uses the INSTALL_IDA_FREE parameter
 # binja, which uses the INSTALL_BINJA_FREE parameter
+# windows, which uses the INSTALL_WINDOWS parameter
 
 # TODO: probably extra slow to `COPY / /`
 COPY --link --from=builder-essentials / /
@@ -774,6 +769,7 @@ COPY --link --from=builder-desktop-angr-management-yes / /
 COPY --link --from=builder-gdb-yes / /
 COPY --link --from=builder-tools-pip-yes / /
 COPY --link --from=builder-tools-apt-yes / /
+COPY --link --from=builder-windows / /
 
 ################################################################################
 

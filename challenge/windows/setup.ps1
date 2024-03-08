@@ -74,8 +74,17 @@ choco install --ignore-detected-reboot -y visualstudio2022community
 choco install --ignore-detected-reboot -y visualstudio2022-workload-nativedesktop
 choco install --ignore-detected-reboot -y git
 choco install --ignore-detected-reboot -y python311 --params "CompileAll=1"
+choco install --ignore-detected-reboot -y neovim
+choco install --ignore-detected-reboot -y sysinternals
+choco install --ignore-detected-reboot -y procexp
+choco install --ignore-detected-reboot -y adoptopenjdk
+choco install --ignore-detected-reboot -y ghidra
+
 # git requires a reboot to work, so we can't install git python packages right now...
 py -m pip install --user pwntools
+py -m pip install --user IPython
+py -m pip install --user ROPgadget
+py -m pip install --user IPython
 
 # -- install VNC server --
 # install options reference: https://www.tightvnc.com/doc/win/TightVNC_2.7_for_Windows_Installing_from_MSI_Packages.pdf
@@ -180,6 +189,71 @@ Get-LocalUser -Name hacker | Set-LocalUser -Password $SecureString -PasswordNeve
 # PermitEmptyPasswords yes
 Copy-Item "A:\sshd_config" -Destination "$env:programdata\ssh\sshd_config"
 
+# install.ps1
+# - Single script for installing user applications used in windows challenge VM
+# - Infra/Required installs should be placed in setup.ps1
+
+# Wrapper obj used to create shortcuts throughout
+$WScriptObj = (New-Object -ComObject ("WScript.Shell"))
+
+# TODO: Move superfetch disable to setup.ps1
+# Disable Superfetch - prevent windows VM dynamically preloading RAM
+Stop-Service -Force -Name "SysMain"
+Set-Service -Name "SysMain" -StartupType Disabled
+
+# Install VCLib dependency
+Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -outfile Microsoft.VCLibs.x86.14.00.Desktop.appx
+Add-AppxPackage Microsoft.VCLibs.x86.14.00.Desktop.appx
+Remove-Item Microsoft.VCLibs.x86.14.00.Desktop.appx
+
+# choco friendly installs
+# Note: Several packages do not install correctly via choco despite
+# being packaged, hence the manual installs below
+
+# install windbg
+(New-Object Net.WebClient).DownloadFile("https://windbg.download.prss.microsoft.com/dbazure/prod/1-2308-2002-0/windbg.msixbundle", "C:\windbg.msixbundle")
+add-appxpackage -Path C:\windbg.msixbundle
+Remove-Item -Force -Path C:\windbg.msixbundle
+$windbg_sc = $WScriptObj.CreateShortcut("C:\Users\hacker\Desktop/windbg.lnk")
+$windbg_sc.TargetPath = "C:\Users\Hacker\AppData\Local\Microsoft\WindowsApps\WinDbgX.exe"
+$windbg_sc.save()
+
+if ("INSTALL_IDA_FREE" -eq "yes") {
+    (New-Object Net.WebClient).DownloadFile("https://out7.hex-rays.com/files/idafree82_windows.exe", "C:\idafree.exe")
+    Start-Process "C:\idafree.exe" -ArgumentList "--unattendedmodeui minimal --mode unattended --installpassword freeware" -Wait
+    Remove-Item -Force -Path "C:\idafree.exe"
+}
+
+# install Windows Terminal
+Invoke-WebRequest -Uri https://github.com/microsoft/terminal/releases/download/v1.7.1091.0/Microsoft.WindowsTerminal_1.7.1091.0_8wekyb3d8bbwe.msixbundle -outfile Microsoft.WindowsTerminal_1.7.1091.0_8wekyb3d8bbwe.msixbundle
+Add-AppxPackage -Path .\Microsoft.WindowsTerminal_1.7.1091.0_8wekyb3d8bbwe.msixbundle
+Remove-Item Microsoft.WindowsTerminal_1.7.1091.0_8wekyb3d8bbwe.msixbundle
+
+# x64 Debug
+Invoke-WebRequest -Uri https://github.com/x64dbg/x64dbg/releases/download/snapshot/snapshot_2024-02-19_03-16.zip -Outfile x64dbg.zip
+Expand-Archive x64dbg.zip -DestinationPath "C:/pwncollege/x64dbg" -Force
+Remove-Item x64dbg.zip
+$x64dbg_sc = $WScriptObj.CreateShortcut("C:\Users\hacker\Desktop/x64dbg.lnk")
+$x64dbg_sc.TargetPath = "C:\pwncollege\x64dbg\release\x96dbg.exe"
+$x64dbg_sc.save()
+
+# rp++
+Invoke-WebRequest -Uri https://github.com/0vercl0k/rp/releases/download/v2.1.3/rp-win.zip -Outfile rp-win.zip
+Expand-ARchive rp-win.zip -DestinaitonPath "C:/pwncollege/rp-win" -Force
+Remove-Item rp-win.zip
+
+# These install correctly with choco, but keeping manual install steps
+# Sysinternals
+#Invoke-WebRequest -Uri https://download.sysinternals.com/files/SysinternalsSuite.zip -Outfile sysinternals.zip
+#Expand-Archive sysinternals.zip -DestinationPath "C:\pwncollege\sysinternals" -Force
+
+# Process Explorer
+#Invoke-WebRequest -Uri https://download.sysinternals.com/files/ProcessExplorer.zip -Outfile procexp.zip
+#Expand-Archive procexp.zip -DestinationPath "C:\pwncollege\processExplorer" -Force
+#$pe_sc = $WScriptObj.CreateShortcut("C:\Users\hacker\Desktop/Process Explorer.lnk")
+#$pe_sc.TargetPath = "C:\pwncollege\procexp64.exe"
+#$x64dbg_sc.save()
+
+
 # -- shutdown --
 Stop-Computer -computername localhost -force
-
