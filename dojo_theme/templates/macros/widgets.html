@@ -1,6 +1,10 @@
-{% macro navitem(name, url, icon, shrink=False) %}
+{% macro navitem(name, url, icon, new=False, shrink=False) %}
 <li class="nav-item">
+  {% if not new %}
   <a class="nav-link" href="{{ url }}">
+  {% else %}
+  <a class="nav-link" href="{{ url }}" target="_blank">
+  {% endif %}
     <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="{{ name }}">
       <i class="fas {{ icon }} d-none d-md-block d-lg-none"></i>
     </span>
