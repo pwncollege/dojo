@@ -53,7 +53,7 @@ DOJO_SPEC = Schema({
     },
 
     Optional("image"): IMAGE_REGEX,
-    Optional("practice_enabled"): bool,
+    Optional("allow_privileged"): bool,
     Optional("unimportable"): bool,
 
     Optional("import"): {
@@ -65,7 +65,7 @@ DOJO_SPEC = Schema({
         **VISIBILITY,
 
         Optional("image"): IMAGE_REGEX,
-        Optional("practice_enabled"): bool,
+        Optional("allow_privileged"): bool,
         Optional("unimportable"): bool,
 
         Optional("import"): {
@@ -78,7 +78,7 @@ DOJO_SPEC = Schema({
             **VISIBILITY,
 
             Optional("image"): IMAGE_REGEX,
-            Optional("practice_enabled"): bool,
+            Optional("allow_privileged"): bool,
             Optional("unimportable"): bool,
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
@@ -260,7 +260,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                     image=shadow("image", dojo_data, module_data, challenge_data, default=None),
-                    practice_enabled=shadow("practice_enabled", dojo_data, module_data, challenge_data, default=True),
+                    allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default=True),
                     unimportable=shadow("unimportable", dojo_data, module_data, challenge_data, default=False),
                     challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),

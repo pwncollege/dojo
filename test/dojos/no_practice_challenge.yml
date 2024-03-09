@@ -4,7 +4,7 @@ modules:
   - id: test
     challenges:
       - id: test
-        practice_enabled: False
+        allow_privileged: False
         import:
           dojo: example
           module: world
