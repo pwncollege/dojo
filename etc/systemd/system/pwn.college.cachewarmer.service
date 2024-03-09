@@ -1,0 +1,6 @@
+[Unit]
+Description=Keep the pwn.college caches warm!
+
+[Service]
+Type=simple
+ExecStart=warm_cache.sh

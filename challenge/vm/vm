@@ -1,15 +1,22 @@
 #!/opt/pwn.college/python
 
+import argparse
+import ctypes
+import grp
 import os
-import sys
+import shutil
 import socket
 import subprocess
-import time
+import sys
 import tempfile
-import shutil
 import textwrap
-import grp
-import argparse
+import time
+
+
+LINUX_REBOOT_CMD_POWER_OFF = 0x4321fedc
+LINUX_REBOOT_CMD_RESTART = 0x1234567
+
+libc = ctypes.CDLL("libc.so.6")
 
 
 def error(msg):
@@ -36,6 +43,18 @@ def vm_hostname():
 def is_privileged():
     groups = set(grp.getgrgid(group).gr_name for group in os.getgroups())
     return os.getuid() == 0 or "sudo" in groups
+
+
+def in_vm():
+    return "init=/opt/pwn.college/vm/init" in open("/proc/cmdline").read().split()
+
+
+def vm_power_off():
+    assert libc.reboot(LINUX_REBOOT_CMD_POWER_OFF) != -1
+
+
+def vm_reboot():
+    assert libc.reboot(LINUX_REBOOT_CMD_RESTART) != -1
 
 
 def extra_boot_flags():
@@ -145,7 +164,7 @@ def wait():
                 break
         time.sleep(0.1)
     else:
-        error("Error: could not connect to vm!")
+        error("Error: could not connect to vm")
 
 
 def connect():
@@ -165,7 +184,7 @@ def debug():
     try:
         socket.create_connection((vm_hostname(), 1234), timeout=30)
     except ConnectionRefusedError:
-        error("Error: could not connect to debug!")
+        error("Error: could not connect to debug")
 
     execve([
         "/usr/bin/gdb",
@@ -265,10 +284,10 @@ def main():
     commands = {
         "connect": lambda: (start(), connect()),
         "exec": lambda: (start(), exec_(args.exec_command, *args.exec_command_args)),
-        "start": lambda: (stop(), start()),
-        "stop": lambda: stop(),
-        "restart": lambda: (stop(), start()),
-        "debug": lambda: debug(),
+        "start": lambda: (stop(), start()) if not in_vm() else vm_reboot(),
+        "stop": lambda: stop() if not in_vm() else vm_power_off(),
+        "restart": lambda: (stop(), start()) if not in_vm() else vm_reboot(),
+        "debug": lambda: debug() if not in_vm() else error("Error: cannot debug from within vm"),
         "build": lambda: build(args.build_path),
         "logs": lambda: logs(),
     }

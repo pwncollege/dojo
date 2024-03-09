@@ -1,10 +1,10 @@
 from flask import request
 from flask_restx import Namespace, Resource
 from CTFd.cache import cache
-from CTFd.models import Users
+from CTFd.models import Users, db, Solves, Challenges
 from CTFd.utils.decorators import ratelimit
 
-from ...models import Dojos
+from ...models import Dojos, DojoChallenges
 
 score_namespace = Namespace("score")
 
@@ -22,7 +22,7 @@ class ValidateUser(Resource):
         if not username or not email:
             return {"error": "`username` and `email` parameters are required"}, 400
 
-        return int(bool(Users.query.filter_by(name=username, email=email).first()))
+        return int(bool(Users.query.filter_by(name=username, email=email, hidden=False).first()))
 
 @score_namespace.route("")
 class ScoreUser(Resource):
@@ -36,12 +36,33 @@ class ScoreUser(Resource):
         if not username:
             return {"error": "`username` parameter is required"}, 400
 
-        user = Users.query.filter_by(name=username).first()
+        user = Users.query.filter_by(name=username, hidden=False).first()
         if not user:
             return {"error": "user does not exist"}, 400
 
-        official_challenge_ids = {challenge.challenge_id for dojo in Dojos.query.filter_by(official=1).all() for challenge in dojo.challenges}
-        user_score = sum(1 for solve in user.solves if solve.challenge_id in official_challenge_ids)
-        max_score = len(official_challenge_ids)
+        official_challenges = (
+            Challenges.query
+            .join(DojoChallenges)
+            .join(Dojos)
+            .filter(Dojos.official, DojoChallenges.visible())
+            .distinct()
+        )
+        rank = db.func.row_number().over(
+            order_by=(db.func.count(Solves.id).desc(), db.func.max(Solves.id))
+        ).label("rank")
+        scoreboard = (
+            db.session.query(rank, Solves.user_id, db.func.count(Solves.id).label("solves"))
+            .join(official_challenges.subquery())
+            .group_by(Solves.user_id)
+            .order_by(rank)
+            .all()
+        )
 
-        return f"{user_score}:{max_score}"
+        max_score = official_challenges.count()
+        user_count = len(scoreboard)
+        user_ranking = next((ranking for ranking in scoreboard if ranking.user_id == user.id), None)
+        if not user_ranking:
+            return {"error": "user is not ranked"}, 400
+
+        # rank:score:max_score:challs_solved:chall_count:user_count
+        return f"{user_ranking.rank}:{user_ranking.solves}:{max_score}:{user_ranking.solves}:{max_score}:{user_count}"

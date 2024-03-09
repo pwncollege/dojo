@@ -7,49 +7,106 @@
   </div>
 </div>
 <div class="container">
+  <div class="row text-center">
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a class="text-decoration-none" href="{{ url_for('course.download_all_grades', dojo=dojo.reference_id) }}">
+          <i class="fas fa-file-csv fa-3x"></i>
+          <figcaption><b style="font-family: 'Courier New', Courier, monospace">Download</b></figcaption>
+        </a>
+      </figure>
+    </div>
+  </div>
   <div id="grades" class="row">
     <div class="col-md-12">
       <table class="table table-striped">
         <thead>
           <tr>
-            {% for key in grades[0] %}
-            <td scope="col"><b>{{ key }}</b></td>
-            {% endfor %}
+            <td scope="col"><b>Student</b></td>
+            <td scope="col" style="width: 80%;"><b>Grade</b></td>
           </tr>
         </thead>
         <tbody>
           {% for user_grades in grades %}
           <tr>
-            {% for key, value in user_grades.items() %}
             <td>
-              {% if key == 'id' %}
-              {% if value is not none %}
-              <a href="{{ generate_account_url(value, admin=True) }}">{{ value }}</a>
-              {% else %}
-              <b>?</b>
-              {% endif %}
-              {% elif value is number %}
-              {{ "%.2f"|format(value) }}%
-              {% elif value is not none %}
-              {{ value }}
-              {% endif %}
+              <a href="{{ url_for('course.view_user_info', dojo=dojo.reference_id, user_id=user_grades.user_id) }}">
+                {{ students[user_grades.user_id] }}
+              </a>
             </td>
-            {% endfor %}
+            <td>
+              <details>
+                <summary>{{ user_grades.letter_grade }} ({{ "%.2f"|format(100 * user_grades.overall_grade) }}%)</summary>
+                <table>
+                  <thead>
+                    <tr>
+                      <td>Name</td>
+                      <td>Date</td>
+                      <td>Weight</td>
+                      <td>Progress</td>
+                      <td>Credit</td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for assessment_grade in user_grades.assessment_grades %}
+                    <tr>
+                      <td>{{ assessment_grade.name }}</td>
+                      <td>{{ assessment_grade.date }}</td>
+                      <td>{{ assessment_grade.weight }}</td>
+                      <td>{{ assessment_grade.progress }}</td>
+                      <td>
+                        {% if assessment_grade.credit is boolean %}
+                          {{ "✓" if assessment_grade.credit else "✕" }}
+                        {% elif assessment_grade.credit is number %}
+                          {{ "%.2f%%" | format(100 * assessment_grade.credit) }}
+                        {% endif %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </details>
+            </td>
+          </tr>
+          {% endfor %}
+          {% for missing_student in missing_students %}
+          <tr>
+            <td>
+              {{ missing_student }}
+            </td>
+            <td>
+              Missing
+            </td>
           </tr>
           {% endfor %}
         </tbody>
         <tfoot>
-          {% for statistic in grade_statistics %}
+          {% for statistic, (summary, details) in grade_statistics.items() %}
           <tr>
-            {% for value in statistic.values() %}
+            <td>{{ statistic }}</td>
             <td>
-              {% if value is number %}
-              {{ "%.2f"|format(value) }}%
-              {% elif value is not none %}
-              <b>{{ value }}</b>
-              {% endif %}
+              <details>
+                <summary>{{ summary }}</summary>
+                <table>
+                  <thead>
+                    <tr>
+                      {% for column in details[0] %}
+                      <td>{{ column }}</td>
+                      {% endfor %}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in details %}
+                    <tr>
+                      {% for value in row.values() %}
+                      <td>{{ value }}</td>
+                      {% endfor %}
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </details>
             </td>
-            {% endfor %}
           </tr>
           {% endfor %}
         </tfoot>

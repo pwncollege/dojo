@@ -21,6 +21,8 @@ def view_sensai():
 
 @sensai.route("/sensai/", methods=["GET", "POST"])
 @sensai.route("/sensai/<path:path>", methods=["GET", "POST"])
+@sensai.route("/sensai/", websocket=True)
+@sensai.route("/sensai/<path:path>", websocket=True)
 @authed_only
 @bypass_csrf_protection
 def forward_sensai(path=""):

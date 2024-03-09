@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=8.0
+Type=Application
+Name=Binary Ninja
+Comment=Binary Ninja
+Exec=/opt/binaryninja/binaryninja
+Icon=/opt/binaryninja/icon.png
+Path=
+Terminal=false
+StartupNotify=false
+Categories=Application;Development;

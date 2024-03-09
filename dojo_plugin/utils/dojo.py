@@ -11,18 +11,20 @@ import pathlib
 import yaml
 import requests
 from schema import Schema, Optional, Regex, Or, Use, SchemaError
-from flask import abort
+from flask import abort, g
 from sqlalchemy.orm.exc import NoResultFound
 from CTFd.models import db, Users, Challenges, Flags, Solves
 from CTFd.utils.user import get_current_user, is_admin
 
-from ...models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
-from ...utils import DOJOS_DIR, get_current_container
+from ..models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
+from ..config import DOJOS_DIR
+from ..utils import get_current_container
 
 
 ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
 UNIQUE_ID_REGEX = Regex(r"^[a-z0-9-~]{1,128}$")
 NAME_REGEX = Regex(r"^[\S ]{1,128}$")
+IMAGE_REGEX = Regex(r"^[\S]{1,256}$")
 DATE = Use(datetime.datetime.fromisoformat)
 
 ID_NAME_DESCRIPTION = {
@@ -47,7 +49,10 @@ DOJO_SPEC = Schema({
     Optional("type"): ID_REGEX,
     Optional("award"): {
         Optional("emoji"): Regex(r"^\S$"),
+        Optional("belt"): IMAGE_REGEX
     },
+
+    Optional("image"): IMAGE_REGEX,
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -56,6 +61,8 @@ DOJO_SPEC = Schema({
     Optional("modules", default=[]): [{
         **ID_NAME_DESCRIPTION,
         **VISIBILITY,
+
+        Optional("image"): IMAGE_REGEX,
 
         Optional("import"): {
             Optional("dojo"): UNIQUE_ID_REGEX,
@@ -66,7 +73,7 @@ DOJO_SPEC = Schema({
             **ID_NAME_DESCRIPTION,
             **VISIBILITY,
 
-            # Optional("image", default="pwncollege-challenge"): Regex(r"^[\S ]{1, 256}$"),
+            Optional("image"): IMAGE_REGEX,
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
             Optional("import"): {
@@ -95,15 +102,79 @@ DOJO_SPEC = Schema({
     }],
 })
 
+def setdefault_name(entry):
+    if "import" in entry:
+        return
+    if "name" in entry:
+        return
+    if "id" not in entry:
+        return
+    entry["name"] = entry["id"].replace("-", " ").title()
 
-def load_dojo_dir(dojo_dir, *, dojo=None):
+def setdefault_file(data, key, file_path):
+    if file_path.exists():
+        data.setdefault("description", file_path.read_text())
+
+def setdefault_subyaml(data, subyaml_path):
+    if not subyaml_path.exists():
+        return data
+
+    topyaml_data = dict(data)
+    subyaml_data = yaml.safe_load(subyaml_path.read_text())
+    data.clear()
+    data.update(subyaml_data)
+    data.update(topyaml_data)
+
+def load_dojo_subyamls(data, dojo_dir):
+    """
+    The dojo yaml gets augmented with additional yamls and markdown files found in the dojo repo structure.
+
+    The meta-structure is:
+
+    repo-root/dojo.yml
+    repo-root/DESCRIPTION.md <- if dojo description is missing
+    repo-root/module-id/module.yml <- fills in missing fields for module in dojo.yml (only module id *needs* to be in dojo.yml)
+    repo-root/module-id/DESCRIPTION.md <- if module description is missing
+    repo-root/module-id/challenge-id/challenge.yml <- fills in missing fields for challenge in higher-level ymls (only challenge id *needs* to be in dojo.yml/module.yml)
+    repo-root/module-id/challenge-id/DESCRIPTION.md <- if challenge description is missing
+
+    The higher-level details override the lower-level details.
+    """
+
+    setdefault_file(data, "description", dojo_dir / "DESCRIPTION.md")
+
+    for module_data in data.get("modules", []):
+        if "id" not in module_data:
+            continue
+
+        module_dir = dojo_dir / module_data["id"]
+        setdefault_subyaml(module_data, module_dir / "module.yml")
+        setdefault_file(module_data, "description", module_dir / "DESCRIPTION.md")
+        setdefault_name(module_data)
+
+        for challenge_data in module_data.get("challenges", []):
+            if "id" not in challenge_data:
+                continue
+
+            challenge_dir = module_dir / challenge_data["id"]
+            setdefault_subyaml(challenge_data, challenge_dir / "challenge.yml")
+            setdefault_file(challenge_data, "description", challenge_dir / "DESCRIPTION.md")
+            setdefault_name(challenge_data)
+
+    return data
+
+def dojo_from_dir(dojo_dir, *, dojo=None):
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
 
-    for path in dojo_dir.rglob("*"):
-        assert dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
+    for path in dojo_dir.rglob("**"):
+        assert dojo_dir == path or dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
 
-    data = yaml.safe_load(dojo_yml_path.read_text())
+    data_raw = yaml.safe_load(dojo_yml_path.read_text())
+    data = load_dojo_subyamls(data_raw, dojo_dir)
+    return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
+
+def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     try:
         dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
@@ -145,24 +216,25 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
         start = None
         stop = None
         for arg in args:
-            print(repr(arg), flush=True)
-            print(repr(arg.get("visibility", {})), flush=True)
             start = arg.get("visibility", {}).get("start") or start
             stop = arg.get("visibility", {}).get("stop") or stop
         if start or stop:
+            start = start.astimezone(datetime.timezone.utc) if start else None
+            stop = stop.astimezone(datetime.timezone.utc) if stop else None
             return cls(start=start, stop=stop)
 
-    def import_ids(ids, *datas):
-        results = {
-            id: None
-            for id in ids
-        }
-        for data in datas:
-            for id, result in results.items():
-                results[id] = data.get("import", {}).get(id, None) or result
-        for id, result in results.items():
-            assert result is not None, f"Missing `{id}` in import"
-        return tuple(results.values())
+    _missing = object()
+    def shadow(attr, *datas, default=_missing):
+        for data in reversed(datas):
+            if attr in data:
+                return data[attr]
+        if default is not _missing:
+            return default
+        raise KeyError(f"Missing `{attr}` in `{datas}`")
+
+    def import_ids(attrs, *datas):
+        datas_import = [data.get("import", {}) for data in datas]
+        return tuple(shadow(id, *datas_import) for id in attrs)
 
     dojo.modules = [
         DojoModules(
@@ -170,6 +242,7 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
             challenges=[
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
+                    image=shadow("image", dojo_data, module_data, challenge_data, default=None),
                     challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
                     default=(assert_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
@@ -199,23 +272,29 @@ def load_dojo_dir(dojo_dir, *, dojo=None):
         for module in (import_dojo.modules if import_dojo else [])
     ]
 
-    with dojo.located_at(dojo_dir):
-        missing_challenge_paths = [
-            challenge
-            for module in dojo.modules
-            for challenge in module.challenges
-            if not challenge.path.exists()
-        ]
-        assert not missing_challenge_paths, "".join(
-            f"Missing challenge path: {challenge.module.id}/{challenge.id}\n"
-            for challenge in missing_challenge_paths)
+    if dojo_dir:
+        with dojo.located_at(dojo_dir):
+            missing_challenge_paths = [
+                challenge
+                for module in dojo.modules
+                for challenge in module.challenges
+                if not challenge.path.exists()
+            ]
+            assert not missing_challenge_paths, "".join(
+                f"Missing challenge path: {challenge.module.id}/{challenge.id}\n"
+                for challenge in missing_challenge_paths)
 
-    if dojo.official:
-        # TODO: make grading official
-        grading_yml_path = dojo_dir / "grading.yml"
-        if grading_yml_path.exists():
-            grading = yaml.safe_load(grading_yml_path.read_text())
-            dojo.grading = grading
+        course_yml_path = dojo_dir / "course.yml"
+        if course_yml_path.exists():
+            course = yaml.safe_load(course_yml_path.read_text())
+            if "discord_role" in course and not dojo.official:
+                raise AssertionError("Unofficial dojos cannot have a discord role")
+            dojo.course = course
+
+            students_yml_path = dojo_dir / "students.yml"
+            if students_yml_path.exists():
+                students = yaml.safe_load(students_yml_path.read_text())
+                dojo.course["students"] = students
 
     return dojo
 
@@ -250,7 +329,7 @@ def dojo_clone(repository, private_key):
     url = f"https://github.com/{repository}"
     if requests.head(url).status_code != 200:
         url = f"git@github.com:{repository}"
-    subprocess.run(["git", "clone", url, clone_dir.name],
+    subprocess.run(["git", "clone", "--recurse-submodules", url, clone_dir.name],
                    env={
                        "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
                        "GIT_TERMINAL_PROMPT": "0",
@@ -277,7 +356,9 @@ def dojo_git_command(dojo, *args):
 
 def dojo_update(dojo):
     dojo_git_command(dojo, "pull")
-    return load_dojo_dir(dojo.path, dojo=dojo)
+    dojo_git_command(dojo, "submodule", "init")
+    dojo_git_command(dojo, "submodule", "update")
+    return dojo_from_dir(dojo.path, dojo=dojo)
 
 
 def dojo_accessible(id):
@@ -285,6 +366,18 @@ def dojo_accessible(id):
         return Dojos.from_id(id).first()
     return Dojos.viewable(id=id, user=get_current_user()).first()
 
+def dojo_admins_only(func):
+    signature = inspect.signature(func)
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        bound_args = signature.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+
+        dojo = bound_args.arguments["dojo"]
+        if not dojo.is_admin(get_current_user()):
+            abort(403)
+        return func(*bound_args.args, **bound_args.kwargs)
+    return wrapper
 
 def dojo_route(func):
     signature = inspect.signature(func)
@@ -297,6 +390,7 @@ def dojo_route(func):
         if not dojo:
             abort(404)
         bound_args.arguments["dojo"] = dojo
+        g.dojo = dojo
 
         if "module" in bound_args.arguments:
             module = DojoModules.query.filter_by(dojo=dojo, id=bound_args.arguments["module"]).first()
@@ -319,25 +413,3 @@ def get_current_dojo_challenge(user=None):
                 DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first())
         .first()
     )
-
-
-def dojo_scoreboard_data(dojo, module=None, duration=None, fields=None):
-    fields = fields or []
-
-    duration_filter = (
-        Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
-        if duration else True
-    )
-    order_by = (db.func.count().desc(), db.func.max(Solves.id))
-    result = (
-        DojoChallenges.solves(dojo=dojo, module=module)
-        .filter(DojoChallenges.visible(Solves.date), duration_filter)
-        .group_by(Solves.user_id)
-        .order_by(*order_by)
-        .join(Users, Users.id == Solves.user_id)
-        .with_entities(db.func.row_number().over(order_by=order_by).label("rank"),
-                       db.func.count().label("solves"),
-                       Solves.user_id,
-                       *fields)
-    )
-    return result

@@ -8,30 +8,29 @@ from urllib.parse import urlparse, urlunparse
 from flask import Response, request, redirect
 from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
-from CTFd.models import db, Challenges
+from marshmallow_sqlalchemy import field_for
+from CTFd.models import db, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.plugins import register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 
+from .models import Dojos, DojoChallenges, Belts, Emojis
 from .config import DOJO_HOST, bootstrap
-from .utils import unserialize_user_flag
+from .utils import unserialize_user_flag, render_markdown
+from .utils.awards import update_awards
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
-from .pages.workspace import workspace, redirect_workspace_referers
+from .pages.workspace import workspace
 from .pages.desktop import desktop
 from .pages.sensai import sensai
 from .pages.users import users
 from .pages.settings import settings_override
-from .pages.discord import discord, maybe_award_belt
-from .pages.grades import grades
+from .pages.discord import discord
+from .pages.course import course
 from .pages.writeups import writeups
+from .pages.belts import belts
 from .api import api
-
-
-# TODO: upgrade to flask 2.1
-# https://github.com/pallets/werkzeug/issues/2352
-Response.autocorrect_location_header = False
 
 
 class DojoChallenge(BaseChallenge):
@@ -39,6 +38,10 @@ class DojoChallenge(BaseChallenge):
     name = "dojo"
     challenge_model = Challenges
 
+    @classmethod
+    def solve(cls, user, team, challenge, request):
+        super().solve(user, team, challenge, request)
+        update_awards(user)
 
 class DojoFlag(BaseFlag):
     name = "dojo"
@@ -58,11 +61,6 @@ class DojoFlag(BaseFlag):
 
         if challenge_id != current_challenge_id:
             raise FlagException("This flag is not for this challenge!")
-
-        try:
-            maybe_award_belt(current_account_id, ignore_challenge_id=current_challenge_id)
-        except Exception as e:
-            print(f"ERROR: Maybe awarding belt failed: {e}", file=sys.stderr, flush=True)
 
         return True
 
@@ -85,21 +83,28 @@ import CTFd.utils.email.smtp
 CTFd.utils.email.smtp.EmailMessage = DatedEmailMessage
 
 
+# Patch CTFd to allow users to hide their profiles
+import CTFd.schemas.users
+CTFd.schemas.users.UserSchema.hidden = field_for(Users, "hidden")
+CTFd.schemas.users.UserSchema.views["self"].append("hidden")
+
+
 def redirect_dojo():
-    parsed_url = urlparse(request.url)
-    if parsed_url.netloc.split(':')[0] != DOJO_HOST:
-        netloc = DOJO_HOST
-        if ':' in parsed_url.netloc:
-            netloc += ':' + parsed_url.netloc.split(':')[1]
-        redirect_url = urlunparse((
-            parsed_url.scheme,
-            netloc,
-            parsed_url.path,
-            parsed_url.params,
-            parsed_url.query,
-            parsed_url.fragment,
-        ))
-        return redirect(redirect_url, code=301)
+    if "X-Forwarded-For" in request.headers:
+        parsed_url = urlparse(request.url)
+        if parsed_url.netloc.split(':')[0] != DOJO_HOST:
+            netloc = DOJO_HOST
+            if ':' in parsed_url.netloc:
+                netloc += ':' + parsed_url.netloc.split(':')[1]
+            redirect_url = urlunparse((
+                parsed_url.scheme,
+                netloc,
+                parsed_url.path,
+                parsed_url.params,
+                parsed_url.query,
+                parsed_url.fragment,
+            ))
+            return redirect(redirect_url, code=301)
 
 
 def load(app):
@@ -125,11 +130,12 @@ def load(app):
     app.register_blueprint(sensai)
     app.register_blueprint(discord)
     app.register_blueprint(users)
-    app.register_blueprint(grades)
+    app.register_blueprint(course)
     app.register_blueprint(writeups)
+    app.register_blueprint(belts)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
 
-    app.before_request(redirect_workspace_referers)
+    app.jinja_env.filters["markdown"] = render_markdown
 
     register_admin_plugin_menu_bar("Dojos", "/admin/dojos")
     register_admin_plugin_menu_bar("Desktops", "/admin/desktops")

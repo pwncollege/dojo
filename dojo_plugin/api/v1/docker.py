@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import pathlib
+import re
 import traceback
 
 import docker
@@ -10,9 +11,9 @@ from flask_restx import Namespace, Resource
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
-from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL
+from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL, WINDOWS_VM_ENABLED, SECCOMP, USER_FIREWALL_ALLOWED
 from ...models import Dojos, DojoModules, DojoChallenges
-from ...utils import serialize_user_flag, simple_tar, random_home_path, SECCOMP, USER_FIREWALL_ALLOWED, module_challenges_visible
+from ...utils import serialize_user_flag, simple_tar, random_home_path, module_challenges_visible, user_ipv4
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 
 
@@ -64,17 +65,19 @@ def start_challenge(user, dojo_challenge, practice):
             container.wait(condition="removed")
         except docker.errors.NotFound:
             pass
-        hostname = "-".join((dojo_challenge.module.id, dojo_challenge.id))
-        if practice:
-            hostname = f"practice~{hostname}"
+
+        hostname = "~".join((["practice"] if practice else []) + [
+            dojo_challenge.module.id,
+            re.sub("[\s.-]+", "-", re.sub("[^a-z0-9\s.-]", "", dojo_challenge.name.lower()))
+        ])[:64]
+
         devices = []
         if os.path.exists("/dev/kvm"):
             devices.append("/dev/kvm:/dev/kvm:rwm")
         if os.path.exists("/dev/net/tun"):
             devices.append("/dev/net/tun:/dev/net/tun:rwm")
-        internet = INTERNET_FOR_ALL or any(award.name == "INTERNET" for award in user.awards)
 
-        return docker_client.containers.run(
+        container = docker_client.containers.create(
             dojo_challenge.image,
             entrypoint=["/bin/sleep", "6h"],
             name=f"user_{user.id}",
@@ -88,6 +91,7 @@ def start_challenge(user, dojo_challenge, practice):
                 "dojo.challenge_description": dojo_challenge.description,
                 "dojo.user_id": str(user.id),
                 "dojo.mode": "privileged" if practice else "standard",
+                "dojo.auth_token": os.urandom(32).hex(),
             },
             mounts=[
                 docker.types.Mount(
@@ -95,16 +99,28 @@ def start_challenge(user, dojo_challenge, practice):
                     f"{HOST_DATA_PATH}/homes/nosuid/{random_home_path(user)}",
                     "bind",
                     propagation="shared",
-                ),
-            ],
+                )
+            ]
+            + (
+                [
+                    docker.types.Mount(
+                        target="/run/media/windows",
+                        source="pwncollege_windows",
+                        read_only=True,
+                    )
+                ]
+                if WINDOWS_VM_ENABLED
+                else []
+            ),
             devices=devices,
-            network=None if internet else "user_firewall",
+            network=None,
             extra_hosts={
                 hostname: "127.0.0.1",
                 "vm": "127.0.0.1",
-                f"vm_{hostname}": "127.0.0.1",
+                f"vm_{hostname}"[:64]: "127.0.0.1",
                 "challenge.localhost": "127.0.0.1",
                 "hacker.localhost": "127.0.0.1",
+                "dojo-user": user_ipv4(user),
                 **USER_FIREWALL_ALLOWED,
             },
             init=True,
@@ -115,8 +131,19 @@ def start_challenge(user, dojo_challenge, practice):
             pids_limit=1024,
             mem_limit="4000m",
             detach=True,
-            remove=True,
+            auto_remove=True,
         )
+
+        user_network = docker_client.networks.get("user_network")
+        user_network.connect(container, ipv4_address=user_ipv4(user), aliases=[f"user_{user.id}"])
+
+        default_network = docker_client.networks.get("bridge")
+        internet_access = INTERNET_FOR_ALL or any(award.name == "INTERNET" for award in user.awards)
+        if not internet_access:
+            default_network.disconnect(container)
+
+        container.start()
+        return container
 
     def verify_nosuid_home():
         exit_code, output = exec_run("findmnt --output OPTIONS /home/hacker",
@@ -151,10 +178,15 @@ def start_challenge(user, dojo_challenge, practice):
     def insert_flag(flag):
         exec_run(f"echo 'pwn.college{{{flag}}}' > /flag", shell=True)
 
+    def insert_auth_token(auth_token):
+        exec_run(f"echo '{auth_token}' > /.authtoken", shell=True)
+
     def initialize_container():
         exec_run(
-            """
+            f"""
             /opt/pwn.college/docker-initialize.sh
+
+            export DOJO_PRIVILEGED={"1" if practice else "0"}
 
             if [ -x "/challenge/.init" ]; then
                 /challenge/.init
@@ -186,6 +218,9 @@ def start_challenge(user, dojo_challenge, practice):
     flag = "practice" if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)
     insert_flag(flag)
 
+    auth_token = container.labels["dojo.auth_token"]
+    insert_auth_token(auth_token)
+
     initialize_container()
 
 
@@ -213,7 +248,8 @@ class RunDocker(Resource):
         if not dojo_challenge:
             return {"success": False, "error": "Invalid challenge"}
 
-        # TODO: check if challenge visible
+        if not dojo_challenge.visible() and not dojo.is_admin():
+            return {"success": False, "error": "Invalid challenge"}
 
         try:
             start_challenge(user, dojo_challenge, practice)
@@ -221,7 +257,7 @@ class RunDocker(Resource):
             print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": str(e)}
-        except Exception as e: #pylint:disable=broad-except
+        except Exception as e:
             print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": "Docker failed"}

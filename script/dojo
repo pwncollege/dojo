@@ -28,20 +28,22 @@ case "$ACTION" in
         cp -rv --preserve=timestamps dojo_theme /opt/CTFd/CTFd/themes/
         ;;
 
-    # HELP: enter USER_ID: enter a user's running container. Can change users via USER env var.
+    # HELP: enter [ -s ] USER_ID: enter a user's running container. -s for entering as root
     "enter")
+        USER_SWITCH=""
+        if [ "$1" == "-s" ]
+        then
+            USER_SWITCH="--user=root"
+            shift
+        fi
         DOJO_UID="$1"
-	[ -n "${DOJO_UID//[0-9]}" ] && DOJO_UID=$(
-	    echo "select id from users where name='$DOJO_UID'" |
+        [ -n "${DOJO_UID//[0-9]}" ] && DOJO_UID=$(
+            echo "select id from users where name='$DOJO_UID'" |
             $0 db -s
-	)
+        )
         CONTAINER="user_$DOJO_UID"
         shift
-        if [ -z "$USER" ]; then
-            docker exec $DOCKER_ARGS "$CONTAINER" bash
-        else
-            docker exec $DOCKER_ARGS --user="$USER" "$CONTAINER" bash
-        fi
+        docker exec $DOCKER_ARGS $USER_SWITCH "$CONTAINER" bash
         ;;
 
     # HELP: compose ARGS: run a docker compose command with the config.env file loaded
@@ -78,6 +80,21 @@ case "$ACTION" in
     # HELP: logs: display dojo logs
     "logs")
         journalctl -u pwn.college -f
+        ;;
+
+    # HELP: wait: wait for the dojo to finish starting
+    "wait")
+        dojo logs | while IFS= read -r line; do
+            echo "$line"
+            case "$line" in
+                *"Finished pwn.college docker compose service"*)
+                    exit 0
+                    ;;
+                *"Failed to start pwn.college docker compose service."*)
+                    exit 1
+                    ;;
+            esac
+        done
         ;;
 
     # HELP: start: start the dojo. Main entry point for the docker image.

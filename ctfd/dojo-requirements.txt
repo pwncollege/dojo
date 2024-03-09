@@ -1,5 +1,0 @@
-docker==4.3.0
-pyyaml==5.4.1
-schema
-ipython
-flask-shell-ipython

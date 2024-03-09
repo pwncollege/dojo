@@ -2,10 +2,11 @@ import datetime
 import sys
 import traceback
 
+import docker
 from flask import Blueprint, Response, stream_with_context, render_template, redirect, url_for, abort
 from sqlalchemy.sql import and_
 from sqlalchemy.exc import IntegrityError
-from CTFd.models import db, Solves
+from CTFd.models import db, Solves, Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.plugins import bypass_csrf_protection
@@ -29,19 +30,24 @@ def dojo_stats(dojo):
 def listing():
     user = get_current_user()
     typed_dojos = {
-        "Courses": [],
+        "Start Here": [],
         "Topics": [],
-        "More": [],
+        "Courses": [],
+        "More Material": [],
     }
     for dojo in Dojos.viewable(user=user):
-        if dojo.type == "course":
-            typed_dojos["Courses"].append(dojo)
-        elif dojo.type == "topic":
+        if dojo.type == "topic":
             typed_dojos["Topics"].append(dojo)
+        elif dojo.type == "course":
+            typed_dojos["Courses"].append(dojo)
         elif dojo.type == "hidden":
             continue
+        elif dojo.type == "example" and dojo.official:
+            continue
+        elif dojo.type == "welcome":
+            typed_dojos["Start Here"].append(dojo)
         else:
-            typed_dojos["More"].append(dojo)
+            typed_dojos["More Material"].append(dojo)
 
     return render_template("dojos.html", user=user, typed_dojos=typed_dojos)
 
@@ -54,6 +60,7 @@ def dojo_create():
         "dojo_create.html",
         public_key=public_key,
         private_key=private_key,
+        example_dojos=Dojos.viewable().where(Dojos.data["type"] == "example").all()
     )
 
 
@@ -71,9 +78,6 @@ def join_dojo(dojo, password=None):
     dojo = Dojos.from_id(dojo).first()
     if not dojo:
         abort(404)
-
-    if dojo.official:
-        return redirect(url_for("pwncollege_dojo.listing", dojo=dojo.reference_id))
 
     if dojo.password and dojo.password != password:
         abort(403)
@@ -114,7 +118,42 @@ def update_dojo(dojo, update_code=None):
 def view_dojo_admin(dojo):
     if not dojo.is_admin():
         abort(403)
-    return render_template("dojo_admin.html", dojo=dojo)
+    return render_template("dojo_admin.html", dojo=dojo, is_admin=is_admin)
+
+
+@dojos.route("/dojo/<dojo>/admin/activity")
+@dojo_route
+def view_dojo_activity(dojo):
+    if not dojo.is_admin():
+        abort(403)
+
+    docker_client = docker.from_env()
+    filters = {
+        "name": "user_",
+        "label": f"dojo.dojo_id={dojo.reference_id}"
+    }
+    containers = docker_client.containers.list(filters=filters, ignore_removed=True)
+
+    actives = []
+    now = datetime.datetime.now()
+    for container in containers:
+        user_id = container.labels["dojo.user_id"]
+        dojo_id = container.labels["dojo.dojo_id"]
+        module_id = container.labels["dojo.module_id"]
+        challenge_id = container.labels["dojo.challenge_id"]
+
+        user = Users.query.filter_by(id=user_id).first()
+        challenge = DojoChallenges.from_id(dojo_id, module_id, challenge_id).first()
+
+        created = datetime.datetime.fromisoformat(container.attrs["Created"].split(".")[0])
+        uptime = now - created
+
+        actives.append(dict(user=user, challenge=challenge, uptime=uptime))
+    actives.sort(key=lambda active: active["uptime"])
+
+    solves = dojo.solves().order_by(Solves.date).all()
+
+    return render_template("dojo_activity.html", dojo=dojo, actives=actives, solves=solves)
 
 
 @dojos.route("/dojo/<dojo>/admin/solves.csv")

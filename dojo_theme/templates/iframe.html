@@ -43,8 +43,16 @@
 {% endif %}
 {% endblock %}
 
-{% if active %}
 {% block scripts %}
+{{ super() }}
+{% if active %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/iframeRedirects.js') }}"></script>
-{% endblock %}
 {% endif %}
+{% if share_urls %}
+<script>
+  {% for name, url in share_urls.items() %}
+  console.log("Share {{ name }}: {{ url | safe}}");
+  {% endfor %}
+</script>
+{% endif %}
+{% endblock %}

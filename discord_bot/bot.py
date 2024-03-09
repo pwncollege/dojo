@@ -6,9 +6,6 @@ import sys
 from enum import Enum
 
 import discord
-import pandas as pd
-from sqlalchemy import create_engine
-
 
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 if not DISCORD_BOT_TOKEN:
@@ -40,6 +37,8 @@ client = PwnCollegeClient(intents=intents)
 
 
 daily_tasks = set()
+
+
 def run_daily(task, daily_time):
     time = datetime.time.fromisoformat(daily_time)
     now = datetime.datetime.now(tz=time.tzinfo)
@@ -76,7 +75,11 @@ async def on_ready():
                                          if channel.category and channel.category.name.lower() == "logs" and channel.name == "attendance")
     client.voice_state_history = collections.defaultdict(list)
     run_daily(daily_attendance, "17:20:00-07:00")
-    run_daily(check_belts, "18:00:00-07:00")
+
+    client.emoji = collections.defaultdict()
+    for emo in client.emojis:
+        client.emoji[emo.name] = emo
+
 
 @client.event
 async def on_voice_state_update(member, before, after):
@@ -96,7 +99,8 @@ async def show_join_date(interaction: discord.Interaction, member: discord.Membe
     await interaction.response.send_message(f"{member.mention} joined at {discord.utils.format_dt(member.joined_at)}", ephemeral=True)
 
 
-async def send_logged_embed(interaction, message, log_channel, title, logged_text, ephemeral_text, button_text):
+async def send_logged_embed(interaction, message, log_channel, title, logged_text, ephemeral_text, button_text, emoji="\N{Upwards Black Arrow}"):
+    emoji = "\N{Upwards Black Arrow}" if emoji is None else emoji
     now = datetime.datetime.utcnow()
 
     logged_embed = discord.Embed(title=title)
@@ -121,7 +125,7 @@ async def send_logged_embed(interaction, message, log_channel, title, logged_tex
 
     await interaction.response.send_message(embed=ephemeral_embed, view=ephemeral_url_view, ephemeral=True)
 
-    await message.add_reaction("\N{Upwards Black Arrow}")
+    await message.add_reaction(emoji)
 
 
 @client.tree.context_menu(name="Thanks")
@@ -130,13 +134,18 @@ async def thank_message(interaction: discord.Interaction, message: discord.Messa
         await interaction.response.send_message("You cannot thank yourself!", ephemeral=True)
         return
 
+    if interaction.channel.name == "memes":
+        await interaction.response.send_message("You cannot thank a meme!", ephemeral=True)
+        return
+
     await send_logged_embed(interaction,
                             message,
                             client.thanks_log_channel,
                             title="Thanks",
                             logged_text=f"{interaction.user.mention} thanked {message.author.mention}",
                             ephemeral_text=f"You thanked {message.author.mention}",
-                            button_text="Thanks Message")
+                            button_text="Thanks Message",
+                            emoji=client.emoji["thanks"])
 
     print(f"{describe(interaction.user)} thanked {describe(message.author)}", flush=True)
 
@@ -155,9 +164,50 @@ async def like_meme(interaction: discord.Interaction, message: discord.Message):
                             title="Liked Meme",
                             logged_text=f"{interaction.user.mention} liked {message.author.mention}'s meme",
                             ephemeral_text=f"You liked {message.author.mention}'s meme",
-                            button_text="Liked Meme")
+                            button_text="Liked Meme",
+                            emoji=client.emoji["good_meme"])
 
     print(f"{describe(interaction.user)} liked {describe(message.author)}'s meme")
+
+
+async def thread_forum_checkwarn(interaction, message):
+    thread = message.channel
+    if not isinstance(thread, discord.Thread):
+        await interaction.response.send_message("Only forum threads can be tagged!", ephemeral=True)
+        return (None, None)
+
+    forum = thread.parent
+    if not isinstance(forum, discord.ForumChannel):
+        await interaction.response.send_message("Only forum threads can be tagged!", ephemeral=True)
+        return (None, None)
+
+    return (thread, forum)
+
+
+async def is_any_sensei_checkwarn(interaction):
+    senseis = list(role for role in interaction.guild.roles if "sensei" in role.name.lower())
+
+    if any(interaction.user in sensei.members for sensei in senseis):
+        return True
+
+    await interaction.response.send_message("You are not a sensei!", ephemeral=True)
+    return False
+
+
+@client.tree.context_menu(name="Tag: Good Question")
+async def good_question(interaction: discord.Interaction, message: discord.Message):
+    if not await is_any_sensei_checkwarn(interaction):
+        return
+
+    thread, forum = await thread_forum_checkwarn(interaction, message)
+
+    if thread is None or forum is None:
+        return
+
+    good_q_tag = next(tag for tag in forum.available_tags if tag.name=="Good Question")
+
+    await thread.add_tags(good_q_tag)
+    await interaction.response.send_message("Tagged: Good Question", ephemeral=True)
 
 
 async def mark_attendance(member):
@@ -175,10 +225,7 @@ async def mark_attendance(member):
 
 @client.tree.command()
 async def attend(interaction: discord.Interaction, member: discord.Member):
-    senseis = list(role for role in interaction.guild.roles if "sensei" in role.name.lower())
-
-    if not any(interaction.user in sensei.members for sensei in senseis):
-        await interaction.response.send_message("You are not a sensei!", ephemeral=True)
+    if not await is_any_sensei_checkwarn(interaction):
         return
 
     now = datetime.datetime.utcnow()
@@ -195,7 +242,6 @@ async def attend(interaction: discord.Interaction, member: discord.Member):
     ephemeral_url_view.add_item(discord.ui.Button(label="Attendance", style=discord.ButtonStyle.url, url=logged_message.jump_url))
 
     await interaction.response.send_message(embed=ephemeral_embed, view=ephemeral_url_view, ephemeral=True)
-
     print(f"{describe(interaction.user)} attended {member}")
 
 
@@ -243,69 +289,23 @@ async def help(interaction: discord.Interaction):
 
     ephemeral_url_view = discord.ui.View()
     ephemeral_url_view.add_item(discord.ui.Button(label="Private Help Thread", style=discord.ButtonStyle.url, url=thread.jump_url))
-
     await interaction.response.send_message(view=ephemeral_url_view, ephemeral=True)
 
 
-async def check_belts():
-    now = datetime.datetime.now()
-    print(f"Checking belts @ {now}")
+@client.event
+async def on_reaction_add(reaction, user):
+    if isinstance(reaction.emoji, str):
+        return
 
-    class Belt(Enum):
-        ORANGE = 0
-        YELLOW = 1
-        BLUE   = 2
+    # Bot must thank first or else emoji is removed
+    bot_thanked = [u async for u in reaction.users() if u == client.guild.me]
+    if reaction.emoji.name == "thanks" and not bot_thanked:
+        await reaction.remove(user)
 
-    engine = create_engine('mariadb+pymysql://ctfd:ctfd@db/ctfd?charset=utf8mb4')
-
-    async def check_belts(rank: Belt):
-        roles = [next(role for role in client.guild.roles if role.name == "Orange Belt"),
-                 next(role for role in client.guild.roles if role.name == "Yellow Belt"),
-                 next(role for role in client.guild.roles if role.name == "Blue Belt")]
-
-        courses = [62725971,    # CSE 365 - Spring 2023
-                   -2037203363, # CSE 466 - Fall 2022
-                   -695929874   # CSE 494 - Spring 2023
-                   ]
-
-        completion_cnts = [167, # CSE 365 - Spring 2023
-                           355, # CSE 466 - Fall 2022
-                           160  # CSE 494 - Spring 2023
-                        ]
-
-        role = roles[rank.value]
-        course = courses[rank.value]
-        completion = completion_cnts[rank.value]
-
-        # TODO: Hardcoded Challenge Max
-        belted = pd.read_sql(f'''
-                SELECT u.name, dis.discord_id, count(s.challenge_id)
-                    FROM dojo_challenges as d
-                        JOIN solves as s
-                            ON d.challenge_id=s.challenge_id
-                        JOIN users as u
-                            ON u.id=s.user_id
-                        JOIN discord_users as dis
-                            ON u.id=dis.user_id
-                    WHERE d.dojo_id={course}
-                    GROUP BY u.name
-                        HAVING count(s.challenge_id)={completion};
-                      ''', engine)
-
-        new_belt_cnt = 0
-        for _, row in belted.iterrows():
-            try:
-                member = await client.guild.fetch_member(row['discord_id'])
-            except:
-                continue
-            if role not in member.roles:
-                now = datetime.datetime.now()
-                print(f"Awarding {role.name} to {member.display_name} @ {now}")
-                new_belt_cnt += 1
-                await member.add_roles(role)
-
-    await check_belts(Belt.ORANGE)
-    await check_belts(Belt.YELLOW)
-    await check_belts(Belt.BLUE)
+    # Bot must meme first or else emoji is removed
+    bot_memed = [u async for u in reaction.users() if u == client.guild.me]
+    meme_chan = reaction.message.channel.name == "memes"
+    if reaction.emoji.name == "good_meme" and meme_chan and not bot_memed:
+        await reaction.remove(user)
 
 client.run(DISCORD_BOT_TOKEN)

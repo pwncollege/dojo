@@ -4,14 +4,35 @@ services:
   challenge:
     build:
       context: ./challenge
-      target: ${DOJO_CHALLENGE}
+      target: challenge-final
       args:
-        - INSTALL_IDA=${INSTALL_IDA}
+        - DEFAULT_INSTALL_SELECTION=${DEFAULT_INSTALL_SELECTION}
+        - INSTALL_AFL=${INSTALL_AFL:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_ANGR_MANAGEMENT=${INSTALL_ANGR_MANAGEMENT:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_BUSYBOX=${INSTALL_BUSYBOX:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_CAPSTONE=${INSTALL_CAPSTONE:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_DESKTOP_BASE=${INSTALL_DESKTOP_BASE:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_GDB=${INSTALL_GDB:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_GECKODRIVER=${INSTALL_GECKODRIVER:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_GHIDRA=${INSTALL_GHIDRA:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_GLOW=${INSTALL_GLOW:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_IDA_FREE=${INSTALL_IDA_FREE:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_BINJA_FREE=${INSTALL_BINJA_FREE:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_KERNEL=${INSTALL_KERNEL:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_RADARE2=${INSTALL_RADARE2:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_RAPPEL=${INSTALL_RAPPEL:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_RP=${INSTALL_RP:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_TCPDUMP=${INSTALL_TCPDUMP:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_TOOLS_APT=${INSTALL_TOOLS_APT:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_TOOLS_PIP=${INSTALL_TOOLS_PIP:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_VIRTIOFSD=${INSTALL_VIRTIOFSD:-${DEFAULT_INSTALL_SELECTION}}
+        - INSTALL_XFCE=${INSTALL_XFCE:-${DEFAULT_INSTALL_SELECTION}}
         - UBUNTU_VERSION=${UBUNTU_VERSION}
+        - DOJO_CHALLENGE=${DOJO_CHALLENGE}
     platform: linux/amd64
     entrypoint: /bin/true
     networks:
-      - user_firewall
+      - user_network
 
   ctfd:
     container_name: ctfd
@@ -22,10 +43,15 @@ services:
     restart: always
     privileged: true
     entrypoint: ""
-    command: >
-      /bin/sh -c '[ "$DOJO_ENV" != "development" ] &&
-                  ./docker-entrypoint.sh  ||
-                  FLASK_ENV=development WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000'
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ "$DOJO_ENV" != "development" ]; then
+          ./docker-entrypoint.sh;
+        else
+          FLASK_ENV=development WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
+        fi
     ulimits:
         nofile:
             soft: 32768
@@ -53,6 +79,7 @@ services:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
       - INTERNET_FOR_ALL=${INTERNET_FOR_ALL}
+      - WINDOWS_VM=${WINDOWS_VM}
       - VIRTUAL_HOST=${DOJO_HOST},localhost
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=${DOJO_HOST}
@@ -71,13 +98,23 @@ services:
       - /opt/pwn.college/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro
       - /opt/pwn.college/dojo_theme:/opt/CTFd/CTFd/themes/dojo_theme:ro
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; response = requests.get('http://localhost:8000'); response.raise_for_status()"]
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - |
+          import requests
+          response = requests.get('http://localhost:8000')
+          response.raise_for_status()
       interval: 10s
       timeout: 10s
       retries: 3
     depends_on:
-      - db
-      - cache
+      db:
+        condition: service_healthy
+        restart: true
+      cache:
+        condition: service_started
 
   db:
     container_name: db
@@ -91,6 +128,11 @@ services:
     volumes:
       - ./data/mysql:/var/lib/mysql
     command: [mysqld, --character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci, --wait_timeout=28800, --log-warnings=0]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-pctfd"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
 
   cache:
     container_name: cache
@@ -128,6 +170,7 @@ services:
       - "443:443"
     environment:
       - DOCKER_HOST=unix:///tmp/${DOCKER_PSLR}/docker.sock
+      - DEFAULT_HOST=${DOJO_HOST}
     volumes:
       - conf:/etc/nginx/conf.d
       - html:/usr/share/nginx/html
@@ -137,6 +180,12 @@ services:
       - ./nginx-proxy/etc/passwd:/etc/passwd:ro
       - ./data/homes:/var/homes:shared
       - /var/run/docker.sock:/tmp/${DOCKER_PSLR}/docker.sock:ro
+    networks:
+      default:
+      user_network:
+        aliases:
+          - nginx
+        ipv4_address: 10.0.0.3
 
   nginx-certs:
     container_name: nginx_certs
@@ -149,16 +198,26 @@ services:
       - acme:/etc/acme.sh
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
+  windows:
+    extends:
+      file: ./windows/${WINDOWS_VM}.yml
+      service: windows
+
 volumes:
   conf:
   html:
   dhparam:
   certs:
   acme:
+  windows:
 
 networks:
-  user_firewall:
-    name: user_firewall
+  user_network:
+    name: user_network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/8
     driver_opts:
-      com.docker.network.bridge.name: "user_firewall"
+      com.docker.network.bridge.name: "user_network"
       com.docker.network.bridge.enable_icc: "false"

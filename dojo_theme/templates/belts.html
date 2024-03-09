@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>The Belted</h1>
+  </div>
+</div>
+<div class="container">
+  <p>
+  The hacker ethos goes beyond the acquisition of a satisfactory grade in a college course.
+  A true hacker is never satisfied with the state of their knowledge.
+  They strive, or are irresistably driven towards, the achievement of absolute mastery of technical topics.
+  </p>
+
+  <p>
+  Below is a list of true hackers: those who stared at the yellow box, and rather than flinching, dove in.
+  </p>
+
+  {% for belt_color in ("blue", "green", "yellow", "orange") %}
+    <h2>{{belt_color.title()}} Belts</h2>
+    <p>
+    {% if belt_color == "blue" %}
+    It is the rare individual who perseveres against the hardest of challenges, pushing on when the night is at its darkest.
+    The hackers below are truly the most stout of spirit, fighting through countless seemingly-impossible challenges and proving themselves worthy to wear their blue belt among the clouds.
+    {% elif belt_color == "green" %}
+    A sapling grows toward the sun: a hacker emerges into the light.
+    These individuals have shown a unique ability to see through the haze of uncertainty to the clarity beyond.
+    They are ready to journey into the sky.
+    {% elif belt_color == "yellow" %}
+    The sky brightens as the sun rises.
+    The minds of these students are opening, admitting phenomenal cybersecurity concepts that few even suspect to exist.
+    With sunlight comes the possibility of growth and the promise of learning to come.
+    {% elif belt_color == "orange" %}
+    Dawn is on the horizon.
+    No longer do the names written below belong to those unknowing cybersecurity: instead, their owners now realize the vast tracts of concepts still unexplored, waiting ready to expand their minds.
+    {% endif %}
+    </p>
+
+    <ul style="list-style-image: url({{ url_for("views.themes", path="img/dojo/" + belt_color + ".svg") }})">
+      {% for user_id in belt_data.ranks[belt_color] %}
+      {% set user = belt_data.users[user_id] %}
+      <li>
+        <a href="{{ url_for("pwncollege_users.view_other", user_id=user_id) }}"><raw>{{ user.handle }}</raw></a>
+        {% if user.name %}({{ user.name }}){% endif %}
+        {% if user.emoji %}{{ user.emoji }}{% endif %}
+        {% if user.site %}
+        <a href="{{ user.site }}" target="_blank" style="color: inherit;" rel="noopener">
+          <i class="fas fa-external-link-alt" data-toggle="tooltip" data-placement="top"
+            title="{{ user.site }}">
+          </i>
+        </a>
+        {% endif %}
+        {% if user.mail %}
+        <a href="mailto:{{ user.mail }}" style="color: inherit;" rel="noopener">
+          <i class="fas fa-external-link-alt" data-toggle="tooltip" data-placement="top"
+            title="{{ user.website }}">
+          </i>
+        </a>
+        {% endif %}
+        <em>(ascended {{ user.date }})</em>
+      </li>
+      {% endfor %}
+    </ul>
+    <br>
+  {% endfor %}
+
+  <h2>How to get on the above lists</h2>
+  You, too, can be listed among the legends above.
+  You earn your belts by fully completing the appropriate <a href="{{url_for("pwncollege_dojos.listing")}}">pwn.college dojos</a>.
+  This takes skill, cunning, and perseverance, but you can do it.
+  Good luck.
+</div>
+{% endblock %}

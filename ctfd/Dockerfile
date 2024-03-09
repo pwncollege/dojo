@@ -14,8 +14,10 @@ RUN apt-get update \
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY requirements.txt /opt/CTFd/
-COPY dojo-requirements.txt /opt/CTFd/
-RUN pip install --no-cache-dir -r requirements.txt -r dojo-requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# TODO: Remove this when CTFd depends on Flask >= 2.1.0: "safe_join is removed, use werkzeug.utils.safe_join instead"
+RUN echo 'from werkzeug.utils import safe_join' >> /opt/venv/lib/python3.9/site-packages/flask/helpers.py
 
 COPY . /opt/CTFd
 

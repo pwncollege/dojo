@@ -27,10 +27,7 @@ def can_control(desktop_user):
     ))
 
 
-@desktop.route("/desktop")
-@desktop.route("/desktop/<int:user_id>")
-@authed_only
-def view_desktop(user_id=None):
+def view_desktop_res(route, user_id=None, password=None):
     current_user = get_current_user()
     if user_id is None:
         user_id = current_user.id
@@ -39,25 +36,37 @@ def view_desktop(user_id=None):
     if not can_connect_to(user):
         abort(403)
 
-    try:
-        password_type = "interact" if can_control(user) else "view"
-        password_path = f"/var/homes/nosuid/{random_home_path(user)}/.vnc/pass-{password_type}"
-        password = open(password_path).read()
-    except FileNotFoundError:
-        password = None
+    if password is None:
+        try:
+            password_type = "interact" if can_control(user) else "view"
+            password_path = f"/var/homes/nosuid/{random_home_path(user)}/.vnc/pass-{password_type}"
+            password = open(password_path).read()
+        except FileNotFoundError:
+            password = None
 
     active = bool(password) if get_current_dojo_challenge(user) is not None else None
     view_only = int(user_id != current_user.id)
 
-    iframe_src = f"/desktop/{user_id}/vnc.html?autoconnect=1&reconnect=1&path=/desktop/{user_id}/websockify&resize=remote&reconnect_delay=10&view_only={view_only}&password={password}"
+    iframe_src = f"/{route}/{user_id}/vnc.html?autoconnect=1&reconnect=1&path={route}/{user_id}/websockify&resize=remote&reconnect_delay=10&view_only={view_only}&password={password}"
     return render_template("iframe.html", iframe_src=iframe_src, active=active)
 
 
-@desktop.route("/desktop/<int:user_id>/")
-@desktop.route("/desktop/<int:user_id>/<path:path>")
+@desktop.route("/desktop")
+@desktop.route("/desktop/<int:user_id>")
 @authed_only
-def forward_desktop(user_id, path=""):
-    prefix = f"/desktop/{user_id}/"
+def view_desktop(user_id=None):
+    return view_desktop_res("desktop", user_id)
+
+
+@desktop.route("/desktop-win")
+@desktop.route("/desktop-win/<int:user_id>")
+@authed_only
+def view_desktop_win(user_id=None):
+    return view_desktop_res("desktop-win", user_id, "abcd")
+
+
+def forward_desktop_res(route, socket_path, user_id, path=""):
+    prefix = f"/{route}/{user_id}/"
     assert request.full_path.startswith(prefix)
     path = request.full_path[len(prefix):]
 
@@ -65,7 +74,25 @@ def forward_desktop(user_id, path=""):
     if not can_connect_to(user):
         abort(403)
 
-    return redirect_user_socket(user, ".vnc/novnc.socket", f"/{path}")
+    return redirect_user_socket(user, socket_path, path)
+
+
+@desktop.route("/desktop/<int:user_id>/")
+@desktop.route("/desktop/<int:user_id>/<path:path>")
+@desktop.route("/desktop/<int:user_id>/", websocket=True)
+@desktop.route("/desktop/<int:user_id>/<path:path>", websocket=True)
+@authed_only
+def forward_desktop(user_id, path=""):
+    return forward_desktop_res("desktop", 6081, user_id, path)
+
+
+@desktop.route("/desktop-win/<int:user_id>/")
+@desktop.route("/desktop-win/<int:user_id>/<path:path>")
+@desktop.route("/desktop-win/<int:user_id>/", websocket=True)
+@desktop.route("/desktop-win/<int:user_id>/<path:path>", websocket=True)
+@authed_only
+def forward_desktop_win(user_id, path=""):
+    return forward_desktop_res("desktop-win", 6082, user_id, path)
 
 
 @desktop.route("/admin/desktops", methods=["GET"])

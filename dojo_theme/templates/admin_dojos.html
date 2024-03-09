@@ -9,6 +9,16 @@
 <div class="container">
     {% for dojo in dojos %}
     <h2><a href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.name }}</a></h2>
+    <b>Reference ID: </b><code>{{ dojo.reference_id }}</code>
+    <br>
+    <b>Dojo ID: </b><code>{{ dojo.hex_dojo_id }}</code>
+    <br>
+    <!-- <b style="font-family: 'Courier New', Courier, monospace">Update Code: </b><code>{{ dojo.update_code }}</code>
+    <br> -->
+    <b>Git Hash: </b><code>{{ dojo.hash[:8] }}</code>
+    <br>
+    <b>Last Commit: </b><code>{{ dojo.last_commit_time }}</code>
+    <br>
     <b>Admins</b>
     <ul>
         {% for admin in dojo.admins %}

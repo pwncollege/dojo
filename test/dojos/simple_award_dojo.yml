@@ -1,0 +1,8 @@
+id: simple-award
+type: public
+award:
+  emoji: 🧪
+modules:
+  - import:
+      dojo: example
+      module: hello

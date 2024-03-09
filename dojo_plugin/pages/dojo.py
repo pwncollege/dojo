@@ -11,7 +11,7 @@ from CTFd.cache import cache
 
 from ..utils import render_markdown, module_visible, module_challenges_visible, is_dojo_admin
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
-from ..models import Dojos, DojoUsers
+from ..models import Dojos, DojoUsers, DojoStudents
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 
@@ -21,7 +21,7 @@ def get_stats(dojo):
     docker_client = docker.from_env()
     filters = {
         "name": "user_",
-        "label": f"dojo={dojo.reference_id}"
+        "label": f"dojo.dojo_id={dojo.reference_id}"
     }
     containers = docker_client.containers.list(filters=filters, ignore_removed=True)
 
@@ -43,6 +43,7 @@ def get_stats(dojo):
     }
 
 
+@dojo.route("/<dojo>")
 @dojo.route("/<dojo>/")
 @dojo_route
 @check_challenge_visibility
@@ -58,7 +59,6 @@ def listing(dojo):
         dojo_user=dojo_user,
         stats=stats,
         infos=infos,
-        render_markdown=render_markdown,
     )
 
 
@@ -70,17 +70,41 @@ def view_module(dojo, module):
     user_solves = set(solve.challenge_id for solve in (
         module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
     ))
-    total_solves = dict(module.solves(ignore_visibility=True)
+    total_solves = dict(module.solves()
                         .group_by(Solves.challenge_id)
                         .with_entities(Solves.challenge_id, db.func.count()))
     current_dojo_challenge = get_current_dojo_challenge()
+
+    student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
+    assessments = []
+    if student or dojo.is_admin(user):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        for assessment in module.assessments:
+            date = datetime.datetime.fromisoformat(assessment["date"])
+            until = date.astimezone(datetime.timezone.utc) - now
+            if until < datetime.timedelta(0):
+                continue
+            date = str(date)
+            until = " ".join(
+                f"{count} {unit}{'s' if count != 1 else ''}" for count, unit in zip(
+                    (until.days, *divmod(until.seconds // 60, 60)),
+                    ("day", "hour", "minute")
+                ) if count
+            ) or "now"
+            assessments.append(dict(
+                name=assessment["type"].title(),
+                date=date,
+                until=until,
+            ))
+
     return render_template(
         "module.html",
         dojo=dojo,
         module=module,
+        challenges=module.visible_challenges(),
         user_solves=user_solves,
         total_solves=total_solves,
         user=user,
         current_dojo_challenge=current_dojo_challenge,
-        render_markdown=render_markdown,
+        assessments=assessments,
     )

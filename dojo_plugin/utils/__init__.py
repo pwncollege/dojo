@@ -14,83 +14,17 @@ import pytz
 import os
 import re
 
+import bleach
 import docker
-from flask import current_app, Response, abort
+from flask import current_app, Response, Markup, abort, g
 from itsdangerous.url_safe import URLSafeSerializer
 from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
-from CTFd.utils.helpers import markup
 from CTFd.utils.config.pages import build_markdown
 from CTFd.utils.security.sanitize import sanitize_html
 from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
-
-
-PLUGIN_DIR = pathlib.Path(__file__).parent.parent
-CHALLENGES_DIR = pathlib.Path("/var/challenges")
-DOJOS_DIR = pathlib.Path("/var/dojos")
-DATA_DIR = pathlib.Path("/var/data")
-
-INDEX_HTML = pathlib.Path("/var/index.html").read_text()
-
-def create_seccomp():
-    seccomp = json.load(pathlib.Path("/etc/docker/seccomp.json").open())
-
-    seccomp["syscalls"].append({
-        "names": [
-            "clone",
-            "sethostname",
-            "setns",
-            "unshare",
-        ],
-        "action": "SCMP_ACT_ALLOW",
-    })
-
-    READ_IMPLIES_EXEC = 0x0400000
-    ADDR_NO_RANDOMIZE = 0x0040000
-
-    existing_personality_values = []
-    for syscalls in seccomp["syscalls"]:
-        if "personality" not in syscalls["names"]:
-            continue
-        if syscalls["action"] != "SCMP_ACT_ALLOW":
-            continue
-        assert len(syscalls["args"]) == 1
-        arg = syscalls["args"][0]
-        assert list(arg.keys()) == ["index", "value", "op"]
-        assert arg["index"] == 0, arg
-        assert arg["op"] == "SCMP_CMP_EQ"
-        existing_personality_values.append(arg["value"])
-
-    new_personality_values = []
-    for new_flag in [READ_IMPLIES_EXEC, ADDR_NO_RANDOMIZE]:
-        for value in [0, *existing_personality_values]:
-            new_value = value | new_flag
-            if new_value not in existing_personality_values:
-                new_personality_values.append(new_value)
-                existing_personality_values.append(new_value)
-
-    for new_value in new_personality_values:
-        seccomp["syscalls"].append({
-            "names": ["personality"],
-            "action": "SCMP_ACT_ALLOW",
-            "args": [
-                {
-                    "index": 0,
-                    "value": new_value,
-                    "op": "SCMP_CMP_EQ",
-                },
-            ],
-        })
-
-    return json.dumps(seccomp)
-SECCOMP = create_seccomp()
-
-USER_FIREWALL_ALLOWED = {
-    host: socket.gethostbyname(host)
-    for host in pathlib.Path("/var/user_firewall.allowed").read_text().split()
-}
 
 ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
@@ -140,6 +74,15 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     user_flag = serializer.dumps(data)[::-1]
     return user_flag
 
+def user_ipv4(user):
+    # Subnet: 10.0.0.0/8
+    # Reserved: 10.0.0.0/24, 10.255.255.0/24
+    # Gateway: 10.0.0.1
+    # User IPs: 10.0.1.0 - 10.255.254.255
+    user_ip = (10 << 24) + (1 << 8) + user.id
+    assert user_ip < (10 << 24) + (255 << 16) + (255 << 8)
+    return f"{user_ip >> 24 & 0xff}.{user_ip >> 16 & 0xff}.{user_ip >> 8 & 0xff}.{user_ip & 0xff}"
+
 def redirect_internal(redirect_uri, auth=None):
     response = Response()
     if auth:
@@ -150,12 +93,32 @@ def redirect_internal(redirect_uri, auth=None):
     response.headers["redirect_uri"] = redirect_uri
     return response
 
-def redirect_user_socket(user, socket_path, url_path):
+def redirect_user_socket(user, port, url_path):
     assert user is not None
-    return redirect_internal(f"http://unix:/var/homes/nosuid/{random_home_path(user)}/{socket_path}:{url_path}")
+    return redirect_internal(f"http://user_{user.id}:{port}/{url_path}")
 
 def render_markdown(s):
-    return markup(build_markdown(s or ""))
+    raw_html = build_markdown(s or "")
+    if "dojo" in g and g.dojo.official:
+        return Markup(raw_html)
+
+    markdown_tags = [
+        "h1", "h2", "h3", "h4", "h5", "h6",
+        "b", "i", "strong", "em", "tt",
+        "p", "br",
+        "span", "div", "blockquote", "code", "pre", "hr",
+        "ul", "ol", "li", "dd", "dt",
+        "img",
+        "a",
+        "sub", "sup",
+    ]
+    markdown_attrs = {
+        "*": ["id"],
+        "img": ["src", "alt", "title"],
+        "a": ["href", "alt", "title"],
+    }
+    clean_html = bleach.clean(raw_html, tags=markdown_tags, attributes=markdown_attrs)
+    return Markup(clean_html)
 
 def unserialize_user_flag(user_flag, *, secret=None):
     if secret is None:
@@ -275,35 +238,6 @@ def load_dojo(dojo_id, dojo_spec, user=None, dojo_dir=None, commit=True, log=log
         db.session.rollback()
 
 
-def dojo_completions():
-    all_solves = (
-        db.session.query(DojoChallenges.dojo_id.label("dojo_id"))
-        .join(Solves, DojoChallenges.challenge_id == Solves.challenge_id)
-        .add_columns(
-            db.func.count(Solves.id).label("solves"),
-            Solves.user_id,
-            db.func.max(Solves.date).label("last_solve"),
-            db.func.min(Solves.date).label("first_solve"),
-        )
-        .group_by(Solves.user_id, DojoChallenges.dojo_id)
-        .order_by("last_solve")
-    ).all()
-    all_challenges = (
-        db.session.query(Dojos.id.label("dojo_id"))
-        .join(DojoChallenges, DojoChallenges.dojo_id == Dojos.id)
-        .add_columns(db.func.count(DojoChallenges.challenge_id).label("challenges"))
-        .group_by(Dojos.id)
-    ).all()
-
-    chal_counts = { d.dojo_id: d.challenges for d in all_challenges }
-    completions = { }
-    for s in all_solves:
-        if s.solves == chal_counts[s.dojo_id]:
-            completions.setdefault(s.user_id, []).append({
-                "dojo": s.dojo_id, "last_solve": s.last_solve, "first_solve": s.first_solve
-            })
-    return completions
-
 def first_bloods():
     first_blood_string = db.func.min(Solves.date.cast(String)+"|"+Solves.user_id.cast(String))
     first_blood_query = (
@@ -332,46 +266,6 @@ def daily_solve_counts():
     ).all()
     return counts
 
-
-def belt_challenges():
-    # TODO: move this concept into dojo yml
-
-    yellow_categories = [
-        "embryoio",
-        "babysuid",
-        "embryoasm",
-        "babyshell",
-        "babyjail",
-        "embryogdb",
-        "babyrev",
-        "babymem",
-        "toddlerone",
-    ]
-
-    blue_categories = [
-        *yellow_categories,
-        "babyrop",
-        "babyheap",
-        "babyrace",
-        "babykernel",
-        "toddlertwo",
-    ]
-
-    color_categories = {
-        "yellow": yellow_categories,
-        "blue": blue_categories,
-    }
-
-    return {
-        color: db.session.query(Challenges.id).filter(
-            Challenges.state == "visible",
-            Challenges.value > 0,
-            Challenges.id < 1000,
-            Challenges.category.in_(categories),
-        )
-        for color, categories in color_categories.items()
-    }
-
 # based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
 class ListHandler(logging.Handler): # Inherit from logging.Handler
     def __init__(self, log_list):
@@ -396,6 +290,5 @@ class HTMLHandler(logging.Handler): # Inherit from logging.Handler
         if self.html:
             self.html += self.join_tag
         self.html += f"{self.start_tag}<b>{record.levelname}</b>: {sanitize_html(record.getMessage())}{self.end_tag}"
-
 
 from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges

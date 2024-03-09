@@ -7,7 +7,7 @@ from CTFd.utils.user import get_current_user
 
 from ..models import Dojos, SSHKeys, DojoMembers
 from ..config import DISCORD_CLIENT_ID
-from .discord import get_discord_user, discord_avatar_asset
+from ..utils.discord import get_discord_user, discord_avatar_asset
 
 
 @authed_only
@@ -15,12 +15,6 @@ def settings_override():
     infos = get_infos()
 
     user = get_current_user()
-    name = user.name
-    email = user.email
-    website = user.website
-    affiliation = user.affiliation
-    country = user.country
-
     tokens = UserTokens.query.filter_by(user_id=user.id).all()
 
     ssh_key = SSHKeys.query.filter_by(user_id=user.id).first()
@@ -42,11 +36,7 @@ def settings_override():
 
     return render_template(
         "settings.html",
-        name=name,
-        email=email,
-        website=website,
-        affiliation=affiliation,
-        country=country,
+        user=user,
         tokens=tokens,
         ssh_key=ssh_key,
         discord_enabled=bool(DISCORD_CLIENT_ID),

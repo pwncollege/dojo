@@ -1,17 +1,17 @@
 #!/bin/sh
 
-mkdir /tmp/code-server
+mkdir -p /tmp/.dojo/code-server
 start-stop-daemon --start \
-                  --pidfile /tmp/code-server/code-server.pid \
+                  --pidfile /tmp/.dojo/code-server/code-server.pid \
                   --make-pidfile \
                   --background \
                   --no-close \
                   --startas /usr/bin/code-server \
                   -- \
                   --auth=none \
-                  --socket=/home/hacker/.local/share/code-server/workspace.socket \
+                  --bind-addr=dojo-user:6080 \
                   --extensions-dir=/opt/code-server/extensions \
                   --disable-telemetry \
                   </dev/null \
-                  >>/tmp/code-server/code-server.log \
+                  >>/tmp/.dojo/code-server/code-server.log \
                   2>&1

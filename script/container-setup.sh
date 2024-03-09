@@ -16,12 +16,12 @@ define () {
 }
 define DOJO_HOST localhost.pwn.college
 define DOJO_ENV development
-define DOJO_CHALLENGE challenge-minimal
+define DOJO_CHALLENGE challenge-mini
+define WINDOWS_VM none
 define SECRET_KEY $(openssl rand -hex 16)
 define DOCKER_PSLR $(openssl rand -hex 16)
 define UBUNTU_VERSION 20.04
 define INTERNET_FOR_ALL False
-define INSTALL_IDA False
 define MAIL_SERVER
 define MAIL_PORT
 define MAIL_USERNAME
@@ -31,6 +31,11 @@ define DISCORD_CLIENT_ID
 define DISCORD_CLIENT_SECRET
 define DISCORD_BOT_TOKEN
 define DISCORD_GUILD_ID
+define DEFAULT_INSTALL_SELECTION no # default to not installing tools
+define INSTALL_DESKTOP_BASE yes # matches the challenge-mini configuration
+define INSTALL_IDA_FREE no # explicitly disable -- only for free dojos
+define INSTALL_BINJA_FREE no # explicitly disable -- only for free dojos
+
 mv $DOJO_DIR/data/.config.env $DOJO_DIR/data/config.env
 . $DOJO_DIR/data/config.env
 
@@ -78,7 +83,9 @@ sysctl -w kernel.pty.max=1048576
 echo core > /proc/sys/kernel/core_pattern
 
 iptables -N DOCKER-USER
-iptables -I DOCKER-USER -i user_firewall -j DROP
+iptables -I DOCKER-USER -i user_network -j DROP
 for host in $(cat $DOJO_DIR/user_firewall.allowed); do
-    iptables -I DOCKER-USER -i user_firewall -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
+    iptables -I DOCKER-USER -i user_network -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
 done
+iptables -I DOCKER-USER -i user_network -s 10.0.0.0/24 -m conntrack --ctstate NEW -j ACCEPT
+iptables -I DOCKER-USER -i user_network -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
