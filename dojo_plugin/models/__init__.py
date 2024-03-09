@@ -404,6 +404,7 @@ class DojoChallenges(db.Model):
                                  uselist=False,
                                  cascade="all, delete-orphan",
                                  back_populates="challenge")
+    practice_enabled = db.Column(db.Boolean, default=True)
 
     def __init__(self, *args, **kwargs):
         default = kwargs.pop("default", None)

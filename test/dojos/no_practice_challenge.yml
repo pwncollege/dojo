@@ -1,0 +1,12 @@
+id: no-practice-challenge
+type: public
+modules:
+  - id: test
+    challenges:
+      - id: test
+        practice_enabled: False
+        import:
+          dojo: example
+          module: world
+          challenge: earth
+      
