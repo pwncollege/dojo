@@ -245,6 +245,9 @@ class RunDocker(Resource):
         if not dojo_challenge.visible() and not dojo.is_admin():
             return {"success": False, "error": "Invalid challenge"}
 
+        if practice and not dojo_challenge.practice_enabled:
+            return {"success": False, "error": "This challenge does not support practice mode."}
+
         try:
             start_challenge(user, dojo_challenge, practice)
         except RuntimeError as e:
