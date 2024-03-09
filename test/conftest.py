@@ -65,6 +65,12 @@ def no_practice_challenge_dojo(admin_session):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "no_practice_challenge.yml").read(), session=admin_session)
 
 @pytest.fixture(scope="session")
+def no_import_challenge_dojo(admin_session):
+    rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "no_import_challenge.yml").read(), session=admin_session)
+    make_dojo_official(rid, admin_session)
+    return rid
+
+@pytest.fixture(scope="session")
 def no_practice_dojo(admin_session):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "no_practice_dojo.yml").read(), session=admin_session)
 

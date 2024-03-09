@@ -63,7 +63,7 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(db.JSON)
-    data_fields = ["type", "award", "comparator", "course"]
+    data_fields = ["type", "award", "comparator", "course", "unimportable"]
 
     users = db.relationship("DojoUsers", back_populates="dojo")
     members = db.relationship("DojoMembers", back_populates="dojo")
@@ -282,7 +282,7 @@ class DojoModules(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = []
+    data_fields = ["unimportable"]
 
     dojo = db.relationship("Dojos", back_populates="_modules")
     _challenges = db.relationship("DojoChallenges",
@@ -392,7 +392,7 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = ["image", "path_override"]
+    data_fields = ["image", "path_override", "unimportable"]
 
     dojo = db.relationship("Dojos",
                            foreign_keys=[dojo_id],

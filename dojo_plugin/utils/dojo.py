@@ -54,6 +54,7 @@ DOJO_SPEC = Schema({
 
     Optional("image"): IMAGE_REGEX,
     Optional("practice_enabled"): bool,
+    Optional("unimportable"): bool,
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -65,6 +66,7 @@ DOJO_SPEC = Schema({
 
         Optional("image"): IMAGE_REGEX,
         Optional("practice_enabled"): bool,
+        Optional("unimportable"): bool,
 
         Optional("import"): {
             Optional("dojo"): UNIQUE_ID_REGEX,
@@ -77,6 +79,7 @@ DOJO_SPEC = Schema({
 
             Optional("image"): IMAGE_REGEX,
             Optional("practice_enabled"): bool,
+            Optional("unimportable"): bool,
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
             Optional("import"): {
@@ -183,15 +186,26 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     except SchemaError as e:
         raise AssertionError(e)  # TODO: this probably shouldn't be re-raised as an AssertionError
 
-    def assert_one(query, error_message):
+    def assert_importable(o):
+        assert not o.unimportable, f"Import disallowed for {o}."
+        if isinstance(o, Dojos):
+            for m in o.module:
+                assert_importable(m)
+        if isinstance(o, DojoModules):
+            for c in o.challenges:
+                assert_importable(c)
+
+    def assert_import_one(query, error_message):
         try:
-            return query.one()
+            o = query.one()
+            assert_importable(o)
+            return o
         except NoResultFound:
             raise AssertionError(error_message)
 
     # TODO: we probably don't need to restrict imports to official dojos
     import_dojo = (
-        assert_one(Dojos.from_id(dojo_data["import"]["dojo"]).filter_by(official=True),
+        assert_import_one(Dojos.from_id(dojo_data["import"]["dojo"]).filter_by(official=True),
                    "Import dojo `{dojo_data['import']['dojo']}` does not exist")
         if "import" in dojo_data else None
     )
@@ -247,9 +261,10 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                     image=shadow("image", dojo_data, module_data, challenge_data, default=None),
                     practice_enabled=shadow("practice_enabled", dojo_data, module_data, challenge_data, default=True),
+                    unimportable=shadow("unimportable", dojo_data, module_data, challenge_data, default=False),
                     challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
-                    default=(assert_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
+                    default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
                                         f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")
                              if "import" in challenge_data else None),
                 )
@@ -262,7 +277,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 )
                 for resource_data in module_data["resources"]
             ] if "resources" in module_data else None,
-            default=(assert_one(DojoModules.from_id(*import_ids(["dojo", "module"], dojo_data, module_data)),
+            default=(assert_import_one(DojoModules.from_id(*import_ids(["dojo", "module"], dojo_data, module_data)),
                                 f"Import module `{'/'.join(import_ids(['dojo', 'module'], dojo_data, module_data))}` does not exist")
                      if "import" in module_data else None),
             default_visibility=visibility(dict, dojo_data, module_data),

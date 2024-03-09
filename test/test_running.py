@@ -7,9 +7,9 @@ import subprocess
 import requests
 import pytest
 
-#pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
+#pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with,unused-argument
 
-from utils import PROTO, HOST, login, dojo_run, workspace_run
+from utils import TEST_DOJOS_LOCATION, PROTO, HOST, login, dojo_run, workspace_run, create_dojo_yml
 
 def get_flag(user):
     return workspace_run("cat /flag", user=user, root=True).stdout
@@ -139,6 +139,15 @@ def test_no_practice(no_practice_challenge_dojo, no_practice_dojo, random_user):
         assert response.status_code == 200
         assert not response.json()["success"]
         assert "practice" in response.json()["error"]
+
+@pytest.mark.dependency(depends=["test_join_dojo"])
+def test_no_import(no_import_challenge_dojo, admin_session):
+    try:
+        create_dojo_yml(open(TEST_DOJOS_LOCATION / "forbidden_import.yml").read(), session=admin_session)
+    except AssertionError as e:
+        assert "Import disallowed" in str(e)
+    else:
+        raise AssertionError("forbidden-import dojo creation should have failed, but it succeeded")
 
 @pytest.mark.dependency(depends=["test_join_dojo"])
 def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user):
