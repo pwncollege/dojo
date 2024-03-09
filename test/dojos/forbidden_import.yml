@@ -1,0 +1,11 @@
+id: forbidden-import
+type: public
+modules:
+  - id: test
+    challenges:
+      - id: test
+        import:
+          dojo: no-import-challenge
+          module: test
+          challenge: test
+      
