@@ -64,6 +64,7 @@ class Dojos(db.Model):
 
     data = db.Column(db.JSON)
     data_fields = ["type", "award", "comparator", "course", "unimportable"]
+    data_defaults = { }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
     members = db.relationship("DojoMembers", back_populates="dojo")
@@ -97,7 +98,7 @@ class Dojos(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name)
+            return self.data.get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     def __setattr__(self, name, value):
@@ -283,6 +284,7 @@ class DojoModules(db.Model):
 
     data = db.Column(db.JSON)
     data_fields = ["unimportable"]
+    data_defaults = { }
 
     dojo = db.relationship("Dojos", back_populates="_modules")
     _challenges = db.relationship("DojoChallenges",
@@ -326,7 +328,7 @@ class DojoModules(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name)
+            return self.data.get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
@@ -393,6 +395,7 @@ class DojoChallenges(db.Model):
 
     data = db.Column(db.JSON)
     data_fields = ["image", "path_override", "unimportable"]
+    data_defaults = { }
 
     dojo = db.relationship("Dojos",
                            foreign_keys=[dojo_id],
@@ -430,7 +433,7 @@ class DojoChallenges(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name)
+            return self.data.get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
