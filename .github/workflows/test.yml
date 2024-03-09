@@ -1,5 +1,5 @@
 name: Test building and running dojo
-on: push
+on: [push, pull_request]
 jobs:
   smoketest:
     runs-on: ubuntu-22.04
