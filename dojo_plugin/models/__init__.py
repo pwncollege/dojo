@@ -64,7 +64,9 @@ class Dojos(db.Model):
 
     data = db.Column(db.JSON)
     data_fields = ["type", "award", "comparator", "course", "unimportable"]
-    data_defaults = { }
+    data_defaults = {
+        "unimportable": False
+    }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
     members = db.relationship("DojoMembers", back_populates="dojo")
@@ -284,7 +286,9 @@ class DojoModules(db.Model):
 
     data = db.Column(db.JSON)
     data_fields = ["unimportable"]
-    data_defaults = { }
+    data_defaults = {
+        "unimportable": False
+    }
 
     dojo = db.relationship("Dojos", back_populates="_modules")
     _challenges = db.relationship("DojoChallenges",
@@ -394,8 +398,11 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = ["image", "path_override", "unimportable"]
-    data_defaults = { }
+    data_fields = ["image", "path_override", "unimportable", "practice_enabled"]
+    data_defaults = {
+        "unimportable": False,
+        "practice_enabled": True
+    }
 
     dojo = db.relationship("Dojos",
                            foreign_keys=[dojo_id],
@@ -407,7 +414,6 @@ class DojoChallenges(db.Model):
                                  uselist=False,
                                  cascade="all, delete-orphan",
                                  back_populates="challenge")
-    practice_enabled = db.Column(db.Boolean, default=True)
 
     def __init__(self, *args, **kwargs):
         default = kwargs.pop("default", None)
