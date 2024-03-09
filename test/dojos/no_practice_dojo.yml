@@ -1,6 +1,6 @@
 id: no-practice-challenge
 type: public
-practice_enabled: False
+allow_privileged: False
 modules:
   - id: test
     challenges:

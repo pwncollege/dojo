@@ -84,14 +84,14 @@
             <p>{{ challenge.description | markdown }}</p>
           </div>
           <div class="row">
-            <div class="col-sm-{% if challenge.practice_enabled %}6{% else %}12{% endif %} form-group text-center">
+            <div class="col-sm-{% if challenge.allow_privileged %}6{% else %}12{% endif %} form-group text-center">
               <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary w-100">
                 <span class="d-sm-block d-md-block d-lg-block">
                   <i class="fas fa-play fa-2x pr-3"></i>Start
                 </span>
               </button>
             </div>
-            {% if challenge.practice_enabled %}
+            {% if challenge.allow_privileged %}
             <div class="col-sm-6 form-group text-center">
               <button id="challenge-practice" type="submit" class="btn btn-md btn-outline-secondary w-100">
                 <span class="d-sm-block d-md-block d-lg-block">
