@@ -4,9 +4,9 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1>{{ module.name }}</h1>
+    <h1>{{ module.name or module.id }}</h1>
     <br>
-    <h2 class="module-dojo"><a href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.name }}</a></h2>
+    <h2 class="module-dojo"><a href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.name or dojo.id }}</a></h2>
 
     {% if assessments %}
     <br>
@@ -70,7 +70,7 @@
         {% if header %}
           <h4 class="accordion-item-name {{ active }}">
             <span class="d-sm-block d-md-block d-lg-block">
-              <i class="fas fa-flag pr-3 {{ solved }}"></i>{{ challenge.name }}
+              <i class="fas fa-flag pr-3 {{ solved }}"></i>{{ challenge.name or challenge.id }}
               {% if not challenge.visible() %}
               <small><small><small>
                     <i>hidden</i> &mdash; you can see this because you are this dojo's administrator

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1>{{ dojo.name }}</h1>
+    <h1>{{ dojo.name or dojo.id }}</h1>
   </div>
 </div>
 <div class="container">
@@ -69,7 +69,7 @@
       {# TODO: card-active, card-hidden #}
       <li class="card card-small">
         <div class="card-body">
-          <h4 class="card-title">{{ module.name }}</h4>
+          <h4 class="card-title">{{ module.name or module.id }}</h4>
           <p class="card-text">
             {{ module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0 }} / {{ module.visible_challenges() | length }}
           </p>
