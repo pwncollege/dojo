@@ -49,7 +49,7 @@ function renderSubmissionResponse(response, item) {
         answer_input.addClass("wrong");
         setTimeout(function() {
             answer_input.removeClass("wrong");
-        }, 3000);
+        }, 10000);
     } else if (result.status === "correct") {
         // Challenge Solved
         result_notification.addClass(
@@ -91,13 +91,13 @@ function renderSubmissionResponse(response, item) {
         answer_input.addClass("too-fast");
         setTimeout(function() {
             answer_input.removeClass("too-fast");
-        }, 3000);
+        }, 10000);
     }
     setTimeout(function() {
         item.find(".alert").slideUp();
         item.find("#challenge-submit").removeClass("disabled-button");
         item.find("#challenge-submit").prop("disabled", false);
-    }, 3000);
+    }, 10000);
 }
 
 
@@ -174,7 +174,7 @@ function startChallenge(event) {
             item.find(".alert").slideUp();
             item.find("#challenge-submit").removeClass("disabled-button");
             item.find("#challenge-submit").prop("disabled", false);
-        }, 3000);
+        }, 10000);
     });
 }
 
