@@ -27,7 +27,7 @@
     <ul class="card-list">
       {% for dojo in dojos %}
       {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id),
-      title=dojo.name,
+      title=dojo.name or dojo.id,
       text="{} Modules : ".format(dojo.modules | length) + "{} / {}".format(dojo.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0, dojo.challenges | length),
       icon="/themes/dojo_theme/static/img/dojo/{}.svg".format(dojo.award.belt) if (dojo.award.belt and dojo.official) else None,
       emoji=dojo.award.emoji ) }}
