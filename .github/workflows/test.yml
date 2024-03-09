@@ -18,8 +18,12 @@ jobs:
         with:
           python-version: '3.10'
           cache: 'pip'
+
+      - name: Prepare Firefox
+        uses: browser-actions/setup-firefox@latest
+
       - name: Install test dependencies
-        run: pip install pytest pytest-dependency requests
+        run: pip install pytest pytest-dependency requests selenium
 
       - name: Run dojo
         run: |
@@ -50,4 +54,5 @@ jobs:
 
       - name: Run tests against dojo
         run: |
+          export MOZ_HEADLESS=1
           pytest -vrpP ./test || (docker exec dojo-test docker compose logs && false)

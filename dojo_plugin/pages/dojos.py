@@ -30,6 +30,7 @@ def dojo_stats(dojo):
 def listing():
     user = get_current_user()
     typed_dojos = {
+        "Start Here": [],
         "Topics": [],
         "Courses": [],
         "More Material": [],
@@ -44,7 +45,7 @@ def listing():
         elif dojo.type == "example" and dojo.official:
             continue
         elif dojo.type == "welcome":
-            continue
+            typed_dojos["Start Here"].append(dojo)
         else:
             typed_dojos["More Material"].append(dojo)
 
@@ -117,7 +118,7 @@ def update_dojo(dojo, update_code=None):
 def view_dojo_admin(dojo):
     if not dojo.is_admin():
         abort(403)
-    return render_template("dojo_admin.html", dojo=dojo)
+    return render_template("dojo_admin.html", dojo=dojo, is_admin=is_admin)
 
 
 @dojos.route("/dojo/<dojo>/admin/activity")
