@@ -13,6 +13,9 @@ function submitChallenge(event) {
     }
     var params = {}
 
+    if (submission == "pwn.college{practice}") {
+        return renderSubmissionResponse({ "data": { "status": "practice", "message": "You have submitted the \"practice\" flag from launching the challenge in Practice mode! This flag is not valid for scoring. Run the challenge in non-practice mode by pressing Start above, then use your solution to get the \"real\" flag and submit it!" } }, item);
+    }
     return CTFd.api.post_challenge_attempt(params, body).then(function (response) {
         return renderSubmissionResponse(response, item);
     })
@@ -39,6 +42,18 @@ function renderSubmissionResponse(response, item) {
             window.location.hash;
         return;
     } else if (result.status === "incorrect") {
+        // Incorrect key
+        result_notification.addClass(
+            "alert alert-danger alert-dismissable text-center"
+        );
+        result_notification.slideDown();
+
+        answer_input.removeClass("correct");
+        answer_input.addClass("wrong");
+        setTimeout(function() {
+            answer_input.removeClass("wrong");
+        }, 10000);
+    } else if (result.status === "practice") {
         // Incorrect key
         result_notification.addClass(
             "alert alert-danger alert-dismissable text-center"
