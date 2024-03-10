@@ -28,6 +28,7 @@
       </a>
       </figure>
     </div>
+    {% if is_admin() %}
     <div class="col-lg-auto m-3">
       <figure>
         <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.delete_dojo', dojo=dojo.reference_id,update_code=dojo.update_code) }}" target="_blank">
@@ -36,6 +37,7 @@
         </a>
       </figure>
     </div>
+    {% endif %}
     <div class="col-lg-auto m-3">
       <figure>
       <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo_solves', dojo=dojo.reference_id) }}">
