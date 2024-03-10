@@ -51,7 +51,7 @@ def desktop_terminal(wd, user_id):
     wd.switch_to.new_window("tab")
     wd.get(f"{PROTO}://{HOST}/workspace/desktop")
     time.sleep(1)
-    workspace_run("DISPLAY=:42.0 xfce4-terminal &", user=user_id)
+    workspace_run("DISPLAY=:42.0 xterm &", user=user_id)
     wd.switch_to.frame("workspace")
     e = wd.find_element("id", "noVNC_keyboardinput")
     time.sleep(1)
@@ -93,11 +93,11 @@ def challenge_idx(wd, name):
 def test_welcome_desktop(random_user_webdriver, welcome_dojo):
     random_id, _, wd = random_user_webdriver
     wd.get(f"{PROTO}://{HOST}/welcome/welcome")
-    idx = challenge_idx(wd, "Using the GUI Desktop")
+    idx = challenge_idx(wd, "The Flag File")
 
     challenge_start(wd, idx)
     with desktop_terminal(wd, random_id) as vs:
-        vs.send_keys("/challenge/solve | grep flag: | tee /tmp/out\n")
+        vs.send_keys("/challenge/solve; cat /flag | tee /tmp/out\n")
         time.sleep(5)
 
     flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
