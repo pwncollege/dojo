@@ -16,7 +16,7 @@ sensai = Blueprint("pwncollege_sensai", __name__)
 @authed_only
 def view_sensai():
     active = bool(get_current_dojo_challenge())
-    return render_template("iframe.html", iframe_src="/sensai/", active=active)
+    return render_template("iframe.html", iframe_name="sensai", iframe_src="/sensai/", active=active)
 
 
 @sensai.route("/sensai/", methods=["GET", "POST"])
