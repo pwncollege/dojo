@@ -3,6 +3,7 @@
 cd $(dirname "${BASH_SOURCE[0]}")
 
 function usage {
+	set +x
 	echo "Usage: $0 [-r DB_BACKUP ] [ -c CONTAINER_NAME ] [ -T ]"
 	echo ""
 	echo "	-r	db backup to restore (relative to dojo/data/backups)"
@@ -37,7 +38,7 @@ do
 done
 shift $((OPTIND-1))
 
-[ "${#VOLUME_ARGS[@]}" -eq 1 ] && VOLUME_ARGS+=(
+[ "${#VOLUME_ARGS[@]}" -eq 2 ] && VOLUME_ARGS+=(
 	"-v" "/opt/pwn.college/data/dojos"
 	"-v" "/opt/pwn.college/data/mysql"
 )
@@ -48,6 +49,7 @@ docker rm "$CONTAINER_NAME" 2>/dev/null || echo "No $CONTAINER_NAME container to
 while docker ps -a | grep "$CONTAINER_NAME"; do sleep 1; done
 
 # freaking bad unmount
+sleep 1
 mount | grep $PWD | while read -a ENTRY
 do
 	sudo umount "${ENTRY[2]}"
@@ -65,5 +67,5 @@ fi
 docker exec "$CONTAINER_NAME" dojo wait
 [ -n "$DB_RESTORE" ] && until docker exec "$CONTAINER_NAME" dojo restore $DB_RESTORE; do sleep 1; done
 
-until curl -s localhost.pwn.college | grep pwn; do sleep 1; done
-[ "$TEST" == "yes" ] && pytest test/test_running.py
+until curl -s localhost.pwn.college | grep -q pwn; do sleep 1; done
+[ "$TEST" == "yes" ] && MOZ_HEADLESS=1 pytest test/test_running.py test/test_welcome.py
