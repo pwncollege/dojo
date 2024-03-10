@@ -37,7 +37,7 @@
 
 {% block content %}
 {% if active %}
-<iframe src="{{ iframe_src }}"></iframe>
+<iframe name = "{{ iframe_name }}" src="{{ iframe_src }}"></iframe>
 {% else %}
 <h1 class="inactive">No active challenge session; start a challenge!<h1>
 {% endif %}

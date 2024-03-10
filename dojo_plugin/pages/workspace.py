@@ -69,6 +69,7 @@ def view_desktop():
     }
 
     return render_template("iframe.html",
+                           iframe_name="workspace",
                            iframe_src=iframe_src,
                            share_urls=share_urls,
                            active=True)
@@ -78,7 +79,7 @@ def view_desktop():
 @authed_only
 def view_workspace(service):
     active = bool(get_current_dojo_challenge())
-    return render_template("iframe.html", iframe_src=f"/workspace/{service}/", active=active)
+    return render_template("iframe.html", iframe_name="workspace", iframe_src=f"/workspace/{service}/", active=active)
 
 
 @workspace.route("/workspace/<service>/", websocket=True)
