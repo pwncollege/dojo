@@ -31,7 +31,6 @@ jobs:
             --privileged \
             -d \
             -v ./dojo-test-data:/opt/pwn.college/data:shared \
-            -e DOJO_CHALLENGE=challenge-ci \
             -p 2222:22 -p 80:80 -p 443:443 \
             --name dojo-test \
             dojo-test

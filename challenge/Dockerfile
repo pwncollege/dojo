@@ -610,9 +610,6 @@ COPY --link --from=builder-code-server / /
 FROM challenge-micro as challenge-mini
 COPY --link --from=builder-desktop-base / /
 
-FROM challenge-mini as challenge-ci
-COPY --link --from=builder-desktop-xfce-yes / /
-
 ################################################################################
 
 FROM challenge-mini as challenge-granular
