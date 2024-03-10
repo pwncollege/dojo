@@ -44,6 +44,24 @@ def vscode_terminal(wd):
     wd.close()
     wd.switch_to.window(module_window)
 
+@contextlib.contextmanager
+def desktop_terminal(wd, user_id):
+    module_window = wd.current_window_handle
+
+    wd.switch_to.new_window("tab")
+    wd.get(f"{PROTO}://{HOST}/workspace/desktop")
+    time.sleep(1)
+    workspace_run("DISPLAY=:42.0 xfce4-terminal &", user=user_id)
+    wd.switch_to.frame("workspace")
+    e = wd.find_element("id", "noVNC_keyboardinput")
+    time.sleep(1)
+
+    yield e
+
+    wd.close()
+    wd.switch_to.window(module_window)
+
+
 # Expands the accordion entry of the challenge
 def challenge_expand(wd, idx):
     wd.refresh()
@@ -71,6 +89,20 @@ def challenge_idx(wd, name):
     num_challenges = len(wd.find_elements("id", "challenge-start"))
     idx = next(n for n in range(num_challenges) if wd.find_element("id", f"challenges-header-button-{n+1}").text.split("\n")[0] == name)
     return idx+1
+
+def test_welcome_desktop(random_user_webdriver, welcome_dojo):
+    random_id, _, wd = random_user_webdriver
+    wd.get(f"{PROTO}://{HOST}/welcome/welcome")
+    idx = challenge_idx(wd, "Using the GUI Desktop")
+
+    challenge_start(wd, idx)
+    with desktop_terminal(wd, random_id) as vs:
+        vs.send_keys("/challenge/solve | grep flag: | tee /tmp/out\n")
+        time.sleep(5)
+
+    flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
+    challenge_submit(wd, idx, flag)
+    wd.close()
 
 def test_welcome_vscode(random_user_webdriver, welcome_dojo):
     random_id, _, wd = random_user_webdriver
