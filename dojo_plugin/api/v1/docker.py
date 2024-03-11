@@ -184,14 +184,8 @@ def start_challenge(user, dojo_challenge, practice):
     def initialize_container():
         exec_run(
             f"""
-            /opt/pwn.college/docker-initialize.sh
-
             export DOJO_PRIVILEGED={"1" if practice else "0"}
-
-            if [ -x "/challenge/.init" ]; then
-                /challenge/.init
-            fi
-
+            /opt/pwn.college/docker-initialize.sh
             touch /opt/pwn.college/.initialized
             """,
             shell=True
