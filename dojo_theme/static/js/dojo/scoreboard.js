@@ -16,6 +16,13 @@ function loadScoreboard(duration, page) {
         return response.json()
     }).then(result => {
         scoreboard.empty();
+        $("#scoreboard-control-week").removeClass("scoreboard-page-selected");
+        $("#scoreboard-control-month").removeClass("scoreboard-page-selected");
+        $("#scoreboard-control-all").removeClass("scoreboard-page-selected");
+        if (duration == 7) $("#scoreboard-control-week").addClass("scoreboard-page-selected");
+        if (duration == 30) $("#scoreboard-control-month").addClass("scoreboard-page-selected");
+        if (duration == 0) $("#scoreboard-control-all").addClass("scoreboard-page-selected");
+
         const standings = result.standings;
         if (result.me) {
             if (result.me.rank < standings[0].rank)
