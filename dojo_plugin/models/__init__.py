@@ -63,9 +63,9 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(db.JSON)
-    data_fields = ["type", "award", "comparator", "course", "unimportable"]
+    data_fields = ["type", "award", "comparator", "course", "importable"]
     data_defaults = {
-        "unimportable": False
+        "importable": True
     }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
@@ -285,9 +285,9 @@ class DojoModules(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = ["unimportable"]
+    data_fields = ["importable"]
     data_defaults = {
-        "unimportable": False
+        "importable": True
     }
 
     dojo = db.relationship("Dojos", back_populates="_modules")
@@ -398,9 +398,9 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = ["image", "path_override", "unimportable", "allow_privileged"]
+    data_fields = ["image", "path_override", "importable", "allow_privileged"]
     data_defaults = {
-        "unimportable": False,
+        "importable": True,
         "allow_privileged": True
     }
 

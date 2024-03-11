@@ -54,7 +54,7 @@ DOJO_SPEC = Schema({
 
     Optional("image"): IMAGE_REGEX,
     Optional("allow_privileged"): bool,
-    Optional("unimportable"): bool,
+    Optional("importable"): bool,
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -66,7 +66,7 @@ DOJO_SPEC = Schema({
 
         Optional("image"): IMAGE_REGEX,
         Optional("allow_privileged"): bool,
-        Optional("unimportable"): bool,
+        Optional("importable"): bool,
 
         Optional("import"): {
             Optional("dojo"): UNIQUE_ID_REGEX,
@@ -79,7 +79,7 @@ DOJO_SPEC = Schema({
 
             Optional("image"): IMAGE_REGEX,
             Optional("allow_privileged"): bool,
-            Optional("unimportable"): bool,
+            Optional("importable"): bool,
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
             Optional("import"): {
@@ -187,7 +187,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
         raise AssertionError(e)  # TODO: this probably shouldn't be re-raised as an AssertionError
 
     def assert_importable(o):
-        assert not o.unimportable, f"Import disallowed for {o}."
+        assert o.importable, f"Import disallowed for {o}."
         if isinstance(o, Dojos):
             for m in o.module:
                 assert_importable(m)
@@ -261,7 +261,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                     image=shadow("image", dojo_data, module_data, challenge_data, default=None),
                     allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default=True),
-                    unimportable=shadow("unimportable", dojo_data, module_data, challenge_data, default=False),
+                    importable=shadow("importable", dojo_data, module_data, challenge_data, default=True),
                     challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),

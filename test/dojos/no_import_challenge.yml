@@ -4,7 +4,7 @@ modules:
   - id: test
     challenges:
       - id: test
-        unimportable: true
+        importable: false
         import:
           dojo: example
           module: world
