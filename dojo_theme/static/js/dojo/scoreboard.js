@@ -4,6 +4,16 @@ function loadScoreboard(duration, page) {
     const scoreboard = $("#scoreboard");
 
     const endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${module}/${duration}/${page}`;
+    scoreboard.empty();
+    message = "Loading."
+    scoreboard.html(`<td colspan=6>${message}</td>`);
+    setTimeout(function loadmsg() {
+        if (scoreboard.html().includes(message)) {
+            message += "."
+            scoreboard.html(`<td colspan=6>${message}</td>`);
+            setTimeout(loadmsg, 1000);
+        }
+    }, 500);
 
     CTFd.fetch(endpoint, {
         method: "GET",
