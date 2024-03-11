@@ -169,7 +169,10 @@ class Dojos(db.Model):
     @property
     def hash(self):
         from ..utils.dojo import dojo_git_command
-        return dojo_git_command(self, "rev-parse", "HEAD").stdout.decode().strip()
+        if os.path.exists(self.path):
+            return dojo_git_command(self, "rev-parse", "HEAD").stdout.decode().strip()
+        else:
+            return ""
 
     @property
     def last_commit_time(self):
