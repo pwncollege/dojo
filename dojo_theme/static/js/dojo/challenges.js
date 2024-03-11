@@ -135,6 +135,18 @@ function startChallenge(event) {
         "practice": practice,
     };
 
+    var result_notification = item.find('#result-notification');
+    var result_message = item.find('#result-message');
+    result_notification.addClass('alert alert-warning alert-dismissable text-center');
+    result_message.html("Loading.");
+    result_notification.slideDown();
+    setTimeout(function loadmsg() {
+        if (result_message.html().startsWith("Loading")) {
+            result_message.append(".");
+            setTimeout(loadmsg, 500);
+        }
+    }, 500);
+
     CTFd.fetch('/pwncollege_api/v1/docker', {
         method: 'POST',
         credentials: 'same-origin',
