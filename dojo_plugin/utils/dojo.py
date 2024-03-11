@@ -241,12 +241,14 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             return cls(start=start, stop=stop)
 
     _missing = object()
-    def shadow(attr, *datas, default=_missing):
+    def shadow(attr, *datas, default=_missing, default_dict=None):
         for data in reversed(datas):
             if attr in data:
                 return data[attr]
         if default is not _missing:
             return default
+        elif default_dict and attr in default_dict:
+            return default_dict[attr]
         raise KeyError(f"Missing `{attr}` in `{datas}`")
 
     def import_ids(attrs, *datas):
@@ -260,8 +262,8 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                     image=shadow("image", dojo_data, module_data, challenge_data, default=None),
-                    allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default=True),
-                    importable=shadow("importable", dojo_data, module_data, challenge_data, default=True),
+                    allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
+                    importable=shadow("importable", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
