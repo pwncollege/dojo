@@ -84,7 +84,6 @@ choco install --ignore-detected-reboot -y ghidra
 py -m pip install --user pwntools
 py -m pip install --user IPython
 py -m pip install --user ROPgadget
-py -m pip install --user IPython
 
 # -- install VNC server --
 # install options reference: https://www.tightvnc.com/doc/win/TightVNC_2.7_for_Windows_Installing_from_MSI_Packages.pdf
@@ -196,7 +195,6 @@ Copy-Item "A:\sshd_config" -Destination "$env:programdata\ssh\sshd_config"
 # Wrapper obj used to create shortcuts throughout
 $WScriptObj = (New-Object -ComObject ("WScript.Shell"))
 
-# TODO: Move superfetch disable to setup.ps1
 # Disable Superfetch - prevent windows VM dynamically preloading RAM
 Stop-Service -Force -Name "SysMain"
 Set-Service -Name "SysMain" -StartupType Disabled
@@ -239,7 +237,7 @@ $x64dbg_sc.save()
 
 # rp++
 Invoke-WebRequest -Uri https://github.com/0vercl0k/rp/releases/download/v2.1.3/rp-win.zip -Outfile rp-win.zip
-Expand-ARchive rp-win.zip -DestinaitonPath "C:/pwncollege/rp-win" -Force
+Expand-Archive rp-win.zip -DestinationPath "C:/pwncollege/rp-win" -Force
 Remove-Item rp-win.zip
 
 # CFF Explorer
