@@ -229,8 +229,8 @@ Invoke-WebRequest -Uri https://github.com/microsoft/terminal/releases/download/v
 Add-AppxPackage -Path .\Microsoft.WindowsTerminal_1.7.1091.0_8wekyb3d8bbwe.msixbundle
 Remove-Item Microsoft.WindowsTerminal_1.7.1091.0_8wekyb3d8bbwe.msixbundle
 
-# x64 Debug
-Invoke-WebRequest -Uri https://github.com/x64dbg/x64dbg/releases/download/snapshot/snapshot_2024-02-19_03-16.zip -Outfile x64dbg.zip
+# x64 Debug - Note: Releases get deleted so this URL is going to break
+Invoke-WebRequest -Uri https://github.com/x64dbg/x64dbg/releases/download/snapshot/snapshot_2024-03-08_16-44.zip -Outfile x64dbg.zip
 Expand-Archive x64dbg.zip -DestinationPath "C:/pwncollege/x64dbg" -Force
 Remove-Item x64dbg.zip
 $x64dbg_sc = $WScriptObj.CreateShortcut("C:\Users\hacker\Desktop/x64dbg.lnk")
@@ -241,6 +241,11 @@ $x64dbg_sc.save()
 Invoke-WebRequest -Uri https://github.com/0vercl0k/rp/releases/download/v2.1.3/rp-win.zip -Outfile rp-win.zip
 Expand-ARchive rp-win.zip -DestinaitonPath "C:/pwncollege/rp-win" -Force
 Remove-Item rp-win.zip
+
+# CFF Explorer
+Invoke-WebRequest -Uri  https://ntcore.com/files/ExplorerSuite.exe -Outfile "C:\ExplorerSuite.exe"
+Start-Process "C:\ExplorerSuite.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" -Wait
+Remove-Item -Force -Path "C:\ExplorerSuite.exe"
 
 # These install correctly with choco, but keeping manual install steps
 # Sysinternals

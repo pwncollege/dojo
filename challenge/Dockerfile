@@ -580,12 +580,15 @@ RUN gcc /opt/pwn.college/setuid_interpreter.c -DSUID_PYTHON -o /opt/pwn.college/
 
 
 FROM builder-tools-apt as builder-windows-no
-FROM builder-tools-apt as builder-windows-yes
+FROM builder-tools-apt as builder-windows-base
 
 WORKDIR /opt/windows
 COPY windows/Autounattend.xml windows/setup.ps1 windows/startup.ps1 windows/sshd_config ./
 COPY windows/challenge-proxy ./challenge-proxy
 COPY windows/shutdown.py .
+
+
+FROM builder-windows-base as builder-windows-base-ida-yes
 
 RUN <<EOF
     mkdir -p ./build
@@ -596,12 +599,31 @@ RUN <<EOF
         ca-certificates apt-transport-https curl \
         xorriso mtools dosfstools qemu-utils qemu-kvm python3 openssh-client
     rm -rf /var/lib/apt/lists/*
-    sed -i 's/INSTALL_IDA_FREE/${INSTALL_IDA_FREE}/g' ./setup.ps1
+    sed -i "s/INSTALL_IDA_FREE/yes/g" ./setup.ps1
     touch ./practice-mode-enabled
     mkfs.fat -F 12 -C ./build/floppy.img 1440
     mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/ ::
     rm -rf ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/
 EOF
+
+FROM builder-windows-base as builder-windows-base-ida-no
+
+RUN <<EOF
+    mkdir -p ./build
+    echo 'APT::Install-Recommends 0;' >> /etc/apt/apt.conf.d/01norecommends
+    echo 'APT::Install-Suggests 0;' >> /etc/apt/apt.conf.d/01norecommends
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        ca-certificates apt-transport-https curl \
+        xorriso mtools dosfstools qemu-utils qemu-kvm python3 openssh-client
+    rm -rf /var/lib/apt/lists/*
+    touch ./practice-mode-enabled
+    mkfs.fat -F 12 -C ./build/floppy.img 1440
+    mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/ ::
+    rm -rf ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/
+EOF
+
+from builder-windows-base-ida-${INSTALL_IDA_FREE} as builder-windows-yes
 
 RUN <<EOF
     echo "Building virtio drivers disk"
