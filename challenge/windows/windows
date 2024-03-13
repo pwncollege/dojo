@@ -194,7 +194,7 @@ def start():
     if is_privileged():
         (FLAG_SHARE_PATH / "practice-mode-enabled").touch()
 
-    mem = "4096M"
+    mem = "2048M"
     # fmt: off
     qemu_argv = [
         "/usr/bin/qemu-system-x86_64",
@@ -215,8 +215,8 @@ def start():
     ]
     # fmt: on
     mounts = {
-        "challenge": ("/challenge", False), 
-        "home": ("/home/hacker", False), 
+        "challenge": ("/challenge", False),
+        "home": ("/home/hacker", False),
         "flag": (str(FLAG_SHARE_PATH), True)
     }
     for tag, (mountpoint, needs_root) in mounts.items():
