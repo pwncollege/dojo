@@ -100,18 +100,7 @@ def start_challenge(user, dojo_challenge, practice):
                     "bind",
                     propagation="shared",
                 )
-            ]
-            + (
-                [
-                    docker.types.Mount(
-                        target="/run/media/windows",
-                        source="pwncollege_windows",
-                        read_only=True,
-                    )
-                ]
-                if WINDOWS_VM_ENABLED
-                else []
-            ),
+            ],
             devices=devices,
             network=None,
             extra_hosts={
