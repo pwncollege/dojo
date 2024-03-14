@@ -431,6 +431,7 @@ def get_current_dojo_challenge(user=None):
     return (
         DojoChallenges.query
         .filter(DojoChallenges.id == container.labels.get("dojo.challenge_id"),
+                DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
                 DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first())
         .first()
     )
