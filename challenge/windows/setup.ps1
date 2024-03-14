@@ -257,6 +257,12 @@ Remove-Item -Force -Path "C:\ExplorerSuite.exe"
 #$pe_sc.TargetPath = "C:\pwncollege\procexp64.exe"
 #$x64dbg_sc.save()
 
+# -- hosts file --
+$ip = [System.Net.Dns]::GetHostAddresses("msdl.microsoft.com")
+Add-Content -Path $env:windir\System32\drivers\etc\hosts -Value "`n$ip`tmsdl.microsoft.com" -Force
+
+$ip = [System.Net.Dns]::GetHostAddresses("public-lumina.hex-rays.com")
+Add-Content -Path $env:windir\System32\drivers\etc\hosts -Value "`n$ip`tpublic-lumina.hex-rays.com" -Force
 
 # -- shutdown --
 Stop-Computer -computername localhost -force
