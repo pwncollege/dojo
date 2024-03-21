@@ -60,8 +60,6 @@ pnputil.exe /add-driver E:\virtio-win\viofs\2k22\amd64\viofs.inf /install
 # ...but when we boot up later without the server ISO it will be in D:
 & "C:\Program Files (x86)\WinFsp\bin\fsreg.bat" virtiofs "D:\virtio-win\viofs\2k22\amd64\virtiofs.exe" "-t %1 -m %2"
 
-Copy-Item A:\startup.ps1 -Destination "C:\Program Files\Common Files\"
-& schtasks /create /tn "dojoinit" /sc onstart /delay 0000:00 /rl highest /ru system /tr "powershell.exe -file 'C:\Program Files\Common Files\startup.ps1'" /f
 
 # -- install chocolately --
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
@@ -91,20 +89,7 @@ choco install --ignore-detected-reboot tightvnc -y --installArguments 'ADDLOCAL=
 # this will be done later when the service actually exists
 #Set-Service -Name tvnserver -StartupType 'Manual'
 
-# -- install rust through rustup (this must be done after MSVC is installed) --
-# WARNING: I learned this the hard way. this binary behaves differently based on argv[0].
-#  It must be saved as rustup-init.exe and not rustup.exe.
-(New-Object Net.WebClient).DownloadFile("https://win.rustup.rs/x86_64", "C:\rustup-init.exe")
-& C:\rustup-init.exe --profile minimal -y
-Remove-Item "C:\rustup-init.exe"
-
-Copy-Item -Recurse "A:\challenge-proxy" "C:\Windows\Temp\"
-Push-Location "C:\Windows\Temp\challenge-proxy\"
-& $env:USERPROFILE\.cargo\bin\cargo build --release
-Copy-Item ".\target\release\challenge-proxy.exe" -Destination "C:\Program Files\Common Files\"
-Pop-Location
-Remove-Item -Force -Recurse "C:\Windows\Temp\challenge-proxy\"
-& sc.exe create ChallengeProxy binPath= "C:\Program Files\Common Files\challenge-proxy.exe" displayname= "Challenge Proxy" depend= TcpIp start= auto
+& sc.exe create ChallengeProxy binPath="C:\Program Files\Common Files\challenge-proxy.exe" displayname="Challenge Proxy" depend=TcpIp start=auto
 
 if (!(Get-NetFirewallRule -Name "ChallengeProxy-In-TCP" -ErrorAction SilentlyContinue | Select-Object Name, Enabled)) {
     Write-Output "Firewall Rule 'ChallengeProxy-In-TCP' does not exist, creating it..."
@@ -263,6 +248,10 @@ Add-Content -Path $env:windir\System32\drivers\etc\hosts -Value "`n$ip`tmsdl.mic
 
 $ip = [System.Net.Dns]::GetHostAddresses("public-lumina.hex-rays.com")
 Add-Content -Path $env:windir\System32\drivers\etc\hosts -Value "`n$ip`tpublic-lumina.hex-rays.com" -Force
+
+# Unfortunately, launching sshd must be set as a startup file and cannot be done done via the service interface in this file
+Copy-Item A:\config_startup.ps1 -Destination "C:\Program Files\Common Files\startup.ps1"
+& schtasks /create /tn "dojoinit" /sc onstart /delay 0000:00 /rl highest /ru system /tr "powershell.exe -file 'C:\Program Files\Common Files\startup.ps1'" /f
 
 # -- shutdown --
 Stop-Computer -computername localhost -force
