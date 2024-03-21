@@ -31,6 +31,17 @@ These are mounted as `Y:` and `Z:` respectively, although they can be configured
 The challenge mount is also used to pass the flag and information about whether practice mode is enabled to the VM.
 The startup script will secure the flag in `C:\flag` prior to starting SSH.
 
+## Adding Functionality to the build process
+
+The build time for the Windows layers is quite long.
+As such, consider carefully where in the build process your changes must occur.
+
+`setup.ps1`: This runs during the windows installation as NT AUTHORITY\SYSTEM.  Commands running during this phase may not behave as expected due to execution occurring during installation via Autounattend.xml.
+
+`post_install.ps1` and `post_install.sh`: These files run **AFTER** the windows installation has completed, and changes will be saved in the docker image.  Commands executed in `post_install.ps1` are executed as the `hacker` user while the user is still part of the `Administrators` group.  If possible, this is the best location to place changes.  **WARNING:** it has been observed that using `Copy-Item` can result in invalid/corrupted data being copied to the destination location.
+
+`startup.ps1`: This is executed during challenge container runtime every time the windows VM is started.  This file is also responsible for removing the `hacker` user from the `Administrators` group, dropping permissions.  Adding work to this file will increase windows VM startup time and should be avoided if possible.
+
 ## Building process
 
 The build process first repackages Red Hat's `virtio-win-tools` CDROM ISO, which contains needed drivers and executables, in the format that windows expects.
