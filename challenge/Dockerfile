@@ -678,7 +678,6 @@ RUN --security=insecure <<EOF
     rm -rf ./build/monitor.sock
 EOF
 
-
 # This step also does the "post-install building as hacker with admin privs"
 from builder-windows-install as builder-windows-yes
 
