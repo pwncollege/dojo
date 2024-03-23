@@ -1,4 +1,6 @@
 id: program-security
+award:
+  belt: yellow
 type: topic
 modules:
   - id: test

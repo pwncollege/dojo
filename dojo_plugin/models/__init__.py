@@ -204,8 +204,12 @@ class Dojos(db.Model):
         )
 
     def awarded(self, order_by='desc'):
+        if self.award and 'belt' in self.award:
+            condition = Awards.name==self.award['belt']
+        else:
+            condition = Awards.category==self.hex_dojo_id
         return Users.query.join(Awards, Awards.user_id == Users.id).where(
-            Awards.category==self.hex_dojo_id
+            condition
         ).order_by(Awards.date.desc() if order_by == 'desc' else Awards.date.asc())
 
     def solves(self, **kwargs):

@@ -1,5 +1,7 @@
 id: system-security
 type: topic
+award:
+  belt: green
 modules:
   - id: test
     challenges:

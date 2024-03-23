@@ -1,4 +1,6 @@
 id: intro-to-cybersecurity
+award:
+  belt: orange
 type: topic
 modules:
   - id: test

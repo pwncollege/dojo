@@ -1,4 +1,6 @@
 id: software-exploitation
+award:
+  belt: blue
 type: topic
 modules:
   - id: test
