@@ -203,6 +203,11 @@ class Dojos(db.Model):
             .order_by(*cls.ordering())
         )
 
+    def awarded(self, order_by='desc'):
+        return Users.query.join(Awards, Awards.user_id == Users.id).where(
+            Awards.category==self.hex_dojo_id
+        ).order_by(Awards.date.desc() if order_by == 'desc' else Awards.date.asc())
+
     def solves(self, **kwargs):
         return DojoChallenges.solves(dojo=self, **kwargs)
 
@@ -210,12 +215,15 @@ class Dojos(db.Model):
         """
         Returns a list of (User, completion_timestamp) tuples for users, sorted by time in ascending order.
         """
+        return self._completions_query().all()
+
+    def _completions_query(self, order_by='desc'):
         sq = Solves.query.join(DojoChallenges, Solves.challenge_id == DojoChallenges.challenge_id).add_columns(
             Solves.user_id.label("solve_user_id"), db.func.count().label("solve_count"), db.func.max(Solves.date).label("last_solve")
         ).filter(DojoChallenges.dojo == self).group_by(Solves.user_id).subquery()
         return Users.query.join(sq).filter_by(
             solve_count=len(self.challenges)
-        ).add_column(sq.columns.last_solve).order_by(sq.columns.last_solve).all()
+        ).add_column(sq.columns.last_solve).order_by(getattr(sq.columns.last_solve, order_by)())
 
     def completed(self, user):
         return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len(self.challenges)

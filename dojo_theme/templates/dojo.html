@@ -56,9 +56,20 @@
       <br>
       -->
       <b>Challenges:</b> <code>{{ stats["challenges"] }}</code>
-      <!-- <br>
+      <br>
+      <!--
       <b>Solves:</b> <code>{{ stats["solves"] }}</code>
       -->
+      {% if stats["awards"] %}
+      <b>Hackers Awarded:</b> <code>{{ stats["awards"] }}</code>
+      <br>
+      <b>First Awarded:</b> {% for hacker in stats["first10"] %} <a href="{{ url_for("pwncollege_users.view_other", user_id=hacker.id) }}">{{ hacker.name }}</a>{% endfor %}</code>
+      <br>
+      {% endif %}
+      {% if stats["awards"] > 10 %}
+      <b>Latest Awarded:</b> {% for hacker in stats["latest10"] %} <a href="{{ url_for("pwncollege_users.view_other", user_id=hacker.id) }}">{{ hacker.name }}</a>{% endfor %}</code>
+      <br>
+      {% endif %}
     </p>
   </div>
 

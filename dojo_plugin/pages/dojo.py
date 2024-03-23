@@ -11,7 +11,7 @@ from CTFd.cache import cache
 
 from ..utils import render_markdown, module_visible, module_challenges_visible, is_dojo_admin
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
-from ..models import Dojos, DojoUsers, DojoStudents
+from ..models import Dojos, DojoUsers, DojoStudents, Awards
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 
@@ -33,6 +33,9 @@ def get_stats(dojo):
         hours = max(uptime.seconds // (60 * 60), 1)
         active += 1 / hours
 
+    first10 = dojo.awarded(order_by='asc').limit(10).all()
+    latest10 = dojo.awarded().limit(10).all()
+
     # TODO: users and solves query is slow, so we'll just leave it out for now
     # TODO: we need to index tables for this to be fast
     return {
@@ -40,6 +43,9 @@ def get_stats(dojo):
         "users": "-", # int(dojo.solves().group_by(Solves.user_id).count()),
         "challenges": int(len(dojo.challenges)),
         "solves": "-", # int(dojo.solves().count()),
+        "awards": dojo.awarded().count(),
+        "first10": first10, # int(dojo.solves().count()),
+        "latest10": latest10, # int(dojo.solves().count()),
     }
 
 
