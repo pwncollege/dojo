@@ -77,6 +77,8 @@ def start_challenge(user, dojo_challenge, practice):
         if os.path.exists("/dev/net/tun"):
             devices.append("/dev/net/tun:/dev/net/tun:rwm")
 
+        storage_driver = docker_client.info().get("Driver")
+
         container = docker_client.containers.create(
             dojo_challenge.image,
             entrypoint=["/bin/sleep", "6h"],
@@ -115,10 +117,11 @@ def start_challenge(user, dojo_challenge, practice):
             init=True,
             cap_add=["SYS_PTRACE"],
             security_opt=[f"seccomp={SECCOMP}"],
+            storage_opt=dict(size="256G") if storage_driver == "zfs" else None,
             cpu_period=100000,
             cpu_quota=400000,
             pids_limit=1024,
-            mem_limit="4000m",
+            mem_limit="4G",
             detach=True,
             auto_remove=True,
         )
