@@ -13,7 +13,8 @@ RUN apt-get update && \
         iproute2 \
         iputils-ping \
         host \
-        htop
+        htop \
+        zfsutils-linux
 
 RUN curl -fsSL https://get.docker.com | /bin/sh
 RUN echo '{ "data-root": "/opt/pwn.college/data/docker", "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json
