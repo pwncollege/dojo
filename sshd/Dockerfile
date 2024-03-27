@@ -4,7 +4,8 @@ RUN apk add --no-cache \
         python3 \
         py3-pip \
         openssh-server-pam \
-        docker-cli
+	docker-cli \
+	mysql-client
 
 RUN pip3 install --break-system-packages docker
 
@@ -22,4 +23,4 @@ RUN chmod 700 /opt/sshd/auth.py
 
 EXPOSE 22
 
-ENTRYPOINT ["/usr/sbin/sshd.pam", "-D", "-e", "-f", "/opt/sshd/sshd_config"]
+ENTRYPOINT ["/opt/sshd/start.sh"]
