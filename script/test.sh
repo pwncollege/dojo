@@ -59,13 +59,12 @@ docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" -p 2222:22 
 
 # fix the insane routing thing
 read -a GW <<<$(ip route show default)
-if [[ "${GW[2]}" = 10* ]]
-then
-	docker exec "$CONTAINER_NAME" ip route add "${GW[2]}" via 172.17.0.1
-fi
+read -a NS <<<$(docker exec "$CONTAINER_NAME" cat /etc/resolv.conf | grep nameserver)
+docker exec "$CONTAINER_NAME" ip route add "${GW[2]}" via 172.17.0.1
+docker exec "$CONTAINER_NAME" ip route add "${NS[1]}" via 172.17.0.1
 
 docker exec "$CONTAINER_NAME" dojo wait
 [ -n "$DB_RESTORE" ] && until docker exec "$CONTAINER_NAME" dojo restore $DB_RESTORE; do sleep 1; done
 
 until curl -s localhost.pwn.college | grep -q pwn; do sleep 1; done
-[ "$TEST" == "yes" ] && MOZ_HEADLESS=1 pytest test/test_running.py test/test_welcome.py
+[ "$TEST" == "yes" ] && MOZ_HEADLESS=1 pytest -v test/test_running.py test/test_welcome.py
