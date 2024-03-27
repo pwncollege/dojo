@@ -337,6 +337,14 @@ def generate_ssh_keypair():
 
     return (public_key.read_text().strip(), private_key.read_text())
 
+def dojo_yml_dir(spec):
+    tmp_dojos_dir = DOJOS_DIR / "tmp"
+    tmp_dojos_dir.mkdir(exist_ok=True)
+    yml_dir = tempfile.TemporaryDirectory(dir=tmp_dojos_dir)    # TODO: ignore_cleanup_errors=True
+    yml_dir_path = pathlib.Path(yml_dir.name)
+    with open(yml_dir_path / "dojo.yml", "w") as do:
+        do.write(spec)
+    return yml_dir
 
 def dojo_clone(repository, private_key):
     tmp_dojos_dir = DOJOS_DIR / "tmp"
