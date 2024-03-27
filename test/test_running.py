@@ -76,6 +76,13 @@ def test_create_dojo(example_dojo, admin_session):
     assert admin_session.get(f"{PROTO}://{HOST}/{example_dojo}/").status_code == 200
     assert admin_session.get(f"{PROTO}://{HOST}/example/").status_code == 200
 
+@pytest.mark.dependency(depends=["test_create_dojo"])
+def test_delete_dojo(admin_session):
+    reference_id = create_dojo_yml("""id: delete-test""", session=admin_session)
+    assert admin_session.get(f"{PROTO}://{HOST}/{reference_id}/").status_code == 200
+    assert admin_session.get(f"{PROTO}://{HOST}/dojo/{reference_id}/delete/", json={"dojo": reference_id}).status_code == 200
+    assert admin_session.get(f"{PROTO}://{HOST}/{reference_id}/").status_code == 404
+
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
 def test_create_import_dojo(example_import_dojo, admin_session):
