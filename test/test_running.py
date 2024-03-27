@@ -76,6 +76,7 @@ def test_create_dojo(example_dojo, admin_session):
     assert admin_session.get(f"{PROTO}://{HOST}/{example_dojo}/").status_code == 200
     assert admin_session.get(f"{PROTO}://{HOST}/example/").status_code == 200
 
+
 @pytest.mark.dependency(depends=["test_create_dojo"])
 def test_delete_dojo(admin_session):
     reference_id = create_dojo_yml("""id: delete-test""", session=admin_session)
