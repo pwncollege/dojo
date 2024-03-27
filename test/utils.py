@@ -46,7 +46,7 @@ def create_dojo(repository, *, session):
     return dojo_reference_id
 
 def create_dojo_yml(spec, *, session):
-    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/create-spec", json={"spec": spec})
+    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/create", json={"spec": spec})
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
     dojo_reference_id = response.json()["dojo"]
     return dojo_reference_id
