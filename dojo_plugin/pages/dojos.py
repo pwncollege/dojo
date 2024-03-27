@@ -112,20 +112,15 @@ def update_dojo(dojo, update_code=None):
         return {"success": False, "error": str(e)}, 400
     return {"success": True}
 
-@dojos.route("/dojo/<dojo>/delete/", methods=["GET","POST"])
-@dojos.route("/dojo/<dojo>/delete/<update_code>", methods=["GET","POST"])
-@bypass_csrf_protection
+@dojos.route("/dojo/<dojo>/delete/", methods=["POST"])
 @authed_only
-def delete_dojo(dojo, update_code=None):
+def delete_dojo(dojo):
     dojo = Dojos.from_id(dojo).first()
     if not dojo:
         return {"success": False, "error": "Not Found"}, 404
 
-    if dojo.update_code != update_code:
-        return {"success": False, "error": "Forbidden"}, 403
-
     # Check if the current user is an admin of the dojo
-    if not dojo.is_admin():
+    if not is_admin():
         abort(403)
 
     try:
