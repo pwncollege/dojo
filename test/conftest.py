@@ -75,6 +75,10 @@ def no_practice_dojo(admin_session):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "no_practice_dojo.yml").read(), session=admin_session)
 
 @pytest.fixture(scope="session")
+def lfs_dojo(admin_session):
+    return create_dojo_yml(open(TEST_DOJOS_LOCATION / "lfs_dojo.yml").read(), session=admin_session)
+
+@pytest.fixture(scope="session")
 def welcome_dojo(admin_session):
     try:
         rid = create_dojo("pwncollege/welcome-dojo", session=admin_session)

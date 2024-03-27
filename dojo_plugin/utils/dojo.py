@@ -7,6 +7,7 @@ import functools
 import contextlib
 import inspect
 import pathlib
+import urllib.request
 
 import yaml
 import requests
@@ -25,6 +26,8 @@ ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
 UNIQUE_ID_REGEX = Regex(r"^[a-z0-9-~]{1,128}$")
 NAME_REGEX = Regex(r"^[\S ]{1,128}$")
 IMAGE_REGEX = Regex(r"^[\S]{1,256}$")
+FILE_PATH_REGEX = Regex(r"^[A-Za-z0-9_][A-Za-z0-9-_./]*$")
+FILE_URL_REGEX = Regex(r"^https://www.dropbox.com/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9.-_]*?rlkey=[a-zA-Z0-9]*&dl=1")
 DATE = Use(datetime.datetime.fromisoformat)
 
 ID_NAME_DESCRIPTION = {
@@ -106,6 +109,13 @@ DOJO_SPEC = Schema({
             },
         )],
     }],
+    Optional("files", default=[]): [
+        {
+            "type": "download",
+            "path": FILE_PATH_REGEX,
+            "url": FILE_URL_REGEX,
+        }
+    ],
 })
 
 def setdefault_name(entry):
@@ -169,6 +179,16 @@ def load_dojo_subyamls(data, dojo_dir):
 
     return data
 
+def dojo_initialize_files(data, dojo_dir):
+    for dojo_file in data.get("files", []):
+        rel_path = dojo_dir / dojo_file["path"]
+        abs_path = dojo_dir / rel_path
+        assert not abs_path.is_symlink(), f"{rel_path} is a symbolic link!"
+        if dojo_file["type"] == "download":
+            abs_path.parent.mkdir(parents=True, exist_ok=True)
+            urllib.request.urlretrieve(dojo_file["url"], str(abs_path))
+            assert abs_path.stat().st_size >= 50*1024*1024, f"{rel_path} is small enough to fit into git ({abs_path.stat().st_size} bytes) --- put it in the repository!"
+
 def dojo_from_dir(dojo_dir, *, dojo=None):
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
@@ -178,6 +198,7 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
 
     data_raw = yaml.safe_load(dojo_yml_path.read_text())
     data = load_dojo_subyamls(data_raw, dojo_dir)
+    dojo_initialize_files(data, dojo_dir)
     return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
 
 def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
