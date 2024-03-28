@@ -1,0 +1,10 @@
+id: lfs
+type: public
+modules:
+  - id: test
+    challenges:
+      - id: test
+files:
+  - type: download
+    url: "https://www.dropbox.com/scl/fi/deyhfwioo3d824ext4k42/dojo.txt?rlkey=h1wmm4oe9hq67ooan9oh2r36j&dl=1"
+    path: "test/test/dojo.txt"
