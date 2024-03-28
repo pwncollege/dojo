@@ -36,5 +36,7 @@ if (Test-Path X:\practice-mode-enabled) {
   Add-LocalGroupMember -Group "Administrators" -Member hacker
 }
 
+logoff 1
+
 Start-Service sshd
 Start-Service tvnserver
