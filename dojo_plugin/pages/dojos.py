@@ -145,7 +145,7 @@ def view_dojo_admin(dojo):
 @dojos.route("/dojo/<dojo>/admin/activity")
 @dojo_route
 def view_dojo_activity(dojo):
-    if not is_admin():
+    if not dojo.is_admin():
         abort(403)
 
     docker_client = docker.from_env()
