@@ -61,6 +61,10 @@ def is_privileged():
     return os.getuid() == 0 or "sudo" in groups
 
 
+def has_windows_challenges():
+    return any(fname.lower().endswith('.exe') for fname in os.listdir("/challenge"))
+
+
 def execve(argv):
     os.seteuid(os.getuid())
     os.setegid(os.getgid())
@@ -172,6 +176,11 @@ def start():
 
     if not IMAGE_PATH.exists():
         reset_image()
+
+    if not has_windows_challenges():
+        raise Exception(
+            "Error: No Windows binary found in /challenge"
+        )
 
     # We need to pass the flag into the VM for the initial boot, before the FS bridge
     #  starts.
