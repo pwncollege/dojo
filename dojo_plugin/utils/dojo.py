@@ -181,6 +181,7 @@ def load_dojo_subyamls(data, dojo_dir):
 
 def dojo_initialize_files(data, dojo_dir):
     for dojo_file in data.get("files", []):
+        assert is_admin(), f"LFS support requires admin privileges"
         rel_path = dojo_dir / dojo_file["path"]
         abs_path = dojo_dir / rel_path
         assert not abs_path.is_symlink(), f"{rel_path} is a symbolic link!"
