@@ -35,6 +35,10 @@ define INSTALL_DESKTOP_BASE yes # matches the challenge-mini configuration
 define INSTALL_IDA_FREE no # explicitly disable -- only for free dojos
 define INSTALL_BINJA_FREE no # explicitly disable -- only for free dojos
 define INSTALL_WINDOWS no # explicitly disable
+define DB_HOST db
+define DB_NAME ctfd
+define DB_USER ctfd
+define DB_PASS ctfd
 
 mv $DOJO_DIR/data/.config.env $DOJO_DIR/data/config.env
 . $DOJO_DIR/data/config.env

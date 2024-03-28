@@ -13,6 +13,11 @@ fi
 DOCKER_ARGS=${DOCKER_ARGS:--i}
 [ -t 0 ] && DOCKER_ARGS="-t $DOCKER_ARGS"
 
+CONTAINER_WITH_MYSQL=sshd
+
+DOJO_DIR=/opt/pwn.college
+. $DOJO_DIR/data/config.env
+
 case "$ACTION" in
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
     "update")
@@ -58,20 +63,20 @@ case "$ACTION" in
 
     # HELP: db: launch a mysql client session, connected to the ctfd db
     "db")
-        docker exec $DOCKER_ARGS db mysql -pctfd -Dctfd ctfd "$@"
+        docker exec $DOCKER_ARGS ${CONTAINER_WITH_MYSQL} mysql -h ${DB_HOST} -p${DB_PASS} -D${DB_NAME} -u${DB_USER} "$@"
         ;;
 
     # HELP: backup: does a dojo db backup into the `data/backups` directory.
     "backup")
         mkdir -p data/backups
-        docker exec db mysqldump -pctfd --single-transaction --routines --triggers ctfd | gzip > "data/backups/db-$(date -Iseconds).sql.gz"
+        docker exec ${CONTAINER_WITH_MYSQL} mysqldump -h ${DB_HOST} -p${DB_PASS} -u${DB_USER} --single-transaction --routines --triggers ${DB_NAME} | gzip > "data/backups/db-$(date -Iseconds).sql.gz"
         ;;
 
     # HELP: restore PATH: restores a dojo db backup. Path arg is relative to the `data/backups` directory
     "restore")
         BACKUP_PATH="data/backups/$1"
         if [ -f "$BACKUP_PATH" ]; then
-            gunzip < "$BACKUP_PATH" | docker exec -i db mysql -pctfd -Dctfd
+            gunzip < "$BACKUP_PATH" | docker exec -i ${CONTAINER_WITH_MYSQL} mysql -h ${DB_HOST} -p${DB_PASS} -u${DB_USER} -D${DB_NAME}
         else
             echo "Error: missing file to restore from" >&2
         fi
