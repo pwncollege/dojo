@@ -50,6 +50,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get clean && rm -rf /var/lib/apt/lists/*
         ca-certificates
         curl
+        netcat-openbsd
         socat
         sudo
         vim
@@ -121,6 +122,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         mysql-server
         php-mysql
         libapache2-mod-php
+EOF
+
+################################################################################
+
+FROM builder as builder-dojjail
+RUN <<EOF
+    git clone --depth 1 --recurse-submodules https://github.com/pwncollege/dojjail /opt/dojjail
+    pip install -e /opt/dojjail
 EOF
 
 ################################################################################
@@ -485,6 +494,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         expect
         fish
         findutils
+	finger
         firefox
         gcc-aarch64-linux-gnu
         gdb
@@ -504,7 +514,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         nano
         neovim
         net-tools
-        netcat-openbsd
         nmap
         openssh-server
         parallel
@@ -583,8 +592,7 @@ FROM builder-tools-apt as builder-windows-no
 FROM builder-tools-apt as builder-windows-base
 
 WORKDIR /opt/windows
-COPY windows/Autounattend.xml windows/setup.ps1 windows/startup.ps1 windows/sshd_config ./
-COPY windows/challenge-proxy ./challenge-proxy
+COPY windows/Autounattend.xml windows/setup.ps1 windows/config_startup.ps1 windows/sshd_config ./
 COPY windows/shutdown.py .
 
 
@@ -602,8 +610,8 @@ RUN <<EOF
     sed -i "s/INSTALL_IDA_FREE/yes/g" ./setup.ps1
     touch ./practice-mode-enabled
     mkfs.fat -F 12 -C ./build/floppy.img 1440
-    mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/ ::
-    rm -rf ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/
+    mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./config_startup.ps1 ./practice-mode-enabled ./sshd_config ::
+    rm -rf ./Autounattend.xml ./setup.ps1 ./practice-mode-enabled ./sshd_config
 EOF
 
 FROM builder-windows-base as builder-windows-base-ida-no
@@ -619,11 +627,11 @@ RUN <<EOF
     rm -rf /var/lib/apt/lists/*
     touch ./practice-mode-enabled
     mkfs.fat -F 12 -C ./build/floppy.img 1440
-    mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/ ::
-    rm -rf ./Autounattend.xml ./setup.ps1 ./startup.ps1 ./practice-mode-enabled ./sshd_config ./challenge-proxy/
+    mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./practice-mode-enabled ./sshd_config ::
+    rm -rf ./Autounattend.xml ./setup.ps1 ./practice-mode-enabled ./sshd_config
 EOF
 
-from builder-windows-base-ida-${INSTALL_IDA_FREE} as builder-windows-yes
+from builder-windows-base-ida-${INSTALL_IDA_FREE} as builder-windows-install
 
 RUN <<EOF
     echo "Building virtio drivers disk"
@@ -670,6 +678,12 @@ RUN --security=insecure <<EOF
     rm -rf ./build/monitor.sock
 EOF
 
+
+# This step also does the "post-install building as hacker with admin privs"
+from builder-windows-install as builder-windows-yes
+
+COPY windows/challenge-proxy.c windows/post_install.sh windows/post_install.ps1 windows/startup.ps1 ./
+
 RUN --security=insecure <<EOF
     echo "Performing initial bootup"
     qemu-system-x86_64 \
@@ -687,10 +701,8 @@ RUN --security=insecure <<EOF
       -drive "file=./build/server-2022.iso,media=cdrom" \
       -drive "file=./build/virtio-win-processed.iso,media=cdrom" \
       -drive "file=./build/clean.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2" &
-    python3 ./shutdown.py
+    ./post_install.sh
     rm -f ./build/monitor.sock
-    touch ./build/image-built
-    echo "Windows image built"
 EOF
 
 FROM builder-windows-${INSTALL_WINDOWS} as builder-windows
@@ -724,6 +736,7 @@ EOF
 
 FROM challenge-nano as challenge-micro
 COPY --link --from=builder-code-server / /
+COPY --link --from=builder-dojjail / /
 
 ################################################################################
 
