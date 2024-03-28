@@ -112,6 +112,27 @@ def update_dojo(dojo, update_code=None):
         return {"success": False, "error": str(e)}, 400
     return {"success": True}
 
+@dojos.route("/dojo/<dojo>/delete/", methods=["POST"])
+@authed_only
+def delete_dojo(dojo):
+    dojo = Dojos.from_id(dojo).first()
+    if not dojo:
+        return {"success": False, "error": "Not Found"}, 404
+
+    # Check if the current user is an admin of the dojo
+    if not is_admin():
+        abort(403)
+
+    try:
+        DojoUsers.query.filter(DojoUsers.dojo_id == dojo.dojo_id).delete()
+        Dojos.query.filter(Dojos.dojo_id == dojo.dojo_id).delete()
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        return {"success": False, "error": str(e)}, 400
+    return {"success": True}
 
 @dojos.route("/dojo/<dojo>/admin/")
 @dojo_route

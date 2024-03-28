@@ -9,6 +9,7 @@
   </div>
 </div>
 <div class="container">
+  <div id="dojo-delete-results" class="form-group">
   <div class="row text-center">
     <div class="col-lg-auto m-3">
       <figure>
@@ -28,6 +29,16 @@
       </a>
       </figure>
     </div>
+    {% if is_admin() %}
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a id="dojo-delete-button" class="text-decoration-none delete-link" href="#" data-dojo="{{ dojo.reference_id }}">
+          <i class="fas fa-trash fa-3x"></i>
+          <figcaption><b style="font-family: 'Courier New', Courier, monospace">Delete</b></figcaption>
+        </a>
+      </figure>
+    </div>
+    {% endif %}
     <div class="col-lg-auto m-3">
       <figure>
       <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo_solves', dojo=dojo.reference_id) }}">
