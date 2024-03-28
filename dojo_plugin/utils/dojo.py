@@ -395,7 +395,7 @@ def dojo_admins_only(func):
         bound_args.apply_defaults()
 
         dojo = bound_args.arguments["dojo"]
-        if not dojo.is_admin(get_current_user()):
+        if not (dojo.is_admin(get_current_user()) or is_admin()):
             abort(403)
         return func(*bound_args.args, **bound_args.kwargs)
     return wrapper
