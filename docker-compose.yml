@@ -81,9 +81,9 @@ services:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
       - INTERNET_FOR_ALL=${INTERNET_FOR_ALL}
-      - VIRTUAL_HOST=${DOJO_HOST},localhost
+      - VIRTUAL_HOST=${VIRTUAL_HOST}
       - VIRTUAL_PORT=8000
-      - LETSENCRYPT_HOST=${DOJO_HOST}
+      - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
     volumes:
       - ./data:/var/data
       - ./data/CTFd/logs:/var/log/CTFd
