@@ -14,7 +14,11 @@ define () {
     value="${current:-${defined:-$default}}"
     echo "${name}=${value}" >> $DOJO_DIR/data/.config.env
 }
-define DOJO_HOST localhost.pwn.college
+DEFAULT_DOJO_HOST=localhost.pwn.college
+
+define DOJO_HOST "${DEFAULT_DOJO_HOST}"
+define VIRTUAL_HOST "${DEFAULT_DOJO_HOST},localhost"
+define LETSENCRYPT_HOST "${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
 define DOJO_CHALLENGE challenge-mini
 define SECRET_KEY $(openssl rand -hex 16)
@@ -40,8 +44,6 @@ define DB_NAME ctfd
 define DB_USER ctfd
 define DB_PASS ctfd
 define DB_EXTERNAL no # change to anything but no and the db container will not start mysql
-define VIRTUAL_HOST "${DOJO_HOST},localhost"
-define LETSENCRYPT_HOST "${DOJO_HOST}"
 
 mv $DOJO_DIR/data/.config.env $DOJO_DIR/data/config.env
 . $DOJO_DIR/data/config.env
