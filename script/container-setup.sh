@@ -39,6 +39,7 @@ define DB_HOST db
 define DB_NAME ctfd
 define DB_USER ctfd
 define DB_PASS ctfd
+define DB_EXTERNAL no # change to anything but no and the db container will not start mysql
 
 mv $DOJO_DIR/data/.config.env $DOJO_DIR/data/config.env
 . $DOJO_DIR/data/config.env
