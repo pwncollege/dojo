@@ -16,7 +16,9 @@ DOCKER_ARGS=${DOCKER_ARGS:--i}
 CONTAINER_WITH_MYSQL=db
 
 DOJO_DIR=/opt/pwn.college
-. $DOJO_DIR/data/config.env
+if [ -f $DOJO_DIR/data/config.env ]; then
+    . $DOJO_DIR/data/config.env
+fi
 
 case "$ACTION" in
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
