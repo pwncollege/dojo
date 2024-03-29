@@ -119,18 +119,20 @@ services:
 
   db:
     container_name: db
-    image: mariadb:10.4.12
+    build:
+      context: ./db
     restart: always
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_PASS}
       - MYSQL_USER=${DB_USER}
       - MYSQL_PASSWORD=${DB_PASS}
       - MYSQL_DATABASE=${DB_NAME}
+      - DB_EXTERNAL=${DB_EXTERNAL}
     volumes:
       - ./data/mysql:/var/lib/mysql
-    command: [mysqld, --character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci, --wait_timeout=28800, --log-warnings=0]
+    command: [/start.sh]
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-pctfd"]
+      test: ["CMD", "mysqladmin", "ping", "-p${DB_PASS}", "-u${DB_USER}", "-h${DB_HOST}"]
       interval: 10s
       timeout: 10s
       retries: 3

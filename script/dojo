@@ -13,7 +13,7 @@ fi
 DOCKER_ARGS=${DOCKER_ARGS:--i}
 [ -t 0 ] && DOCKER_ARGS="-t $DOCKER_ARGS"
 
-CONTAINER_WITH_MYSQL=sshd
+CONTAINER_WITH_MYSQL=db
 
 DOJO_DIR=/opt/pwn.college
 . $DOJO_DIR/data/config.env
