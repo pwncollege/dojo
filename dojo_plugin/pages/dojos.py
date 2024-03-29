@@ -13,7 +13,7 @@ from CTFd.plugins import bypass_csrf_protection
 
 from ..models import DojoAdmins, DojoChallenges, DojoMembers, DojoModules, DojoUsers, Dojos
 from ..utils import user_dojos
-from ..utils.dojo import dojo_route, generate_ssh_keypair, dojo_update
+from ..utils.dojo import dojo_route, generate_ssh_keypair, dojo_update, dojo_admins_only
 
 
 dojos = Blueprint("pwncollege_dojos", __name__)
@@ -136,18 +136,15 @@ def delete_dojo(dojo):
 
 @dojos.route("/dojo/<dojo>/admin/")
 @dojo_route
+@dojo_admins_only
 def view_dojo_admin(dojo):
-    if not dojo.is_admin():
-        abort(403)
     return render_template("dojo_admin.html", dojo=dojo, is_admin=is_admin)
 
 
 @dojos.route("/dojo/<dojo>/admin/activity")
 @dojo_route
+@dojo_admins_only
 def view_dojo_activity(dojo):
-    if not dojo.is_admin():
-        abort(403)
-
     docker_client = docker.from_env()
     filters = {
         "name": "user_",
@@ -179,9 +176,8 @@ def view_dojo_activity(dojo):
 
 @dojos.route("/dojo/<dojo>/admin/solves.csv")
 @dojo_route
+@dojo_admins_only
 def view_dojo_solves(dojo):
-    if not dojo.is_admin():
-        abort(403)
     def stream():
         yield "user,module,challenge,time\n"
         solves = (
