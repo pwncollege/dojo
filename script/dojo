@@ -21,7 +21,18 @@ DOJO_DIR=/opt/pwn.college
 case "$ACTION" in
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
     "update")
-        git pull
+        git config --global --add safe.directory "$DOJO_DIR"
+        if ! git diff --exit-code
+        then
+            echo "ABORTING: working directory is not clean"
+            exit 1
+        fi
+        if ! git pull -r
+        then
+            echo "ABORTING: 'git pull -r' failed"
+            git rebase --abort
+            exit 1
+        fi
         dojo sync
         dojo compose up -d --build
         ;;
