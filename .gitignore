@@ -1,3 +1,5 @@
 data/
 *.pyc
 .DS_Store
+opt/
+sensai/
