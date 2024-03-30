@@ -69,6 +69,30 @@ The following options are available:
 - `challenge-mini`: Adds a minified desktop (the default).
 - `challenge-full`: The full (70+ GB) setup.
 
+## Updating
+
+When updating your dojo deployment, there is only one supported method in the `dojo` directory:
+
+```sh
+docker kill pwncollege/dojo
+docker rm pwncollege/dojo
+git pull
+docker build -t pwncollege/dojo "$DOJO_PATH"
+docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
+```
+
+This will cause downtime when the dojo is rebuilding.
+
+Some changes _can_ be applied without a complete restart, however this is not guaranteed.
+
+If you really know what you're doing (the changes that you're pulling in are just to `ctfd`), inside the `pwncollege/dojo` container you can do the following:
+
+```sh
+dojo update
+```
+
+Note that `dojo update` is not guaranteed to be successful and should only be used if you fully understand each commit/change that you are updating.
+
 ## Customization
 
 _All_ dojo data will be stored in the `./data` directory.
