@@ -1,6 +1,6 @@
 #!/bin/bash -ex
 
-cd $(dirname "${BASH_SOURCE[0]}")
+cd $(dirname "${BASH_SOURCE[0]}")/..
 
 function usage {
 	set +x
@@ -61,7 +61,7 @@ docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" -p 2222:22 
 read -a GW <<<$(ip route show default)
 read -a NS <<<$(docker exec "$CONTAINER_NAME" cat /etc/resolv.conf | grep nameserver)
 docker exec "$CONTAINER_NAME" ip route add "${GW[2]}" via 172.17.0.1
-docker exec "$CONTAINER_NAME" ip route add "${NS[1]}" via 172.17.0.1
+docker exec "$CONTAINER_NAME" ip route add "${NS[1]}" via 172.17.0.1 || echo "Failed to add nameserver route"
 
 docker exec "$CONTAINER_NAME" dojo wait
 [ -n "$DB_RESTORE" ] && until docker exec "$CONTAINER_NAME" dojo restore $DB_RESTORE; do sleep 1; done
