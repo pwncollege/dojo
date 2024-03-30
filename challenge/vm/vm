@@ -12,8 +12,6 @@ import tempfile
 import textwrap
 import time
 
-from glob import glob
-
 LINUX_REBOOT_CMD_POWER_OFF = 0x4321fedc
 LINUX_REBOOT_CMD_RESTART = 0x1234567
 
@@ -88,8 +86,7 @@ def execve(argv):
 def start():
     flags = " ".join(flag for flag in extra_boot_flags())
 
-    custom_bz = glob("/challenge/bzImage*")
-    bzImage = custom_bz[0] if custom_bz else "/opt/linux/bzImage"
+    bzImage = "/challenge/bzImage" if os.path.exists("/challenge/bzImage") else "/opt/linux/bzImage"
 
     kvm = os.path.exists("/dev/kvm")
     cpu = "host" if kvm else "qemu64"
@@ -190,8 +187,7 @@ def debug():
     except ConnectionRefusedError:
         error("Error: could not connect to debug")
 
-    custom_vmlinux = glob("/challenge/vmlinux*")
-    vmlinux = custom_vmlinux[0] if custom_vmlinux else "/opt/linux/vmlinux"
+    vmlinux = "/challenge/vmlinux" if os.path.exists("/challenge/vmlinux") else "/opt/linux/vmlinux"
 
     execve([
         "/usr/bin/gdb",
