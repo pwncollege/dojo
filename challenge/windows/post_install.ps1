@@ -25,4 +25,4 @@ cl challenge-proxy.c
 
 
 # -- shutdown --
-Stop-Computer -computername localhost
+Stop-Computer -computername localhost -force
