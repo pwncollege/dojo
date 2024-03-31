@@ -67,12 +67,20 @@ def extra_boot_flags():
     if os.path.exists("/challenge/.nopti"):
         nopti = True
 
+    panic_on_oops = False
+    if os.path.exists("/challenge/.panic_on_oops"):
+        panic_on_oops = True
+
     result = []
     if nokaslr:
         result.append("nokaslr")
 
     if nopti:
         result.append("nopti")
+
+    if panic_on_oops:
+        result.append("oops=panic")
+        result.append("panic_on_warn=1")
 
     return result
 
