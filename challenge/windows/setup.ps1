@@ -109,7 +109,7 @@ function EnableWmiRemoting($namespace) {
         throw "GetSecurityDescriptor failed: $($output.ReturnValue)"
     }
     $acl = $output.Descriptor
-    
+
     $computerName = (Get-WmiObject Win32_ComputerSystem).Name
     $acc = Get-WmiObject -Class Win32_Group -Filter "Domain='$computerName' and Name='Users'"
 
@@ -157,7 +157,7 @@ EnableWmiRemoting "Root/StandardCimv2"
 (Get-Content -Path C:\Windows\Temp\policy-edit.inf) `
     -replace "PasswordComplexity = 1", "PasswordComplexity = 0" `
     -replace "SeShutdownPrivilege .+", "`$0,hacker" `
-    -replace "SeRemoteShutdownPrivilege .+", "`$0,hacker" | 
+    -replace "SeRemoteShutdownPrivilege .+", "`$0,hacker" |
     Set-Content -Path C:\Windows\Temp\policy-edit.inf
 & secedit /configure /db C:\windows\security\local.sdb /cfg C:\Windows\Temp\policy-edit.inf
 Remove-Item -Force C:\Windows\Temp\policy-edit.inf
