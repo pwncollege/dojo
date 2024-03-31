@@ -253,5 +253,9 @@ Add-Content -Path $env:windir\System32\drivers\etc\hosts -Value "`n$ip`tpublic-l
 Copy-Item A:\config_startup.ps1 -Destination "C:\Program Files\Common Files\startup.ps1"
 & schtasks /create /tn "dojoinit" /sc onstart /delay 0000:00 /rl highest /ru system /tr "powershell.exe -file 'C:\Program Files\Common Files\startup.ps1'" /f
 
+# config services' StartupType to start when Start-Service is called or manually started (Manual) instead of start with Windows (Automatic)
+Set-Service -Name sshd -StartupType Manual
+Set-Service -Name tvnserver -StartupType Manual
+
 # -- shutdown --
 Stop-Computer -computername localhost -force
