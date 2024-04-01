@@ -44,6 +44,11 @@ define DB_NAME ctfd
 define DB_USER ctfd
 define DB_PASS ctfd
 define DB_EXTERNAL no # change to anything but no and the db container will not start mysql
+define BACKUP_AES_KEY_FILE
+define S3_BACKUP_BUCKET
+define AWS_DEFAULT_REGION
+define AWS_ACCESS_KEY_ID
+define AWS_SECRET_ACCESS_KEY
 
 mv $DOJO_DIR/data/.config.env $DOJO_DIR/data/config.env
 . $DOJO_DIR/data/config.env
@@ -61,6 +66,12 @@ if [ ! -f $DOJO_DIR/data/homes/homefs ]; then
     chown -R 1000:1000 $DOJO_DIR/data/homes/homefs_mount
     umount $DOJO_DIR/data/homes/homefs_mount
     rm -rf $DOJO_DIR/data/homes/homefs_mount
+fi
+
+# Create the AES key file if it does not exist
+if [ ! -z ${BACKUP_AES_KEY_FILE+x} ] && [ ! -f ${BACKUP_AES_KEY_FILE} ]
+then
+    openssl rand 214 > "${BACKUP_AES_KEY_FILE}"
 fi
 
 echo "[+] Creating loopback devices for home mounts. This might take a while."

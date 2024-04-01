@@ -74,6 +74,26 @@ case "$ACTION" in
         docker exec ${CONTAINER_WITH_MYSQL} mysqldump -h ${DB_HOST} -p${DB_PASS} -u${DB_USER} --single-transaction --routines --triggers ${DB_NAME} | gzip > "data/backups/db-$(date -Iseconds).sql.gz"
         ;;
 
+    # HELP: cloud-backup: upload the last day's worth of cloud backups to S3, but encrypt it at rest
+    "cloud-backup")
+        [ -z ${BACKUP_AES_KEY_FILE+x} ]  && echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set"; exit -1
+        [ -f $BACKUP_AES_KEY_FILE ] || echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set to a file, but is $BACKUP_AES_KEY_FILE instead"; exit -1
+        [ -z ${S3_BACKUP_BUCKET+x} ] && echo "To use cloud backup, S3_BACKUP_BUCKET must be set to the S3 bucket to use"; exit -1
+        set -e
+        for f in $(find data/backups -mtime -1 -type f)
+        do
+            BACKUP_FILENAME="$(basename $f).enc"
+            OUT_FILE="/tmp/$BACKUP_FILENAME"
+            openssl enc -in "$f" -out "$OUT_FILE" -e -aes256 -pbkdf2 -kfile "$BACKUP_AES_KEY_FILE"
+            echo "created encrypted $OUT_FILE"
+
+            aws s3 cp "$OUT_FILE" "s3://$S3_BACKUP_BUCKET/$BACKUP_FILENAME"
+            echo "backed up $OUT_FILE to S3 bucket $S3_BACKUP_BUCKET"
+            rm "$OUT_FILE"
+        done
+        ;;
+
+
     # HELP: restore PATH: restores a dojo db backup. Path arg is relative to the `data/backups` directory
     "restore")
         BACKUP_PATH="data/backups/$1"

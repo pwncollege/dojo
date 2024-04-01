@@ -100,6 +100,12 @@ _All_ dojo data will be stored in the `./data` directory.
 Once logged in, you can add a dojo by visiting `/dojos/create`. Dojos are contained within git repositories. 
 Refer to [the example dojo](https://github.com/pwncollege/example-dojo) for more information.
 
+## Cloud Backups
+
+If configured properly, the dojo will store the hourly database backups into an S3 bucket of your choosing.
+
+TODO ADD MORE HERE
+
 ## Contributing
 
 We love Pull Requests! 🌟
