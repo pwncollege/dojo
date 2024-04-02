@@ -41,6 +41,14 @@
     {% endif %}
     <div class="col-lg-auto m-3">
       <figure>
+        <a id="dojo-invite-button" class="text-decoration-none" href="#" data-dojo="{{ url_for('pwncollege_dojos.join_dojo',dojo=dojo.reference_id,password=dojo.password)}}">
+          <i class="fas fa-users fa-3x "></i>
+          <figcaption><b style="font-family: 'Courier New', Courier, monospace">Join</b></figcaption>
+        </a>
+      </figure>
+    </div>
+    <div class="col-lg-auto m-3">
+      <figure>
       <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo_solves', dojo=dojo.reference_id) }}">
         <i class="fas fa-file-csv fa-3x"></i>
         <figcaption><b style="font-family: 'Courier New', Courier, monospace">Solves</b></figcaption>

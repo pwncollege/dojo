@@ -73,6 +73,27 @@ function button_fetch_and_show(name, endpoint, method,data, success_message, con
     });
 }
 
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        alert("The link has been copied to the clipboard!");
+    }, function(err) {
+        console.error('Cannot copy to clipboard:', err);
+    });
+}
+
+function inviteButton(name) {
+    const button = $(`#${name}-button`);
+    const results = $(`#${name}-results`);
+    var join_url = button.attr('data-dojo');
+    var domain = window.location.origin;
+    button.click(()=>{
+        results.empty();    
+        url = domain + join_url;
+        copyToClipboard(url);
+    }
+    );
+}
+
 $(() => {
     form_fetch_and_show("ssh-key", "/pwncollege_api/v1/ssh_key", "PATCH", "Your public key has been updated");
     form_fetch_and_show("dojo-create", "/pwncollege_api/v1/dojo/create", "POST", "Your dojo has been created");
