@@ -179,6 +179,7 @@ services:
     environment:
       - DOCKER_HOST=unix:///tmp/${DOCKER_PSLR}/docker.sock
       - DEFAULT_HOST=${DOJO_HOST}
+      - LOG_JSON=true
     volumes:
       - conf:/etc/nginx/conf.d
       - html:/usr/share/nginx/html
