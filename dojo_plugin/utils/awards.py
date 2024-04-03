@@ -59,7 +59,7 @@ def get_belts():
                 color=belt.color,
                 date=str(belt.date)
             )
-            result["ranks"][color].append(belt.user_id)
+            result["ranks"][belt.color].append(belt.user_id)
 
     return result
 
