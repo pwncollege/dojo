@@ -29,27 +29,34 @@ def dojo_stats(dojo):
 @dojos.route("/dojos")
 def listing():
     user = get_current_user()
-    typed_dojos = {
+    categorized_dojos = {
         "Start Here": [],
         "Topics": [],
         "Courses": [],
         "More Material": [],
     }
-    for dojo in Dojos.viewable(user=user):
-        if dojo.type == "topic":
-            typed_dojos["Topics"].append(dojo)
-        elif dojo.type == "course":
-            typed_dojos["Courses"].append(dojo)
-        elif dojo.type == "hidden":
+    type_to_category = {
+        "topic": "Topics",
+        "course": "Courses",
+        "welcome": "Start Here"
+    }
+    options = db.undefer(Dojos.modules_count), db.undefer(Dojos.challenges_count)
+    dojo_solves = Dojos.viewable(user=user).options(*options)
+    if user:
+        solves_subquery = (DojoChallenges.solves(user=user, ignore_visibility=True, ignore_admins=False)
+            .group_by(DojoChallenges.dojo_id)
+            .with_entities(DojoChallenges.dojo_id, db.func.count().label("solve_count"))
+            .subquery())
+        dojo_solves = (dojo_solves.outerjoin(solves_subquery, Dojos.dojo_id == solves_subquery.c.dojo_id)
+            .add_columns(db.func.coalesce(solves_subquery.c.solve_count, 0).label("solve_count")))
+    else:
+        dojo_solves = dojo_solves.add_columns(0)
+    for dojo, solves in dojo_solves:
+        if dojo.type == "hidden" or (dojo.type == "example" and dojo.official):
             continue
-        elif dojo.type == "example" and dojo.official:
-            continue
-        elif dojo.type == "welcome":
-            typed_dojos["Start Here"].append(dojo)
-        else:
-            typed_dojos["More Material"].append(dojo)
-
-    return render_template("dojos.html", user=user, typed_dojos=typed_dojos)
+        category = type_to_category.get(dojo.type, "More Material")
+        categorized_dojos[category].append((dojo, solves))
+    return render_template("dojos.html", user=user, categorized_dojos=categorized_dojos)
 
 
 @dojos.route("/dojos/create")

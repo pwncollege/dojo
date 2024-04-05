@@ -1,52 +1,57 @@
 {% extends "base.html" %}
 {% from "macros/widgets.html" import card %}
 
+{% set dojo_descriptions = {
+    "Start Here": "These dojos are designed to help you begin your pwn.college journey. Start here before venturing onwards!",
+    "Topics": "These dojos form the official pwn.college curriculum, and you will earn belts when you complete them. We recommend that you tackle them in order.",
+    "Courses": "We run a number of courses on this platform. For the most part, these courses import the above material, though some might introduce new concepts and challenges.",
+    "More Material": "This section contains dojos created by the pwn.college community. Completing these dojos will grant you emoji badges!"
+} %}
+
+{% set svg_add_icon %}
+<svg class="w-100 h-100">
+  <circle cx="50%" cy="50%" r="30%" stroke="gray" fill="none" stroke-width="8" stroke-dasharray="8"></circle>
+  <g stroke="gray" stroke-width="8">
+    <line x1="50%" y1="30%" x2="50%" y2="70%"></line>
+    <line x1="30%" y1="50%" x2="70%" y2="50%"></line>
+  </g>
+</svg>
+{% endset %}
+
 {% block content %}
 <div class="jumbotron">
   <div class="container">
     <h1>Dojos</h1>
-    <p>
-    The material on pwn.college is split into a number of "dojos", with each dojo typically covering a high-level topic.
-    These dojos are below.
-    Enter them when you are ready.
-    </p>
+    <p>The material on pwn.college is split into a number of "dojos", with each dojo typically covering a high-level topic. These dojos are below. Enter them when you are ready.</p>
   </div>
 </div>
-<div class="container">
-  {% for type, dojos in typed_dojos.items() %}
-    <h2>{{ type | title }}</h2>
-    {% if type == "Start Here" %}
-    <p>These dojos are designed to help you begin your pwn.college journey. Start here before venturing onwards!</p>
-    {% elif type == "Topics" %}
-    <p>These dojos form the official pwn.college curriculum, and you will earn <a href="{{ url_for("pwncollege_belts.view_belts") }}">belts</a> when you complete them. We recommend that you tackle them in order. Good luck!</p>
-    {% elif type == "Courses" %}
-    <p>We run a number of courses on this platform. For the most part, these courses import the above material, though some might introduce new concepts and challenges.</p>
-    {% elif type.startswith("More") %}
-    <p>This section contains dojos created by the pwn.college community. Completing these dojos will grant you emoji badges!</p>
-    {% endif %}
-    <ul class="card-list">
-      {% for dojo in dojos %}
-      {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id),
-      title=dojo.name or dojo.id,
-      text="{} Modules : ".format(dojo.modules | length) + "{} / {}".format(dojo.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0, dojo.challenges | length),
-      icon="/themes/dojo_theme/static/img/dojo/{}.svg".format(dojo.award.belt) if (dojo.award.belt and dojo.official) else None,
-      emoji=dojo.award.emoji ) }}
-      {% endfor %}
 
-      {% if type.startswith("More") %}
-        {% call card(url_for("pwncollege_dojos.dojo_create"), custom=True) %}
-          <svg class="w-100 h-100">
-            <circle cx="50%" cy="50%" r="30%" stroke="gray" fill="none" stroke-width="8" stroke-dasharray="8"></circle>
-            <g stroke="gray" stroke-width="8">
-              <line x1="50%" y1="30%" x2="50%" y2="70%"></line>
-              <line x1="30%" y1="50%" x2="70%" y2="50%"></line>
-            </g>
-          </svg>
-        {% endcall %}
-      {% endif %}
-    </ul>
-    <br>
+<div class="container">
+  {% for category, dojos in categorized_dojos.items() %}
+    <section class="dojo-type">
+      <h2>{{ category }}</h2>
+      <p>{{ dojo_descriptions[category] }}</p>
+      <ul class="card-list">
+        {% for dojo, solves in dojos %}
+          {% set text = "{} Modules : {} / {}".format(dojo.modules_count, solves, dojo.challenges_count) %}
+          {% set icon = "/themes/dojo_theme/static/img/dojo/{}.svg".format(dojo.award.belt) if (dojo.award.belt and dojo.official) else None %}
+          {{ card(
+            url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id),
+            title=dojo.name or dojo.id,
+            text=text,
+            icon=icon,
+            emoji=dojo.award.emoji,
+          ) }}
+        {% endfor %}
+        {% if category == "More Material" %}
+          {% call card(url_for("pwncollege_dojos.dojo_create"), custom=True) %}
+            {{ svg_add_icon }}
+          {% endcall %}
+        {% endif %}
+      </ul>
+    </section>
   {% endfor %}
+</div>
 {% endblock %}
 
 {% block scripts %}
