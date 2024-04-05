@@ -43,12 +43,15 @@ seq 1 50 | while read cnt; do sleep 0.1; [ -e /tmp/.X11-unix/X42 ] && break; don
 
 export DISPLAY=:42
 
-if [ -e /home/hacker/.xinitrc ]
-then
-	/bin/sh /home/hacker/.xinitrc
-elif [ -x /usr/bin/xfce4-session ]
-then
-	xfce4-session &
-else
-	fluxbox &
-fi
+(
+	xev -root | head -n200
+	if [ -e /home/hacker/.xinitrc ]
+	then
+		/bin/sh /home/hacker/.xinitrc
+	elif [ -x /usr/bin/xfce4-session ]
+	then
+		xfce4-session &
+	else
+		fluxbox &
+	fi
+) &

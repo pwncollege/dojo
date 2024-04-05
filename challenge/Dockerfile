@@ -390,6 +390,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         websockify
         fluxbox
         xterm
+        x11-utils
 EOF
 
 FROM builder-desktop-base-${INSTALL_DESKTOP_BASE} as builder-desktop-base
