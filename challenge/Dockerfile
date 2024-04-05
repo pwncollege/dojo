@@ -82,6 +82,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         autoconf
         bc
         bison
+        cargo
         clang
         cmake
         cpio
@@ -126,10 +127,16 @@ EOF
 
 ################################################################################
 
-FROM builder as builder-dojjail
+FROM builder as builder-github-tools
 RUN <<EOF
     git clone --depth 1 --recurse-submodules https://github.com/pwncollege/dojjail /opt/dojjail
     pip install -e /opt/dojjail
+
+    git clone --depth 1 --recurse-submodules https://github.com/zolutal/kropr /opt/kropr
+    cd /opt/kropr
+    cargo install --path . --root /tmp
+    mv /tmp/bin/ropr /usr/bin/kropr
+    chmod +x /usr/bin/kropr
 EOF
 
 ################################################################################
@@ -212,6 +219,10 @@ RUN <<EOF
 
     git clone --depth 1 https://github.com/hugsy/gef /opt/gef
     git clone --depth 1 https://github.com/jerdna-regeiz/splitmind /opt/splitmind
+
+    git clone --depth 1 https://github.com/nccgroup/libslub /opt/libslub
+    cd /opt/libslub
+    pip install -r requirements.txt
 EOF
 
 FROM builder-gdb-${INSTALL_GDB} as builder-gdb
@@ -735,7 +746,7 @@ EOF
 
 FROM challenge-nano as challenge-micro
 COPY --link --from=builder-code-server / /
-COPY --link --from=builder-dojjail / /
+COPY --link --from=builder-github-tools / /
 
 ################################################################################
 
