@@ -258,8 +258,6 @@ EOF
 
 RUN chmod +x rg
 
-COPY start-vscode.sh /opt/pwn.college/start-vscode.sh
-
 ################################################################################
 
 FROM builder as builder-tcpdump-no
@@ -404,7 +402,6 @@ EOF
 # TODO: can we generate desktop data with cli ???
 COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
 COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
-COPY start-desktop.sh /opt/pwn.college/start-desktop.sh
 
 RUN rm /etc/xdg/autostart/*
 
@@ -572,6 +569,7 @@ RUN mkdir /opt/pwn.college
 COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
 COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
+COPY services.d /opt/pwn.college/services.d
 COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
 COPY bash.bashrc /opt/pwn.college/bash.bashrc
 COPY vm /opt/pwn.college/vm
