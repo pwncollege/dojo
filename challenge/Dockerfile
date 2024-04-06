@@ -753,7 +753,8 @@ COPY --link --from=builder-github-tools / /
 ################################################################################
 
 FROM challenge-micro as challenge-mini
-COPY --link --from=builder-desktop-base / /
+COPY --link --from=builder-desktop-base-yes / /
+COPY --link --from=builder-desktop-xfce-yes / /
 
 ################################################################################
 
@@ -773,7 +774,6 @@ COPY --link --from=builder-geckodriver / /
 COPY --link --from=builder-burpsuite / /
 COPY --link --from=builder-busybox / /
 COPY --link --from=builder-glow / /
-COPY --link --from=builder-desktop-xfce / /
 COPY --link --from=builder-virtiofsd /opt/virtiofsd /opt/virtiofsd
 COPY --link --from=builder-desktop-ida-free / /
 COPY --link --from=builder-desktop-binja-free / /
@@ -807,7 +807,6 @@ COPY --link --from=builder-geckodriver-yes / /
 COPY --link --from=builder-burpsuite-yes / /
 COPY --link --from=builder-busybox-yes / /
 COPY --link --from=builder-glow-yes / /
-COPY --link --from=builder-desktop-xfce-yes / /
 COPY --link --from=builder-virtiofsd-yes /opt/virtiofsd /opt/virtiofsd
 COPY --link --from=builder-desktop-ida-free / /
 COPY --link --from=builder-desktop-binja-free / /
