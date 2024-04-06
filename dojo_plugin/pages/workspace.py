@@ -8,6 +8,7 @@ from CTFd.utils.decorators import authed_only
 from ..models import Dojos
 from ..utils import random_home_path, redirect_user_socket, get_current_container
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
+from ..utils.workspace import exec_run
 
 
 workspace = Blueprint("pwncollege_workspace", __name__)
@@ -38,6 +39,12 @@ def view_desktop():
     container = get_current_container(user)
     if not container:
         return render_template("iframe.html", active=False)
+
+    exec_run(
+        "/opt/pwn.college/start-desktop.sh 2>&1 > /tmp/.dojo/desktop.log",
+        user="hacker", pwncollege_uid=user.id, shell=True,
+        assert_success=True
+    )
 
     interact_password = container_password(container, "desktop", "interact")
     view_password = container_password(container, "desktop", "view")

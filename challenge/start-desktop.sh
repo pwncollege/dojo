@@ -1,5 +1,7 @@
 #!/bin/sh
 
+ps aux | grep -q X[t]igervnc && exit
+
 mkdir -p /tmp/.dojo/vnc /home/hacker/.vnc
 
 container_id="$(cat /.authtoken)"
