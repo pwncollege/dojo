@@ -15,7 +15,7 @@ jobs:
         with:
           tags: dojo-test
           load: true
-          no-cache: event.github.event.schedule
+          no-cache: ${{ event.github.event.schedule }}
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
 
