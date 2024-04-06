@@ -137,6 +137,8 @@ RUN <<EOF
     cargo install --path . --root /tmp
     mv /tmp/bin/ropr /usr/bin/kropr
     chmod +x /usr/bin/kropr
+
+    git clone --depth 1 --recurse-submodules https://github.com/zolutal/gdb-pt-dump /opt/pt-dump
 EOF
 
 ################################################################################
