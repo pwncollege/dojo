@@ -42,6 +42,7 @@ RUN ln -s /etc/systemd/system/pwn.college.service /etc/systemd/system/multi-user
 RUN ln -s /etc/systemd/system/pwn.college.logging.service /etc/systemd/system/multi-user.target.wants/pwn.college.logging.service
 RUN ln -s /etc/systemd/system/pwn.college.backup.timer /etc/systemd/system/timers.target.wants/pwn.college.backup.timer
 RUN ln -s /etc/systemd/system/pwn.college.cachewarmer.timer /etc/systemd/system/timers.target.wants/pwn.college.cachewarmer.timer
+RUN ln -s /etc/systemd/system/pwn.college.cloud.backup.timer /etc/systemd/system/timers.target.wants/pwn.college.cloud.backup.timer
 
 RUN mkdir -p /opt/pwn.college
 ADD . /opt/pwn.college
