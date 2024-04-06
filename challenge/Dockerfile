@@ -391,6 +391,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         fluxbox
         xterm
 EOF
+COPY start-desktop.sh /opt/pwn.college/start-desktop.sh
 
 FROM builder-desktop-base-${INSTALL_DESKTOP_BASE} as builder-desktop-base
 
