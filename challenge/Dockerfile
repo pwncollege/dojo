@@ -258,6 +258,8 @@ EOF
 
 RUN chmod +x rg
 
+COPY start-vscode.sh /opt/pwn.college/start-vscode.sh
+
 ################################################################################
 
 FROM builder as builder-tcpdump-no
