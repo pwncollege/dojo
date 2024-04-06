@@ -72,7 +72,7 @@ def get_viewable_emojis(user):
     emojis = (
         Emojis.query
         .join(Users)
-        .filter(~Users.hidden, Emojis.category.in_((*viewable_dojo_urls.keys(), None)))
+        .filter(~Users.hidden, db.or_(Emojis.category.in_((*viewable_dojo_urls.keys(), None)), Emojis.category == None))
         .order_by(Emojis.date)
         .with_entities(
             Emojis.name,
