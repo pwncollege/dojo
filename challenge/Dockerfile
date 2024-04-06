@@ -14,8 +14,7 @@ ARG INSTALL_GECKODRIVER=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_BURPSUITE=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_BUSYBOX=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_GLOW=${DEFAULT_INSTALL_SELECTION}
-ARG INSTALL_DESKTOP_BASE=${DEFAULT_INSTALL_SELECTION}
-ARG INSTALL_XFCE=${DEFAULT_INSTALL_SELECTION}
+ARG INSTALL_DESKTOP=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_VIRTIOFSD=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_IDA_FREE=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_BINJA_FREE=${DEFAULT_INSTALL_SELECTION}
@@ -377,37 +376,22 @@ FROM builder-virtiofsd-${INSTALL_VIRTIOFSD} as builder-virtiofsd
 
 ################################################################################
 
-FROM essentials as builder-desktop-base-no
-FROM essentials as builder-desktop-base-yes
+FROM essentials as builder-desktop-no
+FROM essentials as builder-desktop-yes
 
 ARG UBUNTU_VERSION=20.04
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     [ "${UBUNTU_VERSION}" == "20.04" ] && TGR=common || TGR=tools; \
-    apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
+    apt-get update && xargs apt-get install -yqq <<EOF && \
+    apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
+    apt-get -y autoremove && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
         novnc
         tigervnc-standalone-server
         tigervnc-$TGR
         websockify
-        fluxbox
         xterm
-EOF
-COPY start-desktop.sh /opt/pwn.college/start-desktop.sh
-
-FROM builder-desktop-base-${INSTALL_DESKTOP_BASE} as builder-desktop-base
-
-################################################################################
-
-FROM builder-desktop-base-no as builder-desktop-xfce-no
-FROM builder-desktop-base-yes as builder-desktop-xfce-yes
-
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install -yqq <<EOF && \
-    apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
-    apt-get -y autoremove && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
         dbus-x11
         mousepad
         xclip
@@ -418,10 +402,11 @@ EOF
 # TODO: can we generate desktop data with cli ???
 COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
 COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
+COPY start-desktop.sh /opt/pwn.college/start-desktop.sh
 
 RUN rm /etc/xdg/autostart/*
 
-FROM builder-desktop-xfce-${INSTALL_XFCE} as builder-desktop-xfce
+FROM builder-desktop-${INSTALL_DESKTOP} as builder-desktop
 
 ################################################################################
 
@@ -754,8 +739,7 @@ COPY --link --from=builder-github-tools / /
 ################################################################################
 
 FROM challenge-micro as challenge-mini
-COPY --link --from=builder-desktop-base-yes / /
-COPY --link --from=builder-desktop-xfce-yes / /
+COPY --link --from=builder-desktop-yes / /
 
 ################################################################################
 
