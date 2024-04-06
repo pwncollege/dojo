@@ -1,5 +1,9 @@
 name: Test building and running dojo
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '42 06 * * *'
 jobs:
   smoketest:
     runs-on: ubuntu-22.04
@@ -11,6 +15,7 @@ jobs:
         with:
           tags: dojo-test
           load: true
+          no-cache: event.github.event.schedule
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
 
