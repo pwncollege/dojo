@@ -17,4 +17,4 @@ start-stop-daemon --start \
                   >>/tmp/.dojo/vnc/websockify-windows.log \
                   2>&1
 
-until curl -s dojo-user:6080 >/dev/null; do sleep 0.1; done
+until curl -s dojo-user:6082 >/dev/null; do sleep 0.1; done
