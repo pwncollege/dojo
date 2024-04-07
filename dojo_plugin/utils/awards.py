@@ -158,5 +158,5 @@ def update_awards(user):
         emoji_award = Emojis.query.filter_by(user=user, name=emoji, category=dojo_id).first()
         if emoji_award:
             continue
-        db.session.add(Emojis(user=user, name=emoji, description=f"Awarded for completing the {dojo_name} dojo.", category=dojo_id))
+        db.session.add(Emojis(user=user, name="completion", description=f"Awarded for completing the {dojo_name} dojo.", category=dojo_id))
         db.session.commit()
