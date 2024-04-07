@@ -15,6 +15,14 @@ BELT_REQUIREMENTS = {
     "green": "system-security",
     "blue": "software-exploitation",
 }
+SPECIAL_EMOJIS = {
+    "dojo_sensei": "🥋", # user hosts a dojo
+    "bug_bounty": "🐞", # award for bug bounty
+    "first_place": "🥇", # award for first place in an event
+    "second_place": "🥈", # award for second place in an event
+    "third_place": "🥉", # award for third place in an event
+    "missing": "❌" # emoji used when, e.g., a dojo removed its emoji award
+}
 
 def belt_asset(color):
     belt = color + ".svg" if color in BELT_REQUIREMENTS else "white.svg"
@@ -65,14 +73,18 @@ def get_belts():
 
 def get_viewable_emojis(user):
     result = { }
+    viewable_dojos = {
+        dojo.hex_dojo_id: dojo for dojo in
+        Dojos.viewable(user=user).where(Dojos.data["type"] != "example")
+    }
     viewable_dojo_urls = {
-        dojo.hex_dojo_id: url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
-        for dojo in Dojos.viewable(user=user).where(Dojos.data["type"] != "example")
+        k: url_for("pwncollege_dojo.listing", dojo=d.reference_id)
+        for k,d in viewable_dojos.items()
     }
     emojis = (
         Emojis.query
         .join(Users)
-        .filter(~Users.hidden, db.or_(Emojis.category.in_((*viewable_dojo_urls.keys(), None)), Emojis.category == None))
+        .filter(~Users.hidden, db.or_(Emojis.category.in_((*viewable_dojos.keys(), None)), Emojis.category == None))
         .order_by(Emojis.date)
         .with_entities(
             Emojis.name,
@@ -81,13 +93,36 @@ def get_viewable_emojis(user):
             Users.id.label("user_id"),
         )
     )
+
     for emoji in emojis:
+        # transitional logic --- will be removed
+        if "for being a sensei" in emoji.description:
+            name = "dojo_sensei"
+        elif "first-place" in emoji.description:
+            name = "first_place"
+        elif "for finding" in emoji.description:
+            name = "bug_bounty"
+        elif "for breaking" in emoji.description:
+            name = "bug_bounty"
+        else:
+            name = "completion"
+
+        badge = (
+            SPECIAL_EMOJIS.get(name) or
+            viewable_dojos[emoji.category].data.get(
+                'award', {}
+            ).get('emoji') or
+            # below here, the dojo _had_ an award and then got rid of it?
+            SPECIAL_EMOJIS["missing"]
+        )
+
         result.setdefault(emoji.user_id, []).append({
             "text": emoji.description,
-            "emoji": emoji.name,
+            "emoji": badge,
             "count": 1,
             "url": viewable_dojo_urls.get(emoji.category, "#"),
         })
+
     return result
 
 def update_awards(user):
