@@ -39,7 +39,7 @@ def get_belts():
     belts = (
         Belts.query
         .join(Users)
-        .filter(Belts.name.in_(BELT_ORDER), ~Users.hidden, Belts.date.isnot(None))  # TODO: Date should never be null
+        .filter(Belts.name.in_(BELT_ORDER), ~Users.hidden)
         .with_entities(
             Belts.date,
             Belts.name.label("color"),
@@ -72,7 +72,7 @@ def get_viewable_emojis(user):
     emojis = (
         Emojis.query
         .join(Users)
-        .filter(~Users.hidden, db.or_(Emojis.category.in_(*viewable_dojo_urls.keys()), Emojis.category == None))
+        .filter(~Users.hidden, db.or_(Emojis.category.in_(viewable_dojo_urls.keys()), Emojis.category == None))
         .order_by(Emojis.date)
         .with_entities(
             Emojis.name,
