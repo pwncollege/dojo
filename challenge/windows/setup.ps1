@@ -109,7 +109,7 @@ function EnableWmiRemoting($namespace) {
         throw "GetSecurityDescriptor failed: $($output.ReturnValue)"
     }
     $acl = $output.Descriptor
-    
+
     $computerName = (Get-WmiObject Win32_ComputerSystem).Name
     $acc = Get-WmiObject -Class Win32_Group -Filter "Domain='$computerName' and Name='Users'"
 
@@ -157,7 +157,7 @@ EnableWmiRemoting "Root/StandardCimv2"
 (Get-Content -Path C:\Windows\Temp\policy-edit.inf) `
     -replace "PasswordComplexity = 1", "PasswordComplexity = 0" `
     -replace "SeShutdownPrivilege .+", "`$0,hacker" `
-    -replace "SeRemoteShutdownPrivilege .+", "`$0,hacker" | 
+    -replace "SeRemoteShutdownPrivilege .+", "`$0,hacker" |
     Set-Content -Path C:\Windows\Temp\policy-edit.inf
 & secedit /configure /db C:\windows\security\local.sdb /cfg C:\Windows\Temp\policy-edit.inf
 Remove-Item -Force C:\Windows\Temp\policy-edit.inf
@@ -252,6 +252,10 @@ Add-Content -Path $env:windir\System32\drivers\etc\hosts -Value "`n$ip`tpublic-l
 # Unfortunately, launching sshd must be set as a startup file and cannot be done done via the service interface in this file
 Copy-Item A:\config_startup.ps1 -Destination "C:\Program Files\Common Files\startup.ps1"
 & schtasks /create /tn "dojoinit" /sc onstart /delay 0000:00 /rl highest /ru system /tr "powershell.exe -file 'C:\Program Files\Common Files\startup.ps1'" /f
+
+# config services' StartupType to start when Start-Service is called or manually started (Manual) instead of start with Windows (Automatic)
+Set-Service -Name sshd -StartupType Manual
+Set-Service -Name tvnserver -StartupType Manual
 
 # -- shutdown --
 Stop-Computer -computername localhost -force
