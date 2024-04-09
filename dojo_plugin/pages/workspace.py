@@ -42,7 +42,7 @@ def view_desktop():
 
     exec_run(
         "/opt/pwn.college/services.d/desktop",
-        user="hacker", pwncollege_uid=user.id, shell=True,
+        workspace_user="hacker", user_id=user.id, shell=True,
         assert_success=True
     )
 
@@ -110,7 +110,7 @@ def forward_workspace(service, service_path=""):
         if service in ondemand_services:
             exec_run(
                 f"/opt/pwn.college/services.d/{service}",
-                user="hacker", pwncollege_uid=user.id, shell=True,
+                workspace_user="hacker", user_id=user.id, shell=True,
                 assert_success=True
             )
 
