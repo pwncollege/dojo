@@ -41,7 +41,7 @@ def view_desktop():
         return render_template("iframe.html", active=False)
 
     exec_run(
-        "/opt/pwn.college/services.d/desktop 2>&1 > /tmp/.dojo/service-desktop.log",
+        "/opt/pwn.college/services.d/desktop",
         user="hacker", pwncollege_uid=user.id, shell=True,
         assert_success=True
     )
@@ -109,7 +109,7 @@ def forward_workspace(service, service_path=""):
 
         if service in ondemand_services:
             exec_run(
-                f"/opt/pwn.college/services.d/{service} 2>&1 > /tmp/.dojo/service-{service}.log",
+                f"/opt/pwn.college/services.d/{service}",
                 user="hacker", pwncollege_uid=user.id, shell=True,
                 assert_success=True
             )

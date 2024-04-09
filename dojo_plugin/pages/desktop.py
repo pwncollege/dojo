@@ -63,7 +63,7 @@ def view_desktop(user_id=None):
 @authed_only
 def view_desktop_win(user_id=None):
     exec_run(
-        "/opt/pwn.college/services.d/desktop-windows 2>&1 > /tmp/.dojo/service-desktop-windows.log",
+        "/opt/pwn.college/services.d/desktop-windows",
         user="hacker", pwncollege_uid=user_id or get_current_user().id, shell=True,
         assert_success=True
     )
