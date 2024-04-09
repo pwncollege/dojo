@@ -1,6 +1,7 @@
 #!/bin/sh
 
-ps aux | grep -q X[t]igervnc && exit
+[ -f /tmp/.dojo/vnc/vncserver.pid ] && exit
+exec 2> /tmp/.dojo/service-desktop.log
 
 mkdir -p /tmp/.dojo/vnc /home/hacker/.vnc
 

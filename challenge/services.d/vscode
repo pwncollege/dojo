@@ -1,6 +1,7 @@
 #!/bin/sh
 
-ps aux | grep -q code-serve[r] && exit
+[ -f /tmp/.dojo/code-server/code-server.pid ] && exit
+exec 2> /tmp/.dojo/service-vscode.log
 
 mkdir -p /tmp/.dojo/code-server
 start-stop-daemon --start \
