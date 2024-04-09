@@ -184,7 +184,7 @@ def start_challenge(user, dojo_challenge, practice):
             """,
             shell=True,
             container=container,
-            user="hacker"
+            workspace_user="hacker"
         )
 
     setup_home(user)
