@@ -9,7 +9,7 @@ start-stop-daemon --start \
                   --startas /usr/bin/code-server \
                   -- \
                   --auth=none \
-                  --bind-addr=dojo-user:6080 \
+                  --bind-addr=0.0.0.0:6080 \
                   --extensions-dir=/opt/code-server/extensions \
                   --disable-telemetry \
                   </dev/null \

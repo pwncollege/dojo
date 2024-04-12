@@ -220,7 +220,7 @@ def start_challenge(user, dojo_challenge, practice):
     flag = "practice" if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)
     insert_flag(flag)
 
-    auth_token = container.labels["dojo.auth_token"]
+    auth_token = container.metadata.annotations["dojo/auth_token"]
     insert_auth_token(auth_token)
 
     initialize_container()
@@ -262,10 +262,18 @@ def start_challenge(user, dojo_challenge, practice):
         if practice:
             hostname = f"practice~{hostname}"
 
+        config = dict(
+            privileged=str(bool(practice)).lower(),
+            auth_token=os.urandom(32).hex(),
+        )
+
         container = client.V1Container(
             name=name,
             image=image,
-            command=["/bin/tini", "--", "/bin/sleep", "6h"],
+            env=[
+                client.V1EnvVar(name=f"DOJO_{name.upper()}", value=value)
+                for name, value in config.items()
+            ],
             volume_mounts=[
                 client.V1VolumeMount(name="home", mount_path=f"/home/hacker"),
                 client.V1VolumeMount(name="kvm", mount_path="/dev/kvm"),
@@ -293,27 +301,26 @@ def start_challenge(user, dojo_challenge, practice):
             host_path=client.V1HostPathVolumeSource(path="/dev/kvm", type="CharDevice"),
         )
 
+        annotations = dict(
+            dojo_id=dojo_challenge.dojo.reference_id,
+            module_id=dojo_challenge.module.id,
+            challenge_id=dojo_challenge.id,
+            challenge_description=dojo_challenge.description,
+            user_id=str(user.id),
+            **config,
+        )
+        annotations = {f"dojo/{k}": v for k, v in annotations.items()}
+
         pod = client.V1Pod(
             api_version="v1",
             kind="Pod",
-            metadata=client.V1ObjectMeta(name=name),
+            metadata=client.V1ObjectMeta(name=name, annotations=annotations),
             spec=client.V1PodSpec(
+                hostname=hostname,
                 containers=[container],
                 volumes=[home_volume, kvm_volume],
-                hostname=hostname,
                 restart_policy="Never",
                 automount_service_account_token=False,
-            ),
-        )
-
-        service = client.V1Service(
-            api_version="v1",
-            kind="Service",
-            metadata=client.V1ObjectMeta(name=name),
-            spec=client.V1ServiceSpec(
-                selector={"app": name},
-                ports=[client.V1ServicePort(port=80, target_port=80)],
-                type="ClusterIP"  # or use "NodePort" or "LoadBalancer" as needed
             ),
         )
 

@@ -536,9 +536,8 @@ FROM builder-tools-pip-${INSTALL_TOOLS_PIP} as builder-tools-pip
 FROM builder-essentials as builder-pwn.college
 
 RUN mkdir /opt/pwn.college
-COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
-COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
-COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
+COPY entrypoint.d /opt/pwn.college/entrypoint.d
+COPY entrypoint.sh /opt/pwn.college/entrypoint.sh
 COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
 COPY bash.bashrc /opt/pwn.college/bash.bashrc
 COPY vm /opt/pwn.college/vm
@@ -690,5 +689,4 @@ RUN <<EOF
     date > /opt/pwn.college/build
 EOF
 
-USER hacker
-WORKDIR /home/hacker
+ENTRYPOINT [ "/opt/pwn.college/entrypoint.sh" ]

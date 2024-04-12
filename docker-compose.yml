@@ -1,5 +1,3 @@
-version: '3.4'
-
 services:
   kube-server:
     container_name: kube-server

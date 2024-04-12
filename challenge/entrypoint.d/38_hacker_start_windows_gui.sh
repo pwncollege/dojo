@@ -11,7 +11,7 @@ then
                     --startas /usr/bin/websockify \
                     -- \
                     --web /usr/share/novnc/ \
-                    dojo-user:6082 \
+                    0.0.0.0:6082 \
                     localhost:5912 \
                     </dev/null \
                     >>/tmp/.dojo/vnc/websockify-windows.log \

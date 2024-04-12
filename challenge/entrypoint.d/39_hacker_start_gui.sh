@@ -2,9 +2,8 @@
 
 mkdir -p /tmp/.dojo/vnc /home/hacker/.vnc
 
-container_id="$(cat /.authtoken)"
-password_interact="$(printf 'desktop-interact' | openssl dgst -sha256 -hmac "$container_id" | awk '{print $2}' | head -c 8)"
-password_view="$(printf 'desktop-view' | openssl dgst -sha256 -hmac "$container_id" | awk '{print $2}' | head -c 8)"
+password_interact="$(printf 'desktop-interact' | openssl dgst -sha256 -hmac "$DOJO_AUTH_TOKEN" | awk '{print $2}' | head -c 8)"
+password_view="$(printf 'desktop-view' | openssl dgst -sha256 -hmac "$DOJO_AUTH_TOKEN" | awk '{print $2}' | head -c 8)"
 printf '%s\n%s\n' "$password_interact" "$password_view" | tigervncpasswd -f > /tmp/.dojo/vnc/passwd
 
 start-stop-daemon --start \
@@ -33,7 +32,7 @@ start-stop-daemon --start \
                   --startas /usr/bin/websockify \
                   -- \
                   --web /usr/share/novnc/ \
-                  dojo-user:6081 \
+                  0.0.0.0:6081 \
                   --unix-target=/tmp/.dojo/vnc/socket \
                   </dev/null \
                   >>/tmp/.dojo/vnc/websockify.log \
