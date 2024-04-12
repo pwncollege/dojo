@@ -133,7 +133,7 @@ services:
       - ERROR_LOG=-
       - REVERSE_PROXY=true
       - SERVER_SENT_EVENTS=false
-      - SECRET_KEY=${SECRET_KEY}'
+      - SECRET_KEY=${SECRET_KEY}
       - DOJO_HOST=${DOJO_HOST}
       - HOST_DATA_PATH=/opt/pwn.college/data
       - KUBECONFIG=/var/kubeconfig/kube.yaml

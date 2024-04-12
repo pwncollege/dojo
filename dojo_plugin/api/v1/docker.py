@@ -262,7 +262,9 @@ def start_challenge(user, dojo_challenge, practice):
         if practice:
             hostname = f"practice~{hostname}"
 
+        flag = "practice" if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)
         config = dict(
+            flag=f"pwn.college{{{flag}}}",
             privileged=str(bool(practice)).lower(),
             auth_token=os.urandom(32).hex(),
         )
@@ -321,6 +323,7 @@ def start_challenge(user, dojo_challenge, practice):
                 volumes=[home_volume, kvm_volume],
                 restart_policy="Never",
                 automount_service_account_token=False,
+                enable_service_links=False,
             ),
         )
 
