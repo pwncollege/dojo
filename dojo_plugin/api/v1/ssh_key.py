@@ -19,8 +19,10 @@ ssh_key_namespace = Namespace(
 class UpdateKey(Resource):
     @authed_only
     def patch(self):
+
         data = request.get_json()
         key_value = data.get("ssh_key", "")
+
 
         if key_value:
             key_re = "ssh-(rsa|ed25519|dss) AAAA[0-9A-Za-z+/]+[=]{0,2}"
@@ -41,6 +43,7 @@ class UpdateKey(Resource):
             key = SSHKeys(user_id=user.id, value=key_value)
             db.session.add(key)
             db.session.commit()
+
         except IntegrityError:
             db.session.rollback()
             return (
@@ -48,4 +51,46 @@ class UpdateKey(Resource):
                 400,
             )
 
+        return {"success": True}
+    
+    
+@ssh_key_namespace.route("/delete")
+class UpdateKey(Resource):
+    @authed_only
+    def patch(self):
+        data = request.get_json()
+        key_value = data.get("ssh_key", "")
+
+        data = request.get_json()
+        key_value = data.get("ssh_key", "")
+        if not key_value:
+            return (
+                    {
+                        "success": False,
+                        "error": "No key in request"
+                    },
+                    400,
+                )
+        
+        user = get_current_user()
+
+        try:
+            current_key = SSHKeys.query.filter_by(value=key_value)
+            if not current_key.first(): 
+                return (
+                    {"success": False, "error": "Key does not exist"},
+                    400,
+                )
+            if not current_key.first().user_id != user: 
+                return (
+                    {"success": False, "error": "This is not your public key"},
+                    400,
+                )
+            current_key.delete()
+            db.session.commit()
+        except IntegrityError:
+            return (
+                {"success": False, "errors": "Public key not currently in use"},
+                400,
+            )
         return {"success": True}

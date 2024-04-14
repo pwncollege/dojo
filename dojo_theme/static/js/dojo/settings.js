@@ -75,6 +75,7 @@ function button_fetch_and_show(name, endpoint, method,data, success_message, con
 
 $(() => {
     form_fetch_and_show("ssh-key", "/pwncollege_api/v1/ssh_key", "PATCH", "Your public key has been updated");
+    form_fetch_and_show("delete-ssh-key", "/pwncollege_api/v1/ssh_key/delete", "PATCH", "Your public key has been deleted");
     form_fetch_and_show("dojo-create", "/pwncollege_api/v1/dojo/create", "POST", "Your dojo has been created");
     form_fetch_and_show("dojo-promote-admin", `/pwncollege_api/v1/dojo/${init.dojo}/promote-admin`, "POST", "User has been promoted to admin.", confirm_msg = (form, params) => {
         var user_name = form.find(`#name-for-${params["user_id"]}`)
