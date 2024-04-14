@@ -679,8 +679,9 @@ class DojoResourceVisibilities(db.Model):
 
 class SSHKeys(db.Model):
     __tablename__ = "ssh_keys"
+    id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
-        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE")
     )
     value = db.Column(db.Text, unique=True)
 

@@ -38,12 +38,8 @@ class UpdateKey(Resource):
         user = get_current_user()
 
         try:
-            existing_key = SSHKeys.query.filter_by(user_id=user.id).first()
-            if not existing_key:
-                key = SSHKeys(user_id=user.id, value=key_value)
-                db.session.add(key)
-            else:
-                existing_key.value = key_value
+            key = SSHKeys(user_id=user.id, value=key_value)
+            db.session.add(key)
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
