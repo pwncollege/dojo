@@ -89,19 +89,22 @@
           <br>
 
           {% for key in ssh_key %}
-            <form method="post" id="delete-ssh-key-form" autocomplete="off">
-              <div class="form-group">
-                  <input class="form-control" id="ssh-key" name="ssh_key" type="text" value="{{ key }}">
+          <form method="post" id="delete-ssh-key-form" autocomplete="off">
+            <div class="form-group">
+              <div class="input-group">
+                <input class="form-control" id="ssh-key" name="ssh_key" type="text" value="{{ key }}">
+                <div class="input-group-append">
+                  <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
               </div>
-
-              <div id="delete-ssh-key-results" class="form-group">
-              </div>
-
-              <div class="form-group text-right">
-                <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Update">
-              </div>
-            </form>
-          {% endfor %}
+            </div>
+      
+            <div id="delete-ssh-key-results" class="form-group">
+            </div>
+          </form>
+        {% endfor %}
 
 
           <form method="post" id="ssh-key-form" autocomplete="off">

@@ -55,7 +55,7 @@ class UpdateKey(Resource):
     
     
 @ssh_key_namespace.route("/delete")
-class UpdateKey(Resource):
+class DeleteKey(Resource):
     @authed_only
     def patch(self):
         data = request.get_json()
