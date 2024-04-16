@@ -681,7 +681,7 @@ class SSHKeys(db.Model):
     __tablename__ = "ssh_keys"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
-        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE")
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     value = db.Column(db.Text, unique=True)
 

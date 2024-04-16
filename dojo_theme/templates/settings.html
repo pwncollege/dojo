@@ -82,29 +82,34 @@
           {% endwith %}
         </div>
 
-
         <div class="tab-pane fade" id="ssh-key" role="tabpanel">
           <b><label for="enter-name">Current SSH Keys</label></b>
           <small class="form-text text-muted">SSH Keys Currently Registered to this Account</small>
           <br>
 
-          {% for key in ssh_key %}
-          <form method="post" id="delete-ssh-key-form" autocomplete="off">
-            <div class="form-group">
-              <div class="input-group">
-                <input class="form-control" id="ssh-key" name="ssh_key" type="text" value="{{ key }}">
-                <div class="input-group-append">
-                  <button type="submit" class="btn btn-danger">
-                    <i class="fas fa-times"></i>
-                  </button>
-                </div>
+          {% for key in ssh_keys %}
+          <form method="post" id="delete-ssh-key-{{ loop.index }}-form" autocomplete="off">
+              <div class="form-group">
+                  <div class="input-group">
+                      <input class="form-control" id="ssh-key" name="ssh_key" type="text" value="{{ key }}">
+                      <div class="input-group-append">
+                          <button type="submit" class="btn btn-danger" id="delete-ssh-key-button-{{ loop.index }}">
+                              <i class="fas fa-times"></i>
+                          </button>
+                      </div>
+                  </div>
               </div>
-            </div>
       
-            <div id="delete-ssh-key-results" class="form-group">
-            </div>
+              <div id="delete-ssh-key-{{ loop.index }}-results" class="form-group">
+              </div>
           </form>
-        {% endfor %}
+
+          <script>
+            document.addEventListener('DOMContentLoaded', function() {
+              form_fetch_and_show("delete-ssh-key-{{ loop.index }}", "/pwncollege_api/v1/ssh_key", "DELETE", "Your public key has been deleted");
+            });
+          </script>
+          {% endfor %}
 
 
           <form method="post" id="ssh-key-form" autocomplete="off">
@@ -123,7 +128,6 @@
             </div>
           </form>
         </div>
-
 
         {% if discord_enabled %}
         <div class="tab-pane fade" id="discord" role="tabpanel">

@@ -18,11 +18,9 @@ ssh_key_namespace = Namespace(
 @ssh_key_namespace.route("")
 class UpdateKey(Resource):
     @authed_only
-    def patch(self):
-
+    def post(self):
         data = request.get_json()
         key_value = data.get("ssh_key", "")
-
 
         if key_value:
             key_re = "ssh-(rsa|ed25519|dss) AAAA[0-9A-Za-z+/]+[=]{0,2}"
@@ -43,7 +41,6 @@ class UpdateKey(Resource):
             key = SSHKeys(user_id=user.id, value=key_value)
             db.session.add(key)
             db.session.commit()
-
         except IntegrityError:
             db.session.rollback()
             return (
@@ -53,11 +50,8 @@ class UpdateKey(Resource):
 
         return {"success": True}
     
-    
-@ssh_key_namespace.route("/delete")
-class DeleteKey(Resource):
     @authed_only
-    def patch(self):
+    def delete(self):
         data = request.get_json()
         key_value = data.get("ssh_key", "")
 
