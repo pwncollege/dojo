@@ -43,20 +43,20 @@ function loadScoreboard(duration, page) {
         standings.forEach(user => {
             const row = $(`
             <tr>
-              <td scope="row"><b>#${user.rank}</b></td>
-              <td class="p-0">
+              <td scope="row" class="col-md-1"><b>#${user.rank}</b></td>
+              <td class="col-md-1 p-0">
                 <img src="${user.symbol}" class="scoreboard-symbol">
               </td>
-              <td>
+              <td class="col-md-4">
                 <a href="${user.url}" class="scoreboard-name text-decoration-none">
                 </a>
               </td>
-              <td class="scoreboard-completions">
+              <td class="scoreboard-completions col-md-4">
               </td>
-              <td>
+              <td class="col-md-1">
                 <img src="${user.belt}" class="scoreboard-belt">
               </td>
-              <td><b>${user.solves}</b></td>
+              <td class="col-md-1"><b>${user.solves}</b></td>
             </tr>
             `);
             row.find(".scoreboard-name").text(user.name.slice(0, 50));
