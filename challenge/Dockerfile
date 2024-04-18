@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1-labs
 
 ARG UBUNTU_VERSION=20.04
 ARG DOJO_CHALLENGE=challenge-mini
@@ -14,15 +14,16 @@ ARG INSTALL_GECKODRIVER=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_BURPSUITE=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_BUSYBOX=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_GLOW=${DEFAULT_INSTALL_SELECTION}
-ARG INSTALL_DESKTOP_BASE=${DEFAULT_INSTALL_SELECTION}
-ARG INSTALL_XFCE=${DEFAULT_INSTALL_SELECTION}
+ARG INSTALL_DESKTOP=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_VIRTIOFSD=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_IDA_FREE=${DEFAULT_INSTALL_SELECTION}
+ARG INSTALL_BINJA_FREE=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_GHIDRA=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_ANGR_MANAGEMENT=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_GDB=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_TOOLS_PIP=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_TOOLS_APT=${DEFAULT_INSTALL_SELECTION}
+ARG INSTALL_WINDOWS=${DEFAULT_INSTALL_SELECTION}
 
 FROM ubuntu:${UBUNTU_VERSION} as essentials
 
@@ -48,6 +49,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get clean && rm -rf /var/lib/apt/lists/*
         ca-certificates
         curl
+        netcat-openbsd
         socat
         sudo
         tini
@@ -80,11 +82,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         autoconf
         bc
         bison
+        cargo
         clang
         cmake
         cpio
         openjdk-17-jdk
         flex
+	dwarves
         g++-multilib
         gcc-multilib
         git
@@ -113,6 +117,28 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         rubygems
         squashfs-tools
         upx-ucl
+        p7zip-full
+        apache2
+        php-cgi
+        mysql-server
+        php-mysql
+        libapache2-mod-php
+EOF
+
+################################################################################
+
+FROM builder as builder-github-tools
+RUN <<EOF
+    git clone --depth 1 --recurse-submodules https://github.com/pwncollege/dojjail /opt/dojjail
+    pip install -e /opt/dojjail
+
+    git clone --depth 1 --recurse-submodules https://github.com/zolutal/kropr /opt/kropr
+    cd /opt/kropr
+    cargo install --path . --root /tmp
+    mv /tmp/bin/ropr /usr/bin/kropr
+    chmod +x /usr/bin/kropr
+
+    git clone --depth 1 --recurse-submodules https://github.com/zolutal/gdb-pt-dump /opt/pt-dump
 EOF
 
 ################################################################################
@@ -195,6 +221,10 @@ RUN <<EOF
 
     git clone --depth 1 https://github.com/hugsy/gef /opt/gef
     git clone --depth 1 https://github.com/jerdna-regeiz/splitmind /opt/splitmind
+
+    git clone --depth 1 https://github.com/nccgroup/libslub /opt/libslub
+    cd /opt/libslub
+    pip install -r requirements.txt
 EOF
 
 FROM builder-gdb-${INSTALL_GDB} as builder-gdb
@@ -347,36 +377,22 @@ FROM builder-virtiofsd-${INSTALL_VIRTIOFSD} as builder-virtiofsd
 
 ################################################################################
 
-FROM essentials as builder-desktop-base-no
-FROM essentials as builder-desktop-base-yes
+FROM essentials as builder-desktop-no
+FROM essentials as builder-desktop-yes
 
 ARG UBUNTU_VERSION=20.04
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     [ "${UBUNTU_VERSION}" == "20.04" ] && TGR=common || TGR=tools; \
-    apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
+    apt-get update && xargs apt-get install -yqq <<EOF && \
+    apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
+    apt-get -y autoremove && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
         novnc
         tigervnc-standalone-server
         tigervnc-$TGR
         websockify
-        fluxbox
         xterm
-EOF
-
-FROM builder-desktop-base-${INSTALL_DESKTOP_BASE} as builder-desktop-base
-
-################################################################################
-
-FROM builder-desktop-base-no as builder-desktop-xfce-no
-FROM builder-desktop-base-yes as builder-desktop-xfce-yes
-
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install -yqq <<EOF && \
-    apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
-    apt-get -y autoremove && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
         dbus-x11
         mousepad
         xclip
@@ -390,7 +406,7 @@ COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
 
 RUN rm /etc/xdg/autostart/*
 
-FROM builder-desktop-xfce-${INSTALL_XFCE} as builder-desktop-xfce
+FROM builder-desktop-${INSTALL_DESKTOP} as builder-desktop
 
 ################################################################################
 
@@ -439,6 +455,21 @@ FROM builder-desktop-ida-free-${INSTALL_IDA_FREE} as builder-desktop-ida-free
 
 ################################################################################
 
+FROM essentials as builder-desktop-binja-free-no
+FROM essentials as builder-desktop-binja-free-yes
+
+COPY desktop/binary-ninja.desktop /usr/share/applications/
+RUN <<EOF
+    wget -O /tmp/BinaryNinja-free.zip https://cdn.binary.ninja/installers/BinaryNinja-free.zip
+    unzip -d /opt /tmp/BinaryNinja-free.zip
+    wget -O /opt/binaryninja/icon.png  https://binary.ninja/icons/android-chrome-192x192.png
+    rm /tmp/BinaryNinja-free.zip
+EOF
+
+FROM builder-desktop-binja-free-${INSTALL_BINJA_FREE} as builder-desktop-binja-free
+
+################################################################################
+
 FROM essentials as builder-tools-apt-no
 FROM essentials as builder-tools-apt-yes
 
@@ -462,6 +493,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         expect
         fish
         findutils
+	finger
         firefox
         gcc-aarch64-linux-gnu
         gdb
@@ -481,7 +513,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         nano
         neovim
         net-tools
-        netcat-openbsd
         nmap
         openssh-server
         parallel
@@ -538,6 +569,7 @@ FROM builder-essentials as builder-pwn.college
 RUN mkdir /opt/pwn.college
 COPY entrypoint.d /opt/pwn.college/entrypoint.d
 COPY entrypoint.sh /opt/pwn.college/entrypoint.sh
+COPY services.d /opt/pwn.college/services.d
 COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
 COPY bash.bashrc /opt/pwn.college/bash.bashrc
 COPY vm /opt/pwn.college/vm
@@ -554,6 +586,127 @@ RUN gcc /opt/pwn.college/setuid_interpreter.c -DSUID_PYTHON -o /opt/pwn.college/
 
 ################################################################################
 
+
+FROM builder-tools-apt as builder-windows-no
+FROM builder-tools-apt as builder-windows-base
+
+WORKDIR /opt/windows
+COPY windows/Autounattend.xml windows/setup.ps1 windows/config_startup.ps1 windows/sshd_config ./
+COPY windows/shutdown.py .
+
+
+FROM builder-windows-base as builder-windows-base-ida-yes
+
+RUN <<EOF
+    mkdir -p ./build
+    echo 'APT::Install-Recommends 0;' >> /etc/apt/apt.conf.d/01norecommends
+    echo 'APT::Install-Suggests 0;' >> /etc/apt/apt.conf.d/01norecommends
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        ca-certificates apt-transport-https curl \
+        xorriso mtools dosfstools qemu-utils qemu-kvm python3 openssh-client
+    rm -rf /var/lib/apt/lists/*
+    sed -i "s/INSTALL_IDA_FREE/yes/g" ./setup.ps1
+    touch ./practice-mode-enabled
+    mkfs.fat -F 12 -C ./build/floppy.img 1440
+    mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./config_startup.ps1 ./practice-mode-enabled ./sshd_config ::
+    rm -rf ./Autounattend.xml ./setup.ps1 ./practice-mode-enabled ./sshd_config
+EOF
+
+FROM builder-windows-base as builder-windows-base-ida-no
+
+RUN <<EOF
+    mkdir -p ./build
+    echo 'APT::Install-Recommends 0;' >> /etc/apt/apt.conf.d/01norecommends
+    echo 'APT::Install-Suggests 0;' >> /etc/apt/apt.conf.d/01norecommends
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        ca-certificates apt-transport-https curl \
+        xorriso mtools dosfstools qemu-utils qemu-kvm python3 openssh-client
+    rm -rf /var/lib/apt/lists/*
+    touch ./practice-mode-enabled
+    mkfs.fat -F 12 -C ./build/floppy.img 1440
+    mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./practice-mode-enabled ./sshd_config ::
+    rm -rf ./Autounattend.xml ./setup.ps1 ./practice-mode-enabled ./sshd_config
+EOF
+
+from builder-windows-base-ida-${INSTALL_IDA_FREE} as builder-windows-install
+
+RUN <<EOF
+    echo "Building virtio drivers disk"
+    curl -Lo virtio-win-raw.iso \
+      'https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-virtio/virtio-win.iso'
+    WORKDIR="$(mktemp -d --suffix=.img-extract)"
+    EXTRACT_DIR="$WORKDIR/virtio-win"
+    mkdir -p "$EXTRACT_DIR"
+    xorriso -report_about SORRY -osirrox on -indev ./virtio-win-raw.iso -extract / "$EXTRACT_DIR"
+    rm ./virtio-win-raw.iso
+    xorriso \
+      -as genisoimage -rock -joliet -volid VIRTIO \
+      -output ./build/virtio-win-processed.iso \
+      "$WORKDIR"
+    rm -rf "$WORKDIR" virtio-win-raw.iso
+EOF
+
+RUN <<EOF
+    echo "Downloading Windows Server ISO"
+    curl -Lo ./build/server-2022.iso \
+      'https://software-static.download.prss.microsoft.com/sg/download/888969d5-f34g-4e03-ac9d-1f9786c66749/SERVER_EVAL_x64FRE_en-us.iso'
+EOF
+
+RUN --security=insecure <<EOF
+    echo "Creating VM image"
+    rm -rf ./build/clean.qcow2 ./build/image-built
+    qemu-img create -f qcow2 ./build/clean.qcow2 51200M
+    echo "Installing and configuring windows (this will take 20+ min)"
+    qemu-system-x86_64 \
+      -name dojo \
+      -boot once=d \
+      -machine type=pc,accel=kvm \
+      -m 4096M \
+      -smp "$(nproc)" \
+      -display vnc=:12 \
+      -nographic \
+      -device virtio-net,netdev=user.0 \
+      -netdev user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::2222-:22 \
+      -serial null \
+      -drive "file=./build/floppy.img,format=raw,index=0,if=floppy" \
+      -drive "file=./build/server-2022.iso,media=cdrom" \
+      -drive "file=./build/virtio-win-processed.iso,media=cdrom" \
+      -drive "file=./build/clean.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2"
+    rm -rf ./build/monitor.sock
+EOF
+
+# This step also does the "post-install building as hacker with admin privs"
+from builder-windows-install as builder-windows-yes
+
+COPY windows/challenge-proxy.c windows/post_install.sh windows/post_install.ps1 windows/startup.ps1 ./
+
+RUN --security=insecure <<EOF
+    echo "Performing initial bootup"
+    qemu-system-x86_64 \
+      -name dojo \
+      -boot once=d \
+      -machine type=pc,accel=kvm \
+      -m 4096M \
+      -smp "$(nproc)" \
+      -display vnc=:12 \
+      -nographic \
+      -device virtio-net,netdev=user.0 \
+      -netdev user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::2222-:22 \
+      -serial null \
+      -drive "file=./build/floppy.img,format=raw,index=0,if=floppy" \
+      -drive "file=./build/server-2022.iso,media=cdrom" \
+      -drive "file=./build/virtio-win-processed.iso,media=cdrom" \
+      -drive "file=./build/clean.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2" &
+    ./post_install.sh
+    rm -f ./build/monitor.sock
+EOF
+
+FROM builder-windows-${INSTALL_WINDOWS} as builder-windows
+
+################################################################################
+
 FROM ubuntu:${UBUNTU_VERSION} as challenge-nano
 
 SHELL ["/bin/bash", "-ceov", "pipefail"]
@@ -564,6 +717,7 @@ COPY --link --from=essentials / /
 COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
 
 RUN <<EOF
+    ln -sf /bin/bash /opt/pwn.college/ssh-entrypoint
     ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
     ln -sf /opt/pwn.college/windows/windows /usr/local/bin/windows
 
@@ -580,11 +734,12 @@ EOF
 
 FROM challenge-nano as challenge-micro
 COPY --link --from=builder-code-server / /
+COPY --link --from=builder-github-tools / /
 
 ################################################################################
 
 FROM challenge-micro as challenge-mini
-COPY --link --from=builder-desktop-base / /
+COPY --link --from=builder-desktop-yes / /
 
 ################################################################################
 
@@ -604,20 +759,24 @@ COPY --link --from=builder-geckodriver / /
 COPY --link --from=builder-burpsuite / /
 COPY --link --from=builder-busybox / /
 COPY --link --from=builder-glow / /
-COPY --link --from=builder-desktop-xfce / /
 COPY --link --from=builder-virtiofsd /opt/virtiofsd /opt/virtiofsd
 COPY --link --from=builder-desktop-ida-free / /
+COPY --link --from=builder-desktop-binja-free / /
 COPY --link --from=builder-desktop-ghidra / /
 COPY --link --from=builder-desktop-angr-management / /
 COPY --link --from=builder-gdb / /
 COPY --link --from=builder-tools-pip / /
 COPY --link --from=builder-tools-apt / /
+COPY --link --from=builder-windows / /
 
 ################################################################################
 
 FROM challenge-mini as challenge-full
 
-# here, everything is installed except for IDA, which still uses the INSTALL_IDA_FREE parameter
+# here, everything is installed except for
+# IDA, which still uses the INSTALL_IDA_FREE parameter
+# binja, which uses the INSTALL_BINJA_FREE parameter
+# windows, which uses the INSTALL_WINDOWS parameter
 
 # TODO: probably extra slow to `COPY / /`
 COPY --link --from=builder-essentials / /
@@ -633,14 +792,15 @@ COPY --link --from=builder-geckodriver-yes / /
 COPY --link --from=builder-burpsuite-yes / /
 COPY --link --from=builder-busybox-yes / /
 COPY --link --from=builder-glow-yes / /
-COPY --link --from=builder-desktop-xfce-yes / /
 COPY --link --from=builder-virtiofsd-yes /opt/virtiofsd /opt/virtiofsd
 COPY --link --from=builder-desktop-ida-free / /
+COPY --link --from=builder-desktop-binja-free / /
 COPY --link --from=builder-desktop-ghidra-yes / /
 COPY --link --from=builder-desktop-angr-management-yes / /
 COPY --link --from=builder-gdb-yes / /
 COPY --link --from=builder-tools-pip-yes / /
 COPY --link --from=builder-tools-apt-yes / /
+COPY --link --from=builder-windows / /
 
 ################################################################################
 

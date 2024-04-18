@@ -3,7 +3,7 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1>{{ dojo.name }}</h1>
+    <h1>{{ dojo.name or dojo.id }}</h1>
   </div>
 </div>
 <div class="container">
@@ -25,7 +25,7 @@
       </figure>
     </div>
     {% endif %}
-    {% if dojo_user.type == "admin" %}
+    {% if dojo_user.type == "admin" or user.type == "admin" %}
     <div class="col-lg-auto m-3">
       <figure>
         <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo_admin', dojo=dojo.reference_id) }}">
@@ -69,7 +69,7 @@
       {# TODO: card-active, card-hidden #}
       <li class="card card-small">
         <div class="card-body">
-          <h4 class="card-title">{{ module.name }}</h4>
+          <h4 class="card-title">{{ module.name or module.id }}</h4>
           <p class="card-text">
             {{ module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0 }} / {{ module.visible_challenges() | length }}
           </p>
@@ -83,17 +83,12 @@
 
   <h2 class="row">Dojo Rankings:</h2>
   <br>
-  <p>
-    <a href="javascript:loadScoreboard(7, 1)">Week</a> |
-    <a href="javascript:loadScoreboard(30, 1)">Month</a> |
-    <a href="javascript:loadScoreboard(0, 1)">All Time</a>
-  </p>
   {% from "macros/scoreboard.html" import scoreboard %}
   {{ scoreboard() }}
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script defer onload="loadScoreboard(0, 1);" src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
+<script defer onload="loadScoreboard(30, 1);" src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
 <script defer src="{{ url_for('views.themes', path='js/dojo/copy.js') }}"></script>
 {% endblock %}

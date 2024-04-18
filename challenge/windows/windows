@@ -12,7 +12,7 @@ import grp
 import argparse
 from pathlib import Path
 
-VOLUME_PATH = Path("/run/media/windows")
+VOLUME_PATH = Path("/opt/windows/build")
 # /run is not world writeable. this should prevent race conditions.
 STATEFUL_PATH = Path("/run/windows")
 IMAGE_PATH = STATEFUL_PATH / "windows_img.qcow2"
@@ -32,12 +32,6 @@ def error(msg):
 
 
 def initialize():
-    if not VOLUME_PATH.is_dir():
-        raise AssertionError("Dojo was not configured with WINDOWS_VM=full")
-
-    if not (VOLUME_PATH / "image-built").exists():
-        raise AssertionError("For security reasons, cannot interact with VM while it is building")
-
     os.setegid(os.geteuid())
     try:
         STATEFUL_PATH.mkdir()
@@ -200,7 +194,7 @@ def start():
     if is_privileged():
         (FLAG_SHARE_PATH / "practice-mode-enabled").touch()
 
-    mem = "4096M"
+    mem = "2048M"
     # fmt: off
     qemu_argv = [
         "/usr/bin/qemu-system-x86_64",
@@ -221,8 +215,8 @@ def start():
     ]
     # fmt: on
     mounts = {
-        "challenge": ("/challenge", False), 
-        "home": ("/home/hacker", False), 
+        "challenge": ("/challenge", False),
+        "home": ("/home/hacker", False),
         "flag": (str(FLAG_SHARE_PATH), True)
     }
     for tag, (mountpoint, needs_root) in mounts.items():

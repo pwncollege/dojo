@@ -11,7 +11,7 @@ echo 'pwn.college{uninitialized}' > C:\flag
 # crash course in the footguns of NTFS's ACL based permissions system that I learned
 #  the hard way:
 # - a "Deny" rule will always take precedence over an "Allow" rule.
-#   For example: Admins Allow Read + Users Deny Read 
+#   For example: Admins Allow Read + Users Deny Read
 #   This will result in no one being able to read the flag because they all fall under
 #    the "Users" rule.
 # - ACLs inherit from the parent directory by default unless explicitly disabled.
@@ -35,6 +35,8 @@ Remove-Item -Path X:\flag -Force
 if (Test-Path X:\practice-mode-enabled) {
   Add-LocalGroupMember -Group "Administrators" -Member hacker
 }
+
+logoff console
 
 Start-Service sshd
 Start-Service tvnserver

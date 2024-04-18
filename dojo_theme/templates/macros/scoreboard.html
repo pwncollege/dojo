@@ -1,24 +1,31 @@
 {% macro scoreboard() -%}
-  <div class="scoreboard row">
-    <div class="col-md-12 p-0">
-      <table class="table table-striped">
-	<thead>
-	  <tr>
-	    <td scope="col" class="col-md-1"><b>Rank</b></td>
-            <td scope="col" class="col-md-1"></td>
-	    <td scope="col" class="col-md-4"><b>Hacker</b></td>
-	    <td scope="col" class="col-md-4"><b>Badges</b></td>
-	    <td scope="col" class="col-md-1"></td>
-	    <td scope="col" class="col-md-1"><b>Score</b></td>
-	  </tr>
-	</thead>
-	<tbody id="scoreboard">
-	</tbody>
-      </table>
-    </div>
-    <div>
-      <ul id="scoreboard-pages" class="p-0">
-      </ul>
-    </div>
+<div class="scoreboard-controls row">
+  <p>
+  <span id="scoreboard-control-week"><a href="javascript:loadScoreboard(7, 1)">Week</a></span> |
+  <span id="scoreboard-control-month"><a href="javascript:loadScoreboard(30, 1)">Month</a></span> |
+  <span id="scoreboard-control-all"><a href="javascript:loadScoreboard(0, 1)">All Time</a></span>
+  </p>
+</div>
+<div class="scoreboard row">
+  <div class="col-md-12 p-0">
+    <table class="table table-striped">
+	    <thead>
+	      <tr>
+	        <td scope="col" class="col-md-1"><b>Rank</b></td>
+          <td scope="col" class="col-md-1"></td>
+	        <td scope="col" class="col-md-4"><b>Hacker</b></td>
+	        <td scope="col" class="col-md-4"><b>Badges</b></td>
+	        <td scope="col" class="col-md-1"></td>
+	        <td scope="col" class="col-md-1"><b>Score</b></td>
+	      </tr>
+	    </thead>
+	    <tbody id="scoreboard">
+	    </tbody>
+    </table>
   </div>
+  <div>
+    <ul id="scoreboard-pages" class="p-0">
+    </ul>
+  </div>
+</div>
 {%- endmacro %}

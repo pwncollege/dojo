@@ -2,86 +2,107 @@
 
 {% block content %}
 <div class="jumbotron">
-    <div class="container">
-        <h1>Dojo Admin</h1>
-        <br>
-        <h2>{{ dojo.name }}</h2>
-    </div>
+  <div class="container">
+    <h1>Dojo Admin</h1>
+    <br>
+    <h2>{{ dojo.name }}</h2>
+  </div>
 </div>
 <div class="container">
-    <div class="row text-center">
-      <div class="col-lg-auto m-3">
-        <figure>
-          <a class="text-decoration-none" href="#"
-            data-copy="{{ url_for('pwncollege_dojos.join_dojo', dojo=dojo.reference_id, password=dojo.password, _external=True) }}"
-            onclick="copyToClipboard(event)">
-            <i class="fas fa-share fa-3x"></i>
-            <figcaption><b style="font-family: 'Courier New', Courier, monospace" id="tooltip">&nbsp;Share&nbsp;</b></figcaption>
-          </a>
-        </figure>
-      </div>
-        <div class="col-lg-auto m-3">
-          <figure>
-            <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.update_dojo', dojo=dojo.reference_id, update_code=dojo.update_code) }}" target="_blank">
-              <i class="fas fa-upload fa-3x"></i>
-              <figcaption><b style="font-family: 'Courier New', Courier, monospace">Update</b></figcaption>
-            </a>
-          </figure>
-        </div>
-        <div class="col-lg-auto m-3">
-          <figure>
-            <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo_solves', dojo=dojo.reference_id) }}">
-              <i class="fas fa-file-csv fa-3x"></i>
-              <figcaption><b style="font-family: 'Courier New', Courier, monospace">Solves</b></figcaption>
-            </a>
-          </figure>
-        </div>
-        {% if dojo.course %}
-          <div class="col-lg-auto m-3">
-            <figure>
-              <a class="text-decoration-none" href="{{ url_for('course.view_all_grades', dojo=dojo.reference_id) }}">
-                <i class="fas fa-signal fa-3x"></i>
-                <figcaption><b style="font-family: 'Courier New', Courier, monospace">Grades</b></figcaption>
-              </a>
-            </figure>
-          </div>
-        {% endif %}
-      <br>
-      <form method="post" id="dojo-award-prune-form" autocomplete="off">
-        <div class="form-group">
-          <input class="btn btn-mini btn-primary" id="_submit" name="_submit" type="submit" value="Prune Legacy Emoji Awards">
-        </div>
-        <div id="dojo-award-prune-results" class="form-group">
-        </div>
-      </form>
+  <div id="dojo-delete-results" class="form-group">
+  <div class="row text-center">
+    <div class="col-lg-auto m-3">
+      <figure>
+      <a class="text-decoration-none" href="#"
+        data-copy="{{ url_for('pwncollege_dojos.join_dojo', dojo=dojo.reference_id, password=dojo.password, _external=True) }}"
+        onclick="copyToClipboard(event)">
+        <i class="fas fa-share fa-3x"></i>
+        <figcaption><b style="font-family: 'Courier New', Courier, monospace" id="tooltip">&nbsp;Share&nbsp;</b></figcaption>
+      </a>
+      </figure>
     </div>
-    <b style="font-family: 'Courier New', Courier, monospace">Reference ID: </b><code>{{ dojo.reference_id }}</code>
-    <br>
-    <b style="font-family: 'Courier New', Courier, monospace">Dojo ID: </b><code>{{ dojo.hex_dojo_id }}</code>
-    <br>
-    <!-- <b style="font-family: 'Courier New', Courier, monospace">Update Code: </b><code>{{ dojo.update_code }}</code>
-    <br> -->
-    <b style="font-family: 'Courier New', Courier, monospace">Git Hash: </b><code>{{ dojo.hash[:8] }}</code>
-    <br>
-    <b style="font-family: 'Courier New', Courier, monospace">Admins</b>
-    <ul>
-        {% for admin in dojo.admins %}
-            <li>{{ admin.user.name }}</li>
-        {% endfor %}
-    </ul>
-    <b style="font-family: 'Courier New', Courier, monospace">Members</b>
-    <form method="post" id="dojo-promote-admin-form" autocomplete="off">
+    <div class="col-lg-auto m-3">
+      <figure>
+      <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.update_dojo', dojo=dojo.reference_id, update_code=dojo.update_code) }}" target="_blank">
+        <i class="fas fa-upload fa-3x"></i>
+        <figcaption><b style="font-family: 'Courier New', Courier, monospace">Update</b></figcaption>
+      </a>
+      </figure>
+    </div>
+    {% if is_admin() %}
+    <div class="col-lg-auto m-3">
+      <figure>
+        <a id="dojo-delete-button" class="text-decoration-none delete-link" href="#" data-dojo="{{ dojo.reference_id }}">
+          <i class="fas fa-trash fa-3x"></i>
+          <figcaption><b style="font-family: 'Courier New', Courier, monospace">Delete</b></figcaption>
+        </a>
+      </figure>
+    </div>
+    {% endif %}
+    <div class="col-lg-auto m-3">
+      <figure>
+      <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo_solves', dojo=dojo.reference_id) }}">
+        <i class="fas fa-file-csv fa-3x"></i>
+        <figcaption><b style="font-family: 'Courier New', Courier, monospace">Solves</b></figcaption>
+      </a>
+      </figure>
+    </div>
+    {% if dojo.course %}
+    <div class="col-lg-auto m-3">
+      <figure>
+      <a class="text-decoration-none" href="{{ url_for('course.view_all_grades', dojo=dojo.reference_id) }}">
+        <i class="fas fa-signal fa-3x"></i>
+        <figcaption><b style="font-family: 'Courier New', Courier, monospace">Grades</b></figcaption>
+      </a>
+      </figure>
+    </div>
+    {% endif %}
+  </div>
+  <div>
+    <form method="post" id="dojo-award-prune-form" autocomplete="off">
       <div class="form-group">
-        {% for member in dojo.members %}
-        <input type="radio" id="{{ member.user.id }}" name="user_id" value="{{ member.user.id }}">
-        <label for="{{ member.user.id }}"><a href="{{ url_for('pwncollege_users.view_other', user_id=member.user.id) }}"><span id="name-for-{{member.user.id}}">{{ member.user.name }}</span></a></label>
-        <br>
-        {% endfor %}
-        <input class="btn btn-mini btn-primary" id="_submit" name="_submit" type="submit" value="Promote to Admin">
+        <input class="btn btn-mini btn-primary" id="_submit" name="_submit" type="submit" value="Prune Legacy Emoji Awards">
       </div>
-      <div id="dojo-promote-admin-results" class="form-group">
+      <div id="dojo-award-prune-results" class="form-group">
       </div>
     </form>
+    {% if is_admin() %}
+    <form method="post" id="dojo-promote-dojo-form" autocomplete="off">
+      <div class="form-group">
+        <input class="btn btn-mini btn-primary" id="_submit" name="_submit" type="submit" value="Make This Dojo Official">
+      </div>
+      <div id="dojo-promote-dojo-results" class="form-group">
+      </div>
+    </form>
+    {% endif %}
+  </div>
+  <b style="font-family: 'Courier New', Courier, monospace">Reference ID: </b><code>{{ dojo.reference_id }}</code>
+  <br>
+  <b style="font-family: 'Courier New', Courier, monospace">Dojo ID: </b><code>{{ dojo.hex_dojo_id }}</code>
+  <br>
+  <!-- <b style="font-family: 'Courier New', Courier, monospace">Update Code: </b><code>{{ dojo.update_code }}</code>
+  <br> -->
+  <b style="font-family: 'Courier New', Courier, monospace">Git Hash: </b><code>{{ dojo.hash[:8] }}</code>
+  <br>
+  <b style="font-family: 'Courier New', Courier, monospace">Admins</b>
+  <ul>
+    {% for admin in dojo.admins %}
+    <li>{{ admin.user.name }}</li>
+    {% endfor %}
+  </ul>
+  <b style="font-family: 'Courier New', Courier, monospace">Members</b>
+  <form method="post" id="dojo-promote-admin-form" autocomplete="off">
+    <div class="form-group">
+      {% for member in dojo.members %}
+      <input type="radio" id="{{ member.user.id }}" name="user_id" value="{{ member.user.id }}">
+      <label for="{{ member.user.id }}"><a href="{{ url_for('pwncollege_users.view_other', user_id=member.user.id) }}"><span id="name-for-{{member.user.id}}">{{ member.user.name }}</span></a></label>
+      <br>
+      {% endfor %}
+      <input class="btn btn-mini btn-primary" id="_submit" name="_submit" type="submit" value="Promote to Admin">
+    </div>
+    <div id="dojo-promote-admin-results" class="form-group">
+    </div>
+  </form>
 </div>
 {% endblock %}
 

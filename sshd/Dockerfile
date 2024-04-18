@@ -23,4 +23,4 @@ RUN chmod 700 /opt/sshd/auth.py
 
 EXPOSE 22
 
-ENTRYPOINT ["/usr/sbin/sshd.pam", "-D", "-e", "-f", "/opt/sshd/sshd_config"]
+ENTRYPOINT ["/opt/sshd/start.sh"]

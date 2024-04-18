@@ -4,6 +4,22 @@ function loadScoreboard(duration, page) {
     const scoreboard = $("#scoreboard");
 
     const endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${module}/${duration}/${page}`;
+    scoreboard.empty();
+    message = "Loading."
+    scoreboard.html(`<td colspan=6>${message}</td>`);
+    setTimeout(function loadmsg() {
+        if (scoreboard.html().includes(message)) {
+            message += "."
+            scoreboard.html(`<td colspan=6>${message}</td>`);
+            setTimeout(loadmsg, 1000);
+        }
+    }, 500);
+    $("#scoreboard-control-week").removeClass("scoreboard-page-selected");
+    $("#scoreboard-control-month").removeClass("scoreboard-page-selected");
+    $("#scoreboard-control-all").removeClass("scoreboard-page-selected");
+    if (duration == 7) $("#scoreboard-control-week").addClass("scoreboard-page-selected");
+    if (duration == 30) $("#scoreboard-control-month").addClass("scoreboard-page-selected");
+    if (duration == 0) $("#scoreboard-control-all").addClass("scoreboard-page-selected");
 
     CTFd.fetch(endpoint, {
         method: "GET",
@@ -16,6 +32,7 @@ function loadScoreboard(duration, page) {
         return response.json()
     }).then(result => {
         scoreboard.empty();
+
         const standings = result.standings;
         if (result.me) {
             if (result.me.rank < standings[0].rank)
@@ -26,20 +43,20 @@ function loadScoreboard(duration, page) {
         standings.forEach(user => {
             const row = $(`
             <tr>
-              <td scope="row"><b>#${user.rank}</b></td>
-              <td class="p-0">
+              <td scope="row" class="col-md-1"><b>#${user.rank}</b></td>
+              <td class="col-md-1 p-0">
                 <img src="${user.symbol}" class="scoreboard-symbol">
               </td>
-              <td>
+              <td class="col-md-4">
                 <a href="${user.url}" class="scoreboard-name text-decoration-none">
                 </a>
               </td>
-              <td class="scoreboard-completions">
+              <td class="scoreboard-completions col-md-4">
               </td>
-              <td>
+              <td class="col-md-1">
                 <img src="${user.belt}" class="scoreboard-belt">
               </td>
-              <td><b>${user.solves}</b></td>
+              <td class="col-md-1"><b>${user.solves}</b></td>
             </tr>
             `);
             row.find(".scoreboard-name").text(user.name.slice(0, 50));

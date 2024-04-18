@@ -1,7 +1,7 @@
 import datetime
 
 from CTFd.cache import cache
-from CTFd.models import db
+from CTFd.models import db, Users
 from flask import url_for
 
 from .discord import get_discord_roles, get_discord_user, add_role, send_message
@@ -31,32 +31,63 @@ def get_user_emojis(user):
     return emojis
 
 def get_belts():
-    result = {
-        "dates": {},
-        "users": {},
-        "ranks": {},
-    }
-
+    result = dict(dates={}, users={}, ranks={})
     for color in reversed(BELT_ORDER):
         result["dates"][color] = {}
         result["ranks"][color] = []
 
-        for belt in Belts.query.filter_by(name=color).order_by(Belts.date):
-            if belt.user.hidden:
-                continue
+    belts = (
+        Belts.query
+        .join(Users)
+        .filter(Belts.name.in_(BELT_ORDER), ~Users.hidden)
+        .with_entities(
+            Belts.date,
+            Belts.name.label("color"),
+            Users.id.label("user_id"),
+            Users.name.label("handle"),
+            Users.website.label("site"),
+        )
+    ).all()
+    belts.sort(key=lambda belt: (-BELT_ORDER.index(belt.color), belt.date))
 
-            result["dates"][color][belt.user.id] = str(belt.date)
-            if belt.user.id in result["users"]:
-                continue
+    for belt in belts:
+        result["dates"][belt.color][belt.user_id] = str(belt.date)
+        if belt.user_id not in result["users"]:
+            result["users"][belt.user_id] = dict(
+                handle=belt.handle,
+                site=belt.site,
+                color=belt.color,
+                date=str(belt.date)
+            )
+            result["ranks"][belt.color].append(belt.user_id)
 
-            result["ranks"][color].append(belt.user.id)
-            result["users"][belt.user.id] = {
-                "handle": belt.user.name,
-                "site": belt.user.website,
-                "color": color,
-                "date": str(belt.date),
-            }
+    return result
 
+def get_viewable_emojis(user):
+    result = { }
+    viewable_dojo_urls = {
+        dojo.hex_dojo_id: url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
+        for dojo in Dojos.viewable(user=user).where(Dojos.data["type"] != "example")
+    }
+    emojis = (
+        Emojis.query
+        .join(Users)
+        .filter(~Users.hidden, db.or_(Emojis.category.in_(viewable_dojo_urls.keys()), Emojis.category == None))
+        .order_by(Emojis.date)
+        .with_entities(
+            Emojis.name,
+            Emojis.description,
+            Emojis.category,
+            Users.id.label("user_id"),
+        )
+    )
+    for emoji in emojis:
+        result.setdefault(emoji.user_id, []).append({
+            "text": emoji.description,
+            "emoji": emoji.name,
+            "count": 1,
+            "url": viewable_dojo_urls.get(emoji.category, "#"),
+        })
     return result
 
 def update_awards(user):
@@ -94,18 +125,3 @@ def update_awards(user):
             continue
         db.session.add(Emojis(user=user, name=emoji, description=f"Awarded for completing the {dojo_name} dojo.", category=dojo_id))
         db.session.commit()
-
-def get_viewable_emojis(user):
-    viewable_dojos = { dojo.hex_dojo_id:dojo for dojo in Dojos.viewable(user=user).where(Dojos.data["type"] != "example") }
-    emojis = { }
-    for emoji in Emojis.query.order_by(Emojis.date).all():
-        if emoji.category and emoji.category not in viewable_dojos:
-            continue
-
-        emojis.setdefault(emoji.user.id, []).append({
-            "text": emoji.description,
-            "emoji": emoji.name,
-            "count": 1,
-            "url": url_for("pwncollege_dojo.listing", dojo=viewable_dojos[emoji.category].reference_id) if emoji.category else "#"
-        })
-    return emojis

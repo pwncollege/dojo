@@ -69,8 +69,9 @@ def main():
         print("\r", " " * 80, "\rConnected!")
 
         if not os.fork():
-            command = ["/bin/sh", "-c", original_command] if original_command else ["/bin/bash"]
-            os.execv(
+            ssh_entrypoint = "/opt/pwn.college/ssh-entrypoint"
+            command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
+            os.execve(
                 "/usr/bin/kubectl",
                 [
                     "kubectl",

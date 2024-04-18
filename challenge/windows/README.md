@@ -14,18 +14,10 @@ This variable functions similarly to the `DOJO_CHALLENGE` environment variable: 
 
 ## Basic architecture
 
-The `WINDOWS_VM` environment variable is read by the `docker-compose.yml` file and used to conditionally pick between a no-op service and a builder service.
+The `INSTALL_WINDOWS` environment variable is read by the `docker-compose.yml` file and used to conditionally pick between a no-op service and a builder service.
 This is done so that the KVM-requiring full service is swapped with one that does not require KVM when the windows VM in not in use.
-`docker-compose` also creates a windows volume which will be shared between the builder service and the challenge container.
 
-The builder service is a docker image located in the `windows/` directory of the source tree.
-This docker image contains the tools needed to run a QEMU VM and a floppy disk with files for the install.
-
-Once the VM is built, the resulting image is stored the windows volume.
-When a new challenge container is spun up, this volume will be read-only mounted into the container image.
-This shared clean image will server as the base for every new copy-on-write image created by a user container.
-The read-only mount ensures that the shared image file cannot be modified, even with `root` permissions in the challenge container.
-The user can then interact with the VM using the `windows` setuid script within the challenge container.
+The user can interact with the VM using the `windows` setuid script within the challenge container.
 The script manages the creation and interfacing with the VM image.
 
 Users can interact with the VM over both SSH on port `22` and VNC on port `5912`.
@@ -39,26 +31,25 @@ These are mounted as `Y:` and `Z:` respectively, although they can be configured
 The challenge mount is also used to pass the flag and information about whether practice mode is enabled to the VM.
 The startup script will secure the flag in `C:\flag` prior to starting SSH.
 
-## Builder service
+## Adding Functionality to the build process
 
-The VM is not built by the Dockerfile due to a couple factors.
-First, docker builders do not have access to devices, like the `/dev/kvm` device needed for the install, by default.
-This can be sidestepped by enabling some newer docker features that allow you to define the "build container", allowing you to give this container access to devices and remove isolation from certain build steps.
-This however comes at a performance cost, because the resulting image has to be exported as a tar file and transferred into the host docker daemon.
-This process is extremely slow for large images.
-At the size the VM will be, 10-15GB, this process can take 10-20 minutes for this transfer alone.
-Due to this consideration, the image is instead built in the builder service's entrypoint.
+The build time for the Windows layers is quite long.
+As such, consider carefully where in the build process your changes must occur.
 
-The builder first repackages Red Hat's `virtio-win-tools` CDROM ISO, which contains needed drivers and executables, in the format that windows expects.
+`setup.ps1`: This runs during the windows installation as NT AUTHORITY\SYSTEM.  Commands running during this phase may not behave as expected due to execution occurring during installation via Autounattend.xml.
+
+`post_install.ps1` and `post_install.sh`: These files run **AFTER** the windows installation has completed, and changes will be saved in the docker image.  Commands executed in `post_install.ps1` are executed as the `hacker` user while the user is still part of the `Administrators` group.  If possible, this is the best location to place changes.  **WARNING:** it has been observed that using `Copy-Item` can result in invalid/corrupted data being copied to the destination location.
+
+`startup.ps1`: This is executed during challenge container runtime every time the windows VM is started.  This file is also responsible for removing the `hacker` user from the `Administrators` group, dropping permissions.  Adding work to this file will increase windows VM startup time and should be avoided if possible.
+
+## Building process
+
+The build process first repackages Red Hat's `virtio-win-tools` CDROM ISO, which contains needed drivers and executables, in the format that windows expects.
 The repackaged ISO is stored in the volume for later use.
 (The command for doing so was extracted from the source code of `hashicorp/packer`, which is used by `hashicorp/vagrant` internally.)
 It then downloads a Windows Server 2022 Evaluation Image from Microsoft servers.
 (As far as legal issues with this step, I am not a lawyer, but it seems like the evaluation image works fine and does not need to be activated for the dojo's use case.)
-It will then check for an `image-built` file in the windows volume.
-If this file is present, the builder will exit.
-Otherwise it will rebuild the VM image into the `clean.qcow2` file in the windows volume.
-
-## Building process
+It will build the VM image into the `clean.qcow2` file.
 
 The builder boots with the server ISO, floppy disk, and virtio CDROM attached.
 Users can monitor the building process by connecting via VNC to the top-level dojo container's port `5912`.
@@ -123,10 +114,9 @@ Later, we can start up this service in the startup script with the launcher, spe
 
 ## Rebuilding the VM image
 
-This can be done by removing the `image-stage1-complete` marker file and updating the dojo:
+This can be done by updating the dojo:
 
 ```sh
-sudo rm ./data/docker/volumes/pwncollege_windows/_data/image-stage1-complete
 sudo docker exec -it dojo dojo update
 ```
 

@@ -13,7 +13,7 @@ from CTFd.plugins import bypass_csrf_protection
 
 from ..models import DojoAdmins, DojoChallenges, DojoMembers, DojoModules, DojoUsers, Dojos
 from ..utils import user_dojos
-from ..utils.dojo import dojo_route, generate_ssh_keypair, dojo_update
+from ..utils.dojo import dojo_route, generate_ssh_keypair, dojo_update, dojo_admins_only
 
 
 dojos = Blueprint("pwncollege_dojos", __name__)
@@ -29,26 +29,34 @@ def dojo_stats(dojo):
 @dojos.route("/dojos")
 def listing():
     user = get_current_user()
-    typed_dojos = {
+    categorized_dojos = {
+        "Start Here": [],
         "Topics": [],
         "Courses": [],
         "More Material": [],
     }
-    for dojo in Dojos.viewable(user=user):
-        if dojo.type == "topic":
-            typed_dojos["Topics"].append(dojo)
-        elif dojo.type == "course":
-            typed_dojos["Courses"].append(dojo)
-        elif dojo.type == "hidden":
+    type_to_category = {
+        "topic": "Topics",
+        "course": "Courses",
+        "welcome": "Start Here"
+    }
+    options = db.undefer(Dojos.modules_count), db.undefer(Dojos.challenges_count)
+    dojo_solves = Dojos.viewable(user=user).options(*options)
+    if user:
+        solves_subquery = (DojoChallenges.solves(user=user, ignore_visibility=True, ignore_admins=False)
+            .group_by(DojoChallenges.dojo_id)
+            .with_entities(DojoChallenges.dojo_id, db.func.count().label("solve_count"))
+            .subquery())
+        dojo_solves = (dojo_solves.outerjoin(solves_subquery, Dojos.dojo_id == solves_subquery.c.dojo_id)
+            .add_columns(db.func.coalesce(solves_subquery.c.solve_count, 0).label("solve_count")))
+    else:
+        dojo_solves = dojo_solves.add_columns(0)
+    for dojo, solves in dojo_solves:
+        if dojo.type == "hidden" or (dojo.type == "example" and dojo.official):
             continue
-        elif dojo.type == "example" and dojo.official:
-            continue
-        elif dojo.type == "welcome":
-            continue
-        else:
-            typed_dojos["More Material"].append(dojo)
-
-    return render_template("dojos.html", user=user, typed_dojos=typed_dojos)
+        category = type_to_category.get(dojo.type, "More Material")
+        categorized_dojos[category].append((dojo, solves))
+    return render_template("dojos.html", user=user, categorized_dojos=categorized_dojos)
 
 
 @dojos.route("/dojos/create")
@@ -111,21 +119,39 @@ def update_dojo(dojo, update_code=None):
         return {"success": False, "error": str(e)}, 400
     return {"success": True}
 
+@dojos.route("/dojo/<dojo>/delete/", methods=["POST"])
+@authed_only
+def delete_dojo(dojo):
+    dojo = Dojos.from_id(dojo).first()
+    if not dojo:
+        return {"success": False, "error": "Not Found"}, 404
+
+    # Check if the current user is an admin of the dojo
+    if not is_admin():
+        abort(403)
+
+    try:
+        DojoUsers.query.filter(DojoUsers.dojo_id == dojo.dojo_id).delete()
+        Dojos.query.filter(Dojos.dojo_id == dojo.dojo_id).delete()
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
+        return {"success": False, "error": str(e)}, 400
+    return {"success": True}
 
 @dojos.route("/dojo/<dojo>/admin/")
 @dojo_route
+@dojo_admins_only
 def view_dojo_admin(dojo):
-    if not dojo.is_admin():
-        abort(403)
-    return render_template("dojo_admin.html", dojo=dojo)
+    return render_template("dojo_admin.html", dojo=dojo, is_admin=is_admin)
 
 
 @dojos.route("/dojo/<dojo>/admin/activity")
 @dojo_route
+@dojo_admins_only
 def view_dojo_activity(dojo):
-    if not dojo.is_admin():
-        abort(403)
-
     docker_client = docker.from_env()
     filters = {
         "name": "user_",
@@ -157,9 +183,8 @@ def view_dojo_activity(dojo):
 
 @dojos.route("/dojo/<dojo>/admin/solves.csv")
 @dojo_route
+@dojo_admins_only
 def view_dojo_solves(dojo):
-    if not dojo.is_admin():
-        abort(403)
     def stream():
         yield "user,module,challenge,time\n"
         solves = (

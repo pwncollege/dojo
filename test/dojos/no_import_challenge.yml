@@ -1,0 +1,12 @@
+id: no-import-challenge
+type: public
+modules:
+  - id: test
+    challenges:
+      - id: test
+        importable: false
+        import:
+          dojo: example
+          module: world
+          challenge: earth
+      

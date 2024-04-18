@@ -12,7 +12,6 @@ import tempfile
 import textwrap
 import time
 
-
 LINUX_REBOOT_CMD_POWER_OFF = 0x4321fedc
 LINUX_REBOOT_CMD_RESTART = 0x1234567
 
@@ -68,12 +67,20 @@ def extra_boot_flags():
     if os.path.exists("/challenge/.nopti"):
         nopti = True
 
+    panic_on_oops = False
+    if os.path.exists("/challenge/.panic_on_oops"):
+        panic_on_oops = True
+
     result = []
     if nokaslr:
         result.append("nokaslr")
 
     if nopti:
         result.append("nopti")
+
+    if panic_on_oops:
+        result.append("oops=panic")
+        result.append("panic_on_warn=1")
 
     return result
 
@@ -87,11 +94,13 @@ def execve(argv):
 def start():
     flags = " ".join(flag for flag in extra_boot_flags())
 
+    bzImage = "/challenge/bzImage" if os.path.exists("/challenge/bzImage") else "/opt/linux/bzImage"
+
     kvm = os.path.exists("/dev/kvm")
     cpu = "host" if kvm else "qemu64"
     qemu_argv = [
         "/usr/bin/qemu-system-x86_64",
-        "-kernel", "/opt/linux/bzImage",
+        "-kernel", bzImage,
         "-cpu", f"{cpu},smep,smap",
         "-fsdev", "local,id=rootfs,path=/,security_model=passthrough",
         "-device", "virtio-9p-pci,fsdev=rootfs,mount_tag=/dev/root",
@@ -100,7 +109,7 @@ def start():
         "-device", "e1000,netdev=net0",
         "-netdev", "user,id=net0,hostfwd=tcp::22-:22",
         "-m", "2G",
-        "-smp", "2",
+        "-smp", "2" if kvm else "1",
         "-nographic",
         "-monitor", "none",
         "-append", f"rw rootfstype=9p rootflags=trans=virtio console=ttyS0 init=/opt/pwn.college/vm/init {flags}",
@@ -186,10 +195,12 @@ def debug():
     except ConnectionRefusedError:
         error("Error: could not connect to debug")
 
+    vmlinux = "/challenge/vmlinux" if os.path.exists("/challenge/vmlinux") else "/opt/linux/vmlinux"
+
     execve([
         "/usr/bin/gdb",
         "--ex", "target remote localhost:1234",
-        "/opt/linux/vmlinux",
+        vmlinux,
     ])
 
 

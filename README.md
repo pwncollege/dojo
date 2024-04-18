@@ -69,12 +69,42 @@ The following options are available:
 - `challenge-mini`: Adds a minified desktop (the default).
 - `challenge-full`: The full (70+ GB) setup.
 
+## Updating
+
+When updating your dojo deployment, there is only one supported method in the `dojo` directory:
+
+```sh
+docker kill pwncollege/dojo
+docker rm pwncollege/dojo
+git pull
+docker build -t pwncollege/dojo "$DOJO_PATH"
+docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
+```
+
+This will cause downtime when the dojo is rebuilding.
+
+Some changes _can_ be applied without a complete restart, however this is not guaranteed.
+
+If you really know what you're doing (the changes that you're pulling in are just to `ctfd`), inside the `pwncollege/dojo` container you can do the following:
+
+```sh
+dojo update
+```
+
+Note that `dojo update` is not guaranteed to be successful and should only be used if you fully understand each commit/change that you are updating.
+
 ## Customization
 
 _All_ dojo data will be stored in the `./data` directory.
 
 Once logged in, you can add a dojo by visiting `/dojos/create`. Dojos are contained within git repositories. 
 Refer to [the example dojo](https://github.com/pwncollege/example-dojo) for more information.
+
+## Cloud Backups
+
+If configured properly, the dojo will store the hourly database backups into an S3 bucket of your choosing.
+
+TODO ADD MORE HERE
 
 ## Contributing
 
@@ -84,5 +114,4 @@ Send a PR so everyone can benefit.
 For more substantial changes, open an issue to ensure we're on the same page.
 Together, we make this project better for all! 🚀
 
-You can run the dojo CI testcases locally using [act](https://github.com/nektos/act).
-They should run using the "medium" image.
+You can run the dojo CI testcases locally using `test/local-tester.sh`.

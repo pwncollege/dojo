@@ -38,6 +38,14 @@ def delete_before_insert(column, null=[]):
     return decorator
 
 
+deferred_definitions = []
+def deferred_definition(func):
+    deferred_definitions.append(
+        lambda: setattr(func.__globals__[func.__qualname__.split(".")[0]],
+                        func.__name__,
+                        func()))
+
+
 def columns_repr(column_names):
     def __repr__(self):
         description = " ".join(f"{name}={getattr(self, name)!r}" for name in column_names)
@@ -63,7 +71,10 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(db.JSON)
-    data_fields = ["type", "award", "comparator", "course"]
+    data_fields = ["type", "award", "comparator", "course", "importable"]
+    data_defaults = {
+        "importable": True
+    }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
     members = db.relationship("DojoMembers", back_populates="dojo")
@@ -97,7 +108,7 @@ class Dojos(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name)
+            return self.data.get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     def __setattr__(self, name, value):
@@ -152,6 +163,22 @@ class Dojos(db.Model):
                 challenge.module_index = module_index
         self._modules = value
 
+    @deferred_definition
+    def modules_count():
+        return db.column_property(
+            db.select([db.func.count()])
+            .where(Dojos.dojo_id == DojoModules.dojo_id)
+            .scalar_subquery(),
+            deferred=True)
+
+    @deferred_definition
+    def challenges_count():
+        return db.column_property(
+            db.select([db.func.count()])
+            .where(Dojos.dojo_id == DojoChallenges.dojo_id)
+            .scalar_subquery(),
+            deferred=True)
+
     @property
     def path(self):
         if hasattr(self, "_path"):
@@ -169,7 +196,10 @@ class Dojos(db.Model):
     @property
     def hash(self):
         from ..utils.dojo import dojo_git_command
-        return dojo_git_command(self, "rev-parse", "HEAD").stdout.decode().strip()
+        if os.path.exists(self.path):
+            return dojo_git_command(self, "rev-parse", "HEAD").stdout.decode().strip()
+        else:
+            return ""
 
     @property
     def last_commit_time(self):
@@ -279,7 +309,10 @@ class DojoModules(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = []
+    data_fields = ["importable"]
+    data_defaults = {
+        "importable": True
+    }
 
     dojo = db.relationship("Dojos", back_populates="_modules")
     _challenges = db.relationship("DojoChallenges",
@@ -323,7 +356,7 @@ class DojoModules(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name)
+            return self.data.get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
@@ -389,7 +422,11 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = ["image", "path_override"]
+    data_fields = ["image", "path_override", "importable", "allow_privileged"]
+    data_defaults = {
+        "importable": True,
+        "allow_privileged": True
+    }
 
     dojo = db.relationship("Dojos",
                            foreign_keys=[dojo_id],
@@ -426,7 +463,7 @@ class DojoChallenges(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name)
+            return self.data.get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
@@ -668,3 +705,8 @@ class Belts(Awards):
 
 class Emojis(Awards):
     __mapper_args__ = {"polymorphic_identity": "emoji"}
+
+
+for deferral in deferred_definitions:
+    deferral()
+del deferred_definitions

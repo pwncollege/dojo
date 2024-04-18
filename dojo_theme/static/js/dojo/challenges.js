@@ -13,6 +13,9 @@ function submitChallenge(event) {
     }
     var params = {}
 
+    if (submission == "pwn.college{practice}") {
+        return renderSubmissionResponse({ "data": { "status": "practice", "message": "You have submitted the \"practice\" flag from launching the challenge in Practice mode! This flag is not valid for scoring. Run the challenge in non-practice mode by pressing Start above, then use your solution to get the \"real\" flag and submit it!" } }, item);
+    }
     return CTFd.api.post_challenge_attempt(params, body).then(function (response) {
         return renderSubmissionResponse(response, item);
     })
@@ -49,7 +52,19 @@ function renderSubmissionResponse(response, item) {
         answer_input.addClass("wrong");
         setTimeout(function() {
             answer_input.removeClass("wrong");
-        }, 3000);
+        }, 10000);
+    } else if (result.status === "practice") {
+        // Incorrect key
+        result_notification.addClass(
+            "alert alert-danger alert-dismissable text-center"
+        );
+        result_notification.slideDown();
+
+        answer_input.removeClass("correct");
+        answer_input.addClass("wrong");
+        setTimeout(function() {
+            answer_input.removeClass("wrong");
+        }, 10000);
     } else if (result.status === "correct") {
         // Challenge Solved
         result_notification.addClass(
@@ -91,13 +106,13 @@ function renderSubmissionResponse(response, item) {
         answer_input.addClass("too-fast");
         setTimeout(function() {
             answer_input.removeClass("too-fast");
-        }, 3000);
+        }, 10000);
     }
     setTimeout(function() {
         item.find(".alert").slideUp();
         item.find("#challenge-submit").removeClass("disabled-button");
         item.find("#challenge-submit").prop("disabled", false);
-    }, 3000);
+    }, 10000);
 }
 
 
@@ -119,6 +134,18 @@ function startChallenge(event) {
         "challenge": challenge,
         "practice": practice,
     };
+
+    var result_notification = item.find('#result-notification');
+    var result_message = item.find('#result-message');
+    result_notification.addClass('alert alert-warning alert-dismissable text-center');
+    result_message.html("Loading.");
+    result_notification.slideDown();
+    setTimeout(function loadmsg() {
+        if (result_message.html().startsWith("Loading")) {
+            result_message.append(".");
+            setTimeout(loadmsg, 500);
+        }
+    }, 500);
 
     CTFd.fetch('/pwncollege_api/v1/docker', {
         method: 'POST',
@@ -174,7 +201,7 @@ function startChallenge(event) {
             item.find(".alert").slideUp();
             item.find("#challenge-submit").removeClass("disabled-button");
             item.find("#challenge-submit").prop("disabled", false);
-        }, 3000);
+        }, 10000);
     });
 }
 

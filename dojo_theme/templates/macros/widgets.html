@@ -1,6 +1,10 @@
-{% macro navitem(name, url, icon, shrink=False) %}
+{% macro navitem(name, url, icon, new=False, shrink=False) %}
 <li class="nav-item">
+  {% if not new %}
   <a class="nav-link" href="{{ url }}">
+  {% else %}
+  <a class="nav-link" href="{{ url }}" target="_blank">
+  {% endif %}
     <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="{{ name }}">
       <i class="fas {{ icon }} d-none d-md-block d-lg-none"></i>
     </span>
@@ -36,7 +40,7 @@
   <div class="accordion-item">
     <div class="accordion-item-header" id="{{ accordion_id }}-header-{{ item_id }}">
       <h2 class="mb-0">
-        <button class="btn btn-link text-decoration-none w-100 collapsed" type="button" data-toggle="collapse" data-target="#{{ accordion_id }}-body-{{ item_id }}" aria-expanded="false" aria-controls="{{ accordion_id }}-body-{{ item_id }}">
+        <button id="{{ accordion_id }}-header-button-{{ item_id }}" class="btn btn-link text-decoration-none w-100 collapsed" type="button" data-toggle="collapse" data-target="#{{ accordion_id }}-body-{{ item_id }}" aria-expanded="false" aria-controls="{{ accordion_id }}-body-{{ item_id }}">
           {{ caller(True) }}
         </button>
       </h2>

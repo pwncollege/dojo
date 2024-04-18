@@ -60,24 +60,9 @@ pnputil.exe /add-driver E:\virtio-win\viofs\2k22\amd64\viofs.inf /install
 # ...but when we boot up later without the server ISO it will be in D:
 & "C:\Program Files (x86)\WinFsp\bin\fsreg.bat" virtiofs "D:\virtio-win\viofs\2k22\amd64\virtiofs.exe" "-t %1 -m %2"
 
-Copy-Item A:\startup.ps1 -Destination "C:\Program Files\Common Files\"
-& schtasks /create /tn "dojoinit" /sc onstart /delay 0000:00 /rl highest /ru system /tr "powershell.exe -file 'C:\Program Files\Common Files\startup.ps1'" /f
 
 # -- install chocolately --
 Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-
-# -- install windbg --
-(New-Object Net.WebClient).DownloadFile("https://windbg.download.prss.microsoft.com/dbazure/prod/1-2308-2002-0/windbg.msixbundle", "C:\windbg.msixbundle")
-add-appxpackage -Path C:\windbg.msixbundle
-Remove-Item -Force -Path C:\windbg.msixbundle
-
-# -- install IDA --
-$InstallIDA = "{INSTALLIDA}";
-if ($InstallIDA -eq "yes") {
-    (New-Object Net.WebClient).DownloadFile("https://out7.hex-rays.com/files/idafree82_windows.exe", "C:\idafree.exe")
-    Start-Process "C:\idafree.exe" -ArgumentList "--unattendedmodeui minimal --mode unattended --installpassword freeware" -Wait
-    Remove-Item -Force -Path "C:\idafree.exe"
-}
 
 # -- install telnet --
 Enable-WindowsOptionalFeature -Online -NoRestart -FeatureName "TelnetClient"
@@ -87,29 +72,24 @@ choco install --ignore-detected-reboot -y visualstudio2022community
 choco install --ignore-detected-reboot -y visualstudio2022-workload-nativedesktop
 choco install --ignore-detected-reboot -y git
 choco install --ignore-detected-reboot -y python311 --params "CompileAll=1"
+choco install --ignore-detected-reboot -y neovim
+choco install --ignore-detected-reboot -y sysinternals
+choco install --ignore-detected-reboot -y procexp
+choco install --ignore-detected-reboot -y adoptopenjdk
+choco install --ignore-detected-reboot -y ghidra
+
 # git requires a reboot to work, so we can't install git python packages right now...
 py -m pip install --user pwntools
+py -m pip install --user IPython
+py -m pip install --user ROPgadget
 
 # -- install VNC server --
 # install options reference: https://www.tightvnc.com/doc/win/TightVNC_2.7_for_Windows_Installing_from_MSI_Packages.pdf
-choco install --ignore-detected-reboot tightvnc -y --installArguments 'ADDLOCAL=Server SET_RFBPORT=1 VALUE_OF_RFBPORT=5912 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=abcd'
+choco install --ignore-detected-reboot tightvnc -y --installArguments 'ADDLOCAL=Server SET_RFBPORT=1 VALUE_OF_RFBPORT=5912 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 SET_DISCONNECTACTION=2 VALUE_OF_PASSWORD=abcd'
 # this will be done later when the service actually exists
 #Set-Service -Name tvnserver -StartupType 'Manual'
 
-# -- install rust through rustup (this must be done after MSVC is installed) --
-# WARNING: I learned this the hard way. this binary behaves differently based on argv[0].
-#  It must be saved as rustup-init.exe and not rustup.exe.
-(New-Object Net.WebClient).DownloadFile("https://win.rustup.rs/x86_64", "C:\rustup-init.exe")
-& C:\rustup-init.exe --profile minimal -y
-Remove-Item "C:\rustup-init.exe"
-
-Copy-Item -Recurse "A:\challenge-proxy" "C:\Windows\Temp\"
-Push-Location "C:\Windows\Temp\challenge-proxy\"
-& $env:USERPROFILE\.cargo\bin\cargo build --release
-Copy-Item ".\target\release\challenge-proxy.exe" -Destination "C:\Program Files\Common Files\"
-Pop-Location
-Remove-Item -Force -Recurse "C:\Windows\Temp\challenge-proxy\"
-& sc.exe create ChallengeProxy binPath= "C:\Program Files\Common Files\challenge-proxy.exe" displayname= "Challenge Proxy" depend= TcpIp start= auto
+& sc.exe create ChallengeProxy binPath="C:\Program Files\Common Files\challenge-proxy.exe" displayname="Challenge Proxy" depend=TcpIp start=auto
 
 if (!(Get-NetFirewallRule -Name "ChallengeProxy-In-TCP" -ErrorAction SilentlyContinue | Select-Object Name, Enabled)) {
     Write-Output "Firewall Rule 'ChallengeProxy-In-TCP' does not exist, creating it..."
@@ -129,7 +109,7 @@ function EnableWmiRemoting($namespace) {
         throw "GetSecurityDescriptor failed: $($output.ReturnValue)"
     }
     $acl = $output.Descriptor
-    
+
     $computerName = (Get-WmiObject Win32_ComputerSystem).Name
     $acc = Get-WmiObject -Class Win32_Group -Filter "Domain='$computerName' and Name='Users'"
 
@@ -177,7 +157,7 @@ EnableWmiRemoting "Root/StandardCimv2"
 (Get-Content -Path C:\Windows\Temp\policy-edit.inf) `
     -replace "PasswordComplexity = 1", "PasswordComplexity = 0" `
     -replace "SeShutdownPrivilege .+", "`$0,hacker" `
-    -replace "SeRemoteShutdownPrivilege .+", "`$0,hacker" | 
+    -replace "SeRemoteShutdownPrivilege .+", "`$0,hacker" |
     Set-Content -Path C:\Windows\Temp\policy-edit.inf
 & secedit /configure /db C:\windows\security\local.sdb /cfg C:\Windows\Temp\policy-edit.inf
 Remove-Item -Force C:\Windows\Temp\policy-edit.inf
@@ -193,6 +173,89 @@ Get-LocalUser -Name hacker | Set-LocalUser -Password $SecureString -PasswordNeve
 # PermitEmptyPasswords yes
 Copy-Item "A:\sshd_config" -Destination "$env:programdata\ssh\sshd_config"
 
+# install.ps1
+# - Single script for installing user applications used in windows challenge VM
+# - Infra/Required installs should be placed in setup.ps1
+
+# Wrapper obj used to create shortcuts throughout
+$WScriptObj = (New-Object -ComObject ("WScript.Shell"))
+
+# Disable Superfetch - prevent windows VM dynamically preloading RAM
+Stop-Service -Force -Name "SysMain"
+Set-Service -Name "SysMain" -StartupType Disabled
+
+# Install VCLib dependency
+Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -outfile Microsoft.VCLibs.x86.14.00.Desktop.appx
+Add-AppxPackage Microsoft.VCLibs.x86.14.00.Desktop.appx
+Remove-Item Microsoft.VCLibs.x86.14.00.Desktop.appx
+
+# choco friendly installs
+# Note: Several packages do not install correctly via choco despite
+# being packaged, hence the manual installs below
+
+# install windbg
+(New-Object Net.WebClient).DownloadFile("https://windbg.download.prss.microsoft.com/dbazure/prod/1-2308-2002-0/windbg.msixbundle", "C:\windbg.msixbundle")
+add-appxpackage -Path C:\windbg.msixbundle
+Remove-Item -Force -Path C:\windbg.msixbundle
+$windbg_sc = $WScriptObj.CreateShortcut("C:\Users\hacker\Desktop/windbg.lnk")
+$windbg_sc.TargetPath = "C:\Users\Hacker\AppData\Local\Microsoft\WindowsApps\WinDbgX.exe"
+$windbg_sc.save()
+
+if ("INSTALL_IDA_FREE" -eq "yes") {
+    (New-Object Net.WebClient).DownloadFile("https://out7.hex-rays.com/files/idafree82_windows.exe", "C:\idafree.exe")
+    Start-Process "C:\idafree.exe" -ArgumentList "--unattendedmodeui minimal --mode unattended --installpassword freeware" -Wait
+    Remove-Item -Force -Path "C:\idafree.exe"
+}
+
+# install Windows Terminal
+Invoke-WebRequest -Uri https://github.com/microsoft/terminal/releases/download/v1.7.1091.0/Microsoft.WindowsTerminal_1.7.1091.0_8wekyb3d8bbwe.msixbundle -outfile Microsoft.WindowsTerminal_1.7.1091.0_8wekyb3d8bbwe.msixbundle
+Add-AppxPackage -Path .\Microsoft.WindowsTerminal_1.7.1091.0_8wekyb3d8bbwe.msixbundle
+Remove-Item Microsoft.WindowsTerminal_1.7.1091.0_8wekyb3d8bbwe.msixbundle
+
+# x64 Debug - Note: Releases get deleted so this URL is going to break
+Invoke-WebRequest -Uri https://github.com/x64dbg/x64dbg/releases/download/snapshot/snapshot_2024-03-08_16-44.zip -Outfile x64dbg.zip
+Expand-Archive x64dbg.zip -DestinationPath "C:/pwncollege/x64dbg" -Force
+Remove-Item x64dbg.zip
+$x64dbg_sc = $WScriptObj.CreateShortcut("C:\Users\hacker\Desktop/x64dbg.lnk")
+$x64dbg_sc.TargetPath = "C:\pwncollege\x64dbg\release\x96dbg.exe"
+$x64dbg_sc.save()
+
+# rp++
+Invoke-WebRequest -Uri https://github.com/0vercl0k/rp/releases/download/v2.1.3/rp-win.zip -Outfile rp-win.zip
+Expand-Archive rp-win.zip -DestinationPath "C:/pwncollege/rp-win" -Force
+Remove-Item rp-win.zip
+
+# CFF Explorer
+Invoke-WebRequest -Uri  https://ntcore.com/files/ExplorerSuite.exe -Outfile "C:\ExplorerSuite.exe"
+Start-Process "C:\ExplorerSuite.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-" -Wait
+Remove-Item -Force -Path "C:\ExplorerSuite.exe"
+
+# These install correctly with choco, but keeping manual install steps
+# Sysinternals
+#Invoke-WebRequest -Uri https://download.sysinternals.com/files/SysinternalsSuite.zip -Outfile sysinternals.zip
+#Expand-Archive sysinternals.zip -DestinationPath "C:\pwncollege\sysinternals" -Force
+
+# Process Explorer
+#Invoke-WebRequest -Uri https://download.sysinternals.com/files/ProcessExplorer.zip -Outfile procexp.zip
+#Expand-Archive procexp.zip -DestinationPath "C:\pwncollege\processExplorer" -Force
+#$pe_sc = $WScriptObj.CreateShortcut("C:\Users\hacker\Desktop/Process Explorer.lnk")
+#$pe_sc.TargetPath = "C:\pwncollege\procexp64.exe"
+#$x64dbg_sc.save()
+
+# -- hosts file --
+$ip = [System.Net.Dns]::GetHostAddresses("msdl.microsoft.com")
+Add-Content -Path $env:windir\System32\drivers\etc\hosts -Value "`n$ip`tmsdl.microsoft.com" -Force
+
+$ip = [System.Net.Dns]::GetHostAddresses("public-lumina.hex-rays.com")
+Add-Content -Path $env:windir\System32\drivers\etc\hosts -Value "`n$ip`tpublic-lumina.hex-rays.com" -Force
+
+# Unfortunately, launching sshd must be set as a startup file and cannot be done done via the service interface in this file
+Copy-Item A:\config_startup.ps1 -Destination "C:\Program Files\Common Files\startup.ps1"
+& schtasks /create /tn "dojoinit" /sc onstart /delay 0000:00 /rl highest /ru system /tr "powershell.exe -file 'C:\Program Files\Common Files\startup.ps1'" /f
+
+# config services' StartupType to start when Start-Service is called or manually started (Manual) instead of start with Windows (Automatic)
+Set-Service -Name sshd -StartupType Manual
+Set-Service -Name tvnserver -StartupType Manual
+
 # -- shutdown --
 Stop-Computer -computername localhost -force
-

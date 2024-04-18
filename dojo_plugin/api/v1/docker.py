@@ -17,6 +17,7 @@ from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL, WINDOWS_VM_ENABLED, SECC
 from ...models import Dojos, DojoModules, DojoChallenges
 from ...utils import serialize_user_flag, simple_tar, random_home_path, module_challenges_visible, user_ipv4
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
+from ...utils.workspace import exec_run
 
 
 docker_namespace = Namespace(
@@ -25,18 +26,6 @@ docker_namespace = Namespace(
 
 
 def start_challenge(user, dojo_challenge, practice):
-    # TODO: Remove this docker-based implementation in favor of kube
-
-    def exec_run(cmd, *, shell=False, assert_success=True, user="root", **kwargs):
-        if shell:
-            cmd = f"""/bin/sh -c \"
-            {cmd}
-            \""""
-        exit_code, output = container.exec_run(cmd, user=user, **kwargs)
-        if assert_success:
-            assert exit_code in (0, None), output
-        return exit_code, output
-
     def setup_home(user):
         homes = pathlib.Path("/var/homes")
         homefs = homes / "homefs"
@@ -81,6 +70,8 @@ def start_challenge(user, dojo_challenge, practice):
         if os.path.exists("/dev/net/tun"):
             devices.append("/dev/net/tun:/dev/net/tun:rwm")
 
+        storage_driver = docker_client.info().get("Driver")
+
         container = docker_client.containers.create(
             dojo_challenge.image,
             entrypoint=["/bin/sleep", "6h"],
@@ -104,18 +95,7 @@ def start_challenge(user, dojo_challenge, practice):
                     "bind",
                     propagation="shared",
                 )
-            ]
-            + (
-                [
-                    docker.types.Mount(
-                        target="/run/media/windows",
-                        source="pwncollege_windows",
-                        read_only=True,
-                    )
-                ]
-                if WINDOWS_VM_ENABLED
-                else []
-            ),
+            ],
             devices=devices,
             network=None,
             extra_hosts={
@@ -130,10 +110,11 @@ def start_challenge(user, dojo_challenge, practice):
             init=True,
             cap_add=["SYS_PTRACE"],
             security_opt=[f"seccomp={SECCOMP}"],
+            storage_opt=dict(size="256G") if storage_driver == "zfs" else None,
             cpu_period=100000,
             cpu_quota=400000,
             pids_limit=1024,
-            mem_limit="4000m",
+            mem_limit="4G",
             detach=True,
             auto_remove=True,
         )
@@ -150,8 +131,11 @@ def start_challenge(user, dojo_challenge, practice):
         return container
 
     def verify_nosuid_home():
-        exit_code, output = exec_run("findmnt --output OPTIONS /home/hacker",
-                                     assert_success=False)
+        exit_code, output = exec_run(
+            "findmnt --output OPTIONS /home/hacker",
+            container=container,
+            assert_success=False
+        )
         if exit_code != 0:
             container.kill()
             container.wait(condition="removed")
@@ -169,6 +153,7 @@ def start_challenge(user, dojo_challenge, practice):
             echo 'hacker ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
             passwd -d root
             """,
+            container=container,
             shell=True
         )
 
@@ -176,26 +161,23 @@ def start_challenge(user, dojo_challenge, practice):
         for path in dojo_challenge.challenge_paths(user):
             with simple_tar(path, f"/challenge/{path.name}") as tar:
                 container.put_archive("/", tar)
-        exec_run("chown -R root:root /challenge")
-        exec_run("chmod -R 4755 /challenge")
+        exec_run("chown -R root:root /challenge", container=container)
+        exec_run("chmod -R 4755 /challenge", container=container)
 
     def insert_flag(flag):
-        exec_run(f"echo 'pwn.college{{{flag}}}' > /flag", shell=True)
+        exec_run(f"echo 'pwn.college{{{flag}}}' > /flag", container=container, shell=True)
 
     def insert_auth_token(auth_token):
-        exec_run(f"echo '{auth_token}' > /.authtoken", shell=True)
+        exec_run(f"echo '{auth_token}' > /.authtoken", container=container, shell=True)
 
     def initialize_container():
         exec_run(
-            """
+            f"""
+            export DOJO_PRIVILEGED={"1" if practice else "0"}
             /opt/pwn.college/docker-initialize.sh
-
-            if [ -x "/challenge/.init" ]; then
-                /challenge/.init
-            fi
-
             touch /opt/pwn.college/.initialized
             """,
+            container=container,
             shell=True
         )
         exec_run(
@@ -203,7 +185,8 @@ def start_challenge(user, dojo_challenge, practice):
             /opt/pwn.college/docker-entrypoint.sh &
             """,
             shell=True,
-            user="hacker"
+            container=container,
+            workspace_user="hacker"
         )
 
     setup_home(user)
@@ -371,6 +354,9 @@ class RunDocker(Resource):
 
         if not dojo_challenge.visible() and not dojo.is_admin():
             return {"success": False, "error": "Invalid challenge"}
+
+        if practice and not dojo_challenge.allow_privileged:
+            return {"success": False, "error": "This challenge does not support practice mode."}
 
         try:
             start_challenge(user, dojo_challenge, practice)

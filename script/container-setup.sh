@@ -14,10 +14,13 @@ define () {
     value="${current:-${defined:-$default}}"
     echo "${name}=${value}" >> $DOJO_DIR/data/.config.env
 }
-define DOJO_HOST localhost.pwn.college
+DEFAULT_DOJO_HOST=localhost.pwn.college
+
+define DOJO_HOST "${DEFAULT_DOJO_HOST}"
+define VIRTUAL_HOST "${DEFAULT_DOJO_HOST},localhost"
+define LETSENCRYPT_HOST "${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
 define DOJO_CHALLENGE challenge-mini
-define WINDOWS_VM none
 define SECRET_KEY $(openssl rand -hex 16)
 define K3S_TOKEN $(openssl rand -hex 16)
 define DOCKER_PSLR $(openssl rand -hex 16)
@@ -33,8 +36,20 @@ define DISCORD_CLIENT_SECRET
 define DISCORD_BOT_TOKEN
 define DISCORD_GUILD_ID
 define DEFAULT_INSTALL_SELECTION no # default to not installing tools
-define INSTALL_DESKTOP_BASE yes # matches the challenge-mini configuration
+define INSTALL_DESKTOP yes # matches the challenge-mini configuration
 define INSTALL_IDA_FREE no # explicitly disable -- only for free dojos
+define INSTALL_BINJA_FREE no # explicitly disable -- only for free dojos
+define INSTALL_WINDOWS no # explicitly disable
+define DB_HOST db
+define DB_NAME ctfd
+define DB_USER ctfd
+define DB_PASS ctfd
+define DB_EXTERNAL no # change to anything but no and the db container will not start mysql
+define BACKUP_AES_KEY_FILE
+define S3_BACKUP_BUCKET
+define AWS_DEFAULT_REGION
+define AWS_ACCESS_KEY_ID
+define AWS_SECRET_ACCESS_KEY
 
 mv $DOJO_DIR/data/.config.env $DOJO_DIR/data/config.env
 . $DOJO_DIR/data/config.env
@@ -52,6 +67,12 @@ if [ ! -f $DOJO_DIR/data/homes/homefs ]; then
     chown -R 1000:1000 $DOJO_DIR/data/homes/homefs_mount
     umount $DOJO_DIR/data/homes/homefs_mount
     rm -rf $DOJO_DIR/data/homes/homefs_mount
+fi
+
+# Create the AES key file if it does not exist
+if [ ! -z ${BACKUP_AES_KEY_FILE+x} ] && [ ! -f ${BACKUP_AES_KEY_FILE} ]
+then
+    openssl rand 214 > "${BACKUP_AES_KEY_FILE}"
 fi
 
 echo "[+] Creating loopback devices for home mounts. This might take a while."

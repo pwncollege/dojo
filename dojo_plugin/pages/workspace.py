@@ -8,6 +8,7 @@ from CTFd.utils.decorators import authed_only
 from ..models import Dojos
 from ..utils import random_home_path, redirect_user_socket, get_current_container
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
+from ..utils.workspace import exec_run
 
 
 workspace = Blueprint("pwncollege_workspace", __name__)
@@ -17,7 +18,7 @@ port_names = {
     "desktop": 6081,
     "desktop-windows": 6082,
 }
-
+ondemand_services = { "vscode", "desktop", "desktop-windows" }
 
 def container_password(container, *args):
     key = container.metadata.annotations["dojo/auth_token"].encode()
@@ -38,6 +39,12 @@ def view_desktop():
     container = get_current_container(user)
     if not container:
         return render_template("iframe.html", active=False)
+
+    exec_run(
+        "/opt/pwn.college/services.d/desktop",
+        workspace_user="hacker", user_id=user.id, shell=True,
+        assert_success=True
+    )
 
     interact_password = container_password(container, "desktop", "interact")
     view_password = container_password(container, "desktop", "view")
@@ -69,6 +76,7 @@ def view_desktop():
     }
 
     return render_template("iframe.html",
+                           iframe_name="workspace",
                            iframe_src=iframe_src,
                            share_urls=share_urls,
                            active=True)
@@ -78,7 +86,7 @@ def view_desktop():
 @authed_only
 def view_workspace(service):
     active = bool(get_current_dojo_challenge())
-    return render_template("iframe.html", iframe_src=f"/workspace/{service}/", active=active)
+    return render_template("iframe.html", iframe_name="workspace", iframe_src=f"/workspace/{service}/", active=active)
 
 
 @workspace.route("/workspace/<service>/", websocket=True)
@@ -98,6 +106,13 @@ def forward_workspace(service, service_path=""):
             port = int(port_names.get(port, port))
         except ValueError:
             abort(404)
+
+        if service in ondemand_services:
+            exec_run(
+                f"/opt/pwn.college/services.d/{service}",
+                workspace_user="hacker", user_id=user.id, shell=True,
+                assert_success=True
+            )
 
     elif service.count("~") == 1:
         port, user_id = service.split("~", 1)

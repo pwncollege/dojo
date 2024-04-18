@@ -10,7 +10,7 @@ port = 2222
 
 def wait():
     start = time.time()
-    while time.time() - start < 5 * 60:
+    while time.time() - start < 10 * 60:
         try:
             connection = socket.create_connection((vm_hostname, port), timeout=10)
             data = connection.recv(3)

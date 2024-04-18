@@ -7,6 +7,7 @@ import functools
 import contextlib
 import inspect
 import pathlib
+import urllib.request
 
 import yaml
 import requests
@@ -25,6 +26,8 @@ ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
 UNIQUE_ID_REGEX = Regex(r"^[a-z0-9-~]{1,128}$")
 NAME_REGEX = Regex(r"^[\S ]{1,128}$")
 IMAGE_REGEX = Regex(r"^[\S]{1,256}$")
+FILE_PATH_REGEX = Regex(r"^[A-Za-z0-9_][A-Za-z0-9-_./]*$")
+FILE_URL_REGEX = Regex(r"^https://www.dropbox.com/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9.-_]*?rlkey=[a-zA-Z0-9]*&dl=1")
 DATE = Use(datetime.datetime.fromisoformat)
 
 ID_NAME_DESCRIPTION = {
@@ -53,6 +56,8 @@ DOJO_SPEC = Schema({
     },
 
     Optional("image"): IMAGE_REGEX,
+    Optional("allow_privileged"): bool,
+    Optional("importable"): bool,
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -63,6 +68,8 @@ DOJO_SPEC = Schema({
         **VISIBILITY,
 
         Optional("image"): IMAGE_REGEX,
+        Optional("allow_privileged"): bool,
+        Optional("importable"): bool,
 
         Optional("import"): {
             Optional("dojo"): UNIQUE_ID_REGEX,
@@ -74,6 +81,8 @@ DOJO_SPEC = Schema({
             **VISIBILITY,
 
             Optional("image"): IMAGE_REGEX,
+            Optional("allow_privileged"): bool,
+            Optional("importable"): bool,
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
             Optional("import"): {
@@ -100,6 +109,13 @@ DOJO_SPEC = Schema({
             },
         )],
     }],
+    Optional("files", default=[]): [
+        {
+            "type": "download",
+            "path": FILE_PATH_REGEX,
+            "url": FILE_URL_REGEX,
+        }
+    ],
 })
 
 def setdefault_name(entry):
@@ -163,6 +179,19 @@ def load_dojo_subyamls(data, dojo_dir):
 
     return data
 
+def dojo_initialize_files(data, dojo_dir):
+    for dojo_file in data.get("files", []):
+        rel_path = dojo_dir / dojo_file["path"]
+        abs_path = dojo_dir / rel_path
+        assert not abs_path.is_symlink(), f"{rel_path} is a symbolic link!"
+        if dojo_file["type"] == "download":
+            if abs_path.exists():
+                continue
+            assert is_admin(), f"LFS download support requires admin privileges"
+            abs_path.parent.mkdir(parents=True, exist_ok=True)
+            urllib.request.urlretrieve(dojo_file["url"], str(abs_path))
+            assert abs_path.stat().st_size >= 50*1024*1024, f"{rel_path} is small enough to fit into git ({abs_path.stat().st_size} bytes) --- put it in the repository!"
+
 def dojo_from_dir(dojo_dir, *, dojo=None):
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
@@ -172,6 +201,7 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
 
     data_raw = yaml.safe_load(dojo_yml_path.read_text())
     data = load_dojo_subyamls(data_raw, dojo_dir)
+    dojo_initialize_files(data, dojo_dir)
     return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
 
 def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
@@ -180,15 +210,26 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     except SchemaError as e:
         raise AssertionError(e)  # TODO: this probably shouldn't be re-raised as an AssertionError
 
-    def assert_one(query, error_message):
+    def assert_importable(o):
+        assert o.importable, f"Import disallowed for {o}."
+        if isinstance(o, Dojos):
+            for m in o.module:
+                assert_importable(m)
+        if isinstance(o, DojoModules):
+            for c in o.challenges:
+                assert_importable(c)
+
+    def assert_import_one(query, error_message):
         try:
-            return query.one()
+            o = query.one()
+            assert_importable(o)
+            return o
         except NoResultFound:
             raise AssertionError(error_message)
 
     # TODO: we probably don't need to restrict imports to official dojos
     import_dojo = (
-        assert_one(Dojos.from_id(dojo_data["import"]["dojo"]).filter_by(official=True),
+        assert_import_one(Dojos.from_id(dojo_data["import"]["dojo"]).filter_by(official=True),
                    "Import dojo `{dojo_data['import']['dojo']}` does not exist")
         if "import" in dojo_data else None
     )
@@ -224,12 +265,14 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             return cls(start=start, stop=stop)
 
     _missing = object()
-    def shadow(attr, *datas, default=_missing):
+    def shadow(attr, *datas, default=_missing, default_dict=None):
         for data in reversed(datas):
             if attr in data:
                 return data[attr]
         if default is not _missing:
             return default
+        elif default_dict and attr in default_dict:
+            return default_dict[attr]
         raise KeyError(f"Missing `{attr}` in `{datas}`")
 
     def import_ids(attrs, *datas):
@@ -243,9 +286,11 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                     image=shadow("image", dojo_data, module_data, challenge_data, default=None),
+                    allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
+                    importable=shadow("importable", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
-                    default=(assert_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
+                    default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
                                         f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")
                              if "import" in challenge_data else None),
                 )
@@ -258,7 +303,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 )
                 for resource_data in module_data["resources"]
             ] if "resources" in module_data else None,
-            default=(assert_one(DojoModules.from_id(*import_ids(["dojo", "module"], dojo_data, module_data)),
+            default=(assert_import_one(DojoModules.from_id(*import_ids(["dojo", "module"], dojo_data, module_data)),
                                 f"Import module `{'/'.join(import_ids(['dojo', 'module'], dojo_data, module_data))}` does not exist")
                      if "import" in module_data else None),
             default_visibility=visibility(dict, dojo_data, module_data),
@@ -316,6 +361,14 @@ def generate_ssh_keypair():
 
     return (public_key.read_text().strip(), private_key.read_text())
 
+def dojo_yml_dir(spec):
+    tmp_dojos_dir = DOJOS_DIR / "tmp"
+    tmp_dojos_dir.mkdir(exist_ok=True)
+    yml_dir = tempfile.TemporaryDirectory(dir=tmp_dojos_dir)    # TODO: ignore_cleanup_errors=True
+    yml_dir_path = pathlib.Path(yml_dir.name)
+    with open(yml_dir_path / "dojo.yml", "w") as do:
+        do.write(spec)
+    return yml_dir
 
 def dojo_clone(repository, private_key):
     tmp_dojos_dir = DOJOS_DIR / "tmp"
@@ -374,7 +427,7 @@ def dojo_admins_only(func):
         bound_args.apply_defaults()
 
         dojo = bound_args.arguments["dojo"]
-        if not dojo.is_admin(get_current_user()):
+        if not (dojo.is_admin(get_current_user()) or is_admin()):
             abort(403)
         return func(*bound_args.args, **bound_args.kwargs)
     return wrapper
@@ -410,6 +463,7 @@ def get_current_dojo_challenge(user=None):
     return (
         DojoChallenges.query
         .filter(DojoChallenges.id == container.metadata.annotations.get("dojo/challenge_id"),
+                DojoChallenges.module == DojoModules.from_id(container.metadata.annotations.get("dojo/dojo_id"), container.metadata.annotations.get("dojo/module_id")).first(),
                 DojoChallenges.dojo == Dojos.from_id(container.metadata.annotations.get("dojo/dojo_id")).first())
         .first()
     )

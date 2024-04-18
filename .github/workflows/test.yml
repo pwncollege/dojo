@@ -1,9 +1,13 @@
 name: Test building and running dojo
-on: push
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '42 06 * * *'
 jobs:
   smoketest:
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v3
       - uses: docker/setup-buildx-action@v3
@@ -11,6 +15,7 @@ jobs:
         with:
           tags: dojo-test
           load: true
+          no-cache: ${{ github.event_name == 'schedule' }}
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
 
@@ -18,8 +23,12 @@ jobs:
         with:
           python-version: '3.10'
           cache: 'pip'
+
+      - name: Prepare Firefox
+        uses: browser-actions/setup-firefox@latest
+
       - name: Install test dependencies
-        run: pip install pytest pytest-dependency requests
+        run: pip install pytest pytest-dependency requests selenium
 
       - name: Run dojo
         run: |
@@ -50,4 +59,5 @@ jobs:
 
       - name: Run tests against dojo
         run: |
+          export MOZ_HEADLESS=1
           pytest -vrpP ./test || (docker exec dojo-test docker compose logs && false)
