@@ -44,7 +44,7 @@ class UpdateKey(Resource):
         except IntegrityError:
             db.session.rollback()
             return (
-                {"success": False, "errors": {"key": "Public key already in use"}},
+                {"success": False, "error": "Public key already in use"},
                 400,
             )
 
