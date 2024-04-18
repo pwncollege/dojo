@@ -17,6 +17,7 @@ services:
     environment:
       - K3S_TOKEN=${K3S_TOKEN:?err}
       - K3S_KUBECONFIG_OUTPUT=/output/kube.yaml
+      - K3S_KUBECONFIG_MODE=644
     volumes:
       - ./data/kube/kubeconfig:/output
       - ./data/kube/node/server:/etc/rancher/node
@@ -214,9 +215,11 @@ services:
     container_name: sshd
     build:
       context: ./sshd
+    environment:
+      - KUBECONFIG=/var/kubeconfig/kube.yaml
     volumes:
       - ./data/ssh_host_keys:/etc/ssh:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/kube/kubeconfig:/var/kubeconfig:ro
     ports:
       - "22:22"
 

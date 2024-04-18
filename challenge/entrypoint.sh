@@ -3,6 +3,11 @@
 mkdir -p /run/dojo
 exec >/run/dojo/entrypoint.log 2>&1
 
+for var in $(env | grep -o '^KUBERNETES[^=]*')
+do
+    unset "$var"
+done
+
 echo "$DOJO_FLAG" > /flag
 unset DOJO_FLAG
 

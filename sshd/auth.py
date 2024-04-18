@@ -1,35 +1,38 @@
 #!/usr/bin/env python3
 
-import sys
 import pathlib
+import sys
 
-import docker
-
+from MySQLdb import connect, Error
 
 def error(msg):
     print(msg, file=sys.stderr)
     exit(1)
 
-
 def main():
     enter_path = pathlib.Path(__file__).parent.resolve() / "enter.py"
-    client = docker.from_env()
+    config = dict(user="ctfd", passwd="ctfd", host="db", db="ctfd")
 
     try:
-        container = client.containers.get("db")
-    except docker.errors.NotFound:
-        error("Error: ctfd is not running!")
+        db = connect(**config)
+        cursor = db.cursor()
+    except Error as e:
+        error(f"Error: Failed to connect to database: {e}")
 
-    result = container.exec_run(
-        "mysql -pctfd -Dctfd -sNe 'select value, user_id from ssh_keys;'"
-    )
-    if result.exit_code != 0:
-        error(f"Error: db query exited with code '{result.exit_code}'")
+    try:
+        cursor.execute("SELECT value, user_id FROM ssh_keys;")
+        rows = cursor.fetchall()
+    except Error as e:
+        error(f"Error: DB query failed: {e}")
 
-    for row in result.output.strip().split(b"\n"):
-        key, user_id = row.decode().split("\t")
+    if not rows:
+        error("Error: No data returned from query")
+
+    for key, user_id in rows:
         print(f'command="{enter_path} user_{user_id}" {key}')
 
+    cursor.close()
+    db.close()
 
 if __name__ == "__main__":
     main()
