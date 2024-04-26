@@ -62,6 +62,7 @@ def listing(dojo):
 
 @dojo.route("/<dojo>/<path>")
 @dojo.route("/<dojo>/<path>/")
+@dojo_route
 def view_dojo_path(dojo, path):
     module = DojoModules.query.filter_by(dojo=dojo, id=path).first()
     if module:
