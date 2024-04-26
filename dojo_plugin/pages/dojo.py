@@ -119,7 +119,11 @@ def view_module(dojo, module):
 
 
 def view_page(dojo, page):
-    if (dojo.path / f"{page}.md").is_file():
+    if (dojo.path / page).is_file():
+        path = (dojo.path / page).resolve()
+        return send_file(path)
+
+    elif (dojo.path / f"{page}.md").is_file():
         content = render_markdown((dojo.path / f"{page}.md").read_text())
         return render_template("markdown.html", dojo=dojo, content=content)
 
@@ -127,7 +131,7 @@ def view_page(dojo, page):
         user = get_current_user()
         if user and (dojo.path / page / f"{user.id}").is_file():
             path = (dojo.path / page / f"{user.id}").resolve()
-            return send_file(path, as_attachment=True)
+            return send_file(path)
         elif user and (dojo.path / page / f"{user.id}.md").is_file():
             content = render_markdown((dojo.path / page / f"{user.id}.md").read_text())
             return render_template("markdown.html", dojo=dojo, content=content)
