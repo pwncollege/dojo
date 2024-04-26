@@ -2,7 +2,7 @@ import datetime
 import docker
 import pytz
 
-from flask import Blueprint, render_template, abort, send_from_directory
+from flask import Blueprint, render_template, abort, send_file
 from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.utils.helpers import get_infos
@@ -121,18 +121,18 @@ def view_module(dojo, module):
 def view_page(dojo, page):
     if (dojo.path / f"{page}.md").is_file():
         content = render_markdown((dojo.path / f"{page}.md").read_text())
-        return render_template("base.html", content=content)
+        return render_template("markdown.html", dojo=dojo, content=content)
 
     elif (dojo.path / page).is_dir():
         user = get_current_user()
         if user and (dojo.path / page / f"{user.id}").is_file():
             path = (dojo.path / page / f"{user.id}").resolve()
-            return send_from_directory(path, as_attachment=True)
+            return send_file(path, as_attachment=True)
         elif user and (dojo.path / page / f"{user.id}.md").is_file():
-            content = render_markdown((dojo.path / page / f"{user.id}").read_text())
-            return render_template("base.html", content=content)
+            content = render_markdown((dojo.path / page / f"{user.id}.md").read_text())
+            return render_template("markdown.html", dojo=dojo, content=content)
         elif (dojo.path / page / "default.md").is_file():
             content = render_markdown((dojo.path / page / "default.md").read_text())
-            return render_template("base.html", content=content)
+            return render_template("markdown.html", dojo=dojo, content=content)
 
     abort(404)
