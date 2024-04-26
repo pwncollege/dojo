@@ -65,7 +65,7 @@
   <br>
   <ul class="card-list">
     {% for module in dojo.modules %}
-    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.view_module', dojo=dojo_id, module=module.id) }}">
+    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.view_dojo_path', dojo=dojo_id, path=module.id) }}">
       {# TODO: card-active, card-hidden #}
       <li class="card card-small">
         <div class="card-body">

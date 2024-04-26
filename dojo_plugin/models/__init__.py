@@ -71,9 +71,10 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(db.JSON)
-    data_fields = ["type", "award", "comparator", "course", "importable"]
+    data_fields = ["type", "award", "course", "pages", "importable", "comparator"]
     data_defaults = {
-        "importable": True
+        "pages": [],
+        "importable": True,
     }
 
     users = db.relationship("DojoUsers", back_populates="dojo")

@@ -109,6 +109,7 @@ DOJO_SPEC = Schema({
             },
         )],
     }],
+    Optional("pages", default=[]): [str],
     Optional("files", default=[]): [
         {
             "type": "download",
@@ -340,6 +341,9 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             if students_yml_path.exists():
                 students = yaml.safe_load(students_yml_path.read_text())
                 dojo.course["students"] = students
+
+        if dojo_data.get("pages"):
+            dojo.pages = dojo_data["pages"]
 
     return dojo
 
