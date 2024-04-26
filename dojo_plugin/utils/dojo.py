@@ -109,6 +109,7 @@ DOJO_SPEC = Schema({
             },
         )],
     }],
+    Optional("pages", default=[]): [str],
     Optional("files", default=[]): [
         {
             "type": "download",

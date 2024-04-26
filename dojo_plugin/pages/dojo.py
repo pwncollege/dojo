@@ -2,16 +2,15 @@ import datetime
 import docker
 import pytz
 
-from flask import Blueprint, render_template, redirect, abort
+from flask import Blueprint, render_template, abort, send_from_directory
 from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.user import get_current_user
-from CTFd.utils.decorators.visibility import check_challenge_visibility
 from CTFd.utils.helpers import get_infos
 from CTFd.cache import cache
 
 from ..utils import render_markdown, module_visible, module_challenges_visible, is_dojo_admin
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
-from ..models import Dojos, DojoUsers, DojoStudents
+from ..models import Dojos, DojoUsers, DojoStudents, DojoModules
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 
@@ -46,7 +45,6 @@ def get_stats(dojo):
 @dojo.route("/<dojo>")
 @dojo.route("/<dojo>/")
 @dojo_route
-@check_challenge_visibility
 def listing(dojo):
     infos = get_infos()
     user = get_current_user()
@@ -62,9 +60,18 @@ def listing(dojo):
     )
 
 
-@dojo.route("/<dojo>/<module>")
-@dojo_route
-@check_challenge_visibility
+@dojo.route("/<dojo>/<path>")
+@dojo.route("/<dojo>/<path>/")
+def view_dojo_path(dojo, path):
+    module = DojoModules.query.filter_by(dojo=dojo, id=path).first()
+    if module:
+        return view_module(dojo, module)
+    elif path in dojo.pages:
+        return view_page(dojo, path)
+    else:
+        abort(404)
+
+
 def view_module(dojo, module):
     user = get_current_user()
     user_solves = set(solve.challenge_id for solve in (
@@ -108,3 +115,23 @@ def view_module(dojo, module):
         current_dojo_challenge=current_dojo_challenge,
         assessments=assessments,
     )
+
+
+def view_page(dojo, page):
+    if (dojo.path / f"{page}.md").is_file():
+        content = render_markdown((dojo.path / f"{page}.md").read_text())
+        return render_template("base.html", content=content)
+
+    elif (dojo.path / page).is_dir():
+        user = get_current_user()
+        if user and (dojo.path / page / f"{user.id}").is_file():
+            path = (dojo.path / page / f"{user.id}").resolve()
+            return send_from_directory(path, as_attachment=True)
+        elif user and (dojo.path / page / f"{user.id}.md").is_file():
+            content = render_markdown((dojo.path / page / f"{user.id}").read_text())
+            return render_template("base.html", content=content)
+        elif (dojo.path / page / "default.md").is_file():
+            content = render_markdown((dojo.path / page / "default.md").read_text())
+            return render_template("base.html", content=content)
+
+    abort(404)
