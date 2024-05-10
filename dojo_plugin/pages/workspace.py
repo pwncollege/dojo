@@ -91,8 +91,8 @@ def view_workspace(service):
 
 @workspace.route("/workspace/<service>/", websocket=True)
 @workspace.route("/workspace/<service>/<path:service_path>", websocket=True)
-@workspace.route("/workspace/<service>/")
-@workspace.route("/workspace/<service>/<path:service_path>")
+@workspace.route("/workspace/<service>/", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"])
+@workspace.route("/workspace/<service>/<path:service_path>", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"])
 @authed_only
 def forward_workspace(service, service_path=""):
     prefix = f"/workspace/{service}/"
