@@ -122,6 +122,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         mysql-server
         php-mysql
         libapache2-mod-php
+	valgrind
+        bat
 EOF
 
 ################################################################################
@@ -236,6 +238,20 @@ RUN <<EOF
     curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
     mkdir -p /opt/code-server/extensions
     code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
+
+    # adding ms-vscode.cpptools vscode extension for C/C++ development work for programming courses
+    # Cannot seem to use curl or wget, the payloads were getting truncated
+    # Using python requests instead
+    apt-get update && apt-get install -yqq python3-pip
+    pip install requests
+    python3 -c 'import requests; response = requests.get("https://marketplace.visualstudio.com/_apis/public/gallery/publishers/ms-vscode/vsextensions/cpptools/1.20.5/vspackage?targetPlatform=linux-x64", timeout=30); f=open("/opt/code-server/extensions/ms-vscode-cpptools.vsix", "wb"); f.write(response.content);f.close()'
+
+    code-server --extensions-dir=/opt/code-server/extensions --install-extension /opt/code-server/extensions/ms-vscode-cpptools.vsix
+    sudo chmod +x /opt/code-server/extensions/ms-vscode.cpptools-*/bin/cpptools* /opt/code-server/extensions/ms-vscode.cpptools-*/bin/libc.so
+
+    rm -f /opt/code-server/extensions/ms-vscode-cpptools.vsix
+    # ms-code.cpptools installation completed
+
     rm -rf /root/.cache/code-server
     rm -rf /root/.local/share/code-server
 EOF
