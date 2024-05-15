@@ -30,7 +30,9 @@
         {{ navitem("Admin Panel", url_for("admin.view"), "fa-wrench") }}
         {% endif %}
 
+	{% else %}
         {{ navitem("Profile", url_for("pwncollege_users.view_self"), "fa-user-circle") }}
+	{% endif %}
         {{ navitem("Settings", url_for("views.settings"), "fa-cogs") }}
         {{ navitem("Logout", url_for("auth.logout"), "fa-sign-out-alt", shrink=True) }}
 
