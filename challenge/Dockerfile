@@ -237,23 +237,12 @@ FROM essentials as builder-code-server
 RUN <<EOF
     curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
     mkdir -p /opt/code-server/extensions
-    code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
-
-    # adding ms-vscode.cpptools vscode extension for C/C++ development work for programming courses
-    # Cannot seem to use curl or wget, the payloads were getting truncated
-    # Using python requests instead
-    apt-get update && apt-get install -yqq python3-pip
-    pip install requests
-    python3 -c 'import requests; response = requests.get("https://marketplace.visualstudio.com/_apis/public/gallery/publishers/ms-vscode/vsextensions/cpptools/1.20.5/vspackage?targetPlatform=linux-x64", timeout=30); f=open("/opt/code-server/extensions/ms-vscode-cpptools.vsix", "wb"); f.write(response.content);f.close()'
-
-    code-server --extensions-dir=/opt/code-server/extensions --install-extension /opt/code-server/extensions/ms-vscode-cpptools.vsix
-    sudo chmod +x /opt/code-server/extensions/ms-vscode.cpptools-*/bin/cpptools* /opt/code-server/extensions/ms-vscode.cpptools-*/bin/libc.so
-
-    rm -f /opt/code-server/extensions/ms-vscode-cpptools.vsix
-    # ms-code.cpptools installation completed
-
-    rm -rf /root/.cache/code-server
-    rm -rf /root/.local/share/code-server
+    wget -O /tmp/ms-vscode-cpptools.vsix 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'    
+    code-server --extensions-dir=/opt/code-server/extensions \
+    	--install-extension ms-python.python \
+     	--install-extension /tmp/ms-vscode-cpptools.vsix
+    chmod +x /opt/code-server/extensions/ms-vscode.cpptools-*/bin/{cpptools*,libc.so}
+    rm -rf /root/.cache/code-server /root/.local/share/code-server /tmp/ms-vscode-cpptools.vsix
 EOF
 
 WORKDIR /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
