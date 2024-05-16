@@ -122,6 +122,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         mysql-server
         php-mysql
         libapache2-mod-php
+	valgrind
+        bat
 EOF
 
 ################################################################################
@@ -235,9 +237,12 @@ FROM essentials as builder-code-server
 RUN <<EOF
     curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
     mkdir -p /opt/code-server/extensions
-    code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
-    rm -rf /root/.cache/code-server
-    rm -rf /root/.local/share/code-server
+    wget -O /tmp/ms-vscode-cpptools.vsix 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'    
+    code-server --extensions-dir=/opt/code-server/extensions \
+    	--install-extension ms-python.python \
+     	--install-extension /tmp/ms-vscode-cpptools.vsix
+    chmod +x /opt/code-server/extensions/ms-vscode.cpptools-*/bin/{cpptools*,libc.so}
+    rm -rf /root/.cache/code-server /root/.local/share/code-server /tmp/ms-vscode-cpptools.vsix
 EOF
 
 WORKDIR /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
