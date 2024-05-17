@@ -56,21 +56,21 @@
       <b>Challenges:</b> <code>{{ stats["challenges"] }}</code>
       <br>
       <b>Solves:</b> <code>{{ stats["solves"] }}</code>
+      {% if awards %}
+      <br>
+      <b>Awardees:</b> {{ awards|length }}
+      <br>
+      <b>Earliest Awardees:</b>
+      {% for award in awards[-5:][::-1] %}
+      <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">{{award.user.name}}</a> {% if not loop.last %} &middot; {% endif %}
+      {% endfor %}
+      {% endif %}
       {% if awards|length > 10 %}
       <br>
       <b>Latest Awardees:</b>
       {% for award in awards[:5] %}
-      <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">{{award.user.name}}</a>
+      <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">{{award.user.name}}</a> {% if not loop.last %} &middot; {% endif %}
       {% endfor %}
-      {% endif %}
-      {% if awards %}
-      <br>
-      <b>Earliest Awardees:</b>
-      {% for award in awards[-5:] %}
-      <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">{{award.user.name}}</a>
-      {% endfor %}
-      <br>
-      <b>Total Awardees:</b> {{ awards|length }}
       {% endif %}
     </p>
   </div>
