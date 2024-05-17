@@ -50,12 +50,7 @@ def listing(dojo):
     user = get_current_user()
     dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
     stats = get_stats(dojo)
-    if dojo.award and "emoji" in dojo.award:
-        awards = Awards.query.where(Awards.category==dojo.hex_dojo_id, Awards.name==dojo.award["emoji"]).order_by(Awards.date.desc()).all()
-    elif dojo.award and "belt" in dojo.award:
-        awards = Awards.query.where(Awards.type=="belt", Awards.name==dojo.award["belt"]).order_by(Awards.date.desc()).all()
-    else:
-        awards = [ ]
+    awards = dojo.awards()
     return render_template(
         "dojo.html",
         dojo=dojo,

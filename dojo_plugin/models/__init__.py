@@ -242,6 +242,16 @@ class Dojos(db.Model):
             solve_count=len(self.challenges)
         ).add_column(sq.columns.last_solve).order_by(sq.columns.last_solve).all()
 
+    def awards(self):
+        if not self.award:
+            return None
+        result = Awards.query.join(Users).filter(~Users.hidden)
+        if "belt" in self.award:
+            result = result.where(Awards.type == "belt", Awards.name == self.award["belt"])
+        elif "emoji" in self.award:
+            result = result.where(Awards.type == "emoji", Awards.name == self.award["emoji"], Awards.category == self.hex_dojo_id)
+        return result.order_by(Awards.date.desc()).all()
+
     def completed(self, user):
         return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len(self.challenges)
 
