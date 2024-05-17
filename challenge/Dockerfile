@@ -501,6 +501,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         genisoimage
         gnupg-utils
         hexedit
+        icdiff
         iproute2
         iputils-ping
         ipython3
