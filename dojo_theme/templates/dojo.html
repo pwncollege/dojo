@@ -58,7 +58,7 @@
       <b>Solves:</b> <code>{{ stats["solves"] }}</code>
       {% if awards %}
       <br>
-      <b>Awardees:</b> {{ awards|length }}
+      <b>Awardees:</b> <code>{{ awards|length }}</code>
       <br>
       <b>Earliest Awardees:</b>
       {% for award in awards[-5:][::-1] %}
