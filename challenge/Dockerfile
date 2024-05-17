@@ -122,8 +122,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         mysql-server
         php-mysql
         libapache2-mod-php
-	valgrind
-        bat
 EOF
 
 ################################################################################
@@ -539,6 +537,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         fortune
         zsh
         zip
+        valgrind
+        bat
 EOF
 
 FROM builder-tools-apt-${INSTALL_TOOLS_APT} as builder-tools-apt
