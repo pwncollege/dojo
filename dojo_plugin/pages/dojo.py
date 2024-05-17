@@ -3,7 +3,7 @@ import docker
 import pytz
 
 from flask import Blueprint, render_template, abort, send_file
-from CTFd.models import db, Solves, Challenges, Users
+from CTFd.models import db, Solves, Challenges, Users, Awards
 from CTFd.utils.user import get_current_user
 from CTFd.utils.helpers import get_infos
 from CTFd.cache import cache
@@ -50,6 +50,12 @@ def listing(dojo):
     user = get_current_user()
     dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
     stats = get_stats(dojo)
+    if dojo.award and "emoji" in dojo.award:
+        awards = Awards.query.where(Awards.category==dojo.hex_dojo_id, Awards.name==dojo.award["emoji"]).order_by(Awards.date.desc()).all()
+    elif dojo.award and "belt" in dojo.award:
+        awards = Awards.query.where(Awards.type=="belt", Awards.name==dojo.award["belt"]).order_by(Awards.date.desc()).all()
+    else:
+        awards = [ ]
     return render_template(
         "dojo.html",
         dojo=dojo,
@@ -57,6 +63,7 @@ def listing(dojo):
         dojo_user=dojo_user,
         stats=stats,
         infos=infos,
+        awards=awards,
     )
 
 
