@@ -156,8 +156,9 @@ def start_challenge(user, dojo_challenge, practice):
         )
 
     def insert_challenge(user, dojo_challenge):
-        for path in dojo_challenge.challenge_paths(user):
-            with simple_tar(path, f"/challenge/{path.name}") as tar:
+        for path, relative_path in dojo_challenge.challenge_paths(user):
+            archive_path = os.path.join("/challenge", relative_path)
+            with simple_tar(path, archive_path) as tar:
                 container.put_archive("/", tar)
         exec_run("chown -R root:root /challenge", container=container)
         exec_run("chmod -R 4755 /challenge", container=container)

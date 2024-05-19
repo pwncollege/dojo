@@ -565,14 +565,21 @@ class DojoChallenges(db.Model):
         for path in self.path.iterdir():
             if path.name.startswith("_"):
                 continue
-            yield path.resolve()
+            if path.is_dir() and not path.is_symlink():
+                for subpath in path.iterdir():
+                    relative_path = subpath.relative_to(self.path)
+                    yield subpath.resolve(), relative_path
+            else:
+                relative_path = path.relative_to(self.path)
+                yield path.resolve(), relative_path
 
         option_paths = sorted(path for path in self.path.iterdir() if path.name.startswith("_"))
         if option_paths:
             option_hash = hashlib.sha256(f"{secret}_{user.id}_{self.challenge_id}".encode()).digest()
             option = option_paths[int.from_bytes(option_hash[:8], "little") % len(option_paths)]
             for path in option.iterdir():
-                yield path.resolve()
+                relative_path = path.relative_to(self.path)
+                yield path.resolve(), relative_path
 
     __repr__ = columns_repr(["module", "id", "challenge_id"])
 
