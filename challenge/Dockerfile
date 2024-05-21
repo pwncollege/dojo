@@ -87,7 +87,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         cpio
         openjdk-17-jdk
         flex
-	dwarves
+        dwarves
         g++-multilib
         gcc-multilib
         git
@@ -116,12 +116,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         rubygems
         squashfs-tools
         upx-ucl
-        p7zip-full
-        apache2
-        php-cgi
-        mysql-server
-        php-mysql
-        libapache2-mod-php
 EOF
 
 ################################################################################
@@ -235,9 +229,12 @@ FROM essentials as builder-code-server
 RUN <<EOF
     curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
     mkdir -p /opt/code-server/extensions
-    code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
-    rm -rf /root/.cache/code-server
-    rm -rf /root/.local/share/code-server
+    wget -O /tmp/ms-vscode-cpptools.vsix 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
+    code-server --extensions-dir=/opt/code-server/extensions \
+        --install-extension ms-python.python \
+        --install-extension /tmp/ms-vscode-cpptools.vsix
+    chmod +x /opt/code-server/extensions/ms-vscode.cpptools-*/bin/{cpptools*,libc.so}
+    rm -rf /root/.cache/code-server /root/.local/share/code-server /tmp/ms-vscode-cpptools.vsix
 EOF
 
 WORKDIR /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
@@ -476,7 +473,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+        apache2
         arping
+        bat
         binutils
         binutils-aarch64-linux-gnu
         binwalk
@@ -490,50 +489,57 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         ethtool
         exiftool
         expect
-        fish
         findutils
-	finger
+        finger
         firefox
+        fish
+        fortune
         gcc-aarch64-linux-gnu
         gdb
         gdb-multiarch
+        gedit
         genisoimage
         gnupg-utils
         hexedit
+        icdiff
         iproute2
         iputils-ping
         ipython3
         keyutils
         kmod
+        less
+        libapache2-mod-php
         libc6-arm64-cross
         libc6-dev-arm64-cross
-        less
         ltrace
+        mysql-server
         nano
         neovim
         net-tools
         nmap
         openssh-server
+        p7zip-full
         parallel
         patchelf
         pcaputils
         pcre2-utils
+        php-cgi
+        php-mysql
         psutils
         python3-ipdb
-        qemu-user
         qemu-system-x86
+        qemu-user
         qemu-utils
         rsync
         screen
         silversearcher-ag
         strace
         tmux
+        valgrind
         whiptail
         wireshark
-        gedit
-        fortune
-        zsh
         zip
+        zsh
 EOF
 
 FROM builder-tools-apt-${INSTALL_TOOLS_APT} as builder-tools-apt

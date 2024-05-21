@@ -107,7 +107,7 @@ def test_welcome_desktop(random_user_webdriver, welcome_dojo):
 def test_welcome_vscode(random_user_webdriver, welcome_dojo):
     random_id, _, wd = random_user_webdriver
     wd.get(f"{PROTO}://{HOST}/welcome/welcome")
-    idx = challenge_idx(wd, "Using the VSCode Workspace")
+    idx = challenge_idx(wd, "Challenge Programs")
 
     challenge_start(wd, idx)
     with vscode_terminal(wd) as vs:

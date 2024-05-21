@@ -71,9 +71,10 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(db.JSON)
-    data_fields = ["type", "award", "comparator", "course", "importable"]
+    data_fields = ["type", "award", "course", "pages", "importable", "comparator"]
     data_defaults = {
-        "importable": True
+        "pages": [],
+        "importable": True,
     }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
@@ -240,6 +241,21 @@ class Dojos(db.Model):
         return Users.query.join(sq).filter_by(
             solve_count=len(self.challenges)
         ).add_column(sq.columns.last_solve).order_by(sq.columns.last_solve).all()
+
+    def awards(self):
+        if not self.award:
+            return None
+        result = Awards.query.join(Users).filter(~Users.hidden)
+        if "belt" in self.award:
+            result = result.where(Awards.type == "belt", Awards.name == self.award["belt"])
+        elif "emoji" in self.award:
+            result = result.where(Awards.type == "emoji", Awards.name == self.award["emoji"], Awards.category == self.hex_dojo_id)
+
+        awards = result.order_by(Awards.date.desc()).all()
+        if "emoji" in self.award:
+            awards = [ a for a in awards if a.name == self.award["emoji"] ]
+
+        return awards
 
     def completed(self, user):
         return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len(self.challenges)

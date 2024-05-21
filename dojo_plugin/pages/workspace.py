@@ -4,6 +4,7 @@ from flask import request, Blueprint, render_template, redirect, url_for, abort
 from CTFd.models import Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
+from CTFd.plugins import bypass_csrf_protection
 
 from ..models import Dojos
 from ..utils import random_home_path, redirect_user_socket, get_current_container
@@ -91,9 +92,10 @@ def view_workspace(service):
 
 @workspace.route("/workspace/<service>/", websocket=True)
 @workspace.route("/workspace/<service>/<path:service_path>", websocket=True)
-@workspace.route("/workspace/<service>/")
-@workspace.route("/workspace/<service>/<path:service_path>")
+@workspace.route("/workspace/<service>/", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"])
+@workspace.route("/workspace/<service>/<path:service_path>", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"])
 @authed_only
+@bypass_csrf_protection
 def forward_workspace(service, service_path=""):
     prefix = f"/workspace/{service}/"
     assert request.full_path.startswith(prefix)
