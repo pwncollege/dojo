@@ -510,12 +510,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         gdb-multiarch
         gedit
         genisoimage
+        gprolog
         gnupg-utils
         hexedit
         icdiff
         iproute2
         iputils-ping
         ipython3
+        jq
         keyutils
         kmod
         less
@@ -542,10 +544,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         qemu-system-x86
         qemu-user
         qemu-utils
+        racket
         rsync
         screen
         silversearcher-ag
         socat
+        sqlite3
         strace
         tmux
         valgrind
