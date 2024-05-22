@@ -62,12 +62,26 @@
       <br>
       <b>Earliest Awardees:</b>
       {% for award in awards[-5:][::-1] %}
-      <code><a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">{{award.user.name}}</a> {% if not loop.last %} &middot; {% endif %}</code>
+      <span title="Awarded on {{award.date}}.">
+        <code>
+          <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">
+            {{award.user.name}}
+          </a>
+          {% if not loop.last %} &middot; {% endif %}
+        </code>
+      </span>
       {% endfor %}
       <br>
       <b>Latest Awardees:</b>
       {% for award in awards[:5] %}
-      <code><a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">{{award.user.name}}</a> {% if not loop.last %} &middot; {% endif %}</code>
+      <span title="Awarded on {{award.date}}.">
+        <code>
+          <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">
+            {{award.user.name}}
+          </a>
+          {% if not loop.last %} &middot; {% endif %}
+        </code>
+      </span>
       {% endfor %}
       {% endif %}
     </p>
