@@ -1,3 +1,5 @@
+import time
+
 import requests
 from flask import url_for
 from CTFd.cache import cache
@@ -10,10 +12,15 @@ OAUTH_ENDPOINT = "https://discord.com/api/oauth2"
 API_ENDPOINT = "https://discord.com/api/v9"
 
 
-def discord_request(endpoint, method="GET", **json):
+def discord_request(endpoint, method="GET", **kwargs):
     headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
-    json = json or None
-    response = requests.request(method, f"{API_ENDPOINT}{endpoint}", headers=headers, json=json)
+    while True:
+        response = requests.request(method, f"{API_ENDPOINT}{endpoint}", headers=headers, **kwargs)
+        if response.status_code == 429:
+            retry_after = response.json().get("retry_after", 1)
+            time.sleep(retry_after)
+            continue
+        break
     response.raise_for_status()
     if "application/json" in response.headers.get("Content-Type", ""):
         return response.json()
@@ -21,8 +28,8 @@ def discord_request(endpoint, method="GET", **json):
         return response.content
 
 
-def guild_request(endpoint, method="GET", **json):
-    return discord_request(f"/guilds/{DISCORD_GUILD_ID}{endpoint}", method=method, **json)
+def guild_request(endpoint, method="GET", **kwargs):
+    return discord_request(f"/guilds/{DISCORD_GUILD_ID}{endpoint}", method=method, **kwargs)
 
 
 def get_bot_join_server_url():
@@ -91,7 +98,8 @@ def send_message(message, channel_name):
     channel_ids = [channel["id"] for channel in guild_request("/channels") if channel["name"] == channel_name]
     assert len(channel_ids) == 1
     channel_id = channel_ids[0]
-    discord_request(f"/channels/{channel_id}/messages", method="POST", content=message)
+    json = dict(content=message)
+    discord_request(f"/channels/{channel_id}/messages", method="POST", json=json)
 
 
 def add_role(discord_id, role_name):
