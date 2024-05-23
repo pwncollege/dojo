@@ -475,6 +475,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get clean && rm -rf /var/lib/apt/lists/*
         apache2
         arping
+        bash-builtins
         bat
         binutils
         binutils-aarch64-linux-gnu
