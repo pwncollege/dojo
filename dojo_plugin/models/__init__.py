@@ -695,11 +695,10 @@ class DojoResourceVisibilities(db.Model):
 
 class SSHKeys(db.Model):
     __tablename__ = "ssh_keys"
-    id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
-        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), index=True
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    value = db.Column(db.Text, unique=True)
+    value = db.Column(db.String(512), primary_key=True, unique=True)
 
     user = db.relationship("Users")
 
