@@ -29,7 +29,7 @@ class UpdateKey(Resource):
                 return (
                     {
                         "success": False,
-                        "error": f"Invalid public key, expected format:<br><code>{key_re}</code>"
+                        "error": f"Invalid SSH Key, expected format:<br><code>{key_re}</code>"
                     },
                     400,
                 )
@@ -44,7 +44,7 @@ class UpdateKey(Resource):
         except IntegrityError:
             db.session.rollback()
             return (
-                {"success": False, "error": "Public key already in use"},
+                {"success": False, "error": "SSH Key already in use"},
                 400,
             )
 
@@ -60,7 +60,7 @@ class UpdateKey(Resource):
         key = SSHKeys.query.filter_by(user=user, value=key_value).first()
         if not key:
             return (
-                {"success": False, "error": "Key does not exist"},
+                {"success": False, "error": "SSH Key does not exist"},
                 400,
             )
 
