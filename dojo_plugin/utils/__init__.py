@@ -16,6 +16,7 @@ import re
 
 import bleach
 import docker
+from kubernetes import client
 from flask import current_app, Response, Markup, abort, g
 from itsdangerous.url_safe import URLSafeSerializer
 from CTFd.models import db, Solves, Challenges, Users
@@ -36,12 +37,10 @@ def get_current_container(user=None):
     if not user:
         return None
 
-    docker_client = docker.from_env()
-    container_name = f"user_{user.id}"
-
+    api_instance = client.CoreV1Api()
     try:
-        return docker_client.containers.get(container_name)
-    except docker.errors.NotFound:
+        return api_instance.read_namespaced_pod(name=f"user-{user.id}", namespace="default")
+    except client.rest.ApiException:
         return None
 
 
@@ -95,7 +94,10 @@ def redirect_internal(redirect_uri, auth=None):
 
 def redirect_user_socket(user, port, url_path):
     assert user is not None
-    return redirect_internal(f"http://user_{user.id}:{port}/{url_path}")
+    api_instance = client.CoreV1Api()
+    user_ip = api_instance.read_namespaced_pod(name=f"user-{user.id}", namespace="default").status.pod_ip
+    # TODO-KUBE: Using Kube DNS instead would be nice
+    return redirect_internal(f"http://{user_ip}:{port}/{url_path}")
 
 def render_markdown(s):
     raw_html = build_markdown(s or "")

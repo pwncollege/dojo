@@ -1,11 +1,26 @@
 #!/usr/bin/env python3
 
-import sys
 import os
+import pathlib
+import sys
 import time
 
-import docker
+import yaml
+from kubernetes import client, config as kube_config
+from kubernetes.client.rest import ApiException
 
+KUBECONFIG_PATH = pathlib.Path("/var/kubeconfig/kube.yaml")
+KUBE_CONFIG_DEFAULT_PATH = pathlib.Path(os.path.expanduser(kube_config.KUBE_CONFIG_DEFAULT_LOCATION))
+
+kube_config_dict = yaml.safe_load(open(KUBECONFIG_PATH, "r"))
+for cluster in kube_config_dict["clusters"]:
+    if cluster["name"] == "default":
+        cluster["cluster"]["server"] = "https://kube-server:6443"
+KUBE_CONFIG_DEFAULT_PATH.parent.mkdir(parents=True, exist_ok=True)
+kube_config.load_kube_config_from_dict(kube_config_dict)
+
+if not KUBE_CONFIG_DEFAULT_PATH.exists():
+    yaml.dump(kube_config_dict, KUBE_CONFIG_DEFAULT_PATH.open("w"))
 
 def main():
     original_command = os.getenv("SSH_ORIGINAL_COMMAND")
@@ -21,34 +36,32 @@ def main():
     if len(sys.argv) != 2:
         print(f"{sys.argv[0]} <container_name>")
         exit(1)
-    container_name = sys.argv[1]
+    pod_name = sys.argv[1]
 
-    client = docker.from_env()
+    api_instance = client.CoreV1Api()
 
     try:
-        container = client.containers.get(container_name)
-    except docker.errors.NotFound:
+        pod = api_instance.read_namespaced_pod(pod_name, "default")
+        status = pod.status.phase
+        assert pod.status.phase not in ["Succeeded", "Failed", "Unknown"]
+    except ApiException:
+        status = "NotFound"
+    if status in ["NotFound", "Succeeded", "Failed", "Unknown"]:
         print("No active challenge session; start a challenge!")
         exit(1)
 
     attempts = 0
     while attempts < 30:
         try:
-            container = client.containers.get(container_name)
-            status = container.status
-        except docker.errors.NotFound:
-            status = "uninitialized"
+            pod = api_instance.read_namespaced_pod(pod_name, "default")
+            status = pod.status.phase
+        except ApiException as e:
+            status = "NotFound"
 
-        if status == "running":
-            try:
-                container.get_archive("/opt/pwn.college/.initialized")
-            except docker.errors.NotFound:
-                status = "initializing"
-
-        if status != "running":
+        if status not in ["Running"]:
             attempts += 1
-            print("\033c", end="") # Clear the terminal when the user opens a new chall.
-            print("\r", " " * 80, f"\rConnecting -- instance status: {status}", end="")
+            print("\033c", end="")
+            print("\r", " " * 80, f"\rConnecting -- status: {status}", end="")
             time.sleep(1)
             continue
 
@@ -59,17 +72,16 @@ def main():
             ssh_entrypoint = "/opt/pwn.college/ssh-entrypoint"
             command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
             os.execve(
-                "/usr/bin/docker",
+                "/usr/bin/kubectl",
                 [
-                    "docker",
+                    "kubectl",
                     "exec",
                     "-it" if tty else "-i",
-                    container_name,
+                    "-q",
+                    pod_name,
+                    "--",
                     *command,
                 ],
-                {
-                    "HOME": os.environ["HOME"],
-                },
             )
 
         else:

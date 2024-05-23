@@ -6,6 +6,8 @@ import pathlib
 import json
 import socket
 
+import yaml
+from kubernetes import config as kube_config
 from sqlalchemy.exc import IntegrityError
 from CTFd.models import db, Admins, Pages
 from CTFd.utils import config, set_config
@@ -17,6 +19,12 @@ DOJOS_DIR = pathlib.Path("/var/dojos")
 DATA_DIR = pathlib.Path("/var/data")
 
 INDEX_HTML = pathlib.Path("/var/index.html").read_text()
+
+kube_config_dict = yaml.safe_load(open(kube_config.KUBE_CONFIG_DEFAULT_LOCATION, "r"))
+for cluster in kube_config_dict["clusters"]:
+    if cluster["name"] == "default":
+        cluster["cluster"]["server"] = "https://kube-server:6443"
+kube_config.load_kube_config_from_dict(kube_config_dict)
 
 def create_seccomp():
     seccomp = json.load(pathlib.Path("/etc/docker/seccomp.json").open())

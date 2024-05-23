@@ -1,0 +1,7 @@
+#!/bin/sh
+
+if [ "$1" = "-t" ] && [ "$2" = "nfs" ]; then
+    /bin/aux/mount "$@" -o vers=4.2,nosuid
+else
+    /bin/aux/mount "$@"
+fi

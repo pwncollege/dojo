@@ -22,7 +22,7 @@ port_names = {
 ondemand_services = { "vscode", "desktop", "desktop-windows" }
 
 def container_password(container, *args):
-    key = container.labels["dojo.auth_token"].encode()
+    key = container.metadata.annotations["dojo/auth_token"].encode()
     message = "-".join(args).encode()
     return hmac.HMAC(key, message, "sha256").hexdigest()
 
@@ -127,7 +127,7 @@ def forward_workspace(service, service_path=""):
         container = get_current_container(user)
         if not container:
             abort(404)
-        dojo = Dojos.from_id(container.labels["dojo.dojo_id"]).first()
+        dojo = Dojos.from_id(container.metadata.annotations["dojo/dojo_id"]).first()
         if not dojo.is_admin():
             abort(403)
 

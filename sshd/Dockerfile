@@ -1,21 +1,21 @@
 FROM alpine:latest
 
 RUN apk add --no-cache \
+        build-base \
         python3 \
+        python3-dev \
         py3-pip \
+        mariadb-dev \
         openssh-server-pam \
-	docker-cli \
-	mysql-client
+        kubectl
 
-RUN pip3 install --break-system-packages docker
+RUN pip3 install --break-system-packages \
+    kubernetes \
+    mysqlclient \
+    pyyaml
 
-RUN delgroup ping && \
-    addgroup -g 999 docker && \
-    adduser -S hacker -G docker -s /bin/sh && \
-    mkdir -p /home/hacker/.docker && \
-    echo '{ "detachKeys": "ctrl-q,ctrl-q" }' > /home/hacker/.docker/config.json
-
-RUN mkdir -p /run/sshd
+RUN adduser -S hacker -s /bin/sh && \
+    mkdir -p /run/sshd
 
 WORKDIR /opt/sshd
 COPY . .

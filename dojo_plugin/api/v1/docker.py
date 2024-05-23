@@ -6,6 +6,8 @@ import re
 import traceback
 
 import docker
+import yaml
+from kubernetes import client
 from flask import request
 from flask_restx import Namespace, Resource
 from CTFd.utils.user import get_current_user, is_admin
@@ -201,10 +203,129 @@ def start_challenge(user, dojo_challenge, practice):
     flag = "practice" if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)
     insert_flag(flag)
 
-    auth_token = container.labels["dojo.auth_token"]
+    auth_token = container.metadata.annotations["dojo/auth_token"]
     insert_auth_token(auth_token)
 
     initialize_container()
+
+
+def start_challenge(user, dojo_challenge, practice):
+    namespace = "default"
+
+    def setup_home():
+        # TODO-KUBE: we don't actually care about nosuid or random_home_path anymore
+        homes = pathlib.Path("/var/homes")
+        homefs = homes / "homefs"
+        user_data = homes / "data" / str(user.id)
+        user_nosuid = homes / "nosuid" / random_home_path(user)
+
+        assert homefs.exists()
+        user_data.parent.mkdir(exist_ok=True)
+        user_nosuid.parent.mkdir(exist_ok=True)
+
+        if not user_data.exists():
+            # Shell out to `cp` in order to sparsely copy
+            subprocess.run(["cp", homefs, user_data], check=True)
+
+        process = subprocess.run(
+            ["findmnt", "--output", "OPTIONS", user_nosuid], capture_output=True
+        )
+        if b"nosuid" not in process.stdout:
+            subprocess.run(
+                ["mount", user_data, "-o", "nosuid,X-mount.mkdir", user_nosuid],
+                check=True,
+            )
+
+    def start_container():
+        # TODO-KUBE: Latest forces a pull, we should make the pull async
+        image = "registry:5000/challenge:latest"
+        name = f"user-{user.id}"
+        # TODO-KUBE: Upstream changed the hostname
+        hostname = "-".join((dojo_challenge.module.id, dojo_challenge.id))
+        if practice:
+            hostname = f"practice~{hostname}"
+
+        flag = "practice" if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)
+        config = dict(
+            flag=f"pwn.college{{{flag}}}",
+            privileged=str(bool(practice)).lower(),
+            auth_token=os.urandom(32).hex(),
+        )
+
+        container = client.V1Container(
+            name=name,
+            image=image,
+            env=[
+                client.V1EnvVar(name=f"DOJO_{name.upper()}", value=value)
+                for name, value in config.items()
+            ],
+            volume_mounts=[
+                client.V1VolumeMount(name="home", mount_path=f"/home/hacker"),
+                client.V1VolumeMount(name="kvm", mount_path="/dev/kvm"),
+            ],
+            resources=client.V1ResourceRequirements(
+                limits=dict(cpu="4000m", memory="4000Mi"),
+                requests=dict(cpu="100m", memory="100Mi"),
+            ),
+            # TODO-KUBE: seccomp
+            security_context=client.V1SecurityContext(
+                capabilities=client.V1Capabilities(add=["SYS_PTRACE"]),
+            ),
+        )
+
+        home_volume = client.V1Volume(
+            name="home",
+            nfs=client.V1NFSVolumeSource(
+                server="homes-nfs",
+                path=f"/nosuid/{random_home_path(user)}",
+            )
+        )
+
+        kvm_volume = client.V1Volume(
+            name="kvm",
+            host_path=client.V1HostPathVolumeSource(path="/dev/kvm", type="CharDevice"),
+        )
+
+        annotations = dict(
+            dojo_id=dojo_challenge.dojo.reference_id,
+            module_id=dojo_challenge.module.id,
+            challenge_id=dojo_challenge.id,
+            challenge_description=dojo_challenge.description,
+            user_id=str(user.id),
+            **config,
+        )
+        annotations = {f"dojo/{k}": v for k, v in annotations.items()}
+
+        pod = client.V1Pod(
+            api_version="v1",
+            kind="Pod",
+            metadata=client.V1ObjectMeta(name=name, annotations=annotations),
+            spec=client.V1PodSpec(
+                hostname=hostname,
+                containers=[container],
+                volumes=[home_volume, kvm_volume],
+                restart_policy="Never",
+                automount_service_account_token=False,
+                enable_service_links=False,
+            ),
+        )
+
+        api_instance = client.CoreV1Api()
+
+        try:
+            api_instance.delete_namespaced_pod(
+                name=name,
+                namespace=namespace,
+                body=client.V1DeleteOptions(grace_period_seconds=0),
+            )
+        except client.exceptions.ApiException:
+            pass
+
+        # TODO-KUBE: This is async, we might be in "ContainerCreating" state for a while before "Running"
+        api_instance.create_namespaced_pod(namespace=namespace, body=pod)
+
+    setup_home()
+    start_container()
 
 
 @docker_namespace.route("")
