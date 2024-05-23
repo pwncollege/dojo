@@ -698,7 +698,7 @@ class SSHKeys(db.Model):
     user_id = db.Column(
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    value = db.Column(db.Text, unique=True)
+    value = db.Column(db.String(512), primary_key=True, unique=True)
 
     user = db.relationship("Users")
 

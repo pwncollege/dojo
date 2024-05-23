@@ -17,8 +17,7 @@ def settings_override():
     user = get_current_user()
     tokens = UserTokens.query.filter_by(user_id=user.id).all()
 
-    ssh_key = SSHKeys.query.filter_by(user_id=user.id).first()
-    ssh_key = ssh_key.value if ssh_key else None
+    ssh_keys = SSHKeys.query.filter_by(user_id=user.id).all()
 
     discord_user = get_discord_user(user.id)
 
@@ -38,7 +37,7 @@ def settings_override():
         "settings.html",
         user=user,
         tokens=tokens,
-        ssh_key=ssh_key,
+        ssh_keys=[key.value for key in ssh_keys],
         discord_enabled=bool(DISCORD_CLIENT_ID),
         discord_user=discord_user,
         discord_avatar_asset=discord_avatar_asset,
