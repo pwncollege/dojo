@@ -1,3 +1,4 @@
+import collections
 import datetime
 import docker
 import pytz
@@ -85,6 +86,12 @@ def view_module(dojo, module):
                         .with_entities(Solves.challenge_id, db.func.count()))
     current_dojo_challenge = get_current_dojo_challenge()
 
+    module_containers = docker.from_env().containers.list(filters={
+        "name": "user_",
+        "label": [ f"dojo.dojo_id={dojo.reference_id}", f"dojo.module_id={module.id}" ]
+    }, ignore_removed=True)
+    challenge_container_counts = collections.Counter(c.labels['dojo.challenge_id'] for c in module_containers)
+
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
     assessments = []
     if student or dojo.is_admin(user):
@@ -117,6 +124,7 @@ def view_module(dojo, module):
         user=user,
         current_dojo_challenge=current_dojo_challenge,
         assessments=assessments,
+        challenge_container_counts=challenge_container_counts,
     )
 
 
