@@ -7,6 +7,7 @@ from CTFd.models import Users
 
 from ..utils import random_home_path, get_active_users, redirect_user_socket
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
+from ..utils.workspace import exec_run
 
 
 desktop = Blueprint("pwncollege_desktop", __name__)
@@ -61,6 +62,11 @@ def view_desktop(user_id=None):
 @desktop.route("/desktop-win/<int:user_id>")
 @authed_only
 def view_desktop_win(user_id=None):
+    exec_run(
+        "/opt/pwn.college/services.d/desktop-windows",
+        workspace_user="hacker", user_id=user_id or get_current_user().id, shell=True,
+        assert_success=True
+    )
     return view_desktop_res("desktop-win", user_id, "abcd")
 
 

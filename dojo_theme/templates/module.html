@@ -44,6 +44,7 @@
           <div class="embed-responsive embed-responsive-16by9">
             <iframe class="embed-responsive-item" data-src="{{ src }}"></iframe>
           </div>
+          <button onclick="window.open('{{ src.replace('/embed', '') }}', '_blank')" class="btn btn-primary">Open Slides in New Window</button>
           {% endif %}
 
           {% elif resource.type == "markdown" %}
@@ -66,6 +67,8 @@
     {% for challenge in challenges %}
       {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
       {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
+      {% set containers = challenge_container_counts.get(challenge.id, 0) %}
+      {% set others = containers - 1 if active else containers %}
       {% call(header) accordion_item("challenges", loop.index) %}
         {% if header %}
           <h4 class="accordion-item-name challenge-name {{ active }}">
@@ -78,7 +81,10 @@
               {% endif %}
             </span>
           </h4>
-          <span class="total-solves">{{ total_solves.get(challenge.challenge_id, 0) }} solves</span>
+          <span class="total-solves">
+            {{ others }} hacking,
+            {{ total_solves.get(challenge.challenge_id, 0) }} solves
+          </span>
         {% else %}
           <div class="embed-responsive">
             <p>{{ challenge.description | markdown }}</p>
@@ -128,7 +134,7 @@
 
   <br>
 
-  <h2>Module Ranking</h2>
+  <h2>Ranking</h2>
   <p>This scoreboard reflects solves for challenges in this module after the module launched in this dojo.</p>
   {% from "macros/scoreboard.html" import scoreboard %}
   {{ scoreboard() }}

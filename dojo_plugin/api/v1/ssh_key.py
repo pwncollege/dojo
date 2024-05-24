@@ -18,7 +18,7 @@ ssh_key_namespace = Namespace(
 @ssh_key_namespace.route("")
 class UpdateKey(Resource):
     @authed_only
-    def patch(self):
+    def post(self):
         data = request.get_json()
         key_value = data.get("ssh_key", "")
 
@@ -29,7 +29,7 @@ class UpdateKey(Resource):
                 return (
                     {
                         "success": False,
-                        "error": f"Invalid public key, expected format:<br><code>{key_re}</code>"
+                        "error": f"Invalid SSH Key, expected format:<br><code>{key_re}</code>"
                     },
                     400,
                 )
@@ -38,18 +38,33 @@ class UpdateKey(Resource):
         user = get_current_user()
 
         try:
-            existing_key = SSHKeys.query.filter_by(user_id=user.id).first()
-            if not existing_key:
-                key = SSHKeys(user_id=user.id, value=key_value)
-                db.session.add(key)
-            else:
-                existing_key.value = key_value
+            key = SSHKeys(user_id=user.id, value=key_value)
+            db.session.add(key)
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
             return (
-                {"success": False, "errors": {"key": "Public key already in use"}},
+                {"success": False, "error": "SSH Key already in use"},
                 400,
             )
+
+        return {"success": True}
+
+    @authed_only
+    def delete(self):
+        data = request.get_json()
+        key_value = data.get("ssh_key", "")
+
+        user = get_current_user()
+
+        key = SSHKeys.query.filter_by(user=user, value=key_value).first()
+        if not key:
+            return (
+                {"success": False, "error": "SSH Key does not exist"},
+                400,
+            )
+
+        db.session.delete(key)
+        db.session.commit()
 
         return {"success": True}

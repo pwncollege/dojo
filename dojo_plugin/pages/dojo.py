@@ -1,17 +1,17 @@
+import collections
 import datetime
 import docker
 import pytz
 
-from flask import Blueprint, render_template, redirect, abort
-from CTFd.models import db, Solves, Challenges, Users
+from flask import Blueprint, render_template, abort, send_file
+from CTFd.models import db, Solves, Challenges, Users, Awards
 from CTFd.utils.user import get_current_user
-from CTFd.utils.decorators.visibility import check_challenge_visibility
 from CTFd.utils.helpers import get_infos
 from CTFd.cache import cache
 
 from ..utils import render_markdown, module_visible, module_challenges_visible, is_dojo_admin
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
-from ..models import Dojos, DojoUsers, DojoStudents
+from ..models import Dojos, DojoUsers, DojoStudents, DojoModules
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 
@@ -46,12 +46,12 @@ def get_stats(dojo):
 @dojo.route("/<dojo>")
 @dojo.route("/<dojo>/")
 @dojo_route
-@check_challenge_visibility
 def listing(dojo):
     infos = get_infos()
     user = get_current_user()
     dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
     stats = get_stats(dojo)
+    awards = dojo.awards()
     return render_template(
         "dojo.html",
         dojo=dojo,
@@ -59,12 +59,23 @@ def listing(dojo):
         dojo_user=dojo_user,
         stats=stats,
         infos=infos,
+        awards=awards,
     )
 
 
-@dojo.route("/<dojo>/<module>")
+@dojo.route("/<dojo>/<path>")
+@dojo.route("/<dojo>/<path>/")
 @dojo_route
-@check_challenge_visibility
+def view_dojo_path(dojo, path):
+    module = DojoModules.query.filter_by(dojo=dojo, id=path).first()
+    if module:
+        return view_module(dojo, module)
+    elif path in dojo.pages:
+        return view_page(dojo, path)
+    else:
+        abort(404)
+
+
 def view_module(dojo, module):
     user = get_current_user()
     user_solves = set(solve.challenge_id for solve in (
@@ -74,6 +85,12 @@ def view_module(dojo, module):
                         .group_by(Solves.challenge_id)
                         .with_entities(Solves.challenge_id, db.func.count()))
     current_dojo_challenge = get_current_dojo_challenge()
+
+    module_containers = docker.from_env().containers.list(filters={
+        "name": "user_",
+        "label": [ f"dojo.dojo_id={dojo.reference_id}", f"dojo.module_id={module.id}" ]
+    }, ignore_removed=True)
+    challenge_container_counts = collections.Counter(c.labels['dojo.challenge_id'] for c in module_containers)
 
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
     assessments = []
@@ -107,4 +124,29 @@ def view_module(dojo, module):
         user=user,
         current_dojo_challenge=current_dojo_challenge,
         assessments=assessments,
+        challenge_container_counts=challenge_container_counts,
     )
+
+
+def view_page(dojo, page):
+    if (dojo.path / page).is_file():
+        path = (dojo.path / page).resolve()
+        return send_file(path)
+
+    elif (dojo.path / f"{page}.md").is_file():
+        content = render_markdown((dojo.path / f"{page}.md").read_text())
+        return render_template("markdown.html", dojo=dojo, content=content)
+
+    elif (dojo.path / page).is_dir():
+        user = get_current_user()
+        if user and (dojo.path / page / f"{user.id}").is_file():
+            path = (dojo.path / page / f"{user.id}").resolve()
+            return send_file(path)
+        elif user and (dojo.path / page / f"{user.id}.md").is_file():
+            content = render_markdown((dojo.path / page / f"{user.id}.md").read_text())
+            return render_template("markdown.html", dojo=dojo, content=content)
+        elif (dojo.path / page / "default.md").is_file():
+            content = render_markdown((dojo.path / page / "default.md").read_text())
+            return render_template("markdown.html", dojo=dojo, content=content)
+
+    abort(404)

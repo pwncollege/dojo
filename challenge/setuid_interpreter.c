@@ -13,6 +13,8 @@
 #define ERROR_PATH 3
 #define ERROR_NOT_ROOT 4
 #define ERROR_NOT_SUID 5
+#define ERROR_BAD_SHEBANG 6
+#define ERROR_BAD_ENV 7
 
 int main(int argc, char **argv, char **envp)
 {
@@ -42,8 +44,15 @@ int main(int argc, char **argv, char **envp)
     if (!(stat.st_mode & S_ISUID))
         return ERROR_NOT_SUID;
 
+    char first_line[PATH_MAX];
+    FILE *sfd = fopen(path, "r");
+    fgets(first_line, PATH_MAX, sfd);
+    fclose(sfd);
+
 #ifdef SUID_PYTHON
     char *child_argv_prefix[] = { "/usr/bin/python3", "-I", "--", NULL };
+    if (strcmp(first_line, "#!/opt/pwn.college/python\n"))
+        return ERROR_BAD_SHEBANG;
 #endif
 #ifdef SUID_BASH
     char c_arg[PATH_MAX];
@@ -53,6 +62,13 @@ int main(int argc, char **argv, char **envp)
     setresgid(getegid(), getegid(), getegid());
     unsetenv("BASH_ENV");
     unsetenv("ENV");
+    if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/bash\n"))
+    {
+        if (envp[0] != NULL)
+            return ERROR_BAD_ENV;
+    }
+    else if (strcmp(first_line, "#!/opt/pwn.college/bash\n"))
+        return ERROR_BAD_SHEBANG;
 #endif
 #ifdef SUID_SH
     char c_arg[PATH_MAX];
@@ -60,6 +76,13 @@ int main(int argc, char **argv, char **envp)
     char *child_argv_prefix[] = { "/usr/bin/sh", "-c", c_arg, argv[1],  NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
+    if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/sh\n"))
+    {
+        if (envp[0] != NULL)
+            return ERROR_BAD_ENV;
+    }
+    else if (strcmp(first_line, "#!/opt/pwn.college/sh\n"))
+        return ERROR_BAD_SHEBANG;
 #endif
 
     char **child_argv = malloc(sizeof(child_argv_prefix) + argc * sizeof(char *));

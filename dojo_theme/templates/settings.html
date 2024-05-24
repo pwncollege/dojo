@@ -76,48 +76,83 @@
             </div>
 
             <div class="form-group">
-              {{ form.submit(class="btn btn-md btn-primary btn-outlined float-right") }}
+              {{ form.submit(class="btn btn-md btn-primary float-right") }}
             </div>
           </form>
           {% endwith %}
         </div>
 
         <div class="tab-pane fade" id="ssh-key" role="tabpanel">
+
+          {% if ssh_keys %}
+            <b><label for="enter-name">Current SSH Keys</label></b>
+            <br>
+
+            {% for key in ssh_keys %}
+            <form method="post" id="delete-ssh-key-{{ loop.index }}-form" autocomplete="off">
+                <div class="form-group">
+                    <div class="input-group">
+                        <input class="form-control" id="ssh-key" name="ssh_key" type="text" value="{{ key }}" readonly>
+                        <div class="input-group-append ml-1" style="margin: -0.1rem">
+                            <button type="submit" class="btn btn-danger" id="delete-ssh-key-button-{{ loop.index }}">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="delete-ssh-key-{{ loop.index }}-results" class="form-group">
+                </div>
+            </form>
+
+            <script>
+              document.addEventListener('DOMContentLoaded', function() {
+                form_fetch_and_show("delete-ssh-key-{{ loop.index }}", "/pwncollege_api/v1/ssh_key", "DELETE", "Your public key has been deleted");
+              });
+            </script>
+            {% endfor %}
+            <br>
+          {% endif %}
+
           <form method="post" id="ssh-key-form" autocomplete="off">
             <div class="form-group">
-              <b><label for="enter-name">SSH Key</label></b>
+              <b><label for="enter-name">Add New SSH Key</label></b>
               <small class="form-text text-muted">Required for accessing challenges over SSH</small>
               <br>
-              <input class="form-control" id="ssh-key" name="ssh_key" type="text" value="{{ ssh_key or "" }}">
+              <input class="form-control" id="ssh-key" name="ssh_key" type="text" value="">
             </div>
 
             <div id="ssh-key-results" class="form-group">
             </div>
 
             <div class="form-group text-right">
-              <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Update">
+              <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Add">
             </div>
           </form>
         </div>
 
         {% if discord_enabled %}
         <div class="tab-pane fade" id="discord" role="tabpanel">
-          <a href="/discord/connect" class="text-decoration-none">
+          <div class="text-center">
             <img src="{{ discord_avatar_asset(discord_user) }}" class="discord-avatar">
-            <br>
-            <h2 class="text-center">
-              {% if discord_user %}
-              {{ discord_user["user"]["username"] }}
-              {% else %}
-              <i>Connect Discord Account</i>
-              {% endif %}
-            </h2>
-            <br>
-            <div id="discord-results" class="form-group">
-            </div>
-          </a>
+            {% if discord_user %}
+              <h2>{{ discord_user["user"]["username"] }}</h2>
+              <br>
+              <form method="post" id="discord-form" autocomplete="off">
+                <div class="form-group">
+                  <input type="submit" class="btn btn-danger" value="Disconnect Discord Account">
+                </div>
+                <div id="discord-results" class="form-group">
+                </div>
+              </form>
+            {% else %}
+              <br>
+              <a href="/discord/connect" class="btn btn-primary">Connect Discord Account</a>
+            {% endif %}
+          </div>
         </div>
         {% endif %}
+
         <div class="tab-pane fade" id="tokens" role="tabpanel">
           {% with form = Forms.self.TokensForm() %}
           <form method="POST" id="user-token-form">

@@ -25,6 +25,4 @@ cl challenge-proxy.c
 
 
 # -- shutdown --
-Set-Service -Name sshd -StartupType Manual
-Set-Service -Name tvnserver -StartupType Manual
-Stop-Computer -computername localhost
+Stop-Computer -computername localhost -force

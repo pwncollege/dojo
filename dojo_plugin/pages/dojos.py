@@ -56,6 +56,10 @@ def listing():
             continue
         category = type_to_category.get(dojo.type, "More Material")
         categorized_dojos[category].append((dojo, solves))
+
+    if "Start Here" in categorized_dojos:
+        categorized_dojos["Start Here"].sort(key=lambda x: x[0].name)
+
     return render_template("dojos.html", user=user, categorized_dojos=categorized_dojos)
 
 

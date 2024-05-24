@@ -4,10 +4,12 @@ from flask import request, Blueprint, render_template, redirect, url_for, abort
 from CTFd.models import Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
+from CTFd.plugins import bypass_csrf_protection
 
 from ..models import Dojos
 from ..utils import random_home_path, redirect_user_socket, get_current_container
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
+from ..utils.workspace import exec_run
 
 
 workspace = Blueprint("pwncollege_workspace", __name__)
@@ -17,7 +19,7 @@ port_names = {
     "desktop": 6081,
     "desktop-windows": 6082,
 }
-
+ondemand_services = { "vscode", "desktop", "desktop-windows" }
 
 def container_password(container, *args):
     key = container.labels["dojo.auth_token"].encode()
@@ -38,6 +40,12 @@ def view_desktop():
     container = get_current_container(user)
     if not container:
         return render_template("iframe.html", active=False)
+
+    exec_run(
+        "/opt/pwn.college/services.d/desktop",
+        workspace_user="hacker", user_id=user.id, shell=True,
+        assert_success=True
+    )
 
     interact_password = container_password(container, "desktop", "interact")
     view_password = container_password(container, "desktop", "view")
@@ -84,9 +92,10 @@ def view_workspace(service):
 
 @workspace.route("/workspace/<service>/", websocket=True)
 @workspace.route("/workspace/<service>/<path:service_path>", websocket=True)
-@workspace.route("/workspace/<service>/")
-@workspace.route("/workspace/<service>/<path:service_path>")
+@workspace.route("/workspace/<service>/", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"])
+@workspace.route("/workspace/<service>/<path:service_path>", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"])
 @authed_only
+@bypass_csrf_protection
 def forward_workspace(service, service_path=""):
     prefix = f"/workspace/{service}/"
     assert request.full_path.startswith(prefix)
@@ -99,6 +108,13 @@ def forward_workspace(service, service_path=""):
             port = int(port_names.get(port, port))
         except ValueError:
             abort(404)
+
+        if service in ondemand_services:
+            exec_run(
+                f"/opt/pwn.college/services.d/{service}",
+                workspace_user="hacker", user_id=user.id, shell=True,
+                assert_success=True
+            )
 
     elif service.count("~") == 1:
         port, user_id = service.split("~", 1)

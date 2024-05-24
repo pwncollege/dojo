@@ -44,7 +44,7 @@
   <br>
   {% endif %}
 
-
+  {% if dojo.modules %}
   <h2 class="row">Stats</h2>
   <br>
   <div class="row">
@@ -56,16 +56,44 @@
       <b>Challenges:</b> <code>{{ stats["challenges"] }}</code>
       <br>
       <b>Solves:</b> <code>{{ stats["solves"] }}</code>
+      {% if awards %}
+      <br>
+      <b>Awardees:</b> <code>{{ awards|length }}</code>
+      <br>
+      <b>Earliest Awardees:</b>
+      {% for award in awards[-5:][::-1] %}
+      <span title="Awarded on {{award.date}}.">
+        <code>
+          <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">
+            {{award.user.name}}
+          </a>
+          {% if not loop.last %} &middot; {% endif %}
+        </code>
+      </span>
+      {% endfor %}
+      <br>
+      <b>Latest Awardees:</b>
+      {% for award in awards[:5] %}
+      <span title="Awarded on {{award.date}}.">
+        <code>
+          <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">
+            {{award.user.name}}
+          </a>
+          {% if not loop.last %} &middot; {% endif %}
+        </code>
+      </span>
+      {% endfor %}
+      {% endif %}
     </p>
   </div>
 
   <br>
 
-  <h2 class="row">Dojo Modules</h2>
+  <h2 class="row">Modules</h2>
   <br>
   <ul class="card-list">
     {% for module in dojo.modules %}
-    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.view_module', dojo=dojo_id, module=module.id) }}">
+    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.view_dojo_path', dojo=dojo_id, path=module.id) }}">
       {# TODO: card-active, card-hidden #}
       <li class="card card-small">
         <div class="card-body">
@@ -81,10 +109,12 @@
 
   <br>
 
-  <h2 class="row">Dojo Rankings:</h2>
+  <h2 class="row">Rankings:</h2>
   <br>
   {% from "macros/scoreboard.html" import scoreboard %}
   {{ scoreboard() }}
+
+  {% endif %}
 </div>
 {% endblock %}
 

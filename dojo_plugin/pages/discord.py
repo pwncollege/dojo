@@ -11,7 +11,7 @@ from CTFd.utils.decorators import authed_only
 
 from ..models import DiscordUsers
 from ..config import DISCORD_CLIENT_ID
-from ..utils.discord import OAUTH_ENDPOINT, get_discord_id, get_discord_user
+from ..utils.discord import OAUTH_ENDPOINT, get_discord_id, get_discord_user, add_role
 
 
 discord = Blueprint("discord", __name__)
@@ -65,6 +65,7 @@ def discord_redirect():
             existing_discord_user.discord_id = discord_id
         db.session.commit()
         cache.delete_memoized(get_discord_user, user_id)
+        add_role(discord_id, "White Belt")
     except IntegrityError:
         db.session.rollback()
         return {"success": False, "error": "Discord user already in use"}, 400

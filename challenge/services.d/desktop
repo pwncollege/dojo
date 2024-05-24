@@ -1,5 +1,8 @@
 #!/bin/sh
 
+[ -f /tmp/.dojo/vnc/vncserver.pid ] && exit
+exec 2> /tmp/.dojo/service-desktop.log
+
 mkdir -p /tmp/.dojo/vnc /home/hacker/.vnc
 
 container_id="$(cat /.authtoken)"
@@ -39,7 +42,8 @@ start-stop-daemon --start \
                   >>/tmp/.dojo/vnc/websockify.log \
                   2>&1
 
-seq 1 50 | while read cnt; do sleep 0.1; [ -e /tmp/.X11-unix/X42 ] && break; done
+until [ -e /tmp/.X11-unix/X42 ]; do sleep 0.1; done
+until curl -s dojo-user:6081 >/dev/null; do sleep 0.1; done
 
 export DISPLAY=:42
 

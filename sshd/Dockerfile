@@ -7,7 +7,9 @@ RUN apk add --no-cache \
 	docker-cli \
 	mysql-client
 
-RUN pip3 install --break-system-packages docker
+# requests 2.32.0 (released 5/23/24) breaks docker module
+# once resolved, please unpin requests
+RUN pip3 install --break-system-packages requests==2.31.0 docker
 
 RUN delgroup ping && \
     addgroup -g 999 docker && \

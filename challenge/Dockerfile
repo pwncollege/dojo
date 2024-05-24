@@ -14,8 +14,7 @@ ARG INSTALL_GECKODRIVER=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_BURPSUITE=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_BUSYBOX=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_GLOW=${DEFAULT_INSTALL_SELECTION}
-ARG INSTALL_DESKTOP_BASE=${DEFAULT_INSTALL_SELECTION}
-ARG INSTALL_XFCE=${DEFAULT_INSTALL_SELECTION}
+ARG INSTALL_DESKTOP=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_VIRTIOFSD=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_IDA_FREE=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_BINJA_FREE=${DEFAULT_INSTALL_SELECTION}
@@ -88,7 +87,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         cpio
         openjdk-17-jdk
         flex
-	dwarves
+        dwarves
         g++-multilib
         gcc-multilib
         git
@@ -117,12 +116,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         rubygems
         squashfs-tools
         upx-ucl
-        p7zip-full
-        apache2
-        php-cgi
-        mysql-server
-        php-mysql
-        libapache2-mod-php
 EOF
 
 ################################################################################
@@ -236,9 +229,12 @@ FROM essentials as builder-code-server
 RUN <<EOF
     curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
     mkdir -p /opt/code-server/extensions
-    code-server --extensions-dir=/opt/code-server/extensions --install-extension ms-python.python
-    rm -rf /root/.cache/code-server
-    rm -rf /root/.local/share/code-server
+    wget -O /tmp/ms-vscode-cpptools.vsix 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
+    code-server --extensions-dir=/opt/code-server/extensions \
+        --install-extension ms-python.python \
+        --install-extension /tmp/ms-vscode-cpptools.vsix
+    chmod +x /opt/code-server/extensions/ms-vscode.cpptools-*/bin/{cpptools*,libc.so}
+    rm -rf /root/.cache/code-server /root/.local/share/code-server /tmp/ms-vscode-cpptools.vsix
 EOF
 
 WORKDIR /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
@@ -377,36 +373,22 @@ FROM builder-virtiofsd-${INSTALL_VIRTIOFSD} as builder-virtiofsd
 
 ################################################################################
 
-FROM essentials as builder-desktop-base-no
-FROM essentials as builder-desktop-base-yes
+FROM essentials as builder-desktop-no
+FROM essentials as builder-desktop-yes
 
 ARG UBUNTU_VERSION=20.04
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     [ "${UBUNTU_VERSION}" == "20.04" ] && TGR=common || TGR=tools; \
-    apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
+    apt-get update && xargs apt-get install -yqq <<EOF && \
+    apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
+    apt-get -y autoremove && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
         novnc
         tigervnc-standalone-server
         tigervnc-$TGR
         websockify
-        fluxbox
         xterm
-EOF
-
-FROM builder-desktop-base-${INSTALL_DESKTOP_BASE} as builder-desktop-base
-
-################################################################################
-
-FROM builder-desktop-base-no as builder-desktop-xfce-no
-FROM builder-desktop-base-yes as builder-desktop-xfce-yes
-
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install -yqq <<EOF && \
-    apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
-    apt-get -y autoremove && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
         dbus-x11
         mousepad
         xclip
@@ -420,7 +402,7 @@ COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
 
 RUN rm /etc/xdg/autostart/*
 
-FROM builder-desktop-xfce-${INSTALL_XFCE} as builder-desktop-xfce
+FROM builder-desktop-${INSTALL_DESKTOP} as builder-desktop
 
 ################################################################################
 
@@ -491,7 +473,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+        apache2
         arping
+        bash-builtins
+        bat
         binutils
         binutils-aarch64-linux-gnu
         binwalk
@@ -505,50 +490,57 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         ethtool
         exiftool
         expect
-        fish
         findutils
-	finger
+        finger
         firefox
+        fish
+        fortune
         gcc-aarch64-linux-gnu
         gdb
         gdb-multiarch
+        gedit
         genisoimage
         gnupg-utils
         hexedit
+        icdiff
         iproute2
         iputils-ping
         ipython3
         keyutils
         kmod
+        less
+        libapache2-mod-php
         libc6-arm64-cross
         libc6-dev-arm64-cross
-        less
         ltrace
+        mysql-server
         nano
         neovim
         net-tools
         nmap
         openssh-server
+        p7zip-full
         parallel
         patchelf
         pcaputils
         pcre2-utils
+        php-cgi
+        php-mysql
         psutils
         python3-ipdb
-        qemu-user
         qemu-system-x86
+        qemu-user
         qemu-utils
         rsync
         screen
         silversearcher-ag
         strace
         tmux
+        valgrind
         whiptail
         wireshark
-        gedit
-        fortune
-        zsh
         zip
+        zsh
 EOF
 
 FROM builder-tools-apt-${INSTALL_TOOLS_APT} as builder-tools-apt
@@ -584,6 +576,7 @@ RUN mkdir /opt/pwn.college
 COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
 COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
+COPY services.d /opt/pwn.college/services.d
 COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
 COPY bash.bashrc /opt/pwn.college/bash.bashrc
 COPY vm /opt/pwn.college/vm
@@ -753,7 +746,7 @@ COPY --link --from=builder-github-tools / /
 ################################################################################
 
 FROM challenge-micro as challenge-mini
-COPY --link --from=builder-desktop-base / /
+COPY --link --from=builder-desktop-yes / /
 
 ################################################################################
 
@@ -773,7 +766,6 @@ COPY --link --from=builder-geckodriver / /
 COPY --link --from=builder-burpsuite / /
 COPY --link --from=builder-busybox / /
 COPY --link --from=builder-glow / /
-COPY --link --from=builder-desktop-xfce / /
 COPY --link --from=builder-virtiofsd /opt/virtiofsd /opt/virtiofsd
 COPY --link --from=builder-desktop-ida-free / /
 COPY --link --from=builder-desktop-binja-free / /
@@ -807,7 +799,6 @@ COPY --link --from=builder-geckodriver-yes / /
 COPY --link --from=builder-burpsuite-yes / /
 COPY --link --from=builder-busybox-yes / /
 COPY --link --from=builder-glow-yes / /
-COPY --link --from=builder-desktop-xfce-yes / /
 COPY --link --from=builder-virtiofsd-yes /opt/virtiofsd /opt/virtiofsd
 COPY --link --from=builder-desktop-ida-free / /
 COPY --link --from=builder-desktop-binja-free / /
