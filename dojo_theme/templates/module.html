@@ -67,8 +67,6 @@
     {% for challenge in challenges %}
       {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
       {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
-      {% set containers = challenge_container_counts.get(challenge.id, 0) %}
-      {% set others = containers - 1 if active else containers %}
       {% call(header) accordion_item("challenges", loop.index) %}
         {% if header %}
           <h4 class="accordion-item-name challenge-name {{ active }}">
@@ -82,7 +80,7 @@
             </span>
           </h4>
           <span class="total-solves">
-            {{ others }} hacking,
+            {{ challenge_container_counts.get(challenge.id, 0) }} hacking,
             {{ total_solves.get(challenge.challenge_id, 0) }} solves
           </span>
         {% else %}
