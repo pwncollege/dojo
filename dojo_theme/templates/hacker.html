@@ -83,7 +83,7 @@
           {% call(header) accordion_item("modules-{}".format(dojo.hex_dojo_id), loop.index) %}
             {% if header %}
               <h4 class="accordion-item-name">{{ module.name }}</h4>
-              <span class="total-solves">
+              <span class="challenge-header-right">
                 <i class="fas fa-flag pr-1" title="Solves"></i>
                 <td>{{ solves }} / {{ module.challenges | length }}</td>
                 <i class="fas fa-trophy pr-1 pl-3 " title="Rank"></i>

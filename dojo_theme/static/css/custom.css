@@ -231,7 +231,7 @@ h4 {
     -webkit-text-fill-color: rgba(255,255,255,0.25);
 }
 
-.total-solves {
+.challenge-header-right {
     float: right;
     font-size: 0.75em;
     color: #ddd;

@@ -79,9 +79,13 @@
               {% endif %}
             </span>
           </h4>
-          <span class="total-solves">
-            {{ challenge_container_counts.get(challenge.id, 0) }} hacking,
-            {{ total_solves.get(challenge.challenge_id, 0) }} solves
+          <span class="challenge-header-right">
+            <span class="total-hackers">
+              {{ challenge_container_counts.get(challenge.id, 0) }} hacking,
+            </span>
+            <span class="total-solves">
+              {{ total_solves.get(challenge.challenge_id, 0) }} solves
+            </span>
           </span>
         {% else %}
           <div class="embed-responsive">
