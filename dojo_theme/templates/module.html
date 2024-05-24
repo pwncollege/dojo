@@ -80,9 +80,11 @@
             </span>
           </h4>
           <span class="challenge-header-right">
+            {% if challenge_container_counts.get(challenge.id, 0) > 0 %}
             <span class="total-hackers">
               {{ challenge_container_counts.get(challenge.id, 0) }} hacking,
             </span>
+            {% endif %}
             <span class="total-solves">
               {{ total_solves.get(challenge.challenge_id, 0) }} solves
             </span>
