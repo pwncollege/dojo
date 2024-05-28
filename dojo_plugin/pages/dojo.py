@@ -25,18 +25,10 @@ def get_stats(dojo):
     }
     containers = docker_client.containers.list(filters=filters, ignore_removed=True)
 
-    now = datetime.datetime.now()
-    active = 0.0
-    for container in containers:
-        created = container.attrs["Created"].split(".")[0]
-        uptime = now - datetime.datetime.fromisoformat(created)
-        hours = max(uptime.seconds // (60 * 60), 1)
-        active += 1 / hours
-
     # TODO: users and solves query is slow, so we'll just leave it out for now
     # TODO: we need to index tables for this to be fast
     return {
-        "active": int(active),
+        "active": len(containers),
         "users": "-", # int(dojo.solves().group_by(Solves.user_id).count()),
         "challenges": int(len(dojo.challenges)),
         "solves": "-", # int(dojo.solves().count()),
