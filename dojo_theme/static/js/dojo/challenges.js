@@ -137,6 +137,7 @@ function startChallenge(event) {
 
     var result_notification = item.find('#result-notification');
     var result_message = item.find('#result-message');
+    result_notification.removeClass('alert-danger');
     result_notification.addClass('alert alert-warning alert-dismissable text-center');
     result_message.html("Loading.");
     result_notification.slideDown();
