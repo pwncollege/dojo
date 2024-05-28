@@ -1,18 +1,12 @@
-import contextlib
-import functools
-import json
-import tempfile
 import datetime
-import logging
-import pathlib
-import tarfile
 import hashlib
-import inspect
-import socket
-import fcntl
-import pytz
+import io
+import logging
 import os
+import pytz
 import re
+import tarfile
+import tempfile
 
 import bleach
 import docker
@@ -129,14 +123,23 @@ def unserialize_user_flag(user_flag, *, secret=None):
     return account_id, challenge_id
 
 
-def simple_tar(path, name=None):
-    f = tempfile.NamedTemporaryFile()
-    t = tarfile.open(mode="w", fileobj=f)
-    abs_path = os.path.abspath(path)
-    t.add(abs_path, arcname=(name or os.path.basename(path)))
-    t.close()
-    f.seek(0)
-    return f
+def resolved_tar(root_dir, filter=None):
+    tar_buffer = io.BytesIO()
+    tar = tarfile.open(fileobj=tar_buffer, mode='w')
+    resolved_root_path = root_dir.resolve()
+    for path in root_dir.rglob("*"):
+        if filter is not None and not filter(path):
+            continue
+        relative_path = path.relative_to(root_dir)
+        if path.is_symlink():
+            resolved_path = path.resolve()
+            # TODO: is_relative_to is wrong; we need to be relative to the dojo directory, not the root directory
+            assert resolved_path.is_relative_to(resolved_root_path), f"The symlink {path} points outside of the root directory"
+            tar.add(resolved_path, arcname=relative_path, recursive=False)
+        else:
+            tar.add(path, arcname=relative_path, recursive=False)
+    tar_buffer.seek(0)
+    return tar_buffer
 
 
 def random_home_path(user, *, secret=None):

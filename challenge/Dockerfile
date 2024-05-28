@@ -511,8 +511,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         gdb-multiarch
         gedit
         genisoimage
-        gprolog
         gnupg-utils
+        gprolog
         hexedit
         icdiff
         iproute2
