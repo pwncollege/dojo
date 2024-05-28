@@ -54,10 +54,6 @@ jobs:
             sleep 1
           done
 
-          until { curl -vf http://localhost.pwn.college/ 2>&1 >/dev/null | grep '^[<>]'; [ $PIPESTATUS -eq 0 ]; }; do
-            sleep 1
-          done          
-
           kill $log_pid
           exit 0
 

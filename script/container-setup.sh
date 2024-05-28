@@ -17,7 +17,7 @@ define () {
 DEFAULT_DOJO_HOST=localhost.pwn.college
 
 define DOJO_HOST "${DEFAULT_DOJO_HOST}"
-define VIRTUAL_HOST "${DEFAULT_DOJO_HOST},localhost"
+define VIRTUAL_HOST "${DEFAULT_DOJO_HOST}"
 define LETSENCRYPT_HOST "${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
 define DOJO_CHALLENGE challenge-mini
