@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1-labs
 
 ARG UBUNTU_VERSION=20.04
-ARG DOJO_CHALLENGE=challenge-mini
 ARG DEFAULT_INSTALL_SELECTION=yes
 ARG INSTALL_KERNEL=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_TCPDUMP=${DEFAULT_INSTALL_SELECTION}
@@ -14,7 +13,6 @@ ARG INSTALL_GECKODRIVER=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_BURPSUITE=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_BUSYBOX=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_GLOW=${DEFAULT_INSTALL_SELECTION}
-ARG INSTALL_DESKTOP=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_VIRTIOFSD=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_IDA_FREE=${DEFAULT_INSTALL_SELECTION}
 ARG INSTALL_BINJA_FREE=${DEFAULT_INSTALL_SELECTION}
@@ -47,12 +45,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+        build-essential
         ca-certificates
         curl
-        netcat-openbsd
-        socat
         sudo
-        vim
         wget
         unzip
 EOF
@@ -61,18 +57,106 @@ RUN rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 
 ################################################################################
 
-FROM essentials as builder-essentials
+FROM essentials as builder-pwn.college
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-        build-essential
+RUN mkdir /opt/pwn.college
+COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
+COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
+COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
+COPY services.d /opt/pwn.college/services.d
+COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
+COPY bash.bashrc /opt/pwn.college/bash.bashrc
+COPY vm /opt/pwn.college/vm
+COPY windows /opt/pwn.college/windows
+COPY .tmux.conf /opt/pwn.college/.tmux.conf
+COPY .gdbinit /opt/pwn.college/.gdbinit
+COPY .radare2rc /opt/pwn.college/.radare2rc
+COPY .pwn.conf /opt/pwn.college/.pwn.conf
+
+RUN <<EOF
+    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_PYTHON -o /opt/pwn.college/python
+    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_BASH -o /opt/pwn.college/bash
+    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_SH -o /opt/pwn.college/sh
+
+    ln -sf /bin/bash /opt/pwn.college/ssh-entrypoint
+    ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
+    ln -sf /opt/pwn.college/windows/windows /usr/local/bin/windows
+
+    ln -sf /home/hacker/.tmux.conf /root/.tmux.conf
+    ln -sf /home/hacker/.gdbinit /root/.gdbinit
+    ln -sf /home/hacker/.radare2rc /root/.radare2rc
+    ln -sf /home/hacker/.pwn.conf /root/.pwn.conf
+
+    mkdir /challenge
+    install -m 400 <(echo 'pwn.college{uninitialized}') /flag
 EOF
 
 ################################################################################
 
-FROM builder-essentials as builder
+FROM essentials as builder-code-server
+
+RUN <<EOF
+    curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
+    mkdir -p /opt/code-server/extensions
+    wget -O /tmp/ms-vscode-cpptools.vsix 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
+    code-server --extensions-dir=/opt/code-server/extensions \
+        --install-extension ms-python.python \
+        --install-extension /tmp/ms-vscode-cpptools.vsix
+    chmod +x /opt/code-server/extensions/ms-vscode.cpptools-*/bin/{cpptools*,libc.so}
+    rm -rf /root/.cache/code-server /root/.local/share/code-server /tmp/ms-vscode-cpptools.vsix
+EOF
+
+WORKDIR /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
+
+RUN mv rg rg.orig
+
+COPY <<EOF ./rg
+#!/usr/bin/python
+
+import sys
+import os
+
+sys.argv[0] += ".orig"
+if "--follow" in sys.argv:
+    sys.argv.remove("--follow")
+os.execv(sys.argv[0], sys.argv)
+EOF
+
+RUN chmod +x rg
+
+################################################################################
+
+FROM essentials as builder-desktop
+
+ARG UBUNTU_VERSION=20.04
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    [ "${UBUNTU_VERSION}" == "20.04" ] && TGR=common || TGR=tools; \
+    apt-get update && xargs apt-get install -yqq <<EOF && \
+    apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
+    apt-get -y autoremove && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+        novnc
+        tigervnc-standalone-server
+        tigervnc-$TGR
+        websockify
+        xterm
+        dbus-x11
+        mousepad
+        xclip
+        xfce4
+        xfce4-terminal
+EOF
+
+# TODO: can we generate desktop data with cli ???
+COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
+COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
+
+RUN rm /etc/xdg/autostart/*
+
+################################################################################
+
+FROM essentials as builder
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -116,22 +200,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         rubygems
         squashfs-tools
         upx-ucl
-EOF
-
-################################################################################
-
-FROM builder as builder-github-tools
-RUN <<EOF
-    git clone --depth 1 --recurse-submodules https://github.com/pwncollege/dojjail /opt/dojjail
-    pip install -e /opt/dojjail
-
-    git clone --depth 1 --recurse-submodules https://github.com/zolutal/kropr /opt/kropr
-    cd /opt/kropr
-    cargo install --path . --root /tmp
-    mv /tmp/bin/ropr /usr/bin/kropr
-    chmod +x /usr/bin/kropr
-
-    git clone --depth 1 --recurse-submodules https://github.com/zolutal/gdb-pt-dump /opt/pt-dump
 EOF
 
 ################################################################################
@@ -210,50 +278,25 @@ RUN <<EOF
     git clone --depth 1 --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
     cd /opt/pwndbg
     ./setup.sh
-    ln -sf /home/hacker/.gdbinit /root/.gdbinit
 
     git clone --depth 1 https://github.com/hugsy/gef /opt/gef
+
     git clone --depth 1 https://github.com/jerdna-regeiz/splitmind /opt/splitmind
 
     git clone --depth 1 https://github.com/nccgroup/libslub /opt/libslub
     cd /opt/libslub
     pip install -r requirements.txt
+
+    git clone --depth 1 --recurse-submodules https://github.com/zolutal/gdb-pt-dump /opt/pt-dump
+
+    git clone --depth 1 --recurse-submodules https://github.com/zolutal/kropr /opt/kropr
+    cd /opt/kropr
+    cargo install --path . --root /tmp
+    mv /tmp/bin/ropr /usr/bin/kropr
+    chmod +x /usr/bin/kropr
 EOF
 
 FROM builder-gdb-${INSTALL_GDB} as builder-gdb
-
-################################################################################
-
-FROM essentials as builder-code-server
-
-RUN <<EOF
-    curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
-    mkdir -p /opt/code-server/extensions
-    wget -O /tmp/ms-vscode-cpptools.vsix 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
-    code-server --extensions-dir=/opt/code-server/extensions \
-        --install-extension ms-python.python \
-        --install-extension /tmp/ms-vscode-cpptools.vsix
-    chmod +x /opt/code-server/extensions/ms-vscode.cpptools-*/bin/{cpptools*,libc.so}
-    rm -rf /root/.cache/code-server /root/.local/share/code-server /tmp/ms-vscode-cpptools.vsix
-EOF
-
-WORKDIR /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
-
-RUN mv rg rg.orig
-
-COPY <<EOF ./rg
-#!/usr/bin/python
-
-import sys
-import os
-
-sys.argv[0] += ".orig"
-if "--follow" in sys.argv:
-    sys.argv.remove("--follow")
-os.execv(sys.argv[0], sys.argv)
-EOF
-
-RUN chmod +x rg
 
 ################################################################################
 
@@ -373,39 +416,6 @@ FROM builder-virtiofsd-${INSTALL_VIRTIOFSD} as builder-virtiofsd
 
 ################################################################################
 
-FROM essentials as builder-desktop-no
-FROM essentials as builder-desktop-yes
-
-ARG UBUNTU_VERSION=20.04
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    [ "${UBUNTU_VERSION}" == "20.04" ] && TGR=common || TGR=tools; \
-    apt-get update && xargs apt-get install -yqq <<EOF && \
-    apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
-    apt-get -y autoremove && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-        novnc
-        tigervnc-standalone-server
-        tigervnc-$TGR
-        websockify
-        xterm
-        dbus-x11
-        mousepad
-        xclip
-        xfce4
-        xfce4-terminal
-EOF
-
-# TODO: can we generate desktop data with cli ???
-COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
-COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
-
-RUN rm /etc/xdg/autostart/*
-
-FROM builder-desktop-${INSTALL_DESKTOP} as builder-desktop
-
-################################################################################
-
 FROM essentials as builder-desktop-angr-management-no
 FROM essentials as builder-desktop-angr-management-yes
 
@@ -517,6 +527,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         nano
         neovim
         net-tools
+        netcat-openbsd
         nmap
         openssh-server
         p7zip-full
@@ -534,9 +545,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         rsync
         screen
         silversearcher-ag
+        socat
         strace
         tmux
         valgrind
+        vim
         whiptail
         wireshark
         zip
@@ -569,30 +582,6 @@ RUN ln -sf /usr/bin/ipython3 /usr/bin/ipython
 FROM builder-tools-pip-${INSTALL_TOOLS_PIP} as builder-tools-pip
 
 ################################################################################
-
-FROM builder-essentials as builder-pwn.college
-
-RUN mkdir /opt/pwn.college
-COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
-COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
-COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
-COPY services.d /opt/pwn.college/services.d
-COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
-COPY bash.bashrc /opt/pwn.college/bash.bashrc
-COPY vm /opt/pwn.college/vm
-COPY windows /opt/pwn.college/windows
-COPY .tmux.conf /opt/pwn.college/.tmux.conf
-COPY .gdbinit /opt/pwn.college/.gdbinit
-COPY .radare2rc /opt/pwn.college/.radare2rc
-COPY .pwn.conf /opt/pwn.college/.pwn.conf
-
-RUN gcc /opt/pwn.college/setuid_interpreter.c -DSUID_PYTHON -o /opt/pwn.college/python && \
-    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_BASH -o /opt/pwn.college/bash && \
-    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_SH -o /opt/pwn.college/sh && \
-    rm /opt/pwn.college/setuid_interpreter.c
-
-################################################################################
-
 
 FROM builder-tools-apt as builder-windows-no
 FROM builder-tools-apt as builder-windows-base
@@ -637,7 +626,7 @@ RUN <<EOF
     rm -rf ./Autounattend.xml ./setup.ps1 ./practice-mode-enabled ./sshd_config
 EOF
 
-from builder-windows-base-ida-${INSTALL_IDA_FREE} as builder-windows-install
+FROM builder-windows-base-ida-${INSTALL_IDA_FREE} as builder-windows-install
 
 RUN <<EOF
     echo "Building virtio drivers disk"
@@ -685,7 +674,7 @@ RUN --security=insecure <<EOF
 EOF
 
 # This step also does the "post-install building as hacker with admin privs"
-from builder-windows-install as builder-windows-yes
+FROM builder-windows-install as builder-windows-yes
 
 COPY windows/challenge-proxy.c windows/post_install.sh windows/post_install.ps1 windows/startup.ps1 ./
 
@@ -714,47 +703,17 @@ FROM builder-windows-${INSTALL_WINDOWS} as builder-windows
 
 ################################################################################
 
-FROM ubuntu:${UBUNTU_VERSION} as challenge-nano
+FROM ubuntu:${UBUNTU_VERSION} as challenge
 
 SHELL ["/bin/bash", "-ceov", "pipefail"]
 
 ENV LC_CTYPE=C.UTF-8
 
 COPY --link --from=essentials / /
-COPY --link --from=builder-pwn.college /opt/pwn.college /opt/pwn.college
-
-RUN <<EOF
-    ln -sf /bin/bash /opt/pwn.college/ssh-entrypoint
-    ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
-    ln -sf /opt/pwn.college/windows/windows /usr/local/bin/windows
-
-    ln -sf /home/hacker/.tmux.conf /root/.tmux.conf
-    ln -sf /home/hacker/.gdbinit /root/.gdbinit
-    ln -sf /home/hacker/.radare2rc /root/.radare2rc
-    ln -sf /home/hacker/.pwn.conf /root/.pwn.conf
-
-    mkdir /challenge
-    install -m 400 <(echo 'pwn.college{uninitialized}') /flag
-EOF
-
-################################################################################
-
-FROM challenge-nano as challenge-micro
+COPY --link --from=builder-pwn.college / /
 COPY --link --from=builder-code-server / /
-COPY --link --from=builder-github-tools / /
+COPY --link --from=builder-desktop / /
 
-################################################################################
-
-FROM challenge-micro as challenge-mini
-COPY --link --from=builder-desktop-yes / /
-
-################################################################################
-
-FROM challenge-mini as challenge-granular
-
-# TODO: probably extra slow to `COPY / /`
-COPY --link --from=builder-essentials / /
-COPY --link --from=builder / /
 COPY --link --from=builder-kernel /opt/linux /opt/linux
 COPY --link --from=builder-tcpdump / /
 COPY --link --from=builder-capstone / /
@@ -776,49 +735,6 @@ COPY --link --from=builder-tools-pip / /
 COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-windows / /
 
-################################################################################
-
-FROM challenge-mini as challenge-full
-
-# here, everything is installed except for
-# IDA, which still uses the INSTALL_IDA_FREE parameter
-# binja, which uses the INSTALL_BINJA_FREE parameter
-# windows, which uses the INSTALL_WINDOWS parameter
-
-# TODO: probably extra slow to `COPY / /`
-COPY --link --from=builder-essentials / /
-COPY --link --from=builder / /
-COPY --link --from=builder-kernel-yes /opt/linux /opt/linux
-COPY --link --from=builder-tcpdump-yes / /
-COPY --link --from=builder-capstone-yes / /
-COPY --link --from=builder-radare2-yes / /
-COPY --link --from=builder-aflplusplus-yes / /
-COPY --link --from=builder-rappel-yes / /
-COPY --link --from=builder-rp-yes / /
-COPY --link --from=builder-geckodriver-yes / /
-COPY --link --from=builder-burpsuite-yes / /
-COPY --link --from=builder-busybox-yes / /
-COPY --link --from=builder-glow-yes / /
-COPY --link --from=builder-virtiofsd-yes /opt/virtiofsd /opt/virtiofsd
-COPY --link --from=builder-desktop-ida-free / /
-COPY --link --from=builder-desktop-binja-free / /
-COPY --link --from=builder-desktop-ghidra-yes / /
-COPY --link --from=builder-desktop-angr-management-yes / /
-COPY --link --from=builder-gdb-yes / /
-COPY --link --from=builder-tools-pip-yes / /
-COPY --link --from=builder-tools-apt-yes / /
-COPY --link --from=builder-windows / /
-
-################################################################################
-
-# legacy
-FROM challenge-mini as challenge-minimal
-FROM challenge-full as challenge
-
-################################################################################
-
-FROM ${DOJO_CHALLENGE} as challenge-final
-
 RUN <<EOF
     if [ -f /etc/ssh/ssh_config ]
     then
@@ -826,20 +742,15 @@ RUN <<EOF
         echo "UserKnownHostsFile=/dev/null" >> /etc/ssh/ssh_config
         echo "LogLevel ERROR" >> /etc/ssh/ssh_config
     fi
-EOF
 
-RUN <<EOF
     if [ -f /etc/ssh/sshd_config ]
     then
         sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config
         sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords yes/g' /etc/ssh/sshd_config
         sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
     fi
-EOF
 
-RUN <<EOF
     if id ubuntu; then userdel -f -r ubuntu; fi
-
     useradd -s /bin/bash -m hacker
     passwd -d hacker
 
