@@ -301,7 +301,7 @@ FROM builder-gdb-${INSTALL_GDB} as builder-gdb
 ################################################################################
 
 
-FROM builder as builder-tcpdump-no
+FROM scratch as builder-tcpdump-no
 FROM builder as builder-tcpdump-yes
 RUN <<EOF
     git clone --depth 1 https://github.com/the-tcpdump-group/tcpdump /opt/tcpdump
