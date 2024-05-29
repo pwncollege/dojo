@@ -5,30 +5,24 @@ ENV LC_CTYPE=C.UTF-8
 
 RUN apt-get update && \
     apt-get install -y \
+        awscli \
         build-essential \
-        git \
         curl \
-        wget \
-        jq \
-        iproute2 \
-        iputils-ping \
+        git \
         host \
         htop \
-        zfsutils-linux \
-        unzip
+        iproute2 \
+        iputils-ping \
+        jq \
+        unzip \
+        wget \
+        zfsutils-linux
 
 RUN curl -fsSL https://get.docker.com | /bin/sh
 RUN echo '{ "data-root": "/opt/pwn.college/data/docker", "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json
-
-# TODO: this can be removed with docker-v22 (buildx will be default)
-RUN docker buildx install
-
-# install aws cli (for cloud backups)
-RUN cd /tmp && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && unzip awscliv2.zip && ./aws/install && rm -rf awscliv2.zip ./aws
+RUN wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
 
 RUN git clone --branch 3.6.0 https://github.com/CTFd/CTFd /opt/CTFd
-
-RUN wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
 
 RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.service /etc/systemd/system/pwn.college.service
 RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.logging.service /etc/systemd/system/pwn.college.logging.service
