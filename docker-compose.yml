@@ -2,7 +2,6 @@ services:
   challenge:
     build:
       context: ./challenge
-      target: challenge-final
       args:
         - DEFAULT_INSTALL_SELECTION=${DEFAULT_INSTALL_SELECTION}
         - INSTALL_AFL=${INSTALL_AFL:-${DEFAULT_INSTALL_SELECTION}}
