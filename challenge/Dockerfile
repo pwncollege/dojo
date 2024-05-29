@@ -102,7 +102,7 @@ RUN <<EOF
     code-server --extensions-dir=/opt/code-server/extensions \
         --install-extension ms-python.python \
         --install-extension /tmp/ms-vscode-cpptools.vsix
-    chmod +x /opt/code-server/extensions/ms-vscode.cpptools-*/bin/{cpptools*,libc.so}
+    chmod +x /opt/code-server/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*}
     rm -rf /root/.cache/code-server /root/.local/share/code-server /tmp/ms-vscode-cpptools.vsix
 EOF
 
@@ -299,6 +299,7 @@ EOF
 FROM builder-gdb-${INSTALL_GDB} as builder-gdb
 
 ################################################################################
+
 
 FROM scratch as builder-tcpdump-no
 FROM builder as builder-tcpdump-yes
@@ -511,11 +512,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         gedit
         genisoimage
         gnupg-utils
+        gprolog
         hexedit
         icdiff
         iproute2
         iputils-ping
         ipython3
+        jq
         keyutils
         kmod
         less
@@ -542,10 +545,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         qemu-system-x86
         qemu-user
         qemu-utils
+        racket
         rsync
         screen
         silversearcher-ag
         socat
+        sqlite3
         strace
         tmux
         valgrind

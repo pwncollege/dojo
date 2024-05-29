@@ -559,21 +559,6 @@ class DojoChallenges(db.Model):
             return self.data["image"]
         return "pwncollege-challenge"
 
-    def challenge_paths(self, user):
-        secret = current_app.config["SECRET_KEY"]
-
-        for path in self.path.iterdir():
-            if path.name.startswith("_"):
-                continue
-            yield path.resolve()
-
-        option_paths = sorted(path for path in self.path.iterdir() if path.name.startswith("_"))
-        if option_paths:
-            option_hash = hashlib.sha256(f"{secret}_{user.id}_{self.challenge_id}".encode()).digest()
-            option = option_paths[int.from_bytes(option_hash[:8], "little") % len(option_paths)]
-            for path in option.iterdir():
-                yield path.resolve()
-
     __repr__ = columns_repr(["module", "id", "challenge_id"])
 
 
