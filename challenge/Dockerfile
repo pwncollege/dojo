@@ -127,8 +127,8 @@ RUN chmod +x rg
 ################################################################################
 
 FROM essentials as builder-desktop
-
 ARG UBUNTU_VERSION=20.04
+
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     [ "${UBUNTU_VERSION}" == "20.04" ] && TGR=common || TGR=tools; \
@@ -204,8 +204,8 @@ EOF
 
 ################################################################################
 
-FROM builder as builder-kernel-no
-RUN mkdir /opt/linux
+FROM scratch as builder-kernel-no
+WORKDIR /opt/linux
 FROM builder as builder-kernel-yes
 
 RUN <<EOF
@@ -260,7 +260,7 @@ FROM builder-kernel-${INSTALL_KERNEL} as builder-kernel
 
 ################################################################################
 
-FROM builder as builder-gdb-no
+FROM scratch as builder-gdb-no
 FROM builder as builder-gdb-yes
 
 RUN <<EOF
@@ -300,7 +300,7 @@ FROM builder-gdb-${INSTALL_GDB} as builder-gdb
 
 ################################################################################
 
-FROM builder as builder-tcpdump-no
+FROM scratch as builder-tcpdump-no
 FROM builder as builder-tcpdump-yes
 RUN <<EOF
     git clone --depth 1 https://github.com/the-tcpdump-group/tcpdump /opt/tcpdump
@@ -311,7 +311,7 @@ RUN <<EOF
 EOF
 FROM builder-tcpdump-${INSTALL_TCPDUMP} as builder-tcpdump
 
-FROM builder as builder-capstone-no
+FROM scratch as builder-capstone-no
 FROM builder as builder-capstone-yes
 RUN <<EOF
     git clone --depth 1 https://github.com/capstone-engine/capstone /opt/capstone
@@ -321,7 +321,7 @@ RUN <<EOF
 EOF
 FROM builder-capstone-${INSTALL_CAPSTONE} as builder-capstone
 
-FROM builder as builder-radare2-no
+FROM scratch as builder-radare2-no
 FROM builder as builder-radare2-yes
 RUN <<EOF
     git clone --depth 1 https://github.com/radareorg/radare2 /opt/radare2
@@ -330,7 +330,7 @@ RUN <<EOF
 EOF
 FROM builder-radare2-${INSTALL_RADARE2} as builder-radare2
 
-FROM builder as builder-aflplusplus-no
+FROM scratch as builder-aflplusplus-no
 FROM builder as builder-aflplusplus-yes
 RUN <<EOF
     git clone --depth 1 https://github.com/aflplusplus/aflplusplus /opt/aflplusplus
@@ -340,7 +340,7 @@ RUN <<EOF
 EOF
 FROM builder-aflplusplus-${INSTALL_AFL} as builder-aflplusplus
 
-FROM builder as builder-rappel-no
+FROM scratch as builder-rappel-no
 FROM builder as builder-rappel-yes
 RUN <<EOF
     git clone --depth 1 https://github.com/yrp604/rappel /opt/rappel
@@ -350,7 +350,7 @@ RUN <<EOF
 EOF
 FROM builder-rappel-${INSTALL_RAPPEL} as builder-rappel
 
-FROM builder as builder-rp-no
+FROM scratch as builder-rp-no
 FROM builder as builder-rp-yes
 RUN <<EOF
     wget https://github.com/0vercl0k/rp/releases/download/v2.0.2/rp-lin-x64 -O /usr/bin/rp++
@@ -358,14 +358,14 @@ RUN <<EOF
 EOF
 FROM builder-rp-${INSTALL_RP} as builder-rp
 
-FROM builder as builder-geckodriver-no
+FROM scratch as builder-geckodriver-no
 FROM builder as builder-geckodriver-yes
 RUN <<EOF
     wget -q -O - https://github.com/mozilla/geckodriver/releases/download/v0.32.0/geckodriver-v0.32.0-linux64.tar.gz | tar xvz -C /usr/local/bin
 EOF
 FROM builder-geckodriver-${INSTALL_GECKODRIVER} as builder-geckodriver
 
-FROM builder as builder-burpsuite-no
+FROM scratch as builder-burpsuite-no
 FROM builder as builder-burpsuite-yes
 RUN <<EOF
     wget -q -O /tmp/burpsuite.sh https://portswigger.net/burp/releases/download?product=community\&version=2023.11.1.4\&type=Linux
@@ -374,7 +374,7 @@ RUN <<EOF
 EOF
 FROM builder-burpsuite-${INSTALL_BURPSUITE} as builder-burpsuite
 
-FROM builder as builder-busybox-no
+FROM scratch as builder-busybox-no
 FROM builder as builder-busybox-yes
 RUN <<EOF
     VERSION="busybox-1.33.2"
@@ -389,7 +389,7 @@ RUN <<EOF
 EOF
 FROM builder-busybox-${INSTALL_BUSYBOX} as builder-busybox
 
-FROM builder as builder-glow-no
+FROM scratch as builder-glow-no
 FROM builder as builder-glow-yes
 RUN <<EOF
     VERSION="1.5.1"
@@ -402,8 +402,8 @@ RUN <<EOF
 EOF
 FROM builder-glow-${INSTALL_GLOW} as builder-glow
 
-FROM builder as builder-virtiofsd-no
-RUN mkdir /opt/virtiofsd
+FROM scratch as builder-virtiofsd-no
+WORKDIR /opt/virtiofsd
 FROM builder as builder-virtiofsd-yes
 RUN <<EOF
     mkdir /opt/virtiofsd && cd "$_"
@@ -416,11 +416,11 @@ FROM builder-virtiofsd-${INSTALL_VIRTIOFSD} as builder-virtiofsd
 
 ################################################################################
 
-FROM essentials as builder-desktop-angr-management-no
+FROM scratch as builder-desktop-angr-management-no
 FROM essentials as builder-desktop-angr-management-yes
+ARG UBUNTU_VERSION=20.04
 
 COPY desktop/angr-management.desktop /usr/share/applications/
-ARG UBUNTU_VERSION=20.04
 RUN <<EOF
     wget -q -O - https://github.com/angr/angr-management/releases/download/nightly/angr-management-ubuntu-${UBUNTU_VERSION}.tar.gz | tar xvz -C /opt
 EOF
@@ -429,7 +429,7 @@ FROM builder-desktop-angr-management-${INSTALL_ANGR_MANAGEMENT} as builder-deskt
 
 ################################################################################
 
-FROM essentials as builder-desktop-ghidra-no
+FROM scratch as builder-desktop-ghidra-no
 FROM essentials as builder-desktop-ghidra-yes
 
 COPY desktop/Ghidra.desktop /usr/share/applications/
@@ -444,7 +444,7 @@ FROM builder-desktop-ghidra-${INSTALL_GHIDRA} as builder-desktop-ghidra
 
 ################################################################################
 
-FROM essentials as builder-desktop-ida-free-no
+FROM scratch as builder-desktop-ida-free-no
 FROM essentials as builder-desktop-ida-free-yes
 
 # IDA Freeware: only permissible for free and open deployments of the dojo!
@@ -461,7 +461,7 @@ FROM builder-desktop-ida-free-${INSTALL_IDA_FREE} as builder-desktop-ida-free
 
 ################################################################################
 
-FROM essentials as builder-desktop-binja-free-no
+FROM scratch as builder-desktop-binja-free-no
 FROM essentials as builder-desktop-binja-free-yes
 
 COPY desktop/binary-ninja.desktop /usr/share/applications/
@@ -476,7 +476,7 @@ FROM builder-desktop-binja-free-${INSTALL_BINJA_FREE} as builder-desktop-binja-f
 
 ################################################################################
 
-FROM essentials as builder-tools-apt-no
+FROM scratch as builder-tools-apt-no
 FROM essentials as builder-tools-apt-yes
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -560,7 +560,7 @@ FROM builder-tools-apt-${INSTALL_TOOLS_APT} as builder-tools-apt
 
 ################################################################################
 
-FROM builder as builder-tools-pip-no
+FROM scratch as builder-tools-pip-no
 FROM builder as builder-tools-pip-yes
 
 RUN xargs pip install --force-reinstall <<EOF
@@ -583,52 +583,39 @@ FROM builder-tools-pip-${INSTALL_TOOLS_PIP} as builder-tools-pip
 
 ################################################################################
 
-FROM builder-tools-apt as builder-windows-no
-FROM builder-tools-apt as builder-windows-base
+FROM scratch as builder-windows-no
+
+# TODO: We probably shouldn't base off builder-tools-apt
+FROM builder-tools-apt as builder-windows-install
+ARG INSTALL_IDA_FREE=${DEFAULT_INSTALL_SELECTION}
 
 WORKDIR /opt/windows
 COPY windows/Autounattend.xml windows/setup.ps1 windows/config_startup.ps1 windows/sshd_config ./
 COPY windows/shutdown.py .
 
-
-FROM builder-windows-base as builder-windows-base-ida-yes
-
-RUN <<EOF
-    mkdir -p ./build
-    echo 'APT::Install-Recommends 0;' >> /etc/apt/apt.conf.d/01norecommends
-    echo 'APT::Install-Suggests 0;' >> /etc/apt/apt.conf.d/01norecommends
-    apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        ca-certificates apt-transport-https curl \
-        xorriso mtools dosfstools qemu-utils qemu-kvm python3 openssh-client
-    rm -rf /var/lib/apt/lists/*
-    sed -i "s/INSTALL_IDA_FREE/yes/g" ./setup.ps1
-    touch ./practice-mode-enabled
-    mkfs.fat -F 12 -C ./build/floppy.img 1440
-    mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./config_startup.ps1 ./practice-mode-enabled ./sshd_config ::
-    rm -rf ./Autounattend.xml ./setup.ps1 ./practice-mode-enabled ./sshd_config
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && xargs apt-get install --no-install-recommends -yqq <<EOF && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+        apt-transport-https
+        ca-certificates
+        curl
+        dosfstools
+        mtools
+        openssh-client
+        python3
+        qemu-kvm
+        qemu-utils
+        xorriso
 EOF
 
-FROM builder-windows-base as builder-windows-base-ida-no
-
 RUN <<EOF
+    sed -i "s/INSTALL_IDA_FREE/${INSTALL_IDA_FREE}/g" ./setup.ps1
     mkdir -p ./build
-    echo 'APT::Install-Recommends 0;' >> /etc/apt/apt.conf.d/01norecommends
-    echo 'APT::Install-Suggests 0;' >> /etc/apt/apt.conf.d/01norecommends
-    apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        ca-certificates apt-transport-https curl \
-        xorriso mtools dosfstools qemu-utils qemu-kvm python3 openssh-client
-    rm -rf /var/lib/apt/lists/*
-    touch ./practice-mode-enabled
     mkfs.fat -F 12 -C ./build/floppy.img 1440
-    mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./practice-mode-enabled ./sshd_config ::
-    rm -rf ./Autounattend.xml ./setup.ps1 ./practice-mode-enabled ./sshd_config
-EOF
+    mcopy -si ./build/floppy.img ./Autounattend.xml ./setup.ps1 ./config_startup.ps1 ./sshd_config ::
+    rm -rf ./Autounattend.xml ./setup.ps1 ./config_startup.ps1 ./sshd_config
 
-FROM builder-windows-base-ida-${INSTALL_IDA_FREE} as builder-windows-install
-
-RUN <<EOF
     echo "Building virtio drivers disk"
     curl -Lo virtio-win-raw.iso \
       'https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-virtio/virtio-win.iso'
@@ -642,9 +629,7 @@ RUN <<EOF
       -output ./build/virtio-win-processed.iso \
       "$WORKDIR"
     rm -rf "$WORKDIR" virtio-win-raw.iso
-EOF
 
-RUN <<EOF
     echo "Downloading Windows Server ISO"
     curl -Lo ./build/server-2022.iso \
       'https://software-static.download.prss.microsoft.com/sg/download/888969d5-f34g-4e03-ac9d-1f9786c66749/SERVER_EVAL_x64FRE_en-us.iso'
@@ -673,7 +658,6 @@ RUN --security=insecure <<EOF
     rm -rf ./build/monitor.sock
 EOF
 
-# This step also does the "post-install building as hacker with admin privs"
 FROM builder-windows-install as builder-windows-yes
 
 COPY windows/challenge-proxy.c windows/post_install.sh windows/post_install.ps1 windows/startup.ps1 ./
