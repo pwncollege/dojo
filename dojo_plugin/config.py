@@ -16,8 +16,6 @@ logger.setLevel(logging.INFO)
 DOJOS_DIR = pathlib.Path("/var/dojos")
 DATA_DIR = pathlib.Path("/var/data")
 
-INDEX_HTML = pathlib.Path("/var/index.html").read_text()
-
 def create_seccomp():
     seccomp = json.load(pathlib.Path("/etc/docker/seccomp.json").open())
 
@@ -148,5 +146,4 @@ def bootstrap():
 
         set_config("setup", True)
 
-    Pages.query.filter_by(route="index").update(dict(content=INDEX_HTML))
     db.session.commit()
