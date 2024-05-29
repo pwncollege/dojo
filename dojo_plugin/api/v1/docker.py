@@ -158,7 +158,7 @@ def start_challenge(user, dojo_challenge, practice):
 
     def insert_challenge(user, dojo_challenge):
         option_paths = sorted(path for path in dojo_challenge.path.iterdir() if path.name.startswith("_"))
-        challenge_tar = resolved_tar("/challenge",
+        challenge_tar = resolved_tar(dojo_challenge.path,
                                      root_dir=dojo_challenge.dojo.path,
                                      filter=lambda path: path not in option_paths)
         container.put_archive("/challenge", challenge_tar)
