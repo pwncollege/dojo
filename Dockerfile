@@ -5,7 +5,6 @@ ENV LC_CTYPE=C.UTF-8
 
 RUN apt-get update && \
     apt-get install -y \
-        awscli \
         build-essential \
         curl \
         git \
@@ -21,6 +20,12 @@ RUN apt-get update && \
 RUN curl -fsSL https://get.docker.com | /bin/sh
 RUN echo '{ "data-root": "/opt/pwn.college/data/docker", "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json
 RUN wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
+
+RUN cd /tmp && \
+    wget -O awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws
 
 RUN git clone --branch 3.6.0 https://github.com/CTFd/CTFd /opt/CTFd
 
