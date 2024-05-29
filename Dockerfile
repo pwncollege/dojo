@@ -46,7 +46,7 @@ RUN ln -s /etc/systemd/system/pwn.college.cloud.backup.timer /etc/systemd/system
 
 RUN mkdir -p /opt/pwn.college
 ADD . /opt/pwn.college
-RUN find /opt/pwn.college/script -type f -exec ln -s {} /usr/bin/ \;
+RUN find /opt/pwn.college/dojo -type f -exec ln -s {} /usr/bin/ \;
 
 EXPOSE 22
 EXPOSE 80
