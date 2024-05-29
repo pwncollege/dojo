@@ -168,7 +168,7 @@ services:
 
   nginx:
     container_name: nginx
-    image: nginxproxy/nginx-proxy
+    image: nginxproxy/nginx-proxy:1.5
     restart: always
     ports:
       - "80:80"
@@ -195,7 +195,7 @@ services:
 
   nginx-certs:
     container_name: nginx_certs
-    image: nginxproxy/acme-companion
+    image: nginxproxy/acme-companion:2.3
     restart: always
     volumes_from:
       - nginx
