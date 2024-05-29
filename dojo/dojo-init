@@ -20,7 +20,6 @@ define DOJO_HOST "${DEFAULT_DOJO_HOST}"
 define VIRTUAL_HOST "${DEFAULT_DOJO_HOST}"
 define LETSENCRYPT_HOST "${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
-define DOJO_CHALLENGE challenge-mini
 define SECRET_KEY $(openssl rand -hex 16)
 define DOCKER_PSLR $(openssl rand -hex 16)
 define UBUNTU_VERSION 20.04
@@ -35,7 +34,6 @@ define DISCORD_CLIENT_SECRET
 define DISCORD_BOT_TOKEN
 define DISCORD_GUILD_ID
 define DEFAULT_INSTALL_SELECTION no # default to not installing tools
-define INSTALL_DESKTOP yes # matches the challenge-mini configuration
 define INSTALL_IDA_FREE no # explicitly disable -- only for free dojos
 define INSTALL_BINJA_FREE no # explicitly disable -- only for free dojos
 define INSTALL_WINDOWS no # explicitly disable
