@@ -123,18 +123,17 @@ def unserialize_user_flag(user_flag, *, secret=None):
     return account_id, challenge_id
 
 
-def resolved_tar(root_dir, filter=None):
+def resolved_tar(dir, *, root_dir, filter=None):
     tar_buffer = io.BytesIO()
     tar = tarfile.open(fileobj=tar_buffer, mode='w')
-    resolved_root_path = root_dir.resolve()
-    for path in root_dir.rglob("*"):
+    resolved_root_dir = root_dir.resolve()
+    for path in dir.rglob("*"):
         if filter is not None and not filter(path):
             continue
-        relative_path = path.relative_to(root_dir)
+        relative_path = path.relative_to(dir)
         if path.is_symlink():
             resolved_path = path.resolve()
-            # TODO: is_relative_to is wrong; we need to be relative to the dojo directory, not the root directory
-            assert resolved_path.is_relative_to(resolved_root_path), f"The symlink {path} points outside of the root directory"
+            assert resolved_path.is_relative_to(resolved_root_dir), f"The symlink {path} points outside of the root directory"
             tar.add(resolved_path, arcname=relative_path, recursive=False)
         else:
             tar.add(path, arcname=relative_path, recursive=False)

@@ -158,13 +158,16 @@ def start_challenge(user, dojo_challenge, practice):
 
     def insert_challenge(user, dojo_challenge):
         option_paths = sorted(path for path in dojo_challenge.path.iterdir() if path.name.startswith("_"))
-        container.put_archive("/challenge", resolved_tar(dojo_challenge.path, lambda path: path not in option_paths))
+        challenge_tar = resolved_tar("/challenge",
+                                     root_dir=dojo_challenge.dojo.path,
+                                     filter=lambda path: path not in option_paths)
+        container.put_archive("/challenge", challenge_tar)
 
         if option_paths:
             secret = current_app.config["SECRET_KEY"]
             option_hash = hashlib.sha256(f"{secret}_{user.id}_{dojo_challenge.challenge_id}".encode()).digest()
             option = option_paths[int.from_bytes(option_hash[:8], "little") % len(option_paths)]
-            container.put_archive("/challenge", resolved_tar(option))
+            container.put_archive("/challenge", resolved_tar(option, root_dir=dojo_challenge.dojo.path))
 
         exec_run("chown -R root:root /challenge", container=container)
         exec_run("chmod -R 4755 /challenge", container=container)
