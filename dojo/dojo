@@ -21,11 +21,16 @@ if [ -f $DOJO_DIR/data/config.env ]; then
 fi
 
 case "$ACTION" in
+    # HELP: up: bring the dojo up
+    "up")
+        dojo sync
+        dojo compose up -d --build --remove-orphans "$@"
+        ;;
+
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
     "update")
         git pull
-        dojo sync
-        dojo compose up -d --build
+        dojo up
         ;;
 
     # HELP: sync: sync changed dojo files
@@ -123,14 +128,22 @@ case "$ACTION" in
         done
         ;;
 
-    # HELP: start: start the dojo. Main entry point for the docker image.
-    "start")
-        dojo sync
+    # HELP: init: main entry point for the docker image
+    "init")
         echo "[+] Initializing dojo."
         dojo-init
         echo "[+] Starting systemd. If this is the first start, the challenge container"
         echo "    will be built, which will take a very long time."
         exec /usr/bin/systemd
+        ;;
+
+    # HELP: start: start the dojo, loading airgap images if they exist
+    "start")
+        if [ -f $DOJO_DIR/data/docker-images.tar.gz ]; then
+            echo "[+] Loading docker images from $DOJO_DIR/data/docker-images.tar.gz"
+            docker load -i $DOJO_DIR/data/docker-images.tar.gz
+        fi
+        dojo up
         ;;
 
     # HELP: help: displays this help

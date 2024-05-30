@@ -48,4 +48,4 @@ EXPOSE 80
 EXPOSE 443
 WORKDIR /opt/pwn.college
 VOLUME /opt/pwn.college/data
-CMD ["dojo", "start"]
+CMD ["dojo", "init"]
