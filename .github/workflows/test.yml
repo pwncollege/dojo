@@ -54,8 +54,8 @@ jobs:
           docker run \
             --name dojo-test \
             --privileged \
-            -d \
-            -v ./dojo-test-data:/opt/pwn.college/data:shared \
+            --detatch \
+            --rm \
             -p 2222:22 -p 80:80 -p 443:443 \
             pwncollege/dojo:test
 
