@@ -29,6 +29,11 @@ jobs:
           echo "::endgroup::"
 
       - uses: actions/checkout@v4
+
+      - name: Resolve Git Timestamps
+        run: |
+          git ls-files -z | xargs -0 -I {} sh -c 'touch -d "$(git log -1 --format="%ad" --date=format:%Y-%m-%dT%H:%M:%S -- {})" {}'
+
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v5
         with:
@@ -69,7 +74,7 @@ jobs:
             -p 2222:22 -p 80:80 -p 443:443 \
             pwncollege/dojo:test
 
-      - name: Wait for services to build and start
+      - name: Build and Start Services
         run: |
           docker exec dojo-test dojo wait
           docker exec dojo-test docker image ls
@@ -86,7 +91,7 @@ jobs:
           path: /tmp/dojo-test-data/docker-images.tar.gz
           key: docker-images-${{ runner.os }}-${{ github.run_id }}
 
-      - name: Wait for services to be ready
+      - name: Wait for Services to Start
         timeout-minutes: 2
         run: |
           docker exec dojo-test dojo compose logs -f &
@@ -99,7 +104,7 @@ jobs:
           kill $log_pid
           exit 0
 
-      - name: Run tests against dojo
+      - name: Run Tests
         run: |
           export MOZ_HEADLESS=1
           pytest -vrpP ./test || (docker exec dojo-test docker compose logs && false)
