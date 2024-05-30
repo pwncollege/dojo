@@ -192,7 +192,7 @@ services:
     image: nginxproxy/acme-companion:2.3
     restart: always
     volumes_from:
-      - nginx
+      - nginx-proxy
     volumes:
       - certs:/etc/nginx/certs:rw
       - acme:/etc/acme.sh
