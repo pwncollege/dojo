@@ -278,7 +278,7 @@ class DojoUsers(db.Model):
 
     type = db.Column(db.String(80), index=True)
 
-    dojo = db.relationship("Dojos", back_populates="users")
+    dojo = db.relationship("Dojos", back_populates="users", overlaps="admins,members,students")
     user = db.relationship("Users")
 
     def solves(self, **kwargs):
