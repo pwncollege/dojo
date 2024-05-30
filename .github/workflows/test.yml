@@ -39,6 +39,7 @@ jobs:
         with:
           context: .
           tags: pwncollege/dojo:test
+          load: true
 
       - uses: actions/setup-python@v4
         with:
