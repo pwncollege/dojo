@@ -170,7 +170,6 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      - DOCKER_HOST=unix:///tmp/${DOCKER_PSLR}/docker.sock
       - DEFAULT_HOST=${DOJO_HOST}
       - LOG_JSON=true
     volumes:
@@ -180,8 +179,7 @@ services:
       - certs:/etc/nginx/certs:ro
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
       - ./nginx-proxy/etc/passwd:/etc/passwd:ro
-      - ./data/homes:/var/homes:shared
-      - /var/run/docker.sock:/tmp/${DOCKER_PSLR}/docker.sock:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
     networks:
       default:
       user_network:

@@ -21,7 +21,6 @@ define VIRTUAL_HOST "${DEFAULT_DOJO_HOST}"
 define LETSENCRYPT_HOST "${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
 define SECRET_KEY $(openssl rand -hex 16)
-define DOCKER_PSLR $(openssl rand -hex 16)
 define UBUNTU_VERSION 20.04
 define INTERNET_FOR_ALL False
 define MAIL_SERVER
