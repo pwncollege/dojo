@@ -113,10 +113,10 @@ case "$ACTION" in
         dojo logs | while IFS= read -r line; do
             echo "$line"
             case "$line" in
-                *"Finished pwn.college docker compose service"*)
+                *"Finished pwn.college.service - pwn.college docker compose service"*)
                     exit 0
                     ;;
-                *"Failed to start pwn.college docker compose service."*)
+                *"Failed to start pwn.college.service - pwn.college docker compose service."*)
                     exit 1
                     ;;
             esac
