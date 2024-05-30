@@ -49,8 +49,7 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest pytest-dependency requests selenium
 
-      # - if: github.event_name != 'schedule'
-      - if: ${{ false }}
+      - if: github.event_name != 'schedule'
         name: Restore Docker Images Cache
         uses: actions/cache/restore@v4
         with:
@@ -75,13 +74,13 @@ jobs:
           docker exec dojo-test dojo wait
           docker exec dojo-test docker image ls
 
-      # - if: github.event_name == 'schedule'
-      - name: Save Docker Images
+      - if: github.event_name == 'schedule'
+        name: Save Docker Images
         run: |
           docker exec dojo-test sh -c 'docker save $(docker image ls --format "{{.Repository}}:{{.Tag}}") | pigz > ./data/docker-images.tar.gz'
 
-      # - if: github.event_name == 'schedule'
-      - name: Cache Docker Images
+      - if: github.event_name == 'schedule'
+        name: Cache Docker Images
         uses: actions/cache/save@v4
         with:
           path: /tmp/dojo-test-data/docker-images.tar.gz
