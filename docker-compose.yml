@@ -162,8 +162,8 @@ services:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
 
-  nginx:
-    container_name: nginx
+  nginx-proxy:
+    container_name: nginx-proxy
     image: nginxproxy/nginx-proxy:1.5
     restart: always
     ports:
@@ -171,6 +171,7 @@ services:
       - "443:443"
     environment:
       - DEFAULT_HOST=${DOJO_HOST}
+      - TRUST_DOWNSTREAM_PROXY=false
       - LOG_JSON=true
     volumes:
       - conf:/etc/nginx/conf.d
@@ -178,7 +179,6 @@ services:
       - dhparam:/etc/nginx/dhparam
       - certs:/etc/nginx/certs:ro
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
-      - ./nginx-proxy/etc/passwd:/etc/passwd:ro
       - /var/run/docker.sock:/tmp/docker.sock:ro
     networks:
       default:
@@ -187,8 +187,8 @@ services:
           - nginx
         ipv4_address: 10.0.0.3
 
-  nginx-certs:
-    container_name: nginx_certs
+  acme-companion:
+    container_name: nginx-proxy-acme
     image: nginxproxy/acme-companion:2.3
     restart: always
     volumes_from:
