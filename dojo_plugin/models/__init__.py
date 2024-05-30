@@ -78,9 +78,9 @@ class Dojos(db.Model):
     }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
-    members = db.relationship("DojoMembers", back_populates="dojo")
-    admins = db.relationship("DojoAdmins", back_populates="dojo")
-    students = db.relationship("DojoStudents", back_populates="dojo")
+    members = db.relationship("DojoMembers", back_populates="dojo", overlaps="users")
+    admins = db.relationship("DojoAdmins", back_populates="dojo", overlaps="users")
+    students = db.relationship("DojoStudents", back_populates="dojo", overlaps="users")
     _modules = db.relationship("DojoModules",
                                order_by=lambda: DojoModules.module_index,
                                cascade="all, delete-orphan",
@@ -290,13 +290,13 @@ class DojoUsers(db.Model):
 class DojoMembers(DojoUsers):
     __mapper_args__ = {"polymorphic_identity": "member", "polymorphic_on": "type"}
 
-    dojo = db.relationship("Dojos", back_populates="members")
+    dojo = db.relationship("Dojos", back_populates="members", overlaps="users")
 
 
 class DojoAdmins(DojoUsers):
     __mapper_args__ = {"polymorphic_identity": "admin"}
 
-    dojo = db.relationship("Dojos", back_populates="admins")
+    dojo = db.relationship("Dojos", back_populates="admins", overlaps="users")
 
 
 class DojoStudents(DojoUsers):
@@ -304,7 +304,7 @@ class DojoStudents(DojoUsers):
 
     token = db.Column(db.String(256))
 
-    dojo = db.relationship("Dojos", back_populates="students")
+    dojo = db.relationship("Dojos", back_populates="students", overlaps="users")
 
     @property
     def official(self):

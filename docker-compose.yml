@@ -46,7 +46,7 @@ services:
         if [ "$DOJO_ENV" != "development" ]; then
           ./docker-entrypoint.sh;
         else
-          FLASK_ENV=development WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
+          FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
         fi
     ulimits:
         nofile:
