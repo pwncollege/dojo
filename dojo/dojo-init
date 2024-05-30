@@ -95,8 +95,6 @@ for file in $(ls $DOJO_DIR/data/ssh_host_keys/*); do
     cp -a $file /etc/ssh
 done
 
-mkdir -p $DOJO_DIR/data/logging
-
 sysctl -w kernel.pty.max=1048576
 echo core > /proc/sys/kernel/core_pattern
 
