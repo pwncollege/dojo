@@ -176,7 +176,6 @@ services:
     volumes:
       - conf:/etc/nginx/conf.d
       - html:/usr/share/nginx/html
-      - dhparam:/etc/nginx/dhparam
       - certs:/etc/nginx/certs:ro
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
       - /var/run/docker.sock:/tmp/docker.sock:ro
@@ -201,7 +200,6 @@ services:
 volumes:
   conf:
   html:
-  dhparam:
   certs:
   acme:
 
