@@ -85,23 +85,14 @@ DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
-BINARY_NINJA_API_KEY = os.getenv("BINARY_NINJA_API_KEY")
 INTERNET_FOR_ALL = bool(ast.literal_eval(os.getenv("INTERNET_FOR_ALL") or "False"))
 WINDOWS_VM_ENABLED = os.getenv("WINDOWS_VM") == "full"
 
 missing_errors = ["DOJO_HOST", "HOST_DATA_PATH"]
-missing_warnings = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID", "BINARY_NINJA_API_KEY"]
-
 for config_option in missing_errors:
     config_value = globals()[config_option]
     if not config_value:
         raise RuntimeError(f"Configuration Error: {config_option} must be set in the environment")
-
-for config_option in missing_warnings:
-    config_value = globals()[config_option]
-    if not config_value:
-        warnings.warn(f"Configuration Warning: {config_option} is not set in the environment")
-
 
 def bootstrap():
     set_config("ctf_name", "pwn.college")
