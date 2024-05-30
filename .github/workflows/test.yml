@@ -1,11 +1,15 @@
-name: Test building and running dojo
+name: Integration Test
 on:
   pull_request:
+  push:
+    branches:
+      - master
   schedule:
     - cron: '42 06 * * *'
 jobs:
-  smoketest:
-    runs-on: ubuntu-22.04
+  test:
+    name: Integration Test
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Host information
@@ -24,11 +28,11 @@ jobs:
           lscpu
           echo "::endgroup::"
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v5
         with:
-          tags: dojo-test
+          tags: pwncollege/dojo:test
           load: true
           no-cache: ${{ github.event_name == 'schedule' }}
           # cache-from: type=gha
@@ -48,12 +52,12 @@ jobs:
       - name: Run dojo
         run: |
           docker run \
+            --name dojo-test \
             --privileged \
             -d \
             -v ./dojo-test-data:/opt/pwn.college/data:shared \
             -p 2222:22 -p 80:80 -p 443:443 \
-            --name dojo-test \
-            dojo-test
+            pwncollege/dojo:test
 
       - name: Wait for services to build and start
         run: |
