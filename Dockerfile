@@ -14,8 +14,7 @@ RUN apt-get update && \
         iputils-ping \
         jq \
         unzip \
-        wget \
-        zfsutils-linux
+        wget
 
 RUN curl -fsSL https://get.docker.com | /bin/sh
 RUN echo '{ "data-root": "/opt/pwn.college/data/docker", "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json
