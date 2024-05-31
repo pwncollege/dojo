@@ -104,7 +104,7 @@ jobs:
         run: |
           docker exec dojo-test dojo compose down
           docker save pwncollege/dojo:test | pigz > /tmp/dojo.tar.gz
-          tar --use-compress-program=pigz -cf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data ./docker
+          sudo tar --use-compress-program=pigz -cf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data ./docker
       # - if: github.event_name == 'schedule'
       - name: Save docker data cache
         uses: actions/cache/save@v4
