@@ -24,7 +24,6 @@ docker_namespace = Namespace(
 
 
 def start_challenge(user, dojo_challenge, practice):
-    assert False
     def setup_home(user):
         homes = pathlib.Path("/var/homes")
         homefs = homes / "homefs"

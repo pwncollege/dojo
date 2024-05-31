@@ -89,7 +89,7 @@ jobs:
           docker exec dojo-test docker image ls
 
       - name: Wait for services to start
-        timeout-minutes: 2
+        timeout-minutes: 1
         run: |
           docker exec dojo-test dojo compose logs -f &
           log_pid=$!
