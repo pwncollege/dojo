@@ -46,6 +46,7 @@ jobs:
           path: |
             /tmp/dojo.tar.gz
             /tmp/data-docker.tar.gz
+          key: docker-images-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
             docker-images-${{ runner.os }}-
       # - if: github.event_name != 'schedule'
