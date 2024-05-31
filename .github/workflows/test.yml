@@ -39,8 +39,8 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest pytest-dependency requests selenium
 
-      # - if: github.event_name != 'schedule'
-      - name: Restore docker data cache
+      - if: github.event_name != 'schedule'
+        name: Restore docker data cache
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -49,8 +49,8 @@ jobs:
           key: docker-data-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
             docker-data-${{ runner.os }}-
-      # - if: github.event_name != 'schedule'
-      - name: Unpack docker data cache
+      - if: github.event_name != 'schedule'
+        name: Unpack docker data cache
         run: |
           if [ -f /tmp/dojo.tar.gz ]; then
             docker load < /tmp/dojo.tar.gz
@@ -99,14 +99,14 @@ jobs:
           export MOZ_HEADLESS=1
           pytest -vrpP ./test || (docker exec dojo-test docker compose logs && false)
 
-      # - if: github.event_name == 'schedule'
-      - name: Pack docker data cache
+      - if: github.event_name == 'schedule'
+        name: Pack docker data cache
         run: |
           docker exec dojo-test dojo compose down
           docker save pwncollege/dojo:test | pigz > /tmp/dojo.tar.gz
           sudo tar --use-compress-program=pigz -cf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data ./docker
-      # - if: github.event_name == 'schedule'
-      - name: Save docker data cache
+      - if: github.event_name == 'schedule'
+        name: Save docker data cache
         uses: actions/cache/save@v4
         with:
           path: |
