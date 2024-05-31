@@ -18,7 +18,6 @@ from ...utils import serialize_user_flag, resolved_tar, random_home_path, module
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
 
-
 docker_namespace = Namespace(
     "docker", description="Endpoint to manage docker containers"
 )
