@@ -18,14 +18,13 @@ from ...utils import serialize_user_flag, resolved_tar, random_home_path, module
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
 
-THIS WILL BREAK MY TESTS
-
 docker_namespace = Namespace(
     "docker", description="Endpoint to manage docker containers"
 )
 
 
 def start_challenge(user, dojo_challenge, practice):
+    assert False
     def setup_home(user):
         homes = pathlib.Path("/var/homes")
         homefs = homes / "homefs"
