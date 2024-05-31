@@ -52,8 +52,13 @@ jobs:
       # - if: github.event_name != 'schedule'
       - name: Unpack docker data cache
         run: |
-          [ -f /tmp/dojo.tar.gz ] && docker load < /tmp/dojo.tar.gz
-          [ -f /tmp/data-docker.tar.gz ] && mkdir -p /tmp/dojo-test-data && tar --use-compress-program=pigz -xf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data
+          if [ -f /tmp/dojo.tar.gz ]; then
+            docker load < /tmp/dojo.tar.gz
+          fi
+          if [ -f /tmp/data-docker.tar.gz ]; then
+            mkdir -p /tmp/dojo-test-data
+            tar --use-compress-program=pigz -xf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data
+          fi
 
       - uses: docker/build-push-action@v5
         with:
