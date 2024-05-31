@@ -46,9 +46,9 @@ jobs:
           path: |
             /tmp/dojo.tar.gz
             /tmp/data-docker.tar.gz
-          key: docker-images-${{ runner.os }}-${{ github.run_id }}
+          key: docker-data-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            docker-images-${{ runner.os }}-
+            docker-data-${{ runner.os }}-
       # - if: github.event_name != 'schedule'
       - name: Unpack docker data cache
         run: |
@@ -102,7 +102,7 @@ jobs:
       # - if: github.event_name == 'schedule'
       - name: Pack docker data cache
         run: |
-          docker exec -it dojo-test dojo compose down
+          docker exec dojo-test dojo compose down
           docker save pwncollege/dojo:test | pigz > /tmp/dojo.tar.gz
           tar --use-compress-program=pigz -cf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data ./docker
       # - if: github.event_name == 'schedule'
@@ -112,4 +112,4 @@ jobs:
           path: |
             /tmp/dojo.tar.gz
             /tmp/data-docker.tar.gz
-          key: docker-images-${{ runner.os }}-${{ github.run_id }}
+          key: docker-data-${{ runner.os }}-${{ github.run_id }}
