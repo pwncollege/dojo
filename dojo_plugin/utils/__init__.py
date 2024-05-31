@@ -134,7 +134,7 @@ def resolved_tar(dir, *, root_dir, filter=None):
         if path.is_symlink():
             resolved_path = path.resolve()
             assert resolved_path.is_relative_to(resolved_root_dir), f"The symlink {path} points outside of the root directory"
-            tar.add(resolved_path, arcname=relative_path, recursive=False)
+            tar.add(resolved_path, arcname=relative_path)
         else:
             tar.add(path, arcname=relative_path, recursive=False)
     tar_buffer.seek(0)
