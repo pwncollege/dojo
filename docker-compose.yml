@@ -204,6 +204,8 @@ volumes:
   acme:
 
 networks:
+  default:
+    driver: bridge
   user_network:
     name: user_network
     driver: bridge

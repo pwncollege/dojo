@@ -29,37 +29,36 @@ jobs:
           echo "::endgroup::"
 
       - uses: actions/checkout@v4
-
-      - name: Resolve Git Timestamps
-        run: |
-          git ls-files -z | xargs -0 -I {} sh -c 'touch -d "$(git log -1 --format="%ad" --date=format:%Y-%m-%dT%H:%M:%S -- {})" {}'
-
       - uses: docker/setup-buildx-action@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      - name: Setup firefox
+        uses: browser-actions/setup-firefox@latest
+      - name: Install test dependencies
+        run: pip install pytest pytest-dependency requests selenium
+
+      # - if: github.event_name != 'schedule'
+      - name: Restore docker data cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            /tmp/dojo.tar.gz
+            /tmp/data-docker.tar.gz
+          restore-keys: |
+            docker-images-${{ runner.os }}-
+      # - if: github.event_name != 'schedule'
+      - name: Unpack docker data cache
+        run: |
+          [ -f /tmp/dojo.tar.gz ] && docker load < /tmp/dojo.tar.gz
+          [ -f /tmp/data-docker.tar.gz ] && mkdir -p /tmp/dojo-test-data && tar --use-compress-program=pigz -xf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data
+
       - uses: docker/build-push-action@v5
         with:
           context: .
           tags: pwncollege/dojo:test
           load: true
-
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-          cache: 'pip'
-
-      - name: Prepare Firefox
-        uses: browser-actions/setup-firefox@latest
-
-      - name: Install test dependencies
-        run: pip install pytest pytest-dependency requests selenium
-
-      - if: github.event_name != 'schedule'
-        name: Restore Docker Images Cache
-        uses: actions/cache/restore@v4
-        with:
-          path: /tmp/dojo-test-data/docker-images.tar.gz
-          key: docker-images-${{ runner.os }}-${{ github.run_id }}
-          restore-keys: |
-            docker-images-${{ runner.os }}-
 
       - name: Run dojo
         run: |
@@ -68,28 +67,15 @@ jobs:
             --privileged \
             --detach \
             --rm \
-            -v /tmp/dojo-test-data:/opt/pwn.college/data:shared \
+            -v "/tmp/dojo-test-data:/opt/pwn.college/data" \
             -p 2222:22 -p 80:80 -p 443:443 \
             pwncollege/dojo:test
-
-      - name: Build and Start Services
+      - name: Build and start services
         run: |
           docker exec dojo-test dojo wait
           docker exec dojo-test docker image ls
 
-      - if: github.event_name == 'schedule'
-        name: Save Docker Images
-        run: |
-          docker exec dojo-test sh -c 'docker save $(docker image ls --format "{{.Repository}}:{{.Tag}}") | pigz > ./data/docker-images.tar.gz'
-
-      - if: github.event_name == 'schedule'
-        name: Cache Docker Images
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/dojo-test-data/docker-images.tar.gz
-          key: docker-images-${{ runner.os }}-${{ github.run_id }}
-
-      - name: Wait for Services to Start
+      - name: Wait for services to start
         timeout-minutes: 2
         run: |
           docker exec dojo-test dojo compose logs -f &
@@ -102,7 +88,22 @@ jobs:
           kill $log_pid
           exit 0
 
-      - name: Run Tests
+      - name: Run tests
         run: |
           export MOZ_HEADLESS=1
           pytest -vrpP ./test || (docker exec dojo-test docker compose logs && false)
+
+      # - if: github.event_name == 'schedule'
+      - name: Pack docker data cache
+        run: |
+          docker exec -it dojo-test dojo compose down
+          docker save pwncollege/dojo:test | pigz > /tmp/dojo.tar.gz
+          tar --use-compress-program=pigz -cf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data ./docker
+      # - if: github.event_name == 'schedule'
+      - name: Save docker data cache
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /tmp/dojo.tar.gz
+            /tmp/data-docker.tar.gz
+          key: docker-images-${{ runner.os }}-${{ github.run_id }}

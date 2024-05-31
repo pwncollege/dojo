@@ -7,7 +7,7 @@ After=docker.service
 Type=oneshot
 RemainAfterExit=true
 WorkingDirectory=/opt/pwn.college
-ExecStart=/usr/bin/dojo start
+ExecStart=/usr/bin/dojo up
 ExecStop=/usr/bin/dojo compose down
 
 [Install]

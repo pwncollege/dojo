@@ -137,15 +137,6 @@ case "$ACTION" in
         exec /usr/bin/systemd
         ;;
 
-    # HELP: start: start the dojo, loading airgap images if they exist
-    "start")
-        if [ -f $DOJO_DIR/data/docker-images.tar.gz ]; then
-            echo "[+] Loading docker images from $DOJO_DIR/data/docker-images.tar.gz"
-            docker load -i $DOJO_DIR/data/docker-images.tar.gz
-        fi
-        dojo up
-        ;;
-
     # HELP: help: displays this help
     "help")
         echo "Usage: $0 COMMAND [ ARG ]"
