@@ -57,7 +57,7 @@ jobs:
           fi
           if [ -f /tmp/data-docker.tar.gz ]; then
             mkdir -p /tmp/dojo-test-data
-            tar --use-compress-program=pigz -xf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data
+            sudo tar --use-compress-program=pigz -xf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data
           fi
 
       - uses: docker/build-push-action@v5
