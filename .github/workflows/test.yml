@@ -39,32 +39,39 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest pytest-dependency requests selenium
 
-      - if: github.event_name != 'schedule'
-        name: Restore docker data cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            /tmp/dojo.tar.gz
-            /tmp/data-docker.tar.gz
-          key: docker-data-${{ runner.os }}-${{ github.run_id }}
-          restore-keys: |
-            docker-data-${{ runner.os }}-
-      - if: github.event_name != 'schedule'
-        name: Unpack docker data cache
-        run: |
-          if [ -f /tmp/dojo.tar.gz ]; then
-            docker load < /tmp/dojo.tar.gz
-          fi
-          if [ -f /tmp/data-docker.tar.gz ]; then
-            mkdir -p /tmp/dojo-test-data
-            sudo tar --use-compress-program=pigz -xf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data
-          fi
+      # - name: Restore docker data cache
+      #   if: github.event_name != 'schedule'
+      #   uses: actions/cache/restore@v4
+      #   with:
+      #     path: |
+      #       /tmp/data-docker.tar.gz
+      #     key: docker-data-${{ runner.os }}-${{ github.run_id }}
+      #     restore-keys: |
+      #       docker-data-${{ runner.os }}-
+      # - name: Unpack docker data cache
+      #   if: github.event_name != 'schedule'
+      #   run: |
+      #     if [ -f /tmp/data-docker.tar.gz ]; then
+      #       mkdir -p /tmp/dojo-test-data
+      #       sudo tar --use-compress-program=pigz -xf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data
+      #     fi
 
-      - uses: docker/build-push-action@v5
+      # - name: Build docker image
+      #   if: github.event_name != 'schedule'
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: .
+      #     tags: pwncollege/dojo:test
+      #     load: true
+      #     cache-from: type=gha
+      - name: Build and cache docker image
+        # if: github.event_name == 'schedule'
+        uses: docker/build-push-action@v5
         with:
           context: .
           tags: pwncollege/dojo:test
           load: true
+          cache-to: type=gha
 
       - name: Run dojo
         run: |
@@ -99,17 +106,15 @@ jobs:
           export MOZ_HEADLESS=1
           pytest -vrpP ./test || (docker exec dojo-test docker compose logs && false)
 
-      - if: github.event_name == 'schedule'
-        name: Pack docker data cache
+      - name: Pack docker data cache
+        # if: github.event_name == 'schedule'
         run: |
           docker exec dojo-test dojo compose down
-          docker save pwncollege/dojo:test | pigz > /tmp/dojo.tar.gz
           sudo tar --use-compress-program=pigz -cf /tmp/data-docker.tar.gz -C /tmp/dojo-test-data ./docker
-      - if: github.event_name == 'schedule'
-        name: Save docker data cache
+      - name: Save docker data cache
+        # if: github.event_name == 'schedule'
         uses: actions/cache/save@v4
         with:
           path: |
-            /tmp/dojo.tar.gz
             /tmp/data-docker.tar.gz
           key: docker-data-${{ runner.os }}-${{ github.run_id }}
