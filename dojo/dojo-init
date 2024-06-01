@@ -50,7 +50,7 @@ define AWS_SECRET_ACCESS_KEY
 mv $DOJO_DIR/data/.config.env $DOJO_DIR/data/config.env
 . $DOJO_DIR/data/config.env
 
-mount --make-shared /opt/pwn.college/data
+mount --make-shared $DOJO_DIR/data
 
 if [ ! -f $DOJO_DIR/data/homes/homefs ]; then
     echo "[+] Creating user home structure."

@@ -40,12 +40,13 @@ RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.service /etc/systemd/s
     ln -s /etc/systemd/system/pwn.college.cachewarmer.timer /etc/systemd/system/timers.target.wants/pwn.college.cachewarmer.timer && \
     ln -s /etc/systemd/system/pwn.college.cloud.backup.timer /etc/systemd/system/timers.target.wants/pwn.college.cloud.backup.timer
 
-COPY . /opt/pwn.college
+WORKDIR /opt/pwn.college
+COPY . .
+
 RUN find /opt/pwn.college/dojo -type f -exec ln -s {} /usr/bin/ \;
 
 EXPOSE 22
 EXPOSE 80
 EXPOSE 443
-WORKDIR /opt/pwn.college
 VOLUME /opt/pwn.college/data
-CMD ["dojo", "start"]
+CMD ["dojo", "init"]
