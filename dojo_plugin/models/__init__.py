@@ -708,6 +708,31 @@ class Emojis(Awards):
     __mapper_args__ = {"polymorphic_identity": "emoji"}
 
 
+# CTFd already has a "Tokens" model that has a variable type field, but the
+#  authentication logic doesn't care what type the token is, only if it is valid.
+# So if we were to re-use that model, it would require moneky-patching security-critical
+#  code and breaking the CTFd authors' assumptions, which makes me nervous. So, to be
+#  extra safe, we are going to define a new model. 
+class SupportTokens(db.Model):
+    __tablename__ = "support_tokens"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    created = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    expiration = db.Column(
+        db.DateTime,
+        default=lambda: datetime.datetime.utcnow() + datetime.timedelta(days=30),
+    )
+    value = db.Column(db.String(128), unique=True)
+
+    user = db.relationship("Users", foreign_keys="SupportTokens.user_id", lazy="select")
+
+    def __init__(self, *args, **kwargs):
+        super(SupportTokens, self).__init__(**kwargs)
+
+    def __repr__(self):
+        return "<SupportToken %r>" % self.id
+
+
 for deferral in deferred_definitions:
     deferral()
 del deferred_definitions
