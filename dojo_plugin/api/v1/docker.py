@@ -23,7 +23,13 @@ docker_namespace = Namespace(
 )
 
 
-def start_challenge(user, dojo_challenge, practice):
+def start_challenge(owner, challenged_user, dojo_challenge, practice, partner=None):
+    """
+    owner: the user that started the container
+    challenged_user: the user whose challenge will be loaded. will be the same, except
+        during partnering.
+    partner: a user whose home directory will be mounted in read-only in /home/partner
+    """
     def setup_home(user):
         homes = pathlib.Path("/var/homes")
         homefs = homes / "homefs"
@@ -47,10 +53,10 @@ def start_challenge(user, dojo_challenge, practice):
                 check=True,
             )
 
-    def start_container(user, dojo_challenge, practice):
+    def start_container(owner, dojo_challenge, practice, partner):
         docker_client = docker.from_env()
         try:
-            container_name = f"user_{user.id}"
+            container_name = f"user_{owner.id}"
             container = docker_client.containers.get(container_name)
             container.remove(force=True)
             container.wait(condition="removed")
@@ -73,7 +79,7 @@ def start_challenge(user, dojo_challenge, practice):
         container = docker_client.containers.create(
             dojo_challenge.image,
             entrypoint=["/bin/sleep", "6h"],
-            name=f"user_{user.id}",
+            name=f"user_{owner.id}",
             hostname=hostname,
             user="hacker",
             working_dir="/home/hacker",
@@ -82,18 +88,27 @@ def start_challenge(user, dojo_challenge, practice):
                 "dojo.module_id": dojo_challenge.module.id,
                 "dojo.challenge_id": dojo_challenge.id,
                 "dojo.challenge_description": dojo_challenge.description,
-                "dojo.user_id": str(user.id),
+                "dojo.owner_id": str(owner.id),
+                "dojo.challenged_id": str(challenged_user.id),
                 "dojo.mode": "privileged" if practice else "standard",
                 "dojo.auth_token": os.urandom(32).hex(),
             },
             mounts=[
                 docker.types.Mount(
                     "/home/hacker",
-                    f"{HOST_DATA_PATH}/homes/nosuid/{random_home_path(user)}",
+                    f"{HOST_DATA_PATH}/homes/nosuid/{random_home_path(owner)}",
                     "bind",
                     propagation="shared",
                 )
-            ],
+            ] + ([
+                docker.types.Mount(
+                    "/home/partner",
+                    f"{HOST_DATA_PATH}/homes/nosuid/{random_home_path(partner)}",
+                    "bind",
+                    propagation="shared",
+                    read_only=True,
+                )
+            ] if partner else []),
             devices=devices,
             network=None,
             extra_hosts={
@@ -102,7 +117,7 @@ def start_challenge(user, dojo_challenge, practice):
                 f"vm_{hostname}"[:64]: "127.0.0.1",
                 "challenge.localhost": "127.0.0.1",
                 "hacker.localhost": "127.0.0.1",
-                "dojo-user": user_ipv4(user),
+                "dojo-user": user_ipv4(owner),
                 **USER_FIREWALL_ALLOWED,
             },
             init=True,
@@ -117,19 +132,19 @@ def start_challenge(user, dojo_challenge, practice):
         )
 
         user_network = docker_client.networks.get("user_network")
-        user_network.connect(container, ipv4_address=user_ipv4(user), aliases=[f"user_{user.id}"])
+        user_network.connect(container, ipv4_address=user_ipv4(owner), aliases=[f"user_{owner.id}"])
 
         default_network = docker_client.networks.get("bridge")
-        internet_access = INTERNET_FOR_ALL or any(award.name == "INTERNET" for award in user.awards)
+        internet_access = INTERNET_FOR_ALL or any(award.name == "INTERNET" for award in owner.awards)
         if not internet_access:
             default_network.disconnect(container)
 
         container.start()
         return container
 
-    def verify_nosuid_home():
+    def verify_home_opts(path, check_nosuid=True, check_readonly=False):
         exit_code, output = exec_run(
-            "findmnt --output OPTIONS /home/hacker",
+            f"findmnt --output OPTIONS {path}",
             container=container,
             assert_success=False
         )
@@ -137,10 +152,14 @@ def start_challenge(user, dojo_challenge, practice):
             container.kill()
             container.wait(condition="removed")
             raise RuntimeError("Home directory failed to mount")
-        if b"nosuid" not in output:
+        if check_nosuid and b"nosuid" not in output:
             container.kill()
             container.wait(condition="removed")
             raise RuntimeError("Home directory failed to mount as nosuid")
+        if check_readonly and b"ro" not in output:
+            container.kill()
+            container.wait(condition="removed")
+            raise RuntimeError("Home directory failed to mount as read-only")
 
     def grant_sudo():
         exec_run(
@@ -154,7 +173,7 @@ def start_challenge(user, dojo_challenge, practice):
             shell=True
         )
 
-    def insert_challenge(user, dojo_challenge):
+    def insert_challenge(challenged_user, dojo_challenge):
         def is_option_path(path):
             path = pathlib.Path(*path.parts[:len(dojo_challenge.path.parts) + 1])
             return path.name.startswith("_") and path.is_dir()
@@ -168,7 +187,9 @@ def start_challenge(user, dojo_challenge, practice):
         option_paths = sorted(path for path in dojo_challenge.path.iterdir() if is_option_path(path))
         if option_paths:
             secret = current_app.config["SECRET_KEY"]
-            option_hash = hashlib.sha256(f"{secret}_{user.id}_{dojo_challenge.challenge_id}".encode()).digest()
+            option_hash = hashlib.sha256(
+                f"{secret}_{challenged_user.id}_{dojo_challenge.challenge_id}".encode()
+            ).digest()
             option = option_paths[int.from_bytes(option_hash[:8], "little") % len(option_paths)]
             container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
@@ -200,18 +221,29 @@ def start_challenge(user, dojo_challenge, practice):
             workspace_user="hacker"
         )
 
-    setup_home(user)
+    setup_home(owner)
+    if partner:
+        setup_home(partner)
 
-    container = start_container(user, dojo_challenge, practice)
+    container = start_container(owner, dojo_challenge, practice, partner)
 
-    verify_nosuid_home()
+    verify_home_opts("/home/hacker", check_nosuid=True)
+    if partner:
+        verify_home_opts("/home/partner", check_nosuid=True, check_readonly=True)
 
     if practice:
         grant_sudo()
 
-    insert_challenge(user, dojo_challenge)
+    insert_challenge(challenged_user, dojo_challenge)
 
-    flag = "practice" if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)
+    if practice:
+        flag = "practice"
+    elif partner:
+        flag = "partner"
+    else:
+        # owner vs. challenged_user distinction shouldn't matter here, because they
+        #  *should* be the same in this branch
+        flag = serialize_user_flag(challenged_user.id, dojo_challenge.challenge_id)
     insert_flag(flag)
 
     auth_token = container.labels["dojo.auth_token"]
