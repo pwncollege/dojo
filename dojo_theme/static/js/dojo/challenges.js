@@ -203,7 +203,12 @@ function startChallenge(event) {
             item.find("#challenge-submit").removeClass("disabled-button");
             item.find("#challenge-submit").prop("disabled", false);
         }, 10000);
-    });
+    }).catch(function (error) {
+        console.error(error);
+        var result_message = item.find('#result-message');
+        result_message.html("Submission request failed: " + ((error || {}).message || error));
+        result_notification.addClass('alert alert-warning alert-dismissable text-center');
+    })
 }
 
 
