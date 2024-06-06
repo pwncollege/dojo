@@ -15,3 +15,17 @@
 - wget
 
 - unzip
+
+---
+
+# Builder-pwn Packages
+
+- TODO
+
+---
+
+# Builder-code-server
+
+- code-server
+
+- python312
