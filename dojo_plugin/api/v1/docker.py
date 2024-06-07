@@ -9,6 +9,7 @@ import traceback
 import docker
 from flask import request, current_app
 from flask_restx import Namespace, Resource
+from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
@@ -262,7 +263,21 @@ class RunDocker(Resource):
         challenge_id = data.get("challenge")
         practice = data.get("practice")
 
-        user = get_current_user()
+        owner = get_current_user()
+        challenged_user = owner
+        partner = None
+
+        # https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/initialization/__init__.py#L286-L296
+        try:
+            token_user = lookup_workspace_token(request.headers.get("X-Workspace-Token"))
+        except UserNotFoundException:
+            abort(401, description="Invalid workspace token")
+        except UserTokenExpiredException:
+            abort(401, description="This workspace token has expired")
+        except Exception:
+            abort(401)
+        else:
+            challenged_user = partner = token_user
 
         dojo = dojo_accessible(dojo_id)
         if not dojo:
@@ -283,13 +298,16 @@ class RunDocker(Resource):
             return {"success": False, "error": "This challenge does not support practice mode."}
 
         try:
-            start_challenge(user, dojo_challenge, practice)
+            start_challenge(
+                owner, challenged_user, dojo_challenge, practice, 
+                partner=partner
+            )
         except RuntimeError as e:
-            print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
+            print(f"ERROR: Docker failed for {owner.id}: {e}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": str(e)}
         except Exception as e:
-            print(f"ERROR: Docker failed for {user.id}: {e}", file=sys.stderr, flush=True)
+            print(f"ERROR: Docker failed for {owner.id}: {e}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": "Docker failed"}
         return {"success": True}

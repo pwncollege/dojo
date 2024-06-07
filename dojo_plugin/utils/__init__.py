@@ -12,13 +12,18 @@ import bleach
 import docker
 from flask import current_app, Response, Markup, abort, g
 from itsdangerous.url_safe import URLSafeSerializer
+from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
 from CTFd.models import db, Solves, Challenges, Users
+from CTFd.utils.encoding import hexencode
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
 from CTFd.utils.config.pages import build_markdown
 from CTFd.utils.security.sanitize import sanitize_html
 from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
+
+from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges, WorkspaceTokens
+
 
 ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
@@ -60,6 +65,7 @@ def get_active_users(active_desktops=False):
     users = [ Users.query.filter_by(id=uid).first() for uid in uids ]
     return users
 
+
 def serialize_user_flag(account_id, challenge_id, *, secret=None):
     if secret is None:
         secret = current_app.config["SECRET_KEY"]
@@ -67,6 +73,7 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     data = [account_id, challenge_id]
     user_flag = serializer.dumps(data)[::-1]
     return user_flag
+
 
 def user_ipv4(user):
     # Subnet: 10.0.0.0/8
@@ -76,6 +83,7 @@ def user_ipv4(user):
     user_ip = (10 << 24) + (1 << 8) + user.id
     assert user_ip < (10 << 24) + (255 << 16) + (255 << 8)
     return f"{user_ip >> 24 & 0xff}.{user_ip >> 16 & 0xff}.{user_ip >> 8 & 0xff}.{user_ip & 0xff}"
+
 
 def redirect_internal(redirect_uri, auth=None):
     response = Response()
@@ -87,9 +95,11 @@ def redirect_internal(redirect_uri, auth=None):
     response.headers["redirect_uri"] = redirect_uri
     return response
 
+
 def redirect_user_socket(user, port, url_path):
     assert user is not None
     return redirect_internal(f"http://user_{user.id}:{port}/{url_path}")
+
 
 def render_markdown(s):
     raw_html = build_markdown(s or "")
@@ -113,6 +123,7 @@ def render_markdown(s):
     }
     clean_html = bleach.clean(raw_html, tags=markdown_tags, attributes=markdown_attrs)
     return Markup(clean_html)
+
 
 def unserialize_user_flag(user_flag, *, secret=None):
     if secret is None:
@@ -254,6 +265,7 @@ def first_bloods():
     ).all()
     return first_blood_query
 
+
 def daily_solve_counts():
     counts = (
         db.session.query(
@@ -267,6 +279,34 @@ def daily_solve_counts():
         .group_by("year", "month", "day", Solves.user_id)
     ).all()
     return counts
+
+
+# https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/security/auth.py#L51-L59
+def lookup_workspace_token(token):
+    token = SupporTokens.query.filter_by(value=token).first()
+    if token:
+        if datetime.datetime.utcnow() >= token.expiration:
+            raise UserTokenExpiredException
+        return token.user
+    else:
+        raise UserNotFoundException
+    return None
+
+
+# https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/security/auth.py#L37-L48
+def generate_workspace_token(user, expiration=None):
+    temp_token = True
+    while temp_token is not None:
+        value = "workspace_" + hexencode(os.urandom(32))
+        temp_token = WorkspaceTokens.query.filter_by(value=value).first()
+
+    token = WorkspaceTokens(
+        user_id=user.id, expiration=expiration, value=value
+    )
+    db.session.add(token)
+    db.session.commit()
+    return token
+
 
 # based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
 class ListHandler(logging.Handler): # Inherit from logging.Handler
@@ -293,4 +333,3 @@ class HTMLHandler(logging.Handler): # Inherit from logging.Handler
             self.html += self.join_tag
         self.html += f"{self.start_tag}<b>{record.levelname}</b>: {sanitize_html(record.getMessage())}{self.end_tag}"
 
-from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges

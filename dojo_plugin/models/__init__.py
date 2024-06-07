@@ -713,8 +713,8 @@ class Emojis(Awards):
 # So if we were to re-use that model, it would require moneky-patching security-critical
 #  code and breaking the CTFd authors' assumptions, which makes me nervous. So, to be
 #  extra safe, we are going to define a new model. 
-class SupportTokens(db.Model):
-    __tablename__ = "support_tokens"
+class WorkspaceTokens(db.Model):
+    __tablename__ = "workspace_tokens"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
     created = db.Column(db.DateTime, default=datetime.datetime.utcnow)
@@ -724,13 +724,13 @@ class SupportTokens(db.Model):
     )
     value = db.Column(db.String(128), unique=True)
 
-    user = db.relationship("Users", foreign_keys="SupportTokens.user_id", lazy="select")
+    user = db.relationship("Users", foreign_keys="WorkspaceTokens.user_id", lazy="select")
 
     def __init__(self, *args, **kwargs):
-        super(SupportTokens, self).__init__(**kwargs)
+        super(WorkspaceTokens, self).__init__(**kwargs)
 
     def __repr__(self):
-        return "<SupportToken %r>" % self.id
+        return f"<{self.__class__.__name__} {self.id!r}>"
 
 
 for deferral in deferred_definitions:
