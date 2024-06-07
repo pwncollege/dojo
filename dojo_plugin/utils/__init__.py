@@ -283,7 +283,7 @@ def daily_solve_counts():
 
 # https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/security/auth.py#L51-L59
 def lookup_workspace_token(token):
-    token = SupporTokens.query.filter_by(value=token).first()
+    token = WorkspaceTokens.query.filter_by(value=token).first()
     if token:
         if datetime.datetime.utcnow() >= token.expiration:
             raise UserTokenExpiredException

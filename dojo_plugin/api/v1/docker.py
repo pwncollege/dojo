@@ -5,9 +5,10 @@ import re
 import subprocess
 import sys
 import traceback
+import logging
 
 import docker
-from flask import request, current_app
+from flask import abort, request, current_app
 from flask_restx import Namespace, Resource
 from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
 from CTFd.utils.user import get_current_user, is_admin
@@ -15,9 +16,18 @@ from CTFd.utils.decorators import authed_only
 
 from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL, WINDOWS_VM_ENABLED, SECCOMP, USER_FIREWALL_ALLOWED
 from ...models import Dojos, DojoModules, DojoChallenges
-from ...utils import serialize_user_flag, resolved_tar, random_home_path, module_challenges_visible, user_ipv4
+from ...utils import (
+    lookup_workspace_token, 
+    serialize_user_flag, 
+    resolved_tar, 
+    random_home_path, 
+    module_challenges_visible, 
+    user_ipv4
+)
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
+
+logger = logging.getLogger(__name__)
 
 docker_namespace = Namespace(
     "docker", description="Endpoint to manage docker containers"
@@ -267,17 +277,26 @@ class RunDocker(Resource):
         challenged_user = owner
         partner = None
 
+        logger.info(f"partner={partner!r} challenged_user={challenged_user!r}")
+
         # https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/initialization/__init__.py#L286-L296
-        try:
-            token_user = lookup_workspace_token(request.headers.get("X-Workspace-Token"))
-        except UserNotFoundException:
-            abort(401, description="Invalid workspace token")
-        except UserTokenExpiredException:
-            abort(401, description="This workspace token has expired")
-        except Exception:
-            abort(401)
-        else:
-            challenged_user = partner = token_user
+        workspace_token = request.headers.get("X-Workspace-Token")
+        if workspace_token:
+            try:
+                token_user = lookup_workspace_token(workspace_token)
+            except UserNotFoundException:
+                abort(401, description="Invalid workspace token")
+            except UserTokenExpiredException:
+                abort(401, description="This workspace token has expired")
+            except Exception:
+                logger.exception(f"error resolving workspace token for {owner.id}:")
+                abort(401, description="Internal error while resolving workspace token")
+            else:
+                if owner == token_user:
+                    abort(400, description="you cannot use your own support token")
+                challenged_user = partner = token_user
+
+        logger.info(f"partner={partner!r} challenged_user={challenged_user!r}")
 
         dojo = dojo_accessible(dojo_id)
         if not dojo:
@@ -303,12 +322,10 @@ class RunDocker(Resource):
                 partner=partner
             )
         except RuntimeError as e:
-            print(f"ERROR: Docker failed for {owner.id}: {e}", file=sys.stderr, flush=True)
-            traceback.print_exc(file=sys.stderr)
+            logger.exception(f"ERROR: Docker failed for {owner.id}:")
             return {"success": False, "error": str(e)}
         except Exception as e:
-            print(f"ERROR: Docker failed for {owner.id}: {e}", file=sys.stderr, flush=True)
-            traceback.print_exc(file=sys.stderr)
+            logger.exception(f"ERROR: Docker failed for {owner.id}:")
             return {"success": False, "error": "Docker failed"}
         return {"success": True}
 
