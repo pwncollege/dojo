@@ -29,3 +29,15 @@
 - code-server
 
 - python312
+
+# Builder Desktop
+
+- novnc
+
+- tigervnc (command turns to Xvnc)
+
+- python312Packages.websockify
+
+- xterm
+
+- fluxbox
