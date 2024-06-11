@@ -47,17 +47,18 @@ let
 
     mv "$out"/libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg "$out"/libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg.orig
     echo "$out"/libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg
-    cp <<EOF "$out"/libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg
-    #!/usr/bin/env python
-    
-    import sys
-    import os
-    
-    sys.argv[0] += ".orig"
-    if "--follow" in sys.argv:
-        sys.argv.remove("--follow")
-    os.execv(sys.argv[0], sys.argv)
-    EOF  
+    cat <<'EOF' > "$out"/libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg
+#!/usr/bin/env python
+
+import sys
+import os
+
+sys.argv[0] += ".orig"
+if "--follow" in sys.argv:
+    sys.argv.remove("--follow")
+os.execv(sys.argv[0], sys.argv)
+EOF
+    chmod +x "$out"/libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin/rg
     '';
 
   });
