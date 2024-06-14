@@ -76,7 +76,7 @@ function renderSubmissionResponse(response, item) {
         unsolved_flag.addClass("challenge-solved");
 
         total_solves.text(
-            (parseInt(total_solves.text().split(" ")[0]) + 1) + " solves"
+            (parseInt(total_solves.text().trim().split(" ")[0]) + 1) + " solves"
         );
 
         answer_input.val("");
