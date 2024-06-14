@@ -15,7 +15,6 @@ from ..utils.dojo import dojo_route
 from ..utils.discord import add_role, get_discord_user
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 
-
 course = Blueprint("course", __name__)
 
 
@@ -35,7 +34,7 @@ def assessment_name(dojo, assessment):
     return assessment["name"]
 
 
-def grade(dojo, users_query, *, ignore_pending=False):
+def grade(dojo, users_query, *, ignore_pending=False, module_id=None):
     if isinstance(users_query, Users):
         users_query = Users.query.filter_by(id=users_query.id)
 
@@ -161,6 +160,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     weight=weight,
                     progress=progress,
                     credit=credit,
+                    module_id=module_id
                 ))
 
             if type == "manual":
