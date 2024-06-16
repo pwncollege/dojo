@@ -102,7 +102,7 @@ jobs:
           exit 0
 
       - name: Run tests
-        timeout-minutes: 4
+        timeout-minutes: 3
         run: |
           export MOZ_HEADLESS=1
           pytest -vrpP --durations=0 ./test || (docker exec dojo-test docker compose logs && false)

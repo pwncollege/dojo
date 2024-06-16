@@ -43,7 +43,7 @@ def sync_challenge_to_canvas(challenge_id, user_id):
 
         posting_results = do_canvas_sync(dojo, user_id=user_id, module_id=dojo_chal.module.id)
     
-        log.info(json.dumps(posting_results, indent=2))
+        log.info("Result from post", json.dumps(posting_results, indent=2))
 
 
 """ 
@@ -100,10 +100,11 @@ def do_canvas_sync(dojo, user_id=None, module_id=None):
         
     posting_results = []
     progress_urls = []
+    assessment_student_counter = {}
     for aindex, assessment in enumerate(assessments):
         if "canvas_assignment_id" not in assessment:
             continue
-        
+        assessment_student_counter[assessment['id']] = 0
         # if we have a value module_id, check for it and skip all the others
         if module_id is not None and module_id != assessment["id"]:                
             continue 
@@ -114,8 +115,10 @@ def do_canvas_sync(dojo, user_id=None, module_id=None):
 
             # this is a single module sync, submit to canvas and return
             if module_id is not None and module_id == assessment["id"]:   
+                
                 res = post_grade_to_canvas(canvas_token, canvas_api_host, canvas_course_id, assessment["canvas_assignment_id"], 
                                         students[grade_res["user_id"]], grade_credit_percent)
+                
                 return res
             # multi-module and mutli-user sync of grades with canvas using bulk update api
             else:
@@ -123,6 +126,7 @@ def do_canvas_sync(dojo, user_id=None, module_id=None):
                 if grade_res['assessment_grades'][aindex]['module_id'] == assessment['id']:
                     student_id = students[grade_res['user_id']]
                     canvas_grade_data[f"sis_user_id:{student_id}"] = {"posted_grade": grade_credit_percent}
+                    assessment_student_counter[assessment['id']] += 1
                 else:
                     log.error(f"The following did not align in list, {grade_res['assessment_grades'][aindex]['module_id']=}   {assessment['id']=}" )
                     return {"status": "failed", "message": f"The following did not align in list, {grade_res['assessment_grades'][aindex]['module_id']=}   {assessment['id']=}, this shouldn't happen."}
@@ -137,6 +141,8 @@ def do_canvas_sync(dojo, user_id=None, module_id=None):
     if len(progress_urls) > 0 :
         check_results = check_progress(progress_urls, canvas_token, interval=2)
         posting_results.extend(check_results)
+        posting_results.append(assessment_student_counter)
+
     return posting_results
 
 
@@ -185,7 +191,7 @@ def check_progress(progress_urls, access_token, interval=5):
     }
     completed = []
     check_count = 0
-    max_checks = 20
+    max_checks = 10
     most_recent = dict()
     while len(completed) < len(progress_urls):
         
