@@ -1,0 +1,43 @@
+{
+  "nodes": {
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1718318537,
+        "narHash": "sha256-4Zu0RYRcAY/VWuu6awwq4opuiD//ahpc2aFHg2CWqFY=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "e9ee548d90ff586a6471b4ae80ae9cfcbceb3420",
+        "type": "github"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "ref": "nixos-unstable",
+        "type": "indirect"
+      }
+    },
+    "root": {
+      "inputs": {
+        "nixpkgs": "nixpkgs",
+        "start-stop-daemon-pkgs": "start-stop-daemon-pkgs"
+      }
+    },
+    "start-stop-daemon-pkgs": {
+      "locked": {
+        "lastModified": 1718348195,
+        "narHash": "sha256-f2AcuKniW6hE27dx0aAUcaiXpB1e/N1qlTs9KpaVP3I=",
+        "owner": "supercoolspy",
+        "repo": "nixpkgs",
+        "rev": "78defa328979268e86afd55d4bc99f3d52e8afe9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "supercoolspy",
+        "ref": "create-start-stop-daemon",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
