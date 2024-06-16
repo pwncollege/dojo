@@ -12,14 +12,16 @@
   
 - xfce subpackages
   
-  - xorg subpackages
+- xorg subpackages
+  
 - <mark>TODO: Python stuff</mark>
   
 - xclip
   
 - dbus (dbus-x11 but same impl)
   
-  - at-spi2-atk
+- at-spi2-atk
+  
 
 ## builder-code-server
 
