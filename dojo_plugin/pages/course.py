@@ -34,7 +34,7 @@ def assessment_name(dojo, assessment):
     return assessment["name"]
 
 
-def grade(dojo, users_query, *, ignore_pending=False, module_id=None):
+def grade(dojo, users_query, *, ignore_pending=False):
     if isinstance(users_query, Users):
         users_query = Users.query.filter_by(id=users_query.id)
 

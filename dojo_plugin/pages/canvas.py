@@ -36,19 +36,14 @@ This is called from the the DojoFlag class on a successful flag submission.
 It updates a single user's Canvas grade for the module that the the user just sucessfully submitted 
 """
 @authed_only
-def sync_challenge_to_canvas(challenge_id=None, user_id=None):
-        
-    if challenge_id is None or user_id is None:
-        return
-
+def sync_challenge_to_canvas(challenge_id, user_id):
     dojo_chal = DojoChallenges.query.filter(DojoChallenges.challenge_id == challenge_id).first()
-    dojo = Dojos.query.filter(Dojos.dojo_id == dojo_chal.dojo_id).first()
-    
-    log.info(f"Looking for {dojo.id=} {dojo_chal.module.id=} {user_id=}")
+    if dojo_chal:
+        dojo = Dojos.query.filter(Dojos.dojo_id == dojo_chal.dojo_id).first()
 
-    posting_results = do_canvas_sync(dojo, user_id=user_id, module_id=dojo_chal.module.id)
+        posting_results = do_canvas_sync(dojo, user_id=user_id, module_id=dojo_chal.module.id)
     
-    log.info(json.dumps(posting_results))
+        log.info(json.dumps(posting_results, indent=2))
 
 
 """ 
@@ -58,19 +53,15 @@ However, if both user_id and module_id are supplied it will do a single user/mod
 def do_canvas_sync(dojo, user_id=None, module_id=None):
     
     canvas_token = dojo.course.get("canvas_token","")
-    log.info(f"initial checks {canvas_token=} {user_id=} {module_id=}")
+    
     canvas_api_host = dojo.course.get("canvas_api_host","")
-    canvas_course_id = dojo.course.get("canvas_course_id","")
+    canvas_course_id = dojo.course.get("canvas_course_id",0)
     if len(canvas_token) == 0:
         return {"status": "completed", "message": "Missing canvas_token in course.xml"}
     if len(canvas_api_host) == 0:
         return {"status": "completed", "message": "Missing canvas_api_host in course.xml"}
-    if len(canvas_course_id) == 0:
+    if canvas_course_id == 0:
         return {"status": "completed", "message": "Missing canvas_course_id in course.xml"}
-    
-    # non-admins may only perform single user / module update to canvas
-    if (user_id is None or module_id is None) and not dojo.is_admin():
-        abort(403)
     
     canvas_grade_data = {}
     
@@ -79,6 +70,8 @@ def do_canvas_sync(dojo, user_id=None, module_id=None):
     students = {student.user_id: student.token for student in dojo.students}
     course_students = dojo.course.get("students", [])
     missing_students = list(set(course_students) - set(students.values()))
+    
+    # if user_id is None, it's a bulk grade submission, get all users, else just get user_id
     if user_id is None: 
         users = (
                 Users
@@ -87,8 +80,8 @@ def do_canvas_sync(dojo, user_id=None, module_id=None):
                 .filter(DojoStudents.dojo == dojo,
                         DojoStudents.token.in_(course_students))
             )
-    elif user_id is not None:
-        # get the user 
+    else:
+        # get the user_id
         users = (
                 Users
                 .query
@@ -97,10 +90,8 @@ def do_canvas_sync(dojo, user_id=None, module_id=None):
                         DojoStudents.token.in_(course_students),
                         DojoStudents.user_id == user_id)
             )
-        log.info(f"Got user information on {user_id}")
-    else:
-        abort(403)
-
+        if users.count() == 0:
+            return {"status": "completed", "message": f"Student {user_id} has not linked their student id with this course"}
 
     grades = sorted(grade(dojo, users, ignore_pending=ignore_pending),
                         key=lambda grade: grade["overall_grade"],
@@ -115,11 +106,7 @@ def do_canvas_sync(dojo, user_id=None, module_id=None):
         
         # if we have a value module_id, check for it and skip all the others
         if module_id is not None and module_id != assessment["id"]:                
-            log.info(f"assement id = {assessment['id']=}")
             continue 
-        else:
-             log.info(f"assement id = {module_id=} {assessment['id']=} {module_id == assessment['id']=}")
-             log.info(f"{json.dumps(grades, indent=2)}")
                     
         canvas_assignment_id = assessment["canvas_assignment_id"]
         for grade_res in grades:                
@@ -127,19 +114,22 @@ def do_canvas_sync(dojo, user_id=None, module_id=None):
 
             # this is a single module sync, submit to canvas and return
             if module_id is not None and module_id == assessment["id"]:   
-                log.info(f"Subnmitting grade to canvas {user_id}")
                 res = post_grade_to_canvas(canvas_token, canvas_api_host, canvas_course_id, assessment["canvas_assignment_id"], 
                                         students[grade_res["user_id"]], grade_credit_percent)
-                log.info(f"Results = {json.dumps(res, indent=2)}")
                 return res
+            # multi-module and mutli-user sync of grades with canvas using bulk update api
             else:
-                student_id = students[grade_res['user_id']]
-                canvas_grade_data[f"sis_user_id:{student_id}"] = {"posted_grade": grade_credit_percent}
+                # additional check to be sure that they align 
+                if grade_res['assessment_grades'][aindex]['module_id'] == assessment['id']:
+                    student_id = students[grade_res['user_id']]
+                    canvas_grade_data[f"sis_user_id:{student_id}"] = {"posted_grade": grade_credit_percent}
+                else:
+                    log.error(f"The following did not align in list, {grade_res['assessment_grades'][aindex]['module_id']=}   {assessment['id']=}" )
+                    return {"status": "failed", "message": f"The following did not align in list, {grade_res['assessment_grades'][aindex]['module_id']=}   {assessment['id']=}, this shouldn't happen."}
 
         if (len(canvas_grade_data) > 0):
             submission_results = post_bulk_grade_data_to_canvas(canvas_token, canvas_api_host, canvas_course_id, canvas_assignment_id, canvas_grade_data)
             if submission_results["status"] == "success":
-                    #sposting_results.append(submission_results) 
                 progress_urls.append(submission_results["url"])
             else:
                 posting_results.append(submission_results)            
@@ -155,10 +145,9 @@ def post_grade_to_canvas(canvas_token, canvas_api_host, canvas_course_id, assign
     payload = {'submission': {'posted_grade': students_grade}}
     
     header = {'Authorization': 'Bearer ' + canvas_token}
-    log.info(f"Putting to URL {url=}")
-
+    
     r = requests.put(url, headers=header, json=payload)
-    log.info(f"response status code {r.status_code}")
+    
     if r.status_code == 200:
         return {"status": "success", "student_id": student_id, "json": r.json()}
     else:

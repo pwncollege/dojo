@@ -53,7 +53,6 @@ class DojoFlag(BaseFlag):
         current_account_id = get_current_user().account_id
         current_challenge_id = chal_key_obj.challenge_id
         
-
         try:
             account_id, challenge_id = unserialize_user_flag(provided)
         except BadSignature:
@@ -65,9 +64,12 @@ class DojoFlag(BaseFlag):
         if challenge_id != current_challenge_id:
             raise FlagException("This flag is not for this challenge!")
         
-        sync_challenge_to_canvas(current_challenge_id, current_account_id)
-        
-
+        try:
+            sync_challenge_to_canvas(current_challenge_id, current_account_id)
+        except Exception:
+            # we don't want to interrupt the flag process with a synchronization error
+            # the error should be fixed by the manual bulk submission
+            pass 
         return True
 
 
