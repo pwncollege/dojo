@@ -11,23 +11,23 @@ password_view="$(printf 'desktop-view' | openssl dgst -sha256 -hmac "$container_
 printf '%s\n%s\n' "$password_interact" "$password_view" | tigervncpasswd -f > /tmp/.dojo/vnc/passwd
 
 # TODO: No-close not supported by busybox
-    start-stop-daemon \
-                    -p /tmp/.dojo/vnc/vncserver.pid \
-                    -m \
-                    -b \
-                    -x /nix/bin/Xvnc \
-                    -S \
-                    -- \
-                    :42 \
-                    -localhost=0 \
-                    -rfbunixpath /tmp/.dojo/vnc/socket \
-                    -rfbauth /tmp/.dojo/vnc/passwd \
-                    -nolisten tcp \
-                    -geometry 1024x768 \
-                    -depth 24 \
-                    </dev/null \
-                    >>/tmp/.dojo/vnc/vncserver.log \
-                    2>&1
+start-stop-daemon --start \
+                  --pidfile /tmp/.dojo/vnc/vncserver.pid \
+                  --make-pidfile \
+                  --background \
+                  --no-close \
+                  --startas /nix/bin/tigervnc \
+                  -- \
+                  :42 \
+                  -localhost=0 \
+                  -rfbunixpath /tmp/.dojo/vnc/socket \
+                  -rfbauth /tmp/.dojo/vnc/passwd \
+                  -nolisten tcp \
+                  -geometry 1024x768 \
+                  -depth 24 \
+                  </dev/null \
+                  >>/tmp/.dojo/vnc/vncserver.log \
+                  2>&1
 
 start-stop-daemon \
                   -p /tmp/.dojo/vnc/websockify.pid \
@@ -36,7 +36,7 @@ start-stop-daemon \
                   -x /nix/bin/websockify \
                   -S \
                   -- \
-                  --web /nix/bin/Xvnc \
+                  --web $(dirname $(dirname $(readlink /nix/bin/novnc)))/share \
                   dojo-user:6081 \
                   --unix-target=/tmp/.dojo/vnc/socket \
                   </dev/null \
