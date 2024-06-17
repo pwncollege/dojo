@@ -1,5 +1,6 @@
 import hmac
 
+import docker
 from flask import request, Blueprint, render_template, redirect, url_for, abort
 from CTFd.models import Users
 from CTFd.utils.user import get_current_user, is_admin
@@ -110,11 +111,14 @@ def forward_workspace(service, service_path=""):
             abort(404)
 
         if service in ondemand_services:
-            exec_run(
-                f"/opt/pwn.college/services.d/{service}",
-                workspace_user="hacker", user_id=user.id, shell=True,
-                assert_success=True
-            )
+            try:
+                exec_run(
+                    f"/opt/pwn.college/services.d/{service}",
+                    workspace_user="hacker", user_id=user.id, shell=True,
+                    assert_success=True
+                )
+            except (docker.errors.NotFound, docker.errors.APIError):
+                abort(404)
 
     elif service.count("~") == 1:
         port, user_id = service.split("~", 1)
