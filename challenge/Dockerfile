@@ -79,6 +79,10 @@ RUN <<EOF
     gcc /opt/pwn.college/setuid_interpreter.c -DSUID_SH -o /opt/pwn.college/sh
 
     ln -sf /bin/bash /opt/pwn.college/ssh-entrypoint
+    
+    ln -sf /opt/pwn.college/python /usr/local/bin/python-setuid
+    ln -sf /opt/pwn.college/bash /usr/local/bin/bash-setuid
+    ln -sf /opt/pwn.college/sh /usr/local/bin/sh-setuid
     ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
     ln -sf /opt/pwn.college/windows/windows /usr/local/bin/windows
 
