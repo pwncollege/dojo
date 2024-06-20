@@ -548,6 +548,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         php-mysql
         psutils
         python3-ipdb
+        sagemath
         qemu-system-x86
         qemu-user
         qemu-utils
