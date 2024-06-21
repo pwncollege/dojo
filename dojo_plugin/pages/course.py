@@ -12,7 +12,7 @@ from CTFd.utils.decorators import authed_only, admins_only, ratelimit
 from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents
 from ..utils import module_visible, module_challenges_visible, is_dojo_admin
 from ..utils.dojo import dojo_route
-from ..utils.discord import add_role, get_discord_user
+from ..utils.discord import add_role, get_discord_member
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 
 
@@ -254,7 +254,7 @@ def view_course(dojo, resource=None):
             setup["create_discord"] = "incomplete"
             setup["link_discord"] = "incomplete"
 
-        if user and get_discord_user(user.id):
+        if user and get_discord_member(user.id):
             setup["join_discord"] = "complete"
         else:
             setup["join_discord"] = "incomplete"
@@ -302,12 +302,12 @@ def update_identity(dojo):
 
     discord_role = dojo.course.get("discord_role")
     if discord_role:
-        discord_user = get_discord_user(user.id)
-        if discord_user is False:
+        discord_member = get_discord_member(user.id)
+        if discord_member is None:
             return {"success": True, "warning": "Your Discord account is not linked"}
-        if discord_user is None:
+        if discord_member is False:
             return {"success": True, "warning": "Your Discord account has not joined the official Discord server"}
-        add_role(discord_user["user"]["id"], discord_role)
+        add_role(discord_member["user"]["id"], discord_role)
 
     return {"success": True}
 
@@ -432,10 +432,10 @@ def view_user_info(dojo, user_id):
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
     identity = dict(identity_name=dojo.course.get("student_id", "Identity"),
                     identity_value=student.token if student else None)
-    discord_user = get_discord_user(user.id) if dojo.course.get("discord_role") else None
+    discord_member = get_discord_member(user.id) if dojo.course.get("discord_role") else None
 
     return render_template("dojo_admin_user.html",
                            dojo=dojo,
                            user=user,
-                           discord_user=discord_user,
+                           discord_member=discord_member,
                            **identity)
