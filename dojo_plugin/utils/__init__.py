@@ -10,6 +10,7 @@ import tempfile
 
 import bleach
 import docker
+import docker.errors
 from flask import current_app, Response, Markup, abort, g
 from itsdangerous.url_safe import URLSafeSerializer
 from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
@@ -150,12 +151,6 @@ def resolved_tar(dir, *, root_dir, filter=None):
             tar.add(path, arcname=relative_path, recursive=False)
     tar_buffer.seek(0)
     return tar_buffer
-
-
-def random_home_path(user, *, secret=None):
-    if secret is None:
-        secret = current_app.config["SECRET_KEY"]
-    return hashlib.sha256(f"{secret}_{user.id}".encode()).hexdigest()[:16]
 
 
 def module_visible(dojo, module, user):

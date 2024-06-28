@@ -166,12 +166,12 @@ def view_dojo_activity(dojo):
     actives = []
     now = datetime.datetime.now()
     for container in containers:
-        owner_id = container.labels["dojo.owner_id"]
+        user_id = container.labels["dojo.user_id"]
         dojo_id = container.labels["dojo.dojo_id"]
         module_id = container.labels["dojo.module_id"]
         challenge_id = container.labels["dojo.challenge_id"]
 
-        user = Users.query.filter_by(id=owner_id).first()
+        user = Users.query.filter_by(id=user_id).first()
         challenge = DojoChallenges.from_id(dojo_id, module_id, challenge_id).first()
 
         created = datetime.datetime.fromisoformat(container.attrs["Created"].split(".")[0])
