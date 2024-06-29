@@ -28,7 +28,7 @@
     {% if dojo_user.type == "admin" or user.type == "admin" %}
     <div class="col-lg-auto m-3">
       <figure>
-        <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo_admin', dojo=dojo.reference_id) }}">
+        <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.view_dojo_admin', dojo=dojo.reference_id) }}">
           <i class="fas fa-users-cog fa-3x"></i>
           <figcaption><b style="font-family: 'Courier New', Courier, monospace">Admin</b></figcaption>
         </a>

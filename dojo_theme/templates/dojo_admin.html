@@ -14,7 +14,7 @@
     <div class="col-lg-auto m-3">
       <figure>
       <a class="text-decoration-none" href="#"
-        data-copy="{{ url_for('pwncollege_dojos.join_dojo', dojo=dojo.reference_id, password=dojo.password, _external=True) }}"
+        data-copy="{{ url_for('pwncollege_dojo.join_dojo', dojo=dojo.reference_id, password=dojo.password, _external=True) }}"
         onclick="copyToClipboard(event)">
         <i class="fas fa-share fa-3x"></i>
         <figcaption><b style="font-family: 'Courier New', Courier, monospace" id="tooltip">&nbsp;Share&nbsp;</b></figcaption>
@@ -23,7 +23,7 @@
     </div>
     <div class="col-lg-auto m-3">
       <figure>
-      <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.update_dojo', dojo=dojo.reference_id, update_code=dojo.update_code) }}" target="_blank">
+      <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.update_dojo', dojo=dojo.reference_id, update_code=dojo.update_code) }}" target="_blank">
         <i class="fas fa-upload fa-3x"></i>
         <figcaption><b style="font-family: 'Courier New', Courier, monospace">Update</b></figcaption>
       </a>
@@ -41,7 +41,7 @@
     {% endif %}
     <div class="col-lg-auto m-3">
       <figure>
-      <a class="text-decoration-none" href="{{ url_for('pwncollege_dojos.view_dojo_solves', dojo=dojo.reference_id) }}">
+      <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.dojo_solves', dojo=dojo.reference_id, solves_code=dojo.solves_code, format="csv") }}">
         <i class="fas fa-file-csv fa-3x"></i>
         <figcaption><b style="font-family: 'Courier New', Courier, monospace">Solves</b></figcaption>
       </a>

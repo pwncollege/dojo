@@ -61,7 +61,7 @@
       {% set text = "{} Modules : {} / {}".format(dojo.modules_count, solves, dojo.challenges_count) %}
       {% set icon = "/themes/dojo_theme/static/img/dojo/{}.svg".format(dojo.award.belt) if (dojo.award.belt and dojo.official) else None %}
       {{ card(
-        url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id),
+        url_for("pwncollege_dojo.view_dojo", dojo=dojo.reference_id),
         title=dojo.name or dojo.id,
         text=text,
         icon=icon,
