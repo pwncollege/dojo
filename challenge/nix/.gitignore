@@ -1,0 +1,4 @@
+./nix
+./out
+./nix/store
+result
