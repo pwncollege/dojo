@@ -17,6 +17,7 @@ from CTFd.utils.decorators import authed_only
 from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL, SECCOMP, USER_FIREWALL_ALLOWED
 from ...models import Dojos, DojoModules, DojoChallenges
 from ...utils import (
+    gen_container_name,
     lookup_workspace_token,
     serialize_user_flag,
     resolved_tar,
@@ -58,7 +59,7 @@ def setup_home(user):
 
 def start_container(user, as_user, dojo_challenge, practice):
     docker_client = docker.from_env()
-    container_name = f"user_{user.id}"
+    container_name = gen_container_name(user)
     try:
         container = docker_client.containers.get(container_name)
         container.remove(force=True)
