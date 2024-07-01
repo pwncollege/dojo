@@ -72,11 +72,11 @@ def start_challenge(user, dojo_challenge, practice):
 
         container = docker_client.containers.create(
             dojo_challenge.image,
-            entrypoint=["/bin/sleep", "6h"],
+            entrypoint=["/nix/var/nix/profiles/default/bin/dojo-init", "/bin/sleep", "6h"],
             name=f"user_{user.id}",
             hostname=hostname,
-            user="hacker",
-            working_dir="/home/hacker",
+            user="root",
+            working_dir="/",
             labels={
                 "dojo.dojo_id": dojo_challenge.dojo.reference_id,
                 "dojo.module_id": dojo_challenge.module.id,

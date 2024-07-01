@@ -15,14 +15,17 @@
           };
         };
 
+        init = import ./init.nix { inherit pkgs; };
+        service = import ./services/service.nix { inherit pkgs; };
         code-service = import ./services/code.nix { inherit pkgs; };
         desktop-service = import ./services/desktop.nix { inherit pkgs; };
 
         additional = import ./additional/additional.nix { inherit pkgs; };
 
-        coreBuildInputs = with pkgs; [
+        corePackages = with pkgs; [
           bashInteractive
           cacert
+          coreutils
           curl
           glibcLocales
           hostname
@@ -34,26 +37,23 @@
           wget
           which
 
+          init
+          service
           code-service
           desktop-service
         ];
 
-        fullBuildInputs = coreBuildInputs ++ additional.buildInputs;
+        fullPackages = corePackages ++ additional.packages;
 
-        mkDojoShell = name: buildInputs: pkgs.mkShell {
+        buildDojoEnv = name: paths: pkgs.buildEnv {
           name = "dojo-workspace-${name}";
-          inherit buildInputs;
-
-          shellHook = ''
-            export SHELL=${pkgs.bashInteractive}/bin/bash
-            export LC_ALL=C.UTF-8
-          '';
+          inherit paths;
         };
 
       in {
-        default = mkDojoShell "core" coreBuildInputs;
-        core = mkDojoShell "core" coreBuildInputs;
-        full = mkDojoShell "full" fullBuildInputs;
+        default = buildDojoEnv "core" corePackages;
+        core = buildDojoEnv "core" corePackages;
+        full = buildDojoEnv "full" fullPackages;
       };
     };
 

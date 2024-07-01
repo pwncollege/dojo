@@ -1,34 +1,41 @@
 { pkgs }:
 
 let
+  service = import ./service.nix { inherit pkgs; };
+
   serviceScript = pkgs.writeScript "dojo-desktop" ''
     #!${pkgs.bash}/bin/bash
 
-    export DISPLAY=:42
+    export DISPLAY=:0
 
-    cleanup() {
-        kill $(jobs -p)
-    }
-    trap cleanup EXIT SIGHUP SIGINT SIGTERM
+    ${service}/bin/service start desktop-service/Xvnc \
+      ${pkgs.tigervnc}/bin/Xvnc \
+        $DISPLAY \
+        -localhost 0 \
+        -rfbport 5900 \
+        -geometry 1024x768 \
+        -depth 24 \
+        -SecurityTypes None \
 
-    Xvnc $DISPLAY -localhost 0 -rfbport 5900 -geometry 1024x768 -depth 24 -SecurityTypes None &
-    novnc &
-    sleep 1
-    fluxbox
+    ${service}/bin/service start desktop-service/novnc \
+      ${pkgs.novnc}/bin/novnc \
+        --vnc localhost:5900
+
+    until [ -e /tmp/.X11-unix/X0 ]; do sleep 0.1; done
+    until ${pkgs.curl}/bin/curl -s localhost:6080 >/dev/null; do sleep 0.1; done
+
+    ${service}/bin/service start desktop-service/fluxbox \
+      ${pkgs.fluxbox}/bin/fluxbox
   '';
 
 in pkgs.stdenv.mkDerivation {
   name = "desktop-service";
-  buildInputs = [ pkgs.bash ];
+  buildInputs = [ pkgs.bash pkgs.curl ];
   propagatedBuildInputs = [
     pkgs.tigervnc
     pkgs.novnc
     pkgs.fluxbox
     pkgs.xterm
-    pkgs.fontconfig
-    pkgs.font-awesome
-    pkgs.inconsolata
-    pkgs.dejavu_fonts
   ];
   dontUnpack = true;
 

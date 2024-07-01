@@ -9,7 +9,7 @@ let
   ]);
 in
 {
-  buildInputs = with pkgs; [
+  packages = with pkgs; [
     pythonEnv
 
     qemu
