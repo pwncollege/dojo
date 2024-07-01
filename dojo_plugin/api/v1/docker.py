@@ -57,16 +57,17 @@ def setup_home(user):
         )
 
 
-def start_container(user, as_user, dojo_challenge, practice):
-    docker_client = docker.from_env()
-    container_name = gen_container_name(user)
+def remove_container(docker_client, user):
     try:
-        container = docker_client.containers.get(container_name)
+        container = docker_client.containers.get(gen_container_name(user))
         container.remove(force=True)
         container.wait(condition="removed")
     except docker.errors.NotFound:
         pass
 
+
+def start_container(docker_client, user, as_user, dojo_challenge, practice):
+    container_name = gen_container_name(user)
     hostname = "~".join(
         (["practice"] if practice else [])
         + [
@@ -84,8 +85,6 @@ def start_container(user, as_user, dojo_challenge, practice):
         devices.append("/dev/kvm:/dev/kvm:rwm")
     if os.path.exists("/dev/net/tun"):
         devices.append("/dev/net/tun:/dev/net/tun:rwm")
-
-    storage_driver = docker_client.info().get("Driver")
 
     container = docker_client.containers.create(
         dojo_challenge.image,
@@ -267,13 +266,19 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     partner: a user whose home directory will be mounted in read-only in /home/partner
     """
     as_user = as_user or user
+    docker_client = docker.from_env()
+    remove_container(docker_client, user)
 
     setup_home(user)
     if as_user != user:
         setup_home(as_user)
 
     container = start_container(
-        user=user, as_user=as_user, dojo_challenge=dojo_challenge, practice=practice
+        docker_client=docker_client, 
+        user=user, 
+        as_user=as_user, 
+        dojo_challenge=dojo_challenge, 
+        practice=practice
     )
 
     hacker_mount_info = expect_homedir_mount_info(container, "/home/hacker")
