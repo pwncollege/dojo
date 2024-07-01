@@ -24,14 +24,8 @@ if [ ! -d /out ]; then
     exit 1
 fi
 
-nix copy --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
-
-env -i nix develop ".#$DOJO_WORKSPACE" -c bash -c '
-    echo "#!$SHELL" > /out/nix/init
-    export | grep "declare -x [A-Z_]*=" | sed -e "s|$TMP|/tmp|g" -e "s|/no-such-path|\$PATH|" >> /out/nix/init
-    echo "exec \"\$@\"" >> /out/nix/init
-    chmod +x /out/nix/init
-'
+nix build ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
+nix copy -v --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
 EOF
 
 RUN chmod +x /docker-entrypoint.sh

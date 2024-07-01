@@ -1,11 +1,18 @@
 { pkgs }:
 
 let
+  service = import ./service.nix { inherit pkgs; };
+
   serviceScript = pkgs.writeScript "dojo-code" ''
     #!${pkgs.bash}/bin/bash
 
-    exec CODE_SERVER_PLACEHOLDER --auth=none --bind-addr=0.0.0.0:8080 --disable-telemetry
-    # --extensions-dir=/opt/code-server/extensions
+    ${service}/bin/service start code-service/code-server \
+      $OUT/bin/code-server \
+        --auth=none \
+        --bind-addr=0.0.0.0:8080 \
+        --trusted-origins='*' \
+        --disable-telemetry \
+        --extensions-dir=$OUT/share/code-service/extensions
   '';
 
   rgScript = pkgs.writeScript "rg" ''
@@ -23,12 +30,12 @@ let
 in pkgs.stdenv.mkDerivation {
   name = "code-service";
   src = pkgs.code-server;
-  nativeBuildInputs = [ pkgs.nodejs pkgs.makeWrapper pkgs.bash pkgs.python3 ];
+  nativeBuildInputs = [ pkgs.nodejs pkgs.makeWrapper pkgs.bash pkgs.python3 pkgs.wget pkgs.cacert ];
 
   installPhase = ''
     runHook preInstall
 
-    rgBin="libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin"
+    rgBin=libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
 
     mkdir -p $out/$rgBin
     cp ${rgScript} $out/$rgBin/rg
@@ -37,11 +44,22 @@ in pkgs.stdenv.mkDerivation {
     cp -ru ${pkgs.code-server}/libexec/code-server/. $out/libexec/code-server
 
     mkdir -p $out/bin
-    makeWrapper "${pkgs.nodejs}/bin/node" "$out/bin/code-server" --add-flags "$out/libexec/code-server/out/node/entry.js"
+    makeWrapper ${pkgs.nodejs}/bin/node $out/bin/code-server --add-flags $out/libexec/code-server/out/node/entry.js
     cp $out/bin/code-server $out/bin/code
 
     cp ${serviceScript} $out/bin/dojo-code
-    substituteInPlace $out/bin/dojo-code --replace "CODE_SERVER_PLACEHOLDER" "$out/bin/code-server"
+    substituteInPlace $out/bin/dojo-code --replace '$OUT' $out
+
+    mkdir -p $out/share/code-service/extensions
+    ${pkgs.wget}/bin/wget -P $NIX_BUILD_TOP 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
+    export HOME=$NIX_BUILD_TOP
+    $out/bin/code-server \
+      --auth=none \
+      --disable-telemetry \
+      --extensions-dir=$out/share/code-service/extensions \
+      --install-extension ms-python.python \
+      --install-extension $NIX_BUILD_TOP/cpptools-linux.vsix
+    chmod +x $out/share/code-service/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*}
 
     runHook postInstall
   '';
