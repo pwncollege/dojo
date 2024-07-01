@@ -19,6 +19,7 @@ from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, do
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
 
 dojo = Blueprint("pwncollege_dojo", __name__)
+#pylint:disable=redefined-outer-name
 
 
 @cache.memoize(timeout=60)
