@@ -30,6 +30,17 @@ services:
     networks:
       - user_network
 
+  workspace-builder:
+    container_name: workspace-builder
+    build:
+      context: ./workspace
+      args:
+        - DOJO_WORKSPACE=${DOJO_WORKSPACE}
+    environment:
+      - DOJO_WORKSPACE=${DOJO_WORKSPACE}
+    volumes:
+      - ./data/workspace:/out
+
   ctfd:
     container_name: ctfd
     hostname: ctfd

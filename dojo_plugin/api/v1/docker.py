@@ -88,11 +88,17 @@ def start_challenge(user, dojo_challenge, practice):
             },
             mounts=[
                 docker.types.Mount(
+                    "/nix",
+                    f"{HOST_DATA_PATH}/workspace/nix",
+                    "bind",
+                    read_only=True,
+                ),
+                docker.types.Mount(
                     "/home/hacker",
                     f"{HOST_DATA_PATH}/homes/nosuid/{random_home_path(user)}",
                     "bind",
                     propagation="shared",
-                )
+                ),
             ],
             devices=devices,
             network=None,

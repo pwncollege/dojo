@@ -1,0 +1,29 @@
+{ pkgs }:
+
+let
+  pythonEnv = pkgs.python3.withPackages (ps: with ps; [
+    ipython
+    requests
+    flask
+    pwntools
+  ]);
+in
+{
+  buildInputs = with pkgs; [
+    pythonEnv
+
+    qemu
+
+    gdb
+    pwndbg
+    gef
+
+    ghidra
+    ida-free
+    radare2
+
+    wireshark
+    nmap
+    tcpdump
+  ];
+}
