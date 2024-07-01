@@ -6,7 +6,7 @@
   <div class="container">
     <h1>{{ module.name or module.id }}</h1>
     <br>
-    <h2 class="module-dojo"><a href="{{ url_for('pwncollege_dojos.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.name or dojo.id }}</a></h2>
+    <h2 class="module-dojo"><a href="{{ url_for('pwncollege_dojo.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.name or dojo.id }}</a></h2>
 
     {% if assessments %}
     <br>

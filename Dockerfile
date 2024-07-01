@@ -1,6 +1,6 @@
 FROM ubuntu:24.04
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 ENV LC_CTYPE=C.UTF-8
 
 RUN apt-get update && \
