@@ -181,28 +181,43 @@ def view_dojo_activity(dojo):
 
     return render_template("dojo_activity.html", dojo=dojo, actives=actives, solves=solves)
 
+def _get_dojo_solves(dojo):
+    solves = (
+        dojo
+        .solves(ignore_visibility=True)
+        .join(DojoModules, and_(
+            DojoModules.dojo_id == DojoChallenges.dojo_id,
+            DojoModules.module_index == DojoChallenges.module_index))
+        .filter(DojoUsers.user_id != None)
+        .order_by(DojoChallenges.module_index, DojoChallenges.challenge_index, Solves.date)
+        .with_entities(Solves.user_id, DojoModules.id, DojoChallenges.id, Solves.date)
+    )
+    for user, module, challenge, time in solves:
+        time = time.replace(tzinfo=datetime.timezone.utc)
+        yield (user,module,challenge,time)
 
-@dojo.route("/dojo/<dojo>/admin/solves.csv")
-@dojo_route
-@dojo_admins_only
-def view_dojo_solves(dojo):
-    def stream():
-        yield "user,module,challenge,time\n"
-        solves = (
-            dojo
-            .solves(ignore_visibility=True)
-            .join(DojoModules, and_(
-                DojoModules.dojo_id == DojoChallenges.dojo_id,
-                DojoModules.module_index == DojoChallenges.module_index))
-            .filter(DojoUsers.user_id != None)
-            .order_by(DojoChallenges.module_index, DojoChallenges.challenge_index, Solves.date)
-            .with_entities(Solves.user_id, DojoModules.id, DojoChallenges.id, Solves.date)
-        )
-        for user, module, challenge, time in solves:
-            time = time.replace(tzinfo=datetime.timezone.utc)
-            yield f"{user},{module},{challenge},{time}\n"
-    headers = {"Content-Disposition": "attachment; filename=data.csv"}
-    return Response(stream_with_context(stream()), headers=headers, mimetype="text/csv")
+@dojo.route("/dojo/<dojo>/solves/", methods=["GET", "POST"])
+@dojo.route("/dojo/<dojo>/solves/<solves_code>/<format>", methods=["GET", "POST"])
+@bypass_csrf_protection
+def dojo_solves(dojo, solves_code=None, format="csv"):
+    dojo = Dojos.from_id(dojo).first()
+    if not dojo:
+        return {"success": False, "error": "Not Found"}, 404
+
+    if dojo.solves_code != solves_code:
+        return {"success": False, "error": "Forbidden"}, 403
+
+    if format == "csv":
+        def stream():
+            yield "user,module,challenge,time\n"
+            for user, module, challenge, time in _get_dojo_solves(dojo):
+                yield f"{user},{module},{challenge},{time}\n"
+        headers = {"Content-Disposition": "attachment; filename=data.csv"}
+        return Response(stream_with_context(stream()), headers=headers, mimetype="text/csv")
+    elif format == "json":
+        return [ dict(zip(("user","module","challenge","time"), row)) for row in _get_dojo_solves(dojo) ]
+    else:
+        return {"success": False, "error": "Invalid format"}, 400
 
 
 def view_module(dojo, module):
