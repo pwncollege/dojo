@@ -11,6 +11,7 @@ let
     export MANPATH="$DEFAULT_PROFILE/share/man:$MANPATH"
 
     mkdir -pm 1777 /run/dojo
+    echo $DOJO_AUTH_TOKEN > /run/dojo/auth_token
 
     mkdir -p /run/current-system
     ln -sfT $DEFAULT_PROFILE /run/current-system/sw
