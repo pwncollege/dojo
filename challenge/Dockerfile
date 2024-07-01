@@ -27,7 +27,7 @@ FROM ubuntu:${UBUNTU_VERSION} as essentials
 
 SHELL ["/bin/bash", "-ceov", "pipefail"]
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 ENV LC_CTYPE=C.UTF-8
 
 RUN <<EOF
