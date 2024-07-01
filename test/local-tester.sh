@@ -50,7 +50,7 @@ while docker ps -a | grep "$CONTAINER_NAME"; do sleep 1; done
 
 # freaking bad unmount
 sleep 1
-mount | grep $PWD | while read -a ENTRY
+mount | grep $PWD | tac | while read -a ENTRY
 do
 	sudo umount "${ENTRY[2]}"
 done
@@ -67,4 +67,8 @@ docker exec "$CONTAINER_NAME" dojo wait
 [ -n "$DB_RESTORE" ] && until docker exec "$CONTAINER_NAME" dojo restore $DB_RESTORE; do sleep 1; done
 
 until curl -Ls localhost.pwn.college | grep -q pwn; do sleep 1; done
+# fix up the data permissions and git
+sudo chown "$USER:$USER" "$PWD/data"
+git checkout "$PWD/data/.gitkeep"
+
 [ "$TEST" == "yes" ] && MOZ_HEADLESS=1 pytest -v test/test_running.py test/test_welcome.py
