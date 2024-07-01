@@ -13,6 +13,8 @@ let
         --trusted-origins='*' \
         --disable-telemetry \
         --extensions-dir=$OUT/share/code-service/extensions
+
+    until ${pkgs.curl}/bin/curl -s localhost:8080 >/dev/null; do sleep 0.1; done
   '';
 
   rgScript = pkgs.writeScript "rg" ''
@@ -30,7 +32,7 @@ let
 in pkgs.stdenv.mkDerivation {
   name = "code-service";
   src = pkgs.code-server;
-  nativeBuildInputs = [ pkgs.nodejs pkgs.makeWrapper pkgs.bash pkgs.python3 pkgs.wget pkgs.cacert ];
+  nativeBuildInputs = [ pkgs.nodejs pkgs.makeWrapper pkgs.bash pkgs.python3 pkgs.wget pkgs.curl pkgs.cacert ];
 
   installPhase = ''
     runHook preInstall

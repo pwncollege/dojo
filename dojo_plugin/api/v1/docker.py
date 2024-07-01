@@ -62,6 +62,8 @@ def start_challenge(user, dojo_challenge, practice):
             re.sub("[\s.-]+", "-", re.sub("[^a-z0-9\s.-]", "", dojo_challenge.name.lower()))
         ])[:64]
 
+        auth_token = os.urandom(32).hex()
+
         devices = []
         if os.path.exists("/dev/kvm"):
             devices.append("/dev/kvm:/dev/kvm:rwm")
@@ -77,6 +79,9 @@ def start_challenge(user, dojo_challenge, practice):
             hostname=hostname,
             user="root",
             working_dir="/",
+            environment={
+                "DOJO_AUTH_TOKEN": auth_token,
+            },
             labels={
                 "dojo.dojo_id": dojo_challenge.dojo.reference_id,
                 "dojo.module_id": dojo_challenge.module.id,
@@ -84,7 +89,7 @@ def start_challenge(user, dojo_challenge, practice):
                 "dojo.challenge_description": dojo_challenge.description,
                 "dojo.user_id": str(user.id),
                 "dojo.mode": "privileged" if practice else "standard",
-                "dojo.auth_token": os.urandom(32).hex(),
+                "dojo.auth_token": auth_token,
             },
             mounts=[
                 docker.types.Mount(
