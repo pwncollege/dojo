@@ -591,6 +591,9 @@ EOF
 
 RUN ln -sf /usr/bin/ipython3 /usr/bin/ipython
 
+RUN wget -q -O /usr/local/bin/pwninit https://github.com/io12/pwninit/releases/download/3.3.1/pwninit && \
+    chmod +x /usr/local/bin/pwninit
+
 FROM builder-tools-pip-${INSTALL_TOOLS_PIP} as builder-tools-pip
 
 ################################################################################
