@@ -4,6 +4,7 @@ import pathlib
 import re
 import subprocess
 import logging
+import shutil
 
 import docker
 import docker.errors
@@ -32,20 +33,28 @@ docker_namespace = Namespace(
     "docker", description="Endpoint to manage docker containers"
 )
 
+HOMES = pathlib.Path("/var/homes")
+HOST_HOMES = pathlib.PurePosixPath(HOST_DATA_PATH) / "homes"
+HOMEFS = HOMES / "homefs"
+
+OVERLAYS = HOMES / "overlays"
+HOST_OVERLAYS = HOST_HOMES / "overlays"
+DIFF_DIR = HOMES / "overlays" / "diff"
+WORK_DIR = HOMES / "overlays" / "work"
+MERGED_DIR = HOMES / "overlays" / "merged"
+
 
 def setup_home(user):
-    homes = pathlib.Path("/var/homes")
-    homefs = homes / "homefs"
-    user_data = homes / "data" / str(user.id)
-    user_nosuid = homes / "nosuid" / str(user.id)
+    user_data = HOMES / "data" / str(user.id)
+    user_nosuid = HOMES / "nosuid" / str(user.id)
 
-    assert homefs.exists()
+    assert HOMEFS.exists()
     user_data.parent.mkdir(exist_ok=True)
     user_nosuid.parent.mkdir(exist_ok=True)
 
     if not user_data.exists():
         # Shell out to `cp` in order to sparsely copy
-        subprocess.run(["cp", homefs, user_data], check=True)
+        subprocess.run(["cp", HOMEFS, user_data], check=True)
 
     process = subprocess.run(
         ["findmnt", "--output", "OPTIONS", user_nosuid], capture_output=True
@@ -57,6 +66,54 @@ def setup_home(user):
         )
 
 
+def umount_existing_overlay(user):
+    # we could also search for overlays mounted elsewhere that use the upperdir/workdir
+    #  that we are about to nuke, but that would involve python logic to sort through
+    #  the mount options of various overlay filesystems.
+    # The simple solution is to only look where we expect the overlay to be mounted
+    merged_dir = MERGED_DIR / str(user.id)
+
+    # only umount if the mountpoint exists, rather than trying to determine the reason
+    #  for a umount error afterwards.
+    process = subprocess.run(["findmnt", "--output", "FSTYPE", merged_dir])
+    if process.returncode == 0:
+        subprocess.run(["umount", "--force", merged_dir], check=True)
+
+
+def setup_user_overlay(user, as_user):
+    OVERLAYS.mkdir(exist_ok=True)
+    DIFF_DIR.mkdir(exist_ok=True)
+    WORK_DIR.mkdir(exist_ok=True)
+    MERGED_DIR.mkdir(exist_ok=True)
+
+    lowerdir = HOMES / "nosuid" / str(as_user.id)
+    upperdir = DIFF_DIR / str(user.id)
+    workdir = WORK_DIR / str(user.id)
+    mountpoint = MERGED_DIR / str(user.id)
+
+    try:
+        shutil.rmtree(upperdir)
+    except FileNotFoundError:
+        pass
+    try:
+        shutil.rmtree(workdir)
+    except FileNotFoundError:
+        pass
+    upperdir.mkdir(exist_ok=True)
+    workdir.mkdir(exist_ok=True)
+
+    # it is safe to interpolate these without escaping bad characters like \ or , since
+    #  the parent directories (defined above) are assumed to be free from them
+    mount_options = (
+        "rw,relatime,nosuid,X-mount.mkdir,"
+        + f"lowerdir={lowerdir},upperdir={upperdir},workdir={workdir}"
+    )
+    subprocess.run(
+        ["mount", "-t", "overlay", "-o", mount_options, "overlay", mountpoint],
+        check=True,
+    )
+
+
 def remove_container(docker_client, user):
     try:
         container = docker_client.containers.get(gen_container_name(user))
@@ -66,7 +123,7 @@ def remove_container(docker_client, user):
         pass
 
 
-def start_container(docker_client, user, as_user, dojo_challenge, practice):
+def start_container(docker_client, user, as_user, mounts, dojo_challenge, practice):
     container_name = gen_container_name(user)
     hostname = "~".join(
         (["practice"] if practice else [])
@@ -104,26 +161,9 @@ def start_container(docker_client, user, as_user, dojo_challenge, practice):
             "dojo.auth_token": os.urandom(32).hex(),
         },
         mounts=[
-            docker.types.Mount(
-                "/home/hacker",
-                f"{HOST_DATA_PATH}/homes/nosuid/{as_user.id}",
-                "bind",
-                propagation="shared",
-            )
-        ]
-        + (
-            [
-                docker.types.Mount(
-                    "/home/me",
-                    f"{HOST_DATA_PATH}/homes/nosuid/{user.id}",
-                    "bind",
-                    propagation="shared",
-                    read_only=True,
-                )
-            ]
-            if as_user != user
-            else []
-        ),
+            docker.types.Mount(str(target), str(source), "bind", propagation="shared")
+            for target, source in mounts
+        ],
         devices=devices,
         network=None,
         extra_hosts={
@@ -178,13 +218,6 @@ def assert_nosuid(container, mount_info):
         container.kill()
         container.wait(condition="removed")
         raise RuntimeError("Home directory failed to mount as nosuid")
-
-
-def assert_readonly(container, mount_info):
-    if b"ro" not in mount_info:
-        container.kill()
-        container.wait(condition="removed")
-        raise RuntimeError("Home directory failed to mount as read-only")
 
 
 def insert_challenge(container, as_user, dojo_challenge):
@@ -269,16 +302,24 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     docker_client = docker.from_env()
     remove_container(docker_client, user)
 
+    umount_existing_overlay(user)
     setup_home(user)
+    mounts = [("/home/hacker", HOST_HOMES / "nosuid" / str(user.id))]
     if as_user != user:
         setup_home(as_user)
+        setup_user_overlay(user, as_user)
+        mounts = [
+            ("/home/hacker", HOST_OVERLAYS / "merged" / str(user.id)),
+            ("/home/me", HOST_HOMES / "nosuid" / str(user.id)),
+        ]
 
     container = start_container(
-        docker_client=docker_client, 
-        user=user, 
-        as_user=as_user, 
-        dojo_challenge=dojo_challenge, 
-        practice=practice
+        docker_client=docker_client,
+        user=user,
+        as_user=as_user,
+        mounts=mounts,
+        dojo_challenge=dojo_challenge,
+        practice=practice,
     )
 
     hacker_mount_info = expect_homedir_mount_info(container, "/home/hacker")
@@ -286,7 +327,6 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     if as_user != user:
         me_home_info = expect_homedir_mount_info(container, "/home/me")
         assert_nosuid(container, me_home_info)
-        assert_readonly(container, me_home_info)
 
     if practice:
         grant_sudo(container)
@@ -361,9 +401,7 @@ class RunDocker(Resource):
             }
 
         try:
-            start_challenge(
-                user, dojo_challenge, practice, as_user=as_user
-            )
+            start_challenge(user, dojo_challenge, practice, as_user=as_user)
         except RuntimeError as e:
             logger.exception(f"ERROR: Docker failed for {user.id}:")
             return {"success": False, "error": str(e)}
