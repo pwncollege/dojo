@@ -596,7 +596,6 @@ ARG INSTALL_IDA_FREE=${DEFAULT_INSTALL_SELECTION}
 
 WORKDIR /opt/windows
 COPY windows/Autounattend.xml windows/setup.ps1 windows/config_startup.ps1 windows/sshd_config ./
-COPY windows/shutdown.py .
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
