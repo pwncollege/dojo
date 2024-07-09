@@ -1,9 +1,8 @@
-with import <nixpkgs> { };
-# { virtiofsd, qemu, openssh }:
+{ virtiofsd, qemu, openssh, stdenv }:
 
 stdenv.mkDerivation {
-  name = "windows-script";
-  version = 0.1;
+  pname = "windows-script";
+  version = "0.1.0";
 
   src = ./windows;
   dontUnpack = true;
