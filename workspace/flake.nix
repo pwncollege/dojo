@@ -21,6 +21,7 @@
         desktop-service = import ./services/desktop.nix { inherit pkgs; };
 
         additional = import ./additional/additional.nix { inherit pkgs; };
+        windows = import ./vm/windows/windows.nix { inherit pkgs; };
 
         corePackages = with pkgs; [
           bashInteractive
@@ -43,7 +44,7 @@
           desktop-service
         ];
 
-        fullPackages = corePackages ++ additional.packages;
+        fullPackages = corePackages ++ additional.packages ++ windows.packages;
 
         buildDojoEnv = name: paths: pkgs.buildEnv {
           name = "dojo-workspace-${name}";

@@ -19,8 +19,14 @@ STATEFUL_WORLD_WRITEABLE_PATH = STATEFUL_PATH / "world-writeable"
 virtfs_sock_path = lambda dir_path, tag: dir_path / f"virtfs-{tag}.sock"
 virtfs_pidfile_path = lambda dir_path, tag: dir_path / f"virtfs-{tag}.pid"
 virtfs_log_path = lambda dir_path, tag: dir_path / f"virtfs-{tag}.log"
-VIRTIOFSD_PATH = "/opt/virtiofsd/virtiofsd"
 FLAG_SHARE_PATH = STATEFUL_PATH / "flag-volume"
+
+VIRTIOFSD_PATH = "@virtiofsd@/bin/virtiofsd"
+QEMU_SYSTEM_X86_PATH = "@qemu@/bin/qemu-system-x86_64"
+QEMU_IMG_PATH = "@qemu@/bin/qemu-img"
+SSH_PATH = "@openssh@/bin/ssh"
+START_STOP_DAEMON_PATH = "/usr/sbin/start-stop-daemon"
+TAIL_PATH = "/usr/bin/tail"
 
 
 def error(msg):
@@ -74,7 +80,7 @@ def start_daemon(pidfile, logfile, child_argv, drop_privs=False):
         preexec_fn = preexec_drop_privs
 
     daemon_argv = [
-        "/usr/sbin/start-stop-daemon",
+        START_STOP_DAEMON_PATH,
         "--start",
         "--pidfile",
         str(pidfile),
@@ -194,7 +200,7 @@ def start():
     mem = "2048M"
     # fmt: off
     qemu_argv = [
-        "/usr/bin/qemu-system-x86_64",
+        QEMU_SYSTEM_X86_PATH,
         "-name", "dojo",
         "-machine", "type=pc,accel=kvm",
         "-m", mem,
@@ -261,20 +267,20 @@ def wait():
 
 def connect():
     wait()
-    execve(["/usr/bin/ssh", vm_hostname()])
+    execve([SSH_PATH, vm_hostname()])
 
 
 def exec_(*args):
     wait()
     if sys.stdout.isatty():
-        execve(["/usr/bin/ssh", "-t", vm_hostname(), "--", *args])
+        execve([SSH_PATH, "-t", vm_hostname(), "--", *args])
     else:
-        execve(["/usr/bin/ssh", vm_hostname(), "--", *args])
+        execve([SSH_PATH, vm_hostname(), "--", *args])
 
 
 def logs():
     argv = [
-        "/usr/bin/tail",
+        TAIL_PATH,
         "-F",
         "-n+1",
         str(VM_LOGFILE),
