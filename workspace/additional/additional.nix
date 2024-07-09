@@ -25,5 +25,5 @@ in
     wireshark
     nmap
     tcpdump
-  ];
+  ] ++ (import ../vm/windows { inherit pkgs; });
 }
