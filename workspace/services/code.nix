@@ -6,6 +6,8 @@ let
   serviceScript = pkgs.writeScript "dojo-code" ''
     #!${pkgs.bash}/bin/bash
 
+    until [ -f /run/dojo/ready ]; do sleep 0.1; done
+
     ${service}/bin/service start code-service/code-server \
       @out@/bin/code-server \
         --auth=none \

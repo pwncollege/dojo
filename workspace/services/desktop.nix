@@ -6,6 +6,8 @@ let
   serviceScript = pkgs.writeScript "dojo-desktop" ''
     #!${pkgs.bash}/bin/bash
 
+    until [ -f /run/dojo/ready ]; do sleep 0.1; done
+
     export DISPLAY=:0
     export XDG_DATA_DIRS="/run/current-system/sw/share:''${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
     export XDG_CONFIG_DIRS="/run/current-system/sw/etc/xdg:''${XDG_CONFIG_DIRS:-/etc/xdg}"
