@@ -42,7 +42,7 @@ case "$ACTION" in
 
     # HELP: enter [ -s ] USER_ID: enter a user's running container. -s for entering as root
     "enter")
-        USER_SWITCH=""
+        USER_SWITCH="--user=hacker"
         if [ "$1" == "-s" ]
         then
             USER_SWITCH="--user=root"
