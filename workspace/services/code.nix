@@ -51,6 +51,7 @@ in pkgs.stdenv.mkDerivation {
 
     substitute ${serviceScript} $out/bin/dojo-code \
       --subst-var-by out $out
+    chmod +x $out/bin/dojo-code
 
     mkdir -p $out/share/code-service/extensions
     ${pkgs.wget}/bin/wget -P $NIX_BUILD_TOP 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
