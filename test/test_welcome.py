@@ -34,7 +34,7 @@ def vscode_terminal(wd):
     module_window = wd.current_window_handle
 
     wd.switch_to.new_window("tab")
-    wd.get(f"{PROTO}://{HOST}/workspace/vscode/")
+    wd.get(f"{PROTO}://{HOST}/workspace/code/")
     time.sleep(2)
     wd.switch_to.active_element.send_keys(Keys.CONTROL + Keys.SHIFT + "`")
     time.sleep(2)
@@ -51,7 +51,7 @@ def desktop_terminal(wd, user_id):
     wd.switch_to.new_window("tab")
     wd.get(f"{PROTO}://{HOST}/workspace/desktop")
     time.sleep(2)
-    workspace_run("DISPLAY=:42.0 xterm &", user=user_id)
+    workspace_run("DISPLAY=:0 xfce4-terminal &", user=user_id)
     wd.switch_to.frame("workspace")
     e = wd.find_element("id", "noVNC_keyboardinput")
     time.sleep(2)
