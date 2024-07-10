@@ -2,7 +2,7 @@
   description = "DOJO Workspace Flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs.url = "git+file:///opt/nixpkgs-24.05";
   };
 
   outputs = { self, nixpkgs }: {

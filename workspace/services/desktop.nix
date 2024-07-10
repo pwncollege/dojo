@@ -7,6 +7,8 @@ let
     #!${pkgs.bash}/bin/bash
 
     export DISPLAY=:0
+    export XDG_DATA_DIRS="/run/current-system/sw/share:''${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+    export XDG_CONFIG_DIRS="/run/current-system/sw/etc/xdg:''${XDG_CONFIG_DIRS:-/etc/xdg}"
 
     auth_token="$(cat /run/dojo/auth_token)"
     password_interact="$(printf 'desktop-interact' | ${pkgs.openssl}/bin/openssl dgst -sha256 -hmac "$auth_token" | awk '{print $2}' | head -c 8)"
@@ -33,25 +35,61 @@ let
     until [ -e /tmp/.X11-unix/X0 ]; do sleep 0.1; done
     until ${pkgs.curl}/bin/curl -s localhost:6080 >/dev/null; do sleep 0.1; done
 
-    ${service}/bin/service start desktop-service/fluxbox \
-      ${pkgs.fluxbox}/bin/fluxbox
+    # NOTE: By default, xfce4-session invokes dbus-launch without `--config-file`, and it fails to find /etc/dbus-1/session.conf; so we manually specify the config file here. Maybe this should be fixed in nixpkgs.
+    ${service}/bin/service start desktop-service/xfce4-session \
+      ${pkgs.dbus}/bin/dbus-launch --sh-syntax --exit-with-session --config-file=${pkgs.dbus}/share/dbus-1/session.conf ${pkgs.xfce.xfce4-session}/bin/xfce4-session
   '';
+
+  xfce = pkgs.symlinkJoin {
+    name = "xfce";
+    paths = with pkgs.xfce; [
+      xfce4-session
+      xfce4-settings
+      xfce4-terminal
+      xfce4-panel
+      xfwm4
+      xfdesktop
+      xfconf
+      exo
+      thunar
+    ] ++ (with pkgs; [
+      dbus
+      dejavu_fonts
+    ]);
+  };
 
 in pkgs.stdenv.mkDerivation {
   name = "desktop-service";
-  buildInputs = [ pkgs.bash pkgs.openssl pkgs.curl ];
-  propagatedBuildInputs = [
-    pkgs.tigervnc
-    pkgs.novnc
-    pkgs.fluxbox
-    pkgs.xterm
+  src = ./desktop;
+
+  buildInputs = with pkgs; [
+    bash
+    openssl
+    curl
+    rsync
   ];
-  dontUnpack = true;
+  propagatedBuildInputs = with pkgs; [
+    tigervnc
+    novnc
+    xfce
+  ];
+
+  unpackPhase = ''
+    runHook preUnpack
+    cp -r $src $PWD
+    runHook postUnpack
+  '';
 
   installPhase = ''
     runHook preInstall
     mkdir -p $out/bin
     cp ${serviceScript} $out/bin/dojo-desktop
+    rsync -a --ignore-existing $src/. ${xfce}/. $out
     runHook postInstall
+  '';
+
+  # NOTE: We run into an issue where we `mv` "the same file". Maybe this should be fixed in nixpkgs.
+  preFixup = ''
+    dontMoveSystemdUserUnits=1
   '';
 }
