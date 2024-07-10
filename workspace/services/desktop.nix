@@ -47,6 +47,7 @@ let
       xfce4-settings
       xfce4-terminal
       xfce4-panel
+      xfce4-appfinder
       xfwm4
       xfdesktop
       xfconf
