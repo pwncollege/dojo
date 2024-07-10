@@ -114,6 +114,10 @@ services:
       timeout: 10s
       retries: 3
     depends_on:
+      challenge:
+        condition: service_completed_successfully
+      workspace-builder:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
         restart: true
