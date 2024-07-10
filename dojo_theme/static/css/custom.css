@@ -207,7 +207,7 @@ h4 {
 
 .accordion-item-body {
     padding: 1.25rem;
-    background-color: rgba(255,255,255,0.05);
+    background-color: rgba(255,255,255,0.03);
 }
 
 .accordion-item-name {
@@ -322,6 +322,9 @@ pre {
     padding: 0px 0px 0px 0px;
 }
 
+code{
+    color: #EE6889;
+}
 
 .hljs {
     display: block;
