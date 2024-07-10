@@ -13,6 +13,7 @@ let
     mkdir -pm 1777 /run/dojo
     echo $DOJO_AUTH_TOKEN > /run/dojo/auth_token
 
+    read DOJO_FLAG
     echo $DOJO_FLAG | install -m 400 /dev/stdin /flag
 
     # TODO: Better support privileged mode
@@ -29,6 +30,8 @@ let
     if [ -x "/challenge/.init" ]; then
         /challenge/.init
     fi
+
+    touch /run/dojo/ready
 
     exec "$@"
   '';

@@ -63,7 +63,6 @@ def start_challenge(user, dojo_challenge, practice):
         ])[:64]
 
         auth_token = os.urandom(32).hex()
-        flag = f"pwn.college{{{'practice' if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)}}}"
 
         nix_bin_path = "/nix/var/nix/profiles/default/bin"
         image = docker_client.images.get(dojo_challenge.image)
@@ -98,7 +97,6 @@ def start_challenge(user, dojo_challenge, practice):
                 "SHELL": f"{nix_bin_path}/bash",
                 "DOJO_AUTH_TOKEN": auth_token,
                 "DOJO_MODE": "privileged" if practice else "standard",
-                "DOJO_FLAG": flag,
             },
             labels={
                 "dojo.dojo_id": dojo_challenge.dojo.reference_id,
@@ -142,6 +140,7 @@ def start_challenge(user, dojo_challenge, practice):
             pids_limit=1024,
             mem_limit="4G",
             detach=True,
+            stdin_open=True,
             auto_remove=True,
         )
 
@@ -154,6 +153,12 @@ def start_challenge(user, dojo_challenge, practice):
             default_network.disconnect(container)
 
         container.start()
+
+        flag = f"pwn.college{{{'practice' if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)}}}"
+        socket = container.attach_socket(params=dict(stdin=1, stream=1))
+        socket._sock.sendall(flag.encode() + b"\n")
+        socket.close()
+
         return container
 
     def verify_nosuid_home():
