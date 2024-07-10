@@ -7,5 +7,6 @@
   <property name="Gtk" type="empty">
     <property name="FontName" type="string" value="DejaVu Sans 11"/>
     <property name="MonospaceFontName" type="string" value="DejaVu Sans Mono 11"/>
+    <property name="MenuImages" type="bool" value="true"/>
   </property>
 </channel>
