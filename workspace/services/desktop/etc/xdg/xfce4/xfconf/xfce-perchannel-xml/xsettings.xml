@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xsettings" version="1.0">
+  <property name="Gtk" type="empty">
+    <property name="FontName" type="string" value="DejaVu Sans 10"/>
+    <property name="MonospaceFontName" type="string" value="DejaVu Sans Mono 10"/>
+  </property>
+</channel>

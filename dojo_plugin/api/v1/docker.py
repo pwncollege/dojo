@@ -64,6 +64,19 @@ def start_challenge(user, dojo_challenge, practice):
 
         auth_token = os.urandom(32).hex()
 
+        nix_bin_path = "/nix/var/nix/profiles/default/bin"
+
+        image = docker_client.images.get(dojo_challenge.image)
+        environment = image.attrs["Config"].get("Env", [])
+        for env_var in environment:
+            if env_var.startswith("PATH="):
+                env_paths = env_var[len("PATH="):].split(":")
+                env_paths.insert(0, nix_bin_path)
+                break
+        else:
+            env_paths = [nix_bin_path]
+        env_path = ":".join(env_paths)
+
         devices = []
         if os.path.exists("/dev/kvm"):
             devices.append("/dev/kvm:/dev/kvm:rwm")
@@ -74,12 +87,15 @@ def start_challenge(user, dojo_challenge, practice):
 
         container = docker_client.containers.create(
             dojo_challenge.image,
-            entrypoint=["/nix/var/nix/profiles/default/bin/dojo-init", "/bin/sleep", "6h"],
+            entrypoint=[f"{nix_bin_path}/dojo-init", "/bin/sleep", "6h"],
             name=f"user_{user.id}",
             hostname=hostname,
             user="root",
             working_dir="/",
             environment={
+                "HOME": "/home/hacker",
+                "PATH": env_path,
+                "SHELL": f"{nix_bin_path}/bash",
                 "DOJO_AUTH_TOKEN": auth_token,
             },
             labels={
@@ -170,6 +186,8 @@ def start_challenge(user, dojo_challenge, practice):
             path = pathlib.Path(*path.parts[:len(dojo_challenge.path.parts) + 1])
             return path.name.startswith("_") and path.is_dir()
 
+        exec_run("mkdir -p /challenge", container=container)
+
         root_dir = dojo_challenge.path.parent.parent
         challenge_tar = resolved_tar(dojo_challenge.path,
                                      root_dir=root_dir,
@@ -228,7 +246,7 @@ def start_challenge(user, dojo_challenge, practice):
     auth_token = container.labels["dojo.auth_token"]
     insert_auth_token(auth_token)
 
-    initialize_container()
+    # initialize_container()
 
 
 @docker_namespace.route("")
