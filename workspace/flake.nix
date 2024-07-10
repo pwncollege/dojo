@@ -16,6 +16,7 @@
         };
 
         init = import ./init.nix { inherit pkgs; };
+        ssh-entrypoint = import ./ssh-entrypoint.nix { inherit pkgs; };
         service = import ./services/service.nix { inherit pkgs; };
         code-service = import ./services/code.nix { inherit pkgs; };
         desktop-service = import ./services/desktop.nix { inherit pkgs; };
@@ -38,6 +39,7 @@
           which
 
           init
+          ssh-entrypoint
           service
           code-service
           desktop-service
