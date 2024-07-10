@@ -35,7 +35,7 @@ let
     until [ -e /tmp/.X11-unix/X0 ]; do sleep 0.1; done
     until ${pkgs.curl}/bin/curl -s localhost:6080 >/dev/null; do sleep 0.1; done
 
-    # NOTE: By default, xfce4-session invokes dbus-launch without `--config-file`, and it fails to find /etc/dbus-1/session.conf; so we manually specify the config file here. Maybe this should be fixed in nixpkgs.
+    # By default, xfce4-session invokes dbus-launch without `--config-file`, and it fails to find /etc/dbus-1/session.conf; so we manually specify the config file here.
     ${service}/bin/service start desktop-service/xfce4-session \
       ${pkgs.dbus}/bin/dbus-launch --sh-syntax --exit-with-session --config-file=${pkgs.dbus}/share/dbus-1/session.conf ${pkgs.xfce.xfce4-session}/bin/xfce4-session
   '';
@@ -55,6 +55,7 @@ let
     ] ++ (with pkgs; [
       dbus
       dejavu_fonts
+      blackbird
     ]);
   };
 
@@ -72,7 +73,10 @@ in pkgs.stdenv.mkDerivation {
     tigervnc
     novnc
     xfce
+    elementary-xfce-icon-theme  # If we include this in `xfce`, we get a "Permission denied" error related to `nix-support/propagated-build-inputs`.
   ];
+
+  dontMoveSystemdUserUnits = true;  # We run into an issue where we `mv` "the same file".
 
   unpackPhase = ''
     runHook preUnpack
@@ -84,12 +88,7 @@ in pkgs.stdenv.mkDerivation {
     runHook preInstall
     mkdir -p $out/bin
     cp ${serviceScript} $out/bin/dojo-desktop
-    rsync -a --ignore-existing $src/. ${xfce}/. $out
+    rsync -a --ignore-existing $src/. ${xfce}/. ${pkgs.elementary-xfce-icon-theme}/. $out
     runHook postInstall
-  '';
-
-  # NOTE: We run into an issue where we `mv` "the same file". Maybe this should be fixed in nixpkgs.
-  preFixup = ''
-    dontMoveSystemdUserUnits=1
   '';
 }
