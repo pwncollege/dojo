@@ -41,7 +41,7 @@ def main():
 
         if status == "running":
             try:
-                container.get_archive("/run/dojo/ready")
+                container.get_archive("/opt/pwn.college/.initialized")
             except docker.errors.NotFound:
                 status = "initializing"
 
@@ -56,7 +56,7 @@ def main():
         print("\r", " " * 80, "\rConnected!")
 
         if not os.fork():
-            ssh_entrypoint = "ssh-entrypoint"
+            ssh_entrypoint = "/opt/pwn.college/ssh-entrypoint"
             command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
             os.execve(
                 "/usr/bin/docker",
@@ -64,8 +64,6 @@ def main():
                     "docker",
                     "exec",
                     "-it" if tty else "-i",
-                    "--user=1000",
-                    "--workdir=/home/hacker",
                     container_name,
                     *command,
                 ],

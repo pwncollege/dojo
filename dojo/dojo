@@ -42,10 +42,10 @@ case "$ACTION" in
 
     # HELP: enter [ -s ] USER_ID: enter a user's running container. -s for entering as root
     "enter")
-        USER_SWITCH="--user=1000"
+        USER_SWITCH=""
         if [ "$1" == "-s" ]
         then
-            USER_SWITCH="--user=0"
+            USER_SWITCH="--user=root"
             shift
         fi
         DOJO_UID="$1"
