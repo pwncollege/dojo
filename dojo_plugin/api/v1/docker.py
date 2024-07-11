@@ -66,7 +66,7 @@ def start_challenge(user, dojo_challenge, practice):
 
         nix_bin_path = "/nix/var/nix/profiles/default/bin"
         image = docker_client.images.get(dojo_challenge.image)
-        environment = image.attrs["Config"].get("Env", [])
+        environment = image.attrs["Config"].get("Env") or []
         for env_var in environment:
             if env_var.startswith("PATH="):
                 env_paths = env_var[len("PATH="):].split(":")
@@ -86,10 +86,10 @@ def start_challenge(user, dojo_challenge, practice):
 
         container = docker_client.containers.create(
             dojo_challenge.image,
-            entrypoint=[f"{nix_bin_path}/dojo-init", "/bin/sleep", "6h"],
+            entrypoint=[f"{nix_bin_path}/dojo-init", f"{nix_bin_path}/sleep", "6h"],
             name=f"user_{user.id}",
             hostname=hostname,
-            user="root",
+            user="0",
             working_dir="/",
             environment={
                 "HOME": "/home/hacker",
@@ -196,7 +196,7 @@ def start_challenge(user, dojo_challenge, practice):
             option = option_paths[int.from_bytes(option_hash[:8], "little") % len(option_paths)]
             container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
-        exec_run("chown -R root:root /challenge", container=container)
+        exec_run("chown -R 0:0 /challenge", container=container)
         exec_run("chmod -R 4755 /challenge", container=container)
 
     setup_home(user)
