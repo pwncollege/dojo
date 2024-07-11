@@ -20,6 +20,7 @@ define DOJO_HOST "${DEFAULT_DOJO_HOST}"
 define VIRTUAL_HOST "${DEFAULT_DOJO_HOST}"
 define LETSENCRYPT_HOST "${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
+define DOJO_WORKSPACE core
 define SECRET_KEY $(openssl rand -hex 16)
 define UBUNTU_VERSION 20.04
 define INTERNET_FOR_ALL False
@@ -51,6 +52,8 @@ mv $DOJO_DIR/data/.config.env $DOJO_DIR/data/config.env
 . $DOJO_DIR/data/config.env
 
 mount --make-shared $DOJO_DIR/data
+
+mkdir -p $DOJO_DIR/data/workspace/nix
 
 if [ ! -f $DOJO_DIR/data/homes/homefs ]; then
     echo "[+] Creating user home structure."

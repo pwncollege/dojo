@@ -62,6 +62,20 @@ def start_challenge(user, dojo_challenge, practice):
             re.sub("[\s.-]+", "-", re.sub("[^a-z0-9\s.-]", "", dojo_challenge.name.lower()))
         ])[:64]
 
+        auth_token = os.urandom(32).hex()
+
+        nix_bin_path = "/nix/var/nix/profiles/default/bin"
+        image = docker_client.images.get(dojo_challenge.image)
+        environment = image.attrs["Config"].get("Env") or []
+        for env_var in environment:
+            if env_var.startswith("PATH="):
+                env_paths = env_var[len("PATH="):].split(":")
+                env_paths.insert(0, nix_bin_path)
+                break
+        else:
+            env_paths = [nix_bin_path]
+        env_path = ":".join(env_paths)
+
         devices = []
         if os.path.exists("/dev/kvm"):
             devices.append("/dev/kvm:/dev/kvm:rwm")
@@ -72,27 +86,40 @@ def start_challenge(user, dojo_challenge, practice):
 
         container = docker_client.containers.create(
             dojo_challenge.image,
-            entrypoint=["/bin/sleep", "6h"],
+            entrypoint=[f"{nix_bin_path}/dojo-init", f"{nix_bin_path}/sleep", "6h"],
             name=f"user_{user.id}",
             hostname=hostname,
-            user="hacker",
-            working_dir="/home/hacker",
+            user="0",
+            working_dir="/",
+            environment={
+                "HOME": "/home/hacker",
+                "PATH": env_path,
+                "SHELL": f"{nix_bin_path}/bash",
+                "DOJO_AUTH_TOKEN": auth_token,
+                "DOJO_MODE": "privileged" if practice else "standard",
+            },
             labels={
                 "dojo.dojo_id": dojo_challenge.dojo.reference_id,
                 "dojo.module_id": dojo_challenge.module.id,
                 "dojo.challenge_id": dojo_challenge.id,
                 "dojo.challenge_description": dojo_challenge.description,
                 "dojo.user_id": str(user.id),
+                "dojo.auth_token": auth_token,
                 "dojo.mode": "privileged" if practice else "standard",
-                "dojo.auth_token": os.urandom(32).hex(),
             },
             mounts=[
+                docker.types.Mount(
+                    "/nix",
+                    f"{HOST_DATA_PATH}/workspace/nix",
+                    "bind",
+                    read_only=True,
+                ),
                 docker.types.Mount(
                     "/home/hacker",
                     f"{HOST_DATA_PATH}/homes/nosuid/{random_home_path(user)}",
                     "bind",
                     propagation="shared",
-                )
+                ),
             ],
             devices=devices,
             network=None,
@@ -113,6 +140,7 @@ def start_challenge(user, dojo_challenge, practice):
             pids_limit=1024,
             mem_limit="4G",
             detach=True,
+            stdin_open=True,
             auto_remove=True,
         )
 
@@ -125,6 +153,12 @@ def start_challenge(user, dojo_challenge, practice):
             default_network.disconnect(container)
 
         container.start()
+
+        flag = f"pwn.college{{{'practice' if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)}}}"
+        socket = container.attach_socket(params=dict(stdin=1, stream=1))
+        socket._sock.sendall(flag.encode() + b"\n")
+        socket.close()
+
         return container
 
     def verify_nosuid_home():
@@ -142,22 +176,12 @@ def start_challenge(user, dojo_challenge, practice):
             container.wait(condition="removed")
             raise RuntimeError("Home directory failed to mount as nosuid")
 
-    def grant_sudo():
-        exec_run(
-            """
-            chmod 4755 /usr/bin/sudo
-            usermod -aG sudo hacker
-            echo 'hacker ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-            passwd -d root
-            """,
-            container=container,
-            shell=True
-        )
-
     def insert_challenge(user, dojo_challenge):
         def is_option_path(path):
             path = pathlib.Path(*path.parts[:len(dojo_challenge.path.parts) + 1])
             return path.name.startswith("_") and path.is_dir()
+
+        exec_run("mkdir -p /challenge", container=container)
 
         root_dir = dojo_challenge.path.parent.parent
         challenge_tar = resolved_tar(dojo_challenge.path,
@@ -172,33 +196,8 @@ def start_challenge(user, dojo_challenge, practice):
             option = option_paths[int.from_bytes(option_hash[:8], "little") % len(option_paths)]
             container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
-        exec_run("chown -R root:root /challenge", container=container)
+        exec_run("chown -R 0:0 /challenge", container=container)
         exec_run("chmod -R 4755 /challenge", container=container)
-
-    def insert_flag(flag):
-        exec_run(f"echo 'pwn.college{{{flag}}}' > /flag", container=container, shell=True)
-
-    def insert_auth_token(auth_token):
-        exec_run(f"echo '{auth_token}' > /.authtoken", container=container, shell=True)
-
-    def initialize_container():
-        exec_run(
-            f"""
-            export DOJO_PRIVILEGED={"1" if practice else "0"}
-            /opt/pwn.college/docker-initialize.sh
-            touch /opt/pwn.college/.initialized
-            """,
-            container=container,
-            shell=True
-        )
-        exec_run(
-            """
-            /opt/pwn.college/docker-entrypoint.sh &
-            """,
-            shell=True,
-            container=container,
-            workspace_user="hacker"
-        )
 
     setup_home(user)
 
@@ -206,18 +205,7 @@ def start_challenge(user, dojo_challenge, practice):
 
     verify_nosuid_home()
 
-    if practice:
-        grant_sudo()
-
     insert_challenge(user, dojo_challenge)
-
-    flag = "practice" if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)
-    insert_flag(flag)
-
-    auth_token = container.labels["dojo.auth_token"]
-    insert_auth_token(auth_token)
-
-    initialize_container()
 
 
 @docker_namespace.route("")

@@ -751,6 +751,7 @@ RUN <<EOF
     passwd -d hacker
 
     echo -e '\n[ "$UID" -eq 1000 ] && . /opt/pwn.college/bash.bashrc' >> /etc/bash.bashrc
+    ln -s /etc/bash.bashrc /etc/bashrc
 
     find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
 
