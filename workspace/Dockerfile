@@ -26,8 +26,8 @@ if [ ! -d /out ]; then
     exit 1
 fi
 
-nix build -v ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
-nix copy -v --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
+nix build ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
+nix copy --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
 EOF
 
 RUN chmod +x /docker-entrypoint.sh

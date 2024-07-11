@@ -65,6 +65,7 @@ def main():
                     "exec",
                     "-it" if tty else "-i",
                     "--user=1000",
+                    "--workdir=/home/hacker",
                     container_name,
                     *command,
                 ],

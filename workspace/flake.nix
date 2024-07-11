@@ -28,9 +28,15 @@
           cacert
           coreutils
           curl
+          findutils
+          glibc
           glibcLocales
+          gawk
+          gnugrep
+          gnused
           hostname
           iproute2
+          less
           man
           ncurses
           procps

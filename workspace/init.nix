@@ -10,7 +10,21 @@ let
     export SSL_CERT_FILE="$DEFAULT_PROFILE/etc/ssl/certs/ca-bundle.crt"
     export MANPATH="$DEFAULT_PROFILE/share/man:$MANPATH"
 
-    mkdir -pm 1777 /run/dojo
+    mkdir -p /run/current-system
+    ln -sfT $DEFAULT_PROFILE /run/current-system/sw
+
+    if [ ! -e /bin/sh ]; then
+      mkdir -p /bin && ln -sfT $DEFAULT_PROFILE/bin/sh /bin/sh
+    fi
+
+    mkdir -p /home/hacker /root
+    mkdir -p /etc && touch /etc/passwd /etc/group
+    echo "root:x:0:0:root:/root:$DEFAULT_PROFILE/bin/bash\n" >> /etc/passwd
+    echo "hacker:x:1000:1000:hacker:/home/hacker:$DEFAULT_PROFILE/bin/bash" >> /etc/passwd
+    echo "root:x:0:" >> /etc/group
+    echo "hacker:x:1000:" >> /etc/group
+
+    mkdir -pm 1777 /run/dojo /tmp
     echo $DOJO_AUTH_TOKEN > /run/dojo/auth_token
 
     read DOJO_FLAG
@@ -23,9 +37,6 @@ let
       echo 'hacker ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
       passwd -d root
     fi
-
-    mkdir -p /run/current-system
-    ln -sfT $DEFAULT_PROFILE /run/current-system/sw
 
     if [ -x "/challenge/.init" ]; then
         /challenge/.init
