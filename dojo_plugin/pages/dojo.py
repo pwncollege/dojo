@@ -4,7 +4,7 @@ import datetime
 import docker
 import sys
 
-from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context
+from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context, request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import and_
 from CTFd.plugins import bypass_csrf_protection
@@ -217,7 +217,12 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
         headers = {"Content-Disposition": "attachment; filename=data.csv"}
         return Response(stream_with_context(stream()), headers=headers, mimetype="text/csv")
     elif format == "json":
-        return [ dict(zip(("user_id","user_name","module","challenge","time"), row)) for row in _get_dojo_solves(dojo) ]
+        username_filter = request.args.get("user_name", None)
+        return [
+            dict(zip(("user_id","user_name","module","challenge","time"), row))
+            for row in _get_dojo_solves(dojo)
+            if username_filter is None or row[1] == username_filter
+        ]
     else:
         return {"success": False, "error": "Invalid format"}, 400
 
