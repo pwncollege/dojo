@@ -14,7 +14,7 @@ let
     ln -sfT $DEFAULT_PROFILE /run/current-system/sw
 
     if [ ! -e /run/challenge/bin ]; then
-      ln -sfT /challenge/bin /run/challenge/bin
+      mkdir -p /run/challenge && ln -sfT /challenge/bin /run/challenge/bin
     fi
 
     if [ ! -e /bin/sh ]; then
