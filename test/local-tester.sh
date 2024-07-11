@@ -64,7 +64,13 @@ docker exec "$CONTAINER_NAME" ip route add "${GW[2]}" via 172.17.0.1
 docker exec "$CONTAINER_NAME" ip route add "${NS[1]}" via 172.17.0.1 || echo "Failed to add nameserver route"
 
 docker exec "$CONTAINER_NAME" dojo wait
-[ -n "$DB_RESTORE" ] && until docker exec "$CONTAINER_NAME" dojo restore $DB_RESTORE; do sleep 1; done
+if [ -n "$DB_RESTORE" ]
+then
+	BASENAME=$(basename $DB_RESTORE)
+	docker exec "$CONTAINER_NAME" mkdir -p /opt/pwn.college/data/backups/
+	[ -f "$DB_RESTORE" ] && docker cp "$DB_RESTORE" "$CONTAINER_NAME":/opt/pwn.college/data/backups/"$BASENAME"
+	docker exec "$CONTAINER_NAME" dojo restore "$BASENAME"
+fi
 
 until curl -Ls localhost.pwn.college | grep -q pwn; do sleep 1; done
 # fix up the data permissions and git
