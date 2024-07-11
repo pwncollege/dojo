@@ -138,7 +138,7 @@ def forward_workspace(service, service_path=""):
 
     if service_name in ondemand_services:
         exec_run(
-            f"/nix/var/nix/profiles/default/bin/dojo-{service_name}",
+            f"/run/current-system/sw/bin/dojo-{service_name}",
             workspace_user="hacker",
             user_id=user.id,
             assert_success=True,

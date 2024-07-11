@@ -64,16 +64,17 @@ def start_challenge(user, dojo_challenge, practice):
 
         auth_token = os.urandom(32).hex()
 
-        nix_bin_path = "/nix/var/nix/profiles/default/bin"
+        challenge_bin_path = "/run/challenge/bin"
+        system_bin_path = "/run/current-system/sw/bin"
         image = docker_client.images.get(dojo_challenge.image)
         environment = image.attrs["Config"].get("Env") or []
         for env_var in environment:
             if env_var.startswith("PATH="):
                 env_paths = env_var[len("PATH="):].split(":")
-                env_paths.insert(0, nix_bin_path)
+                env_paths = [challenge_bin_path, system_bin_path, *env_paths]
                 break
         else:
-            env_paths = [nix_bin_path]
+            env_paths = [system_bin_path]
         env_path = ":".join(env_paths)
 
         devices = []
@@ -86,15 +87,15 @@ def start_challenge(user, dojo_challenge, practice):
 
         container = docker_client.containers.create(
             dojo_challenge.image,
-            entrypoint=[f"{nix_bin_path}/dojo-init", f"{nix_bin_path}/sleep", "6h"],
+            entrypoint=["/nix/var/nix/profiles/default/bin/dojo-init", f"{system_bin_path}/sleep", "6h"],
             name=f"user_{user.id}",
             hostname=hostname,
             user="0",
-            working_dir="/",
+            working_dir="/home/hacker",
             environment={
                 "HOME": "/home/hacker",
                 "PATH": env_path,
-                "SHELL": f"{nix_bin_path}/bash",
+                "SHELL": f"{system_bin_path}/bash",
                 "DOJO_AUTH_TOKEN": auth_token,
                 "DOJO_MODE": "privileged" if practice else "standard",
             },

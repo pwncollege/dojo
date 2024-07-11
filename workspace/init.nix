@@ -10,7 +10,7 @@ let
     export SSL_CERT_FILE="$DEFAULT_PROFILE/etc/ssl/certs/ca-bundle.crt"
     export MANPATH="$DEFAULT_PROFILE/share/man:$MANPATH"
 
-    mkdir -p /run/current-system
+    mkdir -p /run/current-system/challenge
     ln -sfT $DEFAULT_PROFILE /run/current-system/sw
 
     if [ ! -e /bin/sh ]; then
