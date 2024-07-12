@@ -19,9 +19,7 @@ function form_fetch_and_show(name, endpoint, method, success_message, confirm_ms
         e.preventDefault();
         results.empty();
         const params = form.serializeJSON();
-
         if (confirm_msg && !confirm(confirm_msg(form, params))) return;
-
         CTFd.fetch(endpoint, {
             method: method,
             credentials: "same-origin",
@@ -44,13 +42,17 @@ function form_fetch_and_show(name, endpoint, method, success_message, confirm_ms
     });
 }
 
-function button_fetch_and_show(name, endpoint, method,data, success_message, confirm_msg=null) {
+function button_fetch_and_show(name, endpoint, method,data, success_message, abort_message, confirm_msg=null) {
     const button = $(`#${name}-button`);
     const results = $(`#${name}-results`);
 
     button.click(()=>{
         results.empty();
-        if (confirm_msg && !confirm(confirm_msg(data))) return;
+        if (confirm_msg && !confirm_msg(data)) {
+            results.html(error_template);
+            results.find("#message").html(abort_message);
+            return
+        };
         CTFd.fetch(endpoint, {
             method: method,
             credentials: "same-origin",
@@ -87,7 +89,10 @@ $(() => {
     form_fetch_and_show("dojo-award-prune", `/pwncollege_api/v1/dojo/${init.dojo}/prune-awards`, "POST", "Legacy awards have been pruned.", confirm_msg = (form, params) => {
         return `Prune all awarded emoji based on updated completion requirements?`;
     });
-    button_fetch_and_show("dojo-delete",  `/dojo/${init.dojo}/delete/`, "POST", {dojo: init.dojo} ,"Dojo has been deleted.",x=> `Are you sure you want to delete the dojo "${x.dojo}"? This action cannot be undone.`);
+    button_fetch_and_show("dojo-delete",  `/dojo/${init.dojo}/delete/`, "POST", {dojo: init.dojo} ,"Dojo has been deleted.", "Deletion has been canceled.", confirm_msg = (x)=> {
+        var confirmation = prompt(`Are you sure you want to delete the dojo?\nEnter the dojo name\n\n${x.dojo}\n\nto confirm this action.\nThis action cannot be undone.`);
+        return confirmation === x.dojo
+    });
     $(".copy-button").click((event) => {
         let input = $(event.target).parents(".input-group").children("input")[0];
         input.select();
