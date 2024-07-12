@@ -154,12 +154,6 @@ def start_challenge(user, dojo_challenge, practice):
             default_network.disconnect(container)
 
         container.start()
-
-        flag = f"pwn.college{{{'practice' if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)}}}"
-        socket = container.attach_socket(params=dict(stdin=1, stream=1))
-        socket._sock.sendall(flag.encode() + b"\n")
-        socket.close()
-
         return container
 
     def verify_nosuid_home():
@@ -200,6 +194,12 @@ def start_challenge(user, dojo_challenge, practice):
         exec_run("chown -R 0:0 /challenge", container=container)
         exec_run("chmod -R 4755 /challenge", container=container)
 
+    def insert_flag(flag):
+        flag = f"pwn.college{{{flag}}}"
+        socket = container.attach_socket(params=dict(stdin=1, stream=1))
+        socket._sock.sendall(flag.encode() + b"\n")
+        socket.close()
+
     setup_home(user)
 
     container = start_container(user, dojo_challenge, practice)
@@ -207,6 +207,9 @@ def start_challenge(user, dojo_challenge, practice):
     verify_nosuid_home()
 
     insert_challenge(user, dojo_challenge)
+
+    flag = "practice" if practice else serialize_user_flag(user.id, dojo_challenge.challenge_id)
+    insert_flag(flag)
 
 
 @docker_namespace.route("")
@@ -250,7 +253,6 @@ class RunDocker(Resource):
             traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": "Docker failed"}
         return {"success": True}
-
 
     @authed_only
     def get(self):
