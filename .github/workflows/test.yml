@@ -12,6 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 512
+          remove-dotnet: 'true'
       - name: Host information
         run: |
           echo "::group::Host information"
@@ -27,7 +33,6 @@ jobs:
           echo "::group::CPU"
           lscpu
           echo "::endgroup::"
-
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: actions/setup-python@v4
