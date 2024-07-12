@@ -18,7 +18,7 @@ def dojo_stats(dojo):
 
 
 @dojos.route("/dojos")
-def listing():
+def listing(template="dojos.html"):
     user = get_current_user()
     categorized_dojos = {
         "Start Here": [],
@@ -51,7 +51,7 @@ def listing():
     if "Start Here" in categorized_dojos:
         categorized_dojos["Start Here"].sort(key=lambda x: x[0].name)
 
-    return render_template("dojos.html", user=user, categorized_dojos=categorized_dojos)
+    return render_template(template, user=user, categorized_dojos=categorized_dojos)
 
 
 @dojos.route("/dojos/create")
