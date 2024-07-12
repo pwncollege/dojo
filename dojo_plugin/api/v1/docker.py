@@ -158,7 +158,7 @@ def start_challenge(user, dojo_challenge, practice):
 
     def verify_nosuid_home():
         exit_code, output = exec_run(
-            "findmnt --output OPTIONS /home/hacker",
+            "/run/current-system/sw/bin/findmnt --output OPTIONS /home/hacker",
             container=container,
             assert_success=False
         )
@@ -176,7 +176,7 @@ def start_challenge(user, dojo_challenge, practice):
             path = pathlib.Path(*path.parts[:len(dojo_challenge.path.parts) + 1])
             return path.name.startswith("_") and path.is_dir()
 
-        exec_run("mkdir -p /challenge", container=container)
+        exec_run("/run/current-system/sw/bin/mkdir -p /challenge", container=container)
 
         root_dir = dojo_challenge.path.parent.parent
         challenge_tar = resolved_tar(dojo_challenge.path,
@@ -191,8 +191,8 @@ def start_challenge(user, dojo_challenge, practice):
             option = option_paths[int.from_bytes(option_hash[:8], "little") % len(option_paths)]
             container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
-        exec_run("chown -R 0:0 /challenge", container=container)
-        exec_run("chmod -R 4755 /challenge", container=container)
+        exec_run("/run/current-system/sw/bin/chown -R 0:0 /challenge", container=container)
+        exec_run("/run/current-system/sw/bin/chmod -R 4755 /challenge", container=container)
 
     def insert_flag(flag):
         flag = f"pwn.college{{{flag}}}"
