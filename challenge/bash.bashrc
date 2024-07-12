@@ -26,4 +26,5 @@ if [[ "$AVAILABLE_M" -lt 512 ]]; then
     echo '  du -sh /home/hacker/* | sort -h'
 fi
 
+cd "$HOME"
 [ -f "/challenge/.bashrc" ] && source /challenge/.bashrc
