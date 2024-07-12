@@ -1,3 +1,4 @@
+import docker
 import hmac
 
 from flask import request, Blueprint, render_template, redirect, url_for, abort
@@ -137,12 +138,15 @@ def forward_workspace(service, service_path=""):
         abort(404)
 
     if service_name in ondemand_services:
-        exec_run(
-            f"/run/current-system/sw/bin/dojo-{service_name}",
-            workspace_user="hacker",
-            user_id=user.id,
-            assert_success=True,
-        )
+        try:
+            exec_run(
+                f"/run/current-system/sw/bin/dojo-{service_name}",
+                workspace_user="hacker",
+                user_id=user.id,
+                assert_success=True,
+            )
+        except docker.errors.NotFound:
+            abort(404)
 
     current_user = get_current_user()
     if user != current_user:
