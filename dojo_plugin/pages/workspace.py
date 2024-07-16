@@ -57,8 +57,8 @@ def view_desktop():
 
     vnc_params = {
         "autoconnect": 1,
-        "reconnect": 1,
-        "reconnect_delay": 10,
+        "reconnect": 0,
+        "reconnect_delay": 1000,
         "resize": "remote",
         "path": url_for("pwncollege_workspace.forward_workspace", service=service, service_path="websockify"),
         "view_only": int(view_only),
