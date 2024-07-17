@@ -524,6 +524,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         iproute2
         iputils-ping
         ipython3
+        john
         jq
         keyutils
         kmod
