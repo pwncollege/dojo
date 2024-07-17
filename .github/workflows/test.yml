@@ -112,6 +112,7 @@ jobs:
         run: |
           docker exec dojo-test dojo compose down
           sudo tar --use-compress-program=pigz -cf /mnt/data-docker.tar.gz -C /mnt/dojo-test-data ./docker
+
       - name: Save docker data cache
         if: github.event_name == 'schedule'
         uses: actions/cache/save@v4
@@ -119,3 +120,9 @@ jobs:
           path: |
             /mnt/data-docker.tar.gz
           key: docker-data-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Final filesystem information
+        run: |
+          echo "::group::Filesystem"
+          df -h
+          echo "::endgroup::"
