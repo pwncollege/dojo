@@ -5,7 +5,7 @@ from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 
 from ...models import DiscordUsers
-from ...utils.discord import get_discord_user
+from ...utils.discord import get_discord_member
 
 
 discord_namespace = Namespace("discord", description="Endpoint to manage discord")
@@ -18,5 +18,5 @@ class Discord(Resource):
         user = get_current_user()
         DiscordUsers.query.filter_by(user=user).delete()
         db.session.commit()
-        cache.delete_memoized(get_discord_user, user.id)
+        cache.delete_memoized(get_discord_member, user.id)
         return {"success": True}

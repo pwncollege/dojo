@@ -2,7 +2,7 @@ FROM alpine
 
 VOLUME /nix
 
-RUN apk add --no-cache nix
+RUN apk add --no-cache nix git
 
 RUN cat >> /etc/nix/nix.conf <<EOF
 experimental-features = nix-command flakes
@@ -10,6 +10,8 @@ auto-optimise-store = true
 substituters = /out https://cache.nixos.org/
 trusted-substituters = /out
 EOF
+
+RUN git clone --branch nixos-24.05 --depth 1 https://github.com/NixOS/nixpkgs.git /opt/nixpkgs-24.05
 
 WORKDIR /workspace
 COPY . .
@@ -24,8 +26,8 @@ if [ ! -d /out ]; then
     exit 1
 fi
 
-nix build --print-build-logs -v ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
-nix copy -v --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
+nix build --print-build-logs ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
+nix copy --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
 EOF
 
 RUN chmod +x /docker-entrypoint.sh

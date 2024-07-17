@@ -6,13 +6,15 @@ let
   serviceScript = pkgs.writeScript "dojo-code" ''
     #!${pkgs.bash}/bin/bash
 
+    until [ -f /run/dojo/ready ]; do sleep 0.1; done
+
     ${service}/bin/service start code-service/code-server \
-      $OUT/bin/code-server \
+      @out@/bin/code-server \
         --auth=none \
         --bind-addr=0.0.0.0:8080 \
         --trusted-origins='*' \
         --disable-telemetry \
-        --extensions-dir=$OUT/share/code-service/extensions
+        --extensions-dir=@out@/share/code-service/extensions
 
     until ${pkgs.curl}/bin/curl -s localhost:8080 >/dev/null; do sleep 0.1; done
   '';
@@ -49,8 +51,9 @@ in pkgs.stdenv.mkDerivation {
     makeWrapper ${pkgs.nodejs}/bin/node $out/bin/code-server --add-flags $out/libexec/code-server/out/node/entry.js
     cp $out/bin/code-server $out/bin/code
 
-    cp ${serviceScript} $out/bin/dojo-code
-    substituteInPlace $out/bin/dojo-code --replace '$OUT' $out
+    substitute ${serviceScript} $out/bin/dojo-code \
+      --subst-var-by out $out
+    chmod +x $out/bin/dojo-code
 
     mkdir -p $out/share/code-service/extensions
     ${pkgs.wget}/bin/wget -P $NIX_BUILD_TOP 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'

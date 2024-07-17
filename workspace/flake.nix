@@ -2,7 +2,7 @@
   description = "DOJO Workspace Flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs.url = "git+file:///opt/nixpkgs-24.05";
   };
 
   outputs = { self, nixpkgs }: {
@@ -16,6 +16,7 @@
         };
 
         init = import ./init.nix { inherit pkgs; };
+        ssh-entrypoint = import ./ssh-entrypoint.nix { inherit pkgs; };
         service = import ./services/service.nix { inherit pkgs; };
         code-service = import ./services/code.nix { inherit pkgs; };
         desktop-service = import ./services/desktop.nix { inherit pkgs; };
@@ -27,9 +28,15 @@
           cacert
           coreutils
           curl
+          findutils
+          gawk
+          glibc
           glibcLocales
+          gnugrep
+          gnused
           hostname
           iproute2
+          less
           man
           ncurses
           procps
@@ -38,6 +45,7 @@
           which
 
           init
+          ssh-entrypoint
           service
           code-service
           desktop-service

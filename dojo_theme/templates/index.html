@@ -1,18 +1,26 @@
 {% extends "base.html" %}
+{% from "macros/widgets.html" import card %}
+{% from "macros/widgets.html" import dojo_grid %}
+
+{% set svg_add_icon %}
+<svg class="w-100 h-100">
+  <circle cx="50%" cy="50%" r="30%" stroke="gray" fill="none" stroke-width="8" stroke-dasharray="8"></circle>
+  <g stroke="gray" stroke-width="8">
+    <line x1="50%" y1="30%" x2="50%" y2="70%"></line>
+    <line x1="30%" y1="50%" x2="70%" y2="50%"></line>
+  </g>
+</svg>
+{% endset %}
 
 {% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>pwn.college</h1>
+    <p>Learn to hack!</p>
+  </div>
+</div>
+
 <div class="container">
-
-  <p><br><br>
-
-  <center>
-    <h1><b>pwn.college</b></h1>
-    <h3>Learn to hack!</h3>
-  </center>
-
-  <p><br><br>
-
-  <h1>Welcome to pwn.college!</h1>
   <p>pwn.college is an education platform for students (and other interested parties) to learn about, and practice, core cybersecurity concepts in a hands-on fashion.
   In martial arts terms, it is designed to take a “white belt” in cybersecurity through the journey to becoming a “blue belt”, able to approach (simple) cybersecurity competitions (CTFs) and wargames.
   Our philosophy is “practice makes perfect”.
@@ -22,107 +30,91 @@
 
   <p>If you have comments, suggestions, and feedback, please email us at <a href="mailto:pwn@pwn.college">pwn@pwn.college</a>!
 
-  <p><br><br><br>
-
-  <h1>Great! How do I jump in?</h1>
-
-  <p>pwn.college is organized into a series of dojos, each of which covers a high-level topic area.
-  Please start your journey with the <code>Getting Started</code> dojo:
-
-  <ul class="card-list" style="display: block; margin-left: auto; margin-right: auto; width: 30%;">
-    <a class="text-decoration-none" href="/dojo/welcome">
-      <li class="card card-small">
-      <div class="card-body">
-        <h4 class="card-title">Getting Started</h4>
-        <div class="card-icon">
-          <img src="/themes/dojo_theme/static/img/dojo/white.svg">
-        </div>
-        <p class="card-text">Click here to get started!</p>
-      </div>
-      </li>
-    </a>
-  </ul>
-
-  <p>Once you complete this module, you can access many other dojos full of amazing hacking knowledge through the <a href="/dojos">Dojos</a> link at the top of the page.
-  When you run into problems with concepts and challenges, you can get help on our <a href="https://discord.gg/pwncollege">discord server</a>.
-  The discord is also a great place to chat with other aspiring hackers!
-
-
-  <p><br><br><br>
-
-  <h1>The "School Year"</h1>
-
-  <p>pwn.college is available year-round, but during ASU's semester, we host live classes on <a href="https://www.twitch.tv/pwncollege">our Twitch channel</a> to dig into the material currently being covered on pwn.college, then archive those to <a href="https://www.youtube.com/pwncollege">our YouTube channel</a>.
-  The live classes are used to fill in gaps between prerecorded lectures and answer student questions.
-
-  <p>Current live classes:
-
-  <ul>
-    <li><a href=https://www.youtube.com/playlist?list=PL-ymxv0nOtqqYpFVmqh9Wsfebq05pssju>CSE365 &#8212; Introduction to Cybersecurity &#8212; Spring 2024</a></li>
-    <li><a href=https://www.youtube.com/playlist?list=PL-ymxv0nOtqr7zM7ZBREoWa-eeSaKFJQd>CSE598 &#8212; Software Exploitation &#8212; Spring 2024</a></li>
-  </ul>
 
 
   <p><br><br>
+  <h2>Ground Rules</h2>
+  <p>The challenges created for pwn.college are, first and foremost, educational material, and are used to grade students at universities around the world
+  Because of this, we would appreciate that you <b>do not post writeups, walkthrough videos, and livestreams of challenge solutions</b> to the internet.
+  Obviously, we can’t enforce this, but we worked hard to make all of this public, and we would appreciate your help in keeping pwn.college a viable educational platform.
 
-  <h1>The Belts</h1>
 
 
-  <p>Consider hacking as a martial art that students earn belts in as they progress and build their skills.
-  This course progresses hackers from white belts, to orange belts, yellow belts, green belts, and then finally refines them into blue belts.
-  This is not just metaphor: <b>we have actual belts, in yellow, green, and blue, custom-embroidered for pwn.college.</b>
+
+  <p><br><br>
+  <h2>Getting Started &mdash; Learn the Basics!</h2>
+
+  <p>The material on pwn.college is split into a number of "dojos", with each dojo typically covering a high-level topic.
+  These first few dojos are designed to help you Get Started with the platform.
+  Start here before venturing onwards!
+
+  <p>Note: if you run into problems with concepts and challenges, you can get help on our <a href="https://discord.gg/pwncollege">discord server</a>.
+  The discord is also a great place to chat with other aspiring hackers!
+
+  {{ dojo_grid(categorized_dojos["Start Here"]) }}
+
+  <p>After completing the dojos above, dive into the Core Material below!
+
+  <p><br><br>
+  <h2>Core Material &mdash; Earn Your Belts!</h2>
+
+  <p>These dojos form the official pwn.college curriculum, taking you on a curated journey through the art of hacking.
+  As you progress and build your skills, like in a martial art, you will earn <a href="belts">belts</a> for completing dojo after dojo.
+
+  <p>The material is designed to be tackled in order.
+  We won't stop you from jumping around if you want (and have the requisite skills), but you must earn belts sequentially.
+
+  {{ dojo_grid(categorized_dojos["Topics"]) }}
+
+  <p>After completing the dojos above, not only will you be added to the <a href="belts">belts</a> page, but <i>we will send you actual pwn.college-embroidered belts</i>!
+  <p>To get your belt, <a href="mailto:pwn@pwn.college">send us an email</a> from the email address associated with your pwn.college account.
+  We’ll then get your belt over to you (eventually)!
+  Note that, due to logistical challenges, we're currently only <i>shipping</i> belts to hackers after they earn their blue belt.
+  Until then, we will belt you in person, at ASU or some security conference.
+
+
+
+
+  <p><br><br>
+  <h2>Community Material &mdash; Earn Badges!</h2>
+  <p>No matter how much material we create, there is always more to learn!
+  This section contains additional dojos created by the pwn.college community.
+  Some are designed to be tackled after you complete the dojos above, whereas others are open to anyone interested in more specialized topics.
+
+  <p>Completing these dojos will grant you emoji badges!
+
+  {{ dojo_grid(categorized_dojos["More Material"]) }}
+
+  <p>Want to add your dojo to the fray? <a href="/dojos/create"><b>Create it here</b></a>!
+
+
+
+
+  <p><br><br>
+  <h2>The Courses &mdash; Earning Credit</h2>
+  <p>We leverage the above material to run a number of courses on this platform.
+  For the most part, these courses import the above material, though some might introduce new concepts and challenges.
+
+  {{ dojo_grid(categorized_dojos["Courses"]) }}
+
+  <p>Want to use pwn.college in your course? No problem!
+  You can use the videos and slides of pwn.college lectures freely for non-commercial purposes, but please provide attribution!
+  Additionally, if you use pwn.college in your own education program, we would appreciate it if you email us to let us know.
+  Evidence of wide-spread use of pwn.college for education will be a huge help for our various academic careers!
+
+  <p>EDUCATORS: If you are an educational institution and are using pwn.college as part of a class, you can import our challenges (or add your own) into your own private dojo for your students! Create your dojo <a href="/dojos/create">here</a>.
+
+  <p>CONFERENCES: If you are running a conference and would like pwn.college presence there (as a form of intense weekend-long training), please <a href="mailto:pwn@pwn.college">email</a> us!
+
+
+
+
+  <p><br><br>
+  <h2>After pwn.college</h2>
 
   <p>Eventually, hackers continue their journey beyond pwn.college, becoming certain in their skills, achieving <i>brown belt</i> status (and able to, for example, usefully contribute to the cybersecurity industry and academia), before finally graduating to hacking masters: <i>black belts</i>.
   But this, unfortunately, must happen outside of the dojo (for now!).
-
-  <h3>How to earn an orange belt?</h3>
-  <p>For an orange belt, you must complete all active challenges launched in:
-  <ul>
-    <li><a href="https://pwn.college/intro-to-cybersecurity/">Intro to Cybersecurity</a>
-  </ul>
-
-  <h3>How to earn a yellow belt?</h3>
-  <p>For a yellow belt, you must complete all active challenges launched in:
-  <ul>
-    <li><a href="https://pwn.college/intro-to-cybersecurity/">Intro to Cybersecurity</a>
-    <li><a href="https://pwn.college/program-security/">Program Security</a>
-  </ul>
-
-  <h3>How to earn a green belt?</h3>
-  <p>For a green belt, you must complete all active challenges launched in:
-  <ul>
-    <li><a href="https://pwn.college/intro-to-cybersecurity/">Intro to Cybersecurity</a>
-    <li><a href="https://pwn.college/program-security/">Program Security</a>
-    <li><a href="https://pwn.college/system-security/">System Security</a>
-  </ul>
-
-  <h3>How to earn a blue belt?</h3>
-  <p>For a blue belt, you must complete all active challenges launched in:
-  <ul>
-    <li><a href="https://pwn.college/intro-to-cybersecurity/">Intro to Cybersecurity</a>
-    <li><a href="https://pwn.college/program-security/">Program Security</a>
-    <li><a href="https://pwn.college/system-security/">System Security</a>
-    <li><a href="https://pwn.college/software-exploitation/">Software Exploitation</a>
-  </ul>
-
-  <h3>How to get the actual belt?</h3>
-  <p>To get your belt,  <a href="mailto:pwn@pwn.college">send us an email</a> from the email address associated with your pwn.college account once you’ve completed the necessary challenges.
-  We’ll then get your belt over to you (eventually)!
-  Note that, due to logistical challenges, we're currently only <i>shipping</i> belts to hackers after they earn their blue belt. Until then, we will belt you in person, at ASU or some security conference.
-
-  <p><b>Who has earned belts?</b> We maintain a <a href="https://pwn.college/belts">list of hackers with pwn.college belts</a>. Once you achieve your belt, we will add you to the <a href="https://pwn.college/belts">list</a>!
-
-  <p><br><br>
-
-  <h1>Collaboration, Livestream, and Writeup Policy</h1>
-  <p>The challenges created for pwn.college are educational material, and are used to grade students at ASU.
-  Because of this, we would appreciate that writeups, walkthrough videos, and livestreams of challenge solutions are not posted to the internet.
-  Obviously, we can’t enforce this, but we worked hard to make all of this public, and we would appreciate your help in keeping pwn.college a viable educational platform.
-
-  <p><br><br>
-
-  <h1>Further Practice</h1>
-  <p>After you learn the basics of cybersecurity and earn your blue belt, you should move on to harder challenges.
+  Some suggestions:
 
   <p>Capture The Flags (CTFs) are a great way to practice your hacking skills in a fun and ethical way. The most popular way to find upcoming events is at <a href="https://ctftime.org">https://ctftime.org</a>. There is also a list of introductory CTFs <a href="https://zaratec.io/ctf-practice/">here</a>. If you are at ASU, feel free to check out and join ASU’s enigmatic <a href="http://asuhacking.club">hacking club</a>.
 
@@ -130,30 +122,20 @@
 
   <p>If you want to get involved with cybersecurity research, but don’t know how, consider joining us for an <a href="https://sefcom.asu.edu/apprenticeship">internship at ASU</a>.
 
-  <p><br><br>
 
-  <h1>Reusing pwn.college Material</h1>
-  <p>Want to use pwn.college in your course? You can!
-
-  <p>You can use the videos and slides of pwn.college lectures freely for non-commercial purposes, but please provide attribution!
-  Additionally, if you use pwn.college in your own education program, we would appreciate it if you email us to let us know.
-  Evidence of wide-spread use of pwn.college for education will be a huge help for Yan’s tenure case!
-
-  <p>EDUCATORS: If you are an educational institution and are using pwn.college as part of a class, you can import our challenges (or add your own) into your own private dojo for your students! Create your dojo <a href="/dojos/create">here</a>.
-
-  <p>CONFERENCES: If you are running a conference and would like pwn.college presence there (as a form of intense weekend-long training), please <a href="mailto:pwn@pwn.college">email</a> us!
 
   <p><br><br>
-
-  <h1>Contributing</h1>
+  <h2>Contributing</h2>
   <p>The <a href="https://github.com/pwncollege/dojo">infrastructure powering pwn.college</a> is open source, and we welcome pull requests and issues.
   Some of the modules are closed-source, because they include source code and solution scripts, but others can be found on <a href="https://github.com/pwncollege">github</a>.
   If you are an educator, or otherwise someone we trust, and are interested in collaborating on the modules themselves, please email us at <a href="pwn@pwn.college">pwn@pwn.college</a>.
   Likewise, drop us a line if you are interested in collaborating on the slides!
 
-  <p><br><br>
 
-  <h1><a name="greetz"></a>Greetz</h1>
+
+
+  <p><br><br>
+  <h2><a name="greetz"></a>Greetz</h2>
   <p>Team work makes the dream work, and the team behind pwn.college is full of dreamers!  They are:
 
   <ul>
@@ -172,9 +154,11 @@
     <li>spencerpogo, for contributing Windows support.
   </ul>
 
-  <p><br><br>
 
-  <h1>Resources</h1>
+  <p><br><br>
+  <h2>Resource Index</h2>
+  <p>We use a lot of different resources and platforms.
+  Here they are!
 
   <div class="container">
     <div class="row text-center">
@@ -222,4 +206,7 @@
   </div>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
 {% endblock %}

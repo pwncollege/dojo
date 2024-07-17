@@ -1,12 +1,6 @@
 {% extends "base.html" %}
 {% from "macros/widgets.html" import card %}
-
-{% set dojo_descriptions = {
-    "Start Here": "These dojos are designed to help you begin your pwn.college journey. Start here before venturing onwards!",
-    "Topics": "These dojos form the official pwn.college curriculum, and you will earn [belts](/belts) when you complete them. These are designed to be tackled in order, and you must earn the belts sequentially.",
-    "Courses": "We run a number of courses on this platform. For the most part, these courses import the above material, though some might introduce new concepts and challenges.",
-    "More Material": "This section contains dojos created by the pwn.college community. Completing these dojos will grant you emoji badges!"
-} %}
+{% from "macros/widgets.html" import dojo_grid %}
 
 {% set svg_add_icon %}
 <svg class="w-100 h-100">
@@ -19,38 +13,39 @@
 {% endset %}
 
 {% block content %}
-<div class="jumbotron">
-  <div class="container">
-    <h1>Dojos</h1>
-    <p>The material on pwn.college is split into a number of "dojos", with each dojo typically covering a high-level topic. These dojos are below. Enter them when you are ready.</p>
-  </div>
-</div>
-
 <div class="container">
-  {% for category, dojos in categorized_dojos.items() %}
-    <section class="dojo-type">
-      <h2>{{ category }}</h2>
-      <p>{{ dojo_descriptions[category] | markdown }}</p>
-      <ul class="card-list">
-        {% for dojo, solves in dojos %}
-          {% set text = "{} Modules : {} / {}".format(dojo.modules_count, solves, dojo.challenges_count) %}
-          {% set icon = "/themes/dojo_theme/static/img/dojo/{}.svg".format(dojo.award.belt) if (dojo.award.belt and dojo.official) else None %}
-          {{ card(
-            url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id),
-            title=dojo.name or dojo.id,
-            text=text,
-            icon=icon,
-            emoji=dojo.award.emoji,
-          ) }}
-        {% endfor %}
-        {% if category == "More Material" %}
-          {% call card(url_for("pwncollege_dojos.dojo_create"), custom=True) %}
-            {{ svg_add_icon }}
-          {% endcall %}
-        {% endif %}
-      </ul>
-    </section>
-  {% endfor %}
+  <p><br><br>
+  <h2>Getting Started &mdash; Learn the Basics!</h2>
+
+  <p>The material on pwn.college is split into a number of "dojos", with each dojo typically covering a high-level topic.
+  These first few dojos are designed to help you Get Started with the platform.
+  Start here before venturing onwards!
+
+  {{ dojo_grid(categorized_dojos["Start Here"]) }}
+
+  <p><br><br>
+  <h2>Core Material &mdash; Earn Your Belts!</h2>
+
+  <p>These dojos form the official pwn.college curriculum, taking you on a curated journey through the art of hacking.
+  As you progress and build your skills, like in a martial art, you will earn <a href="belts">belts</a> for completing dojo after dojo.
+
+  {{ dojo_grid(categorized_dojos["Topics"]) }}
+
+  <p><br><br>
+  <h2>Community Material &mdash; Earn Badges!</h2>
+  <p>No matter how much material we create, there is always more to learn!
+  This section contains additional dojos created by the pwn.college community.
+  Some are designed to be tackled after you complete the dojos above, whereas others are open to anyone interested in more specialized topics.
+
+  {{ dojo_grid(categorized_dojos["More Material"]) }}
+
+  <p><br><br>
+  <h2>The Courses &mdash; Earning Credit</h2>
+  <p>We leverage the above material to run a number of courses on this platform.
+  For the most part, these courses import the above material, though some might introduce new concepts and challenges.
+
+  {{ dojo_grid(categorized_dojos["Courses"]) }}
+
 </div>
 {% endblock %}
 

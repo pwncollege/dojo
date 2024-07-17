@@ -53,3 +53,25 @@
     </div>
   </div>
 {% endmacro %}
+
+
+{% macro dojo_grid(dojos, create_icon=None) -%}
+  <ul class="card-list">
+    {% for dojo, solves in dojos %}
+      {% set text = "{} Modules : {} / {}".format(dojo.modules_count, solves, dojo.challenges_count) %}
+      {% set icon = "/themes/dojo_theme/static/img/dojo/{}.svg".format(dojo.award.belt) if (dojo.award.belt and dojo.official) else None %}
+      {{ card(
+        url_for("pwncollege_dojo.view_dojo", dojo=dojo.reference_id),
+        title=dojo.name or dojo.id,
+        text=text,
+        icon=icon,
+        emoji=dojo.award.emoji,
+      ) }}
+    {% endfor %}
+    {% if create_icon %}
+      {% call card(url_for("pwncollege_dojos.dojo_create"), custom=True) %}
+        {{ create_icon }}
+      {% endcall %}
+    {% endif %}
+  </ul>
+{%- endmacro %}

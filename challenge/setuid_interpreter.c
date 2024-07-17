@@ -8,13 +8,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define ERROR_ARGC 1
-#define ERROR_NOT_FOUND 2
-#define ERROR_PATH 3
-#define ERROR_NOT_ROOT 4
-#define ERROR_NOT_SUID 5
-#define ERROR_BAD_SHEBANG 6
-#define ERROR_BAD_ENV 7
+#define ERROR_ARGC 1          // Must have argv[1] be script path
+#define ERROR_NOT_FOUND 2     // Resolved script path must exist
+#define ERROR_PATH 3          // Resolved script path must be in a known-good location (SECURITY: prevent symlink races during further analysis and invocation)
+#define ERROR_NOT_ROOT 4      // Resolved script path must be owned by root (we're running root setuid!)
+#define ERROR_NOT_SETUID 5    // Resolved script path must be setuid (we're running root setuid!)
+#define ERROR_BAD_SHEBANG 6   // Resolved script must indicate it's desire to be run with THIS interpreter (SECURITY: prevent weird-behavior due to running incorrect interpreter via non-shebang forced invocation)
+#define ERROR_BAD_ENV 7       // Resolved script which indicates a clear environment must have a cleared environment (SECURITY: prevent weird-behavior due to running interpreter with environment via non-shebang forced invocation)
 
 int main(int argc, char **argv, char **envp)
 {
@@ -28,6 +28,7 @@ int main(int argc, char **argv, char **envp)
     char *valid_paths[] = {
         "/challenge/",
         "/opt/pwn.college/",
+        "/nix/",
         NULL
     };
     bool valid = false;
@@ -42,7 +43,7 @@ int main(int argc, char **argv, char **envp)
     if (stat.st_uid != 0)
         return ERROR_NOT_ROOT;
     if (!(stat.st_mode & S_ISUID))
-        return ERROR_NOT_SUID;
+        return ERROR_NOT_SETUID;
 
     char first_line[PATH_MAX];
     FILE *sfd = fopen(path, "r");
@@ -51,7 +52,9 @@ int main(int argc, char **argv, char **envp)
 
 #ifdef SUID_PYTHON
     char *child_argv_prefix[] = { "/usr/bin/python3", "-I", "--", NULL };
-    if (strcmp(first_line, "#!/opt/pwn.college/python\n"))
+    if (strcmp(first_line, "#!/opt/pwn.college/python\n") &&
+        strcmp(first_line, "#!/usr/bin/env python-setuid\n") &&
+        strcmp(first_line, "#!/nix/bin/env python-setuid\n"))
         return ERROR_BAD_SHEBANG;
 #endif
 #ifdef SUID_BASH
@@ -67,7 +70,9 @@ int main(int argc, char **argv, char **envp)
         if (envp[0] != NULL)
             return ERROR_BAD_ENV;
     }
-    else if (strcmp(first_line, "#!/opt/pwn.college/bash\n"))
+    else if (strcmp(first_line, "#!/opt/pwn.college/bash\n") &&
+             strcmp(first_line, "#!/usr/bin/env bash-setuid\n") &&
+             strcmp(first_line, "#!/nix/bin/env bash-setuid\n"))
         return ERROR_BAD_SHEBANG;
 #endif
 #ifdef SUID_SH
@@ -81,7 +86,9 @@ int main(int argc, char **argv, char **envp)
         if (envp[0] != NULL)
             return ERROR_BAD_ENV;
     }
-    else if (strcmp(first_line, "#!/opt/pwn.college/sh\n"))
+    else if (strcmp(first_line, "#!/opt/pwn.college/sh\n") &&
+             strcmp(first_line, "#!/usr/bin/env sh-setuid\n") &&
+             strcmp(first_line, "#!/nix/bin/env sh-setuid\n"))
         return ERROR_BAD_SHEBANG;
 #endif
 
