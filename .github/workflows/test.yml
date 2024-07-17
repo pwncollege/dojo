@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     name: Integration Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-m
     timeout-minutes: 20
     steps:
       - name: Host information
