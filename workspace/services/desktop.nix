@@ -3,6 +3,24 @@
 let
   service = import ./service.nix { inherit pkgs; };
 
+  novncOverlay = self: super: {
+    novnc = super.novnc.overrideAttrs (old: {
+      patches = (old.patches or []) ++ [
+        # Revert https://github.com/novnc/noVNC/pull/1672
+        (builtins.toFile "reconnect_patch.diff" ''
+          --- a/share/webapps/novnc/app/ui.js
+          +++ b/share/webapps/novnc/app/ui.js
+          @@ -1,3 +1,3 @@
+          -if (UI.getSetting('reconnect', false)
+          +else if (UI.getSetting('reconnect', false)
+        '')
+      ];
+    });
+  };
+
+  overlays = [novncOverlay];
+  patchedPkgs = import pkgs.path { inherit overlays; };
+
   serviceScript = pkgs.writeScript "dojo-desktop" ''
     #!${pkgs.bash}/bin/bash
 
@@ -30,7 +48,7 @@ let
         -depth 24
 
     ${service}/bin/service start desktop-service/novnc \
-      ${pkgs.novnc}/bin/novnc \
+      ${patchedPkgs.novnc}/bin/novnc \
         --vnc --unix-target=/run/dojo/desktop-service/Xvnc.sock \
         --listen 6080
 
@@ -74,7 +92,7 @@ in pkgs.stdenv.mkDerivation {
   ];
   propagatedBuildInputs = with pkgs; [
     tigervnc
-    novnc
+    patchedPkgs.novnc
     xfce
     elementary-xfce-icon-theme  # If we include this in `xfce`, we get a "Permission denied" error related to `nix-support/propagated-build-inputs`.
   ];
