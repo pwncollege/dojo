@@ -7,7 +7,7 @@ let
     novnc = super.novnc.overrideAttrs (old: {
       patches = (old.patches or []) ++ [
         # Revert https://github.com/novnc/noVNC/pull/1672
-        (builtins.toFile "reconnect_patch.diff" ''
+        (super.writeText "reconnect_patch.diff" ''
           --- a/share/webapps/novnc/app/ui.js
           +++ b/share/webapps/novnc/app/ui.js
           @@ -1,3 +1,3 @@
