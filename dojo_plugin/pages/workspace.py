@@ -20,13 +20,26 @@ port_names = {
     "desktop": 6080,
     "desktop-windows": 6082,
 }
-ondemand_services = { "code", "desktop", "desktop-windows" }
+on_demand_services = { "code", "desktop", "desktop-windows" }
 
 def container_password(container, *args):
     key = container.labels["dojo.auth_token"].encode()
     message = "-".join(args).encode()
     return hmac.HMAC(key, message, "sha256").hexdigest()
 
+def start_on_demand_service(user, service_name):
+    if service_name not in on_demand_services:
+        return
+    try:
+        exec_run(
+            f"/run/current-system/sw/bin/dojo-{service_name}",
+            workspace_user="hacker",
+            user_id=user.id,
+            assert_success=True,
+        )
+    except docker.errors.NotFound:
+        return False
+    return True
 
 @workspace.route("/workspace/desktop")
 @authed_only
@@ -71,19 +84,23 @@ def view_desktop():
         "Desktop (View)": url_for("pwncollege_workspace.view_desktop", user=user.id, password=view_password, _external=True),
     }
 
+    if start_on_demand_service(user, "desktop") is False:
+        return render_template("iframe.html", active=False)
+
     return render_template("iframe.html",
                            iframe_name="workspace",
                            iframe_src=iframe_src,
                            share_urls=share_urls,
                            active=True)
 
-
 @workspace.route("/workspace/<service>")
 @authed_only
 def view_workspace(service):
+    user = get_current_user()
     active = bool(get_current_dojo_challenge())
+    if start_on_demand_service(user, service) is False:
+        return render_template("iframe.html", active=False)
     return render_template("iframe.html", iframe_name="workspace", iframe_src=f"/workspace/{service}/", active=active)
-
 
 @workspace.route("/workspace/<service>/", websocket=True)
 @workspace.route("/workspace/<service>/<path:service_path>", websocket=True)
@@ -136,17 +153,6 @@ def forward_workspace(service, service_path=""):
 
     else:
         abort(404)
-
-    if service_name in ondemand_services:
-        try:
-            exec_run(
-                f"/run/current-system/sw/bin/dojo-{service_name}",
-                workspace_user="hacker",
-                user_id=user.id,
-                assert_success=True,
-            )
-        except docker.errors.NotFound:
-            abort(404)
 
     current_user = get_current_user()
     if user != current_user:
