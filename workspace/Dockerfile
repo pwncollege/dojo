@@ -24,7 +24,7 @@ if [ ! -d /out ]; then
     exit 1
 fi
 
-nix build -v ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
+nix build --print-build-logs -v ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
 nix copy -v --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
 EOF
 
