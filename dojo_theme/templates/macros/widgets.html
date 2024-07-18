@@ -65,7 +65,7 @@
         url_for("pwncollege_dojo.view_dojo", dojo=dojo.reference_id),
         title=dojo.name or dojo.id,
         text_lines=[
-          "{} Hacking".format(dojo_container_counts.get(dojo.reference_id, 0)),
+          "{} Hacking".format(dojo_container_counts.get(dojo.reference_id, 0)) if dojo_container_counts.get(dojo.reference_id, 0) else "",
           "{} Modules : {} / {}".format(dojo.modules_count, solves, dojo.challenges_count)
         ],
         icon=icon,
