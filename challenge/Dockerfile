@@ -293,7 +293,7 @@ RUN <<EOF
     cd /opt/gdb/gdb-15.1
     mkdir build
     cd build
-    ../configure --prefix=/usr --with-python=/usr/bin/python3
+    ../configure --prefix=/usr --with-python=/usr/bin/python3 --with-mpfr=/usr/local/mpfr --with-gmp=/usr/local/gmp
     make -j$(nproc)
     make install
 EOF
