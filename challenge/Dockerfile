@@ -266,65 +266,6 @@ FROM builder-kernel-${INSTALL_KERNEL} as builder-kernel
 
 ################################################################################
 
-FROM scratch as builder-gdb-no
-FROM builder as builder-gdb-yes
-
-RUN <<EOF
-   mkdir /opt/gmp
-   wget -O - https://gmplib.org/download/gmp/gmp-6.3.0.tar.gz | tar xzC /opt/gmp
-   cd /opt/gmp/gmp-6.3.0
-   ./configure --prefix=/usr/local/gmp
-   make -j$(nproc)
-   make install
-EOF
-
-RUN <<EOF
-   mkdir /opt/mpfr
-   wget -O - https://www.mpfr.org/mpfr-current/mpfr-4.2.1.tar.gz | tar xzC /opt/mpfr
-   cd /opt/mpfr/mpfr-4.2.1
-   ./configure --prefix=/usr/local/mpfr --with-gmp=/usr/local/gmp
-   make -j$(nproc)
-   make install
-EOF
-
-RUN <<EOF
-    mkdir /opt/gdb
-    wget -O - https://ftp.gnu.org/gnu/gdb/gdb-15.1.tar.gz | tar xzC /opt/gdb
-    cd /opt/gdb/gdb-15.1
-    mkdir build
-    cd build
-    ../configure --prefix=/usr --with-python=/usr/bin/python3 --with-mpfr=/usr/local/mpfr --with-gmp=/usr/local/gmp
-    make -j$(nproc)
-    make install
-EOF
-
-RUN <<EOF
-    git clone --depth 1 --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
-    cd /opt/pwndbg
-    ./setup.sh
-
-    git clone --depth 1 https://github.com/hugsy/gef /opt/gef
-
-    git clone --depth 1 https://github.com/jerdna-regeiz/splitmind /opt/splitmind
-
-    git clone --depth 1 https://github.com/nccgroup/libslub /opt/libslub
-    cd /opt/libslub
-    pip install -r requirements.txt
-
-    git clone --depth 1 --recurse-submodules https://github.com/zolutal/gdb-pt-dump /opt/pt-dump
-
-    git clone --depth 1 --recurse-submodules https://github.com/zolutal/kropr /opt/kropr
-    cd /opt/kropr
-    cargo install --path . --root /tmp
-    mv /tmp/bin/ropr /usr/bin/kropr
-    chmod +x /usr/bin/kropr
-EOF
-
-FROM builder-gdb-${INSTALL_GDB} as builder-gdb
-
-################################################################################
-
-
 FROM scratch as builder-tcpdump-no
 FROM builder as builder-tcpdump-yes
 RUN <<EOF
@@ -747,7 +688,6 @@ COPY --link --from=builder-desktop-ghidra / /
 COPY --link --from=builder-desktop-angr-management / /
 COPY --link --from=builder-tools-pip / /
 COPY --link --from=builder-tools-apt / /
-COPY --link --from=builder-gdb / /
 COPY --link --from=builder-windows / /
 
 RUN <<EOF
