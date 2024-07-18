@@ -271,8 +271,7 @@ FROM builder as builder-gdb-yes
 
 RUN <<EOF
    mkdir /opt/gmp
-   wget -O - https://gmplib.org/download/gmp/gmp-6.3.0.tar.xz | tar xzC /opt/gmp
-   tar -xf gmp-6.3.0.tar.xz
+   wget -O - https://gmplib.org/download/gmp/gmp-6.3.0.tar.gz | tar xzC /opt/gmp
    cd /opt/gmp/gmp-6.3.0
    ./configure --prefix=/usr/local/gmp
    make -j$(nproc)
@@ -282,8 +281,7 @@ EOF
 RUN <<EOF
    mkdir /opt/mpfr
    wget -O - https://www.mpfr.org/mpfr-current/mpfr-4.2.1.tar.gz | tar xzC /opt/mpfr
-   tar -xf mpfr-4.2.1.tar.gz
-   cd mpfr-4.2.1
+   cd /opt/mpfr/mpfr-4.2.1
    ./configure --prefix=/usr/local/mpfr --with-gmp=/usr/local/gmp
    make -j$(nproc)
    make install
