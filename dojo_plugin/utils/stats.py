@@ -1,5 +1,8 @@
 import docker
 
+from CTFd.cache import cache
+
+@cache.memoize(timeout=60)
 def container_stats():
     user_containers = docker.from_env().containers.list(filters={
         "name": "user_",
