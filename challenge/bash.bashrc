@@ -26,4 +26,6 @@ if [[ "$AVAILABLE_M" -lt 512 ]]; then
     echo '  du -sh /home/hacker/* | sort -h'
 fi
 
+export LANG=C.UTF-8
+
 [ -f "/challenge/.bashrc" ] && source /challenge/.bashrc
