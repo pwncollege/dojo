@@ -49,6 +49,8 @@
           service
           code-service
           desktop-service
+
+          gdb
         ];
 
         fullPackages = corePackages ++ additional.packages;
