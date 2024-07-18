@@ -3,23 +3,19 @@
 let
   service = import ./service.nix { inherit pkgs; };
 
-  novncOverlay = self: super: {
-    novnc = super.novnc.overrideAttrs (old: {
-      patches = (old.patches or []) ++ [
-        # Revert https://github.com/novnc/noVNC/pull/1672
-        (super.writeText "reconnect_patch.diff" ''
-          --- a/share/webapps/novnc/app/ui.js
-          +++ b/share/webapps/novnc/app/ui.js
-          @@ -1,3 +1,3 @@
-          -if (UI.getSetting('reconnect', false)
-          +else if (UI.getSetting('reconnect', false)
-        '')
-      ];
-    });
-  };
-
-  overlays = [novncOverlay];
-  patchedPkgs = import pkgs.path { inherit overlays; };
+  # Revert https://github.com/novnc/noVNC/pull/1672
+  reconnectPatch = pkgs.writeText "reconnect_patch.diff" ''
+    --- a/share/webapps/novnc/app/ui.js
+    +++ b/share/webapps/novnc/app/ui.js
+    @@ -1,3 +1,3 @@
+    -        if (UI.getSetting('reconnect', false) === true && !UI.inhibitReconnect) {
+    +        else if (UI.getSetting('reconnect', false) === true && !UI.inhibitReconnect) {
+  '';
+  novnc = pkgs.novnc.overrideAttrs (oldAttrs: {
+    postInstall = (oldAttrs.postInstall or "") + ''
+      patch -p1 -d $out < ${reconnectPatch}
+    '';
+  });
 
   serviceScript = pkgs.writeScript "dojo-desktop" ''
     #!${pkgs.bash}/bin/bash
@@ -48,7 +44,7 @@ let
         -depth 24
 
     ${service}/bin/service start desktop-service/novnc \
-      ${patchedPkgs.novnc}/bin/novnc \
+      ${novnc}/bin/novnc \
         --vnc --unix-target=/run/dojo/desktop-service/Xvnc.sock \
         --listen 6080
 
@@ -92,7 +88,7 @@ in pkgs.stdenv.mkDerivation {
   ];
   propagatedBuildInputs = with pkgs; [
     tigervnc
-    patchedPkgs.novnc
+    novnc
     xfce
     elementary-xfce-icon-theme  # If we include this in `xfce`, we get a "Permission denied" error related to `nix-support/propagated-build-inputs`.
   ];
