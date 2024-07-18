@@ -180,7 +180,7 @@ h4 {
     left: 50%;
     transform: translate(-50%, -50%);
     width: 100%;
-    top: 85%;
+    bottom: 0%;
     color: rgb(234, 234, 234);
     font-size: 0.75em;
 }

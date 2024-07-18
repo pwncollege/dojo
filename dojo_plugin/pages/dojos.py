@@ -1,3 +1,5 @@
+import collections
+
 from flask import Blueprint, render_template, redirect, url_for
 from CTFd.models import db
 from CTFd.utils.user import get_current_user
@@ -5,6 +7,7 @@ from CTFd.utils.decorators import authed_only, admins_only
 
 from ..models import DojoChallenges, Dojos
 from ..utils.dojo import generate_ssh_keypair
+from ..utils.stats import container_stats
 
 
 dojos = Blueprint("pwncollege_dojos", __name__)
@@ -31,6 +34,7 @@ def listing(template="dojos.html"):
         "course": "Courses",
         "welcome": "Start Here"
     }
+    dojo_container_counts = collections.Counter(c['dojo'] for c in container_stats())
     options = db.undefer(Dojos.modules_count), db.undefer(Dojos.challenges_count)
     dojo_solves = Dojos.viewable(user=user).options(*options)
     if user:
@@ -51,7 +55,7 @@ def listing(template="dojos.html"):
     if "Start Here" in categorized_dojos:
         categorized_dojos["Start Here"].sort(key=lambda x: x[0].name)
 
-    return render_template(template, user=user, categorized_dojos=categorized_dojos)
+    return render_template(template, user=user, categorized_dojos=categorized_dojos, dojo_container_counts=dojo_container_counts)
 
 
 @dojos.route("/dojos/create")

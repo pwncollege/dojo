@@ -15,6 +15,7 @@ from CTFd.utils.helpers import get_infos
 from CTFd.cache import cache
 
 from ..utils import render_markdown
+from ..utils.stats import container_stats
 from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
 
@@ -58,6 +59,10 @@ def listing(dojo):
         stats=stats,
         infos=infos,
         awards=awards,
+        module_container_counts=collections.Counter(
+            c['module'] for c in container_stats()
+            if c['dojo'] == dojo.reference_id
+        ),
     )
 
 
@@ -237,12 +242,6 @@ def view_module(dojo, module):
                         .with_entities(Solves.challenge_id, db.func.count()))
     current_dojo_challenge = get_current_dojo_challenge()
 
-    module_containers = docker.from_env().containers.list(filters={
-        "name": "user_",
-        "label": [ f"dojo.dojo_id={dojo.reference_id}", f"dojo.module_id={module.id}" ]
-    }, ignore_removed=True)
-    challenge_container_counts = collections.Counter(c.labels['dojo.challenge_id'] for c in module_containers)
-
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
     assessments = []
     if student or dojo.is_admin(user):
@@ -275,7 +274,11 @@ def view_module(dojo, module):
         user=user,
         current_dojo_challenge=current_dojo_challenge,
         assessments=assessments,
-        challenge_container_counts=challenge_container_counts,
+        challenge_container_counts=collections.Counter(
+            c['challenge'] for c in container_stats()
+            if c['module'] == module.id and c['dojo'] == dojo.reference_id
+        ),
+
     )
 
 
