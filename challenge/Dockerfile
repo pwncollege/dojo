@@ -266,6 +266,36 @@ FROM builder-kernel-${INSTALL_KERNEL} as builder-kernel
 
 ################################################################################
 
+FROM scratch as builder-gdb-no
+FROM builder as builder-gdb-yes
+
+RUN <<EOF
+    git clone --depth 1 --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
+    cd /opt/pwndbg
+    ./setup.sh
+
+    git clone --depth 1 https://github.com/hugsy/gef /opt/gef
+
+    git clone --depth 1 https://github.com/jerdna-regeiz/splitmind /opt/splitmind
+
+    git clone --depth 1 https://github.com/nccgroup/libslub /opt/libslub
+    cd /opt/libslub
+    pip install -r requirements.txt
+
+    git clone --depth 1 --recurse-submodules https://github.com/zolutal/gdb-pt-dump /opt/pt-dump
+
+    git clone --depth 1 --recurse-submodules https://github.com/zolutal/kropr /opt/kropr
+    cd /opt/kropr
+    cargo install --path . --root /tmp
+    mv /tmp/bin/ropr /usr/bin/kropr
+    chmod +x /usr/bin/kropr
+EOF
+
+FROM builder-gdb-${INSTALL_GDB} as builder-gdb
+
+################################################################################
+
+
 FROM scratch as builder-tcpdump-no
 FROM builder as builder-tcpdump-yes
 RUN <<EOF
@@ -688,6 +718,7 @@ COPY --link --from=builder-desktop-ghidra / /
 COPY --link --from=builder-desktop-angr-management / /
 COPY --link --from=builder-tools-pip / /
 COPY --link --from=builder-tools-apt / /
+COPY --link --from=builder-gdb / /
 COPY --link --from=builder-windows / /
 
 RUN <<EOF
