@@ -271,7 +271,7 @@ FROM builder as builder-gdb-yes
 
 RUN <<EOF
     mkdir /opt/gdb
-    wget -O - https://ftp.gnu.org/gnu/gdb/gdb-11.1.tar.gz | tar xzC /opt/gdb
+    wget -O - https://ftp.gnu.org/gnu/gdb/gdb-15.1.tar.gz | tar xzC /opt/gdb
     cd /opt/gdb/gdb-11.1
     mkdir build
     cd build
