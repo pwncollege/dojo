@@ -15,9 +15,7 @@ def daemonize(service_name, exec_command):
         sys.stderr.write(f"Fork #1 failed: {e.errno} ({e.strerror})\n")
         sys.exit(1)
 
-    os.chdir("/")
     os.setsid()
-    os.umask(0)
 
     try:
         pid = os.fork()
