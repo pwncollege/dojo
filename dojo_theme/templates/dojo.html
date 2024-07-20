@@ -52,14 +52,14 @@
     <p>
       <b>Hacking Now:</b> <code>{{ stats["active"] }}</code>
       <br>
-      <b>Hackers:</b> <code>{{ stats["users"] }}</code>
+      <b>Hackers:</b> <code>{{ "{:,}".format(stats["users"]) }}</code>
       <br>
       <b>Challenges:</b> <code>{{ stats["challenges"] }}</code>
       <br>
-      <b>Solves:</b> <code>{{ stats["solves"] }}</code>
+      <b>Solves:</b> <code>{{ "{:,}".format(stats["solves"]) }}</code>
       {% if awards %}
       <br>
-      <b>Awardees:</b> <code>{{ awards|length }}</code>
+      <b>Awardees:</b> <code>{{ "{:,}".format(awards|length) }}</code>
       <br>
       <b>Earliest Awardees:</b>
       {% for award in awards[-5:][::-1] %}
