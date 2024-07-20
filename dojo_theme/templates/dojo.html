@@ -95,6 +95,8 @@
   <ul class="card-list">
     {% for module in dojo.modules %}
     {% set container_count = module_container_counts.get(module.id, 0) %}
+    {% set num_challs = module.visible_challenges() | length %}
+    {% set num_solved = module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0 %}
     {{ card(
       url_for('pwncollege_dojo.view_dojo_path', dojo=dojo_id, path=module.id),
       title=module.name or module.id,
@@ -104,7 +106,8 @@
           module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0,
           module.visible_challenges() | length
         )
-      ]
+      ],
+      solve_percent=(num_solved / num_challs) * 100 if num_challs else 0,
     ) }}
     {% endfor %}
   </ul>

@@ -143,6 +143,40 @@ h4 {
 
 .card-body {
   text-align: center;
+  position: relative;
+}
+
+.card-body .progress-bar {
+  background-color: #63c0f5;
+  opacity: 30%;
+  height: 10%;
+  width: 0;
+  margin: 0;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  transition: all 0.2s ease;
+  container: progress-bar / inline-size;
+}
+
+.card-body .progress-bar .progress-bar-text {
+  opacity: 0%;
+  transition: all 0.2s ease;
+}
+
+@container progress-bar (width < 2em) {
+  .progress-bar-text {
+    margin-left: calc(100% + 0.5em);
+  }
+}
+
+.card-small:hover .card-body .progress-bar .progress-bar-text {
+  opacity: 100%;
+}
+
+
+.card-small:hover .card-body .progress-bar {
+  opacity: 100%;
 }
 
 .card-list {
