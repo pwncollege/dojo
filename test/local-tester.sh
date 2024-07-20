@@ -50,7 +50,7 @@ while docker ps -a | grep "$CONTAINER_NAME"; do sleep 1; done
 
 # freaking bad unmount
 sleep 1
-mount | grep $PWD | sed -e "s/.* on //" | sed -e "s/ .*//" | while read ENTRY
+mount | grep $PWD | sed -e "s/.* on //" | sed -e "s/ .*//" | tac | while read ENTRY
 do
 	sudo umount "$ENTRY"
 done
