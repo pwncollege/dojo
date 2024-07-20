@@ -1,3 +1,5 @@
+
+
 function submitChallenge(event) {
     event.preventDefault();
     const item = $(event.currentTarget).closest(".accordion-item");
@@ -180,6 +182,7 @@ function startChallenge(event) {
 
             $(".challenge-active").removeClass("challenge-active");
             item.find(".challenge-name").addClass("challenge-active");
+            setTimeout(() => updateNavbarDropdown(), 1000);
         }
         else {
             var message = "";
@@ -209,6 +212,14 @@ function startChallenge(event) {
         result_message.html("Submission request failed: " + ((error || {}).message || error));
         result_notification.addClass('alert alert-warning alert-dismissable text-center');
     })
+
+console.log(
+    "Start Challenge button clicked",
+    event,
+    challenge,
+    practice
+);
+    event.stopPropagation();
 }
 
 

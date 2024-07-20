@@ -15,6 +15,95 @@
     </button>
     <div class="collapse navbar-collapse" id="base-navbars">
       <ul class="navbar-nav mr-auto">
+
+        <li id="challengeMenuButton" class="d-none nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <i class="fas fa-flag"></i>
+            Control
+          </a>
+          <div id="navbar_dropdown"
+               class="dropdown-menu border-light"
+               aria-labelledby="navbarDropdown"
+               style="background-color: #151515"
+          >
+
+            <div class="nav-link text-nowrap text-center px-4">
+              <a id="dropdown-dojo" class="d-none d-md-inline">
+                Dojo
+              </a>
+              <span class="d-none d-md-inline mx-1">/</span>
+              <a id="dropdown-module" class="d-none d-lg-inline">
+                Module
+              </a>
+              <span class="d-none d-lg-inline mx-1">/</span>
+              <span id="dropdown-challenge">
+                Challenge
+              </span>
+            </div>
+            <div class="dropdown-divider"></div>
+
+            <div class="container-fluid">
+              <div class="row mt-3">
+                <div class="col-md-8 form-group">
+                  <input id="dropdown-challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
+                </div>
+                <div class="col form-group">
+                  <button id="dropdown-challenge-submit" type="submit" class="challenge-submit btn btn-sm btn-outline-secondary float-right w-100 h-100">
+                    Submit
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="container-fluid">
+              <div id="dropdown-controls" class="row pb-2">
+                <div class="notification-row fixed-top">
+                    <div id="result-notification" class="alert alert-dismissable text-center w-100" role="alert" style="display: none;">
+                      <strong id="result-message"></strong>
+                    </div>
+                </div>
+                <div id="previous" class="col overflow-hidden ">
+                  <button id="challenge-start" class="btn btn-dark  text-truncate w-100">
+                    <i class="fas fa-backward"></i>
+                    <span id="dropdown-prev-name" class="d-none d-sm-inline">
+                      Previous
+                    </span>
+                    <span class="d-inline d-sm-none">Previous</span>
+                  </button>
+                  <input id="dojo" type="hidden">
+                  <input id="module" type="hidden">
+                  <input id="challenge" type="hidden">
+                  <input id="challenge-id" type="hidden">
+                </div>
+                <div id="current" class="col-4 col-lg-3 overflow-hidden">
+                  <button id="challenge-start" class="btn btn-dark px-2 text-truncate w-100">
+                    <i class="fas fa-redo-alt"></i>
+                    Restart
+                  </button>
+                  <input id="dojo" type="hidden">
+                  <input id="module" type="hidden">
+                  <input id="challenge" type="hidden">
+                  <input id="challenge-id" type="hidden">
+                </div>
+                <div id="next" class="col overflow-hidden">
+                  <button id="challenge-start" class="btn btn-dark text-truncate w-100">
+                    <i class="fas fa-forward"></i>
+                    <span id="dropdown-next-name" class="d-none d-sm-inline" >
+                      Next
+                    </span>
+                    <span class="d-inline d-sm-none">Next</span>
+                  </button>
+                  <input id="dojo" type="hidden">
+                  <input id="module" type="hidden" value="xx">
+                  <input id="challenge" type="hidden" value="xx">
+                  <input id="challenge-id" type="hidden" value="xx">
+                </div>
+              </div>
+            </div>
+
+
+          </div>
+        </li>
+
         {{ navitem("Dojos", url_for("pwncollege_dojos.listing"), "fa-torii-gate") }}
         {{ navitem("Workspace", url_for("pwncollege_workspace.view_workspace", service="code"), "fa-terminal") }}
         {{ navitem("Desktop", url_for("pwncollege_workspace.view_workspace", service="desktop"), "fa-desktop") }}
