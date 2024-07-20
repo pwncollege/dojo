@@ -31,7 +31,7 @@
           {% if emoji %}{{ emoji }}{% endif %}
         </div>
         {% endif %}
-        {% if text_lines %}<p class="card-text">{% for text in text_lines %}<br>{{ text }}{% endfor %}</p>{% endif %}
+        {% if text_lines %}<p class="card-text">{% for text in text_lines %}{{ text }}<br>{% endfor %}</p>{% endif %}
         {% if custom %}{{ caller() }}{% endif %}
         <div class="progress-bar" style="width:{{solve_percent}}%">
           {% if solve_percent != 0 %}
