@@ -25,11 +25,9 @@ def dojo_stats(dojo):
     }
     containers = docker_client.containers.list(filters=filters, ignore_removed=True)
 
-    # TODO: users and solves query is slow, so we'll just leave it out for now
-    # TODO: we need to index tables for this to be fast
     return {
         "active": len(containers),
-        "users": "-", # int(dojo.solves().group_by(Solves.user_id).count()),
+        "users": int(dojo.solves().group_by(Solves.user_id).count()),
         "challenges": int(len(dojo.challenges)),
-        "solves": "-", # int(dojo.solves().count()),
+        "solves": int(dojo.solves().count()),
     }
