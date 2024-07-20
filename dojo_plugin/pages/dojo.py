@@ -16,7 +16,7 @@ from CTFd.cache import cache
 
 from ..utils import render_markdown
 from ..utils.stats import container_stats, dojo_stats
-from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
+from ..utils.dojo import (dojo_route, get_current_dojo_challenge, get_prev_cur_next_dojo_challenge, dojo_update, dojo_admins_only)
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
 
 dojo = Blueprint("pwncollege_dojo", __name__)
@@ -58,6 +58,55 @@ def view_dojo_path(dojo, path):
         return view_page(dojo, path)
     else:
         abort(404)
+
+
+@dojo.route("/active-module/")
+@dojo.route("/active-module")
+@authed_only
+def active_module():
+    import json
+    user = get_current_user()
+    active = get_current_dojo_challenge()
+    challs = get_prev_cur_next_dojo_challenge()
+    if active:
+    #return a json of the active challenge
+        return {
+            "next_as_json": json.dumps(123),
+            "module_name": active.module.name,
+            "dojo_name": active.dojo.name,
+            "challenge_id": active.challenge_id,
+            "challenge_name": active.name,
+            "c_previous": {
+                "module_name": challs['previous'].module.name ,
+                "module_id": challs['previous'].module.id,
+                "dojo_name": challs['previous'].dojo.name,
+                "dojo_reference_id": challs['previous'].dojo.reference_id,
+                "challenge_id": challs['previous'].challenge_id,
+                "challenge_name": challs['previous'].name,
+                "challenge_reference_id": challs['previous'].id,
+            } if challs['previous'] is not None else {},
+            "c_current": {
+                "module_name": challs['current'].module.name,
+                "module_id": challs['current'].module.id,
+                "dojo_name": challs['current'].dojo.name,
+                "dojo_reference_id": challs['current'].dojo.reference_id,
+                "challenge_id": challs['current'].challenge_id,
+                "challenge_name": challs['current'].name,
+                "challenge_reference_id": challs['current'].id,
+            },
+            "c_next": {
+                "module_name": challs['next'].module.name if challs['next'] else None,
+                "module_id": challs['next'].module.id,
+                "dojo_name": challs['next'].dojo.name,
+                "dojo_reference_id": challs['next'].dojo.reference_id,
+                "challenge_id": challs['next'].challenge_id,
+                "challenge_name": challs['next'].name,
+                "challenge_reference_id": challs['next'].id,
+            } if challs['next'] is not None else {},
+        }
+    return {}
+    #return active.challenge_id or "None"
+
 
 @dojo.route("/dojo/<dojo>")
 @dojo_route
