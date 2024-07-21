@@ -11,11 +11,17 @@
   <p>pwn.college dojos are defined in a git repository. You can use the example repositories listed below, or our <a href="https://github.com/pwncollege/official-dojos">official dojo repositories</a>, for examples on how to build a dojo!</p>
     <ul class="card-list">
       {% for dojo in example_dojos %}
-      {{ card(url_for("pwncollege_dojos.view_dojo", dojo=dojo.reference_id),
+      {% set num_challenges = (dojo.challenges | length) %}
+      {{ card(url_for("pwncollege_dojo.view_dojo", dojo=dojo.reference_id),
       title=dojo.name,
-      text="{} Modules : ".format(dojo.modules | length) + "{} / {}".format(dojo.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0, dojo.challenges | length),
+      text_lines = [
+        "{} Modules".format(dojo.modules | length),
+        "{} Challenges".format(num_challenges),
+      ],
       icon="/themes/dojo_theme/static/img/dojo/{}.svg".format(dojo.award.belt) if (dojo.award.belt and dojo.official) else None,
-      emoji=dojo.award.emoji ) }}
+      emoji=dojo.award.emoji,
+      solve_percent=(((dojo.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0) / num_challenges) * 100) if num_challenges else 0,
+      ) }}
       {% endfor %}
     </ul>
   <p>When you are ready, create your dojo from your repository using the form below!</p>

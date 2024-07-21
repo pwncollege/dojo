@@ -30,6 +30,8 @@ ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
     return re.match(ID_REGEX, s) and ".." not in s
 
+def force_cache_updates():
+    return bool(os.environ.get("CACHE_WARMER"))
 
 def gen_container_name(user):
     return f"user_{user.id}"

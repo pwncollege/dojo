@@ -1,3 +1,4 @@
+import docker
 import hmac
 
 from flask import request, Blueprint, render_template, url_for, abort
@@ -15,17 +16,30 @@ from ..utils.workspace import exec_run
 workspace = Blueprint("pwncollege_workspace", __name__)
 port_names = {
     "challenge": 80,
-    "vscode": 6080,
-    "desktop": 6081,
+    "code": 8080,
+    "desktop": 6080,
     "desktop-windows": 6082,
 }
-ondemand_services = { "vscode", "desktop", "desktop-windows" }
+on_demand_services = { "code", "desktop", "desktop-windows" }
 
 def container_password(container, *args):
     key = container.labels["dojo.auth_token"].encode()
     message = "-".join(args).encode()
     return hmac.HMAC(key, message, "sha256").hexdigest()
 
+def start_on_demand_service(user, service_name):
+    if service_name not in on_demand_services:
+        return
+    try:
+        exec_run(
+            f"/run/current-system/sw/bin/dojo-{service_name}",
+            workspace_user="hacker",
+            user_id=user.id,
+            assert_success=True,
+        )
+    except docker.errors.NotFound:
+        return False
+    return True
 
 @workspace.route("/workspace/desktop")
 @authed_only
@@ -40,12 +54,6 @@ def view_desktop():
     container = get_current_container(user)
     if not container:
         return render_template("iframe.html", active=False)
-
-    exec_run(
-        "/opt/pwn.college/services.d/desktop",
-        workspace_user="hacker", user_id=user.id, shell=True,
-        assert_success=True
-    )
 
     interact_password = container_password(container, "desktop", "interact")
     view_password = container_password(container, "desktop", "view")
@@ -63,7 +71,7 @@ def view_desktop():
     vnc_params = {
         "autoconnect": 1,
         "reconnect": 1,
-        "reconnect_delay": 10,
+        "reconnect_delay": 200,
         "resize": "remote",
         "path": url_for("pwncollege_workspace.forward_workspace", service=service, service_path="websockify"),
         "view_only": int(view_only),
@@ -76,19 +84,23 @@ def view_desktop():
         "Desktop (View)": url_for("pwncollege_workspace.view_desktop", user=user.id, password=view_password, _external=True),
     }
 
+    if start_on_demand_service(user, "desktop") is False:
+        return render_template("iframe.html", active=False)
+
     return render_template("iframe.html",
                            iframe_name="workspace",
                            iframe_src=iframe_src,
                            share_urls=share_urls,
                            active=True)
 
-
 @workspace.route("/workspace/<service>")
 @authed_only
 def view_workspace(service):
+    user = get_current_user()
     active = bool(get_current_dojo_challenge())
+    if start_on_demand_service(user, service) is False:
+        return render_template("iframe.html", active=False)
     return render_template("iframe.html", iframe_name="workspace", iframe_src=f"/workspace/{service}/", active=active)
-
 
 @workspace.route("/workspace/<service>/", websocket=True)
 @workspace.route("/workspace/<service>/<path:service_path>", websocket=True)
@@ -102,25 +114,18 @@ def forward_workspace(service, service_path=""):
     service_path = request.full_path[len(prefix):]
 
     if service.count("~") == 0:
-        port = service
+        service_name = service
         try:
             user = get_current_user()
-            port = int(port_names.get(port, port))
+            port = int(port_names.get(service_name, service_name))
         except ValueError:
             abort(404)
 
-        if service in ondemand_services:
-            exec_run(
-                f"/opt/pwn.college/services.d/{service}",
-                workspace_user="hacker", user_id=user.id, shell=True,
-                assert_success=True
-            )
-
     elif service.count("~") == 1:
-        port, user_id = service.split("~", 1)
+        service_name, user_id = service.split("~", 1)
         try:
             user = Users.query.filter_by(id=int(user_id)).first_or_404()
-            port = int(port_names.get(port, port))
+            port = int(port_names.get(service_name, service_name))
         except ValueError:
             abort(404)
 
@@ -133,10 +138,9 @@ def forward_workspace(service, service_path=""):
 
     elif service.count("~") == 2:
         service_name, user_id, access_code = service.split("~", 2)
-        port = service_name
         try:
             user = Users.query.filter_by(id=int(user_id)).first_or_404()
-            port = int(port_names.get(port, port))
+            port = int(port_names.get(service_name, service_name))
         except ValueError:
             abort(404)
 

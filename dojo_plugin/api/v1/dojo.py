@@ -48,6 +48,8 @@ def create_dojo(user, repository, public_key, private_key, spec):
             assert is_admin(), "Must be an admin user to create dojos from spec rather than repositories"
             dojo_dir = dojo_yml_dir(spec)
             repository, public_key, private_key = None, None, None
+        else:
+            raise AssertionError("Repository is required")
 
         dojo_path = pathlib.Path(dojo_dir.name)
 

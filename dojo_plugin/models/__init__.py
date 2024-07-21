@@ -181,6 +181,10 @@ class Dojos(db.Model):
             deferred=True)
 
     @property
+    def solves_code(self):
+        return hashlib.md5(self.private_key.encode() + b"SOLVES").hexdigest()
+
+    @property
     def path(self):
         if hasattr(self, "_path"):
             return self._path

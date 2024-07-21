@@ -39,11 +39,11 @@ def get_bot_join_server_url():
     return url
 
 
-def discord_avatar_asset(discord_user):
-    if not discord_user:
+def discord_avatar_asset(discord_member):
+    if not discord_member:
         return url_for("views.themes", path="img/dojo/discord_logo.svg")
-    discord_id = discord_user["user"]["id"]
-    discord_avatar = discord_user["user"]["avatar"]
+    discord_id = discord_member["user"]["id"]
+    discord_avatar = discord_member["user"]["avatar"]
     return f"https://cdn.discordapp.com/avatars/{discord_id}/{discord_avatar}.png"
 
 
@@ -70,19 +70,19 @@ def get_discord_id(auth_code):
 
 
 @cache.memoize(timeout=3600)
-def get_discord_user(user_id):
+def get_discord_member(user_id):
     if not DISCORD_BOT_TOKEN:
         return
 
     discord_user = DiscordUsers.query.filter_by(user_id=user_id).first()
     if not discord_user:
-        return False
+        return None
     try:
         result = guild_request(f"/members/{discord_user.discord_id}")
     except requests.exceptions.RequestException:
-        return None
+        return False
     if result.get("message") == "Unknown Member":
-        return None
+        return False
     return result
 
 

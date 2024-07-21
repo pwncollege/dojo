@@ -27,7 +27,7 @@ FROM ubuntu:${UBUNTU_VERSION} as essentials
 
 SHELL ["/bin/bash", "-ceov", "pipefail"]
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 ENV LC_CTYPE=C.UTF-8
 
 RUN <<EOF
@@ -79,6 +79,10 @@ RUN <<EOF
     gcc /opt/pwn.college/setuid_interpreter.c -DSUID_SH -o /opt/pwn.college/sh
 
     ln -sf /bin/bash /opt/pwn.college/ssh-entrypoint
+    
+    ln -sf /opt/pwn.college/python /usr/local/bin/python-setuid
+    ln -sf /opt/pwn.college/bash /usr/local/bin/bash-setuid
+    ln -sf /opt/pwn.college/sh /usr/local/bin/sh-setuid
     ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
     ln -sf /opt/pwn.college/windows/windows /usr/local/bin/windows
 
@@ -229,10 +233,12 @@ RUN awk '{$1=$1};1' >> /opt/linux/linux-5.4/.config <<EOF
     CONFIG_DEBUG_INFO_SPLIT=n
     CONFIG_DEVPTS_FS=y
     CONFIG_DRM_VIRTIO_GPU=y
-    CONFIG_FRAME_POINTER=y
+    CONFIG_FRAME_POINTER=y    
     CONFIG_GDB_SCRIPTS=y
     CONFIG_HW_RANDOM_VIRTIO=y
     CONFIG_HYPERVISOR_GUEST=y
+    CONFIG_IKCONFIG=y
+    CONFIG_IKCONFIG_PROC=y
     CONFIG_NET_9P=y
     CONFIG_NET_9P_DEBUG=n
     CONFIG_NET_9P_VIRTIO=y
@@ -262,17 +268,6 @@ FROM builder-kernel-${INSTALL_KERNEL} as builder-kernel
 
 FROM scratch as builder-gdb-no
 FROM builder as builder-gdb-yes
-
-RUN <<EOF
-    mkdir /opt/gdb
-    wget -O - https://ftp.gnu.org/gnu/gdb/gdb-11.1.tar.gz | tar xzC /opt/gdb
-    cd /opt/gdb/gdb-11.1
-    mkdir build
-    cd build
-    ../configure --prefix=/usr --with-python=/usr/bin/python3
-    make -j$(nproc)
-    make install
-EOF
 
 RUN <<EOF
     git clone --depth 1 --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
@@ -518,6 +513,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         iproute2
         iputils-ping
         ipython3
+        john
         jq
         keyutils
         kmod
@@ -542,6 +538,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         php-mysql
         psutils
         python3-ipdb
+        sagemath
         qemu-system-x86
         qemu-user
         qemu-utils
@@ -719,9 +716,9 @@ COPY --link --from=builder-desktop-ida-free / /
 COPY --link --from=builder-desktop-binja-free / /
 COPY --link --from=builder-desktop-ghidra / /
 COPY --link --from=builder-desktop-angr-management / /
-COPY --link --from=builder-gdb / /
 COPY --link --from=builder-tools-pip / /
 COPY --link --from=builder-tools-apt / /
+COPY --link --from=builder-gdb / /
 COPY --link --from=builder-windows / /
 
 RUN <<EOF
@@ -744,6 +741,7 @@ RUN <<EOF
     passwd -d hacker
 
     echo -e '\n[ "$UID" -eq 1000 ] && . /opt/pwn.college/bash.bashrc' >> /etc/bash.bashrc
+    ln -s /etc/bash.bashrc /etc/bashrc
 
     find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
 

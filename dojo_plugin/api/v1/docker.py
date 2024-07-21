@@ -137,54 +137,85 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
         ]
     )[:64]
 
+    auth_token = os.urandom(32).hex()
+
+    challenge_bin_path = "/run/challenge/bin"
+    system_bin_path = "/run/current-system/sw/bin"
+    image = docker_client.images.get(dojo_challenge.image)
+    environment = image.attrs["Config"].get("Env") or []
+    for env_var in environment:
+        if env_var.startswith("PATH="):
+            env_paths = env_var[len("PATH="):].split(":")
+            env_paths = [challenge_bin_path, system_bin_path, *env_paths]
+            break
+    else:
+        env_paths = [system_bin_path]
+    env_path = ":".join(env_paths)
+
     devices = []
     if os.path.exists("/dev/kvm"):
         devices.append("/dev/kvm:/dev/kvm:rwm")
     if os.path.exists("/dev/net/tun"):
         devices.append("/dev/net/tun:/dev/net/tun:rwm")
 
-    container = docker_client.containers.create(
-        dojo_challenge.image,
-        entrypoint=["/bin/sleep", "6h"],
-        name=container_name,
-        hostname=hostname,
-        user="hacker",
-        working_dir="/home/hacker",
-        labels={
-            "dojo.dojo_id": dojo_challenge.dojo.reference_id,
-            "dojo.module_id": dojo_challenge.module.id,
-            "dojo.challenge_id": dojo_challenge.id,
-            "dojo.challenge_description": dojo_challenge.description,
-            "dojo.user_id": str(user.id),
-            "dojo.as_user_id": str(as_user.id),
-            "dojo.mode": "privileged" if practice else "standard",
-            "dojo.auth_token": os.urandom(32).hex(),
-        },
-        mounts=[
-            docker.types.Mount(str(target), str(source), "bind", propagation="shared")
-            for target, source in mounts
-        ],
-        devices=devices,
-        network=None,
-        extra_hosts={
-            hostname: "127.0.0.1",
-            "vm": "127.0.0.1",
-            f"vm_{hostname}"[:64]: "127.0.0.1",
-            "challenge.localhost": "127.0.0.1",
-            "hacker.localhost": "127.0.0.1",
-            "dojo-user": user_ipv4(user),
-            **USER_FIREWALL_ALLOWED,
-        },
-        init=True,
-        cap_add=["SYS_PTRACE"],
-        security_opt=[f"seccomp={SECCOMP}"],
-        cpu_period=100000,
-        cpu_quota=400000,
-        pids_limit=1024,
-        mem_limit="4G",
-        detach=True,
-        auto_remove=True,
-    )
+        storage_driver = docker_client.info().get("Driver")
+
+        container = docker_client.containers.create(
+            dojo_challenge.image,
+            entrypoint=["/nix/var/nix/profiles/default/bin/dojo-init", f"{system_bin_path}/sleep", "6h"],
+            name=f"user_{user.id}",
+            hostname=container_name,
+            user="0",
+            working_dir="/home/hacker",
+            environment={
+                "HOME": "/home/hacker",
+                "PATH": env_path,
+                "SHELL": f"{system_bin_path}/bash",
+                "DOJO_AUTH_TOKEN": auth_token,
+                "DOJO_MODE": "privileged" if practice else "standard",
+            },
+            labels={
+                "dojo.dojo_id": dojo_challenge.dojo.reference_id,
+                "dojo.module_id": dojo_challenge.module.id,
+                "dojo.challenge_id": dojo_challenge.id,
+                "dojo.challenge_description": dojo_challenge.description,
+                "dojo.user_id": str(user.id),
+                "dojo.as_user_id": str(as_user.id),
+                "dojo.auth_token": auth_token,
+                "dojo.mode": "privileged" if practice else "standard",
+            },
+            mounts=[
+                docker.types.Mount(
+                    "/nix",
+                    f"{HOST_DATA_PATH}/workspace/nix",
+                    "bind",
+                    read_only=True,
+                ),
+            ] + [docker.types.Mount(str(target), str(source), "bind", propagation="shared")
+                for target, source in mounts
+            ],
+            devices=devices,
+            network=None,
+            extra_hosts={
+                hostname: "127.0.0.1",
+                "vm": "127.0.0.1",
+                f"vm_{hostname}"[:64]: "127.0.0.1",
+                "challenge.localhost": "127.0.0.1",
+                "hacker.localhost": "127.0.0.1",
+                "dojo-user": user_ipv4(user),
+                **USER_FIREWALL_ALLOWED,
+            },
+            init=True,
+            cap_add=["SYS_PTRACE"],
+            security_opt=[f"seccomp={SECCOMP}"],
+            cpu_period=100000,
+            cpu_quota=400000,
+            pids_limit=1024,
+            mem_limit="4G",
+            detach=True,
+            stdin_open=True,
+            auto_remove=True,
+        )
 
     user_network = docker_client.networks.get("user_network")
     user_network.connect(
@@ -204,7 +235,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
 
 def expect_homedir_mount_info(container, path):
     exit_code, output = exec_run(
-        f"findmnt --output OPTIONS {path}", container=container, assert_success=False
+        f"/run/current-system/sw/bin/findmnt --output OPTIONS {path}", container=container, assert_success=False
     )
     if exit_code != 0:
         container.kill()
@@ -224,6 +255,8 @@ def insert_challenge(container, as_user, dojo_challenge):
     def is_option_path(path):
         path = pathlib.Path(*path.parts[: len(dojo_challenge.path.parts) + 1])
         return path.name.startswith("_") and path.is_dir()
+
+    exec_run("/run/current-system/sw/bin/mkdir -p /challenge", container=container)
 
     root_dir = dojo_challenge.path.parent.parent
     challenge_tar = resolved_tar(
@@ -246,8 +279,8 @@ def insert_challenge(container, as_user, dojo_challenge):
         ]
         container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
-    exec_run("chown -R root:root /challenge", container=container)
-    exec_run("chmod -R 4755 /challenge", container=container)
+    exec_run("/run/current-system/sw/bin/chown -R root:root /challenge", container=container)
+    exec_run("/run/current-system/sw/bin/chmod -R 4755 /challenge", container=container)
 
 
 def grant_sudo(container):
@@ -264,7 +297,10 @@ def grant_sudo(container):
 
 
 def insert_flag(container, flag):
-    exec_run(f"echo 'pwn.college{{{flag}}}' > /flag", container=container, shell=True)
+    flag = f"pwn.college{{{flag}}}"
+    socket = container.attach_socket(params=dict(stdin=1, stream=1))
+    socket._sock.sendall(flag.encode() + b"\n")
+    socket.close()
 
 
 def insert_auth_token(container, auth_token):

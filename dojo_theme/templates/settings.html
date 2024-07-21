@@ -134,9 +134,9 @@
         {% if discord_enabled %}
         <div class="tab-pane fade" id="discord" role="tabpanel">
           <div class="text-center">
-            <img src="{{ discord_avatar_asset(discord_user) }}" class="discord-avatar">
-            {% if discord_user %}
-              <h2>{{ discord_user["user"]["username"] }}</h2>
+            <img src="{{ discord_avatar_asset(discord_member) }}" class="discord-avatar">
+            {% if discord_member %}
+              <h2>{{ discord_member["user"]["username"] }}</h2>
               <br>
               <form method="post" id="discord-form" autocomplete="off">
                 <div class="form-group">

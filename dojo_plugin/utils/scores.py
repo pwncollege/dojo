@@ -2,7 +2,7 @@ from sqlalchemy.sql import or_
 from CTFd.models import Solves, db
 from CTFd.cache import cache
 from ..models import Dojos, DojoChallenges
-
+from . import force_cache_updates
 
 def scores_query(granularity, dojo_filter):
     solve_count = db.func.count(Solves.id).label("solve_count")
@@ -17,7 +17,7 @@ def scores_query(granularity, dojo_filter):
 
     return dsc_query
 
-@cache.memoize(timeout=1200)
+@cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def dojo_scores():
     dsc_query = scores_query([Dojos.id], or_(Dojos.data["type"] == "public", Dojos.official))
 
@@ -35,7 +35,7 @@ def dojo_scores():
         "dojo_ranks": dojo_ranks
     }
 
-@cache.memoize(timeout=1200)
+@cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def module_scores():
     dsc_query = scores_query([Dojos.id, DojoChallenges.module_index], or_(Dojos.data["type"] == "public", Dojos.official))
 

@@ -76,7 +76,7 @@ function renderSubmissionResponse(response, item) {
         unsolved_flag.addClass("challenge-solved");
 
         total_solves.text(
-            (parseInt(total_solves.text().split(" ")[0]) + 1) + " solves"
+            (parseInt(total_solves.text().trim().split(" ")[0]) + 1) + " solves"
         );
 
         answer_input.val("");
@@ -174,7 +174,7 @@ function startChallenge(event) {
         result_notification.removeClass();
 
         if (result.success) {
-            var message = `Challenge successfully started! You can interact with it through a <a href="/workspace/vscode">VSCode Workspace</a> or a <a href="/workspace/desktop">GUI Desktop</a>.`;
+            var message = `Challenge successfully started! You can interact with it through a <a href="/workspace/code">VSCode Workspace</a> or a <a href="/workspace/desktop">GUI Desktop Workspace</a>.`;
             result_message.html(message);
             result_notification.addClass('alert alert-info alert-dismissable text-center');
 
@@ -203,7 +203,12 @@ function startChallenge(event) {
             item.find("#challenge-submit").removeClass("disabled-button");
             item.find("#challenge-submit").prop("disabled", false);
         }, 10000);
-    });
+    }).catch(function (error) {
+        console.error(error);
+        var result_message = item.find('#result-message');
+        result_message.html("Submission request failed: " + ((error || {}).message || error));
+        result_notification.addClass('alert alert-warning alert-dismissable text-center');
+    })
 }
 
 
