@@ -1,3 +1,6 @@
+import os
+os.environ["CACHE_WARMER"] = "1"
+
 from ..utils import scores
 ds = scores.dojo_scores()
 ms = scores.module_scores()

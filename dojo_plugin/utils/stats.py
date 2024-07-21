@@ -3,7 +3,9 @@ import docker
 from CTFd.cache import cache
 from CTFd.models import Users, Solves
 
-@cache.memoize(timeout=60)
+from . import force_cache_updates
+
+@cache.memoize(timeout=120, forced_update=force_cache_updates)
 def container_stats():
     user_containers = docker.from_env().containers.list(filters={
         "name": "user_",
@@ -16,7 +18,7 @@ def container_stats():
             'challenge': c.labels['dojo.challenge_id']
     } for c in user_containers if not Users.query.where(Users.id==int(c.name.split("_")[-1])).one().hidden ]
 
-@cache.memoize(timeout=60)
+@cache.memoize(timeout=120, forced_update=force_cache_updates)
 def dojo_stats(dojo):
     docker_client = docker.from_env()
     filters = {
