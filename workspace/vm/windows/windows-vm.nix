@@ -24,6 +24,7 @@ stdenv.mkDerivation {
     qemu-img create -f qcow2 $out/img.qcow2 51200M
 
     # install
+    printf "Installing windows and tools...\n"
     qemu-system-x86_64 \
       -name dojo \
       -boot once=d \
@@ -45,6 +46,7 @@ stdenv.mkDerivation {
       -drive "file=$out/img.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2,index=3"
     
     # perform initial bootup (in background)
+    printf "Performing initial bootup...\n"
     qemu-system-x86_64 \
       -name dojo \
       -boot once=d \
@@ -67,11 +69,12 @@ stdenv.mkDerivation {
     qemu_pid="$!"
     
     # wait for SSH to open
+    printf "Waiting for SSH to open..."
     CON="NOPE"
     while [[ $CON != *"SSH"* ]]; do
-      CON=$(${netcat-openbsd}/bin/nc -w10 127.0.0.1 2222)
-      echo $CON
+      CON="$(timeout 10 ${netcat-openbsd}/bin/nc -w10 127.0.0.1 2222 || true)"
     done
+    echo "SSH is up! Finalizing..."
 
     cd $src
     scp -o "StrictHostKeyChecking=no" -P2222 ./post_install.ps1 hacker@127.0.0.1:
@@ -80,6 +83,7 @@ stdenv.mkDerivation {
     ssh -o "StrictHostKeyChecking=no" -p2222 hacker@127.0.0.1 -- ./post_install.ps1
 
     # wait for post_install.ps1 to shut the machine down
+    echo "Waiting for qemu process to exit..."
     wait "$qemu_pid"
 
     runHook postBuild
