@@ -472,33 +472,6 @@ def get_current_dojo_challenge(user=None):
         .first()
     )
 
-def get_next_dojo_challenge(user=None):
-    container = get_current_container(user)
-    if not container:
-        return None
-
-    return (
-        DojoChallenges.query
-        .filter(DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
-                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first(),
-                DojoChallenges.id > container.labels.get("dojo.challenge_id"))
-        .order_by(DojoChallenges.id.asc())
-        .first()
-    )
-
-def get_previous_dojo_challenge(user=None):
-    container = get_current_container(user)
-    if not container:
-        return None
-
-    return (
-        DojoChallenges.query
-        .filter(DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
-                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first(),
-                DojoChallenges.id < container.labels.get("dojo.challenge_id"))
-        .order_by(DojoChallenges.id.desc())
-        .first()
-    )
 
 def get_prev_cur_next_dojo_challenge(user=None):
     container = get_current_container(user)

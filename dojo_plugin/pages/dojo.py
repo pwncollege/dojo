@@ -71,11 +71,6 @@ def active_module():
     if active:
     #return a json of the active challenge
         return {
-            "next_as_json": json.dumps(123),
-            "module_name": active.module.name,
-            "dojo_name": active.dojo.name,
-            "challenge_id": active.challenge_id,
-            "challenge_name": active.name,
             "c_previous": {
                 "module_name": challs['previous'].module.name ,
                 "module_id": challs['previous'].module.id,
@@ -105,7 +100,6 @@ def active_module():
             } if challs['next'] is not None else {},
         }
     return {}
-    #return active.challenge_id or "None"
 
 
 @dojo.route("/dojo/<dojo>")
