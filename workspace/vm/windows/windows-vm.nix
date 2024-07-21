@@ -8,6 +8,8 @@ in
 stdenv.mkDerivation {
   name = "windows-vm";
 
+  src = lib.cleanSource ./postinst-files;
+
   # qemu_test only supports host CPU and has a more minimal feature set that allows us
   #  to avoid pulling in the desktop software kitchen sink.
   nativeBuildInputs = [ qemu_test openssh ];
@@ -71,9 +73,10 @@ stdenv.mkDerivation {
       echo $CON
     done
 
-    scp -o "StrictHostKeyChecking=no" -P2222 ${./post_install.ps1} hacker@127.0.0.1:
-    scp -o "StrictHostKeyChecking=no" -P2222 ${./startup.ps1} "hacker@127.0.0.1:\"C:/Program Files/Common Files/\""
-    scp -o "StrictHostKeyChecking=no" -P2222 ${./challenge-proxy.c} "hacker@127.0.0.1:\"C:/Program Files/Common Files/\""
+    cd $src
+    scp -o "StrictHostKeyChecking=no" -P2222 ./post_install.ps1 hacker@127.0.0.1:
+    scp -o "StrictHostKeyChecking=no" -P2222 ./startup.ps1 "hacker@127.0.0.1:C:/Program Files/Common Files/"
+    scp -o "StrictHostKeyChecking=no" -P2222 ./challenge-proxy.c "hacker@127.0.0.1:C:/Program Files/Common Files/"
     ssh -o "StrictHostKeyChecking=no" -p2222 hacker@127.0.0.1 -- ./post_install.ps1
 
     # wait for post_install.ps1 to shut the machine down
