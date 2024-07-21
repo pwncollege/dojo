@@ -142,13 +142,9 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
     challenge_bin_path = "/run/challenge/bin"
     system_bin_path = "/run/current-system/sw/bin"
     image = docker_client.images.get(dojo_challenge.image)
-    environment = image.attrs["Config"].get("Env") or []
-    env_paths = []
-    for env_var in environment:
-        if env_var.startswith("PATH="):
-            env_paths = env_var[len("PATH="):].split(":")
-            break
-    env_path = ":".join([challenge_bin_path, system_bin_path, *env_paths])
+    image_env = image.attrs["Config"].get("Env") or []
+    image_path = next((env_var[len("PATH="):].split(":") for env_var in image_env if env_var.startswith("PATH=")), [])
+    env_path = ":".join([challenge_bin_path, system_bin_path, *image_path])
 
     devices = []
     if os.path.exists("/dev/kvm"):
