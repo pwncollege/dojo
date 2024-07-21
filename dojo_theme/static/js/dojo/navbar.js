@@ -1,7 +1,7 @@
 async function fetch_current_module() {
     const response = await fetch('/active-module/');
     const data = await response.json();
-    if (data.challenge_id) {
+    if (data.c_current.challenge_id) {
         $("#challengeMenuButton").removeClass("d-none");
     }
     else {
@@ -72,6 +72,18 @@ async function updateNavbarDropdown() {
     $("#dropdown-challenge").text(data.c_current.challenge_name);
 
     //Dropdown Down
+    if ("dojo_name" in data.c_previous) {
+        $("#previous").removeClass("invisible");
+    }
+    else {
+        $("#previous").addClass("invisible");
+    }
+    if ("dojo_name" in data.c_next) {
+        $("#next").removeClass("invisible");
+    }
+    else {
+        $("#next").addClass("invisible");
+    }
     $("#dropdown-prev-name").text(data.c_previous.challenge_name);
     $("#previous #dojo").val(data.c_previous.dojo_reference_id);
     $("#previous #module").val(data.c_previous.module_id);
@@ -228,22 +240,6 @@ $(() => {
       .removeClass("navbar-hidden");
     $("main").removeClass("main-navbar-hidden");
     $(".navbar-pulldown").removeClass("navbar-pulldown-shown");
-  });
-  $("#SubmitFlagButton").on("click", async () => {
-      const active_module_data = await fetch_current_module();
-      const submission = prompt(`${active_module_data.dojo_name}\n` +
-      `${active_module_data.module_name} => ` +
-          `${active_module_data.challenge_name}\n` +
-          `Please enter the flag to submit:`, 'Flag...'
-      );
-      const body = {
-          'challenge_id': active_module_data.challenge_id,
-          'submission': submission,
-      }
-      const result = await CTFd.api.post_challenge_attempt({}, body).then( (resp) => { return resp.data })
-
-      console.log('Submit Flag result', result);
-      console.log('Submit Flag button clicked', submission);
   });
     $("#previous").find("#challenge-start").click(DropdownStartChallenge);
     $("#current").find("#challenge-start").click(DropdownStartChallenge);
