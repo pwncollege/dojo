@@ -145,7 +145,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
     environment = image.attrs["Config"].get("Env") or []
     for env_var in environment:
         if env_var.startswith("PATH="):
-            env_paths = env_var[len("PATH="):].split(":")
+            env_paths = env_var[len("PATH=") :].split(":")
             env_paths = [challenge_bin_path, system_bin_path, *env_paths]
             break
     else:
@@ -162,7 +162,11 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
 
         container = docker_client.containers.create(
             dojo_challenge.image,
-            entrypoint=["/nix/var/nix/profiles/default/bin/dojo-init", f"{system_bin_path}/sleep", "6h"],
+            entrypoint=[
+                "/nix/var/nix/profiles/default/bin/dojo-init",
+                f"{system_bin_path}/sleep",
+                "6h",
+            ],
             name=f"user_{user.id}",
             hostname=container_name,
             user="0",
@@ -191,7 +195,11 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
                     "bind",
                     read_only=True,
                 ),
-            ] + [docker.types.Mount(str(target), str(source), "bind", propagation="shared")
+            ]
+            + [
+                docker.types.Mount(
+                    str(target), str(source), "bind", propagation="shared"
+                )
                 for target, source in mounts
             ],
             devices=devices,
@@ -235,7 +243,9 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
 
 def expect_homedir_mount_info(container, path):
     exit_code, output = exec_run(
-        f"/run/current-system/sw/bin/findmnt --output OPTIONS {path}", container=container, assert_success=False
+        f"/run/current-system/sw/bin/findmnt --output OPTIONS {path}",
+        container=container,
+        assert_success=False,
     )
     if exit_code != 0:
         container.kill()
@@ -279,7 +289,9 @@ def insert_challenge(container, as_user, dojo_challenge):
         ]
         container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
-    exec_run("/run/current-system/sw/bin/chown -R root:root /challenge", container=container)
+    exec_run(
+        "/run/current-system/sw/bin/chown -R root:root /challenge", container=container
+    )
     exec_run("/run/current-system/sw/bin/chmod -R 4755 /challenge", container=container)
 
 
