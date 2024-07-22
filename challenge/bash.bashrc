@@ -23,7 +23,7 @@ if [[ "$AVAILABLE_M" -lt 512 ]]; then
     echo ''
     echo 'Filling your home directory completely could cause you to lose access to the workspace and/or desktop.'
     echo 'You can view a list of the largest files and directories using the command:'
-    echo '  du -sh /home/hacker/* | sort -h'
+    echo '  du -sh /home/hacker/{*,.*} | sort -h'
 fi
 
 export LANG=C.UTF-8
