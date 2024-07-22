@@ -270,7 +270,7 @@ class Dojos(db.Model):
         dojo_admin = DojoAdmins.query.filter_by(dojo=self, user=user).first()
         return dojo_admin is not None or is_admin()
 
-    __repr__ = columns_repr(["name", "id"])
+    __repr__ = columns_repr(["name", "reference_id"])
 
 
 class DojoUsers(db.Model):
