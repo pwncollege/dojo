@@ -99,7 +99,7 @@ function DropdownStartChallenge(event) {
         result_notification.removeClass();
 
         if (result.success) {
-            let message = `Challenge successfully started! You can interact with it through a <a href="/workspace/vscode">VSCode Workspace</a> or a <a href="/workspace/desktop">GUI Desktop</a>.`;
+            let message = `Challenge successfully started! You can interact with it through a <a href="/workspace/code" target="dojo_workspace">VSCode Workspace</a> or a <a href="/workspace/desktop">GUI Desktop</a>.`;
             result_message.html(message);
             result_notification.addClass('alert alert-info alert-dismissable text-center');
             await updateNavbarDropdown();
