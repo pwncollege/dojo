@@ -15,9 +15,8 @@ DOCKER_ARGS=${DOCKER_ARGS:--i}
 
 CONTAINER_WITH_MYSQL=db
 
-DOJO_DIR=/opt/pwn.college
-if [ -f $DOJO_DIR/data/config.env ]; then
-    . $DOJO_DIR/data/config.env
+if [ -f /data/config.env ]; then
+    . /data/config.env
 fi
 
 case "$ACTION" in
