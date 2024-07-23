@@ -43,6 +43,23 @@
           util-linux
           wget
           which
+          (lib.hiPrio (pkgs.writeShellScriptBin "ldd" ''
+            #!${pkgs.runtimeShell}
+            ldd=/usr/bin/ldd
+
+            for arg in "$@"; do
+              case "$arg" in
+                -*) ;;
+                *)
+                  case "$(readlink -f "$arg")" in
+                    /nix/store/*) ldd="${pkgs.glibc.bin}/bin/ldd" ;;
+                  esac
+                  ;;
+              esac
+            done
+
+            exec "$ldd" "$@"
+          ''))
 
           init
           ssh-entrypoint
