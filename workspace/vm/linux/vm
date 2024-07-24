@@ -104,7 +104,7 @@ def start():
     qemu_argv = [
         QEMU_SYSTEM_X86_PATH,
         "-kernel", bzImage,
-        "-cpu", f"{cpu}",
+        "-cpu", f"{cpu},smep,smap",
         "-fsdev", "local,id=rootfs,path=/,security_model=passthrough",
         "-device", "virtio-9p-pci,fsdev=rootfs,mount_tag=/dev/root",
         "-fsdev", "local,id=homefs,path=/home/hacker,security_model=passthrough",
@@ -112,13 +112,10 @@ def start():
         "-device", "e1000,netdev=net0",
         "-netdev", "user,id=net0,hostfwd=tcp::22-:22",
         "-m", "2G",
-        "-serial", "none",
         "-smp", "2" if kvm else "1",
         "-nographic",
-        "-monitor", "stdio",
-        "-D", "/run/vm.log",
-        "-d", "guest_errors",
-        "-append", f"console=tty0 console=ttyS0 rw rootfstype=9p rootflags=trans=virtio {flags}",
+        "-monitor", "none",
+        "-append", f"rw rootfstype=9p rootflags=trans=virtio console=ttyS0 init=@initrd@ {flags}",
     ]
     if kvm:
         qemu_argv.append("-enable-kvm")
@@ -136,7 +133,7 @@ def start():
     subprocess.run(argv,
                    # stdin=subprocess.DEVNULL, Not needed due to service command
                    # stdout=open("/run/vm/vm.log", "a"),
-                   stderr=subprocess.STDOUT,
+                   # stderr=subprocess.STDOUT,
                    check=True)
 
 
