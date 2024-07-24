@@ -12,6 +12,7 @@ from CTFd.utils.decorators import authed_only
 from ..models import DiscordUsers
 from ..config import DISCORD_CLIENT_ID
 from ..utils.discord import OAUTH_ENDPOINT, get_discord_id, get_discord_member, add_role
+from ..utils.awards import update_awards
 
 
 discord = Blueprint("discord", __name__)
@@ -49,7 +50,8 @@ def discord_redirect():
 
     try:
         redirect_user_id = discord_oauth_serializer.loads(state, max_age=60)
-        user_id = get_current_user().id
+        user = get_current_user()
+        user_id = user.id
         assert user_id == redirect_user_id, (user_id, redirect_user_id)
         discord_id = get_discord_id(code)
     except Exception as e:
@@ -67,6 +69,7 @@ def discord_redirect():
         cache.delete_memoized(get_discord_member, user_id)
         if get_discord_member(user_id):
             add_role(discord_id, "White Belt")
+            update_awards(user)
     except IntegrityError:
         db.session.rollback()
         return {"success": False, "error": "Discord user already in use"}, 400
