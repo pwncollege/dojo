@@ -7,6 +7,8 @@ let
     flask
     pwntools
   ]);
+
+  linux-vm = import ../vm/linux/linux.nix { inherit pkgs service; };
 in
 {
   packages = with pkgs; [
@@ -25,5 +27,8 @@ in
     wireshark
     nmap
     tcpdump
+
+    linux-vm
+    linux-vm.packages
   ];
 }
