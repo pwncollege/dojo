@@ -26,7 +26,9 @@ let
     echo "root:x:0:0:root:/root:$DEFAULT_PROFILE/bin/bash" >> /etc/passwd
     echo "hacker:x:1000:1000:hacker:/home/hacker:$DEFAULT_PROFILE/bin/bash" >> /etc/passwd
     echo "root:x:0:" >> /etc/group
-    echo "hacker:x:1000:" >> /etc/group
+    echo "sshd:!:33:" >> /etc/group
+    echo "sshd:x:71:65:SSH daemon:/var/lib/empty:/bin/false" >> /etc/passwd
+
 
     mkdir -pm 1777 /run/dojo /tmp
     echo $DOJO_AUTH_TOKEN > /run/dojo/auth_token
