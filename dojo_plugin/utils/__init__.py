@@ -30,10 +30,12 @@ ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
     return re.match(ID_REGEX, s) and ".." not in s
 
+
 def force_cache_updates():
     return bool(os.environ.get("CACHE_WARMER"))
 
-def gen_container_name(user):
+
+def container_name(user):
     return f"user_{user.id}"
 
 
@@ -45,7 +47,7 @@ def get_current_container(user=None):
     docker_client = docker.from_env()
 
     try:
-        return docker_client.containers.get(gen_container_name(user))
+        return docker_client.containers.get(container_name(user))
     except docker.errors.NotFound:
         return None
 
@@ -104,7 +106,7 @@ def redirect_internal(redirect_uri, auth=None):
 
 def redirect_user_socket(user, port, url_path):
     assert user is not None
-    return redirect_internal(f"http://{gen_container_name(user)}:{port}/{url_path}")
+    return redirect_internal(f"http://{container_name(user)}:{port}/{url_path}")
 
 
 def render_markdown(s):

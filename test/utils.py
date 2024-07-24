@@ -53,7 +53,7 @@ def create_dojo_yml(spec, *, session):
 
 def dojo_run(*args, **kwargs):
     kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    return subprocess.run(
+    return subprocess.run(  
         [shutil.which("docker"), "exec", "-i", CONTAINER_NAME, "dojo", *args],
         check=kwargs.pop("check", True), **kwargs
     )

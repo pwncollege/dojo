@@ -28,9 +28,10 @@ def get_challenge_id(session, dojo, module, challenge):
     return challenge_id
 
 
-def start_challenge(dojo, module, challenge, practice=False, *, session):
+def start_challenge(dojo, module, challenge, practice=False, *, session, workspace_token=None):
     start_challenge_json = dict(dojo=dojo, module=module, challenge=challenge, practice=practice)
-    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/docker", json=start_challenge_json)
+    headers = {"X-Workspace-Token": workspace_token} if workspace_token else {}
+    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/docker", json=start_challenge_json, headers=headers)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
 
@@ -235,20 +236,26 @@ def test_workspace_challenge():
     assert match, f"Expected flag, but got: {result.stdout}"
 
 
-@pytest.mark.dependency(depends=["test_start_challenge"])
-def test_workspace_home_mount():
+def check_mount(path, *, user, fstype, check_nosuid=True):
     try:
-        result = workspace_run("findmnt -J /home/hacker", user="admin")
+        result = workspace_run(f"findmnt -J {path}", user=user)
     except subprocess.CalledProcessError as e:
-        assert False, f"Home not mounted: {(e.stdout, e.stderr)}"
-    assert result, f"Home not mounted: {(e.stdout, e.stderr)}"
+        assert False, f"'{path}' not mounted: {(e.stdout, e.stderr)}"
+    assert result, f"'{path}' not mounted: {(e.stdout, e.stderr)}"
 
     mount_info = json.loads(result.stdout)
     assert len(mount_info.get("filesystems", [])) == 1, f"Expected exactly one filesystem, but got: {mount_info}"
 
     filesystem = mount_info["filesystems"][0]
-    assert filesystem["target"] == "/home/hacker", f"Expected home to be mounted at /home/hacker, but got: {filesystem}"
-    assert "nosuid" in filesystem["options"], f"Expected home to be mounted nosuid, but got: {filesystem}"
+    assert filesystem["target"] == path, f"Expected '{path}' to be mounted at '{path}', but got: {filesystem}"
+    assert filesystem["fstype"] == fstype, f"Expected '{path}' to be mounted as '{fstype}', but got: {filesystem}"
+    if check_nosuid:
+        assert "nosuid" in filesystem["options"], f"Expected '{path}' to be mounted nosuid, but got: {filesystem}"
+
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_workspace_home_mount():
+    check_mount("/home/hacker", user="admin", fstype="ext4")
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
@@ -349,3 +356,34 @@ def test_scoreboard(random_user):
             found_me = True
             break
     assert found_me, f"Unable to find new user {user} in new standings after solving a challenge"
+
+
+@pytest.mark.dependency(depends=["test_workspace_home_persistent"])
+def test_workspace_token(random_user, another_random_user):
+    user, session = random_user
+    another_user, another_session = another_random_user
+
+    response = session.post(
+        f"{PROTO}://{HOST}/pwncollege_api/v1/workspace_tokens",
+    )
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    workspace_token = response.json()["data"]["value"]
+
+    start_challenge("example", "hello", "apple", session=session)
+    workspace_run("touch /home/hacker/test", user=user)
+
+    start_challenge("example", "hello", "apple", session=another_session, workspace_token=workspace_token)
+
+    check_mount("/home/hacker", user=another_user, fstype="overlay")
+    check_mount("/home/me", user=another_user, fstype="ext4")
+
+    try:
+        workspace_run("[ -f '/home/hacker/test' ]", user=another_user)
+    except subprocess.CalledProcessError as e:
+        assert False, f"Expected file to exist, but got: {(e.stdout, e.stderr)}"
+
+    workspace_run("touch /home/hacker/test2", user=user)
+    try:
+        workspace_run("[ -f '/home/hacker/test2' ]", user=another_user)
+    except subprocess.CalledProcessError as e:
+        assert False, f"Expected file to exist, but got: {(e.stdout, e.stderr)}"

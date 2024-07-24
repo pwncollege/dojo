@@ -705,18 +705,15 @@ class DiscordUsers(db.Model):
 
     __repr__ = columns_repr(["user", "discord_id"])
 
+
 class Belts(Awards):
     __mapper_args__ = {"polymorphic_identity": "belt"}
+
 
 class Emojis(Awards):
     __mapper_args__ = {"polymorphic_identity": "emoji"}
 
 
-# CTFd already has a "Tokens" model that has a variable type field, but the
-#  authentication logic doesn't care what type the token is, only if it is valid.
-# So if we were to re-use that model, it would require moneky-patching security-critical
-#  code and breaking the CTFd authors' assumptions, which makes me nervous. So, to be
-#  extra safe, we are going to define a new model. 
 class WorkspaceTokens(db.Model):
     __tablename__ = "workspace_tokens"
     id = db.Column(db.Integer, primary_key=True)

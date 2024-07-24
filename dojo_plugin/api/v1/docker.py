@@ -18,7 +18,7 @@ from CTFd.utils.decorators import authed_only
 from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL, SECCOMP, USER_FIREWALL_ALLOWED
 from ...models import Dojos, DojoModules, DojoChallenges
 from ...utils import (
-    gen_container_name,
+    container_name,
     lookup_workspace_token,
     serialize_user_flag,
     resolved_tar,
@@ -67,14 +67,7 @@ def setup_home(user):
 
 
 def umount_existing_overlay(user):
-    # we could also search for overlays mounted elsewhere that use the upperdir/workdir
-    #  that we are about to nuke, but that would involve python logic to sort through
-    #  the mount options of various overlay filesystems.
-    # The simple solution is to only look where we expect the overlay to be mounted
     merged_dir = MERGED_DIR / str(user.id)
-
-    # only umount if the mountpoint exists, rather than trying to determine the reason
-    #  for a umount error afterwards.
     process = subprocess.run(["findmnt", "--output", "FSTYPE", merged_dir])
     if process.returncode == 0:
         subprocess.run(["umount", "--force", merged_dir], check=True)
@@ -102,8 +95,6 @@ def setup_user_overlay(user, as_user):
     upperdir.mkdir(exist_ok=True)
     workdir.mkdir(exist_ok=True)
 
-    # it is safe to interpolate these without escaping bad characters like \ or , since
-    #  the parent directories (defined above) are assumed to be free from them
     mount_options = (
         "rw,relatime,nosuid,X-mount.mkdir,"
         + f"lowerdir={lowerdir},upperdir={upperdir},workdir={workdir}"
@@ -116,7 +107,7 @@ def setup_user_overlay(user, as_user):
 
 def remove_container(docker_client, user):
     try:
-        container = docker_client.containers.get(gen_container_name(user))
+        container = docker_client.containers.get(container_name(user))
         container.remove(force=True)
         container.wait(condition="removed")
     except docker.errors.NotFound:
@@ -124,7 +115,6 @@ def remove_container(docker_client, user):
 
 
 def start_container(docker_client, user, as_user, mounts, dojo_challenge, practice):
-    container_name = gen_container_name(user)
     hostname = "~".join(
         (["practice"] if practice else [])
         + [
@@ -161,8 +151,8 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
                 f"{system_bin_path}/sleep",
                 "6h",
             ],
-            name=f"user_{user.id}",
-            hostname=container_name,
+            name=container_name(user),
+            hostname=hostname,
             user="0",
             working_dir="/home/hacker",
             environment={
@@ -221,7 +211,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
 
     user_network = docker_client.networks.get("user_network")
     user_network.connect(
-        container, ipv4_address=user_ipv4(user), aliases=[container_name]
+        container, ipv4_address=user_ipv4(user), aliases=[container_name(user)]
     )
 
     default_network = docker_client.networks.get("bridge")
@@ -235,7 +225,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
     return container
 
 
-def expect_homedir_mount_info(container, path):
+def get_mount_info(container, path):
     exit_code, output = exec_run(
         f"/run/current-system/sw/bin/findmnt --output OPTIONS {path}",
         container=container,
@@ -334,12 +324,6 @@ def run_initialization_scripts(container, practice):
 
 
 def start_challenge(user, dojo_challenge, practice, *, as_user=None):
-    """
-    owner: the user that started the container
-    challenged_user: the user whose challenge will be loaded. will be the same, except
-        during partnering.
-    partner: a user whose home directory will be mounted in read-only in /home/partner
-    """
     as_user = as_user or user
     docker_client = docker.from_env()
     remove_container(docker_client, user)
@@ -351,7 +335,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         setup_home(as_user)
         setup_user_overlay(user, as_user)
         mounts = [
-            ("/home/hacker", HOST_OVERLAYS / "merged" / str(user.id)),
+            ("/home/hacker", HOST_OVERLAYS / "merged" / str(as_user.id)),
             ("/home/me", HOST_HOMES / "nosuid" / str(user.id)),
         ]
 
@@ -364,10 +348,10 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         practice=practice,
     )
 
-    hacker_mount_info = expect_homedir_mount_info(container, "/home/hacker")
+    hacker_mount_info = get_mount_info(container, "/home/hacker")
     assert_nosuid(container, hacker_mount_info)
     if as_user != user:
-        me_home_info = expect_homedir_mount_info(container, "/home/me")
+        me_home_info = get_mount_info(container, "/home/me")
         assert_nosuid(container, me_home_info)
 
     if practice:
@@ -380,8 +364,6 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     elif as_user != user:
         flag = "support_flag"
     else:
-        # owner vs. challenged_user distinction shouldn't matter here, because they
-        #  *should* be the same in this branch
         flag = serialize_user_flag(as_user.id, dojo_challenge.challenge_id)
     insert_flag(container, flag)
 
@@ -417,8 +399,6 @@ class RunDocker(Resource):
                 logger.exception(f"error resolving workspace token for {user.id}:")
                 abort(401, description="Internal error while resolving workspace token")
             else:
-                if user == token_user:
-                    abort(400, description="you cannot use your own support token")
                 as_user = token_user
 
         dojo = dojo_accessible(dojo_id)
