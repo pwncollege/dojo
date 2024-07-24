@@ -45,6 +45,8 @@
           wget
           which
 
+          linux
+
           init
           ssh-entrypoint
           service
@@ -52,7 +54,7 @@
           desktop-service
 
           gdb
-        ];
+        ] ++ linux.packages;
 
         fullPackages = corePackages ++ additional.packages;
 
