@@ -95,6 +95,18 @@ def execve(argv):
 
 
 def start():
+    ssh_key_path = r"/etc/ssh/"
+
+    if not os.path.exists(ssh_key_path):
+        os.makedirs(ssh_key_path)
+
+    var_empty_path = r"/var/empty"
+
+    if not os.path.exists(var_empty_path):
+        os.makedirs(var_empty_path)
+
+    subprocess.run(["/run/current-system/sw/bin/ssh-keygen", "-A"], stdout=subprocess.DEVNULL)
+
     flags = " ".join(flag for flag in extra_boot_flags())
 
     bzImage = "@kernel@/bzImage"
