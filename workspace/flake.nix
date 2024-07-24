@@ -21,6 +21,21 @@
         code-service = import ./services/code.nix { inherit pkgs; };
         desktop-service = import ./services/desktop.nix { inherit pkgs; };
 
+        ldd-wrapper = (pkgs.writeShellScriptBin "ldd" ''
+            ldd=/usr/bin/ldd
+            for arg in "$@"; do
+              case "$arg" in
+                -*) ;;
+                *)
+                  case "$(readlink -f "$arg")" in
+                    /nix/store/*) ldd="${pkgs.glibc.bin}/bin/ldd" ;;
+                  esac
+                  ;;
+              esac
+            done
+            exec "$ldd" "$@"
+        '');
+
         additional = import ./additional/additional.nix { inherit pkgs; };
 
         corePackages = with pkgs; [
@@ -36,6 +51,7 @@
           gnused
           hostname
           iproute2
+          (lib.hiPrio ldd-wrapper)
           less
           man
           ncurses
@@ -43,23 +59,6 @@
           util-linux
           wget
           which
-          (lib.hiPrio (pkgs.writeShellScriptBin "ldd" ''
-            #!${pkgs.runtimeShell}
-            ldd=/usr/bin/ldd
-
-            for arg in "$@"; do
-              case "$arg" in
-                -*) ;;
-                *)
-                  case "$(readlink -f "$arg")" in
-                    /nix/store/*) ldd="${pkgs.glibc.bin}/bin/ldd" ;;
-                  esac
-                  ;;
-              esac
-            done
-
-            exec "$ldd" "$@"
-          ''))
 
           init
           ssh-entrypoint
