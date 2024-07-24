@@ -59,7 +59,7 @@ case "$ACTION" in
 
     # HELP: compose ARGS: run a docker compose command with the config.env file loaded
     "compose")
-        docker compose --env-file=/opt/pwn.college/data/config.env "$@"
+        docker compose --env-file=/data/config.env "$@"
         ;;
 
     # HELP: flask: drop into a flask shell in the ctfd container
@@ -72,10 +72,10 @@ case "$ACTION" in
         docker exec $DOCKER_ARGS ${CONTAINER_WITH_MYSQL} mysql -h ${DB_HOST} -p${DB_PASS} -D${DB_NAME} -u${DB_USER} "$@"
         ;;
 
-    # HELP: backup: does a dojo db backup into the `data/backups` directory.
+    # HELP: backup: does a dojo db backup into the `/data/backups` directory.
     "backup")
-        mkdir -p data/backups
-        docker exec ${CONTAINER_WITH_MYSQL} mysqldump -h ${DB_HOST} -p${DB_PASS} -u${DB_USER} --single-transaction --routines --triggers ${DB_NAME} | gzip > "data/backups/db-$(date -Iseconds).sql.gz"
+        mkdir -p /data/backups
+        docker exec ${CONTAINER_WITH_MYSQL} mysqldump -h ${DB_HOST} -p${DB_PASS} -u${DB_USER} --single-transaction --routines --triggers ${DB_NAME} | gzip > "/data/backups/db-$(date -Iseconds).sql.gz"
         ;;
 
     # HELP: cloud-backup: upload the last day's worth of cloud backups to S3, but encrypt it at rest
@@ -84,7 +84,7 @@ case "$ACTION" in
         [ -f $BACKUP_AES_KEY_FILE ] || (echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set to a file, but is $BACKUP_AES_KEY_FILE instead"; exit -1)
         [ -z ${S3_BACKUP_BUCKET+x} ] && (echo "To use cloud backup, S3_BACKUP_BUCKET must be set to the S3 bucket to use"; exit -1)
         set -e
-        for f in $(find data/backups -mtime -1 -type f)
+        for f in $(find /data/backups -mtime -1 -type f)
         do
             BACKUP_FILENAME="$(basename $f).enc"
             OUT_FILE="/tmp/$BACKUP_FILENAME"
@@ -97,9 +97,9 @@ case "$ACTION" in
         done
         ;;
 
-    # HELP: restore PATH: restores a dojo db backup. Path arg is relative to the `data/backups` directory
+    # HELP: restore PATH: restores a dojo db backup. Path arg is relative to the `/data/backups` directory
     "restore")
-        BACKUP_PATH="data/backups/$1"
+        BACKUP_PATH="/data/backups/$1"
         if [ -f "$BACKUP_PATH" ]; then
             gunzip < "$BACKUP_PATH" | docker exec -i ${CONTAINER_WITH_MYSQL} mysql -h ${DB_HOST} -p${DB_PASS} -u${DB_USER} -D${DB_NAME}
         else
