@@ -20,6 +20,7 @@
         service = import ./services/service.nix { inherit pkgs; };
         code-service = import ./services/code.nix { inherit pkgs; };
         desktop-service = import ./services/desktop.nix { inherit pkgs; };
+        linux = import ./vm/linux/linux.nix { inherit pkgs service; };
 
         additional = import ./additional/additional.nix { inherit pkgs; };
 
