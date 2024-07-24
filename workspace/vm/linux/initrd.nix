@@ -1,42 +1,21 @@
-`# Nix derivation that creates a minimal initrd with tools from busybox.
-# The initrd sets up a minimal typical Linux environment and inserts
-# the debugcon out-of-tree kernel module.
+{ pkgs, ssh }:
+# { virtiofsd, qemu, openssh, start-stop-daemon, coreutils }:
+with pkgs;
 
-{ pkgs }:
+stdenv.mkDerivation {
+  name = "initrd";
+  version = 0.1;
 
-pkgs.makeInitrd {
-  contents = [{
-    object = pkgs.writers.writeBash "init" ''
-      set -eu
-      export PATH=${pkgs.lib.makeBinPath
-        ([
-           # Basic shell dependencies
-           pkgs.bashInteractive
-           pkgs.busybox
-           # If you want, you can add other utilities here.
-           # They might require more kernel features.
-           # pkgs.fd
-           pkgs.usbutils
-        ])
-      }
+  src = ./init;
+  dontUnpack = true;
 
-      mkdir -p /proc /sys /tmp /run /var
-      mount -t proc none /proc
-      mount -t sysfs none /sys
-      mount -t tmpfs none /tmp
-      mount -t tmpfs none /run
+  # Modify UsePrivilegeSeparation no
 
-      # Create device nodes.
-      mdev -s
-
-      echo -n "/dev/debugcon: "
-      ls /dev | grep -q debugcon && echo EXISTS || echo 'NOT FOUND'
-
-      # Enter bash (the root shell)
-      setsid cttyhack bash
-
-      poweroff -f
-    '';
-    symlink = "/init";
-  }];
+  installPhase = ''
+    mkdir -p $out/bin
+    substitute $src $out/bin/init \
+      --subst-var-by python "${pkgs.python3}/bin/python3" \
+      --subst-var-by sshd_config "${ssh}/etc/ssh/sshd_config"
+    chmod +x $out/bin/init
+  '';
 }

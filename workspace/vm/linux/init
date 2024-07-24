@@ -1,0 +1,48 @@
+#!/bin/sh
+
+set -e
+
+export PATH=/run/current-system/sw/bin
+
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t tmpfs tmp /tmp
+mount -t devpts -o x-mount.mkdir devpts /dev/pts
+mount -t 9p -o trans=virtio,version=9p2000.L,nosuid /home/hacker /home/hacker
+
+ln -s /proc/self/fd /dev/fd
+ln -s /proc/self/fd/0 /dev/stdin
+ln -s /proc/self/fd/1 /dev/stdout
+ln -s /proc/self/fd/2 /dev/stderr
+
+sysctl -w fs.protected_fifos=1
+sysctl -w fs.protected_hardlinks=1
+sysctl -w fs.protected_regular=2
+sysctl -w fs.protected_symlinks=1
+
+# `hostname` command does not allow '_'
+@python@ - <<'EOF'
+import socket
+with open("/etc/hostname") as f:
+  hostname = f.read().strip()
+  socket.sethostname(f"vm_{hostname}"[:64])
+EOF
+
+ip link set dev lo up
+ip addr add 10.0.2.15/24 dev eth0
+ip route add 10.0.2.0/24 via 10.0.2.2 dev eth0 2>/dev/null || true  # Error: Nexthop has invalid gateway.
+ip link set dev eth0 up
+
+find /challenge -name '*.ko' -exec /usr/sbin/insmod {} \;
+
+service start vm-linux/sshd /run/current-system/sw/bin/sshd -D -f @sshd_config@
+
+if [ -e /challenge/.initvm ]; then
+	. /challenge/.initvm
+fi
+
+if [ -e /usr/sbin/docker-init ]; then
+    exec /usr/sbin/docker-init /bin/sleep -- 6h
+else
+    exec /bin/sleep 6h
+fi
