@@ -24,7 +24,7 @@ stdenv.mkDerivation {
       --subst-var-by kernel "${kernel}" \
       --subst-var-by gdb "${gdb}" \
       --subst-var-by python "${python312Full}/bin/python" \
-      --subst-var-by initrd "${initrd}/initrd.gz"
+      --subst-var-by initrd "${initrd}/bin/init"
       chmod +x $out/bin/vm
   '';
 }
