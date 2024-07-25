@@ -20,6 +20,13 @@ def random_user():
     yield random_id, session
 
 
+@pytest.fixture
+def another_random_user():
+    random_id = "".join(random.choices(string.ascii_lowercase, k=16))
+    session = login(random_id, random_id, register=True)
+    yield random_id, session
+
+
 @pytest.fixture(scope="session")
 def completionist_user():
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))

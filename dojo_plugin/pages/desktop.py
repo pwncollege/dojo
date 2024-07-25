@@ -5,7 +5,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.models import Users
 
-from ..utils import random_home_path, get_active_users, redirect_user_socket
+from ..utils import get_active_users, redirect_user_socket
 from ..utils.dojo import dojo_route, get_current_dojo_challenge
 from ..utils.workspace import exec_run
 
@@ -17,7 +17,7 @@ def can_connect_to(desktop_user):
     return any((
         is_admin(),
         desktop_user.id == get_current_user().id,
-        os.path.exists(f"/var/homes/nosuid/{random_home_path(desktop_user)}/LIVE")
+        os.path.exists(f"/var/homes/nosuid/{desktop_user.id}/LIVE")
     ))
 
 
@@ -40,7 +40,7 @@ def view_desktop_res(route, user_id=None, password=None):
     if password is None:
         try:
             password_type = "interact" if can_control(user) else "view"
-            password_path = f"/var/homes/nosuid/{random_home_path(user)}/.vnc/pass-{password_type}"
+            password_path = f"/var/homes/nosuid/{user.id}/.vnc/pass-{password_type}"
             password = open(password_path).read()
         except FileNotFoundError:
             password = None
