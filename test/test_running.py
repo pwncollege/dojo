@@ -283,6 +283,43 @@ def test_workspace_practice_challenge(random_user):
         assert False, f"Expected sudo to succeed, but got: {(e.stdout, e.stderr)}"
 
 
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_active_module_endpoint(random_user):
+    user, session = random_user
+    start_challenge("example", "hello", "banana", session=session)
+    response = session.get(f"{PROTO}://{HOST}/active-module")
+    challenges = {
+        "apple": {
+            "challenge_id": 1,
+            "challenge_name": "Apple",
+            "challenge_reference_id": "apple",
+            "dojo_name": "Example Dojo",
+            "dojo_reference_id": "example",
+            "module_id": "hello",
+            "module_name": "Hello"
+        },
+        "banana": {
+            "challenge_id": 2,
+            "challenge_name": "Banana",
+            "challenge_reference_id": "banana",
+            "dojo_name": "Example Dojo",
+            "dojo_reference_id": "example",
+            "module_id": "hello",
+            "module_name": "Hello"
+        },
+        "empty": {}
+    }
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    assert response.json()["c_current"] == challenges["banana"], f"Expected challenge 'Banana'\n{challenges['banana']}\n, but got {response.json()['c_current']}"
+    assert response.json()["c_next"] == challenges["empty"], f"Expected empty {challenges['empty']} challenge, but got {response.json()['c_next']}"
+    assert response.json()["c_previous"] == challenges["apple"], f"Expected challenge 'Apple'\n{challenges['apple']}\n, but got {response.json()['c_previous']}"
+    start_challenge("example", "hello", "apple", session=session)
+    response = session.get(f"{PROTO}://{HOST}/active-module")
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    assert response.json()["c_current"] == challenges["apple"], f"Expected challenge 'Apple'\n{challenges['apple']}\n, but got {response.json()['c_current']}"
+    assert response.json()["c_next"] == challenges["banana"], f"Expected challenge 'Banana'\n{challenges['banana']}\n, but got {response.json()['c_next']}"
+    assert response.json()["c_previous"] == challenges["empty"], f"Expected empty {challenges['empty']} challenge, but got {response.json()['c_previous']}"
+
 def get_all_standings(session, dojo, module=None):
     """
     Return a big list of all the standings, going through all the available pages.
