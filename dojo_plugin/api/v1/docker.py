@@ -33,24 +33,23 @@ docker_namespace = Namespace(
     "docker", description="Endpoint to manage docker containers"
 )
 
+HOST_HOMES = pathlib.Path(HOST_DATA_PATH) / "homes"
+HOST_HOMES_NOSUID = HOST_HOMES / "nosuid"
+HOST_HOMES_OVERLAY = HOST_HOMES / "overlay"
+
 HOMES = pathlib.Path("/var/homes")
-HOST_HOMES = pathlib.PurePosixPath(HOST_DATA_PATH) / "homes"
 HOMEFS = HOMES / "homefs"
-
-OVERLAYS = HOMES / "overlays"
-HOST_OVERLAYS = HOST_HOMES / "overlays"
-DIFF_DIR = HOMES / "overlays" / "diff"
-WORK_DIR = HOMES / "overlays" / "work"
-MERGED_DIR = HOMES / "overlays" / "merged"
-
+HOMES_DATA = HOMES / "data"
+HOMES_NOSUID = HOMES / "nosuid"
+HOMES_OVERLAY = HOMES / "overlay"
 
 def setup_home(user):
-    user_data = HOMES / "data" / str(user.id)
-    user_nosuid = HOMES / "nosuid" / str(user.id)
-
+    HOMES_DATA.mkdir(exist_ok=True)
+    HOMES_NOSUID.mkdir(exist_ok=True)
     assert HOMEFS.exists()
-    user_data.parent.mkdir(exist_ok=True)
-    user_nosuid.parent.mkdir(exist_ok=True)
+
+    user_data = HOMES_DATA / str(user.id)
+    user_nosuid = HOMES_NOSUID / str(user.id)
 
     if not user_data.exists():
         # Shell out to `cp` in order to sparsely copy
@@ -67,38 +66,38 @@ def setup_home(user):
 
 
 def umount_existing_overlay(user):
-    merged_dir = MERGED_DIR / str(user.id)
+    overlay_dir = HOMES_OVERLAY / str(user.id)
+    merged_dir = overlay_dir / "merged"
+
     process = subprocess.run(["findmnt", "--output", "FSTYPE", merged_dir])
     if process.returncode == 0:
         subprocess.run(["umount", "--force", merged_dir], check=True)
+    try:
+        shutil.rmtree(overlay_dir)
+    except FileNotFoundError:
+        pass
 
 
 def setup_user_overlay(user, as_user):
-    OVERLAYS.mkdir(exist_ok=True)
-    DIFF_DIR.mkdir(exist_ok=True)
-    WORK_DIR.mkdir(exist_ok=True)
-    MERGED_DIR.mkdir(exist_ok=True)
+    HOMES_OVERLAY.mkdir(exist_ok=True)
 
-    lowerdir = HOMES / "nosuid" / str(as_user.id)
-    upperdir = DIFF_DIR / str(user.id)
-    workdir = WORK_DIR / str(user.id)
-    mountpoint = MERGED_DIR / str(user.id)
+    lower_dir = HOMES_NOSUID / str(as_user.id)
+    overlay_dir = HOMES_OVERLAY / str(user.id)
+    upper_dir = HOMES_OVERLAY / str(user.id) / "diff"
+    work_dir = HOMES_OVERLAY / str(user.id) / "work"
+    mountpoint = HOMES_OVERLAY / str(user.id) / "merged"
 
-    try:
-        shutil.rmtree(upperdir)
-    except FileNotFoundError:
-        pass
-    try:
-        shutil.rmtree(workdir)
-    except FileNotFoundError:
-        pass
-    upperdir.mkdir(exist_ok=True)
-    workdir.mkdir(exist_ok=True)
+    overlay_dir.mkdir(exist_ok=False)
+    upper_dir.mkdir(exist_ok=False)
+    work_dir.mkdir(exist_ok=False)
 
-    mount_options = (
-        "rw,relatime,nosuid,X-mount.mkdir,"
-        + f"lowerdir={lowerdir},upperdir={upperdir},workdir={workdir}"
-    )
+    mount_options = ",".join([
+        "nosuid",
+        "X-mount.mkdir",
+        f"lowerdir={lower_dir}",
+        f"upperdir={upper_dir}",
+        f"workdir={work_dir}",
+    ])
     subprocess.run(
         ["mount", "-t", "overlay", "-o", mount_options, "overlay", mountpoint],
         check=True,
@@ -327,16 +326,16 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     as_user = as_user or user
     docker_client = docker.from_env()
     remove_container(docker_client, user)
-
     umount_existing_overlay(user)
-    setup_home(user)
-    mounts = [("/home/hacker", HOST_HOMES / "nosuid" / str(user.id))]
+
+    setup_home(as_user)
+    mounts = [("/home/hacker", HOST_HOMES_NOSUID / str(as_user.id))]
     if as_user != user:
-        setup_home(as_user)
+        setup_home(user)
         setup_user_overlay(user, as_user)
         mounts = [
-            ("/home/hacker", HOST_OVERLAYS / "merged" / str(as_user.id)),
-            ("/home/me", HOST_HOMES / "nosuid" / str(user.id)),
+            ("/home/hacker", HOST_HOMES_OVERLAY / str(as_user.id) / "merged"),
+            ("/home/me", HOST_HOMES_NOSUID / str(user.id)),
         ]
 
     container = start_container(
