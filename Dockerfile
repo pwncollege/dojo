@@ -17,7 +17,7 @@ RUN apt-get update && \
         wget
 
 RUN curl -fsSL https://get.docker.com | /bin/sh
-RUN echo '{ "data-root": "/opt/pwn.college/data/docker", "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json
+RUN echo '{ "data-root": "/data/docker", "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json
 RUN wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
 
 RUN cd /tmp && \
