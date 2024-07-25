@@ -1,5 +1,5 @@
 import docker
-docker_client = docker.from_env()
+
 
 def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", user_id=None, container=None, **kwargs):
     # TODO: Cleanup this interface
@@ -12,6 +12,8 @@ def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", us
         cmd = f"""/bin/sh -c \"
         {cmd}
         \""""
+
+    docker_client = docker.from_env()
 
     if not container:
         container = docker_client.containers.get(f"user_{user_id}")
