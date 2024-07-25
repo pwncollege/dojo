@@ -99,9 +99,12 @@ def setup_user_overlay(user, as_user):
         f"workdir={work_dir}",
     ])
     subprocess.run(
-        ["mount", "-t", "overlay", "-o", mount_options, "overlay", mountpoint],
+        ["mount", "-t", "overlay", "overlay" "-o", mount_options, mountpoint],
         check=True,
     )
+    print("HERE!!!")
+    os.system(f"findmnt {mountpoint}")
+    print("HERE~~~")
 
 
 def remove_container(docker_client, user):
