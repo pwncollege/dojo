@@ -15,15 +15,36 @@
     </button>
     <div class="collapse navbar-collapse" id="base-navbars">
       <ul class="navbar-nav mr-auto">
+        {{ navitem("Dojos", url_for("pwncollege_dojos.listing"), "fa-torii-gate") }}
+        {{ navitem("Workspace", url_for("pwncollege_workspace.view_workspace", service="code"), "fa-terminal") }}
+        {{ navitem("Desktop", url_for("pwncollege_workspace.view_workspace", service="desktop"), "fa-desktop") }}
+        {{ navitem("Help", url_for("pwncollege_sensai.view_sensai"), "fa-question") }}
+        {{ navitem("Chat", "https://discord.gg/pwncollege", "fa-comments", new=True) }}
+      </ul>
+      <hr class="d-sm-flex d-md-flex d-lg-none">
+      <ul class="navbar-nav ml-md-auto d-block d-sm-flex d-md-flex">
+        {% if authed() %}
+        {% if is_admin() %}
+          {{ navitem("Admin Panel", url_for("admin.view"), "fa-wrench", shrink=True) }}
+        {% endif %}
+        {{ navitem("Profile", url_for("pwncollege_users.view_self"), "fa-user-circle", shrink=True) }}
+        {{ navitem("Settings", url_for("views.settings"), "fa-cogs", shrink=True) }}
         <li id="challengeMenuButton" class="d-none nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-            <i class="fas fa-flag"></i>
-            Control
+          <a class="nav-link dropdown-toggle d-flex align-items-center"
+             href="#" id="navbarDropdown"
+             role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Control Panel">
+              <i class="fa fa-flag d-none d-md-block d-lg-none"></i><span></span>
+            </span>
+            <span class="d-sm-block d-md-none d-lg-block text-nowrap">
+              <i class="fas fa-flag pr-1"></i>
+              <span class="d-lg-none">Control Panel</span>
+            </span>
           </a>
           <div id="navbar_dropdown"
                class="dropdown-menu border-light"
                aria-labelledby="navbarDropdown"
-               style="background-color: #151515"
+               style="background-color: #151515;left: unset;right: 0;"
           >
             <div class="nav-link text-nowrap text-center px-4">
               <a id="dropdown-dojo" class="d-none d-md-inline">
@@ -54,9 +75,9 @@
             <div class="container-fluid">
               <div id="dropdown-controls" class="row pb-2">
                 <div class="notification-row fixed-top">
-                    <div id="result-notification" class="alert alert-dismissable text-center w-100" role="alert" style="display: none;">
-                      <strong id="result-message"></strong>
-                    </div>
+                  <div id="result-notification" class="alert alert-dismissable text-center w-100" role="alert" style="display: none;">
+                    <strong id="result-message"></strong>
+                  </div>
                 </div>
                 <div id="previous" class="col overflow-hidden ">
                   <button id="challenge-start" class="btn btn-dark  text-truncate w-100">
@@ -98,24 +119,6 @@
             </div>
           </div>
         </li>
-
-        {{ navitem("Dojos", url_for("pwncollege_dojos.listing"), "fa-torii-gate") }}
-        {{ navitem("Workspace", url_for("pwncollege_workspace.view_workspace", service="code"), "fa-terminal") }}
-        {{ navitem("Desktop", url_for("pwncollege_workspace.view_workspace", service="desktop"), "fa-desktop") }}
-        {{ navitem("Help", url_for("pwncollege_sensai.view_sensai"), "fa-question") }}
-        {{ navitem("Chat", "https://discord.gg/pwncollege", "fa-comments", new=True) }}
-      </ul>
-
-      <hr class="d-sm-flex d-md-flex d-lg-none">
-
-      <ul class="navbar-nav ml-md-auto d-block d-sm-flex d-md-flex">
-        {% if authed() %}
-        {% if is_admin() %}
-        {{ navitem("Admin Panel", url_for("admin.view"), "fa-wrench") }}
-        {% endif %}
-
-        {{ navitem("Profile", url_for("pwncollege_users.view_self"), "fa-user-circle") }}
-        {{ navitem("Settings", url_for("views.settings"), "fa-cogs") }}
         {{ navitem("Logout", url_for("auth.logout"), "fa-sign-out-alt", shrink=True) }}
 
         {% else %}
