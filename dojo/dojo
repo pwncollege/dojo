@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 cd /opt/pwn.college
 
@@ -109,7 +109,7 @@ case "$ACTION" in
 
     # HELP: logs: display dojo logs
     "logs")
-        journalctl -u pwn.college -f
+        journalctl -u pwn.college -f --no-tail
         ;;
 
     # HELP: wait: wait for the dojo to finish starting

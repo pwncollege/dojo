@@ -80,12 +80,12 @@ jobs:
             --privileged \
             --detach \
             --rm \
-            -v "/mnt/dojo-test-data:/data" \
+            -v "/mnt/dojo-test-data:/data:shared" \
             -p 2222:22 -p 80:80 -p 443:443 \
             pwncollege/dojo:test
       - name: Build and start services
         run: |
-          docker exec dojo-test dojo wait || docker exec dojo-test dojo logs
+          docker exec dojo-test dojo wait
           docker exec dojo-test docker image ls
 
       - name: Wait for services to start
