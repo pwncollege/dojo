@@ -337,7 +337,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         setup_home(user)
         setup_user_overlay(user, as_user)
         mounts = [
-            ("/home/hacker", HOST_HOMES_OVERLAY / str(as_user.id) / "merged"),
+            ("/home/hacker", HOST_HOMES_OVERLAY / str(user.id) / "merged"),
             ("/home/me", HOST_HOMES_NOSUID / str(user.id)),
         ]
 
