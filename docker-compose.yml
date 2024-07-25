@@ -39,7 +39,7 @@ services:
     environment:
       - DOJO_WORKSPACE=${DOJO_WORKSPACE}
     volumes:
-      - ./data/workspace:/out
+      - /data/workspace:/out
 
   ctfd:
     container_name: ctfd
@@ -75,7 +75,7 @@ services:
       - SERVER_SENT_EVENTS=false
       - SECRET_KEY=${SECRET_KEY}
       - DOJO_HOST=${DOJO_HOST}
-      - HOST_DATA_PATH=/opt/pwn.college/data
+      - HOST_DATA_PATH=/data
       - MAIL_SERVER=${MAIL_SERVER}
       - MAIL_PORT=${MAIL_PORT}
       - MAIL_USERNAME=${MAIL_USERNAME}
@@ -90,12 +90,12 @@ services:
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
     volumes:
-      - ./data:/var/data
-      - ./data/CTFd/logs:/var/log/CTFd
-      - ./data/CTFd/uploads:/var/uploads
-      - ./data/homes:/var/homes:rshared
-      - ./data/dojos:/var/dojos
-      - ./data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
+      - /data:/var/data
+      - /data/CTFd/logs:/var/log/CTFd
+      - /data/CTFd/uploads:/var/uploads
+      - /data/homes:/var/homes:shared
+      - /data/dojos:/var/dojos
+      - /data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
       - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -136,7 +136,7 @@ services:
       - MYSQL_DATABASE=${DB_NAME}
       - DB_EXTERNAL=${DB_EXTERNAL}
     volumes:
-      - ./data/mysql:/var/lib/mysql
+      - /data/mysql:/var/lib/mysql
     command: [/start.sh]
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-p${DB_PASS}", "-u${DB_USER}", "-h${DB_HOST}"]
@@ -149,14 +149,14 @@ services:
     image: redis:4
     restart: always
     volumes:
-      - ./data/redis:/data
+      - /data/redis:/data
 
   sshd:
     container_name: sshd
     build:
       context: ./sshd
     volumes:
-      - ./data/ssh_host_keys:/etc/ssh:ro
+      - /data/ssh_host_keys:/etc/ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - DB_HOST=${DB_HOST}
