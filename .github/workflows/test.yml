@@ -85,6 +85,7 @@ jobs:
             pwncollege/dojo:test
       - name: Build and start services
         run: |
+          docker exec dojo-test docker ps -a
           docker exec dojo-test dojo wait
           docker exec dojo-test docker image ls
 
