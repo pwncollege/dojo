@@ -363,9 +363,7 @@ def test_workspace_token(random_user, another_random_user):
     user, session = random_user
     another_user, another_session = another_random_user
 
-    response = session.post(
-        f"{PROTO}://{HOST}/pwncollege_api/v1/workspace_tokens",
-    )
+    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/workspace_tokens", json={})
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     workspace_token = response.json()["data"]["value"]
 
