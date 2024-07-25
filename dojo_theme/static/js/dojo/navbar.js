@@ -105,6 +105,13 @@ function DropdownStartChallenge(event) {
             await updateNavbarDropdown();
             $(".challenge-active").removeClass("challenge-active");
             $(`.accordion-item input[value=${params.challenge}]`).closest(".accordion-item").find("h4.challenge-name").addClass("challenge-active");
+            if (window.location.href.includes('/workspace/desktop')) {
+                let iframe_html = await fetch('/workspace/desktop').then(response => response.text());
+                let iframe_src = $(iframe_html).find("iframe").attr("src");
+                if (iframe_src) {
+                    $("main iframe").attr("src", iframe_src);
+                }
+            }
         }
         else {
             let message = "Error:";
