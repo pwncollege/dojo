@@ -80,7 +80,7 @@ jobs:
             --privileged \
             --detach \
             --rm \
-            -v "/mnt/dojo-test-data:/opt/pwn.college/data" \
+            -v "/mnt/dojo-test-data:/data:shared" \
             -p 2222:22 -p 80:80 -p 443:443 \
             pwncollege/dojo:test
       - name: Build and start services
@@ -105,7 +105,7 @@ jobs:
         timeout-minutes: 3
         run: |
           export MOZ_HEADLESS=1
-          pytest -vrpP --durations=0 ./test || (docker exec dojo-test docker compose logs && false)
+          pytest -vrpP --durations=0 ./test || (docker exec dojo-test dojo compose logs && false)
 
       - name: Pack docker data cache
         if: github.event_name == 'schedule'

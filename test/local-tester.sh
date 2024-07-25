@@ -26,7 +26,7 @@ do
 		T) TEST=no ;;
 		D)
 			DATA_DIR=$(mktemp -d)
-			VOLUME_ARGS+=("-v" "$DATA_DIR:/opt/pwn.college/data:shared")
+			VOLUME_ARGS+=("-v" "$DATA_DIR:/data:shared")
 			;;
 		e) ENV_ARGS+=("-e" "$OPTARG") ;;
 		h) usage ;;
@@ -39,8 +39,8 @@ done
 shift $((OPTIND-1))
 
 [ "${#VOLUME_ARGS[@]}" -eq 2 ] && VOLUME_ARGS+=(
-	"-v" "/opt/pwn.college/data/dojos"
-	"-v" "/opt/pwn.college/data/mysql"
+	"-v" "/data/dojos"
+	"-v" "/data/mysql"
 )
 
 export CONTAINER_NAME
@@ -67,8 +67,8 @@ docker exec "$CONTAINER_NAME" dojo wait
 if [ -n "$DB_RESTORE" ]
 then
 	BASENAME=$(basename $DB_RESTORE)
-	docker exec "$CONTAINER_NAME" mkdir -p /opt/pwn.college/data/backups/
-	[ -f "$DB_RESTORE" ] && docker cp "$DB_RESTORE" "$CONTAINER_NAME":/opt/pwn.college/data/backups/"$BASENAME"
+	docker exec "$CONTAINER_NAME" mkdir -p /data/backups/
+	[ -f "$DB_RESTORE" ] && docker cp "$DB_RESTORE" "$CONTAINER_NAME":/data/backups/"$BASENAME"
 	docker exec "$CONTAINER_NAME" dojo restore "$BASENAME"
 fi
 

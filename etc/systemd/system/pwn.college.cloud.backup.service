@@ -4,4 +4,4 @@ Description=Upload a pwn.college backup to cloud (at this time just an S3 bucket
 [Service]
 Type=simple
 ExecStart=dojo cloud-backup
-ExecCondition=:/bin/sh -c '. /opt/pwn.college/data/config.env; [ ! -z ${BACKUP_AES_KEY_FILE+x} ]'
+ExecCondition=:/bin/sh -c '. /data/config.env; [ ! -z ${BACKUP_AES_KEY_FILE+x} ]'
