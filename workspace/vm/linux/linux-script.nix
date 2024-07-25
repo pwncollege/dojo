@@ -23,7 +23,7 @@ stdenv.mkDerivation {
       --subst-var-by service "${service}" \
       --subst-var-by kernel "${kernel}" \
       --subst-var-by gdb "${gdb}" \
-      --subst-var-by python "${python312Full}/bin/python" \
+      --subst-var-by python "${python3}/bin/python3" \
       --subst-var-by initrd "${initrd}/bin/init"
       chmod +x $out/bin/vm
   '';
