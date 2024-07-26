@@ -16,11 +16,6 @@ sshdPatch = pkgs.writeText "sshd_patch.diff" ''
     --- 57,58 ----
     ! PasswordAuthentication yes
     ! PermitEmptyPasswords yes
-    ***************
-    *** 116 ****
-    --- 117,118 ----
-    + 
-    + UsePrivilegeSeparation no
   '';
 in
 pkgs.openssh.overrideAttrs (oldAttrs: {
