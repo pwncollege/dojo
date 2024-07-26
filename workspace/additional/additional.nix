@@ -27,8 +27,5 @@ in
     wireshark
     nmap
     tcpdump
-
-    linux-vm
-    linux-vm.packages
-  ];
+  ] ++ linux-vm.packages;
 }
