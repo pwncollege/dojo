@@ -83,8 +83,6 @@ def extra_boot_flags():
         result.append("oops=panic")
         result.append("panic_on_warn=1")
 
-    print(result)
-
     return result
 
 
