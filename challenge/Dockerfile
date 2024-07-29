@@ -674,10 +674,7 @@ RUN <<EOF
 
     find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
 
-    chmod u+s /opt/pwn.college/python \
-              /opt/pwn.college/bash \
-              /opt/pwn.college/sh \
-              /opt/pwn.college/vm/vm \
+    chmod u+s /opt/pwn.college/vm/vm \
               /opt/pwn.college/windows/windows
 
     date > /opt/pwn.college/build
