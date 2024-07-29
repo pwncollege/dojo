@@ -27,6 +27,9 @@ if [ ! -d /out ]; then
 fi
 
 nix build ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
+for suid_binary in ("python-suid", "bash-suid", "sh-suid"); do
+    chmod u+s "/nix/var/nix/profiles/default/bin/${suid_binary}"
+done
 nix copy --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
 EOF
 

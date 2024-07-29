@@ -134,7 +134,6 @@ let
         runHook preInstall
         mkdir -p $out/bin
         cp ${name} $out/bin/
-        chmod u+s $out/bin/${name}
         runHook postInstall
       '';
     }}
