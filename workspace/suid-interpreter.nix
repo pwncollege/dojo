@@ -24,89 +24,91 @@ let
 
     int main(int argc, char **argv, char **envp)
     {
-        if (argc < 2)
-            return ERROR_ARGC;
+      if (argc < 2)
+        return ERROR_ARGC;
 
-        char *path = realpath(argv[1], NULL);
-        if (!path)
-            return ERROR_NOT_FOUND;
+      char *path = realpath(argv[1], NULL);
+      if (!path)
+        return ERROR_NOT_FOUND;
 
-        char *valid_paths[] = {
-            "/challenge/",
-            "/opt/pwn.college/",
-            "/nix/",
-            NULL
-        };
-        bool valid = false;
-        for (char **valid_path = valid_paths; *valid_path; valid_path++)
-            if (!strncmp(*valid_path, path, strlen(*valid_path)))
-                valid = true;
-        if (!valid)
-            return ERROR_PATH;
+      char *valid_paths[] = {
+        "/challenge/",
+        "/opt/pwn.college/",
+        "/nix/",
+        NULL
+      };
+      bool valid = false;
+      for (char **valid_path = valid_paths; *valid_path; valid_path++)
+        if (!strncmp(*valid_path, path, strlen(*valid_path)))
+          valid = true;
+      if (!valid)
+        return ERROR_PATH;
 
-        struct stat stat = { 0 };
-        lstat(path, &stat);
-        if (stat.st_uid != 0)
-            return ERROR_NOT_ROOT;
-        if (!(stat.st_mode & S_ISUID))
-            return ERROR_NOT_SUID;
+      struct stat stat = { 0 };
+      lstat(path, &stat);
+      if (stat.st_uid != 0)
+        return ERROR_NOT_ROOT;
+      if (!(stat.st_mode & S_ISUID))
+        return ERROR_NOT_SUID;
 
-        char first_line[PATH_MAX];
-        FILE *file = fopen(path, "r");
-        fgets(first_line, PATH_MAX, file);
-        fclose(file);
+      char first_line[PATH_MAX];
+      FILE *file = fopen(path, "r");
+      fgets(first_line, PATH_MAX, file);
+      fclose(file);
 
     #ifdef SUID_PYTHON
-        char *child_argv_prefix[] = { BIN "python", "-I", "--", NULL };
-        if (strcmp(first_line, "#!/opt/pwn.college/python\n") &&
-            strcmp(first_line, "#!/usr/bin/env python-suid\n"))
-            return ERROR_BAD_SHEBANG;
+      char *child_argv_prefix[] = { BIN "python", "-I", "--", NULL };
+      if (strcmp(first_line, "#!/opt/pwn.college/python\n") &&
+          strcmp(first_line, "#!/usr/bin/env python-suid\n"))
+        return ERROR_BAD_SHEBANG;
     #endif
+
     #ifdef SUID_BASH
-        char c_arg[PATH_MAX];
-        snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
-        char *child_argv_prefix[] = { BIN "bash", "-c", c_arg, argv[1], NULL };
-        setresuid(geteuid(), geteuid(), geteuid());
-        setresgid(getegid(), getegid(), getegid());
-        unsetenv("BASH_ENV");
-        unsetenv("ENV");
-        if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/bash\n"))
-        {
-            if (envp[0] != NULL)
-                return ERROR_BAD_ENV;
-        }
-        else if (strcmp(first_line, "#!/opt/pwn.college/bash\n") &&
-                strcmp(first_line, "#!/usr/bin/env bash-suid\n"))
-            return ERROR_BAD_SHEBANG;
+      char c_arg[PATH_MAX];
+      snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
+      char *child_argv_prefix[] = { BIN "bash", "-c", c_arg, argv[1], NULL };
+      setresuid(geteuid(), geteuid(), geteuid());
+      setresgid(getegid(), getegid(), getegid());
+      unsetenv("BASH_ENV");
+      unsetenv("ENV");
+      if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/bash\n"))
+      {
+        if (envp[0] != NULL)
+          return ERROR_BAD_ENV;
+      }
+      else if (strcmp(first_line, "#!/opt/pwn.college/bash\n") &&
+               strcmp(first_line, "#!/usr/bin/env bash-suid\n"))
+        return ERROR_BAD_SHEBANG;
     #endif
+
     #ifdef SUID_SH
-        char c_arg[PATH_MAX];
-        snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
-        char *child_argv_prefix[] = { BIN "sh", "-c", c_arg, argv[1],  NULL };
-        setresuid(geteuid(), geteuid(), geteuid());
-        setresgid(getegid(), getegid(), getegid());
-        if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/sh\n"))
-        {
-            if (envp[0] != NULL)
-                return ERROR_BAD_ENV;
-        }
-        else if (strcmp(first_line, "#!/opt/pwn.college/sh\n") &&
-                strcmp(first_line, "#!/usr/bin/env sh-suid\n"))
-            return ERROR_BAD_SHEBANG;
+      char c_arg[PATH_MAX];
+      snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
+      char *child_argv_prefix[] = { BIN "sh", "-c", c_arg, argv[1],  NULL };
+      setresuid(geteuid(), geteuid(), geteuid());
+      setresgid(getegid(), getegid(), getegid());
+      if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/sh\n"))
+      {
+        if (envp[0] != NULL)
+          return ERROR_BAD_ENV;
+      }
+      else if (strcmp(first_line, "#!/opt/pwn.college/sh\n") &&
+               strcmp(first_line, "#!/usr/bin/env sh-suid\n"))
+        return ERROR_BAD_SHEBANG;
     #endif
 
-        char **child_argv = malloc(sizeof(child_argv_prefix) + argc * sizeof(char *));
-        int child_argc = 0;
-        for (int i = 0; child_argv_prefix[i]; i++)
-            child_argv[child_argc++] = child_argv_prefix[i];
+      char **child_argv = malloc(sizeof(child_argv_prefix) + argc * sizeof(char *));
+      int child_argc = 0;
+      for (int i = 0; child_argv_prefix[i]; i++)
+        child_argv[child_argc++] = child_argv_prefix[i];
     #ifdef SUID_PYTHON
-        child_argv[child_argc++] = path;
+      child_argv[child_argc++] = path;
     #endif
-        for (int i = 2; i < argc; i++)
-            child_argv[child_argc++] = argv[i];
-        child_argv[child_argc] = NULL;
+      for (int i = 2; i < argc; i++)
+        child_argv[child_argc++] = argv[i];
+      child_argv[child_argc] = NULL;
 
-        execve(child_argv[0], child_argv, envp);
+      execve(child_argv[0], child_argv, envp);
     }
   '';
 
@@ -115,6 +117,12 @@ let
       name = name;
       src = suidSource;
       buildInputs = [ pkgs.gcc ];
+
+      unpackPhase = ''
+        runHook preUnpack
+        cp $src $PWD
+        runHook postUnpack
+      '';
 
       buildPhase = ''
         runHook preBuild
