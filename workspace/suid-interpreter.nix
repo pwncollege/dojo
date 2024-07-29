@@ -1,7 +1,7 @@
 { pkgs }:
 
 let
-  suidSource = pkgs.writeScript "suid_interpreter.c" ''
+  suidSource = pkgs.writeText "suid_interpreter.c" ''
     #define _GNU_SOURCE
     #include <linux/limits.h>
     #include <sys/types.h>
