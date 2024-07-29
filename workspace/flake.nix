@@ -22,7 +22,7 @@
           code-service = import ./services/code.nix { inherit pkgs; };
           desktop-service = import ./services/desktop.nix { inherit pkgs; };
 
-          ldd-wrapper = (pkgs.writeShellScriptBin "ldd" ''
+          ldd = (pkgs.writeShellScriptBin "ldd" ''
             ldd=/usr/bin/ldd
             for arg in "$@"; do
               case "$arg" in
@@ -52,14 +52,16 @@
             gnused
             hostname
             iproute2
-            (lib.hiPrio ldd-wrapper)
             less
             man
             ncurses
             procps
+            python3
             util-linux
             wget
             which
+
+            (lib.hiPrio ldd)
 
             init
             ssh-entrypoint
