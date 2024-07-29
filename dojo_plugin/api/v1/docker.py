@@ -278,48 +278,11 @@ def insert_challenge(container, as_user, dojo_challenge):
     exec_run("/run/current-system/sw/bin/chmod -R 4755 /challenge", container=container)
 
 
-def grant_sudo(container):
-    exec_run(
-        """
-        chmod 4755 /usr/bin/sudo
-        usermod -aG sudo hacker
-        echo 'hacker ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-        passwd -d root
-        """,
-        container=container,
-        shell=True,
-    )
-
-
 def insert_flag(container, flag):
     flag = f"pwn.college{{{flag}}}"
     socket = container.attach_socket(params=dict(stdin=1, stream=1))
     socket._sock.sendall(flag.encode() + b"\n")
     socket.close()
-
-
-def insert_auth_token(container, auth_token):
-    exec_run(f"echo '{auth_token}' > /.authtoken", container=container, shell=True)
-
-
-def run_initialization_scripts(container, practice):
-    exec_run(
-        f"""
-        export DOJO_PRIVILEGED={"1" if practice else "0"}
-        /opt/pwn.college/docker-initialize.sh
-        touch /opt/pwn.college/.initialized
-        """,
-        container=container,
-        shell=True,
-    )
-    exec_run(
-        """
-        /opt/pwn.college/docker-entrypoint.sh &
-        """,
-        shell=True,
-        container=container,
-        workspace_user="hacker",
-    )
 
 
 def start_challenge(user, dojo_challenge, practice, *, as_user=None):
@@ -353,9 +316,6 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         me_home_info = get_mount_info(container, "/home/me")
         assert_nosuid(container, me_home_info)
 
-    if practice:
-        grant_sudo(container)
-
     insert_challenge(container, as_user, dojo_challenge)
 
     if practice:
@@ -365,11 +325,6 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     else:
         flag = serialize_user_flag(as_user.id, dojo_challenge.challenge_id)
     insert_flag(container, flag)
-
-    auth_token = container.labels["dojo.auth_token"]
-    insert_auth_token(container, auth_token)
-
-    run_initialization_scripts(container, practice)
 
 
 @docker_namespace.route("")
