@@ -64,7 +64,6 @@ COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
 COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 COPY services.d /opt/pwn.college/services.d
-COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
 COPY bash.bashrc /opt/pwn.college/bash.bashrc
 COPY vm /opt/pwn.college/vm
 COPY windows /opt/pwn.college/windows
@@ -74,15 +73,10 @@ COPY .radare2rc /opt/pwn.college/.radare2rc
 COPY .pwn.conf /opt/pwn.college/.pwn.conf
 
 RUN <<EOF
-    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_PYTHON -o /opt/pwn.college/python
-    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_BASH -o /opt/pwn.college/bash
-    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_SH -o /opt/pwn.college/sh
+    ln -sf /run/current-system/sw/bin/python-suid /opt/pwn.college/python
+    ln -sf /run/current-system/sw/bin/bash-suid /opt/pwn.college/bash
+    ln -sf /run/current-system/sw/bin/sh-suid /opt/pwn.college/sh
 
-    ln -sf /bin/bash /opt/pwn.college/ssh-entrypoint
-
-    ln -sf /opt/pwn.college/python /usr/local/bin/python-setuid
-    ln -sf /opt/pwn.college/bash /usr/local/bin/bash-setuid
-    ln -sf /opt/pwn.college/sh /usr/local/bin/sh-setuid
     ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
     ln -sf /opt/pwn.college/windows/windows /usr/local/bin/windows
 
