@@ -126,7 +126,7 @@ let
 
       buildPhase = ''
         runHook preBuild
-        gcc $src -D${flag} -o $out/${name}
+        gcc $src -D${flag} -o ${name}
         runHook postBuild
       '';
 
