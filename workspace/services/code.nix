@@ -35,7 +35,7 @@ let
 
     until [ -f /run/dojo/ready ]; do sleep 0.1; done
 
-    ${service}/bin/service start code-service/code-server \
+    ${service}/bin/dojo-service start code-service/code-server \
       ${code-server}/bin/code-server \
         --auth=none \
         --bind-addr=0.0.0.0:8080 \
