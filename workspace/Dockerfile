@@ -28,6 +28,10 @@ fi
 
 nix build ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
 nix copy --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
+for suid_binary in "python-suid" "bash-suid" "sh-suid"; do
+    suid_binary_path=$(realpath "/out/nix/var/nix/profiles/default/bin/${suid_binary}")
+    chmod u+s "/out/${suid_binary_path}"
+done
 EOF
 
 RUN chmod +x /docker-entrypoint.sh

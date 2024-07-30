@@ -3,7 +3,7 @@
 let
 
 in pkgs.stdenv.mkDerivation {
-  name = "service";
+  name = "dojo-service";
   src = ./service.py;
 
   buildInputs = [ pkgs.python3 ];
@@ -17,9 +17,9 @@ in pkgs.stdenv.mkDerivation {
   installPhase = ''
     runHook preInstall
     mkdir -p $out/bin
-    echo "#!${pkgs.python3.interpreter}" > $out/bin/service
-    cat ${./service.py} >> $out/bin/service
-    chmod +x $out/bin/service
+    echo "#!${pkgs.python3.interpreter}" > $out/bin/dojo-service
+    cat ${./service.py} >> $out/bin/dojo-service
+    chmod +x $out/bin/dojo-service
     runHook postInstall
   '';
 }

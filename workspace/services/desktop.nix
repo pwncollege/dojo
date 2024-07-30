@@ -33,7 +33,7 @@ let
     mkdir -p /run/dojo/desktop-service
     printf '%s\n%s\n' "$password_interact" "$password_view" | ${pkgs.tigervnc}/bin/vncpasswd -f > /run/dojo/desktop-service/Xvnc.passwd
 
-    ${service}/bin/service start desktop-service/Xvnc \
+    ${service}/bin/dojo-service start desktop-service/Xvnc \
       ${pkgs.tigervnc}/bin/Xvnc \
         $DISPLAY \
         -localhost 0 \
@@ -43,7 +43,7 @@ let
         -geometry 1024x768 \
         -depth 24
 
-    ${service}/bin/service start desktop-service/novnc \
+    ${service}/bin/dojo-service start desktop-service/novnc \
       ${novnc}/bin/novnc \
         --vnc --unix-target=/run/dojo/desktop-service/Xvnc.sock \
         --listen 6080
@@ -52,7 +52,7 @@ let
     until ${pkgs.curl}/bin/curl -s localhost:6080 >/dev/null; do sleep 0.1; done
 
     # By default, xfce4-session invokes dbus-launch without `--config-file`, and it fails to find /etc/dbus-1/session.conf; so we manually specify the config file here.
-    ${service}/bin/service start desktop-service/xfce4-session \
+    ${service}/bin/dojo-service start desktop-service/xfce4-session \
       ${pkgs.dbus}/bin/dbus-launch --sh-syntax --exit-with-session --config-file=${pkgs.dbus}/share/dbus-1/session.conf ${pkgs.xfce.xfce4-session}/bin/xfce4-session
   '';
 

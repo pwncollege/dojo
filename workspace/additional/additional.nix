@@ -2,10 +2,18 @@
 
 let
   pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-    ipython
-    requests
+    angr
+    asteval
     flask
+    ipython
+    jupyter
+    psutil
     pwntools
+    pycryptodome
+    r2pipe
+    requests
+    scapy
+    selenium
   ]);
 in
 {

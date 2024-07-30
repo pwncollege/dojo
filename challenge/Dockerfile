@@ -64,7 +64,6 @@ COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
 COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
 COPY services.d /opt/pwn.college/services.d
-COPY setuid_interpreter.c /opt/pwn.college/setuid_interpreter.c
 COPY bash.bashrc /opt/pwn.college/bash.bashrc
 COPY vm /opt/pwn.college/vm
 COPY windows /opt/pwn.college/windows
@@ -74,15 +73,10 @@ COPY .radare2rc /opt/pwn.college/.radare2rc
 COPY .pwn.conf /opt/pwn.college/.pwn.conf
 
 RUN <<EOF
-    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_PYTHON -o /opt/pwn.college/python
-    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_BASH -o /opt/pwn.college/bash
-    gcc /opt/pwn.college/setuid_interpreter.c -DSUID_SH -o /opt/pwn.college/sh
+    ln -sf /run/current-system/sw/bin/python-suid /opt/pwn.college/python
+    ln -sf /run/current-system/sw/bin/bash-suid /opt/pwn.college/bash
+    ln -sf /run/current-system/sw/bin/sh-suid /opt/pwn.college/sh
 
-    ln -sf /bin/bash /opt/pwn.college/ssh-entrypoint
-    
-    ln -sf /opt/pwn.college/python /usr/local/bin/python-setuid
-    ln -sf /opt/pwn.college/bash /usr/local/bin/bash-setuid
-    ln -sf /opt/pwn.college/sh /usr/local/bin/sh-setuid
     ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
     ln -sf /opt/pwn.college/windows/windows /usr/local/bin/windows
 
@@ -94,69 +88,6 @@ RUN <<EOF
     mkdir /challenge
     install -m 400 <(echo 'pwn.college{uninitialized}') /flag
 EOF
-
-################################################################################
-
-FROM essentials as builder-code-server
-
-RUN <<EOF
-    curl -fsSL https://code-server.dev/install.sh | /bin/sh /dev/stdin
-    mkdir -p /opt/code-server/extensions
-    wget -O /tmp/ms-vscode-cpptools.vsix 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
-    code-server --extensions-dir=/opt/code-server/extensions \
-        --install-extension ms-python.python \
-        --install-extension /tmp/ms-vscode-cpptools.vsix
-    chmod +x /opt/code-server/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*}
-    rm -rf /root/.cache/code-server /root/.local/share/code-server /tmp/ms-vscode-cpptools.vsix
-EOF
-
-WORKDIR /usr/lib/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
-
-RUN mv rg rg.orig
-
-COPY <<EOF ./rg
-#!/usr/bin/python
-
-import sys
-import os
-
-sys.argv[0] += ".orig"
-if "--follow" in sys.argv:
-    sys.argv.remove("--follow")
-os.execv(sys.argv[0], sys.argv)
-EOF
-
-RUN chmod +x rg
-
-################################################################################
-
-FROM essentials as builder-desktop
-ARG UBUNTU_VERSION=20.04
-
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    [ "${UBUNTU_VERSION}" == "20.04" ] && TGR=common || TGR=tools; \
-    apt-get update && xargs apt-get install -yqq <<EOF && \
-    apt-get -y remove --purge at-spi2-core tumbler gvfs-* && \
-    apt-get -y autoremove && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-        novnc
-        tigervnc-standalone-server
-        tigervnc-$TGR
-        websockify
-        xterm
-        dbus-x11
-        mousepad
-        xclip
-        xfce4
-        xfce4-terminal
-EOF
-
-# TODO: can we generate desktop data with cli ???
-COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
-COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
-
-RUN rm /etc/xdg/autostart/*
 
 ################################################################################
 
@@ -233,7 +164,7 @@ RUN awk '{$1=$1};1' >> /opt/linux/linux-5.4/.config <<EOF
     CONFIG_DEBUG_INFO_SPLIT=n
     CONFIG_DEVPTS_FS=y
     CONFIG_DRM_VIRTIO_GPU=y
-    CONFIG_FRAME_POINTER=y    
+    CONFIG_FRAME_POINTER=y
     CONFIG_GDB_SCRIPTS=y
     CONFIG_HW_RANDOM_VIRTIO=y
     CONFIG_HYPERVISOR_GUEST=y
@@ -697,8 +628,6 @@ ENV LC_CTYPE=C.UTF-8
 
 COPY --link --from=essentials / /
 COPY --link --from=builder-pwn.college / /
-COPY --link --from=builder-code-server / /
-COPY --link --from=builder-desktop / /
 
 COPY --link --from=builder-kernel /opt/linux /opt/linux
 COPY --link --from=builder-tcpdump / /
@@ -745,10 +674,7 @@ RUN <<EOF
 
     find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
 
-    chmod u+s /opt/pwn.college/python \
-              /opt/pwn.college/bash \
-              /opt/pwn.college/sh \
-              /opt/pwn.college/vm/vm \
+    chmod u+s /opt/pwn.college/vm/vm \
               /opt/pwn.college/windows/windows
 
     date > /opt/pwn.college/build
