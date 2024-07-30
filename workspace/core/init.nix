@@ -29,6 +29,7 @@ let
     echo "hacker:x:1000:" >> /etc/group
 
     mkdir -pm 1777 /run/dojo /tmp
+    mkdir /run/dojo/root
     echo $DOJO_AUTH_TOKEN > /run/dojo/auth_token
 
     read DOJO_FLAG

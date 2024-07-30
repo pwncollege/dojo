@@ -16,12 +16,12 @@
             };
           };
 
-          init = import ./init.nix { inherit pkgs; };
-          ssh-entrypoint = import ./ssh-entrypoint.nix { inherit pkgs; };
+          init = import ./core/init.nix { inherit pkgs; };
+          suid-interpreter = import ./core/suid-interpreter.nix { inherit pkgs; };
+          ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
           service = import ./services/service.nix { inherit pkgs; };
           code-service = import ./services/code.nix { inherit pkgs; };
           desktop-service = import ./services/desktop.nix { inherit pkgs; };
-          suid-interpreter = import ./suid-interpreter.nix { inherit pkgs; };
 
           ldd = (pkgs.writeShellScriptBin "ldd" ''
             ldd=/usr/bin/ldd
