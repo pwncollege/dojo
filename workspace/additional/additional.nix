@@ -15,13 +15,18 @@ let
     scapy
     selenium
   ]);
+
 in
 {
   packages = with pkgs; [
-    pythonEnv
+    (lib.hiPrio pythonEnv)
+
+    gcc
+    gnumake
 
     qemu
 
+    strace
     gdb
     pwndbg
     gef
@@ -29,9 +34,19 @@ in
     ghidra
     ida-free
     radare2
+    # TODO: angr-management
+    # TODO: binary-ninja
 
     wireshark
     nmap
     tcpdump
+    firefox
+    geckodriver
+
+    aflplusplus
+    rappel
+    ropgadget
+
+    # TODO: apt-tools
   ];
 }

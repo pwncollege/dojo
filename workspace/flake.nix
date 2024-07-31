@@ -70,8 +70,6 @@
             code-service
             desktop-service
             suid-interpreter
-
-            gdb
           ];
 
           fullPackages = corePackages ++ additional.packages;
