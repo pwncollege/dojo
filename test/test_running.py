@@ -303,7 +303,8 @@ def test_active_module_endpoint(random_user):
             "dojo_name": "Example Dojo",
             "dojo_reference_id": "example",
             "module_id": "hello",
-            "module_name": "Hello"
+            "module_name": "Hello",
+            "description": "<p>This is apple.</p>",
         },
         "banana": {
             "challenge_id": 2,
@@ -312,20 +313,26 @@ def test_active_module_endpoint(random_user):
             "dojo_name": "Example Dojo",
             "dojo_reference_id": "example",
             "module_id": "hello",
-            "module_name": "Hello"
+            "module_name": "Hello",
+            "description": "<p>This is banana.</p>",
         },
         "empty": {}
     }
+    apple_description = challenges["apple"].pop("description")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["c_current"] == challenges["banana"], f"Expected challenge 'Banana'\n{challenges['banana']}\n, but got {response.json()['c_current']}"
     assert response.json()["c_next"] == challenges["empty"], f"Expected empty {challenges['empty']} challenge, but got {response.json()['c_next']}"
     assert response.json()["c_previous"] == challenges["apple"], f"Expected challenge 'Apple'\n{challenges['apple']}\n, but got {response.json()['c_previous']}"
+    challenges["apple"]["description"] = apple_description
+
     start_challenge("example", "hello", "apple", session=session)
     response = session.get(f"{PROTO}://{HOST}/active-module")
+    banana_description = challenges["banana"].pop("description")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["c_current"] == challenges["apple"], f"Expected challenge 'Apple'\n{challenges['apple']}\n, but got {response.json()['c_current']}"
     assert response.json()["c_next"] == challenges["banana"], f"Expected challenge 'Banana'\n{challenges['banana']}\n, but got {response.json()['c_next']}"
     assert response.json()["c_previous"] == challenges["empty"], f"Expected empty {challenges['empty']} challenge, but got {response.json()['c_previous']}"
+    challenges["banana"]["description"] = banana_description
 
 def get_all_standings(session, dojo, module=None):
     """

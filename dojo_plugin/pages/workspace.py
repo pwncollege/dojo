@@ -46,6 +46,7 @@ def start_on_demand_service(user, service_name):
 def view_desktop():
     user_id = request.args.get("user")
     password = request.args.get("password")
+    url_only = request.args.get("url_only")
 
     if user_id and not password and not is_admin():
         abort(403)
@@ -53,7 +54,7 @@ def view_desktop():
     user = get_current_user() if not user_id else Users.query.filter_by(id=int(user_id)).first_or_404()
     container = get_current_container(user)
     if not container:
-        return render_template("iframe.html", active=False)
+        return "" if url_only else render_template("iframe.html", active=False)
 
     interact_password = container_password(container, "desktop", "interact")
     view_password = container_password(container, "desktop", "view")
@@ -87,7 +88,7 @@ def view_desktop():
     if start_on_demand_service(user, "desktop") is False:
         return render_template("iframe.html", active=False)
 
-    return render_template("iframe.html",
+    return iframe_src if url_only else render_template("iframe.html",
                            iframe_name="workspace",
                            iframe_src=iframe_src,
                            share_urls=share_urls,

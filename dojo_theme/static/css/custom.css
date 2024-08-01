@@ -17,6 +17,15 @@ body, table, .form-control:focus, .close {
 .navbar > .container {
     justify-content: space-evenly;
 }
+html {
+    ::-webkit-scrollbar {
+        width: 5px;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #b5e853;
+        border-radius: 5px;
+    }
+}
 
 a {
     color: #63c0f5;

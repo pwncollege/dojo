@@ -1,3 +1,25 @@
+const broadcast = new BroadcastChannel('broadcast');
+
+broadcast.onmessage = (event) => {
+    if (event.data.msg === 'New challenge started') {
+        if (window.location.pathname === '/workspace/code') {
+            window.location.reload();
+        }
+        else if (window.location.pathname === '/workspace/desktop') {
+            get_and_set_iframe_url()
+        }
+    }
+};
+function get_and_set_iframe_url() {
+    fetch("/workspace/desktop?url_only=true")
+        .then(response => response.text())
+        .then(url => {
+            const iframe = $("#workspace_iframe")[0];
+            if (iframe.src !== window.location.origin + url) {
+                iframe.src = url;
+            }
+        });
+}
 async function fetch_current_module() {
     const response = await fetch('/active-module/');
     const data = await response.json();
@@ -20,6 +42,7 @@ async function updateNavbarDropdown() {
         $("#current #module").val(data.c_current.module_id);
         $("#current #challenge").val(data.c_current.challenge_reference_id);
         $("#current #challenge-id").val(data.c_current.challenge_id);
+        $("#dropdown-description").html(data.c_current.description);
 
         if ("dojo_name" in data.c_previous) {
             $("#previous").removeClass("invisible");
@@ -114,13 +137,11 @@ function DropdownStartChallenge(event) {
             await updateNavbarDropdown();
             $(".challenge-active").removeClass("challenge-active");
             $(`.accordion-item input[value=${params.challenge}]`).closest(".accordion-item").find("h4.challenge-name").addClass("challenge-active");
-            if (window.location.href.includes('/workspace/desktop')) {
-                let iframe_html = await fetch('/workspace/desktop').then(response => response.text());
-                let iframe_src = $(iframe_html).find("iframe").attr("src");
-                if (iframe_src) {
-                    $("main iframe").attr("src", iframe_src);
-                }
-            }
+           const broadcast_send = new BroadcastChannel('broadcast');
+            broadcast_send.postMessage({
+               time: new Date().getTime(),
+               msg: 'New challenge started'
+           });
         }
         else {
             let message = "Error:";
@@ -190,6 +211,13 @@ function submitFlag(event) {
 }
 updateNavbarDropdown();
 $(() => {
+    $("#show_description").click((event) =>{
+        $("#dropdown-description").toggle();
+        event.stopPropagation();
+    });
+    $("#dropdown-description").click((event) =>{
+        event.stopPropagation();
+    });
   $(".close-link").on("click", () => {
     $(".navbar")
       .addClass("navbar-hiding")
