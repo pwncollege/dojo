@@ -88,6 +88,7 @@ def active_module():
                 "challenge_id": challs['current'].challenge_id,
                 "challenge_name": challs['current'].name,
                 "challenge_reference_id": challs['current'].id,
+                "description": render_markdown(challs['current'].description).strip(),
             },
             "c_next": {
                 "module_name": challs['next'].module.name if challs['next'] else None,
