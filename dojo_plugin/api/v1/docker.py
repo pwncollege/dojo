@@ -198,6 +198,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
             },
             init=True,
             cap_add=["SYS_PTRACE"],
+            cap_drop=["DAC_OVERRIDE"],
             security_opt=[f"seccomp={SECCOMP}"],
             cpu_period=100000,
             cpu_quota=400000,
