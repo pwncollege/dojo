@@ -50,9 +50,9 @@ while docker ps -a | grep "$CONTAINER_NAME"; do sleep 1; done
 
 # freaking bad unmount
 sleep 1
-mount | grep $PWD | tac | while read -a ENTRY
+mount | grep $PWD | sed -e "s/.* on //" | sed -e "s/ .*//" | tac | while read ENTRY
 do
-	sudo umount "${ENTRY[2]}"
+	sudo umount "$ENTRY"
 done
 
 docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" -p 2222:22 -p 80:80 -p 443:443 --name "$CONTAINER_NAME" dojo || exit 1
@@ -75,6 +75,6 @@ fi
 until curl -Ls localhost.pwn.college | grep -q pwn; do sleep 1; done
 # fix up the data permissions and git
 sudo chown "$USER:$USER" "$PWD/data"
-git checkout "$PWD/data/.gitkeep"
+git checkout "$PWD/data/.gitkeep" || true
 
 [ "$TEST" == "yes" ] && MOZ_HEADLESS=1 pytest -v test/test_running.py test/test_welcome.py

@@ -15,30 +15,12 @@ from CTFd.utils.helpers import get_infos
 from CTFd.cache import cache
 
 from ..utils import render_markdown
+from ..utils.stats import container_stats, dojo_stats
 from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 #pylint:disable=redefined-outer-name
-
-
-@cache.memoize(timeout=60)
-def get_stats(dojo):
-    docker_client = docker.from_env()
-    filters = {
-        "name": "user_",
-        "label": f"dojo.dojo_id={dojo.reference_id}"
-    }
-    containers = docker_client.containers.list(filters=filters, ignore_removed=True)
-
-    # TODO: users and solves query is slow, so we'll just leave it out for now
-    # TODO: we need to index tables for this to be fast
-    return {
-        "active": len(containers),
-        "users": "-", # int(dojo.solves().group_by(Solves.user_id).count()),
-        "challenges": int(len(dojo.challenges)),
-        "solves": "-", # int(dojo.solves().count()),
-    }
 
 
 @dojo.route("/<dojo>")
@@ -48,7 +30,7 @@ def listing(dojo):
     infos = get_infos()
     user = get_current_user()
     dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
-    stats = get_stats(dojo)
+    stats = dojo_stats(dojo)
     awards = dojo.awards()
     return render_template(
         "dojo.html",
@@ -58,6 +40,10 @@ def listing(dojo):
         stats=stats,
         infos=infos,
         awards=awards,
+        module_container_counts=collections.Counter(
+            c['module'] for c in container_stats()
+            if c['dojo'] == dojo.reference_id
+        ),
     )
 
 
@@ -237,12 +223,6 @@ def view_module(dojo, module):
                         .with_entities(Solves.challenge_id, db.func.count()))
     current_dojo_challenge = get_current_dojo_challenge()
 
-    module_containers = docker.from_env().containers.list(filters={
-        "name": "user_",
-        "label": [ f"dojo.dojo_id={dojo.reference_id}", f"dojo.module_id={module.id}" ]
-    }, ignore_removed=True)
-    challenge_container_counts = collections.Counter(c.labels['dojo.challenge_id'] for c in module_containers)
-
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
     assessments = []
     if student or dojo.is_admin(user):
@@ -275,7 +255,11 @@ def view_module(dojo, module):
         user=user,
         current_dojo_challenge=current_dojo_challenge,
         assessments=assessments,
-        challenge_container_counts=challenge_container_counts,
+        challenge_container_counts=collections.Counter(
+            c['challenge'] for c in container_stats()
+            if c['module'] == module.id and c['dojo'] == dojo.reference_id
+        ),
+
     )
 
 

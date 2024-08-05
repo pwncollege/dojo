@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/widgets.html" import card %}
 
 {% block content %}
 <div class="jumbotron">
@@ -51,14 +52,14 @@
     <p>
       <b>Hacking Now:</b> <code>{{ stats["active"] }}</code>
       <br>
-      <b>Hackers:</b> <code>{{ stats["users"] }}</code>
+      <b>Hackers:</b> <code>{{ "{:,}".format(stats["users"]) }}</code>
       <br>
       <b>Challenges:</b> <code>{{ stats["challenges"] }}</code>
       <br>
-      <b>Solves:</b> <code>{{ stats["solves"] }}</code>
+      <b>Solves:</b> <code>{{ "{:,}".format(stats["solves"]) }}</code>
       {% if awards %}
       <br>
-      <b>Awardees:</b> <code>{{ awards|length }}</code>
+      <b>Awardees:</b> <code>{{ "{:,}".format(awards|length) }}</code>
       <br>
       <b>Earliest Awardees:</b>
       {% for award in awards[-5:][::-1] %}
@@ -93,17 +94,21 @@
   <br>
   <ul class="card-list">
     {% for module in dojo.modules %}
-    <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.view_dojo_path', dojo=dojo_id, path=module.id) }}">
-      {# TODO: card-active, card-hidden #}
-      <li class="card card-small">
-        <div class="card-body">
-          <h4 class="card-title">{{ module.name or module.id }}</h4>
-          <p class="card-text">
-            {{ module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0 }} / {{ module.visible_challenges() | length }}
-          </p>
-        </div>
-      </li>
-    </a>
+    {% set container_count = module_container_counts.get(module.id, 0) %}
+    {% set num_challs = module.visible_challenges() | length %}
+    {% set num_solved = module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0 %}
+    {{ card(
+      url_for('pwncollege_dojo.view_dojo_path', dojo=dojo_id, path=module.id),
+      title=module.name or module.id,
+      text_lines = [
+        "{} Hacking".format(container_count) if container_count > 0 else "",
+        "{} / {}".format(
+          module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0,
+          module.visible_challenges() | length
+        )
+      ],
+      solve_percent=(num_solved / num_challs) * 100 if num_challs else 0,
+    ) }}
     {% endfor %}
   </ul>
 

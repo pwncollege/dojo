@@ -20,7 +20,11 @@ port_names = {
     "desktop": 6080,
     "desktop-win": 6082,
 }
+<<<<<<< HEAD
 on_demand_services = { "code", "desktop", "desktop-win" }
+=======
+on_demand_services = { "code", "desktop", "desktop-windows" }
+>>>>>>> master
 
 def container_password(container, *args):
     key = container.labels["dojo.auth_token"].encode()

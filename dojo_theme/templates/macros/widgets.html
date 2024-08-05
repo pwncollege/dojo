@@ -20,17 +20,24 @@
 </li>
 {% endmacro %}
 
-{% macro card(url, title=None, text=None, icon=None, emoji=None, custom=False) -%}
+{% macro card(url, title=None, text_lines=None, icon=None, emoji=None, custom=False, solve_percent=0) -%}
   <a class="text-decoration-none" href="{{ url }}">
     <li class="card card-small">
       <div class="card-body">
         {% if title %}<h4 class="card-title">{{ title }}</h4>{% endif %}
-        {% if text %}<p class="card-text">{{ text }}</p>{% endif %}
+        {% if icon or emoji %}
         <div class="card-icon">
           {% if icon %}<img src="{{ icon }}">{% endif %}
           {% if emoji %}{{ emoji }}{% endif %}
         </div>
+        {% endif %}
+        {% if text_lines %}<p class="card-text">{% for text in text_lines %}{{ text }}<br>{% endfor %}</p>{% endif %}
         {% if custom %}{{ caller() }}{% endif %}
+        <div class="progress-bar" style="width:{{solve_percent}}%">
+          {% if solve_percent != 0 %}
+            <span class="progress-bar-text">{{solve_percent|round(0, 'floor')|int}}%</span>
+          {% endif %}
+        </div>
       </div>
     </li>
   </a>
@@ -55,17 +62,22 @@
 {% endmacro %}
 
 
-{% macro dojo_grid(dojos, create_icon=None) -%}
+{% macro dojo_grid(dojos, dojo_container_counts, create_icon=None) -%}
   <ul class="card-list">
     {% for dojo, solves in dojos %}
-      {% set text = "{} Modules : {} / {}".format(dojo.modules_count, solves, dojo.challenges_count) %}
       {% set icon = "/themes/dojo_theme/static/img/dojo/{}.svg".format(dojo.award.belt) if (dojo.award.belt and dojo.official) else None %}
+      {% set solve_percent = (solves / dojo.challenges_count) * 100 if dojo.challenges_count else 0 %}
       {{ card(
         url_for("pwncollege_dojo.view_dojo", dojo=dojo.reference_id),
         title=dojo.name or dojo.id,
-        text=text,
+        text_lines=[
+          "{} Hacking".format(dojo_container_counts.get(dojo.reference_id, 0)) if dojo_container_counts.get(dojo.reference_id, 0) else "",
+          "{} Module{}".format(dojo.modules_count, "" if dojo.modules_count == 1 else "s"),
+          "{} Challenge{}".format(dojo.challenges_count, "" if dojo.challenges_count == 1 else "s"),
+        ],
         icon=icon,
         emoji=dojo.award.emoji,
+        solve_percent=solve_percent,
       ) }}
     {% endfor %}
     {% if create_icon %}

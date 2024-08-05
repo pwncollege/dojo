@@ -34,7 +34,7 @@ def vscode_terminal(wd):
     module_window = wd.current_window_handle
 
     wd.switch_to.new_window("tab")
-    wd.get(f"{PROTO}://{HOST}/workspace/code/")
+    wd.get(f"{PROTO}://{HOST}/workspace/code")
     time.sleep(2)
     wd.switch_to.active_element.send_keys(Keys.CONTROL + Keys.SHIFT + "`")
     time.sleep(2)

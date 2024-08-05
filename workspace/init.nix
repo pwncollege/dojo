@@ -23,7 +23,7 @@ let
 
     mkdir -p /home/hacker /root
     mkdir -p /etc && touch /etc/passwd /etc/group
-    echo "root:x:0:0:root:/root:$DEFAULT_PROFILE/bin/bash\n" >> /etc/passwd
+    echo "root:x:0:0:root:/root:$DEFAULT_PROFILE/bin/bash" >> /etc/passwd
     echo "hacker:x:1000:1000:hacker:/home/hacker:$DEFAULT_PROFILE/bin/bash" >> /etc/passwd
     echo "root:x:0:" >> /etc/group
     echo "hacker:x:1000:" >> /etc/group
