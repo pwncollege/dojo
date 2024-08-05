@@ -436,7 +436,7 @@ class DojoChallenges(db.Model):
     module_index = db.Column(db.Integer, primary_key=True)
     challenge_index = db.Column(db.Integer, primary_key=True)
 
-    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), index=True)
     id = db.Column(db.String(32), index=True)
     name = db.Column(db.String(128))
     description = db.Column(db.Text)
