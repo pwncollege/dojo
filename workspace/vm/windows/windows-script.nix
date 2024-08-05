@@ -1,4 +1,4 @@
-{ virtiofsd, qemu, openssh, stdenv }@pkgs:
+{ coreutils, virtiofsd, qemu, openssh, stdenv }@pkgs:
 
 let
   dojo-service = import ../../services/service.nix { inherit pkgs; };
