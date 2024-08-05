@@ -17,7 +17,7 @@ let
     '';
   });
 in
-pkgs.writeScript "dojo-desktop-win" ''
+pkgs.writeScriptBin "dojo-desktop-win" ''
   #!${pkgs.bash}/bin/bash
 
   until [ -f /run/dojo/var/ready ]; do sleep 0.1; done
