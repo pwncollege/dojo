@@ -26,7 +26,7 @@ if [ ! -d /out ]; then
     exit 1
 fi
 
-if [ -e /dev/kvm ];
+if [ -e /dev/kvm ]; then
     chmod 666 /dev/kvm
 fi
 
