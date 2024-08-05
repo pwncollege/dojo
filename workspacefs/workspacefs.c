@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <dirent.h>
 
 static int workspace_getattr(const char *path, struct stat *stbuf)
 {
@@ -36,6 +37,25 @@ static int workspace_readdir(const char *path, void *buf, fuse_fill_dir_t filler
 
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
+
+    uid_t uid = fuse_get_context()->uid;
+    if (uid != 1000)
+        return 0;
+
+    DIR *dp = opendir("/run/dojo/bin");
+    if (dp == NULL)
+        return -errno;
+
+    struct dirent *de;
+    while ((de = readdir(dp)) != NULL) {
+        struct stat st;
+        memset(&st, 0, sizeof(st));
+        st.st_ino = de->d_ino;
+        st.st_mode = S_IFLNK | 0777;
+        if (filler(buf, de->d_name, &st, 0))
+            break;
+    }
+    closedir(dp);
 
     return 0;
 }
