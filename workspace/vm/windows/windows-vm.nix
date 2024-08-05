@@ -21,7 +21,7 @@ stdenv.mkDerivation {
     runHook preBuild
 
     mkdir -p $out
-    qemu-img create -f qcow2 $out/img.qcow2 51200M
+    qemu-img create -f qcow2 $out/windows-base.qcow2 51200M
 
     # install
     printf "Installing windows and tools...\n"
