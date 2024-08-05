@@ -1,4 +1,4 @@
-{ virtiofsd, qemu, openssh, stdenv }@pkgs:
+{ pkgs }:
 
 let
   dojo-service = import ../../services/service.nix { inherit pkgs; };
@@ -16,11 +16,11 @@ stdenv.mkDerivation {
   installPhase = ''
     mkdir -p $out/bin
     substitute $src $out/bin/windows \
-      --subst-var-by virtiofsd "${virtiofsd}" \
-      --subst-var-by qemu "${qemu}" \
-      --subst-var-by openssh "${openssh}" \
-      --subst-var-by coreutils "${coreutils}" \
-      --subst-var-by dojo-service "${dojo-serivce}"
+      --subst-var-by virtiofsd "${pkgs.virtiofsd}" \
+      --subst-var-by qemu "${pkgs.qemu}" \
+      --subst-var-by openssh "${pkgs.openssh}" \
+      --subst-var-by coreutils "${pkgs.coreutils}" \
+      --subst-var-by dojo-service "${pkgs.dojo-service}"
     chmod +x $out/bin/windows
   '';
 }
