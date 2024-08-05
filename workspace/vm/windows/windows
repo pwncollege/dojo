@@ -16,17 +16,23 @@ IMAGE_PATH = STATEFUL_PATH / "windows_img.qcow2"
 VM_PIDFILE = STATEFUL_PATH / "vm.pid"
 VM_LOGFILE = STATEFUL_PATH / "vm.log"
 STATEFUL_WORLD_WRITEABLE_PATH = STATEFUL_PATH / "world-writeable"
-virtfs_sock_path = lambda dir_path, tag: dir_path / f"virtfs-{tag}.sock"
-virtfs_pidfile_path = lambda dir_path, tag: dir_path / f"virtfs-{tag}.pid"
-virtfs_log_path = lambda dir_path, tag: dir_path / f"virtfs-{tag}.log"
 FLAG_SHARE_PATH = STATEFUL_PATH / "flag-volume"
+# these much match dojo-service
+RUN_DIR = Path("/run/dojo/var")
+service_log_path = lambda service_name: RUN_DIR / f"{service_name}.log"
+SERVICES = set(
+    "windows-vm",
+    "windows-virtfs-challenge",
+    "windows-virtfs-home",
+    "windows-virtfs-flag"
+)
 
 VIRTIOFSD_PATH = "@virtiofsd@/bin/virtiofsd"
 QEMU_SYSTEM_X86_PATH = "@qemu@/bin/qemu-system-x86_64"
 QEMU_IMG_PATH = "@qemu@/bin/qemu-img"
 SSH_PATH = "@openssh@/bin/ssh"
-START_STOP_DAEMON_PATH = "/usr/sbin/start-stop-daemon"
-TAIL_PATH = "/usr/bin/tail"
+TAIL_PATH = "@coreutils@/bin/tail"
+DOJO_SERVICE_PATH = "@dojo-service@/bin/dojo-service"
 
 
 def error(msg):
@@ -70,7 +76,7 @@ def execve(argv):
     os.execve(argv[0], argv, os.environ)
 
 
-def start_daemon(pidfile, logfile, child_argv, drop_privs=False):
+def start_daemon(service_name, child_argv, drop_privs=False):
     def preexec_drop_privs():
         os.seteuid(os.getuid())
         os.setegid(os.getgid())
@@ -79,26 +85,17 @@ def start_daemon(pidfile, logfile, child_argv, drop_privs=False):
     if drop_privs:
         preexec_fn = preexec_drop_privs
 
+    assert service_name in SERVICES, f"starting a service which we will fail to clean up later!"
     daemon_argv = [
-        START_STOP_DAEMON_PATH,
-        "--start",
-        "--pidfile",
-        str(pidfile),
-        "--make-pidfile",
-        "--background",
-        "--no-close",
-        "--quiet",
-        "--oknodo",
-        "--startas",
-        child_argv[0],
-        "--",
-        *child_argv[1:],
-    ]
+        DOJO_SERVICE_PATH,
+        "start",
+        service_name,
+    ] + child_argv
 
     subprocess.run(
         daemon_argv,
         stdin=subprocess.DEVNULL,
-        stdout=open(logfile, "a"),
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
         check=True,
         preexec_fn=preexec_fn,
@@ -113,7 +110,7 @@ def reset_image():
 
     subprocess.check_call(
         [
-            "/usr/bin/qemu-img",
+            QEMU_IMG_PATH,
             "create",
             "-f",
             "qcow2",
@@ -131,27 +128,25 @@ def reset_image():
 
 
 def kill():
-    for pidfile in STATEFUL_PATH.glob("*.pid"):
+    for service_name in SERVICES:
         argv = [
-            "/usr/sbin/start-stop-daemon",
-            "--stop",
-            "--pidfile",
-            str(pidfile),
-            "--remove-pidfile",
-            "--quiet",
-            "--oknodo",
+            DOJO_SERVICE_PATH,
+            "kill",
+            service_name
         ]
 
         subprocess.run(
             argv,
             stdin=subprocess.DEVNULL,
-            stdout=open(VM_LOGFILE, "a"),
+            stdout=subprocess.DEVNULL,
             stderr=subprocess.STDOUT,
             check=True,
         )
 
-    for logfile in STATEFUL_PATH.glob("*.log"):
-        logfile.unlink()
+        try:
+            service_log_path(service_name).unlink()
+        except (OSError, FileNotFoundError):
+            pass
 
 
 def fs_bridge_running():
@@ -226,8 +221,7 @@ def start():
         dir_path = STATEFUL_PATH if needs_root else STATEFUL_WORLD_WRITEABLE_PATH
         sock_path = virtfs_sock_path(dir_path, tag)
         start_daemon(
-            virtfs_pidfile_path(dir_path, tag),
-            virtfs_log_path(dir_path, tag),
+            f"windows-virtfs-{tag}",
             # fmt: off
             [
                 str(VIRTIOFSD_PATH),
@@ -247,7 +241,7 @@ def start():
         ]
         # fmt: on
 
-    start_daemon(VM_PIDFILE, VM_LOGFILE, qemu_argv)
+    start_daemon("windows-vm", qemu_argv)
 
 
 def wait():
@@ -327,7 +321,7 @@ def main():
         "exec": lambda: (start(), exec_(args.exec_command, *args.exec_command_args)),
         "start": lambda: (kill(), start()),
         "stop": lambda: exec_("powershell", "-command", "stop-computer -force"),
-        "kill": lambda: kill(),
+        "kill": lambda: kill_all(),
         "restart": lambda: exec_("powershell", "-command", "restart-computer -force"),
         "forcerestart": lambda: (kill(), start()),
         "reset": lambda: reset_image(),
