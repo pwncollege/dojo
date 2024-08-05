@@ -56,7 +56,7 @@ def main():
         print("\r", " " * 80, "\rConnected!")
 
         if not os.fork():
-            ssh_entrypoint = "ssh-entrypoint"
+            ssh_entrypoint = "/run/dojo/bin/ssh-entrypoint"
             command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
             os.execve(
                 "/usr/bin/docker",

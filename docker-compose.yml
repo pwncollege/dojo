@@ -48,6 +48,10 @@ services:
       context: ./workspacefs
     volumes:
       - /data/workspacefs:/run/workspace:shared
+      - /data/workspace/nix:/nix
+    depends_on:
+      workspace-builder:
+        condition: service_completed_successfully
 
   ctfd:
     container_name: ctfd
