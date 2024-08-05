@@ -1,9 +1,9 @@
 { callPackage, lib, qemu_test, netcat-openbsd, openssh, stdenv, writeShellScript }:
 
 let
-  initial-floppy = callPackage ./initial-floppy.nix { };
+  setup-drive = callPackage ./setup-drive.nix { };
   server-iso = callPackage ./server-iso.nix { };
-  virtio-win-drivers = callPackage ./virtio-win-drivers.nix { };
+  virtio-windows-drivers = callPackage ./virtio-windows-drivers.nix { };
 in
 stdenv.mkDerivation {
   name = "windows-vm";
@@ -39,11 +39,10 @@ stdenv.mkDerivation {
       -monitor none \
       -chardev socket,id=mon1,host=localhost,port=4444,server=on,wait=off \
       -mon chardev=mon1 \
-      -display vnc=:99 \
-      -drive "file=${initial-floppy},read-only=on,format=raw,if=floppy,index=0" \
+      -drive "file=${setup-drive},read-only=on,format=raw,if=floppy,index=0" \
       -drive "file=${server-iso},read-only=on,media=cdrom,index=1" \
       -drive "file=${virtio-win-drivers}/share/virtio-drivers.iso,read-only=on,media=cdrom,index=2" \
-      -drive "file=$out/img.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2,index=3"
+      -drive "file=$out/windows-base.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2,index=3"
     
     # perform initial bootup (in background)
     printf "Performing initial bootup...\n"
@@ -52,7 +51,7 @@ stdenv.mkDerivation {
       -boot once=d \
       -machine type=pc,accel=kvm \
       -m 4096M \
-      -smp "$(nproc)" \
+      -smp "$NIX_BUILD_CORES" \
       -display vnc=:12 \
       -nographic \
       -device virtio-net,netdev=user.0 \
@@ -61,11 +60,10 @@ stdenv.mkDerivation {
       -monitor none \
       -chardev socket,id=mon1,host=localhost,port=4444,server=on,wait=off \
       -mon chardev=mon1 \
-      -display vnc=:99 \
-      -drive "file=${initial-floppy},read-only=on,format=raw,index=0,if=floppy" \
+      -drive "file=${setup-drive},read-only=on,format=raw,index=0,if=floppy" \
       -drive "file=${server-iso},read-only=on,media=cdrom" \
       -drive "file=${virtio-win-drivers}/share/virtio-drivers.iso,read-only=on,media=cdrom" \
-      -drive "file=$out/img.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2" &
+      -drive "file=$out/windows-base.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2" &
     qemu_pid="$!"
     
     # wait for SSH to open
