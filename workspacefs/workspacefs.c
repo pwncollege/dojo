@@ -1,13 +1,15 @@
 #define FUSE_USE_VERSION 30
 
-#include <fuse.h>
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 #include <errno.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <dirent.h>
 #include <sys/stat.h>
+#include <dirent.h>
+#include <limits.h>
+
+#include <fuse.h>
 
 static int workspace_getattr(const char *path, struct stat *stbuf)
 {
