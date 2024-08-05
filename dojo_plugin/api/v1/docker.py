@@ -178,6 +178,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
                     f"{HOST_DATA_PATH}/workspace/nix",
                     "bind",
                     read_only=True,
+                    propagation="shared",
                 ),
                 docker.types.Mount(
                     "/run/workspace",
