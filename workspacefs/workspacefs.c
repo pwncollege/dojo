@@ -20,12 +20,18 @@ static int workspace_getattr(const char *path, struct stat *stbuf)
     if (uid != 1000)
         return -ENOENT;
 
+    char real_path[PATH_MAX];
+    snprintf(real_path, sizeof(real_path), "/run/dojo/bin%s", path);
+    struct stat real_stat;
+    if (stat(real_path, &real_stat) != 0)
+        return -ENOENT;
+
     memset(stbuf, 0, sizeof(struct stat));
     stbuf->st_mode = S_IFLNK | 0777;
     stbuf->st_nlink = 1;
     stbuf->st_uid = 0;
     stbuf->st_gid = 0;
-    stbuf->st_size = strlen("/run/dojo/bin") + strlen(path);
+    stbuf->st_size = strlen(real_path);
     return 0;
 }
 
@@ -66,7 +72,13 @@ static int workspace_readlink(const char *path, char *buf, size_t size)
     if (uid != 1000)
         return -ENOENT;
 
-    snprintf(buf, size, "/run/dojo/bin%s", path);
+    char real_path[PATH_MAX];
+    snprintf(real_path, sizeof(real_path), "/run/dojo/bin%s", path);
+    struct stat real_stat;
+    if (stat(real_path, &real_stat) != 0)
+        return -ENOENT;
+
+    snprintf(buf, size, "%s", real_path);
     return 0;
 }
 
