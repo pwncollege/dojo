@@ -79,7 +79,6 @@ jobs:
             --name dojo-test \
             --privileged \
             --detach \
-            --rm \
             -v "/mnt/dojo-test-data:/data:shared" \
             -p 2222:22 -p 80:80 -p 443:443 \
             pwncollege/dojo:test
