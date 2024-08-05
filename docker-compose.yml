@@ -41,6 +41,14 @@ services:
     volumes:
       - /data/workspace:/out
 
+  workspacefs:
+    container_name: workspacefs
+    privileged: true
+    build:
+      context: ./workspacefs
+    volumes:
+      - /data/workspacefs:/run:shared
+
   ctfd:
     container_name: ctfd
     hostname: ctfd

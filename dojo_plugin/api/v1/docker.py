@@ -179,6 +179,12 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
                     "bind",
                     read_only=True,
                 ),
+                docker.types.Mount(
+                    "/run/workspace",
+                    f"{HOST_DATA_PATH}/workspacefs/workspace",
+                    "bind",
+                    read_only=True,
+                ),
             ]
             + [
                 docker.types.Mount(
@@ -199,7 +205,6 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
             },
             init=True,
             cap_add=["SYS_PTRACE"],
-            cap_drop=["DAC_OVERRIDE"],
             security_opt=[f"seccomp={SECCOMP}"],
             cpu_period=100000,
             cpu_quota=400000,
