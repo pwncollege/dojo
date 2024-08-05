@@ -47,6 +47,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         build-essential
         ca-certificates
         curl
+        python-is-python3
         sudo
         wget
         unzip
