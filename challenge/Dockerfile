@@ -565,8 +565,7 @@ RUN <<EOF
 
     find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
 
-    chmod u+s /opt/pwn.college/vm/vm \
-              /opt/pwn.college/windows/windows
+    chmod u+s /opt/pwn.college/vm/vm
 
     date > /opt/pwn.college/build
 EOF
