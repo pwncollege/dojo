@@ -30,6 +30,7 @@ let
     mkdir -p /etc && touch /etc/passwd /etc/group
     echo "root:x:0:0:root:/root:/run/dojo/bin/bash" >> /etc/passwd
     echo "hacker:x:1000:1000:hacker:/home/hacker:/run/dojo/bin/bash" >> /etc/passwd
+    echo "sshd:x:112:65534::/run/sshd:/usr/sbin/nologin" >> /etc/passwd
     echo "root:x:0:" >> /etc/group
     echo "hacker:x:1000:" >> /etc/group
 
