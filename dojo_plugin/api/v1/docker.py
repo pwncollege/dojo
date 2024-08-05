@@ -22,7 +22,7 @@ from ...utils import (
     lookup_workspace_token,
     serialize_user_flag,
     resolved_tar,
-    user_ipv4,
+    user_ip,
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
@@ -201,7 +201,6 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
                 f"vm_{hostname}"[:64]: "127.0.0.1",
                 "challenge.localhost": "127.0.0.1",
                 "hacker.localhost": "127.0.0.1",
-                "dojo-user": user_ipv4(user),
                 **USER_FIREWALL_ALLOWED,
             },
             init=True,
@@ -216,9 +215,9 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
             auto_remove=True,
         )
 
-    user_network = docker_client.networks.get("user_network")
-    user_network.connect(
-        container, ipv4_address=user_ipv4(user), aliases=[container_name(user)]
+    workspace_network = docker_client.networks.get("workspace_network")
+    workspace_network.connect(
+        container, ipv6_address=user_ip(user), aliases=[container_name(user)]
     )
 
     default_network = docker_client.networks.get("bridge")

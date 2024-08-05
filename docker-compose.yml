@@ -28,7 +28,7 @@ services:
     platform: linux/amd64
     entrypoint: /bin/true
     networks:
-      - user_network
+      - workspace_network
 
   workspace-builder:
     container_name: workspace-builder
@@ -211,10 +211,10 @@ services:
       - /var/run/docker.sock:/tmp/docker.sock:ro
     networks:
       default:
-      user_network:
+      workspace_network:
         aliases:
           - nginx
-        ipv4_address: 10.0.0.3
+        ipv6_address: "fd00:1337::10"
 
   acme-companion:
     container_name: nginx-proxy-acme
@@ -236,12 +236,13 @@ volumes:
 networks:
   default:
     driver: bridge
-  user_network:
-    name: user_network
+  workspace_network:
+    name: workspace_network
     driver: bridge
+    enable_ipv6: true
     ipam:
       config:
-        - subnet: 10.0.0.0/8
+        - subnet: "fd00:1337::/80"
     driver_opts:
-      com.docker.network.bridge.name: "user_network"
+      com.docker.network.bridge.name: "workspace_network"
       com.docker.network.bridge.enable_icc: "false"
