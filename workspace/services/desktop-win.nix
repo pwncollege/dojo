@@ -27,7 +27,7 @@ pkgs.writeScript "dojo-desktop-win" ''
   ${service}/bin/service start desktop-win-service/novnc \
     ${novnc}/bin/novnc \
       --vnc localhost:5912 \
-      --listen 6081
+      --listen 6082
 
   until [ -e /tmp/.X11-unix/X0 ]; do sleep 0.1; done
   until ${pkgs.curl}/bin/curl -s localhost:6081 >/dev/null; do sleep 0.1; done
