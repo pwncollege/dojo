@@ -81,9 +81,9 @@ This program must exit (with a status code of `0`) before the workspace is made 
 
 `/run/challenge/bin`
 
-During initialization, the default nix profile at `/nix/var/nix/profiles/default` is symlinked to `/run/current-system/sw`.
-In order to make sure that these standard tools are easily accessible, `PATH` is set to prioritize `/run/current-system/sw/bin` over the default `PATH`.
-This means that when a user runs `gdb`, they will get the standard `gdb` provided by the workspace at `/run/current-system/sw/bin/gdb`, instead of any other `gdb` that might be made available by the challenge image (e.g. `/usr/bin/gdb`).
+During initialization, the default nix profile at `/nix/var/nix/profiles/default` is symlinked into `/run/dojo`.
+In order to make sure that these standard tools are easily accessible, `PATH` is set to prioritize `/run/dojo/bin` over the default `PATH`.
+This means that when a user runs `gdb`, they will get the standard `gdb` provided by the workspace at `/run/dojo/bin/gdb`, instead of any other `gdb` that might be made available by the challenge image (e.g. `/usr/bin/gdb`).
 The workspace provides for *many* tools in this way in order to provide a consistent environment for all challenges, ensuring that students are able to use the tools they are familiar with.
 
 If a challenge wants to instead prioritize its own program(s), this can be done through symlinks in the `/run/challenge/bin` directory.
@@ -91,7 +91,7 @@ This should be done *sparingly*, and only when the challenge really expects a sp
 Unfortunately some of the infrastructure programs might rely on the `PATH` to find their dependencies, and so doing this can sometimes break things (please open an issue if you find this to be the case).
 However, if for example, you want to make sure that your challenge image's `python` (with specific challenge python-dependencies) is used when a student runs `python`, you can symlink `/run/challenge/bin/python` to the desired version of the program.
 
-In other words, `PATH="/run/challenge/bin:/run/current-system/sw/bin:$PATH"`.
+In other words, `PATH="/run/challenge/bin:/run/dojo/bin:$PATH"`.
 
 By default, if there is no `/run/challenge/bin` directory, it is automatically symlinked from `/challenge/bin`.
 This means that you can alternatively place your symlinks in `/challenge/bin` if you prefer; however, the `/challenge` interface is deprecated, and so long-term you should prefer `/run/challenge/bin`.
@@ -103,9 +103,10 @@ For more information about how `PATH` works, see [8.3 Other Environment Variable
 There is no perfect way to marry together a file system that meets the precise needs of the DOJO, the challenge, and the user; however, perfect is the enemy of good.
 
 DOJO owns the following directories:
-- `/nix`
+- `/run/workspace`
 - `/run/dojo`
 - `/run/current-system`
+- `/nix`
 
 The user owns the following directories:
 - `/home/hacker`
@@ -113,8 +114,8 @@ The user owns the following directories:
 The challenge owns everything else subject to the following constraints/understanding:
 - DOJO will ensure `/tmp` exists, with permisisons `root:root 01777`.
 - DOJO will control `/etc/passwd` and `/etc/group` for the `hacker` (UID 1000) and `root` (UID 0) users, with permissions `root:root 0644`.
-- `/bin/sh` must be POSIX compliant; DOJO will symlink `/bin/sh` to `/run/current-system/sw/bin/sh` if it does not exist.
-- `/usr/bin/env` must be POSIX compliant; DOJO will symlink `/usr/bin/env` to `/run/current-system/sw/bin/env` if it does not exist.
+- `/bin/sh` must be POSIX compliant; DOJO will symlink `/bin/sh` to `/run/dojo/bin/sh` if it does not exist.
+- `/usr/bin/env` must be POSIX compliant; DOJO will symlink `/usr/bin/env` to `/run/dojo/bin/env` if it does not exist.
 - Various configuration files may be automatically utilized by the DOJO; please open an issue if you run into issues with this.
 
 ## Local Deployment

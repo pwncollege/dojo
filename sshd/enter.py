@@ -41,7 +41,7 @@ def main():
 
         if status == "running":
             try:
-                container.get_archive("/run/dojo/ready")
+                container.get_archive("/run/dojo/var/ready")
             except docker.errors.NotFound:
                 status = "initializing"
 

@@ -33,7 +33,7 @@ let
   serviceScript = pkgs.writeScript "dojo-code" ''
     #!${pkgs.bash}/bin/bash
 
-    until [ -f /run/dojo/ready ]; do sleep 0.1; done
+    until [ -f /run/dojo/var/ready ]; do sleep 0.1; done
 
     ${service}/bin/dojo-service start code-service/code-server \
       ${code-server}/bin/code-server \
