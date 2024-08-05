@@ -13,24 +13,33 @@ let
     mkdir -p /run/current-system
     ln -sfT $DEFAULT_PROFILE /run/current-system/sw
 
+    mkdir -p /run/dojo
+    for path in /run/current-system/sw/*; do
+      ln -sfT $path /run/dojo/$(basename $path)
+    done
+
+    mkdir -p /run/workspace
+    ln -sfT /run/current-system/sw/bin /run/workspace/bin
+    chmod 005 /run/workspace
+
     if [ ! -e /run/challenge/bin ]; then
       mkdir -p /run/challenge && ln -sfT /challenge/bin /run/challenge/bin
     fi
 
     if [ ! -e /bin/sh ]; then
-      mkdir -p /bin && ln -sfT $DEFAULT_PROFILE/bin/sh /bin/sh
+      mkdir -p /bin && ln -sfT /run/dojo/bin/sh /bin/sh
     fi
 
     mkdir -p /home/hacker /root
     mkdir -p /etc && touch /etc/passwd /etc/group
-    echo "root:x:0:0:root:/root:$DEFAULT_PROFILE/bin/bash" >> /etc/passwd
-    echo "hacker:x:1000:1000:hacker:/home/hacker:$DEFAULT_PROFILE/bin/bash" >> /etc/passwd
+    echo "root:x:0:0:root:/root:/run/dojo/bin/bash" >> /etc/passwd
+    echo "hacker:x:1000:1000:hacker:/home/hacker:/run/dojo/bin/bash" >> /etc/passwd
     echo "root:x:0:" >> /etc/group
     echo "hacker:x:1000:" >> /etc/group
 
-    mkdir -pm 1777 /run/dojo /tmp
-    mkdir /run/dojo/root
-    echo $DOJO_AUTH_TOKEN > /run/dojo/auth_token
+    mkdir -pm 1777 /run/dojo/var /tmp
+    mkdir /run/dojo/var/root
+    echo $DOJO_AUTH_TOKEN > /run/dojo/var/auth_token
 
     read DOJO_FLAG
     echo $DOJO_FLAG | install -m 400 /dev/stdin /flag
@@ -47,7 +56,7 @@ let
         /challenge/.init
     fi
 
-    touch /run/dojo/ready
+    touch /run/dojo/var/ready
 
     exec "$@"
   '';

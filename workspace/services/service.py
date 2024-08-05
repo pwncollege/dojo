@@ -4,7 +4,7 @@ import signal
 import argparse
 from pathlib import Path
 
-RUN_DIR = Path("/run/dojo")
+RUN_DIR = Path("/run/dojo/var")
 
 def daemonize(service_name, exec_command):
     try:

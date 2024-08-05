@@ -32,7 +32,7 @@ def start_on_demand_service(user, service_name):
         return
     try:
         exec_run(
-            f"/run/current-system/sw/bin/dojo-{service_name}",
+            f"/run/dojo/bin/dojo-{service_name}",
             workspace_user="hacker",
             user_id=user.id,
             assert_success=True,

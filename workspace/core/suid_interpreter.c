@@ -16,7 +16,7 @@
 #define ERROR_BAD_SHEBANG 6   // Resolved script must indicate it's desire to be run with THIS interpreter (SECURITY: prevent weird-behavior due to running incorrect interpreter via non-shebang forced invocation)
 #define ERROR_BAD_ENV 7       // Resolved script which indicates a clear environment must have a cleared environment (SECURITY: prevent weird-behavior due to running interpreter with environment via non-shebang forced invocation)
 
-#define BIN "/run/current-system/sw/bin/"
+#define BIN "/run/dojo/bin/"
 
 int main(int argc, char **argv, char **envp)
 {

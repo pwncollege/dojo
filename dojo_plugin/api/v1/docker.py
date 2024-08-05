@@ -129,11 +129,12 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
     auth_token = os.urandom(32).hex()
 
     challenge_bin_path = "/run/challenge/bin"
-    system_bin_path = "/run/current-system/sw/bin"
+    workspace_bin_path = "/run/workspace/bin"
+    dojo_bin_path = "/run/dojo/bin"
     image = docker_client.images.get(dojo_challenge.image)
     image_env = image.attrs["Config"].get("Env") or []
     image_path = next((env_var[len("PATH="):].split(":") for env_var in image_env if env_var.startswith("PATH=")), [])
-    env_path = ":".join([challenge_bin_path, system_bin_path, *image_path])
+    env_path = ":".join([challenge_bin_path, workspace_bin_path, *image_path])
 
     devices = []
     if os.path.exists("/dev/kvm"):
@@ -147,7 +148,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
             dojo_challenge.image,
             entrypoint=[
                 "/nix/var/nix/profiles/default/bin/dojo-init",
-                f"{system_bin_path}/sleep",
+                f"{dojo_bin_path}/sleep",
                 "6h",
             ],
             name=container_name(user),
@@ -157,7 +158,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
             environment={
                 "HOME": "/home/hacker",
                 "PATH": env_path,
-                "SHELL": f"{system_bin_path}/bash",
+                "SHELL": f"{dojo_bin_path}/bash",
                 "DOJO_AUTH_TOKEN": auth_token,
                 "DOJO_MODE": "privileged" if practice else "standard",
             },
@@ -227,7 +228,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
 
 def get_mount_info(container, path):
     exit_code, output = exec_run(
-        f"/run/current-system/sw/bin/findmnt --output OPTIONS {path}",
+        f"/run/dojo/bin/findmnt --output OPTIONS {path}",
         container=container,
         assert_success=False,
     )
@@ -250,7 +251,7 @@ def insert_challenge(container, as_user, dojo_challenge):
         path = pathlib.Path(*path.parts[: len(dojo_challenge.path.parts) + 1])
         return path.name.startswith("_") and path.is_dir()
 
-    exec_run("/run/current-system/sw/bin/mkdir -p /challenge", container=container)
+    exec_run("/run/dojo/bin/mkdir -p /challenge", container=container)
 
     root_dir = dojo_challenge.path.parent.parent
     challenge_tar = resolved_tar(
@@ -274,9 +275,9 @@ def insert_challenge(container, as_user, dojo_challenge):
         container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
     exec_run(
-        "/run/current-system/sw/bin/chown -R root:root /challenge", container=container
+        "/run/dojo/bin/chown -R root:root /challenge", container=container
     )
-    exec_run("/run/current-system/sw/bin/chmod -R 4755 /challenge", container=container)
+    exec_run("/run/dojo/bin/chmod -R 4755 /challenge", container=container)
 
 
 def insert_flag(container, flag):

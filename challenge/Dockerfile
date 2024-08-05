@@ -73,9 +73,9 @@ COPY .radare2rc /opt/pwn.college/.radare2rc
 COPY .pwn.conf /opt/pwn.college/.pwn.conf
 
 RUN <<EOF
-    ln -sf /run/current-system/sw/bin/python-suid /opt/pwn.college/python
-    ln -sf /run/current-system/sw/bin/bash-suid /opt/pwn.college/bash
-    ln -sf /run/current-system/sw/bin/sh-suid /opt/pwn.college/sh
+    ln -sf /run/dojo/bin/python-suid /opt/pwn.college/python
+    ln -sf /run/dojo/bin/bash-suid /opt/pwn.college/bash
+    ln -sf /run/dojo/bin/sh-suid /opt/pwn.college/sh
 
     ln -sf /opt/pwn.college/vm/vm /usr/local/bin/vm
     ln -sf /opt/pwn.college/windows/windows /usr/local/bin/windows
