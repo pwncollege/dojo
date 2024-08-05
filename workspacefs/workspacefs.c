@@ -11,6 +11,20 @@
 
 #include <fuse.h>
 
+static int workspace_accessible()
+{
+    uid_t uid = fuse_get_context()->uid;
+    gid_t gid = fuse_get_context()->gid;
+    return uid == 1000 || uid == gid;
+}
+
+static int workspace_exists(const char *path, char *real_path)
+{
+    snprintf(real_path, PATH_MAX, "/run/dojo/bin%s", path);
+    struct stat real_stat;
+    return stat(real_path, &real_stat) == 0;
+}
+
 static int workspace_getattr(const char *path, struct stat *stbuf)
 {
     if (strcmp(path, "/") == 0) {
@@ -19,14 +33,8 @@ static int workspace_getattr(const char *path, struct stat *stbuf)
         return 0;
     }
 
-    uid_t uid = fuse_get_context()->uid;
-    if (uid != 1000)
-        return -ENOENT;
-
     char real_path[PATH_MAX];
-    snprintf(real_path, sizeof(real_path), "/run/dojo/bin%s", path);
-    struct stat real_stat;
-    if (stat(real_path, &real_stat) != 0)
+    if (!workspace_accessible() || !workspace_exists(path, real_path))
         return -ENOENT;
 
     memset(stbuf, 0, sizeof(struct stat));
@@ -47,8 +55,7 @@ static int workspace_readdir(const char *path, void *buf, fuse_fill_dir_t filler
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
 
-    uid_t uid = fuse_get_context()->uid;
-    if (uid != 1000)
+    if (!workspace_accessible())
         return 0;
 
     DIR *dp = opendir("/run/dojo/bin");
@@ -71,14 +78,8 @@ static int workspace_readdir(const char *path, void *buf, fuse_fill_dir_t filler
 
 static int workspace_readlink(const char *path, char *buf, size_t size)
 {
-    uid_t uid = fuse_get_context()->uid;
-    if (uid != 1000)
-        return -ENOENT;
-
     char real_path[PATH_MAX];
-    snprintf(real_path, sizeof(real_path), "/run/dojo/bin%s", path);
-    struct stat real_stat;
-    if (stat(real_path, &real_stat) != 0)
+    if (!workspace_accessible() || !workspace_exists(path, real_path))
         return -ENOENT;
 
     snprintf(buf, size, "%s", real_path);
