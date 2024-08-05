@@ -540,7 +540,6 @@ COPY --link --from=builder-desktop-angr-management / /
 COPY --link --from=builder-tools-pip / /
 COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-gdb / /
-COPY --link --from=builder-windows / /
 
 RUN <<EOF
     if [ -f /etc/ssh/ssh_config ]
@@ -566,8 +565,7 @@ RUN <<EOF
 
     find / -xdev -type f -perm -4000 -exec chmod u-s {} \;
 
-    chmod u+s /opt/pwn.college/vm/vm \
-              /opt/pwn.college/windows/windows
+    chmod u+s /opt/pwn.college/vm/vm
 
     date > /opt/pwn.college/build
 EOF
