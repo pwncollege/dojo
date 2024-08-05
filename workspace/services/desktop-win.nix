@@ -20,7 +20,7 @@ in
 pkgs.writeScript "dojo-desktop-win" ''
   #!${pkgs.bash}/bin/bash
 
-  until [ -f /run/dojo/ready ]; do sleep 0.1; done
+  until [ -f /run/dojo/var/ready ]; do sleep 0.1; done
 
   mkdir -p /run/dojo/desktop-win-service
 
