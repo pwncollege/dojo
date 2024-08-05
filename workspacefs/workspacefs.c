@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <sys/stat.h>
 
 static int workspace_getattr(const char *path, struct stat *stbuf)
 {
