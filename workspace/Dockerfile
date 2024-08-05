@@ -26,6 +26,10 @@ if [ ! -d /out ]; then
     exit 1
 fi
 
+if [ -e /dev/kvm ];
+    chmod 666 /dev/kvm
+fi
+
 nix build --print-build-logs ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
 nix copy --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
 for suid_binary in "python-suid" "bash-suid" "sh-suid"; do
