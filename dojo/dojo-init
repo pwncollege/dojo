@@ -111,5 +111,5 @@ iptables -I DOCKER-USER -i workspace_network -j DROP
 for host in $(cat /opt/pwn.college/user_firewall.allowed); do
     iptables -I DOCKER-USER -i workspace_network -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
 done
-iptables -I DOCKER-USER -i workspace_network -s 10.0.0.0/24 -m conntrack --ctstate NEW -j ACCEPT
-iptables -I DOCKER-USER -i workspace_network -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -I DOCKER-USER -i workspace_network -s fd00:1337::/96 -m conntrack --ctstate NEW -j ACCEPT
+iptables -I DOCKER-USER -i workspace_network -d fd00:1337::/80 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
