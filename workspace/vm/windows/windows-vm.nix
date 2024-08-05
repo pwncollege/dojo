@@ -3,7 +3,7 @@
 let
   setup-drive = callPackage ./setup-drive.nix { };
   server-iso = callPackage ./server-iso.nix { };
-  virtio-windows-drivers = callPackage ./virtio-windows-drivers.nix { };
+  virtio-win-drivers = callPackage ./virtio-win-drivers.nix { };
 in
 stdenv.mkDerivation {
   name = "windows-vm";
