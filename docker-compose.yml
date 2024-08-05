@@ -41,6 +41,14 @@ services:
     volumes:
       - /data/workspace:/out
 
+  workspacefs:
+    container_name: workspacefs
+    privileged: true
+    build:
+      context: ./workspacefs
+    volumes:
+      - /data/workspacefs:/run/workspace:shared
+
   ctfd:
     container_name: ctfd
     hostname: ctfd
@@ -118,6 +126,8 @@ services:
         condition: service_completed_successfully
       workspace-builder:
         condition: service_completed_successfully
+      workspacefs:
+        condition: service_started
       db:
         condition: service_healthy
         restart: true
