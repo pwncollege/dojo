@@ -193,13 +193,12 @@ function startChallenge(event) {
         }
 
         result_notification.slideDown();
+        item.find("#challenge-start").removeClass("disabled-button");
+        item.find("#challenge-start").prop("disabled", false);
+        item.find("#challenge-practice").removeClass("disabled-button");
+        item.find("#challenge-practice").prop("disabled", false);
 
         setTimeout(function() {
-            item.find("#challenge-start").removeClass("disabled-button");
-            item.find("#challenge-start").prop("disabled", false);
-            item.find("#challenge-practice").removeClass("disabled-button");
-            item.find("#challenge-practice").prop("disabled", false);
-
             item.find(".alert").slideUp();
             item.find("#challenge-submit").removeClass("disabled-button");
             item.find("#challenge-submit").prop("disabled", false);
