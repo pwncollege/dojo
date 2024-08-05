@@ -18,10 +18,6 @@ let
       ln -sfT $path /run/dojo/$(basename $path)
     done
 
-    mkdir -p /run/workspace
-    ln -sfT /run/current-system/sw/bin /run/workspace/bin
-    chmod 005 /run/workspace
-
     if [ ! -e /run/challenge/bin ]; then
       mkdir -p /run/challenge && ln -sfT /challenge/bin /run/challenge/bin
     fi
