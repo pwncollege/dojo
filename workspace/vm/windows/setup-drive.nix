@@ -1,9 +1,9 @@
 { dosfstools, lib, mtools, runCommandLocal, stdenv }:
 
 stdenv.mkDerivation {
-  name = "initial-floppy.img";
+  name = "setup-drive.img";
 
-  src = lib.cleanSource ./floppy-files;
+  src = lib.cleanSource ./setup-files;
 
   dontUnpack = true;
   dontConfigure = true;

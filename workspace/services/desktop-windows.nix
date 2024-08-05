@@ -17,14 +17,14 @@ let
     '';
   });
 in
-pkgs.writeScriptBin "dojo-desktop-win" ''
+pkgs.writeScriptBin "dojo-desktop-windows" ''
   #!${pkgs.bash}/bin/bash
 
   until [ -f /run/dojo/var/ready ]; do sleep 0.1; done
 
-  mkdir -p /run/dojo/desktop-win-service
+  mkdir -p /run/dojo/desktop-windows-service
 
-  ${service}/bin/service start desktop-win-service/novnc \
+  ${service}/bin/service start desktop-windows-service/novnc \
     ${novnc}/bin/novnc \
       --vnc localhost:5912 \
       --listen 6082
