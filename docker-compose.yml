@@ -126,6 +126,8 @@ services:
         condition: service_completed_successfully
       workspace-builder:
         condition: service_completed_successfully
+      workspacefs:
+        condition: service_started
       db:
         condition: service_healthy
         restart: true
