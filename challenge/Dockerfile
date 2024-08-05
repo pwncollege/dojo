@@ -63,7 +63,6 @@ RUN mkdir /opt/pwn.college
 COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
 COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
-COPY services.d /opt/pwn.college/services.d
 COPY bash.bashrc /opt/pwn.college/bash.bashrc
 COPY vm /opt/pwn.college/vm
 COPY windows /opt/pwn.college/windows
