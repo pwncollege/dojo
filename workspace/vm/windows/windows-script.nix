@@ -20,7 +20,7 @@ stdenv.mkDerivation {
       --subst-var-by qemu "${qemu}" \
       --subst-var-by openssh "${openssh}" \
       --subst-var-by coreutils "${coreutils}" \
-      --subst-var-by dojo-service "${dojo-serivce}"
+      --subst-var-by dojo-service "${dojo-service}"
     chmod +x $out/bin/windows
   '';
 }
