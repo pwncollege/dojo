@@ -1,15 +1,15 @@
 import docker
 import hmac
 
-from flask import request, Blueprint, render_template, redirect, url_for, abort
+from flask import request, Blueprint, render_template, url_for, abort
 from CTFd.models import Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 from CTFd.plugins import bypass_csrf_protection
 
 from ..models import Dojos
-from ..utils import random_home_path, redirect_user_socket, get_current_container
-from ..utils.dojo import dojo_route, get_current_dojo_challenge
+from ..utils import redirect_user_socket, get_current_container
+from ..utils.dojo import get_current_dojo_challenge
 from ..utils.workspace import exec_run
 
 
@@ -32,7 +32,7 @@ def start_on_demand_service(user, service_name):
         return
     try:
         exec_run(
-            f"/run/current-system/sw/bin/dojo-{service_name}",
+            f"/run/dojo/bin/dojo-{service_name}",
             workspace_user="hacker",
             user_id=user.id,
             assert_success=True,

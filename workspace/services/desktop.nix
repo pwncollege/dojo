@@ -20,39 +20,39 @@ let
   serviceScript = pkgs.writeScript "dojo-desktop" ''
     #!${pkgs.bash}/bin/bash
 
-    until [ -f /run/dojo/ready ]; do sleep 0.1; done
+    until [ -f /run/dojo/var/ready ]; do sleep 0.1; done
 
     export DISPLAY=:0
-    export XDG_DATA_DIRS="/run/current-system/sw/share:''${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-    export XDG_CONFIG_DIRS="/run/current-system/sw/etc/xdg:''${XDG_CONFIG_DIRS:-/etc/xdg}"
+    export XDG_DATA_DIRS="/run/dojo/share:''${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+    export XDG_CONFIG_DIRS="/run/dojo/etc/xdg:''${XDG_CONFIG_DIRS:-/etc/xdg}"
 
-    auth_token="$(cat /run/dojo/auth_token)"
+    auth_token="$(cat /run/dojo/var/auth_token)"
     password_interact="$(printf 'desktop-interact' | ${pkgs.openssl}/bin/openssl dgst -sha256 -hmac "$auth_token" | awk '{print $2}' | head -c 8)"
     password_view="$(printf 'desktop-view' | ${pkgs.openssl}/bin/openssl dgst -sha256 -hmac "$auth_token" | awk '{print $2}' | head -c 8)"
 
-    mkdir -p /run/dojo/desktop-service
-    printf '%s\n%s\n' "$password_interact" "$password_view" | ${pkgs.tigervnc}/bin/vncpasswd -f > /run/dojo/desktop-service/Xvnc.passwd
+    mkdir -p /run/dojo/var/desktop-service
+    printf '%s\n%s\n' "$password_interact" "$password_view" | ${pkgs.tigervnc}/bin/vncpasswd -f > /run/dojo/var/desktop-service/Xvnc.passwd
 
-    ${service}/bin/service start desktop-service/Xvnc \
+    ${service}/bin/dojo-service start desktop-service/Xvnc \
       ${pkgs.tigervnc}/bin/Xvnc \
         $DISPLAY \
         -localhost 0 \
-        -rfbunixpath /run/dojo/desktop-service/Xvnc.sock \
-        -rfbauth /run/dojo/desktop-service/Xvnc.passwd \
+        -rfbunixpath /run/dojo/var/desktop-service/Xvnc.sock \
+        -rfbauth /run/dojo/var/desktop-service/Xvnc.passwd \
         -nolisten tcp \
         -geometry 1024x768 \
         -depth 24
 
-    ${service}/bin/service start desktop-service/novnc \
+    ${service}/bin/dojo-service start desktop-service/novnc \
       ${novnc}/bin/novnc \
-        --vnc --unix-target=/run/dojo/desktop-service/Xvnc.sock \
+        --vnc --unix-target=/run/dojo/var/desktop-service/Xvnc.sock \
         --listen 6080
 
     until [ -e /tmp/.X11-unix/X0 ]; do sleep 0.1; done
     until ${pkgs.curl}/bin/curl -s localhost:6080 >/dev/null; do sleep 0.1; done
 
     # By default, xfce4-session invokes dbus-launch without `--config-file`, and it fails to find /etc/dbus-1/session.conf; so we manually specify the config file here.
-    ${service}/bin/service start desktop-service/xfce4-session \
+    ${service}/bin/dojo-service start desktop-service/xfce4-session \
       ${pkgs.dbus}/bin/dbus-launch --sh-syntax --exit-with-session --config-file=${pkgs.dbus}/share/dbus-1/session.conf ${pkgs.xfce.xfce4-session}/bin/xfce4-session
   '';
 

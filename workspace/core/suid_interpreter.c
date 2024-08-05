@@ -11,10 +11,12 @@
 #define ERROR_ARGC 1          // Must have argv[1] be script path
 #define ERROR_NOT_FOUND 2     // Resolved script path must exist
 #define ERROR_PATH 3          // Resolved script path must be in a known-good location (SECURITY: prevent symlink races during further analysis and invocation)
-#define ERROR_NOT_ROOT 4      // Resolved script path must be owned by root (we're running root setuid!)
-#define ERROR_NOT_SETUID 5    // Resolved script path must be setuid (we're running root setuid!)
+#define ERROR_NOT_ROOT 4      // Resolved script path must be owned by root (we're running root suid!)
+#define ERROR_NOT_SUID 5      // Resolved script path must be suid (we're running root suid!)
 #define ERROR_BAD_SHEBANG 6   // Resolved script must indicate it's desire to be run with THIS interpreter (SECURITY: prevent weird-behavior due to running incorrect interpreter via non-shebang forced invocation)
 #define ERROR_BAD_ENV 7       // Resolved script which indicates a clear environment must have a cleared environment (SECURITY: prevent weird-behavior due to running interpreter with environment via non-shebang forced invocation)
+
+#define BIN "/run/dojo/bin/"
 
 int main(int argc, char **argv, char **envp)
 {
@@ -43,24 +45,24 @@ int main(int argc, char **argv, char **envp)
     if (stat.st_uid != 0)
         return ERROR_NOT_ROOT;
     if (!(stat.st_mode & S_ISUID))
-        return ERROR_NOT_SETUID;
+        return ERROR_NOT_SUID;
 
     char first_line[PATH_MAX];
-    FILE *sfd = fopen(path, "r");
-    fgets(first_line, PATH_MAX, sfd);
-    fclose(sfd);
+    FILE *file = fopen(path, "r");
+    fgets(first_line, PATH_MAX, file);
+    fclose(file);
 
 #ifdef SUID_PYTHON
-    char *child_argv_prefix[] = { "/usr/bin/python3", "-I", "--", NULL };
+    char *child_argv_prefix[] = { BIN "python", "-I", "--", NULL };
     if (strcmp(first_line, "#!/opt/pwn.college/python\n") &&
-        strcmp(first_line, "#!/usr/bin/env python-setuid\n") &&
-        strcmp(first_line, "#!/nix/bin/env python-setuid\n"))
+        strcmp(first_line, "#!/usr/bin/env python-suid\n"))
         return ERROR_BAD_SHEBANG;
 #endif
+
 #ifdef SUID_BASH
     char c_arg[PATH_MAX];
     snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
-    char *child_argv_prefix[] = { "/usr/bin/bash", "-c", c_arg, argv[1], NULL };
+    char *child_argv_prefix[] = { BIN "bash", "-c", c_arg, argv[1], NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
     unsetenv("BASH_ENV");
@@ -71,14 +73,14 @@ int main(int argc, char **argv, char **envp)
             return ERROR_BAD_ENV;
     }
     else if (strcmp(first_line, "#!/opt/pwn.college/bash\n") &&
-             strcmp(first_line, "#!/usr/bin/env bash-setuid\n") &&
-             strcmp(first_line, "#!/nix/bin/env bash-setuid\n"))
+             strcmp(first_line, "#!/usr/bin/env bash-suid\n"))
         return ERROR_BAD_SHEBANG;
 #endif
+
 #ifdef SUID_SH
     char c_arg[PATH_MAX];
     snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
-    char *child_argv_prefix[] = { "/usr/bin/sh", "-c", c_arg, argv[1],  NULL };
+    char *child_argv_prefix[] = { BIN "sh", "-c", c_arg, argv[1],  NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
     if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/sh\n"))
@@ -87,8 +89,7 @@ int main(int argc, char **argv, char **envp)
             return ERROR_BAD_ENV;
     }
     else if (strcmp(first_line, "#!/opt/pwn.college/sh\n") &&
-             strcmp(first_line, "#!/usr/bin/env sh-setuid\n") &&
-             strcmp(first_line, "#!/nix/bin/env sh-setuid\n"))
+             strcmp(first_line, "#!/usr/bin/env sh-suid\n"))
         return ERROR_BAD_SHEBANG;
 #endif
 

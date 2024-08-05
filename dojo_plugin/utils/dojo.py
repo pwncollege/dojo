@@ -412,9 +412,9 @@ def dojo_git_command(dojo, *args):
 
 
 def dojo_update(dojo):
-    dojo_git_command(dojo, "pull")
-    dojo_git_command(dojo, "submodule", "init")
-    dojo_git_command(dojo, "submodule", "update")
+    dojo_git_command(dojo, "fetch", "--depth=1", "origin")
+    dojo_git_command(dojo, "reset", "--hard", "origin")
+    dojo_git_command(dojo, "submodule", "update", "--init", "--recursive")
     return dojo_from_dir(dojo.path, dojo=dojo)
 
 
@@ -471,3 +471,44 @@ def get_current_dojo_challenge(user=None):
                 DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first())
         .first()
     )
+
+
+def get_prev_cur_next_dojo_challenge(user=None):
+    container = get_current_container(user)
+    if not container:
+        return {
+        'previous':None,
+        'current':None,
+        'next':None
+        }
+
+    current = (
+        DojoChallenges.query
+        .filter(DojoChallenges.id == container.labels.get("dojo.challenge_id"),
+                DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
+                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first())
+        .first()
+    )
+
+    previous = (
+        DojoChallenges.query
+        .filter(DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
+                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first(),
+                DojoChallenges.challenge_id < current.challenge_id)
+        .order_by(DojoChallenges.challenge_id.desc())
+        .first()
+    )
+    next = (
+        DojoChallenges.query
+        .filter(DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
+                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first(),
+                DojoChallenges.challenge_id > current.challenge_id)
+        .order_by(DojoChallenges.challenge_id.asc())
+        .first()
+    )
+    return {
+        'previous':previous,
+        'current':current,
+        'next':next
+    }
+

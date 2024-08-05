@@ -16,13 +16,14 @@
             };
           };
 
-          init = import ./init.nix { inherit pkgs; };
-          ssh-entrypoint = import ./ssh-entrypoint.nix { inherit pkgs; };
+          init = import ./core/init.nix { inherit pkgs; };
+          suid-interpreter = import ./core/suid-interpreter.nix { inherit pkgs; };
+          ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
           service = import ./services/service.nix { inherit pkgs; };
           code-service = import ./services/code.nix { inherit pkgs; };
           desktop-service = import ./services/desktop.nix { inherit pkgs; };
 
-          ldd-wrapper = (pkgs.writeShellScriptBin "ldd" ''
+          ldd = (pkgs.writeShellScriptBin "ldd" ''
             ldd=/usr/bin/ldd
             for arg in "$@"; do
               case "$arg" in
@@ -52,22 +53,23 @@
             gnused
             hostname
             iproute2
-            (lib.hiPrio ldd-wrapper)
             less
             man
             ncurses
             procps
+            python3
             util-linux
             wget
             which
+
+            (lib.hiPrio ldd)
 
             init
             ssh-entrypoint
             service
             code-service
             desktop-service
-
-            gdb
+            suid-interpreter
           ];
 
           fullPackages = corePackages ++ additional.packages;

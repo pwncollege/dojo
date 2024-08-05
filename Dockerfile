@@ -17,7 +17,7 @@ RUN apt-get update && \
         wget
 
 RUN curl -fsSL https://get.docker.com | /bin/sh
-RUN echo '{ "data-root": "/opt/pwn.college/data/docker", "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json
+RUN echo '{ "data-root": "/data/docker", "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json
 RUN wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
 
 RUN cd /tmp && \
@@ -48,5 +48,4 @@ RUN find /opt/pwn.college/dojo -type f -exec ln -s {} /usr/bin/ \;
 EXPOSE 22
 EXPOSE 80
 EXPOSE 443
-VOLUME /opt/pwn.college/data
 CMD ["dojo", "init"]
