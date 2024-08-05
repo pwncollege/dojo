@@ -58,7 +58,7 @@ def start_service(service_name, exec_command):
     daemonize(service_name, exec_command)
     print(f"Service {service_name} started.")
 
-def stop_service(service_name):
+def terminate_service(service_name, signal):
     pid_file = RUN_DIR / f"{service_name}.pid"
     if not pid_file.exists():
         print(f"Service {service_name} is not running.")
@@ -73,6 +73,9 @@ def stop_service(service_name):
     if pid_file.exists():
         pid_file.unlink()
     print(f"Service {service_name} stopped.")
+
+stop_service = lambda service_name: terminate_service(service_name, signal.SIGTERM)
+kill_service = lambda service_name: terminate_service(service_name, signal.SIGKILL)
 
 def status_service(service_name):
     if (RUN_DIR / service_name).is_dir():
@@ -95,7 +98,7 @@ def status_service(service_name):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Python start-stop-daemon")
-    parser.add_argument("command", choices=["start", "stop", "status"], help="Command to run")
+    parser.add_argument("command", choices=["start", "stop", "kill", "status"], help="Command to run")
     parser.add_argument("service_name", help="Name of the service")
     parser.add_argument("exec_command", help="Command to execute for the service", nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -104,5 +107,7 @@ if __name__ == "__main__":
         start_service(args.service_name, args.exec_command)
     elif args.command == "stop":
         stop_service(args.service_name)
+    elif args.command == "kill":
+        kill_service(args.service_name)
     elif args.command == "status":
         status_service(args.service_name)
