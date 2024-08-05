@@ -57,6 +57,7 @@ mv /data/.config.env /data/config.env
 . /data/config.env
 
 mkdir -p /data/workspace/nix
+mkdir -p /data/workspacefs/bin
 
 if [ ! -f /data/homes/homefs ]; then
     echo "[+] Creating user home structure."
