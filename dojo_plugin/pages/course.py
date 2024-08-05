@@ -154,10 +154,6 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 challenge_count = challenge_counts[module_id]
                 checkpoint_solves, due_solves, late_solves, extra_late_solves, all_solves = module_solves.get(module_id, (0, 0, 0, 0, 0))
                 
-                print("@"*50)
-                print(f"{checkpoint_solves=}, {due_solves=}, {late_solves=}, {extra_late_solves=}")
-                print("@"*50)
-
                 challenge_count_required = int(challenge_count * percent_required)
                 user_date = date + datetime.timedelta(days=extension)
                 extra_late_user_date = None 
