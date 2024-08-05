@@ -26,7 +26,7 @@ if [ ! -d /out ]; then
     exit 1
 fi
 
-nix build ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
+nix build --print-build-logs ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
 nix copy --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
 for suid_binary in "python-suid" "bash-suid" "sh-suid"; do
     suid_binary_path=$(realpath "/out/nix/var/nix/profiles/default/bin/${suid_binary}")

@@ -64,5 +64,5 @@ in
     ropgadget
 
     # TODO: apt-tools
-  ];
+  ] ++ (import ../vm/windows { inherit pkgs; }).packages;
 }

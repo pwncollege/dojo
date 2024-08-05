@@ -1,5 +1,4 @@
 #!/usr/bin/bash
-#!/usr/bin/bash
 
 CON="NOPE"
 while [[ $CON != *"SSH"* ]]; do

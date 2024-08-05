@@ -63,7 +63,6 @@ RUN mkdir /opt/pwn.college
 COPY docker-initialize.sh /opt/pwn.college/docker-initialize.sh
 COPY docker-entrypoint.d /opt/pwn.college/docker-entrypoint.d
 COPY docker-entrypoint.sh /opt/pwn.college/docker-entrypoint.sh
-COPY services.d /opt/pwn.college/services.d
 COPY bash.bashrc /opt/pwn.college/bash.bashrc
 COPY vm /opt/pwn.college/vm
 COPY windows /opt/pwn.college/windows
@@ -524,7 +523,6 @@ ARG INSTALL_IDA_FREE=${DEFAULT_INSTALL_SELECTION}
 
 WORKDIR /opt/windows
 COPY windows/Autounattend.xml windows/setup.ps1 windows/config_startup.ps1 windows/sshd_config ./
-COPY windows/shutdown.py .
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
