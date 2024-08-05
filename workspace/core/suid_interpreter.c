@@ -53,7 +53,7 @@ int main(int argc, char **argv, char **envp)
     fclose(file);
 
 #ifdef SUID_PYTHON
-    char *child_argv_prefix[] = { BIN "python", "-I", "--", NULL };
+    char *child_argv_prefix[] = { "/usr/bin/python", "-I", "--", NULL };
     if (strcmp(first_line, "#!/opt/pwn.college/python\n") &&
         strcmp(first_line, "#!/usr/bin/env python-suid\n"))
         return ERROR_BAD_SHEBANG;
@@ -62,7 +62,7 @@ int main(int argc, char **argv, char **envp)
 #ifdef SUID_BASH
     char c_arg[PATH_MAX];
     snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
-    char *child_argv_prefix[] = { BIN "bash", "-c", c_arg, argv[1], NULL };
+    char *child_argv_prefix[] = { "/bin/bash", "-c", c_arg, argv[1], NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
     unsetenv("BASH_ENV");
@@ -80,7 +80,7 @@ int main(int argc, char **argv, char **envp)
 #ifdef SUID_SH
     char c_arg[PATH_MAX];
     snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
-    char *child_argv_prefix[] = { BIN "sh", "-c", c_arg, argv[1],  NULL };
+    char *child_argv_prefix[] = { "/bin/sh", "-c", c_arg, argv[1],  NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
     if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/sh\n"))
