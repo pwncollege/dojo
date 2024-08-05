@@ -181,7 +181,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
                 ),
                 docker.types.Mount(
                     "/run/workspace",
-                    f"{HOST_DATA_PATH}/workspacefs/workspace",
+                    f"{HOST_DATA_PATH}/workspacefs",
                     "bind",
                     read_only=True,
                 ),

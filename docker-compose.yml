@@ -47,7 +47,7 @@ services:
     build:
       context: ./workspacefs
     volumes:
-      - /data/workspacefs:/run:shared
+      - /data/workspacefs:/run/workspace:shared
 
   ctfd:
     container_name: ctfd

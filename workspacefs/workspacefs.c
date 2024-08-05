@@ -24,7 +24,7 @@ static int workspace_getattr(const char *path, struct stat *stbuf)
     stbuf->st_nlink = 1;
     stbuf->st_uid = 0;
     stbuf->st_gid = 0;
-    stbuf->st_size = strlen("/run/dojo") + strlen(path);
+    stbuf->st_size = strlen("/run/dojo/bin") + strlen(path);
     return 0;
 }
 
@@ -46,7 +46,7 @@ static int workspace_readlink(const char *path, char *buf, size_t size)
     if (uid != 1000)
         return -ENOENT;
 
-    snprintf(buf, size, "/run/dojo%s", path);
+    snprintf(buf, size, "/run/dojo/bin%s", path);
     return 0;
 }
 
