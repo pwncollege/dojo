@@ -540,7 +540,6 @@ COPY --link --from=builder-desktop-angr-management / /
 COPY --link --from=builder-tools-pip / /
 COPY --link --from=builder-tools-apt / /
 COPY --link --from=builder-gdb / /
-COPY --link --from=builder-windows / /
 
 RUN <<EOF
     if [ -f /etc/ssh/ssh_config ]
