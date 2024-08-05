@@ -106,10 +106,10 @@ done
 sysctl -w kernel.pty.max=1048576
 echo core > /proc/sys/kernel/core_pattern
 
-iptables -N DOCKER-USER
-iptables -I DOCKER-USER -i workspace_net -j DROP
+ip6tables -N DOCKER-USER
+ip6tables -I DOCKER-USER -i workspace_net -j DROP
 for host in $(cat /opt/pwn.college/user_firewall.allowed); do
-    iptables -I DOCKER-USER -i workspace_net -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
+    ip6tables -I DOCKER-USER -i workspace_net -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
 done
-iptables -I DOCKER-USER -i workspace_net -s fd00:1337::/96 -m conntrack --ctstate NEW -j ACCEPT
-iptables -I DOCKER-USER -i workspace_net -d fd00:1337::/80 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ip6tables -I DOCKER-USER -i workspace_net -s fd00:1337::/96 -m conntrack --ctstate NEW -j ACCEPT
+ip6tables -I DOCKER-USER -i workspace_net -d fd00:1337::/80 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
