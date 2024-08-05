@@ -20,7 +20,7 @@ pkgs.stdenv.mkDerivation {
       --subst-var-by qemu "${pkgs.qemu}" \
       --subst-var-by openssh "${pkgs.openssh}" \
       --subst-var-by coreutils "${pkgs.coreutils}" \
-      --subst-var-by dojo-service "${pkgs.dojo-service}"
+      --subst-var-by dojo-service "${dojo-service}"
     chmod +x $out/bin/windows
   '';
 }
