@@ -3,7 +3,7 @@
 let
   dojo-service = import ../../services/service.nix { inherit pkgs; };
 in
-stdenv.mkDerivation {
+pkgs.stdenv.mkDerivation {
   pname = "windows-script";
   version = "0.1.0";
 
