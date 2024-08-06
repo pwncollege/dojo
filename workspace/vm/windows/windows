@@ -197,17 +197,19 @@ def start():
     qemu_argv = [
         QEMU_SYSTEM_X86_PATH,
         "-name", "dojo",
+        "-boot", "once=d"
         "-machine", "type=pc,accel=kvm",
         "-m", mem,
         "-smp", "4",
         "-display", "none",
+        "-nographic",
         "-device", "virtio-net,netdev=user.0",
         # 5985: WinRM, 22: SSH, 5912: VNC, 4001: ChallengeProxy
         "-netdev", "user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::22-:22,hostfwd=tcp::5912-:5912,hostfwd=tcp::4001-:4001",
         "-serial", "null",
         "-monitor", "none",
-        "-drive", f"file={IMAGE_PATH},if=virtio,cache=writeback,discard=ignore,format=qcow2",
         "-drive", f"file={VIRTIO_DRIVERS_PATH},media=cdrom",
+        "-drive", f"file={IMAGE_PATH},if=virtio,cache=writeback,discard=ignore,format=qcow2",
         "-object", f"memory-backend-memfd,id=mem,size={mem},share=on",
         "-numa", "node,memdev=mem"
     ]
