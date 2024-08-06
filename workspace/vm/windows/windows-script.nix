@@ -3,6 +3,7 @@
 let
   dojo-service = import ../../services/service.nix { inherit pkgs; };
   windows-vm = pkgs.callPackage ./windows-vm.nix { };
+  virtio-win-drivers = pkgs.callPackage ./virtio-win-drivers.nix { };
 in
 pkgs.stdenv.mkDerivation {
   pname = "windows-script";
@@ -23,7 +24,8 @@ pkgs.stdenv.mkDerivation {
       --subst-var-by openssh "${pkgs.openssh}" \
       --subst-var-by coreutils "${pkgs.coreutils}" \
       --subst-var-by dojo-service "${dojo-service}" \
-      --subst-var-by windows-vm ${windows-vm}
+      --subst-var-by windows-vm "${windows-vm}" \
+      --subst-var-by virtio-win-drivers "${virtio-win-drivers}"
     chmod +x $out/bin/windows
     runHook postInstall
   '';
