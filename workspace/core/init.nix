@@ -2,7 +2,7 @@
 
 let
   initScript = pkgs.writeScript "dojo-init" ''
-    #!${pkgs.bash}/bin/bash    
+    #!${pkgs.bash}/bin/bash
 
     IMAGE_PATH="$(echo $PATH | cut -d: -f3-)"
     DEFAULT_PROFILE="/nix/var/nix/profiles/default"
@@ -44,6 +44,7 @@ let
     echo $DOJO_FLAG | install -m 400 /dev/stdin /flag
 
     exec > /run/dojo/var/root/init.log 2>&1
+    chmod 600 /run/dojo/var/root/init.log
 
     # TODO: Better support privileged mode
     if [ "$DOJO_MODE" = "privileged" ] && [ -f /usr/bin/sudo ]; then
