@@ -14,6 +14,7 @@ pkgs.stdenv.mkDerivation {
   dontPatchShebangs = true;
 
   installPhase = ''
+    runHook preInstall
     mkdir -p $out/bin
     substitute $src $out/bin/windows \
       --subst-var-by virtiofsd "${pkgs.virtiofsd}" \
@@ -22,5 +23,6 @@ pkgs.stdenv.mkDerivation {
       --subst-var-by coreutils "${pkgs.coreutils}" \
       --subst-var-by dojo-service "${dojo-service}"
     chmod +x $out/bin/windows
+    runHook postInstall
   '';
 }

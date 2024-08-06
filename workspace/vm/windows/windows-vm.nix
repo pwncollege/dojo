@@ -70,6 +70,7 @@ stdenv.mkDerivation {
   dontConfigure = true;
 
   buildPhase = ''
+    runHook preBuild
     mkdir -p $out
     qemu-img create \
       -f qcow2 \
