@@ -117,7 +117,7 @@ stdenv.mkDerivation {
     # wait for post_install.ps1 to shut the machine down
     sleep 5
     echo "shutting down qemu"
-    echo '{"execute": "system_powerdown"}' | nc localhost 4444
+    echo -e '{"execute": "qmp_capabilities"}\n{"execute": "system_powerdown"}' | nc localhost 4444
     sleep 10
     ls /proc/pid/$qemu_pid
     kill -9 "$qemu_pid" || true
