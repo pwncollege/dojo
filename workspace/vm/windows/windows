@@ -33,6 +33,8 @@ TAIL_PATH = "@coreutils@/bin/tail"
 DOJO_SERVICE_PATH = "@dojo-service@/bin/dojo-service"
 WINDOWS_BASE_PATH = "@windows-vm@/windows-base.qcow2"
 VIRTIO_DRIVERS_PATH = "@virtio-win-drivers@/share/virtio-drivers.iso"
+SETUP_DRIVE_PATH = "@setup-drive@"
+SERVER_ISO_PATH = "@server-iso@"
 
 
 def error(msg):
@@ -208,8 +210,10 @@ def start():
         "-netdev", "user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::22-:22,hostfwd=tcp::5912-:5912,hostfwd=tcp::4001-:4001",
         "-serial", "null",
         "-monitor", "none",
-        "-drive", f"file={VIRTIO_DRIVERS_PATH},media=cdrom",
-        "-drive", f"file={IMAGE_PATH},if=virtio,cache=writeback,discard=ignore,format=qcow2",
+        "-drive", f"file={SETUP_DRIVE_PATH},read-only=on,format=raw,index=0,if=floppy",
+        "-drive", f"file={SERVER_ISO_PATH},read-only=on,media=cdrom,index=1",
+        "-drive", f"file={VIRTIO_DRIVERS_PATH},read-only=on,media=cdrom,index=2",
+        "-drive", f"file={IMAGE_PATH},if=virtio,cache=writeback,discard=ignore,format=qcow2,index=3",
         "-object", f"memory-backend-memfd,id=mem,size={mem},share=on",
         "-numa", "node,memdev=mem"
     ]

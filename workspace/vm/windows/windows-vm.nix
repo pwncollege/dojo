@@ -93,7 +93,7 @@ stdenv.mkDerivation {
       -serial null \
       -monitor none \
       -chardev socket,id=mon1,host=localhost,port=4444,server=on,wait=off \
-      -mon chardev=mon1 \
+      -mon chardev=mon1,mode=control \
       -drive "file=${setup-drive},read-only=on,format=raw,index=0,if=floppy" \
       -drive "file=${server-iso},read-only=on,media=cdrom,index=1" \
       -drive "file=${virtio-win-drivers}/share/virtio-drivers.iso,read-only=on,media=cdrom,index=2" \
@@ -117,7 +117,7 @@ stdenv.mkDerivation {
     # wait for post_install.ps1 to shut the machine down
     sleep 5
     echo "shutting down qemu"
-    echo "system_powerdown" | nc localhost 4444
+    echo '{"execute": "system_powerdown"}' | nc localhost 4444
     sleep 10
     ls /proc/pid/$qemu_pid
     kill -9 "$qemu_pid" || true
