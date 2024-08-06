@@ -64,7 +64,7 @@ stdenv.mkDerivation {
 
   # qemu_test only supports host CPU and has a more minimal feature set that allows us
   #  to avoid pulling in the desktop software kitchen sink.
-  nativeBuildInputs = [ qemu_test openssh ];
+  nativeBuildInputs = [ qemu_test openssh netcat-openbsd ];
 
   dontUnpack = true;
   dontConfigure = true;
@@ -95,9 +95,8 @@ stdenv.mkDerivation {
       -chardev socket,id=mon1,host=localhost,port=4444,server=on,wait=off \
       -mon chardev=mon1 \
       -drive "file=${setup-drive},read-only=on,format=raw,index=0,if=floppy" \
-      -drive "file=${server-iso},read-only=on,media=cdrom,index=1" \
-      -drive "file=${virtio-win-drivers}/share/virtio-drivers.iso,read-only=on,media=cdrom,index=2" \
-      -drive "file=$out/windows-base.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2,index=3" &
+      -drive "file=${virtio-win-drivers}/share/virtio-drivers.iso,read-only=on,media=cdrom,index=1" \
+      -drive "file=$out/windows-base.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2,index=2" &
     qemu_pid="$!"
     
     # wait for SSH to open
