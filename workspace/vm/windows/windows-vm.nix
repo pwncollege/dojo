@@ -71,7 +71,11 @@ stdenv.mkDerivation {
 
   buildPhase = ''
     mkdir -p $out
-    qemu-img create -f qcow2 -o backing_file=${windows-vm-stage1}/windows-base.qcow2 $out/windows-base.qcow2 51200M
+    qemu-img create \
+      -f qcow2 \
+      -o backing_file=${windows-vm-stage1}/windows-base.qcow2 \
+      -o backing_fmt=qcow2 \
+      $out/windows-base.qcow2 51200M
 
     # perform initial bootup (in background)
     printf "Performing initial bootup...\n"
