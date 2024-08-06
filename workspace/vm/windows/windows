@@ -13,16 +13,17 @@ from pathlib import Path
 STATEFUL_PATH = Path("/run/windows")
 IMAGE_PATH = STATEFUL_PATH / "windows.qcow2"
 STATEFUL_WORLD_WRITEABLE_PATH = STATEFUL_PATH / "world-writeable"
+virtfs_sock_path = lambda dir_path, tag: dir_path / f"virtfs-{tag}.sock"
 FLAG_SHARE_PATH = STATEFUL_PATH / "flag-volume"
 # these much match dojo-service
 RUN_DIR = Path("/run/dojo/var")
 service_log_path = lambda service_name: RUN_DIR / f"{service_name}.log"
-SERVICES = set(
+SERVICES = set((
     "windows-vm",
     "windows-virtfs-challenge",
     "windows-virtfs-home",
     "windows-virtfs-flag"
-)
+))
 
 VIRTIOFSD_PATH = "@virtiofsd@/bin/virtiofsd"
 QEMU_SYSTEM_X86_PATH = "@qemu@/bin/qemu-system-x86_64"
@@ -30,7 +31,10 @@ QEMU_IMG_PATH = "@qemu@/bin/qemu-img"
 SSH_PATH = "@openssh@/bin/ssh"
 TAIL_PATH = "@coreutils@/bin/tail"
 DOJO_SERVICE_PATH = "@dojo-service@/bin/dojo-service"
-WINDOWS_BASE_PATH = "@windows-vm@/windows-base.img"
+WINDOWS_BASE_PATH = "@windows-vm@/windows-base.qcow2"
+VIRTIO_DRIVERS_PATH = "@virtio-win-drivers@/share/virtio-drivers.iso"
+SETUP_DRIVE_PATH = "@setup-drive@"
+SERVER_ISO_PATH = "@server-iso@"
 
 
 def error(msg):
@@ -195,17 +199,21 @@ def start():
     qemu_argv = [
         QEMU_SYSTEM_X86_PATH,
         "-name", "dojo",
+        "-boot", "once=d",
         "-machine", "type=pc,accel=kvm",
         "-m", mem,
         "-smp", "4",
         "-display", "none",
+        "-nographic",
         "-device", "virtio-net,netdev=user.0",
         # 5985: WinRM, 22: SSH, 5912: VNC, 4001: ChallengeProxy
         "-netdev", "user,id=user.0,hostfwd=tcp::5985-:5985,hostfwd=tcp::22-:22,hostfwd=tcp::5912-:5912,hostfwd=tcp::4001-:4001",
         "-serial", "null",
         "-monitor", "none",
-        "-drive", f"file={IMAGE_PATH},if=virtio,cache=writeback,discard=ignore,format=qcow2",
-        "-drive", f"file={VOLUME_PATH / 'virtio-win-processed.iso'},media=cdrom",
+        "-drive", f"file={SETUP_DRIVE_PATH},read-only=on,format=raw,index=0,if=floppy",
+        "-drive", f"file={SERVER_ISO_PATH},read-only=on,media=cdrom,index=1",
+        "-drive", f"file={VIRTIO_DRIVERS_PATH},read-only=on,media=cdrom,index=2",
+        "-drive", f"file={IMAGE_PATH},if=virtio,cache=writeback,discard=ignore,format=qcow2,index=3",
         "-object", f"memory-backend-memfd,id=mem,size={mem},share=on",
         "-numa", "node,memdev=mem"
     ]
@@ -319,7 +327,7 @@ def main():
         "exec": lambda: (start(), exec_(args.exec_command, *args.exec_command_args)),
         "start": lambda: (kill(), start()),
         "stop": lambda: exec_("powershell", "-command", "stop-computer -force"),
-        "kill": lambda: kill_all(),
+        "kill": lambda: kill(),
         "restart": lambda: exec_("powershell", "-command", "restart-computer -force"),
         "forcerestart": lambda: (kill(), start()),
         "reset": lambda: reset_image(),
