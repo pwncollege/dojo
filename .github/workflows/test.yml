@@ -39,6 +39,10 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest pytest-dependency requests selenium
 
+      - name: debug issue docker data cache
+        run: |
+          ls -la /mnt
+
       - name: Restore docker data cache
         if: github.event_name != 'schedule'
         uses: actions/cache/restore@v4
@@ -53,8 +57,8 @@ jobs:
         run: |
           if [ -f /mnt/data-docker.tar.gz ]; then
             mkdir -p /mnt/dojo-test-data
-            sudo tar --use-compress-program=pigz -xf /mnt/data-docker.tar.gz -C /mnt/dojo-test-data
-          fi
+            sudo tar --use-compress-program=pigz -xf /mnt/data-docker.tar.gz -C /mnt/dojo-test-data 
+         fi
 
       - name: Build docker image
         if: github.event_name != 'schedule'
