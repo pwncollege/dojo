@@ -5,7 +5,7 @@ from CTFd.models import db
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only, admins_only
 
-from ..models import DojoChallenges, Dojos
+from ..models import DojoChallenges, Dojos, DojoAdmins
 from ..utils.dojo import generate_ssh_keypair
 from ..utils.stats import container_stats
 
@@ -24,15 +24,10 @@ def dojo_stats(dojo):
 def listing(template="dojos.html"):
     user = get_current_user()
     categorized_dojos = {
-        "Start Here": [],
-        "Topics": [],
-        "Courses": [],
-        "More Material": [],
-    }
-    type_to_category = {
-        "topic": "Topics",
-        "course": "Courses",
-        "welcome": "Start Here"
+        "welcome": [],
+        "topic": [],
+        "public": [],
+        "course": [],
     }
     dojo_container_counts = collections.Counter(c['dojo'] for c in container_stats())
     options = db.undefer(Dojos.modules_count), db.undefer(Dojos.challenges_count)
@@ -49,11 +44,16 @@ def listing(template="dojos.html"):
     for dojo, solves in dojo_solves:
         if dojo.type == "hidden" or (dojo.type == "example" and dojo.official):
             continue
-        category = type_to_category.get(dojo.type, "More Material")
-        categorized_dojos[category].append((dojo, solves))
+        categorized_dojos.setdefault(dojo.type, []).append((dojo, solves))
 
-    if "Start Here" in categorized_dojos:
-        categorized_dojos["Start Here"].sort(key=lambda x: x[0].name)
+    categorized_dojos.setdefault("welcome", []).sort(key=lambda x: x[0].name)
+
+    categorized_dojos["user"] = [ ]
+    if user:
+        categorized_dojos["user"] = [ (d,0) for d in {
+            da.dojo for da in
+            DojoAdmins.query.where(DojoAdmins.user_id == user.id)
+        }]
 
     return render_template(template, user=user, categorized_dojos=categorized_dojos, dojo_container_counts=dojo_container_counts)
 

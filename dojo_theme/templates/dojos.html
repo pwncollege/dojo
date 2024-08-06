@@ -2,16 +2,6 @@
 {% from "macros/widgets.html" import card %}
 {% from "macros/widgets.html" import dojo_grid %}
 
-{% set svg_add_icon %}
-<svg class="w-100 h-100">
-  <circle cx="50%" cy="50%" r="30%" stroke="gray" fill="none" stroke-width="8" stroke-dasharray="8"></circle>
-  <g stroke="gray" stroke-width="8">
-    <line x1="50%" y1="30%" x2="50%" y2="70%"></line>
-    <line x1="30%" y1="50%" x2="70%" y2="50%"></line>
-  </g>
-</svg>
-{% endset %}
-
 {% block content %}
 <div class="container">
   <p><br><br>
@@ -21,7 +11,7 @@
   These first few dojos are designed to help you Get Started with the platform.
   Start here before venturing onwards!
 
-  {{ dojo_grid(categorized_dojos["Start Here"], dojo_container_counts) }}
+  {{ dojo_grid(categorized_dojos["welcome"], dojo_container_counts) }}
 
   <p><br><br>
   <h2>Core Material &mdash; Earn Your Belts!</h2>
@@ -29,7 +19,7 @@
   <p>These dojos form the official pwn.college curriculum, taking you on a curated journey through the art of hacking.
   As you progress and build your skills, like in a martial art, you will earn <a href="belts">belts</a> for completing dojo after dojo.
 
-  {{ dojo_grid(categorized_dojos["Topics"], dojo_container_counts) }}
+  {{ dojo_grid(categorized_dojos["topic"], dojo_container_counts) }}
 
   <p><br><br>
   <h2>Community Material &mdash; Earn Badges!</h2>
@@ -37,14 +27,21 @@
   This section contains additional dojos created by the pwn.college community.
   Some are designed to be tackled after you complete the dojos above, whereas others are open to anyone interested in more specialized topics.
 
-  {{ dojo_grid(categorized_dojos["More Material"], dojo_container_counts) }}
+  {{ dojo_grid(categorized_dojos["public"], dojo_container_counts) }}
 
   <p><br><br>
   <h2>The Courses &mdash; Earning Credit</h2>
   <p>We leverage the above material to run a number of courses on this platform.
   For the most part, these courses import the above material, though some might introduce new concepts and challenges.
 
-  {{ dojo_grid(categorized_dojos["Courses"], dojo_container_counts) }}
+  {{ dojo_grid(categorized_dojos["course"], dojo_container_counts) }}
+
+  <p><br><br>
+  <h2>Your Own Dojos &mdash; Share With the World!</h2>
+  <p>You can create your own dojos, either hosting your own challenges or remixing existing material!
+  Once created, a dojo can be shared with your friends or students (providing a private scoreboard and curated experience) or made public to the world to appear in the Community Material list above!
+
+  {{ dojo_grid(categorized_dojos["user"], dojo_container_counts, create_icon=True) }}
 
 </div>
 {% endblock %}
