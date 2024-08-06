@@ -117,9 +117,7 @@ stdenv.mkDerivation {
     # wait for post_install.ps1 to shut the machine down
     sleep 30
     echo "shutting down qemu"
-    echo -e '{"execute": "qmp_capabilities"}\n{"execute": "system_powerdown"}' | nc -w10 localhost 4444
-    sleep 10
-    ls /proc/pid/$qemu_pid
+    echo -e '{"execute": "qmp_capabilities"}\n{"execute": "system_powerdown"}' | nc -w 15 localhost 4444
     kill -9 "$qemu_pid" || true
 
     runHook postBuild
