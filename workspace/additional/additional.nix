@@ -46,6 +46,11 @@ in
     gdb
     pwndbg
     gef
+    openssh
+    netcat-openbsd
+
+    vim
+    emacs
 
     ghidra
     ida-free

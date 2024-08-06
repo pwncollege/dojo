@@ -66,9 +66,18 @@ function DropdownStartChallenge(event) {
     result_notification.addClass('alert alert-warning alert-dismissable text-center');
     result_message.html("Loading.");
     result_notification.slideDown();
+    var dot_max = 5;
+    var dot_counter = 0;
     setTimeout(function loadmsg() {
         if (result_message.html().startsWith("Loading")) {
-            result_message.append(".");
+            if (dot_counter < dot_max - 1){
+                result_message.append(".");
+                dot_counter++;
+            }
+            else {
+                result_message.html("Loading.");
+                dot_counter = 0;
+            }
             setTimeout(loadmsg, 500);
         }
     }, 500);

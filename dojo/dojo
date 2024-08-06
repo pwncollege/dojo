@@ -29,7 +29,7 @@ case "$ACTION" in
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
     "update")
         git pull
-        dojo up
+        dojo up "$@"
         ;;
 
     # HELP: sync: sync changed dojo files
