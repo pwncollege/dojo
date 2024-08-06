@@ -115,8 +115,9 @@ stdenv.mkDerivation {
     ssh -o "StrictHostKeyChecking=no" -p2222 hacker@127.0.0.1 -- ./post_install.ps1
 
     # wait for post_install.ps1 to shut the machine down
-    echo "Waiting for qemu process to exit..."
-    wait "$qemu_pid"
+    echo "Giving qemu time to shut down"
+    sleep 30
+    kill -9 "$qemu_pid"
 
     runHook postBuild
   '';
