@@ -115,9 +115,9 @@ stdenv.mkDerivation {
     ssh -o "StrictHostKeyChecking=no" -p2222 hacker@127.0.0.1 -- ./post_install.ps1
 
     # wait for post_install.ps1 to shut the machine down
-    sleep 5
+    sleep 30
     echo "shutting down qemu"
-    echo -e '{"execute": "qmp_capabilities"}\n{"execute": "system_powerdown"}' | nc localhost 4444
+    echo -e '{"execute": "qmp_capabilities"}\n{"execute": "system_powerdown"}' | nc -w10 localhost 4444
     sleep 10
     ls /proc/pid/$qemu_pid
     kill -9 "$qemu_pid" || true
