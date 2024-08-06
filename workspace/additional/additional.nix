@@ -46,7 +46,7 @@ in
     gdb
     pwndbg
     gef
-    ssh
+    openssh
     netcat-openbsd
 
     vim
