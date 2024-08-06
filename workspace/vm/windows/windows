@@ -13,6 +13,7 @@ from pathlib import Path
 STATEFUL_PATH = Path("/run/windows")
 IMAGE_PATH = STATEFUL_PATH / "windows.qcow2"
 STATEFUL_WORLD_WRITEABLE_PATH = STATEFUL_PATH / "world-writeable"
+virtfs_sock_path = lambda dir_path, tag: dir_path / f"virtfs-{tag}.sock"
 FLAG_SHARE_PATH = STATEFUL_PATH / "flag-volume"
 # these much match dojo-service
 RUN_DIR = Path("/run/dojo/var")
