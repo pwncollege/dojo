@@ -84,13 +84,22 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
 
 
 def user_ipv4(user):
-    # Subnet: 10.0.0.0/8
-    # Reserved: 10.0.0.0/24, 10.255.255.0/24
-    # Gateway: 10.0.0.1
-    # User IPs: 10.0.1.0 - 10.255.254.255
-    user_ip = (10 << 24) + (1 << 8) + user.id
-    assert user_ip < (10 << 24) + (255 << 16) + (255 << 8)
-    return f"{user_ip >> 24 & 0xff}.{user_ip >> 16 & 0xff}.{user_ip >> 8 & 0xff}.{user_ip & 0xff}"
+    # Full Subnet: 10.0.0.0/8
+    #           NODE            SERVICE_ID
+    # 00001010  0000  00000000000000000000
+    # SERVICE_IDs 0-255 are reserved for core services
+
+    NUM_NODES = 1
+    node_id = (user.id % NUM_NODES) + 1
+    service_id = user.id + 255
+    assert node_id < 2**4
+    assert service_id < 2**20
+    return ".".join([
+        "10",
+        f"{(node_id << 4) | ((service_id >> 16) & 0xff)}",
+        f"{(service_id >> 8) & 0xff}",
+        f"{(service_id >> 0) & 0xff}",
+    ])
 
 
 def redirect_internal(redirect_uri, auth=None):

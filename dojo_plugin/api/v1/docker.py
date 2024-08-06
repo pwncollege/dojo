@@ -216,8 +216,8 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
             auto_remove=True,
         )
 
-    user_network = docker_client.networks.get("user_network")
-    user_network.connect(
+    workspace_net = docker_client.networks.get("workspace_net")
+    workspace_net.connect(
         container, ipv4_address=user_ipv4(user), aliases=[container_name(user)]
     )
 
