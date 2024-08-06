@@ -47,6 +47,9 @@ in
     pwndbg
     gef
 
+    vim
+    emacs
+
     ghidra
     ida-free
     radare2

@@ -55,6 +55,7 @@
             iproute2
             less
             man
+            nettools
             ncurses
             procps
             python3
