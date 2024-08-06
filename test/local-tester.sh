@@ -13,7 +13,7 @@ function usage {
 	exit
 }
 
-VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college:shared")
+VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$PWD/data:/data:shared")
 ENV_ARGS=( )
 DB_RESTORE=""
 CONTAINER_NAME=dojo-test
