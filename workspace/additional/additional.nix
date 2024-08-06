@@ -46,6 +46,7 @@ in
     gdb
     pwndbg
     gef
+    ssh
 
     vim
     emacs
