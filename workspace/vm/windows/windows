@@ -17,12 +17,12 @@ FLAG_SHARE_PATH = STATEFUL_PATH / "flag-volume"
 # these much match dojo-service
 RUN_DIR = Path("/run/dojo/var")
 service_log_path = lambda service_name: RUN_DIR / f"{service_name}.log"
-SERVICES = set(
+SERVICES = set((
     "windows-vm",
     "windows-virtfs-challenge",
     "windows-virtfs-home",
     "windows-virtfs-flag"
-)
+))
 
 VIRTIOFSD_PATH = "@virtiofsd@/bin/virtiofsd"
 QEMU_SYSTEM_X86_PATH = "@qemu@/bin/qemu-system-x86_64"
