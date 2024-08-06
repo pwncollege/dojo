@@ -321,7 +321,7 @@ def main():
         "exec": lambda: (start(), exec_(args.exec_command, *args.exec_command_args)),
         "start": lambda: (kill(), start()),
         "stop": lambda: exec_("powershell", "-command", "stop-computer -force"),
-        "kill": lambda: kill_all(),
+        "kill": lambda: kill(),
         "restart": lambda: exec_("powershell", "-command", "restart-computer -force"),
         "forcerestart": lambda: (kill(), start()),
         "reset": lambda: reset_image(),
