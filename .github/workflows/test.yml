@@ -39,10 +39,9 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest pytest-dependency requests selenium
 
-      - name: debug issue docker data cache
+      - name: Make docker cache dir owned by our user
         run: |
-          id
-          ls -la /mnt
+          sudo chown $USER:$USER /mnt
 
       - name: Restore docker data cache
         if: github.event_name != 'schedule'
