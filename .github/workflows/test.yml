@@ -41,7 +41,7 @@ jobs:
 
       - name: debug issue docker data cache
         run: |
-          ls -la /mnt
+          ls -la /mnt 
 
       - name: Restore docker data cache
         if: github.event_name != 'schedule'
