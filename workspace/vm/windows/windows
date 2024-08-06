@@ -197,7 +197,7 @@ def start():
     qemu_argv = [
         QEMU_SYSTEM_X86_PATH,
         "-name", "dojo",
-        "-boot", "once=d"
+        "-boot", "once=d",
         "-machine", "type=pc,accel=kvm",
         "-m", mem,
         "-smp", "4",
