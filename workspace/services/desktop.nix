@@ -46,7 +46,7 @@ let
     ${service}/bin/dojo-service start desktop-service/novnc \
       ${novnc}/bin/novnc \
         --vnc --unix-target=/run/dojo/var/desktop-service/Xvnc.sock \
-        --listen :::6080
+        --listen [::]:6080
 
     until [ -e /tmp/.X11-unix/X0 ]; do sleep 0.1; done
     until ${pkgs.curl}/bin/curl -s localhost:6080 >/dev/null; do sleep 0.1; done

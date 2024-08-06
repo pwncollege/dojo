@@ -38,7 +38,7 @@ let
     ${service}/bin/dojo-service start code-service/code-server \
       ${code-server}/bin/code-server \
         --auth=none \
-        --bind-addr=:::8080 \
+        --bind-addr=[::]:8080 \
         --trusted-origins='*' \
         --disable-telemetry \
         --extensions-dir=@out@/share/code-service/extensions
