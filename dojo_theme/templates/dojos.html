@@ -36,12 +36,21 @@
 
   {{ dojo_grid(categorized_dojos["course"], dojo_container_counts) }}
 
+  {% if categorized_dojos["member"] %}
+  <p><br><br>
+  <h2>Private Dojos You've Joined &mdash; Keep Hacking!</h2>
+  <p>These are the private dojos that have been shared with you.
+  Keep hacking!
+
+  {{ dojo_grid(categorized_dojos["member"], dojo_container_counts) }}
+  {% endif %}
+
   <p><br><br>
   <h2>Your Own Dojos &mdash; Share With the World!</h2>
   <p>You can create your own dojos, either hosting your own challenges or remixing existing material!
   Once created, a dojo can be shared with your friends or students (providing a private scoreboard and curated experience) or made public to the world to appear in the Community Material list above!
 
-  {{ dojo_grid(categorized_dojos["user"], dojo_container_counts, create_icon=True) }}
+  {{ dojo_grid(categorized_dojos["admin"], dojo_container_counts, create_icon=True) }}
 
 </div>
 {% endblock %}
