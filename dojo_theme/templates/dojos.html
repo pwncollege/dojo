@@ -5,50 +5,34 @@
 {% block content %}
 <div class="container">
   <p><br><br>
-  <h2>Getting Started &mdash; Learn the Basics!</h2>
-
-  <p>The material on pwn.college is split into a number of "dojos", with each dojo typically covering a high-level topic.
-  These first few dojos are designed to help you Get Started with the platform.
-  Start here before venturing onwards!
+  <h2>Getting Started</h2>
 
   {{ dojo_grid(categorized_dojos["welcome"], dojo_container_counts) }}
 
   <p><br><br>
-  <h2>Core Material &mdash; Earn Your Belts!</h2>
-
-  <p>These dojos form the official pwn.college curriculum, taking you on a curated journey through the art of hacking.
-  As you progress and build your skills, like in a martial art, you will earn <a href="belts">belts</a> for completing dojo after dojo.
+  <h2>Core Material</h2>
 
   {{ dojo_grid(categorized_dojos["topic"], dojo_container_counts) }}
 
   <p><br><br>
-  <h2>Community Material &mdash; Earn Badges!</h2>
-  <p>No matter how much material we create, there is always more to learn!
-  This section contains additional dojos created by the pwn.college community.
-  Some are designed to be tackled after you complete the dojos above, whereas others are open to anyone interested in more specialized topics.
+  <h2>Community Material</h2>
 
   {{ dojo_grid(categorized_dojos["public"], dojo_container_counts) }}
 
   <p><br><br>
-  <h2>The Courses &mdash; Earning Credit</h2>
-  <p>We leverage the above material to run a number of courses on this platform.
-  For the most part, these courses import the above material, though some might introduce new concepts and challenges.
+  <h2>The Courses</h2>
 
   {{ dojo_grid(categorized_dojos["course"], dojo_container_counts) }}
 
   {% if categorized_dojos["member"] %}
   <p><br><br>
-  <h2>Private Dojos You've Joined &mdash; Keep Hacking!</h2>
-  <p>These are the private dojos that have been shared with you.
-  Keep hacking!
+  <h2>Dojos You've Joined</h2>
 
   {{ dojo_grid(categorized_dojos["member"], dojo_container_counts) }}
   {% endif %}
 
   <p><br><br>
-  <h2>Your Own Dojos &mdash; Share With the World!</h2>
-  <p>You can create your own dojos, either hosting your own challenges or remixing existing material!
-  Once created, a dojo can be shared with your friends or students (providing a private scoreboard and curated experience) or made public to the world to appear in the Community Material list above!
+  <h2>Your Dojos</h2>
 
   {{ dojo_grid(categorized_dojos["admin"], dojo_container_counts, create_icon=True) }}
 
