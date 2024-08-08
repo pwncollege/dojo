@@ -91,7 +91,7 @@ def user_ipv4(user):
 
     NUM_NODES = 1
     node_id = (user.id % NUM_NODES) + 1
-    service_id = user.id + 255
+    service_id = user.id + 256
     assert node_id < 2**4
     assert service_id < 2**20
     return ".".join([

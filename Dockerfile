@@ -14,11 +14,13 @@ RUN apt-get update && \
         iputils-ping \
         jq \
         unzip \
-        wget
+        wget \
+        wireguard
 
-RUN curl -fsSL https://get.docker.com | /bin/sh
-RUN echo '{ "data-root": "/data/docker", "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json
-RUN wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
+RUN curl -fsSL https://get.docker.com | /bin/sh && \
+    echo '{ "data-root": "/data/docker", "hosts": ["unix:///run/docker.sock"], "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json && \
+    sed -i 's|-H fd:// ||' /lib/systemd/system/docker.service && \
+    wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
 
 RUN cd /tmp && \
     wget -O awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" && \

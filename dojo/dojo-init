@@ -26,6 +26,8 @@ define VIRTUAL_HOST "${DEFAULT_DOJO_HOST}"
 define LETSENCRYPT_HOST "${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
 define DOJO_WORKSPACE core
+define DOJO_KEY
+define DOJO_NODE 0
 define SECRET_KEY $(openssl rand -hex 16)
 define UBUNTU_VERSION 20.04
 define INTERNET_FOR_ALL False
@@ -105,6 +107,50 @@ done
 
 sysctl -w kernel.pty.max=1048576
 echo core > /proc/sys/kernel/core_pattern
+
+if [ ! -f /data/wireguard/publickey ]; then
+    mkdir -p /data/wireguard
+    wg genkey | tee /data/wireguard/privatekey | wg pubkey > /data/wireguard/publickey
+fi
+
+NODE_IP="192.168.42.$((DOJO_NODE + 1))"
+
+if [ "${DOJO_NODE}" -eq 0 ]; then
+    cat <<EOF > /data/wireguard/wg0.conf
+[Interface]
+PrivateKey = $(cat /data/wireguard/privatekey)
+Address = $NODE_IP/24
+ListenPort = 51820
+EOF
+
+    if [ ! -f /data/nodes.json ]; then
+        echo '{}' > /data/nodes.json
+    fi
+
+    for node in $(jq -r 'keys[]' /data/nodes.json); do
+        key=$(jq -r '.["'$node'"]' /data/nodes.json)
+        node_ip="192.168.42.$((node + 1))"
+        node_subnet="10.$((node * 16)).0.0/12"
+        /bin/echo -e "\n[Peer]\nPublicKey = $key\nAllowedIPs = $node_ip/32, $node_subnet" >> /data/wireguard/wg0.conf
+    done
+
+else
+    cat <<EOF > /data/wireguard/wg0.conf
+[Interface]
+PrivateKey = $(cat /data/wireguard/privatekey)
+Address = $NODE_IP/24
+
+[Peer]
+PublicKey = $DOJO_KEY
+Endpoint = $DOJO_HOST:51820
+AllowedIPs = 192.168.42.1/32, 10.0.0.0/8
+EOF
+
+    jq '.hosts += ["tcp://'$NODE_IP':2375"]' /etc/docker/daemon.json > /etc/docker/daemon.json.tmp
+    mv /etc/docker/daemon.json.tmp /etc/docker/daemon.json
+fi
+
+wg-quick up /data/wireguard/wg0.conf
 
 iptables -N DOCKER-USER
 iptables -I DOCKER-USER -i workspace_net -j DROP
