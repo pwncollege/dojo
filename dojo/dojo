@@ -62,6 +62,11 @@ case "$ACTION" in
         docker compose --env-file=/data/config.env "$@"
         ;;
 
+    # HELP: node: run a dojo node command
+    "node")
+        dojo-node "$@"
+        ;;
+
     # HELP: flask: drop into a flask shell in the ctfd container
     "flask")
         docker exec $DOCKER_ARGS ctfd flask shell "$@"
@@ -139,16 +144,16 @@ case "$ACTION" in
     # HELP: help: displays this help
     "help")
         echo "Usage: $0 COMMAND [ ARG ]"
-	echo
-	echo "COMMANDS:"
-	echo
-	cat "$0" | grep "[H]ELP" | sed -e "s/.*H[E]LP: /\t/"
+    echo
+    echo "COMMANDS:"
+    echo
+    cat "$0" | grep "[H]ELP" | sed -e "s/.*H[E]LP: /\t/"
         ;;
 
     *)
         echo "Unknown command."
-	echo ""
-	"$0" help
+    echo ""
+    "$0" help
         exit 1
         ;;
 esac

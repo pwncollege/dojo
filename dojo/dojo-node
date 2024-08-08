@@ -1,0 +1,123 @@
+#!/bin/sh
+
+cd /opt/pwn.college
+
+if [ -n "$1" ]
+then
+    ACTION="$1"
+    shift
+else
+    ACTION="help"
+fi
+
+. /data/config.env
+
+case "$ACTION" in
+    # HELP: refresh: refresh dojo node information
+    "refresh")
+        if [ ! -f /data/wireguard/publickey ]; then
+            mkdir -p /data/wireguard
+            wg genkey | tee /data/wireguard/privatekey | wg pubkey > /data/wireguard/publickey
+        fi
+
+        touch /data/wireguard/wg0.conf
+        chmod 600 /data/wireguard/wg0.conf
+
+        private_key=$(cat /data/wireguard/privatekey)
+        node_ip="192.168.42.$((DOJO_NODE + 1))"
+
+        if [ "${DOJO_NODE}" -eq 0 ]; then
+            printf "%s\n" \
+            "[Interface]" \
+            "PrivateKey = $private_key" \
+            "Address = $node_ip/24" \
+            "ListenPort = 51820" > /data/wireguard/wg0.conf
+
+            if [ ! -f /data/nodes.json ]; then
+                echo '{}' > /data/nodes.json
+            fi
+
+            for node in $(jq -r 'keys[]' /data/nodes.json); do
+                node_key=$(jq -r '.["'$node'"]' /data/nodes.json)
+                node_ip="192.168.42.$((node + 1))"
+                node_subnet="10.$((node * 16)).0.0/12"
+                printf "%s\n" \
+                "" \
+                "[Peer]" \
+                "PublicKey = $node_key" \
+                "AllowedIPs = $node_ip/32, $node_subnet" >> /data/wireguard/wg0.conf
+            done
+
+        else
+            printf "%s\n" \
+            "[Interface]" \
+            "PrivateKey = $private_key" \
+            "Address = $node_ip/24" \
+            "" \
+            "[Peer]" \
+            "PublicKey = $DOJO_KEY" \
+            "Endpoint = $DOJO_HOST:51820" \
+            "AllowedIPs = 192.168.42.1/32, 10.0.0.0/8" > /data/wireguard/wg0.conf
+
+            jq '.hosts += ["tcp://'$node_ip':2375"]' /etc/docker/daemon.json > /etc/docker/daemon.json.tmp
+            mv /etc/docker/daemon.json.tmp /etc/docker/daemon.json
+        fi
+
+        wg-quick down /data/wireguard/wg0.conf || true
+        wg-quick up /data/wireguard/wg0.conf
+        ;;
+
+    # HELP: show: show dojo node information
+    "show")
+        printf "DOJO_HOST: %s\n" "$DOJO_HOST"
+        printf "DOJO_NODE: %d\n\n" "$DOJO_NODE"
+        printf "DOJO_KEY: %s\n" "${DOJO_KEY:-$(cat /data/wireguard/publickey)}"
+        wg show wg0
+        ;;
+
+    # HELP: add NODE_ID NODE_KEY: add a node to the dojo
+    "add")
+        if [ "${DOJO_NODE}" -ne 0 ]; then
+            echo "Error: only the main dojo node can add nodes"
+            exit 1
+        fi
+        if [ -n "$1" ] && [ -n "$2" ]; then
+            jq ".[\"$1\"] = \"$2\"" /data/nodes.json > /data/nodes.json.tmp
+            mv /data/nodes.json.tmp /data/nodes.json
+            dojo-node refresh
+        else
+            echo "Usage: $0 add NODE_ID NODE_KEY"
+        fi
+        ;;
+
+    # HELP: del NODE_ID: remove a node from the dojo
+    "del")
+        if [ "${DOJO_NODE}" -ne 0 ]; then
+            echo "Error: only the main dojo node can delete nodes"
+            exit 1
+        fi
+        if [ -n "$1" ]; then
+            jq "del(.\"$1\")" /data/nodes.json > /data/nodes.json.tmp
+            mv /data/nodes.json.tmp /data/nodes.json
+            dojo-node refresh
+        else
+            echo "Usage: $0 remove NODE_ID"
+        fi
+        ;;
+
+    # HELP: help: displays this help
+    "help")
+        echo "Usage: $0 COMMAND [ ARG ]"
+    echo
+    echo "COMMANDS:"
+    echo
+    cat "$0" | grep "[H]ELP" | sed -e "s/.*H[E]LP: /\t/"
+        ;;
+
+    *)
+        echo "Unknown command."
+    echo ""
+    "$0" help
+        exit 1
+        ;;
+esac
