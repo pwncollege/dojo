@@ -39,17 +39,11 @@
 {% if active %}
 <iframe id="workspace_iframe" name="{{ iframe_name }}" src="{{ iframe_src }}"></iframe>
 {% else %}
-<h1 class="inactive">No active challenge session; start a challenge!<h1>
+<h1 class="inactive">No active challenge session; start a challenge!</h1>
 {% endif %}
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
-{% if share_urls %}
-<script>
-  {% for name, url in share_urls.items() %}
-  console.log("Share {{ name }}: {{ url | safe}}");
-  {% endfor %}
-</script>
-{% endif %}
+
 {% endblock %}
