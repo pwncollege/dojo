@@ -11,12 +11,16 @@ broadcast.onmessage = (event) => {
     }
 };
 function get_and_set_iframe_url() {
-    fetch("/workspace/desktop?url_only=true")
-        .then(response => response.text())
-        .then(url => {
-            const iframe = $("#workspace_iframe")[0];
-            if (iframe.src !== window.location.origin + url) {
-                iframe.src = url;
+    // check if the window location pathname starts with /workspace/ and set the rest of the path as an variable service
+    const service = window.location.pathname.startsWith('/workspace/') ? window.location.pathname.substring(11) : '';
+    fetch("/pwncollege_api/v1/workspace?service=" + service)
+        .then(response => response.json())
+        .then(data => {
+            if (data.active) {
+                const iframe = $("#workspace_iframe")[0];
+                if (iframe.src !== window.location.origin + data.iframe_src) {
+                    iframe.src = data.iframe_src;
+                }
             }
         });
 }
