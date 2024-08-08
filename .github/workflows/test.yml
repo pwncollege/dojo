@@ -48,13 +48,14 @@ jobs:
           key: docker-data-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
             docker-data-${{ runner.os }}-
-      - name: Unpack docker data cache
-        if: github.event_name != 'schedule'
-        run: |
-          if [ -f /mnt/data-docker.tar.gz ]; then
-            mkdir -p /mnt/dojo-test-data
-            sudo tar --use-compress-program=pigz -xf /mnt/data-docker.tar.gz -C /mnt/dojo-test-data
-          fi
+      # TEMP: Disable for now, cache holds bad docker network state
+      # - name: Unpack docker data cache
+      #   if: github.event_name != 'schedule'
+      #   run: |
+      #     if [ -f /mnt/data-docker.tar.gz ]; then
+      #       mkdir -p /mnt/dojo-test-data
+      #       sudo tar --use-compress-program=pigz -xf /mnt/data-docker.tar.gz -C /mnt/dojo-test-data
+      #     fi
 
       - name: Build docker image
         if: github.event_name != 'schedule'
