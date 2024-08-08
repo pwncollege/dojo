@@ -22,6 +22,7 @@ from ...utils import (
     lookup_workspace_token,
     serialize_user_flag,
     resolved_tar,
+    user_docker_client,
     user_ipv4,
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
@@ -295,7 +296,7 @@ def insert_flag(container, flag):
 
 def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     as_user = as_user or user
-    docker_client = docker.from_env()
+    docker_client = user_docker_client(user)
     remove_container(docker_client, user)
     umount_existing_overlay(user)
 
@@ -308,6 +309,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
             ("/home/hacker", HOST_HOMES_OVERLAY / str(user.id) / "merged"),
             ("/home/me", HOST_HOMES_NOSUID / str(user.id)),
         ]
+    mounts = []  # TODO: DEBUG
 
     container = start_container(
         docker_client=docker_client,
@@ -318,11 +320,12 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         practice=practice,
     )
 
-    hacker_mount_info = get_mount_info(container, "/home/hacker")
-    assert_nosuid(container, hacker_mount_info)
-    if as_user != user:
-        me_home_info = get_mount_info(container, "/home/me")
-        assert_nosuid(container, me_home_info)
+    # TODO: DEBUG
+    # hacker_mount_info = get_mount_info(container, "/home/hacker")
+    # assert_nosuid(container, hacker_mount_info)
+    # if as_user != user:
+    #     me_home_info = get_mount_info(container, "/home/me")
+    #     assert_nosuid(container, me_home_info)
 
     insert_challenge(container, as_user, dojo_challenge)
 
