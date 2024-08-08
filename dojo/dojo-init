@@ -26,8 +26,8 @@ define VIRTUAL_HOST "${DEFAULT_DOJO_HOST}"
 define LETSENCRYPT_HOST "${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
 define DOJO_WORKSPACE core
-define DOJO_KEY
-define DOJO_NODE 0
+define WORKSPACE_KEY
+define WORKSPACE_NODE 0
 define SECRET_KEY $(openssl rand -hex 16)
 define UBUNTU_VERSION 20.04
 define INTERNET_FOR_ALL False
