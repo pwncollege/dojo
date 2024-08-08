@@ -117,6 +117,9 @@ class Dojos(db.Model):
             self.data[name] = value
             flag_modified(self, "data")
         super().__setattr__(name, value)
+    
+    def __lt__(self, other):
+        return (self.name or "", self.id or "") < (other.name or "", other.id or "")
 
     @classmethod
     def from_id(cls, reference_id):
