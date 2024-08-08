@@ -63,7 +63,10 @@
                   <thead>
                     <tr>
                       <td scope="col"><b>Name</b></td>
-                      <td scope="col"><b>Date</b></td>
+                      <td scope="col"><b>Date</b></td>        
+                      {% if show_extra_late_date %}
+                      <td scope="col"><b>Extra Late Date</b></td>
+                      {% endif %}                                    
                       <td scope="col"><b>Weight</b></td>
                       <td scope="col"><b>Progress</b></td>
                       <td scope="col"><b>Credit</b></td>
@@ -79,6 +82,9 @@
                     <tr>
                       <td>{{ assessment_grade.name }}</td>
                       <td>{{ assessment_grade.date }}</td>
+                      {% if show_extra_late_date %}
+                      <td>{{ assessment_grade.extra_late_date }}</td>
+                      {% endif %}
                       <td>{{ assessment_grade.weight }}</td>
                       <td>{{ assessment_grade.progress }}</td>
                       <td>{{ credit }}</td>

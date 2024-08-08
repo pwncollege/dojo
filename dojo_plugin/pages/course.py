@@ -47,6 +47,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
             continue
         assessment_dates[assessment["id"]][assessment["type"]] = (
             datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc),
+            datetime.datetime.fromisoformat(assessment.get("extra_late_date","3000-01-01T16:59:59-07:00")).astimezone(datetime.timezone.utc),
             assessment.get("extensions", {}),
         )
 
@@ -57,12 +58,21 @@ def grade(dojo, users_query, *, ignore_pending=False):
             def query(module_id):
                 if date_type not in assessment_dates[module_id]:
                     return None
-                date, extensions = assessment_dates[module_id][date_type]
+                date, extra_late_date, extensions = assessment_dates[module_id][date_type]
+                if label == "extra_late_solves":
+                    if extra_late_date is None:
+                        return False 
+                    date = extra_late_date
                 user_date = db.case(
                     [(Solves.user_id == int(user_id), date + datetime.timedelta(days=days))
                      for user_id, days in extensions.items()],
                     else_=date
                 ) if extensions else date
+                if label == "late_solves":
+                    
+                    return and_(Solves.date >= user_date, Solves.date < extra_late_date)  
+                elif label == "extra_late_solves":
+                    return Solves.date >= user_date                
                 return Solves.date < user_date
         return db.func.sum(
             db.case([(DojoModules.id == module_id, cast(query(module_id), db.Integer))
@@ -84,6 +94,8 @@ def grade(dojo, users_query, *, ignore_pending=False):
             DojoModules.id.label("module_id"),
             dated_count("checkpoint_solves", "checkpoint"),
             dated_count("due_solves", "due"),
+            dated_count("late_solves", "due"),
+            dated_count("extra_late_solves", "due"),            
             dated_count("all_solves", None)
         )
     ).subquery()
@@ -106,6 +118,8 @@ def grade(dojo, users_query, *, ignore_pending=False):
             date = datetime.datetime.fromisoformat(assessment["date"]) if type in ["checkpoint", "due"] else None
             if ignore_pending and date and date > now:
                 continue
+            
+            extra_late_date = datetime.datetime.fromisoformat(assessment.get("extra_late_date",None)) if type in ["checkpoint", "due"] and "extra_late_date" in assessment else None
 
             if type == "checkpoint":
                 module_id = assessment["id"]
@@ -114,7 +128,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 extension = assessment.get("extensions", {}).get(str(user_id), 0)
 
                 challenge_count = challenge_counts[module_id]
-                checkpoint_solves, due_solves, all_solves = module_solves.get(module_id, (0, 0, 0))
+                checkpoint_solves, due_solves, late_solves, extra_late_solves, all_solves = module_solves.get(module_id, (0, 0, 0, 0, 0))
                 challenge_count_required = int(challenge_count * percent_required)
                 user_date = date + datetime.timedelta(days=extension)
 
@@ -131,25 +145,39 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 weight = assessment["weight"]
                 percent_required = assessment.get("percent_required", 1.0)
                 late_penalty = assessment.get("late_penalty", 0.0)
+
+                extra_late_penalty = assessment.get("extra_late_penalty", 0.0)
+
                 extension = assessment.get("extensions", {}).get(str(user_id), 0)
                 override = assessment.get("overrides", {}).get(str(user_id), None)
 
                 challenge_count = challenge_counts[module_id]
-                checkpoint_solves, due_solves, all_solves = module_solves.get(module_id, (0, 0, 0))
-                late_solves = all_solves - due_solves
+                checkpoint_solves, due_solves, late_solves, extra_late_solves, all_solves = module_solves.get(module_id, (0, 0, 0, 0, 0))
+                
                 challenge_count_required = int(challenge_count * percent_required)
                 user_date = date + datetime.timedelta(days=extension)
+                extra_late_user_date = None 
+                if extra_late_date is not None:
+                    extra_late_user_date = extra_late_date + datetime.timedelta(days=extension)
                 late_value = 1 - late_penalty
+                extra_late_value = 1 - extra_late_penalty
+
                 max_late_solves = challenge_count_required - min(due_solves, challenge_count_required)
-                capped_late_solves = min(max_late_solves, late_solves)
-
-                if not late_solves:
+                capped_late_solves =  min(max_late_solves, late_solves)
+                capped_extra_late_solves = min(max_late_solves-capped_late_solves, extra_late_solves)
+                
+                if not late_solves and not extra_late_solves:
                     progress = f"{due_solves} / {challenge_count_required}"
-                else:
+                elif late_solves and not extra_late_solves:
                     progress = f"{due_solves} (+{late_solves}) / {challenge_count_required}"
-
+                elif not late_solves and extra_late_solves:
+                    progress = f"{due_solves} (+{extra_late_solves}) / {challenge_count_required}"
+                else: 
+                    progress = f"{due_solves} (+{late_solves}) (+{extra_late_solves}) / {challenge_count_required}"
                 if override is None:
-                    credit = min((due_solves + late_value * capped_late_solves) / challenge_count_required, 1.0)
+                    late_points = late_value * capped_late_solves
+                    extra_late_points = extra_late_value * capped_extra_late_solves
+                    credit = min((due_solves +  late_points + extra_late_points ) / challenge_count_required, 1.0)                    
                 else:
                     credit = override
                     progress = f"{progress} *"
@@ -157,6 +185,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
                     date=str(user_date) + (" *" if extension else ""),
+                    extra_late_date=str(extra_late_user_date)  + (" *" if extension else ""),                    
                     weight=weight,
                     progress=progress,
                     credit=credit,
@@ -192,11 +221,12 @@ def grade(dojo, users_query, *, ignore_pending=False):
         return dict(user_id=user_id,
                     assessment_grades=assessment_grades,
                     overall_grade=overall_grade,
-                    letter_grade=letter_grade)
+                    letter_grade=letter_grade,
+                    show_extra_late_date= any(row.get('extra_late_date',None) is not None for row in assessments))
 
     user_id = None
     previous_user_id = None
-    for user_id, module_id, checkpoint_solves, due_solves, all_solves in user_solves:
+    for user_id, module_id, checkpoint_solves, due_solves, late_solves, extra_late_solves, all_solves in user_solves:
         if user_id != previous_user_id:
             if previous_user_id is not None:
                 yield result(previous_user_id)
@@ -206,6 +236,8 @@ def grade(dojo, users_query, *, ignore_pending=False):
             module_solves[module_id] = (
                 int(checkpoint_solves) if checkpoint_solves is not None else 0,
                 int(due_solves) if due_solves is not None else 0,
+                int(late_solves) if late_solves is not None else 0,
+                int(extra_late_solves) if extra_late_solves is not None else 0,
                 int(all_solves) if all_solves is not None else 0,
             )
     if user_id:
