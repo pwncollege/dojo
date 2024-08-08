@@ -1,11 +1,13 @@
 import sys
 import os
 import datetime
+import threading
+
 from email.message import EmailMessage
 from email.utils import formatdate
 from urllib.parse import urlparse, urlunparse
 
-from flask import Response, request, redirect
+from flask import Response, request, redirect, current_app
 from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
@@ -64,7 +66,9 @@ class DojoFlag(BaseFlag):
             raise FlagException("This flag is not for this challenge!")
         
         try:
-            sync_challenge_to_canvas(current_challenge_id, current_account_id)
+            # Threading this b/c the sync needs to occurr after the database update for the flag success
+            thread = threading.Thread(target=sync_challenge_to_canvas, args=(current_challenge_id, current_account_id, current_app._get_current_object()))
+            thread.start()
         except Exception:
             # we don't want to interrupt the flag process with a synchronization error
             # the error should be fixed by the manual bulk submission

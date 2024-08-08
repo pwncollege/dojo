@@ -64,12 +64,13 @@ stdenv.mkDerivation {
 
   # qemu_test only supports host CPU and has a more minimal feature set that allows us
   #  to avoid pulling in the desktop software kitchen sink.
-  nativeBuildInputs = [ qemu_test openssh ];
+  nativeBuildInputs = [ qemu_test openssh netcat-openbsd ];
 
   dontUnpack = true;
   dontConfigure = true;
 
   buildPhase = ''
+    runHook preBuild
     mkdir -p $out
     qemu-img create \
       -f qcow2 \
@@ -92,11 +93,11 @@ stdenv.mkDerivation {
       -serial null \
       -monitor none \
       -chardev socket,id=mon1,host=localhost,port=4444,server=on,wait=off \
-      -mon chardev=mon1 \
+      -mon chardev=mon1,mode=control \
       -drive "file=${setup-drive},read-only=on,format=raw,index=0,if=floppy" \
-      -drive "file=${server-iso},read-only=on,media=cdrom" \
-      -drive "file=${virtio-win-drivers}/share/virtio-drivers.iso,read-only=on,media=cdrom" \
-      -drive "file=$out/windows-base.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2" &
+      -drive "file=${server-iso},read-only=on,media=cdrom,index=1" \
+      -drive "file=${virtio-win-drivers}/share/virtio-drivers.iso,read-only=on,media=cdrom,index=2" \
+      -drive "file=$out/windows-base.qcow2,if=virtio,cache=writeback,discard=ignore,format=qcow2,index=3" &
     qemu_pid="$!"
     
     # wait for SSH to open
@@ -114,8 +115,10 @@ stdenv.mkDerivation {
     ssh -o "StrictHostKeyChecking=no" -p2222 hacker@127.0.0.1 -- ./post_install.ps1
 
     # wait for post_install.ps1 to shut the machine down
-    echo "Waiting for qemu process to exit..."
-    wait "$qemu_pid"
+    sleep 30
+    echo "shutting down qemu"
+    echo -e '{"execute": "qmp_capabilities"}\n{"execute": "system_powerdown"}' | nc -w 15 localhost 4444
+    kill -9 "$qemu_pid" || true
 
     runHook postBuild
   '';

@@ -5,7 +5,7 @@ from CTFd.models import db
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only, admins_only
 
-from ..models import DojoChallenges, Dojos, DojoAdmins
+from ..models import DojoChallenges, Dojos, DojoAdmins, DojoMembers
 from ..utils.dojo import generate_ssh_keypair
 from ..utils.stats import container_stats
 
@@ -29,9 +29,10 @@ def listing(template="dojos.html"):
         "public": [],
         "course": [],
     }
-    dojo_container_counts = collections.Counter(c['dojo'] for c in container_stats())
-    options = db.undefer(Dojos.modules_count), db.undefer(Dojos.challenges_count)
-    dojo_solves = Dojos.viewable(user=user).options(*options)
+    dojo_solves = (
+        Dojos.viewable(user=user)
+        .options(db.undefer(Dojos.modules_count), db.undefer(Dojos.challenges_count))
+    )
     if user:
         solves_subquery = (DojoChallenges.solves(user=user, ignore_visibility=True, ignore_admins=False)
             .group_by(DojoChallenges.dojo_id)
@@ -46,14 +47,27 @@ def listing(template="dojos.html"):
             continue
         categorized_dojos.setdefault(dojo.type, []).append((dojo, solves))
 
-    categorized_dojos.setdefault("welcome", []).sort(key=lambda x: x[0].name)
+    categorized_dojos.setdefault("welcome", []).sort()
 
-    categorized_dojos["user"] = [ ]
+    categorized_dojos["member"] = [ ]
+    categorized_dojos["admin"] = [ ]
     if user:
-        categorized_dojos["user"] = [ (d,0) for d in {
+        categorized_dojos["admin"] = [ (d,0) for d in {
             da.dojo for da in
             DojoAdmins.query.where(DojoAdmins.user_id == user.id)
         }]
+        categorized_dojos["member"] = [ (d,0) for d in {
+            da.dojo for da in
+            DojoMembers.query.where(DojoMembers.user_id == user.id)
+        } - { d for d,_ in (
+            categorized_dojos["admin"] + categorized_dojos["welcome"] +
+            categorized_dojos["topic"] + categorized_dojos["public"]
+        ) } ]
+
+    for category, dojos in categorized_dojos.items():
+        dojos.sort()
+        
+    dojo_container_counts = collections.Counter(c['dojo'] for c in container_stats())
 
     return render_template(template, user=user, categorized_dojos=categorized_dojos, dojo_container_counts=dojo_container_counts)
 

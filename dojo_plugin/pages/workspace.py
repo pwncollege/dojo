@@ -18,9 +18,9 @@ port_names = {
     "challenge": 80,
     "code": 8080,
     "desktop": 6080,
-    "desktop-win": 6082,
+    "desktop-windows": 6082,
 }
-on_demand_services = { "code", "desktop", "desktop-win" }
+on_demand_services = { "code", "desktop", "desktop-windows" }
 
 def container_password(container, *args):
     key = container.labels["dojo.auth_token"].encode()
@@ -93,7 +93,7 @@ def view_desktop():
                            share_urls=share_urls,
                            active=True)
 
-@workspace.route("/workspace/desktop-win")
+@workspace.route("/workspace/desktop-windows")
 @authed_only
 def view_desktop_win():
     user_id = request.args.get("user")
