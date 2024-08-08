@@ -1,4 +1,7 @@
 import docker
+from CTFd.models import Users
+
+from . import user_docker_client
 
 
 def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", user_id=None, container=None, **kwargs):
@@ -13,9 +16,8 @@ def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", us
         {cmd}
         \""""
 
-    docker_client = docker.from_env()
-
     if not container:
+        docker_client = user_docker_client(Users.query.get(user_id))
         container = docker_client.containers.get(f"user_{user_id}")
     exit_code, output = container.exec_run(cmd, user=workspace_user, **kwargs)
     if assert_success:

@@ -28,7 +28,7 @@ services:
     platform: linux/amd64
     entrypoint: /bin/true
     networks:
-      - user_network
+      - workspace_net
 
   workspace-builder:
     container_name: workspace-builder
@@ -109,6 +109,7 @@ services:
       - /data/CTFd/uploads:/var/uploads
       - /data/homes:/var/homes:shared
       - /data/dojos:/var/dojos
+      - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
       - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
@@ -211,7 +212,7 @@ services:
       - /var/run/docker.sock:/tmp/docker.sock:ro
     networks:
       default:
-      user_network:
+      workspace_net:
         aliases:
           - nginx
         ipv4_address: 10.0.0.3
@@ -236,12 +237,12 @@ volumes:
 networks:
   default:
     driver: bridge
-  user_network:
-    name: user_network
+  workspace_net:
+    name: workspace_net
     driver: bridge
     ipam:
       config:
         - subnet: 10.0.0.0/8
     driver_opts:
-      com.docker.network.bridge.name: "user_network"
+      com.docker.network.bridge.name: "workspace_net"
       com.docker.network.bridge.enable_icc: "false"

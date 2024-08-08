@@ -16,6 +16,12 @@ logger.setLevel(logging.INFO)
 DOJOS_DIR = pathlib.Path("/var/dojos")
 DATA_DIR = pathlib.Path("/var/data")
 
+WORKSPACE_NODES = {
+    int(node_id): node_key
+    for node_id, node_key in
+    json.load(pathlib.Path("/var/workspace_nodes.json").open()).items()
+}
+
 def create_seccomp():
     seccomp = json.load(pathlib.Path("/etc/docker/seccomp.json").open())
 
