@@ -56,8 +56,6 @@ class view_desktop(Resource):
                    "password": password,
                }
                iframe_src = url_for("pwncollege_workspace.forward_workspace", service=service_param, service_path="vnc.html", **vnc_params)
-           elif service == "sensai":
-               iframe_src = "/sensai/"
            else:
                iframe_src = f"/workspace/{service}/"
 
