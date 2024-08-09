@@ -1,5 +1,6 @@
 import datetime
 import hashlib
+import hmac
 import io
 import logging
 import os
@@ -37,6 +38,12 @@ def force_cache_updates():
 
 def container_name(user):
     return f"user_{user.id}"
+
+
+def container_password(container, *args):
+    key = container.labels["dojo.auth_token"].encode()
+    message = "-".join(args).encode()
+    return hmac.HMAC(key, message, "sha256").hexdigest()
 
 
 def get_current_container(user=None):
