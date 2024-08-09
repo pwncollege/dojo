@@ -25,13 +25,7 @@ port_names = {
 @workspace.route("/workspace/<service>")
 @authed_only
 def view_workspace(service):
-    user = get_current_user()
-    active = bool(get_current_dojo_challenge())
-    iframe_src = "" if service=="desktop" else f"/workspace/{service}/"
-    loadUrlAsync = service == "desktop"
-    if start_on_demand_service(user, service) is False:
-        return render_template("iframe.html", active=False)
-    return render_template("iframe.html", iframe_name="workspace", iframe_src=iframe_src, active=active, loadUrlAsync=loadUrlAsync)
+    return render_template("workspace.html", iframe_name="workspace", service=service)
 
 @workspace.route("/workspace/<service>/", websocket=True)
 @workspace.route("/workspace/<service>/<path:service_path>", websocket=True)
