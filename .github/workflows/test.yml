@@ -83,14 +83,14 @@ jobs:
             --name dojo-test \
             --privileged \
             --detach \
-            --rm \
             -v "/mnt/dojo-test-data:/data:shared" \
             -p 2222:22 -p 80:80 -p 443:443 \
             pwncollege/dojo:test
       - name: Build and start services
         run: |
-          docker exec dojo-test dojo wait || (docker exec dojo-test dojo compose logs && false)
+          docker exec dojo-test dojo wait || (docker exec dojo-test dojo compose logs || docker logs dojo-test && false)
           docker exec dojo-test docker image ls
+          docker exec dojo-test ip6tables -L
 
       - name: Wait for services to start
         timeout-minutes: 3

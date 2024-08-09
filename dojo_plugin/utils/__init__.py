@@ -83,14 +83,17 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     return user_flag
 
 
-def user_ipv4(user):
-    # Subnet: 10.0.0.0/8
-    # Reserved: 10.0.0.0/24, 10.255.255.0/24
-    # Gateway: 10.0.0.1
-    # User IPs: 10.0.1.0 - 10.255.254.255
-    user_ip = (10 << 24) + (1 << 8) + user.id
-    assert user_ip < (10 << 24) + (255 << 16) + (255 << 8)
-    return f"{user_ip >> 24 & 0xff}.{user_ip >> 16 & 0xff}.{user_ip >> 8 & 0xff}.{user_ip & 0xff}"
+def user_ip(user):
+    # Full Subnet:           fd00:1337::/80
+    # Subnet Structure:      fd00:1337::NODE_ID:SERVICE_ID_HI:SERVICE_ID_LO/96
+    # Core Node Subnet:      fd00:1337::0:0:0/96
+    # Nth Workspace Subnet:  fd00:1337::N:0:0/96
+
+    NUM_NODES = 1
+    node_id = (user.id % NUM_NODES) + 1
+    service_id_hi = (user.id >> 16) & 0xffff
+    service_id_lo = user.id & 0xffff
+    return f"fd00:1337::{node_id}:{service_id_hi}:{service_id_lo}"
 
 
 def redirect_internal(redirect_uri, auth=None):
