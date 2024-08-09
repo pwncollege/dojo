@@ -141,9 +141,18 @@ function startChallenge(event) {
     result_notification.addClass('alert alert-warning alert-dismissable text-center');
     result_message.html("Loading.");
     result_notification.slideDown();
+    var dot_max = 5;
+    var dot_counter = 0;
     setTimeout(function loadmsg() {
         if (result_message.html().startsWith("Loading")) {
-            result_message.append(".");
+            if (dot_counter < dot_max - 1){
+                result_message.append(".");
+                dot_counter++;
+            }
+            else {
+                result_message.html("Loading.");
+                dot_counter = 0;
+            }
             setTimeout(loadmsg, 500);
         }
     }, 500);
@@ -193,13 +202,12 @@ function startChallenge(event) {
         }
 
         result_notification.slideDown();
+        item.find("#challenge-start").removeClass("disabled-button");
+        item.find("#challenge-start").prop("disabled", false);
+        item.find("#challenge-practice").removeClass("disabled-button");
+        item.find("#challenge-practice").prop("disabled", false);
 
         setTimeout(function() {
-            item.find("#challenge-start").removeClass("disabled-button");
-            item.find("#challenge-start").prop("disabled", false);
-            item.find("#challenge-practice").removeClass("disabled-button");
-            item.find("#challenge-practice").prop("disabled", false);
-
             item.find(".alert").slideUp();
             item.find("#challenge-submit").removeClass("disabled-button");
             item.find("#challenge-submit").prop("disabled", false);

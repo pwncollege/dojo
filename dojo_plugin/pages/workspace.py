@@ -22,6 +22,45 @@ port_names = {
 }
 
 
+@workspace.route("/workspace/desktop-windows")
+@authed_only
+def view_desktop_win():
+    user_id = request.args.get("user")
+
+    if user_id and not is_admin():
+        abort(403)
+
+    user = get_current_user() if not user_id else Users.query.filter_by(id=int(user_id)).first_or_404()
+    container = get_current_container(user)
+    if not container:
+        return render_template("iframe.html", active=False)
+
+    interact_password = container_password(container, "desktop", "interact")
+    view_password = container_password(container, "desktop", "view")
+
+    view_only = user_id is not None
+    service = "~".join(("desktop", str(user.id), container_password(container, "desktop")))
+
+    vnc_params = {
+        "autoconnect": 1,
+        "reconnect": 1,
+        "reconnect_delay": 200,
+        "resize": "remote",
+        "path": url_for("pwncollege_workspace.forward_workspace", service=service, service_path="websockify"),
+        "view_only": int(view_only),
+        "password": "abcd",
+    }
+    iframe_src = url_for("pwncollege_workspace.forward_workspace", service=service, service_path="vnc.html", **vnc_params)
+
+    if start_on_demand_service(user, "desktop") is False:
+        return render_template("iframe.html", active=False)
+
+    return render_template("iframe.html",
+                           iframe_name="workspace",
+                           iframe_src=iframe_src,
+                           share_urls={},
+                           active=True)
+
 @workspace.route("/workspace/<service>")
 @authed_only
 def view_workspace(service):

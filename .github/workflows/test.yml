@@ -39,6 +39,10 @@ jobs:
       - name: Install test dependencies
         run: pip install pytest pytest-dependency requests selenium
 
+      - name: Make docker cache dir owned by our user
+        run: |
+          sudo chown $USER:$USER /mnt
+
       - name: Restore docker data cache
         if: github.event_name != 'schedule'
         uses: actions/cache/restore@v4
@@ -89,7 +93,7 @@ jobs:
           docker exec dojo-test docker image ls
 
       - name: Wait for services to start
-        timeout-minutes: 1
+        timeout-minutes: 3
         run: |
           docker exec dojo-test dojo compose logs -f &
           log_pid=$!
@@ -102,7 +106,7 @@ jobs:
           exit 0
 
       - name: Run tests
-        timeout-minutes: 3
+        timeout-minutes: 10
         run: |
           export MOZ_HEADLESS=1
           pytest -vrpP --durations=0 ./test || (docker exec dojo-test dojo compose logs && false)

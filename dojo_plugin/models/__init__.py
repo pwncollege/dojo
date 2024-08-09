@@ -117,6 +117,9 @@ class Dojos(db.Model):
             self.data[name] = value
             flag_modified(self, "data")
         super().__setattr__(name, value)
+    
+    def __lt__(self, other):
+        return (self.name or "", self.id or "") < (other.name or "", other.id or "")
 
     @classmethod
     def from_id(cls, reference_id):
@@ -436,7 +439,7 @@ class DojoChallenges(db.Model):
     module_index = db.Column(db.Integer, primary_key=True)
     challenge_index = db.Column(db.Integer, primary_key=True)
 
-    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), index=True)
     id = db.Column(db.String(32), index=True)
     name = db.Column(db.String(128))
     description = db.Column(db.Text)

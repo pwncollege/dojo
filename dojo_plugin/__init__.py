@@ -1,11 +1,13 @@
 import sys
 import os
 import datetime
+import threading
+
 from email.message import EmailMessage
 from email.utils import formatdate
 from urllib.parse import urlparse, urlunparse
 
-from flask import Response, request, redirect
+from flask import Response, request, redirect, current_app
 from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
@@ -22,12 +24,12 @@ from .utils.awards import update_awards
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
-from .pages.desktop import desktop
 from .pages.sensai import sensai
 from .pages.users import users
 from .pages.settings import settings_override
 from .pages.discord import discord
 from .pages.course import course
+from .pages.canvas import sync_challenge_to_canvas, canvas
 from .pages.writeups import writeups
 from .pages.belts import belts
 from .pages.index import static_html_override
@@ -51,7 +53,7 @@ class DojoFlag(BaseFlag):
     def compare(chal_key_obj, provided):
         current_account_id = get_current_user().account_id
         current_challenge_id = chal_key_obj.challenge_id
-
+        
         try:
             account_id, challenge_id = unserialize_user_flag(provided)
         except BadSignature:
@@ -62,7 +64,15 @@ class DojoFlag(BaseFlag):
 
         if challenge_id != current_challenge_id:
             raise FlagException("This flag is not for this challenge!")
-
+        
+        try:
+            # Threading this b/c the sync needs to occurr after the database update for the flag success
+            thread = threading.Thread(target=sync_challenge_to_canvas, args=(current_challenge_id, current_account_id, current_app._get_current_object()))
+            thread.start()
+        except Exception:
+            # we don't want to interrupt the flag process with a synchronization error
+            # the error should be fixed by the manual bulk submission
+            pass 
         return True
 
 
@@ -128,11 +138,11 @@ def load(app):
     app.register_blueprint(dojos)
     app.register_blueprint(dojo)
     app.register_blueprint(workspace)
-    app.register_blueprint(desktop)
     app.register_blueprint(sensai)
     app.register_blueprint(discord)
     app.register_blueprint(users)
     app.register_blueprint(course)
+    app.register_blueprint(canvas)
     app.register_blueprint(writeups)
     app.register_blueprint(belts)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")

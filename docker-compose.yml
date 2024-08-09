@@ -40,6 +40,20 @@ services:
       - DOJO_WORKSPACE=${DOJO_WORKSPACE}
     volumes:
       - /data/workspace:/out
+    devices:
+      - /dev/kvm
+
+  workspacefs:
+    container_name: workspacefs
+    privileged: true
+    build:
+      context: ./workspacefs
+    volumes:
+      - /data/workspacefs:/run/workspace:shared
+      - /data/workspace/nix:/nix
+    depends_on:
+      workspace-builder:
+        condition: service_completed_successfully
 
   ctfd:
     container_name: ctfd
@@ -118,6 +132,8 @@ services:
         condition: service_completed_successfully
       workspace-builder:
         condition: service_completed_successfully
+      workspacefs:
+        condition: service_started
       db:
         condition: service_healthy
         restart: true

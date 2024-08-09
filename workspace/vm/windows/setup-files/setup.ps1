@@ -54,11 +54,8 @@ if (!(Get-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -ErrorAction SilentlyCon
 (New-Object Net.WebClient).DownloadFile("https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi", "C:\winfsp.msi")
 Start-Process msiexec -ArgumentList "/i C:\winfsp.msi /qn" -Wait
 Remove-Item -Force -Path C:\winfsp.msi
-# while the server ISO is plugged in, the virtio drivers are in the 2nd CDROM slot, E:
-# ...but when we boot up later without the server ISO it will be in D:
 pnputil.exe /add-driver E:\virtio-win\viofs\2k22\amd64\viofs.inf /install
-# ...but when we boot up later without the server ISO it will be in D:
-& "C:\Program Files (x86)\WinFsp\bin\fsreg.bat" virtiofs "D:\virtio-win\viofs\2k22\amd64\virtiofs.exe" "-t %1 -m %2"
+& "C:\Program Files (x86)\WinFsp\bin\fsreg.bat" virtiofs "E:\virtio-win\viofs\2k22\amd64\virtiofs.exe" "-t %1 -m %2"
 
 
 # -- install chocolately --

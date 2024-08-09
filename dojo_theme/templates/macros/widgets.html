@@ -61,6 +61,15 @@
   </div>
 {% endmacro %}
 
+{% set svg_add_icon %}
+<svg class="w-100 h-100">
+  <circle cx="50%" cy="50%" r="30%" stroke="gray" fill="none" stroke-width="8" stroke-dasharray="8"></circle>
+  <g stroke="gray" stroke-width="8">
+    <line x1="50%" y1="30%" x2="50%" y2="70%"></line>
+    <line x1="30%" y1="50%" x2="70%" y2="50%"></line>
+  </g>
+</svg>
+{% endset %}
 
 {% macro dojo_grid(dojos, dojo_container_counts, create_icon=None) -%}
   <ul class="card-list">
@@ -82,7 +91,7 @@
     {% endfor %}
     {% if create_icon %}
       {% call card(url_for("pwncollege_dojos.dojo_create"), custom=True) %}
-        {{ create_icon }}
+        {{ svg_add_icon }}
       {% endcall %}
     {% endif %}
   </ul>

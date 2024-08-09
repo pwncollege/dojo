@@ -26,11 +26,18 @@ if [ ! -d /out ]; then
     exit 1
 fi
 
-nix build ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
+if [ -e /dev/kvm ]; then
+    chmod 666 /dev/kvm
+fi
+
+nix build --print-build-logs ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
 nix copy --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
-for suid_binary in "python-suid" "bash-suid" "sh-suid"; do
+for suid_binary in "python-suid" "bash-suid" "sh-suid" "windows"; do
     suid_binary_path=$(realpath "/out/nix/var/nix/profiles/default/bin/${suid_binary}")
-    chmod u+s "/out/${suid_binary_path}"
+    FILE="/out/${suid_binary_path}"
+    if [ -e $FILE ]; then
+        chmod u+s "$FILE"
+    fi
 done
 EOF
 

@@ -15,7 +15,6 @@ from ..utils.dojo import dojo_route
 from ..utils.discord import add_role, get_discord_member
 from .writeups import WriteupComments, writeup_weeks, all_writeups
 
-
 course = Blueprint("course", __name__)
 
 
@@ -161,6 +160,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     weight=weight,
                     progress=progress,
                     credit=credit,
+                    module_id=module_id
                 ))
 
             if type == "manual":

@@ -16,14 +16,20 @@
 #define ERROR_BAD_SHEBANG 6   // Resolved script must indicate it's desire to be run with THIS interpreter (SECURITY: prevent weird-behavior due to running incorrect interpreter via non-shebang forced invocation)
 #define ERROR_BAD_ENV 7       // Resolved script which indicates a clear environment must have a cleared environment (SECURITY: prevent weird-behavior due to running interpreter with environment via non-shebang forced invocation)
 
-#define BIN "/run/current-system/sw/bin/"
-
 int main(int argc, char **argv, char **envp)
 {
     if (argc < 2)
         return ERROR_ARGC;
 
-    char *path = realpath(argv[1], NULL);
+    char *path = argv[1];
+    char path_buf[PATH_MAX];
+    char *workspacefs_path = "/run/workspace/bin/";
+    if (!strncmp(workspacefs_path, path, strlen(workspacefs_path))) {
+        snprintf(path_buf, PATH_MAX, "/run/dojo/bin/%s", path + strlen(workspacefs_path));
+        path = path_buf;
+    }
+
+    path = realpath(path, NULL);
     if (!path)
         return ERROR_NOT_FOUND;
 
@@ -53,7 +59,7 @@ int main(int argc, char **argv, char **envp)
     fclose(file);
 
 #ifdef SUID_PYTHON
-    char *child_argv_prefix[] = { BIN "python", "-I", "--", NULL };
+    char *child_argv_prefix[] = { "/usr/bin/python", "-I", "--", NULL };
     if (strcmp(first_line, "#!/opt/pwn.college/python\n") &&
         strcmp(first_line, "#!/usr/bin/env python-suid\n"))
         return ERROR_BAD_SHEBANG;
@@ -62,7 +68,7 @@ int main(int argc, char **argv, char **envp)
 #ifdef SUID_BASH
     char c_arg[PATH_MAX];
     snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
-    char *child_argv_prefix[] = { BIN "bash", "-c", c_arg, argv[1], NULL };
+    char *child_argv_prefix[] = { "/bin/bash", "-c", c_arg, argv[1], NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
     unsetenv("BASH_ENV");
@@ -80,7 +86,7 @@ int main(int argc, char **argv, char **envp)
 #ifdef SUID_SH
     char c_arg[PATH_MAX];
     snprintf(c_arg, PATH_MAX, ". \"%s\"", path);
-    char *child_argv_prefix[] = { BIN "sh", "-c", c_arg, argv[1],  NULL };
+    char *child_argv_prefix[] = { "/bin/sh", "-c", c_arg, argv[1],  NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
     if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/sh\n"))

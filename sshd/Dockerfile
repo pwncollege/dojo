@@ -4,8 +4,8 @@ RUN apk add --no-cache \
         python3 \
         py3-pip \
         openssh-server-pam \
-	docker-cli \
-	mysql-client
+        docker-cli \
+        mysql-client
 
 RUN pip3 install --break-system-packages requests==2.31.0 docker
 

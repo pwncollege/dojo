@@ -15,6 +15,7 @@ Invoke-CmdScript 'C:/Program Files\Microsoft Visual Studio\2022\Community\VC\Aux
 Push-Location 'C:/Program Files/Common Files'
 cl challenge-proxy.c
 
+# unneeded due to Push-Location
 #Copy-Item -Force challenge-proxy.exe "C:\Program Files\Common Files\"
 
 # Do not use configuration init any further
