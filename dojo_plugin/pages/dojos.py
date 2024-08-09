@@ -22,52 +22,48 @@ def dojo_stats(dojo):
 
 @dojos.route("/dojos")
 def listing(template="dojos.html"):
-    user = get_current_user()
     categorized_dojos = {
         "welcome": [],
         "topic": [],
         "public": [],
         "course": [],
+        "member": [],
+        "admin": [],
     }
+
+    user = get_current_user()
+    user_dojo_admins = []
+    user_dojo_members = []
     dojo_solves = (
         Dojos.viewable(user=user)
         .options(db.undefer(Dojos.modules_count), db.undefer(Dojos.challenges_count))
     )
     if user:
-        solves_subquery = (DojoChallenges.solves(user=user, ignore_visibility=True, ignore_admins=False)
+        solves_subquery = (
+            DojoChallenges.solves(user=user, ignore_visibility=True, ignore_admins=False)
             .group_by(DojoChallenges.dojo_id)
             .with_entities(DojoChallenges.dojo_id, db.func.count().label("solve_count"))
-            .subquery())
-        dojo_solves = (dojo_solves.outerjoin(solves_subquery, Dojos.dojo_id == solves_subquery.c.dojo_id)
-            .add_columns(db.func.coalesce(solves_subquery.c.solve_count, 0).label("solve_count")))
+            .subquery()
+        )
+        dojo_solves = (
+            dojo_solves
+            .outerjoin(solves_subquery, Dojos.dojo_id == solves_subquery.c.dojo_id)
+            .add_columns(db.func.coalesce(solves_subquery.c.solve_count, 0).label("solve_count"))
+        )
+        user_dojo_admins = DojoAdmins.query.where(DojoAdmins.user_id == user.id).all()
+        user_dojo_members = DojoMembers.query.where(DojoMembers.user_id == user.id).all()
     else:
         dojo_solves = dojo_solves.add_columns(0)
+
     for dojo, solves in dojo_solves:
         if dojo.type == "hidden" or (dojo.type == "example" and dojo.official):
             continue
         categorized_dojos.setdefault(dojo.type, []).append((dojo, solves))
+        categorized_dojos["admin"].extend((dojo_admin.dojo, 0) for dojo_admin in user_dojo_admins if dojo_admin.dojo == dojo)
+        categorized_dojos["member"].extend((dojo_member.dojo, 0) for dojo_member in user_dojo_members
+                                           if dojo_member.dojo == dojo and dojo.type not in ["welcome", "topic", "public"])
 
-    categorized_dojos.setdefault("welcome", []).sort()
-
-    categorized_dojos["member"] = [ ]
-    categorized_dojos["admin"] = [ ]
-    if user:
-        categorized_dojos["admin"] = [ (d,0) for d in {
-            da.dojo for da in
-            DojoAdmins.query.where(DojoAdmins.user_id == user.id)
-        }]
-        categorized_dojos["member"] = [ (d,0) for d in {
-            da.dojo for da in
-            DojoMembers.query.where(DojoMembers.user_id == user.id)
-        } - { d for d,_ in (
-            categorized_dojos["admin"] + categorized_dojos["welcome"] +
-            categorized_dojos["topic"] + categorized_dojos["public"]
-        ) } ]
-
-    for category, dojos in categorized_dojos.items():
-        dojos.sort()
-        
-    dojo_container_counts = collections.Counter(c['dojo'] for c in container_stats())
+    dojo_container_counts = collections.Counter(stats["dojo"] for stats in container_stats())
 
     return render_template(template, user=user, categorized_dojos=categorized_dojos, dojo_container_counts=dojo_container_counts)
 
