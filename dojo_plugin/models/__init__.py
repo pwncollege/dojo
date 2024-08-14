@@ -405,6 +405,14 @@ class DojoModules(db.Model):
             resource.resource_index = resource_index
         self._resources = value
 
+    @hybrid_method
+    def visible(self):
+        return len(self.visible_challenges()) > 0
+
+    @visible.expression
+    def visible(cls, when=None):
+        return len(cls.visible_challenges()) > 0
+
     @property
     def path(self):
         return self.dojo.path / self.id
