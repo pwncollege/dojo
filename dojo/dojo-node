@@ -57,7 +57,7 @@ case "$ACTION" in
             "[Peer]" \
             "PublicKey = $WORKSPACE_KEY" \
             "Endpoint = $DOJO_HOST:51820" \
-            "AllowedIPs = 192.168.42.1/32, 10.0.0.0/8" \
+            "AllowedIPs = 192.168.42.1/32, 10.0.0.0/12" \
             "PersistentKeepalive = 25" > /data/wireguard/wg0.conf
 
             jq '.hosts += ["tcp://'$node_ip':2375"]' /etc/docker/daemon.json > /etc/docker/daemon.json.tmp

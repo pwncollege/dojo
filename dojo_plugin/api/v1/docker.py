@@ -34,7 +34,7 @@ docker_namespace = Namespace(
     "docker", description="Endpoint to manage docker containers"
 )
 
-HOST_HOMES = pathlib.Path(HOST_DATA_PATH) / "homes"
+HOST_HOMES = pathlib.Path(HOST_DATA_PATH) / "nfs" / "homes"
 HOST_HOMES_NOSUID = HOST_HOMES / "nosuid"
 HOST_HOMES_OVERLAY = HOST_HOMES / "overlay"
 
@@ -43,27 +43,6 @@ HOMEFS = HOMES / "homefs"
 HOMES_DATA = HOMES / "data"
 HOMES_NOSUID = HOMES / "nosuid"
 HOMES_OVERLAY = HOMES / "overlay"
-
-def setup_home(user):
-    HOMES_DATA.mkdir(exist_ok=True)
-    HOMES_NOSUID.mkdir(exist_ok=True)
-    assert HOMEFS.exists()
-
-    user_data = HOMES_DATA / str(user.id)
-    user_nosuid = HOMES_NOSUID / str(user.id)
-
-    if not user_data.exists():
-        # Shell out to `cp` in order to sparsely copy
-        subprocess.run(["cp", HOMEFS, user_data], check=True)
-
-    process = subprocess.run(
-        ["findmnt", "--output", "OPTIONS", user_nosuid], capture_output=True
-    )
-    if b"nosuid" not in process.stdout:
-        subprocess.run(
-            ["mount", user_data, "-o", "nosuid,X-mount.mkdir", user_nosuid],
-            check=True,
-        )
 
 
 def umount_existing_overlay(user):
@@ -300,16 +279,13 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     remove_container(docker_client, user)
     umount_existing_overlay(user)
 
-    setup_home(as_user)
     mounts = [("/home/hacker", HOST_HOMES_NOSUID / str(as_user.id))]
     if as_user != user:
-        setup_home(user)
         setup_user_overlay(user, as_user)
         mounts = [
             ("/home/hacker", HOST_HOMES_OVERLAY / str(user.id) / "merged"),
             ("/home/me", HOST_HOMES_NOSUID / str(user.id)),
         ]
-    mounts = []  # TODO: DEBUG
 
     container = start_container(
         docker_client=docker_client,

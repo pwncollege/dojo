@@ -1,5 +1,13 @@
 #!/bin/sh
 
+if findmnt -n /data >/dev/null; then
+    echo '[+] Data mount exists.'
+    mount --make-shared /data
+else
+    echo '[!] Data mount does not exist. Please start the dojo with a data mount (`-v /data:/data`).'
+    exit 1
+fi
+
 >> /data/config.env
 
 > /data/.config.env
@@ -70,7 +78,7 @@ if [ ! -f /data/homes/homefs ]; then
 fi
 echo '/data/homes/nosuid program:/usr/bin/automount-home --timeout=36000' > /etc/auto.master.d/homes.autofs
 
-echo '/data/homes 192.168.42.0/24(fsid=0,sync,no_subtree_check,no_root_squash,crossmnt)' > /etc/exports
+echo '/data/homes 192.168.42.0/24(fsid=0,rw,sync,no_subtree_check,no_root_squash,crossmnt)' > /etc/exports
 exportfs -ra
 
 mkdir -p /data/nfs/homes/nosuid
@@ -105,6 +113,5 @@ iptables -I DOCKER-USER -i workspace_net -j DROP
 for host in $(cat /opt/pwn.college/user_firewall.allowed); do
     iptables -I DOCKER-USER -i workspace_net -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
 done
-iptables -I DOCKER-USER -i workspace_net -s 10.0.0.0/24 -m conntrack --ctstate NEW -j ACCEPT
-iptables -I DOCKER-USER -i workspace_net -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -I DOCKER-USER -i workspace_net -s 192.168.42.0/24 -m conntrack --ctstate NEW -j ACCEPT
 iptables -I DOCKER-USER -i workspace_net -d 192.168.42.0/24 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
