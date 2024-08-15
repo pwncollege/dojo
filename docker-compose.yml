@@ -57,6 +57,8 @@ services:
 
   ctfd:
     container_name: ctfd
+    profiles:
+      - main
     hostname: ctfd
     build: /opt/CTFd
     platform: linux/amd64
@@ -143,6 +145,8 @@ services:
 
   db:
     container_name: db
+    profiles:
+      - main
     build:
       context: ./db
     restart: always
@@ -163,6 +167,8 @@ services:
 
   cache:
     container_name: cache
+    profiles:
+      - main
     image: redis:4
     restart: always
     volumes:
@@ -170,9 +176,12 @@ services:
 
   sshd:
     container_name: sshd
+    profiles:
+      - main
     build:
       context: ./sshd
     volumes:
+      - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys:/etc/ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
@@ -185,6 +194,8 @@ services:
 
   discord-bot:
     container_name: discord_bot
+    profiles:
+      - main
     build: discord_bot
     restart: on-failure
     environment:
@@ -195,6 +206,8 @@ services:
 
   nginx-proxy:
     container_name: nginx-proxy
+    profiles:
+      - main
     image: nginxproxy/nginx-proxy:1.5
     restart: always
     ports:
@@ -213,6 +226,8 @@ services:
 
   acme-companion:
     container_name: nginx-proxy-acme
+    profiles:
+      - main
     image: nginxproxy/acme-companion:2.3
     restart: always
     volumes_from:

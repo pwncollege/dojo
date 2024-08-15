@@ -76,13 +76,13 @@ if [ ! -f /data/homes/homefs ]; then
     umount /data/homes/homefs_mount
     rm -rf /data/homes/homefs_mount
 fi
-echo '/data/homes/nosuid program:/usr/bin/automount-home --timeout=36000' > /etc/auto.master.d/homes.autofs
+echo '/data/homes/nosuid program:/usr/bin/automount-home --timeout=28800' > /etc/auto.master.d/homes.autofs
 
 echo '/data/homes 192.168.42.0/24(fsid=0,rw,sync,no_subtree_check,no_root_squash,crossmnt)' > /etc/exports
 exportfs -ra
 
 mkdir -p /data/nfs/homes/nosuid
-echo '/data/nfs/homes/nosuid /etc/auto.nfs --timeout=36000' > /etc/auto.master.d/nfs.autofs
+echo '/data/nfs/homes/nosuid /etc/auto.nfs --timeout=25200' > /etc/auto.master.d/nfs.autofs
 echo '* -fstype=nfs,rw,soft,nosuid 192.168.42.1:/data/homes/nosuid/&' > /etc/auto.nfs
 
 if [ ! -d /data/ssh_host_keys ]; then

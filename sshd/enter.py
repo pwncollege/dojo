@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
 
-import sys
+import json
 import os
+import pathlib
+import sys
 import time
 
 import docker
+
+
+WORKSPACE_NODES = {
+    int(node_id): node_key
+    for node_id, node_key in
+    json.load(pathlib.Path("/var/workspace_nodes.json").open()).items()
+}
 
 
 def main():
@@ -23,10 +32,13 @@ def main():
         exit(1)
     container_name = sys.argv[1]
 
-    client = docker.from_env()
+    user_id = int(container_name.split("_")[1])
+    node_id = list(WORKSPACE_NODES.keys())[user_id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
+    docker_host = f"tcp://192.168.42.{node_id + 1}:2375" if node_id is not None else "unix:///var/run/docker.sock"
+    docker_client = docker.DockerClient(base_url=docker_host, tls=False)
 
     try:
-        container = client.containers.get(container_name)
+        container = docker_client.containers.get(container_name)
     except docker.errors.NotFound:
         print("No active challenge session; start a challenge!")
         exit(1)
@@ -34,7 +46,7 @@ def main():
     attempts = 0
     while attempts < 30:
         try:
-            container = client.containers.get(container_name)
+            container = docker_client.containers.get(container_name)
             status = container.status
         except docker.errors.NotFound:
             status = "uninitialized"
@@ -47,7 +59,7 @@ def main():
 
         if status != "running":
             attempts += 1
-            print("\033c", end="") # Clear the terminal when the user opens a new chall.
+            print("\033c", end="")
             print("\r", " " * 80, f"\rConnecting -- instance status: {status}", end="")
             time.sleep(1)
             continue
@@ -71,6 +83,7 @@ def main():
                 ],
                 {
                     "HOME": os.environ["HOME"],
+                    "DOCKER_HOST": docker_host,
                 },
             )
 

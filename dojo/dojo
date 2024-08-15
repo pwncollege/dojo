@@ -57,7 +57,9 @@ case "$ACTION" in
 
     # HELP: compose ARGS: run a docker compose command with the config.env file loaded
     "compose")
-        docker compose --env-file=/data/config.env "$@"
+        profile="main"
+        [ "$WORKSPACE_NODE" -gt 0 ] && profile="workspace"
+        docker compose --env-file=/data/config.env --profile "$profile" "$@"
         ;;
 
     # HELP: node: run a dojo node command
