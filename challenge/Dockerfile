@@ -481,6 +481,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         tmux
         valgrind
         vim
+        wamerican
         whiptail
         wireshark
         zip
