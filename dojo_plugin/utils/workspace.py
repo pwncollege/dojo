@@ -1,4 +1,3 @@
-import docker
 from CTFd.models import Users
 
 from . import user_docker_client

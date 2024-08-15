@@ -5,6 +5,7 @@ ENV LC_CTYPE=C.UTF-8
 
 RUN apt-get update && \
     apt-get install -y \
+        autofs \
         build-essential \
         curl \
         git \
@@ -13,6 +14,7 @@ RUN apt-get update && \
         iproute2 \
         iputils-ping \
         jq \
+        nfs-kernel-server \
         unzip \
         wget \
         wireguard

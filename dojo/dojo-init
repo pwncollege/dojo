@@ -1,12 +1,5 @@
 #!/bin/sh
 
-if findmnt -no PROPAGATION /data | grep -q shared; then
-    echo '[+] Data mount exists and is shared.'
-else
-    echo '[!] Data mount does not exist or is not shared. Please start the dojo with a shared data mount (`-v /data:/data:shared`).'
-    exit 1
-fi
-
 >> /data/config.env
 
 > /data/.config.env
@@ -75,22 +68,14 @@ if [ ! -f /data/homes/homefs ]; then
     umount /data/homes/homefs_mount
     rm -rf /data/homes/homefs_mount
 fi
+echo '/data/homes/nosuid program:/usr/bin/automount-home --timeout=36000' > /etc/auto.master.d/homes.autofs
 
-# Create the AES key file if it does not exist
-if [ ! -z ${BACKUP_AES_KEY_FILE+x} ] && [ ! -f ${BACKUP_AES_KEY_FILE} ]
-then
-    openssl rand 214 > "${BACKUP_AES_KEY_FILE}"
-fi
+echo '/data/homes 192.168.42.0/24(fsid=0,sync,no_subtree_check,no_root_squash,crossmnt)' > /etc/exports
+exportfs -ra
 
-echo "[+] Creating loopback devices for home mounts. This might take a while."
-for i in $(seq 1 4096); do
-    if [ -e /dev/loop$i ]; then
-        continue
-    fi
-    mknod /dev/loop$i b 7 $i
-    chown --reference=/dev/loop0 /dev/loop$i
-    chmod --reference=/dev/loop0 /dev/loop$i
-done
+mkdir -p /data/nfs/homes/nosuid
+echo '/data/nfs/homes/nosuid /etc/auto.nfs --timeout=36000' > /etc/auto.master.d/nfs.autofs
+echo '* -fstype=nfs,rw,soft,nosuid 192.168.42.1:/data/homes/nosuid/&' > /etc/auto.nfs
 
 if [ ! -d /data/ssh_host_keys ]; then
     mkdir -p /data/ssh_host_keys
@@ -105,6 +90,11 @@ for file in $(ls /data/ssh_host_keys/*); do
     cp -a $file /etc/ssh
 done
 
+if [ ! -z ${BACKUP_AES_KEY_FILE+x} ] && [ ! -f ${BACKUP_AES_KEY_FILE} ]
+then
+    openssl rand 214 > "${BACKUP_AES_KEY_FILE}"
+fi
+
 sysctl -w kernel.pty.max=1048576
 echo core > /proc/sys/kernel/core_pattern
 
@@ -117,3 +107,4 @@ for host in $(cat /opt/pwn.college/user_firewall.allowed); do
 done
 iptables -I DOCKER-USER -i workspace_net -s 10.0.0.0/24 -m conntrack --ctstate NEW -j ACCEPT
 iptables -I DOCKER-USER -i workspace_net -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -I DOCKER-USER -i workspace_net -d 192.168.42.0/24 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
