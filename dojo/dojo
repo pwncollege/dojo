@@ -13,7 +13,7 @@ fi
 DOCKER_ARGS=${DOCKER_ARGS:--i}
 [ -t 0 ] && DOCKER_ARGS="-t $DOCKER_ARGS"
 
-if [ -f /data/config.env ]; then
+if [ "$ACTION" != "init" ] && [ -f /data/config.env ]; then
     . /data/config.env
 fi
 
