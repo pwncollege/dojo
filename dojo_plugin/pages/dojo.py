@@ -211,21 +211,6 @@ def view_dojo_activity(dojo):
 
     return render_template("dojo_activity.html", dojo=dojo, actives=actives, solves=solves)
 
-def _get_dojo_solves(dojo):
-    solves = (
-        dojo
-        .solves(ignore_visibility=True)
-        .join(DojoModules, and_(
-            DojoModules.dojo_id == DojoChallenges.dojo_id,
-            DojoModules.module_index == DojoChallenges.module_index
-        ))
-        .filter(DojoUsers.user_id != None)
-        .order_by(DojoChallenges.module_index, DojoChallenges.challenge_index, Solves.date)
-        .with_entities(Solves.user_id, Users.name, DojoModules.id, DojoChallenges.id, Solves.date)
-    )
-    for user_id, user_name, module, challenge, time in solves:
-        time = time.replace(tzinfo=datetime.timezone.utc)
-        yield (user_id,user_name,module,challenge,time)
 
 @dojo.route("/dojo/<dojo>/solves/", methods=["GET", "POST"])
 @dojo.route("/dojo/<dojo>/solves/<solves_code>/<format>", methods=["GET", "POST"])
@@ -238,10 +223,24 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
     if dojo.solves_code != solves_code:
         return {"success": False, "error": "Forbidden"}, 403
 
+    solves_query = (
+        dojo
+        .solves(ignore_visibility=True)
+        .join(DojoModules, and_(
+            DojoModules.dojo_id == DojoChallenges.dojo_id,
+            DojoModules.module_index == DojoChallenges.module_index
+        ))
+        .filter(DojoUsers.user_id != None)
+        .order_by(DojoChallenges.module_index, DojoChallenges.challenge_index, Solves.date)
+        .with_entities(Solves.user_id, Users.name, DojoModules.id, DojoChallenges.id, Solves.date)
+    )
+    solves = ((user_id, user_name, module, challenge, time.replace(tzinfo=datetime.timezone.utc))
+              for user_id, user_name, module, challenge, time in solves_query)
+
     if format == "csv":
         def stream():
             yield "user_id,user_name,module,challenge,time\n"
-            for user_id, _, module, challenge, time in _get_dojo_solves(dojo):
+            for user_id, _, module, challenge, time in solves:
                 yield f"{user_id},{module},{challenge},{time}\n"
         headers = {"Content-Disposition": "attachment; filename=data.csv"}
         return Response(stream_with_context(stream()), headers=headers, mimetype="text/csv")
@@ -249,7 +248,7 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
         username_filter = request.args.get("user_name", None)
         return [
             dict(zip(("user_id","user_name","module","challenge","time"), row))
-            for row in _get_dojo_solves(dojo)
+            for row in solves
             if username_filter is None or row[1] == username_filter
         ]
     else:

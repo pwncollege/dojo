@@ -26,7 +26,7 @@ do
 		T) TEST=no ;;
 		D)
 			DATA_DIR=$(mktemp -d)
-			VOLUME_ARGS+=("-v" "$DATA_DIR:/data:shared")
+			VOLUME_ARGS[3]="$DATA_DIR:/data:shared"
 			;;
 		e) ENV_ARGS+=("-e" "$OPTARG") ;;
 		h) usage ;;

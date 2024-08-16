@@ -333,14 +333,20 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
         course_yml_path = dojo_dir / "course.yml"
         if course_yml_path.exists():
             course = yaml.safe_load(course_yml_path.read_text())
+
             if "discord_role" in course and not dojo.official:
                 raise AssertionError("Unofficial dojos cannot have a discord role")
+
             dojo.course = course
 
             students_yml_path = dojo_dir / "students.yml"
             if students_yml_path.exists():
                 students = yaml.safe_load(students_yml_path.read_text())
                 dojo.course["students"] = students
+
+            syllabus_path = dojo_dir / "SYLLABUS.md"
+            if "syllabus" not in dojo.course and syllabus_path.exists():
+                dojo.course["syllabus"] = syllabus_path.read_text()
 
         if dojo_data.get("pages"):
             dojo.pages = dojo_data["pages"]

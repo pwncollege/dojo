@@ -21,7 +21,15 @@ int main(int argc, char **argv, char **envp)
     if (argc < 2)
         return ERROR_ARGC;
 
-    char *path = realpath(argv[1], NULL);
+    char *path = argv[1];
+    char path_buf[PATH_MAX];
+    char *workspacefs_path = "/run/workspace/bin/";
+    if (!strncmp(workspacefs_path, path, strlen(workspacefs_path))) {
+        snprintf(path_buf, PATH_MAX, "/run/dojo/bin/%s", path + strlen(workspacefs_path));
+        path = path_buf;
+    }
+
+    path = realpath(path, NULL);
     if (!path)
         return ERROR_NOT_FOUND;
 
