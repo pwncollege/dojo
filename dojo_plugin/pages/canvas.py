@@ -2,6 +2,7 @@ import json
 import logging 
 import requests
 import time 
+from datetime import datetime 
 
 from flask import request, Blueprint, abort
 from CTFd.models import Users
@@ -51,6 +52,44 @@ def sync_challenge_to_canvas(challenge_id, user_id, app):
             prj=posting_results.get('json',{})
             log.info(f" Canvas post result: Id={student_id}, dojo_user_id={user_id}, chal_id={challenge_id}, assn_id={prj.get('assignment_id',-1)} grade={prj.get('score',-1) }")
 
+def get_canvas_assignments(canvas_course_id, canvas_api_host, canvas_token):
+    """
+    Fetches assignment details for a specific course from Canvas.
+
+    Parameters:
+    canvas_course_id (int): The ID of the Canvas course.
+    canvas_api_host (str): The Canvas API host (e.g., "canvas.instructure.com").
+    canvas_token (str): The Canvas API access token.
+
+    Returns:
+    dict: A dictionary where the key is the assignment ID and the value is a dictionary containing
+          the assignment name and due date as a datetime object.
+    """
+    # Headers for the API request
+    headers = {
+        "Authorization": f"Bearer {canvas_token}"
+    }
+
+    # API endpoint to get the assignments for the specified course
+    assignments_url = f"https://{canvas_api_host}/api/v1/courses/{canvas_course_id}/assignments"
+
+    # Make the request to get assignments
+    response = requests.get(assignments_url, headers=headers)
+    response.raise_for_status()  # Raise an exception for HTTP errors
+    assignments = response.json()
+
+    # Extract relevant information and store in a dictionary
+    assignments_dict = {}
+    for assignment in assignments:
+        due_date = assignment['due_at']
+        if due_date:
+            due_date = datetime.strptime(due_date, "%Y-%m-%dT%H:%M:%SZ")
+        assignments_dict[assignment['id']] = {
+            'assignment_name': assignment['name'],
+            'due_date': due_date
+        }
+
+    return assignments_dict
 
 """ 
 This function will retrieve the grade information, format it, and send to canvas
@@ -59,7 +98,7 @@ However, if both user_id and module_id are supplied it will do a single user/mod
 def do_canvas_sync(dojo, user_id=None, module_id=None, ignore_pending=False):
     
     canvas_token = dojo.course.get("canvas_token","")
-    
+    canvas_always_sync_zeros = dojo.course.get("canvas_always_sync_zeros",False)
     canvas_api_host = dojo.course.get("canvas_api_host","")
     canvas_course_id = dojo.course.get("canvas_course_id",0)
     if len(canvas_token) == 0:
@@ -106,7 +145,9 @@ def do_canvas_sync(dojo, user_id=None, module_id=None, ignore_pending=False):
                         key=lambda grade: grade["overall_grade"],
                         reverse=True)
     assessments = dojo.course.get("assessments", [])
-        
+    
+    canvas_assignments = get_canvas_assignments(canvas_course_id, canvas_api_host, canvas_token)
+
     posting_results = []
     progress_urls = []
     assessment_student_counter = {}
@@ -126,6 +167,17 @@ def do_canvas_sync(dojo, user_id=None, module_id=None, ignore_pending=False):
             if credit is bool:
                 credit = 1 if credit else 0
             
+            # if not always sync zeros it should still sync if due date has been reached
+            if not canvas_always_sync_zeros and credit == 0:
+                # check if due date on canvas has passed yet
+                if canvas_assignment_id in canvas_assignments and "due_date" in canvas_assignments[canvas_assignment_id]:
+                    due_date = canvas_assignments[canvas_assignment_id]["due_date"]                    
+                    current_datetime = datetime.now()
+                    # if it's before the due date then do not report to zeros to canvas
+                    if current_datetime < due_date:
+                        log.info(f"Skipping {grade_res['user_id']}")
+                        continue 
+
             #%2f is the same used by grades_admin.html and course.html templates
             grade_credit_percent = f"{credit * 100:.2f}%"
 
@@ -165,8 +217,7 @@ def do_canvas_sync(dojo, user_id=None, module_id=None, ignore_pending=False):
 def post_grade_to_canvas(json_auth_header, canvas_api_host, canvas_course_id, assignment_id, student_id, students_grade):
     url = f"https://{canvas_api_host}/api/v1/courses/{canvas_course_id}/assignments/{assignment_id}/submissions/sis_user_id:{student_id}"
     payload = {'submission': {'posted_grade': students_grade}}
-    
-    
+        
     
     r = requests.put(url, headers=json_auth_header, json=payload)
     
