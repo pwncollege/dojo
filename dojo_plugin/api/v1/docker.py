@@ -11,6 +11,7 @@ import docker.errors
 import docker.types
 from flask import abort, request, current_app
 from flask_restx import Namespace, Resource
+from CTFd.plugins import bypass_csrf_protection
 from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
@@ -336,20 +337,11 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
 
 
 @docker_namespace.route("")
+
 class RunDocker(Resource):
-    @authed_only
-    def post(self):
-        data = request.get_json()
-        dojo_id = data.get("dojo")
-        module_id = data.get("module")
-        challenge_id = data.get("challenge")
-        practice = data.get("practice")
 
-        user = get_current_user()
-        as_user = None
-
-        # https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/initialization/__init__.py#L286-L296
-        workspace_token = request.headers.get("X-Workspace-Token")
+    def launch_container(self, user, dojo_id, module_id, challenge_id, practice, workspace_token):
+        as_user = None 
         if workspace_token:
             try:
                 token_user = lookup_workspace_token(workspace_token)
@@ -393,9 +385,34 @@ class RunDocker(Resource):
             logger.exception(f"ERROR: Docker failed for {user.id}:")
             return {"success": False, "error": "Docker failed"}
         return {"success": True}
-
+        
     @authed_only
-    def get(self):
+    def post(self):
+        data = request.get_json()
+        dojo_id = data.get("dojo")
+        module_id = data.get("module")
+        challenge_id = data.get("challenge")
+        practice = data.get("practice")
+
+        user = get_current_user()
+        as_user = None
+
+        # https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/initialization/__init__.py#L286-L296
+        workspace_token = request.headers.get("X-Workspace-Token")
+               
+        return self.launch_container(user, dojo_id, module_id, challenge_id, practice, workspace_token)
+        
+    @authed_only
+    def get(self):        
+        if request.args.get('dojo') and request.args.get('module') and request.args.get('challenge'):
+            user = get_current_user()
+            dojo_id = request.args.get("dojo")
+            module_id = request.args.get("module")
+            challenge_id = request.args.get("challenge")
+            workspace_token = request.args.get("X-Workspace-Token", None)
+            practice = request.args.get("practice", "false").lower() in ('true', '1','yes','y')
+            return self.launch_container(user, dojo_id, module_id, challenge_id, practice, workspace_token)
+        
         dojo_challenge = get_current_dojo_challenge()
         if not dojo_challenge:
             return {"success": False, "error": "No active challenge"}
@@ -405,3 +422,4 @@ class RunDocker(Resource):
             "module": dojo_challenge.module.id,
             "challenge": dojo_challenge.id,
         }
+

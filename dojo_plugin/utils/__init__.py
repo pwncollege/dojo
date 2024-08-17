@@ -296,18 +296,17 @@ def lookup_workspace_token(token):
 
 
 # https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/security/auth.py#L37-L48
-def generate_workspace_token(user, expiration=None):
+def generate_workspace_token(user, expiration=None, preface="workspace_"):
     temp_token = True
     while temp_token is not None:
-        value = "workspace_" + hexencode(os.urandom(32))
+        value = preface + hexencode(os.urandom(32))
         temp_token = WorkspaceTokens.query.filter_by(value=value).first()
-
+    
     token = WorkspaceTokens(
         user_id=user.id, expiration=expiration, value=value
     )
     db.session.add(token)
     db.session.commit()
-    return token
 
 
 # based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
