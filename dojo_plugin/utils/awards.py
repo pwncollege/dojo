@@ -17,7 +17,7 @@ BELT_REQUIREMENTS = {
 }
 
 def belt_asset(color):
-    belt = color + ".svg" if color in BELT_REQUIREMENTS else "white.svg"
+    belt = color + ".svg" if color in BELT_ORDER else "white.svg"
     return url_for("views.themes", path=f"img/dojo/{belt}")
 
 def get_user_emojis(user):
