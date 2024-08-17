@@ -2,7 +2,6 @@ import collections
 import datetime
 import re
 import logging
-from datetime import datetime, timedelta
 
 from flask import Blueprint, Response, render_template, request, abort, stream_with_context
 from sqlalchemy import and_, cast
