@@ -296,7 +296,8 @@ def update_identity(dojo):
     db.session.commit()
 
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
-    if not student.official:
+    # FIX: not returning official after initially added on new user, it's not seeing user as student and thus it doesn't have the property
+    if  not hasattr(student, 'official') or not student.official:
         identity_name = dojo.course.get("student_id", "Identity")
         return {"success": True, "warning": f"Your {identity_name} is not on the official student roster"}
 
