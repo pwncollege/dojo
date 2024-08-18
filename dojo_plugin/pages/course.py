@@ -9,7 +9,7 @@ from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only, ratelimit
 
-from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents
+from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents, DojoMembers
 from ..utils import module_visible, module_challenges_visible, is_dojo_admin
 from ..utils.dojo import dojo_route
 from ..utils.discord import add_role, get_discord_member
@@ -287,17 +287,25 @@ def update_identity(dojo):
         return {"success": False, "error": "Cannot identify admin"}
 
     identity = request.json.get("identity", "").strip()
+    
+    # verify the id exists before updating the database 
+    if identity not in dojo.course.get('students',[]):
+        identity_name = dojo.course.get("student_id", "Identity")
+        return {"success": True, "warning": f"Your {identity_name} of '{identity}' is not on the official student roster"}
+    
     if not dojo_user:
         dojo_user = DojoStudents(dojo=dojo, user=user, token=identity)
         db.session.add(dojo_user)
     else:
-        dojo_user.type = "student"
-        dojo_user.token = identity
+        # FIX: Delete and re-add the dojo_user to avoid data inconsistencies that can occur when changing the polymorphic identity 
+        db.session.delete(dojo_user)
+        dojo_user = DojoStudents(dojo=dojo, user=user, token=identity)
+        db.session.add(dojo_user)
     db.session.commit()
 
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
-    # FIX: not returning official after initially added on new user, it's not seeing user as student and thus it doesn't have the property
-    if  not hasattr(student, 'official') or not student.official:
+    # I don't believe this can occurr any more but if it does it should probably be an error not a warning
+    if not isinstance(student, DojoStudents) or not student.official:
         identity_name = dojo.course.get("student_id", "Identity")
         return {"success": True, "warning": f"Your {identity_name} is not on the official student roster"}
 
