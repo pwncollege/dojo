@@ -286,26 +286,15 @@ def update_identity(dojo):
     if dojo_user and dojo_user.type == "admin":
         return {"success": False, "error": "Cannot identify admin"}
 
-    identity = request.json.get("identity", "").strip()
-    
-    # verify the id exists before updating the database 
-    if identity not in dojo.course.get('students',[]):
-        identity_name = dojo.course.get("student_id", "Identity")
-        return {"success": True, "warning": f"Your {identity_name} of '{identity}' is not on the official student roster"}
-    
-    if not dojo_user:
-        dojo_user = DojoStudents(dojo=dojo, user=user, token=identity)
-        db.session.add(dojo_user)
-    else:
-        # FIX: Delete and re-add the dojo_user to avoid data inconsistencies that can occur when changing the polymorphic identity 
+    if dojo_user:
         db.session.delete(dojo_user)
-        dojo_user = DojoStudents(dojo=dojo, user=user, token=identity)
-        db.session.add(dojo_user)
+
+    identity = request.json.get("identity", "").strip()
+    student = DojoStudents(dojo=dojo, user=user, token=identity)
+    db.session.add(student)
     db.session.commit()
 
-    student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
-    # I don't believe this can occurr any more but if it does it should probably be an error not a warning
-    if not isinstance(student, DojoStudents) or not student.official:
+    if not student.official:
         identity_name = dojo.course.get("student_id", "Identity")
         return {"success": True, "warning": f"Your {identity_name} is not on the official student roster"}
 
