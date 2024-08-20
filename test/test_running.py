@@ -14,6 +14,11 @@ from utils import TEST_DOJOS_LOCATION, PROTO, HOST, login, dojo_run, workspace_r
 def get_flag(user):
     return workspace_run("cat /flag", user=user, root=True).stdout
 
+def get_dojo_modules(dojo):
+    response = requests.get(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{dojo}/modules")
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    return response.json()["modules"]
+
 def get_challenge_id(session, dojo, module, challenge):
     response = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{dojo}/{module}/challenges")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
@@ -77,6 +82,19 @@ def test_create_dojo(example_dojo, admin_session):
     assert admin_session.get(f"{PROTO}://{HOST}/{example_dojo}/").status_code == 200
     assert admin_session.get(f"{PROTO}://{HOST}/example/").status_code == 200
 
+@pytest.mark.dependency()
+def test_get_dojo_modules(example_dojo):
+    modules = get_dojo_modules(example_dojo)
+    assert len(modules) == 2, f"Expected 2 module in 'example' dojo but got {len(modules)}"
+    hello_module = modules[0]
+    assert hello_module['id'] == "hello", f"Expected module id to be 'hello' but got {hello_module['id']}"
+    assert hello_module['module_index'] == 0, f"Expected module index to be '0' but got {hello_module['module_index']}"
+    assert hello_module['name'] == "Hello", f"Expected module name to be 'Hello' but got {hello_module['name']}"
+
+    world_module = modules[1]
+    assert world_module['id'] == "world", f"Expected module id to be 'world' but got {world_module['id']}"
+    assert world_module['module_index'] == 1, f"Expected module index to be '1' but got {world_module['module_index']}"
+    assert world_module['name'] == "World", f"Expected module name to be 'World' but got {world_module['name']}"
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
 def test_delete_dojo(admin_session):
