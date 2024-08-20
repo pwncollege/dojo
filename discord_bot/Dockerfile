@@ -4,4 +4,4 @@ RUN pip install discord-py sqlalchemy pandas PyMySQL
 
 ADD bot.py /
 
-ENTRYPOINT ["/usr/local/bin/python", "bot.py"]
+ENTRYPOINT ["/usr/local/bin/python", "discord_bot.py"]
