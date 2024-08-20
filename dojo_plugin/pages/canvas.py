@@ -100,6 +100,7 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
                 name=assignment["name"],
                 due_date=datetime.strptime(assignment["due_at"], "%Y-%m-%dT%H:%M:%SZ") if assignment["due_at"] else None,
             )
+        page += 1
 
     student_ids = {student.user_id: student.token for student in dojo.students}
     assessments = dojo.course.get("assessments", [])
