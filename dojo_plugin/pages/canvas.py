@@ -1,7 +1,5 @@
 import json
-import logging
 import requests
-import time
 from datetime import datetime
 
 from flask import request, Blueprint, abort
@@ -13,8 +11,6 @@ from .course import grade
 from ..utils.dojo import dojo_route
 
 canvas = Blueprint("canvas", __name__)
-
-logger = logging.getLogger(__name__)
 
 
 def canvas_request(endpoint, method="GET", *, dojo, **kwargs):
@@ -69,14 +65,10 @@ def sync_canvas_user(user_id, challenge_id):
         dojo = dojo_challenge.dojo
         if not (dojo.course and dojo.course.get("canvas_token")):
             continue
-        posting_results = sync_canvas(dojo, module_id=dojo_challenge.module.id, user_id=user_id)
-        student_id = posting_results.get("student_id")
-        assignment_id = posting_results.get("json", {}).get("assignment_id")
-        score = posting_results.get("json", {}).get("score")
-        logger.info(f"Canvas synced: user={user_id}, challenge={challenge_id}, student={student_id}, assignment={assignment_id}, score={score}")
+        sync_canvas(dojo, module=dojo_challenge.module, user_id=user_id)
 
 
-def sync_canvas(dojo, module_id=None, user_id=None, ignore_pending=False):
+def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
     course_students = dojo.course.get("students", [])
     users = (
         Users.query
@@ -105,7 +97,7 @@ def sync_canvas(dojo, module_id=None, user_id=None, ignore_pending=False):
 
             if not canvas_assignment:
                 continue
-            if module_id and module_id != assessment["module_id"]:
+            if module and assessment["module_id"] != module.id:
                 continue
             if not assessment_grade["credit"] and canvas_assignment["due_date"] and canvas_assignment["due_date"] > datetime.now():
                 continue
