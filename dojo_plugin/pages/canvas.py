@@ -1,6 +1,7 @@
 import json
 import requests
 from datetime import datetime
+import logging
 
 from flask import request, Blueprint, abort
 from CTFd.models import Users
@@ -11,6 +12,8 @@ from .course import grade
 from ..utils.dojo import dojo_route
 
 canvas = Blueprint("canvas", __name__)
+
+log = logging.getLogger(__name__)
 
 def canvas_request(endpoint, method="GET", *, dojo, is_canvas_course_endpoint=True, **kwargs):
     missing = [attr for attr in ["canvas_token", "canvas_api_host", "canvas_course_id"] if not (dojo.course or {}).get(attr)]
@@ -107,7 +110,7 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
 
             if not canvas_assignment:
                 continue
-            if module and assessment["module_id"] != module.id:
+            if module and assessment["id"] != module.id:
                 continue
             if not assessment_grade["credit"] and canvas_assignment["due_date"] and canvas_assignment["due_date"] > datetime.now():
                 continue
@@ -119,9 +122,15 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
             grade_data[student_user_id] = {"posted_grade": grade_credit}
                     
     progress_info = {}
+    progress_ids = []
+    
     for assignment_id, grade_data in assignment_submissions.items():
         response = canvas_request(f"/assignments/{assignment_id}/submissions/update_grades", method="POST", dojo=dojo, json=grade_data)
         response["url"] = request.base_url.replace("sync",f"progress/{response.get('id',0)}")  # make a url for pwn.college progress check
+        
+        progress_ids.append({"progress_id": response.get('id',-1), "updates": len(grade_data), "canvas_assignment_id": assignment_id})     
         progress_info[assignment_id] = response
+    
+    log.info(f"Progress Info >  {json.dumps(progress_ids, indent=2)}")
 
     return progress_info
