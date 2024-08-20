@@ -16,7 +16,7 @@ from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
 from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL, SECCOMP, USER_FIREWALL_ALLOWED
-from ...models import Dojos, DojoModules, DojoChallenges
+from ...models import DojoStudents, Dojos, DojoModules, DojoChallenges
 from ...utils import (
     container_name,
     lookup_workspace_token,
@@ -383,6 +383,18 @@ class RunDocker(Resource):
                 "success": False,
                 "error": "This challenge does not support practice mode.",
             }
+
+        instructor_access = dojo.is_admin(user) and any(award.name == "INSTRUCTOR" for award in user.awards)
+        if instructor_access and "as_user" in data:
+            try:
+                as_user = int(data["as_user"])
+            except ValueError:
+                return {"success": False, "error": f"Invalid user ID ({data['as_user']})"}
+            student = next((student for student in dojo.students if student.user_id == as_user), None)
+            if student is None:
+                return {"success": False, "error": f"Not a student in this dojo ({as_user})"}
+            if not student.official:
+                return {"success": False, "error": f"Not an official student in this dojo ({as_user})"}
 
         try:
             start_challenge(user, dojo_challenge, practice, as_user=as_user)
