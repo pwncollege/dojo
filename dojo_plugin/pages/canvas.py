@@ -1,34 +1,44 @@
 import json
-import requests
+import logging
 from datetime import datetime
 
-from flask import request, Blueprint, abort
+import requests
+from flask import request, Blueprint, abort, url_for
 from CTFd.models import Users
 from CTFd.utils.decorators import authed_only
 
-from ..models import DojoChallenges, DojoStudents, DojoStudents
 from .course import grade
+from ..models import DojoChallenges, DojoStudents, DojoStudents
 from ..utils.dojo import dojo_route
 
+
 canvas = Blueprint("canvas", __name__)
+
+logger = logging.getLogger(__name__)
 
 
 def canvas_request(endpoint, method="GET", *, dojo, **kwargs):
     missing = [attr for attr in ["canvas_token", "canvas_api_host", "canvas_course_id"] if not (dojo.course or {}).get(attr)]
     if missing:
         raise RuntimeError(f"Canvas not configured: missing {', '.join(missing)}")
+
     canvas_token = dojo.course["canvas_token"]
     canvas_api_host = dojo.course["canvas_api_host"]
-    canvas_course_id = dojo.course["canvas_course_id"]
-
     headers = {"Authorization": f"Bearer {canvas_token}"}
-    canvas_course_endpoint = f"https://{canvas_api_host}/api/v1/courses/{canvas_course_id}"
-    response = requests.request(method, f"{canvas_course_endpoint}{endpoint}", headers=headers, **kwargs)
+    url = f"https://{canvas_api_host}/api/v1{endpoint}"
+
+    response = requests.request(method, url, headers=headers, **kwargs)
     response.raise_for_status()
+
     if "application/json" in response.headers.get("Content-Type", ""):
         return response.json()
     else:
         return response.content
+
+
+def canvas_course_request(endpoint, method="GET", *, dojo, **kwargs):
+    canvas_course_id = (dojo.course or {}).get("canvas_course_id")
+    return canvas_request(f"/courses/{canvas_course_id}{endpoint}", method=method, dojo=dojo, **kwargs)
 
 
 @canvas.route("/dojo/<dojo>/admin/canvas/sync")
@@ -78,6 +88,7 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
     if user_id is not None:
         users = users.filter(DojoStudents.user_id == user_id)
 
+    student_ids = {student.user_id: student.token for student in dojo.students}
     assessments = dojo.course.get("assessments", [])
     canvas_assignments = {
         assignment["id"]: dict(
@@ -85,32 +96,35 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
             name=assignment["name"],
             due_date=datetime.strptime(assignment["due_at"], "%Y-%m-%dT%H:%M:%SZ") if assignment["due_at"] else None,
         )
-        for assignment in canvas_request("/assignments", dojo=dojo)
+        for assignment in canvas_course_request("/assignments", dojo=dojo)
     }
+    grades = grade(dojo, users, ignore_pending=ignore_pending)
 
     assignment_submissions = {}
 
-    grades = grade(dojo, users, ignore_pending=ignore_pending)
     for user_grades in grades:
         for assessment, assessment_grade in zip(assessments, user_grades["assessment_grades"]):
             canvas_assignment = canvas_assignments.get(assessment.get("canvas_assignment_id"))
 
             if not canvas_assignment:
                 continue
-            if module and assessment["module_id"] != module.id:
+            if module and assessment["id"] != module.id:
                 continue
             if not assessment_grade["credit"] and canvas_assignment["due_date"] and canvas_assignment["due_date"] > datetime.now():
                 continue
 
             student_submissions = assignment_submissions.setdefault(canvas_assignment["id"], {})
             grade_data = student_submissions.setdefault("grade_data", {})
-            student_user_id = f"sis_user_id:{user_grades['user_id']}"
+            student_id = student_ids[user_grades["user_id"]]
             grade_credit = f"{assessment_grade['credit'] * 100:.2f}%"
-            grade_data[student_user_id] = {"posted_grade": grade_credit}
+            grade_data[f"sis_user_id:{student_id}"] = {"posted_grade": grade_credit}
 
     progress_info = {}
+
     for assignment_id, grade_data in assignment_submissions.items():
-        response = canvas_request(f"/assignments/{assignment_id}/submissions/update_grades", method="POST", dojo=dojo, json=grade_data)
-        progress_info[assignment_id] = response
+        response = canvas_course_request(f"/assignments/{assignment_id}/submissions/update_grades", method="POST", dojo=dojo, json=grade_data)
+        progress_url = url_for("canvas.canvas_progress", dojo=dojo.reference_id, progress_id=response["id"], _external=True)
+        progress_info[assignment_id] = progress_url
+        logger.info(f"Posted {len(grade_data)} grade(s) to Canvas assignment {assignment_id}: {progress_url}")
 
     return progress_info
