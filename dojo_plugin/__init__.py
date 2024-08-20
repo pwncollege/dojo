@@ -28,7 +28,7 @@ from .pages.users import users
 from .pages.settings import settings_override
 from .pages.discord import discord
 from .pages.course import course
-from .pages.canvas import sync_canvas, canvas
+from .pages.canvas import sync_canvas_user, canvas
 from .pages.writeups import writeups
 from .pages.belts import belts
 from .pages.index import static_html_override
@@ -44,7 +44,7 @@ class DojoChallenge(BaseChallenge):
     def solve(cls, user, team, challenge, request):
         super().solve(user, team, challenge, request)
         update_awards(user)
-        sync_canvas(user.id, challenge.id)
+        sync_canvas_user(user.id, challenge.id)
 
 
 class DojoFlag(BaseFlag):

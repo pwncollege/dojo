@@ -35,11 +35,11 @@ def canvas_request(endpoint, method="GET", *, dojo, **kwargs):
 @dojo_route
 @authed_only
 def canvas_sync(dojo):
-    if not (dojo.course and dojo.course.get("canvas_token")):
-        abort(404)
-
     if not dojo.is_admin():
         abort(403)
+
+    if not (dojo.course and dojo.course.get("canvas_token")):
+        abort(404)
 
     ignore_pending = request.args.get("ignore_pending") is not None
     posting_results = sync_canvas(dojo, ignore_pending=ignore_pending)
@@ -50,11 +50,11 @@ def canvas_sync(dojo):
 @dojo_route
 @authed_only
 def canvas_progress(dojo, progress_id):
-    if not (dojo.course and dojo.course.get("canvas_token")):
-        abort(404)
-
     if not dojo.is_admin():
         abort(403)
+
+    if not (dojo.course and dojo.course.get("canvas_token")):
+        abort(404)
 
     response = canvas_request(f"/progress/{progress_id}", dojo=dojo)
     return json.dumps(response, indent=2)
