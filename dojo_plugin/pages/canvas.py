@@ -1,19 +1,20 @@
 import json
-import requests
-from datetime import datetime
 import logging
+from datetime import datetime
 
+import requests
 from flask import request, Blueprint, abort, url_for
 from CTFd.models import Users
 from CTFd.utils.decorators import authed_only
 
-from ..models import DojoChallenges, DojoStudents, DojoStudents
 from .course import grade
+from ..models import DojoChallenges, DojoStudents, DojoStudents
 from ..utils.dojo import dojo_route
+
 
 canvas = Blueprint("canvas", __name__)
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def canvas_request(endpoint, method="GET", *, dojo, **kwargs):
@@ -124,6 +125,6 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
         response = canvas_course_request(f"/assignments/{assignment_id}/submissions/update_grades", method="POST", dojo=dojo, json=grade_data)
         progress_url = url_for("canvas.canvas_progress", dojo=dojo.reference_id, progress_id=response["id"], _external=True)
         progress_info[assignment_id] = progress_url
-        log.info(f"Posted {len(grade_data)} grade(s) to Canvas assignment {assignment_id}: {progress_url}")
+        logger.info(f"Posted {len(grade_data)} grade(s) to Canvas assignment {assignment_id}: {progress_url}")
 
     return progress_info
