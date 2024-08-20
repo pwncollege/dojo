@@ -1,4 +1,3 @@
-import json
 import logging
 from datetime import datetime
 
@@ -52,8 +51,7 @@ def canvas_sync(dojo):
         abort(404)
 
     ignore_pending = request.args.get("ignore_pending") is not None
-    posting_results = sync_canvas(dojo, ignore_pending=ignore_pending)
-    return json.dumps(posting_results, indent=2)
+    return sync_canvas(dojo, ignore_pending=ignore_pending)
 
 
 @canvas.route("/dojo/<dojo>/admin/canvas/progress/<int:progress_id>")
@@ -66,8 +64,7 @@ def canvas_progress(dojo, progress_id):
     if not (dojo.course and dojo.course.get("canvas_token")):
         abort(404)
 
-    response = canvas_request(f"/progress/{progress_id}", dojo=dojo)
-    return json.dumps(response, indent=2)
+    return canvas_request(f"/progress/{progress_id}", dojo=dojo)
 
 
 def sync_canvas_user(user_id, challenge_id):
