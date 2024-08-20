@@ -88,16 +88,21 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
     if user_id is not None:
         users = users.filter(DojoStudents.user_id == user_id)
 
+    canvas_assignments = {}
+    page = 1
+    while True:
+        response = canvas_course_request("/assignments", params=dict(per_page=100, page=page), dojo=dojo)
+        if not response:
+            break
+        for assignment in response:
+            canvas_assignments[assignment["id"]] = dict(
+                id=assignment["id"],
+                name=assignment["name"],
+                due_date=datetime.strptime(assignment["due_at"], "%Y-%m-%dT%H:%M:%SZ") if assignment["due_at"] else None,
+            )
+
     student_ids = {student.user_id: student.token for student in dojo.students}
     assessments = dojo.course.get("assessments", [])
-    canvas_assignments = {
-        assignment["id"]: dict(
-            id=assignment["id"],
-            name=assignment["name"],
-            due_date=datetime.strptime(assignment["due_at"], "%Y-%m-%dT%H:%M:%SZ") if assignment["due_at"] else None,
-        )
-        for assignment in canvas_course_request("/assignments", dojo=dojo)
-    }
     grades = grade(dojo, users, ignore_pending=ignore_pending)
 
     assignment_submissions = {}
