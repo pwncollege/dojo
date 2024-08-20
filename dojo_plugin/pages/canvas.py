@@ -116,9 +116,9 @@ def sync_canvas(dojo, module_id=None, user_id=None, ignore_pending=False):
             grade_credit = f"{assessment_grade['credit'] * 100:.2f}%"
             grade_data[student_user_id] = {"posted_grade": grade_credit}
 
-    progress_urls = {}
+    progress_info = {}
     for assignment_id, grade_data in assignment_submissions.items():
         response = canvas_request(f"/assignments/{assignment_id}/submissions/update_grades", method="POST", dojo=dojo, json=grade_data)
-        progress_urls[assignment_id] = response["url"]
+        progress_info[assignment_id] = response
 
-    return progress_urls
+    return progress_info
