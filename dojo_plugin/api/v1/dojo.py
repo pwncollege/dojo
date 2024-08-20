@@ -161,7 +161,7 @@ class GetDojoModules(Resource):
                  module_index=module.module_index,
                  name=module.name,
                  description=module.description)
-            for module in dojo.modules if module.visible()
+            for module in dojo.modules
         ]
         return {"success": True, "modules": modules}
 
