@@ -1,6 +1,7 @@
 import collections
 import datetime
 import re
+import logging
 
 from flask import Blueprint, Response, render_template, request, abort, stream_with_context
 from sqlalchemy import and_, cast
@@ -9,8 +10,10 @@ from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only, ratelimit
 
-from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents
-from ..utils import module_visible, module_challenges_visible, is_dojo_admin
+from ..api.v1.workspace_tokens import WorkspaceTokenSchema
+
+from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents, WorkspaceTokens
+from ..utils import module_visible, module_challenges_visible, is_dojo_admin, generate_workspace_token
 from ..utils.dojo import dojo_route
 from ..utils.discord import add_role, get_discord_member
 from .writeups import WriteupComments, writeup_weeks, all_writeups
@@ -469,3 +472,57 @@ def view_user_info(dojo, user_id):
                            user=user,
                            discord_member=discord_member,
                            **identity)
+
+
+@course.route("/dojo/<dojo>/admin/create_tokens")
+@dojo_route
+@authed_only
+def create_tokens_for_course_members(dojo):
+    if not dojo.course:
+        abort(404)
+
+    if not dojo.is_admin():
+        abort(403)
+    log = logging.getLogger(__name__)
+
+    course_students = dojo.course.get("students", [])
+    users = (
+        db.session.query(Users,DojoStudents.token)        
+        .join(DojoStudents, DojoStudents.user_id == Users.id)
+        .filter(DojoStudents.dojo == dojo,
+                DojoStudents.token.in_(course_students))
+    )
+    out = []
+    import json 
+    for user, user_extra_id in users:
+        log.info(f"{user.id} {user_extra_id}")
+        dojo_access_token = None 
+        tokens = WorkspaceTokens.query.filter_by(user_id=user.id)
+        schema = WorkspaceTokenSchema(only=["id", "expiration","value"], many=True)
+        response = schema.dump(tokens)
+        if response.errors:
+            log.error(f"Error with token getting token info for {user.id}: {user.name}, will attempt to create a new token")
+        else:
+            for tok in response.data:
+                if tok.get('value','').startswith(dojo.id):
+                    dojo_access_token = tok
+                    break 
+                    
+        if dojo_access_token is None:
+            current_date = datetime.now() 
+           
+            # TODO: should make more sophisticated, maybe based on a course value like course visibility if it's there, maybe visibility + 30 days or something?
+            august_10 = datetime(current_date.year, 8, 10)
+            december_31 = datetime(current_date.year, 12, 31)
+            if current_date < august_10:
+                expiration_date = august_10
+            else:
+                expiration_date = december_31
+            
+            newly_generated_token = generate_workspace_token(user, expiration=expiration_date, preface=f"{dojo.id}_ws_")
+            out.append({"user_id": user.id, "user_extra_id": user_extra_id, "user_name": user.name, 
+                        "access_token": newly_generated_token.value, "access_expiration": newly_generated_token.expiration})
+        else:
+            out.append({"user_id": user.id, "user_extra_id": user_extra_id, "user_name": user.name, 
+                        "access_token": dojo_access_token.get('value'), "access_expiration": dojo_access_token.get('expiration')})
+    return out
