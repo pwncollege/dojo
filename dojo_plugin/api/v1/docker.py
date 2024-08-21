@@ -387,14 +387,15 @@ class RunDocker(Resource):
         instructor_access = dojo.is_admin(user) and any(award.name == "INSTRUCTOR" for award in user.awards)
         if instructor_access and "as_user" in data:
             try:
-                as_user = int(data["as_user"])
+                as_user_id = int(data["as_user"])
             except ValueError:
                 return {"success": False, "error": f"Invalid user ID ({data['as_user']})"}
-            student = next((student for student in dojo.students if student.user_id == as_user), None)
+            student = next((student for student in dojo.students if student.user_id == as_user_id), None)
             if student is None:
                 return {"success": False, "error": f"Not a student in this dojo ({as_user})"}
             if not student.official:
                 return {"success": False, "error": f"Not an official student in this dojo ({as_user})"}
+            as_user = student.user
 
         try:
             start_challenge(user, dojo_challenge, practice, as_user=as_user)
