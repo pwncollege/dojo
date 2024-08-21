@@ -135,6 +135,12 @@ function startChallenge(event) {
         "practice": practice,
     };
 
+    const urlParams = new URLSearchParams(window.location.search);
+    let as_user = urlParams.get("as_user");
+    if (as_user) {
+        params["as_user"] = as_user;
+    }
+
     var result_notification = item.find('#result-notification');
     var result_message = item.find('#result-message');
     result_notification.removeClass('alert-danger');
