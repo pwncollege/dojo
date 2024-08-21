@@ -395,9 +395,9 @@ class RunDocker(Resource):
                 return {"success": False, "error": f"Invalid user ID ({data['as_user']})"}
             student = next((student for student in dojo.students if student.user_id == as_user_id), None)
             if student is None:
-                return {"success": False, "error": f"Not a student in this dojo ({as_user})"}
+                return {"success": False, "error": f"Not a student in this dojo ({as_user_id})"}
             if not student.official:
-                return {"success": False, "error": f"Not an official student in this dojo ({as_user})"}
+                return {"success": False, "error": f"Not an official student in this dojo ({as_user_id})"}
             as_user = student.user
 
         try:
