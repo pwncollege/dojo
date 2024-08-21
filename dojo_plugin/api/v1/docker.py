@@ -2,7 +2,6 @@ import hashlib
 import os
 import pathlib
 import re
-import stat
 import subprocess
 import logging
 import shutil
@@ -105,7 +104,7 @@ def setup_user_overlay(user, as_user):
     )
     lower_dir_stat = lower_dir.stat()
     os.chown(mountpoint, lower_dir_stat.st_uid, lower_dir_stat.st_gid)
-    mountpoint.chmod(stat.filemode(lower_dir_stat.st_mode))
+    mountpoint.chmod(lower_dir_stat.st_mode & 0o7777)
 
 
 def remove_container(docker_client, user):
