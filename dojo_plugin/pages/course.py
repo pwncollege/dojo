@@ -137,7 +137,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     date=str(user_date) + (" *" if extension else ""),
                     weight=weight,
                     progress=f"{checkpoint_solves} / {challenge_count_required}",
-                    credit=bool(checkpoint_solves // (challenge_count_required)),
+                    credit=bool(checkpoint_solves // (challenge_count_required)) if challenge_count_required > 0 else False,
                 ))
 
             if type == "due":
@@ -177,7 +177,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 if override is None:
                     late_points = late_value * capped_late_solves
                     extra_late_points = extra_late_value * capped_extra_late_solves
-                    credit = min((due_solves +  late_points + extra_late_points ) / challenge_count_required, 1.0)                    
+                    credit = min((due_solves +  late_points + extra_late_points ) / challenge_count_required, 1.0) if challenge_count_required > 0 else 0
                 else:
                     credit = override
                     progress = f"{progress} *"
