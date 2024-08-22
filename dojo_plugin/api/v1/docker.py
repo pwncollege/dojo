@@ -387,8 +387,7 @@ class RunDocker(Resource):
                 "error": "This challenge does not support practice mode.",
             }
 
-        instructor_access = dojo.is_admin(user) and any(award.name == "INSTRUCTOR" for award in user.awards)
-        if instructor_access and "as_user" in data:
+        if dojo.is_admin(user) and "as_user" in data:
             try:
                 as_user_id = int(data["as_user"])
             except ValueError:
