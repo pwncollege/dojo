@@ -140,27 +140,4 @@ async def like_meme(interaction: discord.Interaction, message: discord.Message):
     print(f"{describe(interaction.user)} liked {describe(message.author)}'s meme")
 
 
-@client.tree.context_menu(name="Tag: Good Question")
-async def good_question(interaction: discord.Interaction, message: discord.Message):
-    senseis = list(role for role in interaction.guild.roles if "sensei" in role.name.lower())
-    if not any(interaction.user in sensei.members for sensei in senseis):
-        await interaction.response.send_message("You are not a sensei!", ephemeral=True)
-        return
-
-    thread = message.channel
-    if not isinstance(thread, discord.Thread):
-        await interaction.response.send_message("Only forum threads can be tagged!", ephemeral=True)
-        return
-
-    forum = thread.parent
-    if not isinstance(forum, discord.ForumChannel):
-        await interaction.response.send_message("Only forum threads can be tagged!", ephemeral=True)
-        return
-
-    good_question_tag = next(tag for tag in forum.available_tags if tag.name == "Good Question")
-
-    await thread.add_tags(good_question_tag)
-    await interaction.response.send_message("Tagged: Good Question", ephemeral=True)
-
-
 client.run(DISCORD_BOT_TOKEN)
