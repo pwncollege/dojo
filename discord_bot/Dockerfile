@@ -1,6 +1,8 @@
 FROM python:3.9-slim-buster
 
-RUN pip install discord-py sqlalchemy pandas PyMySQL
+RUN pip install \
+    aiohttp \
+    discord-py
 
 ADD discord_bot.py /
 

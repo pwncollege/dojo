@@ -563,6 +563,19 @@ class DojoChallenges(db.Model):
             return self.data["image"]
         return "pwncollege-challenge"
 
+    @property
+    def reference_id(self):
+        return f"{self.dojo.reference_id}/{self.module.id}/{self.id}"
+
+    def resolve(self):
+        # TODO: We should probably refactor to correctly store a reference to the DojoChallenge
+        if not self.path_override:
+            return self
+        return (DojoChallenges.query
+                .filter(DojoChallenges.challenge_id == self.challenge_id,
+                        DojoChallenges.data["path_override"] == None)
+                .first())
+
     __repr__ = columns_repr(["module", "id", "challenge_id"])
 
 
