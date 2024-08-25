@@ -54,7 +54,7 @@
       <br>
       <b>Hackers:</b> <code>{{ "{:,}".format(stats["users"]) }}</code>
       <br>
-      <b>Challenges:</b> <code>{{ stats["challenges"] }}</code>
+      <b>Challenges:</b> <code>{{ stats["visible_challenges"] }}</code>
       <br>
       <b>Solves:</b> <code>{{ "{:,}".format(stats["solves"]) }}</code>
       {% if awards %}
@@ -97,18 +97,21 @@
     {% set container_count = module_container_counts.get(module.id, 0) %}
     {% set num_challs = module.visible_challenges() | length %}
     {% set num_solved = module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0 %}
-    {{ card(
-      url_for('pwncollege_dojo.view_dojo_path', dojo=dojo_id, path=module.id),
-      title=module.name or module.id,
-      text_lines = [
-        "{} Hacking".format(container_count) if container_count > 0 else "",
-        "{} / {}".format(
-          module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0,
-          module.visible_challenges() | length
-        )
-      ],
-      solve_percent=(num_solved / num_challs) * 100 if num_challs else 0,
-    ) }}
+    {% if module.visible() or dojo.is_admin(user) %}
+      {{ card(
+        url_for('pwncollege_dojo.view_dojo_path', dojo=dojo_id, path=module.id),
+	title=module.name or module.id,
+        text_lines = [
+          "{} Hacking".format(container_count) if container_count > 0 else "",
+          "{} / {}".format(
+            module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0,
+            module.visible_challenges() | length
+          ),
+	  "hidden" if not module.visible()
+        ],
+        solve_percent=(num_solved / num_challs) * 100 if num_challs else 0,
+      ) }}
+    {% endif %}
     {% endfor %}
   </ul>
 

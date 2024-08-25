@@ -17,7 +17,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from CTFd.models import db, Users, Challenges, Flags, Solves
 from CTFd.utils.user import get_current_user, is_admin
 
-from ..models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
+from ..models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
 from ..config import DOJOS_DIR
 from ..utils import get_current_container
 
@@ -307,13 +307,13 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             default=(assert_import_one(DojoModules.from_id(*import_ids(["dojo", "module"], dojo_data, module_data)),
                                 f"Import module `{'/'.join(import_ids(['dojo', 'module'], dojo_data, module_data))}` does not exist")
                      if "import" in module_data else None),
-            default_visibility=visibility(dict, dojo_data, module_data),
+            visibility=visibility(DojoModuleVisibilities, dojo_data, module_data),
         )
         for module_data in dojo_data["modules"]
     ] if "modules" in dojo_data else [
         DojoModules(
             default=module,
-            default_visibility=visibility(dict, dojo_data),
+            visibility=visibility(DojoModuleVisibilities, dojo_data, module_data),
         )
         for module in (import_dojo.modules if import_dojo else [])
     ]
