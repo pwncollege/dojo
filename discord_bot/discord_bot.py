@@ -8,7 +8,7 @@ import aiohttp
 import discord
 
 
-for required in ["DISCORD_BOT", "DISCORD_CLIENT_SECRET", "DISCORD_GUILD_ID", "DOJO_HOST"]:
+for required in ["DISCORD_BOT_TOKEN", "DISCORD_CLIENT_SECRET", "DISCORD_GUILD_ID", "DOJO_HOST"]:
     value = os.environ.get(required)
     if not value:
         print(f"No `{required}` specified in environment, quitting.", file=sys.stderr)
