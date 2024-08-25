@@ -8,16 +8,16 @@ import aiohttp
 import discord
 
 
+for required in ["DISCORD_BOT", "DISCORD_CLIENT_SECRET", "DISCORD_GUILD_ID", "DOJO_HOST"]:
+    value = os.environ.get(required)
+    if not value:
+        print(f"No `{required}` specified in environment, quitting.", file=sys.stderr)
+        exit(0)  # Exit with success code to avoid restarting the container
+
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 DISCORD_CLIENT_SECRET = os.environ["DISCORD_CLIENT_SECRET"]
 DISCORD_GUILD_ID = int(os.environ["DISCORD_GUILD_ID"])
 DOJO_HOST = os.environ["DOJO_HOST"]
-
-for required in [DISCORD_BOT_TOKEN, DISCORD_CLIENT_SECRET, DISCORD_GUILD_ID, DOJO_HOST]:
-    if not required:
-        print(f"No `{required}` specified in environment, quitting.", file=sys.stderr)
-        exit(0)  # Exit with success code to avoid restarting the container
-
 
 class PwnCollegeClient(discord.Client):
     def __init__(self, *, intents: discord.Intents):
