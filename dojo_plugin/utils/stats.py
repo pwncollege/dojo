@@ -30,5 +30,6 @@ def dojo_stats(dojo):
         "active": len(containers),
         "users": int(dojo.solves().group_by(Solves.user_id).count()),
         "challenges": int(len(dojo.challenges)),
+        "visible_challenges": int(len([c for c in dojo.challenges if c.visible()])),
         "solves": int(dojo.solves().count()),
     }

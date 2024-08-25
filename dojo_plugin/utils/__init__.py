@@ -169,18 +169,19 @@ def resolved_tar(dir, *, root_dir, filter=None):
 
 def module_visible(dojo, module, user):
     return (
-        "time_visible" not in module or
-        module["time_visible"] <= datetime.datetime.now(pytz.utc) or
+        "visibility" not in module or
+        module["visibility"]["start"] <= datetime.datetime.now(pytz.utc) or
         is_dojo_admin(user, dojo)
     )
 
 
 def module_challenges_visible(dojo, module, user):
-    return (
-        "time_assigned" not in module or
-        module["time_assigned"] <= datetime.datetime.now(pytz.utc) or
-        is_dojo_admin(user, dojo)
-    )
+     return (
+         ("time_assigned" not in module and "visibility" not in module) or
+         ("time_assigned" in module and module["time_assigned"] <= datetime.datetime.now(pytz.utc)) or
+         ("visibility" in module and module["visibility"] <= datetime.datetime.now(pytz.utc)) or
+         is_dojo_admin(user, dojo)
+     )
 
 
 def is_dojo_admin(user, dojo):
