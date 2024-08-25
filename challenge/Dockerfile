@@ -429,6 +429,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         firefox
         fish
         fortune
+        fortunes
         gcc-aarch64-linux-gnu
         gdb
         gdb-multiarch
