@@ -128,8 +128,9 @@ async def hello(interaction: discord.Interaction):
 async def help(interaction: discord.Interaction):
     url = f"{DOJO_HOST}/pwncollege_api/v1/discord/activity/{interaction.user.id}"
     headers = {"Authorization": f"Bearer"}
-    response = await aiohttp.request("GET", url, headers=headers)
-    data = await response.json()
+    async with aiohttp.ClientSession() as session:
+        response = await session.get(url, headers=headers)
+        data = await response.json()
 
     if response.status_code == 404:
         await interaction.response.send_message(
@@ -166,7 +167,7 @@ async def thank_message(interaction: discord.Interaction, message: discord.Messa
                             logged_text=f"{interaction.user.mention} thanked {message.author.mention}",
                             ephemeral_text=f"You thanked {message.author.mention}",
                             button_text="Thanks Message",
-                            emoji=client.emoji["thanks"],
+                            emoji=client.emoji["upvote"],
                             interaction=interaction,
                             message=message)
 
