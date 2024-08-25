@@ -126,7 +126,7 @@ async def hello(interaction: discord.Interaction):
 
 @client.tree.command()
 async def help(interaction: discord.Interaction):
-    url = f"{DOJO_HOST}/pwncollege_api/v1/discord/activity/{interaction.user.id}"
+    url = f"https://{DOJO_HOST}/pwncollege_api/v1/discord/activity/{interaction.user.id}"
     headers = {"Authorization": f"Bearer"}
     async with aiohttp.ClientSession() as session:
         response = await session.get(url, headers=headers)
