@@ -132,7 +132,7 @@ async def help(interaction: discord.Interaction):
         response = await session.get(url, headers=headers)
         data = await response.json()
 
-    if response.status_code == 404:
+    if response.status == 404:
         await interaction.response.send_message(
             (f"Your discord account is not linked to the dojo: "
                 f"[https://{DOJO_HOST}/discord/connect](https://{DOJO_HOST}/discord/connect)"),
