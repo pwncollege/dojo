@@ -187,6 +187,7 @@ services:
     build: discord_bot
     restart: on-failure
     environment:
+      - DOJO_HOST=${DOJO_HOST}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
