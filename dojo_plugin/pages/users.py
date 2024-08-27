@@ -23,7 +23,7 @@ def view_hacker(user):
     if user.hidden:
         abort(404)
 
-    dojos = Dojos.query.where(or_(and_(Dojos.official, Dojos.data["type"] != "course"), Dojos.data["type"] == "public")).all()
+    dojos = Dojos.viewable(user=get_current_user()).filter(Dojos.data["type"] != "course").all()
 
     return render_template(
         "hacker.html",
