@@ -182,17 +182,6 @@ services:
     ports:
       - "22:22"
 
-  discord-bot:
-    container_name: discord_bot
-    build: discord_bot
-    restart: on-failure
-    environment:
-      - DOJO_HOST=${DOJO_HOST}
-      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
-      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
-
   nginx-proxy:
     container_name: nginx-proxy
     image: nginxproxy/nginx-proxy:1.5
