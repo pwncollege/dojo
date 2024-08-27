@@ -61,7 +61,17 @@
             </div>
             <div class="dropdown-divider"></div>
             <div class="container-fluid">
-              <div class="row mt-3">
+              <div class="row d-none d-md-block">
+                <div class="col-12"><p class="text-light dropdown-toggle" id="show_description">Description</p></div>
+                <div class="col-12" style="max-height: 50vh;min-width: 50vw;overflow-y: scroll;">
+                  <p id="dropdown-description" class="text-light" style="display: none">
+                    This is a description of the challenge.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="container-fluid">
+              <div class="row">
                 <div class="col-md-8 form-group">
                   <input id="dropdown-challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
                 </div>
@@ -74,11 +84,6 @@
             </div>
             <div class="container-fluid">
               <div id="dropdown-controls" class="row pb-2">
-                <div class="notification-row fixed-top">
-                  <div id="result-notification" class="alert alert-dismissable text-center w-100" role="alert" style="display: none;">
-                    <strong id="result-message"></strong>
-                  </div>
-                </div>
                 <div id="previous" class="col overflow-hidden ">
                   <button id="challenge-start" class="btn btn-dark  text-truncate w-100">
                     <i class="fas fa-backward"></i>
@@ -115,6 +120,12 @@
                   <input id="challenge" type="hidden" value="xx">
                   <input id="challenge-id" type="hidden" value="xx">
                 </div>
+                <div class="w-100"></div>
+                <div class="notification-row col-12 mt-2">
+                  <div id="result-notification" class="alert alert-dismissable text-center w-100" role="alert" style="display: none;">
+                    <strong id="result-message"></strong>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -130,7 +141,7 @@
         {% endif %}
 
         <li class="nav-item">
-          <a class="nav-link close-link" href="javascript:void()">
+          <a class="nav-link close-link" href="javascript:void(0)">
             <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Hide Navbar">
               <i class="fas caret-up d-none d-md-block d-lg-none"></i>
             </span>
