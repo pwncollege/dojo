@@ -51,8 +51,8 @@ class DiscordActivity(Resource):
             "challenge": {
                 "dojo": dojo_challenge.dojo.name,
                 "module": dojo_challenge.module.name,
-                "challenge": dojo_challenge.challenge.name,
-                "description": dojo_challenge.challenge.description,
+                "challenge": dojo_challenge.name,
+                "description": dojo_challenge.description,
                 "reference_id": dojo_challenge.reference_id,
             }
         }
