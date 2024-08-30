@@ -500,16 +500,16 @@ def get_prev_cur_next_dojo_challenge(user=None):
         DojoChallenges.query
         .filter(DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
                 DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first(),
-                DojoChallenges.challenge_id < current.challenge_id)
-        .order_by(DojoChallenges.challenge_id.desc())
+                DojoChallenges.challenge_index < current.challenge_index)
+        .order_by(DojoChallenges.challenge_index.desc())
         .first()
     )
     next = (
         DojoChallenges.query
         .filter(DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
                 DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first(),
-                DojoChallenges.challenge_id > current.challenge_id)
-        .order_by(DojoChallenges.challenge_id.asc())
+                DojoChallenges.challenge_index > current.challenge_index)
+        .order_by(DojoChallenges.challenge_index.asc())
         .first()
     )
     return {
