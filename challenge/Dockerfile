@@ -134,6 +134,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         upx-ucl
 EOF
 
+RUN pip install fastecdsa
+
 ################################################################################
 
 FROM scratch as builder-kernel-no
