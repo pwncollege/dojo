@@ -5,6 +5,7 @@ import re
 import subprocess
 import logging
 import shutil
+import time
 
 import docker
 import docker.errors
@@ -403,7 +404,8 @@ class RunDocker(Resource):
             try:
                 start_challenge(user, dojo_challenge, practice, as_user=as_user)
             except (RuntimeError, docker.errors.APIError):
-                # just try a second time
+                # just try a second time after a pause
+                time.sleep(5)
                 start_challenge(user, dojo_challenge, practice, as_user=as_user)
         except RuntimeError as e:
             logger.exception(f"ERROR: Docker failed for {user.id}:")
