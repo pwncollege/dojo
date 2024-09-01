@@ -217,6 +217,7 @@ RUN <<EOF
     cargo install --path . --root /tmp
     mv /tmp/bin/ropr /usr/bin/kropr
     chmod +x /usr/bin/kropr
+    ln -sf /home/hacker/.gdbinit /root/.gdbinit
 EOF
 
 FROM builder-gdb-${INSTALL_GDB} as builder-gdb
