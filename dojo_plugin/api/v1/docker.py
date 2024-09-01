@@ -235,7 +235,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
     return container
 
 
-def get_mount_info(container, path, tries=2):
+def get_mount_info(container, path):
     exit_code, output = exec_run(
         f"/run/dojo/bin/findmnt --output OPTIONS {path}",
         container=container,
@@ -244,9 +244,7 @@ def get_mount_info(container, path, tries=2):
     if exit_code != 0:
         container.kill()
         container.wait(condition="removed")
-        if not tries:
-            raise RuntimeError("Home directory failed to mount")
-        return get_mount_info(container, path, tries=tries-1)
+        raise RuntimeError("Home directory failed to mount")
     return output
 
 
