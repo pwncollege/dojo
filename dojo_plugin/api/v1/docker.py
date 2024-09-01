@@ -400,7 +400,11 @@ class RunDocker(Resource):
             as_user = student.user
 
         try:
-            start_challenge(user, dojo_challenge, practice, as_user=as_user)
+            try:
+                start_challenge(user, dojo_challenge, practice, as_user=as_user)
+            except RuntimeError:
+                # just try a second time
+                start_challenge(user, dojo_challenge, practice, as_user=as_user)
         except RuntimeError as e:
             logger.exception(f"ERROR: Docker failed for {user.id}:")
             return {"success": False, "error": str(e)}
