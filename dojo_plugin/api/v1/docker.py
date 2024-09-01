@@ -402,7 +402,7 @@ class RunDocker(Resource):
         try:
             try:
                 start_challenge(user, dojo_challenge, practice, as_user=as_user)
-            except RuntimeError:
+            except (RuntimeError, docker.errors.APIError):
                 # just try a second time
                 start_challenge(user, dojo_challenge, practice, as_user=as_user)
         except RuntimeError as e:
