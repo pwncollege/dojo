@@ -479,7 +479,7 @@ def get_current_dojo_challenge(user=None):
     )
 
 
-def get_prev_cur_next_dojo_challenge(user=None):
+def get_prev_cur_next_dojo_challenge(user=None, active=None):
     container = get_current_container(user)
     if not container:
         return {
@@ -488,30 +488,17 @@ def get_prev_cur_next_dojo_challenge(user=None):
         'next':None
         }
 
-    current = (
-        DojoChallenges.query
-        .filter(DojoChallenges.id == container.labels.get("dojo.challenge_id"),
-                DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
-                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first())
-        .first()
-    )
+    if active:
+        current = active
+    else:
+        current = get_current_dojo_challenge(user)
 
-    previous = (
-        DojoChallenges.query
-        .filter(DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
-                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first(),
-                DojoChallenges.challenge_id < current.challenge_id)
-        .order_by(DojoChallenges.challenge_id.desc())
-        .first()
-    )
-    next = (
-        DojoChallenges.query
-        .filter(DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
-                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first(),
-                DojoChallenges.challenge_id > current.challenge_id)
-        .order_by(DojoChallenges.challenge_id.asc())
-        .first()
-    )
+    current_index = current.challenge_index
+    challenges = current.module.challenges
+
+    previous = challenges[current_index - 1] if current_index > 0 else None
+    next = challenges[current_index + 1] if current_index < (len(challenges) - 1) else None
+
     return {
         'previous':previous,
         'current':current,
