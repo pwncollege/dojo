@@ -367,14 +367,14 @@ class DojoModules(db.Model):
             kwargs.pop("challenges", None) or
             ([DojoChallenges(
                 default=challenge,
-                visibility=(DojoChallengeVisibilities(**visibility) if visibility else None),
+                visibility=(DojoChallengeVisibilities(start=visibility.start) if visibility else None),
             ) for challenge in default.challenges] if default else [])
         )
         kwargs["resources"] = (
             kwargs.pop("resources", None) or
             ([DojoResources(
                 default=resource,
-                visibility=(DojoResourceVisibilities(**visibility) if visibility else None),
+                visibility=(DojoResourceVisibilities(start=visibility.start) if visibility else None),
             ) for resource in default.resources] if default else [])
         )
 
