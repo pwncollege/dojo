@@ -7,24 +7,26 @@ Try it out at [pwn.college](https://pwn.college).
 
 ## Background
 
-In the Fall of 2018, tasked with the responsibility of teaching *Computer Systems Security* to a little over a hundred fourth-year undergraduate students at [Arizona State University](https://www.asu.edu), we were faced with a challenge: how do we best teach hundreds of students to become skilled *hackers* in just a single semester?
+In the Fall of 2018, tasked with the responsibility of teaching _Computer Systems Security_ to a little over a hundred fourth-year undergraduate students at [Arizona State University](https://www.asu.edu), we were faced with a challenge: how do we best teach hundreds of students to become skilled _hackers_ in just a single semester?
 With a background in Capture The Flag (CTF) competitions, as members of [Shellphish](https://shellphish.net) and the DEF CON CTF organizing team [Order of the Overflow](https://www.oooverflow.io), we realized our best chance was to teach the course in the same way we learned: by doing.
-And so, the night before the first lecture, at a coffee shop in Tempe, Arizona---late into the night---we bought the domain [pwn.college](https://pwn.college), created the first assignment, and glued together a simple netcat interface in what would become [the first version]((https://github.com/pwncollege/oldschool)) of the pwn.college DOJO.
+And so, the night before the first lecture, at a coffee shop in Tempe, Arizona---late into the night---we bought the domain [pwn.college](https://pwn.college), created the first assignment, and glued together a simple netcat interface in what would become [the first version](<(https://github.com/pwncollege/oldschool)>) of the pwn.college DOJO.
 
 For a more academic discussion of pwn.college, see our SIGCSE 2024 papers:
+
 - [DOJO: Applied Cybersecurity Education In The Browser](https://sefcom.asu.edu/publications/dojo-sigcse24.pdf)
 - [PWN The Learning Curve: Education-First CTF Challenges](https://sefcom.asu.edu/publications/pwn-sigcse24.pdf)
 
 See also Connor's PhD work, which focuses on pwn.college:
+
 - [Connor's PhD Dissertation](https://connornelson.com/docs/dissertation-hacking-the-learning-curve.pdf)
 - [Connor's PhD Defense - 2024.02.15](https://www.youtube.com/watch?v=qjOBDE_atIk)
 - [Connor's PhD Proposal - 2023.11.21](https://www.youtube.com/watch?v=e6JpB2o7QZ0)
 
 And some ASU news articles:
+
 - [New ASU institute to create national cybersecurity hub - 2024.06.26](https://news.asu.edu/20240628-science-and-technology-new-asu-institute-create-national-cybersecurity-hub)
 - [The next generation of cybersecurity pros drill in the dojo - 2024.03.19](https://news.asu.edu/20240319-science-and-technology-next-generation-cybersecurity-pros-drill-dojo)
 - [ASU's cybersecurity dojo - 2021.02.15](https://news.asu.edu/20210215-asu-cybersecurity-dojo-pwn-college-thwart-cyberattacks)
-
 
 ## High Level Technical Overview
 
@@ -41,15 +43,15 @@ Their home directory is persisted across workspace instances, allowing students 
 The workspace may also situationally start a virtual machine, if the challenge requires it (e.g., for kernel exploitation), or configure custom networking (e.g., for network exploitation).
 Additionally, the workspace comes with a suite of tools pre-installed, including debuggers, disassemblers, and exploit development tools.
 
-The challenge objective is always to *capture the flag*.
+The challenge objective is always to _capture the flag_.
 More specifically, the learner runs as the `hacker` user (UID 1000), and there is a flag file located at `/flag`, which is only readable by the `root` user (UID 0).
 The challenge program runs as a root-owned setuid binary, and so it has the ability to read the flag.
-The learner must then either satisfy some challenge requirements, or otherwise exploit the challenge program in order to *capture the flag*.
+The learner must then either satisfy some challenge requirements, or otherwise exploit the challenge program in order to _capture the flag_.
 
 ### Creating a Challenge
 
-A challenge is defined by a docker image which follows the *capture the flag* paradigm.
-Both the in-environment infrastructure (e.g., VSCode, desktop environment, virtual machines, etc) and standard tools (e.g., gdb, ghidra, pwntools, wireshark, etc) are made available to *all* challenge images with [nix](https://nixos.org) via a read-only mount at `/nix`, which contains all of the necessary programs, libraries, and configuration files.
+A challenge is defined by a docker image which follows the _capture the flag_ paradigm.
+Both the in-environment infrastructure (e.g., VSCode, desktop environment, virtual machines, etc) and standard tools (e.g., gdb, ghidra, pwntools, wireshark, etc) are made available to _all_ challenge images with [nix](https://nixos.org) via a read-only mount at `/nix`, which contains all of the necessary programs, libraries, and configuration files.
 This means that the challenge image need not concern itself with the specifics of the environment in which it will run, and can instead focus on the challenge itself.
 
 #### Challenge Entrypoint
@@ -84,10 +86,10 @@ This program must exit (with a status code of `0`) before the workspace is made 
 During initialization, the default nix profile at `/nix/var/nix/profiles/default` is symlinked into `/run/dojo`.
 In order to make sure that these standard tools are easily accessible, `PATH` is set to prioritize `/run/dojo/bin` over the default `PATH`.
 This means that when a user runs `gdb`, they will get the standard `gdb` provided by the workspace at `/run/dojo/bin/gdb`, instead of any other `gdb` that might be made available by the challenge image (e.g. `/usr/bin/gdb`).
-The workspace provides for *many* tools in this way in order to provide a consistent environment for all challenges, ensuring that students are able to use the tools they are familiar with.
+The workspace provides for _many_ tools in this way in order to provide a consistent environment for all challenges, ensuring that students are able to use the tools they are familiar with.
 
 If a challenge wants to instead prioritize its own program(s), this can be done through symlinks in the `/run/challenge/bin` directory.
-This should be done *sparingly*, and only when the challenge really expects a specific challenge-version of a program to be used by default.
+This should be done _sparingly_, and only when the challenge really expects a specific challenge-version of a program to be used by default.
 Unfortunately some of the infrastructure programs might rely on the `PATH` to find their dependencies, and so doing this can sometimes break things (please open an issue if you find this to be the case).
 However, if for example, you want to make sure that your challenge image's `python` (with specific challenge python-dependencies) is used when a student runs `python`, you can symlink `/run/challenge/bin/python` to the desired version of the program.
 
@@ -103,15 +105,18 @@ For more information about how `PATH` works, see [8.3 Other Environment Variable
 There is no perfect way to marry together a file system that meets the precise needs of the DOJO, the challenge, and the user; however, perfect is the enemy of good.
 
 DOJO owns the following directories:
+
 - `/run/workspace`
 - `/run/dojo`
 - `/run/current-system`
 - `/nix`
 
 The user owns the following directories:
+
 - `/home/hacker`
 
 The challenge owns everything else subject to the following constraints/understanding:
+
 - DOJO will ensure `/tmp` exists, with permisisons `root:root 01777`.
 - DOJO will control `/etc/passwd` and `/etc/group` for the `hacker` (UID 1000) and `root` (UID 0) users, with permissions `root:root 0644`.
 - `/bin/sh` must be POSIX compliant; DOJO will symlink `/bin/sh` to `/run/dojo/bin/sh` if it does not exist.
@@ -143,15 +148,23 @@ docker run \
 
 This will run the initial setup, including building the challenge docker image.
 
-> **Warning**
-> **(MacOS)**
+> **Warning** > **(MacOS)**
 >
 > It's important to note that while the dojo is capable of operating on MacOS (either x86 or ARM), MacOS has inherent limitations when it comes to nested Linux mounts within a MacOS bind mount.
 > This limitation specifically affects `data/docker`, which necessitates the use of OverlayFS mounts, preventing nested docker orchestration from functioning properly.
 > In order to circumvent this issue, you must ensure that`data/docker` is not backed by a MacOS bind mount.
 > This can be accomplished by replacing the bind mount with a docker volume for `data/docker`, which will use a native Linux mount:
+>
 > ```sh
 > -v "dojo-data-docker:/data/docker"
+> ```
+>
+> **Note for ARM**
+>
+> If building the dojo for ARM, the image must be built to x86, forcing emulation. This can be done by adding the following flag to both the `docker build` and `docker run` commands:
+>
+> ```sh
+> --platform linux/amd64
 > ```
 
 By default, the dojo will initialize itself to listen on and serve from `localhost.pwn.college` (which resolves to 127.0.0.1).
