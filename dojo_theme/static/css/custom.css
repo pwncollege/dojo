@@ -182,14 +182,8 @@ td {
   container: progress-bar / inline-size;
 }
 
-.card-body .progress-bar {
-  opacity: 0%;
-  font-size: 0.75em;
-  transition: all 0.2s ease;
-}
-
-.progress-bar-text {
-  opacity: 30%;
+.card-body .progress-bar .progress-bar-text {
+  opacity: 100%;
   font-size: 0.75em;
   transition: all 0.2s ease;
 }
@@ -200,7 +194,7 @@ td {
   }
 }
 
-.card-small:hover .card-body .progress-bar {
+.card-small:hover .card-body .progress-bar .progress-bar-text {
   opacity: 100%;
 }
 
