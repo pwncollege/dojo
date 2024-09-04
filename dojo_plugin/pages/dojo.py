@@ -67,7 +67,7 @@ def active_module():
     import json
     user = get_current_user()
     active = get_current_dojo_challenge()
-    challs = get_prev_cur_next_dojo_challenge()
+    challs = get_prev_cur_next_dojo_challenge(active=active)
     if active:
     #return a json of the active challenge
         return {
