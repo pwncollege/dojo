@@ -273,7 +273,7 @@ def check_mount(path, *, user, fstype, check_nosuid=True):
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_home_mount():
-    check_mount("/home/hacker", user="admin", fstype="ext4")
+    check_mount("/home/hacker", user="admin", fstype="nfs")
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
@@ -435,7 +435,7 @@ def test_workspace_token(random_user, another_random_user):
     start_challenge("example", "hello", "apple", session=another_session, workspace_token=workspace_token)
 
     check_mount("/home/hacker", user=another_user, fstype="overlay")
-    check_mount("/home/me", user=another_user, fstype="ext4")
+    check_mount("/home/me", user=another_user, fstype="nfs")
 
     try:
         workspace_run("[ -f '/home/hacker/test' ]", user=another_user)

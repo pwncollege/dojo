@@ -4,3 +4,4 @@ Description=Keep the pwn.college caches warm!
 [Service]
 Type=simple
 ExecStart=warm_cache.sh
+ExecCondition=:/bin/sh -c '. /data/config.env; [ "${WORKSPACE_NODE}" -eq 0 ]'

@@ -19,7 +19,7 @@ fi
     mkdir -p "${OVERLAYS_WORK_DIR}/${UPPER_ID}-${LOWER_ID}"
     while ! mountpoint -q "${OVERLAYS_LOWER_DIR}/${LOWER_ID}"; do
         # This is itself an autofs mount, and in order to mount it, we need to access it
-        # For some unknown reason, this needs to be done from a different part of the PID tree
+        # For some unknown reason, it seems like this needs to be done from a different part of the PID tree
         start-stop-daemon --start --background --oknodo --name "${OVERLAYS_LOWER_DIR}/${LOWER_ID}" --exec /bin/sh -- -c "[ -e ${OVERLAYS_LOWER_DIR}/${LOWER_ID} ]"
         sleep 1
         echo "NOW" >> /tmp/log
