@@ -1,4 +1,5 @@
 import subprocess
+import time
 import requests
 import pathlib
 import shutil
@@ -24,7 +25,12 @@ def login(name, password, *, success=True, register=False, email=None):
     data = { "name": name, "password": password, "nonce": nonce }
     if register:
         data["email"] = email or f"{name}@example.com"
-    response = session.post(f"{PROTO}://{HOST}/{endpoint}", data=data, allow_redirects=False)
+    while True:
+        response = session.post(f"{PROTO}://{HOST}/{endpoint}", data=data, allow_redirects=False)
+        if response.status_code == 429:
+            time.sleep(1)
+            continue
+        break
     if not success:
         assert response.status_code == 200, f"Expected {endpoint} failure (status code 200), but got {response.status_code}"
         return session

@@ -17,7 +17,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from CTFd.models import db, Users, Challenges, Flags, Solves
 from CTFd.utils.user import get_current_user, is_admin
 
-from ..models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities
+from ..models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
 from ..config import DOJOS_DIR
 from ..utils import get_current_container
 
@@ -307,13 +307,13 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             default=(assert_import_one(DojoModules.from_id(*import_ids(["dojo", "module"], dojo_data, module_data)),
                                 f"Import module `{'/'.join(import_ids(['dojo', 'module'], dojo_data, module_data))}` does not exist")
                      if "import" in module_data else None),
-            default_visibility=visibility(dict, dojo_data, module_data),
+            visibility=visibility(DojoModuleVisibilities, dojo_data, module_data),
         )
         for module_data in dojo_data["modules"]
     ] if "modules" in dojo_data else [
         DojoModules(
             default=module,
-            default_visibility=visibility(dict, dojo_data),
+            visibility=visibility(DojoModuleVisibilities, dojo_data, module_data),
         )
         for module in (import_dojo.modules if import_dojo else [])
     ]
@@ -333,14 +333,20 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
         course_yml_path = dojo_dir / "course.yml"
         if course_yml_path.exists():
             course = yaml.safe_load(course_yml_path.read_text())
+
             if "discord_role" in course and not dojo.official:
                 raise AssertionError("Unofficial dojos cannot have a discord role")
+
             dojo.course = course
 
             students_yml_path = dojo_dir / "students.yml"
             if students_yml_path.exists():
                 students = yaml.safe_load(students_yml_path.read_text())
                 dojo.course["students"] = students
+
+            syllabus_path = dojo_dir / "SYLLABUS.md"
+            if "syllabus" not in dojo.course and syllabus_path.exists():
+                dojo.course["syllabus"] = syllabus_path.read_text()
 
         if dojo_data.get("pages"):
             dojo.pages = dojo_data["pages"]
@@ -473,7 +479,7 @@ def get_current_dojo_challenge(user=None):
     )
 
 
-def get_prev_cur_next_dojo_challenge(user=None):
+def get_prev_cur_next_dojo_challenge(user=None, active=None):
     container = get_current_container(user)
     if not container:
         return {
@@ -482,30 +488,17 @@ def get_prev_cur_next_dojo_challenge(user=None):
         'next':None
         }
 
-    current = (
-        DojoChallenges.query
-        .filter(DojoChallenges.id == container.labels.get("dojo.challenge_id"),
-                DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
-                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first())
-        .first()
-    )
+    if active:
+        current = active
+    else:
+        current = get_current_dojo_challenge(user)
 
-    previous = (
-        DojoChallenges.query
-        .filter(DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
-                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first(),
-                DojoChallenges.challenge_id < current.challenge_id)
-        .order_by(DojoChallenges.challenge_id.desc())
-        .first()
-    )
-    next = (
-        DojoChallenges.query
-        .filter(DojoChallenges.module == DojoModules.from_id(container.labels.get("dojo.dojo_id"), container.labels.get("dojo.module_id")).first(),
-                DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first(),
-                DojoChallenges.challenge_id > current.challenge_id)
-        .order_by(DojoChallenges.challenge_id.asc())
-        .first()
-    )
+    current_index = current.challenge_index
+    challenges = current.module.challenges
+
+    previous = challenges[current_index - 1] if current_index > 0 else None
+    next = challenges[current_index + 1] if current_index < (len(challenges) - 1) else None
+
     return {
         'previous':previous,
         'current':current,

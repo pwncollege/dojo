@@ -117,9 +117,6 @@ class Dojos(db.Model):
             self.data[name] = value
             flag_modified(self, "data")
         super().__setattr__(name, value)
-    
-    def __lt__(self, other):
-        return (self.name or "", self.id or "") < (other.name or "", other.id or "")
 
     @classmethod
     def from_id(cls, reference_id):
@@ -346,9 +343,15 @@ class DojoModules(db.Model):
                                  cascade="all, delete-orphan",
                                  back_populates="module")
 
+    visibility = db.relationship("DojoModuleVisibilities",
+                                 uselist=False,
+                                 cascade="all, delete-orphan",
+                                 back_populates="module")
+
+
     def __init__(self, *args, **kwargs):
         default = kwargs.pop("default", None)
-        default_visibility = kwargs.pop("default_visibility", None)
+        visibility = kwargs["visibility"] if "visibility" in kwargs else None
 
         data = kwargs.pop("data", {})
         for field in self.data_fields:
@@ -364,14 +367,14 @@ class DojoModules(db.Model):
             kwargs.pop("challenges", None) or
             ([DojoChallenges(
                 default=challenge,
-                visibility=(DojoChallengeVisibilities(**default_visibility) if default_visibility else None),
+                visibility=(DojoChallengeVisibilities(start=visibility.start) if visibility else None),
             ) for challenge in default.challenges] if default else [])
         )
         kwargs["resources"] = (
             kwargs.pop("resources", None) or
             ([DojoResources(
                 default=resource,
-                visibility=(DojoResourceVisibilities(**default_visibility) if default_visibility else None),
+                visibility=(DojoResourceVisibilities(start=visibility.start) if visibility else None),
             ) for resource in default.resources] if default else [])
         )
 
@@ -421,6 +424,23 @@ class DojoModules(db.Model):
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
+
+
+    @hybrid_method
+    def visible(self, when=None):
+        when = when or datetime.datetime.utcnow()
+        return not self.visibility or all((
+            not self.visibility.start or when >= self.visibility.start,
+            not self.visibility.stop or when <= self.visibility.stop,
+        ))
+
+    @visible.expression
+    def visible(cls, when=None):
+        when = when or datetime.datetime.utcnow()
+        return or_(cls.visibility == None, and_(
+            cls.visibility.has(or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start)),
+            cls.visibility.has(or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop)),
+        ))
 
     __repr__ = columns_repr(["dojo", "id"])
 
@@ -566,6 +586,19 @@ class DojoChallenges(db.Model):
             return self.data["image"]
         return "pwncollege-challenge"
 
+    @property
+    def reference_id(self):
+        return f"{self.dojo.reference_id}/{self.module.id}/{self.id}"
+
+    def resolve(self):
+        # TODO: We should probably refactor to correctly store a reference to the DojoChallenge
+        if not self.path_override:
+            return self
+        return (DojoChallenges.query
+                .filter(DojoChallenges.challenge_id == self.challenge_id,
+                        DojoChallenges.data["path_override"] == None)
+                .first())
+
     __repr__ = columns_repr(["module", "id", "challenge_id"])
 
 
@@ -684,13 +717,31 @@ class DojoResourceVisibilities(db.Model):
 
     __repr__ = columns_repr(["resource", "start", "stop"])
 
+class DojoModuleVisibilities(db.Model):
+    __tablename__ = "dojo_module_visibilities"
+    __table_args__ = (
+        db.ForeignKeyConstraint(["dojo_id", "module_index"],
+                                ["dojo_modules.dojo_id", "dojo_modules.module_index"],
+                                ondelete="CASCADE"),
+    )
+
+    dojo_id = db.Column(db.Integer, primary_key=True)
+    module_index = db.Column(db.Integer, primary_key=True)
+
+    start = db.Column(db.DateTime, index=True)
+    stop = db.Column(db.DateTime, index=True)
+
+    module = db.relationship("DojoModules", back_populates="visibility")
+
+    __repr__ = columns_repr(["module", "start", "stop"])
+
 
 class SSHKeys(db.Model):
     __tablename__ = "ssh_keys"
     user_id = db.Column(
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    value = db.Column(db.String(512), primary_key=True, unique=True)
+    value = db.Column(db.String(750), primary_key=True, unique=True)
 
     user = db.relationship("Users")
 

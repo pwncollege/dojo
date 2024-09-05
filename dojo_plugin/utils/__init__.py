@@ -1,5 +1,6 @@
 import datetime
 import hashlib
+import hmac
 import io
 import logging
 import os
@@ -38,6 +39,12 @@ def force_cache_updates():
 
 def container_name(user):
     return f"user_{user.id}"
+
+
+def container_password(container, *args):
+    key = container.labels["dojo.auth_token"].encode()
+    message = "-".join(args).encode()
+    return hmac.HMAC(key, message, "sha256").hexdigest()
 
 
 def get_current_container(user=None):
@@ -177,22 +184,6 @@ def resolved_tar(dir, *, root_dir, filter=None):
             tar.add(path, arcname=relative_path, recursive=False)
     tar_buffer.seek(0)
     return tar_buffer
-
-
-def module_visible(dojo, module, user):
-    return (
-        "time_visible" not in module or
-        module["time_visible"] <= datetime.datetime.now(pytz.utc) or
-        is_dojo_admin(user, dojo)
-    )
-
-
-def module_challenges_visible(dojo, module, user):
-    return (
-        "time_assigned" not in module or
-        module["time_assigned"] <= datetime.datetime.now(pytz.utc) or
-        is_dojo_admin(user, dojo)
-    )
 
 
 def is_dojo_admin(user, dojo):

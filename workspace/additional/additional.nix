@@ -68,6 +68,8 @@ in
     rappel
     ropgadget
 
+    sage
+
     # TODO: apt-tools
-  ] ++ (import ../vm/windows { inherit pkgs; }).packages;
+  ];
 }

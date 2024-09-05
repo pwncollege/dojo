@@ -217,6 +217,7 @@ RUN <<EOF
     cargo install --path . --root /tmp
     mv /tmp/bin/ropr /usr/bin/kropr
     chmod +x /usr/bin/kropr
+    ln -sf /home/hacker/.gdbinit /root/.gdbinit
 EOF
 
 FROM builder-gdb-${INSTALL_GDB} as builder-gdb
@@ -285,7 +286,7 @@ FROM builder-rp-${INSTALL_RP} as builder-rp
 FROM scratch as builder-geckodriver-no
 FROM builder as builder-geckodriver-yes
 RUN <<EOF
-    wget -q -O - https://github.com/mozilla/geckodriver/releases/download/v0.32.0/geckodriver-v0.32.0-linux64.tar.gz | tar xvz -C /usr/local/bin
+    wget -q -O - https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux64.tar.gz | tar xvz -C /usr/local/bin
 EOF
 FROM builder-geckodriver-${INSTALL_GECKODRIVER} as builder-geckodriver
 
@@ -429,6 +430,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         firefox
         fish
         fortune
+        fortunes
         gcc-aarch64-linux-gnu
         gdb
         gdb-multiarch
@@ -481,6 +483,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         tmux
         valgrind
         vim
+        wamerican
         whiptail
         wireshark
         zip

@@ -42,6 +42,9 @@
                     <tr>
                       <td>Name</td>
                       <td>Date</td>
+                      {% if user_grades.show_extra_late_date %}
+                      <td>Extra Late After</td>
+                      {% endif %}
                       <td>Weight</td>
                       <td>Progress</td>
                       <td>Credit</td>
@@ -52,6 +55,9 @@
                     <tr>
                       <td>{{ assessment_grade.name }}</td>
                       <td>{{ assessment_grade.date }}</td>
+                      {% if user_grades.show_extra_late_date %}
+                      <td>{{ assessment_grade.extra_late_date }} </td>
+                      {% endif %}
                       <td>{{ assessment_grade.weight }}</td>
                       <td>{{ assessment_grade.progress }}</td>
                       <td>

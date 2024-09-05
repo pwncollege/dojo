@@ -2,6 +2,21 @@ from CTFd.models import Users
 
 from . import user_docker_client
 
+on_demand_services = { "code", "desktop", "desktop-windows" }
+
+def start_on_demand_service(user, service_name):
+    if service_name not in on_demand_services:
+        return
+    try:
+        exec_run(
+            f"/run/current-system/sw/bin/dojo-{service_name}",
+            workspace_user="hacker",
+            user_id=user.id,
+            assert_success=True,
+        )
+    except docker.errors.NotFound:
+        return False
+    return True
 
 def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", user_id=None, container=None, **kwargs):
     # TODO: Cleanup this interface

@@ -367,7 +367,7 @@ code{
     overflow-x: auto;
     padding: .5em;
     color: #abb2bf; /* Adjusted text color for better visibility */
-    background: #1e1e1e; /* Dark background color */    
+    background: #1e1e1e; /* Dark background color */
 }
 
 .hljs-comment, .hljs-quote {
