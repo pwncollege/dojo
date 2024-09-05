@@ -9,6 +9,7 @@ experimental-features = nix-command flakes
 auto-optimise-store = true
 substituters = /out https://cache.nixos.org/
 trusted-substituters = /out
+filter-syscalls = false
 EOF
 
 RUN git clone --branch nixos-24.05 --depth 1 https://github.com/NixOS/nixpkgs.git /opt/nixpkgs-24.05

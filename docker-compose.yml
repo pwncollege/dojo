@@ -36,12 +36,11 @@ services:
       context: ./workspace
       args:
         - DOJO_WORKSPACE=${DOJO_WORKSPACE}
+    platform: linux/amd64
     environment:
       - DOJO_WORKSPACE=${DOJO_WORKSPACE}
     volumes:
       - /data/workspace:/out
-    devices:
-      - /dev/kvm
 
   workspacefs:
     container_name: workspacefs
