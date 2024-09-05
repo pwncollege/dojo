@@ -22,7 +22,6 @@ fi
         # For some unknown reason, it seems like this needs to be done from a different part of the PID tree
         start-stop-daemon --start --background --oknodo --name "${OVERLAYS_LOWER_DIR}/${LOWER_ID}" --exec /bin/sh -- -c "[ -e ${OVERLAYS_LOWER_DIR}/${LOWER_ID} ]"
         sleep 1
-        echo "NOW" >> /tmp/log
     done
 ) > /dev/null 2>&1
 

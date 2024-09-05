@@ -10,12 +10,13 @@ import docker.errors
 import docker.types
 from flask import abort, request, current_app
 from flask_restx import Namespace, Resource
-from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
-from CTFd.utils.user import get_current_user
+from CTFd.models import Users
+from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
+from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
 
 from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL, SECCOMP, USER_FIREWALL_ALLOWED
-from ...models import DojoStudents, Dojos, DojoModules, DojoChallenges
+from ...models import DojoModules, DojoChallenges
 from ...utils import (
     container_name,
     lookup_workspace_token,
@@ -35,7 +36,7 @@ docker_namespace = Namespace(
 
 HOST_HOMES = pathlib.Path(HOST_DATA_PATH) / "workspace" / "homes"
 HOST_HOMES_MOUNTS = HOST_HOMES / "mounts"
-HOST_HOMES_OVERLAY = HOST_HOMES / "overlay"
+HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
 
 
 def remove_container(docker_client, user):
@@ -213,7 +214,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     mounts = [("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id))]
     if as_user != user:
         mounts = [
-            ("/home/hacker", HOST_HOMES_OVERLAY / str(user.id) / "merged"),
+            ("/home/hacker", HOST_HOMES_OVERLAYS / f"{user.id}-{as_user.id}"),
             ("/home/me", HOST_HOMES_MOUNTS / str(user.id)),
         ]
 
@@ -291,12 +292,15 @@ class RunDocker(Resource):
                 as_user_id = int(data["as_user"])
             except ValueError:
                 return {"success": False, "error": f"Invalid user ID ({data['as_user']})"}
-            student = next((student for student in dojo.students if student.user_id == as_user_id), None)
-            if student is None:
-                return {"success": False, "error": f"Not a student in this dojo ({as_user_id})"}
-            if not student.official:
-                return {"success": False, "error": f"Not an official student in this dojo ({as_user_id})"}
-            as_user = student.user
+            if is_admin():
+                as_user = Users.query.get(as_user_id)
+            else:
+                student = next((student for student in dojo.students if student.user_id == as_user_id), None)
+                if student is None:
+                    return {"success": False, "error": f"Not a student in this dojo ({as_user_id})"}
+                if not student.official:
+                    return {"success": False, "error": f"Not an official student in this dojo ({as_user_id})"}
+                as_user = student.user
 
         try:
             try:
