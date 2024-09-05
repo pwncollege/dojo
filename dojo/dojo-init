@@ -66,7 +66,7 @@ if [ ! -f /data/homes/homefs ]; then
     echo "[+] Creating user home structure."
     mkdir -p /data/homes
     mkdir -p /data/homes/data
-    mkdir -p /data/homes/nosuid
+    mkdir -p /data/homes/mounts
     dd if=/dev/zero of=/data/homes/homefs bs=1M count=0 seek=1000
     mkfs.ext4 -O ^has_journal /data/homes/homefs
     mount /data/homes/homefs -o X-mount.mkdir /data/homes/homefs_mount
@@ -76,14 +76,17 @@ if [ ! -f /data/homes/homefs ]; then
     umount /data/homes/homefs_mount
     rm -rf /data/homes/homefs_mount
 fi
-echo '/data/homes/nosuid program:/usr/bin/automount-home --timeout=28800' > /etc/auto.master.d/homes.autofs
+
+mkdir -p /data/workspace/homes/mounts /data/workspace/homes/overlays
+cat <<EOF > /etc/auto.master.d/homes.autofs
+/data/homes/mounts program:/usr/bin/automount-home --timeout=28800
+/data/workspace/homes/mounts /etc/auto.nfs --timeout=25200
+/data/workspace/homes/overlays program:/usr/bin/automount-overlay --timeout=25200
+EOF
+echo '* -fstype=nfs,rw,soft,nosuid 192.168.42.1:/data/homes/mounts/&' > /etc/auto.nfs
 
 echo '/data/homes 192.168.42.0/24(fsid=0,rw,sync,no_subtree_check,no_root_squash,crossmnt)' > /etc/exports
 exportfs -ra
-
-mkdir -p /data/nfs/homes/nosuid
-echo '/data/nfs/homes/nosuid /etc/auto.nfs --timeout=25200' > /etc/auto.master.d/nfs.autofs
-echo '* -fstype=nfs,rw,soft,nosuid 192.168.42.1:/data/homes/nosuid/&' > /etc/auto.nfs
 
 if [ ! -d /data/ssh_host_keys ]; then
     mkdir -p /data/ssh_host_keys
