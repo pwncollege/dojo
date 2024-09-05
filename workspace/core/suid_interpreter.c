@@ -73,7 +73,8 @@ int main(int argc, char **argv, char **envp)
     setresgid(getegid(), getegid(), getegid());
     unsetenv("BASH_ENV");
     unsetenv("ENV");
-    if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/bash\n"))
+    if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/bash\n") ||
+        !strcmp(first_line, "#!/usr/bin/env -iS bash-suid\n"))
     {
         if (envp[0] != NULL)
             return ERROR_BAD_ENV;
@@ -89,7 +90,8 @@ int main(int argc, char **argv, char **envp)
     char *child_argv_prefix[] = { "/bin/sh", "-c", c_arg, argv[1],  NULL };
     setresuid(geteuid(), geteuid(), geteuid());
     setresgid(getegid(), getegid(), getegid());
-    if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/sh\n"))
+    if (!strcmp(first_line, "#!/usr/bin/env -iS /opt/pwn.college/sh\n") ||
+        !strcmp(first_line, "#!/usr/bin/env -iS sh-suid\n"))
     {
         if (envp[0] != NULL)
             return ERROR_BAD_ENV;
