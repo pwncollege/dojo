@@ -198,7 +198,7 @@ FROM scratch as builder-gdb-no
 FROM builder as builder-gdb-yes
 
 RUN <<EOF
-    git clone --depth 1 --recurse-submodules https://github.com/pwndbg/pwndbg /opt/pwndbg
+    git clone --depth 1 --recurse-submodules --branch 2024.02.14 https://github.com/pwndbg/pwndbg /opt/pwndbg
     cd /opt/pwndbg
     ./setup.sh
 
