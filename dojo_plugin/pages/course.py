@@ -440,7 +440,7 @@ def download_all_grades(dojo):
         )
 
         yield from (
-            ",".join([student, "", "", ""] + [""] * len((dojo.course.get("assessments") or [])) + "\n"
+            ",".join([student, "", "", ""] + [""] * len(dojo.course.get("assessments") or [])) + "\n"
             for student in missing_students
         )
 
