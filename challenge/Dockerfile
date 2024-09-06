@@ -173,6 +173,7 @@ RUN awk '{$1=$1};1' >> /opt/linux/linux-5.4/.config <<EOF
     CONFIG_PARAVIRT=y
     CONFIG_PCI=y
     CONFIG_PCI_HOST_GENERIC=y
+    CONFIG_USER_NS=y
     CONFIG_VIRTIO_BALLOON=y
     CONFIG_VIRTIO_BLK=y
     CONFIG_VIRTIO_BLK_SCSI=y
