@@ -5,6 +5,7 @@ set -e
 mount -t proc proc /proc
 mount -t sysfs sys /sys
 mount -t tmpfs tmp /tmp
+mount -t tmpfs -o rw,nosuid,nodev,noexec,relatime,size=2G,x-mount.mkdir tmpfs /dev/shm
 mount -t devpts -o x-mount.mkdir devpts /dev/pts
 mount -t 9p -o trans=virtio,version=9p2000.L,nosuid /home/hacker /home/hacker
 
