@@ -28,7 +28,7 @@ services:
     platform: linux/amd64
     entrypoint: /bin/true
     networks:
-      - user_network
+      - workspace_net
 
   workspace-builder:
     container_name: workspace-builder
@@ -57,6 +57,8 @@ services:
 
   ctfd:
     container_name: ctfd
+    profiles:
+      - main
     hostname: ctfd
     build: /opt/CTFd
     platform: linux/amd64
@@ -109,6 +111,7 @@ services:
       - /data/CTFd/uploads:/var/uploads
       - /data/homes:/var/homes:shared
       - /data/dojos:/var/dojos
+      - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
       - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
@@ -142,6 +145,8 @@ services:
 
   db:
     container_name: db
+    profiles:
+      - main
     build:
       context: ./db
     restart: always
@@ -162,6 +167,8 @@ services:
 
   cache:
     container_name: cache
+    profiles:
+      - main
     image: redis:4
     restart: always
     volumes:
@@ -169,9 +176,12 @@ services:
 
   sshd:
     container_name: sshd
+    profiles:
+      - main
     build:
       context: ./sshd
     volumes:
+      - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys:/etc/ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
@@ -184,6 +194,8 @@ services:
 
   nginx-proxy:
     container_name: nginx-proxy
+    profiles:
+      - main
     image: nginxproxy/nginx-proxy:1.5
     restart: always
     ports:
@@ -200,14 +212,16 @@ services:
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
       - /var/run/docker.sock:/tmp/docker.sock:ro
     networks:
-      default:
-      user_network:
-        aliases:
-          - nginx
-        ipv4_address: 10.0.0.3
+       default:
+       workspace_net:
+         aliases:
+           - nginx
+         ipv4_address: 10.0.0.3
 
   acme-companion:
     container_name: nginx-proxy-acme
+    profiles:
+      - main
     image: nginxproxy/acme-companion:2.3
     restart: always
     volumes_from:
@@ -226,12 +240,12 @@ volumes:
 networks:
   default:
     driver: bridge
-  user_network:
-    name: user_network
+  workspace_net:
+    name: workspace_net
     driver: bridge
     ipam:
       config:
         - subnet: 10.0.0.0/8
     driver_opts:
-      com.docker.network.bridge.name: "user_network"
+      com.docker.network.bridge.name: "workspace_net"
       com.docker.network.bridge.enable_icc: "false"

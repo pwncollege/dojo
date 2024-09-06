@@ -2,9 +2,7 @@ import hashlib
 import os
 import pathlib
 import re
-import subprocess
 import logging
-import shutil
 import time
 
 import docker
@@ -12,17 +10,19 @@ import docker.errors
 import docker.types
 from flask import abort, request, current_app
 from flask_restx import Namespace, Resource
-from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
-from CTFd.utils.user import get_current_user
+from CTFd.models import Users
+from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
+from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
 
 from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL, SECCOMP, USER_FIREWALL_ALLOWED
-from ...models import DojoStudents, Dojos, DojoModules, DojoChallenges
+from ...models import DojoModules, DojoChallenges
 from ...utils import (
     container_name,
     lookup_workspace_token,
     serialize_user_flag,
     resolved_tar,
+    user_docker_client,
     user_ipv4,
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
@@ -34,78 +34,9 @@ docker_namespace = Namespace(
     "docker", description="Endpoint to manage docker containers"
 )
 
-HOST_HOMES = pathlib.Path(HOST_DATA_PATH) / "homes"
-HOST_HOMES_NOSUID = HOST_HOMES / "nosuid"
-HOST_HOMES_OVERLAY = HOST_HOMES / "overlay"
-
-HOMES = pathlib.Path("/var/homes")
-HOMEFS = HOMES / "homefs"
-HOMES_DATA = HOMES / "data"
-HOMES_NOSUID = HOMES / "nosuid"
-HOMES_OVERLAY = HOMES / "overlay"
-
-def setup_home(user):
-    HOMES_DATA.mkdir(exist_ok=True)
-    HOMES_NOSUID.mkdir(exist_ok=True)
-    assert HOMEFS.exists()
-
-    user_data = HOMES_DATA / str(user.id)
-    user_nosuid = HOMES_NOSUID / str(user.id)
-
-    if not user_data.exists():
-        # Shell out to `cp` in order to sparsely copy
-        subprocess.run(["cp", HOMEFS, user_data], check=True)
-
-    process = subprocess.run(
-        ["findmnt", "--output", "OPTIONS", user_nosuid], capture_output=True
-    )
-    if b"nosuid" not in process.stdout:
-        subprocess.run(
-            ["mount", user_data, "-o", "nosuid,X-mount.mkdir", user_nosuid],
-            check=True,
-        )
-
-
-def umount_existing_overlay(user):
-    overlay_dir = HOMES_OVERLAY / str(user.id)
-    merged_dir = overlay_dir / "merged"
-
-    process = subprocess.run(["findmnt", "--output", "FSTYPE", merged_dir])
-    if process.returncode == 0:
-        subprocess.run(["umount", "--force", merged_dir], check=True)
-    try:
-        shutil.rmtree(overlay_dir)
-    except FileNotFoundError:
-        pass
-
-
-def setup_user_overlay(user, as_user):
-    HOMES_OVERLAY.mkdir(exist_ok=True)
-
-    lower_dir = HOMES_NOSUID / str(as_user.id)
-    overlay_dir = HOMES_OVERLAY / str(user.id)
-    upper_dir = HOMES_OVERLAY / str(user.id) / "diff"
-    work_dir = HOMES_OVERLAY / str(user.id) / "work"
-    mountpoint = HOMES_OVERLAY / str(user.id) / "merged"
-
-    overlay_dir.mkdir(exist_ok=False)
-    upper_dir.mkdir(exist_ok=False)
-    work_dir.mkdir(exist_ok=False)
-
-    mount_options = ",".join([
-        "nosuid",
-        "X-mount.mkdir",
-        f"lowerdir={lower_dir}",
-        f"upperdir={upper_dir}",
-        f"workdir={work_dir}",
-    ])
-    subprocess.run(
-        ["mount", "-t", "overlay", "overlay", "-o", mount_options, mountpoint],
-        check=True,
-    )
-    lower_dir_stat = lower_dir.stat()
-    os.chown(mountpoint, lower_dir_stat.st_uid, lower_dir_stat.st_gid)
-    mountpoint.chmod(lower_dir_stat.st_mode & 0o7777)
+HOST_HOMES = pathlib.Path(HOST_DATA_PATH) / "workspace" / "homes"
+HOST_HOMES_MOUNTS = HOST_HOMES / "mounts"
+HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
 
 
 def remove_container(docker_client, user):
@@ -145,8 +76,6 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
         devices.append("/dev/kvm:/dev/kvm:rwm")
     if os.path.exists("/dev/net/tun"):
         devices.append("/dev/net/tun:/dev/net/tun:rwm")
-
-        storage_driver = docker_client.info().get("Driver")
 
         container = docker_client.containers.create(
             dojo_challenge.image,
@@ -220,8 +149,8 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
             auto_remove=True,
         )
 
-    user_network = docker_client.networks.get("user_network")
-    user_network.connect(
+    workspace_net = docker_client.networks.get("workspace_net")
+    workspace_net.connect(
         container, ipv4_address=user_ipv4(user), aliases=[container_name(user)]
     )
 
@@ -234,26 +163,6 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
 
     container.start()
     return container
-
-
-def get_mount_info(container, path):
-    exit_code, output = exec_run(
-        f"/run/dojo/bin/findmnt --output OPTIONS {path}",
-        container=container,
-        assert_success=False,
-    )
-    if exit_code != 0:
-        container.kill()
-        container.wait(condition="removed")
-        raise RuntimeError("Home directory failed to mount")
-    return output
-
-
-def assert_nosuid(container, mount_info):
-    if b"nosuid" not in mount_info:
-        container.kill()
-        container.wait(condition="removed")
-        raise RuntimeError("Home directory failed to mount as nosuid")
 
 
 def insert_challenge(container, as_user, dojo_challenge):
@@ -299,18 +208,14 @@ def insert_flag(container, flag):
 
 def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     as_user = as_user or user
-    docker_client = docker.from_env()
+    docker_client = user_docker_client(user)
     remove_container(docker_client, user)
-    umount_existing_overlay(user)
 
-    setup_home(as_user)
-    mounts = [("/home/hacker", HOST_HOMES_NOSUID / str(as_user.id))]
+    mounts = [("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id))]
     if as_user != user:
-        setup_home(user)
-        setup_user_overlay(user, as_user)
         mounts = [
-            ("/home/hacker", HOST_HOMES_OVERLAY / str(user.id) / "merged"),
-            ("/home/me", HOST_HOMES_NOSUID / str(user.id)),
+            ("/home/hacker", HOST_HOMES_OVERLAYS / f"{user.id}-{as_user.id}"),
+            ("/home/me", HOST_HOMES_MOUNTS / str(user.id)),
         ]
 
     container = start_container(
@@ -321,12 +226,6 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         dojo_challenge=dojo_challenge,
         practice=practice,
     )
-
-    hacker_mount_info = get_mount_info(container, "/home/hacker")
-    assert_nosuid(container, hacker_mount_info)
-    if as_user != user:
-        me_home_info = get_mount_info(container, "/home/me")
-        assert_nosuid(container, me_home_info)
 
     insert_challenge(container, as_user, dojo_challenge)
 
@@ -393,12 +292,15 @@ class RunDocker(Resource):
                 as_user_id = int(data["as_user"])
             except ValueError:
                 return {"success": False, "error": f"Invalid user ID ({data['as_user']})"}
-            student = next((student for student in dojo.students if student.user_id == as_user_id), None)
-            if student is None:
-                return {"success": False, "error": f"Not a student in this dojo ({as_user_id})"}
-            if not student.official:
-                return {"success": False, "error": f"Not an official student in this dojo ({as_user_id})"}
-            as_user = student.user
+            if is_admin():
+                as_user = Users.query.get(as_user_id)
+            else:
+                student = next((student for student in dojo.students if student.user_id == as_user_id), None)
+                if student is None:
+                    return {"success": False, "error": f"Not a student in this dojo ({as_user_id})"}
+                if not student.official:
+                    return {"success": False, "error": f"Not an official student in this dojo ({as_user_id})"}
+                as_user = student.user
 
         try:
             try:

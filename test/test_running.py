@@ -33,10 +33,11 @@ def get_challenge_id(session, dojo, module, challenge):
     return challenge_id
 
 
-def start_challenge(dojo, module, challenge, practice=False, *, session, workspace_token=None):
+def start_challenge(dojo, module, challenge, practice=False, *, session, as_user=None):
     start_challenge_json = dict(dojo=dojo, module=module, challenge=challenge, practice=practice)
-    headers = {"X-Workspace-Token": workspace_token} if workspace_token else {}
-    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/docker", json=start_challenge_json, headers=headers)
+    if as_user:
+        start_challenge_json["as_user"] = as_user
+    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/docker", json=start_challenge_json)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
 
@@ -273,7 +274,7 @@ def check_mount(path, *, user, fstype, check_nosuid=True):
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_home_mount():
-    check_mount("/home/hacker", user="admin", fstype="ext4")
+    check_mount("/home/hacker", user="admin", fstype="nfs")
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
@@ -421,29 +422,31 @@ def test_scoreboard(random_user):
 
 
 @pytest.mark.dependency(depends=["test_workspace_home_persistent"])
-def test_workspace_token(random_user, another_random_user):
-    user, session = random_user
-    another_user, another_session = another_random_user
+def test_workspace_as_user(admin_user, random_user):
+    admin_user, admin_session = admin_user
+    random_user, random_session = random_user
+    random_user_id = get_user_id(random_user)
 
-    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/workspace_tokens", json={})
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-    workspace_token = response.json()["data"]["value"]
+    start_challenge("example", "hello", "apple", session=random_session)
+    workspace_run("touch /home/hacker/test", user=random_user)
 
-    start_challenge("example", "hello", "apple", session=session)
-    workspace_run("touch /home/hacker/test", user=user)
-
-    start_challenge("example", "hello", "apple", session=another_session, workspace_token=workspace_token)
-
-    check_mount("/home/hacker", user=another_user, fstype="overlay")
-    check_mount("/home/me", user=another_user, fstype="ext4")
+    start_challenge("example", "hello", "apple", session=admin_session, as_user=random_user_id)
+    check_mount("/home/hacker", user=admin_user, fstype="overlay")
+    check_mount("/home/me", user=admin_user, fstype="nfs")
 
     try:
-        workspace_run("[ -f '/home/hacker/test' ]", user=another_user)
+        workspace_run("[ -f '/home/hacker/test' ]", user=admin_user)
     except subprocess.CalledProcessError as e:
-        assert False, f"Expected file to exist, but got: {(e.stdout, e.stderr)}"
+        assert False, f"Expected existing file to exist, but got: {(e.stdout, e.stderr)}"
 
-    workspace_run("touch /home/hacker/test2", user=user)
+    workspace_run("touch /home/hacker/test2", user=random_user)
     try:
-        workspace_run("[ -f '/home/hacker/test2' ]", user=another_user)
+        workspace_run("[ -f '/home/hacker/test2' ]", user=admin_user)
     except subprocess.CalledProcessError as e:
-        assert False, f"Expected file to exist, but got: {(e.stdout, e.stderr)}"
+        assert False, f"Expected new file to exist, but got: {(e.stdout, e.stderr)}"
+
+    workspace_run("touch /home/hacker/test3", user=admin_user)
+    try:
+        workspace_run("[ ! -e '/home/hacker/test3' ]", user=random_user)
+    except subprocess.CalledProcessError as e:
+        assert False, f"Expected overlay file to not exist, but got: {(e.stdout, e.stderr)}"

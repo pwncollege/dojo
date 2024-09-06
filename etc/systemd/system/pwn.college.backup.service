@@ -4,3 +4,4 @@ Description=Create a pwn.college backup
 [Service]
 Type=simple
 ExecStart=dojo backup
+ExecCondition=:/bin/sh -c '. /data/config.env; [ "${WORKSPACE_NODE}" -eq 0 ]'

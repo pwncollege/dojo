@@ -1,0 +1,28 @@
+#!/bin/sh -e
+
+UPPER_ID="${1%%-*}"
+LOWER_ID="${1#*-}"
+
+OVERLAYS_LOWER_DIR="/data/workspace/homes/mounts"
+OVERLAYS_UPPER_DIR="/data/workspace/homes/overlays-upper"
+OVERLAYS_WORK_DIR="/data/workspace/homes/overlays-work"
+
+if [ -z "$UPPER_ID" ] || [ -z "$LOWER_ID" ]; then
+    echo "Usage: $0 <UPPER_ID>-<LOWER_ID>" >&2
+    exit 1
+fi
+
+(
+    rm -rf "${OVERLAYS_UPPER_DIR}/${UPPER_ID}-${LOWER_ID}"
+    rm -rf "${OVERLAYS_WORK_DIR}/${UPPER_ID}-${LOWER_ID}"
+    mkdir -p "${OVERLAYS_UPPER_DIR}/${UPPER_ID}-${LOWER_ID}"
+    mkdir -p "${OVERLAYS_WORK_DIR}/${UPPER_ID}-${LOWER_ID}"
+    while ! mountpoint -q "${OVERLAYS_LOWER_DIR}/${LOWER_ID}"; do
+        # This is itself an autofs mount, and in order to mount it, we need to access it
+        # For some unknown reason, it seems like this needs to be done from a different part of the PID tree
+        start-stop-daemon --start --background --oknodo --name "${OVERLAYS_LOWER_DIR}/${LOWER_ID}" --exec /bin/sh -- -c "[ -e ${OVERLAYS_LOWER_DIR}/${LOWER_ID} ]"
+        sleep 1
+    done
+) > /dev/null 2>&1
+
+echo "-fstype=overlay,nosuid,lowerdir=${OVERLAYS_LOWER_DIR}/${LOWER_ID},upperdir=${OVERLAYS_UPPER_DIR}/${UPPER_ID}-${LOWER_ID},workdir=${OVERLAYS_WORK_DIR}/${UPPER_ID}-${LOWER_ID} :"

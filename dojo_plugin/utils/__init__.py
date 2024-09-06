@@ -24,6 +24,7 @@ from CTFd.utils.security.sanitize import sanitize_html
 from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
 
+from ..config import WORKSPACE_NODES
 from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges, WorkspaceTokens
 
 
@@ -51,7 +52,7 @@ def get_current_container(user=None):
     if not user:
         return None
 
-    docker_client = docker.from_env()
+    docker_client = user_docker_client(user)
 
     try:
         return docker_client.containers.get(container_name(user))
@@ -90,14 +91,32 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     return user_flag
 
 
+def user_node(user):
+    return list(WORKSPACE_NODES.keys())[user.id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
+
+
+def user_docker_client(user):
+    node_id = user_node(user)
+    return (docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
+            if node_id is not None else docker.from_env())
+
+
 def user_ipv4(user):
-    # Subnet: 10.0.0.0/8
-    # Reserved: 10.0.0.0/24, 10.255.255.0/24
-    # Gateway: 10.0.0.1
-    # User IPs: 10.0.1.0 - 10.255.254.255
-    user_ip = (10 << 24) + (1 << 8) + user.id
-    assert user_ip < (10 << 24) + (255 << 16) + (255 << 8)
-    return f"{user_ip >> 24 & 0xff}.{user_ip >> 16 & 0xff}.{user_ip >> 8 & 0xff}.{user_ip & 0xff}"
+    # Full Subnet: 10.0.0.0/8
+    #           NODE            SERVICE_ID
+    # 00001010  0000  00000000000000000000
+    # SERVICE_IDs 0-255 are reserved for core services
+
+    node_id = user_node(user) or 0
+    service_id = user.id + 256
+    assert node_id < 2**4
+    assert service_id < 2**20
+    return ".".join([
+        "10",
+        f"{(node_id << 4) | ((service_id >> 16) & 0xff)}",
+        f"{(service_id >> 8) & 0xff}",
+        f"{(service_id >> 0) & 0xff}",
+    ])
 
 
 def redirect_internal(redirect_uri, auth=None):
@@ -113,7 +132,7 @@ def redirect_internal(redirect_uri, auth=None):
 
 def redirect_user_socket(user, port, url_path):
     assert user is not None
-    return redirect_internal(f"http://{container_name(user)}:{port}/{url_path}")
+    return redirect_internal(f"http://{user_ipv4(user)}:{port}/{url_path}")
 
 
 def render_markdown(s):

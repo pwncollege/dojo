@@ -135,7 +135,7 @@ docker run \
     --name dojo \
     --privileged \
     -v "${DOJO_PATH}:/opt/pwn.college" \
-    -v "${DATA_PATH}:/data:shared" \
+    -v "${DATA_PATH}:/data" \
     -p 22:22 -p 80:80 -p 443:443 \
     -d \
     pwncollege/dojo

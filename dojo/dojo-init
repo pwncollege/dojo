@@ -1,9 +1,10 @@
 #!/bin/sh
 
-if findmnt -no PROPAGATION /data | grep -q shared; then
-    echo '[+] Data mount exists and is shared.'
+if findmnt -n /data >/dev/null; then
+    echo '[+] Data mount exists.'
+    mount --make-shared /data
 else
-    echo '[!] Data mount does not exist or is not shared. Please start the dojo with a shared data mount (`-v /data:/data:shared`).'
+    echo '[!] Data mount does not exist. Please start the dojo with a data mount (`-v /data:/data`).'
     exit 1
 fi
 
@@ -26,6 +27,8 @@ define VIRTUAL_HOST "${DEFAULT_DOJO_HOST}"
 define LETSENCRYPT_HOST "${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
 define DOJO_WORKSPACE core
+define WORKSPACE_KEY
+define WORKSPACE_NODE 0
 define SECRET_KEY $(openssl rand -hex 16)
 define UBUNTU_VERSION 20.04
 define INTERNET_FOR_ALL False
@@ -63,7 +66,7 @@ if [ ! -f /data/homes/homefs ]; then
     echo "[+] Creating user home structure."
     mkdir -p /data/homes
     mkdir -p /data/homes/data
-    mkdir -p /data/homes/nosuid
+    mkdir -p /data/homes/mounts
     dd if=/dev/zero of=/data/homes/homefs bs=1M count=0 seek=1000
     mkfs.ext4 -O ^has_journal /data/homes/homefs
     mount /data/homes/homefs -o X-mount.mkdir /data/homes/homefs_mount
@@ -74,21 +77,16 @@ if [ ! -f /data/homes/homefs ]; then
     rm -rf /data/homes/homefs_mount
 fi
 
-# Create the AES key file if it does not exist
-if [ ! -z ${BACKUP_AES_KEY_FILE+x} ] && [ ! -f ${BACKUP_AES_KEY_FILE} ]
-then
-    openssl rand 214 > "${BACKUP_AES_KEY_FILE}"
-fi
+mkdir -p /data/workspace/homes/mounts /data/workspace/homes/overlays
+cat <<EOF > /etc/auto.master.d/homes.autofs
+/data/homes/mounts program:/usr/bin/automount-home --timeout=28800
+/data/workspace/homes/mounts /etc/auto.nfs --timeout=25200
+/data/workspace/homes/overlays program:/usr/bin/automount-overlay --timeout=25200
+EOF
+echo '* -fstype=nfs,rw,soft,nosuid 192.168.42.1:/data/homes/mounts/&' > /etc/auto.nfs
 
-echo "[+] Creating loopback devices for home mounts. This might take a while."
-for i in $(seq 1 4096); do
-    if [ -e /dev/loop$i ]; then
-        continue
-    fi
-    mknod /dev/loop$i b 7 $i
-    chown --reference=/dev/loop0 /dev/loop$i
-    chmod --reference=/dev/loop0 /dev/loop$i
-done
+echo '/data/homes 192.168.42.0/24(fsid=0,rw,sync,no_subtree_check,no_root_squash,crossmnt)' > /etc/exports
+exportfs -ra
 
 if [ ! -d /data/ssh_host_keys ]; then
     mkdir -p /data/ssh_host_keys
@@ -103,13 +101,22 @@ for file in $(ls /data/ssh_host_keys/*); do
     cp -a $file /etc/ssh
 done
 
+if [ ! -z ${BACKUP_AES_KEY_FILE+x} ] && [ ! -f ${BACKUP_AES_KEY_FILE} ]
+then
+    openssl rand 214 > "${BACKUP_AES_KEY_FILE}"
+fi
+
 sysctl -w kernel.pty.max=1048576
 echo core > /proc/sys/kernel/core_pattern
 
+dojo-node refresh
+
 iptables -N DOCKER-USER
-iptables -I DOCKER-USER -i user_network -j DROP
+iptables -I DOCKER-USER -i workspace_net -j DROP
 for host in $(cat /opt/pwn.college/user_firewall.allowed); do
-    iptables -I DOCKER-USER -i user_network -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
+    iptables -I DOCKER-USER -i workspace_net -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
 done
-iptables -I DOCKER-USER -i user_network -s 10.0.0.0/24 -m conntrack --ctstate NEW -j ACCEPT
-iptables -I DOCKER-USER -i user_network -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -I DOCKER-USER -i workspace_net -s 10.0.0.0/24 -m conntrack --ctstate NEW -j ACCEPT
+iptables -I DOCKER-USER -i workspace_net -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -I DOCKER-USER -i workspace_net -s 192.168.42.0/24 -m conntrack --ctstate NEW -j ACCEPT
+iptables -I DOCKER-USER -i workspace_net -d 192.168.42.0/24 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT

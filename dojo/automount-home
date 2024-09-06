@@ -1,0 +1,34 @@
+#!/bin/sh -e
+
+ID="$1"
+HOME_FS="/data/homes/homefs"
+DATA_DIR="/data/homes/data"
+NOSUID_DIR="/data/homes/nosuid/$ID"
+LOOP_LOCKFILE="/run/lock/loop_device"
+
+if [ -z "$ID" ]; then
+    echo "Usage: $0 <ID>" >&2
+    exit 1
+fi
+
+(
+    if [ ! -f "${DATA_DIR}/${ID}" ]; then
+        cp --sparse=always "${HOME_FS}" "${DATA_DIR}/${ID}"
+        yes | tune2fs -U random /data/homes/data/$ID
+    fi
+
+    exec 0<>"${LOOP_LOCKFILE}"
+    flock 0 || exit 1
+
+    next_loop=$(losetup -f | sed 's/\/dev\/loop//')
+    if [ ! -e "/dev/loop$next_loop" ]; then
+        for i in $(seq $((next_loop)) $((next_loop + 63))); do
+            mknod /dev/loop$i b 7 $i && \
+            chown --reference=/dev/loop0 /dev/loop$i && \
+            chmod --reference=/dev/loop0 /dev/loop$i || \
+            break
+        done
+    fi
+) > /dev/null 2>&1
+
+echo "-fstype=ext4,loop,nosuid :${DATA_DIR}/${ID}"

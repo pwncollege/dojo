@@ -5,6 +5,7 @@ ENV LC_CTYPE=C.UTF-8
 
 RUN apt-get update && \
     apt-get install -y \
+        autofs \
         build-essential \
         curl \
         git \
@@ -13,12 +14,15 @@ RUN apt-get update && \
         iproute2 \
         iputils-ping \
         jq \
+        nfs-kernel-server \
         unzip \
-        wget
+        wget \
+        wireguard
 
-RUN curl -fsSL https://get.docker.com | /bin/sh
-RUN echo '{ "data-root": "/data/docker", "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json
-RUN wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
+RUN curl -fsSL https://get.docker.com | /bin/sh && \
+    echo '{ "data-root": "/data/docker", "hosts": ["unix:///run/docker.sock"], "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json && \
+    sed -i 's|-H fd:// ||' /lib/systemd/system/docker.service && \
+    wget -O /etc/docker/seccomp.json https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json
 
 RUN cd /tmp && \
     wget -O awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" && \
