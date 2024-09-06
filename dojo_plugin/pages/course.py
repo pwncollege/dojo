@@ -19,7 +19,7 @@ course = Blueprint("course", __name__)
 
 
 def get_letter_grade(dojo, grade):
-    for letter_grade, min_score in dojo.course.get("letter_grades", {}).items():
+    for letter_grade, min_score in (dojo.course.get("letter_grades") or {}).items():
         if grade >= min_score:
             return letter_grade
     return "?"
@@ -39,7 +39,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
         users_query = Users.query.filter_by(id=users_query.id)
 
     now = datetime.datetime.now(datetime.timezone.utc)
-    assessments = dojo.course.get("assessments", [])
+    assessments = dojo.course.get("assessments") or []
 
     assessment_dates = collections.defaultdict(lambda: collections.defaultdict(dict))
     for assessment in assessments:
@@ -149,7 +149,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 extra_late_penalty = assessment.get("extra_late_penalty", 0.0)
 
                 extension = (assessment.get("extensions") or {}).get(str(user_id), 0)
-                override = assessment.get("overrides", {}).get(str(user_id), None)
+                override = (assessment.get("overrides") or {}).get(str(user_id), None)
 
                 challenge_count = challenge_counts[module_id]
                 checkpoint_solves, due_solves, late_solves, extra_late_solves, all_solves = module_solves.get(module_id, (0, 0, 0, 0, 0))
@@ -196,15 +196,15 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
                     weight=assessment["weight"],
-                    progress=assessment.get("progress", {}).get(str(user_id), ""),
-                    credit=assessment.get("credit", {}).get(str(user_id), 0.0),
+                    progress=(assessment.get("progress") or {}).get(str(user_id), ""),
+                    credit=(assessment.get("credit") or {}).get(str(user_id), 0.0),
                 ))
 
             if type == "extra":
                 assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
-                    progress=assessment.get("progress", {}).get(str(user_id), ""),
-                    credit=assessment.get("credit", {}).get(str(user_id), 0.0),
+                    progress=(assessment.get("progress") or {}).get(str(user_id), ""),
+                    credit=(assessment.get("credit") or {}).get(str(user_id), 0.0),
                 ))
 
         overall_grade = (
@@ -355,7 +355,7 @@ def view_all_grades(dojo):
     ignore_pending = request.args.get("ignore_pending") is not None
 
     students = {student.user_id: student.token for student in dojo.students}
-    course_students = dojo.course.get("students", [])
+    course_students = dojo.course.get("students") or []
     missing_students = list(set(course_students) - set(students.values()))
 
     users = (
@@ -374,7 +374,7 @@ def view_all_grades(dojo):
     average_grade_summary = f"{average_letter_grade} ({average_grade * 100:.2f}%)"
     average_grade_details = []
     cumulative_count = 0
-    for letter_grade in dojo.course.get("letter_grades", {}):
+    for letter_grade in (dojo.course.get("letter_grades") or {}):
         count = sum(1 for grade in grades if grade["letter_grade"] == letter_grade)
         cumulative_count += count
         percent = f"{count / len(grades) * 100:.2f}%" if grades else "0.00%"
@@ -410,7 +410,7 @@ def download_all_grades(dojo):
     ignore_pending = request.args.get("ignore_pending") is not None
 
     def stream():
-        assessments = dojo.course.get("assessments", [])
+        assessments = dojo.course.get("assessments") or []
 
         fields = ["student", "user", "letter", "overall"]
         fields.extend([re.sub("[^a-z0-9\-]", "", re.sub("\s+", "-", assessment_name(dojo, assessment).lower()))
@@ -418,7 +418,7 @@ def download_all_grades(dojo):
         yield ",".join(fields) + "\n"
 
         students = {student.user_id: student.token for student in dojo.students}
-        course_students = dojo.course.get("students", [])
+        course_students = dojo.course.get("students") or []
         missing_students = list(set(course_students) - set(students.values()))
 
         users = (
@@ -426,7 +426,7 @@ def download_all_grades(dojo):
             .query
             .join(DojoStudents, DojoStudents.user_id == Users.id)
             .filter(DojoStudents.dojo == dojo,
-                    DojoStudents.token.in_(dojo.course.get("students", [])))
+                    DojoStudents.token.in_(dojo.course.get("students") or []))
         )
         grades = sorted(grade(dojo, users, ignore_pending=ignore_pending),
                         key=lambda grade: grade["overall_grade"],
@@ -440,7 +440,7 @@ def download_all_grades(dojo):
         )
 
         yield from (
-            ",".join([student, "", "", ""] + [""] * len(dojo.course.get("assessments", []))) + "\n"
+            ",".join([student, "", "", ""] + [""] * len((dojo.course.get("assessments") or [])) + "\n"
             for student in missing_students
         )
 
