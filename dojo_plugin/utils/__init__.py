@@ -60,26 +60,16 @@ def get_current_container(user=None):
         return None
 
 
-def get_active_users(active_desktops=False):
-    docker_client = docker.from_env()
-    containers = docker_client.containers.list(filters=dict(name="user_"), ignore_removed=True)
+def get_all_containers(dojo=None):
+    filters = dict(status="running", label="dojo.dojo_id")
+    if dojo:
+        filters["label"] = f"dojo.dojo_id={dojo.reference_id}"
 
-    def used_desktop(c):
-        if c.status != 'running':
-            return False
-
-        try:
-            return b"accepted" in next(c.get_archive("/tmp/vnc/vncserver.log")[0])
-        except StopIteration:
-            return False
-        except docker.errors.NotFound:
-            return False
-
-    if active_desktops:
-        containers = [ c for c in containers if used_desktop(c) ]
-    uids = [ c.name.split("_")[-1] for c in containers ]
-    users = [ Users.query.filter_by(id=uid).first() for uid in uids ]
-    return users
+    return [
+        container
+        for docker_client in all_docker_clients()
+        for container in docker_client.containers.list(filters=filters, ignore_removed=True)
+    ]
 
 
 def serialize_user_flag(account_id, challenge_id, *, secret=None):
@@ -99,6 +89,11 @@ def user_docker_client(user):
     node_id = user_node(user)
     return (docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
             if node_id is not None else docker.from_env())
+
+
+def all_docker_clients():
+    return [docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
+            for node_id in WORKSPACE_NODES] if WORKSPACE_NODES else [docker.from_env()]
 
 
 def user_ipv4(user):

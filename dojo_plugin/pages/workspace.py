@@ -1,4 +1,3 @@
-import docker
 import hmac
 
 from flask import request, Blueprint, render_template, url_for, abort

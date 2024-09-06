@@ -7,17 +7,10 @@ from CTFd.utils.decorators import authed_only, admins_only
 
 from ..models import DojoChallenges, Dojos, DojoAdmins, DojoMembers
 from ..utils.dojo import generate_ssh_keypair
-from ..utils.stats import container_stats
+from ..utils.stats import get_container_stats
 
 
 dojos = Blueprint("pwncollege_dojos", __name__)
-
-def dojo_stats(dojo):
-    challenges = dojo.challenges(user=get_current_user())
-    return {
-        "count": len(challenges),
-        "solved": sum(1 for challenge in challenges if challenge.solved),
-    }
 
 
 @dojos.route("/dojos")
@@ -63,7 +56,7 @@ def listing(template="dojos.html"):
         categorized_dojos["member"].extend((dojo_member.dojo, 0) for dojo_member in user_dojo_members
                                            if dojo_member.dojo == dojo and dojo.type not in ["welcome", "topic", "public"])
 
-    dojo_container_counts = collections.Counter(stats["dojo"] for stats in container_stats())
+    dojo_container_counts = collections.Counter(stats["dojo"] for stats in get_container_stats())
 
     return render_template(template, user=user, categorized_dojos=categorized_dojos, dojo_container_counts=dojo_container_counts)
 

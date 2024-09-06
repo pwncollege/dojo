@@ -1,35 +1,21 @@
-import docker
-
 from CTFd.cache import cache
-from CTFd.models import Users, Solves
+from CTFd.models import Solves
 
-from . import force_cache_updates
-
-@cache.memoize(timeout=300, forced_update=force_cache_updates)
-def container_stats():
-    user_containers = docker.from_env().containers.list(filters={
-        "name": "user_",
-    }, ignore_removed=True)
-    return [ {
-            'user': int(c.name.split("_")[-1]),
-            'dojo': c.labels['dojo.dojo_id'],
-            'module': c.labels['dojo.module_id'],
-            'challenge': c.labels['dojo.challenge_id']
-    } for c in user_containers if not Users.query.where(Users.id==int(c.name.split("_")[-1])).one().hidden ]
+from . import force_cache_updates, get_all_containers
 
 @cache.memoize(timeout=300, forced_update=force_cache_updates)
-def dojo_stats(dojo):
-    docker_client = docker.from_env()
-    filters = {
-        "name": "user_",
-        "label": f"dojo.dojo_id={dojo.reference_id}"
-    }
-    containers = docker_client.containers.list(filters=filters, ignore_removed=True)
+def get_container_stats():
+    containers = get_all_containers()
+    return [{attr: container.labels[f"dojo.{attr}_id"]
+            for attr in ["dojo", "module", "challenge"]}
+            for container in containers]
 
-    return {
-        "active": len(containers),
-        "users": int(dojo.solves().group_by(Solves.user_id).count()),
-        "challenges": int(len(dojo.challenges)),
-        "visible_challenges": int(len([c for c in dojo.challenges if c.visible()])),
-        "solves": int(dojo.solves().count()),
-    }
+
+@cache.memoize(timeout=300, forced_update=force_cache_updates)
+def get_dojo_stats(dojo):
+    return dict(
+        users=dojo.solves().group_by(Solves.user_id).count(),
+        challenges=len(dojo.challenges),
+        visible_challenges=len([challenge for challenge in dojo.challenges if challenge.visible()]),
+        solves=dojo.solves().count(),
+    )

@@ -18,6 +18,7 @@ def start_on_demand_service(user, service_name):
         return False
     return True
 
+
 def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", user_id=None, container=None, **kwargs):
     # TODO: Cleanup this interface
     if workspace_user == "root":

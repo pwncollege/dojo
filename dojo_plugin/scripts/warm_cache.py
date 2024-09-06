@@ -13,8 +13,8 @@ scores.module_scores()
 logger.info("Module scores cache warmed.")
 
 from ..utils import stats
-stats.container_stats()
+stats.get_container_stats()
 logger.info("Container stats cache warmed.")
 for dojo in Dojos.query:
-	stats.dojo_stats(dojo)
+	stats.get_dojo_stats(dojo)
 	logger.info(f"Dojo stats cache warmed for {dojo.reference_id}.")
