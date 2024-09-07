@@ -1,4 +1,5 @@
 import os
+import pwd
 import shutil
 import sys
 
@@ -14,7 +15,10 @@ def main():
     if not os.path.exists("/run/dojo/var/root/privileged"):
         error(f"{program}: workspace is not privileged")
 
-    os.setuid(os.geteuid())
+    struct_passwd = pwd.getpwuid(os.geteuid())
+    os.setuid(struct_passwd.pw_uid)
+    os.setgid(struct_passwd.pw_gid)
+    os.setgroups([])
 
     if len(sys.argv) < 2:
         error(f"Usage: {program} <command> [args...]")
