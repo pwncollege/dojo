@@ -31,6 +31,7 @@ let
 in pkgs.symlinkJoin {
   name = "suid-interpreter";
   paths = with pkgs; [
+    (buildSuid "python-dojo-suid" "SUID_PYTHON_DOJO")
     (buildSuid "python-suid" "SUID_PYTHON")
     (buildSuid "bash-suid" "SUID_BASH")
     (buildSuid "sh-suid" "SUID_SH")

@@ -58,6 +58,12 @@ int main(int argc, char **argv, char **envp)
     fgets(first_line, PATH_MAX, file);
     fclose(file);
 
+#ifdef SUID_PYTHON_DOJO
+    char *child_argv_prefix[] = { "/run/dojo/bin/python", "-I", "--", NULL };
+    if (strcmp(first_line, "#!/usr/bin/env python-suid\n"))
+        return ERROR_BAD_SHEBANG;
+#endif
+
 #ifdef SUID_PYTHON
     char *child_argv_prefix[] = { "/usr/bin/python", "-I", "--", NULL };
     if (strcmp(first_line, "#!/opt/pwn.college/python\n") &&
@@ -105,7 +111,7 @@ int main(int argc, char **argv, char **envp)
     int child_argc = 0;
     for (int i = 0; child_argv_prefix[i]; i++)
         child_argv[child_argc++] = child_argv_prefix[i];
-#ifdef SUID_PYTHON
+#ifdef SUID_PYTHON || SUID_PYTHON_DOJO
     child_argv[child_argc++] = path;
 #endif
     for (int i = 2; i < argc; i++)
