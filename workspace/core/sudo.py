@@ -11,7 +11,7 @@ def error(message):
 def main():
     program = os.path.basename(sys.argv[0])
 
-    if not os.path.exists("/run/dojo/var/root/priviliged"):
+    if not os.path.exists("/run/dojo/var/root/privileged"):
         error(f"{program}: workspace is not privileged")
 
     os.setuid(os.geteuid())
