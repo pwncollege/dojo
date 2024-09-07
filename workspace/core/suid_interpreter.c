@@ -60,7 +60,7 @@ int main(int argc, char **argv, char **envp)
 
 #ifdef SUID_PYTHON_DOJO
     char *child_argv_prefix[] = { "/run/dojo/bin/python", "-I", "--", NULL };
-    if (strcmp(first_line, "#!/usr/bin/env python-suid\n"))
+    if (strcmp(first_line, "#!/usr/bin/env python-dojo-suid\n"))
         return ERROR_BAD_SHEBANG;
 #endif
 
