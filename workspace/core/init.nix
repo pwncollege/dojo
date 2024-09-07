@@ -54,9 +54,6 @@ let
       passwd -d root
     fi
 
-    find /home/hacker -not \( -user 1000 -and -group 1000 \) -exec chown -h 1000:1000 {} +
-    chmod 755 /home/hacker
-
     if [ -x "/challenge/.init" ]; then
         PATH="/run/challenge/bin:$IMAGE_PATH" /challenge/.init
     fi
