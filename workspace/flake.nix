@@ -18,6 +18,7 @@
 
           init = import ./core/init.nix { inherit pkgs; };
           suid-interpreter = import ./core/suid-interpreter.nix { inherit pkgs; };
+          sudo = import ./core/sudo.nix { inherit pkgs; };
           ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
           service = import ./services/service.nix { inherit pkgs; };
           code-service = import ./services/code.nix { inherit pkgs; };
@@ -66,6 +67,7 @@
             (lib.hiPrio ldd)
 
             init
+            sudo
             ssh-entrypoint
             service
             code-service

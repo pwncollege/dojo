@@ -46,12 +46,8 @@ let
     exec > /run/dojo/var/root/init.log 2>&1
     chmod 600 /run/dojo/var/root/init.log
 
-    # TODO: Better support privileged mode
-    if [ "$DOJO_MODE" = "privileged" ] && [ -f /usr/bin/sudo ]; then
-      chmod 4755 /usr/bin/sudo
-      usermod -aG sudo hacker
-      echo 'hacker ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-      passwd -d root
+    if [ "$DOJO_MODE" = "privileged" ]; then
+      touch /run/dojo/var/root/privileged
     fi
 
     if [ -x "/challenge/.init" ]; then

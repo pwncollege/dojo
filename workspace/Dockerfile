@@ -32,7 +32,7 @@ fi
 
 nix build --print-build-logs ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
 nix copy --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
-for suid_binary in "python-suid" "bash-suid" "sh-suid" "windows"; do
+for suid_binary in "python-suid" "bash-suid" "sh-suid" "sudo"; do
     suid_binary_path=$(realpath "/out/nix/var/nix/profiles/default/bin/${suid_binary}")
     FILE="/out/${suid_binary_path}"
     if [ -e $FILE ]; then
