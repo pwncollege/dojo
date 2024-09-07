@@ -111,7 +111,7 @@ int main(int argc, char **argv, char **envp)
     int child_argc = 0;
     for (int i = 0; child_argv_prefix[i]; i++)
         child_argv[child_argc++] = child_argv_prefix[i];
-#ifdef SUID_PYTHON || SUID_PYTHON_DOJO
+#if defined(SUID_PYTHON) || defined(SUID_PYTHON_DOJO)
     child_argv[child_argc++] = path;
 #endif
     for (int i = 2; i < argc; i++)
