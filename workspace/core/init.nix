@@ -38,6 +38,8 @@ let
     echo "root:x:0:" >> /etc/group
     echo "hacker:x:1000:" >> /etc/group
 
+    echo "PATH=\"/run/challenge/bin:/run/workspace/bin:$IMAGE_PATH\"" > /etc/environment
+
     echo $DOJO_AUTH_TOKEN > /run/dojo/var/auth_token
 
     read DOJO_FLAG
