@@ -211,7 +211,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     docker_client = user_docker_client(user)
     remove_container(docker_client, user)
 
-    mounts = [("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id)), None]
+    mounts = [("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id), None)]
     if as_user != user:
         mounts = [
             # ("/home/hacker", HOST_HOMES_OVERLAYS / f"{user.id}-{as_user.id}"),
