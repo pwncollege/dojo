@@ -122,9 +122,9 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
             ]
             + [
                 docker.types.Mount(
-                    str(target), str(source), "bind", propagation="shared"
+                    str(target), str(source), "bind", propagation="shared", **(kwargs or {})
                 )
-                for target, source in mounts
+                for target, source, kwargs in mounts
             ],
             devices=devices,
             network=None,
@@ -211,11 +211,12 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     docker_client = user_docker_client(user)
     remove_container(docker_client, user)
 
-    mounts = [("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id))]
+    mounts = [("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id)), None]
     if as_user != user:
         mounts = [
-            ("/home/hacker", HOST_HOMES_OVERLAYS / f"{user.id}-{as_user.id}"),
-            ("/home/me", HOST_HOMES_MOUNTS / str(user.id)),
+            # ("/home/hacker", HOST_HOMES_OVERLAYS / f"{user.id}-{as_user.id}"),
+            ("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id), dict(read_only=True)),
+            ("/home/me", HOST_HOMES_MOUNTS / str(user.id), None),
         ]
 
     container = start_container(
