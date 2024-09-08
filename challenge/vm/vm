@@ -40,8 +40,7 @@ def vm_hostname():
 
 
 def is_privileged():
-    groups = set(grp.getgrgid(group).gr_name for group in os.getgroups())
-    return os.getuid() == 0 or "sudo" in groups
+    return os.getuid() == 0 or os.path.exists("/run/dojo/var/root/privileged")
 
 
 def in_vm():
