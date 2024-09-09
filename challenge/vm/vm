@@ -204,7 +204,8 @@ def debug():
 
 
 def build(path):
-    os.setuid(os.geteuid())
+    ruid, euid, suid = os.getresuid()
+    os.seteuid(ruid)
 
     with open(path, "r") as f:
         src = f.read()
@@ -229,6 +230,7 @@ def build(path):
 
         subprocess.run(["make", "-C", workdir], stdout=sys.stderr, check=True)
 
+        os.seteuid(euid)
         shutil.copy(f"{workdir}/debug.ko", "/challenge/debug.ko")
 
 
