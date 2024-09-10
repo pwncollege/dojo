@@ -92,6 +92,8 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
 INTERNET_FOR_ALL = bool(ast.literal_eval(os.getenv("INTERNET_FOR_ALL") or "False"))
 WINDOWS_VM_ENABLED = os.getenv("WINDOWS_VM") == "full"
+CTF_NAME = os.getenv("CTF_NAME") or "pwn.college"
+CTF_DESC = os.getenv("CTF_DESC") or "pwn.college"
 
 missing_errors = ["DOJO_HOST", "HOST_DATA_PATH"]
 for config_option in missing_errors:
@@ -100,8 +102,8 @@ for config_option in missing_errors:
         raise RuntimeError(f"Configuration Error: {config_option} must be set in the environment")
 
 def bootstrap():
-    set_config("ctf_name", "pwn.college")
-    set_config("ctf_description", "pwn.college")
+    set_config("ctf_name", CTF_NAME)
+    set_config("ctf_description", CTF_DESC)
     set_config("user_mode", "users")
 
     set_config("challenge_visibility", "public")
