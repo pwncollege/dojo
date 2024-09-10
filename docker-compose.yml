@@ -107,6 +107,8 @@ services:
       - MAC_USERNAME=${MAC_USERNAME}
       - MAC_KEY_FILE=${MAC_KEY_FILE}
       - MAC_GUEST_CONTROL_FILE=${MAC_GUEST_CONTROL_FILE}
+      - CTF_NAME=${CTF_NAME}
+      - CTF_DESC=${CTF_DESC}
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
