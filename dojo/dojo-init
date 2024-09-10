@@ -21,6 +21,7 @@ define () {
     echo "${name}=${value}" >> /data/.config.env
 }
 DEFAULT_DOJO_HOST=localhost.pwn.college
+DEFAULT_CTF_NAME=pwn.college
 
 define DOJO_HOST "${DEFAULT_DOJO_HOST}"
 define VIRTUAL_HOST "${DEFAULT_DOJO_HOST}"
@@ -59,6 +60,8 @@ define MAC_HOSTNAME
 define MAC_USERNAME
 define MAC_KEY_FILE
 define MAC_GUEST_CONTROL_FILE
+define CTF_NAME "${DEFAULT_CTF_NAME}"
+define CTF_DESC "${DEFAULT_CTF_NAME}"
 
 mv /data/.config.env /data/config.env
 . /data/config.env
