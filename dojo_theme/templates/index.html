@@ -5,94 +5,23 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
+    <img src="https://dsu.edu/marketing/_files/DSU_UniversityLogo_Icon_Primary.png"
+         width="120" height="139">
+    <p><br><br>
     <h1>pwn.college</h1>
     <p>Learn to hack!</p>
   </div>
 </div>
 
 <div class="container">
-  <p>pwn.college is an education platform for students (and other interested parties) to learn about, and practice, core cybersecurity concepts in a hands-on fashion.
-  In martial arts terms, it is designed to take a “white belt” in cybersecurity through the journey to becoming a “blue belt”, able to approach (simple) cybersecurity competitions (CTFs) and wargames.
-  Our philosophy is “practice makes perfect”.
-
-  <p>The platform is maintained by an <a href="#greetz">awesome team</a> of hackers at Arizona State University.
-  It powers much of ASU's cybersecurity curriculum, and is open, for free, to participation for interested people around the world!
-
-  <p>If you have comments, suggestions, and feedback, please email us at <a href="mailto:pwn@pwn.college">pwn@pwn.college</a>!
-
-
+  <p>Welcome to the DSU instance of pwn.college!
 
   <p><br><br>
-  <h2>Ground Rules</h2>
-  <p>The challenges created for pwn.college are, first and foremost, educational material, and are used to grade students at universities around the world.
-  Because of this, we would appreciate that you <b>do not post writeups, walkthrough videos, and livestreams of challenge solutions</b> to the internet.
-  Obviously, we can’t enforce this, but we worked hard to make all of this public, and we would appreciate your help in keeping pwn.college a viable educational platform.
 
-
-
+  <h2>Roadshow</h2>
+  {{ dojo_grid(categorized_dojos["roadshow"], dojo_container_counts) }}
 
   <p><br><br>
-  <h2>Getting Started &mdash; Learn the Basics!</h2>
-
-  <p>The material on pwn.college is split into a number of "dojos", with each dojo typically covering a high-level topic.
-  These first few dojos are designed to help you Get Started with the platform.
-  Start here before venturing onwards!
-
-  <p>Note: if you run into problems with concepts and challenges, you can get help on our <a href="https://discord.gg/pwncollege">discord server</a>.
-  The discord is also a great place to chat with other aspiring hackers!
-
-  {{ dojo_grid(categorized_dojos["welcome"], dojo_container_counts) }}
-
-  <p>After completing the dojos above, dive into the Core Material below!
-
-  <p><br><br>
-  <h2>Core Material &mdash; Earn Your Belts!</h2>
-
-  <p>These dojos form the official pwn.college curriculum, taking you on a curated journey through the art of hacking.
-  As you progress and build your skills, like in a martial art, you will earn <a href="belts">belts</a> for completing dojo after dojo.
-
-  <p>The material is designed to be tackled in order.
-  We won't stop you from jumping around if you want (and have the requisite skills), but you must earn belts sequentially.
-
-  {{ dojo_grid(categorized_dojos["topic"], dojo_container_counts) }}
-
-  <p>After completing the dojos above, not only will you be added to the <a href="belts">belts</a> page, but <i>we will send you actual pwn.college-embroidered belts</i>!
-  <p>To get your belt, <a href="mailto:pwn@pwn.college">send us an email</a> from the email address associated with your pwn.college account.
-  We’ll then get your belt over to you (eventually)!
-  Note that, due to logistical challenges, we're currently only <i>shipping</i> belts to hackers after they earn their blue belt.
-  Until then, we will belt you in person, at ASU or some security conference.
-
-
-
-
-  <p><br><br>
-  <h2>Community Material &mdash; Earn Badges!</h2>
-  <p>No matter how much material we create, there is always more to learn!
-  This section contains additional dojos created by the pwn.college community.
-  Some are designed to be tackled after you complete the dojos above, whereas others are open to anyone interested in more specialized topics.
-
-  <p>Completing these dojos will grant you emoji badges!
-
-  {{ dojo_grid(categorized_dojos["public"], dojo_container_counts) }}
-
-
-
-  <p><br><br>
-  <h2>The Courses &mdash; Earning Credit</h2>
-  <p>We leverage the above material to run a number of courses on this platform.
-  For the most part, these courses import the above material, though some might introduce new concepts and challenges.
-
-  {{ dojo_grid(categorized_dojos["course"], dojo_container_counts) }}
-
-  <p>Want to use pwn.college in your course? No problem!
-  You can use the videos and slides of pwn.college lectures freely for non-commercial purposes, but please provide attribution!
-  Additionally, if you use pwn.college in your own education program, we would appreciate it if you email us to let us know.
-  Evidence of wide-spread use of pwn.college for education will be a huge help for our various academic careers!
-
-  <p>EDUCATORS: If you are an educational institution and are using pwn.college as part of a class, you can import our challenges (or add your own) into your own private dojo for your students! Create your dojo <a href="/dojos/create">here</a>.
-
-  <p>CONFERENCES: If you are running a conference and would like pwn.college presence there (as a form of intense weekend-long training), please <a href="mailto:pwn@pwn.college">email</a> us!
-
 
   {% if categorized_dojos["member"] %}
   <p><br><br>
@@ -106,112 +35,11 @@
   {% endif %}
 
   <p><br><br>
-  <h2>Your Own Dojos &mdash; Share With the World!</h2>
+  <h2>Your Own Dojos</h2>
   <p>You can create your own dojo, either hosting your own challenges or remixing existing material!
   Once created, a dojo can be shared with your friends or students (providing a private scoreboard and curated experience) or made public to the world to appear in the Community Material list above!
 
   {{ dojo_grid(categorized_dojos["admin"], dojo_container_counts, create_icon=true) }}
-
-  <p>Want to add your dojo to the fray? <a href="/dojos/create"><b>Create it here</b></a>!
-
-
-
-  <p><br><br>
-  <h2>After pwn.college</h2>
-
-  <p>Eventually, hackers continue their journey beyond pwn.college, becoming certain in their skills, achieving <i>brown belt</i> status (and able to, for example, usefully contribute to the cybersecurity industry and academia), before finally graduating to hacking masters: <i>black belts</i>.
-  But this, unfortunately, must happen outside of the dojo (for now!).
-  Some suggestions:
-
-  <p>Capture The Flags (CTFs) are a great way to practice your hacking skills in a fun and ethical way. The most popular way to find upcoming events is at <a href="https://ctftime.org">https://ctftime.org</a>. There is also a list of introductory CTFs <a href="https://zaratec.io/ctf-practice/">here</a>. If you are at ASU, feel free to check out and join ASU’s enigmatic <a href="http://asuhacking.club">hacking club</a>.
-
-  <p>Wargames are another great way to practice your hacking skills. Whereas CTFs are short (normally 48 hour) events, wargames are not time-based. You can find a list of wargames at <a href="https://github.com/zardus/wargame-nexus">https://github.com/zardus/wargame-nexus</a>.
-
-  <p>If you want to get involved with cybersecurity research, but don’t know how, consider joining us for an <a href="https://sefcom.asu.edu/apprenticeship">internship at ASU</a>.
-
-
-
-  <p><br><br>
-  <h2>Contributing</h2>
-  <p>The <a href="https://github.com/pwncollege/dojo">infrastructure powering pwn.college</a> is open source, and we welcome pull requests and issues.
-  Some of the modules are closed-source, because they include source code and solution scripts, but others can be found on <a href="https://github.com/pwncollege">github</a>.
-  If you are an educator, or otherwise someone we trust, and are interested in collaborating on the modules themselves, please email us at <a href="pwn@pwn.college">pwn@pwn.college</a>.
-  Likewise, drop us a line if you are interested in collaborating on the slides!
-
-
-
-
-  <p><br><br>
-  <h2><a name="greetz"></a>Greetz</h2>
-  <p>Team work makes the dream work, and the team behind pwn.college is full of dreamers!  They are:
-
-  <ul>
-    <li><a href="https://yancomm.net">Zardus (Yan Shoshitaishvili)</a> originated the idea, created the initial prototype and many of the challenges, and continues to cajole everyone else into a shared vision!
-    <li><a href="https://connornelson.com">kanak (Connor Nelson)</a> made the mistake of signing up to TA an “easy A” course and quickly found himself reimplementing Yan’s insane code into the amazing dojo you see today, along with the creation of many challenges.
-    <li><a href="https://github.com/robwaz">robwaz (Robert Wasinger)</a> for the creation of the Software Exploitation dojo.
-    <li><a href="https://adamdoupe.com">Adam Doupe</a> for helping in the brainstorming of the initial concept and helping develop the pwn.college platform.
-    <li><a href="https://www.zionbasque.com">mahaloz (Zion Basque)</a> for contributing ROP challenges and embryoasm to pwn.college.
-    <li><a href="https://twitter.com/eriktrickel">Erik Trickel</a> for helping in the development of pedagogical concepts underlying pwn.college.
-    <li>redgate, for contributing to embryoasm.
-    <li><a href="https://twitter.com/pascal_0x90">Pascal-0x90</a>, for contributing to embryoasm.
-    <li><a href="https://twitter.com/frqmod">frqmod</a>, for contributing embryogdb.
-    <li><a href="https://www.kylebot.net">kylebot</a>, for contributing babyfmt, Kernel Exploitation, and the inaugural Quarterly Quiz!
-    <li>ramen, for contributing babyfile.
-    <li>zolutal, for contributing babyarch.
-    <li>spencerpogo, for contributing Windows support.
-    <li><a href="https://github.com/sinamhdv">sinamhdv</a> for contributing V8 Exploitation.
-  </ul>
-
-
-  <p><br><br>
-  <h2>Resource Index</h2>
-  <p>We use a lot of different resources and platforms.
-  Here they are!
-
-  <div class="container">
-    <div class="row text-center">
-      <div class="col-lg-auto m-3">
-        <figure>
-          <a class="text-decoration-none" href="https://youtube.com/pwncollege">
-            <i class="fab fa-youtube fa-7x"></i>
-            <figcaption>Lectures on<br>YouTube</figcaption>
-          </a>
-        </figure>
-      </div>
-      <div class="col-lg-auto m-3">
-        <figure>
-          <a class="text-decoration-none" href="https://twitch.tv/pwncollege">
-            <i class="fab fa-twitch fa-7x"></i>
-            <figcaption>Live Broadcasts on<br>Twitch</figcaption>
-          </a>
-        </figure>
-      </div>
-      <div class="col-lg-auto m-3">
-        <figure>
-          <a class="text-decoration-none" href="https://discord.gg/pwncollege">
-            <i class="fab fa-discord fa-7x"></i>
-            <figcaption>Chat on<br>Discord</figcaption>
-          </a>
-        </figure>
-      </div>
-      <div class="col-lg-auto m-3">
-        <figure>
-          <a class="text-decoration-none" href="https://github.com/pwncollege">
-            <i class="fab fa-github fa-7x"></i>
-            <figcaption>Open Source on<br>GitHub</figcaption>
-          </a>
-        </figure>
-      </div>
-      <div class="col-lg-auto m-3">
-        <figure>
-          <a class="text-decoration-none" href="mailto:pwn@pwn.college">
-            <i class="fas fa-envelope fa-7x"></i>
-            <figcaption>Contact us via<br>Email</figcaption>
-          </a>
-        </figure>
-      </div>
-    </div>
-  </div>
 
 </div>
 {% endblock %}
