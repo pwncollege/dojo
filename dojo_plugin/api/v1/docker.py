@@ -140,6 +140,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
             init=True,
             cap_add=["SYS_PTRACE"],
             security_opt=[f"seccomp={SECCOMP}"],
+            sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
             cpu_period=100000,
             cpu_quota=400000,
             pids_limit=1024,
