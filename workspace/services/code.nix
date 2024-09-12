@@ -25,7 +25,6 @@ let
       mkdir -p $out/$rgBin
       cp ${rgScript} $out/$rgBin/rg
       cp ${pkgs.code-server}/$rgBin/rg $out/$rgBin/rg.orig
-      cp -ru ${pkgs.code-server}/libexec/code-server/. $out/libexec/code-server
 
       workbenchApiNode=libexec/code-server/lib/vscode/out/vs/workbench/api/node
       mkdir -p $out/$workbenchApiNode
@@ -34,6 +33,7 @@ let
       done
 
       mkdir -p $out/bin
+      cp -ru ${pkgs.code-server}/libexec/code-server/. $out/libexec/code-server
       makeWrapper ${pkgs.nodejs}/bin/node $out/bin/code-server --add-flags $out/libexec/code-server/out/node/entry.js
       runHook postInstall
     '';
