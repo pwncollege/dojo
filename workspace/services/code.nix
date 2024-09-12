@@ -20,11 +20,20 @@ let
     buildInputs = with pkgs; [ nodejs makeWrapper ];
     installPhase = ''
       runHook preInstall
+
       rgBin=libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
-      mkdir -p $out/$rgBin $out/bin
+      mkdir -p $out/$rgBin
       cp ${rgScript} $out/$rgBin/rg
       cp ${pkgs.code-server}/$rgBin/rg $out/$rgBin/rg.orig
       cp -ru ${pkgs.code-server}/libexec/code-server/. $out/libexec/code-server
+
+      workbenchApiNode=libexec/code-server/lib/vscode/out/vs/workbench/api/node
+      mkdir -p $out/$workbenchApiNode
+      for f in "extensionHostProcess.js" "extensionHostProcess.js.map"; do
+        sed -E 's/(if\s*\(\w+\.\w+\.skipWorkspaceStorageLock\))/if\(true\)/g' ${pkgs.code-server}/$workbenchApiNode/$f > $out/$workbenchApiNode/$f
+      done
+
+      mkdir -p $out/bin
       makeWrapper ${pkgs.nodejs}/bin/node $out/bin/code-server --add-flags $out/libexec/code-server/out/node/entry.js
       runHook postInstall
     '';
