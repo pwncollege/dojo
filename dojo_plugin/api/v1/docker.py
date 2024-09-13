@@ -216,8 +216,9 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     if as_user != user:
         mounts = [
             # ("/home/hacker", HOST_HOMES_OVERLAYS / f"{user.id}-{as_user.id}"),
-            ("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id), dict(read_only=True)),
-            ("/home/me", HOST_HOMES_MOUNTS / str(user.id), None),
+            # ("/home/me", HOST_HOMES_MOUNTS / str(user.id), None),
+            ("/home/hacker", HOST_HOMES_MOUNTS / str(user.id), None),
+            ("/home/other", HOST_HOMES_MOUNTS / str(as_user.id), dict(read_only=True)),
         ]
 
     container = start_container(

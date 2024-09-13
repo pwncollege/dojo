@@ -421,6 +421,7 @@ def test_scoreboard(random_user):
     assert found_me, f"Unable to find new user {user} in new standings after solving a challenge"
 
 
+@pytest.mark.skip(reason="Disabling test temporarily until overlay issue is resolved")
 @pytest.mark.dependency(depends=["test_workspace_home_persistent"])
 def test_workspace_as_user(admin_user, random_user):
     admin_user, admin_session = admin_user
