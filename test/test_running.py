@@ -280,11 +280,22 @@ def test_workspace_home_mount():
 @pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_no_sudo():
     try:
-        s = workspace_run("sudo -v", user="admin")
+        s = workspace_run("sudo whoami", user="admin")
     except subprocess.CalledProcessError:
         pass
     else:
         assert False, f"Expected sudo to fail, but got no error: {(s.stdout, s.stderr)}"
+
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_workspace_practice_challenge(random_user):
+    user, session = random_user
+    start_challenge("example", "hello", "apple", practice=True, session=session)
+    try:
+        result = workspace_run("/challenge/apple", user=user)
+        assert result.stdout.strip() == "root", f"Expected 'root', but got: ({result.stdout}, {result.stderr})"
+    except subprocess.CalledProcessError as e:
+        assert False, f"Expected sudo to succeed, but got: {(e.stdout, e.stderr)}"
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
@@ -297,16 +308,6 @@ def test_workspace_home_persistent(random_user):
         workspace_run("[ -f '/home/hacker/test' ]", user=user)
     except subprocess.CalledProcessError as e:
         assert False, f"Expected file to exist, but got: {(e.stdout, e.stderr)}"
-
-
-@pytest.mark.dependency(depends=["test_start_challenge"])
-def test_workspace_practice_challenge(random_user):
-    user, session = random_user
-    start_challenge("example", "hello", "apple", practice=True, session=session)
-    try:
-        workspace_run("sudo -v", user=user)
-    except subprocess.CalledProcessError as e:
-        assert False, f"Expected sudo to succeed, but got: {(e.stdout, e.stderr)}"
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
