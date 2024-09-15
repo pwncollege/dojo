@@ -442,6 +442,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         hexedit
         icdiff
         iproute2
+        iptables
         iputils-ping
         ipython3
         john
