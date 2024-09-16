@@ -502,7 +502,7 @@ FROM builder as builder-tools-pip-yes
 RUN xargs pip install --force-reinstall <<EOF
     angr
     asteval
-    dojjail
+    dojjail>=0.1.2
     flask
     git+https://github.com/Gallopsled/pwntools#egg=pwntools
     git+https://github.com/secdev/scapy#egg=scapy
