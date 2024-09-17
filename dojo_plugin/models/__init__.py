@@ -753,9 +753,16 @@ class DiscordUsers(db.Model):
     user_id = db.Column(
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    discord_id = db.Column(db.Text, unique=True)
+    discord_id = db.Column(db.Integer, unique=True)
 
     user = db.relationship("Users")
+
+    def thanks(self, start=None, end=None):
+        count = DiscordThanks.query.filter(and_(DiscordThanks.to_user_id == self.discord_id),
+            DiscordThanks.timestamp >= start if start else True,
+            DiscordThanks.timestamp <= end if end else True).count()
+        return count
+
 
     __repr__ = columns_repr(["user", "discord_id"])
 
@@ -786,6 +793,20 @@ class WorkspaceTokens(db.Model):
 
     def __repr__(self):
         return f"<{self.__class__.__name__} {self.id!r}>"
+
+
+class DiscordThanks(db.Model):
+    __tablename__ = "discord_thanks"
+    id = db.Column(db.Integer, primary_key=True)
+    to_user_id = db.Column(db.BigInteger)
+    by_user_id = db.Column(db.BigInteger)
+    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+    def __init__(self, to_user_id, by_user_id, timestamp=None, **kwargs):
+        self.by_user_id = by_user_id
+        self.to_user_id = to_user_id
+        self.timestamp = timestamp 
+        super(DiscordThanks, self).__init__(**kwargs)
 
 
 for deferral in deferred_definitions:
