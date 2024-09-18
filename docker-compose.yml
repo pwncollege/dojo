@@ -105,6 +105,10 @@ services:
       - VIRTUAL_HOST=${VIRTUAL_HOST}
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
+      - MAC_HOSTNAME=${MAC_HOSTNAME}
+      - MAC_USERNAME=${MAC_USERNAME}
+      - MAC_KEY_FILE=${MAC_KEY_FILE}
+      - MAC_GUEST_CONTROL_FILE=${MAC_GUEST_CONTROL_FILE}
     volumes:
       - /data:/var/data
       - /data/CTFd/logs:/var/log/CTFd
@@ -184,11 +188,17 @@ services:
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys:/etc/ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /data/mac:/var/data/mac:ro
     environment:
       - DB_HOST=${DB_HOST}
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASS=${DB_PASS}
+      - REDIS_URL=redis://cache:6379
+      - MAC_HOSTNAME=${MAC_HOSTNAME}
+      - MAC_USERNAME=${MAC_USERNAME}
+      - MAC_KEY_FILE=${MAC_KEY_FILE}
+      - MAC_GUEST_CONTROL_FILE=${MAC_GUEST_CONTROL_FILE}
     ports:
       - "22:22"
 

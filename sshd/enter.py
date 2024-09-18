@@ -7,6 +7,9 @@ import sys
 import time
 
 import docker
+import redis
+
+import mac_docker
 
 
 WORKSPACE_NODES = {
@@ -15,6 +18,7 @@ WORKSPACE_NODES = {
     json.load(pathlib.Path("/var/workspace_nodes.json").open()).items()
 }
 
+r = redis.from_url(os.environ.get("REDIS_URL"))
 
 def main():
     original_command = os.getenv("SSH_ORIGINAL_COMMAND")
@@ -31,11 +35,18 @@ def main():
         print(f"{sys.argv[0]} <container_name>")
         exit(1)
     container_name = sys.argv[1]
-
     user_id = int(container_name.split("_")[1])
+
+    image_name = r.get(f"user_{user_id}-running-image")
     node_id = list(WORKSPACE_NODES.keys())[user_id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
     docker_host = f"tcp://192.168.42.{node_id + 1}:2375" if node_id is not None else "unix:///var/run/docker.sock"
-    docker_client = docker.DockerClient(base_url=docker_host, tls=False)
+
+    is_mac = False
+    if image_name and image_name.startswith(b"mac:"):
+        docker_client = mac_docker.MacDockerClient()
+        is_mac = True
+    else:
+        docker_client = docker.DockerClient(base_url=docker_host, tls=False)
 
     try:
         container = docker_client.containers.get(container_name)
@@ -69,23 +80,26 @@ def main():
 
         if not os.fork():
             ssh_entrypoint = "/run/dojo/bin/ssh-entrypoint"
-            command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
-            os.execve(
-                "/usr/bin/docker",
-                [
-                    "docker",
-                    "exec",
-                    "-it" if tty else "-i",
-                    "--user=1000",
-                    "--workdir=/home/hacker",
-                    container_name,
-                    *command,
-                ],
-                {
-                    "HOME": os.environ["HOME"],
-                    "DOCKER_HOST": docker_host,
-                },
-            )
+            if is_mac:
+                container.execve_shell("zsh -i", user="1000")
+            else:
+                command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
+                os.execve(
+                    "/usr/bin/docker",
+                    [
+                        "docker",
+                        "exec",
+                        "-it" if tty else "-i",
+                        "--user=1000",
+                        "--workdir=/home/hacker",
+                        container_name,
+                        *command,
+                    ],
+                    {
+                        "HOME": os.environ["HOME"],
+                        "DOCKER_HOST": docker_host,
+                    },
+                )
 
         else:
             _, status = os.wait()
