@@ -10,6 +10,7 @@ import docker.errors
 import docker.types
 from flask import abort, request, current_app
 from flask_restx import Namespace, Resource
+from CTFd.cache import cache
 from CTFd.models import Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
@@ -22,8 +23,6 @@ from ...utils import (
     lookup_workspace_token,
     resolved_tar,
     serialize_user_flag,
-    store_running_container,
-    get_running_container,
     user_docker_client,
     user_ipv4,
 )
@@ -43,7 +42,8 @@ HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
 
 def remove_container(user):
     try:
-        image_name = get_running_container(user.id)
+        image_name = cache.get(f"user_{user.id}-running-image")
+        image_name = image_name.decode('latin-1') if image_name else None
         docker_client = user_docker_client(user, image_name)
         container = docker_client.containers.get(container_name(user))
         container.remove(force=True)
@@ -167,7 +167,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
         default_network.disconnect(container)
 
     container.start()
-    store_running_container(user.id, dojo_challenge.image)
+    cache.set(f"user_{user.id}-running-image", image)
     return container
 
 

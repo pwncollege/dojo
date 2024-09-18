@@ -12,7 +12,6 @@ import tempfile
 import bleach
 import docker
 import docker.errors
-import redis
 from flask import current_app, Response, Markup, abort, g
 from itsdangerous.url_safe import URLSafeSerializer
 from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
@@ -28,8 +27,6 @@ from sqlalchemy.sql import or_
 from ..config import WORKSPACE_NODES
 from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges, WorkspaceTokens
 from . import mac_docker
-
-r = redis.from_url(os.environ.get("REDIS_URL"))
 
 ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
@@ -82,15 +79,6 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     data = [account_id, challenge_id]
     user_flag = serializer.dumps(data)[::-1]
     return user_flag
-
-
-def store_running_container(user_id, image):
-    # store in redis the image that's running so that it can be picked
-    # up by sshd
-    r.set(f"user_{user_id}-running-image", image)
-
-def get_running_container(user_id):
-    return r.get(f"user_{user_id}-running-image").decode('latin-1')
 
 
 def user_node(user):
