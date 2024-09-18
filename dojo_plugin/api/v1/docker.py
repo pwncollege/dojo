@@ -43,7 +43,6 @@ HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
 def remove_container(user):
     try:
         image_name = cache.get(f"user_{user.id}-running-image")
-        image_name = image_name.decode('latin-1') if image_name else None
         docker_client = user_docker_client(user, image_name)
         container = docker_client.containers.get(container_name(user))
         container.remove(force=True)
@@ -167,7 +166,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
         default_network.disconnect(container)
 
     container.start()
-    cache.set(f"user_{user.id}-running-image", image)
+    cache.set(f"user_{user.id}-running-image", dojo_challenge.image)
     return container
 
 
