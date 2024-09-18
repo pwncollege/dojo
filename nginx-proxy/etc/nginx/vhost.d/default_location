@@ -8,3 +8,5 @@ location /internal/ {
 
     proxy_ignore_headers X-Accel-Redirect;
 }
+proxy_read_timeout 600s;
+
