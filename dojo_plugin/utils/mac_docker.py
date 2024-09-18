@@ -72,7 +72,7 @@ class MacDockerClient:
         if result.returncode != 0:
             if exception_on_fail:
                 error_msg = result.stdout.strip()
-                raise Exception(f'SSH {ssh_command=} {self.username=} {self.key_filename=} {self.hostname=} failed: {error_msg}')
+                raise Exception(f'SSH {ssh_command=} {self.username=} {self.key_filename=} {self.hostname=} {result=} {result.returncode=} failed: {error_msg}')
         return result.returncode, result.stdout.strip() if result.stdout else b""
     
 
