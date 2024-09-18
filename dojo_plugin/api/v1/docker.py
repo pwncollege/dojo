@@ -200,9 +200,9 @@ def insert_challenge(container, as_user, dojo_challenge):
         container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
     exec_run(
-        "/run/dojo/bin/chown -R root:root /challenge/*", container=container
+        "/run/dojo/bin/find /challenge -mindepth 1 -exec /run/dojo/bin/chown root:root {} \;", container=container
     )
-    exec_run("/run/dojo/bin/chmod -R 4755 /challenge/*", container=container)
+    exec_run("/run/dojo/bin/find /challenge -mindepth 1 -exec /run/dojo/bin/chmod 4755 {} \;", container=container)
 
 
 def insert_flag(container, flag):
