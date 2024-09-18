@@ -20,8 +20,10 @@ from ...models import DojoModules, DojoChallenges
 from ...utils import (
     container_name,
     lookup_workspace_token,
-    serialize_user_flag,
     resolved_tar,
+    serialize_user_flag,
+    store_running_container,
+    get_running_container,
     user_docker_client,
     user_ipv4,
 )
@@ -39,8 +41,10 @@ HOST_HOMES_MOUNTS = HOST_HOMES / "mounts"
 HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
 
 
-def remove_container(docker_client, user):
+def remove_container(user):
     try:
+        image_name = get_running_container(user.id)
+        docker_client = user_docker_client(user, image_name)
         container = docker_client.containers.get(container_name(user))
         container.remove(force=True)
         container.wait(condition="removed")
@@ -163,6 +167,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
         default_network.disconnect(container)
 
     container.start()
+    store_running_container(user.id, dojo_challenge.image)
     return container
 
 
@@ -195,9 +200,9 @@ def insert_challenge(container, as_user, dojo_challenge):
         container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
     exec_run(
-        "/run/dojo/bin/chown -R root:root /challenge", container=container
+        "/run/dojo/bin/chown -R root:root /challenge/*", container=container
     )
-    exec_run("/run/dojo/bin/chmod -R 4755 /challenge", container=container)
+    exec_run("/run/dojo/bin/chmod -R 4755 /challenge/*", container=container)
 
 
 def insert_flag(container, flag):
@@ -209,8 +214,8 @@ def insert_flag(container, flag):
 
 def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     as_user = as_user or user
-    docker_client = user_docker_client(user)
-    remove_container(docker_client, user)
+    docker_client = user_docker_client(user, image_name=dojo_challenge.image)
+    remove_container(user)
 
     mounts = [("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id), None)]
     if as_user != user:

@@ -4,10 +4,11 @@ RUN apk add --no-cache \
         python3 \
         py3-pip \
         openssh-server-pam \
+        openssh-client \
         docker-cli \
         mysql-client
 
-RUN pip3 install --break-system-packages requests==2.31.0 docker
+RUN pip3 install --break-system-packages requests==2.31.0 docker redis
 
 RUN addgroup -g 995 docker && \
     adduser -S hacker -G docker -s /bin/sh && \

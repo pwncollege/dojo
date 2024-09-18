@@ -55,6 +55,10 @@ define S3_BACKUP_BUCKET
 define AWS_DEFAULT_REGION
 define AWS_ACCESS_KEY_ID
 define AWS_SECRET_ACCESS_KEY
+define MAC_HOSTNAME
+define MAC_USERNAME
+define MAC_KEY_FILE
+define MAC_GUEST_CONTROL_FILE
 
 mv /data/.config.env /data/config.env
 . /data/config.env

@@ -12,6 +12,7 @@ import tempfile
 import bleach
 import docker
 import docker.errors
+import redis
 from flask import current_app, Response, Markup, abort, g
 from itsdangerous.url_safe import URLSafeSerializer
 from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
@@ -26,7 +27,9 @@ from sqlalchemy.sql import or_
 
 from ..config import WORKSPACE_NODES
 from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges, WorkspaceTokens
+from . import mac_docker
 
+r = redis.from_url(os.environ.get("REDIS_URL"))
 
 ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
@@ -81,11 +84,23 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     return user_flag
 
 
+def store_running_container(user_id, image):
+    # store in redis the image that's running so that it can be picked
+    # up by sshd
+    r.set(f"user_{user_id}-running-image", image)
+
+def get_running_container(user_id):
+    r.get(f"user_{user_id}-running-image")
+
+
 def user_node(user):
     return list(WORKSPACE_NODES.keys())[user.id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
 
 
-def user_docker_client(user):
+def user_docker_client(user, image_name=None):
+    if image_name and image_name.startswith("mac:"):
+        return mac_docker.MacDockerClient()
+
     node_id = user_node(user)
     return (docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
             if node_id is not None else docker.from_env())
