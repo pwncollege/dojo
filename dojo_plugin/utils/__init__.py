@@ -90,7 +90,7 @@ def store_running_container(user_id, image):
     r.set(f"user_{user_id}-running-image", image)
 
 def get_running_container(user_id):
-    r.get(f"user_{user_id}-running-image")
+    return r.get(f"user_{user_id}-running-image").decode('latin-1')
 
 
 def user_node(user):
