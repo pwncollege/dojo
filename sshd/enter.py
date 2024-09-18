@@ -43,7 +43,7 @@ def main():
 
     is_mac = False
     if image_name and image_name.startswith(b"mac:"):
-        docker_client = mac_docker.MacDockerClient()
+        docker_client = mac_docker.MacDockerClient(key_filename="/opt/sshd/pwn-college-mac-key")
         is_mac = True
     else:
         docker_client = docker.DockerClient(base_url=docker_host, tls=False)

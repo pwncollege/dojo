@@ -31,6 +31,11 @@ def error(msg):
 def main():
     enter_path = pathlib.Path(__file__).parent.resolve() / "enter.py"
 
+    # dirty dirty hack
+    target_key = pathlib.Path(__file__).parent.resolve() / "pwn-college-mac-key"
+    subprocess.run(f"cp {os.environ.get('MAC_KEY_FILE', '/opt/pwn.college/data/mac-key')} {target_key} ; chown hacker:docker {target_key} ; chmod 600 {target_key}",
+                   shell=True,
+                   )
     connect_arg = f"-h{DB_HOST}" if DB_HOST else ""
     result = subprocess.run(["mysql", connect_arg, f"-p{DB_PASS}", f"-u{DB_USER}", f"-D{DB_NAME}", "-sNe", 'select value, user_id from ssh_keys;'], stdout=subprocess.PIPE)
     if result.returncode != 0:
