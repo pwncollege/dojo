@@ -37,12 +37,13 @@ def main():
     container_name = sys.argv[1]
     user_id = int(container_name.split("_")[1])
 
-    image_name = r.get(f"user_{user_id}-running-image")
+    image_name = r.get(f"flask_cache_user_{user_id}-running-image")
     node_id = list(WORKSPACE_NODES.keys())[user_id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
     docker_host = f"tcp://192.168.42.{node_id + 1}:2375" if node_id is not None else "unix:///var/run/docker.sock"
 
     is_mac = False
-    if image_name and image_name.startswith(b"mac:"):
+    # SUPER JANKY FIX PLEASE:
+    if image_name and b"mac:" in image_name:
         docker_client = mac_docker.MacDockerClient(key_filename="/opt/sshd/pwn-college-mac-key")
         is_mac = True
     else:
