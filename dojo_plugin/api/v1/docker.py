@@ -41,14 +41,17 @@ HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
 
 
 def remove_container(user):
-    try:
-        image_name = cache.get(f"user_{user.id}-running-image")
-        docker_client = user_docker_client(user, image_name)
-        container = docker_client.containers.get(container_name(user))
-        container.remove(force=True)
-        container.wait(condition="removed")
-    except docker.errors.NotFound:
-        pass
+    # Just in case our container is still running on the other docker container, let's make sure we try to kill both
+    known_image_name = cache.get(f"user_{user.id}-running-image")
+    images = [None, known_image_name]
+    for image_name in images:
+        try:
+            docker_client = user_docker_client(user, image_name)
+            container = docker_client.containers.get(container_name(user))
+            container.remove(force=True)
+            container.wait(condition="removed")
+        except docker.errors.NotFound:
+            pass
 
 
 def start_container(docker_client, user, as_user, mounts, dojo_challenge, practice):
