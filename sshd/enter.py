@@ -31,7 +31,7 @@ def get_docker_client(user_id):
         is_mac = True
     else:
         docker_client = docker.DockerClient(base_url=docker_host, tls=False)
-    return docker_client, is_mac
+    return docker_host, docker_client, is_mac
 
 
 def main():
@@ -51,7 +51,7 @@ def main():
     container_name = sys.argv[1]
     user_id = int(container_name.split("_")[1])
 
-    docker_client, is_mac = get_docker_client(user_id)
+    docker_host, docker_client, is_mac = get_docker_client(user_id)
 
     try:
         container = docker_client.containers.get(container_name)
@@ -62,7 +62,7 @@ def main():
     attempts = 0
     while attempts < 30:
         if attempts != 0:
-            docker_client, is_mac = get_docker_client(user_id)
+            docker_host, docker_client, is_mac = get_docker_client(user_id)
         try:
             container = docker_client.containers.get(container_name)
             status = container.status
