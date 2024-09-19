@@ -20,6 +20,20 @@ WORKSPACE_NODES = {
 
 r = redis.from_url(os.environ.get("REDIS_URL"))
 
+def get_docker_client(user_id):
+    image_name = r.get(f"flask_cache_user_{user_id}-running-image")
+    node_id = list(WORKSPACE_NODES.keys())[user_id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
+    docker_host = f"tcp://192.168.42.{node_id + 1}:2375" if node_id is not None else "unix:///var/run/docker.sock"
+
+    is_mac = False
+    if image_name and b"mac:" in image_name:
+        docker_client = mac_docker.MacDockerClient(key_filename="/opt/sshd/pwn-college-mac-key")
+        is_mac = True
+    else:
+        docker_client = docker.DockerClient(base_url=docker_host, tls=False)
+    return docker_client, is_mac
+
+
 def main():
     original_command = os.getenv("SSH_ORIGINAL_COMMAND")
     tty = os.getenv("SSH_TTY") is not None
@@ -37,17 +51,7 @@ def main():
     container_name = sys.argv[1]
     user_id = int(container_name.split("_")[1])
 
-    image_name = r.get(f"flask_cache_user_{user_id}-running-image")
-    node_id = list(WORKSPACE_NODES.keys())[user_id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
-    docker_host = f"tcp://192.168.42.{node_id + 1}:2375" if node_id is not None else "unix:///var/run/docker.sock"
-
-    is_mac = False
-    # SUPER JANKY FIX PLEASE:
-    if image_name and b"mac:" in image_name:
-        docker_client = mac_docker.MacDockerClient(key_filename="/opt/sshd/pwn-college-mac-key")
-        is_mac = True
-    else:
-        docker_client = docker.DockerClient(base_url=docker_host, tls=False)
+    docker_client, is_mac = get_docker_client(user_id)
 
     try:
         container = docker_client.containers.get(container_name)
@@ -57,6 +61,8 @@ def main():
 
     attempts = 0
     while attempts < 30:
+        if attempts != 0:
+            docker_client, is_mac = get_docker_client(user_id)
         try:
             container = docker_client.containers.get(container_name)
             status = container.status
@@ -82,7 +88,8 @@ def main():
         if not os.fork():
             ssh_entrypoint = "/run/dojo/bin/ssh-entrypoint"
             if is_mac:
-                container.execve_shell("zsh -i", user="1000")
+                cmd = original_command if original_command else "zsh -i"
+                container.execve_shell(cmd, user="1000")
             else:
                 command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
                 os.execve(
