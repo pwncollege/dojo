@@ -166,7 +166,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
         default_network.disconnect(container)
 
     container.start()
-    cache.set(f"user_{user.id}-running-image", dojo_challenge.image)
+    cache.set(f"user_{user.id}-running-image", dojo_challenge.image, timeout=0)
     return container
 
 
