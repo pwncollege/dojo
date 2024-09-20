@@ -40,8 +40,6 @@ services:
       - DOJO_WORKSPACE=${DOJO_WORKSPACE}
     volumes:
       - /data/workspace:/out
-    devices:
-      - /dev/kvm
 
   workspacefs:
     container_name: workspacefs
