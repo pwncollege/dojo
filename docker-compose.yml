@@ -108,7 +108,6 @@ services:
       - MAC_KEY_FILE=${MAC_KEY_FILE}
       - MAC_GUEST_CONTROL_FILE=${MAC_GUEST_CONTROL_FILE}
     volumes:
-      - /data:/var/data
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
       - /data/homes:/var/homes:shared

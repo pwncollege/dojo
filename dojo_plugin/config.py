@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 DOJOS_DIR = pathlib.Path("/var/dojos")
-DATA_DIR = pathlib.Path("/var/data")
 
 WORKSPACE_NODES = {
     int(node_id): node_key
