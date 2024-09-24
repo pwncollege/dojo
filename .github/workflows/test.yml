@@ -109,6 +109,9 @@ jobs:
       - name: Run tests
         timeout-minutes: 4
         run: |
+          docker exec dojo-test ls -al /dev
+          docker exec dojo-test zpool status
+          docker exec dojo-test zfs list
           export MOZ_HEADLESS=1
           timeout 3m pytest -vrpP --durations=0 ./test || (docker exec dojo-test dojo compose logs && false)
 
