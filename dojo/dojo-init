@@ -66,6 +66,11 @@ mv /data/.config.env /data/config.env
 mkdir -p /data/workspace/nix
 mkdir -p /data/workspacefs/bin
 
+if ! zpool list dojo > /dev/null 2>&1; then
+    truncate -s 256G /data/dojo-zfs.img
+    zpool create dojo /data/dojo-zfs.img
+fi
+
 if [ ! -f /data/homes/homefs ]; then
     echo "[+] Creating user home structure."
     mkdir -p /data/homes
