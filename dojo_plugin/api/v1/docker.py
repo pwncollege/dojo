@@ -69,13 +69,14 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
 
     auth_token = os.urandom(32).hex()
 
+    challenge_path = "/challenge"
     challenge_bin_path = "/run/challenge/bin"
     workspace_bin_path = "/run/workspace/bin"
     dojo_bin_path = "/run/dojo/bin"
     image = docker_client.images.get(dojo_challenge.image)
     image_env = image.attrs["Config"].get("Env") or []
     image_path = next((env_var[len("PATH="):].split(":") for env_var in image_env if env_var.startswith("PATH=")), [])
-    env_path = ":".join([challenge_bin_path, workspace_bin_path, *image_path])
+    env_path = ":".join([challenge_path, challenge_bin_path, workspace_bin_path, *image_path])
 
     devices = []
     if os.path.exists("/dev/kvm"):
