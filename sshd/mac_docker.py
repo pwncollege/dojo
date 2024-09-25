@@ -44,7 +44,7 @@ class MacDockerClient:
     def close(self):
         pass  # No persistent connection to close
 
-    def _ssh_exec(self, command, only_stdout=True, exception_on_fail=True, input=None, capture_output=True):
+    def _ssh_exec(self, command, only_stdout=True, exception_on_fail=True, input=None, capture_output=True, timeout_seconds=None):
         ssh_command = ['ssh',
                        "-a",
                        "-o", "StrictHostKeychecking=no",
@@ -68,11 +68,11 @@ class MacDockerClient:
             stdout_loc = None
             stderr_loc = None
             
-        result = subprocess.run(ssh_command, stdout=stdout_loc, stderr=stderr_loc, input=input)
+        result = subprocess.run(ssh_command, stdout=stdout_loc, stderr=stderr_loc, input=input, timeout=timeout_seconds)
         if result.returncode != 0:
             if exception_on_fail:
                 error_msg = result.stdout.strip()
-                raise Exception(f'SSH {command=} {self.username=} {self.key_filename=} {self.hostname=} failed: {error_msg}')
+                raise Exception(f'SSH {ssh_command=} {self.username=} {self.key_filename=} {self.hostname=} {result=} {result.returncode=} failed: {error_msg}')
         return result.returncode, result.stdout.strip() if result.stdout else b""
     
 
@@ -110,7 +110,8 @@ class MacContainerCollection:
             time.sleep(1)
             # set up the timeout
             container = MacContainer(self.client, vm)
-            container.exec_run(f"nohup bash -c 'sleep {MAC_TIMEOUT_SECONDS} && echo \"VM and all files going away in 5 minutes, better save now\" | wall && sleep 300 && echo \"VM and all files going away in 1 minute, last warning\" | wall && sleep 60 && shutdown -h now' > /dev/null &", user="0")
+            # disable and do on the image now
+            # container.exec_run(f"nohup bash -c 'sleep {MAC_TIMEOUT_SECONDS} && echo \"VM and all files going away in 5 minutes, better save now\" | wall && sleep 300 && echo \"VM and all files going away in 1 minute, last warning\" | wall && sleep 60 && shutdown -h now' > /dev/null &", user="0")
             return container
         else:
             raise Exception(f'Error creating container: {image=} {name=} {output}')
@@ -137,10 +138,17 @@ class MacContainer:
 
     def remove(self, force=True):
         # Kill the VM
-        command = f'{MAC_GUEST_CONTROL_FILE} kill-vm {self.id}'
-        exitcode, output = self.client._ssh_exec(command)
-        if b'Error' in output:
-            raise Exception(f'Error removing container: {output}')
+
+        # first try to shutdown the VM
+        try:
+            self.exec_run("shutdown -h now", "0", timeout_seconds=10)
+        except subprocess.TimeoutExpired:
+            # if that didn't work, kill it
+            if force:
+                command = f'{MAC_GUEST_CONTROL_FILE} kill-vm {self.id}'
+                exitcode, output = self.client._ssh_exec(command)
+                if b'Error' in output:
+                    raise Exception(f'Error removing container: {output}')
 
     def wait(self, condition='removed'):
         # Wait until the VM is removed
@@ -160,7 +168,7 @@ class MacContainer:
         pass
 
     # returns exit_code, output
-    def exec_run(self, cmd, user=None, input=None, capture_output=True, **kwargs):
+    def exec_run(self, cmd, user=None, input=None, capture_output=True, timeout_seconds=None, **kwargs):
         # SSH to the VM's IP address and run the command
         if user == "0" or user == None:
             # they want to run the command as root
@@ -169,7 +177,7 @@ class MacContainer:
             # they want to run the command as hacker
             cmd = f"exec sudo su - hacker -c {shlex.quote(cmd)}"
         command = f"{MAC_GUEST_CONTROL_FILE} exec {self.id} {shlex.quote(cmd)}"
-        exitcode, output = self.client._ssh_exec(command, only_stdout=False, exception_on_fail=False, input=input, capture_output=capture_output)
+        exitcode, output = self.client._ssh_exec(command, only_stdout=False, exception_on_fail=False, input=input, capture_output=capture_output, timeout_seconds=timeout_seconds)
         return exitcode, output
 
     # execve shell
@@ -219,7 +227,10 @@ class MacContainer:
         self.exec_run(f"cat - | tar -xvf - -C {shlex.quote(path)}", input=data.read())
 
     def get_archive(self, path):
-        pass
+        exitcode, output = self.exec_run(f"tar -cf - {shlex.quote(path)}")
+        if exitcode != 0:
+            raise docker.errors.NotFound(f'Getting archive {path=} failed {exitcode=} {output=}')
+        return output
         
     
 

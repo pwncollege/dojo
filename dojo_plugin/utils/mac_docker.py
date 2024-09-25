@@ -227,7 +227,10 @@ class MacContainer:
         self.exec_run(f"cat - | tar -xvf - -C {shlex.quote(path)}", input=data.read())
 
     def get_archive(self, path):
-        pass
+        exitcode, output = self.exec_run(f"tar -cf - {shlex.quote(path)}")
+        if exitcode != 0:
+            raise docker.errors.NotFound(f'Getting archive {path=} failed {exitcode=} {output=}')
+        return output
         
     
 
