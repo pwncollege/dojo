@@ -510,6 +510,7 @@ RUN xargs pip install --force-reinstall <<EOF
     r2pipe
     requests
     selenium
+    fastecdsa
 EOF
 
 RUN ln -sf /usr/bin/ipython3 /usr/bin/ipython
