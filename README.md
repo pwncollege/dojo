@@ -1,3 +1,29 @@
+# PACE Infrastructure
+
+This is the repository for DSU Applied Research Lab's fork of [pwncollege/dojo](https://github.com/pwncollege/dojo).
+This fork was created to facilitate the PACE project at DSU ARL.
+
+## Fork Background
+PACE is DSU's codename for the [ACE Institute](https://ctf.asu.edu/education/ace/) in partnership with Arizona State University.
+This modified version of [pwn.college](https://pwn.college) will eventually facilitate the [Governer's Cyber Academy](https://dsu.edu/admissions/undergraduate/cyber-academy.html), starting with the Cyber Roadshows.
+
+## Contributing
+
+### General Public
+This fork is not accepting public contributions at this time.
+Feel free to submit pull requests to the upstream repository at [pwncollege/dojo](https://github.com/pwncollege/dojo).
+
+### DSU PACE Team
+Because this is a divergent fork, we need to reduce any git craziness.
+For this reason, only repository admins may force push to some branches.
+Please make a branch off of master and open a pull request for all changes.
+Repository admins will handle pulling in upstream changes.
+
+**Remember! This repository is currently public!**
+
+------
+*Original README.md content from upstream*
+
 # DOJO
 
 The pwn.college DOJO.
