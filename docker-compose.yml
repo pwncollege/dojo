@@ -110,6 +110,7 @@ services:
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
+      - /data/mac:/var/data/mac
       - /data/homes:/var/homes:shared
       - /data/dojos:/var/dojos
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
