@@ -140,15 +140,16 @@ class MacContainer:
         # Kill the VM
 
         # first try to shutdown the VM
+        timeout_hit = False
         try:
             self.exec_run("/sbin/shutdown -h now", "0", timeout_seconds=10)
         except subprocess.TimeoutExpired:
             # if that didn't work, kill it
-            if force:
-                command = f'{MAC_GUEST_CONTROL_FILE} kill-vm {self.id}'
-                exitcode, output = self.client._ssh_exec(command)
-                if b'Error' in output:
-                    raise Exception(f'Error removing container: {output}')
+            timeout_hit = True
+
+        if force or timeout_hit:
+            command = f'{MAC_GUEST_CONTROL_FILE} kill-vm {self.id}'
+            exitcode, output = self.client._ssh_exec(command, exception_on_fail=False)
 
     def wait(self, condition='removed'):
         # Wait until the VM is removed
