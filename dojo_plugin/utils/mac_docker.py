@@ -141,7 +141,7 @@ class MacContainer:
 
         # first try to shutdown the VM
         try:
-            self.exec_run("shutdown -h now", "0", timeout_seconds=10)
+            self.exec_run("/sbin/shutdown -h now", "0", timeout_seconds=10)
         except subprocess.TimeoutExpired:
             # if that didn't work, kill it
             if force:
