@@ -134,6 +134,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         upx-ucl
 EOF
 
+RUN pip install fastecdsa
+
 ################################################################################
 
 FROM scratch as builder-kernel-no
@@ -512,6 +514,7 @@ RUN xargs pip install --force-reinstall <<EOF
     r2pipe
     requests
     selenium
+    fastecdsa
 EOF
 
 RUN ln -sf /usr/bin/ipython3 /usr/bin/ipython
