@@ -107,11 +107,11 @@ class MacContainerCollection:
             unique_id = output.strip().split(' ')[1]
             # Status is always running after create
             vm = {'id': unique_id, 'status': 'running'}
-            time.sleep(1)
             # set up the timeout
             container = MacContainer(self.client, vm)
-            # disable and do on the image now
-            # container.exec_run(f"nohup bash -c 'sleep {MAC_TIMEOUT_SECONDS} && echo \"VM and all files going away in 5 minutes, better save now\" | wall && sleep 300 && echo \"VM and all files going away in 1 minute, last warning\" | wall && sleep 60 && shutdown -h now' > /dev/null &", user="0")
+            # we want to setup the hostname if it exists
+            if hostname:
+                container.exec_run("cat - > /Users/admin/hostname", input=hostname.encode())
             return container
         else:
             raise Exception(f'Error creating container: {image=} {name=} {output}')
