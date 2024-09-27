@@ -3,6 +3,7 @@
 import json
 import os
 import pathlib
+import shlex
 import sys
 import time
 
@@ -88,8 +89,8 @@ def main():
         if not os.fork():
             ssh_entrypoint = "/run/dojo/bin/ssh-entrypoint"
             if is_mac:
-                cmd = original_command if original_command else "zsh -i"
-                container.execve_shell(cmd, user="1000")
+                cmd = f"/bin/bash -c {shlex.quote(original_command)}" if original_command  else "zsh -i"
+                container.execve_shell(cmd, user="1000", use_tty=tty)
             else:
                 command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
                 os.execve(
