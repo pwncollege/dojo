@@ -3,7 +3,7 @@ from CTFd.models import Users
 
 from . import user_docker_client
 
-on_demand_services = { "code", "desktop", "desktop-windows" }
+on_demand_services = { "code", "desktop"}
 
 def start_on_demand_service(user, service_name):
     if service_name not in on_demand_services:
