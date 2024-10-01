@@ -56,6 +56,17 @@ class view_desktop(Resource):
                    "password": password,
                }
                iframe_src = url_for("pwncollege_workspace.forward_workspace", service=service_param, service_path="vnc.html", **vnc_params)
+           elif service == "desktop-windows":
+               service_param = "~".join(("desktop-windows", str(user.id), container_password(container, "desktop-windows")))
+               vnc_params = {
+                   "autoconnect": 1,
+                   "reconnect": 1,
+                   "reconnect_delay": 200,
+                   "resize": "local",
+                   "path": url_for("pwncollege_workspace.forward_workspace", service=service_param, service_path="websockify"),
+                   "password": "password", # Not really used for auth!
+               }
+               iframe_src = url_for("pwncollege_workspace.forward_workspace", service=service_param, service_path="vnc.html", **vnc_params)
            else:
                iframe_src = f"/workspace/{service}/"
 
