@@ -1,5 +1,6 @@
 import collections
 import datetime
+import math
 import re
 
 from flask import Blueprint, Response, render_template, request, abort, stream_with_context
@@ -9,7 +10,7 @@ from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only, ratelimit
 
-from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents
+from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents, DiscordThanks
 from ..utils import is_dojo_admin
 from ..utils.dojo import dojo_route
 from ..utils.discord import add_role, get_discord_member
@@ -33,6 +34,16 @@ def assessment_name(dojo, assessment):
         return module_names[assessment["id"]]
     return assessment["name"]
 
+
+def get_thanks_credit(dojo, user_id):
+    dojo_start = dojo.start_date()
+    # TODO: Need dojo end date
+    discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
+    if not discord_user:
+        return 0
+    thanks_count = discord_user.thanks(start=dojo.start_date())
+
+    return min(0.05 * math.log(thanks_count, 50), 0.05) if thanks_count else 0
 
 def grade(dojo, users_query, *, ignore_pending=False):
     if isinstance(users_query, Users):
@@ -206,6 +217,12 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     progress=(assessment.get("progress") or {}).get(str(user_id), ""),
                     credit=(assessment.get("credit") or {}).get(str(user_id), 0.0),
                 ))
+            if type == "helpfulness":
+                assessment_grades.append(dict(
+                    name= "Discord Helpfulness",
+                    progress="",
+                    credit=get_thanks_credit(dojo, user_id)
+                    ))
 
         overall_grade = (
             sum(grade["credit"] * grade["weight"] for grade in assessment_grades if "weight" in grade) /
