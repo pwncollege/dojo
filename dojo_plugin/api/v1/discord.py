@@ -127,7 +127,7 @@ class GetDiscordThanks(Resource):
 
 
 @discord_namespace.route("/thanks/leaderboard", methods=["GET"])
-class GetDiscordThanks(Resource):
+class GetDiscordLeaderBoard(Resource):
     def get(self):
         start_stamp = request.args.get("start")
 
