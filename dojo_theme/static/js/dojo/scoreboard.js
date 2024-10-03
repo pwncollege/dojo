@@ -17,9 +17,18 @@ function loadScoreboard(duration, page) {
     $("#scoreboard-control-week").removeClass("scoreboard-page-selected");
     $("#scoreboard-control-month").removeClass("scoreboard-page-selected");
     $("#scoreboard-control-all").removeClass("scoreboard-page-selected");
-    if (duration == 7) $("#scoreboard-control-week").addClass("scoreboard-page-selected");
-    if (duration == 30) $("#scoreboard-control-month").addClass("scoreboard-page-selected");
-    if (duration == 0) $("#scoreboard-control-all").addClass("scoreboard-page-selected");
+    if (duration == 7) {
+        $("#scoreboard-control-week").addClass("scoreboard-page-selected");
+        $("#scoreboard-heading").text("7-Day Scoreboard:");
+    }
+    if (duration == 30) {
+        $("#scoreboard-control-month").addClass("scoreboard-page-selected");
+        $("#scoreboard-heading").text("30-Day Scoreboard:");
+    }
+    if (duration == 0) {
+        $("#scoreboard-control-all").addClass("scoreboard-page-selected");
+        $("#scoreboard-heading").text("All-Time Scoreboard:");
+    }
 
     CTFd.fetch(endpoint, {
         method: "GET",
