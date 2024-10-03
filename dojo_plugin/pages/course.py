@@ -10,7 +10,7 @@ from CTFd.utils import get_config
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only, ratelimit
 
-from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents, DiscordThanks
+from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents, DiscordUserActivity
 from ..utils import is_dojo_admin
 from ..utils.dojo import dojo_route
 from ..utils.discord import add_role, get_discord_member
@@ -25,6 +25,17 @@ def get_letter_grade(dojo, grade):
             return letter_grade
     return "?"
 
+def clamp_ec(limit):
+    global_limit = [limit]
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            limit = global_limit[0]
+            result = func(*args, **kwargs)
+            clamped_result = min(result, limit)
+            global_limit[0] -= clamped_result
+            return clamped_result
+        return wrapper
+    return decorator
 
 def assessment_name(dojo, assessment):
     module_names = {module.id: module.name for module in dojo.modules}
@@ -34,16 +45,6 @@ def assessment_name(dojo, assessment):
         return module_names[assessment["id"]]
     return assessment["name"]
 
-
-def get_thanks_credit(dojo, user_id):
-    dojo_start = dojo.start_date()
-    # TODO: Need dojo end date
-    discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
-    if not discord_user:
-        return 0
-    thanks_count = discord_user.thanks(start=dojo.start_date())
-
-    return min(0.05 * math.log(thanks_count, 50), 0.05) if thanks_count else 0
 
 def grade(dojo, users_query, *, ignore_pending=False):
     if isinstance(users_query, Users):
@@ -120,8 +121,57 @@ def grade(dojo, users_query, *, ignore_pending=False):
 
     module_solves = {}
 
+
+    def get_meme_progress(dojo, user_id):
+            discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
+            if not discord_user:
+                return ""
+            course_start = dojo.start_date()
+            meme_weeks = discord_user.meme_dates(start=dojo.start_date(), end=dojo.start_date() + datetime.timedelta(weeks=21))
+            week_ranges = ' '.join([f"{w[0].month}/{w[0].day}-{w[1].month}/{w[1].day}" for w in meme_weeks])
+            return week_ranges
+
+    def get_thanks_progress(dojo, user_id):
+            discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
+            if not discord_user:
+                return 0
+            thanks_count = discord_user.thanks_count(start=dojo.start_date())
+
+            return thanks_count
+
     def result(user_id):
         assessment_grades = []
+
+        ec_limit = dojo.course.get("ec_limit") or 1.00
+        ec_clamp = clamp_ec(ec_limit)
+
+        @ec_clamp
+        def get_thanks_credit(dojo, user_id, method, max_credit):
+            discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
+            if not discord_user:
+                return 0
+            thanks_count = discord_user.thanks_count(start=dojo.start_date())
+
+            if method == 'log50':
+                return max_credit * math.log(thanks_count, 50) if thanks_count else 0
+            elif method == '1337log2':
+                return min(1.337 ** math.log(thanks_count,2) / 100, max_credit) if thanks_count else 0
+            return 0
+
+        @ec_clamp
+        def get_meme_credit(dojo, user_id, max_credit, meme_value=0.005):
+            discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
+            if not discord_user:
+                return 0
+            course_start = dojo.start_date()
+            meme_count = discord_user.meme_count(start=course_start, end=course_start + datetime.timedelta(weeks=16))
+
+            return min(meme_count * meme_value, max_credit)
+
+        @ec_clamp
+        def clamp_extra():
+            return (assessment.get("credit") or {}).get(str(user_id), 0.0)
+
 
         for assessment in assessments:
             type = assessment.get("type")
@@ -215,19 +265,30 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
                     progress=(assessment.get("progress") or {}).get(str(user_id), ""),
-                    credit=(assessment.get("credit") or {}).get(str(user_id), 0.0),
+                    credit=clamp_extra(user_id)
                 ))
             if type == "helpfulness":
+                method = assessment.get("method")
+                max_credit = assessment.get("max_credit") or 1.00
                 assessment_grades.append(dict(
-                    name= "Discord Helpfulness",
-                    progress="",
-                    credit=get_thanks_credit(dojo, user_id)
+                    name=assessment.get("name") or "Discord Helpfulness",
+                    progress=get_thanks_progress(dojo, user_id),
+                    credit=get_thanks_credit(dojo, user_id, method, max_credit)
+                    ))
+            if type == "memes":
+                max_credit = assessment.get("max_credit") or 1.00
+                credit = get_meme_credit(dojo, user_id, max_credit)
+                assessment_grades.append(dict(
+                    name=assessment.get("name") or "Discord Memes",
+                    progress=get_meme_progress(dojo, user_id),
+                    credit=credit
                     ))
 
         overall_grade = (
             sum(grade["credit"] * grade["weight"] for grade in assessment_grades if "weight" in grade) /
             sum(grade["weight"] for grade in assessment_grades if "weight" in grade)
         ) if assessment_grades else 1.0
+
         extra_credit = (
             sum(grade["credit"] for grade in assessment_grades if "weight" not in grade)
         )

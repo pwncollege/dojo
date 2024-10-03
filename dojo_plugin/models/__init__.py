@@ -795,7 +795,7 @@ class DiscordUsers(db.Model):
             DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.thanks).count()
         return count
 
-    def memes_count(self, start=None, end=None, weekly=True):
+    def meme_count(self, start=None, end=None, weekly=True):
         if not weekly:
             return DiscordUserActivity.query.filter(and_(DiscordUserActivity.to_user_id == self.discord_id),
                    DiscordUserActivity.timestamp >= start if start else True,
@@ -803,14 +803,15 @@ class DiscordUsers(db.Model):
                    DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.memes
                    ).count()
 
+        meme_weeks = self.meme_dates(start, end)
+        return len(meme_weeks)
+
+    def meme_dates(self, start=None, end=None):
         memes = DiscordUserActivity.query.filter(and_(DiscordUserActivity.to_user_id == self.discord_id),
             DiscordUserActivity.timestamp >= start if start else True,
             DiscordUserActivity.timestamp <= end if end else True,
             DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.memes
             ).order_by(DiscordUserActivity.timestamp).all()
-
-        if not memes:
-            return 0
 
         start = memes[0].timestamp if not start else start
         end = memes[-1].timestamp if not end else end
@@ -819,10 +820,10 @@ class DiscordUsers(db.Model):
             return bool([m for m in memes if m.timestamp >= week[0] and m.timestamp <= week[1]])
 
         week_count = (end - start) // datetime.timedelta(days=7)
-        class_weeks = [(start + datetime.timedelta(days=7 * i), calss_start + datetime.timedelta(days= 7 * (i + 1))) for i in range(week_count)]
+        class_weeks = [(start + datetime.timedelta(days=7 * i), start + datetime.timedelta(days= 7 * (i + 1))) for i in range(week_count)]
 
-        meme_weeks = [w for w in class_weeks if valid_week(w, memes)]
-        return len(meme_weeks)
+        return [w for w in class_weeks if valid_week(w, memes)]
+
 
     __repr__ = columns_repr(["user", "discord_id"])
 
