@@ -1,5 +1,6 @@
 import base64
 import contextlib
+import enum
 import functools
 import os
 import string
@@ -751,18 +752,32 @@ class SSHKeys(db.Model):
 
     __repr__ = columns_repr(["user", "value"])
 
-class DiscordThanks(db.Model):
-    __tablename__ = "discord_thanks"
+
+class DiscordUserActivity(db.Model):
+    class ActivityType(enum.Enum):
+        thanks  = 1
+        memes   = 2
+
+    __tablename__ = "discord_user_activity"
     id = db.Column(db.Integer, primary_key=True)
     to_user_id = db.Column(db.BigInteger)
     by_user_id = db.Column(db.BigInteger)
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    activity_type = db.Column(db.Enum(ActivityType))
+    guild_id = db.Column(db.BigInteger)
+    channel_id = db.Column(db.BigInteger)
+    message_id = db.Column(db.BigInteger)
 
-    def __init__(self, to_user_id, by_user_id, timestamp=None, **kwargs):
+    def __init__(self, to_user_id, by_user_id, **kwargs):
+
         self.by_user_id = by_user_id
         self.to_user_id = to_user_id
-        self.timestamp = timestamp
-        super(DiscordThanks, self).__init__(**kwargs)
+        self.timestamp = kwargs.pop('timestamp', None)
+        self.guild_id = kwargs.pop('guild_id')
+        self.channel_id = kwargs.pop('channel_id')
+        self.message_id = kwargs.pop('message_id')
+        self.activity_type = kwargs.pop('activity_type', None)
+        super(DiscordUserActivity, self).__init__(**kwargs)
 
 class DiscordUsers(db.Model):
     __tablename__ = "discord_users"
@@ -773,12 +788,41 @@ class DiscordUsers(db.Model):
 
     user = db.relationship("Users")
 
-    def thanks(self, start=None, end=None):
-        count = DiscordThanks.query.filter(and_(DiscordThanks.to_user_id == self.discord_id),
-            DiscordThanks.timestamp >= start if start else True,
-            DiscordThanks.timestamp <= end if end else True).count()
+    def thanks_count(self, start=None, end=None):
+        count = DiscordUserActivity.query.filter(and_(DiscordUserActivity.to_user_id == self.discord_id),
+            DiscordUserActivity.timestamp >= start if start else True,
+            DiscordUserActivity.timestamp <= end if end else True,
+            DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.thanks).count()
         return count
 
+    def memes_count(self, start=None, end=None, weekly=True):
+        if not weekly:
+            return DiscordUserActivity.query.filter(and_(DiscordUserActivity.to_user_id == self.discord_id),
+                   DiscordUserActivity.timestamp >= start if start else True,
+                   DiscordUserActivity.timestamp <= end if end else True,
+                   DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.memes
+                   ).count()
+
+        memes = DiscordUserActivity.query.filter(and_(DiscordUserActivity.to_user_id == self.discord_id),
+            DiscordUserActivity.timestamp >= start if start else True,
+            DiscordUserActivity.timestamp <= end if end else True,
+            DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.memes
+            ).order_by(DiscordUserActivity.timestamp).all()
+
+        if not memes:
+            return 0
+
+        start = memes[0].timestamp if not start else start
+        end = memes[-1].timestamp if not end else end
+
+        def valid_week(week, memes):
+            return bool([m for m in memes if m.timestamp >= week[0] and m.timestamp <= week[1]])
+
+        week_count = (end - start) // datetime.timedelta(days=7)
+        class_weeks = [(start + datetime.timedelta(days=7 * i), calss_start + datetime.timedelta(days= 7 * (i + 1))) for i in range(week_count)]
+
+        meme_weeks = [w for w in class_weeks if valid_week(w, memes)]
+        return len(meme_weeks)
 
     __repr__ = columns_repr(["user", "discord_id"])
 
