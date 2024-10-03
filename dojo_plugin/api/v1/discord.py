@@ -4,6 +4,7 @@ import json
 
 from flask import request
 from flask_restx import Namespace, Resource
+from sqlalchemy import and_
 from CTFd.cache import cache
 from CTFd.models import db
 from CTFd.utils.decorators import authed_only
@@ -11,7 +12,7 @@ from CTFd.utils.user import get_current_user
 from CTFd.plugins import bypass_csrf_protection
 
 from ...config import DISCORD_CLIENT_SECRET
-from ...models import DiscordUsers, DiscordThanks
+from ...models import DiscordUsers, DiscordUserActivity
 from ...utils.discord import get_discord_member, get_discord_member_by_discord_id
 from ...utils.dojo import get_current_dojo_challenge
 
@@ -67,63 +68,88 @@ class DiscordActivity(Resource):
         return {"success": True, "activity": activity}
 
 
-@discord_namespace.route("/thanks/user/<discord_id>", methods=["GET", "POST"])
-class GetDiscordThanks(Resource):
+def get_user_activity_prop(discord_id, activity, start=None, end=None):
+    user = DiscordUsers.query.filter_by(discord_id=discord_id).first()
+
+    if activity is DiscordUserActivity.ActivityType.thanks:
+        prop_name = "thanks"
+        count = user.thanks_count(start, end) if user else 0
+    elif activity is DiscordUserActivity.ActivityType.memes:
+        prop_name = "memes"
+        count = user.memes_count(start, end) if user else 0
+
+    return {"success": True, prop_name: count}
+
+def get_user_activity(self, discord_id, activity, request):
+    authorization = request.headers.get("Authorization")
+    res, code = auth_check(authorization)
+    if res:
+        return res, code
+
+    start_stamp = request.args.get("start")
+    end_stamp = request.args.get("end")
+    start = None
+    end = None
+
+    if start_stamp:
+        try:
+            start = datetime.fromisoformat(start_stamp)
+        except:
+            return {"success": False, "error": "invalid start format"}, 400
+    if end_stamp:
+        try:
+            end = datetime.fromisoformat(start_stamp)
+        except:
+            return {"success": False, "error": "invalid end format"}, 400
+
+    user = DiscordUsers.query.filter_by(discord_id=discord_id).first()
+
+    return get_user_activity_prop(discord_id, activity, start, end)
+
+def post_user_activity(discord_id, activity, request):
+    authorization = request.headers.get("Authorization")
+    res, code = auth_check(authorization)
+    if res:
+        return res, code
+
+    #data = request.get_json()
+    try:
+        data = json.loads(request.get_data())
+    except json.JSONDecodeError:
+        return {"success": False, "error": f"Invalid JSON data {request.data}"}, 400
+
+    if "from_user_id" not in data:
+        return {"success": False, "error": f"Invalid JSON data"}, 400
+
+    # These are discord user_ids
+    thanker = data.get("from_user_id", "")
+    kwargs = {'guild_id': data.get("guild_id"),
+              'channel_id': data.get("channel_id"),
+              'message_id': data.get("message_id"),
+              'timestamp': data.get("timestamp"),
+              'activity_type': activity
+              }
+    entry = DiscordUserActivity(discord_id, thanker, **kwargs)
+    db.session.add(entry)
+    db.session.commit()
+
+    return get_user_activity_prop(discord_id, activity)
+
+@discord_namespace.route("/memes/user/<discord_id>", methods=["GET", "POST"])
+class DiscordMemes(Resource):
     def get(self, discord_id):
-        authorization = request.headers.get("Authorization")
-        res, code = auth_check(authorization)
-        if res:
-            return res, code
-
-        start_stamp = request.args.get("start")
-        end_stamp = request.args.get("end")
-        start = None
-        end = None
-
-        if start_stamp:
-            try:
-                start = datetime.fromisoformat(start_stamp)
-            except:
-                return {"success": False, "error": "invalid start format"}, 400
-        if end_stamp:
-            try:
-                end = datetime.fromisoformat(start_stamp)
-            except:
-                return {"success": False, "error": "invalid end format"}, 400
-
-        user = DiscordUsers.query.filter_by(discord_id=discord_id).first()
-        count = user.thanks(start, end) if user else 0
-                
-
-        return {"success": True, "thanks": count}
-
+      get_user_activity(discord_id, DiscordUserActivity.ActivityType.memes, request)
 
     def post(self, discord_id):
-        authorization = request.headers.get("Authorization")
-        res, code = auth_check(authorization)
-        if res:
-            return res, code
+      post_user_activity(discord_id, DiscordUserActivity.ActivityType.memes, request)
 
-        #data = request.get_json()
-        try:
-            data = json.loads(request.get_data())
-        except json.JSONDecodeError:
-            return {"success": False, "error": f"Invalid JSON data {request.data}"}, 400
+@discord_namespace.route("/thanks/user/<discord_id>", methods=["GET", "POST"])
+class DiscordThanks(Resource):
+    def get(self, discord_id):
+      get_user_activity(discord_id, DiscordUserActivity.ActivityType.thanks, request)
 
-        if "from_user_id" not in data:
-            return {"success": False, "error": f"Invalid JSON data"}, 400
-
-        # These are discord user_ids
-        thanker = data.get("from_user_id", "")
-        timestamp = data.get("timestamp", None)
-
-        thanks = DiscordThanks(discord_id, thanker, timestamp)
-        db.session.add(thanks)
-        db.session.commit()
-
-        user = DiscordUsers.query.filter_by(discord_id=discord_id).first()
-        count = user.thanks() if user else 0
-        return {"success": True, "count": count}
+    def post(self, discord_id):
+      post_user_activity(discord_id, DiscordUserActivity.ActivityType.thanks, request)
 
 
 @discord_namespace.route("/thanks/leaderboard", methods=["GET"])
@@ -143,9 +169,11 @@ class GetDiscordLeaderBoard(Resource):
         except:
             return {"success": False, "error": "invalid start format"}, 400
 
-        thanks_scores = DiscordThanks.query.with_entities(DiscordThanks.to_user_id, db.func.count(DiscordThanks.to_user_id)
-          ).filter(DiscordThanks.timestamp >= start).group_by(DiscordThanks.to_user_id
-          ).order_by(db.func.count(DiscordThanks.to_user_id).desc())[:100]
+        thanks_scores = DiscordUserActivity.query.with_entities(DiscordUserActivity.to_user_id, db.func.count(DiscordUserActivity.to_user_id)
+          ).filter(and_(DiscordUserActivity.timestamp >= start),
+                   DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.memes
+                   ).group_by(DiscordUserActivity.to_user_id
+          ).order_by(db.func.count(DiscordUserActivity.to_user_id).desc())[:100]
 
         def get_name(discord_id):
             try:
