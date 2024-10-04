@@ -292,7 +292,6 @@ def test_workspace_practice_challenge(random_user):
     user, session = random_user
     start_challenge("example", "hello", "apple", practice=True, session=session)
     try:
-        print(workspace_run("mount", user=user).stdout, flush=True)
         result = workspace_run("sudo whoami", user=user)
         assert result.stdout.strip() == "root", f"Expected 'root', but got: ({result.stdout}, {result.stderr})"
     except subprocess.CalledProcessError as e:

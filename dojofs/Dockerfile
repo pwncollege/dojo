@@ -11,4 +11,4 @@ RUN apt-get update && \
 
 COPY ./dojofs /usr/local/bin/dojofs
 
-CMD ["dojofs", "/run/fuse/dojofs"]
+CMD ["dojofs", "/run/dojofs"]
