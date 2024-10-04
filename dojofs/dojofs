@@ -55,6 +55,7 @@ def get_container_context():
     container_re = re.compile(r"/docker/containers/([0-9a-f]+)/hostname")
     mount_info = pathlib.Path(f"/proc/{pid}/mountinfo").read_text()
     container_id = match.group(1) if (match := container_re.search(mount_info)) else None
+    print(container_id, flush=True)
     if not container_id:
         return None
 
@@ -78,7 +79,7 @@ class PrivilegedFile:
         return dict(
             st_mode=(stat.S_IFREG | 0o444),
             st_nlink=1,
-            st_size=1024,
+            st_size=4096,
             st_ctime=created_unix_time,
             st_mtime=created_unix_time,
             st_atime=created_unix_time,
