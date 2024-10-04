@@ -125,6 +125,13 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
                     read_only=True,
                     propagation="shared",
                 ),
+                docker.types.Mount(
+                    "/run/dojo/sys",
+                    "/run/dojofs",
+                    "bind",
+                    read_only=True,
+                    propagation="slave",
+                ),
             ]
             + [
                 docker.types.Mount(

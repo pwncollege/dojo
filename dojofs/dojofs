@@ -1,0 +1,110 @@
+#!/usr/bin/env python
+
+import stat
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+import fuse
+import docker
+from fuse import FUSE, Operations, fuse_get_context
+
+
+docker_client = docker.from_env()
+
+
+class DojoFS(Operations):
+    def __init__(self):
+        self.files = {}
+
+    def path(self, path):
+        def decorator(cls):
+            self.files[path] = cls()
+            return cls
+        return decorator
+
+    def getattr(self, path, fh=None):
+        if path == "/":
+            return dict(st_mode=(stat.S_IFDIR | 0o755), st_nlink=2)
+        file = self.files.get(path)
+        if not file:
+            raise fuse.FuseOSError(fuse.errno.ENOENT)
+        return file.getattr(path, fh)
+
+    def readdir(self, path, fh):
+        if path == "/":
+            return [".", "..", *(path.lstrip("/") for path, file in self.files.items() if file)]
+        else:
+            raise fuse.FuseOSError(fuse.errno.ENOENT)
+
+    def read(self, path, size, offset, fh):
+        file = self.files.get(path)
+        if not file:
+            raise fuse.FuseOSError(fuse.errno.ENOENT)
+        return file.read(path, size, offset, fh)
+
+
+dojo_fs = DojoFS()
+
+
+def get_container_context():
+    uid, gid, pid = fuse_get_context()
+    import pathlib
+    import re
+
+    container_re = re.compile(r"/docker/containers/([0-9a-f]+)/hostname")
+    mount_info = pathlib.Path(f"/proc/{pid}/mountinfo").read_text()
+    container_id = match.group(1) if (match := container_re.search(mount_info)) else None
+    if not container_id:
+        return None
+
+    try:
+        container = docker_client.containers.get(container_id)
+    except docker.errors.NotFound:
+        return None
+    return container
+
+
+def unix_time(timestamp):
+    if "." in timestamp:
+        timestamp = timestamp[:timestamp.index(".") + 7] + "Z"
+    created_time = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    created_unix_time = time.mktime(created_time.timetuple())
+    return created_unix_time
+
+
+@dojo_fs.path("/privileged")
+class PrivilegedFile:
+    def getattr(self, path, fh=None):
+        container = get_container_context()
+        created_unix_time = unix_time(container.attrs["Created"])
+        return dict(
+            st_mode=(stat.S_IFREG | 0o444),
+            st_nlink=1,
+            st_size=4096,
+            st_ctime=created_unix_time,
+            st_mtime=created_unix_time,
+            st_atime=created_unix_time,
+        )
+
+    def read(self, path, size, offset, fh):
+        container = get_container_context()
+        mode = container.labels.get("dojo.mode")
+        content = b"1\n" if mode == "privileged" else b"0\n"
+        return content[offset:offset + size]
+
+    def __bool__(self):
+        container = get_container_context()
+        return bool(container)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <mountpoint>")
+        sys.exit(1)
+
+    mountpoint = sys.argv[1]
+    Path(mountpoint).mkdir(parents=True, exist_ok=True)
+    dojo_fs.__class__.__name__ = "dojofs"
+    FUSE(dojo_fs, mountpoint, foreground=True, allow_other=True)

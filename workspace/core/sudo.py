@@ -12,7 +12,11 @@ def error(message):
 def main():
     program = os.path.basename(sys.argv[0])
 
-    if not os.path.exists("/run/dojo/var/root/privileged"):
+    try:
+        privileged = int(open("/run/dojo/sys/workspace/privileged", "r").read())
+    except FileNotFoundError:
+        error(f"{program}: dojofs is unavailable")
+    if not privileged:
         error(f"{program}: workspace is not privileged")
 
     struct_passwd = pwd.getpwuid(os.geteuid())
