@@ -48,10 +48,6 @@ let
     exec > /run/dojo/var/root/init.log 2>&1
     chmod 600 /run/dojo/var/root/init.log
 
-    if [ "$DOJO_MODE" = "privileged" ]; then
-      touch /run/dojo/var/root/privileged
-    fi
-
     if [ -x "/challenge/.init" ]; then
         PATH="/run/challenge/bin:$IMAGE_PATH" /challenge/.init
     fi

@@ -40,7 +40,7 @@ def vm_hostname():
 
 
 def is_privileged():
-    return os.getuid() == 0 or os.path.exists("/run/dojo/var/root/privileged")
+    return os.getuid() == 0 or int(open("/run/dojo/sys/workspace/privileged", "r").read())
 
 
 def in_vm():

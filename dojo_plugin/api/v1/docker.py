@@ -99,7 +99,6 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
                 "PATH": env_path,
                 "SHELL": f"{dojo_bin_path}/bash",
                 "DOJO_AUTH_TOKEN": auth_token,
-                "DOJO_MODE": "privileged" if practice else "standard",
             },
             labels={
                 "dojo.dojo_id": dojo_challenge.dojo.reference_id,
