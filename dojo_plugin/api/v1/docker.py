@@ -130,7 +130,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
                     "/run/dojofs",
                     "bind",
                     read_only=True,
-                    propagation="shared",
+                    propagation="slave",
                 ),
             ]
             + [

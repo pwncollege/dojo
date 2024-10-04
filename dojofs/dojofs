@@ -4,6 +4,7 @@ import stat
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 
 import fuse
 import docker
@@ -55,11 +56,13 @@ def get_container_context():
     container_re = re.compile(r"/docker/containers/([0-9a-f]+)/hostname")
     mount_info = pathlib.Path(f"/proc/{pid}/mountinfo").read_text()
     container_id = match.group(1) if (match := container_re.search(mount_info)) else None
-    print(container_id, flush=True)
     if not container_id:
         return None
 
-    container = docker_client.containers.get(container_id)
+    try:
+        container = docker_client.containers.get(container_id)
+    except docker.errors.NotFound:
+        return None
     return container
 
 
@@ -91,13 +94,9 @@ class PrivilegedFile:
         content = b"1\n" if mode == "privileged" else b"0\n"
         return content[offset:offset + size]
 
-    @property
-    def visible(self):
+    def __bool__(self):
         container = get_container_context()
         return bool(container)
-
-    def __bool__(self):
-        return self.visible
 
 
 if __name__ == "__main__":
@@ -106,5 +105,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     mountpoint = sys.argv[1]
+    Path(mountpoint).mkdir(parents=True, exist_ok=True)
     dojo_fs.__class__.__name__ = "dojofs"
     FUSE(dojo_fs, mountpoint, foreground=True, allow_other=True)
