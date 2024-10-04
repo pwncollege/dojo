@@ -53,6 +53,15 @@ services:
       workspace-builder:
         condition: service_completed_successfully
 
+  dojofs:
+    container_name: dojofs
+    privileged: true
+    build:
+      context: ./dojofs
+    volumes:
+      - /run/dojofs:/run/dojofs:shared
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
   ctfd:
     container_name: ctfd
     profiles:
@@ -138,6 +147,8 @@ services:
       workspace-builder:
         condition: service_completed_successfully
       workspacefs:
+        condition: service_started
+      dojofs:
         condition: service_started
       db:
         condition: service_healthy
