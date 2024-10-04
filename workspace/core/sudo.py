@@ -12,7 +12,7 @@ def error(message):
 def main():
     program = os.path.basename(sys.argv[0])
 
-    privileged = int(open("/run/dojo/sys/privileged", "r").read())
+    privileged = int(open("/run/dojo/sys/workspace/privileged", "r").read())
     if not privileged:
         error(f"{program}: workspace is not privileged")
 
