@@ -32,7 +32,7 @@ RUN cd /tmp && \
 
 RUN git clone --branch 3.6.0 https://github.com/CTFd/CTFd /opt/CTFd
 
-RUN echo 'tmpfs /run tmpfs defaults,mode=755,shared 0 0' >> /etc/fstab
+RUN echo 'tmpfs /run/dojofs tmpfs defaults,mode=755,shared 0 0' >> /etc/fstab
 
 RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.service /etc/systemd/system/pwn.college.service && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.backup.service /etc/systemd/system/pwn.college.backup.service && \
