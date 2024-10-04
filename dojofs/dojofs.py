@@ -95,4 +95,5 @@ if __name__ == "__main__":
         sys.exit(1)
 
     mountpoint = sys.argv[1]
+    dojo_fs.__class__.__name__ = "dojofs"
     FUSE(dojo_fs, mountpoint, foreground=True, allow_other=True)

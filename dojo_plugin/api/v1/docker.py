@@ -131,7 +131,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
                     "bind",
                     read_only=True,
                     propagation="shared",
-                )
+                ),
             ]
             + [
                 docker.types.Mount(
