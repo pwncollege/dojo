@@ -71,14 +71,12 @@ class DiscordActivity(Resource):
 def get_user_activity_prop(discord_id, activity, start=None, end=None):
     user = DiscordUsers.query.filter_by(discord_id=discord_id).first()
 
-    if activity is DiscordUserActivity.ActivityType.thanks:
-        prop_name = "thanks"
+    if activity == "thanks":
         count = user.thanks_count(start, end) if user else 0
-    elif activity is DiscordUserActivity.ActivityType.memes:
-        prop_name = "memes"
+    elif activity == "memes":
         count = user.meme_count(start, end) if user else 0
 
-    return {"success": True, prop_name: count}
+    return {"success": True, activity: count}
 
 def get_user_activity(self, discord_id, activity, request):
     authorization = request.headers.get("Authorization")
@@ -118,39 +116,49 @@ def post_user_activity(discord_id, activity, request):
     except json.JSONDecodeError:
         return {"success": False, "error": f"Invalid JSON data {request.data}"}, 400
 
-    if "from_user_id" not in data:
-        return {"success": False, "error": f"Invalid JSON data"}, 400
 
-    # These are discord user_ids
-    thanker = data.get("from_user_id", "")
-    kwargs = {'guild_id': data.get("guild_id"),
-              'channel_id': data.get("channel_id"),
-              'message_id': data.get("message_id"),
-              'timestamp': data.get("timestamp"),
-              'message_timestamp': datetime.datetime.fromisoformat(data.get("message_timestamp")),
-              'activity_type': activity
-              }
-    entry = DiscordUserActivity(discord_id, thanker, **kwargs)
+    expected_vals = ['source_user_id',
+                     'guild_id',
+                     'channel_id',
+                     'message_id',
+                     'message_timestamp',
+                     ]
+
+    for ev in expected_vals:
+        if ev not in data:
+            return {"success": False, "error": f"Invalid JSON data - {ev} not found!"}, 400
+
+    kwargs = {
+            'user_id' : discord_id,
+            'source_user_id': data.get("source_user_id", ""),
+            'guild_id': data.get("guild_id"),
+            'channel_id': data.get("channel_id"),
+            'message_id': data.get("message_id"),
+            'timestamp': data.get("timestamp"),
+            'message_timestamp': datetime.datetime.fromisoformat(data.get("message_timestamp")),
+            'type': activity
+            }
+    entry = DiscordUserActivity(**kwargs)
     db.session.add(entry)
     db.session.commit()
 
-    return get_user_activity_prop(discord_id, activity)
+    return get_user_activity_prop(discord_id, activity), 200
 
 @discord_namespace.route("/memes/user/<discord_id>", methods=["GET", "POST"])
 class DiscordMemes(Resource):
     def get(self, discord_id):
-      get_user_activity(discord_id, DiscordUserActivity.ActivityType.memes, request)
+      return get_user_activity(discord_id, "memes", request)
 
     def post(self, discord_id):
-      post_user_activity(discord_id, DiscordUserActivity.ActivityType.memes, request)
+      return post_user_activity(discord_id, "memes", request)
 
 @discord_namespace.route("/thanks/user/<discord_id>", methods=["GET", "POST"])
 class DiscordThanks(Resource):
     def get(self, discord_id):
-      get_user_activity(discord_id, DiscordUserActivity.ActivityType.thanks, request)
+      return get_user_activity(discord_id, "thanks", request)
 
     def post(self, discord_id):
-      post_user_activity(discord_id, DiscordUserActivity.ActivityType.thanks, request)
+      return post_user_activity(discord_id, "thanks", request)
 
 
 @discord_namespace.route("/thanks/leaderboard", methods=["GET"])
@@ -170,9 +178,9 @@ class GetDiscordLeaderBoard(Resource):
         except:
             return {"success": False, "error": "invalid start format"}, 400
 
-        thanks_scores = DiscordUserActivity.query.with_entities(DiscordUserActivity.user_id, db.func.count(DiscordUserActivity.user_id)
-          ).filter(and_(DiscordUserActivity.timestamp >= start),
-                   DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.thanks
+        thanks_scores = DiscordUserActivity.query.with_entities(DiscordUserActivity.user_id, db.func.count(db.func.distinct(DiscordUserActivity.message_id))
+          ).filter(and_(DiscordUserActivity.message_timestamp >= start),
+                   DiscordUserActivity.type == "thanks"
                    ).group_by(DiscordUserActivity.user_id
           ).order_by(db.func.count(DiscordUserActivity.user_id).desc())[:100]
 
