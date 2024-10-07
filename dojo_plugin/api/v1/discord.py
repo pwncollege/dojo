@@ -76,7 +76,7 @@ def get_user_activity_prop(discord_id, activity, start=None, end=None):
         count = user.thanks_count(start, end) if user else 0
     elif activity is DiscordUserActivity.ActivityType.memes:
         prop_name = "memes"
-        count = user.memes_count(start, end) if user else 0
+        count = user.meme_count(start, end) if user else 0
 
     return {"success": True, prop_name: count}
 
@@ -127,6 +127,7 @@ def post_user_activity(discord_id, activity, request):
               'channel_id': data.get("channel_id"),
               'message_id': data.get("message_id"),
               'timestamp': data.get("timestamp"),
+              'message_timestamp': datetime.datetime.fromisoformat(data.get("message_timestamp")),
               'activity_type': activity
               }
     entry = DiscordUserActivity(discord_id, thanker, **kwargs)
@@ -171,7 +172,7 @@ class GetDiscordLeaderBoard(Resource):
 
         thanks_scores = DiscordUserActivity.query.with_entities(DiscordUserActivity.to_user_id, db.func.count(DiscordUserActivity.to_user_id)
           ).filter(and_(DiscordUserActivity.timestamp >= start),
-                   DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.memes
+                   DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.thanks
                    ).group_by(DiscordUserActivity.to_user_id
           ).order_by(db.func.count(DiscordUserActivity.to_user_id).desc())[:100]
 

@@ -767,12 +767,13 @@ class DiscordUserActivity(db.Model):
     guild_id = db.Column(db.BigInteger)
     channel_id = db.Column(db.BigInteger)
     message_id = db.Column(db.BigInteger)
+    message_timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
     def __init__(self, to_user_id, by_user_id, **kwargs):
-
         self.by_user_id = by_user_id
         self.to_user_id = to_user_id
         self.timestamp = kwargs.pop('timestamp', None)
+        self.message_timestamp = kwargs.pop('message_timestamp', None)
         self.guild_id = kwargs.pop('guild_id')
         self.channel_id = kwargs.pop('channel_id')
         self.message_id = kwargs.pop('message_id')
@@ -790,16 +791,16 @@ class DiscordUsers(db.Model):
 
     def thanks_count(self, start=None, end=None):
         count = DiscordUserActivity.query.filter(and_(DiscordUserActivity.to_user_id == self.discord_id),
-            DiscordUserActivity.timestamp >= start if start else True,
-            DiscordUserActivity.timestamp <= end if end else True,
+            DiscordUserActivity.message_timestamp >= start if start else True,
+            DiscordUserActivity.message_timestamp <= end if end else True,
             DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.thanks).count()
         return count
 
     def meme_count(self, start=None, end=None, weekly=True):
         if not weekly:
             return DiscordUserActivity.query.filter(and_(DiscordUserActivity.to_user_id == self.discord_id),
-                   DiscordUserActivity.timestamp >= start if start else True,
-                   DiscordUserActivity.timestamp <= end if end else True,
+                   DiscordUserActivity.message_timestamp >= start if start else True,
+                   DiscordUserActivity.message_timestamp <= end if end else True,
                    DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.memes
                    ).count()
 
