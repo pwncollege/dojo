@@ -111,6 +111,13 @@ def redirect_dojo():
             return redirect(redirect_url, code=301)
 
 
+def handle_authorization(default_handler):
+    authorization = request.headers.get("Authorization")
+    if authorization and authorization.startswith("Bearer "):
+        return
+    default_handler()
+
+
 def load(app):
     db.create_all()
 
@@ -144,6 +151,10 @@ def load(app):
 
     register_admin_plugin_menu_bar("Dojos", "/admin/dojos")
     register_admin_plugin_menu_bar("Desktops", "/admin/desktops")
+
+    before_request_funcs = app.before_request_funcs[None]
+    tokens_handler = next(func for func in before_request_funcs if func.__name__ == "tokens")
+    before_request_funcs[before_request_funcs.index(tokens_handler)] = lambda: handle_authorization(tokens_handler)
 
     if os.path.basename(sys.argv[0]) != "manage.py":
         bootstrap()
