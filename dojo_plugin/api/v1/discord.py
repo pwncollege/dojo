@@ -78,7 +78,7 @@ def get_user_activity_prop(discord_id, activity, start=None, end=None):
 
     return {"success": True, activity: count}
 
-def get_user_activity(self, discord_id, activity, request):
+def get_user_activity(discord_id, activity, request):
     authorization = request.headers.get("Authorization")
     res, code = auth_check(authorization)
     if res:
@@ -147,18 +147,18 @@ def post_user_activity(discord_id, activity, request):
 @discord_namespace.route("/memes/user/<discord_id>", methods=["GET", "POST"])
 class DiscordMemes(Resource):
     def get(self, discord_id):
-      return get_user_activity(discord_id, "memes", request)
+        return get_user_activity(discord_id, "memes", request)
 
     def post(self, discord_id):
-      return post_user_activity(discord_id, "memes", request)
+        return post_user_activity(discord_id, "memes", request)
 
 @discord_namespace.route("/thanks/user/<discord_id>", methods=["GET", "POST"])
 class DiscordThanks(Resource):
     def get(self, discord_id):
-      return get_user_activity(discord_id, "thanks", request)
+        return get_user_activity(discord_id, "thanks", request)
 
     def post(self, discord_id):
-      return post_user_activity(discord_id, "thanks", request)
+        return post_user_activity(discord_id, "thanks", request)
 
 
 @discord_namespace.route("/thanks/leaderboard", methods=["GET"])
