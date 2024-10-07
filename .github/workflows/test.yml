@@ -37,7 +37,13 @@ jobs:
       - name: Setup firefox
         uses: browser-actions/setup-firefox@latest
       - name: Install test dependencies
-        run: pip install pytest pytest-dependency requests selenium
+        run: |
+          pip install \
+            pytest \
+            pytest-dependency \
+            pytest-github-actions-annotate-failures \
+            requests \
+            selenium
 
       - name: Make docker cache dir owned by our user
         run: |
