@@ -1,23 +1,27 @@
 import contextlib
-import selenium.webdriver
-import pytest
 import time
 import os
 
-#pylint:disable=unused-argument,redefined-outer-name
+import pytest
+from selenium.webdriver import Firefox, FirefoxService
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
 
 from utils import PROTO, HOST, workspace_run
-from selenium.webdriver.common.keys import Keys
+
 
 def webdriver():
     # workaround for ubuntu
     gd = "/snap/bin/geckodriver"
     if os.path.exists(gd):
-        ds = selenium.webdriver.FirefoxService(executable_path=gd)
-        wd = selenium.webdriver.Firefox(service=ds)
+        ds = FirefoxService(executable_path=gd)
+        wd = Firefox(service=ds)
     else:
-        wd = selenium.webdriver.Firefox()
+        wd = Firefox()
     return wd
+
 
 @pytest.fixture
 def random_user_webdriver(random_user):
@@ -27,7 +31,8 @@ def random_user_webdriver(random_user):
     wd.find_element("id", "name").send_keys(random_id)
     wd.find_element("id", "password").send_keys(random_id)
     wd.find_element("id", "_submit").click()
-    return random_id,random_session,wd
+    return random_id, random_session, wd
+
 
 @contextlib.contextmanager
 def vscode_terminal(wd):
@@ -35,14 +40,20 @@ def vscode_terminal(wd):
 
     wd.switch_to.new_window("tab")
     wd.get(f"{PROTO}://{HOST}/workspace/code")
-    time.sleep(3)
-    wd.switch_to.active_element.send_keys(Keys.CONTROL + Keys.SHIFT + "`")
-    time.sleep(2)
+
+    wait = WebDriverWait(wd, 30)
+    workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace_iframe")))
+    wd.switch_to.frame(workspace_iframe)
+
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#workbench\\.parts\\.activitybar")))
+    wd.switch_to.active_element.send_keys(Keys.CONTROL, Keys.SHIFT, "`")  # Shortcut to open terminal
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#terminal")))
 
     yield wd.switch_to.active_element
 
     wd.close()
     wd.switch_to.window(module_window)
+
 
 @contextlib.contextmanager
 def desktop_terminal(wd, user_id):
