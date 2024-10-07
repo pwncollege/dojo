@@ -9,7 +9,6 @@ from CTFd.cache import cache
 from CTFd.models import db
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
-from CTFd.plugins import bypass_csrf_protection
 
 from ...config import DISCORD_CLIENT_SECRET
 from ...models import DiscordUsers, DiscordUserActivity
@@ -110,12 +109,7 @@ def post_user_activity(discord_id, activity, request):
     if res:
         return res, code
 
-    #data = request.get_json()
-    try:
-        data = json.loads(request.get_data())
-    except json.JSONDecodeError:
-        return {"success": False, "error": f"Invalid JSON data {request.data}"}, 400
-
+    data = request.get_json()
 
     expected_vals = ['source_user_id',
                      'guild_id',
