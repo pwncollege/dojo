@@ -754,16 +754,12 @@ class SSHKeys(db.Model):
 
 
 class DiscordUserActivity(db.Model):
-    class ActivityType(enum.Enum):
-        thanks  = 1
-        memes   = 2
-
     __tablename__ = "discord_user_activity"
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.BigInteger)
     source_user_id = db.Column(db.BigInteger)
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    activity_type = db.Column(db.Enum(ActivityType))
+    type = db.Column(db.String(80), index=True)
     guild_id = db.Column(db.BigInteger)
     channel_id = db.Column(db.BigInteger)
     message_id = db.Column(db.BigInteger)
@@ -782,7 +778,8 @@ class DiscordUsers(db.Model):
         count = DiscordUserActivity.query.filter(and_(DiscordUserActivity.user_id == self.discord_id),
             DiscordUserActivity.message_timestamp >= start if start else True,
             DiscordUserActivity.message_timestamp <= end if end else True,
-            DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.thanks).count()
+            DiscordUserActivity.type == "thanks"
+            ).with_entities(db.func.distinct(DiscordUserActivity.message_id)).count()
         return count
 
     def meme_count(self, start=None, end=None, weekly=True):
@@ -790,8 +787,8 @@ class DiscordUsers(db.Model):
             return DiscordUserActivity.query.filter(and_(DiscordUserActivity.user_id == self.discord_id),
                    DiscordUserActivity.message_timestamp >= start if start else True,
                    DiscordUserActivity.message_timestamp <= end if end else True,
-                   DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.memes
-                   ).count()
+                   DiscordUserActivity.type == "memes"
+                   ).with_entities(db.func.distinct(DiscordUserActivity.message_id)).count()
 
         meme_weeks = self.meme_dates(start, end)
         return len(meme_weeks)
@@ -800,7 +797,7 @@ class DiscordUsers(db.Model):
         memes = DiscordUserActivity.query.filter(and_(DiscordUserActivity.user_id == self.discord_id),
             DiscordUserActivity.timestamp >= start if start else True,
             DiscordUserActivity.timestamp <= end if end else True,
-            DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.memes
+            DiscordUserActivity.type == "memes"
             ).order_by(DiscordUserActivity.timestamp).all()
 
         start = memes[0].timestamp if not start else start
@@ -813,7 +810,6 @@ class DiscordUsers(db.Model):
         class_weeks = [(start + datetime.timedelta(days=7 * i), start + datetime.timedelta(days= 7 * (i + 1))) for i in range(week_count)]
 
         return [w for w in class_weeks if valid_week(w, memes)]
-
 
     __repr__ = columns_repr(["user", "discord_id"])
 
