@@ -170,11 +170,11 @@ class GetDiscordLeaderBoard(Resource):
         except:
             return {"success": False, "error": "invalid start format"}, 400
 
-        thanks_scores = DiscordUserActivity.query.with_entities(DiscordUserActivity.to_user_id, db.func.count(DiscordUserActivity.to_user_id)
+        thanks_scores = DiscordUserActivity.query.with_entities(DiscordUserActivity.user_id, db.func.count(DiscordUserActivity.user_id)
           ).filter(and_(DiscordUserActivity.timestamp >= start),
                    DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.thanks
-                   ).group_by(DiscordUserActivity.to_user_id
-          ).order_by(db.func.count(DiscordUserActivity.to_user_id).desc())[:100]
+                   ).group_by(DiscordUserActivity.user_id
+          ).order_by(db.func.count(DiscordUserActivity.user_id).desc())[:100]
 
         def get_name(discord_id):
             try:

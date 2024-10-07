@@ -760,25 +760,14 @@ class DiscordUserActivity(db.Model):
 
     __tablename__ = "discord_user_activity"
     id = db.Column(db.Integer, primary_key=True)
-    to_user_id = db.Column(db.BigInteger)
-    by_user_id = db.Column(db.BigInteger)
+    user_id = db.Column(db.BigInteger)
+    source_user_id = db.Column(db.BigInteger)
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     activity_type = db.Column(db.Enum(ActivityType))
     guild_id = db.Column(db.BigInteger)
     channel_id = db.Column(db.BigInteger)
     message_id = db.Column(db.BigInteger)
     message_timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-
-    def __init__(self, to_user_id, by_user_id, **kwargs):
-        self.by_user_id = by_user_id
-        self.to_user_id = to_user_id
-        self.timestamp = kwargs.pop('timestamp', None)
-        self.message_timestamp = kwargs.pop('message_timestamp', None)
-        self.guild_id = kwargs.pop('guild_id')
-        self.channel_id = kwargs.pop('channel_id')
-        self.message_id = kwargs.pop('message_id')
-        self.activity_type = kwargs.pop('activity_type', None)
-        super(DiscordUserActivity, self).__init__(**kwargs)
 
 class DiscordUsers(db.Model):
     __tablename__ = "discord_users"
@@ -790,7 +779,7 @@ class DiscordUsers(db.Model):
     user = db.relationship("Users")
 
     def thanks_count(self, start=None, end=None):
-        count = DiscordUserActivity.query.filter(and_(DiscordUserActivity.to_user_id == self.discord_id),
+        count = DiscordUserActivity.query.filter(and_(DiscordUserActivity.user_id == self.discord_id),
             DiscordUserActivity.message_timestamp >= start if start else True,
             DiscordUserActivity.message_timestamp <= end if end else True,
             DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.thanks).count()
@@ -798,7 +787,7 @@ class DiscordUsers(db.Model):
 
     def meme_count(self, start=None, end=None, weekly=True):
         if not weekly:
-            return DiscordUserActivity.query.filter(and_(DiscordUserActivity.to_user_id == self.discord_id),
+            return DiscordUserActivity.query.filter(and_(DiscordUserActivity.user_id == self.discord_id),
                    DiscordUserActivity.message_timestamp >= start if start else True,
                    DiscordUserActivity.message_timestamp <= end if end else True,
                    DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.memes
@@ -808,7 +797,7 @@ class DiscordUsers(db.Model):
         return len(meme_weeks)
 
     def meme_dates(self, start=None, end=None):
-        memes = DiscordUserActivity.query.filter(and_(DiscordUserActivity.to_user_id == self.discord_id),
+        memes = DiscordUserActivity.query.filter(and_(DiscordUserActivity.user_id == self.discord_id),
             DiscordUserActivity.timestamp >= start if start else True,
             DiscordUserActivity.timestamp <= end if end else True,
             DiscordUserActivity.activity_type == DiscordUserActivity.ActivityType.memes
