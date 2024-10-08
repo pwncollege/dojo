@@ -193,4 +193,4 @@ class GetDiscordLeaderBoard(Resource):
         results = [mem for mem in results if mem[0] != 'Unknown'][:20]
 
 
-        return {"success": True, "leaderboard": json.dumps(results)}, 200
+        return {"success": True, "leaderboard": results}, 200
