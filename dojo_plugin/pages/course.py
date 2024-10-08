@@ -26,13 +26,12 @@ def get_letter_grade(dojo, grade):
     return "?"
 
 def clamp_ec(limit):
-    global_limit = [limit]
     def decorator(func):
         def wrapper(*args, **kwargs):
-            limit = global_limit[0]
+            nonlocal limit
             result = func(*args, **kwargs)
             clamped_result = min(result, limit)
-            global_limit[0] -= clamped_result
+            limit -= clamped_result
             return clamped_result
         return wrapper
     return decorator
@@ -169,9 +168,8 @@ def grade(dojo, users_query, *, ignore_pending=False):
             return min(meme_count * meme_value, max_credit)
 
         @ec_clamp
-        def clamp_extra():
+        def clamp_extra(user_id):
             return (assessment.get("credit") or {}).get(str(user_id), 0.0)
-
 
         for assessment in assessments:
             type = assessment.get("type")
@@ -267,6 +265,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     progress=(assessment.get("progress") or {}).get(str(user_id), ""),
                     credit=clamp_extra(user_id)
                 ))
+
             if type == "helpfulness":
                 method = assessment.get("method")
                 max_credit = assessment.get("max_credit") or 1.00
@@ -275,6 +274,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     progress=get_thanks_progress(dojo, user_id),
                     credit=get_thanks_credit(dojo, user_id, method, max_credit)
                     ))
+
             if type == "memes":
                 max_credit = assessment.get("max_credit") or 1.00
                 credit = get_meme_credit(dojo, user_id, max_credit)
