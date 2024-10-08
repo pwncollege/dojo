@@ -9,18 +9,18 @@ import pytest
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with,unused-argument
 
-from utils import TEST_DOJOS_LOCATION, PROTO, HOST, login, dojo_run, workspace_run, create_dojo_yml
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, dojo_run, workspace_run, create_dojo_yml
 
 def get_flag(user):
     return workspace_run("cat /flag", user=user, root=True).stdout
 
 def get_dojo_modules(dojo):
-    response = requests.get(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{dojo}/modules")
+    response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/dojo/{dojo}/modules")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     return response.json()["modules"]
 
 def get_challenge_id(session, dojo, module, challenge):
-    response = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{dojo}/{module}/challenges")
+    response = session.get(f"{DOJO_URL}/pwncollege_api/v1/dojo/{dojo}/{module}/challenges")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     challenges = response.json()['challenges']
     challenge_id = None
@@ -37,7 +37,7 @@ def start_challenge(dojo, module, challenge, practice=False, *, session, as_user
     start_challenge_json = dict(dojo=dojo, module=module, challenge=challenge, practice=practice)
     if as_user:
         start_challenge_json["as_user"] = as_user
-    response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/docker", json=start_challenge_json)
+    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=start_challenge_json)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
 
@@ -53,7 +53,7 @@ def get_user_id(user_name):
 
 @pytest.mark.parametrize("endpoint", ["/", "/dojos", "/login", "/register"])
 def test_unauthenticated_return_200(endpoint):
-    response = requests.get(f"{PROTO}://{HOST}{endpoint}")
+    response = requests.get(f"{DOJO_URL}{endpoint}")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
 
 
@@ -71,7 +71,7 @@ def start_and_solve(user_name, session, dojo, module, challenge):
     challenge_id = get_challenge_id(session, dojo, module, challenge)
     flag = get_flag(user_name)
     response = session.post(
-        f"{PROTO}://{HOST}/api/v1/challenges/attempt",
+        f"{DOJO_URL}/api/v1/challenges/attempt",
         json={"challenge_id": challenge_id, "submission": flag}
     )
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
@@ -80,8 +80,8 @@ def start_and_solve(user_name, session, dojo, module, challenge):
 
 @pytest.mark.dependency()
 def test_create_dojo(example_dojo, admin_session):
-    assert admin_session.get(f"{PROTO}://{HOST}/{example_dojo}/").status_code == 200
-    assert admin_session.get(f"{PROTO}://{HOST}/example/").status_code == 200
+    assert admin_session.get(f"{DOJO_URL}/{example_dojo}/").status_code == 200
+    assert admin_session.get(f"{DOJO_URL}/example/").status_code == 200
 
 @pytest.mark.dependency()
 def test_get_dojo_modules(example_dojo):
@@ -100,15 +100,15 @@ def test_get_dojo_modules(example_dojo):
 @pytest.mark.dependency(depends=["test_create_dojo"])
 def test_delete_dojo(admin_session):
     reference_id = create_dojo_yml("""id: delete-test""", session=admin_session)
-    assert admin_session.get(f"{PROTO}://{HOST}/{reference_id}/").status_code == 200
-    assert admin_session.post(f"{PROTO}://{HOST}/dojo/{reference_id}/delete/", json={"dojo": reference_id}).status_code == 200
-    assert admin_session.get(f"{PROTO}://{HOST}/{reference_id}/").status_code == 404
+    assert admin_session.get(f"{DOJO_URL}/{reference_id}/").status_code == 200
+    assert admin_session.post(f"{DOJO_URL}/dojo/{reference_id}/delete/", json={"dojo": reference_id}).status_code == 200
+    assert admin_session.get(f"{DOJO_URL}/{reference_id}/").status_code == 404
 
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
 def test_create_import_dojo(example_import_dojo, admin_session):
-    assert admin_session.get(f"{PROTO}://{HOST}/{example_import_dojo}/").status_code == 200
-    assert admin_session.get(f"{PROTO}://{HOST}/example-import/").status_code == 200
+    assert admin_session.get(f"{DOJO_URL}/{example_import_dojo}/").status_code == 200
+    assert admin_session.get(f"{DOJO_URL}/example-import/").status_code == 200
 
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
@@ -118,9 +118,9 @@ def test_start_challenge(admin_session):
 @pytest.mark.dependency(depends=["test_create_dojo"])
 def test_join_dojo(admin_session, guest_dojo_admin):
     random_user_name, random_session = guest_dojo_admin
-    response = random_session.get(f"{PROTO}://{HOST}/dojo/example/join/")
+    response = random_session.get(f"{DOJO_URL}/dojo/example/join/")
     assert response.status_code == 200
-    response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
+    response = admin_session.get(f"{DOJO_URL}/dojo/example/admin/")
     assert response.status_code == 200
     assert random_user_name in response.text and response.text.index("Members") < response.text.index(random_user_name)
 
@@ -128,9 +128,9 @@ def test_join_dojo(admin_session, guest_dojo_admin):
 def test_promote_dojo_member(admin_session, guest_dojo_admin):
     random_user_name, _ = guest_dojo_admin
     random_user_id = get_user_id(random_user_name)
-    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/example/promote-admin", json={"user_id": random_user_id})
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojo/example/promote-admin", json={"user_id": random_user_id})
     assert response.status_code == 200
-    response = admin_session.get(f"{PROTO}://{HOST}/dojo/example/admin/")
+    response = admin_session.get(f"{DOJO_URL}/dojo/example/admin/")
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
 
 @pytest.mark.dependency(depends=["test_join_dojo"])
@@ -138,7 +138,7 @@ def test_dojo_completion(simple_award_dojo, completionist_user):
     user_name, session = completionist_user
     dojo = simple_award_dojo
 
-    response = session.get(f"{PROTO}://{HOST}/dojo/{dojo}/join/")
+    response = session.get(f"{DOJO_URL}/dojo/{dojo}/join/")
     assert response.status_code == 200
     for module, challenge in [
         ("hello", "apple"), ("hello", "banana"),
@@ -147,7 +147,7 @@ def test_dojo_completion(simple_award_dojo, completionist_user):
         start_and_solve(user_name, session, dojo, module, challenge)
 
     # check for emoji
-    scoreboard = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
+    scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 2
     assert len(us["badges"]) == 1
@@ -156,9 +156,9 @@ def test_dojo_completion(simple_award_dojo, completionist_user):
 def test_no_practice(no_practice_challenge_dojo, no_practice_dojo, random_user):
     _, session = random_user
     for dojo in [ no_practice_challenge_dojo, no_practice_dojo ]:
-        response = session.get(f"{PROTO}://{HOST}/dojo/{dojo}/join/")
+        response = session.get(f"{DOJO_URL}/dojo/{dojo}/join/")
         assert response.status_code == 200
-        response = session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/docker", json={
+        response = session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json={
             "dojo": dojo,
             "module": "test",
             "challenge": "test",
@@ -171,7 +171,7 @@ def test_no_practice(no_practice_challenge_dojo, no_practice_dojo, random_user):
 @pytest.mark.dependency(depends=["test_join_dojo"])
 def test_lfs(lfs_dojo, random_user):
     uid, session = random_user
-    assert session.get(f"{PROTO}://{HOST}/dojo/{lfs_dojo}/join/").status_code == 200
+    assert session.get(f"{DOJO_URL}/dojo/{lfs_dojo}/join/").status_code == 200
     start_challenge(lfs_dojo, "test", "test", session=session)
     try:
         workspace_run("[ -f '/challenge/dojo.txt' ]", user=uid)
@@ -198,10 +198,10 @@ def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user)
     #assert us["solves"] == 4
     #assert len(us["badges"]) == 1
 
-    response = admin_session.post(f"{PROTO}://{HOST}/pwncollege_api/v1/dojo/{simple_award_dojo}/prune-awards", json={})
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojo/{simple_award_dojo}/prune-awards", json={})
     assert response.status_code == 200
 
-    scoreboard = admin_session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
+    scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 1
     assert len(us["badges"]) == 0
@@ -211,7 +211,7 @@ def test_belts(belt_dojos, random_user):
     user_name, session = random_user
     for color,dojo in belt_dojos.items():
         start_and_solve(user_name, session, dojo, "test", "test")
-        scoreboard = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
+        scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
         us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
         assert color in us["belt"]
 
@@ -220,7 +220,7 @@ def test_cumulative_belts(belt_dojos, random_user):
     user_name, session = random_user
     for color,dojo in reversed(belt_dojos.items()):
         start_and_solve(user_name, session, dojo, "test", "test")
-        scoreboard = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
+        scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
         us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
         if color == "orange":
             # orange is last, so we should get all belts including blue
@@ -314,7 +314,7 @@ def test_workspace_home_persistent(random_user):
 def test_active_module_endpoint(random_user):
     user, session = random_user
     start_challenge("example", "hello", "banana", session=session)
-    response = session.get(f"{PROTO}://{HOST}/active-module")
+    response = session.get(f"{DOJO_URL}/active-module")
     challenges = {
         "apple": {
             "challenge_id": 1,
@@ -346,7 +346,7 @@ def test_active_module_endpoint(random_user):
     challenges["apple"]["description"] = apple_description
 
     start_challenge("example", "hello", "apple", session=session)
-    response = session.get(f"{PROTO}://{HOST}/active-module")
+    response = session.get(f"{DOJO_URL}/active-module")
     banana_description = challenges["banana"].pop("description")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["c_current"] == challenges["apple"], f"Expected challenge 'Apple'\n{challenges['apple']}\n, but got {response.json()['c_current']}"
@@ -367,7 +367,7 @@ def get_all_standings(session, dojo, module=None):
         module = "_"
 
     while not done:
-        response = session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/{dojo}/{module}/0/{page_number}")
+        response = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{dojo}/{module}/0/{page_number}")
         assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
         response = response.json()
 
@@ -405,7 +405,7 @@ def test_scoreboard(random_user):
         "submission": flag
     }
 
-    response = session.post(f"{PROTO}://{HOST}/api/v1/challenges/attempt", json=data)
+    response = session.post(f"{DOJO_URL}/api/v1/challenges/attempt", json=data)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], "Expected to successfully submit flag"
 
