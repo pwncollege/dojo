@@ -1,6 +1,5 @@
 import base64
 import contextlib
-import enum
 import functools
 import os
 import string
