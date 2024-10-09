@@ -755,7 +755,7 @@ class SSHKeys(db.Model):
 class DiscordUserActivity(db.Model):
     __tablename__ = "discord_user_activity"
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.BigInteger)
+    user_id = db.Column(db.BigInteger, index=True)
     source_user_id = db.Column(db.BigInteger)
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     type = db.Column(db.String(80), index=True)
