@@ -76,7 +76,7 @@ def get_discord_member(user_id):
 
     discord_user = DiscordUsers.query.filter_by(user_id=user_id).first()
     if not discord_user:
-        return None
+        return
 
     return get_discord_member_by_discord_id(discord_user.discord_id)
 
@@ -86,9 +86,9 @@ def get_discord_member_by_discord_id(discord_id):
     try:
         result = guild_request(f"/members/{discord_id}")
     except requests.exceptions.RequestException:
-        return False
+        return
     if result.get("message") == "Unknown Member":
-        return False
+        return None
     return result
 
 @cache.memoize(timeout=3600)

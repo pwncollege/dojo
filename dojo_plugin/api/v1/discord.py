@@ -172,7 +172,7 @@ class GetDiscordLeaderBoard(Resource):
         except:
             return {"success": False, "error": "invalid start format"}, 400
 
-        thanks_scores = DiscordUserActivity.query.with_entities(DiscordUserActivity.user_id, db.func.count(db.func.distinct(DiscordUserActivity.message_id))
+        thanks_scores = DiscordUserActivity.query.with_entities(DiscordUserActivity.user_id, db.func.count(DiscordUserActivity.message_id)
           ).filter(and_(DiscordUserActivity.message_timestamp >= start),
                    DiscordUserActivity.type == "thanks"
                    ).group_by(DiscordUserActivity.user_id
@@ -182,15 +182,13 @@ class GetDiscordLeaderBoard(Resource):
             try:
                 response = get_discord_member_by_discord_id(discord_id)
                 if not response:
-                    return "Unknown"
+                    return
             except:
-                return "Unknown"
+                return
 
-            return response['user']['global_name'] if response else "Unknown"
+            return response['user']['global_name']
 
-        results = [[get_name(res[0]), res[1]] for res in thanks_scores]
-
-        results = [mem for mem in results if mem[0] != 'Unknown'][:20]
-
+        results = [[get_name(discord_id), score] for discord_id, score in thanks_scores]
+        results = [[name, score] for name, score in results if name is not None][:20]
 
         return {"success": True, "leaderboard": results}, 200
