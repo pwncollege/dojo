@@ -130,11 +130,11 @@ def grade(dojo, users_query, *, ignore_pending=False):
             week_ranges = ' '.join([f"{w[0].month}/{w[0].day}-{w[1].month}/{w[1].day}" for w in meme_weeks])
             return week_ranges
 
-    def get_thanks_progress(dojo, user_id):
+    def get_thanks_progress(dojo, user_id, unique):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
             if not discord_user:
                 return 0
-            thanks_count = discord_user.thanks_count(start=dojo.start_date())
+            thanks_count = discord_user.thanks_count(start=dojo.start_date(), unique_messages=unique)
 
             return thanks_count
 
@@ -145,14 +145,14 @@ def grade(dojo, users_query, *, ignore_pending=False):
         ec_clamp = clamp_ec(ec_limit)
 
         @ec_clamp
-        def get_thanks_credit(dojo, user_id, method, max_credit):
+        def get_thanks_credit(dojo, user_id, method, max_credit, unique):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
             if not discord_user:
                 return 0
-            thanks_count = discord_user.thanks_count(start=dojo.start_date())
+            thanks_count = discord_user.thanks_count(start=dojo.start_date(),unique_messages=unique)
 
             if method == 'log50':
-                return max_credit * math.log(thanks_count, 50) if thanks_count else 0
+                return min(max_credit * math.log(thanks_count, 50), max_credit) if thanks_count else 0
             elif method == '1337log2':
                 return min(1.337 ** math.log(thanks_count,2) / 100, max_credit) if thanks_count else 0
             return 0
@@ -269,10 +269,11 @@ def grade(dojo, users_query, *, ignore_pending=False):
             if type == "helpfulness":
                 method = assessment.get("method")
                 max_credit = assessment.get("max_credit") or 1.00
+                unique_messages = assessment.get("unique") or False
                 assessment_grades.append(dict(
                     name=assessment.get("name") or "Discord Helpfulness",
-                    progress=get_thanks_progress(dojo, user_id),
-                    credit=get_thanks_credit(dojo, user_id, method, max_credit)
+                    progress=get_thanks_progress(dojo, user_id, unique_messages),
+                    credit=get_thanks_credit(dojo, user_id, method, max_credit, unique_messages)
                     ))
 
             if type == "memes":
