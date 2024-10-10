@@ -52,6 +52,17 @@ case "$ACTION" in
         )
         CONTAINER="user_$DOJO_UID"
         shift
+
+        NODES=( unix:///var/run/docker.sock )
+        NODES+=( $(wg | grep "allowed ips" | awk -F " |/" '{print $5}') )
+        for NODE in ${NODES[@]}
+        do
+            if docker -H $NODE ps | grep -q "$CONTAINER$"
+            then
+                DOCKER_ARGS="$DOCKER_ARGS -H $NODE"
+                break
+            fi
+        done
         docker exec $DOCKER_ARGS $USER_SWITCH "$CONTAINER" bash
         ;;
 
