@@ -37,6 +37,8 @@ in
   packages = with pkgs; [
     (lib.hiPrio pythonEnv)
 
+    # Adds static compilation support
+    glibc.static
     gcc
     gnumake
 
