@@ -59,11 +59,10 @@ case "$ACTION" in
         do
             if docker -H $NODE ps | grep -q "$CONTAINER$"
             then
-                DOCKER_ARGS="$DOCKER_ARGS -H $NODE"
-                break
+                docker -H "$NODE" exec $DOCKER_ARGS $USER_SWITCH "$CONTAINER" bash
+                exit $?
             fi
         done
-        docker exec $DOCKER_ARGS $USER_SWITCH "$CONTAINER" bash
         ;;
 
     # HELP: compose ARGS: run a docker compose command with the config.env file loaded
