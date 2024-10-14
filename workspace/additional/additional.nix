@@ -12,6 +12,7 @@ let
     pycryptodome
     r2pipe
     requests
+    ropper
     scapy
     selenium
   ]);
