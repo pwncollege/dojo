@@ -2,7 +2,7 @@ ChallengeResponseAuthentication no
 PasswordAuthentication no
 UsePAM yes
 
-Subsystem sftp    /usr/lib/openssh/sftp-server
+Subsystem sftp    /run/dojo/libexec/sftp-server
 
 Match User hacker
       AuthorizedKeysCommand /opt/sshd/auth.py
