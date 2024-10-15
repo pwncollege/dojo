@@ -1,0 +1,7 @@
+[Unit]
+Description=Pull custom container images!
+
+[Service]
+Type=simple
+ExecStart=pull_images.sh
+ExecCondition=:/bin/sh -c '. /data/config.env; [ "${WORKSPACE_NODE}" -eq 0 ]'

@@ -39,11 +39,14 @@ RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.service /etc/systemd/s
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.backup.timer /etc/systemd/system/pwn.college.backup.timer && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.cachewarmer.service /etc/systemd/system/pwn.college.cachewarmer.service && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.cachewarmer.timer /etc/systemd/system/pwn.college.cachewarmer.timer && \
+    ln -s /opt/pwn.college/etc/systemd/system/pwn.college.imagepuller.service /etc/systemd/system/pwn.college.imagepuller.service && \
+    ln -s /opt/pwn.college/etc/systemd/system/pwn.college.imagepuller.timer /etc/systemd/system/pwn.college.imagepuller.timer && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.cloud.backup.service /etc/systemd/system/pwn.college.cloud.backup.service && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.cloud.backup.timer /etc/systemd/system/pwn.college.cloud.backup.timer && \
     ln -s /etc/systemd/system/pwn.college.service /etc/systemd/system/multi-user.target.wants/pwn.college.service && \
     ln -s /etc/systemd/system/pwn.college.backup.timer /etc/systemd/system/timers.target.wants/pwn.college.backup.timer && \
     ln -s /etc/systemd/system/pwn.college.cachewarmer.timer /etc/systemd/system/timers.target.wants/pwn.college.cachewarmer.timer && \
+    ln -s /etc/systemd/system/pwn.college.imagepuller.timer /etc/systemd/system/timers.target.wants/pwn.college.imagepuller.timer && \
     ln -s /etc/systemd/system/pwn.college.cloud.backup.timer /etc/systemd/system/timers.target.wants/pwn.college.cloud.backup.timer
 
 WORKDIR /opt/pwn.college
