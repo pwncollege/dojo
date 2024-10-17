@@ -129,16 +129,21 @@ def grade(dojo, users_query, *, ignore_pending=False):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
             if not discord_user:
                 return ""
-            course_start = dojo.start_date()
-            meme_weeks = discord_user.meme_dates(start=dojo.start_date(), end=dojo.start_date() + datetime.timedelta(weeks=21))
-            week_ranges = ' '.join([f"{w[0].month}/{w[0].day}-{w[1].month}/{w[1].day}" for w in meme_weeks])
+
+            course_start = datetime.datetime.fromisoformat(dojo.course.get("start_date")) or datetime.datetime.min
+            meme_weeks = discord_user.meme_dates(start=course_start, end=course_start + datetime.timedelta(weeks=16))
+
+            def clean_date(d):
+                return f"{d.month:02d}/{d.day:02d}"
+            week_ranges = ' '.join([f"{clean_date(s)}-{clean_date(e)}" for s, e in meme_weeks])
             return week_ranges
 
     def get_thanks_progress(dojo, user_id, unique):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
             if not discord_user:
                 return 0
-            thanks_count = discord_user.thanks_count(start=dojo.start_date(), unique_messages=unique)
+            course_start = datetime.datetime.fromisoformat(dojo.course.get("start_date")) or datetime.datetime.min
+            thanks_count = discord_user.thanks_count(start=course_start, unique_messages=unique)
 
             return thanks_count
 
@@ -153,7 +158,8 @@ def grade(dojo, users_query, *, ignore_pending=False):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
             if not discord_user:
                 return 0
-            thanks_count = discord_user.thanks_count(start=dojo.start_date(),unique_messages=unique)
+            course_start = dojo.course.get("start_date") or datetime.datetime.min
+            thanks_count = discord_user.thanks_count(start=course_start,unique_messages=unique)
 
             if method == 'log50':
                 return min(max_credit * math.log(thanks_count, 50), max_credit) if thanks_count else 0
@@ -166,7 +172,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
             if not discord_user:
                 return 0
-            course_start = dojo.start_date()
+            course_start = datetime.datetime.fromisoformat(dojo.course.get("start_date")) or datetime.datetime.min
             meme_count = discord_user.meme_count(start=course_start, end=course_start + datetime.timedelta(weeks=16))
 
             return min(meme_count * meme_value, max_credit)
