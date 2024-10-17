@@ -42,6 +42,10 @@ def assessment_name(dojo, assessment):
         return f"{module_names[assessment['id']]} Checkpoint"
     if assessment["type"] == "due":
         return module_names[assessment["id"]]
+    if assessment["type"] == "helpfulness":
+        return assessment.get("name", "Discord Helpfulness")
+    if assessment["type"] == "memes":
+        return assessment.get("name", "Discord Memes")
     return assessment["name"]
 
 
@@ -271,7 +275,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 max_credit = assessment.get("max_credit") or 1.00
                 unique_messages = assessment.get("unique") or False
                 assessment_grades.append(dict(
-                    name=assessment.get("name") or "Discord Helpfulness",
+                    name=assessment_name(dojo, assessment),
                     progress=get_thanks_progress(dojo, user_id, unique_messages),
                     credit=get_thanks_credit(dojo, user_id, method, max_credit, unique_messages)
                     ))
@@ -280,7 +284,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 max_credit = assessment.get("max_credit") or 1.00
                 credit = get_meme_credit(dojo, user_id, max_credit)
                 assessment_grades.append(dict(
-                    name=assessment.get("name") or "Discord Memes",
+                    name=assessment_name(dojo, assessment),
                     progress=get_meme_progress(dojo, user_id),
                     credit=credit
                     ))
