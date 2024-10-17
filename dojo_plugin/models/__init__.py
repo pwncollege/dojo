@@ -264,10 +264,6 @@ class Dojos(db.Model):
     def completed(self, user):
         return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len(self.challenges)
 
-    def start_date(self):
-        module_starts = [m.visibility.start for m in self._modules if m.visibility and m.visibility.start]
-        return min(module_starts) if module_starts else datetime.datetime(2024, 8, 22, 0)
-
     def is_admin(self, user=None):
         if user is None:
             user = get_current_user()
@@ -802,16 +798,19 @@ class DiscordUsers(db.Model):
             DiscordUserActivity.type == "memes"
             ).order_by(DiscordUserActivity.timestamp).all()
 
-        start = memes[0].timestamp if not start else start
-        end = memes[-1].timestamp if not end else end
+        utc_start = memes[0].timestamp if not start else start.astimezone().replace(tzinfo=None)
+        utc_end = memes[-1].timestamp if not end else end.astimezone().replace(tzinfo=None)
 
         def valid_week(week, memes):
             return bool([m for m in memes if m.timestamp >= week[0] and m.timestamp <= week[1]])
 
-        week_count = (end - start) // datetime.timedelta(days=7)
-        class_weeks = [(start + datetime.timedelta(days=7 * i), start + datetime.timedelta(days= 7 * (i + 1))) for i in range(week_count)]
+        week_count = (utc_end - utc_start) // datetime.timedelta(days=7)
+        class_weeks = [(utc_start + datetime.timedelta(days=7 * i), utc_start + datetime.timedelta(days= 7 * (i + 1)) - datetime.timedelta(microseconds=1)) for i in range(week_count)]
 
-        return [w for w in class_weeks if valid_week(w, memes)]
+        def to_local_tz(d):
+            return d.replace(tzinfo=datetime.timezone.utc).astimezone(start.tzinfo)
+
+        return [(to_local_tz(s),to_local_tz(e)) for (s, e) in class_weeks if valid_week((s,e), memes)]
 
     __repr__ = columns_repr(["user", "discord_id"])
 
