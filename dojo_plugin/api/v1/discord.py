@@ -1,6 +1,5 @@
 import hmac
 from datetime import datetime, date
-from itertools import islice
 
 from flask import request
 from flask_restx import Namespace, Resource
@@ -10,7 +9,6 @@ from CTFd.utils.user import get_current_user
 
 from ...config import DISCORD_CLIENT_SECRET
 from ...models import DiscordUsers, DiscordUserActivity
-from ...utils.discord import get_discord_member
 from ...utils.dojo import get_current_dojo_challenge
 
 discord_namespace = Namespace("discord", description="Endpoint to manage discord")
@@ -162,17 +160,14 @@ class GetDiscordLeaderBoard(Resource):
         except ValueError:
             return {"success": False, "error": "Invalid start format"}, 400
 
-        sq = DiscordUserActivity.query.where(
-            DiscordUserActivity.type == 'thanks').where(
-            DiscordUserActivity.message_timestamp >= start).with_entities(
-            DiscordUserActivity.user_id, DiscordUserActivity.source_user_id, DiscordUserActivity.message_id).distinct().subquery()
-        thanks_scores = db.session.execute(db.select(sq.c.user_id, db.func.count(sq.c.user_id)).select_from(sq).group_by(sq.c.user_id).order_by(db.func.count(sq.c.user_id).desc())).all()
-
-        leaderboard = list(islice(
-            ((discord_member["user"]["global_name"], score)
-            for discord_id, score in thanks_scores
-            if (discord_member := get_discord_member(discord_id))),
-            25
-        ))
+        score = db.func.count(db.distinct(db.func.concat(DiscordUserActivity.message_id, "-", DiscordUserActivity.source_user_id))).label("score")
+        leaderboard = (
+            db.session.query(DiscordUserActivity.user_id, score)
+            .filter(DiscordUserActivity.type == "thanks", DiscordUserActivity.message_timestamp >= start)
+            .group_by(DiscordUserActivity.user_id)
+            .order_by(score.desc())
+            .limit(20)
+            .all()
+        )
 
         return {"success": True, "leaderboard": leaderboard}, 200
