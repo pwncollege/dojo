@@ -368,17 +368,10 @@ def view_course(dojo, resource=None):
 
     discord_role = dojo.course.get("discord_role")
     if discord_role:
-        if DiscordUsers.query.filter_by(user=user).first():
-            setup["create_discord"] = "complete"
-            setup["link_discord"] = "complete"
-        else:
-            setup["create_discord"] = "incomplete"
-            setup["link_discord"] = "incomplete"
-
-        if user and get_discord_member(user.id):
-            setup["join_discord"] = "complete"
-        else:
-            setup["join_discord"] = "incomplete"
+        discord_user = DiscordUsers.query.filter_by(user=user).first()
+        setup["create_discord"] = "complete" if discord_user else "incomplete"
+        setup["link_discord"] = "complete" if discord_user else "incomplete"
+        setup["join_discord"] = "complete" if discord_user and get_discord_member(discord_user.discord_id) else "incomplete"
 
     setup_complete = all(status == "complete" for status in setup.values())
 
@@ -421,10 +414,11 @@ def update_identity(dojo):
 
     discord_role = dojo.course.get("discord_role")
     if discord_role:
-        discord_member = get_discord_member(user.id)
-        if discord_member is None:
+        discord_user = DiscordUsers.query.filter_by(user=user).first()
+        if not discord_user:
             return {"success": True, "warning": "Your Discord account is not linked"}
-        if discord_member is False:
+        discord_member = get_discord_member(discord_user.discord_id)
+        if not discord_member:
             return {"success": True, "warning": "Your Discord account has not joined the official Discord server"}
         add_role(discord_member["user"]["id"], discord_role)
 
@@ -551,7 +545,9 @@ def view_user_info(dojo, user_id):
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
     identity = dict(identity_name=dojo.course.get("student_id", "Identity"),
                     identity_value=student.token if student else None)
-    discord_member = get_discord_member(user.id) if dojo.course.get("discord_role") else None
+    discord_member = (get_discord_member(DiscordUsers.query.filter_by(user=user)
+                                         .with_entities(DiscordUsers.discord_id).scalar())
+                      if dojo.course.get("discord_role") else None)
 
     return render_template("dojo_admin_user.html",
                            dojo=dojo,

@@ -1,18 +1,16 @@
 import hmac
-import datetime
-import json
+from datetime import datetime, date
+from itertools import islice
 
 from flask import request
 from flask_restx import Namespace, Resource
-from sqlalchemy import and_
-from CTFd.cache import cache
 from CTFd.models import db
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 
 from ...config import DISCORD_CLIENT_SECRET
 from ...models import DiscordUsers, DiscordUserActivity
-from ...utils.discord import get_discord_member, get_discord_member_by_discord_id
+from ...utils.discord import get_discord_member
 from ...utils.dojo import get_current_dojo_challenge
 
 discord_namespace = Namespace("discord", description="Endpoint to manage discord")
@@ -32,9 +30,10 @@ class Discord(Resource):
     @authed_only
     def delete(self):
         user = get_current_user()
-        DiscordUsers.query.filter_by(user=user).delete()
-        db.session.commit()
-        cache.delete_memoized(get_discord_member, user.id)
+        discord_user = DiscordUsers.query.filter_by(user=user).first()
+        if discord_user:
+            db.session.delete(discord_user)
+            db.session.commit()
         return {"success": True}
 
 
@@ -129,7 +128,7 @@ def post_user_activity(discord_id, activity, request):
             'channel_id': data.get("channel_id"),
             'message_id': data.get("message_id"),
             'timestamp': data.get("timestamp"),
-            'message_timestamp': datetime.datetime.fromisoformat(data.get("message_timestamp")),
+            'message_timestamp': datetime.fromisoformat(data.get("message_timestamp")),
             'type': activity
             }
     entry = DiscordUserActivity(**kwargs)
@@ -158,19 +157,10 @@ class DiscordThanks(Resource):
 @discord_namespace.route("/thanks/leaderboard", methods=["GET"])
 class GetDiscordLeaderBoard(Resource):
     def get(self):
-        start_stamp = request.args.get("start")
-
-        def year_stamp():
-            year = datetime.datetime.now().year
-            return datetime.datetime(year, 1, 1)
-
         try:
-            if start_stamp is None:
-                start = year_stamp()
-            else:
-                start = datetime.datetime.fromisoformat(start_stamp)
-        except:
-            return {"success": False, "error": "invalid start format"}, 400
+            start = datetime.fromisoformat(request.args.get("start", f"{date.today().year}-01-01"))
+        except ValueError:
+            return {"success": False, "error": "Invalid start format"}, 400
 
         sq = DiscordUserActivity.query.where(
             DiscordUserActivity.type == 'thanks').where(
@@ -178,17 +168,11 @@ class GetDiscordLeaderBoard(Resource):
             DiscordUserActivity.user_id, DiscordUserActivity.source_user_id, DiscordUserActivity.message_id).distinct().subquery()
         thanks_scores = db.session.execute(db.select(sq.c.user_id, db.func.count(sq.c.user_id)).select_from(sq).group_by(sq.c.user_id).order_by(db.func.count(sq.c.user_id).desc())).all()
 
-        def get_name(discord_id):
-            try:
-                response = get_discord_member_by_discord_id(discord_id)
-                if not response:
-                    return
-            except:
-                return
+        leaderboard = list(islice(
+            ((discord_member["user"]["global_name"], score)
+            for discord_id, score in thanks_scores
+            if (discord_member := get_discord_member(discord_id))),
+            25
+        ))
 
-            return response['user']['global_name']
-
-        results = [[get_name(discord_id), score] for discord_id, score in thanks_scores]
-        results = [[name, score] for name, score in results if name is not None][:25]
-
-        return {"success": True, "leaderboard": results}, 200
+        return {"success": True, "leaderboard": leaderboard}, 200
