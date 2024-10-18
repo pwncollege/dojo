@@ -760,6 +760,7 @@ class DiscordUserActivity(db.Model):
     message_id = db.Column(db.BigInteger)
     message_timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
+
 class DiscordUsers(db.Model):
     __tablename__ = "discord_users"
     user_id = db.Column(

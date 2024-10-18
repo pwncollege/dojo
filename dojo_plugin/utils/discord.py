@@ -70,19 +70,9 @@ def get_discord_id(auth_code):
 
 
 @cache.memoize(timeout=3600)
-def get_discord_member(user_id):
-    if not DISCORD_BOT_TOKEN:
+def get_discord_member(discord_id):
+    if not DISCORD_BOT_TOKEN or not discord_id:
         return
-
-    discord_user = DiscordUsers.query.filter_by(user_id=user_id).first()
-    if not discord_user:
-        return
-
-    return get_discord_member_by_discord_id(discord_user.discord_id)
-
-	
-@cache.memoize(timeout=3600)
-def get_discord_member_by_discord_id(discord_id):    
     try:
         result = guild_request(f"/members/{discord_id}")
     except requests.exceptions.RequestException:
@@ -90,6 +80,7 @@ def get_discord_member_by_discord_id(discord_id):
     if result.get("message") == "Unknown Member":
         return None
     return result
+
 
 @cache.memoize(timeout=3600)
 def get_discord_roles():

@@ -5,7 +5,6 @@ from flask import request, Blueprint, url_for, redirect, abort, current_app
 from sqlalchemy.exc import IntegrityError
 from itsdangerous.url_safe import URLSafeTimedSerializer
 from CTFd.models import db
-from CTFd.cache import cache
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 
@@ -66,8 +65,7 @@ def discord_redirect():
         else:
             existing_discord_user.discord_id = discord_id
         db.session.commit()
-        cache.delete_memoized(get_discord_member, user_id)
-        if get_discord_member(user_id):
+        if get_discord_member(discord_id):
             add_role(discord_id, "White Belt")
             update_awards(user)
     except IntegrityError:
