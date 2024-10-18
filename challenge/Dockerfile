@@ -240,7 +240,7 @@ FROM builder-tcpdump-${INSTALL_TCPDUMP} as builder-tcpdump
 FROM scratch as builder-capstone-no
 FROM builder as builder-capstone-yes
 RUN <<EOF
-    git clone --branch 5.0.2 --depth 1 https://github.com/capstone-engine/capstone /opt/capstone
+    git clone --branch 5.0.3 --depth 1 https://github.com/capstone-engine/capstone /opt/capstone
     cd /opt/capstone
     make
     make install
