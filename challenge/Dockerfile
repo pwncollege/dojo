@@ -377,7 +377,7 @@ FROM essentials as builder-desktop-ida-free-yes
 COPY desktop/ida64.desktop /usr/share/applications/
 COPY desktop/ida.opt /opt/ida/ida.opt
 RUN <<EOF
-    wget -O /tmp/idafree80_linux.run https://out7.hex-rays.com/files/idafree80_linux.run
+    wget --no-check-certificate -O /tmp/idafree80_linux.run https://out7.hex-rays.com/files/idafree80_linux.run
     chmod 755 /tmp/idafree80_linux.run
     /tmp/idafree80_linux.run --optionfile /opt/ida/ida.opt
     rm /tmp/idafree80_linux.run /tmp/installbuilder_installer.log
