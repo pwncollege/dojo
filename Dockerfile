@@ -17,7 +17,8 @@ RUN apt-get update && \
         nfs-kernel-server \
         unzip \
         wget \
-        wireguard
+        wireguard \
+        zfsutils-linux
 
 RUN curl -fsSL https://get.docker.com | /bin/sh && \
     echo '{ "data-root": "/data/docker", "hosts": ["unix:///run/docker.sock"], "builder": {"Entitlements": {"security-insecure": true}} }' > /etc/docker/daemon.json && \
