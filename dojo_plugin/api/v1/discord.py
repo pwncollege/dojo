@@ -161,13 +161,13 @@ class GetDiscordLeaderBoard(Resource):
             return {"success": False, "error": "Invalid start format"}, 400
 
         score = db.func.count(db.distinct(db.func.concat(DiscordUserActivity.message_id, "-", DiscordUserActivity.source_user_id))).label("score")
-        leaderboard = (
+        leaderboard_query = (
             db.session.query(DiscordUserActivity.user_id, score)
             .filter(DiscordUserActivity.type == "thanks", DiscordUserActivity.message_timestamp >= start)
             .group_by(DiscordUserActivity.user_id)
             .order_by(score.desc())
             .limit(20)
-            .all()
         )
+        leaderboard = [dict(discord_id=discord_id, score=score) for discord_id, score in leaderboard_query]
 
         return {"success": True, "leaderboard": leaderboard}, 200
