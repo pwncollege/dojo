@@ -780,7 +780,7 @@ class DiscordUsers(db.Model):
         if unique_messages:
             query = query.with_entities(DiscordUserActivity.message_id)
         else:
-           query = query.with_entities(DiscordUserActivity.user_id, DiscordUserActivity.source_user_id, DiscordUserActivity.message_id)
+            query = query.with_entities(DiscordUserActivity.user_id, DiscordUserActivity.source_user_id, DiscordUserActivity.message_id)
 
         return query.distinct().count()
 
@@ -797,22 +797,23 @@ class DiscordUsers(db.Model):
 
     def meme_dates(self, start=None, end=None):
         memes = DiscordUserActivity.query.filter(and_(DiscordUserActivity.user_id == self.discord_id),
-            DiscordUserActivity.timestamp >= start if start else True,
-            DiscordUserActivity.timestamp <= end if end else True,
+            DiscordUserActivity.message_timestamp >= start if start else True,
+            DiscordUserActivity.message_timestamp <= end if end else True,
             DiscordUserActivity.type == "memes"
-            ).order_by(DiscordUserActivity.timestamp).all()
+            ).order_by(DiscordUserActivity.message_timestamp).all()
 
-        utc_start = memes[0].timestamp if not start else start.astimezone().replace(tzinfo=None)
-        utc_end = memes[-1].timestamp if not end else end.astimezone().replace(tzinfo=None)
+        default_start = datetime.datetime.fromisoformat(f"{datetime.datetime.today().year}-01-01")
+        utc_start = default_start if not start else start.astimezone().replace(tzinfo=None)
+        utc_end = datetime.datetime.now() if not end else end.astimezone().replace(tzinfo=None)
 
         def valid_week(week, memes):
-            return bool([m for m in memes if m.timestamp >= week[0] and m.timestamp <= week[1]])
+            return bool([m for m in memes if m.message_timestamp >= week[0] and m.message_timestamp <= week[1]])
 
         week_count = (utc_end - utc_start) // datetime.timedelta(days=7)
         class_weeks = [(utc_start + datetime.timedelta(days=7 * i), utc_start + datetime.timedelta(days= 7 * (i + 1)) - datetime.timedelta(microseconds=1)) for i in range(week_count)]
 
         def to_local_tz(d):
-            return d.replace(tzinfo=datetime.timezone.utc).astimezone(start.tzinfo)
+            return d.replace(tzinfo=datetime.timezone.utc).astimezone(start.tzinfo) if start else d
 
         return [(to_local_tz(s),to_local_tz(e)) for (s, e) in class_weeks if valid_week((s,e), memes)]
 
