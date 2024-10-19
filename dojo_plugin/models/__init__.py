@@ -771,19 +771,18 @@ class DiscordUsers(db.Model):
     user = db.relationship("Users")
 
     def thanks_count(self, start=None, end=None, unique_messages=False):
-        distinct_source_user_id = None if unique_messages else DiscordUserActivity.source_user_id
-
-        sq = DiscordUserActivity.query.filter(
+        query = DiscordUserActivity.query.filter(
             DiscordUserActivity.type == 'thanks',
+            DiscordUserActivity.user_id == self.discord_id,
             DiscordUserActivity.message_timestamp >= start if start else True,
-            DiscordUserActivity.message_timestamp <= end if end else True,
-            ).with_entities(DiscordUserActivity.user_id, distinct_source_user_id, DiscordUserActivity.message_id
-            ).distinct().subquery()
+            DiscordUserActivity.message_timestamp <= end if end else True)
 
-        return db.session.execute(db.select(sq.c.user_id, db.func.count(sq.c.user_id))
-            .select_from(sq).group_by(sq.c.user_id).order_by(db.func.count(sq.c.user_id).desc())).all()
+        if unique_messages:
+            query = query.with_entities(DiscordUserActivity.message_id)
+        else:
+           query = query.with_entities(DiscordUserActivity.user_id, DiscordUserActivity.source_user_id, DiscordUserActivity.message_id)
 
-
+        return query.distinct().count()
 
     def meme_count(self, start=None, end=None, weekly=True):
         if not weekly:
