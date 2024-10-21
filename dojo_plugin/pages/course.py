@@ -420,7 +420,7 @@ def update_identity(dojo):
         discord_member = get_discord_member(discord_user.discord_id)
         if not discord_member:
             return {"success": True, "warning": "Your Discord account has not joined the official Discord server"}
-        add_role(discord_member["user"]["id"], discord_role)
+        add_role(discord_user.discord_id, discord_role)
 
     return {"success": True}
 

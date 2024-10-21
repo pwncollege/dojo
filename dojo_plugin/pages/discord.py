@@ -66,7 +66,7 @@ def discord_redirect():
             existing_discord_user.discord_id = discord_id
         db.session.commit()
         if get_discord_member(discord_id):
-            add_role(discord_id, "White Belt")
+            add_role(discord_user.discord_id, "White Belt")
             update_awards(user)
     except IntegrityError:
         db.session.rollback()
