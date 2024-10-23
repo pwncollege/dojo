@@ -48,6 +48,7 @@
             curl
             findutils
             glibc
+            glibc.static
             glibcLocales
             gawk
             gnugrep
