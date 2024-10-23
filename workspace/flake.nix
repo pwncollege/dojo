@@ -48,7 +48,6 @@
             curl
             findutils
             glibc
-            # Adds static compilation support
             glibc.static
             glibcLocales
             gawk
