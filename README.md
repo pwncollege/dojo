@@ -131,6 +131,9 @@ DATA_PATH="./dojo/data"
 git clone https://github.com/pwncollege/dojo "$DOJO_PATH"
 docker build -t pwncollege/dojo "$DOJO_PATH"
 
+# this is needed for the dojo's networking
+modprobe br_netfilter
+
 docker run \
     --name dojo \
     --privileged \
