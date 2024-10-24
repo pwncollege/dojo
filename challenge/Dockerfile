@@ -218,11 +218,6 @@ RUN <<EOF
     cargo install --path . --root /tmp
     mv /tmp/bin/ropr /usr/bin/kropr
     chmod +x /usr/bin/kropr
-
-    git clone --depth 1 https://github.com/mahaloz/decomp2dbg.git /opt/decomp2dbg
-    cd /opt/decomp2dbg
-    pip install .
-
     ln -sf /home/hacker/.gdbinit /root/.gdbinit
 EOF
 
@@ -369,9 +364,6 @@ RUN <<EOF
     unzip /tmp/ghidra.zip -d /tmp
     mv /tmp/ghidra_10.3_PUBLIC /opt/ghidra
     rm /tmp/ghidra.zip
-
-    wget -q -O /tmp/d2d-ghidra-plugin.zip https://github.com/mahaloz/decomp2dbg/releases/latest/download/d2d-ghidra-plugin.zip
-    mv /tmp/d2d-ghidra-plugin.zip /opt/ghidra/Extensions/Ghidra
 EOF
 
 FROM builder-desktop-ghidra-${INSTALL_GHIDRA} as builder-desktop-ghidra

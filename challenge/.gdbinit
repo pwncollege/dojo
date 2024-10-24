@@ -1,6 +1,5 @@
 source /opt/pwndbg/gdbinit.py
 source /opt/splitmind/gdbinit.py
-source /opt/decomp2dbg/d2d.py
 
 python
 import splitmind
