@@ -1,6 +1,9 @@
 { pkgs }:
 
 let
+  decomp2dbg-gdb = pkgs.callPackage ./dbg-plugins/decomp2dbg.nix {};
+  decomp2dbg-ghidra = pkgs.callPackage ./ghidra-extensions/decomp2dbg.nix {};
+
   pythonEnv = pkgs.python3.withPackages (ps: with ps; [
     angr
     asteval
@@ -33,6 +36,10 @@ let
     '';
   });
 
+  ghidra-extended = pkgs.ghidra.withExtensions (_: [
+    decomp2dbg-ghidra
+  ]);
+
 in
 {
   packages = with pkgs; [
@@ -47,13 +54,14 @@ in
     gdb
     pwndbg
     gef
+    decomp2dbg-gdb
     openssh
     netcat-openbsd
 
     vim
     emacs
 
-    ghidra
+    ghidra-extended
     ida-free
     radare2
     # TODO: angr-management
