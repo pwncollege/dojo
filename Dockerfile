@@ -7,6 +7,7 @@ RUN apt-get update && \
     apt-get install -y \
         autofs \
         build-essential \
+        btrfs-progs \
         curl \
         git \
         host \

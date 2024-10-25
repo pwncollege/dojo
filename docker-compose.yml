@@ -63,6 +63,20 @@ services:
       - /run/dojofs:/run/dojofs:shared
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
+  homefs:
+    container_name: homefs
+    privileged: true
+    build:
+      context: ./homefs
+    environment:
+      - STORAGE_ROOT=/data/homefs
+      - STORAGE_HOST=http://192.168.42.1:8001
+    volumes:
+      - /data/homefs:/data/homefs:shared
+      - /var/run/docker/plugins:/var/run/docker/plugins
+    ports:
+      - "8001:80"
+
   ctfd:
     container_name: ctfd
     profiles:
@@ -150,6 +164,8 @@ services:
       workspacefs:
         condition: service_started
       dojofs:
+        condition: service_started
+      homefs:
         condition: service_started
       db:
         condition: service_healthy

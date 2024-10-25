@@ -55,6 +55,8 @@ def remove_container(user):
 
 
 def start_container(docker_client, user, as_user, mounts, dojo_challenge, practice):
+    assert user == as_user, "Support for running as a different user is currently disabled"  # TODO: Re-implement this
+
     hostname = "~".join(
         (["practice"] if practice else [])
         + [
@@ -131,12 +133,12 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
                     read_only=True,
                     propagation="slave",
                 ),
-            ]
-            + [
                 docker.types.Mount(
-                    str(target), str(source), "bind", propagation="shared", **(kwargs or {})
-                )
-                for target, source, kwargs in mounts
+                    "/home/hacker",
+                    str(as_user.id),
+                    "volume",
+                    driver_config=docker.types.DriverConfig("homefs"),
+                ),
             ],
             devices=devices,
             network=None,
