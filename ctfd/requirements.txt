@@ -8,7 +8,7 @@ flask-shell-ipython==0.5.1
 
 # CTFd
 Flask==2.2.5
-Werkzeug==2.3.8
+Werkzeug==3.0.6
 Flask-SQLAlchemy==2.5.1
 Flask-Caching==2.0.2
 Flask-Migrate==2.5.3
