@@ -143,7 +143,6 @@ def render_markdown(s):
         "b", "i", "strong", "em", "tt",
         "p", "br",
         "span", "div", "blockquote", "code", "pre", "hr",
-        "hide",
         "ul", "ol", "li", "dd", "dt",
         "img",
         "a",
