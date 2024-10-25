@@ -69,10 +69,10 @@ services:
     build:
       context: ./homefs
     environment:
-      - STORAGE_ROOT=/data/homefs
+      - STORAGE_ROOT=/run/homefs
       - STORAGE_HOST=http://192.168.42.1:8001
     volumes:
-      - /data/homefs:/data/homefs:shared
+      - /run/homefs:/run/homefs:shared
       - /var/run/docker/plugins:/var/run/docker/plugins
     ports:
       - "8001:80"

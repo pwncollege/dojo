@@ -39,34 +39,20 @@ def file_lock(path, *, timeout=None):
         os.close(lock_fd)
 
 
-def setup_volume_storage():
+def check_volume_storage():
     lock = file_lock("/run/homefs.lock")
     lock.__enter__()
-
-    def create_btrfs():
-        img_path = STORAGE_ROOT / "btrfs.img"
-        try:
-            if not img_path.exists():
-                STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
-                subprocess.run(["truncate", "-s", STORAGE_SIZE, img_path], check=True)
-                subprocess.run(["mkfs.btrfs", img_path], check=True)
-            subprocess.run(["mount", "-o", "loop", img_path, STORAGE_ROOT], check=True)
-            btrfs("quota", "enable", STORAGE_ROOT)
-        except subprocess.CalledProcessError as e:
-            print(f"Failed to create btrfs filesystem", file=sys.stderr)
-            sys.exit(1)
-
     mounts = Path("/proc/mounts").read_text().splitlines()
     for mount in reversed(mounts):
         _, mount_point, fs_type, *__ = mount.split()
         if mount_point == str(STORAGE_ROOT):
             if fs_type != "btrfs":
-                print(f"Mount point {STORAGE_ROOT} is not a btrfs filesystem, creating it", file=sys.stderr)
-                create_btrfs()
+                print(f"Error: mount point {STORAGE_ROOT} is not a btrfs filesystem", file=sys.stderr)
+                exit(1)
             break
     else:
-        print(f"Mount point {STORAGE_ROOT} not found, creating it", file=sys.stderr)
-        create_btrfs()
+        print(f"Error: mount point {STORAGE_ROOT} does not exist", file=sys.stderr)
+        exit(1)
 
 
 class Volume:

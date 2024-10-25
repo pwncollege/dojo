@@ -1,7 +1,7 @@
 from flask import Flask
 from werkzeug.routing import BaseConverter
 
-from volume import setup_volume_storage, Volume
+from volume import check_volume_storage, Volume
 from volume_server import volume_server
 from volume_driver import volume_driver
 
@@ -15,7 +15,7 @@ class VolumeConverter(BaseConverter):
 
 
 def create_app():
-    setup_volume_storage()
+    check_volume_storage()
 
     app = Flask(__name__)
 

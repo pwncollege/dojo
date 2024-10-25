@@ -71,31 +71,16 @@ mv /data/.config.env /data/config.env
 mkdir -p /data/workspace/nix
 mkdir -p /data/workspacefs/bin
 
-if [ ! -f /data/homes/homefs ]; then
-    echo "[+] Creating user home structure."
-    mkdir -p /data/homes
-    mkdir -p /data/homes/data
-    mkdir -p /data/homes/mounts
-    dd if=/dev/zero of=/data/homes/homefs bs=1M count=0 seek=1000
-    mkfs.ext4 -O ^has_journal /data/homes/homefs
-    mount /data/homes/homefs -o X-mount.mkdir /data/homes/homefs_mount
-    rm -rf /data/homes/homefs_mount/lost+found/
-    cp -a /etc/skel/. /data/homes/homefs_mount
-    chown -R 1000:1000 /data/homes/homefs_mount
-    umount /data/homes/homefs_mount
-    rm -rf /data/homes/homefs_mount
+mkdir -p /data/homes
+if [ "$(findmnt -n -o FSTYPE /data/homes)" != "btrfs" ]; then
+    if [ ! -f /data/homes/btrfs.img ]; then
+        echo "[+] Creating home storage"
+        truncate -s 256G /data/homes/btrfs.img
+        mkfs.btrfs /data/homes/btrfs.img
+    fi
+    mount -o loop /data/homes/btrfs.img /data/homes
 fi
-
-mkdir -p /data/workspace/homes/mounts /data/workspace/homes/overlays
-cat <<EOF > /etc/auto.master.d/homes.autofs
-/data/homes/mounts program:/usr/bin/automount-home --timeout=28800
-/data/workspace/homes/mounts /etc/auto.nfs --timeout=25200
-/data/workspace/homes/overlays program:/usr/bin/automount-overlay --timeout=25200
-EOF
-echo '* -fstype=nfs,rw,soft,nosuid 192.168.42.1:/data/homes/mounts/&' > /etc/auto.nfs
-
-echo '/data/homes 192.168.42.0/24(fsid=0,rw,sync,no_subtree_check,no_root_squash,crossmnt)' > /etc/exports
-exportfs -ra
+btrfs quota enable /data/homes
 
 if [ ! -d /data/ssh_host_keys ]; then
     mkdir -p /data/ssh_host_keys
