@@ -1,5 +1,6 @@
 import functools
 import inspect
+import io
 import logging
 import os
 
@@ -60,14 +61,15 @@ def mount_volume(volume, id):
             headers = {}
             if volume.latest_snapshot_path:
                 headers["If-None-Match"] = volume.latest_snapshot_path.name
-            response = requests.get(f"{STORAGE_HOST}/volume/{volume.name}", headers=headers, stream=True)
+            response = requests.get(f"{STORAGE_HOST}/volume/{volume.name}", headers=headers)
             if response.status_code == 304:
                 snapshot_path = volume.latest_snapshot_path
             elif (volume.snapshots_path / response.headers["ETag"]).exists():
                 snapshot_path = volume.snapshots_path / response.headers["ETag"]
+            elif response.status_code == 200:
+                snapshot_path = volume.receive(io.BytesIO(response.content))
             else:
-                with response.raw as stream:
-                    snapshot_path = volume.receive(stream)
+                raise RuntimeError(f"Failed to get snapshot: {response.status_code}")
             volume.activate(snapshot_path, locked=True)
         else:
             volume.snapshot(locked=True)
