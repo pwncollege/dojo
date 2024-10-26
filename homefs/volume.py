@@ -10,7 +10,6 @@ import time
 
 
 STORAGE_ROOT = Path(os.environ.get("STORAGE_ROOT", "/data"))
-STORAGE_SIZE = os.environ.get("STORAGE_SIZE", "256G")
 VOLUME_SIZE = os.environ.get("VOLUME_SIZE", "1G")
 
 
