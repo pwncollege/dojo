@@ -14,6 +14,7 @@ RUN apt-get update && \
         iproute2 \
         iputils-ping \
         jq \
+        kmod \
         unzip \
         wget \
         wireguard
