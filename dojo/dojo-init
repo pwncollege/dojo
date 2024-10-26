@@ -72,7 +72,7 @@ mkdir -p /data/workspace/nix
 mkdir -p /data/workspacefs/bin
 
 mkdir -p /data/homes
-if [ "$(findmnt -n -o FSTYPE /data/homes)" != "btrfs" ]; then
+if [ "$(findmnt -n -o FSTYPE /data/homes)" != "btrfs" ] && [ "$(findmnt -n -o FSTYPE /data)" != "btrfs" ]; then
     if [ ! -f /data/homes/btrfs.img ]; then
         echo "[+] Creating home storage"
         truncate -s 256G /data/homes/btrfs.img
