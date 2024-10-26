@@ -255,7 +255,7 @@ def test_workspace_challenge():
     assert match, f"Expected flag, but got: {result.stdout}"
 
 
-def check_mount(path, *, user, fstype, check_nosuid=True):
+def check_mount(path, *, user, fstype=None, check_nosuid=True):
     try:
         result = workspace_run(f"findmnt -J {path}", user=user)
     except subprocess.CalledProcessError as e:
@@ -267,14 +267,15 @@ def check_mount(path, *, user, fstype, check_nosuid=True):
 
     filesystem = mount_info["filesystems"][0]
     assert filesystem["target"] == path, f"Expected '{path}' to be mounted at '{path}', but got: {filesystem}"
-    assert filesystem["fstype"] == fstype, f"Expected '{path}' to be mounted as '{fstype}', but got: {filesystem}"
+    if fstype:
+        assert filesystem["fstype"] == fstype, f"Expected '{path}' to be mounted as '{fstype}', but got: {filesystem}"
     if check_nosuid:
         assert "nosuid" in filesystem["options"], f"Expected '{path}' to be mounted nosuid, but got: {filesystem}"
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_home_mount():
-    check_mount("/home/hacker", user="admin", fstype="nfs")
+    check_mount("/home/hacker", user="admin")
 
 
 @pytest.mark.dependency(depends=["test_start_challenge"])
@@ -433,8 +434,8 @@ def test_workspace_as_user(admin_user, random_user):
     workspace_run("touch /home/hacker/test", user=random_user)
 
     start_challenge("example", "hello", "apple", session=admin_session, as_user=random_user_id)
-    check_mount("/home/hacker", user=admin_user, fstype="overlay")
-    check_mount("/home/me", user=admin_user, fstype="nfs")
+    check_mount("/home/hacker", user=admin_user)
+    check_mount("/home/me", user=admin_user)
 
     try:
         workspace_run("[ -f '/home/hacker/test' ]", user=admin_user)

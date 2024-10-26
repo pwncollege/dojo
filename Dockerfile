@@ -5,8 +5,8 @@ ENV LC_CTYPE=C.UTF-8
 
 RUN apt-get update && \
     apt-get install -y \
-        autofs \
         build-essential \
+        btrfs-progs \
         curl \
         git \
         host \
@@ -14,7 +14,6 @@ RUN apt-get update && \
         iproute2 \
         iputils-ping \
         jq \
-        nfs-kernel-server \
         unzip \
         wget \
         wireguard
@@ -32,7 +31,8 @@ RUN cd /tmp && \
 
 RUN git clone --branch 3.6.0 https://github.com/CTFd/CTFd /opt/CTFd
 
-RUN echo 'tmpfs /run/dojofs tmpfs defaults,mode=755,shared 0 0' > /etc/fstab
+RUN echo 'tmpfs /run/dojofs tmpfs defaults,mode=755,shared 0 0' > /etc/fstab && \
+    echo '/data/homes /run/homefs none defaults,bind,nosuid 0 0' >> /etc/fstab
 
 RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.service /etc/systemd/system/pwn.college.service && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.backup.service /etc/systemd/system/pwn.college.backup.service && \
