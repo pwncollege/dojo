@@ -267,7 +267,8 @@ def view_module(dojo, module):
     if student or dojo.is_admin(user):
         now = datetime.datetime.now(datetime.timezone.utc)
         for assessment in module.assessments:
-            date = datetime.datetime.fromisoformat(assessment["date"])
+            assessment_date = assessment.get("countdown_date") if "countdown_date" in assessment else assessment["date"]
+            date = datetime.datetime.fromisoformat(assessment_date)
             until = date.astimezone(datetime.timezone.utc) - now
             if until < datetime.timedelta(0):
                 continue
