@@ -3,17 +3,24 @@
 
   inputs = {
     nixpkgs.url = "git+file:///opt/nixpkgs-24.05";
+    nixpkgs-unstable.url = "git+file:///opt/nixpkgs-unstable";
   };
 
-  outputs = { self, nixpkgs }: {
+  outputs = { self, nixpkgs, nixpkgs-unstable }: {
     packages = {
       x86_64-linux =
         let
+          system = "x86_64-linux";
+          config = { allowUnfree = true; };
           pkgs = import nixpkgs {
-            system = "x86_64-linux";
-            config = {
-              allowUnfree = true;
-            };
+            inherit system config;
+            overlays = [
+              (final: prev: {
+                # https://github.com/NixOS/nixpkgs/pull/331654 - ida-free: add openssl dependency to libida64
+                # https://github.com/NixOS/nixpkgs/pull/349440 - ida-free: fix hash mismatchin of icon
+                ida-free = (import nixpkgs-unstable { inherit system config; }).ida-free;
+              })
+            ];
           };
 
           init = import ./core/init.nix { inherit pkgs; };
