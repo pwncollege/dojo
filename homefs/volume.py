@@ -130,7 +130,7 @@ class Volume:
         if parents:
             btrfs_send_args.extend(["-p", max(parents)])
         btrfs_send_args.append(snapshot_path)
-        return subprocess.Popen(btrfs_send_args, stdout=subprocess.PIPE).stdout
+        return subprocess.check_output(btrfs_send_args)
 
     def receive(self, stream):
         receive_process = subprocess.Popen(["btrfs", "receive", str(self.snapshots_path)],
