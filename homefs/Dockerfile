@@ -17,5 +17,6 @@ CMD ["gunicorn", \
      "homefs:create_app()", \
      "--bind=unix:/run/docker/plugins/homefs.sock", \
      "--bind=0.0.0.0:80", \
-     "--workers=8", \
-     "--access-logfile=-"]
+     "--workers=32", \
+     "--access-logfile=-", \
+     "--timeout=300"]
