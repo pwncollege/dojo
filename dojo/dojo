@@ -13,13 +13,13 @@ fi
 DOCKER_ARGS=${DOCKER_ARGS:--i}
 [ -t 0 ] && DOCKER_ARGS="-t $DOCKER_ARGS"
 
-if [ "$ACTION" != "init" ] && [ -f /data/config.env ]; then
-    . /data/config.env
-fi
+[ -f /data/config.env ] && . /data/config.env
 
 case "$ACTION" in
     # HELP: up: bring the dojo up
     "up")
+        echo "[+] Starting the dojo. If this is the first start, the challenge"
+        echo "[+} container will be built, which will take a very long time."
         dojo sync
         dojo compose up -d --build --remove-orphans "$@"
         ;;
@@ -140,15 +140,6 @@ case "$ACTION" in
                     ;;
             esac
         done
-        ;;
-
-    # HELP: init: main entry point for the docker image
-    "init")
-        echo "[+] Initializing dojo."
-        dojo-init
-        echo "[+] Starting systemd. If this is the first start, the challenge container"
-        echo "    will be built, which will take a very long time."
-        exec /usr/bin/systemd
         ;;
 
     # HELP: help: displays this help
