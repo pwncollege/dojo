@@ -36,6 +36,7 @@ RUN echo 'tmpfs /run/dojofs tmpfs defaults,mode=755,shared 0 0' > /etc/fstab && 
     echo '/data/homes /run/homefs none defaults,bind,nosuid 0 0' >> /etc/fstab
 
 RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.service /etc/systemd/system/pwn.college.service && \
+    ln -s /opt/pwn.college/etc/systemd/system/pwn.college.init.service /etc/systemd/system/pwn.college.init.service && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.backup.service /etc/systemd/system/pwn.college.backup.service && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.backup.timer /etc/systemd/system/pwn.college.backup.timer && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.cachewarmer.service /etc/systemd/system/pwn.college.cachewarmer.service && \
@@ -44,6 +45,7 @@ RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.service /etc/systemd/s
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.imagepuller.timer /etc/systemd/system/pwn.college.imagepuller.timer && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.cloud.backup.service /etc/systemd/system/pwn.college.cloud.backup.service && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.cloud.backup.timer /etc/systemd/system/pwn.college.cloud.backup.timer && \
+    ln -s /etc/systemd/system/pwn.college.init.service /etc/systemd/system/multi-user.target.wants/pwn.college.init.service && \
     ln -s /etc/systemd/system/pwn.college.service /etc/systemd/system/multi-user.target.wants/pwn.college.service && \
     ln -s /etc/systemd/system/pwn.college.backup.timer /etc/systemd/system/timers.target.wants/pwn.college.backup.timer && \
     ln -s /etc/systemd/system/pwn.college.cachewarmer.timer /etc/systemd/system/timers.target.wants/pwn.college.cachewarmer.timer && \
@@ -58,4 +60,4 @@ RUN find /opt/pwn.college/dojo -type f -exec ln -s {} /usr/bin/ \;
 EXPOSE 22
 EXPOSE 80
 EXPOSE 443
-CMD ["dojo-init"]
+CMD ["/usr/bin/systemd"]

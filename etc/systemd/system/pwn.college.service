@@ -2,6 +2,7 @@
 Description=pwn.college docker compose service
 Requires=docker.service
 After=docker.service
+After=pwn.college.init.service
 
 [Service]
 Type=oneshot

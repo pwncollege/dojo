@@ -1,0 +1,12 @@
+[Unit]
+Description=pwn.college initialization service
+Before=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+WorkingDirectory=/opt/pwn.college
+ExecStart=/usr/bin/dojo-init
+
+[Install]
+WantedBy=multi-user.target
