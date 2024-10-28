@@ -48,10 +48,12 @@ in
     tcpdump
     firefox
     geckodriver
+    burpsuite
 
     aflplusplus
     rappel
     ropgadget
+    # TODO: rp++
 
     sage
 
