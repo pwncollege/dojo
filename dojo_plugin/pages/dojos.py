@@ -49,12 +49,11 @@ def listing(template="dojos.html"):
         dojo_solves = dojo_solves.add_columns(0)
 
     for dojo, solves in dojo_solves:
-        if dojo.type == "hidden" or (dojo.type == "example" and dojo.official):
-            continue
-        categorized_dojos.setdefault(dojo.type, []).append((dojo, solves))
+        if not (dojo.type == "hidden" or (dojo.type == "example" and dojo.official)):
+            categorized_dojos.setdefault(dojo.type, []).append((dojo, solves))
+            categorized_dojos["member"].extend((dojo_member.dojo, 0) for dojo_member in user_dojo_members
+                                               if dojo_member.dojo == dojo and dojo.type not in ["welcome", "topic", "public"])
         categorized_dojos["admin"].extend((dojo_admin.dojo, 0) for dojo_admin in user_dojo_admins if dojo_admin.dojo == dojo)
-        categorized_dojos["member"].extend((dojo_member.dojo, 0) for dojo_member in user_dojo_members
-                                           if dojo_member.dojo == dojo and dojo.type not in ["welcome", "topic", "public"])
 
     dojo_container_counts = collections.Counter(stats["dojo"] for stats in get_container_stats())
 
