@@ -236,7 +236,7 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
 
     if format == "csv":
         def stream():
-            yield "user_id,user_name,module,challenge,time\n"
+            yield "user_id,module,challenge,time\n"
             for user_id, _, module, challenge, time in solves:
                 yield f"{user_id},{module},{challenge},{time}\n"
         headers = {"Content-Disposition": "attachment; filename=data.csv"}
