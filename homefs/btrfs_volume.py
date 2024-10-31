@@ -56,9 +56,7 @@ class BTRFSVolume:
         if self.active:
             return
 
-        print(f"[DEBUG] Fetching volume {self.name} from {host}", flush=True)
         snapshot_path = self.fetch(host)
-        print(f"[DEBUG] FETCHED {self.name}", flush=True)
 
         response = requests.post(f"http://{host}:4201/volume/{self.name}/activate")
         try:
@@ -157,9 +155,7 @@ class BTRFSVolume:
         headers = {}
         if self.latest_snapshot_path:
             headers["If-None-Match"] = self.latest_snapshot_path.name
-        print(f"[DEBUG] Requesting volume {self.name} from {host}", flush=True)
         response = requests.get(f"http://{host}:4201/volume/{self.name}", headers=headers)
-        print(f"[DEBUG] RECEIVED {self.name} {response.status_code}", flush=True)
         etag_path = self.snapshots_path / response.headers["ETag"]
         if response.status_code == 304 or etag_path.exists():
             # We already have the latest snapshot (we may have requested the volume from ourselves)
