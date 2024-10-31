@@ -39,8 +39,6 @@ def activate_volume(volume):
         if active_volume.host != request.remote_addr:
             return "Volume already active\n", 409
         else:
-            active_volume.modified = db.func.now()
-            db.session.commit()
             return "Volume activated\n", 201
 
     active_volume = ActiveVolumes(name=volume.name, host=request.remote_addr)

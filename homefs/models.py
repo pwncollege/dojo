@@ -10,7 +10,6 @@ class ActiveVolumes(db.Model):
     name = db.Column(db.String, primary_key=True)
     host = db.Column(db.String)
     created = db.Column(db.DateTime, server_default=db.func.now())
-    modified = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
 
 
 class DockerVolumes(db.Model):
