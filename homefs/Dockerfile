@@ -6,6 +6,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     pip install \
         flask \
+        flask_sqlalchemy \
         gunicorn \
         requests
 
@@ -16,7 +17,7 @@ EXPOSE 80
 CMD ["gunicorn", \
      "homefs:create_app()", \
      "--bind=unix:/run/docker/plugins/homefs.sock", \
-     "--bind=0.0.0.0:80", \
+     "--bind=0.0.0.0:4201", \
      "--workers=32", \
      "--access-logfile=-", \
      "--timeout=300"]

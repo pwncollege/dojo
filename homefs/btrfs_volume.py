@@ -1,4 +1,4 @@
-import fcntl
+import io
 import os
 import re
 import subprocess
@@ -6,7 +6,10 @@ import sys
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-import time
+
+import requests
+
+from utils import file_lock
 
 
 STORAGE_ROOT = Path(os.environ.get("STORAGE_ROOT", "/data"))
@@ -18,29 +21,7 @@ def btrfs(*args, **kwargs):
     return subprocess.run(["btrfs", *args], **kwargs)
 
 
-@contextmanager
-def file_lock(path, *, timeout=None):
-    lock_fd = os.open(path, os.O_CREAT | os.O_RDWR)
-    try:
-        if timeout is None:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
-        else:
-            start_time = time.time()
-            try:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                if timeout >= 0 and time.time() - start_time > timeout:
-                    raise TimeoutError
-                time.sleep(0.1)
-        yield
-    finally:
-        fcntl.flock(lock_fd, fcntl.LOCK_UN)
-        os.close(lock_fd)
-
-
 def check_volume_storage():
-    lock = file_lock("/run/homefs.lock")
-    lock.__enter__()
     mounts = Path("/proc/mounts").read_text().splitlines()
     for mount in reversed(mounts):
         _, mount_point, fs_type, *__ = mount.split()
@@ -54,37 +35,47 @@ def check_volume_storage():
         exit(1)
 
 
-class Volume:
+class BTRFSVolume:
     def __init__(self, name):
         self.name = name
-        if not self.path.exists():
-            btrfs("subvolume", "create", self.path)
-            btrfs("subvolume", "create", self.snapshots_path)
+        for path in (self.path, self.snapshots_path, self.overlays_path):
+            if not path.exists():
+                btrfs("subvolume", "create", path)
+
 
     @contextmanager
     def active_lock(self, *, timeout=None):
         with file_lock(self.path / ".active.lock", timeout=timeout):
             yield
 
-    def activate(self, from_snapshot=None, *, locked=False):
+    def activate(self, host, *, locked=False):
         if not locked:
             with self.active_lock():
-                return self.activate(from_snapshot, locked=True)
+                return self.activate(host, locked=True)
+
         if self.active:
-            btrfs("subvolume", "delete", self.active_path)
-        from_snapshot = from_snapshot or self.latest_snapshot_path
-        if from_snapshot:
-            btrfs("subvolume", "snapshot", from_snapshot, self.active_path)
-        else:
-            btrfs("subvolume", "create", self.active_path)
+            return
+
+        snapshot_path = self.fetch(host)
+
+        response = requests.post(f"http://{host}:4201/volume/{self.name}/activate")
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            raise RuntimeError("Failed to activate")
+
+        btrfs("subvolume", "snapshot", snapshot_path, self.active_path)
         btrfs("qgroup", "limit", VOLUME_SIZE, self.active_path)
+        return snapshot_path
 
     def deactivate(self, *, locked=False):
         if not locked:
             with self.active_lock():
                 return self.deactivate(locked=True)
+
         if not self.active:
             return
+
         snapshot_path = self.snapshot(locked=True)
         btrfs("subvolume", "delete", self.active_path)
         return snapshot_path
@@ -117,18 +108,30 @@ class Volume:
 
         return self.latest_snapshot_path
 
+    def overlay(self, overlay_name, snapshot_path=None):
+        snapshot_path = snapshot_path or self.snapshot()
+        self.remove_overlay(overlay_name)
+        overlay_path = self.overlays_path / overlay_name
+        btrfs("subvolume", "snapshot", snapshot_path, overlay_path)
+        return overlay_path
+
+    def remove_overlay(self, overlay_name):
+        overlay_path = self.overlays_path / overlay_name
+        if not overlay_path.exists():
+            return
+        btrfs("subvolume", "delete", overlay_path)
+
     def diff(self, snapshot_a, snapshot_b):
         stream = subprocess.Popen(["btrfs", "send", "--no-data", "-p", snapshot_a, snapshot_b],
                                   stdout=subprocess.PIPE).stdout
         return (subprocess.check_output(["btrfs", "receive", "--dump"], stdin=stream, encoding="latin")
                 .strip().splitlines())
 
-    def send(self, snapshot_path=None, parents=None):
+    def send(self, snapshot_path=None, incremental_from=None):
         snapshot_path = snapshot_path or self.snapshot()
         btrfs_send_args = ["btrfs", "send"]
-        parents = set(parents or []) & set(path.name for path in self.snapshots_path.iterdir())
-        if parents:
-            btrfs_send_args.extend(["-p", max(parents)])
+        if incremental_from and (incremental_from_path := self.snapshots_path / incremental_from).exists():
+            btrfs_send_args.extend(["-p", incremental_from_path])
         btrfs_send_args.append(snapshot_path)
         return subprocess.check_output(btrfs_send_args)
 
@@ -148,6 +151,20 @@ class Volume:
         if match := re.match(r"At subvol (?P<subvol>\S+)", stderr.decode()):
             return self.snapshots_path / match["subvol"]
 
+    def fetch(self, host):
+        headers = {}
+        if self.latest_snapshot_path:
+            headers["If-None-Match"] = self.latest_snapshot_path.name
+        response = requests.get(f"http://{host}:4201/volume/{self.name}", headers=headers)
+        etag_path = self.snapshots_path / response.headers["ETag"]
+        if response.status_code == 304 or etag_path.exists():
+            # We already have the latest snapshot (we may have requested the volume from ourselves)
+            return etag_path
+        elif response.status_code == 200:
+            return self.receive(io.BytesIO(response.content))
+        else:
+            raise RuntimeError(f"Failed to get snapshot: {response.status_code}")
+
     @property
     def path(self):
         return STORAGE_ROOT / self.name
@@ -163,6 +180,10 @@ class Volume:
     @property
     def snapshots_path(self):
         return self.path / "snapshots"
+
+    @property
+    def overlays_path(self):
+        return self.path / "overlays"
 
     @property
     def latest_snapshot_path(self):

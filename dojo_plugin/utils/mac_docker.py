@@ -40,6 +40,7 @@ class MacDockerClient:
         self.containers = MacContainerCollection(self)
         self.images = MacImageCollection(self)
         self.networks = MacNetworkCollection(self)
+        self.volumes = MacVolumeCollection(self)
 
     def close(self):
         pass  # No persistent connection to close
@@ -67,14 +68,14 @@ class MacDockerClient:
         else:
             stdout_loc = None
             stderr_loc = None
-            
+
         result = subprocess.run(ssh_command, stdout=stdout_loc, stderr=stderr_loc, input=input, timeout=timeout_seconds)
         if result.returncode != 0:
             if exception_on_fail:
                 error_msg = result.stdout.strip()
                 raise Exception(f'SSH {ssh_command=} {self.username=} {self.key_filename=} {self.hostname=} {result=} {result.returncode=} failed: {error_msg}')
         return result.returncode, result.stdout.strip() if result.stdout else b""
-    
+
 
 
 class MacContainerCollection:
@@ -221,7 +222,7 @@ class MacContainer:
         class MySendall:
             def __init__(self, container):
                 self.sendall = lambda flag: container.send_flag(flag)
-                
+
         class MySock:
             def __init__(self, container):
                 self._sock = MySendall(container)
@@ -237,8 +238,8 @@ class MacContainer:
         if exitcode != 0:
             raise docker.errors.NotFound(f'Getting archive {path=} failed {exitcode=} {output=}')
         return output
-        
-    
+
+
 
 class MacImageCollection:
     def __init__(self, client):
@@ -283,4 +284,23 @@ class MacNetwork:
 
     def disconnect(self, container):
         # Simulate network disconnection
+        pass
+
+
+
+class MacVolumeCollection:
+    def __init__(self, client):
+        self.client = client
+
+    def get(self, volume_name):
+        # Simulate volume operations
+        return MacVolume(volume_name)
+
+
+class MacVolume:
+    def __init__(self, name):
+        self.name = name
+
+    def remove(self):
+        # Simulate volume removal
         pass

@@ -70,12 +70,12 @@ services:
       context: ./homefs
     environment:
       - STORAGE_ROOT=/run/homefs
-      - STORAGE_HOST=http://192.168.42.1:8001
+      - STORAGE_HOST=192.168.42.1
     volumes:
       - /run/homefs:/run/homefs:shared
       - /var/run/docker/plugins:/var/run/docker/plugins
     ports:
-      - "8001:80"
+      - "4201:4201"
 
   ctfd:
     container_name: ctfd
