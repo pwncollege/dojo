@@ -9,12 +9,11 @@ volume_server = Blueprint("volume", __name__)
 
 @volume_server.route("/<volume:volume>", methods=["GET"])
 def get_volume(volume):
-    with volume.active_lock():
-        # If it active on this node, do not fetch it (infinite recursive loop)
-        if not volume.active:
-            active_volume = ActiveVolumes.query.filter_by(name=volume.name).first()
-            if active_volume:
-                volume.fetch(active_volume.host)
+    # If it active on this node, do not fetch it (infinite recursive loop)
+    if not volume.active:
+        active_volume = ActiveVolumes.query.filter_by(name=volume.name).first()
+        if active_volume:
+            volume.fetch(active_volume.host)
 
     snapshot_path = volume.snapshot()
     if request.headers.get("If-None-Match") == snapshot_path.name:

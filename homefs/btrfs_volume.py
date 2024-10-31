@@ -42,36 +42,42 @@ class BTRFSVolume:
             if not path.exists():
                 btrfs("subvolume", "create", path)
 
+
     @contextmanager
-    def active_lock(self, *, timeout=None, host=None):
+    def active_lock(self, *, timeout=None):
         with file_lock(self.path / ".active.lock", timeout=timeout):
-            if host:
-                response = requests.post(f"http://{host}:4201/volume/{self.name}/activate")
-                try:
-                    response.raise_for_status()
-                except requests.exceptions.HTTPError:
-                    raise RuntimeError("Failed to activate volume")
             yield
 
-    def activate(self, from_snapshot=None, *, locked=False):
+    def activate(self, host, *, locked=False):
         if not locked:
             with self.active_lock():
-                return self.activate(from_snapshot, locked=True)
+                return self.activate(host, locked=True)
+
         if self.active:
-            btrfs("subvolume", "delete", self.active_path)
-        from_snapshot = from_snapshot or self.latest_snapshot_path
-        if from_snapshot:
-            btrfs("subvolume", "snapshot", from_snapshot, self.active_path)
-        else:
-            btrfs("subvolume", "create", self.active_path)
+            return
+
+        print(f"[DEBUG] Fetching volume {self.name} from {host}", flush=True)
+        snapshot_path = self.fetch(host)
+        print(f"[DEBUG] FETCHED {self.name}", flush=True)
+
+        response = requests.post(f"http://{host}:4201/volume/{self.name}/activate")
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            raise RuntimeError("Failed to activate")
+
+        btrfs("subvolume", "snapshot", snapshot_path, self.active_path)
         btrfs("qgroup", "limit", VOLUME_SIZE, self.active_path)
+        return snapshot_path
 
     def deactivate(self, *, locked=False):
         if not locked:
             with self.active_lock():
                 return self.deactivate(locked=True)
+
         if not self.active:
             return
+
         snapshot_path = self.snapshot(locked=True)
         btrfs("subvolume", "delete", self.active_path)
         return snapshot_path
@@ -126,9 +132,7 @@ class BTRFSVolume:
     def send(self, snapshot_path=None, incremental_from=None):
         snapshot_path = snapshot_path or self.snapshot()
         btrfs_send_args = ["btrfs", "send"]
-        print(f"[DEBUG] Sending snapshot {snapshot_path}", flush=True)
         if incremental_from and (incremental_from_path := self.snapshots_path / incremental_from).exists():
-            print(f"[DEBUG] Sending incremental snapshot FROM {incremental_from_path} TO {snapshot_path}", flush=True)
             btrfs_send_args.extend(["-p", incremental_from_path])
         btrfs_send_args.append(snapshot_path)
         return subprocess.check_output(btrfs_send_args)
@@ -153,7 +157,9 @@ class BTRFSVolume:
         headers = {}
         if self.latest_snapshot_path:
             headers["If-None-Match"] = self.latest_snapshot_path.name
+        print(f"[DEBUG] Requesting volume {self.name} from {host}", flush=True)
         response = requests.get(f"http://{host}:4201/volume/{self.name}", headers=headers)
+        print(f"[DEBUG] RECEIVED {self.name} {response.status_code}", flush=True)
         etag_path = self.snapshots_path / response.headers["ETag"]
         if response.status_code == 304 or etag_path.exists():
             # We already have the latest snapshot (we may have requested the volume from ourselves)
@@ -189,4 +195,3 @@ class BTRFSVolume:
             return next(reversed(sorted(self.snapshots_path.iterdir())))
         except StopIteration:
             return None
-
