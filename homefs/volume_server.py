@@ -19,7 +19,7 @@ def get_volume(volume):
     if request.headers.get("If-None-Match") == snapshot_path.name:
         return Response(status=304, headers={"ETag": snapshot_path.name})
 
-    stream = volume.send(snapshot_path, incremental_from=request.headers.get("If-None-Match"))
+    stream = volume.send(snapshot_path)
     return Response(stream, mimetype="application/octet-stream", headers={"ETag": snapshot_path.name})
 
 
