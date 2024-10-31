@@ -121,6 +121,8 @@ def handle_authorization(default_handler):
 def load(app):
     db.create_all()
 
+    app.permanent_session_lifetime = datetime.timedelta(days=180)
+
     CHALLENGE_CLASSES["dojo"] = DojoChallenge
     FLAG_CLASSES["dojo"] = DojoFlag
 
