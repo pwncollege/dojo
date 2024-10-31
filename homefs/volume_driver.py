@@ -74,6 +74,7 @@ def mount_volume(name, id):
     if not docker_volume.overlay:
         with volume.active_lock(host=STORAGE_HOST):
             if not volume.active:
+                # TODO: but we just made ourslves the active host, so we will fetch from ourselves? Is this correct?
                 snapshot_path = volume.fetch(STORAGE_HOST)
                 volume.activate(snapshot_path, locked=True)
             else:

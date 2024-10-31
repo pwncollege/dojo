@@ -35,28 +35,6 @@ def check_volume_storage():
         exit(1)
 
 
-def all_active_volumes():
-    volumes = {}
-    result = subprocess.check_output(["btrfs", "subvolume", "list", "-ot", str(STORAGE_ROOT)], text=True)
-    for line in result.splitlines()[2:]:
-        id, gen, top_level, path = line.split()
-        name = path.split("/")[-1]
-        volumes[id] = name
-
-    active_volumes = []
-    result = subprocess.check_output(["btrfs", "subvolume", "list", "-at", str(STORAGE_ROOT)], text=True)
-    for line in result.splitlines()[2:]:
-        id, gen, top_level, path = line.split()
-        name = path.split("/")[-1]
-        if name != "active":
-            continue
-        top_name = volumes.get(top_level)
-        if not top_name:
-            continue
-        active_volumes.append(top_name)
-    return sorted(active_volumes)
-
-
 class BTRFSVolume:
     def __init__(self, name):
         self.name = name
@@ -128,9 +106,8 @@ class BTRFSVolume:
 
     def overlay(self, overlay_name, snapshot_path=None):
         snapshot_path = snapshot_path or self.snapshot()
+        self.remove_overlay(overlay_name)
         overlay_path = self.overlays_path / overlay_name
-        if overlay_path.exists():
-            btrfs("subvolume", "delete", overlay_path)
         btrfs("subvolume", "snapshot", snapshot_path, overlay_path)
         return overlay_path
 
@@ -139,7 +116,6 @@ class BTRFSVolume:
         if not overlay_path.exists():
             return
         btrfs("subvolume", "delete", overlay_path)
-        return overlay_path
 
     def diff(self, snapshot_a, snapshot_b):
         stream = subprocess.Popen(["btrfs", "send", "--no-data", "-p", snapshot_a, snapshot_b],
@@ -147,12 +123,13 @@ class BTRFSVolume:
         return (subprocess.check_output(["btrfs", "receive", "--dump"], stdin=stream, encoding="latin")
                 .strip().splitlines())
 
-    def send(self, snapshot_path=None, parents=None):
+    def send(self, snapshot_path=None, incremental_from=None):
         snapshot_path = snapshot_path or self.snapshot()
         btrfs_send_args = ["btrfs", "send"]
-        parents = set(parents or []) & set(path.name for path in self.snapshots_path.iterdir())
-        if parents:
-            btrfs_send_args.extend(["-p", max(parents)])
+        print(f"[DEBUG] Sending snapshot {snapshot_path}", flush=True)
+        if incremental_from and (incremental_from_path := self.snapshots_path / incremental_from).exists():
+            print(f"[DEBUG] Sending incremental snapshot FROM {incremental_from_path} TO {snapshot_path}", flush=True)
+            btrfs_send_args.extend(["-p", incremental_from_path])
         btrfs_send_args.append(snapshot_path)
         return subprocess.check_output(btrfs_send_args)
 
