@@ -102,7 +102,7 @@ case "$ACTION" in
             mv /data/workspace_nodes.json.tmp /data/workspace_nodes.json
             dojo-node refresh
         else
-            echo "Usage: $0 remove NODE_ID"
+            echo "Usage: $0 del NODE_ID"
         fi
         ;;
 

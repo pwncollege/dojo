@@ -45,18 +45,22 @@ def remove_container(user):
     known_image_name = cache.get(f"user_{user.id}-running-image")
     images = [None, known_image_name]
     for image_name in images:
+        docker_client = user_docker_client(user, image_name)
         try:
-            docker_client = user_docker_client(user, image_name)
             container = docker_client.containers.get(container_name(user))
             container.remove(force=True)
             container.wait(condition="removed")
         except docker.errors.NotFound:
             pass
+        try:
+            overlay_volume = docker_client.volumes.get(f"{user.id}-overlay")
+            overlay_volume.remove()
+        except docker.errors.NotFound:
+            pass
 
 
-def start_container(docker_client, user, as_user, mounts, dojo_challenge, practice):
-    assert user == as_user, "Support for running as a different user is currently disabled"  # TODO: Re-implement this
 
+def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, practice):
     hostname = "~".join(
         (["practice"] if practice else [])
         + [
@@ -79,90 +83,87 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
     image_path = next((env_var[len("PATH="):].split(":") for env_var in image_env if env_var.startswith("PATH=")), [])
     env_path = ":".join([challenge_bin_path, workspace_bin_path, *image_path])
 
+    mounts = [
+        docker.types.Mount(
+            "/nix",
+            f"{HOST_DATA_PATH}/workspace/nix",
+            "bind",
+            read_only=True,
+        ),
+        docker.types.Mount(
+            "/run/workspace",
+            f"{HOST_DATA_PATH}/workspacefs",
+            "bind",
+            read_only=True,
+            propagation="shared",
+        ),
+        docker.types.Mount(
+            "/run/dojo/sys",
+            "/run/dojofs",
+            "bind",
+            read_only=True,
+            propagation="slave",
+        ),
+        *user_mounts,
+    ]
+
     devices = []
     if os.path.exists("/dev/kvm"):
         devices.append("/dev/kvm:/dev/kvm:rwm")
     if os.path.exists("/dev/net/tun"):
         devices.append("/dev/net/tun:/dev/net/tun:rwm")
 
-        container = docker_client.containers.create(
-            dojo_challenge.image,
-            entrypoint=[
-                "/nix/var/nix/profiles/default/bin/dojo-init",
-                f"{dojo_bin_path}/sleep",
-                "6h",
-            ],
-            name=container_name(user),
-            hostname=hostname,
-            user="0",
-            working_dir="/home/hacker",
-            environment={
-                "HOME": "/home/hacker",
-                "PATH": env_path,
-                "SHELL": f"{dojo_bin_path}/bash",
-                "DOJO_AUTH_TOKEN": auth_token,
-            },
-            labels={
-                "dojo.dojo_id": dojo_challenge.dojo.reference_id,
-                "dojo.module_id": dojo_challenge.module.id,
-                "dojo.challenge_id": dojo_challenge.id,
-                "dojo.challenge_description": dojo_challenge.description,
-                "dojo.user_id": str(user.id),
-                "dojo.as_user_id": str(as_user.id),
-                "dojo.auth_token": auth_token,
-                "dojo.mode": "privileged" if practice else "standard",
-            },
-            mounts=[
-                docker.types.Mount(
-                    "/nix",
-                    f"{HOST_DATA_PATH}/workspace/nix",
-                    "bind",
-                    read_only=True,
-                ),
-                docker.types.Mount(
-                    "/run/workspace",
-                    f"{HOST_DATA_PATH}/workspacefs",
-                    "bind",
-                    read_only=True,
-                    propagation="shared",
-                ),
-                docker.types.Mount(
-                    "/run/dojo/sys",
-                    "/run/dojofs",
-                    "bind",
-                    read_only=True,
-                    propagation="slave",
-                ),
-                docker.types.Mount(
-                    "/home/hacker",
-                    str(as_user.id),
-                    "volume",
-                    driver_config=docker.types.DriverConfig("homefs"),
-                ),
-            ],
-            devices=devices,
-            network=None,
-            extra_hosts={
-                hostname: "127.0.0.1",
-                "vm": "127.0.0.1",
-                f"vm_{hostname}"[:64]: "127.0.0.1",
-                "challenge.localhost": "127.0.0.1",
-                "hacker.localhost": "127.0.0.1",
-                "dojo-user": user_ipv4(user),
-                **USER_FIREWALL_ALLOWED,
-            },
-            init=True,
-            cap_add=["SYS_PTRACE"],
-            security_opt=[f"seccomp={SECCOMP}"],
-            sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
-            cpu_period=100000,
-            cpu_quota=400000,
-            pids_limit=1024,
-            mem_limit="4G",
-            detach=True,
-            stdin_open=True,
-            auto_remove=True,
-        )
+    container = docker_client.containers.create(
+        dojo_challenge.image,
+        entrypoint=[
+            "/nix/var/nix/profiles/default/bin/dojo-init",
+            f"{dojo_bin_path}/sleep",
+            "6h",
+        ],
+        name=container_name(user),
+        hostname=hostname,
+        user="0",
+        working_dir="/home/hacker",
+        environment={
+            "HOME": "/home/hacker",
+            "PATH": env_path,
+            "SHELL": f"{dojo_bin_path}/bash",
+            "DOJO_AUTH_TOKEN": auth_token,
+        },
+        labels={
+            "dojo.dojo_id": dojo_challenge.dojo.reference_id,
+            "dojo.module_id": dojo_challenge.module.id,
+            "dojo.challenge_id": dojo_challenge.id,
+            "dojo.challenge_description": dojo_challenge.description,
+            "dojo.user_id": str(user.id),
+            "dojo.as_user_id": str(as_user.id),
+            "dojo.auth_token": auth_token,
+            "dojo.mode": "privileged" if practice else "standard",
+        },
+        mounts=mounts,
+        devices=devices,
+        network=None,
+        extra_hosts={
+            hostname: "127.0.0.1",
+            "vm": "127.0.0.1",
+            f"vm_{hostname}"[:64]: "127.0.0.1",
+            "challenge.localhost": "127.0.0.1",
+            "hacker.localhost": "127.0.0.1",
+            "dojo-user": user_ipv4(user),
+            **USER_FIREWALL_ALLOWED,
+        },
+        init=True,
+        cap_add=["SYS_PTRACE"],
+        security_opt=[f"seccomp={SECCOMP}"],
+        sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
+        cpu_period=100000,
+        cpu_quota=400000,
+        pids_limit=1024,
+        mem_limit="4G",
+        detach=True,
+        stdin_open=True,
+        auto_remove=True,
+    )
 
     workspace_net = docker_client.networks.get("workspace_net")
     workspace_net.connect(
@@ -223,24 +224,42 @@ def insert_flag(container, flag):
 
 
 def start_challenge(user, dojo_challenge, practice, *, as_user=None):
-    as_user = as_user or user
     docker_client = user_docker_client(user, image_name=dojo_challenge.image)
     remove_container(user)
 
-    mounts = [("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id), None)]
-    if as_user != user:
-        mounts = [
-            # ("/home/hacker", HOST_HOMES_OVERLAYS / f"{user.id}-{as_user.id}"),
-            # ("/home/me", HOST_HOMES_MOUNTS / str(user.id), None),
-            ("/home/hacker", HOST_HOMES_MOUNTS / str(user.id), None),
-            ("/home/other", HOST_HOMES_MOUNTS / str(as_user.id), dict(read_only=True)),
-        ]
+    user_mounts = []
+    if as_user is None:
+        user_mounts.append(
+            docker.types.Mount(
+                "/home/hacker",
+                str(user.id),
+                "volume",
+                driver_config=docker.types.DriverConfig("homefs"),
+            )
+        )
+    else:
+        user_mounts.extend([
+            docker.types.Mount(
+                "/home/hacker",
+                f"{user.id}-overlay",
+                "volume",
+                driver_config=docker.types.DriverConfig("homefs", options=dict(overlay=str(as_user.id))),
+            ),
+            docker.types.Mount(
+                "/home/me",
+                str(user.id),
+                "volume",
+                driver_config=docker.types.DriverConfig("homefs"),
+            ),
+        ])
+
+    as_user = as_user or user
 
     container = start_container(
         docker_client=docker_client,
         user=user,
         as_user=as_user,
-        mounts=mounts,
+        user_mounts=user_mounts,
         dojo_challenge=dojo_challenge,
         practice=practice,
     )
@@ -321,12 +340,7 @@ class RunDocker(Resource):
                 as_user = student.user
 
         try:
-            try:
-                start_challenge(user, dojo_challenge, practice, as_user=as_user)
-            except (RuntimeError, docker.errors.APIError):
-                # just try a second time after a pause
-                time.sleep(5)
-                start_challenge(user, dojo_challenge, practice, as_user=as_user)
+            start_challenge(user, dojo_challenge, practice, as_user=as_user)
         except RuntimeError as e:
             logger.exception(f"ERROR: Docker failed for {user.id}:")
             return {"success": False, "error": str(e)}
