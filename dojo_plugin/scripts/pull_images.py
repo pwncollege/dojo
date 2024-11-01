@@ -1,17 +1,22 @@
 import logging
+
 import docker
-import os
 
 from ..utils import all_docker_clients
+from ..config import DOCKER_USERNAME, DOCKER_TOKEN
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
 
 for image, in DojoChallenges.query.with_entities(db.distinct(DojoChallenges.data["image"])).all():
     if not image or image.startswith("mac:") or image.startswith("pwncollege-"):
         continue
 
     for client in all_docker_clients():
+        if DOCKER_USERNAME and DOCKER_TOKEN:
+            client.login(DOCKER_USERNAME, DOCKER_TOKEN)
         logger.info(f"Pulling image {image} on {client.api.base_url}...")
         try:
             client.images.pull(image)
