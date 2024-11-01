@@ -8,6 +8,25 @@ In contrast to existing platforms, our primary focus is to allow students to exe
 Of course, this all means that the DOJO is insanely complex, despite only comprising about 5,000 lines of actual code.
 This document is an attempt to clarify this complexity and enable new admins or contributors to get up to speed quickly.
 
+## High Level Overview
+
+Roughly speaking, it is implemented as a "plugin" to the popular [CTFd](https://github.com/CTFd/CTFd) platform.
+CTFd provides for a concept of users, challenges, and users solving those challenges by submitting flags.
+The DOJO extends upon this by providing a way for instructors to create challenges, which students may then work on solving within a browser-based workspace environment.
+
+These workspace environments are isolated from one another, and implemented as Docker containers (significantly more performant than deploying VMs).
+The workspace starts when a student begins working on a challenge, and stops when the student is finished (or after a timeout).
+It automatically spawns several services, including a VSCode instance, and desktop environment---both accessible within the browser via internal nginx redirects.
+Alternatively, students may choose to connect to the workspace via SSH after providing an SSH public key in their profile settings.
+Their home directory is persisted across workspace instances, allowing students to save their work and return to it later.
+The workspace may also situationally start a virtual machine, if the challenge requires it (e.g., for kernel exploitation), or configure custom networking (e.g., for network exploitation).
+Additionally, the workspace comes with a suite of tools pre-installed, including debuggers, disassemblers, and exploit development tools.
+
+The challenge objective is always to *capture the flag*.
+More specifically, the learner runs as the `hacker` user (UID 1000), and there is a flag file located at `/flag`, which is only readable by the `root` user (UID 0).
+The challenge program runs as a root-owned setuid binary, and so it has the ability to read the flag.
+The learner must then either satisfy some challenge requirements, or otherwise exploit the challenge program in order to *capture the flag*.
+
 ## Infrastructure Containerization
 
 The DOJO components are managed by docker compose, configured [here](https://github.com/pwncollege/dojo/blob/master/docker-compose.yml).
