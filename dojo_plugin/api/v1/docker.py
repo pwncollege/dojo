@@ -339,14 +339,21 @@ class RunDocker(Resource):
                     return {"success": False, "error": f"Not an official student in this dojo ({as_user_id})"}
                 as_user = student.user
 
-        try:
-            start_challenge(user, dojo_challenge, practice, as_user=as_user)
-        except RuntimeError as e:
-            logger.exception(f"ERROR: Docker failed for {user.id}:")
-            return {"success": False, "error": str(e)}
-        except Exception as e:
-            logger.exception(f"ERROR: Docker failed for {user.id}:")
+        max_attempts = 3
+        for attempt in range(1, max_attempts+1):
+            try:
+                logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
+                start_challenge(user, dojo_challenge, practice, as_user=as_user)
+                break
+            except Exception as e:
+                logger.exception(f"Attempt {attempt} failed for user {user.id} with error: {e}")
+                if attempt < max_attempts:
+                    logger.info(f"Retrying... ({attempt}/{max_attempts})")
+                    time.sleep(2)
+        else:
+            logger.error(f"ERROR: Docker failed for {user.id} after {max_attempts} attempts.")
             return {"success": False, "error": "Docker failed"}
+
         return {"success": True}
 
     @authed_only
