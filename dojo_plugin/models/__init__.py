@@ -581,10 +581,7 @@ class DojoChallenges(db.Model):
 
     @property
     def image(self):
-        if self.data.get("image"):
-            assert any(isinstance(dojo_admin.user, Admins) for dojo_admin in self.dojo.admins), "Custom images are only allowed for admin dojos"
-            return self.data["image"]
-        return "pwncollege-challenge"
+        return self.data.get("image", "pwncollege-challenge")
 
     @property
     def reference_id(self):
