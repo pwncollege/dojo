@@ -8,6 +8,7 @@ import time
 import docker
 import docker.errors
 import docker.types
+import redis
 from flask import abort, request, current_app
 from flask_restx import Namespace, Resource
 from CTFd.cache import cache
@@ -279,8 +280,21 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     insert_flag(container, flag)
 
 
+def docker_locked(func):
+    def wrapper(*args, **kwargs):
+        user = get_current_user()
+        redis_client = redis.from_url(current_app.config["REDIS_URL"])
+        try:
+            with redis_client.lock(f"user.{user.id}.docker.lock", blocking_timeout=0, timeout=60):
+                return func(*args, **kwargs)
+        except redis.exceptions.LockError:
+            return {"success": False, "error": "Already starting a challenge"}
+    return wrapper
+
+
 @docker_namespace.route("")
 class RunDocker(Resource):
+    @docker_locked
     @authed_only
     def post(self):
         data = request.get_json()
