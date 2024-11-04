@@ -34,6 +34,7 @@ def create_app():
     db.init_app(app)
 
     with app.app_context():
+        db.engine.execute("PRAGMA journal_mode=WAL;")
         db.create_all()
 
     app.url_map.converters["volume"] = VolumeConverter
