@@ -50,12 +50,12 @@ def remove_container(user):
             container = docker_client.containers.get(container_name(user))
             container.remove(force=True)
             container.wait(condition="removed")
-        except docker.errors.NotFound:
+        except (docker.errors.NotFound, docker.errors.APIError):
             pass
         try:
             overlay_volume = docker_client.volumes.get(f"{user.id}-overlay")
             overlay_volume.remove()
-        except docker.errors.NotFound:
+        except (docker.errors.NotFound, docker.errors.APIError):
             pass
 
 
@@ -178,6 +178,10 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         default_network.disconnect(container)
 
     container.start()
+    for message in container.attach(stream=True):
+        if message == b"Initialized.\n":
+            break
+
     cache.set(f"user_{user.id}-running-image", dojo_challenge.image, timeout=0)
     return container
 
@@ -218,9 +222,9 @@ def insert_challenge(container, as_user, dojo_challenge):
 
 def insert_flag(container, flag):
     flag = f"pwn.college{{{flag}}}"
-    socket = container.attach_socket(params=dict(stdin=1, stream=1))
-    socket._sock.sendall(flag.encode() + b"\n")
-    socket.close()
+    ws = container.attach_socket(params=dict(stdin=1, stream=1), ws=True)
+    ws.send_text(f"{flag}\n")
+    ws.close()
 
 
 def start_challenge(user, dojo_challenge, practice, *, as_user=None):

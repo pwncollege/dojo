@@ -42,6 +42,8 @@ let
 
     echo $DOJO_AUTH_TOKEN > /run/dojo/var/auth_token
 
+    echo "Initialized."
+
     read DOJO_FLAG
     echo $DOJO_FLAG | install -m 400 /dev/stdin /flag
 
