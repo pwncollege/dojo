@@ -581,7 +581,7 @@ class DojoChallenges(db.Model):
 
     @property
     def image(self):
-        return self.data.get("image", "pwncollege-challenge")
+        return self.data.get("image") or "pwncollege/challenge-legacy"
 
     @property
     def reference_id(self):
