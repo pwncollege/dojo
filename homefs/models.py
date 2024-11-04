@@ -16,8 +16,6 @@ class DockerVolumes(db.Model):
     __tablename__ = "docker_volumes"
     name = db.Column(db.String, primary_key=True)
     created = db.Column(db.DateTime, server_default=db.func.now())
-    modified = db.Column(db.DateTime, server_default=db.func.now(), onupdate=db.func.now())
-    mounts = db.Column(db.Integer, default=0)
     overlay = db.Column(db.String, default=None)
 
     @property

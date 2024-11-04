@@ -64,11 +64,6 @@ def mount_volume(name, id):
     if not docker_volume:
         return jsonify({"Err": f"Volume {name} not found"}), 404
 
-    DockerVolumes.query.filter_by(name=name).update({
-        DockerVolumes.mounts: DockerVolumes.mounts + 1
-    })
-    db.session.commit()
-
     volume = docker_volume.btrfs
 
     if not docker_volume.overlay:
@@ -95,11 +90,6 @@ def unmount_volume(name, id):
         volume = docker_volume.btrfs
         with volume.active_lock():
             volume.snapshot(locked=True)
-
-    DockerVolumes.query.filter_by(name=name).update({
-        DockerVolumes.mounts: DockerVolumes.mounts - 1
-    })
-    db.session.commit()
 
     return jsonify({"Err": ""})
 
