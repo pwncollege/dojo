@@ -20,4 +20,6 @@ CMD ["gunicorn", \
      "--bind=0.0.0.0:4201", \
      "--workers=32", \
      "--access-logfile=-", \
+     "--access-logformat", \
+     "%(h)s %(l)s %(u)s %(t)s \"%(r)s\" %(s)s %(b)s \"%(f)s\" \"%(a)s\" %(L)s", \
      "--timeout=300"]
