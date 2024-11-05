@@ -3,7 +3,7 @@ from CTFd.models import Solves
 
 from . import force_cache_updates, get_all_containers
 
-@cache.memoize(timeout=300, forced_update=force_cache_updates)
+@cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def get_container_stats():
     containers = get_all_containers()
     return [{attr: container.labels[f"dojo.{attr}_id"]
@@ -11,7 +11,7 @@ def get_container_stats():
             for container in containers]
 
 
-@cache.memoize(timeout=300, forced_update=force_cache_updates)
+@cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def get_dojo_stats(dojo):
     return dict(
         users=dojo.solves().group_by(Solves.user_id).count(),
