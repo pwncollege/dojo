@@ -53,13 +53,11 @@ def remove_container(user):
             container.wait(condition="removed")
         except (docker.errors.NotFound, docker.errors.APIError):
             pass
-        try:
-            overlay_volume = docker_client.volumes.get(f"{user.id}-overlay")
-            overlay_volume.remove()
-        except (docker.errors.NotFound, docker.errors.APIError):
-            pass
-
-
+        for volume in [f"{user.id}", f"{user.id}-overlay"]:
+            try:
+                docker_client.volumes.get(volume).remove()
+            except (docker.errors.NotFound, docker.errors.APIError):
+                pass
 
 def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, practice):
     hostname = "~".join(
@@ -294,8 +292,8 @@ def docker_locked(func):
 
 @docker_namespace.route("")
 class RunDocker(Resource):
-    @docker_locked
     @authed_only
+    @docker_locked
     def post(self):
         data = request.get_json()
         dojo_id = data.get("dojo")

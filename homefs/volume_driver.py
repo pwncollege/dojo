@@ -64,18 +64,12 @@ def mount_volume(name, id):
     if not docker_volume:
         return jsonify({"Err": f"Volume {name} not found"}), 404
 
-    volume = docker_volume.btrfs
-
     if not docker_volume.overlay:
-        with volume.active_lock():
-            if not volume.active:
-                volume.activate(STORAGE_HOST, locked=True)
-            else:
-                volume.snapshot(locked=True)
+        docker_volume.btrfs.activate(STORAGE_HOST)
 
     elif not docker_volume.mountpoint.exists():
-        snapshot_path = volume.fetch(STORAGE_HOST)
-        volume.overlay(docker_volume.name, snapshot_path)
+        snapshot_path = docker_volume.btrfs.fetch(STORAGE_HOST)
+        docker_volume.btrfs.overlay(docker_volume.name, snapshot_path)
 
     return jsonify({"Mountpoint": str(docker_volume.mountpoint), "Err": ""})
 
@@ -85,11 +79,6 @@ def unmount_volume(name, id):
     docker_volume = DockerVolumes.query.filter_by(name=name).first()
     if not docker_volume:
         return jsonify({"Err": f"Volume {name} not found"}), 404
-
-    if not docker_volume.overlay:
-        volume = docker_volume.btrfs
-        with volume.active_lock():
-            volume.snapshot(locked=True)
 
     return jsonify({"Err": ""})
 
@@ -101,10 +90,9 @@ def remove_volume(name):
         return jsonify({"Err": f"Volume {name} not found"}), 404
 
     if docker_volume.overlay:
-        volume = docker_volume.btrfs
-        volume.remove_overlay(docker_volume.name)
-
-    # TODO: deactivate non-overlay volumes
+        docker_volume.btrfs.remove_overlay(docker_volume.name)
+    else:
+        docker_volume.btrfs.snapshot()
 
     db.session.delete(docker_volume)
     db.session.commit()
