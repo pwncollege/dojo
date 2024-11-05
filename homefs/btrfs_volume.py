@@ -122,10 +122,14 @@ class BTRFSVolume:
         btrfs("subvolume", "delete", overlay_path)
 
     def diff(self, snapshot_a, snapshot_b):
-        stream = subprocess.Popen(["btrfs", "send", "--no-data", "-p", snapshot_a, snapshot_b],
-                                  stdout=subprocess.PIPE).stdout
-        return (subprocess.check_output(["btrfs", "receive", "--dump"], stdin=stream, encoding="latin")
-                .strip().splitlines())
+        stream_process = subprocess.Popen(["btrfs", "send", "--no-data", "-p", snapshot_a, snapshot_b],
+                                          stdout=subprocess.PIPE)
+        try:
+            return subprocess.check_output(["btrfs", "receive", "--dump"],
+                                           stdin=stream_process.stdout,
+                                           text=True).strip().splitlines()
+        finally:
+            stream_process.wait()
 
     def send(self, snapshot_path=None, incremental_from=None):
         snapshot_path = snapshot_path or self.snapshot()
