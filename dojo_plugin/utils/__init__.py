@@ -152,6 +152,7 @@ def render_markdown(s):
         "*": ["id"],
         "img": ["src", "alt", "title"],
         "a": ["href", "alt", "title"],
+        "p": ["data-hide"]
     }
     clean_html = bleach.clean(raw_html, tags=markdown_tags, attributes=markdown_attrs)
     return Markup(clean_html)
