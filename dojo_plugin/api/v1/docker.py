@@ -221,9 +221,14 @@ def insert_challenge(container, as_user, dojo_challenge):
 
 def insert_flag(container, flag):
     flag = f"pwn.college{{{flag}}}"
-    ws = container.attach_socket(params=dict(stdin=1, stream=1), ws=True)
-    ws.send_text(f"{flag}\n")
-    ws.close()
+    if "localhost" in container.client.api.base_url:
+        socket = container.attach_socket(params=dict(stdin=1, stream=1))
+        socket._sock.sendall(flag.encode() + b"\n")
+        socket.close()
+    else:
+        ws = container.attach_socket(params=dict(stdin=1, stream=1), ws=True)
+        ws.send_text(f"{flag}\n")
+        ws.close()
 
 
 def start_challenge(user, dojo_challenge, practice, *, as_user=None):
