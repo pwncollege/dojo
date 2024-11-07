@@ -42,6 +42,12 @@ class MacDockerClient:
         self.networks = MacNetworkCollection(self)
         self.volumes = MacVolumeCollection(self)
 
+        # this insanity is required b/c of some high level code
+        class MyAPIThing:
+            def __init__(self):
+                self.base_url = "localhost"
+        self.api = MyAPIThing()
+
     def close(self):
         pass  # No persistent connection to close
 
@@ -136,6 +142,10 @@ class MacContainer:
         self.id = vm_info['id']
         self.vm_info = vm_info
         self.status = vm_info.get("status", "creating")
+
+    def attach(self, stream):
+        # Super hacky thing, this just needs to return [b"Initialized.\n"]
+        return [b"Initialized.\n"]
 
     def remove(self, force=True):
         # Kill the VM
