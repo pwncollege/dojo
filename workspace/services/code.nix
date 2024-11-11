@@ -44,13 +44,21 @@ let
 
     until [ -f /run/dojo/var/ready ]; do sleep 0.1; done
 
+    
+    if [ -d /run/challenge/share/code/extensions ]; then 
+      EXTENSIONS_DIR="/run/challenge/share/code/extensions"
+    else
+      EXTENSIONS_DIR="@out@/share/code/extensions"
+    fi 
+
     ${service}/bin/dojo-service start code-service/code-server \
       ${code-server}/bin/code-server \
         --auth=none \
         --bind-addr=0.0.0.0:8080 \
         --trusted-origins='*' \
         --disable-telemetry \
-        --extensions-dir=@out@/share/code-service/extensions
+        --extensions-dir=$EXTENSIONS_DIR
+
 
     until ${pkgs.curl}/bin/curl -s localhost:8080 >/dev/null; do sleep 0.1; done
   '';
@@ -77,16 +85,16 @@ in pkgs.stdenv.mkDerivation {
     ln -s ${code-server}/bin/code-server $out/bin/code-server
     ln -s ${code-server}/bin/code-server $out/bin/code
 
-    mkdir -p $out/share/code-service/extensions
+    mkdir -p $out/share/code/extensions
     ${pkgs.wget}/bin/wget -P $NIX_BUILD_TOP 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
     export HOME=$NIX_BUILD_TOP
     ${code-server}/bin/code-server \
       --auth=none \
       --disable-telemetry \
-      --extensions-dir=$out/share/code-service/extensions \
+      --extensions-dir=$out/share/code/extensions \
       --install-extension ms-python.python \
       --install-extension $NIX_BUILD_TOP/cpptools-linux.vsix
-    chmod +x $out/share/code-service/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*}
+    chmod +x $out/share/code/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*}
 
     runHook postInstall
   '';
