@@ -44,13 +44,21 @@ let
 
     until [ -f /run/dojo/var/ready ]; do sleep 0.1; done
 
+    
+    if [ -d /run/challenge/share/code/extensions ]; then 
+      EXT_DIR="/run/challenge/share/code/extensions"
+    else
+      EXT_DIR="@out@/share/code-service/extensions"
+    fi 
+
     ${service}/bin/dojo-service start code-service/code-server \
       ${code-server}/bin/code-server \
         --auth=none \
         --bind-addr=0.0.0.0:8080 \
         --trusted-origins='*' \
         --disable-telemetry \
-        --extensions-dir=@out@/share/code-service/extensions
+        --extensions-dir=$EXT_DIR
+
 
     until ${pkgs.curl}/bin/curl -s localhost:8080 >/dev/null; do sleep 0.1; done
   '';
