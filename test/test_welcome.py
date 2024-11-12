@@ -4,7 +4,7 @@ import time
 import pytest
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebbrowserWait
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 
