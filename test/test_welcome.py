@@ -1,19 +1,18 @@
 import contextlib
 import time
-import os
 
 import pytest
-from selenium.webbrowser import Firefox, FirefoxOptions
-from selenium.webbrowser.common.by import By
-from selenium.webbrowser.support.ui import WebbrowserWait
-from selenium.webbrowser.support import expected_conditions as EC
-from selenium.webbrowser.common.keys import Keys
+from selenium.webdriver import Firefox, FirefoxOptions
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebbrowserWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
 
 from utils import DOJO_URL, workspace_run
 
 
 @pytest.fixture
-def random_user_webbrowser(random_user):
+def random_user_browser(random_user):
     random_id, random_session = random_user
 
     options = FirefoxOptions()
@@ -105,8 +104,8 @@ def challenge_idx(browser, name):
     return idx+1
 
 
-def test_welcome_desktop(random_user_webbrowser, welcome_dojo):
-    random_id, _, browser = random_user_webbrowser
+def test_welcome_desktop(random_user_browser, welcome_dojo):
+    random_id, _, browser = random_user_browser
     browser.get(f"{DOJO_URL}/welcome/welcome")
     idx = challenge_idx(browser, "The Flag File")
 
@@ -119,8 +118,8 @@ def test_welcome_desktop(random_user_webbrowser, welcome_dojo):
     browser.close()
 
 
-def test_welcome_vscode(random_user_webbrowser, welcome_dojo):
-    random_id, _, browser = random_user_webbrowser
+def test_welcome_vscode(random_user_browser, welcome_dojo):
+    random_id, _, browser = random_user_browser
     browser.get(f"{DOJO_URL}/welcome/welcome")
     idx = challenge_idx(browser, "Challenge Programs")
 
@@ -133,8 +132,8 @@ def test_welcome_vscode(random_user_webbrowser, welcome_dojo):
     browser.close()
 
 
-def test_welcome_practice(random_user_webbrowser, welcome_dojo):
-    random_id, _, browser = random_user_webbrowser
+def test_welcome_practice(random_user_browser, welcome_dojo):
+    random_id, _, browser = random_user_browser
     browser.get(f"{DOJO_URL}/welcome/welcome")
     idx = challenge_idx(browser, "Using Practice Mode")
 
