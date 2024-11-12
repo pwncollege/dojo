@@ -33,7 +33,7 @@ def vscode_terminal(browser):
     browser.switch_to.new_window("tab")
     browser.get(f"{DOJO_URL}/workspace/code")
 
-    wait = WebbrowserWait(browser, 30)
+    wait = WebDriverWait(browser, 30)
     workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace_iframe")))
     browser.switch_to.frame(workspace_iframe)
 
