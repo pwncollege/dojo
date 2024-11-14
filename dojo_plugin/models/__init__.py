@@ -71,9 +71,10 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(db.JSON)
-    data_fields = ["type", "award", "course", "pages", "importable", "comparator"]
+    data_fields = ["type", "award", "course", "pages", "privileged", "importable", "comparator"]
     data_defaults = {
         "pages": [],
+        "privileged": False,
         "importable": True,
     }
 
