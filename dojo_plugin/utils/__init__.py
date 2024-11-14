@@ -135,7 +135,7 @@ def redirect_user_socket(user, port, url_path):
 
 def render_markdown(s):
     raw_html = build_markdown(s or "")
-    if "dojo" in g and (g.dojo.official or g.dojo.priviliged):
+    if "dojo" in g and (g.dojo.official or g.dojo.privileged):
         return Markup(raw_html)
 
     markdown_tags = [
