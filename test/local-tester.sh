@@ -4,30 +4,30 @@ cd $(dirname "${BASH_SOURCE[0]}")/..
 
 function usage {
 	set +x
-	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -T ]"
+	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -T ]"
 	echo ""
 	echo "	-r	db backup to restore (relative to dojo/data/backups)"
 	echo "	-c	the name of the dojo container (default: dojo-test)"
-	echo "	-D	use a blank data volume (builds everything from scratch)"
+	echo "	-D	specify a directory for /data/docker (to avoid rebuilds)"
 	echo "	-T	don't run tests"
 	exit
 }
 
-VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$PWD/data:/data:shared")
+WORKDIR=$(mktemp -d /tmp/dojo-test-XXXXXX)
+
+VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared")
 ENV_ARGS=( )
 DB_RESTORE=""
 DOJO_CONTAINER=dojo-test
 TEST=yes
-while getopts "r:c:he:TD" OPT
+DOCKER_DIR=""
+while getopts "r:c:he:TD:" OPT
 do
 	case $OPT in
 		r) DB_RESTORE="$OPTARG" ;;
 		c) DOJO_CONTAINER="$OPTARG" ;;
 		T) TEST=no ;;
-		D)
-			DATA_DIR=$(mktemp -d)
-			VOLUME_ARGS[3]="$DATA_DIR:/data:shared"
-			;;
+		D) DOCKER_DIR="$OPTARG" ;;
 		e) ENV_ARGS+=("-e" "$OPTARG") ;;
 		h) usage ;;
 		?)
@@ -38,11 +38,6 @@ do
 done
 shift $((OPTIND-1))
 
-[ "${#VOLUME_ARGS[@]}" -eq 2 ] && VOLUME_ARGS+=(
-	"-v" "/data/dojos"
-	"-v" "/data/mysql"
-)
-
 export DOJO_CONTAINER
 docker kill "$DOJO_CONTAINER" 2>/dev/null || echo "No $DOJO_CONTAINER container to kill."
 docker rm "$DOJO_CONTAINER" 2>/dev/null || echo "No $DOJO_CONTAINER container to remove."
@@ -50,10 +45,16 @@ while docker ps -a | grep "$DOJO_CONTAINER"; do sleep 1; done
 
 # freaking bad unmount
 sleep 1
-mount | grep $PWD | sed -e "s/.* on //" | sed -e "s/ .*//" | tac | while read ENTRY
+mount | grep /tmp/dojo-test- | sed -e "s/.* on //" | sed -e "s/ .*//" | tac | while read ENTRY
 do
 	sudo umount "$ENTRY"
 done
+
+if [ -n "$DOCKER_DIR" ]
+then
+	VOLUME_ARGS+=( "-v" "$DOCKER_DIR:/data/docker" )
+	sudo rm -rf $DOCKER_DIR/{containers,volumes}
+fi
 
 docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" -p 2222:22 -p 80:80 -p 443:443 --name "$DOJO_CONTAINER" dojo || exit 1
 
@@ -73,8 +74,7 @@ then
 fi
 
 until curl -Ls localhost.pwn.college | grep -q pwn; do sleep 1; done
-# fix up the data permissions and git
-sudo chown "$USER:$USER" "$PWD/data"
-git checkout "$PWD/data/.gitkeep" || true
+
+docker exec "$DOJO_CONTAINER" docker tag pwncollege-challenge pwncollege/challenge-legacy:latest
 
 [ "$TEST" == "yes" ] && MOZ_HEADLESS=1 pytest -v test/test_running.py test/test_welcome.py
