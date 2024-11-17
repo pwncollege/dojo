@@ -1,0 +1,16 @@
+id: intro-to-cybersecurity
+type: topic
+modules:
+  - id: test
+    challenges:
+      - id: test
+        import:
+          dojo: example
+          module: hello
+          challenge: apple
+files:
+  - type: text
+    path: test/test/boom
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

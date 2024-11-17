@@ -179,6 +179,17 @@ def test_lfs(lfs_dojo, random_user):
         assert False, "LFS didn't create dojo.txt"
 
 @pytest.mark.dependency(depends=["test_join_dojo"])
+def test_import_override(import_override_dojo, random_user):
+    uid, session = random_user
+    assert session.get(f"{DOJO_URL}/dojo/{import_override_dojo}/join/").status_code == 200
+    start_challenge(import_override_dojo, "test", "test", session=session)
+    try:
+        workspace_run("[ -f '/challenge/boom' ]", user=uid)
+        workspace_run("[ ! -f '/challenge/apple' ]", user=uid)
+    except subprocess.CalledProcessError:
+        assert False, "dojo_initialize_files didn't create /challenge/boom"
+
+@pytest.mark.dependency(depends=["test_join_dojo"])
 def test_no_import(no_import_challenge_dojo, admin_session):
     try:
         create_dojo_yml(open(TEST_DOJOS_LOCATION / "forbidden_import.yml").read(), session=admin_session)

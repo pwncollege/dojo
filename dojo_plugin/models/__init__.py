@@ -577,7 +577,7 @@ class DojoChallenges(db.Model):
     @property
     def path(self):
         return (self.module.path / self.id
-                if not self.path_override else
+                if not self.path_override or (self.module.dojo.official and os.path.exists(self.module.path / self.id)) else
                 pathlib.Path(self.path_override))
 
     @property
