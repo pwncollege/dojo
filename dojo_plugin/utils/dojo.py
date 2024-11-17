@@ -110,13 +110,18 @@ DOJO_SPEC = Schema({
         )],
     }],
     Optional("pages", default=[]): [str],
-    Optional("files", default=[]): [
+    Optional("files", default=[]): [Or(
         {
             "type": "download",
             "path": FILE_PATH_REGEX,
             "url": FILE_URL_REGEX,
+        },
+        {
+            "type": "text",
+            "path": FILE_PATH_REGEX,
+            "content": str,
         }
-    ],
+    )],
 })
 
 def setdefault_name(entry):
@@ -182,16 +187,21 @@ def load_dojo_subyamls(data, dojo_dir):
 
 def dojo_initialize_files(data, dojo_dir):
     for dojo_file in data.get("files", []):
+        assert is_admin(), "yml-specified files support requires admin privileges"
         rel_path = dojo_dir / dojo_file["path"]
+
         abs_path = dojo_dir / rel_path
         assert not abs_path.is_symlink(), f"{rel_path} is a symbolic link!"
+        if abs_path.exists():
+            continue
+        abs_path.parent.mkdir(parents=True, exist_ok=True)
+
         if dojo_file["type"] == "download":
-            if abs_path.exists():
-                continue
-            assert is_admin(), f"LFS download support requires admin privileges"
-            abs_path.parent.mkdir(parents=True, exist_ok=True)
             urllib.request.urlretrieve(dojo_file["url"], str(abs_path))
             assert abs_path.stat().st_size >= 50*1024*1024, f"{rel_path} is small enough to fit into git ({abs_path.stat().st_size} bytes) --- put it in the repository!"
+        if dojo_file["type"] == "text":
+            with open(abs_path, "w") as o:
+                o.write(dojo_file["content"])
 
 def dojo_from_dir(dojo_dir, *, dojo=None):
     dojo_yml_path = dojo_dir / "dojo.yml"
