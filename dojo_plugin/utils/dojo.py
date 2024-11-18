@@ -83,6 +83,7 @@ DOJO_SPEC = Schema({
             Optional("image"): IMAGE_REGEX,
             Optional("allow_privileged"): bool,
             Optional("importable"): bool,
+            Optional("transfer-from"): str,
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
             Optional("import"): {
@@ -257,12 +258,22 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             setattr(dojo, name, value)
 
     existing_challenges = {(challenge.module.id, challenge.id): challenge.challenge for challenge in dojo.challenges}
-    def challenge(module_id, challenge_id):
+    def challenge(module_id, challenge_id, transfer_from=None):
         if (module_id, challenge_id) in existing_challenges:
             return existing_challenges[(module_id, challenge_id)]
-        result = (Challenges.query.filter_by(category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}").first() or
-                  Challenges(type="dojo", category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}", flags=[Flags(type="dojo")]))
-        return result
+        if chal := Challenges.query.filter_by(category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}").first():
+            return chal
+        if transfer_from:
+            assert dojo.official or (is_admin() and not Dojos.from_id(dojo.id).first())
+            old_dojo_id, old_module_id, old_challenge_id = transfer_from.split("/")
+            old_dojo = Dojos.from_id(old_dojo_id).first()
+            print("WTF:", old_dojo.hex_dojo_id, f"{old_module_id}:{old_challenge_id}", file=__import__("sys").stderr)
+            old_challenge = Challenges.query.filter_by(category=old_dojo.hex_dojo_id, name=f"{old_module_id}:{old_challenge_id}").first()
+            assert old_dojo and old_challenge, f"unable to find source dojo/module/challenge in database for {module_id}:{challenge_id}"
+            old_challenge.category = dojo.hex_dojo_id
+            old_challenge.name = f"{module_id}:{challenge_id}"
+            return old_challenge
+        return Challenges(type="dojo", category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}", flags=[Flags(type="dojo")])
 
     def visibility(cls, *args):
         start = None
@@ -299,7 +310,9 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     image=shadow("image", dojo_data, module_data, challenge_data, default=None),
                     allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     importable=shadow("importable", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
-                    challenge=challenge(module_data.get("id"), challenge_data.get("id")) if "import" not in challenge_data else None,
+                    challenge=challenge(
+                        module_data.get("id"), challenge_data.get("id"), transfer_from=challenge_data.get("transfer-from", None)
+                    ) if "import" not in challenge_data else None,
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
                                         f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")

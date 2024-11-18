@@ -1,0 +1,13 @@
+id: dst-dojo
+type: topic
+modules:
+  - id: dst-module
+    challenges:
+      - id: dst-challenge
+        transfer-from: src-dojo/src-module/src-challenge
+files:
+  - type: text
+    path: dst-module/dst-challenge/dst
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

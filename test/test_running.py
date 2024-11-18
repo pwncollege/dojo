@@ -190,6 +190,16 @@ def test_import_override(import_override_dojo, random_user):
         assert False, "dojo_initialize_files didn't create /challenge/boom"
 
 @pytest.mark.dependency(depends=["test_join_dojo"])
+def test_challenge_transfer(transfer_src_dojo, transfer_dst_dojo, random_user):
+    user_name, session = random_user
+    assert session.get(f"{DOJO_URL}/dojo/{transfer_src_dojo}/join/").status_code == 200
+    assert session.get(f"{DOJO_URL}/dojo/{transfer_dst_dojo}/join/").status_code == 200
+    start_and_solve(user_name, session, transfer_dst_dojo, "dst-module", "dst-challenge")
+    scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{transfer_src_dojo}/_/0/1").json()
+    us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
+    assert us["solves"] == 1
+
+@pytest.mark.dependency(depends=["test_join_dojo"])
 def test_no_import(no_import_challenge_dojo, admin_session):
     try:
         create_dojo_yml(open(TEST_DOJOS_LOCATION / "forbidden_import.yml").read(), session=admin_session)

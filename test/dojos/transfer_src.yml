@@ -1,0 +1,12 @@
+id: src-dojo
+type: topic
+modules:
+  - id: src-module
+    challenges:
+      - id: src-challenge
+files:
+  - type: text
+    path: src-module/src-challenge/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
