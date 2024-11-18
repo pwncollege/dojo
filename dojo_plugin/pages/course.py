@@ -25,16 +25,6 @@ def get_letter_grade(dojo, grade):
             return letter_grade
     return "?"
 
-def clamp_ec(limit):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            nonlocal limit
-            result = func(*args, **kwargs)
-            clamped_result = min(result, limit)
-            limit -= clamped_result
-            return clamped_result
-        return wrapper
-    return decorator
 
 def assessment_name(dojo, assessment):
     module_names = {module.id: module.name for module in dojo.modules}
@@ -150,10 +140,16 @@ def grade(dojo, users_query, *, ignore_pending=False):
     def result(user_id):
         assessment_grades = []
 
-        ec_limit = dojo.course.get("ec_limit") or 1.00
-        ec_clamp = clamp_ec(ec_limit)
+        max_extra = dojo.course.get("max_extra", float("inf"))
+        def limit_extra(func, limit=max_extra):
+            def wrapper(*args, **kwargs):
+                nonlocal limit
+                result = min(func(*args, **kwargs), limit)
+                limit -= result
+                return result
+            return wrapper
 
-        @ec_clamp
+        @limit_extra
         def get_thanks_credit(dojo, user_id, method, max_credit, unique):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
             if not discord_user:
@@ -167,7 +163,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 return min(1.337 ** math.log(thanks_count,2) / 100, max_credit) if thanks_count else 0
             return 0
 
-        @ec_clamp
+        @limit_extra
         def get_meme_credit(dojo, user_id, max_credit, meme_value=0.005):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
             if not discord_user:
@@ -177,9 +173,10 @@ def grade(dojo, users_query, *, ignore_pending=False):
 
             return min(meme_count * meme_value, max_credit)
 
-        @ec_clamp
-        def clamp_extra(user_id):
-            return (assessment.get("credit") or {}).get(str(user_id), 0.0)
+        @limit_extra
+        def get_extra(user_id):
+            credit = assessment.get("credit", 0.0)
+            return credit.get(str(user_id), 0.0) if isinstance(credit, dict) else credit
 
         for assessment in assessments:
             type = assessment.get("type")
@@ -188,7 +185,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
             if ignore_pending and date and date > now:
                 continue
 
-            extra_late_date = datetime.datetime.fromisoformat(assessment.get("extra_late_date",None)) if type in ["checkpoint", "due"] and "extra_late_date" in assessment else None
+            extra_late_date = datetime.datetime.fromisoformat(assessment.get("extra_late_date", None)) if type in ["checkpoint", "due"] and "extra_late_date" in assessment else None
 
             if type == "checkpoint":
                 module_id = assessment["id"]
@@ -273,7 +270,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
                     progress=(assessment.get("progress") or {}).get(str(user_id), ""),
-                    credit=clamp_extra(user_id)
+                    credit=get_extra(user_id)
                 ))
 
             if type == "helpfulness":
