@@ -273,7 +273,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             old_dojo_id, old_module_id, old_challenge_id = transfer["dojo"], transfer["module"], transfer["challenge"]
             old_dojo = Dojos.from_id(old_dojo_id).first()
             old_challenge = Challenges.query.filter_by(category=old_dojo.hex_dojo_id, name=f"{old_module_id}:{old_challenge_id}").first()
-            assert old_dojo and old_challenge, f"unable to find source dojo/module/challenge in database for {old_module_id}:{old_challenge_id}"
+            assert old_dojo and old_challenge, f"unable to find source dojo/module/challenge in database for {old_dojo_id}:{old_module_id}:{old_challenge_id}"
             old_challenge.category = dojo.hex_dojo_id
             old_challenge.name = f"{module_id}:{challenge_id}"
             return old_challenge
