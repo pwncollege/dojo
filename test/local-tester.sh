@@ -6,7 +6,7 @@ function usage {
 	set +x
 	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -T ]"
 	echo ""
-	echo "	-r	db backup to restore (relative to dojo/data/backups)"
+	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: dojo-test)"
 	echo "	-D	specify a directory for /data/docker (to avoid rebuilds)"
 	echo "	-T	don't run tests"
