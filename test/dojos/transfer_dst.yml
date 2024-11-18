@@ -4,7 +4,10 @@ modules:
   - id: dst-module
     challenges:
       - id: dst-challenge
-        transfer-from: src-dojo/src-module/src-challenge
+        transfer:
+          dojo: src-dojo
+          module: src-module
+          challenge: src-challenge
 files:
   - type: text
     path: dst-module/dst-challenge/dst
