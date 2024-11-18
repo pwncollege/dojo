@@ -445,9 +445,13 @@ def dojo_git_command(dojo, *args):
 
 
 def dojo_update(dojo):
-    dojo_git_command(dojo, "fetch", "--depth=1", "origin")
-    dojo_git_command(dojo, "reset", "--hard", "origin")
-    dojo_git_command(dojo, "submodule", "update", "--init", "--recursive")
+    if dojo.path.exists():
+        dojo_git_command(dojo, "fetch", "--depth=1", "origin")
+        dojo_git_command(dojo, "reset", "--hard", "origin")
+        dojo_git_command(dojo, "submodule", "update", "--init", "--recursive")
+    else:
+        tmpdir = dojo_clone(dojo.repository, dojo.private_key)
+        os.rename(tmpdir.name, str(dojo.path))
     return dojo_from_dir(dojo.path, dojo=dojo)
 
 
