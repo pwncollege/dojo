@@ -26,12 +26,25 @@ def view_hacker(user):
              .viewable(user=get_current_user())
              .filter(Dojos.data["type"] != "hidden", Dojos.data["type"] != "course")
              .all())
+    user_solves = {}
+    for dojo in dojos:
+        dojo_id = dojo.id
+        user_solves[dojo_id] = {}
 
+        for module in dojo.modules:
+            module_id = module.id
+            solves = module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
+
+            if solves:
+                user_solves[dojo_id][module_id] = {
+                    solve.challenge_id: solve.date.strftime("%Y-%m-%d %H:%M:%S") for solve in solves
+                }
     return render_template(
         "hacker.html",
         dojos=dojos, user=user,
         dojo_scores=dojo_scores(), module_scores=module_scores(),
-        belts=get_belts(), badges=get_viewable_emojis(user)
+        belts=get_belts(), badges=get_viewable_emojis(user),
+        user_solves=user_solves
     )
 
 @users.route("/hacker/<int:user_id>")
