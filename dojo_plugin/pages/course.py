@@ -114,33 +114,45 @@ def grade(dojo, users_query, *, ignore_pending=False):
 
     module_solves = {}
 
+    def get_thanks_progress(dojo, user_id, unique):
+        discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
+        if not discord_user:
+            return "Discord not linked"
+        if "start_date" not in dojo.course:
+            return "Error: unknown course start date"
+
+        course_start = datetime.datetime.fromisoformat(dojo.course["start_date"])
+        thanks = (discord_user.thanks(start=course_start, end=course_start + datetime.timedelta(weeks=16))
+                  .group_by(DiscordUserActivity.message_id))
+        if not unique:
+            thanks = thanks.group_by(DiscordUserActivity.source_user_id)
+        return f"{thanks.count()} thanks"
 
     def get_meme_progress(dojo, user_id):
-            discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
-            if not discord_user:
-                return ""
+        discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
+        if not discord_user:
+            return "Discord not linked"
+        if "start_date" not in dojo.course:
+            return "Error: unknown course start date"
 
-            course_start = datetime.datetime.fromisoformat(dojo.course.get("start_date")) or datetime.datetime.min
-            meme_weeks = discord_user.meme_dates(start=course_start, end=course_start + datetime.timedelta(weeks=16))
+        course_start = datetime.datetime.fromisoformat(dojo.course["start_date"])
+        memes = (discord_user.memes(start=course_start, end=course_start + datetime.timedelta(weeks=16))
+                 .order_by(DiscordUserActivity.message_timestamp))
 
-            def clean_date(d):
-                return f"{d.month:02d}/{d.day:02d}"
-            week_ranges = ' '.join([f"{clean_date(s)}-{clean_date(e)}" for s, e in meme_weeks])
-            return week_ranges
+        weekly_memes = set((meme.message_timestamp.astimezone(datetime.timezone.utc) - course_start).days // 7
+                           for meme in memes)
 
-    def get_thanks_progress(dojo, user_id, unique):
-            discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
-            if not discord_user:
-                return 0
-            course_start = datetime.datetime.fromisoformat(dojo.course.get("start_date")) or datetime.datetime.min
-            thanks_count = discord_user.thanks_count(start=course_start, unique_messages=unique)
+        def week_string(week):
+            start = course_start + datetime.timedelta(weeks=week)
+            end = start + datetime.timedelta(days=6)
+            return f"{start.month:02d}/{start.day:02d}-{end.month:02d}/{end.day:02d}"
 
-            return thanks_count
+        return " ".join(week_string(week) for week in weekly_memes)
 
     def result(user_id):
         assessment_grades = []
 
-        max_extra = dojo.course.get("max_extra", float("inf"))
+        max_extra = dojo.course.get("max_extra") or float("inf")
         def limit_extra(func, limit=max_extra):
             def wrapper(*args, **kwargs):
                 nonlocal limit
@@ -150,28 +162,35 @@ def grade(dojo, users_query, *, ignore_pending=False):
             return wrapper
 
         @limit_extra
-        def get_thanks_credit(dojo, user_id, method, max_credit, unique):
+        def get_thanks_credit(dojo, user_id, method, unique, max_credit):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
-            if not discord_user:
+            if not discord_user or "start_date" not in dojo.course:
                 return 0
-            course_start = dojo.course.get("start_date") or datetime.datetime.min
-            thanks_count = discord_user.thanks_count(start=course_start,unique_messages=unique)
+            course_start = datetime.datetime.fromisoformat(dojo.course["start_date"])
+            thanks = (discord_user.thanks(start=course_start, end=course_start + datetime.timedelta(weeks=16))
+                      .group_by(DiscordUserActivity.message_id))
+            if not unique:
+                thanks = thanks.group_by(DiscordUserActivity.source_user_id)
+            thanks_count = thanks.count()
 
-            if method == 'log50':
-                return min(max_credit * math.log(thanks_count, 50), max_credit) if thanks_count else 0
-            elif method == '1337log2':
-                return min(1.337 ** math.log(thanks_count,2) / 100, max_credit) if thanks_count else 0
-            return 0
+            if thanks_count == 0:
+                return 0.0
+
+            credit = 0.0
+            if method == "log50":
+                credit = max_credit * math.log(thanks_count, 50)
+            elif method == "1337log2":
+                credit = 1.337 ** math.log(thanks_count, 2) / 100
+            return min(credit, max_credit)
 
         @limit_extra
-        def get_meme_credit(dojo, user_id, max_credit, meme_value=0.005):
+        def get_meme_credit(dojo, user_id, value, max_credit):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
-            if not discord_user:
-                return 0
-            course_start = datetime.datetime.fromisoformat(dojo.course.get("start_date")) or datetime.datetime.min
-            meme_count = discord_user.meme_count(start=course_start, end=course_start + datetime.timedelta(weeks=16))
-
-            return min(meme_count * meme_value, max_credit)
+            if not discord_user or "start_date" not in dojo.course:
+                return 0.0
+            course_start = datetime.datetime.fromisoformat(dojo.course["start_date"])
+            meme_count = discord_user.memes(start=course_start, end=course_start + datetime.timedelta(weeks=16)).count()
+            return min(meme_count * value, max_credit)
 
         @limit_extra
         def get_extra(user_id):
@@ -275,22 +294,23 @@ def grade(dojo, users_query, *, ignore_pending=False):
 
             if type == "helpfulness":
                 method = assessment.get("method")
-                max_credit = assessment.get("max_credit") or 1.00
-                unique_messages = assessment.get("unique") or False
+                max_credit = assessment.get("max_credit") or float("inf")
+                unique = assessment.get("unique") or False
                 assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
-                    progress=get_thanks_progress(dojo, user_id, unique_messages),
-                    credit=get_thanks_credit(dojo, user_id, method, max_credit, unique_messages)
-                    ))
+                    progress=get_thanks_progress(dojo, user_id, unique),
+                    credit=get_thanks_credit(dojo, user_id, method, unique, max_credit)
+                ))
 
             if type == "memes":
-                max_credit = assessment.get("max_credit") or 1.00
-                credit = get_meme_credit(dojo, user_id, max_credit)
+                value = assessment.get("value") or 0.0
+                max_credit = assessment.get("max_credit") or float("inf")
+                credit = get_meme_credit(dojo, user_id, value, max_credit)
                 assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
                     progress=get_meme_progress(dojo, user_id),
-                    credit=credit
-                    ))
+                    credit=credit,
+                ))
 
         overall_grade = (
             sum(grade["credit"] * grade["weight"] for grade in assessment_grades if "weight" in grade) /
@@ -308,7 +328,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     assessment_grades=assessment_grades,
                     overall_grade=overall_grade,
                     letter_grade=letter_grade,
-                    show_extra_late_date= any(row.get('extra_late_date',None) is not None for row in assessments))
+                    show_extra_late_date= any(row.get("extra_late_date", None) is not None for row in assessments))
 
     user_id = None
     previous_user_id = None

@@ -66,12 +66,14 @@ class DiscordActivity(Resource):
 
 def get_user_activity_prop(discord_id, activity, start=None, end=None):
     user = DiscordUsers.query.filter_by(discord_id=discord_id).first()
-
-    if activity == "thanks":
-        count = user.thanks_count(start, end) if user else 0
+    if not user:
+        count = 0
+    elif activity == "thanks":
+        count = (user.thanks(start, end)
+                 .group_by(DiscordUserActivity.message_id, DiscordUserActivity.source_user_id)
+                 .count())
     elif activity == "memes":
-        count = user.meme_count(start, end) if user else 0
-
+        count = user.memes(start, end).count()
     return {"success": True, activity: count}
 
 def get_user_activity(discord_id, activity, request):
