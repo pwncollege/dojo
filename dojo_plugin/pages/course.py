@@ -114,6 +114,21 @@ def grade(dojo, users_query, *, ignore_pending=False):
 
     module_solves = {}
 
+    def thanks_count(dojo, discord_user, unique):
+        course_start = datetime.datetime.fromisoformat(dojo.course["start_date"])
+        thanks = (discord_user.thanks(start=course_start, end=course_start + datetime.timedelta(weeks=16))
+                .group_by(DiscordUserActivity.message_id))
+        if not unique:
+            thanks = thanks.group_by(DiscordUserActivity.source_user_id)
+        return thanks.count()
+
+    def weekly_memes(dojo, discord_user):
+        course_start = datetime.datetime.fromisoformat(dojo.course["start_date"])
+        memes = (discord_user.memes(start=course_start, end=course_start + datetime.timedelta(weeks=16))
+                 .order_by(DiscordUserActivity.message_timestamp))
+        return set((meme.message_timestamp.astimezone(datetime.timezone.utc) - course_start).days // 7
+                   for meme in memes)
+
     def get_thanks_progress(dojo, user_id, unique):
         discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
         if not discord_user:
@@ -121,12 +136,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
         if "start_date" not in dojo.course:
             return "Error: unknown course start date"
 
-        course_start = datetime.datetime.fromisoformat(dojo.course["start_date"])
-        thanks = (discord_user.thanks(start=course_start, end=course_start + datetime.timedelta(weeks=16))
-                  .group_by(DiscordUserActivity.message_id))
-        if not unique:
-            thanks = thanks.group_by(DiscordUserActivity.source_user_id)
-        return f"{thanks.count()} thanks"
+        return f"{thanks_count(dojo, discord_user, unique)} thanks"
 
     def get_meme_progress(dojo, user_id):
         discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
@@ -135,19 +145,12 @@ def grade(dojo, users_query, *, ignore_pending=False):
         if "start_date" not in dojo.course:
             return "Error: unknown course start date"
 
-        course_start = datetime.datetime.fromisoformat(dojo.course["start_date"])
-        memes = (discord_user.memes(start=course_start, end=course_start + datetime.timedelta(weeks=16))
-                 .order_by(DiscordUserActivity.message_timestamp))
-
-        weekly_memes = set((meme.message_timestamp.astimezone(datetime.timezone.utc) - course_start).days // 7
-                           for meme in memes)
-
         def week_string(week):
             start = course_start + datetime.timedelta(weeks=week)
             end = start + datetime.timedelta(days=6)
             return f"{start.month:02d}/{start.day:02d}-{end.month:02d}/{end.day:02d}"
 
-        return " ".join(week_string(week) for week in weekly_memes)
+        return " ".join(week_string(week) for week in weekly_memes(dojo, discord_user))
 
     def result(user_id):
         assessment_grades = []
@@ -166,21 +169,14 @@ def grade(dojo, users_query, *, ignore_pending=False):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
             if not discord_user or "start_date" not in dojo.course:
                 return 0
-            course_start = datetime.datetime.fromisoformat(dojo.course["start_date"])
-            thanks = (discord_user.thanks(start=course_start, end=course_start + datetime.timedelta(weeks=16))
-                      .group_by(DiscordUserActivity.message_id))
-            if not unique:
-                thanks = thanks.group_by(DiscordUserActivity.source_user_id)
-            thanks_count = thanks.count()
-
-            if thanks_count == 0:
+            thanks = thanks_count(dojo, discord_user, unique)
+            if thanks == 0:
                 return 0.0
-
             credit = 0.0
             if method == "log50":
-                credit = max_credit * math.log(thanks_count, 50)
+                credit = max_credit * math.log(thanks, 50)
             elif method == "1337log2":
-                credit = 1.337 ** math.log(thanks_count, 2) / 100
+                credit = 1.337 ** math.log(thanks, 2) / 100
             return min(credit, max_credit)
 
         @limit_extra
@@ -188,8 +184,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
             discord_user =  DiscordUsers.query.where(DiscordUsers.user_id == user_id).first()
             if not discord_user or "start_date" not in dojo.course:
                 return 0.0
-            course_start = datetime.datetime.fromisoformat(dojo.course["start_date"])
-            meme_count = discord_user.memes(start=course_start, end=course_start + datetime.timedelta(weeks=16)).count()
+            meme_count = len(weekly_memes(dojo, discord_user))
             return min(meme_count * value, max_credit)
 
         @limit_extra
