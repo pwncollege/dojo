@@ -145,6 +145,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
         if "start_date" not in dojo.course:
             return "Error: unknown course start date"
 
+        course_start = datetime.datetime.fromisoformat(dojo.course["start_date"])
         def week_string(week):
             start = course_start + datetime.timedelta(weeks=week)
             end = start + datetime.timedelta(days=6)
