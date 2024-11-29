@@ -1,5 +1,6 @@
 #!/bin/sh
 
+echo "[+] Checking /data mount properties..."
 data_mnt_opts="$(findmnt -n -o OPTIONS /data)"
 if [ "$?" -ne 0 ]; then
     echo '[!] Data mount does not exist. Please start the dojo with a data mount (`-v /data:/data`).'
@@ -67,12 +68,15 @@ define MAC_USERNAME
 define MAC_KEY_FILE
 define MAC_GUEST_CONTROL_FILE
 
+echo "[+] Sourcing config.env..."
 mv /data/.config.env /data/config.env
 . /data/config.env
 
+echo "[+] Creating workspace directories..."
 mkdir -p /data/workspace/nix
 mkdir -p /data/workspacefs/bin
 
+echo "[+] Configuring homes..."
 mkdir -p /data/homes
 if [ "$(findmnt -n -o FSTYPE /data/homes)" != "btrfs" ] && [ "$(findmnt -n -o FSTYPE /data)" != "btrfs" ]; then
     if [ ! -f /data/homes/btrfs.img ]; then
@@ -84,6 +88,7 @@ if [ "$(findmnt -n -o FSTYPE /data/homes)" != "btrfs" ] && [ "$(findmnt -n -o FS
 fi
 btrfs quota enable /data/homes
 
+echo "[+] Configuring ssh..."
 if [ ! -d /data/ssh_host_keys ]; then
     mkdir -p /data/ssh_host_keys
     rm /etc/ssh/ssh_host_*_key*
@@ -97,17 +102,21 @@ for file in $(ls /data/ssh_host_keys/*); do
     cp -a $file /etc/ssh
 done
 
+echo "[+] Configuring backup keys..."
 if [ ! -z ${BACKUP_AES_KEY_FILE+x} ] && [ ! -f ${BACKUP_AES_KEY_FILE} ]
 then
     openssl rand 214 > "${BACKUP_AES_KEY_FILE}"
 fi
 
+echo "[+] Setting kernel parameters..."
 sysctl -w kernel.pty.max=1048576
 sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 echo core > /proc/sys/kernel/core_pattern
 
+echo "[+] Configuring dojo nodes..."
 dojo-node refresh
 
+echo "[+] Configuring firewalling..."
 iptables -N DOCKER-USER
 iptables -I DOCKER-USER -i workspace_net -j DROP
 for host in $(cat /opt/pwn.college/user_firewall.allowed); do

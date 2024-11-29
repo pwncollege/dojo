@@ -1,0 +1,15 @@
+[Unit]
+Description=pwn.college initialization service
+Before=docker.service
+Before=containerd.service
+Before=sysinit.target
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+WorkingDirectory=/opt/pwn.college
+ExecStart=/usr/bin/dojo-init
+
+[Install]
+WantedBy=sysinit.target
