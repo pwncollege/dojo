@@ -52,15 +52,15 @@ For more information about how `PATH` works, see [8.3 Other Environment Variable
 
 ## DOJO Workspace Requirements
 
-There is no perfect way to marry together a file system that meets the precise needs of the DOJO, the challenge, and the user; however, perfect is the enemy of good.
+There is no perfect way to marry together a file system that meets the precise needs of the DOJO, the challenge, and the user; nevertheless, we try our best.
 
-DOJO owns the following directories:
+DOJO completely owns the following directories:
 - `/run/workspace`
 - `/run/dojo`
 - `/run/current-system`
 - `/nix`
 
-The user owns the following directories:
+The user completely owns the following directories:
 - `/home/hacker`
 
 The challenge owns everything else subject to the following constraints/understanding:
@@ -68,4 +68,6 @@ The challenge owns everything else subject to the following constraints/understa
 - DOJO will control `/etc/passwd` and `/etc/group` for the `hacker` (UID 1000) and `root` (UID 0) users, with permissions `root:root 0644`.
 - `/bin/sh` must be POSIX compliant; DOJO will symlink `/bin/sh` to `/run/dojo/bin/sh` if it does not exist.
 - `/usr/bin/env` must be POSIX compliant; DOJO will symlink `/usr/bin/env` to `/run/dojo/bin/env` if it does not exist.
-- Various configuration files may be automatically utilized by the DOJO; please open an issue if you run into issues with this.
+- Various configuration files may be automatically utilized by the DOJO; for example, `/run/dojo/bin/bash`, the user's default shell, will try to to use `/etc/bashrc`[^1], `/etc/inputrc`, and `/etc/nsswitch.conf`.
+
+[^1]: This is *different* than `ubuntu:24.04`'s use of `/etc/bash.basrch`
