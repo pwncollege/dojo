@@ -156,14 +156,16 @@ def grade(dojo, users_query, *, ignore_pending=False):
     def result(user_id):
         assessment_grades = []
 
-        max_extra = dojo.course.get("max_extra") or float("inf")
-        def limit_extra(func, limit=max_extra):
-            def wrapper(*args, **kwargs):
-                nonlocal limit
-                result = min(func(*args, **kwargs), limit)
-                limit -= result
-                return result
-            return wrapper
+        def limiter(limit):
+            def decorator(func):
+                def wrapper(*args, **kwargs):
+                    nonlocal limit
+                    result = min(func(*args, **kwargs), limit)
+                    limit -= result
+                    return result
+                return wrapper
+            return decorator
+        limit_extra = limiter(dojo.course.get("max_extra") or float("inf"))
 
         @limit_extra
         def get_thanks_credit(dojo, user_id, method, unique, max_credit):
