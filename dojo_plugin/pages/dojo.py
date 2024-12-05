@@ -5,7 +5,7 @@ import sys
 
 from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context, request
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.sql import and_
+from sqlalchemy.sql import and_, or_
 from CTFd.plugins import bypass_csrf_protection
 from CTFd.models import db, Solves, Users
 from CTFd.utils.decorators import authed_only
@@ -227,7 +227,7 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
             DojoModules.dojo_id == DojoChallenges.dojo_id,
             DojoModules.module_index == DojoChallenges.module_index
         ))
-        .filter(DojoUsers.user_id != None)
+        .filter(or_(DojoUsers.user_id != None, ~Users.hidden))
         .order_by(DojoChallenges.module_index, DojoChallenges.challenge_index, Solves.date)
         .with_entities(Solves.user_id, Users.name, DojoModules.id, DojoChallenges.id, Solves.date)
     )
