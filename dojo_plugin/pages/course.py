@@ -524,7 +524,7 @@ def download_all_grades(dojo):
             .query
             .join(DojoStudents, DojoStudents.user_id == Users.id)
             .filter(DojoStudents.dojo == dojo,
-                    DojoStudents.token.in_(dojo.course.get("students") or []))
+                    DojoStudents.token.in_(course_students))
         )
         grades = sorted(grade(dojo, users, ignore_pending=ignore_pending),
                         key=lambda grade: grade["overall_grade"],
