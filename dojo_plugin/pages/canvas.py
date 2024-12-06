@@ -120,8 +120,8 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
             student_submissions = assignment_submissions.setdefault(canvas_assignment["id"], {})
             grade_data = student_submissions.setdefault("grade_data", {})
             student_id = student_ids[user_grades["user_id"]]
-            extra_credit_max = assessment.get("extra_credit_max", 0)
-            if canvas_assignment["points_possible"] == 0 and extra_credit_max > 0:
+            extra_credit_max = assessment.get("extra_credit_max", 100)
+            if canvas_assignment["points_possible"] == 0:
                 logger.info(f"Extra credit post {(assessment_grade['credit'] * extra_credit_max):.2f}")
                 grade_credit = f"{(assessment_grade['credit'] * extra_credit_max):.2f}"
             else:
