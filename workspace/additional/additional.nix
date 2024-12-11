@@ -10,6 +10,7 @@ let
     psutil
     pwntools
     pycryptodome
+    pyroute2
     r2pipe
     requests
     ropper
@@ -46,6 +47,7 @@ in
     wireshark
     nmap
     tcpdump
+    nftables
     firefox
     geckodriver
     burpsuite
