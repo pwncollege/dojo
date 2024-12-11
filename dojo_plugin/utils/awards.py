@@ -26,7 +26,7 @@ def get_user_emojis(user):
         emoji = dojo.award and dojo.award.get('emoji', None)
         if not emoji:
             continue
-        if dojo.completed(user):
+        if d.challenges and dojo.completed(user):
             emojis.append((emoji, dojo.name, dojo.hex_dojo_id))
     return emojis
 
