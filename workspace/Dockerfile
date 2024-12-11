@@ -6,7 +6,6 @@ RUN apk add --no-cache nix git
 
 RUN cat >> /etc/nix/nix.conf <<EOF
 experimental-features = nix-command flakes
-auto-optimise-store = true
 substituters = /out https://cache.nixos.org/
 trusted-substituters = /out
 EOF
