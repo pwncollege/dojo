@@ -269,8 +269,33 @@ def view_module(dojo, module):
         for assessment in module.assessments:
             date = datetime.datetime.fromisoformat(assessment["date"])
             until = date.astimezone(datetime.timezone.utc) - now
-            if until < datetime.timedelta(0):
-                continue
+            flag_value = "100%" if assessment.get('show_penalty', False) else ""
+
+            if until < datetime.timedelta(0) :
+                flag_value = f"{(1 - assessment.get('late_penalty'))*100}%" if assessment.get('show_penalty', False) and assessment.get('late_penalty', -1) > -1 else ""
+                raw_eld = assessment.get('extra_late_date', None)
+                if raw_eld is None:
+                    assessments.append(dict(
+                            name=assessment["type"].title(),
+                            date="past",
+                            until="",
+                            flag_value=flag_value
+                        ))
+                date = datetime.datetime.fromisoformat(raw_eld)
+                until = date.astimezone(datetime.timezone.utc) - now
+                if until < datetime.timedelta(0) :
+                     flag_value = f"{(1 - assessment.get('extra_late_penalty'))*100}%" if assessment.get('show_penalty', False) and assessment.get('extra_late_penalty', -1) > -1 else ""
+                     assessments.append(dict(
+                            name=assessment["type"].title(),
+                            date="past",
+                            until="",
+                            flag_value=flag_value
+                        ))
+                     continue
+                assessment_name = f"Next {assessment['type'].title()} date "
+            else:
+                assessment_name = assessment['type'].title()
+
             date = str(date)
             until = " ".join(
                 f"{count} {unit}{'s' if count != 1 else ''}" for count, unit in zip(
@@ -278,10 +303,12 @@ def view_module(dojo, module):
                     ("day", "hour", "minute")
                 ) if count
             ) or "now"
+
             assessments.append(dict(
-                name=assessment["type"].title(),
+                name=assessment_name,
                 date=date,
                 until=until,
+                flag_value=flag_value
             ))
 
     challenge_container_counts = collections.Counter(
