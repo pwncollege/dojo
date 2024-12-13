@@ -51,7 +51,7 @@ wget -qO- "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" | bsdtar -x
 rm -rf /tmp/aws
 EOF
 
-ADD git@https://github.com/CTFd/CTFd.git#3.6.0 /opt/CTFd
+ADD https://github.com/CTFd/CTFd/archive/refs/tags/3.6.0.tar.gz /opt/CTFd
 
 COPY <<EOF /etc/fstab
 tmpfs /run/dojofs tmpfs defaults,mode=755,shared 0 0
