@@ -35,9 +35,11 @@ RUN git clone --branch 3.6.0 https://github.com/CTFd/CTFd /opt/CTFd
 RUN echo 'tmpfs /run/dojofs tmpfs defaults,mode=755,shared 0 0' > /etc/fstab && \
     echo '/data/homes /run/homefs none defaults,bind,nosuid 0 0' >> /etc/fstab
 
-RUN echo 'kernel.pty.max = 1048576' > /etc/sysctl.d/90-dojo.conf && \
-         'kernel.core_pattern = core' >> /etc/sysctl.d/90-dojo.conf && \
-         'kernel.apparmor_restrict_unprivileged_userns = 0' >> /etc/sysctl.d/90-dojo.conf
+RUN cat <<EOF > /etc/sysctl.d/90-dojo.conf
+kernel.pty.max = 1048576
+kernel.core_pattern = core
+kernel.apparmor_restrict_unprivileged_userns = 0
+EOF
 
 RUN ln -s /opt/pwn.college/etc/systemd/system/pwn.college.service /etc/systemd/system/pwn.college.service && \
     ln -s /opt/pwn.college/etc/systemd/system/pwn.college.backup.service /etc/systemd/system/pwn.college.backup.service && \
