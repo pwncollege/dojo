@@ -13,6 +13,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get clean && rm -rf /var/lib/apt/lists/*
         build-essential
         btrfs-progs
+        ca-certificates
         curl
         git
         host
