@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         iputils-ping
         jq
         kmod
-        libarchive-tools
+        unzip
         wget
         wireguard
 EOF
@@ -47,9 +47,11 @@ EOF
 ADD https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json /etc/docker/seccomp.json
 
 RUN <<EOF
-wget -qO- "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" | bsdtar -x -C /tmp
-/tmp/aws/install
-rm -rf /tmp/aws
+cd /tmp
+wget -O aws.zip "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+unzip aws.zip
+./aws/install
+rm -rf aws.zip aws
 EOF
 
 ADD https://github.com/CTFd/CTFd/archive/refs/tags/3.6.0.tar.gz /opt/CTFd
