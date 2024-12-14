@@ -20,7 +20,7 @@
 </li>
 {% endmacro %}
 
-{% macro card(url, title=None, text_lines=None, icon=None, emoji=None, custom=False, solve_percent=0) -%}
+{% macro card(url, title=None, text_lines=None, icon=None, emoji=None, custom=False, solve_percent=0, course=False) -%}
   <a class="text-decoration-none" href="{{ url }}">
     <li class="card card-small">
       <div class="card-body">
@@ -33,11 +33,13 @@
         {% endif %}
         {% if text_lines %}<p class="card-text">{% for text in text_lines %}{{ text }}<br>{% endfor %}</p>{% endif %}
         {% if custom %}{{ caller() }}{% endif %}
+        {% if not course %}
         <div class="progress-bar" style="width:{{solve_percent}}%">
           {% if solve_percent != 0 %}
             <span class="progress-bar-text">{{solve_percent|round(0, 'floor')|int}}%</span>
           {% endif %}
         </div>
+        {% endif %}
       </div>
     </li>
   </a>
@@ -87,6 +89,7 @@
         icon=icon,
         emoji=dojo.award.emoji,
         solve_percent=solve_percent,
+        course=dojo.course,
       ) }}
     {% endfor %}
     {% if create_icon %}
