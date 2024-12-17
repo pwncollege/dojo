@@ -32,7 +32,7 @@ curl -fsSL https://get.docker.com | /bin/sh
 sed -i 's|-H fd:// ||' /lib/systemd/system/docker.service
 EOF
 
-COPY <<EOF /etc/docker/deamon.json
+COPY <<EOF /etc/docker/daemon.json
 {
     "data-root": "/data/docker",
     "hosts": ["unix:///run/docker.sock"],
