@@ -11,7 +11,13 @@
     {% if assessments %}
     <br>
     {% for assessment in assessments %}
-    <h3 class="module-due-date" title="{{ assessment.date }}">{{ assessment.name }} in {{ assessment.until }}</h3>
+      {% if assessment.flag_value|trim  == "" %}
+        <h3 class="module-due-date" title="{{ assessment.date }}">{{ assessment.name }} in {{ assessment.until }}</h3>
+      {% elif assessment.date|trim == "past" %}
+        <h3 class="module-due-date" title="{{ assessment.date }}">{{ assessment.name }} dates have passed (flags are currently worth {{ assessment.flag_value }} credit)</h3>
+      {% else %}
+        <h3 class="module-due-date" title="{{ assessment.date }}">{{ assessment.name }} in {{ assessment.until }} (flags are currently worth {{ assessment.flag_value }} credit)</h3>
+      {% endif %}
     {% endfor %}
     {% endif %}
   </div>
