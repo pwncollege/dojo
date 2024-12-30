@@ -72,7 +72,10 @@ def sync_canvas_user(user_id, challenge_id):
         dojo = dojo_challenge.dojo
         if not (dojo.course and dojo.course.get("canvas_token")):
             continue
-        sync_canvas(dojo, module=dojo_challenge.module, user_id=user_id)
+        try:
+            sync_canvas(dojo, module=dojo_challenge.module, user_id=user_id)
+        except RuntimeError as e:
+            logger.error("Canvas sync error for dojo %s", dojo, exc_info=True)
 
 
 def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
