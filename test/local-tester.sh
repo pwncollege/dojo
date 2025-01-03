@@ -75,6 +75,7 @@ fi
 
 until curl -Ls localhost.pwn.college | grep -q pwn; do sleep 1; done
 
-docker exec "$DOJO_CONTAINER" docker tag pwncollege-challenge pwncollege/challenge-legacy:latest
+docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
+docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 
 [ "$TEST" == "yes" ] && MOZ_HEADLESS=1 pytest -v test/test_running.py test/test_welcome.py

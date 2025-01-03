@@ -97,7 +97,8 @@ jobs:
       - name: Build and start services
         run: |
           docker exec dojo-test dojo wait || (docker exec dojo-test dojo compose logs && false)
-          docker exec dojo-test docker tag pwncollege-challenge pwncollege/challenge-legacy:latest
+          docker exec dojo-test docker pull pwncollege/challenge-simple
+          docker exec dojo-test docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
           docker exec dojo-test docker image ls
 
       - name: Wait for services to start
