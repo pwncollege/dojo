@@ -20,20 +20,12 @@ let
     buildInputs = with pkgs; [ nodejs makeWrapper ];
     installPhase = ''
       runHook preInstall
-
       rgBin=libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
       mkdir -p $out/$rgBin
       cp ${rgScript} $out/$rgBin/rg
       cp ${pkgs.code-server}/$rgBin/rg $out/$rgBin/rg.orig
-
-      workbenchApiNode=libexec/code-server/lib/vscode/out/vs/workbench/api/node
-      mkdir -p $out/$workbenchApiNode
-      for f in "extensionHostProcess.js" "extensionHostProcess.js.map"; do
-        sed -E 's/(if\s*\(\w+\.\w+\.skipWorkspaceStorageLock\))/if\(true\)/g' ${pkgs.code-server}/$workbenchApiNode/$f > $out/$workbenchApiNode/$f
-      done
-
-      mkdir -p $out/bin
       cp -ru ${pkgs.code-server}/libexec/code-server/. $out/libexec/code-server
+      mkdir -p $out/bin
       makeWrapper ${pkgs.nodejs}/bin/node $out/bin/code-server --add-flags $out/libexec/code-server/out/node/entry.js
       runHook postInstall
     '';
@@ -44,12 +36,11 @@ let
 
     until [ -f /run/dojo/var/ready ]; do sleep 0.1; done
 
-    
-    if [ -d /run/challenge/share/code/extensions ]; then 
+    if [ -d /run/challenge/share/code/extensions ]; then
       EXTENSIONS_DIR="/run/challenge/share/code/extensions"
     else
       EXTENSIONS_DIR="@out@/share/code/extensions"
-    fi 
+    fi
 
     ${service}/bin/dojo-service start code-service/code-server \
       ${code-server}/bin/code-server \
@@ -57,8 +48,8 @@ let
         --bind-addr=0.0.0.0:8080 \
         --trusted-origins='*' \
         --disable-telemetry \
-        --extensions-dir=$EXTENSIONS_DIR
-
+        --extensions-dir=$EXTENSIONS_DIR \
+        --config=/dev/null
 
     until ${pkgs.curl}/bin/curl -s localhost:8080 >/dev/null; do sleep 0.1; done
   '';
