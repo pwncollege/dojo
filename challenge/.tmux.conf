@@ -1,1 +1,0 @@
-set -g mouse on
