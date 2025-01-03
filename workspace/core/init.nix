@@ -50,6 +50,8 @@ let
     exec > /run/dojo/var/root/init.log 2>&1
     chmod 600 /run/dojo/var/root/init.log
 
+    chown 1000:1000 /home/hacker && chmod 755 /home/hacker
+
     if [ -x "/challenge/.init" ]; then
         PATH="/run/challenge/bin:$IMAGE_PATH" /challenge/.init
     fi
