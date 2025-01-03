@@ -242,6 +242,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
                 "/home/hacker",
                 str(user.id),
                 "volume",
+                no_copy=True,
                 driver_config=docker.types.DriverConfig("homefs"),
             )
         )
@@ -251,12 +252,14 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
                 "/home/hacker",
                 f"{user.id}-overlay",
                 "volume",
+                no_copy=True,
                 driver_config=docker.types.DriverConfig("homefs", options=dict(overlay=str(as_user.id))),
             ),
             docker.types.Mount(
                 "/home/me",
                 str(user.id),
                 "volume",
+                no_copy=True,
                 driver_config=docker.types.DriverConfig("homefs"),
             ),
         ])
