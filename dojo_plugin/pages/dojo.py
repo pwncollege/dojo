@@ -306,6 +306,7 @@ def view_module(dojo, module):
 
 def view_page(dojo, page):
     if (dojo.path / page).is_file():
+        assert dojo.privileged or dojo.official
         path = (dojo.path / page).resolve()
         return send_file(path)
 
@@ -316,6 +317,7 @@ def view_page(dojo, page):
     elif (dojo.path / page).is_dir():
         user = get_current_user()
         if user and (dojo.path / page / f"{user.id}").is_file():
+            assert dojo.privileged or dojo.official
             path = (dojo.path / page / f"{user.id}").resolve()
             return send_file(path)
         elif user and (dojo.path / page / f"{user.id}.md").is_file():
