@@ -7,5 +7,6 @@
   <property name="color-cursor-use-default" type="bool" value="false"/>
   <property name="color-cursor" type="string" value="#cccccc"/>
   <property name="color-selection-use-default" type="bool" value="false"/>
-  <property name="color-selection-background" type="string" value="#264f78"/>  
+  <property name="color-selection-background" type="string" value="#264f78"/>
+  <property name="command-login-shell" type="bool" value="true"/>
 </channel>
