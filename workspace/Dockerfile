@@ -20,7 +20,7 @@ ARG DOJO_WORKSPACE="default"
 ENV DOJO_WORKSPACE="$DOJO_WORKSPACE"
 
 RUN cat > /docker-entrypoint.sh <<'EOF'
-#!/bin/sh
+#!/bin/sh -e
 if [ ! -d /out ]; then
     echo "Missing /out directory; mount a directory to /out!" >&2
     exit 1
