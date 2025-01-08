@@ -59,7 +59,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
         assessment_dates[assessment["id"]][assessment["type"]] = (
             datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc) + datetime.timedelta(hours=assessment.get("grace_period", 0)),
             datetime.datetime.fromisoformat(assessment.get("extra_late_date", "3000-01-01T16:59:59-07:00")).astimezone(datetime.timezone.utc) + datetime.timedelta(hours=assessment.get("grace_period", 0)),
-            {student_to_user[student_id]: extension for student_id, extension in (assessment.get("extensions") or {}).items()},
+            {student_to_user[student_id]: extension for student_id, extension in (assessment.get("extensions") or {}).items() if student_id in student_to_user},
         )
 
     def dated_count(label, date_type):
