@@ -2,7 +2,6 @@
 
 let
   pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-    angr
     asteval
     flask
     ipython
