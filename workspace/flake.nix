@@ -2,26 +2,16 @@
   description = "DOJO Workspace Flake";
 
   inputs = {
-    nixpkgs.url = "git+file:///opt/nixpkgs-24.05";
-    nixpkgs-unstable.url = "git+file:///opt/nixpkgs-unstable";
+    nixpkgs.url = "git+file:///opt/nixpkgs-24.11";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable }: {
+  outputs = { self, nixpkgs }: {
     packages = {
       x86_64-linux =
         let
           system = "x86_64-linux";
           config = { allowUnfree = true; };
-          pkgs = import nixpkgs {
-            inherit system config;
-            overlays = [
-              (final: prev: {
-                # https://github.com/NixOS/nixpkgs/pull/331654 - ida-free: add openssl dependency to libida64
-                # https://github.com/NixOS/nixpkgs/pull/349440 - ida-free: fix hash mismatchin of icon
-                ida-free = (import nixpkgs-unstable { inherit system config; }).ida-free;
-              })
-            ];
-          };
+          pkgs = import nixpkgs { inherit system config; };
 
           init = import ./core/init.nix { inherit pkgs; };
           suid-interpreter = import ./core/suid-interpreter.nix { inherit pkgs; };

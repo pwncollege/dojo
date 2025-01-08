@@ -10,8 +10,7 @@ substituters = /out https://cache.nixos.org/
 trusted-substituters = /out
 EOF
 
-RUN git clone --branch nixos-24.05 --depth 1 https://github.com/NixOS/nixpkgs.git /opt/nixpkgs-24.05 && \
-    git clone --branch nixos-unstable --depth 1 https://github.com/NixOS/nixpkgs.git /opt/nixpkgs-unstable
+RUN git clone --branch nixos-24.11 --depth 1 https://github.com/NixOS/nixpkgs.git /opt/nixpkgs-24.11
 
 WORKDIR /workspace
 COPY . .
