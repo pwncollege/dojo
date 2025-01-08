@@ -42,18 +42,24 @@ def assessment_name(dojo, assessment):
 def grade(dojo, users_query, *, ignore_pending=False):
     if isinstance(users_query, Users):
         users_query = Users.query.filter_by(id=users_query.id)
+
     now = datetime.datetime.now(datetime.timezone.utc)
+
+    students = {student.user_id: student.token for student in dojo.students}
+    def get_student_value(student_mapping, user_id, default=None):
+        return (student_mapping or {}).get(students[user_id], default)
+
     assessments = dojo.course.get("assessments") or []
 
+    student_to_user = {student.token: student.user_id for student in dojo.students}
     assessment_dates = collections.defaultdict(lambda: collections.defaultdict(dict))
     for assessment in assessments:
         if assessment["type"] not in ["checkpoint", "due"]:
             continue
-
         assessment_dates[assessment["id"]][assessment["type"]] = (
-            datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc) + datetime.timedelta(hours=assessment.get("grace_period",0)),
-            datetime.datetime.fromisoformat(assessment.get("extra_late_date","3000-01-01T16:59:59-07:00")).astimezone(datetime.timezone.utc) + datetime.timedelta(hours=assessment.get("grace_period",0)),
-            assessment.get("extensions") or {},
+            datetime.datetime.fromisoformat(assessment["date"]).astimezone(datetime.timezone.utc) + datetime.timedelta(hours=assessment.get("grace_period", 0)),
+            datetime.datetime.fromisoformat(assessment.get("extra_late_date", "3000-01-01T16:59:59-07:00")).astimezone(datetime.timezone.utc) + datetime.timedelta(hours=assessment.get("grace_period", 0)),
+            {student_to_user[student_id]: extension for student_id, extension in (assessment.get("extensions") or {}).items()},
         )
 
     def dated_count(label, date_type):
@@ -73,7 +79,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     if extra_late_date is None:
                         return False
                     date = extra_late_date
-                
+
                 extension_adjusted_date = db.case(
                     [(Solves.user_id == int(user_id), date + datetime.timedelta(days=days))
                      for user_id, days in extensions.items()],
@@ -206,7 +212,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
         @limit_extra
         def get_extra(user_id):
             credit = assessment.get("credit", 0.0)
-            return credit.get(str(user_id), 0.0) if isinstance(credit, dict) else credit
+            return get_student_value(credit, user_id, 0.0) if isinstance(credit, dict) else credit
 
         for assessment in assessments:
             type = assessment.get("type")
@@ -221,7 +227,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 module_id = assessment["id"]
                 weight = assessment["weight"]
                 percent_required = assessment.get("percent_required", 0.334)
-                extension = (assessment.get("extensions") or {}).get(str(user_id), 0)
+                extension = get_student_value(assessment.get("extension"), user_id, 0)
 
                 challenge_count = challenge_counts[module_id]
                 checkpoint_solves, due_solves, late_solves, extra_late_solves, all_solves = module_solves.get(module_id, (0, 0, 0, 0, 0))
@@ -244,8 +250,8 @@ def grade(dojo, users_query, *, ignore_pending=False):
 
                 extra_late_penalty = assessment.get("extra_late_penalty", 0.0)
 
-                extension = (assessment.get("extensions") or {}).get(str(user_id), 0)
-                override = (assessment.get("overrides") or {}).get(str(user_id), None)
+                extension = get_student_value(assessment.get("extension"), user_id, 0)
+                override = get_student_value(assessment.get("override"), user_id)
 
                 challenge_count = challenge_counts[module_id]
                 checkpoint_solves, due_solves, late_solves, extra_late_solves, all_solves = module_solves.get(module_id, (0, 0, 0, 0, 0))
@@ -293,14 +299,14 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
                     weight=assessment["weight"],
-                    progress=(assessment.get("progress") or {}).get(str(user_id), ""),
-                    credit=(assessment.get("credit") or {}).get(str(user_id), 0.0),
+                    progress=get_student_value(assessment.get("progress"), user_id, ""),
+                    credit=get_student_value(assessment.get("credit"), user_id, 0.0),
                 ))
 
             if type == "extra":
                 assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
-                    progress=(assessment.get("progress") or {}).get(str(user_id), ""),
+                    progress=get_student_value(assessment.get("progress"), user_id, ""),
                     credit=get_extra(user_id)
                 ))
 
