@@ -227,7 +227,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                 module_id = assessment["id"]
                 weight = assessment["weight"]
                 percent_required = assessment.get("percent_required", 0.334)
-                extension = get_student_value(assessment.get("extension"), user_id, 0)
+                extension = get_student_value(assessment.get("extensions"), user_id, 0)
 
                 challenge_count = challenge_counts[module_id]
                 checkpoint_solves, due_solves, late_solves, extra_late_solves, all_solves = module_solves.get(module_id, (0, 0, 0, 0, 0))
@@ -250,8 +250,8 @@ def grade(dojo, users_query, *, ignore_pending=False):
 
                 extra_late_penalty = assessment.get("extra_late_penalty", 0.0)
 
-                extension = get_student_value(assessment.get("extension"), user_id, 0)
-                override = get_student_value(assessment.get("override"), user_id)
+                extension = get_student_value(assessment.get("extensions"), user_id, 0)
+                override = get_student_value(assessment.get("overrides"), user_id)
 
                 challenge_count = challenge_counts[module_id]
                 checkpoint_solves, due_solves, late_solves, extra_late_solves, all_solves = module_solves.get(module_id, (0, 0, 0, 0, 0))
