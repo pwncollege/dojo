@@ -74,7 +74,7 @@ in pkgs.stdenv.mkDerivation {
     runHook preInstall
     mkdir -p $out/bin $out/etc/profile.d
     cp ${initScript} $out/bin/dojo-init
-    cp ${profileScript} $out/etc/profile.d/99-dojo-workspace.sh
+    cp ${profile} $out/etc/profile.d/99-dojo-workspace.sh
     runHook postInstall
   '';
 }
