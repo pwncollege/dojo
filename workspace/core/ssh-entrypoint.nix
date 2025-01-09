@@ -4,7 +4,13 @@ let
   sshEntryPoint = pkgs.writeScript "ssh-entrypoint" ''
     #!${pkgs.bashInteractive}/bin/bash
 
-    $SHELL --login
+    if [ "$#" -gt 0 ]; then
+      $SHELL "$@"
+    else
+      $SHELL --login
+    fi
+
+    exit $?
   '';
 
 in pkgs.stdenv.mkDerivation {

@@ -62,7 +62,9 @@ let
   '';
 
   profile = pkgs.writeText "dojo-profile" ''
-    export PATH="/run/challenge/bin:/run/workspace/bin:$PATH"
+    if [[ "$PATH" != "/run/challenge/bin:/run/workspace/bin:"* ]]; then
+      export PATH="/run/challenge/bin:/run/workspace/bin:$PATH"
+    fi
   '';
 
 in pkgs.stdenv.mkDerivation {
