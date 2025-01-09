@@ -4,8 +4,6 @@ let
   sshEntryPoint = pkgs.writeScript "ssh-entrypoint" ''
     #!${pkgs.bashInteractive}/bin/bash
 
-    export $(grep -v '^#' /etc/environment | xargs)
-
     if [ "$#" -gt 0 ]; then
       $SHELL "$@"
     else
