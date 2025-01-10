@@ -47,7 +47,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
 
     students = {student.user_id: student.token for student in dojo.students}
     def get_student_value(student_mapping, user_id, default=None):
-        return (student_mapping or {}).get(students[user_id], default)
+        return (student_mapping or {}).get(students[user_id], default) if user_id in students else default
 
     assessments = dojo.course.get("assessments") or []
 
