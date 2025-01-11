@@ -531,6 +531,11 @@ def test_search_no_results(admin_session):
     assert not data["results"]["modules"], "Expected no module matches"
     assert not data["results"]["challenges"], "Expected no challenge matches"
 
+def test_hidden_challenges(admin_session, random_user, hidden_challenges_dojo):
+    assert "CHALLENGE" in admin_session.get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").text
+    assert random_user[1].get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").status_code == 200
+    assert "CHALLENGE" not in random_user[1].get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").text
+
 def test_progression_locked(progression_locked_dojo, random_user):
     uid, session = random_user
     assert session.get(f"{DOJO_URL}/dojo/{progression_locked_dojo}/join/").status_code == 200

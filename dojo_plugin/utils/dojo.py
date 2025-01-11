@@ -62,6 +62,7 @@ DOJO_SPEC = Schema({
 
     Optional("image"): IMAGE_REGEX,
     Optional("allow_privileged"): bool,
+    Optional("show_scoreboard"): bool,
     Optional("importable"): bool,
 
     Optional("import"): {
@@ -95,6 +96,8 @@ DOJO_SPEC = Schema({
 
         Optional("image"): IMAGE_REGEX,
         Optional("allow_privileged"): bool,
+        Optional("show_challenges"): bool,
+        Optional("show_scoreboard"): bool,
         Optional("importable"): bool,
 
         Optional("import"): {
@@ -328,7 +331,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
 
     dojo_kwargs = {
         field: dojo_data.get(field, getattr(import_dojo, field, None))
-        for field in ["id", "name", "description", "password", "type", "award"]
+        for field in ["id", "name", "description", "password", "type", "award", "show_scoreboard"]
     }
 
     assert dojo_kwargs.get("id") is not None, "Dojo id must be defined"
@@ -414,6 +417,8 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                                 f"Import module `{'/'.join(import_ids(['dojo', 'module'], dojo_data, module_data))}` does not exist")
                      if "import" in module_data else None),
             visibility=visibility(DojoModuleVisibilities, dojo_data, module_data),
+            show_challenges=shadow("show_challenges", dojo_data, module_data, default_dict=DojoModules.data_defaults),
+            show_scoreboard=shadow("show_scoreboard", dojo_data, module_data, default_dict=DojoModules.data_defaults),
         )
         for module_data in dojo_data["modules"]
     ] if "modules" in dojo_data else [
