@@ -90,11 +90,122 @@ Note that `dojo update` is not guaranteed to be successful and should only be us
 
 _All_ dojo data will be stored in the `./data` directory.
 
-Once logged in, you can add a dojo by visiting `/dojos/create`. Dojos are contained within git repositories.
+Once logged in, you can add a dojo by visiting `/dojos/create`.
+Dojos are contained within git repositories.
 Refer to [the example dojo](https://github.com/pwncollege/example-dojo) for more information.
 
 If configured properly, the dojo will store the hourly database backups into an S3 bucket of your choosing.
 
+## Multi-node Deployment
+
+Setting up a multi-node deployment allows you to scale your dojo infrastructure across multiple nodes, with a central "main" node and additional "workspace" nodes.
+
+### Build The Image
+
+Refer to the standard deployment instructions above for how to build the dojo image and configure the host environment.
+
+### Set Up The Main Node
+
+Run the main node container, which will act as the central management point:
+
+```sh
+DOJO_PATH="./dojo"
+DATA_PATH="/tmp/dojo-data-main"
+
+docker run \
+    --name dojo-main \
+    --privileged \
+    -v "${DOJO_PATH}:/opt/pwn.college" \
+    -v "${DATA_PATH}:/data" \
+    -p 22:22 -p 80:80 -p 443:443 -p 51820:51820/udp \
+    -d \
+    pwncollege/dojo
+```
+
+Pay particular attention to the `DATA_PATH`, which must be unique for each node if you are running multiple nodes on the same host.
+Additionally, unlike the standard deployment, the main node must have port `51820/udp` exposed (for WireGuard) if you are going to be deploying workspace nodes across multiple hosts.
+
+Retrieve configuration data from the main node:
+
+```sh
+docker exec -it dojo-main bash
+dojo node show | grep -oP 'WORKSPACE_KEY: \K[A-Za-z0-9+/]+={0,2}'  # This is the WORKSPACE_KEY
+ip -4 addr show eth0 | grep -oP 'inet \K[0-9\.]+'                  # This may be the DOJO_HOST
+```
+
+The `WORKSPACE_KEY` will be necessary to authenticate workspace nodes with the main node.
+If you already have a `DOJO_HOST` (for example, a publicly accessible IP address), you can use that; otherwise, if you're running multiple nodes on the same host, this IP address (assigned by Docker) will be the `DOJO_HOST`.
+The important detail is that the `DOJO_HOST` must be reachable by the workspace node.
+
+### Set Up a Workspace Node
+
+You may run a workspace node on the same host as the main node, or on a different host; all that matters is that the workspace node can reach the main node.
+If you do decide to run the workspace node on a different host, make sure to refer to the standard deployment instructions above for how to build the dojo image and configure the host environment.
+
+In order to run a workspace node container, use the `WORKSPACE_KEY` and `DOJO_HOST` obtained from the main node (and `WORKSPACE_NODE` id if you have multiple workspace nodes):
+
+```sh
+WORKSPACE_NODE=1    # The node id for this workspace node
+WORKSPACE_KEY=...   # Replace with the WORKSPACE_KEY
+DOJO_HOST=...       # Replace with the DOJO_HOST
+
+DOJO_PATH="./dojo"
+DATA_PATH="/tmp/dojo-data-workspace"
+
+docker run \
+    --name dojo-workspace \
+    --privileged \
+    -e DOJO_HOST=$DOJO_HOST \
+    -e WORKSPACE_KEY=$WORKSPACE_KEY \
+    -e WORKSPACE_NODE=$WORKSPACE_NODE \
+    -v "${DOJO_PATH}:/opt/pwn.college" \
+    -v "${DATA_PATH}:/data" \
+    -d \
+    pwncollege/dojo
+```
+
+Again, pay particular attention to the `DATA_PATH`, which must be unique for each node if you are running multiple nodes on the same host.
+In this case `WORKSPACE_NODE=1` indicates that this is a workspace node (the main node is always, and by default, `WORKSPACE_NODE=0`).
+If you want to add multiple workspace nodes, you must increment this id for each additional workspace node.
+Each workspace node must have a unique `WORKSPACE_NODE` value, and the values must be contiguous, starting from 1.
+
+Retrieve the `NODE_KEY` for the workspace node:
+
+```sh
+docker exec -it dojo-workspace bash
+dojo node show | grep -oP 'public key: \K[A-Za-z0-9+/]+={0,2}'  # This is the NODE_KEY
+```
+
+This `NODE_KEY` is needed in order to add the workspace node to the main node.
+
+At this point, you can also double-check that the workspace node can reach the main node:
+
+```sh
+docker exec -it dojo-workspace bash
+ping $DOJO_HOST
+```
+
+If this fails, you may need to review and adjust your network configuration.
+
+### Add The Workspace Node To The Main Node
+
+On the main node, add the workspace node using its `NODE_KEY` (and `WORKSPACE_NODE` id if you have multiple workspace nodes):
+
+```sh
+docker exec -it dojo-main bash
+NODE_ID=1     # Replace with the node id
+NODE_KEY=...  # The NODE_KEY for the workspace node
+dojo node add $NODE_ID $NODE_KEY
+dojo compose restart --no-deps ctfd
+```
+
+After a short delay, you should be able to reach the workspace node from the main node:
+
+```sh
+docker exec -it dojo-main bash
+NODE_ID=1     # Replace with the node id
+ping 192.168.42.$(($NODE_ID + 1))
+```
 
 ## Common DOJO Errors
 
