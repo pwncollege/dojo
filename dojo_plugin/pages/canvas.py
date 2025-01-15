@@ -27,7 +27,10 @@ def canvas_request(endpoint, method="GET", *, dojo, **kwargs):
     url = f"https://{canvas_api_host}/api/v1{endpoint}"
 
     response = requests.request(method, url, headers=headers, **kwargs)
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except Exception as e:
+        raise RuntimeError(f"Canvas request error: {e}")
 
     if "application/json" in response.headers.get("Content-Type", ""):
         return response.json()
