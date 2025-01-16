@@ -18,8 +18,8 @@ from ..utils.awards import get_belts, get_viewable_emojis
 users = Blueprint("pwncollege_users", __name__)
 
 
-def view_hacker(user):
-    if user.hidden:
+def view_hacker(user, bypass_hidden=False):
+    if user.hidden and not bypass_hidden:
         abort(404)
 
     dojos = (Dojos
@@ -64,4 +64,4 @@ def view_other_name(user_name):
 @users.route("/hacker/")
 @authed_only
 def view_self():
-    return view_hacker(get_current_user())
+    return view_hacker(get_current_user(), bypass_hidden=True)
