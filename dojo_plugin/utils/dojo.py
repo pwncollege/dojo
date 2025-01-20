@@ -65,6 +65,8 @@ DOJO_SPEC = Schema({
         "dojo": UNIQUE_ID_REGEX,
     },
 
+    Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
+
     Optional("modules", default=[]): [{
         **ID_NAME_DESCRIPTION,
         **VISIBILITY,
@@ -85,6 +87,7 @@ DOJO_SPEC = Schema({
             Optional("image"): IMAGE_REGEX,
             Optional("allow_privileged"): bool,
             Optional("importable"): bool,
+            Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
             Optional("import"): {
@@ -116,6 +119,8 @@ DOJO_SPEC = Schema({
                 **VISIBILITY,
             },
         )],
+
+        Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
     }],
     Optional("pages", default=[]): [str],
     Optional("files", default=[]): [Or(
