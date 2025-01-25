@@ -32,7 +32,7 @@
                   -*) ;;
                   *)
                     case "$(readlink -f "$arg")" in
-                      /nix/store/*) ldd="${pkgs.glibc.bin}/bin/ldd" ;;
+                      /nix/store/*) ldd="${pkgs.lib.getBin pkgs.glibc}/bin/ldd" ;;
                     esac
                     ;;
                 esac
