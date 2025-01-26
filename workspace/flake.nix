@@ -3,10 +3,15 @@
 
   inputs = {
     nixpkgs.url = "git+file:///opt/nixpkgs-24.11";
+    nixpkgs-backports.url = "git+file:///opt/nixpkgs-backports";
   };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      nixpkgs-backports,
+    }:
     {
       packages = {
         x86_64-linux =
@@ -15,7 +20,16 @@
             config = {
               allowUnfree = true;
             };
-            pkgs = import nixpkgs { inherit system config; };
+            pkgs-backports = import nixpkgs-backports { inherit system config; };
+            backports-overlay = (
+              self: super: {
+                inherit (pkgs-backports) angr-management binaryninja-free;
+              }
+            );
+            pkgs = import nixpkgs {
+              inherit system config;
+              overlays = [ backports-overlay ];
+            };
 
             init = import ./core/init.nix { inherit pkgs; };
             suid-interpreter = import ./core/suid-interpreter.nix { inherit pkgs; };
