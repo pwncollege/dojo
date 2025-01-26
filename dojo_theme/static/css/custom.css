@@ -367,6 +367,22 @@ pre {
     padding: 0px 0px 0px 0px;
 }
 
+@media (min-width: 1440px) {
+    .container {
+        max-width: 1400px;
+    }
+}
+@media (min-width: 1660px) {
+    .container {
+        max-width: 1620px;
+    }
+}
+@media (min-width: 1980px) {
+    .container {
+        max-width: 1940px;
+    }
+}
+
 code{
     color: #61afef;
 }
