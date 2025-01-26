@@ -227,7 +227,9 @@ In the docker-compose logs:
 Error response from daemon: path /run/homefs is mounted on /run/homefs but it is not a shared mount
 ```
 
-This means that your `/data` directory is not a shared mount.
-If you are mounting it into the outer docker via `-v`, do:
+- Make sure your `/data` directory is a shared mount.
+  If you are mounting it into the outer docker via `-v`, do:
 
-`-v /host/path:/data:shared`
+  `-v /host/path:/data:shared`
+
+- If problem persists: rebuild the outer docker container
