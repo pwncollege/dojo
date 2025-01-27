@@ -44,6 +44,7 @@ in
     # TODO: binary-ninja
 
     wireshark
+    termshark
     nmap
     tcpdump
     nftables
