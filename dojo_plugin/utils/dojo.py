@@ -513,31 +513,3 @@ def get_current_dojo_challenge(user=None):
                 DojoChallenges.dojo == Dojos.from_id(container.labels.get("dojo.dojo_id")).first())
         .first()
     )
-
-
-def get_prev_cur_next_dojo_challenge(user=None, active=None):
-    container = get_current_container(user)
-    if not container:
-        return {
-        'previous':None,
-        'current':None,
-        'next':None
-        }
-
-    if active:
-        current = active
-    else:
-        current = get_current_dojo_challenge(user)
-
-    current_index = current.challenge_index
-    challenges = current.module.challenges
-
-    previous = challenges[current_index - 1] if current_index > 0 else None
-    next = challenges[current_index + 1] if current_index < (len(challenges) - 1) else None
-
-    return {
-        'previous':previous,
-        'current':current,
-        'next':next
-    }
-

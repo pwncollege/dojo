@@ -3,7 +3,7 @@ import traceback
 import datetime
 import sys
 
-from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context, request
+from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context, request, g
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import and_, or_
 from CTFd.plugins import bypass_csrf_protection
@@ -12,9 +12,9 @@ from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.helpers import get_infos
 
-from ..utils import get_all_containers, render_markdown
+from ..utils import get_current_container, get_all_containers, render_markdown
 from ..utils.stats import get_container_stats, get_dojo_stats
-from ..utils.dojo import dojo_route, get_current_dojo_challenge, get_prev_cur_next_dojo_challenge, dojo_update, dojo_admins_only
+from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
 
 dojo = Blueprint("pwncollege_dojo", __name__)
@@ -65,47 +65,42 @@ def view_dojo_path(dojo, path, subpath=None):
         abort(404)
 
 
-@dojo.route("/active-module/")
 @dojo.route("/active-module")
+@dojo.route("/active-module/")
 @authed_only
 def active_module():
-    import json
-    user = get_current_user()
-    active = get_current_dojo_challenge()
-    challs = get_prev_cur_next_dojo_challenge(active=active)
-    if active:
-    #return a json of the active challenge
+    active_challenge = get_current_dojo_challenge()
+    if not active_challenge:
+        return {}
+
+    g.dojo = active_challenge.dojo
+
+    current_challenge = active_challenge
+    current_index = current_challenge.challenge_index
+    challenges = current_challenge.module.challenges
+
+    previous_challenge = challenges[current_index - 1] if current_index > 0 else None
+    next_challenge = challenges[current_index + 1] if current_index < (len(challenges) - 1) else None
+
+    def challenge_info(challenge):
+        if not challenge:
+            return {}
         return {
-            "c_previous": {
-                "module_name": challs['previous'].module.name ,
-                "module_id": challs['previous'].module.id,
-                "dojo_name": challs['previous'].dojo.name,
-                "dojo_reference_id": challs['previous'].dojo.reference_id,
-                "challenge_id": challs['previous'].challenge_id,
-                "challenge_name": challs['previous'].name,
-                "challenge_reference_id": challs['previous'].id,
-            } if challs['previous'] is not None else {},
-            "c_current": {
-                "module_name": challs['current'].module.name,
-                "module_id": challs['current'].module.id,
-                "dojo_name": challs['current'].dojo.name,
-                "dojo_reference_id": challs['current'].dojo.reference_id,
-                "challenge_id": challs['current'].challenge_id,
-                "challenge_name": challs['current'].name,
-                "challenge_reference_id": challs['current'].id,
-                "description": render_markdown(challs['current'].description).strip(),
-            },
-            "c_next": {
-                "module_name": challs['next'].module.name if challs['next'] else None,
-                "module_id": challs['next'].module.id,
-                "dojo_name": challs['next'].dojo.name,
-                "dojo_reference_id": challs['next'].dojo.reference_id,
-                "challenge_id": challs['next'].challenge_id,
-                "challenge_name": challs['next'].name,
-                "challenge_reference_id": challs['next'].id,
-            } if challs['next'] is not None else {},
+            "module_name": challenge.module.name,
+            "module_id": challenge.module.id,
+            "dojo_name": challenge.dojo.name,
+            "dojo_reference_id": challenge.dojo.reference_id,
+            "challenge_id": challenge.challenge_id,
+            "challenge_name": challenge.name,
+            "challenge_reference_id": challenge.id,
+            "description": render_markdown(challenge.description).strip() if challenge == current_challenge else None,
         }
-    return {}
+
+    return {
+        "c_previous": challenge_info(previous_challenge),
+        "c_current": challenge_info(current_challenge),
+        "c_next": challenge_info(next_challenge),
+    }
 
 
 @dojo.route("/dojo/<dojo>")
