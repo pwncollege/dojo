@@ -50,12 +50,16 @@ def listing(dojo):
 
 @dojo.route("/<dojo>/<path>")
 @dojo.route("/<dojo>/<path>/")
+@dojo.route("/<dojo>/<path>/<subpath>")
+@dojo.route("/<dojo>/<path>/<subpath>/")
 @dojo_route
-def view_dojo_path(dojo, path):
+def view_dojo_path(dojo, path, subpath=None):
     module = DojoModules.query.filter_by(dojo=dojo, id=path).first()
     if module:
+        if subpath:
+            DojoChallenges.query.filter_by(dojo=dojo, module=module, id=subpath).first_or_404()
         return view_module(dojo, module)
-    elif path in dojo.pages:
+    elif path in dojo.pages and not subpath:
         return view_page(dojo, path)
     else:
         abort(404)
