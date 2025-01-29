@@ -10,7 +10,10 @@ substituters = /out https://cache.nixos.org/
 trusted-substituters = /out
 EOF
 
-RUN git clone --branch nixos-24.11 --depth 1 https://github.com/NixOS/nixpkgs.git /opt/nixpkgs-24.11
+RUN <<EOF
+git clone --branch nixos-24.11 --depth 1 https://github.com/NixOS/nixpkgs.git /opt/nixpkgs-24.11
+git clone --branch pwncollege-dojo-backports --depth 1 https://github.com/spencerpogo/nixpkgs.git /opt/nixpkgs-backports
+EOF
 
 WORKDIR /workspace
 COPY . .

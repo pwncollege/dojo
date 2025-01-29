@@ -40,8 +40,8 @@ in
     ghidra
     ida-free
     radare2
-    # TODO: angr-management
-    # TODO: binary-ninja
+    angr-management
+    binaryninja-free
 
     wireshark
     termshark
