@@ -361,6 +361,7 @@ def test_active_module_endpoint(random_user):
         "empty": {}
     }
     apple_description = challenges["apple"].pop("description")
+    challenges["apple"]["description"] = None
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["c_current"] == challenges["banana"], f"Expected challenge 'Banana'\n{challenges['banana']}\n, but got {response.json()['c_current']}"
     assert response.json()["c_next"] == challenges["empty"], f"Expected empty {challenges['empty']} challenge, but got {response.json()['c_next']}"
@@ -370,6 +371,7 @@ def test_active_module_endpoint(random_user):
     start_challenge("example", "hello", "apple", session=session)
     response = session.get(f"{DOJO_URL}/active-module")
     banana_description = challenges["banana"].pop("description")
+    challenges["banana"]["description"] = None
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["c_current"] == challenges["apple"], f"Expected challenge 'Apple'\n{challenges['apple']}\n, but got {response.json()['c_current']}"
     assert response.json()["c_next"] == challenges["banana"], f"Expected challenge 'Banana'\n{challenges['banana']}\n, but got {response.json()['c_next']}"
