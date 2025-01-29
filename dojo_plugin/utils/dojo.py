@@ -466,20 +466,20 @@ def dojo_update(dojo):
 
         tmp_dir = tempfile.TemporaryDirectory(dir=DOJOS_TMP_DIR)
 
-        os.rename(str(dojo.path), tmp_dir)
+        os.rename(str(dojo.path), tmp_dir.name)
 
-        dojo_git_command(dojo, "fetch", "--depth=1", "origin", repo_path=tmp_dir)
-        dojo_git_command(dojo, "reset", "--hard", "origin", repo_path=tmp_dir)
-        dojo_git_command(dojo, "submodule", "update", "--init", "--recursive", repo_path=tmp_dir)
+        dojo_git_command(dojo, "fetch", "--depth=1", "origin", repo_path=tmp_dir.name)
+        dojo_git_command(dojo, "reset", "--hard", "origin", repo_path=tmp_dir.name)
+        dojo_git_command(dojo, "submodule", "update", "--init", "--recursive", repo_path=tmp_dir.name)
 
         try:
-            _assert_no_symlinks(tmp_dir)
+            _assert_no_symlinks(tmp_dir.name)
         except AssertionError:
-            dojo_git_command(dojo, "reset", "--hard", old_commit, repo_path=tmp_dir)
-            dojo_git_command(dojo, "submodule", "update", "--init", "--recursive", repo_path=tmp_dir)
+            dojo_git_command(dojo, "reset", "--hard", old_commit, repo_path=tmp_dir.name)
+            dojo_git_command(dojo, "submodule", "update", "--init", "--recursive", repo_path=tmp_dir.name)
             raise
         finally:
-            os.rename(tmp_dir, str(dojo.path))
+            os.rename(tmp_dir.name, str(dojo.path))
     else:
         tmpdir = dojo_clone(dojo.repository, dojo.private_key)
         os.rename(tmpdir.name, str(dojo.path))
