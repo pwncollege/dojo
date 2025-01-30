@@ -1,19 +1,14 @@
 {% from "macros/widgets.html" import navitem %}
 
-<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+<nav class="navbar navbar-expand-md navbar-dark fixed-top">
   <div class="container">
-    <a href="{{ url_for('views.static_html', route='/') }}" class="navbar-brand">
-      {% if Configs.ctf_logo %}
-      <img class="img-responsive ctf_logo" src="{{ url_for('views.files', path=Configs.ctf_logo) }}" height="25" alt="{{ Configs.ctf_name }}">
-      {% else %}
-      {{ Configs.ctf_name }}
-      {% endif %}
-    </a>
+    <a href="{{ url_for('views.static_html', route='/') }}" class="navbar-brand">{{ Configs.ctf_name }}</a>
     <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#base-navbars"
             aria-controls="base-navbars" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="base-navbars">
+      <div class="d-none d-md-block" style="border-left: 2px solid white; height: 20px; margin: 0 20px;"></div>
       <ul class="navbar-nav mr-auto">
         {{ navitem("Dojos", url_for("pwncollege_dojos.listing"), "fa-torii-gate") }}
         {{ navitem("Workspace", url_for("pwncollege_workspace.view_workspace", service="code"), "fa-terminal") }}

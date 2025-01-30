@@ -11,6 +11,34 @@
     <link rel="stylesheet" href="{{ url_for('views.themes', path='css/fonts.css') }}">
     <link rel="stylesheet" href="{{ url_for('views.themes', path='css/main.css') }}">
     <link rel="stylesheet" href="{{ url_for('views.themes', path='css/core.css') }}">
+    <link rel="preload" href="{{ url_for('views.themes', path='font/SpaceMono-Regular.ttf') }}" as="font" type="font/ttf">
+    <link rel="preload" href="{{ url_for('views.themes', path='font/SpaceMono-Bold.ttf') }}" as="font" type="font/ttf">
+    <link rel="preload" href="{{ url_for('views.themes', path='font/SpaceGrotesk-VariableFont_wght.ttf') }}" as="font" type="font/ttf">
+    <style>
+      @font-face {
+        font-family: 'Space Mono';
+        src: url("{{ url_for('views.themes', path='font/SpaceMono-Regular.ttf') }}") format('truetype');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'Space Mono';
+        src: url("{{ url_for('views.themes', path='font/SpaceMono-Bold.ttf') }}") format('truetype');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'Space Grotesk';
+        src: url("{{ url_for('views.themes', path='font/SpaceGrotesk-VariableFont_wght.ttf') }}") format('truetype');
+        font-weight: 100 900;
+        font-style: normal;
+        font-display: swap;
+      }
+    </style>
     <link rel="stylesheet" href="{{ url_for('views.themes', path='css/custom.css') }}">
     {% block stylesheets %}
     {% endblock %}

@@ -1,17 +1,93 @@
+:root {
+    --brand-black: #000000;
+    --brand-white: #ffffff;
+    --brand-light-gray: #747474;
+    --brand-dark-gray: #484848;
+    --brand-green: #78be20;
+    --brand-gold: #ffc627;
+    --brand-blue: #00a3e0;
+
+    --old-brand-green: #b5e853;
+    --old-brand-blue: #63c0f5;
+}
+
+.brand-black {
+    color: var(--brand-black) !important;
+}
+
+.brand-white {
+    color: var(--brand-white) !important;
+}
+
+.brand-light-gray {
+    color: var(--brand-light-gray) !important;
+}
+
+.brand-dark-gray {
+    color: var(--brand-dark-gray) !important;
+}
+
+.brand-green {
+    color: var(--brand-green) !important;
+}
+
+.brand-gold {
+    color: var(--brand-gold) !important;
+}
+
+.brand-blue {
+    color: var(--brand-blue) !important;
+}
+
 body {
-    background: #151515 url(../img/dojo/bkg.png) 0 0;
+    background: #0f0f0f;
+}
+
+body, p {
+    font-family: 'Space Grotesk', Helvetica, sans-serif;
+    font-weight: 400;
+    font-size: 1.2rem;
+}
+
+h1, h2, h3, h4, .navbar-brand, .nav-link {
+    font-family: 'Space Mono' !important;
+    font-weight: 700;
+}
+
+.wordmark {
+    font-size: clamp(1rem, 10vw, 5rem);
+    white-space: nowrap;
+}
+
+.brand-dot {
+    color: var(--brand-black);
+    background: linear-gradient(to right,
+        transparent 10%,
+        var(--brand-gold) 10%,
+        var(--brand-gold) 90%,
+        transparent 90%);
+    display: inline-block;
 }
 
 .modal-content {
-    background-color: #151515 !important;
+    background-color: #fff !important;
 }
 
 body, table, .form-control:focus, .close {
     color: #eaeaea !important;
 }
 
-.navbar-brand, .nav-link, h1, h2, #syllabus h3, #syllabus h4, .navbar-pulldown {
-    color: #b5e853 !important;
+h1, h2, #syllabus h3, #syllabus h4  {
+    color: var(--old-brand-green) !important;
+}
+
+nav {
+    background-color: #272727;
+    border-bottom: 1px dashed var(--brand-light-gray);
+}
+
+.nav-link, .navbar-pulldown {
+    color: var(--brand-gold) !important;
 }
 
 .navbar > .container {
@@ -19,7 +95,7 @@ body, table, .form-control:focus, .close {
 }
 
 a {
-    color: #63c0f5;
+    color: var(--old-brand-blue);
     text-shadow: 0 0 5px rgba(104,182,255,0.15);
 }
 
@@ -27,19 +103,16 @@ a:hover {
     text-decoration: none;
 }
 
-nav {
-    border-bottom: 1px dashed #b5e853;
-}
 
 h4 {
-    color: rgb(99, 192, 245);
+    color: var(--old-brand-blue);
     text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
 }
 
 p[data-hide="true"] {
-  font-size: 1px;                
-  opacity: 0;                    
-} 
+  font-size: 1px;
+  opacity: 0;
+}
 
 .close-link {
     border: none;
@@ -94,20 +167,7 @@ p[data-hide="true"] {
 }
 
 .modal-content {
-    border: 1px dashed #b5e853;
-}
-
-.navbar-brand, .nav-link, body, p, h1, h2, h3, h4, td {
-    font-family: Monaco, "Bitstream Vera Sans Mono", "Lucida Console", Terminal, monospace !important;
-}
-
-.navbar-brand {
-    font-weight: bold;
-    text-shadow: 0 1px 1px rgba(0,0,0,0.1),0 0 5px rgba(181,232,83,0.1),0 0 10px rgba(181,232,83,0.1);
-}
-
-.navbar-brand::before {
-    content: "./"
+    border: 1px dashed var(--old-brand-green);
 }
 
 .nav-tabs {
@@ -138,7 +198,7 @@ p[data-hide="true"] {
     display: none;
 }
 
-.bg-dark, .jumbotron, .nav-link.active, .form-control {
+.jumbotron, .nav-link.active, .form-control {
     background-color: inherit !important;
 }
 
@@ -152,7 +212,7 @@ p[data-hide="true"] {
 }
 
 .card-body .progress-bar {
-  background-color: #63c0f5;
+  background-color: var(--old-brand-blue);
   opacity: 30%;
   height: 8%;
   width: 0;
@@ -222,7 +282,7 @@ p[data-hide="true"] {
     top: 75%;
     transform: translate(-50%, -50%);
     width: 100%;
-    color: rgb(234, 234, 234);
+    color: #eaeaea;
     font-size: 0.75em;
 }
 
@@ -267,7 +327,7 @@ p[data-hide="true"] {
 
 .challenge-solved {
     -webkit-text-stroke: 1px #222;
-    -webkit-text-fill-color: #b5e853;
+    -webkit-text-fill-color: var(--old-brand-green);
 }
 
 .challenge-unsolved {
@@ -283,7 +343,7 @@ p[data-hide="true"] {
 }
 
 .scoreboard-name {
-    color: rgb(99, 192, 245);
+    color: var(--old-brand-blue);
     text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
 }
 
@@ -338,7 +398,7 @@ table {
 
 th {
   text-align: left;
-  border-bottom: 1px dashed #b5e853;
+  border-bottom: 1px dashed var(--old-brand-green);
   padding: 5px 10px;
 }
 
@@ -349,12 +409,12 @@ td {
 hr {
   height: 0;
   border: 0;
-  border-bottom: 1px dashed #b5e853;
-  color: #b5e853;
+  border-bottom: 1px dashed var(--old-brand-green);
+  color: var(--old-brand-green);
 }
 
 .module-dojo a {
-    color: #b5e853;
+    color: var(--old-brand-green);
 }
 
 .module-due-date {
@@ -367,7 +427,7 @@ pre {
     padding: 0px 0px 0px 0px;
 }
 
-code{
+code {
     color: #61afef;
 }
 
