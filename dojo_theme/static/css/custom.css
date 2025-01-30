@@ -59,6 +59,11 @@
     display: inline-block;
 }
 
+.brand-mono, .nav-link {
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+}
+
 body {
     background: #101010;
 }
@@ -70,7 +75,7 @@ body {
 }
 
 h1, h2, h3, h4 {
-    font-family: 'Space Grotesk' !important;
+    font-family: 'Space Grotesk';
     font-weight: 500;
 }
 
@@ -79,11 +84,6 @@ h1, h2, h3, h4 {
     font-weight: 700;
     font-size: clamp(1rem, 10vw, 5rem);
     white-space: nowrap;
-}
-
-.nav-link, .navbar-brand {
-    font-family: 'Space Mono' !important;
-    font-weight: 700;
 }
 
 body, table, .form-control:focus, .close {
