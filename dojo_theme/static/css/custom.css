@@ -39,24 +39,31 @@
     color: var(--brand-blue) !important;
 }
 
-body {
-    background: #0f0f0f;
-}
-
-body, p {
-    font-family: 'Space Grotesk', Helvetica, sans-serif;
-    font-weight: 100;
+body, .container {
+    background: #101010;
     font-size: 1.2rem;
 }
 
-h1, h2, h3, h4, .navbar-brand, .nav-link {
-    font-family: 'Space Mono' !important;
-    font-weight: 700;
+p {
+    font-family: 'Space Grotesk', Helvetica, sans-serif;
+    font-weight: 100;
+}
+
+h1, h2, h3, h4 {
+    font-family: 'Space Grotesk' !important;
+    font-weight: 500;
 }
 
 .wordmark {
+    font-family: 'Space Mono' !important;
+    font-weight: 700;
     font-size: clamp(1rem, 10vw, 5rem);
     white-space: nowrap;
+}
+
+.nav-link, .navbar-brand {
+    font-family: 'Space Mono' !important;
+    font-weight: 700;
 }
 
 .brand-dot {
@@ -177,7 +184,7 @@ p[data-hide="true"] {
 }
 
 .modal-content {
-    border: 1px dashed var(--old-brand-green);
+    border: 1px dashed var(--brand-light-gray);
 }
 
 .nav-tabs {
@@ -408,7 +415,7 @@ table {
 
 th {
   text-align: left;
-  border-bottom: 1px dashed var(--old-brand-green);
+  border-bottom: 1px dashed var(--brand-light-gray);
   padding: 5px 10px;
 }
 
@@ -419,8 +426,7 @@ td {
 hr {
   height: 0;
   border: 0;
-  border-bottom: 1px dashed var(--old-brand-green);
-  color: var(--old-brand-green);
+  border-bottom: 1px dashed var(--brand-light-gray);
 }
 
 .module-dojo a {
