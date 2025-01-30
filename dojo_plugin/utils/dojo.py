@@ -438,7 +438,7 @@ def dojo_clone(repository, private_key):
                    check=True,
                    capture_output=True)
 
-    _assert_no_symlinks(clone_dir)
+    _assert_no_symlinks(clone_dir.name)
 
     return clone_dir
 
