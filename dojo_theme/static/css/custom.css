@@ -74,6 +74,10 @@ body {
     font-size: 1.2rem;
 }
 
+b {
+    font-weight: 700;
+}
+
 h1, h2, h3, h4 {
     font-family: 'Space Grotesk';
     font-weight: 500;
