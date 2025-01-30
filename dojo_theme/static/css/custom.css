@@ -7,8 +7,19 @@
     --brand-gold: #ffc627;
     --brand-blue: #00a3e0;
 
+    --old-brand-green: #78be20;
+    --old-brand-gold: #ffc627;
+    --old-brand-blue: #00a3e0;
+}
+
+.theme-old {
+    --brand-green: #b5e853;
+    --brand-gold: #b5e853;
+    --brand-blue: #63c0f5;
     --old-brand-green: #b5e853;
+    --old-brand-gold: #b5e853;
     --old-brand-blue: #63c0f5;
+    /* --old-brand-gold: #f4bf75; */
 }
 
 .brand-black {
