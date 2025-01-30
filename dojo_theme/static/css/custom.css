@@ -69,6 +69,16 @@ h1, h2, h3, h4, .navbar-brand, .nav-link {
     display: inline-block;
 }
 
+.brand-dot-white {
+    color: var(--brand-black);
+    background: linear-gradient(to right,
+        transparent 10%,
+        var(--brand-white) 10%,
+        var(--brand-white) 90%,
+        transparent 90%);
+    display: inline-block;
+}
+
 .modal-content {
     background-color: #fff !important;
 }
