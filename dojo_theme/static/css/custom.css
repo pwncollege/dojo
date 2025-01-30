@@ -39,9 +39,28 @@
     color: var(--brand-blue) !important;
 }
 
-body, .container {
+.brand-dot {
+    color: var(--brand-black);
+    background: linear-gradient(to right,
+        transparent 10%,
+        var(--brand-gold) 10%,
+        var(--brand-gold) 90%,
+        transparent 90%);
+    display: inline-block;
+}
+
+.brand-dot-white {
+    color: var(--brand-black);
+    background: linear-gradient(to right,
+        transparent 10%,
+        var(--brand-white) 10%,
+        var(--brand-white) 90%,
+        transparent 90%);
+    display: inline-block;
+}
+
+body {
     background: #101010;
-    font-size: 1.2rem;
 }
 
 p {
@@ -66,28 +85,8 @@ h1, h2, h3, h4 {
     font-weight: 700;
 }
 
-.brand-dot {
-    color: var(--brand-black);
-    background: linear-gradient(to right,
-        transparent 10%,
-        var(--brand-gold) 10%,
-        var(--brand-gold) 90%,
-        transparent 90%);
-    display: inline-block;
-}
-
-.brand-dot-white {
-    color: var(--brand-black);
-    background: linear-gradient(to right,
-        transparent 10%,
-        var(--brand-white) 10%,
-        var(--brand-white) 90%,
-        transparent 90%);
-    display: inline-block;
-}
-
-.modal-content {
-    background-color: #fff !important;
+.container {
+    font-size: 1.2rem;
 }
 
 body, table, .form-control:focus, .close {
