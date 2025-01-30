@@ -63,9 +63,10 @@ body {
     background: #101010;
 }
 
-p {
+.container {
     font-family: 'Space Grotesk', Helvetica, sans-serif;
     font-weight: 100;
+    font-size: 1.2rem;
 }
 
 h1, h2, h3, h4 {
@@ -83,10 +84,6 @@ h1, h2, h3, h4 {
 .nav-link, .navbar-brand {
     font-family: 'Space Mono' !important;
     font-weight: 700;
-}
-
-.container {
-    font-size: 1.2rem;
 }
 
 body, table, .form-control:focus, .close {
