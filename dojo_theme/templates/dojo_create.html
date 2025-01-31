@@ -18,7 +18,7 @@
         "{} Modules".format(dojo.modules | length),
         "{} Challenges".format(num_challenges),
       ],
-      icon="/themes/dojo_theme/static/img/dojo/{}.svg".format(dojo.award.belt) if (dojo.award.belt and dojo.official) else None,
+      icon=url_for("pwncollege_belts.view_belt", color=dojo.award.belt) if (dojo.award.belt and dojo.official) else None,
       emoji=dojo.award.emoji,
       solve_percent=(((dojo.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0) / num_challenges) * 100) if num_challenges else 0,
       ) }}

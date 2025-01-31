@@ -37,7 +37,7 @@
     {% endif %}
     </p>
 
-    <ul style="list-style-image: url({{ url_for("views.themes", path="img/dojo/" + belt_color + ".svg") }})">
+    <ul style="list-style-image: url({{ url_for("pwncollege_belts.view_belt", color=belt_color) }})">
       {% for user_id in belt_data.ranks[belt_color] %}
       {% set user = belt_data.users[user_id] %}
       <li>

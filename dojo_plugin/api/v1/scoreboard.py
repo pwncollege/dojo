@@ -20,7 +20,7 @@ from sqlalchemy.orm.session import Session
 from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities, Belts, Emojis
 from ...utils import dojo_standings, user_dojos, first_bloods, daily_solve_counts
 from ...utils.dojo import dojo_route, dojo_accessible
-from ...utils.awards import get_belts, belt_asset, get_viewable_emojis
+from ...utils.awards import get_belts, get_viewable_emojis
 
 SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
 scoreboard_namespace = Namespace("scoreboard")
@@ -104,11 +104,15 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     def standing(item):
         if not item:
             return
+        user_id = item["user_id"]
+        belt_color = belt_data["users"].get(user_id, {"color": "white"})["color"]
         result = {key: item[key] for key in item.keys()}
-        result["url"] = url_for("pwncollege_users.view_other", user_id=result["user_id"])
-        result["symbol"] = email_symbol_asset(result.pop("email"))
-        result["belt"] = belt_asset(belt_data["users"].get(result["user_id"], {"color":None})["color"])
-        result["badges"] = emojis.get(result["user_id"], [])
+        result.update({
+            "url": url_for("pwncollege_users.view_other", user_id=user_id),
+            "symbol": email_symbol_asset(result.pop("email")),
+            "belt": url_for("pwncollege_belts.view_belt", color=belt_color),
+            "badges": emojis.get(user_id, [])
+        })
         return result
 
     result = {
