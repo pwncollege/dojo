@@ -4,9 +4,9 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1 class="brand-white brand-mono">{{ module.name or module.id }}</h1>
+    <h1 class="brand-white brand-mono-bold">{{ module.name or module.id }}</h1>
     <br>
-    <h2 class="module-dojo"><a class="brand-white brand-mono" href="{{ url_for('pwncollege_dojo.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.name or dojo.id }}<span class="brand-dot">.</span></a></h2>
+    <h2 class="module-dojo"><a class="brand-white brand-mono-bold" href="{{ url_for('pwncollege_dojo.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.name or dojo.id }}<span class="brand-dot">.</span></a></h2>
 
     {% if assessments %}
     <br>

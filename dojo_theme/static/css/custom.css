@@ -74,6 +74,11 @@
     font-family: 'Space Mono', monospace;
 }
 
+.brand-mono-bold {
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+}
+
 body {
     background: #101010;
 }
