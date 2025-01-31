@@ -111,6 +111,7 @@ body, table, .form-control:focus, .close {
 }
 
 nav {
+    padding: 0.25rem 1rem !important;
     background-color: #272727;
     border-bottom: 1px dashed var(--brand-light-gray);
 }
