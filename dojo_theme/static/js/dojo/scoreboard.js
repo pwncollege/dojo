@@ -57,7 +57,7 @@ function loadScoreboard(duration, page) {
                 <img src="${user.symbol}" class="scoreboard-symbol">
               </td>
               <td class="col-md-4">
-                <a href="${user.url}" class="scoreboard-name text-decoration-none">
+                <a href="${user.url}" class="scoreboard-name brand-mono">
                 </a>
               </td>
               <td class="scoreboard-completions col-md-4">

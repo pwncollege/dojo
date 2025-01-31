@@ -4,7 +4,7 @@
 {% block content %}
   <div class="jumbotron">
     <div class="container">
-      <h1>{{ user.name }}</h1>
+      <h1 class="brand-mono">{{ user.name }}</h1>
       <h1>
         <a href="{{ url_for("pwncollege_belts.view_belts") }}">
           {% if belts.users[user.id] %}

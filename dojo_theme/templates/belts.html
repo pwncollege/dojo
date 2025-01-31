@@ -37,11 +37,11 @@
     {% endif %}
     </p>
 
-    <ul style="list-style-image: url({{ url_for("pwncollege_belts.view_belt", color=belt_color) }})">
+    <ul>
       {% for user_id in belt_data.ranks[belt_color] %}
       {% set user = belt_data.users[user_id] %}
       <li>
-        <a href="{{ url_for("pwncollege_users.view_other", user_id=user_id) }}"><raw>{{ user.handle }}</raw></a>
+        <a class="brand-mono" href="{{ url_for('pwncollege_users.view_other', user_id=user_id) }}">{{ user.handle }}</a>
         {% if user.name %}({{ user.name }}){% endif %}
         {% if user.emoji %}{{ user.emoji }}{% endif %}
         {% if user.site %}
