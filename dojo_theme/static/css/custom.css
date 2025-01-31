@@ -315,13 +315,17 @@ p[data-hide="true"] {
 }
 
 .card-icon {
-  width: 50%;
-  font-size: 48px;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  filter: drop-shadow(0px 0px 3px black);
+    width: calc(100% - 40px);
+    font-size: 64px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    filter: drop-shadow(0px 0px 3px black);
+}
+
+.card-icon > img {
+    width: 75%;
 }
 
 .accordion-item {
