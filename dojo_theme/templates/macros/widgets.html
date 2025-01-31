@@ -34,7 +34,7 @@
         {% if text_lines %}<p class="card-text">{% for text in text_lines %}{{ text }}<br>{% endfor %}</p>{% endif %}
         {% if custom %}{{ caller() }}{% endif %}
         {% if not course %}
-        <div class="progress-bar" style="width:{{solve_percent}}%">
+        <div class="progress-bar" style="width: {{solve_percent}}%">
           {% if solve_percent != 0 %}
             <span class="progress-bar-text">{{solve_percent|round(0, 'floor')|int}}%</span>
           {% endif %}

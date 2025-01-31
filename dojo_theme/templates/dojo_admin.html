@@ -41,7 +41,7 @@
     {% endif %}
     <div class="col-lg-auto m-3">
       <figure>
-      <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.dojo_solves', dojo=dojo.reference_id, solves_code=dojo.solves_code, format="csv") }}">
+      <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.dojo_solves', dojo=dojo.reference_id, solves_code=dojo.solves_code, format='csv') }}">
         <i class="fas fa-file-csv fa-3x"></i>
         <figcaption><b>Solves</b></figcaption>
       </a>
