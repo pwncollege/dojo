@@ -79,6 +79,10 @@
     font-weight: 700;
 }
 
+.brand-blink {
+    animation: brand-blinker 1.2s step-end infinite;
+}
+
 body {
     background: #101010;
 }
@@ -97,24 +101,6 @@ h1, h2, h3, h4 {
     font-family: 'Space Grotesk';
     font-weight: 500;
     color: var(--brand-green);
-}
-
-.logofont {
-    font-family: 'Space Mono' !important;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-.brand-blink {
-    animation: brand-blinker 1.2s step-end infinite;
-}
-
-@keyframes brand-blinker {
-  50% {
-    color: var(--brand-black);
-    background: var(--brand-gold);
-    display: inline-block;
-  }
 }
 
 .wordmark {
@@ -165,16 +151,6 @@ p[data-hide="true"] {
     border: none;
     background-color: inherit;
     padding: 0.5em 1em;
-}
-
-@keyframes navbar-slide-out {
-    0% {
-        transform: translateY(0);
-    }
-    100% {
-        transform: translateY(-100%);
-        display: hidden;
-    }
 }
 
 .navbar-hiding {
@@ -556,4 +532,22 @@ code {
 
 .hljs-strong {
     font-weight: bold;
+}
+
+@keyframes navbar-slide-out {
+    0% {
+        transform: translateY(0);
+    }
+    100% {
+        transform: translateY(-100%);
+        display: hidden;
+    }
+}
+
+@keyframes brand-blinker {
+    50% {
+        color: var(--brand-black);
+        background: var(--brand-gold);
+        display: inline-block;
+    }
 }
