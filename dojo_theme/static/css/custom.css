@@ -112,11 +112,7 @@ h1, h2, h3, h4 {
 @keyframes brand-blinker {
   50% {
     color: var(--brand-black);
-    background: linear-gradient(to right,
-        transparent 10%,
-        var(--brand-gold) 10%,
-        var(--brand-gold) 90%,
-        transparent 90%);
+    background: var(--brand-gold);
     display: inline-block;
   }
 }
