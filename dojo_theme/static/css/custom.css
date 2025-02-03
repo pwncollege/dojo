@@ -99,6 +99,28 @@ h1, h2, h3, h4 {
     color: var(--brand-green);
 }
 
+.logofont {
+    font-family: 'Space Mono' !important;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.brand-blink {
+    animation: brand-blinker 1.2s step-end infinite;
+}
+
+@keyframes brand-blinker {
+  50% {
+    color: var(--brand-black);
+    background: linear-gradient(to right,
+        transparent 10%,
+        var(--brand-gold) 10%,
+        var(--brand-gold) 90%,
+        transparent 90%);
+    display: inline-block;
+  }
+}
+
 .wordmark {
     font-family: 'Space Mono' !important;
     font-weight: 700;
