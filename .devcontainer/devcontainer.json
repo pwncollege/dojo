@@ -4,15 +4,10 @@
 	  "dockerfile": "../Dockerfile",
 	  "context": ".."
 	},
+	"workspaceFolder": "/opt/pwn.college",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/opt/pwn.college,type=bind",
 	"remoteUser": "root",
-	"runArgs": [
-	  "--privileged",
-	  "-v", "${localWorkspaceFolder}/pwn.college:/opt/pwn.college",
-	  "-v", "${localWorkspaceFolder}/data:/data",
-	  "-p", "22:22",
-	  "-p", "80:80",
-	  "-p", "443:443"
-	],
+	"runArgs": ["--privileged"],
 	"forwardPorts": [22, 80, 443],
 	"customizations": {
 	  "vscode": {
