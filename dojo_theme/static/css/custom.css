@@ -80,7 +80,7 @@
 }
 
 .brand-blink {
-    animation: brand-blinker 1.2s step-end infinite;
+    animation: brand-blinker 12s step-end infinite;
 }
 
 body {
@@ -545,9 +545,40 @@ code {
 }
 
 @keyframes brand-blinker {
-    50% {
+    0% {
         color: var(--brand-black);
         background: var(--brand-gold);
-        display: inline-block;
+    }
+    5% {
+        color: var(--brand-green);
+        background: transparent;
+    }
+    10% {
+        color: var(--brand-black);
+        background: var(--brand-gold);
+    }
+    15% {
+        color: var(--brand-green);
+        background: transparent;
+    }
+    20% {
+        color: var(--brand-black);
+        background: var(--brand-gold);
+    }
+    25% {
+        color: var(--brand-green);
+        background: transparent;
+    }
+    30% {
+        color: var(--brand-black);
+        background: var(--brand-gold);
+    }
+    35% {
+        color: var(--brand-green);
+        background: transparent;
+    }
+    40% {
+        color: var(--brand-black);
+        background: var(--brand-gold);
     }
 }
