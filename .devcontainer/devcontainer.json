@@ -1,21 +1,22 @@
 {
-	"name": "Development",
-	"build": {
-	  "dockerfile": "../Dockerfile",
-	  "context": ".."
-	},
-	"workspaceFolder": "/opt/pwn.college",
-	"workspaceMount": "source=${localWorkspaceFolder},target=/opt/pwn.college,type=bind",
-	"remoteUser": "root",
-	"runArgs": ["--privileged"],
-	"forwardPorts": [22, 80, 443],
-	"customizations": {
-	  "vscode": {
-		"extensions": [
-		  "ms-python.python",
-		  "ms-azuretools.vscode-docker",
-		  "ms-vscode-remote.remote-containers"
-		]
-	  }
-	}
-  }
+    "name": "Development",
+    "build": {
+        "dockerfile": "../Dockerfile",
+        "context": ".."
+    },
+    "workspaceFolder": "/opt/pwn.college",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/opt/pwn.college,type=bind",
+    "runArgs": ["-v", "/tmp/data:/data"],
+    "privileged": true,
+    "overrideCommand": false,
+    "forwardPorts": [22, 80, 443],
+    "customizations": {
+        "vscode": {
+        "extensions": [
+            "ms-python.python",
+            "ms-azuretools.vscode-docker",
+            "ms-vscode-remote.remote-containers"
+        ]
+        }
+    }
+}
