@@ -28,7 +28,7 @@ from ...utils import (
     user_ipv4,
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
-from ...utils.workspace import exec_run
+from ...utils.workspace import exec_run, zip_home_directory, wipe_home_directory, move_zip_to_home
 
 logger = logging.getLogger(__name__)
 
@@ -391,3 +391,24 @@ class RunDocker(Resource):
             "module": dojo_challenge.module.id,
             "challenge": dojo_challenge.id,
         }
+
+@docker_namespace.route("/reset_home")
+class ResetHome(Resource):
+    @authed_only
+    @docker_locked
+    def post(self):
+        user = get_current_user()
+
+        # Ensure the container is stopped before performing the action
+        remove_container(user)
+
+        # Zip the user's home directory
+        zip_file = zip_home_directory(user.id)
+
+        # Wipe everything else in the home directory
+        wipe_home_directory(user.id)
+
+        # Move the zip file back to the home directory
+        move_zip_to_home(user.id, zip_file)
+
+        return {"success": True, "message": "Home directory reset successfully"}
