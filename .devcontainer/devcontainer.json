@@ -24,7 +24,7 @@
             "onAutoForward": "silent"
         }
     },
-    "postStartCommand": "dojo logs",
+    "onCreateCommand": "dojo wait",
     "customizations": {
         "vscode": {
             "extensions": [
