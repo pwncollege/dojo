@@ -112,7 +112,7 @@ case "$kernel_version" in
         ;;
 esac
 
-# dojo-node refresh
+dojo-node refresh
 
 # iptables -N DOCKER-USER
 # iptables -I DOCKER-USER -i workspace_net -j DROP
