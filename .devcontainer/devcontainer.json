@@ -6,9 +6,24 @@
     },
     "workspaceFolder": "/opt/pwn.college",
     "workspaceMount": "source=${localWorkspaceFolder},target=/opt/pwn.college,type=bind",
-    "runArgs": ["-v", "/tmp/data:/data"],
+    "runArgs": ["-v", "/tmp/dojo-data-${devcontainerId}:/data"],
     "privileged": true,
     "overrideCommand": false,
+    "portsAttributes": {
+        "22": {
+            "label": "SSH",
+            "onAutoForward": "silent"
+        },
+        "80": {
+            "label": "HTTP",
+            "protocol": "http",
+            "onAutoForward": "openPreview"
+        },
+        "443": {
+            "label": "HTTPS",
+            "onAutoForward": "silent"
+        }
+    },
     "forwardPorts": [22, 80, 443],
     "customizations": {
         "vscode": {
