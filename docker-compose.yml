@@ -221,7 +221,7 @@ services:
       workspace_net:
         aliases:
           - nginx
-        ipv4_address: 10.0.0.3
+        # ipv4_address: 10.0.0.3
 
   acme-companion:
     container_name: nginx-proxy-acme
@@ -248,9 +248,9 @@ networks:
   workspace_net:
     name: workspace_net
     driver: bridge
-    ipam:
-      config:
-        - subnet: 10.0.0.0/8
+    # ipam:
+    #   config:
+    #     - subnet: 10.0.0.0/8
     driver_opts:
       com.docker.network.bridge.name: "workspace_net"
       com.docker.network.bridge.enable_icc: "false"
