@@ -39,7 +39,8 @@ COPY <<EOF /etc/docker/daemon.json
         "Entitlements": {
             "security-insecure": true
         }
-    }
+    },
+    "ip6tables": false
 }
 EOF
 
