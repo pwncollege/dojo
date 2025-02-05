@@ -80,7 +80,14 @@ if [ "$(findmnt -n -o FSTYPE /data/homes)" != "btrfs" ] && [ "$(findmnt -n -o FS
         truncate -s 256G /data/homes/btrfs.img
         mkfs.btrfs /data/homes/btrfs.img
     fi
-    mount -o loop /data/homes/btrfs.img /data/homes
+    loop_device=$(losetup -f)
+    if [ ! -e "$loop_device" ]; then
+        mknod $loop_device b 7 $(echo $loop_device | tr -cd '0-9')
+        chmod --reference=/dev/loop0 $loop_device
+        chown --reference=/dev/loop0 $loop_device
+    fi
+    losetup "$loop_device" /data/homes/btrfs.img
+    mount "$loop_device" /data/homes
 fi
 btrfs quota enable /data/homes
 
