@@ -28,7 +28,7 @@ from ...utils import (
     user_ipv4,
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
-from ...utils.workspace import exec_run, zip_home_directory, wipe_home_directory, move_zip_to_home
+from ...utils.workspace import exec_run
 
 logger = logging.getLogger(__name__)
 

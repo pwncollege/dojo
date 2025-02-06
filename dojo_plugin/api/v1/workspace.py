@@ -3,7 +3,7 @@ from flask import request, render_template, url_for, abort
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from ...utils import get_current_container, container_password
-from ...utils.workspace import exec_run, start_on_demand_service
+from ...utils.workspace import exec_run, start_on_demand_service, zip_home_directory, wipe_home_directory, move_zip_to_home
 
 
 workspace_namespace = Namespace(
