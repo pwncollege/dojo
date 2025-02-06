@@ -111,7 +111,7 @@ fi
 
 nft list tables > /dev/null 2>&1  # This will load the nf_tables module, if it's not already loaded and is available
 if [ ! -e /sys/module/nf_tables ]; then
-    echo '[+] Could not find nf_tables module. Switching to legacy iptables.'
+    echo '[+] Could not load nf_tables module. Switching to legacy iptables.'
     update-alternatives --set iptables /usr/sbin/iptables-legacy
     update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 fi
