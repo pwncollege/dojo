@@ -24,7 +24,7 @@
             "onAutoForward": "silent"
         }
     },
-    "onCreateCommand": "dojo wait || (docker logs workspace-builder; ip a)",
+    "onCreateCommand": "echo HERE IS IP INFO; ip a; dojo wait || (docker logs workspace-builder; ip a)",
     "customizations": {
         "vscode": {
             "extensions": [
