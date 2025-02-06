@@ -492,7 +492,7 @@ def test_reset_home_directory(random_user):
 
     # Check that the zip file is moved back to the home directory
     try:
-        workspace_run("[ -f '/home/hacker/{user}_home.zip' ]", user=user)
+        workspace_run("[ -f '/home/hacker/home-backup.tar.gz' ]", user=user)
     except subprocess.CalledProcessError as e:
         assert False, f"Expected zip file to exist, but got: {(e.stdout, e.stderr)}"
 
