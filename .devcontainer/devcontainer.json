@@ -24,7 +24,7 @@
             "onAutoForward": "silent"
         }
     },
-    "onCreateCommand": "dojo wait",
+    "onCreateCommand": "dojo wait || (docker logs workspace-builder; ip a)",
     "customizations": {
         "vscode": {
             "extensions": [
