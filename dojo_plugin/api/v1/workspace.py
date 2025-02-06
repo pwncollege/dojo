@@ -78,3 +78,27 @@ class view_desktop(Resource):
            "service": service,
            "active": True
            }
+
+
+@workspace_namespace.route("/reset_home")
+class ResetHome(Resource):
+    @authed_only
+    @docker_locked
+    def post(self):
+        user = get_current_user()
+
+        # Check if a container is running
+        container = get_current_container(user)
+        if not container:
+            return {"success": False, "message": "No running container found. Please start a container and try again."}
+
+        # Zip the user's home directory
+        zip_file = zip_home_directory(user.id)
+
+        # Wipe everything else in the home directory
+        wipe_home_directory(user.id)
+
+        # Move the zip file back to the home directory
+        move_zip_to_home(user.id, zip_file)
+
+        return {"success": True, "message": "Home directory reset successfully"}

@@ -391,24 +391,3 @@ class RunDocker(Resource):
             "module": dojo_challenge.module.id,
             "challenge": dojo_challenge.id,
         }
-
-@docker_namespace.route("/reset_home")
-class ResetHome(Resource):
-    @authed_only
-    @docker_locked
-    def post(self):
-        user = get_current_user()
-
-        # Ensure the container is stopped before performing the action
-        remove_container(user)
-
-        # Zip the user's home directory
-        zip_file = zip_home_directory(user.id)
-
-        # Wipe everything else in the home directory
-        wipe_home_directory(user.id)
-
-        # Move the zip file back to the home directory
-        move_zip_to_home(user.id, zip_file)
-
-        return {"success": True, "message": "Home directory reset successfully"}
