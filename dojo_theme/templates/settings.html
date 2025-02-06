@@ -201,8 +201,9 @@
             <h2>Reset Home Directory</h2>
             <p>Click the button below to reset your home directory. This will zip your current home directory and wipe everything else.</p>
             <button id="reset-home-button" class="btn btn-danger">Reset Home Directory</button>
-            <div id="reset-home-results" class="form-group"></div>
           </div>
+          <br>
+          <div id="reset-home-results" class="form-group"></div>
         </div>
 
       </div>
@@ -217,11 +218,4 @@
 
 {% block scripts %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/settings.js') }}"></script>
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-    button_fetch_and_show("reset-home", "/pwncollege_api/v1/docker/reset_home", "POST", {}, "Home directory reset successfully", "Home directory reset canceled", function() {
-      return confirm("Are you sure you want to reset your home directory?");
-    });
-  });
-</script>
 {% endblock %}

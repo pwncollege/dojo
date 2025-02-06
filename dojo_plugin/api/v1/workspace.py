@@ -3,7 +3,7 @@ from flask import request, render_template, url_for, abort
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from ...utils import get_current_container, container_password
-from ...utils.workspace import exec_run, start_on_demand_service, zip_home_directory, wipe_home_directory, move_zip_to_home
+from ...utils.workspace import exec_run, start_on_demand_service, reset_home
 
 
 workspace_namespace = Namespace(
@@ -89,15 +89,11 @@ class ResetHome(Resource):
         # Check if a container is running
         container = get_current_container(user)
         if not container:
-            return {"success": False, "message": "No running container found. Please start a container and try again."}
+            return {"success": False, "error": "No running container found. Please start a container and try again."}
 
-        # Zip the user's home directory
-        zip_file = zip_home_directory(user.id)
-
-        # Wipe everything else in the home directory
-        wipe_home_directory(user.id)
-
-        # Move the zip file back to the home directory
-        move_zip_to_home(user.id, zip_file)
+        try:
+            reset_home(user.id)
+        except AssertionError as e:
+            return {"success": False, "error": f"Reset failed with error: {e}"}
 
         return {"success": True, "message": "Home directory reset successfully"}

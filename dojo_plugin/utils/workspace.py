@@ -40,18 +40,8 @@ def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", us
         assert exit_code in (0, None), output
     return exit_code, output
 
-def zip_home_directory(user_id):
-    home_dir = f"/home/hacker"
-    zip_file = f"/tmp/{user_id}_home.zip"
-    exec_run(f"zip -r --symlinks {zip_file} {home_dir}", user_id=user_id)
-    move_zip_to_home(user_id, zip_file)
-    return zip_file
-
-def wipe_home_directory(user_id):
-    home_dir = f"/home/hacker"
-    exec_run(f"find {home_dir} -mindepth 1 -delete", user_id=user_id)
-
-def move_zip_to_home(user_id, zip_file):
-    home_dir = f"/home/hacker"
-    exec_run(f"mv {zip_file} {home_dir}", user_id=user_id)
-    return f"{home_dir}/{user_id}_home.zip"
+def reset_home(user_id):
+    exec_run(f"/bin/tar cvzf /tmp/home-backup.tar.gz /home/hacker", user_id=user_id, shell=True, workspace_user="hacker")
+    exec_run(f"find /home/hacker -mindepth 1 -delete", user_id=user_id, shell=True, workspace_user="root")
+    exec_run(f"chown hacker:hacker /home/hacker", user_id=user_id, shell=True, workspace_user="root")
+    exec_run(f"cp /tmp/home-backup.tar.gz /home/hacker/", user_id=user_id, shell=True, workspace_user="hacker")
