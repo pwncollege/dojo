@@ -86,9 +86,7 @@ class ResetHome(Resource):
     def post(self):
         user = get_current_user()
 
-        # Check if a container is running
-        container = get_current_container(user)
-        if not container:
+        if not get_current_container(user):
             return {"success": False, "error": "No running container found. Please start a container and try again."}
 
         try:

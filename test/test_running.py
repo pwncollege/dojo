@@ -486,17 +486,15 @@ def test_reset_home_directory(random_user):
     workspace_run("touch /home/hacker/testfile", user=user)
 
     # Reset the home directory
-    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/workspace/reset_home")
+    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/workspace/reset_home", json={})
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-    assert response.json()["success"], f"Failed to reset home directory: {response.json()['message']}"
+    assert response.json()["success"], f"Failed to reset home directory: {response.json()['error']}"
 
-    # Check that the zip file is moved back to the home directory
     try:
         workspace_run("[ -f '/home/hacker/home-backup.tar.gz' ]", user=user)
     except subprocess.CalledProcessError as e:
         assert False, f"Expected zip file to exist, but got: {(e.stdout, e.stderr)}"
 
-    # Check that the home directory is wiped before moving the zip file
     try:
         workspace_run("[ ! -f '/home/hacker/testfile' ]", user=user)
     except subprocess.CalledProcessError as e:
