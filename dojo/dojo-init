@@ -109,8 +109,7 @@ then
     openssl rand 214 > "${BACKUP_AES_KEY_FILE}"
 fi
 
-# Handle networking issue on GitHub Codespaces
-nft list tables > /dev/null 2>&1  # Load the nf_tables module, if it's not already loaded and is available
+nft list tables > /dev/null 2>&1  # This will load the nf_tables module, if it's not already loaded and is available
 if [ ! -e /sys/module/nf_tables ]; then
     echo '[+] Could not find nf_tables module. Switching to legacy iptables.'
     update-alternatives --set iptables /usr/sbin/iptables-legacy
