@@ -12,6 +12,13 @@ var success_template =
     '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
     '</div>';
 
+var loading_template =
+    '<div class="alert alert-warning alert-dismissable submit-row" role="alert">\n' +
+    '  <strong>Loading...</strong>\n' +
+    '  <span id="message"></span>' +
+    '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
+    '</div>';
+
 function form_fetch_and_show(name, endpoint, method, success_message, confirm_msg=null) {
     const form = $(`#${name}-form`);
     const results = $(`#${name}-results`);
@@ -20,6 +27,7 @@ function form_fetch_and_show(name, endpoint, method, success_message, confirm_ms
         results.empty();
         const params = form.serializeJSON();
         if (confirm_msg && !confirm(confirm_msg(form, params))) return;
+        results.html(loading_template);
         CTFd.fetch(endpoint, {
             method: method,
             credentials: "same-origin",
@@ -53,6 +61,7 @@ function button_fetch_and_show(name, endpoint, method,data, success_message, abo
             results.find("#message").html(abort_message);
             return
         };
+        results.html(loading_template);
         CTFd.fetch(endpoint, {
             method: method,
             credentials: "same-origin",
