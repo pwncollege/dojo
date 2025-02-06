@@ -83,7 +83,6 @@ class view_desktop(Resource):
 @workspace_namespace.route("/reset_home")
 class ResetHome(Resource):
     @authed_only
-    @docker_locked
     def post(self):
         user = get_current_user()
 
