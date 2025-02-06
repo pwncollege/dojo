@@ -3,7 +3,7 @@ from flask import request, render_template, url_for, abort
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from ...utils import get_current_container, container_password
-from ...utils.workspace import exec_run, start_on_demand_service
+from ...utils.workspace import exec_run, start_on_demand_service, reset_home
 
 
 workspace_namespace = Namespace(
@@ -78,3 +78,20 @@ class view_desktop(Resource):
            "service": service,
            "active": True
            }
+
+
+@workspace_namespace.route("/reset_home")
+class ResetHome(Resource):
+    @authed_only
+    def post(self):
+        user = get_current_user()
+
+        if not get_current_container(user):
+            return {"success": False, "error": "No running container found. Please start a container and try again."}
+
+        try:
+            reset_home(user.id)
+        except AssertionError as e:
+            return {"success": False, "error": f"Reset failed with error: {e}"}
+
+        return {"success": True, "message": "Home directory reset successfully"}
