@@ -12,7 +12,7 @@ dojos_namespace = Namespace(
 class GetDojos(Resource):
     def get(self):
         dojos = [
-            dict(id=dojo.id,
+            dict(id=dojo.reference_id,
                  name=dojo.name,
                  description=dojo.description,
                  official=dojo.official)
