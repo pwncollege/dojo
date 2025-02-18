@@ -12,6 +12,13 @@ var success_template =
     '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
     '</div>';
 
+var loading_template =
+    '<div class="alert alert-warning alert-dismissable submit-row" role="alert">\n' +
+    '  <strong>Loading...</strong>\n' +
+    '  <span id="message"></span>' +
+    '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
+    '</div>';
+
 function form_fetch_and_show(name, endpoint, method, success_message, confirm_msg=null) {
     const form = $(`#${name}-form`);
     const results = $(`#${name}-results`);
@@ -20,6 +27,7 @@ function form_fetch_and_show(name, endpoint, method, success_message, confirm_ms
         results.empty();
         const params = form.serializeJSON();
         if (confirm_msg && !confirm(confirm_msg(form, params))) return;
+        results.html(loading_template);
         CTFd.fetch(endpoint, {
             method: method,
             credentials: "same-origin",
@@ -53,6 +61,7 @@ function button_fetch_and_show(name, endpoint, method,data, success_message, abo
             results.find("#message").html(abort_message);
             return
         };
+        results.html(loading_template);
         CTFd.fetch(endpoint, {
             method: method,
             credentials: "same-origin",
@@ -92,6 +101,9 @@ $(() => {
     button_fetch_and_show("dojo-delete",  `/dojo/${init.dojo}/delete/`, "POST", {dojo: init.dojo} ,"Dojo has been deleted.", "Deletion has been canceled.", confirm_msg = (x)=> {
         var confirmation = prompt(`Are you sure you want to delete the dojo?\nEnter the dojo name\n\n${x.dojo}\n\nto confirm this action.\nThis action cannot be undone.`);
         return confirmation === x.dojo
+    });
+    button_fetch_and_show("reset-home", "/pwncollege_api/v1/workspace/reset_home", "POST", {}, "Home directory reset successfully", "Home directory reset canceled", function() {
+      return confirm("Are you sure you want to reset your home directory?");
     });
     $(".copy-button").click((event) => {
         let input = $(event.target).parents(".input-group").children("input")[0];

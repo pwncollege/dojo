@@ -79,6 +79,10 @@
     font-weight: 700;
 }
 
+.brand-blink {
+    animation: brand-blinker 12s step-end infinite;
+}
+
 body {
     background: #101010;
 }
@@ -111,6 +115,7 @@ body, table, .form-control:focus, .close {
 }
 
 nav {
+    padding: 0.25rem 1rem !important;
     background-color: #272727;
     border-bottom: 1px dashed var(--brand-light-gray);
 }
@@ -132,7 +137,6 @@ a:hover {
     text-decoration: none;
 }
 
-
 h4 {
     color: var(--old-brand-blue);
     text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
@@ -147,16 +151,6 @@ p[data-hide="true"] {
     border: none;
     background-color: inherit;
     padding: 0.5em 1em;
-}
-
-@keyframes navbar-slide-out {
-    0% {
-        transform: translateY(0);
-    }
-    100% {
-        transform: translateY(-100%);
-        display: hidden;
-    }
 }
 
 .navbar-hiding {
@@ -282,9 +276,9 @@ p[data-hide="true"] {
 }
 
 .card-small {
-    width: 15em;
-    height: 15em;
-    margin: 1em;
+    width: 13em;
+    height: 13em;
+    margin: 0.5em;
     padding: 0em;
     background-color: rgba(255, 255, 255, 0.05);
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
@@ -574,25 +568,6 @@ code {
     overflow: hidden;
 }
 
-
-@keyframes slideUp {
-    from {
-        transform: translateY(120%);
-    }
-    to {
-        transform: translateY(0);
-    }
-}
-
-@keyframes fadeIn {
-    from {
-        background-color: rgba(0, 0, 0, 0);
-    }
-    to {
-        background-color: rgba(0, 0, 0, 0.8);
-    }
-}
-
 .popup-content h1 {
     font-family: 'Space Grotesk', monospace;
     font-size: 1.8rem;
@@ -679,3 +654,70 @@ code {
     color: var(--brand-green);
     cursor: pointer;
   }
+
+@keyframes navbar-slide-out {
+    0% {
+        transform: translateY(0);
+    }
+    100% {
+        transform: translateY(-100%);
+        display: hidden;
+    }
+}
+
+@keyframes brand-blinker {
+    0% {
+        color: var(--brand-black);
+        background: var(--brand-gold);
+    }
+    5% {
+        color: var(--brand-green);
+        background: transparent;
+    }
+    10% {
+        color: var(--brand-black);
+        background: var(--brand-gold);
+    }
+    15% {
+        color: var(--brand-green);
+        background: transparent;
+    }
+    20% {
+        color: var(--brand-black);
+        background: var(--brand-gold);
+    }
+    25% {
+        color: var(--brand-green);
+        background: transparent;
+    }
+    30% {
+        color: var(--brand-black);
+        background: var(--brand-gold);
+    }
+    35% {
+        color: var(--brand-green);
+        background: transparent;
+    }
+    40% {
+        color: var(--brand-black);
+        background: var(--brand-gold);
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(120%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        background-color: rgba(0, 0, 0, 0);
+    }
+    to {
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+}

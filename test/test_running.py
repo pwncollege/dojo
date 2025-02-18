@@ -476,3 +476,26 @@ def test_workspace_as_user(admin_user, random_user):
         workspace_run("[ ! -e '/home/hacker/test3' ]", user=random_user)
     except subprocess.CalledProcessError as e:
         assert False, f"Expected overlay file to not exist, but got: {(e.stdout, e.stderr)}"
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_reset_home_directory(random_user):
+    user, session = random_user
+
+    # Create a file in the home directory
+    start_challenge("example", "hello", "apple", session=session)
+    workspace_run("touch /home/hacker/testfile", user=user)
+
+    # Reset the home directory
+    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/workspace/reset_home", json={})
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    assert response.json()["success"], f"Failed to reset home directory: {response.json()['error']}"
+
+    try:
+        workspace_run("[ -f '/home/hacker/home-backup.tar.gz' ]", user=user)
+    except subprocess.CalledProcessError as e:
+        assert False, f"Expected zip file to exist, but got: {(e.stdout, e.stderr)}"
+
+    try:
+        workspace_run("[ ! -f '/home/hacker/testfile' ]", user=user)
+    except subprocess.CalledProcessError as e:
+        assert False, f"Expected test file to be wiped, but got: {(e.stdout, e.stderr)}"

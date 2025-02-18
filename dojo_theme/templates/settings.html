@@ -16,6 +16,7 @@
         <a class="nav-link" id="settings-discord-tab" data-toggle="pill" href="#discord" role="tab">Discord</a>
         {% endif %}
 	      <a class="nav-link" id="settings-tokens-tab" data-toggle="pill" href="#tokens" role="tab">Access Tokens</a>
+        <a class="nav-link" id="settings-reset-home-tab" data-toggle="pill" href="#reset-home" role="tab">Reset Home</a>
       </div>
     </div>
     <div class="col-md-8">
@@ -194,6 +195,17 @@
           </table>
           {% endif %}
         </div>
+
+        <div class="tab-pane fade" id="reset-home" role="tabpanel">
+          <div class="text-center">
+            <h2>Reset Home Directory</h2>
+            <p>Click the button below to reset your home directory. This will zip your current home directory and wipe everything else.</p>
+            <button id="reset-home-button" class="btn btn-danger">Reset Home Directory</button>
+          </div>
+          <br>
+          <div id="reset-home-results" class="form-group"></div>
+        </div>
+
       </div>
     </div>
   </div>

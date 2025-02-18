@@ -150,6 +150,7 @@ class CreateDojo(Resource):
 
         return result
 
+
 @dojo_namespace.route("/<dojo>/modules")
 class GetDojoModules(Resource):
     @dojo_route

@@ -28,6 +28,8 @@ def get_letter_grade(dojo, grade):
 
 def assessment_name(dojo, assessment):
     module_names = {module.id: module.name for module in dojo.modules}
+    if "name" in assessment:
+        return assessment["name"]
     if assessment["type"] == "checkpoint":
         return f"{module_names[assessment['id']]} Checkpoint"
     if assessment["type"] == "due":
@@ -36,7 +38,7 @@ def assessment_name(dojo, assessment):
         return assessment.get("name", "Discord Helpfulness")
     if assessment["type"] == "memes":
         return assessment.get("name", "Discord Memes")
-    return assessment["name"]
+    return ""
 
 
 def grade(dojo, users_query, *, ignore_pending=False):
@@ -217,11 +219,11 @@ def grade(dojo, users_query, *, ignore_pending=False):
         for assessment in assessments:
             type = assessment.get("type")
 
-            date = datetime.datetime.fromisoformat(assessment["date"]) if type in ["checkpoint", "due"] else None
+            date = datetime.datetime.fromisoformat(assessment["date"]) if "date" in assessment else None
             if ignore_pending and date and date > now:
                 continue
 
-            extra_late_date = datetime.datetime.fromisoformat(assessment.get("extra_late_date", None)) if type in ["checkpoint", "due"] and "extra_late_date" in assessment else None
+            extra_late_date = datetime.datetime.fromisoformat(assessment["extra_late_date"]) if "extra_late_date" in assessment else None
 
             if type == "checkpoint":
                 module_id = assessment["id"]
@@ -298,6 +300,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
             if type == "manual":
                 assessment_grades.append(dict(
                     name=assessment_name(dojo, assessment),
+                    date=assessment.get("date"),
                     weight=assessment["weight"],
                     progress=get_student_value(assessment.get("progress"), user_id, ""),
                     credit=get_student_value(assessment.get("credit"), user_id, 0.0),
@@ -346,7 +349,7 @@ def grade(dojo, users_query, *, ignore_pending=False):
                     assessment_grades=assessment_grades,
                     overall_grade=overall_grade,
                     letter_grade=letter_grade,
-                    show_extra_late_date= any(row.get("extra_late_date", None) is not None for row in assessments))
+                    show_extra_late_date= any(row.get("extra_late_date") is not None for row in assessments))
 
     user_id = None
     previous_user_id = None
