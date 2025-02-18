@@ -151,18 +151,6 @@ class CreateDojo(Resource):
         return result
 
 
-@dojo_namespace.route("/list")
-class GetDojos(Resource):
-    def get(self):
-        dojos = [
-            dict(id=dojo.id,
-                 name=dojo.name,
-                 description=dojo.description,
-                 official=dojo.official)
-            for dojo in Dojos.viewable(user=get_current_user())
-        ]
-        return {"success": True, "dojos": dojos}
-
 @dojo_namespace.route("/<dojo>/modules")
 class GetDojoModules(Resource):
     @dojo_route
