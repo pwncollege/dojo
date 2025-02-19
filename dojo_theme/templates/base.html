@@ -58,7 +58,7 @@
       }
     </script>
     {{ Configs.theme_header }}
-    <script type="text/javascript" src="{{ url_for('views.themes', path='js/dojo/popup.js') }}?v={{ Configs.ctf_version }}"></script>
+    
   </head>
   <body>
     {% include "components/navbar.html" %}
@@ -87,6 +87,7 @@
 
     <script defer src="{{ url_for('views.themes', path='js/dojo/util.js') }}"></script>
     <script defer src="{{ url_for('views.themes', path='js/dojo/navbar.js') }}"></script>
+    <script defer src="{{ url_for('views.themes', path='js/dojo/popup.js') }}"></script>
 
     {% block scripts %}
     {% endblock %}

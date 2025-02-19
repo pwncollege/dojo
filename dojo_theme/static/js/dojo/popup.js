@@ -1,13 +1,5 @@
 
 const BELT_ORDER = ["white", "orange", "yellow", "green", "blue", "black"];
-const BELT_MESSAGES = {
-    white: "<b>You've earned your white belt!</b><br>The journey begins!",
-    orange: "<b>Orange belt achieved!</b><br>Vulnerability Seeker - You know where to strike first.",
-    yellow: "<b>Yellow belt unlocked!</b><br>Buffer Breaker - Exploiting memory, one byte at a time.",
-    green: "<b>Green belt obtained!</b><br>Precision Hacker - No gap too small, no exploit too complex.",
-    blue: "<b>Blue belt conquered!</b><br>Master of the System - You&#39;ve conquered the complexity others fear.",
-    black: "<b>Black belt Mentor!</b><br> Architect of Understanding - You forge minds as sharp as your exploits."
-};
 
 document.addEventListener("DOMContentLoaded", function () {
     if (!init?.userId) return;
@@ -18,8 +10,8 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 function checkUserAwards() {
-    const endpoint = `${CTFd.config.urlRoot}/api/v1/users/${init.userId}/awards`;
-    return fetch(endpoint, {
+    const endpoint = `/api/v1/users/${init.userId}/awards`;
+    return CTFd.fetch(endpoint, {
         method: "GET",
         credentials: "same-origin",
         headers: {"Accept": "application/json"}
@@ -31,35 +23,29 @@ function handleAwardPopup(response) {
 
     const awards = response.data;
 
-    const beltAwards = awards.filter(a => BELT_ORDER.includes(a.name)).sort(dateSort);
-    const otherAwards = awards.filter(a => !BELT_ORDER.includes(a.name)).sort(dateSort);
-    const latestAward = beltAwards.pop() || otherAwards.pop();
+    const sortedAwards = awards.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const latestAward = sortedAwards.pop();
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
     
-    const lastSeen = localStorage.getItem("lastAwardDate") || "1970-01-01";
+    const lastSeen = localStorage.getItem("lastAwardDate") || twoDaysAgo;
     if (new Date(latestAward.date) <= new Date(lastSeen)) return;
-    
 
     localStorage.setItem("lastAwardDate", latestAward.date);
     showAwardPopup(latestAward);
-}
-
-function dateSort(a, b) {
-    return new Date(a.date) - new Date(b.date);
 }
 
 function showAwardPopup(award) {
     const isBelt = BELT_ORDER.includes(award.name);
 
     const imageContent = isBelt ? 
-    `<img src = "https://pwn.college/belt/${award.name}.svg" 
-        class="belt-image"
-        loading="lazy">` : 
+    `<img src = "/belt/${award.name}.svg" 
+        class="belt-image">` : 
     `<div class="emoji-display">${award.name}</div>`;
 
     const customMessage = isBelt
-        ? BELT_MESSAGES[award.name]
+        ? `You have officially been awarded your ${award.name} belt!`
         : award?.description 
-            ? `You've completed the ${award.description} dojo!`
+            ? `${award.description}`
             : "You have completed a dojo!";
 
     const popupContent = {
@@ -71,7 +57,7 @@ function showAwardPopup(award) {
             linkedin: `${CTFd.config.urlRoot}/themes/dojo_theme/static/img/dojo/linkedin_logo.svg`,
             x: `${CTFd.config.urlRoot}/themes/dojo_theme/static/img/dojo/x_logo.svg`
         },
-        profileUrl: `https://pwn.college/hacker/${init.userId}`
+        profileUrl: `${window.location.protocol}//${window.location.host}/hacker/${init.userId}`
     };
 
     const popup = document.createElement("div");
@@ -113,7 +99,3 @@ function showAwardPopup(award) {
         }
     });
 }
-
-
-
-
