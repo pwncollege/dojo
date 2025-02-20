@@ -82,6 +82,9 @@ function renderSubmissionResponse(response, item) {
         answer_input.val("");
         answer_input.removeClass("wrong");
         answer_input.addClass("correct");
+        checkUserAwards()
+        .then(handleAwardPopup)
+        .catch(error => console.error("Award check failed:", error));
     } else if (result.status === "already_solved") {
         // Challenge already solved
         result_notification.addClass(
