@@ -1,4 +1,6 @@
 
+// May need to add og meta tag for url image on socal media
+// <meta property="og:image" content="{{ url_for('views.themes', path='img/dojo/ninja.png', _external=True) }}">
 const BELT_ORDER = ["white", "orange", "yellow", "green", "blue", "black"];
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -15,7 +17,7 @@ function checkUserAwards() {
         method: "GET",
         credentials: "same-origin",
         headers: {"Accept": "application/json"}
-    }).then(res => res.json());
+    }).then(response => response.json());
 }
 
 function handleAwardPopup(response) {
