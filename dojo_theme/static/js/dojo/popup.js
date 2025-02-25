@@ -29,7 +29,8 @@ function handleAwardPopup(response) {
     const latestAward = sortedAwards.pop();
     const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
     
-    const lastSeen = localStorage.getItem("lastAwardDate") || twoDaysAgo;
+    if (new Date(latestAward.date) < twoDaysAgo ) return;
+    const lastSeen = localStorage.getItem("lastAwardDate");
     if (new Date(latestAward.date) <= new Date(lastSeen)) return;
 
     localStorage.setItem("lastAwardDate", latestAward.date);
