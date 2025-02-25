@@ -7,6 +7,11 @@
     <title>{{ Configs.ctf_name }}</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta property="og:title" content="pwn.college">
+    <meta property="og:description" content="Learn to Hack!">
+    <meta property="og:image" content="{{ url_for('views.themes', path='img/dojo/ninja.png', _external=True) }}">
+
     <link rel="icon" href="{{ url_for('views.themes', path='img/favicon.png') }}">
     <link rel="stylesheet" href="{{ url_for('views.themes', path='css/fonts.css') }}">
     <link rel="stylesheet" href="{{ url_for('views.themes', path='css/main.css') }}">

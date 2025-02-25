@@ -236,6 +236,12 @@ services:
       - acme:/etc/acme.sh
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
+  create-workspace-net:
+    image: busybox:uclibc
+    command: /bin/true
+    networks:
+      - workspace_net
+
 volumes:
   conf:
   html:

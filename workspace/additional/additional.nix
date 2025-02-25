@@ -31,11 +31,16 @@ in
     gdb
     pwndbg
     gef
+
     openssh
     netcat-openbsd
 
     vim
+    neovim
     emacs
+
+    tmux
+    screen
 
     ghidra
     ida-free
