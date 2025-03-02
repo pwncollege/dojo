@@ -2,7 +2,7 @@ const BELT_ORDER = ["white", "orange", "yellow", "green", "blue", "black"];
 
 document.addEventListener("DOMContentLoaded", function () {
     if (!init?.userId) return;
-    
+
     checkUserAwards()
         .then(handleAwardPopup)
         .catch(error => console.error("Award check failed:", error));
@@ -20,31 +20,30 @@ function checkUserAwards() {
 function handleAwardPopup(response) {
     if (!response?.success || !response.data?.length) return;
 
-    const awards = response.data;
+    const awards = response.data.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const lastAwardDate = new Date(awards.pop().date);
 
-    const sortedAwards = awards.sort((a, b) => new Date(a.date) - new Date(b.date));
-    const latestAward = sortedAwards.pop();
-    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    
-    if (new Date(latestAward.date) < twoDaysAgo ) return;
-    const lastSeen = localStorage.getItem("lastAwardDate");
-    if (new Date(latestAward.date) <= new Date(lastSeen)) return;
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    if (lastAwardDate <= twoDaysAgo) return;
 
-    localStorage.setItem("lastAwardDate", latestAward.date);
-    showAwardPopup(latestAward);
+    const lastPopup = new Date(localStorage.getItem("lastPopup"));
+    if (lastAwardDate <= lastPopup) return;
+
+    localStorage.setItem("lastPopup", lastAwardDate.toISOString());
+    showAwardPopup(lastAwardDate);
 }
 
 function showAwardPopup(award) {
     const isBelt = BELT_ORDER.includes(award.name);
 
-    const imageContent = isBelt ? 
-    `<img src = "/belt/${award.name}.svg" 
-        class="belt-image">` : 
+    const imageContent = isBelt ?
+    `<img src = "/belt/${award.name}.svg"
+        class="belt-image">` :
     `<div class="emoji-display">${award.name}</div>`;
 
     const customMessage = isBelt
         ? `You have officially been awarded your ${award.name} belt!`
-        : award?.description 
+        : award?.description
             ? `${award.description}`
             : "You have completed a dojo!";
 
@@ -77,7 +76,7 @@ function showAwardPopup(award) {
                     <img src="${popupContent.logos.linkedin}">
                     <span title="Post on LinkedIn"></span>Post
                 </a>
-                <a href="https://twitter.com/intent/tweet?url=${popupContent.profileUrl}" 
+                <a href="https://twitter.com/intent/tweet?url=${popupContent.profileUrl}"
                     class="share-button"
                     target="_blank"
                     aria-label="Post on X">
