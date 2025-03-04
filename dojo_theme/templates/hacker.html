@@ -56,6 +56,24 @@
         {% endif %}
       </div>
     </div>
+    <div class="social-share">
+      {% if request.path == url_for('pwncollege_users.view_self') %}
+      <a href="https://linkedin.com/share?url={{ url_for('pwncollege_users.view_other', user_id=user.id, _external=True) }}"
+          class="share-button"
+          target="_blank"
+          aria-label="Post on LinkedIn">
+          <img src="{{ url_for('views.themes', path='img/dojo/linkedin_logo.svg') }}">
+          <span title="Post on LinkedIn"></span>Post
+      </a>
+      <a href="https://twitter.com/intent/tweet?url={{ url_for('pwncollege_users.view_other', user_id=user.id, _external=True) }}" 
+          class="share-button"
+          target="_blank"
+          aria-label="Post on X">
+          <img src="{{ url_for('views.themes', path='img/dojo/x_logo.svg') }}">
+          <span title="Post on X"></span>Post
+      </a>
+      {% endif %}
+    </div>
   </div>
 
   <div class="container">
