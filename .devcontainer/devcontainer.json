@@ -9,6 +9,7 @@
     "runArgs": ["-v", "/tmp/dojo-data-${devcontainerId}:/data"],
     "privileged": true,
     "overrideCommand": false,
+    "forwardPorts": [22, 80, 443],
     "portsAttributes": {
         "22": {
             "label": "SSH",
