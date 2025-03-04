@@ -109,15 +109,12 @@ then
     openssl rand 214 > "${BACKUP_AES_KEY_FILE}"
 fi
 
-# Handle networking issue on Ubuntu 22.04 host (e.g., GitHub Codespaces)
-kernel_version=$(uname -r)
-case "$kernel_version" in
-    6.5.*)
-        echo '[+] Detected Linux kernel version 6.5.*. Switching to legacy iptables.'
-        update-alternatives --set iptables /usr/sbin/iptables-legacy
-        update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
-        ;;
-esac
+nft list tables > /dev/null 2>&1  # This will load the nf_tables module, if it's not already loaded and is available
+if [ ! -e /sys/module/nf_tables ]; then
+    echo '[+] Could not load nf_tables module. Switching to legacy iptables.'
+    update-alternatives --set iptables /usr/sbin/iptables-legacy
+    update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+fi
 
 dojo-node refresh
 
