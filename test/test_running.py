@@ -11,7 +11,7 @@ from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, dojo_run, workspace_run,
 
 
 def get_dojo_modules(dojo):
-    response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/dojo/{dojo}/modules")
+    response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/modules")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     return response.json()["modules"]
 
@@ -117,7 +117,7 @@ def test_join_dojo(admin_session, guest_dojo_admin):
 def test_promote_dojo_member(admin_session, guest_dojo_admin):
     random_user_name, _ = guest_dojo_admin
     random_user_id = get_user_id(random_user_name)
-    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojo/example/promote-admin", json={"user_id": random_user_id})
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/example/admins/promote", json={"user_id": random_user_id})
     assert response.status_code == 200
     response = admin_session.get(f"{DOJO_URL}/dojo/example/admin/")
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
@@ -217,7 +217,7 @@ def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user)
     #assert us["solves"] == 4
     #assert len(us["badges"]) == 1
 
-    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojo/{simple_award_dojo}/prune-awards", json={})
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{simple_award_dojo}/awards/prune", json={})
     assert response.status_code == 200
 
     scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()

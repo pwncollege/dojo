@@ -30,7 +30,7 @@ class DojoList(Resource):
         return {"success": True, "dojos": dojos}
 
 
-@dojos_namespace.route("/<dojo>/prune-awards")
+@dojos_namespace.route("/<dojo>/awards/prune")
 class PruneAwards(Resource):
     @authed_only
     @dojo_route
@@ -45,7 +45,7 @@ class PruneAwards(Resource):
         db.session.commit()
         return {"success": True, "pruned_awards": num_pruned}
 
-@dojos_namespace.route("/<dojo>/promote-dojo")
+@dojos_namespace.route("/<dojo>/promote")
 class PromoteDojo(Resource):
     @admins_only
     @dojo_route
@@ -54,7 +54,7 @@ class PromoteDojo(Resource):
         db.session.commit()
         return {"success": True}
 
-@dojos_namespace.route("/<dojo>/promote-admin")
+@dojos_namespace.route("/<dojo>/admins/promote")
 class PromoteAdmin(Resource):
     @authed_only
     @dojo_route
