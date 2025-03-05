@@ -426,7 +426,6 @@ class DojoModules(db.Model):
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
 
-
     @hybrid_method
     def visible(self, when=None):
         when = when or datetime.datetime.utcnow()
@@ -537,6 +536,9 @@ class DojoChallenges(db.Model):
             .join(DojoChallenges, and_(
                 DojoChallenges.challenge_id==Solves.challenge_id,
                 ))
+            .join(DojoModules, and_(
+                DojoModules.dojo_id == DojoChallenges.dojo_id,
+                DojoModules.module_index == DojoChallenges.module_index))
             .outerjoin(DojoUsers, and_(
                 DojoUsers.user_id == Solves.user_id,
                 DojoUsers.dojo_id == DojoChallenges.dojo_id,

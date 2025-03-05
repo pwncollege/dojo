@@ -1,10 +1,10 @@
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import datetime
 import functools
-import contextlib
 import inspect
 import pathlib
 import urllib.request
@@ -13,13 +13,15 @@ import yaml
 import requests
 from schema import Schema, Optional, Regex, Or, Use, SchemaError
 from flask import abort, g
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
-from CTFd.models import db, Users, Challenges, Flags, Solves
+from CTFd.models import db, Challenges, Flags
 from CTFd.utils.user import get_current_user, is_admin
 
-from ..models import Dojos, DojoUsers, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
+from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
 from ..config import DOJOS_DIR
 from ..utils import get_current_container
+
 
 DOJOS_TMP_DIR = DOJOS_DIR/"tmp"
 DOJOS_TMP_DIR.mkdir(exist_ok=True)
@@ -137,6 +139,7 @@ DOJO_SPEC = Schema({
     )],
 })
 
+
 def setdefault_name(entry):
     if "import" in entry:
         return
@@ -146,9 +149,11 @@ def setdefault_name(entry):
         return
     entry["name"] = entry["id"].replace("-", " ").title()
 
+
 def setdefault_file(data, key, file_path):
     if file_path.exists():
         data.setdefault("description", file_path.read_text())
+
 
 def setdefault_subyaml(data, subyaml_path):
     if not subyaml_path.exists():
@@ -159,6 +164,7 @@ def setdefault_subyaml(data, subyaml_path):
     data.clear()
     data.update(subyaml_data)
     data.update(topyaml_data)
+
 
 def load_dojo_subyamls(data, dojo_dir):
     """
@@ -198,6 +204,7 @@ def load_dojo_subyamls(data, dojo_dir):
 
     return data
 
+
 def dojo_initialize_files(data, dojo_dir):
     for dojo_file in data.get("files", []):
         assert is_admin(), "yml-specified files support requires admin privileges"
@@ -216,6 +223,7 @@ def dojo_initialize_files(data, dojo_dir):
             with open(abs_path, "w") as o:
                 o.write(dojo_file["content"])
 
+
 def dojo_from_dir(dojo_dir, *, dojo=None):
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
@@ -227,6 +235,7 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
     data = load_dojo_subyamls(data_raw, dojo_dir)
     dojo_initialize_files(data, dojo_dir)
     return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
+
 
 def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     try:
@@ -405,6 +414,7 @@ def generate_ssh_keypair():
 
     return (public_key.read_text().strip(), private_key.read_text())
 
+
 def dojo_yml_dir(spec):
     yml_dir = tempfile.TemporaryDirectory(dir=DOJOS_TMP_DIR)    # TODO: ignore_cleanup_errors=True
     yml_dir_path = pathlib.Path(yml_dir.name)
@@ -412,11 +422,13 @@ def dojo_yml_dir(spec):
         do.write(spec)
     return yml_dir
 
+
 def _assert_no_symlinks(dojo_dir):
     if not isinstance(dojo_dir, pathlib.Path):
         dojo_dir = pathlib.Path(dojo_dir)
     for path in dojo_dir.rglob("*"):
         assert dojo_dir == path or dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
+
 
 def dojo_clone(repository, private_key):
     tmp_dojos_dir = DOJOS_TMP_DIR
@@ -460,6 +472,58 @@ def dojo_git_command(dojo, *args, repo_path=None):
                           capture_output=True)
 
 
+def dojo_create(user, repository, public_key, private_key, spec):
+    try:
+        if repository:
+            repository_re = r"[\w\-]+/[\w\-]+"
+            repository = repository.replace("https://github.com/", "")
+            assert re.match(repository_re, repository), f"Invalid repository, expected format: <code>{repository_re}</code>"
+
+            if Dojos.query.filter_by(repository=repository).first():
+                raise IntegrityError()
+
+            dojo_dir = dojo_clone(repository, private_key)
+
+        elif spec:
+            assert is_admin(), "Must be an admin user to create dojos from spec rather than repositories"
+            dojo_dir = dojo_yml_dir(spec)
+            repository, public_key, private_key = None, None, None
+
+        else:
+            raise AssertionError("Repository is required")
+
+        dojo_path = pathlib.Path(dojo_dir.name)
+
+        dojo = dojo_from_dir(dojo_path)
+        dojo.repository = repository
+        dojo.public_key = public_key
+        dojo.private_key = private_key
+        dojo.admins = [DojoAdmins(user=user)]
+
+        db.session.add(dojo)
+        db.session.commit()
+
+        dojo.path.parent.mkdir(exist_ok=True)
+        dojo_path.rename(dojo.path)
+        dojo_path.mkdir()  # TODO: ignore_cleanup_errors=True
+
+    except subprocess.CalledProcessError as e:
+        deploy_url = f"https://github.com/{repository}/settings/keys"
+        raise RuntimeError(f"Failed to clone: <a href='{deploy_url}' target='_blank'>add deploy key</a>")
+
+    except IntegrityError:
+        raise RuntimeError("This repository already exists as a dojo")
+
+    except AssertionError as e:
+        raise RuntimeError(str(e))
+
+    except Exception as e:
+        print(f"Encountered error: {e}", file=sys.stderr, flush=True)
+        raise RuntimeError("An error occurred while creating the dojo")
+
+    return dojo
+
+
 def dojo_update(dojo):
     if dojo.path.exists():
         old_commit = dojo_git_command(dojo, "rev-parse", "HEAD").stdout.decode().strip()
@@ -491,6 +555,7 @@ def dojo_accessible(id):
         return Dojos.from_id(id).first()
     return Dojos.viewable(id=id, user=get_current_user()).first()
 
+
 def dojo_admins_only(func):
     signature = inspect.signature(func)
     @functools.wraps(func)
@@ -503,6 +568,7 @@ def dojo_admins_only(func):
             abort(403)
         return func(*bound_args.args, **bound_args.kwargs)
     return wrapper
+
 
 def dojo_route(func):
     signature = inspect.signature(func)

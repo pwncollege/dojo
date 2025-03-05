@@ -5,7 +5,6 @@ from .v1.belts import belts_namespace
 from .v1.bootstrap import bootstrap_namespace
 from .v1.discord import discord_namespace
 from .v1.docker import docker_namespace
-from .v1.dojo import dojo_namespace
 from .v1.dojos import dojos_namespace
 from .v1.score import score_namespace
 from .v1.scoreboard import scoreboard_namespace
@@ -21,7 +20,6 @@ api_v1.add_namespace(belts_namespace, "/belts")
 api_v1.add_namespace(bootstrap_namespace, "/bootstrap")
 api_v1.add_namespace(discord_namespace, "/discord")
 api_v1.add_namespace(docker_namespace, "/docker")
-api_v1.add_namespace(dojo_namespace, "/dojo")
 api_v1.add_namespace(dojos_namespace, "/dojos")
 api_v1.add_namespace(score_namespace, "/score")
 api_v1.add_namespace(scoreboard_namespace, "/scoreboard")
