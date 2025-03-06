@@ -123,7 +123,7 @@ class DojoSolveList(Resource):
     @dojo_route
     def get(self, dojo):
         user = get_current_user()
-        solves_query = dojo.solves(user=user)
+        solves_query = dojo.solves(user=user, ignore_visibility=True, ignore_admins=False)
 
         if after := request.args.get("after"):
             try:
