@@ -134,10 +134,10 @@ class DojoSolveList(Resource):
 
         solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoModules.id, DojoChallenges.id)
         solves = [
-            dict(date=date.isoformat(),
+            dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),
                  module_id=module_id,
                  challenge_id=challenge_id)
-            for date, module_id, challenge_id in solves_query.all()
+            for timestamp, module_id, challenge_id in solves_query.all()
         ]
         return {"success": True, "solves": solves}
 
