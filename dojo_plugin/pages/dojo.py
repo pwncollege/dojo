@@ -222,10 +222,6 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
     solves_query = (
         dojo
         .solves(ignore_visibility=True)
-        .join(DojoModules, and_(
-            DojoModules.dojo_id == DojoChallenges.dojo_id,
-            DojoModules.module_index == DojoChallenges.module_index
-        ))
         .filter(or_(DojoUsers.user_id != None, ~Users.hidden))
         .order_by(DojoChallenges.module_index, DojoChallenges.challenge_index, Solves.date)
         .with_entities(Solves.user_id, Users.name, DojoModules.id, DojoChallenges.id, Solves.date)
