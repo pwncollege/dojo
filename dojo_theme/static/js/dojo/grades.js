@@ -24,37 +24,46 @@ function renderGrades(gradesData) {
     const grades = document.getElementById("grades");
     grades.innerHTML = "";
 
-    const h1 = document.createElement("h1");
-    h1.textContent = `Your current grade in the class: ${gradesData.overall.letter} (${(gradesData.overall.credit * 100).toFixed(2)}%)`;
-    grades.appendChild(h1);
+    const h3 = document.createElement("h3");
+    const gradeCode = document.createElement("code");
+    gradeCode.textContent = gradesData.overall.letter;
+    gradeCode.style.fontSize = "2em";
+    h3.append(
+        document.createTextNode("Your current grade in the class: "),
+        gradeCode,
+        document.createTextNode(` (${(gradesData.overall.credit * 100).toFixed(2)}%)`)
+    );
+    grades.appendChild(h3);
 
     const table = document.createElement("table");
     table.classList.add("table", "table-striped");
     grades.appendChild(table);
 
+    const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
     Object.keys(gradesData.assignments[0]).forEach(headerText => {
-        const th = document.createElement("th");
-        th.textContent = headerText.replace(/\b\w/g, char => char.toUpperCase());
-        headerRow.appendChild(th);
+        const cell = document.createElement("td");
+        cell.textContent = headerText.replace(/\b\w/g, char => char.toUpperCase());
+        headerRow.appendChild(cell);
     });
-    table.appendChild(headerRow);
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
 
+    const tbody = document.createElement("tbody");
     gradesData.assignments.forEach(item => {
         const row = document.createElement("tr");
         Object.keys(item).forEach(key => {
             const cell = document.createElement("td");
             let value = item[key];
-            if (key == "credit")
+            if (key === "credit")
                 value = (value * 100).toFixed(2) + "%";
             cell.textContent = value;
             row.appendChild(cell);
         });
-        table.appendChild(row);
+        tbody.appendChild(row);
     });
-
+    table.appendChild(tbody);
 }
-
 
 document.addEventListener("DOMContentLoaded", () => {
     // TODO: Remove feature flag when this feature is ready
