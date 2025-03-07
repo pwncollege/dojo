@@ -387,7 +387,10 @@ def view_course(dojo, resource=None):
 
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
 
-    grades = next(grade(dojo, user, ignore_pending=ignore_pending)) if user else {}
+    if "local" not in request.args:
+        grades = next(grade(dojo, user, ignore_pending=ignore_pending)) if user else {}
+    else:
+        grades = {}
 
     identity = dict(identity_name=dojo.course.get("student_id", "Identity"),
                     identity_value=student.token if student else None)
