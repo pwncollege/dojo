@@ -167,30 +167,31 @@ class DojoChallengeSolve(Resource):
             return {"success": False, "status": "incorrect"}, 400
 
 
-@dojos_namespace.route("/<dojo>/course/students")
-class DojoCourseStudentList(Resource):
-    @authed_only
+@dojos_namespace.route("/<dojo>/course")
+class DojoCourse(Resource):
     @dojo_route
     def get(self, dojo):
-        user = get_current_user()
+        result = dict(syllabus=dojo.course.get("syllabus", ""))
+        student = DojoStudents.query.filter_by(dojo=dojo, user=get_current_user()).first()
+        if student:
+            result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token)
+        return {"success": True, "course": result}
+
+
+@dojos_namespace.route("/<dojo>/course/students")
+class DojoCourseStudentList(Resource):
+    @dojo_route
+    @dojo_admins_only
+    def get(self, dojo):
         students = dojo.course.get("students", {})
-
-        if not dojo.is_admin():
-            student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
-            if not student:
-                return {"success": False, "error": "You are not a student in this dojo"}, 403
-            return {"success": True, "students": {student.token: students.get(student.token, {})}}
-
-        else:
-            return {"success": True, "students": students}
+        return {"success": True, "students": students}
 
 
 @dojos_namespace.route("/<dojo>/course/solves")
 class DojoCourseSolveList(Resource):
-    @authed_only
     @dojo_route
+    @dojo_admins_only
     def get(self, dojo):
-        user = get_current_user()
         students = dojo.course.get("students", {})
 
         solves_query = dojo.solves(ignore_visibility=True, ignore_admins=False)
@@ -202,13 +203,7 @@ class DojoCourseSolveList(Resource):
                 return {"success": False, "error": "Invalid after date format"}, 400
             solves_query = solves_query.filter(Solves.date > after_date)
 
-        if not dojo.is_admin():
-            student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
-            if not student:
-                return {"success": False, "error": "You are not a student in this dojo"}, 403
-            solves_query = solves_query.filter(DojoStudents.token == student.token)
-
-        elif students:
+        if students:
             solves_query = solves_query.filter(DojoStudents.token.in_(students))
 
         solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoModules.id, DojoChallenges.id)
