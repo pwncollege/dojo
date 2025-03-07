@@ -248,7 +248,7 @@ p[data-hide="true"] {
 }
 
 .card-body .progress-bar .progress-bar-text {
-  opacity: 0%;
+  opacity: 100%;
   font-size: 0.75em;
   transition: all 0.2s ease;
 }
