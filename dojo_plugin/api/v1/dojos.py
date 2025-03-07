@@ -126,7 +126,7 @@ class DojoSolveList(Resource):
 
         if after := request.args.get("after"):
             try:
-                after_date = datetime.datetime.fromisoformat(after)
+                after_date = datetime.datetime.fromisoformat(after).astimezone(datetime.timezone.utc)
             except ValueError:
                 return {"success": False, "error": "Invalid after date format"}, 400
             solves_query = solves_query.filter(Solves.date > after_date)
@@ -197,7 +197,7 @@ class DojoCourseSolveList(Resource):
 
         if after := request.args.get("after"):
             try:
-                after_date = datetime.datetime.fromisoformat(after)
+                after_date = datetime.datetime.fromisoformat(after).astimezone(datetime.timezone.utc)
             except ValueError:
                 return {"success": False, "error": "Invalid after date format"}, 400
             solves_query = solves_query.filter(Solves.date > after_date)
