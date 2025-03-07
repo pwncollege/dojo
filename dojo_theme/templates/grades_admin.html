@@ -123,4 +123,14 @@
 {% endblock %}
 
 {% block scripts %}
+<script defer src="{{ url_for('views.themes', path='js/dojo/grades.js') }}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", async () => {
+    // TODO: Remove feature flag when this feature is ready
+    if (!window.location.search.includes("local"))
+      return;
+
+    await loadAllGrades("#grades");
+  });
+</script>
 {% endblock %}
