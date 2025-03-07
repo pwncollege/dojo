@@ -8,7 +8,7 @@ from CTFd.plugins.challenges import get_chal_class
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.utils.user import get_current_user, is_admin, get_ip
 
-from ...models import Dojos, DojoModules, DojoChallenges, DojoUsers, Emojis
+from ...models import DojoStudents, Dojos, DojoModules, DojoChallenges, DojoUsers, Emojis
 from ...utils.dojo import dojo_route, dojo_admins_only, dojo_create
 
 
@@ -32,7 +32,6 @@ class DojoList(Resource):
 
 @dojos_namespace.route("/<dojo>/awards/prune")
 class PruneAwards(Resource):
-    @authed_only
     @dojo_route
     @dojo_admins_only
     def post(self, dojo):
@@ -56,7 +55,6 @@ class PromoteDojo(Resource):
 
 @dojos_namespace.route("/<dojo>/admins/promote")
 class PromoteAdmin(Resource):
-    @authed_only
     @dojo_route
     @dojo_admins_only
     def post(self, dojo):
@@ -166,3 +164,21 @@ class DojoChallengeSolve(Resource):
         else:
             chal_class.fail(user, None, dojo_challenge.challenge, request)
             return {"success": False, "status": "incorrect"}, 400
+
+
+@dojos_namespace.route("/<dojo>/course/students")
+class DojoCourseStudentList(Resource):
+    @authed_only
+    @dojo_route
+    def get(self, dojo):
+        user = get_current_user()
+        students = dojo.course.get("students", {})
+
+        if not dojo.is_admin():
+            student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
+            if not student:
+                return {"success": False, "error": "You are not a student in this dojo"}, 403
+            return {"success": True, "students": {student.token: students.get(student.token, {})}}
+
+        else:
+            return {"success": True, "students": students}
