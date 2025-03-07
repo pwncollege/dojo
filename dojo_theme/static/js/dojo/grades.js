@@ -147,12 +147,13 @@ async function loadAllGrades(selector) {
     const [courseData, modulesData, solvesData, studentsData] = await Promise.all([coursePromise, modulesPromise, solvesPromise, studentsPromise])
 
     const grades = {};
-    Object.entries(studentsData.students).forEach(async ([studentToken, student]) => {
-        const course = { ...courseData.course, student: {...student, token: studentToken} };
-        const solves = solvesData.solves.filter(solve => solve.student_token === studentToken);
-        gradeWorker.postMessage({ type: "grade", data: { course, modules: modulesData.modules, solves } });
-        grades[studentToken] = (await gradeWorker.waitForMessage("graded")).grades;
-    });
+    for (const [studentToken, student] of Object.entries(studentsData.students)) {
+      const course = { ...courseData.course, student: { ...student, token: studentToken } };
+      const solves = solvesData.solves.filter(solve => solve.student_token === studentToken);
+      gradeWorker.postMessage({ type: "grade", data: { course, modules: modulesData.modules, solves } });
+      const gradedMessage = await gradeWorker.waitForMessage("graded");
+      grades[studentToken] = gradedMessage.grades;
+    }
 
     const sortedGrades = Object.entries(grades).sort(([_, a], [__, b]) => b.overall.credit - a.overall.credit);
 
