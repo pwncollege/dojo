@@ -472,6 +472,9 @@ def view_all_grades(dojo):
     if not dojo.is_admin():
         abort(403)
 
+    if "local" in request.args:
+        return render_template("grades_admin.html", dojo=dojo)
+
     ignore_pending = request.args.get("ignore_pending") is not None
 
     students = {student.user_id: student.token for student in dojo.students}

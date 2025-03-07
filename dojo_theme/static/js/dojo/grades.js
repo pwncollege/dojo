@@ -58,6 +58,39 @@ function createWorker(workerModule) {
 }
 
 
+function createAssignmentGradesTable(gradesData) {
+    const table = document.createElement("table");
+    table.classList.add("table", "table-striped");
+
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    Object.keys(gradesData.assignments[0]).forEach(headerText => {
+        const cell = document.createElement("td");
+        cell.textContent = headerText.replace(/\b\w/g, char => char.toUpperCase());
+        headerRow.appendChild(cell);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    gradesData.assignments.forEach(item => {
+        const row = document.createElement("tr");
+        Object.keys(item).forEach(key => {
+            const cell = document.createElement("td");
+            let value = item[key];
+            if (key === "credit")
+                value = (value * 100).toFixed(2) + "%";
+            cell.textContent = value;
+            row.appendChild(cell);
+        });
+        tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+
+    return table;
+}
+
+
 async function loadGrades(selector) {
     const gradeWorker = createWorker(gradeWorkerModule);
 
@@ -91,34 +124,8 @@ async function loadGrades(selector) {
     );
     gradesElement.appendChild(h3);
 
-    const table = document.createElement("table");
-    table.classList.add("table", "table-striped");
-    gradesElement.appendChild(table);
-
-    const thead = document.createElement("thead");
-    const headerRow = document.createElement("tr");
-    Object.keys(gradesData.assignments[0]).forEach(headerText => {
-        const cell = document.createElement("td");
-        cell.textContent = headerText.replace(/\b\w/g, char => char.toUpperCase());
-        headerRow.appendChild(cell);
-    });
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-
-    const tbody = document.createElement("tbody");
-    gradesData.assignments.forEach(item => {
-        const row = document.createElement("tr");
-        Object.keys(item).forEach(key => {
-            const cell = document.createElement("td");
-            let value = item[key];
-            if (key === "credit")
-                value = (value * 100).toFixed(2) + "%";
-            cell.textContent = value;
-            row.appendChild(cell);
-        });
-        tbody.appendChild(row);
-    });
-    table.appendChild(tbody);
+    const gradesTable = createAssignmentGradesTable(gradesData);
+    gradesElement.appendChild(gradesTable);
 }
 
 
@@ -141,9 +148,53 @@ async function loadAllGrades(selector) {
 
     const grades = {};
     Object.entries(studentsData.students).forEach(async ([studentToken, student]) => {
-        const course = { ...courseData.course, student: {token: studentToken, ...student} };
+        const course = { ...courseData.course, student: {...student, token: studentToken} };
         const solves = solvesData.solves.filter(solve => solve.student_token === studentToken);
         gradeWorker.postMessage({ type: "grade", data: { course, modules: modulesData.modules, solves } });
         grades[studentToken] = (await gradeWorker.waitForMessage("graded")).grades;
     });
+
+    const sortedGrades = Object.entries(grades).sort(([_, a], [__, b]) => b.overall.credit - a.overall.credit);
+
+    const gradesElement = document.querySelector(selector)
+    gradesElement.innerHTML = "";
+
+    const table = document.createElement("table");
+    table.classList.add("table", "table-striped");
+    gradesElement.appendChild(table);
+
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    const studentHeaderCell = document.createElement("td");
+    studentHeaderCell.textContent = "Student";
+    headerRow.appendChild(studentHeaderCell);
+    const gradeHeaderCell = document.createElement("td");
+    gradeHeaderCell.textContent = "Grade";
+    gradeHeaderCell.style.width = "80%";
+    headerRow.appendChild(gradeHeaderCell);
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    sortedGrades.forEach(([studentToken, studentGrades]) => {
+        const row = document.createElement("tr");
+        const studentCell = document.createElement("td");
+        studentCell.textContent = studentsData.students[studentToken].name;
+        row.appendChild(studentCell);
+
+        const gradeCell = document.createElement("td");
+        const details = document.createElement("details");
+
+        const summary = document.createElement("summary");
+        summary.textContent = `${studentGrades.overall.letter} (${(studentGrades.overall.credit * 100).toFixed(2)}%)`;
+        details.appendChild(summary);
+
+        const gradesTable = createAssignmentGradesTable(studentGrades);
+        details.appendChild(gradesTable);
+
+        gradeCell.appendChild(details);
+        row.appendChild(gradeCell);
+        tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
 }
