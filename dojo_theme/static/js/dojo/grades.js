@@ -61,9 +61,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!window.location.search.includes("local"))
         return;
 
-    const workerBlob = new Blob(["(" + workerModule.toString() + ")()"], { type: "application/javascript" });
-    const workerURL = URL.createObjectURL(workerBlob);
-    const worker = new Worker(workerURL);
+    const sandboxedWorkerURL = `data:application/javascript;base64,${btoa("(" + workerModule.toString() + ")()")}`;
+    const worker = new Worker(sandboxedWorkerURL);
 
     worker.onmessage = (event) => {
         if (event.data.type === "error") {
