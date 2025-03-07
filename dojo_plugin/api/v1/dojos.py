@@ -194,8 +194,8 @@ class DojoCourseSolveList(Resource):
         students = dojo.course.get("students", {})
 
         solves_query = (dojo.solves(ignore_visibility=True, ignore_admins=False)
-                        .join(DojoStudents, and_(DojoStudents.dojo == dojo,
-                                                 DojoStudents.user == Solves.user)))
+                        .join(DojoStudents, and_(DojoStudents.dojo_id == dojo.dojo_id,
+                                                 DojoStudents.user_id == Solves.user_id)))
 
         if after := request.args.get("after"):
             try:
