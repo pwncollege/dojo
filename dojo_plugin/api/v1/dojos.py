@@ -2,6 +2,7 @@ import datetime
 
 from flask import request
 from flask_restx import Namespace, Resource
+from sqlalchemy.sql import and_
 from CTFd.models import db, Solves
 from CTFd.cache import cache
 from CTFd.plugins.challenges import get_chal_class
@@ -98,7 +99,7 @@ class CreateDojo(Resource):
 
 
 @dojos_namespace.route("/<dojo>/modules")
-class DojoModulesResource(Resource):
+class DojoModuleList(Resource):
     @dojo_route
     def get(self, dojo):
         modules = [
@@ -182,3 +183,43 @@ class DojoCourseStudentList(Resource):
 
         else:
             return {"success": True, "students": students}
+
+
+@dojos_namespace.route("/<dojo>/course/solves")
+class DojoCourseSolveList(Resource):
+    @authed_only
+    @dojo_route
+    def get(self, dojo):
+        user = get_current_user()
+        students = dojo.course.get("students", {})
+
+        solves_query = (dojo.solves(ignore_visibility=True, ignore_admins=False)
+                        .join(DojoStudents, and_(DojoStudents.dojo == dojo,
+                                                 DojoStudents.user == Solves.user)))
+
+        if after := request.args.get("after"):
+            try:
+                after_date = datetime.datetime.fromisoformat(after)
+            except ValueError:
+                return {"success": False, "error": "Invalid after date format"}, 400
+            solves_query = solves_query.filter(Solves.date > after_date)
+
+        if not dojo.is_admin():
+            student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
+            if not student:
+                return {"success": False, "error": "You are not a student in this dojo"}, 403
+            solves_query = solves_query.filter(DojoStudents.token == student.token)
+
+        elif students:
+            solves_query = solves_query.filter(DojoStudents.token.in_(students))
+
+        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoModules.id, DojoChallenges.id)
+        solves = [
+            dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),
+                 student_token=student_token,
+                 module_id=module_id,
+                 challenge_id=challenge_id)
+            for timestamp, student_token, module_id, challenge_id in solves_query.all()
+        ]
+
+        return {"success": True, "solves": solves}
