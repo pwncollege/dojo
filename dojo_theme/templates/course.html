@@ -63,10 +63,10 @@
                   <thead>
                     <tr>
                       <td scope="col"><b>Name</b></td>
-                      <td scope="col"><b>Date</b></td>        
+                      <td scope="col"><b>Date</b></td>
                       {% if show_extra_late_date %}
                       <td scope="col"><b>Extra Late Date</b></td>
-                      {% endif %}                                    
+                      {% endif %}
                       <td scope="col"><b>Weight</b></td>
                       <td scope="col"><b>Progress</b></td>
                       <td scope="col"><b>Credit</b></td>
@@ -142,4 +142,5 @@
 
 {% block scripts %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/course.js') }}"></script>
+<script defer src="{{ url_for('views.themes', path='js/dojo/grades.js') }}"></script>
 {% endblock %}
