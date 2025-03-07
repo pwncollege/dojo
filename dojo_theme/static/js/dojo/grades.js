@@ -66,16 +66,16 @@ async function loadGrades(selector) {
     const modulesPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/modules`).then(response => response.json());
     const solvesPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/solves`).then(response => response.json());
 
-    await waitForMessage("ready");
+    await gradeWorker.waitForMessage("ready");
     const gradeCode = await gradeCodePromise;
 
     gradeWorker.postMessage({ type: "load", code: gradeCode });
-    await waitForMessage("loaded");
+    await gradeWorker.waitForMessage("loaded");
 
     const [courseData, modulesData, solvesData] = await Promise.all([coursePromise, modulesPromise, solvesPromise])
     gradeWorker.postMessage({ type: "grade", data: { course: courseData.course, modules: modulesData.modules, solves: solvesData.solves } });
 
-    const gradesData = (await waitForMessage("graded")).grades;
+    const gradesData = (await gradeWorker.waitForMessage("graded")).grades;
 
     const gradesElement = document.querySelector(selector)
     gradesElement.innerHTML = "";
@@ -131,11 +131,11 @@ async function loadAllGrades(selector) {
     const solvesPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/course/solves`).then(response => response.json());
     const studentsPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/course/students`).then(response => response.json());
 
-    await waitForMessage("ready");
+    await gradeWorker.waitForMessage("ready");
     const gradeCode = await gradeCodePromise;
 
     gradeWorker.postMessage({ type: "load", code: gradeCode });
-    await waitForMessage("loaded");
+    await gradeWorker.waitForMessage("loaded");
 
     const [courseData, modulesData, solvesData, studentsData] = await Promise.all([coursePromise, modulesPromise, solvesPromise, studentsPromise])
 
@@ -144,6 +144,6 @@ async function loadAllGrades(selector) {
         const course = { ...courseData.course, student: {token: studentToken, ...student} };
         const solves = solvesData.solves.filter(solve => solve.student_token === studentToken);
         gradeWorker.postMessage({ type: "grade", data: { course, modules: modulesData.modules, solves } });
-        grades[studentToken] = (await waitForMessage("graded")).grades;
+        grades[studentToken] = (await gradeWorker.waitForMessage("graded")).grades;
     });
 }
