@@ -151,8 +151,7 @@ async function loadAllGrades(selector) {
       const course = { ...courseData.course, student: { ...student, token: studentToken } };
       const solves = solvesData.solves.filter(solve => solve.student_token === studentToken);
       gradeWorker.postMessage({ type: "grade", data: { course, modules: modulesData.modules, solves } });
-      const gradedMessage = await gradeWorker.waitForMessage("graded");
-      grades[studentToken] = gradedMessage.grades;
+      grades[studentToken] = (await gradeWorker.waitForMessage("graded")).grades;
     }
 
     const sortedGrades = Object.entries(grades).sort(([_, a], [__, b]) => b.overall.credit - a.overall.credit);
@@ -180,7 +179,7 @@ async function loadAllGrades(selector) {
     sortedGrades.forEach(([studentToken, studentGrades]) => {
         const row = document.createElement("tr");
         const studentCell = document.createElement("td");
-        studentCell.textContent = studentsData.students[studentToken].name;
+        studentCell.textContent = studentToken;
         row.appendChild(studentCell);
 
         const gradeCell = document.createElement("td");
