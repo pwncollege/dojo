@@ -100,8 +100,9 @@ document.addEventListener("DOMContentLoaded", () => {
         fetch(`/${init.dojo}/grade.py`).then(response => response.text()),
         fetch(`/pwncollege_api/v1/dojos/${init.dojo}/modules`).then(response => response.json()),
         fetch(`/pwncollege_api/v1/dojos/${init.dojo}/solves`).then(response => response.json()),
-    ]).then(([_, code, modulesData, solvesData]) => {
-        const data = { modules: modulesData.modules, solves: solvesData.solves, student: {} };
+        fetch(`/pwncollege_api/v1/dojos/${init.dojo}/course`).then(response => response.json())
+    ]).then(([_, code, modulesData, solvesData, courseData]) => {
+        const data = { modules: modulesData.modules, solves: solvesData.solves, course: courseData.course };
         worker.postMessage({ code, data });
     }).catch(error => {
         console.error("Error:", error);
