@@ -29,6 +29,7 @@ function renderGrades(gradesData) {
     grades.appendChild(h1);
 
     const table = document.createElement("table");
+    table.classList.add("table", "table-striped");
     grades.appendChild(table);
 
     const headerRow = document.createElement("tr");
