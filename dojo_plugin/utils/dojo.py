@@ -103,6 +103,25 @@ DOJO_SPEC = Schema({
                 Optional("module"): ID_REGEX,
                 "challenge": ID_REGEX,
             },
+
+            Optional("survey"): Or(
+                {
+                    "type": "multiplechoice",
+                    "prompt": str,
+                    Optional("probability"): float,
+                    "options": [str],
+                },
+                {
+                    "type": "thumb",
+                    "prompt": str,
+                    Optional("probability"): float,
+                },
+                {
+                    "type": "freeform",
+                    "prompt": str,
+                    Optional("probability"): float,
+                },
+            )
         }],
 
         Optional("resources", default=[]): [Or(
