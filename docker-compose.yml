@@ -238,6 +238,8 @@ services:
 
   watchdog:
     container_name: watchdog
+    profiles:
+      - main
     build:
       context: ./watchdog
     volumes:
