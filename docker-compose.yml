@@ -236,6 +236,14 @@ services:
       - acme:/etc/acme.sh
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
+  watchdog:
+    container_name: watchdog
+    build:
+      context: ./watchdog
+    volumes:
+      - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
   create-workspace-net:
     image: busybox:uclibc
     command: /bin/true
