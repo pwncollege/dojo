@@ -14,8 +14,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logging.info("Starting docker cleanup")
 
 workspace_nodes = json.load(open("/var/workspace_nodes.json"))
-node_ips = [f"192.168.42.{node_id + 1}" for node_id in workspace_nodes]
-docker_clients = [docker.DockerClient(base_url=f"tcp://{node_ip}:2375") for node_ip in node_ips]
+workspace_node_ips = [f"192.168.42.{int(node_id) + 1}" for node_id in workspace_nodes]
+docker_clients = [docker.DockerClient(base_url=f"tcp://{node_ip}:2375") for node_ip in workspace_node_ips]
 
 now = datetime.now(timezone.utc)
 
@@ -32,13 +32,13 @@ def cleanup(docker_client):
         logging.info(f"Removed docker container {container.id} (user {user_id}) on {docker_client.api.base_url}")
 
     with ThreadPoolExecutor() as executor:
-        _ = list(executor.map(remove_container, old_containers))
+        list(executor.map(remove_container, old_containers))
 
     logging.info(f"Pruning docker images on {docker_client.api.base_url}")
     docker_client.images.prune()
     logging.info(f"Prune docker images complete on {docker_client.api.base_url}")
 
 with ThreadPoolExecutor() as executor:
-    _ = list(executor.map(cleanup, docker_clients))
+    list(executor.map(cleanup, docker_clients))
 
 logging.info("Completed docker cleanup")
