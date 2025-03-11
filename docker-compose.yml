@@ -249,6 +249,44 @@ services:
         - /data/docker/:/var/lib/docker:ro
         - /dev/disk/:/dev/disk:ro
 
+  prometheus:
+    container_name: prometheus
+    profiles:
+      - main
+    image: prom/prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_targets:/etc/prometheus/targets:ro
+    healcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      generate-cadvisor-targets:
+        condition: service_completed_successfully
+
+  prometheus-generate-targets-cadvisor:
+    image: python:3.12-slim
+    profiles:
+      - main
+    command:
+      - /usr/local/bin/python
+      - -c
+      - |
+        import json
+        main_node_ip = "192.168.42.1"
+        workspace_nodes = json.load(open("/var/workspace_nodes.json"))
+        workspace_node_ips = [f"192.168.42.{int(node_id) + 1}" for node_id in workspace_nodes]
+        cadvisor_targets = [{
+            "labels": {"job": "cadvisor"},
+            "targets": [f"{ip}:8080" for ip in [main_node_ip, *workspace_node_ips]]
+        }]
+        json.dump(cadvisor_targets, open("/etc/prometheus/targets/cadvisor.json", "w"), indent=2)
+    volumes:
+      - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
+      - prometheus_targets:/etc/prometheus/targets
+
   watchdog:
     container_name: watchdog
     profiles:
@@ -270,6 +308,7 @@ volumes:
   html:
   certs:
   acme:
+  prometheus_targets:
 
 networks:
   default:
