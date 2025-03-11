@@ -5,4 +5,4 @@ scrape_configs:
     scrape_interval: 5s
     file_sd_configs:
       - files:
-          - /etc/prometheus/targets/cadvisor.json
+        - /etc/prometheus/targets/cadvisor.json
