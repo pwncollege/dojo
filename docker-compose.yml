@@ -236,6 +236,19 @@ services:
       - acme:/etc/acme.sh
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
+  cadvisor:
+      container_name: cadvisor
+      image: gcr.io/cadvisor/cadvisor
+      privileged: true
+      ports:
+        - "8080:8080"
+      volumes:
+        - /:/rootfs:ro
+        - /var/run:/var/run:ro
+        - /sys:/sys:ro
+        - /data/docker/:/var/lib/docker:ro
+        - /dev/disk/:/dev/disk:ro
+
   watchdog:
     container_name: watchdog
     profiles:
