@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "git+file:///opt/nixpkgs-24.11";
+    nixpkgs-unstable.url = "git+file:///opt/nixpkgs-unstable";
     nixpkgs-backports.url = "git+file:///opt/nixpkgs-backports";
   };
 
@@ -20,15 +21,19 @@
             config = {
               allowUnfree = true;
             };
+            pkgs-unstable = import nixpkgs-unstable { inherit system config; };
+            unstable-overlay = self: super: {
+              python3Packages = super.python3Packages // {
+                angr = pkgs-unstable.python3Packages.angr;
+              };
+            };
             pkgs-backports = import nixpkgs-backports { inherit system config; };
-            backports-overlay = (
-              self: super: {
+            backports-overlay = self: super: {
                 inherit (pkgs-backports) angr-management binaryninja-free;
-              }
-            );
+            };
             pkgs = import nixpkgs {
               inherit system config;
-              overlays = [ backports-overlay ];
+              overlays = [ unstable-overlay backports-overlay ];
             };
 
             init = import ./core/init.nix { inherit pkgs; };
