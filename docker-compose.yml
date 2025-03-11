@@ -257,7 +257,7 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_targets:/etc/prometheus/targets:ro
-    healcheck:
+    healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
       interval: 10s
       timeout: 10s
