@@ -237,17 +237,17 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   cadvisor:
-      container_name: cadvisor
-      image: gcr.io/cadvisor/cadvisor
-      privileged: true
-      ports:
-        - "8080:8080"
-      volumes:
-        - /:/rootfs:ro
-        - /var/run:/var/run:ro
-        - /sys:/sys:ro
-        - /data/docker/:/var/lib/docker:ro
-        - /dev/disk/:/dev/disk:ro
+    container_name: cadvisor
+    image: gcr.io/cadvisor/cadvisor
+    privileged: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /data/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
 
   prometheus:
     container_name: prometheus
@@ -263,7 +263,7 @@ services:
       timeout: 10s
       retries: 3
     depends_on:
-      generate-cadvisor-targets:
+      prometheus-generate-targets-cadvisor:
         condition: service_completed_successfully
 
   prometheus-generate-targets-cadvisor:
