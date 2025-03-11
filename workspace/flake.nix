@@ -11,6 +11,7 @@
     {
       self,
       nixpkgs,
+      nixpkgs-unstable,
       nixpkgs-backports,
     }:
     {
@@ -21,16 +22,22 @@
             config = {
               allowUnfree = true;
             };
+
             pkgs-unstable = import nixpkgs-unstable { inherit system config; };
-            unstable-overlay = self: super: {
-              python3Packages = super.python3Packages // {
-                angr = pkgs-unstable.python3Packages.angr;
-              };
-            };
             pkgs-backports = import nixpkgs-backports { inherit system config; };
-            backports-overlay = self: super: {
-                inherit (pkgs-backports) angr-management binaryninja-free;
+
+            unstable-overlay = self: super: {
+              python3 = let
+                packageOverrides = python-self: python-super: {
+                  angr = python-super.toPythonModule(pkgs-unstable.python3Packages.angr);
+              };
+              in super.python3.override { inherit packageOverrides; };
             };
+
+            backports-overlay = self: super: {
+              inherit (pkgs-backports) angr-management binaryninja-free;
+            };
+
             pkgs = import nixpkgs {
               inherit system config;
               overlays = [ unstable-overlay backports-overlay ];
