@@ -47,6 +47,7 @@ in
     ghidra
     ida-free
     radare2
+    cutter
     angr-management
     binaryninja-free
 
