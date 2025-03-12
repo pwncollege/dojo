@@ -55,7 +55,6 @@ services:
     platform: linux/amd64
     user: root
     restart: always
-    privileged: true
     entrypoint: ""
     command:
       - /bin/sh
