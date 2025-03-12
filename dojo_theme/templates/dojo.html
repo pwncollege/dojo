@@ -115,12 +115,15 @@
     {% endfor %}
   </ul>
 
+  {% if dojo.show_scoreboard %}
   <br>
 
   <h2 class="row" id="scoreboard-heading">30-Day Scoreboard:</h2>
   <br>
   {% from "macros/scoreboard.html" import scoreboard %}
   {{ scoreboard() }}
+
+  {% endif %}
 
   {% endif %}
 </div>
