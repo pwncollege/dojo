@@ -3,7 +3,6 @@
 
   inputs = {
     nixpkgs.url = "git+file:///opt/nixpkgs-24.11";
-    nixpkgs-unstable.url = "git+file:///opt/nixpkgs-unstable";
     nixpkgs-backports.url = "git+file:///opt/nixpkgs-backports";
   };
 
@@ -21,26 +20,15 @@
             system = "x86_64-linux";
             config = {
               allowUnfree = true;
+              allowBroken = true;  # angr is currently marked "broken" in nixpkgs, but works fine (without unicorn)
             };
-
-            pkgs-unstable = import nixpkgs-unstable { inherit system config; };
             pkgs-backports = import nixpkgs-backports { inherit system config; };
-
-            unstable-overlay = self: super: {
-              python3 = let
-                packageOverrides = python-self: python-super: {
-                  angr = python-super.toPythonModule(pkgs-unstable.python3Packages.angr);
-              };
-              in super.python3.override { inherit packageOverrides; };
-            };
-
             backports-overlay = self: super: {
               inherit (pkgs-backports) angr-management binaryninja-free;
             };
-
             pkgs = import nixpkgs {
               inherit system config;
-              overlays = [ unstable-overlay backports-overlay ];
+              overlays = [ backports-overlay ];
             };
 
             init = import ./core/init.nix { inherit pkgs; };
