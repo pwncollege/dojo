@@ -9,6 +9,9 @@ services:
       - DOJO_WORKSPACE=${DOJO_WORKSPACE}
     volumes:
       - /data/workspace:/out
+    networks:
+      default:
+      workspace_net:
 
   workspacefs:
     container_name: workspacefs
@@ -216,12 +219,6 @@ services:
       - certs:/etc/nginx/certs:ro
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
       - /var/run/docker.sock:/tmp/docker.sock:ro
-    networks:
-      default:
-      workspace_net:
-        aliases:
-          - nginx
-        ipv4_address: 10.0.0.3
 
   acme-companion:
     container_name: nginx-proxy-acme
