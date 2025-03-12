@@ -10,7 +10,6 @@
     {
       self,
       nixpkgs,
-      nixpkgs-unstable,
       nixpkgs-backports,
     }:
     {
