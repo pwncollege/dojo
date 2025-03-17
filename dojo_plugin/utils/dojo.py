@@ -391,6 +391,10 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             if "syllabus" not in dojo.course and syllabus_path.exists():
                 dojo.course["syllabus"] = syllabus_path.read_text()
 
+            grade_path = dojo_dir / "grade.py"
+            if grade_path.exists():
+                dojo.course["grade_code"] = grade_path.read_text()
+
         if dojo_data.get("pages"):
             dojo.pages = dojo_data["pages"]
 

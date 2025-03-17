@@ -171,7 +171,7 @@ class DojoChallengeSolve(Resource):
 class DojoCourse(Resource):
     @dojo_route
     def get(self, dojo):
-        result = dict(syllabus=dojo.course.get("syllabus", ""))
+        result = dict(syllabus=dojo.course.get("syllabus", ""), grade_code=dojo.course.get("grade_code", ""))
         student = DojoStudents.query.filter_by(dojo=dojo, user=get_current_user()).first()
         if student:
             result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token)

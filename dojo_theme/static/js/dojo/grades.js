@@ -62,11 +62,19 @@ function createAssignmentGradesTable(gradesData) {
     const table = document.createElement("table");
     table.classList.add("table", "table-striped");
 
+    const fields = [];
+    gradesData.assignments.forEach(item => {
+        Object.keys(item).forEach(key => {
+            if (!fields.includes(key))
+                fields.push(key);
+        });
+    });
+
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");
-    Object.keys(gradesData.assignments[0]).forEach(headerText => {
+    fields.forEach(key => {
         const cell = document.createElement("td");
-        cell.textContent = headerText.replace(/\b\w/g, char => char.toUpperCase());
+        cell.textContent = key.replace(/\b\w/g, char => char.toUpperCase());
         headerRow.appendChild(cell);
     });
     thead.appendChild(headerRow);
@@ -75,12 +83,14 @@ function createAssignmentGradesTable(gradesData) {
     const tbody = document.createElement("tbody");
     gradesData.assignments.forEach(item => {
         const row = document.createElement("tr");
-        Object.keys(item).forEach(key => {
+        fields.forEach(key => {
             const cell = document.createElement("td");
             let value = item[key];
-            if (key === "credit")
-                value = (value * 100).toFixed(2) + "%";
-            cell.textContent = value;
+            if (value !== undefined && value !== null) {
+                if (key === "credit")
+                    value = (value * 100).toFixed(2) + "%";
+                cell.textContent = value;
+            }
             row.appendChild(cell);
         });
         tbody.appendChild(row);
@@ -94,18 +104,17 @@ function createAssignmentGradesTable(gradesData) {
 async function loadGrades(selector) {
     const gradeWorker = createWorker(gradeWorkerModule);
 
-    const gradeCodePromise = fetch(`/${init.dojo}/grade.py`).then(response => response.text());
     const coursePromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/course`).then(response => response.json());
     const modulesPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/modules`).then(response => response.json());
     const solvesPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/solves`).then(response => response.json());
 
     await gradeWorker.waitForMessage("ready");
-    const gradeCode = await gradeCodePromise;
+    const courseData = await coursePromise;
 
-    gradeWorker.postMessage({ type: "load", code: gradeCode });
+    gradeWorker.postMessage({ type: "load", code: courseData.course.grade_code });
     await gradeWorker.waitForMessage("loaded");
 
-    const [courseData, modulesData, solvesData] = await Promise.all([coursePromise, modulesPromise, solvesPromise])
+    const [modulesData, solvesData] = await Promise.all([modulesPromise, solvesPromise])
     gradeWorker.postMessage({ type: "grade", data: { course: courseData.course, modules: modulesData.modules, solves: solvesData.solves } });
 
     const gradesData = (await gradeWorker.waitForMessage("graded")).grades;
@@ -132,19 +141,18 @@ async function loadGrades(selector) {
 async function loadAllGrades(selector) {
     const gradeWorker = createWorker(gradeWorkerModule);
 
-    const gradeCodePromise = fetch(`/${init.dojo}/grade.py`).then(response => response.text());
     const coursePromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/course`).then(response => response.json());
     const modulesPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/modules`).then(response => response.json());
     const solvesPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/course/solves`).then(response => response.json());
     const studentsPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/course/students`).then(response => response.json());
 
     await gradeWorker.waitForMessage("ready");
-    const gradeCode = await gradeCodePromise;
+    const courseData = await coursePromise;
 
-    gradeWorker.postMessage({ type: "load", code: gradeCode });
+    gradeWorker.postMessage({ type: "load", code: courseData.course.grade_code });
     await gradeWorker.waitForMessage("loaded");
 
-    const [courseData, modulesData, solvesData, studentsData] = await Promise.all([coursePromise, modulesPromise, solvesPromise, studentsPromise])
+    const [modulesData, solvesData, studentsData] = await Promise.all([modulesPromise, solvesPromise, studentsPromise])
 
     const grades = {};
     for (const [studentToken, student] of Object.entries(studentsData.students)) {
