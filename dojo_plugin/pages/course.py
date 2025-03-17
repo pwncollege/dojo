@@ -387,7 +387,7 @@ def view_course(dojo, resource=None):
 
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
 
-    if "local" not in request.args:
+    if not dojo.course.get("grade_code"):
         grades = next(grade(dojo, user, ignore_pending=ignore_pending)) if user else {}
     else:
         grades = {}
@@ -472,7 +472,7 @@ def view_all_grades(dojo):
     if not dojo.is_admin():
         abort(403)
 
-    if "local" in request.args:
+    if dojo.course.get("grade_code"):
         return render_template("grades_admin.html", dojo=dojo)
 
     ignore_pending = request.args.get("ignore_pending") is not None
