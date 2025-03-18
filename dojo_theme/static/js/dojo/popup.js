@@ -1,5 +1,3 @@
-const BELT_ORDER = ["white", "orange", "yellow", "green", "blue", "black"];
-
 document.addEventListener("DOMContentLoaded", function () {
     if (!init?.userId) return;
 
@@ -20,37 +18,34 @@ function checkUserAwards() {
 function handleAwardPopup(response) {
     if (!response?.success || !response.data?.length) return;
 
-    const awards = response.data.sort((a, b) => new Date(a.date) - new Date(b.date));
-    const lastAwardDate = new Date(awards.pop().date);
+    const award = response.data.sort((a, b) => new Date(a.date) - new Date(b.date)).pop();
 
+    const lastAwardDate = new Date(award.date);
     const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-    if (lastAwardDate <= twoDaysAgo) return;
-
     const lastPopup = new Date(localStorage.getItem("lastPopup"));
-    if (lastAwardDate <= lastPopup) return;
+
+    if (lastAwardDate <= twoDaysAgo || lastAwardDate <= lastPopup) return;
 
     localStorage.setItem("lastPopup", lastAwardDate.toISOString());
-    showAwardPopup(lastAwardDate);
+
+    showAwardPopup(award);
 }
 
 function showAwardPopup(award) {
-    const isBelt = BELT_ORDER.includes(award.name);
+    const isBelt = Array.from(award.name).length > 1;
 
-    const imageContent = isBelt ?
-    `<img src = "/belt/${award.name}.svg"
-        class="belt-image">` :
-    `<div class="emoji-display">${award.name}</div>`;
+    const image = isBelt
+        ? `<img src="/belt/${award.name}.svg" class="belt-image">`
+        : `<div class="emoji-display">${award.name}</div>`;
 
-    const customMessage = isBelt
+    const message = isBelt
         ? `You have officially been awarded your ${award.name} belt!`
-        : award?.description
-            ? `${award.description}`
-            : "You have completed a dojo!";
+        : `You have officially been awarded the ${award.name} badge!`;
 
     const popupContent = {
         header: "Congratulations!",
-        body: customMessage,
-        image: imageContent,
+        body: message,
+        image: image,
         logos: {
             ninja: `${CTFd.config.urlRoot}/themes/dojo_theme/static/img/dojo/ninja.png`,
             linkedin: `${CTFd.config.urlRoot}/themes/dojo_theme/static/img/dojo/linkedin_logo.svg`,

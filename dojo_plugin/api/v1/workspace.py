@@ -24,7 +24,7 @@ class view_desktop(Resource):
         service = request.args.get("service")
 
         if not service:
-            return { "active": False }
+            return {"active": False}
 
         if user_id and not password and not is_admin():
             abort(403)
@@ -32,7 +32,7 @@ class view_desktop(Resource):
         user = get_current_user() if not user_id else Users.query.filter_by(id=int(user_id)).first_or_404()
         container = get_current_container(user)
         if not container:
-            return dict(active=False)
+            return {"active": False}
 
         if service == "desktop":
             interact_password = container_password(container, "desktop", "interact")
@@ -74,9 +74,9 @@ class view_desktop(Resource):
             iframe_src = f"/workspace/{service}/"
 
         if start_on_demand_service(user, service) is False:
-            return dict(active=False)
+            return {"active": False}
 
-        return dict(iframe_src=iframe_src, service=service, active=True)
+        return {"active": True, "iframe_src": iframe_src, "service": service}
 
 
 @workspace_namespace.route("/reset_home")
