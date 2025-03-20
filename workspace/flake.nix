@@ -102,7 +102,7 @@
                         else []
                       ;
                       childEntries = builtins.concatLists (
-                        map collectSuidPaths (filter isDerivation (builtins.attrValues pkg))
+                        map collectSuidPaths (builtins.filter isDerivation (builtins.attrValues pkg))
                       );
                     in selfEntries ++ childEntries
                   else [];
