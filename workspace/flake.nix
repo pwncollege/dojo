@@ -31,7 +31,6 @@
             };
 
             init = import ./core/init.nix { inherit pkgs; };
-            suid-interpreter = import ./core/suid-interpreter.nix { inherit pkgs; };
             sudo = import ./core/sudo.nix { inherit pkgs; };
             ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
             service = import ./services/service.nix { inherit pkgs; };
@@ -87,17 +86,31 @@
               service
               code-service
               desktop-service
-              suid-interpreter
             ];
 
             fullPackages = corePackages ++ additional.packages;
 
-            buildDojoEnv =
-              name: paths:
-              pkgs.buildEnv {
-                name = "dojo-workspace-${name}";
-                inherit paths;
-              };
+            buildDojoEnv = name: paths:
+              let
+                collectSuidPaths = pkg:
+                  if builtins.isAttrs pkg then
+                    let
+                      selfEntries =
+                        if pkg.meta ? suid then
+                          map (rel: "${pkg.out}/${rel}") pkg.meta.suid
+                        else []
+                      ;
+                      childEntries = builtins.concatLists (map collectSuidPaths (builtins.attrValues pkg));
+                    in selfEntries ++ childEntries
+                  else [];
+                suidPaths = builtins.unique (builtins.concatLists (map collectSuidPaths paths));
+                suidFileText = builtins.concatStringsSep "\n" suidPaths;
+                suidFile = pkgs.writeText "suid" suidFileText;
+              in
+                pkgs.buildEnv {
+                  name = "dojo-workspace-${name}";
+                  paths = paths ++ [ suidFile ];
+                };
 
           in
           {

@@ -28,19 +28,22 @@ if [ ! -d /out ]; then
     exit 1
 fi
 
-if [ -e /dev/kvm ]; then
-    chmod 666 /dev/kvm
-fi
-
 nix build --print-build-logs ".#$DOJO_WORKSPACE" --out-link /out/nix/var/nix/profiles/default
 nix copy --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
-for suid_binary in "python-dojo-suid" "python-suid" "bash-suid" "sh-suid" "sudo"; do
-    suid_binary_path=$(realpath "/out/nix/var/nix/profiles/default/bin/${suid_binary}")
-    FILE="/out/${suid_binary_path}"
-    if [ -e $FILE ]; then
-        chmod u+s "$FILE"
-    fi
-done
+
+SUID_FILE="/out/nix/var/nix/profiles/default/suid"
+if [ -e "$SUID_FILE" ]; then
+    while IFS= read -r path; do
+        if [ -e "$path" ]; then
+            echo "Setting SUID bit on $path"
+            chmod u+s "$path"
+        else
+            echo "Warning: file not found: $path" >&2
+        fi
+    done < "$SUID_FILE"
+else
+    echo "Warning: SUID file not found: $SUID_FILE" >&2
+fi
 EOF
 
 RUN chmod +x /docker-entrypoint.sh
