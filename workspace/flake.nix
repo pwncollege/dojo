@@ -103,7 +103,7 @@
                       childEntries = builtins.concatLists (map collectSuidPaths (builtins.attrValues pkg));
                     in selfEntries ++ childEntries
                   else [];
-                suidPaths = builtins.unique (builtins.concatLists (map collectSuidPaths paths));
+                suidPaths = lib.unique (builtins.concatLists (map collectSuidPaths paths));
                 suidFileText = builtins.concatStringsSep "\n" suidPaths;
                 suidFile = pkgs.writeText "suid" suidFileText;
               in
