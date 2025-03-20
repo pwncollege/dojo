@@ -109,15 +109,17 @@ then
     openssl rand 214 > "${BACKUP_AES_KEY_FILE}"
 fi
 
-nft list tables > /dev/null 2>&1  # This will load the nf_tables module, if it's not already loaded and is available
-if [ ! -e /sys/module/nf_tables ]; then
-    echo '[+] Could not load nf_tables module. Switching to legacy iptables.'
+if [ -n "$(cat /proc/net/ip_tables_names)" ]; then
+    echo "[+] Pre-existing iptables-legacy tables detected. Switching to iptables-legacy."
     update-alternatives --set iptables /usr/sbin/iptables-legacy
     update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
-elif hostname | grep -q 'codespaces'; then
-    echo '[+] Running in Codespaces. Switching to legacy iptables.'
-    update-alternatives --set iptables /usr/sbin/iptables-legacy
-    update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+else
+    nft list tables > /dev/null 2>&1  # This will load the nf_tables module, if it's not already loaded and is available
+    if [ ! -e /sys/module/nf_tables ]; then
+        echo '[+] Could not load nf_tables module. Switching to iptables-legacy.'
+        update-alternatives --set iptables /usr/sbin/iptables-legacy
+        update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+    fi
 fi
 
 dojo-node refresh
