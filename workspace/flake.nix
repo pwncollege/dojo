@@ -92,15 +92,18 @@
 
             buildDojoEnv = name: paths:
               let
+                isDerivation = pkg: builtins.isAttrs pkg && pkg ? out;
                 collectSuidPaths = pkg:
-                  if builtins.isAttrs pkg then
+                  if isDerivation pkg then
                     let
                       selfEntries =
                         if pkg.meta ? suid then
                           map (rel: "${pkg.out}/${rel}") pkg.meta.suid
                         else []
                       ;
-                      childEntries = builtins.concatLists (map collectSuidPaths (builtins.attrValues pkg));
+                      childEntries = builtins.concatLists (
+                        map collectSuidPaths (filter isDerivation (builtins.attrValues pkg))
+                      );
                     in selfEntries ++ childEntries
                   else [];
                 suidPaths = pkgs.lib.unique (builtins.concatLists (map collectSuidPaths paths));
