@@ -92,23 +92,15 @@
 
             buildDojoEnv = name: paths:
               let
-                isDerivation = pkg: builtins.isAttrs pkg && pkg ? out;
-                collectSuidPaths = pkg:
-                  if isDerivation pkg then
+                collectSuid = pkg:
+                  if builtins.isAttrs pkg && pkg ? out then
                     let
-                      selfEntries =
-                        if pkg.meta ? suid then
-                          map (rel: "${pkg.out}/${rel}") pkg.meta.suid
-                        else []
-                      ;
-                      childEntries = builtins.concatLists (
-                        map collectSuidPaths (builtins.filter isDerivation (builtins.attrValues pkg))
-                      );
-                    in selfEntries ++ childEntries
+                      selfSuid = if pkg.meta ? suid then map (rel: "${pkg.out}/${rel}") pkg.meta.suid else [];
+                      inputs = if pkg ? buildInputs then pkg.buildInputs else [];
+                    in selfSuid ++ builtins.concatLists (map collectSuid inputs)
                   else [];
-                suidPaths = pkgs.lib.unique (builtins.concatLists (map collectSuidPaths paths));
-                suidFileText = builtins.concatStringsSep "\n" suidPaths;
-                suidFile = pkgs.writeText "suid" suidFileText;
+                suidPaths = pkgs.lib.unique (builtins.concatLists (map collectSuid paths));
+                suidFile = pkgs.writeText "suid" (builtins.concatStringsSep "\n" suidPaths);
               in
                 pkgs.buildEnv {
                   name = "dojo-workspace-${name}";
