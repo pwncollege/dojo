@@ -61,18 +61,18 @@
               coreutils
               curl
               findutils
+              gawk
               glibc
               glibc.static
               glibcLocales
-              gawk
               gnugrep
               gnused
               hostname
               iproute2
               less
               man
-              nettools
               ncurses
+              nettools
               procps
               python3
               util-linux
