@@ -20,8 +20,9 @@ let
 
   pythonEnv = pkgs.python3.withPackages pythonPackages;
 
-  # burpsuite is packaged in a "buildFHSEnv" environment, which will not work in a container due to attempting to mount; it seems to work just fine without the "buildFHSUserEnv" environment
-  # additionally, we avoid burpsuite dumping ~500MB of data into the home directory
+  # burpsuite is packaged in a "buildFHSEnv" environment, which will not work in a container due to attempting to mount
+  # it seems to work just fine without the "buildFHSUserEnv" environment
+  # additionally, avoid burpsuite dumping ~500MB of data into the home directory
   burpsuite = let
     extraFlags = "--disable-auto-update --data-dir=\\\${TMPDIR:-/tmp}/.BurpSuite";
   in pkgs.stdenv.mkDerivation {
