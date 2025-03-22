@@ -20,17 +20,26 @@ let
 
   pythonEnv = pkgs.python3.withPackages pythonPackages;
 
+  # burpsuite is packaged in a "buildFHSEnv" environment, which will not work in a container due to attempting to mount; it seems to work just fine without the "buildFHSUserEnv" environment
+  # additionally, we avoid burpsuite dumping ~500MB of data into the home directory
   burpsuite = let
-    # burpsuite is packaged in a "buildFHSEnv" environment, which will not work in a container due to attempting to mount; it seems to work just fine without the "buildFHSUserEnv" environment
-    # additionally, we avoid burpsuite dumping ~500MB of data into the home directory
-    launcher = builtins.readFile "${pkgs.burpsuite}/bin/burpsuite";
-    initMatch = builtins.match ".*--symlink ([^ ]*) /init.*" launcher;
-    initPath = if initMatch == null
-      then throw "Could not extract init script from burpsuite launcher"
-      else initMatch.[1];
-  in pkgs.writeShellScriptBin "burpsuite" ''
-    exec ${initPath} --disable-auto-update --data-dir=/tmp/.BurpSuite "$@"
-  '';
+    extraFlags = "--disable-auto-update --data-dir=\\\${TMPDIR:-/tmp}/.BurpSuite";
+  in pkgs.stdenv.mkDerivation {
+    inherit (pkgs.burpsuite) pname version description desktopItem meta;
+    src = pkgs.burpsuite;
+    buildInputs = [ pkgs.makeWrapper ];
+    installPhase = ''
+      runHook preInstall
+      initPath="$(sed -nE 's/.*--symlink ([^ ]*) \/init.*/\1/p' "$src/bin/burpsuite")"
+      if [ -z "$initPath" ]; then
+        echo "Error: Could not extract init script from burpsuite launcher" >&2
+        exit 1
+      fi
+      mkdir -p "$out/bin"
+      makeWrapper "$initPath" "$out/bin/burpsuite" --add-flags "${extraFlags}"
+      runHook postInstall
+    '';
+  };
 
   tools = with pkgs; {
     build = [ gcc gnumake cmake qemu ];
