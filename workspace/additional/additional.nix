@@ -20,7 +20,7 @@ let
 
   pythonEnv = pkgs.python3.withPackages pythonPackages;
 
-  burpsuite = import "./burpsuite.nix" { inherit pkgs; };
+  burpsuite = import ./burpsuite.nix { inherit pkgs; };
 
   tools = with pkgs; {
     build = [ gcc gnumake cmake qemu ];
