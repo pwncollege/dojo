@@ -11,11 +11,11 @@
 
 #include <fuse.h>
 
-static int workspace_accessible()
+static int workspace_accessible(const char *path)
 {
     uid_t uid = fuse_get_context()->uid;
     gid_t gid = fuse_get_context()->gid;
-    return uid == 1000 || uid == gid;
+    return uid == 1000 || uid == gid || !strcmp(path, "/sudo");
 }
 
 static int workspace_exists(const char *path, char *real_path)
@@ -34,7 +34,7 @@ static int workspace_getattr(const char *path, struct stat *stbuf)
     }
 
     char real_path[PATH_MAX];
-    if (!workspace_accessible() || !workspace_exists(path, real_path))
+    if (!workspace_accessible(path) || !workspace_exists(path, real_path))
         return -ENOENT;
 
     memset(stbuf, 0, sizeof(struct stat));
@@ -55,7 +55,7 @@ static int workspace_readdir(const char *path, void *buf, fuse_fill_dir_t filler
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
 
-    if (!workspace_accessible())
+    if (!workspace_accessible(path))
         return 0;
 
     DIR *dp = opendir("/run/dojo/bin");
@@ -79,7 +79,7 @@ static int workspace_readdir(const char *path, void *buf, fuse_fill_dir_t filler
 static int workspace_readlink(const char *path, char *buf, size_t size)
 {
     char real_path[PATH_MAX];
-    if (!workspace_accessible() || !workspace_exists(path, real_path))
+    if (!workspace_accessible(path) || !workspace_exists(path, real_path))
         return -ENOENT;
 
     snprintf(buf, size, "%s", real_path);

@@ -34,6 +34,7 @@ nix copy --to /out --no-require-sigs ".#$DOJO_WORKSPACE"
 SUID_FILE="/out/nix/var/nix/profiles/default/suid"
 if [ -e "$SUID_FILE" ]; then
     while IFS= read -r path; do
+        path="/out/$path"
         if [ -e "$path" ]; then
             echo "Setting SUID bit on $path"
             chmod u+s "$path"

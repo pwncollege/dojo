@@ -31,6 +31,7 @@
             };
 
             init = import ./core/init.nix { inherit pkgs; };
+            exec-suid = import ./core/exec-suid.nix { inherit pkgs; };
             sudo = import ./core/sudo.nix { inherit pkgs; };
             ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
             service = import ./services/service.nix { inherit pkgs; };
@@ -81,6 +82,7 @@
               (lib.hiPrio ldd)
 
               init
+              exec-suid
               sudo
               ssh-entrypoint
               service
@@ -92,15 +94,16 @@
 
             buildDojoEnv = name: paths:
               let
-                collectSuid = pkg:
-                  if builtins.isAttrs pkg && pkg ? out then
-                    let
-                      selfSuid = if pkg.meta ? suid then map (rel: "${pkg.out}/${rel}") pkg.meta.suid else [];
-                      inputs = if pkg ? buildInputs then pkg.buildInputs else [];
-                    in selfSuid ++ builtins.concatLists (map collectSuid inputs)
-                  else [];
-                suidPaths = pkgs.lib.unique (builtins.concatLists (map collectSuid paths));
-                suidFile = pkgs.writeText "suid" (builtins.concatStringsSep "\n" suidPaths);
+                suidPaths = pkgs.lib.unique (
+                  builtins.concatLists (
+                    map (pkg:
+                      if builtins.isAttrs pkg && pkg ? out && pkg.meta ? suid
+                      then map (rel: "${pkg.out}/${rel}") pkg.meta.suid
+                      else []
+                    ) paths
+                  )
+                );
+                suidFile = pkgs.writeTextDir "suid" (pkgs.lib.concatMapStrings (s: s + "\n") suidPaths);
               in
                 pkgs.buildEnv {
                   name = "dojo-workspace-${name}";
