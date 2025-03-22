@@ -147,13 +147,9 @@
 {% block scripts %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/course.js') }}"></script>
 <script defer src="{{ url_for('views.themes', path='js/dojo/grades.js') }}"></script>
+{% if not grades %}
 <script>
-  document.addEventListener("DOMContentLoaded", async () => {
-    // TODO: Remove feature flag when this feature is ready
-    if (!window.location.search.includes("local"))
-      return;
-
-    await loadGrades("#grades");
-  });
+  document.addEventListener("DOMContentLoaded", () => loadGrades("#grades"));
 </script>
+{% endif %}
 {% endblock %}
