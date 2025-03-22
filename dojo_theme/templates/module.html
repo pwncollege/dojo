@@ -60,7 +60,7 @@
   <br>
   {% endif %}
 
-  {% if challenges %}
+  {% if challenges and module.show_challenges %}
   <h2>Challenges</h2>
 
   <div class="accordion" id="challenges">
@@ -137,6 +137,9 @@
   </div>
 
   <br>
+  {% endif %}
+
+  {% if challenges and module.show_scoreboard %}
 
   <h2 class="row" id="scoreboard-heading">30-Day Scoreboard:</h2>
   <p>This scoreboard reflects solves for challenges in this module after the module launched in this dojo.</p>
