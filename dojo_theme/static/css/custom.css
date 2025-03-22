@@ -653,7 +653,74 @@ code {
     font-size: 1.5rem;
     color: var(--brand-green);
     cursor: pointer;
-  }
+}
+/* ACTIVITY TRACKER CSS */
+.activity-graph {
+    font-family: 'Space Mono', monospace;
+    padding: 1rem;
+    background: var(--brand-black);
+    border-radius: 8px;
+    margin: 1.25rem 0;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    max-width: 900px;
+}
+
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(52, minmax(8px, 14px));
+    gap: 3px;
+    justify-content: start;
+    padding: 0.75rem 0;
+    max-width: 100%;
+}
+
+.activity-cell {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 3px;
+    background-color: #ebedf0;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.activity-cell.level-1 { background-color: #b3e7f7; }
+.activity-cell.level-2 { background-color: #00a3e0; }
+.activity-cell.level-3 { background-color: #0080b0; }
+.activity-cell.level-4 { background-color: #005a7d; }
+
+.activity-cell:hover {
+    transform: scale(1.15);
+    z-index: 5;
+}
+
+.tooltip {
+    position: absolute;
+    background: #333;
+    color: var(--brand-white);
+    padding: 0.4rem 0.8rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    pointer-events: none;
+    z-index: 1000;
+    white-space: nowrap;
+}
+
+.legend {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--dojo-text-color);
+}
+
+.legend-cells {
+    display: flex;
+    gap: 2px;
+}
+  
 
 @keyframes navbar-slide-out {
     0% {
