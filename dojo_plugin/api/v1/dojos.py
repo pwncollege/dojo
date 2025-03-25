@@ -166,3 +166,24 @@ class DojoChallengeSolve(Resource):
         else:
             chal_class.fail(user, None, dojo_challenge.challenge, request)
             return {"success": False, "status": "incorrect"}, 400
+
+@dojos_namespace.route("/<dojo>/surveys/<module>/<challenge>")
+class DojoSurvey(Resource):
+    @dojo_route
+    def get(self, dojo, module, challenge):
+        dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge)
+                          .filter(DojoChallenges.visible()).first())
+        if not dojo_challenge:
+            return {"success": False, "error": "Challenge not found"}, 404
+        survey = dojo_challenge.survey
+        if not survey:
+            return {"success": True, "type": "none"}
+        response = {"success": True, "type": survey.type, "probability": survey.probability, "prompt": survey.prompt}
+        if survey.options:
+            response["options"] = survey.options.split(",")
+        return response
+    
+    @authed_only
+    @dojo_route
+    def post(self, dojo, module, challenge):
+        return {} # TODO
