@@ -179,6 +179,8 @@ class DojoSurvey(Resource):
         if not survey:
             return {"success": True, "type": "none"}
         response = {"success": True, "type": survey.type, "probability": survey.probability, "prompt": survey.prompt}
+        if not survey.probability:
+            response["probability"] = 1.0
         if survey.options:
             response["options"] = survey.options.split(",")
         return response
