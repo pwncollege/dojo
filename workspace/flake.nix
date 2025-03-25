@@ -31,7 +31,7 @@
             };
 
             init = import ./core/init.nix { inherit pkgs; };
-            suid-interpreter = import ./core/suid-interpreter.nix { inherit pkgs; };
+            exec-suid = import ./core/exec-suid.nix { inherit pkgs; };
             sudo = import ./core/sudo.nix { inherit pkgs; };
             ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
             service = import ./services/service.nix { inherit pkgs; };
@@ -82,22 +82,33 @@
               (lib.hiPrio ldd)
 
               init
+              exec-suid
               sudo
               ssh-entrypoint
               service
               code-service
               desktop-service
-              suid-interpreter
             ];
 
             fullPackages = corePackages ++ additional.packages;
 
-            buildDojoEnv =
-              name: paths:
-              pkgs.buildEnv {
-                name = "dojo-workspace-${name}";
-                inherit paths;
-              };
+            buildDojoEnv = name: paths:
+              let
+                suidPaths = pkgs.lib.unique (
+                  builtins.concatLists (
+                    map (pkg:
+                      if builtins.isAttrs pkg && pkg ? out && pkg.meta ? suid
+                      then map (rel: "${pkg.out}/${rel}") pkg.meta.suid
+                      else []
+                    ) paths
+                  )
+                );
+                suidFile = pkgs.writeTextDir "suid" (pkgs.lib.concatMapStrings (s: s + "\n") suidPaths);
+              in
+                pkgs.buildEnv {
+                  name = "dojo-workspace-${name}";
+                  paths = paths ++ [ suidFile ];
+                };
 
           in
           {
