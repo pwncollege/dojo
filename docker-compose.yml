@@ -4,6 +4,7 @@ services:
     build: ./workspace
     environment:
       - DOJO_WORKSPACE=${DOJO_WORKSPACE}
+      - NIX_GARBAGE_COLLECT=${NIX_GARBAGE_COLLECT:-false}
     volumes:
       - /data/workspace/nix:/nix
 

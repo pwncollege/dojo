@@ -38,12 +38,15 @@ fi
 ln -sfn "$NIX_PROFILE" "${NIX_PROFILES_DIR}/dojo-workspace"
 echo "Updated profile to $NIX_PROFILE"
 
-echo "Removing old profiles:"
+echo "Removing old profiles..."
 find "$NIX_PROFILES_DIR" -maxdepth 1 -name 'dojo-workspace-*' -type l -mmin +600 -print -exec rm -f {} +
 echo "Removed old profiles"
 
-nix-store --gc --print-dead
-nix-collect-garbage -d --dry-run
+if  [ "$NIX_GARBAGE_COLLECT" = "true" ]; then
+    echo "Garbage collecting..."
+    nix-collect-garbage -d
+    echo "Garbage collected"
+fi
 EOF
 
 WORKDIR /workspace
