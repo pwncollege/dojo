@@ -5,7 +5,7 @@ let
     #!${pkgs.bash}/bin/bash
 
     IMAGE_PATH="$(echo $PATH | cut -d: -f3-)"
-    DEFAULT_PROFILE="/nix/var/nix/profiles/default"
+    DEFAULT_PROFILE="/nix/var/nix/profiles/dojo-workspace"
 
     export PATH="$DEFAULT_PROFILE/bin:$PATH"
     export SSL_CERT_FILE="$DEFAULT_PROFILE/etc/ssl/certs/ca-bundle.crt"
