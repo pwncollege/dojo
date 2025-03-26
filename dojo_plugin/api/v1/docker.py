@@ -115,7 +115,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     container = docker_client.containers.create(
         dojo_challenge.image,
         entrypoint=[
-            "/nix/var/nix/profiles/default/bin/dojo-init",
+            "/nix/var/nix/profiles/dojo-workspace/bin/dojo-init",
             f"{dojo_bin_path}/sleep",
             "6h",
         ],
