@@ -63,7 +63,7 @@ def get_available_devices(docker_client):
     key = f"devices-{docker_client.api.base_url}"
     if (cached := cache.get(key)) is not None:
         return cached
-    find_command = ["/bin/find", "/dev", "-maxdepth", "1", "-type", "c"]
+    find_command = ["/bin/find", "/dev", "-type", "c"]
     devices = docker_client.containers.run("busybox:uclibc", find_command, privileged=True, remove=True).decode().splitlines()
     cache.set(key, devices)
     return devices
