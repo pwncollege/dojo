@@ -106,11 +106,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         *user_mounts,
     ]
 
-    devices = []
-    if os.path.exists("/dev/kvm"):
-        devices.append("/dev/kvm:/dev/kvm:rwm")
-    if os.path.exists("/dev/net/tun"):
-        devices.append("/dev/net/tun:/dev/net/tun:rwm")
+    devices = ["/dev/kvm:/dev/kvm:rwm", "/dev/net/tun:/dev/net/tun:rwm"]
 
     container = docker_client.containers.create(
         dojo_challenge.image,
