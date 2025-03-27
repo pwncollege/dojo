@@ -59,6 +59,22 @@ def remove_container(user):
             except (docker.errors.NotFound, docker.errors.APIError):
                 pass
 
+def get_available_devices(docker_client):
+    key = f"devices-{docker_client.api.base_url}"
+    if (cached := cache.get(key)) is not None:
+        return cached
+
+    def is_available(device):
+        try:
+            docker_client.containers.run("busybox:uclibc", "/bin/true", devices=[f"{device}:{device}:rwm"], remove=True)
+            return True
+        except docker.errors.APIError:
+            return False
+
+    available_devices = [device for device in ("/dev/kvm", "/dev/net/tun") if is_available(device)]
+    cache.set(key, available_devices)
+    return available_devices
+
 def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, practice):
     hostname = "~".join(
         (["practice"] if practice else [])
@@ -106,7 +122,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         *user_mounts,
     ]
 
-    devices = ["/dev/kvm:/dev/kvm:rwm", "/dev/net/tun:/dev/net/tun:rwm"]
+    devices = [f"{device}:{device}:rwm" for device in get_available_devices(docker_client)]
 
     container = docker_client.containers.create(
         dojo_challenge.image,
