@@ -4,6 +4,7 @@ import pathlib
 import re
 import logging
 import time
+import datetime
 
 import docker
 import docker.errors
@@ -65,7 +66,8 @@ def get_available_devices(docker_client):
         return cached
     find_command = ["/bin/find", "/dev", "-type", "c"]
     devices = docker_client.containers.run("busybox:uclibc", find_command, privileged=True, remove=True).decode().splitlines()
-    cache.set(key, devices)
+    timeout = int(datetime.timedelta(days=1).total_seconds())
+    cache.set(key, devices, timeout=timeout)
     return devices
 
 def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, practice):
