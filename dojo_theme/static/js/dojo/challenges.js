@@ -30,6 +30,12 @@ function renderSubmissionResponse(response, item) {
     const unsolved_flag = item.find(".challenge-unsolved");
     const total_solves = item.find(".total-solves");
 
+    const header = item.find('[id^="challenges-header-"]'); //Finds the header item
+    const current_challenge_id = parseInt(header.attr('id').match(/(\d+)$/)[1]); //Extracts the number in the header id. E.g 'challenges-header-7' would return 7
+    const next_button_id = `#challenges-header-button-${current_challenge_id + 1}` //Finds the id of the next challenge button
+    const next_challenge_button = $(next_button_id); //Finds the next button html element
+
+
     result_notification.removeClass();
     result_message.text(result.message);
 
@@ -82,6 +88,7 @@ function renderSubmissionResponse(response, item) {
         answer_input.val("");
         answer_input.removeClass("wrong");
         answer_input.addClass("correct");
+        unlockChallenge(next_challenge_button);
         checkUserAwards()
         .then(handleAwardPopup)
         .catch(error => console.error("Award check failed:", error));
@@ -116,6 +123,15 @@ function renderSubmissionResponse(response, item) {
         item.find("#challenge-submit").removeClass("disabled-button");
         item.find("#challenge-submit").prop("disabled", false);
     }, 10000);
+}
+
+function unlockChallenge(challenge_button) {
+    if (challenge_button.length && challenge_button.hasClass('disabled')) {
+        challenge_button.removeClass('disabled');
+        const icon = challenge_button.find('.fa-lock');
+        icon.removeClass('fa-lock')
+        icon.addClass('fa-flag')
+    }
 }
 
 
