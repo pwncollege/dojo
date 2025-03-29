@@ -25,41 +25,19 @@ from ...utils.awards import get_belts, get_viewable_emojis
 SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
 scoreboard_namespace = Namespace("scoreboard")
 
+def get_schools():
+    return ["arizona", "asu", "baylor", "byu", "ucf", "uc", 
+            "colorado", "uh", "iastate", "ku", "ksu", "okstate", "tcu", "ttu", "utah", "wvu"]
+
 def email_symbol_asset(email):
-    if email.endswith("@asu.edu"):
-        group = "fork.png"
-    elif email.endswith("@arizona.edu"):
-        group = "schools/wildcat_a.png"
-    elif email.endswith("@baylor.edu"):
-        group = "schools/bear.png"
-    elif email.endswith("@byu.edu"):
-        group = "schools/cougar_u.png"
-    elif email.endswith("@ucf.edu"):
-        group = "schools/knights.png"
-    elif email.endswith("@uc.edu"):
-        group = "schools/bearcat.png"
-    elif email.endswith("@colorado.edu"):
-        group = "schools/buffalo.png"
-    elif email.endswith("@uh.edu"):
-        group = "schools/uh.svg"
-    elif email.endswith("@iastate.edu"):
-        group = "schools/cyclone.png"
-    elif email.endswith("@ku.edu"):
-        group = "schools/jayhawk.png"
-    elif email.endswith("@ksu.edu"):
-        group = "schools/wildcat_k.png"
-    elif email.endswith("@okstate.edu"):
-        group = "schools/cowboys.png"
-    elif email.endswith("@tcu.edu"):
-        group = "schools/horned_frog.png"
-    elif email.endswith("@ttu.edu"):
-        group = "schools/raiders.svg.webp"
-    elif email.endswith("@utah.edu"):
-        group = "schools/utes.png"
-    elif email.endswith("@wvu.edu"):
-        group = "schools/mountaineer.svg"
-    elif ".edu" in email.split("@")[1]:
-        group = "student.png"
+    domain = email.split("@")[1]
+    if domain.endswith(".edu"):
+        school = domain[:-len(".edu")]
+        schools = get_schools()
+        if school in schools:
+            group = f"schools/{school}.png"
+        else:
+            group = "student.png"
     else:
         group = "hacker.png"
     return url_for("views.themes", path=f"img/dojo/{group}")
