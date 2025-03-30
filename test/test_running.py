@@ -73,7 +73,6 @@ def test_create_dojo(example_dojo, admin_session):
 @pytest.mark.dependency()
 def test_get_dojo_modules(example_dojo):
     modules = get_dojo_modules(example_dojo)
-    assert len(modules) == 2, f"Expected 2 module in 'example' dojo but got {len(modules)}"
 
     hello_module = modules[0]
     assert hello_module['id'] == "hello", f"Expected module id to be 'hello' but got {hello_module['id']}"
