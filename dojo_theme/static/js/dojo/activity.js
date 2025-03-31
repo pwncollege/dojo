@@ -12,14 +12,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             <span>More</span>
         </div>`;
     tracker.appendChild(container);
-    
-    const grid = container.querySelector('.grid-container');
+
+    function getLocalISODate(date) {
+        const tzOffset = date.getTimezoneOffset() * 60000;
+        return new Date(date.getTime() - tzOffset).toISOString().split('T')[0];
+    }
     
     for (let i = 363; i >= 0; i--) {
         const cell = document.createElement('div');
         cell.className = 'activity-cell';
         const cellDate = new Date(Date.now() - i * 86400000);
-        const formattedDate = cellDate.toISOString().split('T')[0];
+        const formattedDate = getLocalISODate(cellDate);
         const displayDate = cellDate.toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
@@ -29,19 +32,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         cell.setAttribute('data-date', formattedDate);
         cell.setAttribute('data-display-date', displayDate);
         cell.setAttribute('title', `${displayDate}: 0 solves`);
-        grid.appendChild(cell);
+        container.querySelector('.grid-container').appendChild(cell);
     }
     
-    const legend = container.querySelector('.legend-cells');
     for (let i = 0; i < 5; i++) {
         const cell = document.createElement('div');
         cell.className = `activity-cell level-${i}`;
-        legend.appendChild(cell);
+        container.querySelector('.legend-cells').appendChild(cell);
     }
     
     function updateGrid(dailyActivityData) {
         for (const date in dailyActivityData) {
-            const cell = grid.querySelector(`[data-date="${date}"]`);
+            const cell = container.querySelector('.grid-container').querySelector(`[data-date="${date}"]`);
             if (cell) {
                 const count = dailyActivityData[date];
                 const displayDate = cell.dataset.displayDate;
@@ -56,7 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function countDailySolves(solves) {
         const counts = {};
         solves.forEach(solve => {
-            const dateStr = new Date(solve.date).toISOString().split('T')[0];
+            const dateStr = getLocalISODate(new Date(solve.date));
             counts[dateStr] = (counts[dateStr] || 0) + 1;
         });
         return counts;
@@ -66,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let streak = 0;
         for (let offset = 0; offset < 364; offset++) {
             const date = new Date(Date.now() - offset * 86400000);
-            const formatted = date.toISOString().split('T')[0];
+            const formatted = getLocalISODate(date);
             if (dailyActivityData[formatted] && dailyActivityData[formatted] > 0) {
                 streak++;
             } else {
@@ -78,21 +80,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     const oneYearAgo = new Date(Date.now() - 364 * 86400000);
     const endpoint = `/api/v1/users/${init.userId}/solves?after=${oneYearAgo.toISOString()}`;
-    try {
-        const response = await CTFd.fetch(endpoint, {
-            method: "GET",
-            credentials: "same-origin",
-            headers: { "Accept": "application/json" }
-        });
-        const result = await response.json();
-        if (result.success) {
+    CTFd.fetch(endpoint, {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" }
+    })
+    .then(response => response.json())
+    .then(result => {
+        if(result.success) {
             const dailySolveCount = countDailySolves(result.data);
             updateGrid(dailySolveCount);
             const streak = getStreak(dailySolveCount);
-            const streakDiv = container.querySelector('.streak');
-            streakDiv.textContent = streak > 0 ? `${streak} day streak` : '';
+            container.querySelector('.streak').textContent = streak > 0 ? `${streak} day streak` : '';
         }
-    } catch (err) {
+    })
+    .catch(err => {
         console.error('Error fetching solves data', err);
-    }
+    });
 });
