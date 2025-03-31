@@ -365,7 +365,10 @@ class RunDocker(Resource):
                 .join(DojoModules.query.filter_by(dojo=dojo, id=module_id).subquery()) # Makes sure we are fetching from the current module in the current dojo
                 .first()
             )
-            if not Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first(): # Check to see if user hasn't solved the previous challenge
+            if (
+                not Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first() # Check to see if user hasn't solved the previous challenge
+                and not Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() # Check to see if user hasn't solved the current challenge
+            ):
                 return {
                     "success": False,
                     "error": "This challenge is locked"
