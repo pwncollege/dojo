@@ -399,6 +399,7 @@ p[data-hide="true"] {
     display: flex;
     align-items: center;
     flex-grow: 1;
+    flex-wrap: wrap;
 }
 
 .challenge-active {
