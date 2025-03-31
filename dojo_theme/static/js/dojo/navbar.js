@@ -249,3 +249,83 @@ $(() => {
     });
     $("#navbarDropdown").click(updateNavbarDropdown);
 });
+
+
+document.addEventListener('DOMContentLoaded', function () {
+    const searchNavItem = document.querySelector('a.nav-link[href="#"] i.fa-search')?.closest('a');
+    if (searchNavItem) {
+      searchNavItem.addEventListener('click', function (e) {
+        e.preventDefault();
+        $('#searchModal').modal('show').on('shown.bs.modal', function () {
+            document.getElementById('searchInput').focus();
+          });
+      });
+    }
+  });
+
+  $('#searchModal').on('hidden.bs.modal', function () {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('searchResults').innerHTML = '';
+  });
+  
+  const input = document.getElementById("searchInput");
+  const resultsEl = document.getElementById("searchResults");
+  
+  input.addEventListener("input", () => {
+    const query = input.value.trim();
+    if (query.length < 2) {
+      resultsEl.innerHTML = "";
+      return;
+    }
+  
+    fetch(`/pwncollege_api/v1/search?q=${encodeURIComponent(query)}`)
+      .then(res => res.json())
+      .then(data => {
+        console.log(data)
+        resultsEl.innerHTML = "";
+        if (!data.success) return;
+
+        const { dojos, modules, challenges } = data.results;
+
+        if (
+            (!dojos || dojos.length === 0) &&
+            (!modules || modules.length === 0) &&
+            (!challenges || challenges.length === 0)
+        ) {
+            const noResult = document.createElement("div");
+            noResult.className = "text-light mt-2";
+            noResult.textContent = "No results found";
+            resultsEl.appendChild(noResult);
+            return;
+        }
+  
+        const renderItem = (text, url) => {
+          const a = document.createElement("a");
+          a.href = url;
+          a.className = "d-block text-light py-1";
+          a.textContent = text;
+          return a;
+        };
+  
+        const renderSection = (label, items) => {
+          const header = document.createElement("div");
+          header.className = "text-secondary mt-3 mb-1 text-uppercase small font-weight-bold";
+          header.textContent = label;
+          resultsEl.appendChild(header);
+          items.forEach(item => resultsEl.appendChild(item));
+        };
+  
+        const dojoItems = data.results.dojos.map(d => renderItem(d.name, d.link));
+        const moduleItems = data.results.modules.map(m =>
+          renderItem(`${m.dojo.name} / ${m.name}`, m.link)
+        );
+        const challengeItems = data.results.challenges.map(c =>
+          renderItem(`${c.dojo.name} / ${c.module.name} / ${c.name}`, c.link)
+        );
+  
+        if (dojoItems.length) renderSection("Dojos", dojoItems);
+        if (moduleItems.length) renderSection("Modules", moduleItems);
+        if (challengeItems.length) renderSection("Challenges", challengeItems);
+      });
+  });
+  
