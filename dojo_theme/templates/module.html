@@ -64,32 +64,41 @@
   <h2>Challenges</h2>
 
   <div class="accordion" id="challenges">
-    {% for i in range(0, challenges|length) %}
-      {% set challenge = challenges[i] %}
+    {% for challenge in challenges %}
 
       {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
       {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
-      {% set previous_challenge = challenges[i - 1] %}
-      {% set locked = challenge.visible() and challenge.data['progression_locked'] and previous_challenge.challenge_id not in user_solves and solved == "challenge-unsolved" %}
-      {% set icon = "fa-lock" if locked else "fa-flag" %}
+      {% set previous_challenge = challenges[loop.index0 - 1] %}
+      {% set progression_locked = challenge.progression_locked and not loop.first %}
+      {% set lock_challenge = progression_locked
+        and previous_challenge.challenge_id not in user_solves
+        and solved == "challenge-unsolved"
+        and not dojo.is_admin() %}
+      {% set hidden = not challenge.visible() %}
+      {% set icon = "fa-lock" if lock_challenge else "fa-flag" %}
 
-      {% call(header) accordion_item("challenges", loop.index, locked) %}
+      {% call(header) accordion_item("challenges", loop.index, lock_challenge) %}
         {% if header %}
           <h4 class="accordion-item-name challenge-name {{ active }}">
               <i class="challenge-icon pr-3 fas {{ icon }} {{ solved }} "></i>
-              {% if locked %}
+              {% if lock_challenge %}
               <div class="challenge-text-wrapper">
                 <span class="challenge-name-text">{{ challenge.name or challenge.id }}</span>
                 <span class="challenge-locked-text">Solve <strong></string><span style="color: white">{{ previous_challenge.name or previous_challenge.id }}</span></strong> to unlock this challenge</span>
                 <!-- Invisible placeholder has the same text as challenge-name-text and is used so that the button is sized to fit the text properly -->
-                <span class="invisible-placeholder">{{ challenge.name or challenge.id }}</span>
+                <span class="invisible-placeholder pr-2">{{ challenge.name or challenge.id }}</span>
               </div>
               {% else %}
               <span class="pr-2">{{ challenge.name or challenge.id }}</span>
               {% endif %}
-              {% if not challenge.visible() %}
+              {% if dojo.is_admin() and (progression_locked or hidden) %}
               <small><small><small>
-                    <i>hidden</i> &mdash; you can see this because you are this dojo's administrator
+                    <i>
+                      {% if progression_locked %}progression locked{% endif %}
+                      {% if progression_locked and hidden %} & {% endif %}
+                      {% if hidden %}hidden{% endif %}
+                    </i>
+                    &mdash; this challenge is accessible because you are this dojo's administrator
               </small></small></small>
               {% endif %}
           </h4>
