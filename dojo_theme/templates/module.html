@@ -131,6 +131,29 @@
 	            </div>
 	          </div>
 	        </div>
+          <div class="row survey-row">
+            <div class="col-md-12">
+              <div id="survey-notification" class="survey alert-dismissable w-100" role="alert" style="display: none;">
+                <span id="survey-prompt"><strong>{{ challenge.survey.prompt }}</strong></span>
+                {% if challenge.survey.type == "thumb" %}
+                <div id="survey-thumb">
+                  <i id="survey-thumbs-up" class="fa fa-thumbs-up"></i>
+                  <i id="survey-thumbs-down" class="fa fa-thumbs-down"></i>
+                </div>
+                {% elif challenge.survey.type == "freeform" %}
+                <div id="survey-freeresponse">
+                  <input type="text" id="survey-freeresponse-input">
+                </div>
+                {% elif challenge.survey.type == "multiplechoice" %}
+                <div id="survey-multiplechoice">
+                  {% for option in challenge.survey.options %}
+                  <button class="survey-radio">{{ option }}</button>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
         {% endif %}
       {% endcall %}
     {% endfor %}

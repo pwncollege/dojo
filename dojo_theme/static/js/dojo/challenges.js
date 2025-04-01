@@ -82,6 +82,31 @@ function renderSubmissionResponse(response, item) {
         answer_input.val("");
         answer_input.removeClass("wrong");
         answer_input.addClass("correct");
+        const challenge_name = item.find('#challenge').val()
+        const module_name = item.find('#module').val()
+        const dojo_name = init.dojo
+
+        const survey_notification = item.find("#survey-notification")
+
+        CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/surveys/${module_name}/${challenge_name}`, {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        }).then(function (response) {
+            if(response.status != 200) return Promise.reject()
+            return response.json()
+        }).then(function (data) {
+            if(data.type === "thumb") {
+                survey_notification.addClass("text-center")
+            }
+            survey_notification.addClass(
+                "alert-warning alert-dismissable text-left"
+            );
+            survey_notification.slideDown();
+        })
         checkUserAwards()
         .then(handleAwardPopup)
         .catch(error => console.error("Award check failed:", error));
@@ -229,6 +254,18 @@ function startChallenge(event) {
     })
 }
 
+function clickThumb(event) {
+    const clicked = $(event.currentTarget)
+    const item = $(event.currentTarget).closest(".accordion-item")
+    const survey_notification = item.find("#survey-notification")
+    if(clicked.hasClass("fa-thumbs-up")) {
+        // todo post response
+    } else {
+
+    }
+    survey_notification.slideUp()
+}
+
 
 $(() => {
     $(".accordion-item").on("show.bs.collapse", function (event) {
@@ -251,4 +288,7 @@ $(() => {
     $(".accordion-item").find("#challenge-submit").click(submitChallenge);
     $(".accordion-item").find("#challenge-start").click(startChallenge);
     $(".accordion-item").find("#challenge-practice").click(startChallenge);
+
+    $(".accordion-item").find("#survey-thumbs-up").click(clickThumb)
+    $(".accordion-item").find("#survey-thumbs-down").click(clickThumb)
 });

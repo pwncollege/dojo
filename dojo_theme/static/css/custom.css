@@ -644,6 +644,38 @@ code {
     border: 1px solid var(--brand-green);
 }
 
+
+#survey-prompt {
+    vertical-align: middle;
+}
+
+#survey-thumb .fa {
+    cursor: pointer;
+    font-size: 36px;
+    vertical-align: middle;
+    padding: 0.5rem 0.6rem;
+}
+
+#survey-thumb .fa:hover {
+    color: var(--brand-gold);
+    transition: all .2s ease-in-out;
+    transform: scale(1.05);
+}
+
+.survey {
+    position:relative;
+    padding:.75rem 1.25rem;
+    margin-bottom:1rem;
+    border:1px solid transparent;
+}
+
+#survey-multiplechoice button {
+    display:block;
+    
+}
+
+
+
 #closePopup {
     position: absolute;
     top: 10px;
