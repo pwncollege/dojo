@@ -359,7 +359,7 @@ class RunDocker(Resource):
         
         # Check to make sure a user doesn't start a locked challenge
         challenge_index = dojo_challenge.challenge_index
-        if dojo_challenge.data["progression_locked"] and challenge_index != 0 and not dojo.is_admin():
+        if dojo_challenge.progression_locked and challenge_index != 0 and not dojo.is_admin():
             previous_dojo_challenge = (
                 DojoChallenges.query.filter_by(challenge_index=challenge_index-1)
                 .join(DojoModules.query.filter_by(dojo=dojo, id=module_id).subquery()) # Makes sure we are fetching from the current module in the current dojo
