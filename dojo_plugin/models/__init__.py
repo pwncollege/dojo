@@ -624,7 +624,20 @@ class DojoChallengeSurveys(db.Model):
     type = db.Column(db.String(32)) 
     probability = db.Column(db.Float)
     prompt = db.Column(db.Text)
-    options = db.Column(db.String(128)) # comma-delimited list of options
+    _options = db.Column(db.String(128)) # comma-delimited list of options
+
+    @property
+    def options(self):
+        return self._options.split(",") if self._options else None
+
+    @options.setter
+    def options(self, value):
+        if isinstance(value, list):
+            self._options = ",".join(value)
+        elif isinstance(value, str):
+            self._options = value
+        elif value is None:
+            self._options = None
 
     challenge = db.relationship("DojoChallenges", back_populates="survey", uselist=False)
 

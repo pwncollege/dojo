@@ -182,7 +182,7 @@ class DojoSurvey(Resource):
         if not survey.probability:
             response["probability"] = 1.0
         if survey.options:
-            response["options"] = survey.options.split(",")
+            response["options"] = survey.options
         return response
     
     @authed_only
