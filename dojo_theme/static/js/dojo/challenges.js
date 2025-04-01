@@ -30,10 +30,9 @@ function renderSubmissionResponse(response, item) {
     const unsolved_flag = item.find(".challenge-unsolved");
     const total_solves = item.find(".total-solves");
 
-    const header = item.find('[id^="challenges-header-"]'); //Finds the header item
-    const current_challenge_id = parseInt(header.attr('id').match(/(\d+)$/)[1]); //Extracts the number in the header id. E.g 'challenges-header-7' would return 7
-    const next_button_id = `#challenges-header-button-${current_challenge_id + 1}` //Finds the id of the next challenge button
-    const next_challenge_button = $(next_button_id); //Finds the next button html element
+    const header = item.find('[id^="challenges-header-"]');
+    const current_challenge_id = parseInt(header.attr('id').match(/(\d+)$/)[1]);
+    const next_challenge_button = $(`#challenges-header-button-${current_challenge_id + 1}`);
 
 
     result_notification.removeClass();

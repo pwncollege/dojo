@@ -469,7 +469,7 @@ class DojoChallenges(db.Model):
     data_defaults = {
         "importable": True,
         "allow_privileged": True,
-        "progression_locked": False
+        "progression_locked": False,
     }
 
     dojo = db.relationship("Dojos",

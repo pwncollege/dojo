@@ -357,18 +357,11 @@ class RunDocker(Resource):
                 "error": "This challenge does not support practice mode.",
             }
         
-        # Check to make sure a user doesn't start a locked challenge
-        challenge_index = dojo_challenge.challenge_index
-        if dojo_challenge.progression_locked and challenge_index != 0 and not dojo.is_admin():
-            previous_dojo_challenge = (
-                DojoChallenges.query.filter_by(challenge_index=challenge_index-1)
-                .join(DojoModules.query.filter_by(dojo=dojo, id=module_id).subquery()) # Makes sure we are fetching from the current module in the current dojo
-                .first()
-            )
-            if (
-                not Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first() # Check to see if user hasn't solved the previous challenge
-                and not Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() # Check to see if user hasn't solved the current challenge
-            ):
+        if all((dojo_challenge.progression_locked, dojo_challenge.challenge_index != 0, not dojo.is_admin())):
+            previous_dojo_challenge = dojo_challenge.module.challenges[dojo_challenge.challenge_index - 1]
+            solved = (Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() or
+                      Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first())
+            if not solved:
                 return {
                     "success": False,
                     "error": "This challenge is locked"
