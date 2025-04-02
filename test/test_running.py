@@ -490,3 +490,24 @@ def test_reset_home_directory(random_user):
         workspace_run("[ ! -f '/home/hacker/testfile' ]", user=user)
     except subprocess.CalledProcessError as e:
         assert False, f"Expected test file to be wiped, but got: {(e.stdout, e.stderr)}"
+
+
+@pytest.mark.dependency(depends=["test_create_dojo"])
+def test_search_endpoint(admin_session):
+    search_url = f"{DOJO_URL}/pwncollege_api/v1/search"
+
+    cases = [
+        ("Example Dojo", lambda res: any("example" in dojo["name"].lower() for dojo in res["dojos"])),
+        ("This is an example dojo.", lambda res: any("example" in dojo["name"].lower() or "example" in dojo.get("description", "").lower() for dojo in res["dojos"])),
+        ("Hello", lambda res: any("hello" in module["name"].lower() for module in res["modules"])),
+        ("This is hello.", lambda res: any("hello" in module["name"].lower() or "hello" in module.get("description", "").lower() for module in res["modules"])),
+        ("Apple", lambda res: any("apple" in challenge["name"].lower() for challenge in res["challenges"])),
+        ("This is apple.", lambda res: any("apple" in challenge["name"].lower() or "apple" in challenge.get("description", "").lower() for challenge in res["challenges"])),
+    ]
+
+    for query, validator in cases:
+        response = admin_session.get(search_url, params={"q": query})
+        assert response.status_code == 200, f"Search failed for query '{query}'"
+        data = response.json()
+        assert data["success"], f"Search did not succeed for query '{query}'"
+        assert validator(data["results"]), f"No expected match found for search query '{query}'"
