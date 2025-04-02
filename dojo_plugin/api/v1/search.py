@@ -2,6 +2,7 @@ from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import or_
+from CTFd.utils.user import get_current_user
 
 from ...models import Dojos, DojoModules, DojoChallenges
 
@@ -12,24 +13,22 @@ class Search(Resource):
     def get(self):
         query = request.args.get("q", "").strip()
 
+        user = get_current_user()
+
         if not query or len(query) < 2:
             return {"success": False, "error": "Query too short."}, 400
 
         like_query = f"%{query}%"
 
-        dojos = Dojos.query.filter(
+        dojos = Dojos.viewable(user=user).filter(
             or_(Dojos.name.ilike(like_query), Dojos.description.ilike(like_query))
-        ).all()
-
-        modules = DojoModules.query.options(joinedload(DojoModules.dojo)).filter(
+        )
+        modules = DojoModules.query.join(Dojos.viewable(user=user)).filter(
             or_(DojoModules.name.ilike(like_query), DojoModules.description.ilike(like_query))
-        ).all()
-
-        challenges = DojoChallenges.query.options(
-            joinedload(DojoChallenges.module).joinedload(DojoModules.dojo)
-        ).filter(
+        )
+        challenges = DojoChallenges.query.join(Dojos.viewable(user=user)).filter(
             or_(DojoChallenges.name.ilike(like_query), DojoChallenges.description.ilike(like_query))
-        ).all()
+        )
 
         return {
             "success": True,
