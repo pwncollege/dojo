@@ -492,22 +492,35 @@ def test_reset_home_directory(random_user):
         assert False, f"Expected test file to be wiped, but got: {(e.stdout, e.stderr)}"
 
 
-@pytest.mark.dependency(depends=["test_create_dojo"])
-def test_search_endpoint(admin_session):
+@pytest.mark.dependency()
+def test_searchable_content(searchable_dojo, admin_session):
     search_url = f"{DOJO_URL}/pwncollege_api/v1/search"
 
     cases = [
-        ("Example Dojo", lambda res: any("example" in dojo["name"].lower() for dojo in res["dojos"])),
-        ("This is an example dojo.", lambda res: any("example" in dojo["name"].lower() or "example" in dojo.get("description", "").lower() for dojo in res["dojos"])),
-        ("Hello", lambda res: any("hello" in module["name"].lower() for module in res["modules"])),
-        ("This is hello.", lambda res: any("hello" in module["name"].lower() or "hello" in module.get("description", "").lower() for module in res["modules"])),
-        ("Apple", lambda res: any("apple" in challenge["name"].lower() for challenge in res["challenges"])),
-        ("This is apple.", lambda res: any("apple" in challenge["name"].lower() or "apple" in challenge.get("description", "").lower() for challenge in res["challenges"])),
+        ("searchable", lambda r: any("searchable dojo" in d["name"].lower() for d in r["dojos"])),
+        ("search test content", lambda r: any("searchable dojo" in d["name"].lower() for d in r["dojos"])), # Note: We're matching descriptions, but verifying by name since descriptions aren't in the response
+        ("hello", lambda r: any("hello module" in m["name"].lower() for m in r["modules"])),
+        ("search testing", lambda r: any("hello module" in m["name"].lower() for m in r["modules"])),
+        ("Apple Challenge", lambda r: any("apple challenge" in c["name"].lower() for c in r["challenges"])),
+        ("about apples", lambda r: any("apple challenge" in c["name"].lower() for c in r["challenges"])),
     ]
 
-    for query, validator in cases:
+    for query, validate in cases:
         response = admin_session.get(search_url, params={"q": query})
-        assert response.status_code == 200, f"Search failed for query '{query}'"
+        assert response.status_code == 200, f"Request failed for query: {query}"
         data = response.json()
-        assert data["success"], f"Search did not succeed for query '{query}'"
-        assert validator(data["results"]), f"No expected match found for search query '{query}'"
+        assert data["success"]
+        assert validate(data["results"]), f"No expected match found for query: {query}"
+
+def test_search_no_results(admin_session):
+    search_url = f"{DOJO_URL}/pwncollege_api/v1/search"
+    query = "qwertyuiopasdfgh"  # something unlikely to match anything
+
+    response = admin_session.get(search_url, params={"q": query})
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["success"]
+    assert not data["results"]["dojos"], "Expected no dojo matches"
+    assert not data["results"]["modules"], "Expected no module matches"
+    assert not data["results"]["challenges"], "Expected no challenge matches"
