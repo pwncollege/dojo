@@ -4,6 +4,7 @@ import pathlib
 import re
 import logging
 import time
+import datetime
 
 import docker
 import docker.errors
@@ -59,6 +60,16 @@ def remove_container(user):
             except (docker.errors.NotFound, docker.errors.APIError):
                 pass
 
+def get_available_devices(docker_client):
+    key = f"devices-{docker_client.api.base_url}"
+    if (cached := cache.get(key)) is not None:
+        return cached
+    find_command = ["/bin/find", "/dev", "-type", "c"]
+    devices = docker_client.containers.run("busybox:uclibc", find_command, privileged=True, remove=True).decode().splitlines()
+    timeout = int(datetime.timedelta(days=1).total_seconds())
+    cache.set(key, devices, timeout=timeout)
+    return devices
+
 def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, practice):
     hostname = "~".join(
         (["practice"] if practice else [])
@@ -106,16 +117,14 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         *user_mounts,
     ]
 
-    devices = []
-    if os.path.exists("/dev/kvm"):
-        devices.append("/dev/kvm:/dev/kvm:rwm")
-    if os.path.exists("/dev/net/tun"):
-        devices.append("/dev/net/tun:/dev/net/tun:rwm")
+    allowed_devices = ["/dev/kvm", "/dev/net/tun"]
+    available_devices = set(get_available_devices(docker_client))
+    devices = [f"{device}:{device}:rwm" for device in allowed_devices if device in available_devices]
 
     container = docker_client.containers.create(
         dojo_challenge.image,
         entrypoint=[
-            "/nix/var/nix/profiles/default/bin/dojo-init",
+            "/nix/var/nix/profiles/dojo-workspace/bin/dojo-init",
             f"{dojo_bin_path}/sleep",
             "6h",
         ],

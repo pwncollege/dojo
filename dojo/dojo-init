@@ -133,5 +133,3 @@ iptables -I DOCKER-USER -i workspace_net -s 10.0.0.0/24 -m conntrack --ctstate N
 iptables -I DOCKER-USER -i workspace_net -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -I DOCKER-USER -i workspace_net -s 192.168.42.0/24 -m conntrack --ctstate NEW -j ACCEPT
 iptables -I DOCKER-USER -i workspace_net -d 192.168.42.0/24 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-
-iptables -I DOCKER-USER -i workspace_net -m conntrack --ctstate NEW,ESTABLISHED,RELATED -j ACCEPT

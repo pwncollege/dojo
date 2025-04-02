@@ -2,15 +2,17 @@
   description = "DOJO Workspace Flake";
 
   inputs = {
-    nixpkgs.url = "git+file:///opt/nixpkgs-24.11";
-    nixpkgs-backports.url = "git+file:///opt/nixpkgs-backports";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-pr-angr-management.url = "github:NixOS/nixpkgs/pull/360310/head";
   };
 
   outputs =
     {
       self,
       nixpkgs,
-      nixpkgs-backports,
+      nixpkgs-unstable,
+      nixpkgs-pr-angr-management,
     }:
     {
       packages = {
@@ -19,15 +21,23 @@
             system = "x86_64-linux";
             config = {
               allowUnfree = true;
-              allowBroken = true;  # angr is currently marked "broken" in nixpkgs, but works fine (without unicorn)
+              allowBroken = true; # angr is currently marked "broken" in nixpkgs, but works fine (without unicorn)
             };
-            pkgs-backports = import nixpkgs-backports { inherit system config; };
-            backports-overlay = self: super: {
-              inherit (pkgs-backports) angr-management binaryninja-free;
+
+            binaryninja-free-overlay = self: super: {
+              binaryninja-free = (import nixpkgs-unstable { inherit system config; }).binaryninja-free;
             };
+
+            angr-management-overlay = self: super: {
+              angr-management = (import nixpkgs-pr-angr-management { inherit system config; }).angr-management;
+            };
+
             pkgs = import nixpkgs {
               inherit system config;
-              overlays = [ backports-overlay ];
+              overlays = [
+                binaryninja-free-overlay
+                angr-management-overlay
+              ];
             };
 
             init = import ./core/init.nix { inherit pkgs; };
@@ -92,23 +102,26 @@
 
             fullPackages = corePackages ++ additional.packages;
 
-            buildDojoEnv = name: paths:
+            buildDojoEnv =
+              name: paths:
               let
                 suidPaths = pkgs.lib.unique (
                   builtins.concatLists (
-                    map (pkg:
-                      if builtins.isAttrs pkg && pkg ? out && pkg.meta ? suid
-                      then map (rel: "${pkg.out}/${rel}") pkg.meta.suid
-                      else []
+                    map (
+                      pkg:
+                      if builtins.isAttrs pkg && pkg ? out && pkg.meta ? suid then
+                        map (rel: "${pkg.out}/${rel}") pkg.meta.suid
+                      else
+                        [ ]
                     ) paths
                   )
                 );
                 suidFile = pkgs.writeTextDir "suid" (pkgs.lib.concatMapStrings (s: s + "\n") suidPaths);
               in
-                pkgs.buildEnv {
-                  name = "dojo-workspace-${name}";
-                  paths = paths ++ [ suidFile ];
-                };
+              pkgs.buildEnv {
+                name = "dojo-workspace-${name}";
+                paths = paths ++ [ suidFile ];
+              };
 
           in
           {
