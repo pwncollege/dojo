@@ -45,11 +45,11 @@
   </a>
 {%- endmacro %}
 
-{% macro accordion_item(accordion_id, item_id) %}
+{% macro accordion_item(accordion_id, item_id, is_disabled) %}
   <div class="accordion-item">
     <div class="accordion-item-header" id="{{ accordion_id }}-header-{{ item_id }}">
-      <h2 class="mb-0">
-        <button id="{{ accordion_id }}-header-button-{{ item_id }}" class="btn btn-link text-decoration-none w-100 collapsed" type="button" data-toggle="collapse" data-target="#{{ accordion_id }}-body-{{ item_id }}" aria-expanded="false" aria-controls="{{ accordion_id }}-body-{{ item_id }}">
+      <h2 class="mb-0 button-wrapper">
+        <button id="{{ accordion_id }}-header-button-{{ item_id }}" class="btn btn-link text-decoration-none w-100 challenge-button-2 collapsed {% if is_disabled %}disabled{% endif %}" type="button" data-toggle="collapse" data-target="#{{ accordion_id }}-body-{{ item_id }}" aria-expanded="false" aria-controls="{{ accordion_id }}-body-{{ item_id }}">
           {{ caller(True) }}
         </button>
       </h2>

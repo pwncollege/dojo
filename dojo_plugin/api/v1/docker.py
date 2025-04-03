@@ -13,7 +13,7 @@ import redis
 from flask import abort, request, current_app
 from flask_restx import Namespace, Resource
 from CTFd.cache import cache
-from CTFd.models import Users
+from CTFd.models import Users, Solves
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
@@ -356,6 +356,16 @@ class RunDocker(Resource):
                 "success": False,
                 "error": "This challenge does not support practice mode.",
             }
+        
+        if all((dojo_challenge.progression_locked, dojo_challenge.challenge_index != 0, not dojo.is_admin())):
+            previous_dojo_challenge = dojo_challenge.module.challenges[dojo_challenge.challenge_index - 1]
+            solved = (Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() or
+                      Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first())
+            if not solved:
+                return {
+                    "success": False,
+                    "error": "This challenge is locked"
+                }
 
         if dojo.is_admin(user) and "as_user" in data:
             try:
