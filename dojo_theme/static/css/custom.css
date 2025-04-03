@@ -725,6 +725,12 @@ code {
     overflow: hidden;
 }
 
+.activity-graph h3 {
+    font-size: 0.9rem;
+    text-align: left;
+    padding-left: 2px;
+}
+
 .streak {
     position: absolute;
     top: 0;
