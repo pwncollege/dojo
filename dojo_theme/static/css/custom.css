@@ -104,8 +104,10 @@ h1, h2, h3, h4 {
 }
 
 .wordmark {
-    font-family: 'Space Mono' !important;
-    font-weight: 700;
+    white-space: nowrap;
+}
+
+.wordmark-large {
     font-size: clamp(1rem, 10vw, 5rem);
     white-space: nowrap;
 }
