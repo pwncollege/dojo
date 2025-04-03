@@ -74,9 +74,7 @@
       </a>
       {% endif %}
     </div>
-    {% if request.path == url_for('pwncollege_users.view_self')%}
-      <div id="activity-tracker"></div>
-    {% endif %}
+      <div id="activity-tracker" user-id="{{ user.id }}"></div> 
   </div>
   <script defer src="{{ url_for('views.themes', path='js/dojo/activity.js') }}"></script>
   {% block scripts %}

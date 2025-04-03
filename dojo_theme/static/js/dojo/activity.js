@@ -1,11 +1,15 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const tracker = document.getElementById('activity-tracker');
     if (!tracker) return;
+    const userID = tracker.getAttribute('user-id');
     const container = document.createElement('div');
     container.className = 'activity-graph';
-    container.innerHTML = `<h3 style="font-size:16px; text-align:left;">Hacking Activity</h3>
-        <div class="streak"></div>
+    container.innerHTML = `<h3 style="font-size:0.9rem; text-align:left; padding-left:2px;">Hacking Activity</h3>
+        <div class="streak" style="overflow=hidden";></div>
+        <div class="grid-wrapper">
+        <div class="month-labels" style="font-size:0.7rem; height: 16px; position: relative;"></div>
         <div class="grid-container"></div>
+        </div>
         <div class="legend">
             <span>Less</span>
             <div class="legend-cells"></div>
@@ -33,6 +37,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         cell.setAttribute('data-display-date', displayDate);
         cell.setAttribute('title', `${displayDate}: 0 solves`);
         container.querySelector('.grid-container').appendChild(cell);
+        const currentMonth = cellDate.toLocaleDateString('en-US', { month: 'short' });
+        if(currentMonth !== container.querySelector('.month-labels').lastChild?.textContent &&
+           (currentMonth !== container.querySelector('.month-labels').childNodes[0]?.textContent)) {
+            const monthLabel = document.createElement('span');
+            monthLabel.className = 'month-label';
+            monthLabel.textContent = currentMonth;
+            monthLabel.style.left = `${(Math.ceil((363 - i) / 7) * 12)}px`;
+            container.querySelector('.month-labels').appendChild(monthLabel);
+        }
     }
     
     for (let i = 0; i < 5; i++) {
@@ -41,7 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         container.querySelector('.legend-cells').appendChild(cell);
     }
     
-    function updateGrid(dailyActivityData) {
+    function updateGrid(dailyActivityData, max) {
         for (const date in dailyActivityData) {
             const cell = container.querySelector('.grid-container').querySelector(`[data-date="${date}"]`);
             if (cell) {
@@ -50,7 +63,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const solveText = count === 1 ? 'solve' : 'solves';
                 cell.setAttribute('data-count', count);
                 cell.setAttribute('title', `${displayDate}: ${count} ${solveText}`);
-                cell.className = `activity-cell level-${Math.min(4, Math.floor(Math.log(count + 1) / Math.log(2)))}`;
+                let level = 0;
+                if(count > 0) {
+                    if((count/ max) > 0.75) level = 4;
+                    else if((count/ max) > 0.5) level = 3;
+                    else if((count/ max) > 0.25) level = 2;
+                    else if((count/ max) > 0 ) level = 1;
+                }    
+                cell.className = `activity-cell level-${level}`;
             }
         }
     }
@@ -79,7 +99,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     const oneYearAgo = new Date(Date.now() - 364 * 86400000);
-    const endpoint = `/api/v1/users/${init.userId}/solves?after=${oneYearAgo.toISOString()}`;
+    const endpoint = `/api/v1/users/${userID}/solves?after=${oneYearAgo.toISOString()}`;
     CTFd.fetch(endpoint, {
         method: "GET",
         credentials: "same-origin",
@@ -89,7 +109,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     .then(result => {
         if(result.success) {
             const dailySolveCount = countDailySolves(result.data);
-            updateGrid(dailySolveCount);
+            const max = Math.max(...Object.values(dailySolveCount), 1);
+            updateGrid(dailySolveCount, max);
             const streak = getStreak(dailySolveCount);
             container.querySelector('.streak').textContent = streak > 0 ? `${streak} day streak` : '';
         }

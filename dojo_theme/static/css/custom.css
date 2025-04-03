@@ -658,15 +658,14 @@ code {
 .activity-graph {
     position: relative;
     font-family: 'Space Mono', monospace;
-    padding: 0.5rem;
+    padding: 6px;
     margin: 0.5rem;
     background: var(--brand-black);
     border-radius: 6px;
     margin-inline: auto;
     width: 100%;
     box-sizing: border-box;
-    max-width: 646px;
-    font-size: 0.8rem;
+    max-width: 642px;
     border: 1px solid var(--brand-green);
     overflow: hidden;
 }
@@ -676,24 +675,34 @@ code {
     top: 0;
     right: 0;
     margin: 0.5rem;
+    padding-right: 2px;
     font-family: 'Space Mono', monospace;
-    font-size: 12px;
+    font-size: 0.7rem;
     color: var(--brand-green);
+}
+
+.grid-wrapper {
+    position: relative;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--brand-black) var(--brand-dark-gray);
+}
+
+.month-label {
+    position: absolute;
+    margin-left: 5px;
 }
 
 .grid-container {
     display: grid;
     grid-auto-flow: column;
-    grid-template-rows: repeat(7, minmax(6px, 10px));
+    grid-template-rows: repeat(7, 10px);
     place-content: space-evenly;
     gap: 2px;
     justify-items: stretch;
     align-items: stretch;
     max-width: 100%;
     padding: 3px;
-    overflow-x: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--brand-black) var(--brand-dark-gray);
 }
 
 .activity-cell {
@@ -706,23 +715,24 @@ code {
     transform-origin: center;
 }
 
-.activity-cell.level-1 { background-color: rgba(0, 163, 224, 0.25); }
-.activity-cell.level-2 { background-color: rgba(0, 163, 224, 0.5); }
-.activity-cell.level-3 { background-color: rgba(0, 163, 224, 0.75); }
-.activity-cell.level-4 { background-color: var(--brand-blue); }
+.activity-cell.level-1 { background-color: rgba(120, 190, 32, 0.25); }
+.activity-cell.level-2 { background-color: rgba(120, 190, 32, 0.5); }
+.activity-cell.level-3 { background-color: rgba(120, 190, 32, 0.75); }
+.activity-cell.level-4 { background-color: var(--brand-green); }
 
 .activity-cell:hover {
     transform: scale(1.3);
     z-index: 5;
-    box-shadow: 0 0 4px var(--brand-black);
+    box-shadow: 0 0 5px var(--brand-black);
 }
 
 .legend {
     display: flex;
     align-items: center;
     gap: 4px;
-    margin-top: 8px;
-    font-size: 0.8rem;
+    margin-top: 2px;
+    margin-left: 4px;
+    font-size: 0.7rem;
     color: var(--dojo-text-color);
 }
 
