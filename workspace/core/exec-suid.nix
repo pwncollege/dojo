@@ -2,16 +2,18 @@
 
 pkgs.rustPlatform.buildRustPackage rec {
   pname = "exec-suid";
-  version = "0.1.4";
+  version = "0.1.5";
 
   src = pkgs.fetchFromGitHub {
     owner = "pwncollege";
-    repo = "exec-suid";
-    rev = "a1d4a3579c591b7401ab2d05db0121e7244ae5e1";
-    sha256 = "sha256-70OABg5zainIrpAyWxKCwep8ZsNr3YFoOQ5QgVz15YE=";
+    repo = pname;
+    rev = "v${version}";
+    sha256 = "sha256-k9d6NbgnkbJXF9Eefh/CaM4GrsMNO9UtIBMp8U5AAwM=";
   };
 
-  cargoHash = "sha256-BCgSjoY1xT1Dm39wL4BQaCHUcWeevF5mTnBz8DK6Pkg=";
+  cargoLock = {
+    lockFile = "${src}/Cargo.lock";
+  };
 
   meta = with pkgs.lib; {
     description = "A simple interface for running scripts as suid";
