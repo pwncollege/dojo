@@ -1,6 +1,9 @@
 { pkgs }:
 
 let
+  ghidra = import ./ghidra.nix { inherit pkgs; };
+  burpsuite = import ./burpsuite.nix { inherit pkgs; };
+
   pythonPackages = ps: with ps; [
     angr
     asteval
@@ -19,8 +22,6 @@ let
   ];
 
   pythonEnv = pkgs.python3.withPackages pythonPackages;
-
-  burpsuite = import ./burpsuite.nix { inherit pkgs; };
 
   tools = with pkgs; {
     build = [ gcc gnumake cmake qemu ];

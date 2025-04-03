@@ -27,7 +27,9 @@ in pkgs.stdenv.mkDerivation {
       fi
 
       mkdir -p "$out/bin"
-      makeWrapper "$initPath" "$out/bin/burpsuite" --add-flags "${extraFlags}"
+      makeWrapper "$initPath" \
+        "$out/bin/burpsuite" \
+        --add-flags "${extraFlags}"
 
       cp -r "$src/share" "$out/share"
 
