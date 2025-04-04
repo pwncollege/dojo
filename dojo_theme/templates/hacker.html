@@ -74,8 +74,12 @@
       </a>
       {% endif %}
     </div>
+      <div id="activity-tracker" user-id="{{ user.id }}"></div> 
   </div>
-
+  <script defer src="{{ url_for('views.themes', path='js/dojo/activity.js') }}"></script>
+  {% block scripts %}
+  {% endblock %}
+  
   <div class="container">
     {% for dojo in dojos if dojo_scores.user_ranks[user.id] and dojo_scores.user_ranks[user.id][dojo.id] %}
       {% set rank = dojo_scores.user_ranks[user.id][dojo.id] %}
