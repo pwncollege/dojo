@@ -43,7 +43,7 @@ def view_hacker(user, bypass_hidden=False):
         "hacker.html",
         dojos=dojos, user=user,
         dojo_scores=dojo_scores(), module_scores=module_scores(),
-        belts=get_belts(), badges=get_viewable_emojis(user),
+        belts=get_belts(), badges=get_viewable_emojis(get_current_user()),
         user_solves=user_solves
     )
 
