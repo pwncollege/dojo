@@ -645,33 +645,70 @@ code {
 }
 
 
-#survey-prompt {
+.survey-prompt {
     vertical-align: middle;
+    padding: 0px 15px;
+    font-weight: bold;
 }
 
-#survey-thumb .fa {
+.survey-thumb .fa {
     cursor: pointer;
     font-size: 36px;
     vertical-align: middle;
     padding: 0.5rem 0.6rem;
 }
 
-#survey-thumb .fa:hover {
+.survey-thumb .fa:hover {
     color: var(--brand-gold);
-    transition: all .2s ease-in-out;
+    transition: all .1s ease-in-out;
     transform: scale(1.05);
 }
 
 .survey {
     position:relative;
-    padding:.75rem 1.25rem;
-    margin-bottom:1rem;
-    border:1px solid transparent;
+    padding:.75rem 0rem;
 }
 
-#survey-multiplechoice button {
-    display:block;
-    
+.survey-multiplechoice {
+    display: inline;
+    text-align: left;
+}
+
+.survey-multiplechoice div {
+    border: 1px var(--brand-gold);
+    background: none;
+    padding: 6px 15px;
+    cursor: pointer;
+    display: block;
+    user-select: none;
+}
+
+.survey-multiplechoice div:hover {
+    transition: all .1s ease-in-out;
+    background-color: var(--brand-gold);
+}
+
+.survey-freeresponse-row {
+    padding: 0px 30px;
+    padding-top: 10px;
+}
+
+.survey-text-input {
+    border-color: #6c757d;
+    color: #856404;
+    box-shadow: none !important;
+}
+
+.survey-text-input:focus {
+    border-width: 2px;
+    border-color: var(--brand-gold) !important;
+    color: #856404 !important;
+}
+
+.survey-submit:hover {
+    background-color: var(--brand-gold);
+    color: #856404;
+    border-color: var(--brand-gold);
 }
 
 

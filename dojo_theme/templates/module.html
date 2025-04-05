@@ -134,20 +134,29 @@
           <div class="row survey-row">
             <div class="col-md-12">
               <div id="survey-notification" class="survey alert-dismissable w-100" role="alert" style="display: none;">
-                <span id="survey-prompt"><strong>{{ challenge.survey.prompt }}</strong></span>
+                <span id="survey-prompt" class="survey-prompt">{{ challenge.survey.prompt }}</span>
                 {% if challenge.survey.type == "thumb" %}
-                <div id="survey-thumb">
+                <div id="survey-thumb" class="survey-thumb">
                   <i id="survey-thumbs-up" class="fa fa-thumbs-up"></i>
                   <i id="survey-thumbs-down" class="fa fa-thumbs-down"></i>
                 </div>
                 {% elif challenge.survey.type == "freeform" %}
                 <div id="survey-freeresponse">
-                  <input type="text" id="survey-freeresponse-input">
+                  <div class="row survey-freeresponse-row">
+                    <div class="col-md-9 form-group">
+                      <input id="survey-freeresponse-input" class="form-control survey-text-input" type="text" name="answer">
+                    </div>
+                    <div class="col-md-3 form-group key-submit">
+                      <button id="survey-submit" type="submit" class="btn btn-md btn-outline-secondary float-right w-100 h-100 survey-submit">
+                        Submit
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 {% elif challenge.survey.type == "multiplechoice" %}
-                <div id="survey-multiplechoice">
+                <div id="survey-multiplechoice" class="survey-multiplechoice">
                   {% for option in challenge.survey.options %}
-                  <button class="survey-radio">{{ option }}</button>
+                  <div class="survey-option" data-id={{ loop.index - 1 }}>{{ option }}</div>
                   {% endfor %}
                 </div>
                 {% endif %}

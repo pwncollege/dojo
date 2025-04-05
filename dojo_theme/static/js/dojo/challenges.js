@@ -99,11 +99,14 @@ function renderSubmissionResponse(response, item) {
             if(response.status != 200) return Promise.reject()
             return response.json()
         }).then(function (data) {
+            if(Math.random() > data.probability) return
             if(data.type === "thumb") {
                 survey_notification.addClass("text-center")
+            } else {
+                survey_notification.addClass("text-left")
             }
             survey_notification.addClass(
-                "alert-warning alert-dismissable text-left"
+                "alert-warning alert-dismissable"
             );
             survey_notification.slideDown();
         })
@@ -254,7 +257,7 @@ function startChallenge(event) {
     })
 }
 
-function clickThumb(event) {
+function clickSurveyThumb(event) {
     const clicked = $(event.currentTarget)
     const item = $(event.currentTarget).closest(".accordion-item")
     const survey_notification = item.find("#survey-notification")
@@ -263,6 +266,24 @@ function clickThumb(event) {
     } else {
 
     }
+    survey_notification.slideUp()
+}
+
+function clickSurveyOption(event) {
+    const clicked = $(event.currentTarget)
+    const item = $(event.currentTarget).closest(".accordion-item")
+    const survey_notification = item.find("#survey-notification")
+    const index = clicked.attr("data-id")
+    // todo send index back
+    survey_notification.slideUp()
+}
+
+function clickSurveySubmit(event) {
+    const clicked = $(event.currentTarget)
+    const item = $(event.currentTarget).closest(".accordion-item")
+    const survey_notification = item.find("#survey-notification")
+    const response = item.find("#survey-submit").val()
+    // todo send res back
     survey_notification.slideUp()
 }
 
@@ -289,6 +310,10 @@ $(() => {
     $(".accordion-item").find("#challenge-start").click(startChallenge);
     $(".accordion-item").find("#challenge-practice").click(startChallenge);
 
-    $(".accordion-item").find("#survey-thumbs-up").click(clickThumb)
-    $(".accordion-item").find("#survey-thumbs-down").click(clickThumb)
+    $(".accordion-item").find("#survey-thumbs-up").click(clickSurveyThumb)
+    $(".accordion-item").find("#survey-thumbs-down").click(clickSurveyThumb)
+
+    $(".accordion-item").find(".survey-option").click(clickSurveyOption)
+
+    $(".accordion-item").find("#survey-submit").click(clickSurveySubmit)
 });
