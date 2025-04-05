@@ -16,7 +16,8 @@ def main():
 
     parser = argparse.ArgumentParser(description="execute a command as another user")
     parser.add_argument("-u", "--user", help="run command as specified user", default="0")
-    parser.add_argument("command", nargs=argparse.REMAINDER, help="command to execute")
+    parser.add_argument("command", help="command to execute")
+    parser.add_argument("args", nargs=argparse.REMAINDER, help="arguments for command")
 
     args = parser.parse_args()
 
@@ -42,16 +43,12 @@ def main():
     os.environ["USER"] = user.pw_name
     os.environ["SHELL"] = user.pw_shell
 
-    if not args.command:
-        parser.print_help()
-        sys.exit(1)
-
-    command_path = shutil.which(args.command[0])
+    command_path = shutil.which(args.command)
     if not command_path:
-        error(f"{program}: {args.command[0]}: command not found")
+        error(f"{program}: {args.command}: command not found")
 
     try:
-        os.execve(command_path, args.command, os.environ)
+        os.execve(command_path, [args.command, *args.args], os.environ)
     except:
         os.exit(1)
 

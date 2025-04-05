@@ -2,13 +2,14 @@ import datetime
 
 from flask import request
 from flask_restx import Namespace, Resource
+from sqlalchemy.sql import and_
 from CTFd.models import db, Solves
 from CTFd.cache import cache
 from CTFd.plugins.challenges import get_chal_class
 from CTFd.utils.decorators import authed_only, admins_only, ratelimit
 from CTFd.utils.user import get_current_user, is_admin, get_ip
 
-from ...models import Dojos, DojoModules, DojoChallenges, DojoUsers, Emojis, SurveyResponses
+from ...models import DojoStudents, Dojos, DojoModules, DojoChallenges, DojoUsers, Emojis, SurveyResponses
 from ...utils.dojo import dojo_route, dojo_admins_only, dojo_create
 
 
@@ -32,7 +33,6 @@ class DojoList(Resource):
 
 @dojos_namespace.route("/<dojo>/awards/prune")
 class PruneAwards(Resource):
-    @authed_only
     @dojo_route
     @dojo_admins_only
     def post(self, dojo):
@@ -56,7 +56,6 @@ class PromoteDojo(Resource):
 
 @dojos_namespace.route("/<dojo>/admins/promote")
 class PromoteAdmin(Resource):
-    @authed_only
     @dojo_route
     @dojo_admins_only
     def post(self, dojo):
@@ -100,7 +99,7 @@ class CreateDojo(Resource):
 
 
 @dojos_namespace.route("/<dojo>/modules")
-class DojoModulesResource(Resource):
+class DojoModuleList(Resource):
     @dojo_route
     def get(self, dojo):
         modules = [
@@ -127,7 +126,7 @@ class DojoSolveList(Resource):
 
         if after := request.args.get("after"):
             try:
-                after_date = datetime.datetime.fromisoformat(after)
+                after_date = datetime.datetime.fromisoformat(after).astimezone(datetime.timezone.utc)
             except ValueError:
                 return {"success": False, "error": "Invalid after date format"}, 400
             solves_query = solves_query.filter(Solves.date > after_date)
@@ -223,3 +222,53 @@ class DojoSurvey(Resource):
         db.session.add(response)
         db.session.commit()
         return {"success": True}
+
+@dojos_namespace.route("/<dojo>/course")
+class DojoCourse(Resource):
+    @dojo_route
+    def get(self, dojo):
+        result = dict(syllabus=dojo.course.get("syllabus", ""), grade_code=dojo.course.get("grade_code", ""))
+        student = DojoStudents.query.filter_by(dojo=dojo, user=get_current_user()).first()
+        if student:
+            result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token)
+        return {"success": True, "course": result}
+
+
+@dojos_namespace.route("/<dojo>/course/students")
+class DojoCourseStudentList(Resource):
+    @dojo_route
+    @dojo_admins_only
+    def get(self, dojo):
+        students = dojo.course.get("students", {})
+        return {"success": True, "students": students}
+
+
+@dojos_namespace.route("/<dojo>/course/solves")
+class DojoCourseSolveList(Resource):
+    @dojo_route
+    @dojo_admins_only
+    def get(self, dojo):
+        students = dojo.course.get("students", {})
+
+        solves_query = dojo.solves(ignore_visibility=True, ignore_admins=False)
+
+        if after := request.args.get("after"):
+            try:
+                after_date = datetime.datetime.fromisoformat(after).astimezone(datetime.timezone.utc)
+            except ValueError:
+                return {"success": False, "error": "Invalid after date format"}, 400
+            solves_query = solves_query.filter(Solves.date > after_date)
+
+        if students:
+            solves_query = solves_query.filter(DojoStudents.token.in_(students))
+
+        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoModules.id, DojoChallenges.id)
+        solves = [
+            dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),
+                 student_token=student_token,
+                 module_id=module_id,
+                 challenge_id=challenge_id)
+            for timestamp, student_token, module_id, challenge_id in solves_query.all()
+        ]
+
+        return {"success": True, "solves": solves}

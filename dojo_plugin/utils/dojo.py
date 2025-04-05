@@ -89,6 +89,7 @@ DOJO_SPEC = Schema({
             Optional("image"): IMAGE_REGEX,
             Optional("allow_privileged"): bool,
             Optional("importable"): bool,
+            Optional("progression_locked"): bool,
             Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
@@ -365,6 +366,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     challenge=challenge(
                         module_data.get("id"), challenge_data.get("id"), transfer=challenge_data.get("transfer", None)
                     ) if "import" not in challenge_data else None,
+                    progression_locked=challenge_data.get("progression_locked"),
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
                     survey=survey(DojoChallengeSurveys, dojo_data, module_data, challenge_data),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
@@ -423,6 +425,10 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             syllabus_path = dojo_dir / "SYLLABUS.md"
             if "syllabus" not in dojo.course and syllabus_path.exists():
                 dojo.course["syllabus"] = syllabus_path.read_text()
+
+            grade_path = dojo_dir / "grade.py"
+            if grade_path.exists():
+                dojo.course["grade_code"] = grade_path.read_text()
 
         if dojo_data.get("pages"):
             dojo.pages = dojo_data["pages"]
