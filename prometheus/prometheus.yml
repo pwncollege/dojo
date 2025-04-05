@@ -1,8 +1,13 @@
 global:
   scrape_interval: 15s
+
 scrape_configs:
   - job_name: 'cadvisor'
-    scrape_interval: 5s
     file_sd_configs:
       - files:
         - /etc/prometheus/targets/cadvisor.json
+
+  - job_name: 'node_exporter'
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/node_exporter.json

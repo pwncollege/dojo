@@ -228,6 +228,16 @@ services:
       - acme:/etc/acme.sh
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
+  node-exporter:
+    container_name: node-exporter
+    image: prom/node-exporter
+    command:
+      - "--path.rootfs=/host"
+    network_mode: host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+
   cadvisor:
     container_name: cadvisor
     image: gcr.io/cadvisor/cadvisor
@@ -255,10 +265,10 @@ services:
       timeout: 10s
       retries: 3
     depends_on:
-      prometheus-generate-targets-cadvisor:
+      prometheus-generate-targets:
         condition: service_completed_successfully
 
-  prometheus-generate-targets-cadvisor:
+  prometheus-generate-targets:
     image: python:3.12-slim
     profiles:
       - main
@@ -272,9 +282,16 @@ services:
         workspace_node_ips = [f"192.168.42.{int(node_id) + 1}" for node_id in workspace_nodes]
         cadvisor_targets = [{
             "labels": {"job": "cadvisor"},
-            "targets": [f"{ip}:8080" for ip in [main_node_ip, *workspace_node_ips]]
+            "targets": [f"{ip}:8080" for ip in [main_node_ip] + workspace_node_ips]
         }]
-        json.dump(cadvisor_targets, open("/etc/prometheus/targets/cadvisor.json", "w"), indent=2)
+        node_exporter_targets = [{
+            "labels": {"job": "node_exporter"},
+            "targets": [f"{ip}:9100" for ip in [main_node_ip] + workspace_node_ips]
+        }]
+        with open("/etc/prometheus/targets/cadvisor.json", "w") as f:
+            json.dump(cadvisor_targets, f, indent=2)
+        with open("/etc/prometheus/targets/node_exporter.json", "w") as f:
+            json.dump(node_exporter_targets, f, indent=2)
     volumes:
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - prometheus_targets:/etc/prometheus/targets
