@@ -624,7 +624,7 @@ class DojoChallengeSurveys(db.Model):
     type = db.Column(db.String(32)) 
     probability = db.Column(db.Float)
     prompt = db.Column(db.Text)
-    _options = db.Column(db.String(128)) # comma-delimited list of options
+    _options = db.Column(db.Text) # comma-delimited list of options
 
     @property
     def options(self):

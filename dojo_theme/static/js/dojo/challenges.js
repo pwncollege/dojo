@@ -262,9 +262,9 @@ function clickSurveyThumb(event) {
     const item = $(event.currentTarget).closest(".accordion-item")
     const survey_notification = item.find("#survey-notification")
     if(clicked.hasClass("fa-thumbs-up")) {
-        // todo post response
+        surveySubmit("up", item)
     } else {
-
+        surveySubmit("down", item)
     }
     survey_notification.slideUp()
 }
@@ -274,17 +274,33 @@ function clickSurveyOption(event) {
     const item = $(event.currentTarget).closest(".accordion-item")
     const survey_notification = item.find("#survey-notification")
     const index = clicked.attr("data-id")
-    // todo send index back
+    surveySubmit(parseInt(index), item)
     survey_notification.slideUp()
 }
 
 function clickSurveySubmit(event) {
-    const clicked = $(event.currentTarget)
     const item = $(event.currentTarget).closest(".accordion-item")
     const survey_notification = item.find("#survey-notification")
-    const response = item.find("#survey-submit").val()
-    // todo send res back
+    const response = item.find("#survey-freeresponse-input").val()
+    surveySubmit(response, item)
     survey_notification.slideUp()
+}
+
+function surveySubmit(data, item) {
+    const challenge_name = item.find('#challenge').val()
+    const module_name = item.find('#module').val()
+    const dojo_name = init.dojo
+    return CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/surveys/${module_name}/${challenge_name}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            response: data
+        })
+    })
 }
 
 
