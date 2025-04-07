@@ -1,17 +1,17 @@
 #!/bin/sh
 
-data_mnt_opts="$(findmnt -n -o OPTIONS /data)"
-if [ "$?" -ne 0 ]; then
-    echo '[!] Data mount does not exist. Please start the dojo with a data mount (`-v /data:/data`).'
-    exit 1
-fi
-echo '[+] Data mount exists.'
-mount --make-shared /data
+mount --make-shared /
 
-if printf '%s' "$data_mnt_opts" | grep -q '\bnosuid\b'; then
-    echo '[!] Data mount is mounted nosuid. Please check the mount options on the data directory.'
+data_mount_options="$(findmnt -no OPTIONS /data)"
+if [ "$?" -ne 0 ]; then
+    echo '[!] Data mount does not exist; start the dojo with a data mount (`-v /data:/data`).'
     exit 1
 fi
+if printf '%s' "$data_mount_options" | grep -q '\bnosuid\b'; then
+    echo '[!] Data mount is mounted nosuid; check the mount options on the data directory.'
+    exit 1
+fi
+mount --make-shared /data
 
 >> /data/config.env
 
