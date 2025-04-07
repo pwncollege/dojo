@@ -35,7 +35,6 @@ define DOJO_WORKSPACE core
 define WORKSPACE_KEY
 define WORKSPACE_NODE 0
 define SECRET_KEY $(openssl rand -hex 16)
-define UBUNTU_VERSION 20.04
 define INTERNET_FOR_ALL False
 define MAIL_SERVER
 define MAIL_PORT
@@ -48,10 +47,6 @@ define DISCORD_CLIENT_ID
 define DISCORD_CLIENT_SECRET
 define DISCORD_BOT_TOKEN
 define DISCORD_GUILD_ID
-define DEFAULT_INSTALL_SELECTION no # default to not installing tools
-define INSTALL_IDA_FREE no # explicitly disable -- only for free dojos
-define INSTALL_BINJA_FREE no # explicitly disable -- only for free dojos
-define INSTALL_WINDOWS no # explicitly disable
 define DB_HOST db
 define DB_NAME ctfd
 define DB_USER ctfd
