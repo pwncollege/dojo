@@ -758,7 +758,7 @@ code {
     display: grid;
     grid-auto-flow: column;
     grid-template-rows: repeat(7, 10px);
-    place-content: space-evenly;
+    align-content: space-evenly;
     gap: 2px;
     justify-items: stretch;
     align-items: stretch;
@@ -768,9 +768,10 @@ code {
 
 .activity-cell {
     width: 100%;
+    height: 10px;
     aspect-ratio: 1 / 1;
     border-radius: 2px;
-    background-color: #333;
+    background-color: #1e1e1e;
     transition: transform 0.2s ease;
     position: relative;
     transform-origin: center;
