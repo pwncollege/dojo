@@ -298,23 +298,6 @@ function renderSkeleton(count = 3) {
     }
 }
 
-// function resetActiveResult() {
-//     resultItems.forEach((el, i) => {
-//         if (i === activeIndex) {
-//             el.style.backgroundColor = "#b7b7b7";
-//             el.style.borderRadius = "5px";
-            
-
-//             el.scrollIntoView({
-//                 block: "center",
-//                 behavior: "smooth"
-//             });
-//         } else {
-//             el.style.backgroundColor = "";
-//             el.style.borderRadius = "";
-//         }
-//     });
-// }
 function resetActiveResult() {
     resultItems.forEach((el, i) => {
         if (i === activeIndex) {
@@ -418,25 +401,6 @@ const handleInput = () => {
             return;
         }
 
-        // const renderItem = (text, url, match = null) => {
-        //     const container = document.createElement("div");
-        //     container.className = "d-block py-1";
-        
-        //     const link = document.createElement("a");
-        //     link.href = url;
-        //     link.className = "text-light";
-        //     link.textContent = text;
-        //     container.appendChild(link);
-        
-        //     if (match) {
-        //         const snippet = document.createElement("div");
-        //         snippet.className = "text-muted small";
-        //         snippet.innerHTML = match;
-        //         container.appendChild(snippet);
-        //     }          
-        
-        //     return container;
-        // };
         const renderItem = (text, url, match = null) => {
             const container = document.createElement("div");
             container.className = "d-block py-1";
