@@ -38,7 +38,7 @@ let
 
     debugging = [ strace ltrace gdb pwndbg gef ];
 
-    reversing = [ ghidra ida-free radare2 cutter angr-management binaryninja-free ];
+    reversing = [ file ghidra ida-free radare2 cutter angr-management binaryninja-free ];
 
     web = [ firefox geckodriver ];
 
