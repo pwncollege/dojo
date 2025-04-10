@@ -326,17 +326,17 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             return cls(start=start, stop=stop)
 
     def survey(cls, *args):
-        type = None
+        survey_type = None
         probability = None
         prompt = None
         options = None
         for arg in args:
-            type = arg.get("survey", {}).get("type") or type
+            survey_type = arg.get("survey", {}).get("type") or survey_type
             probability = arg.get("survey", {}).get("probability") or probability
             prompt = arg.get("survey", {}).get("prompt") or prompt
             options = arg.get("survey", {}).get("options") or options
-        if type or probability or prompt or options:
-            return cls(type=type, probability=probability, prompt=prompt, options=options)
+        if survey_type or probability or prompt or options:
+            return cls(type=survey_type, probability=probability, prompt=prompt, options=options)
 
     _missing = object()
     def shadow(attr, *datas, default=_missing, default_dict=None):

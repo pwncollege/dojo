@@ -198,7 +198,7 @@ class DojoSurvey(Resource):
         survey = dojo_challenge.survey
         if not survey:
             return {"success": False, "error": "Survey not found"}, 404
-        if not data["response"]:
+        if not data.get("response"):
             return {"success": False, "error": "Missing response"}, 400
 
         if survey.type == "thumb":
