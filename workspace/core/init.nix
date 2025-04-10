@@ -67,6 +67,10 @@ let
     if [[ "$PATH" != "/run/challenge/bin:/run/workspace/bin:"* ]]; then
       export PATH="/run/challenge/bin:/run/workspace/bin:$PATH"
     fi
+
+    if [[ -z "$LANG" ]]; then
+      export LANG="en_US.UTF-8"
+    fi
   '';
 
 in pkgs.stdenv.mkDerivation {
