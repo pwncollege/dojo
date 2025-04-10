@@ -497,12 +497,15 @@ def test_searchable_content(searchable_dojo, admin_session):
     search_url = f"{DOJO_URL}/pwncollege_api/v1/search"
 
     cases = [
+        # Matches in name only — verify name field
         ("searchable", lambda r: any("searchable dojo" in d["name"].lower() for d in r["dojos"])),
-        ("search test content", lambda r: any("searchable dojo" in d["name"].lower() for d in r["dojos"])), # Note: We're matching descriptions, but verifying by name since descriptions aren't in the response
         ("hello", lambda r: any("hello module" in m["name"].lower() for m in r["modules"])),
-        ("search testing", lambda r: any("hello module" in m["name"].lower() for m in r["modules"])),
         ("Apple Challenge", lambda r: any("apple challenge" in c["name"].lower() for c in r["challenges"])),
-        ("about apples", lambda r: any("apple challenge" in c["name"].lower() for c in r["challenges"])),
+
+        # Matches in description — verify `match` exists and contains the query
+        ("search test content", lambda r: any("search test content" in (d.get("match") or "").lower() for d in r["dojos"])),
+        ("search testing", lambda r: any("search testing" in (m.get("match") or "").lower() for m in r["modules"])),
+        ("about apples", lambda r: any("about apples" in (c.get("match") or "").lower() for c in r["challenges"])),
     ]
 
     for query, validate in cases:
