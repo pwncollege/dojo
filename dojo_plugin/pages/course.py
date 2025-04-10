@@ -387,7 +387,10 @@ def view_course(dojo, resource=None):
 
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
 
-    grades = next(grade(dojo, user, ignore_pending=ignore_pending)) if user else {}
+    if not dojo.course.get("grade_code"):
+        grades = next(grade(dojo, user, ignore_pending=ignore_pending)) if user else {}
+    else:
+        grades = {}
 
     identity = dict(identity_name=dojo.course.get("student_id", "Identity"),
                     identity_value=student.token if student else None)
@@ -468,6 +471,9 @@ def view_all_grades(dojo):
 
     if not dojo.is_admin():
         abort(403)
+
+    if dojo.course.get("grade_code"):
+        return render_template("grades_admin.html", dojo=dojo)
 
     ignore_pending = request.args.get("ignore_pending") is not None
 

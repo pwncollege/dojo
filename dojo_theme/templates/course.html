@@ -55,45 +55,49 @@
 
         {% if user %}
           <div class="tab-pane fade show" id="grades" role="tabpanel">
-            <h3>{{ name }} current grade in the class: <code style="font-size: 2em">{{ letter_grade }}</code> ({{ "%.2f%%" | format(100 * overall_grade) }})</h3>
-            <br>
-            <div id="grades" class="row">
-              <div class="col-md-12">
-                <table class="table table-striped">
-                  <thead>
-                    <tr>
-                      <td scope="col"><b>Name</b></td>
-                      <td scope="col"><b>Date</b></td>        
-                      {% if show_extra_late_date %}
-                      <td scope="col"><b>Extra Late Date</b></td>
-                      {% endif %}                                    
-                      <td scope="col"><b>Weight</b></td>
-                      <td scope="col"><b>Progress</b></td>
-                      <td scope="col"><b>Credit</b></td>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for assessment_grade in assessment_grades %}
-                    {% if assessment_grade.credit is boolean %}
-                      {% set credit = "✓" if assessment_grade.credit else "✕" %}
-                    {% elif assessment_grade.credit is number %}
-                      {% set credit = "%.2f%%" | format(100 * assessment_grade.credit) %}
-                    {% endif %}
-                    <tr>
-                      <td>{{ assessment_grade.name }}</td>
-                      <td>{{ assessment_grade.date }}</td>
-                      {% if show_extra_late_date %}
-                      <td>{{ assessment_grade.extra_late_date }}</td>
+            {% if letter_grade %}
+              <h3>{{ name }} current grade in the class: <code style="font-size: 2em">{{ letter_grade }}</code> ({{ "%.2f%%" | format(100 * overall_grade) }})</h3>
+              <br>
+              <div id="grades" class="row">
+                <div class="col-md-12">
+                  <table class="table table-striped">
+                    <thead>
+                      <tr>
+                        <td scope="col"><b>Name</b></td>
+                        <td scope="col"><b>Date</b></td>
+                        {% if show_extra_late_date %}
+                        <td scope="col"><b>Extra Late Date</b></td>
+                        {% endif %}
+                        <td scope="col"><b>Weight</b></td>
+                        <td scope="col"><b>Progress</b></td>
+                        <td scope="col"><b>Credit</b></td>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for assessment_grade in assessment_grades %}
+                      {% if assessment_grade.credit is boolean %}
+                        {% set credit = "✓" if assessment_grade.credit else "✕" %}
+                      {% elif assessment_grade.credit is number %}
+                        {% set credit = "%.2f%%" | format(100 * assessment_grade.credit) %}
                       {% endif %}
-                      <td>{{ assessment_grade.weight }}</td>
-                      <td>{{ assessment_grade.progress }}</td>
-                      <td>{{ credit }}</td>
-                    </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
+                      <tr>
+                        <td>{{ assessment_grade.name }}</td>
+                        <td>{{ assessment_grade.date }}</td>
+                        {% if show_extra_late_date %}
+                        <td>{{ assessment_grade.extra_late_date }}</td>
+                        {% endif %}
+                        <td>{{ assessment_grade.weight }}</td>
+                        <td>{{ assessment_grade.progress }}</td>
+                        <td>{{ credit }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            {% else %}
+              <p>Loading...</p>
+            {% endif %}
           </div>
 
           <div class="tab-pane fade" id="identity" role="tabpanel">
@@ -142,4 +146,10 @@
 
 {% block scripts %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/course.js') }}"></script>
+<script defer src="{{ url_for('views.themes', path='js/dojo/grades.js') }}"></script>
+{% if not grades %}
+<script>
+  document.addEventListener("DOMContentLoaded", () => loadGrades("#grades"));
+</script>
+{% endif %}
 {% endblock %}

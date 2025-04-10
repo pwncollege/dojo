@@ -467,10 +467,11 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = ["image", "path_override", "importable", "allow_privileged"]
+    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked"]
     data_defaults = {
         "importable": True,
-        "allow_privileged": True
+        "allow_privileged": True,
+        "progression_locked": False,
     }
 
     dojo = db.relationship("Dojos",

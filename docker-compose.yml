@@ -1,20 +1,17 @@
 services:
   workspace-builder:
     container_name: workspace-builder
-    build:
-      context: ./workspace
-      args:
-        - DOJO_WORKSPACE=${DOJO_WORKSPACE}
+    build: ./workspace
     environment:
       - DOJO_WORKSPACE=${DOJO_WORKSPACE}
+      - NIX_GARBAGE_COLLECT=${NIX_GARBAGE_COLLECT:-false}
     volumes:
-      - /data/workspace:/out
+      - /data/workspace/nix:/nix
 
   workspacefs:
     container_name: workspacefs
     privileged: true
-    build:
-      context: ./workspacefs
+    build: ./workspacefs
     volumes:
       - /data/workspacefs:/run/workspace:shared
       - /data/workspace/nix:/nix
@@ -26,8 +23,7 @@ services:
     container_name: dojofs
     privileged: true
     pid: host
-    build:
-      context: ./dojofs
+    build: ./dojofs
     volumes:
       - /run/dojofs:/run/dojofs:shared
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -35,8 +31,7 @@ services:
   homefs:
     container_name: homefs
     privileged: true
-    build:
-      context: ./homefs
+    build: ./homefs
     environment:
       - STORAGE_ROOT=/run/homefs
       - STORAGE_HOST=192.168.42.1
@@ -55,7 +50,6 @@ services:
     platform: linux/amd64
     user: root
     restart: always
-    privileged: true
     entrypoint: ""
     command:
       - /bin/sh
@@ -146,8 +140,7 @@ services:
     container_name: db
     profiles:
       - main
-    build:
-      context: ./db
+    build: ./db
     restart: always
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_PASS}
@@ -177,8 +170,7 @@ services:
     container_name: sshd
     profiles:
       - main
-    build:
-      context: ./sshd
+    build: ./sshd
     volumes:
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys:/etc/ssh:ro
@@ -236,6 +228,102 @@ services:
       - acme:/etc/acme.sh
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
+  node-exporter:
+    container_name: node-exporter
+    image: prom/node-exporter
+    command:
+      - "--path.rootfs=/host"
+    network_mode: host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+
+  cadvisor:
+    container_name: cadvisor
+    image: gcr.io/cadvisor/cadvisor
+    privileged: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /data/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+
+  prometheus:
+    container_name: prometheus
+    profiles:
+      - main
+    image: prom/prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_targets:/etc/prometheus/targets:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      prometheus-generate-targets:
+        condition: service_completed_successfully
+
+  prometheus-generate-targets:
+    image: python:3.12-slim
+    profiles:
+      - main
+    command:
+      - /usr/local/bin/python
+      - -c
+      - |
+        import json
+        main_node_ip = "192.168.42.1"
+        workspace_nodes = json.load(open("/var/workspace_nodes.json"))
+        workspace_node_ips = [f"192.168.42.{int(node_id) + 1}" for node_id in workspace_nodes]
+        cadvisor_targets = [{
+            "labels": {"job": "cadvisor"},
+            "targets": [f"{ip}:8080" for ip in [main_node_ip] + workspace_node_ips]
+        }]
+        node_exporter_targets = [{
+            "labels": {"job": "node_exporter"},
+            "targets": [f"{ip}:9100" for ip in [main_node_ip] + workspace_node_ips]
+        }]
+        with open("/etc/prometheus/targets/cadvisor.json", "w") as f:
+            json.dump(cadvisor_targets, f, indent=2)
+        with open("/etc/prometheus/targets/node_exporter.json", "w") as f:
+            json.dump(node_exporter_targets, f, indent=2)
+    volumes:
+      - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
+      - prometheus_targets:/etc/prometheus/targets
+
+  grafana:
+    container_name: grafana
+    profiles:
+      - main
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_SIGNOUT_MENU: "true"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
+  watchdog:
+    container_name: watchdog
+    profiles:
+      - main
+    build: ./watchdog
+    volumes:
+      - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
   create-workspace-net:
     image: busybox:uclibc
     command: /bin/true
@@ -247,6 +335,7 @@ volumes:
   html:
   certs:
   acme:
+  prometheus_targets:
 
 networks:
   default:

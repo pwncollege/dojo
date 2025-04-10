@@ -61,6 +61,8 @@ tmpfs /run/dojofs tmpfs defaults,mode=755,shared 0 0
 EOF
 
 COPY <<EOF /etc/sysctl.d/90-dojo.conf
+fs.inotify.max_user_instances = 8192
+fs.inotify.max_user_watches = 1048576
 kernel.pty.max = 1048576
 kernel.core_pattern = core
 kernel.apparmor_restrict_unprivileged_userns = 0
