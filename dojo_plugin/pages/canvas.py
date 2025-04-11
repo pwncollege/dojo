@@ -15,7 +15,6 @@ canvas = Blueprint("canvas", __name__)
 
 logger = logging.getLogger(__name__)
 
-
 def canvas_request(endpoint, method="GET", *, dojo, **kwargs):
     missing = [attr for attr in ["canvas_token", "canvas_api_host", "canvas_course_id"] if not (dojo.course or {}).get(attr)]
     if missing:
@@ -40,7 +39,9 @@ def canvas_request(endpoint, method="GET", *, dojo, **kwargs):
 
 def canvas_course_request(endpoint, method="GET", *, dojo, **kwargs):
     canvas_course_id = (dojo.course or {}).get("canvas_course_id")
-    return canvas_request(f"/courses/{canvas_course_id}{endpoint}", method=method, dojo=dojo, **kwargs)
+    course_url = f"/courses/{canvas_course_id}{endpoint}"
+    logger.info(f"Canvas request: {course_url}")
+    return canvas_request(course_url, method=method, dojo=dojo, **kwargs)
 
 
 @canvas.route("/dojo/<dojo>/admin/canvas/sync")
@@ -81,6 +82,42 @@ def sync_canvas_user(user_id, challenge_id):
             logger.error("Canvas sync error for dojo %s", dojo, exc_info=True)
 
 
+def fetch_all_pages(dojo, endpoint):
+    missing = [attr for attr in ["canvas_token", "canvas_api_host", "canvas_course_id"] if not (dojo.course or {}).get(attr)]
+    if missing:
+        raise RuntimeError(f"Canvas not configured: missing {', '.join(missing)}")
+
+    canvas_token = dojo.course["canvas_token"]
+    canvas_api_host = dojo.course["canvas_api_host"]
+    headers = {"Authorization": f"Bearer {canvas_token}"}
+    url = f"https://{canvas_api_host}/api/v1/courses/{dojo.course['canvas_course_id']}{endpoint}"
+    all_items = []
+    while url:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        all_items.extend(response.json())
+        # Use the 'next' link provided in the response headers for pagination
+        links = response.links
+        url = links['next']['url'] if 'next' in links else None
+    return all_items
+
+
+# Function to get students from Canvas
+def get_students_from_canvas(dojo, sis_user_id=None):
+    if sis_user_id is not None:
+        # single user search should be faster than pulilng back all users in the course
+        users_endpoint = f"/enrollments?sis_user_id[]={sis_user_id}&type[]=StudentEnrollment"
+        logger.info(f"Fetching user from Canvas with {sis_user_id=} at {users_endpoint=}")
+        all_users = canvas_course_request(users_endpoint, method="GET", dojo=dojo)
+    else:
+        # Get all students in the course
+        users_endpoint = "/users?enrollment_type[]=student&per_page=100"
+        all_users = fetch_all_pages(dojo, users_endpoint)
+
+    user_map = {user['sis_user_id']: user["id"] for user in all_users}
+
+    return user_map
+
 def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
     course_students = dojo.course.get("students", [])
     users = (
@@ -90,6 +127,15 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
     )
     if user_id is not None:
         users = users.filter(DojoStudents.user_id == user_id)
+        only_user = users.first()
+        sis_user_id = None
+        for student in dojo.students:
+            if student.user_id == user_id:
+                sis_user_id = student.token
+                break
+        canvas_students_map = get_students_from_canvas(dojo, sis_user_id)
+    else:
+        canvas_students_map = get_students_from_canvas(dojo)
 
     canvas_assignments = {}
     page = 1
@@ -106,7 +152,8 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
             )
         page += 1
 
-    student_ids = {student.user_id: student.token for student in dojo.students}
+    student_ids = {student.user_id: canvas_students_map[student.token] for student in dojo.students if student.token in canvas_students_map}
+
     assessments = dojo.course.get("assessments", [])
     grades = grade(dojo, users, ignore_pending=ignore_pending)
 
@@ -125,7 +172,10 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
 
             student_submissions = assignment_submissions.setdefault(canvas_assignment["id"], {})
             grade_data = student_submissions.setdefault("grade_data", {})
-            student_id = student_ids[user_grades["user_id"]]
+            canvas_student_id = student_ids.get(user_grades["user_id"],None)
+            if canvas_student_id is None:
+                logger.warning(f"Student {user_grades['user_id']} not found in Canvas roster")
+                continue
             extra_credit_max = assessment.get("extra_credit_max", 100)
             if canvas_assignment["points_possible"] == 0:
                 logger.info(f"Extra credit post {(assessment_grade['credit'] * extra_credit_max):.2f}")
@@ -134,7 +184,7 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
                 logger.info(f"Normal credit post {assessment_grade['credit'] * 100:.2f}%")
                 grade_credit = f"{assessment_grade['credit'] * 100:.2f}%"
 
-            grade_data[f"sis_user_id:{student_id}"] = {"posted_grade": grade_credit}
+            grade_data[f"{canvas_student_id}"] = {"posted_grade": grade_credit}
 
     progress_info = {}
 
@@ -142,6 +192,6 @@ def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):
         response = canvas_course_request(f"/assignments/{assignment_id}/submissions/update_grades", method="POST", dojo=dojo, json=grade_data)
         progress_url = url_for("canvas.canvas_progress", dojo=dojo.reference_id, progress_id=response["id"], _external=True)
         progress_info[assignment_id] = progress_url
-        logger.info(f"Posted {len(grade_data)} grade(s) to Canvas assignment {assignment_id}: {progress_url}")
+        logger.info(f"Posted {len(grade_data)} grade(s) to Canvas assignment {assignment_id}: {progress_url} ")
 
     return progress_info
