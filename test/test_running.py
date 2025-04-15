@@ -527,3 +527,14 @@ def test_search_no_results(admin_session):
     assert not data["results"]["dojos"], "Expected no dojo matches"
     assert not data["results"]["modules"], "Expected no module matches"
     assert not data["results"]["challenges"], "Expected no challenge matches"
+
+def test_progression_locked(progression_locked_dojo, random_user):
+    uid, session = random_user
+    assert session.get(f"{DOJO_URL}/dojo/{progression_locked_dojo}/join/").status_code == 200
+    start_challenge(progression_locked_dojo, "progression-locked-module", "unlocked-challenge", session=session)
+
+    with pytest.raises(AssertionError) as error:
+        start_challenge(progression_locked_dojo, "progression-locked-module", "unlocked-challenge", session=session)
+
+    print(f"I don't know what I'm doing so I'm just gonna print this error {error}")
+    assert False
