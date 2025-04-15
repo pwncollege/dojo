@@ -534,7 +534,7 @@ def test_progression_locked(progression_locked_dojo, random_user):
     start_challenge(progression_locked_dojo, "progression-locked-module", "unlocked-challenge", session=session)
 
     with pytest.raises(AssertionError) as error:
-        start_challenge(progression_locked_dojo, "progression-locked-module", "unlocked-challenge", session=session)
+        start_challenge(progression_locked_dojo, "progression-locked-module", "locked-challenge", session=session)
 
     print(f"I don't know what I'm doing so I'm just gonna print this error {error}")
     assert False
