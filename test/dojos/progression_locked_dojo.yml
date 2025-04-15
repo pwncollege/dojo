@@ -1,0 +1,17 @@
+id: progression-locked-dojo
+type: public
+modules:
+  - id: progression-locked-module
+    challenges:
+      - id: unlocked-challenge
+        progression_locked: true
+        import:
+          dojo: example
+          module: world
+          challenge: earth
+      - id: locked-challenge
+        progression_locked: true
+        import:
+          dojo: example
+          module: world
+          challenge: mars
