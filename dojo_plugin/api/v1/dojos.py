@@ -177,11 +177,13 @@ class DojoSurvey(Resource):
         survey = dojo_challenge.survey
         if not survey:
             return {"success": True, "type": "none"}
-        response = {"success": True, "type": survey.type, "probability": survey.probability, "prompt": survey.prompt}
-        if not survey.probability:
+        response = {"success": True, "type": survey["type"], "prompt": survey["prompt"]}
+        if not survey.get("probability"):
             response["probability"] = 1.0
-        if survey.options:
-            response["options"] = survey.options
+        else:
+            response["probability"] = survey["probability"]
+        if survey.get("options"):
+            response["options"] = survey["options"]
         return response
     
     @authed_only
@@ -200,13 +202,13 @@ class DojoSurvey(Resource):
         if not data.get("response"):
             return {"success": False, "error": "Missing response"}, 400
 
-        if survey.type == "thumb":
+        if survey["type"] == "thumb":
             if data["response"] != "up" and data["response"] != "down":
                 return {"success": False, "error": "Invalid response"}, 400
-        elif survey.type == "multiplechoice":
-            if not isinstance(data["response"], int) or not (int(data["response"]) < len(survey.options) and int(data["response"]) >= 0):
+        elif survey["type"] == "multiplechoice":
+            if not isinstance(data["response"], int) or not (int(data["response"]) < len(survey["options"]) and int(data["response"]) >= 0):
                 return {"success": False, "error": "Invalid response"}, 400
-        elif survey.type == "freeform":
+        elif survey["type"] == "freeform":
             if not isinstance(data["response"], str):
                 return {"success": False, "error": "Invalid response"}, 400
         else:
@@ -217,7 +219,8 @@ class DojoSurvey(Resource):
             dojo_id=dojo_challenge.dojo_id, 
             module_index=module.module_index, 
             challenge_index=dojo_challenge.challenge_index,
-            response=data["response"]
+            response=data["response"],
+            prompt=survey["prompt"]
         )
         db.session.add(response)
         db.session.commit()

@@ -18,7 +18,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from CTFd.models import db, Challenges, Flags
 from CTFd.utils.user import get_current_user, is_admin
 
-from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities, DojoChallengeSurveys
+from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
 from ..config import DOJOS_DIR
 from ..utils import get_current_container
 
@@ -326,19 +326,6 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             stop = stop.astimezone(datetime.timezone.utc) if stop else None
             return cls(start=start, stop=stop)
 
-    def survey(cls, *args):
-        survey_type = None
-        probability = None
-        prompt = None
-        options = None
-        for arg in args:
-            survey_type = arg.get("survey", {}).get("type") or survey_type
-            probability = arg.get("survey", {}).get("probability") or probability
-            prompt = arg.get("survey", {}).get("prompt") or prompt
-            options = arg.get("survey", {}).get("options") or options
-        if survey_type or probability or prompt or options:
-            return cls(type=survey_type, probability=probability, prompt=prompt, options=options)
-
     _missing = object()
     def shadow(attr, *datas, default=_missing, default_dict=None):
         for data in reversed(datas):
@@ -368,7 +355,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     ) if "import" not in challenge_data else None,
                     progression_locked=challenge_data.get("progression_locked"),
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
-                    survey=survey(DojoChallengeSurveys, dojo_data, module_data, challenge_data),
+                    survey=challenge_data.get("survey"),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
                                         f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")
                              if "import" in challenge_data else None),

@@ -467,7 +467,7 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked"]
+    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey"]
     data_defaults = {
         "importable": True,
         "allow_privileged": True,
@@ -481,10 +481,6 @@ class DojoChallenges(db.Model):
     module = db.relationship("DojoModules", back_populates="_challenges")
     challenge = db.relationship("Challenges")
     visibility = db.relationship("DojoChallengeVisibilities",
-                                 uselist=False,
-                                 cascade="all, delete-orphan",
-                                 back_populates="challenge")
-    survey = db.relationship("DojoChallengeSurveys",
                                  uselist=False,
                                  cascade="all, delete-orphan",
                                  back_populates="challenge")
@@ -610,51 +606,15 @@ class DojoChallenges(db.Model):
 
     __repr__ = columns_repr(["module", "id", "challenge_id"])
 
-class DojoChallengeSurveys(db.Model):
-    __tablename__ = "dojo_challenge_surveys"
-    __table_args__ = (
-        db.ForeignKeyConstraint(["dojo_id", "module_index", "challenge_index"],
-                                ["dojo_challenges.dojo_id", "dojo_challenges.module_index", "dojo_challenges.challenge_index"],
-                                ondelete="CASCADE"),
-    )
-
-    dojo_id = db.Column(db.Integer, primary_key=True)
-    module_index = db.Column(db.Integer, primary_key=True)
-    challenge_index = db.Column(db.Integer, primary_key=True)
-
-    type = db.Column(db.String(32)) 
-    probability = db.Column(db.Float)
-    prompt = db.Column(db.Text)
-    _options = db.Column(db.Text) # comma-delimited list of options
-
-    @property
-    def options(self):
-        return self._options.split(",") if self._options else None
-
-    @options.setter
-    def options(self, value):
-        if isinstance(value, list):
-            self._options = ",".join(value)
-        elif isinstance(value, str):
-            self._options = value
-        elif value is None:
-            self._options = None
-
-    challenge = db.relationship("DojoChallenges", back_populates="survey", uselist=False)
-
-    responses = db.relationship("SurveyResponses", back_populates="survey", cascade="all, delete-orphan")
-
 
 class SurveyResponses(db.Model):
     __tablename__ = "survey_responses"
     __table_args__ = (
         db.ForeignKeyConstraint(["dojo_id", "module_index", "challenge_index"],
-                                ["dojo_challenge_surveys.dojo_id", "dojo_challenge_surveys.module_index", "dojo_challenge_surveys.challenge_index"],
-                                ondelete="CASCADE"),
-        db.ForeignKeyConstraint(["dojo_id", "module_index", "challenge_index"],
                                 ["dojo_challenges.dojo_id", "dojo_challenges.module_index", "dojo_challenges.challenge_index"],
-                                ondelete="CASCADE")
+                                ondelete="CASCADE"),
     )
+    
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     dojo_id = db.Column(db.Integer, nullable=False)
@@ -662,12 +622,13 @@ class SurveyResponses(db.Model):
     challenge_index = db.Column(db.Integer, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("dojo_users.user_id", ondelete="CASCADE"), nullable=False)
     
+    prompt = db.Column(db.Text, nullable=False)
     response = db.Column(db.Text, nullable=False) 
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
 
     challenge = db.relationship("DojoChallenges", back_populates="survey_responses")
-    survey = db.relationship("DojoChallengeSurveys", back_populates="responses")
     users = db.relationship("DojoUsers", back_populates="survey_responses")
+
 
 class DojoResources(db.Model):
     __tablename__ = "dojo_resources"
