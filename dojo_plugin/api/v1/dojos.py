@@ -220,7 +220,8 @@ class DojoSurvey(Resource):
             module_index=module.module_index, 
             challenge_index=dojo_challenge.challenge_index,
             response=data["response"],
-            prompt=survey["prompt"]
+            prompt=survey["prompt"],
+            type=survey["type"],
         )
         db.session.add(response)
         db.session.commit()
