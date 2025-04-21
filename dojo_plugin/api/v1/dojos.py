@@ -177,18 +177,19 @@ class DojoSurvey(Resource):
         survey = dojo_challenge.survey
         if not survey:
             return {"success": True, "type": "none"}
-        response = {"success": True, "type": survey["type"], "prompt": survey["prompt"]}
-        if not survey.get("probability"):
-            response["probability"] = 1.0
-        else:
-            response["probability"] = survey["probability"]
-        if survey.get("options"):
+        response = {
+            "success": True,
+            "type": survey["type"],
+            "prompt": survey["prompt"],
+            "probability": survey.get("probability", 1.0),
+        }
+        if "options" in survey:
             response["options"] = survey["options"]
         return response
-    
+
     @authed_only
     @dojo_route
-    @ratelimit(method="POST", limit=2, interval=60)
+    @ratelimit(method="POST", limit=10, interval=60)
     def post(self, dojo, module, challenge):
         user = get_current_user()
         data = request.get_json()
@@ -199,11 +200,11 @@ class DojoSurvey(Resource):
         survey = dojo_challenge.survey
         if not survey:
             return {"success": False, "error": "Survey not found"}, 404
-        if not data.get("response"):
+        if "response" not in data:
             return {"success": False, "error": "Missing response"}, 400
 
         if survey["type"] == "thumb":
-            if data["response"] != "up" and data["response"] != "down":
+            if data["response"] not in ["up", "down"]:
                 return {"success": False, "error": "Invalid response"}, 400
         elif survey["type"] == "multiplechoice":
             if not isinstance(data["response"], int) or not (int(data["response"]) < len(survey["options"]) and int(data["response"]) >= 0):
@@ -215,13 +216,13 @@ class DojoSurvey(Resource):
             return {"success": False, "error": "Bad survey type"}, 400
 
         response = SurveyResponses(
-            user_id=user.id, 
-            dojo_id=dojo_challenge.dojo_id, 
-            module_index=module.module_index, 
+            user_id=user.id,
+            dojo_id=dojo_challenge.dojo_id,
+            module_index=module.module_index,
             challenge_index=dojo_challenge.challenge_index,
-            response=data["response"],
-            prompt=survey["prompt"],
             type=survey["type"],
+            prompt=survey["prompt"],
+            response=data["response"],
         )
         db.session.add(response)
         db.session.commit()

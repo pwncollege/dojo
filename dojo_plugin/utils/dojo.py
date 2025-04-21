@@ -393,7 +393,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     ) if "import" not in challenge_data else None,
                     progression_locked=challenge_data.get("progression_locked"),
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
-                    survey=(challenge_data.get("survey") if challenge_data.get("survey") is not None else (module_data.get("survey") if module_data.get("survey") is not None else dojo_data.get("survey"))),
+                    survey=shadow("survey", dojo_data, module_data, challenge_data, default=None),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
                                         f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")
                              if "import" in challenge_data else None),

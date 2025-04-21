@@ -614,17 +614,16 @@ class SurveyResponses(db.Model):
                                 ["dojo_challenges.dojo_id", "dojo_challenges.module_index", "dojo_challenges.challenge_index"],
                                 ondelete="CASCADE"),
     )
-    
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     dojo_id = db.Column(db.Integer, nullable=False)
     module_index = db.Column(db.Integer, nullable=False)
     challenge_index = db.Column(db.Integer, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("dojo_users.user_id", ondelete="CASCADE"), nullable=False)
-    
+
     type = db.Column(db.String(64), nullable=False)
     prompt = db.Column(db.Text, nullable=False)
-    response = db.Column(db.Text, nullable=False) 
+    response = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
 
     challenge = db.relationship("DojoChallenges", back_populates="survey_responses")
