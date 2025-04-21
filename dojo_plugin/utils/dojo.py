@@ -69,6 +69,25 @@ DOJO_SPEC = Schema({
 
     Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
 
+    Optional("survey"): Or(
+        {
+            "type": "multiplechoice",
+            "prompt": str,
+            Optional("probability"): float,
+            "options": [str],
+        },
+        {
+            "type": "thumb",
+            "prompt": str,
+            Optional("probability"): float,
+        },
+        {
+            "type": "freeform",
+            "prompt": str,
+            Optional("probability"): float,
+        },
+    ),
+
     Optional("modules", default=[]): [{
         **ID_NAME_DESCRIPTION,
         **VISIBILITY,
@@ -81,6 +100,25 @@ DOJO_SPEC = Schema({
             Optional("dojo"): UNIQUE_ID_REGEX,
             "module": ID_REGEX,
         },
+
+        Optional("survey"): Or(
+            {
+                "type": "multiplechoice",
+                "prompt": str,
+                Optional("probability"): float,
+                "options": [str],
+            },
+            {
+                "type": "thumb",
+                "prompt": str,
+                Optional("probability"): float,
+            },
+            {
+                "type": "freeform",
+                "prompt": str,
+                Optional("probability"): float,
+            },
+        ),
 
         Optional("challenges", default=[]): [{
             **ID_NAME_DESCRIPTION,
@@ -104,6 +142,25 @@ DOJO_SPEC = Schema({
                 Optional("module"): ID_REGEX,
                 "challenge": ID_REGEX,
             },
+
+            Optional("survey"): Or(
+                {
+                    "type": "multiplechoice",
+                    "prompt": str,
+                    Optional("probability"): float,
+                    "options": [str],
+                },
+                {
+                    "type": "thumb",
+                    "prompt": str,
+                    Optional("probability"): float,
+                },
+                {
+                    "type": "freeform",
+                    "prompt": str,
+                    Optional("probability"): float,
+                },
+            )
         }],
 
         Optional("resources", default=[]): [Or(
@@ -336,6 +393,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     ) if "import" not in challenge_data else None,
                     progression_locked=challenge_data.get("progression_locked"),
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
+                    survey=shadow("survey", dojo_data, module_data, challenge_data, default=None),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
                                         f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")
                              if "import" in challenge_data else None),
