@@ -50,7 +50,9 @@ let
     exec > /run/dojo/var/root/init.log 2>&1
     chmod 600 /run/dojo/var/root/init.log
 
-    chown 1000:1000 /home/hacker && chmod 755 /home/hacker
+    for path in /home/hacker /home/hacker/.config; do
+      mkdir -p "$path" && chown 1000:1000 "$path" && chmod 755 "$path"
+    done
 
     if [ -x "/challenge/.init" ]; then
         PATH="/run/challenge/bin:$IMAGE_PATH" /challenge/.init
@@ -64,6 +66,10 @@ let
   profile = pkgs.writeText "dojo-profile" ''
     if [[ "$PATH" != "/run/challenge/bin:/run/workspace/bin:"* ]]; then
       export PATH="/run/challenge/bin:/run/workspace/bin:$PATH"
+    fi
+
+    if [[ -z "$LANG" ]]; then
+      export LANG="C.UTF-8"
     fi
   '';
 

@@ -56,7 +56,7 @@ then
 	sudo rm -rf $DOCKER_DIR/{containers,volumes}
 fi
 
-docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" -p 2222:22 -p 80:80 -p 443:443 --name "$DOJO_CONTAINER" dojo || exit 1
+docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" -p 2222:22 -p 80:80 -p 443:443 --name "$DOJO_CONTAINER" pwncollege/dojo || exit 1
 
 # fix the insane routing thing
 read -a GW <<<$(ip route show default)
