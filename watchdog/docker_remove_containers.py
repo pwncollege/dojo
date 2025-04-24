@@ -10,7 +10,9 @@ from datetime import datetime, timedelta, timezone
 import docker
 
 OLD_CONTAINER_AGE = timedelta(hours=6)
-LARGE_CONTAINER_SIZE = 8 * (1024 ** 3)  # 8 GiB
+
+GiB = 1024 ** 3
+LARGE_CONTAINER_SIZE = 16 * GiB
 
 logging.basicConfig(level=logging.INFO, format=f"%(asctime)s [{os.path.basename(__file__)}] [%(levelname)s] %(message)s")
 
