@@ -216,10 +216,9 @@ class DojoSurvey(Resource):
             return {"success": False, "error": "Bad survey type"}, 400
 
         response = SurveyResponses(
-            user_id=user.id,
-            dojo_id=dojo_challenge.dojo_id,
-            module_index=module.module_index,
-            challenge_index=dojo_challenge.challenge_index,
+            user_id=user.id, 
+            dojo_id=dojo_challenge.dojo_id, 
+            challenge_id=dojo_challenge.challenge_id,
             type=survey["type"],
             prompt=survey["prompt"],
             response=data["response"],
