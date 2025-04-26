@@ -1,0 +1,35 @@
+id: surveys-dojo
+type: public
+survey:
+  prompt: Dojo-level prompt
+  type: multiplechoice
+  options:
+    - Option 1
+    - Option 2
+    - Option 3
+modules:
+  - id: surveys-module-1
+    survey:
+      prompt: Module-level prompt
+      type: thumb
+    challenges:
+      - id: module-level
+        import:
+          dojo: example
+          module: world
+          challenge: earth
+      - id: challenge-level
+        import:
+          dojo: example
+          module: world
+          challenge: mars
+        survey:
+          prompt: Challenge-level prompt
+          type: freeform
+  - id: surveys-module-2
+    challenges:
+      - id: dojo-level
+        import:
+          dojo: example
+          module: world
+          challenge: venus

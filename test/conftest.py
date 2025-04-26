@@ -119,3 +119,7 @@ def searchable_dojo(admin_session):
 @pytest.fixture(scope="session")
 def progression_locked_dojo(admin_session):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "progression_locked_dojo.yml").read(), session=admin_session)
+
+@pytest.fixture(scope="session")
+def surveys_dojo(admin_session):
+    return create_dojo_yml(open(TEST_DOJOS_LOCATION / "surveys_dojo.yml").read(), session=admin_session)
