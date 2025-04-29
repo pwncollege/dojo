@@ -71,6 +71,8 @@ let
     if [[ -z "$LANG" ]]; then
       export LANG="C.UTF-8"
     fi
+
+    PROMPT_COMMAND="history -a"
   '';
 
 in pkgs.stdenv.mkDerivation {
