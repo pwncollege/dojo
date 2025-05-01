@@ -72,7 +72,7 @@ let
       export LANG="C.UTF-8"
     fi
 
-    PROMPT_COMMAND="history -a"
+    PROMPT_COMMAND="history -a; $PROMPT_COMMAND"
   '';
 
 in pkgs.stdenv.mkDerivation {
