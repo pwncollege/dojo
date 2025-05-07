@@ -30,7 +30,7 @@ let
 
     system = [ htop rsync openssh nftables ];
 
-    editors = [ vim neovim emacs nano ];
+    editors = [ vim neovim emacs nano gedit ];
 
     terminal = [ tmux screen ];
 
