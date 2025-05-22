@@ -43,6 +43,9 @@ let
     web = [ firefox geckodriver ];
 
     exploitation = [ aflplusplus rappel ropgadget sage ];
+
+    misc = [ qttools ];
+
   };
 
 in
@@ -59,4 +62,5 @@ in
     ++ tools.reversing
     ++ tools.web
     ++ tools.exploitation;
+    ++ tools.misc;
 }
