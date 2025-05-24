@@ -8,8 +8,6 @@ let
     DEFAULT_PROFILE="/nix/var/nix/profiles/dojo-workspace"
 
     export PATH="$DEFAULT_PROFILE/bin:$PATH"
-    export SSL_CERT_FILE="$DEFAULT_PROFILE/etc/ssl/certs/ca-bundle.crt"
-    export MANPATH="$DEFAULT_PROFILE/share/man:$MANPATH"
 
     mkdir -p /run/current-system
     ln -sfT $DEFAULT_PROFILE /run/current-system/sw
@@ -71,6 +69,17 @@ let
     if [[ -z "$LANG" ]]; then
       export LANG="C.UTF-8"
     fi
+
+    if [[ -z "$MANPATH" ]]; then
+      # "If the value of $MANPATH ends with a colon, then the default search path is added at its end."
+      export MANPATH="/run/dojo/share/man:"
+    fi
+
+    if [[ -z "$SSL_CERT_FILE" ]]; then
+      export SSL_CERT_FILE="/run/dojo/etc/ssl/certs/ca-bundle.crt"
+    fi
+
+    PROMPT_COMMAND="history -a; $PROMPT_COMMAND"
   '';
 
 in pkgs.stdenv.mkDerivation {
