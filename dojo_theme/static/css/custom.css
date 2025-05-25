@@ -878,6 +878,197 @@ code {
     border-radius: 2px;
 }
 
+.stats-dashboard {
+    display: grid;
+    grid-template-columns: repeat(4, 265px);
+    gap: 12px;
+    margin: 6px auto;
+    font-family: 'Space Grotesk', sans-serif;
+    text-transform: none;
+    font-size: 16px;
+    line-height: 1.2;
+    padding: 6px;
+    width: fit-content;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+}
+
+.stat-card {
+    background: linear-gradient(110deg, rgba(0, 0, 0, 1) 0%, rgb(8, 8, 8) 60%, rgb(17, 17, 17) 100%);
+    border: 1px solid var(--brand-black);
+    padding: 16px;
+    border-radius: 8px;
+    height: 185px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+    position: relative;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+.stat-card-header {
+    font-size: 16px;
+    color: var(--brand-green);
+    text-transform: none;
+    text-align: left;
+    padding: 0;
+    margin-bottom: 12px;
+    font-weight: 500;
+}
+
+.stat-container {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 12px;
+    height: calc(100% - 32px);
+}
+
+.stat-box:nth-child(1) { /* Total Solves */
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.stat-box:nth-child(2) { /* Hacking Now */
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.stat-box:nth-child(3) { /* Unique Hackers */
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.stat-box:nth-child(4) { /* Challenges */
+    grid-column: 2;
+    grid-row: 2;
+}
+
+.stat-box {
+    padding: 8px;
+    border-left: 2px solid var(--brand-green);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+}
+
+.stat-label {
+    font-size: 10px;
+    color: var(--brand-light-gray);
+    margin-bottom: 8px;
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stat-value {
+    font-size: 14px;
+    font-weight: 550;
+    color: var(--brand-white);
+    display: flex;
+    align-items: baseline;
+    flex-wrap: nowrap;
+    line-height: 1.1;
+}
+
+.stat-trend {
+    margin-left: 6px;
+    font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+    padding: 2px 2px;
+}
+
+.trend-up { 
+    color: var(--brand-green);
+}
+
+.trend-down { 
+    color: #ff4444;
+}
+
+.trend-neutral { 
+    color: var(--brand-light-gray);
+}
+
+.chart-container {
+    height: calc(100% - 32px);
+    margin: 4px 0;
+    padding: 2px;
+    max-height: 170px;
+    overflow: hidden;
+}
+
+.recent-activity, .recent-awards {
+    height: calc(100% - 32px);
+    max-height: 160px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+    padding: 4px;
+}
+
+.recent-activity::-webkit-scrollbar,
+.recent-awards::-webkit-scrollbar {
+    width: 4px;
+}
+
+.recent-activity::-webkit-scrollbar-track,
+.recent-awards::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.recent-activity::-webkit-scrollbar-thumb,
+.recent-awards::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 2px;
+}
+
+.recent-activity::-webkit-scrollbar-thumb:hover,
+.recent-awards::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.recent-item {
+    padding: 8px 6px;
+    border-bottom: 1px solid #1a1a1a;
+    font-size: 11px;
+    color: var(--brand-white);
+    transition: background 0.2s ease;
+    margin-bottom: 2px;
+}
+
+.recent-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.recent-item:last-child {
+    border-bottom: none;
+}
+
+.recent-time {
+    color: var(--brand-light-gray);
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+.award-link {
+    color: var(--brand-green);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.award-link:hover {
+    color: rgba(120, 190, 32, 0.8);
+    text-decoration: none;
+}
+
 @keyframes navbar-slide-out {
     0% {
         transform: translateY(0);
