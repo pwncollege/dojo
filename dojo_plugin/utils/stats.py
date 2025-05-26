@@ -14,7 +14,7 @@ def get_container_stats():
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def get_dojo_stats(dojo):
-    now = datetime.now() - timedelta(days=75)  # FIX TEST DATE FILTER WHEN DONE!!! 
+    now = datetime.now()
     base_q = dojo.solves()
     
     total_challenges = len(dojo.challenges)

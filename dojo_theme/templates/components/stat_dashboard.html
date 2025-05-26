@@ -12,7 +12,7 @@
             {% if trend > 0 %}▲{% elif trend < 0 %}▼{% else %}-{% endif %}{{ trend|abs }}%
           </span>
           {% else %}
-          <span class="stat-trend trend-neutral"></span>
+          <span class="stat-trend trend-neutral">- 0%</span>
           {% endif %}
         </div>
       </div>
@@ -35,7 +35,7 @@
             {% if trend > 0 %}▲{% elif trend < 0 %}▼{% else %}-{% endif %}{{ trend|abs }}%
           </span>
           {% else %}
-          <span class="stat-trend trend-neutral"></span>
+          <span class="stat-trend trend-neutral">- 0%</span>
           {% endif %}
         </div>
       </div>
@@ -71,7 +71,7 @@
             {{ award.user.name }}
           </a>
           <div class="recent-time">
-            {{ award.date }}
+              {{ award.date.strftime('%m/%d/%y %I:%M %p') if award.date else 'Unknown time' }}
           </div>
         </div>
         {% endfor %}
@@ -92,7 +92,7 @@
         </div>
         {% endfor %}
       {% else %}
-        <div class="recent-item">No recent activity</div>
+        <div class="recent-item">No recent solves</div>
       {% endif %}
     </div>
   </div>
