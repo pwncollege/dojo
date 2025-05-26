@@ -6,7 +6,7 @@
         <div class="stat-label">Total Solves</div>
         <div class="stat-value">
           {{ "{:,}".format(stats.solves if stats and stats.solves else 0) }}
-          {% set trend = stats.trends.solves if stats and stats.trends and stats.trends.solves is defined else 0 %}
+          {% set trend = stats.trends.solves if stats and stats.trends and stats.trends.get('solves') is not none else 0 %}
           {% if trend != 0 %}
           <span class="stat-trend {% if trend > 0 %}trend-up{% elif trend < 0 %}trend-down{% else %}trend-neutral{% endif %}">
             {% if trend > 0 %}▲{% elif trend < 0 %}▼{% else %}-{% endif %}{{ trend|abs }}%
@@ -54,7 +54,7 @@
     <div class="stat-card-header">Activity History</div>
     <div class="chart-container">
       <canvas id="activity-chart" 
-              data-labels='{{ stats.chart_data.labels|tojson if stats and stats.chart_data and stats.chart_data.labels else "[]" }}'
+              data-labels='{{ stats.chart_data.labels|tojson|safe if stats and stats.chart_data and stats.chart_data.labels else "[]" }}'
               data-solves='{{ stats.chart_data.solves|tojson if stats and stats.chart_data and stats.chart_data.solves else "[]" }}'
               data-users='{{ stats.chart_data.users|tojson if stats and stats.chart_data and stats.chart_data.users else "[]" }}'>
       </canvas>
@@ -199,7 +199,10 @@ function initializeChart() {
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeChart);
+  if (!window.chartInitialized) {
+    window.chartInitialized = true;
+    document.addEventListener('DOMContentLoaded', initializeChart);
+  }
 } else {
   initializeChart();
 }
