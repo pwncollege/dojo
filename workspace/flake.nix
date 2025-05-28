@@ -38,6 +38,7 @@
                   pycryptodome
                   pwntools
                 ];
+              requireSageTests = false;
               };
             };
 
