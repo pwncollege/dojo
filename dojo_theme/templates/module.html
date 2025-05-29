@@ -154,6 +154,7 @@
 	            </div>
 	          </div>
 	        </div>
+          {% if challenge.survey is not none and challenge.survey.prompt is not none and challenge.survey.prompt != "none" %}
           <div class="row survey-row">
             <div class="col-md-12">
               <div id="survey-notification" class="survey alert-dismissable w-100" role="alert" style="display: none;">
@@ -186,6 +187,7 @@
               </div>
             </div>
           </div>
+          {% endif %}
         {% endif %}
       {% endcall %}
     {% endfor %}
