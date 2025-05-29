@@ -609,18 +609,12 @@ class DojoChallenges(db.Model):
 
 class SurveyResponses(db.Model):
     __tablename__ = "survey_responses"
-    __table_args__ = (
-        db.ForeignKeyConstraint(["dojo_id", "module_index", "challenge_index"],
-                                ["dojo_challenges.dojo_id", "dojo_challenges.module_index", "dojo_challenges.challenge_index"],
-                                ondelete="CASCADE"),
-    )
-
+    
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    dojo_id = db.Column(db.Integer, nullable=False)
-    module_index = db.Column(db.Integer, nullable=False)
-    challenge_index = db.Column(db.Integer, nullable=False)
+    dojo_id = db.Column(db.Integer, db.ForeignKey("dojo_challenges.dojo_id", ondelete="CASCADE"), nullable=False)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), index=True, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("dojo_users.user_id", ondelete="CASCADE"), nullable=False)
-
+    
     type = db.Column(db.String(64), nullable=False)
     prompt = db.Column(db.Text, nullable=False)
     response = db.Column(db.Text, nullable=False)

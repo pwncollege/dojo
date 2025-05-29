@@ -104,6 +104,7 @@ function renderSubmissionResponse(response, item) {
             if(response.status != 200) return Promise.reject()
             return response.json()
         }).then(function (data) {
+            if(data.type === "none") return
             if(Math.random() > data.probability) return
             if(data.type === "thumb") {
                 survey_notification.addClass("text-center")
