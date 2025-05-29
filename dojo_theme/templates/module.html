@@ -115,7 +115,7 @@
         {% else %}
           <div class="embed-responsive challenge-description">
             {% if lock_challenge %}
-              <p><em>Challenge description is not accessible</em></p>
+              <p><em>This challenge is locked</em></p>
             {% else %}
               {{ challenge.description | markdown }}
             {% endif %}
