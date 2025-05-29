@@ -157,8 +157,17 @@ function unlockChallenge(challenge_button) {
     if (challenge_button.length && challenge_button.hasClass('disabled')) {
         challenge_button.removeClass('disabled');
         const icon = challenge_button.find('.fa-lock');
-        icon.removeClass('fa-lock')
-        icon.addClass('fa-flag')
+        icon.removeClass('fa-lock');
+        icon.addClass('fa-flag');
+
+        const item = challenge_button.closest(".accordion-item");
+        const module_id = item.find("#module").val();
+        const challenge_id = item.find("#challenge").val();
+        const description = item.find(".challenge-description");
+
+        CTFd.fetch(`/pwncollege_api/v1/dojos/${init.dojo}/${module_id}/${challenge_id}/description`)
+            .then(response => response.json())
+            .then(data => description.html(data.description));
     }
 }
 

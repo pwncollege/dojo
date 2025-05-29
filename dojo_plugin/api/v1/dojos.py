@@ -10,6 +10,7 @@ from CTFd.utils.decorators import authed_only, admins_only, ratelimit
 from CTFd.utils.user import get_current_user, is_admin, get_ip
 
 from ...models import DojoStudents, Dojos, DojoModules, DojoChallenges, DojoUsers, Emojis, SurveyResponses
+from ...utils import render_markdown
 from ...utils.dojo import dojo_route, dojo_admins_only, dojo_create
 
 
@@ -276,3 +277,31 @@ class DojoCourseSolveList(Resource):
         ]
 
         return {"success": True, "solves": solves}
+
+@dojos_namespace.route("/<dojo>/<module_id>/<challenge_id>/description")
+class ChallengeResource(Resource):
+    @authed_only
+    @dojo_route
+    def get(self, dojo, module, challenge_id):
+        user = get_current_user()
+
+        dojo_challenge = next((c for c in module.visible_challenges() if c.id == challenge_id), None)
+
+        if dojo_challenge is None:
+            return {"success": False, "error": "Invalid challenge id"}, 404
+
+
+        if all((dojo_challenge.progression_locked, dojo_challenge.challenge_index != 0, not dojo.is_admin())):
+            previous_dojo_challenge = dojo_challenge.module.challenges[dojo_challenge.challenge_index - 1]
+            is_challenge_unlocked = (Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() or
+                      Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first())
+            if not is_challenge_unlocked:
+                return {
+                    "success": False,
+                    "error": "This challenge is locked"
+                }, 403
+
+        return {
+            "success": True,
+            "description": render_markdown(dojo_challenge.description)
+        }
