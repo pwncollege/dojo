@@ -32,11 +32,22 @@
               angr-management = (import nixpkgs-pr-angr-management { inherit system config; }).angr-management;
             };
 
+            sage-overlay = final: prev: {
+              sage = prev.sage.override {
+                extraPythonPackages = ps: with ps; [
+                  pycryptodome
+                  pwntools
+                ];
+              requireSageTests = false;
+              };
+            };
+
             pkgs = import nixpkgs {
               inherit system config;
               overlays = [
                 binaryninja-free-overlay
                 angr-management-overlay
+                sage-overlay
               ];
             };
 

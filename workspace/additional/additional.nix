@@ -3,6 +3,7 @@
 let
   ghidra = import ./ghidra.nix { inherit pkgs; };
   burpsuite = import ./burpsuite.nix { inherit pkgs; };
+  bata24-gef = import ./bata24-gef.nix { inherit pkgs; };
 
   pythonPackages = ps: with ps; [
     angr
@@ -36,7 +37,7 @@ let
 
     network = [ netcat-openbsd tcpdump wireshark termshark nmap burpsuite ];
 
-    debugging = [ strace ltrace gdb pwndbg gef ];
+    debugging = [ strace ltrace gdb pwndbg gef bata24-gef ];
 
     reversing = [ file ghidra ida-free radare2 cutter angr-management binaryninja-free ];
 
