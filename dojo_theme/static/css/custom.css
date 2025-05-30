@@ -951,7 +951,7 @@ code {
     padding: 8px;
     border-left: 2px solid var(--brand-green);
     background: rgba(255, 255, 255, 0.02);
-    border-radius: 4px;
+    border-radius: 4px 0 0 4px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
     transition: all 0.2s ease;
 }
@@ -1053,18 +1053,6 @@ code {
     color: var(--brand-light-gray);
     font-size: 10px;
     margin-top: 2px;
-}
-
-.award-link {
-    color: var(--brand-green);
-    text-decoration: none;
-    font-weight: 500;
-    transition: color 0.2s ease;
-}
-
-.award-link:hover {
-    color: rgba(120, 190, 32, 0.8);
-    text-decoration: none;
 }
 
 @keyframes navbar-slide-out {

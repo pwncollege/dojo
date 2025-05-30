@@ -7,7 +7,7 @@
         {% if trend > 0 %}▲{% elif trend < 0 %}▼{% else %}-{% endif %}{{ trend|abs }}%
       </span>
     {% else %}
-      <span class="stat-trend trend-neutral">- 0%</span>
+      <span class="stat-trend trend-neutral"></span>
     {% endif %}
   </div>
 {%- endmacro -%}
@@ -55,7 +55,7 @@
       {% if awards %}
         {% for award in awards[:3] %}
         <div class="recent-item">
-          <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}" class="award-link">
+          <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}" class="brand-mono">
             {{ award.user.name }}
           </a>
           <div class="recent-time">
