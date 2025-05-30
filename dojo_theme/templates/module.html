@@ -113,8 +113,12 @@
             </span>
           </span>
         {% else %}
-          <div class="embed-responsive">
-            <p>{{ challenge.description | markdown }}</p>
+          <div class="embed-responsive challenge-description">
+            {% if lock_challenge %}
+              <p><em>This challenge is locked</em></p>
+            {% else %}
+              {{ challenge.description | markdown }}
+            {% endif %}
           </div>
           <div class="row">
             <div class="col-sm-{% if challenge.allow_privileged %}6{% else %}12{% endif %} form-group text-center">
