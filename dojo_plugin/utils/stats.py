@@ -59,6 +59,7 @@ def get_dojo_stats(dojo):
             Solves.date.label('date'),
             DojoChallenges.name.label('challenge_name')
         )
+        .filter(Solves.date >= now - timedelta(days=7))
         .order_by(desc(Solves.date))
         .limit(5)
         .all()
