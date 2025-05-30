@@ -216,8 +216,8 @@ class Dojos(db.Model):
     def ordering(cls):
         return (
             ~cls.official,
-            cls.data["type"],
-            cast(case([(cls.data["comparator"] == None, 1000)], else_=cls.data["comparator"]), Numeric()),
+            # cls.data["type"],
+            # cast(case([(cls.data["comparator"] == None, 1000)], else_=cls.data["comparator"]), Numeric()),
             cls.name,
         )
 
@@ -226,7 +226,7 @@ class Dojos(db.Model):
         return (
             (cls.from_id(id) if id is not None else cls.query)
             .filter(or_(cls.official,
-                        and_(cls.data["type"] == "public", cls.password == None),
+                        # and_(cls.data["type"] == "public", cls.password == None),
                         cls.dojo_id.in_(db.session.query(DojoUsers.dojo_id)
                                         .filter_by(user=user)
                                         .subquery())))
@@ -286,7 +286,7 @@ class DojoUsers(db.Model):
     dojo = db.relationship("Dojos", back_populates="users", overlaps="admins,members,students")
     user = db.relationship("Users")
 
-    survey_responses = db.relationship("SurveyResponses", back_populates="users", overlaps="admins,members,students")
+    # survey_responses = db.relationship("SurveyResponses", back_populates="users", overlaps="admins,members,students")
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(user=self.user, dojo=self.dojo, **kwargs)
@@ -485,7 +485,7 @@ class DojoChallenges(db.Model):
                                  cascade="all, delete-orphan",
                                  back_populates="challenge")
 
-    survey_responses = db.relationship("SurveyResponses", back_populates="challenge", cascade="all, delete-orphan")
+    # survey_responses = db.relationship("SurveyResponses", back_populates="challenge", cascade="all, delete-orphan")
 
     def __init__(self, *args, **kwargs):
         default = kwargs.pop("default", None)
@@ -550,7 +550,7 @@ class DojoChallenges(db.Model):
                 ))
             .join(Dojos, and_(
                 Dojos.dojo_id == DojoChallenges.dojo_id,
-                or_(Dojos.official, Dojos.data["type"] == "public", DojoUsers.user_id != None),
+                or_(Dojos.official, DojoUsers.user_id != None),  # PG-JSON: or_(Dojos.official, Dojos.data["type"] == "public", DojoUsers.user_id != None),
                 ))
             .join(Users, Users.id == Solves.user_id)
         )
@@ -609,19 +609,19 @@ class DojoChallenges(db.Model):
 
 class SurveyResponses(db.Model):
     __tablename__ = "survey_responses"
-    
+
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    dojo_id = db.Column(db.Integer, db.ForeignKey("dojo_challenges.dojo_id", ondelete="CASCADE"), nullable=False)
-    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), index=True, nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey("dojo_users.user_id", ondelete="CASCADE"), nullable=False)
-    
+    dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"), nullable=False)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
     type = db.Column(db.String(64), nullable=False)
     prompt = db.Column(db.Text, nullable=False)
     response = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
 
-    challenge = db.relationship("DojoChallenges", back_populates="survey_responses")
-    users = db.relationship("DojoUsers", back_populates="survey_responses")
+    # challenge = db.relationship("DojoChallenges", back_populates="survey_responses")
+    # users = db.relationship("DojoUsers", back_populates="survey_responses")
 
 
 class DojoResources(db.Model):

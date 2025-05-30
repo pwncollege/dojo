@@ -84,11 +84,12 @@ case "$ACTION" in
 
     # HELP: db: launch a mysql client session, connected to the ctfd db
     "db")
-        docker exec $DOCKER_ARGS db mysql -h ${DB_HOST} -p${DB_PASS} -D${DB_NAME} -u${DB_USER} "$@"
+        docker exec $DOCKER_ARGS -e PGPASSWORD="${DB_PASS}" db psql -h "${DB_HOST}" -U "${DB_USER}" -d "${DB_NAME}" "$@"
         ;;
 
     # HELP: backup: does a dojo db backup into the `/data/backups` directory.
     "backup")
+        # PG-TODO: Fix this
         mkdir -p /data/backups
         docker exec db mysqldump -h ${DB_HOST} -p${DB_PASS} -u${DB_USER} --single-transaction --routines --triggers ${DB_NAME} | gzip > "/data/backups/db-$(date -Iseconds).sql.gz"
         ;;
@@ -114,6 +115,7 @@ case "$ACTION" in
 
     # HELP: restore PATH: restores a dojo db backup. Path arg is relative to the `/data/backups` directory
     "restore")
+        # PG-TODO: Fix this
         BACKUP_PATH="/data/backups/$1"
         if [ -f "$BACKUP_PATH" ]; then
             gunzip < "$BACKUP_PATH" | docker exec -i db mysql -h ${DB_HOST} -p${DB_PASS} -u${DB_USER} -D${DB_NAME}
