@@ -63,7 +63,7 @@ def get_viewable_emojis(user):
     result = { }
     viewable_dojo_urls = {
         dojo.hex_dojo_id: url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
-        for dojo in Dojos.viewable(user=user).where(Dojos.data["type"] != "example")
+        for dojo in Dojos.viewable(user=user)  # PG-JSON: .where(Dojos.data["type"] != "example")
     }
     emojis = (
         Emojis.query
