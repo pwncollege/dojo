@@ -982,15 +982,15 @@ code {
     padding: 2px 2px;
 }
 
-.trend-up { 
+.trend-up {
     color: var(--brand-green);
 }
 
-.trend-down { 
+.trend-down {
     color: #ff4444;
 }
 
-.trend-neutral { 
+.trend-neutral {
     color: var(--brand-light-gray);
 }
 
