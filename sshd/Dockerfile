@@ -6,7 +6,7 @@ RUN apk add --no-cache \
         openssh-server-pam \
         openssh-client \
         docker-cli \
-        mysql-client
+        psycopg2
 
 RUN pip3 install --break-system-packages requests==2.31.0 docker redis
 
@@ -23,4 +23,4 @@ RUN chmod 700 /opt/sshd/auth.py
 
 EXPOSE 22
 
-ENTRYPOINT ["/opt/sshd/start.sh"]
+ENTRYPOINT ["/usr/sbin/sshd.pam", "-D", "-e", "-f", "/opt/sshd/sshd_config"]
