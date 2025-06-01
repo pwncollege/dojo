@@ -166,6 +166,52 @@ class DojoChallengeSolve(Resource):
             chal_class.fail(user, None, dojo_challenge.challenge, request)
             return {"success": False, "status": "incorrect"}, 400
 
+@dojos_namespace.route("/<dojo>/surveys/<module>/<challenge>")
+class DojoSurvey(Resource):
+    @dojo_route
+    def get(self, dojo, module, challenge):
+        dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge)
+                          .filter(DojoChallenges.visible()).first())
+        if not dojo_challenge:
+            return {"success": False, "error": "Challenge not found"}, 404
+        survey = dojo_challenge.survey
+        if not survey:
+            return {"success": True, "type": "none"}
+        response = {
+            "success": True,
+            "prompt": survey["prompt"],
+            "data": survey["data"],
+            "probability": survey.get("probability", 1.0),
+            "type": "user-specified"
+        }
+        return response
+
+    @authed_only
+    @dojo_route
+    @ratelimit(method="POST", limit=10, interval=60)
+    def post(self, dojo, module, challenge):
+        user = get_current_user()
+        data = request.get_json()
+        dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge)
+                          .filter(DojoChallenges.visible()).first())
+        if not dojo_challenge:
+            return {"success": False, "error": "Challenge not found"}, 404
+        survey = dojo_challenge.survey
+        if not survey:
+            return {"success": False, "error": "Survey not found"}, 404
+        if "response" not in data:
+            return {"success": False, "error": "Missing response"}, 400
+
+        response = SurveyResponses(
+            user_id=user.id, 
+            dojo_id=dojo_challenge.dojo_id, 
+            challenge_id=dojo_challenge.challenge_id,
+            prompt=survey["prompt"],
+            response=data["response"],
+        )
+        db.session.add(response)
+        db.session.commit()
+        return {"success": True}
 
 @dojos_namespace.route("/<dojo>/course")
 class DojoCourse(Resource):

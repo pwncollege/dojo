@@ -602,6 +602,22 @@ class DojoChallenges(db.Model):
     __repr__ = columns_repr(["module", "id", "challenge_id"])
 
 
+class SurveyResponses(db.Model):
+    __tablename__ = "survey_responses"
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    dojo_id = db.Column(db.Integer, db.ForeignKey("dojo_challenges.dojo_id", ondelete="CASCADE"), nullable=False)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), index=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("dojo_users.user_id", ondelete="CASCADE"), nullable=False)
+    
+    prompt = db.Column(db.Text, nullable=False)
+    response = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
+
+    challenge = db.relationship("DojoChallenges", back_populates="survey_responses")
+    users = db.relationship("DojoUsers", back_populates="survey_responses")
+
+
 class DojoResources(db.Model):
     __tablename__ = "dojo_resources"
 

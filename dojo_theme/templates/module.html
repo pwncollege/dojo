@@ -131,6 +131,13 @@
 	            </div>
 	          </div>
 	        </div>
+          <div class="row survey-row">
+            <div class="col-md-12">
+              <form method="post" action="/pwncollege_api/v1/dojos/{{challenge.dojo.name}}/surveys/{{challenge.module.id}}/{{challenge.name}}" id="survey-notification" class="survey alert-dismissable w-100" role="alert" style="display: none;">
+                {{ challenge.survey.data | safe }}
+              </form>
+            </div>
+          </div>
         {% endif %}
       {% endcall %}
     {% endfor %}

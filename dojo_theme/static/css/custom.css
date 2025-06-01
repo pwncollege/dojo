@@ -644,6 +644,11 @@ code {
     border: 1px solid var(--brand-green);
 }
 
+.survey {
+    position:relative;
+    padding:.75rem 0rem;
+}
+
 #closePopup {
     position: absolute;
     top: 10px;
