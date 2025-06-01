@@ -7,12 +7,14 @@ RUN apt-get update && \
     pip install \
         docker
 
-COPY docker_cleanup.py /usr/local/bin/docker_cleanup.py
+COPY docker_remove_containers.py /usr/local/bin/docker_remove_containers
+COPY docker_prune_images.py /usr/local/bin/docker_prune_images
 
-COPY <<'EOF' /etc/cron.d/cleanup-cron
-0 9 * * * /usr/local/bin/docker_cleanup.py >> /dev/stdout 2>&1
+COPY <<'EOF' /etc/cron.d/watchdog-cron
+*/5 * * * * /usr/local/bin/docker_remove_containers >> /proc/1/fd/1 2>> /proc/1/fd/2
+0 9 * * * /usr/local/bin/docker_prune_images >> /proc/1/fd/1 2>> /proc/1/fd/2
 EOF
 
-RUN crontab /etc/cron.d/cleanup-cron
+RUN crontab /etc/cron.d/watchdog-cron
 
 CMD ["cron", "-f"]

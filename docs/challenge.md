@@ -33,7 +33,7 @@ This program must exit (with a status code of `0`) before the workspace is made 
 
 `/run/challenge/bin`
 
-During initialization, the default nix profile at `/nix/var/nix/profiles/default` is symlinked into `/run/dojo`.
+During initialization, the nix profile at `/nix/var/nix/profiles/dojo-workspace` is symlinked into `/run/dojo`.
 In order to make sure that these standard tools are easily accessible, `PATH` is set to prioritize `/run/dojo/bin` over the default `PATH`.
 This means that when a user runs `gdb`, they will get the standard `gdb` provided by the workspace at `/run/dojo/bin/gdb`, instead of any other `gdb` that might be made available by the challenge image (e.g. `/usr/bin/gdb`).
 The workspace provides for *many* tools in this way in order to provide a consistent environment for all challenges, ensuring that students are able to use the tools they are familiar with.

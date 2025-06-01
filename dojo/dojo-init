@@ -1,17 +1,17 @@
 #!/bin/sh
 
-data_mnt_opts="$(findmnt -n -o OPTIONS /data)"
-if [ "$?" -ne 0 ]; then
-    echo '[!] Data mount does not exist. Please start the dojo with a data mount (`-v /data:/data`).'
-    exit 1
-fi
-echo '[+] Data mount exists.'
-mount --make-shared /data
+mount --make-shared /
 
-if printf '%s' "$data_mnt_opts" | grep -q '\bnosuid\b'; then
-    echo '[!] Data mount is mounted nosuid. Please check the mount options on the data directory.'
+data_mount_options="$(findmnt -no OPTIONS /data)"
+if [ "$?" -ne 0 ]; then
+    echo '[!] Data mount does not exist; start the dojo with a data mount (`-v /data:/data`).'
     exit 1
 fi
+if printf '%s' "$data_mount_options" | grep -q '\bnosuid\b'; then
+    echo '[!] Data mount is mounted nosuid; check the mount options on the data directory.'
+    exit 1
+fi
+mount --make-shared /data
 
 >> /data/config.env
 
@@ -35,7 +35,6 @@ define DOJO_WORKSPACE core
 define WORKSPACE_KEY
 define WORKSPACE_NODE 0
 define SECRET_KEY $(openssl rand -hex 16)
-define UBUNTU_VERSION 20.04
 define INTERNET_FOR_ALL False
 define MAIL_SERVER
 define MAIL_PORT
@@ -48,10 +47,6 @@ define DISCORD_CLIENT_ID
 define DISCORD_CLIENT_SECRET
 define DISCORD_BOT_TOKEN
 define DISCORD_GUILD_ID
-define DEFAULT_INSTALL_SELECTION no # default to not installing tools
-define INSTALL_IDA_FREE no # explicitly disable -- only for free dojos
-define INSTALL_BINJA_FREE no # explicitly disable -- only for free dojos
-define INSTALL_WINDOWS no # explicitly disable
 define DB_HOST db
 define DB_NAME ctfd
 define DB_USER ctfd
@@ -109,11 +104,17 @@ then
     openssl rand 214 > "${BACKUP_AES_KEY_FILE}"
 fi
 
-nft list tables > /dev/null 2>&1  # This will load the nf_tables module, if it's not already loaded and is available
-if [ ! -e /sys/module/nf_tables ]; then
-    echo '[+] Could not load nf_tables module. Switching to legacy iptables.'
+if [ -n "$(cat /proc/net/ip_tables_names)" ]; then
+    echo "[+] Pre-existing iptables-legacy tables detected. Switching to iptables-legacy."
     update-alternatives --set iptables /usr/sbin/iptables-legacy
     update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+else
+    nft list tables > /dev/null 2>&1  # This will load the nf_tables module, if it's not already loaded and is available
+    if [ ! -e /sys/module/nf_tables ]; then
+        echo '[+] Could not load nf_tables module. Switching to iptables-legacy.'
+        update-alternatives --set iptables /usr/sbin/iptables-legacy
+        update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+    fi
 fi
 
 dojo-node refresh

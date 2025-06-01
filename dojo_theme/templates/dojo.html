@@ -47,46 +47,8 @@
 
   {% if dojo.modules %}
   <h2 class="row">Stats</h2>
-  <br>
-  <div class="row">
-    <p>
-      <b>Hacking Now:</b> <code>{{ stats["active"] }}</code>
-      <br>
-      <b>Hackers:</b> <code>{{ "{:,}".format(stats["users"]) }}</code>
-      <br>
-      <b>Challenges:</b> <code>{{ stats["visible_challenges"] }}</code>
-      <br>
-      <b>Solves:</b> <code>{{ "{:,}".format(stats["solves"]) }}</code>
-      {% if awards %}
-      <br>
-      <b>Awardees:</b> <code>{{ "{:,}".format(awards|length) }}</code>
-      <br>
-      <b>Earliest Awardees:</b>
-      {% for award in awards[-5:][::-1] %}
-      <span title="Awarded on {{award.date}}.">
-        <code>
-          <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">
-            {{award.user.name}}
-          </a>
-          {% if not loop.last %} &middot; {% endif %}
-        </code>
-      </span>
-      {% endfor %}
-      <br>
-      <b>Latest Awardees:</b>
-      {% for award in awards[:5] %}
-      <span title="Awarded on {{award.date}}.">
-        <code>
-          <a href="{{ url_for('pwncollege_users.view_other', user_id=award.user_id) }}">
-            {{award.user.name}}
-          </a>
-          {% if not loop.last %} &middot; {% endif %}
-        </code>
-      </span>
-      {% endfor %}
-      {% endif %}
-    </p>
-  </div>
+  {% include "components/stat_dashboard.html" %}
+  <div class="row"></div>
 
   <br>
 
@@ -129,4 +91,5 @@
 {% block scripts %}
 <script defer onload="loadScoreboard(30, 1);" src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
 <script defer src="{{ url_for('views.themes', path='js/dojo/copy.js') }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {% endblock %}

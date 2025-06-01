@@ -30,6 +30,11 @@ function renderSubmissionResponse(response, item) {
     const unsolved_flag = item.find(".challenge-unsolved");
     const total_solves = item.find(".total-solves");
 
+    const header = item.find('[id^="challenges-header-"]');
+    const current_challenge_id = parseInt(header.attr('id').match(/(\d+)$/)[1]);
+    const next_challenge_button = $(`#challenges-header-button-${current_challenge_id + 1}`);
+
+
     result_notification.removeClass();
     result_message.text(result.message);
 
@@ -141,6 +146,24 @@ function renderSubmissionResponse(response, item) {
         item.find("#challenge-submit").removeClass("disabled-button");
         item.find("#challenge-submit").prop("disabled", false);
     }, 10000);
+}
+
+function unlockChallenge(challenge_button) {
+    if (challenge_button.length && challenge_button.hasClass('disabled')) {
+        challenge_button.removeClass('disabled');
+        const icon = challenge_button.find('.fa-lock');
+        icon.removeClass('fa-lock');
+        icon.addClass('fa-flag');
+
+        const item = challenge_button.closest(".accordion-item");
+        const module_id = item.find("#module").val();
+        const challenge_id = item.find("#challenge").val();
+        const description = item.find(".challenge-description");
+
+        CTFd.fetch(`/pwncollege_api/v1/dojos/${init.dojo}/${module_id}/${challenge_id}/description`)
+            .then(response => response.json())
+            .then(data => description.html(data.description));
+    }
 }
 
 

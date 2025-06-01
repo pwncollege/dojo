@@ -1,0 +1,15 @@
+id: search-test-dojo
+name: Searchable Dojo
+description: This dojo contains search test content.
+modules:
+  - id: hello-module
+    name: Hello Module
+    description: This module helps search testing.
+    challenges:
+      - id: apple-challenge
+        name: Apple Challenge
+        description: This challenge is about apples.
+        import:
+          dojo: example
+          module: hello
+          challenge: apple

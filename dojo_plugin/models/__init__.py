@@ -286,6 +286,8 @@ class DojoUsers(db.Model):
     dojo = db.relationship("Dojos", back_populates="users", overlaps="admins,members,students")
     user = db.relationship("Users")
 
+    survey_responses = db.relationship("SurveyResponses", back_populates="users", overlaps="admins,members,students")
+
     def solves(self, **kwargs):
         return DojoChallenges.solves(user=self.user, dojo=self.dojo, **kwargs)
 
@@ -465,10 +467,11 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(db.JSON)
-    data_fields = ["image", "path_override", "importable", "allow_privileged"]
+    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey"]
     data_defaults = {
         "importable": True,
-        "allow_privileged": True
+        "allow_privileged": True,
+        "progression_locked": False,
     }
 
     dojo = db.relationship("Dojos",
@@ -481,6 +484,8 @@ class DojoChallenges(db.Model):
                                  uselist=False,
                                  cascade="all, delete-orphan",
                                  back_populates="challenge")
+
+    survey_responses = db.relationship("SurveyResponses", back_populates="challenge", cascade="all, delete-orphan")
 
     def __init__(self, *args, **kwargs):
         default = kwargs.pop("default", None)

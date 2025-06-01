@@ -2,15 +2,17 @@
   description = "DOJO Workspace Flake";
 
   inputs = {
-    nixpkgs.url = "git+file:///opt/nixpkgs-24.11";
-    nixpkgs-backports.url = "git+file:///opt/nixpkgs-backports";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-pr-angr-management.url = "github:NixOS/nixpkgs/pull/360310/head";
   };
 
   outputs =
     {
       self,
       nixpkgs,
-      nixpkgs-backports,
+      nixpkgs-unstable,
+      nixpkgs-pr-angr-management,
     }:
     {
       packages = {
@@ -19,19 +21,38 @@
             system = "x86_64-linux";
             config = {
               allowUnfree = true;
-              allowBroken = true;  # angr is currently marked "broken" in nixpkgs, but works fine (without unicorn)
+              allowBroken = true; # angr is currently marked "broken" in nixpkgs, but works fine (without unicorn)
             };
-            pkgs-backports = import nixpkgs-backports { inherit system config; };
-            backports-overlay = self: super: {
-              inherit (pkgs-backports) angr-management binaryninja-free;
+
+            binaryninja-free-overlay = self: super: {
+              binaryninja-free = (import nixpkgs-unstable { inherit system config; }).binaryninja-free;
             };
+
+            angr-management-overlay = self: super: {
+              angr-management = (import nixpkgs-pr-angr-management { inherit system config; }).angr-management;
+            };
+
+            sage-overlay = final: prev: {
+              sage = prev.sage.override {
+                extraPythonPackages = ps: with ps; [
+                  pycryptodome
+                  pwntools
+                ];
+              requireSageTests = false;
+              };
+            };
+
             pkgs = import nixpkgs {
               inherit system config;
-              overlays = [ backports-overlay ];
+              overlays = [
+                binaryninja-free-overlay
+                angr-management-overlay
+                sage-overlay
+              ];
             };
 
             init = import ./core/init.nix { inherit pkgs; };
-            suid-interpreter = import ./core/suid-interpreter.nix { inherit pkgs; };
+            exec-suid = import ./core/exec-suid.nix { inherit pkgs; };
             sudo = import ./core/sudo.nix { inherit pkgs; };
             ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
             service = import ./services/service.nix { inherit pkgs; };
@@ -61,18 +82,18 @@
               coreutils
               curl
               findutils
+              gawk
               glibc
               glibc.static
               glibcLocales
-              gawk
               gnugrep
               gnused
               hostname
               iproute2
               less
               man
-              nettools
               ncurses
+              nettools
               procps
               python3
               util-linux
@@ -82,21 +103,35 @@
               (lib.hiPrio ldd)
 
               init
+              exec-suid
               sudo
               ssh-entrypoint
               service
               code-service
               desktop-service
-              suid-interpreter
             ];
 
             fullPackages = corePackages ++ additional.packages;
 
             buildDojoEnv =
               name: paths:
+              let
+                suidPaths = pkgs.lib.unique (
+                  builtins.concatLists (
+                    map (
+                      pkg:
+                      if builtins.isAttrs pkg && pkg ? out && pkg.meta ? suid then
+                        map (rel: "${pkg.out}/${rel}") pkg.meta.suid
+                      else
+                        [ ]
+                    ) paths
+                  )
+                );
+                suidFile = pkgs.writeTextDir "suid" (pkgs.lib.concatMapStrings (s: s + "\n") suidPaths);
+              in
               pkgs.buildEnv {
                 name = "dojo-workspace-${name}";
-                inherit paths;
+                paths = paths ++ [ suidFile ];
               };
 
           in

@@ -136,6 +136,18 @@ class MacContainerCollection:
             vms.append(vm_info)
         return vms
 
+    # ------------------------------------------------------------------
+    # NEW: stub implementation of Docker SDK-style `.run`
+    # ------------------------------------------------------------------
+    # docker-py exposes `run(image, command=None, **kwargs)` on
+    # `ContainerCollection`, providing the familiar `docker run` behaviour. :contentReference[oaicite:0]{index=0}
+    # It normally returns the container’s logs (bytes) unless `detach=True`,
+    # in which case it yields a `Container` object. :contentReference[oaicite:1]{index=1}
+    # For our mac-backed shim we only need interface compatibility, so we
+    # accept the same parameters and immediately return an empty byte string. :contentReference[oaicite:2]{index=2}
+    def run(self, image, command=None, **kwargs):
+        return b""
+
 class MacContainer:
     def __init__(self, client, vm_info):
         self.client = client
