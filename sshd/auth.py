@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+import grp
 import os
 import pathlib
-import subprocess
+import pwd
+import shutil
 import sys
 from urllib.parse import urlparse
 
@@ -14,8 +16,8 @@ def error(msg):
     exit(1)
 
 def create_db_connection():
-    root_environ = dict(entry.split("=", maxsplit=1) for entry in open("/proc/1/environ", "r").read().split("\0"))
-    if not (db_url := root_environ.get("DATABASE_URL")):
+    os.environ.update(dict(entry.split("=", maxsplit=1) for entry in open("/etc/environment", "r").read().splitlines()))
+    if not (db_url := os.environ.get("DATABASE_URL")):
         error("DATABASE_URL environment variable is not set")
     parsed = urlparse(db_url)
     return psycopg2.connect(
@@ -27,11 +29,10 @@ def create_db_connection():
     )
 
 def main():
-    # dirty dirty hack
-    target_key = pathlib.Path(__file__).parent.resolve() / "pwn-college-mac-key"
-    subprocess.run(f"cp {os.environ.get('MAC_KEY_FILE', '/opt/pwn.college/data/mac-key')} {target_key} ; chown hacker:docker {target_key} ; chmod 600 {target_key}",
-                   shell=True,
-                   )
+    if (mac_key_path := os.environ.get("MAC_KEY_FILE")) and not os.path.exists("/tmp/mac-key"):
+        shutil.copy(mac_key_path, "/tmp/mac-key")
+        os.chown("/tmp/mac-key", pwd.getpwnam("hacker").pw_uid, grp.getgrnam("docker").gr_gid)
+        os.chmod("/tmp/mac-key", 0o600)
 
     enter_path = pathlib.Path(__file__).parent.resolve() / "enter.py"
 
