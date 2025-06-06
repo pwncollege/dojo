@@ -615,7 +615,6 @@ class SurveyResponses(db.Model):
     challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), index=True, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("dojo_users.user_id", ondelete="CASCADE"), nullable=False)
     
-    type = db.Column(db.String(64), nullable=False)
     prompt = db.Column(db.Text, nullable=False)
     response = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)

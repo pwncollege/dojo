@@ -106,11 +106,6 @@ function renderSubmissionResponse(response, item) {
         }).then(function (data) {
             if(data.type === "none") return
             if(Math.random() > data.probability) return
-            if(data.type === "thumb") {
-                survey_notification.addClass("text-center")
-            } else {
-                survey_notification.addClass("text-left")
-            }
             survey_notification.addClass(
                 "alert-warning alert-dismissable"
             );
@@ -282,33 +277,19 @@ function startChallenge(event) {
     })
 }
 
-function clickSurveyThumb(event) {
-    const clicked = $(event.currentTarget)
-    const item = $(event.currentTarget).closest(".accordion-item")
-    const survey_notification = item.find("#survey-notification")
-    if(clicked.hasClass("fa-thumbs-up")) {
-        surveySubmit("up", item)
-    } else {
-        surveySubmit("down", item)
+async function buildSurvey(item) {
+    const form = item.find("form#survey-notification")
+    if(form.html() === "") return
+    form.submit(() => form.slideUp())
+    const customSubmits = item.find("[data-form-submit]")
+    if(customSubmits.length) { // custom submit specified
+        customSubmits.each((_, element) => {
+            $(element).click(() => {
+                surveySubmit($(element).attr("data-form-submit"), item)
+                form.slideUp()
+            })
+        })
     }
-    survey_notification.slideUp()
-}
-
-function clickSurveyOption(event) {
-    const clicked = $(event.currentTarget)
-    const item = $(event.currentTarget).closest(".accordion-item")
-    const survey_notification = item.find("#survey-notification")
-    const index = clicked.attr("data-id")
-    surveySubmit(parseInt(index), item)
-    survey_notification.slideUp()
-}
-
-function clickSurveySubmit(event) {
-    const item = $(event.currentTarget).closest(".accordion-item")
-    const survey_notification = item.find("#survey-notification")
-    const response = item.find("#survey-freeresponse-input").val()
-    surveySubmit(response, item)
-    survey_notification.slideUp()
 }
 
 function surveySubmit(data, item) {
@@ -327,7 +308,6 @@ function surveySubmit(data, item) {
         })
     })
 }
-
 
 $(() => {
     $(".accordion-item").on("show.bs.collapse", function (event) {
@@ -351,10 +331,7 @@ $(() => {
     $(".accordion-item").find("#challenge-start").click(startChallenge);
     $(".accordion-item").find("#challenge-practice").click(startChallenge);
 
-    $(".accordion-item").find("#survey-thumbs-up").click(clickSurveyThumb)
-    $(".accordion-item").find("#survey-thumbs-down").click(clickSurveyThumb)
-
-    $(".accordion-item").find(".survey-option").click(clickSurveyOption)
-
-    $(".accordion-item").find("#survey-submit").click(clickSurveySubmit)
+    $(".accordion-item").each((_, item) => {
+        buildSurvey($(item))
+    })
 });
