@@ -347,7 +347,6 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 raw_html = base64.b64decode(survey["data"]).decode('utf-8')
                 survey["data"] = sanitize_survey(raw_html)
                 return survey
-        raise KeyError(f"Missing survey in `{datas}`")
 
     def import_ids(attrs, *datas):
         datas_import = [data.get("import", {}) for data in datas]
