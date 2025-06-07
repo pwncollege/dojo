@@ -4,8 +4,8 @@ import re
 import string
 import subprocess
 
-import requests
 import pytest
+import requests
 
 from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, dojo_run, workspace_run, create_dojo_yml
 
@@ -49,16 +49,12 @@ def post_survey_response(dojo, module, challenge, survey_response, session):
     assert response.json()["success"], "Expected to successfully submit survey"
 
 def db_sql(sql):
-    db_result = dojo_run("db", input=sql)
+    db_result = dojo_run("db", "psql", "-qAt", input=sql)
     return db_result.stdout
 
 
-def db_sql_one(sql):
-    return db_sql(sql).split()[1]
-
-
 def get_user_id(user_name):
-    return int(db_sql_one(f"SELECT id FROM users WHERE name = '{user_name}'"))
+    return int(db_sql(f"SELECT id FROM users WHERE name = '{user_name}'"))
 
 
 @pytest.mark.parametrize("endpoint", ["/", "/dojos", "/login", "/register"])

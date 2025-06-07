@@ -46,12 +46,13 @@ def get_scoreboard_for(model, duration):
         .over(order_by=(solves.desc(), db.func.max(Solves.id)))
         .label("rank")
     )
+    user_entities = [Solves.user_id, Users.name, Users.email]
     query = (
         model.solves()
         .filter(duration_filter)
-        .group_by(Solves.user_id)
+        .group_by(*user_entities)
         .order_by(rank)
-        .with_entities(rank, solves, Solves.user_id, Users.name, Users.email)
+        .with_entities(rank, solves, *user_entities)
     )
 
     row_results = query.all()
