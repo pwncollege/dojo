@@ -46,10 +46,7 @@ case "$ACTION" in
             shift
         fi
         DOJO_UID="$1"
-        [ -n "${DOJO_UID//[0-9]}" ] && DOJO_UID=$(
-            echo "select id from users where name='$DOJO_UID'" |
-            $0 db -s
-        )
+        [ -n "${DOJO_UID//[0-9]}" ] && DOJO_UID=$(echo "select id from users where name='$DOJO_UID'" | dojo db psql -qAt)
         CONTAINER="user_$DOJO_UID"
         shift
 
