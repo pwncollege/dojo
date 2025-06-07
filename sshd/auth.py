@@ -29,8 +29,8 @@ def create_db_connection():
     )
 
 def main():
-    if (mac_key_path := os.environ.get("MAC_KEY_FILE")) and not os.path.exists("/tmp/mac-key"):
-        shutil.copy(mac_key_path, "/tmp/mac-key")
+    if (mac_key_file := os.environ.get("MAC_KEY_FILE")) and not os.path.exists("/tmp/mac-key"):
+        shutil.copy(mac_key_file, "/tmp/mac-key")
         os.chown("/tmp/mac-key", pwd.getpwnam("hacker").pw_uid, grp.getgrnam("docker").gr_gid)
         os.chmod("/tmp/mac-key", 0o600)
 
