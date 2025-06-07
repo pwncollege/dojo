@@ -237,15 +237,22 @@ class Dojos(db.Model):
         return DojoChallenges.solves(dojo=self, **kwargs)
 
     def completions(self):
-        """
-        Returns a list of (User, completion_timestamp) tuples for users, sorted by time in ascending order.
-        """
-        sq = Solves.query.join(DojoChallenges, Solves.challenge_id == DojoChallenges.challenge_id).add_columns(
-            Solves.user_id.label("solve_user_id"), db.func.count().label("solve_count"), db.func.max(Solves.date).label("last_solve")
-        ).filter(DojoChallenges.dojo == self).group_by(Solves.user_id).subquery()
-        return Users.query.join(sq).filter_by(
-            solve_count=len(self.challenges)
-        ).add_column(sq.columns.last_solve).order_by(sq.columns.last_solve).all()
+        solves_subquery = (
+            self.solves()
+            .with_entities(Solves.user_id,
+                           db.func.count().label("solve_count"),
+                           db.func.max(Solves.date).label("last_solve"))
+            .group_by(Solves.user_id)
+            .having(db.func.count() == len(self.challenges))
+            .subquery()
+        )
+        return (
+            Users.query
+            .join(solves_subquery, Users.id == solves_subquery.c.user_id)
+            .add_columns(solves_subquery.c.last_solve)
+            .order_by(solves_subquery.c.last_solve)
+            .all()
+        )
 
     def awards(self):
         if not self.award:
