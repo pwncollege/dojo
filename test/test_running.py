@@ -49,7 +49,7 @@ def post_survey_response(dojo, module, challenge, survey_response, session):
     assert response.json()["success"], "Expected to successfully submit survey"
 
 def db_sql(sql):
-    db_result = dojo_run("db", "psql", "-qAt", input=sql)
+    db_result = dojo_run("db", "-qAt", input=sql)
     return db_result.stdout
 
 

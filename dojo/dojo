@@ -46,7 +46,7 @@ case "$ACTION" in
             shift
         fi
         DOJO_UID="$1"
-        [ -n "${DOJO_UID//[0-9]}" ] && DOJO_UID=$(echo "select id from users where name='$DOJO_UID'" | dojo db psql -qAt)
+        [ -n "${DOJO_UID//[0-9]}" ] && DOJO_UID=$(echo "select id from users where name='$DOJO_UID'" | dojo db -qAt)
         CONTAINER="user_$DOJO_UID"
         shift
 
@@ -81,15 +81,14 @@ case "$ACTION" in
 
     # HELP: db: launch a mysql client session, connected to the ctfd db
     "db")
-        [ $# -eq 0 ] && set -- psql
-        docker exec $DOCKER_ARGS -e PGHOST="${DB_HOST}" -e PGDATABASE="${DB_NAME}" -e PGUSER="${DB_USER}" -e PGPASSWORD="${DB_PASS}" db "$@"
+        docker exec $DOCKER_ARGS db psql "$@"
         ;;
 
     # HELP: backup: does a dojo db backup into the `/data/backups` directory.
     "backup")
         mkdir -p /data/backups
         BACKUP_PATH="/data/backups/db-$(date -Iseconds).dump"
-        dojo db pg_dump -Fc > "$BACKUP_PATH" </dev/null
+        docker exec db pg_dump -Fc > "$BACKUP_PATH"
         echo "Created backup at $BACKUP_PATH"
         ;;
 
@@ -97,7 +96,7 @@ case "$ACTION" in
     "restore")
         BACKUP_PATH="/data/backups/$1"
         if [ -f "$BACKUP_PATH" ]; then
-            dojo db pg_restore --clean --if-exists --dbname="$DB_NAME" < "$BACKUP_PATH"
+            docker exec -i db pg_restore --clean --if-exists --dbname="$DB_NAME" < "$BACKUP_PATH"
         else
             echo "Error: missing file to restore from" >&2
         fi

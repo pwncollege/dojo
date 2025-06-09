@@ -146,10 +146,11 @@ services:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASS}
       - POSTGRES_DB=${DB_NAME}
+      - PGUSER=${DB_USER}
     volumes:
       - /data/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U${DB_USER}"]
+      test: ["CMD", "pg_isready"]
       interval: 10s
       timeout: 10s
       retries: 3
