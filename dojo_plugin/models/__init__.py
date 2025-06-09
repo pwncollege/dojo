@@ -768,10 +768,16 @@ class DojoModuleVisibilities(db.Model):
 
 class SSHKeys(db.Model):
     __tablename__ = "ssh_keys"
+    __table_args__ = (
+        db.Index("uq_ssh_keys_digest",
+                 db.func.digest("value", "sha256"),
+                 unique=True),
+    )
+
     user_id = db.Column(
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    value = db.Column(db.String(750), primary_key=True, unique=True)
+    value = db.Column(db.Text, nullable=False)
 
     user = db.relationship("Users")
 
@@ -796,7 +802,7 @@ class DiscordUsers(db.Model):
     user_id = db.Column(
         db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
-    discord_id = db.Column(db.Integer, unique=True)
+    discord_id = db.Column(db.BigInteger, unique=True)
 
     user = db.relationship("Users")
 
