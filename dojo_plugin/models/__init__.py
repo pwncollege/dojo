@@ -14,6 +14,7 @@ import pytz
 import yaml
 from flask import current_app
 from sqlalchemy import String, DateTime, case, cast, Numeric
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import synonym
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.session import object_session
@@ -70,7 +71,7 @@ class Dojos(db.Model):
     official = db.Column(db.Boolean, index=True)
     password = db.Column(db.String(128))
 
-    data = db.Column(db.JSON)
+    data = db.Column(JSONB)
     data_fields = ["type", "award", "course", "pages", "privileged", "importable", "comparator"]
     data_defaults = {
         "pages": [],
@@ -338,7 +339,7 @@ class DojoModules(db.Model):
     name = db.Column(db.String(128))
     description = db.Column(db.Text)
 
-    data = db.Column(db.JSON)
+    data = db.Column(JSONB)
     data_fields = ["importable"]
     data_defaults = {
         "importable": True
@@ -473,7 +474,7 @@ class DojoChallenges(db.Model):
     name = db.Column(db.String(128))
     description = db.Column(db.Text)
 
-    data = db.Column(db.JSON)
+    data = db.Column(JSONB)
     data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey"]
     data_defaults = {
         "importable": True,
@@ -647,7 +648,7 @@ class DojoResources(db.Model):
     type = db.Column(db.String(80), index=True)
     name = db.Column(db.String(128))
 
-    data = db.Column(db.JSON)
+    data = db.Column(JSONB)
     data_fields = ["content", "video", "playlist", "slides"]
 
     dojo = db.relationship("Dojos", back_populates="resources", viewonly=True)
