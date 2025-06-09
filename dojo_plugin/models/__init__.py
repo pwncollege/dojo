@@ -238,7 +238,7 @@ class Dojos(db.Model):
 
     def completions(self):
         solves_subquery = (
-            self.solves()
+            self.solves(ignore_visibility=True, ignore_admins=False)
             .with_entities(Solves.user_id,
                            db.func.count().label("solve_count"),
                            db.func.max(Solves.date).label("last_solve"))
