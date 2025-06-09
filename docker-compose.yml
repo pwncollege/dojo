@@ -149,6 +149,7 @@ services:
       - PGUSER=${DB_USER}
     volumes:
       - /data/postgres:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "pg_isready"]
       interval: 10s
