@@ -217,8 +217,8 @@ class Dojos(db.Model):
     def ordering(cls):
         return (
             ~cls.official,
-            # cls.data["type"],
-            # cast(case([(cls.data["comparator"] == None, 1000)], else_=cls.data["comparator"]), Numeric()),
+            cls.data["type"],
+            db.func.coalesce(cast(cls.data["comparator"].astext, Numeric()), 1000),
             cls.name,
         )
 
@@ -227,7 +227,7 @@ class Dojos(db.Model):
         return (
             (cls.from_id(id) if id is not None else cls.query)
             .filter(or_(cls.official,
-                        # and_(cls.data["type"] == "public", cls.password == None),
+                        and_(cls.data["type"].astext == "public", cls.password == None),
                         cls.dojo_id.in_(db.session.query(DojoUsers.dojo_id)
                                         .filter_by(user=user)
                                         .subquery())))
@@ -558,7 +558,7 @@ class DojoChallenges(db.Model):
                 ))
             .join(Dojos, and_(
                 Dojos.dojo_id == DojoChallenges.dojo_id,
-                or_(Dojos.official, DojoUsers.user_id != None),  # PG-JSON: or_(Dojos.official, Dojos.data["type"] == "public", DojoUsers.user_id != None),
+                or_(Dojos.official, Dojos.data["type"].astext == "public", DojoUsers.user_id != None),
                 ))
             .join(Users, Users.id == Solves.user_id)
         )

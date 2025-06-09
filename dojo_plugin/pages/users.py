@@ -24,7 +24,7 @@ def view_hacker(user, bypass_hidden=False):
 
     dojos = (Dojos
              .viewable(user=get_current_user())
-             # PG-JSON: .filter(Dojos.data["type"] != "hidden", Dojos.data["type"] != "course")
+             .filter(Dojos.data["type"].astext != "hidden", Dojos.data["type"].astext != "course")
              .all())
     user_solves = {}
     for dojo in dojos:
