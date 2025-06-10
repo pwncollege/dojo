@@ -619,14 +619,14 @@ class SurveyResponses(db.Model):
     __tablename__ = "survey_responses"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"), nullable=False)
-    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"))
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
 
-    type = db.Column(db.String(64), nullable=False)
-    prompt = db.Column(db.Text, nullable=False)
-    response = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
+    type = db.Column(db.String(64))
+    prompt = db.Column(db.Text)
+    response = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
     # challenge = db.relationship("DojoChallenges", back_populates="survey_responses")
     # users = db.relationship("DojoUsers", back_populates="survey_responses")
@@ -768,16 +768,16 @@ class DojoModuleVisibilities(db.Model):
 
 class SSHKeys(db.Model):
     __tablename__ = "ssh_keys"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    value = db.Column(db.Text)
+
     __table_args__ = (
         db.Index("uq_ssh_keys_digest",
-                 db.func.digest("value", "sha256"),
+                 db.func.digest(value, "sha256"),
                  unique=True),
     )
-
-    user_id = db.Column(
-        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
-    )
-    value = db.Column(db.Text, nullable=False)
 
     user = db.relationship("Users")
 
