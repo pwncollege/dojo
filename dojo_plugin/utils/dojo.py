@@ -8,6 +8,8 @@ import functools
 import inspect
 import pathlib
 import urllib.request
+import base64
+import logging
 
 import yaml
 import requests
@@ -20,7 +22,7 @@ from CTFd.utils.user import get_current_user, is_admin
 
 from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
 from ..config import DOJOS_DIR
-from ..utils import get_current_container
+from ..utils import get_current_container, sanitize_survey
 
 
 DOJOS_TMP_DIR = DOJOS_DIR/"tmp"
@@ -69,24 +71,11 @@ DOJO_SPEC = Schema({
 
     Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
 
-    Optional("survey"): Or(
-        {
-            "type": "multiplechoice",
-            "prompt": str,
-            Optional("probability"): float,
-            "options": [str],
-        },
-        {
-            "type": "thumb",
-            "prompt": str,
-            Optional("probability"): float,
-        },
-        {
-            "type": "freeform",
-            "prompt": str,
-            Optional("probability"): float,
-        },
-    ),
+    Optional("survey"): {
+        Optional("probability"): float,
+        "prompt": str,
+        "data": str,
+    },
 
     Optional("modules", default=[]): [{
         **ID_NAME_DESCRIPTION,
@@ -101,24 +90,11 @@ DOJO_SPEC = Schema({
             "module": ID_REGEX,
         },
 
-        Optional("survey"): Or(
-            {
-                "type": "multiplechoice",
-                "prompt": str,
-                Optional("probability"): float,
-                "options": [str],
-            },
-            {
-                "type": "thumb",
-                "prompt": str,
-                Optional("probability"): float,
-            },
-            {
-                "type": "freeform",
-                "prompt": str,
-                Optional("probability"): float,
-            },
-        ),
+        Optional("survey"): {
+            Optional("probability"): float,
+            "prompt": str,
+            "data": str,
+        },
 
         Optional("challenges", default=[]): [{
             **ID_NAME_DESCRIPTION,
@@ -143,24 +119,11 @@ DOJO_SPEC = Schema({
                 "challenge": ID_REGEX,
             },
 
-            Optional("survey"): Or(
-                {
-                    "type": "multiplechoice",
-                    "prompt": str,
-                    Optional("probability"): float,
-                    "options": [str],
-                },
-                {
-                    "type": "thumb",
-                    "prompt": str,
-                    Optional("probability"): float,
-                },
-                {
-                    "type": "freeform",
-                    "prompt": str,
-                    Optional("probability"): float,
-                },
-            )
+            Optional("survey"): {
+                Optional("probability"): float,
+                "prompt": str,
+                "data": str,
+            },
         }],
 
         Optional("resources", default=[]): [Or(
@@ -375,10 +338,20 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             return default_dict[attr]
         raise KeyError(f"Missing `{attr}` in `{datas}`")
 
+    def survey(*datas):
+        for data in reversed(datas):
+            if "survey" in data:
+                survey = dict(data["survey"])
+                if not "data" in survey:
+                    raise KeyError(f"Survey has no data")
+                raw_html = base64.b64decode(survey["data"]).decode('utf-8')
+                survey["data"] = sanitize_survey(raw_html)
+                return survey
+
     def import_ids(attrs, *datas):
         datas_import = [data.get("import", {}) for data in datas]
         return tuple(shadow(id, *datas_import) for id in attrs)
-
+    
     dojo.modules = [
         DojoModules(
             **{kwarg: module_data.get(kwarg) for kwarg in ["id", "name", "description"]},
@@ -393,7 +366,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     ) if "import" not in challenge_data else None,
                     progression_locked=challenge_data.get("progression_locked"),
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
-                    survey=shadow("survey", dojo_data, module_data, challenge_data, default=None),
+                    survey=survey(dojo_data, module_data, challenge_data),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
                                         f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")
                              if "import" in challenge_data else None),
