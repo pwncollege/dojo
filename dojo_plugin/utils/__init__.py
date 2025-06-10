@@ -166,15 +166,21 @@ def sanitize_survey(data):
         "span", "div", "blockquote", "code", "pre", "hr",
         "ul", "ol", "li", "dd", "dt",
         "sub", "sup",
-        "style", "input", "label"
+        "style", "input", "label", "button"
     ]
 
     allowed_attrs = {
         "*": ["class", "style", "data-form-submit"],
         "input": ["type", "name", "checked", "value", "placeholder", "readonly"],
         "label": ["for"],
+        "button": ["type"],
     }
-    return bleach.clean(data, tags=allowed_tags, attributes=allowed_attrs, css_sanitizer=CSSSanitizer()) # TODO INSECURE, SANITIZE THE CSS
+
+    allowed_css = bleach.css_sanitizer.ALLOWED_CSS_PROPERTIES.union([
+        "transition", "transform"
+    ])
+
+    return bleach.clean(data, tags=allowed_tags, attributes=allowed_attrs, css_sanitizer=CSSSanitizer(allowed_css_properties=allowed_css)) 
 
 def unserialize_user_flag(user_flag, *, secret=None):
     if secret is None:

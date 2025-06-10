@@ -280,16 +280,36 @@ function startChallenge(event) {
 async function buildSurvey(item) {
     const form = item.find("form#survey-notification")
     if(form.html() === "") return
-    form.submit(() => form.slideUp())
-    const customSubmits = item.find("[data-form-submit]")
-    if(customSubmits.length) { // custom submit specified
-        customSubmits.each((_, element) => {
-            $(element).click(() => {
-                surveySubmit($(element).attr("data-form-submit"), item)
-                form.slideUp()
-            })
-        })
+
+    // fix styles
+    const challenge_id = item.find('#challenge-id').val()
+    for(const style of form.find("style")) {
+        let cssText = ""
+        for(const rule of style.sheet.cssRules) {
+            cssText += ".survey-id-" + challenge_id + " " + rule.cssText + " "
+        }
+        style.innerHTML = cssText
     }
+
+    const customSubmits = item.find("[data-form-submit]")
+    customSubmits.each((_, element) => {
+        $(element).click(() => {
+            surveySubmit(
+                JSON.stringify({
+                    response: $(element).attr("data-form-submit")
+                }),
+                item
+            )
+            form.slideUp()
+        })
+    })
+    // csrf fix
+    const formData = new FormData(form[0])
+    form.submit(event => {
+        event.preventDefault()
+        surveySubmit(JSON.stringify(Object.fromEntries(formData)), item)
+        form.slideUp()
+    })
 }
 
 function surveySubmit(data, item) {
@@ -303,9 +323,7 @@ function surveySubmit(data, item) {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            response: data
-        })
+        body: data
     })
 }
 

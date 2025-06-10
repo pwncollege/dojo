@@ -64,6 +64,7 @@
   <h2>Challenges</h2>
 
   <div class="accordion" id="challenges">
+    <iframe name="survey-target" style="display:none;"></iframe>
     {% for challenge in challenges %}
 
       {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
@@ -160,7 +161,7 @@
 	        </div>
           <div class="row survey-row">
             <div class="col-md-12">
-              <form method="post" action="/pwncollege_api/v1/dojos/{{challenge.dojo.name}}/surveys/{{challenge.module.id}}/{{challenge.name}}" id="survey-notification" class="survey alert-dismissable w-100" role="alert" style="display: none;">
+              <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{challenge.dojo.reference_id}}/surveys/{{challenge.module.id}}/{{challenge.id}}" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
                 {{ challenge.survey.data | safe }}
               </form>
             </div>
