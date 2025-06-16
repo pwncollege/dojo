@@ -46,6 +46,7 @@ class ScoreUser(Resource):
             .join(Dojos)
             .filter(Dojos.official, DojoChallenges.visible())
             .distinct()
+            .with_entities(Challenges.id)
         )
         rank = db.func.row_number().over(
             order_by=(db.func.count(Solves.id).desc(), db.func.max(Solves.id))
