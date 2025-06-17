@@ -171,6 +171,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         detach=True,
         stdin_open=True,
         auto_remove=True,
+        runtime="io.containerd.run.kata.v2",
     )
 
     workspace_net = docker_client.networks.get("workspace_net")
@@ -356,7 +357,7 @@ class RunDocker(Resource):
                 "success": False,
                 "error": "This challenge does not support practice mode.",
             }
-        
+
         if all((dojo_challenge.progression_locked, dojo_challenge.challenge_index != 0, not dojo.is_admin())):
             previous_dojo_challenge = dojo_challenge.module.challenges[dojo_challenge.challenge_index - 1]
             solved = (Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() or

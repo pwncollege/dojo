@@ -46,6 +46,11 @@ EOF
 ADD https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json /etc/docker/seccomp.json
 
 RUN <<EOF
+curl -L https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-amd64.tar.xz | tar -xJ --strip-components=2 -C /opt
+ln -s /opt/kata/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2
+EOF
+
+RUN <<EOF
 cd /tmp
 wget -O aws.zip "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
 unzip aws.zip
@@ -56,6 +61,7 @@ EOF
 ADD https://github.com/CTFd/CTFd.git#3.6.0 /opt/CTFd
 
 COPY <<EOF /etc/fstab
+shm /dev/shm tmpfs defaults,nosuid,nodev,noexec,size=50% 0 0
 tmpfs /run/dojofs tmpfs defaults,mode=755,shared 0 0
 /data/homes /run/homefs none defaults,bind,nosuid 0 0
 EOF
