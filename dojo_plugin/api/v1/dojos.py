@@ -217,8 +217,8 @@ class DojoSurvey(Resource):
             return {"success": False, "error": "Bad survey type"}, 400
 
         response = SurveyResponses(
-            user_id=user.id, 
-            dojo_id=dojo_challenge.dojo_id, 
+            user_id=user.id,
+            dojo_id=dojo_challenge.dojo_id,
             challenge_id=dojo_challenge.challenge_id,
             type=survey["type"],
             prompt=survey["prompt"],
@@ -278,7 +278,7 @@ class DojoCourseSolveList(Resource):
 
         return {"success": True, "solves": solves}
 
-@dojos_namespace.route("/<dojo>/<module_id>/<challenge_id>/description")
+@dojos_namespace.route("/<dojo>/<module>/<challenge_id>/description")
 class ChallengeResource(Resource):
     @authed_only
     @dojo_route
