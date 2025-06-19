@@ -76,7 +76,7 @@ find /opt/pwn.college/etc/systemd/system -type f -exec ln -s {} /etc/systemd/sys
 find /opt/pwn.college/etc/systemd/system -type f -name '*.timer' -exec sh -c \
     'ln -s "/etc/systemd/system/$(basename "{}")" "/etc/systemd/system/timers.target.wants/$(basename "{}")"' \;
 ln -s /opt/pwn.college/etc/systemd/system/pwn.college.service /etc/systemd/system/multi-user.target.wants/
-find /opt/pwn.college/dojo -type f -exec ln -s {} /usr/bin/ \;
+find /opt/pwn.college/dojo -type f -executable -exec ln -s {} /usr/local/bin/ \;
 EOF
 
 EXPOSE 22
