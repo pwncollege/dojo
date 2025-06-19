@@ -4,17 +4,22 @@ Before you begin development, please be sure to read the [architecture](./archit
 
 ## Quick Development Setup
 
-To quickly set up a development environment, you can use the provided [dev/setup.sh](../dev/setup.sh) script:
+To quickly set up a development environment, use the following commands, which will build the dojo image and run it in a self-contained container:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/pwncollege/dojo/master/dev/setup.sh | /bin/sh
+BRANCH="master"  # or PR with "pull/N/head"
+
+TAG="dev-$(printf '%s' "$BRANCH" | tr '/' '-' | tr -c '[:alnum:]' '-')"
+
+docker build --build-arg BUILDKIT_CONTEXT_KEEP_GIT_DIR=1 -t "pwncollege/dojo:$TAG" "https://github.com/pwncollege/dojo.git#$BRANCH"
+
+docker run --privileged --name "dojo-$TAG" -d "pwncollege/dojo:$TAG"
 ```
 
-You may optionally specify a specific branch or pull request number to checkout:
+Start a VSCode tunnel (authenticated with your GitHub account) to this container using the following command:
 
 ```sh
-BRANCH="master"  # or PR number
-curl -fsSL https://raw.githubusercontent.com/pwncollege/dojo/master/dev/setup.sh | /bin/sh -s -- "$BRANCH"
+docker exec -i "dojo-$TAG" dojo vscode
 ```
 
 ## Testing
