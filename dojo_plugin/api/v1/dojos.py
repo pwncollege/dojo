@@ -142,91 +142,13 @@ class DojoSolveList(Resource):
         return {"success": True, "solves": solves}
 
 
-@dojos_namespace.route("/<dojo>/challenges/solve")
-class DojoChallengeSolve(Resource):
-    @authed_only
-    @dojo_route
-    def post(self, dojo):
-        user = get_current_user()
-        data = request.get_json()
-        dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, data.get("module_id"), data.get("challenge_id"))
-                          .filter(DojoChallenges.visible()).first())
-        if not dojo_challenge:
-            return {"success": False, "error": "Challenge not found"}, 404
 
-        solve = Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first()
-        if solve:
-            return {"success": True, "status": "already_solved"}
 
-        chal_class = get_chal_class(dojo_challenge.challenge.type)
-        status, _ = chal_class.attempt(dojo_challenge.challenge, request)
-        if status:
-            chal_class.solve(user, None, dojo_challenge.challenge, request)
-            return {"success": True, "status": "solved"}
-        else:
-            chal_class.fail(user, None, dojo_challenge.challenge, request)
-            return {"success": False, "status": "incorrect"}, 400
 
-@dojos_namespace.route("/<dojo>/surveys/<module>/<challenge>")
-class DojoSurvey(Resource):
-    @dojo_route
-    def get(self, dojo, module, challenge):
-        dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge)
-                          .filter(DojoChallenges.visible()).first())
-        if not dojo_challenge:
-            return {"success": False, "error": "Challenge not found"}, 404
-        survey = dojo_challenge.survey
-        if not survey:
-            return {"success": True, "type": "none"}
-        response = {
-            "success": True,
-            "type": survey["type"],
-            "prompt": survey["prompt"],
-            "probability": survey.get("probability", 1.0),
-        }
-        if "options" in survey:
-            response["options"] = survey["options"]
-        return response
 
-    @authed_only
-    @dojo_route
-    @ratelimit(method="POST", limit=10, interval=60)
-    def post(self, dojo, module, challenge):
-        user = get_current_user()
-        data = request.get_json()
-        dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge)
-                          .filter(DojoChallenges.visible()).first())
-        if not dojo_challenge:
-            return {"success": False, "error": "Challenge not found"}, 404
-        survey = dojo_challenge.survey
-        if not survey:
-            return {"success": False, "error": "Survey not found"}, 404
-        if "response" not in data:
-            return {"success": False, "error": "Missing response"}, 400
-
-        if survey["type"] == "thumb":
-            if data["response"] not in ["up", "down"]:
-                return {"success": False, "error": "Invalid response"}, 400
-        elif survey["type"] == "multiplechoice":
-            if not isinstance(data["response"], int) or not (int(data["response"]) < len(survey["options"]) and int(data["response"]) >= 0):
-                return {"success": False, "error": "Invalid response"}, 400
-        elif survey["type"] == "freeform":
-            if not isinstance(data["response"], str):
-                return {"success": False, "error": "Invalid response"}, 400
-        else:
-            return {"success": False, "error": "Bad survey type"}, 400
-
-        response = SurveyResponses(
-            user_id=user.id,
-            dojo_id=dojo_challenge.dojo_id,
-            challenge_id=dojo_challenge.challenge_id,
-            type=survey["type"],
-            prompt=survey["prompt"],
-            response=data["response"],
-        )
-        db.session.add(response)
-        db.session.commit()
-        return {"success": True}
+#
+#   Endpoints associated with the /<dojo>/course resource
+#
 
 @dojos_namespace.route("/<dojo>/course")
 class DojoCourse(Resource):
@@ -277,6 +199,100 @@ class DojoCourseSolveList(Resource):
         ]
 
         return {"success": True, "solves": solves}
+
+
+
+
+
+#
+#   Endpoints associated with the /<dojo>/<module>/<challenge> resource
+#
+
+@dojos_namespace.route("/<dojo>/<module>/<challenge_id>/solve")
+class DojoChallengeSolve(Resource):
+    @authed_only
+    @dojo_route
+    def post(self, dojo, module, challenge_id):
+        user = get_current_user()
+        dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id)
+                          .filter(DojoChallenges.visible()).first())
+        if not dojo_challenge:
+            return {"success": False, "error": "Challenge not found"}, 404
+
+        solve = Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first()
+        if solve:
+            return {"success": True, "status": "already_solved"}
+
+        chal_class = get_chal_class(dojo_challenge.challenge.type)
+        status, _ = chal_class.attempt(dojo_challenge.challenge, request)
+        if status:
+            chal_class.solve(user, None, dojo_challenge.challenge, request)
+            return {"success": True, "status": "solved"}
+        else:
+            chal_class.fail(user, None, dojo_challenge.challenge, request)
+            return {"success": False, "status": "incorrect"}, 400
+
+
+@dojos_namespace.route("/<dojo>/<module>/<challenge_id>/surveys")
+class DojoSurvey(Resource):
+    @dojo_route
+    def get(self, dojo, module, challenge_id):
+        dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id)
+                          .filter(DojoChallenges.visible()).first())
+        if not dojo_challenge:
+            return {"success": False, "error": "Challenge not found"}, 404
+        survey = dojo_challenge.survey
+        if not survey:
+            return {"success": True, "type": "none"}
+        response = {
+            "success": True,
+            "type": survey["type"],
+            "prompt": survey["prompt"],
+            "probability": survey.get("probability", 1.0),
+        }
+        if "options" in survey:
+            response["options"] = survey["options"]
+        return response
+
+    @authed_only
+    @dojo_route
+    @ratelimit(method="POST", limit=10, interval=60)
+    def post(self, dojo, module, challenge_id):
+        user = get_current_user()
+        data = request.get_json()
+        dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id)
+                          .filter(DojoChallenges.visible()).first())
+        if not dojo_challenge:
+            return {"success": False, "error": "Challenge not found"}, 404
+        survey = dojo_challenge.survey
+        if not survey:
+            return {"success": False, "error": "Survey not found"}, 404
+        if "response" not in data:
+            return {"success": False, "error": "Missing response"}, 400
+
+        if survey["type"] == "thumb":
+            if data["response"] not in ["up", "down"]:
+                return {"success": False, "error": "Invalid response"}, 400
+        elif survey["type"] == "multiplechoice":
+            if not isinstance(data["response"], int) or not (int(data["response"]) < len(survey["options"]) and int(data["response"]) >= 0):
+                return {"success": False, "error": "Invalid response"}, 400
+        elif survey["type"] == "freeform":
+            if not isinstance(data["response"], str):
+                return {"success": False, "error": "Invalid response"}, 400
+        else:
+            return {"success": False, "error": "Bad survey type"}, 400
+
+        response = SurveyResponses(
+            user_id=user.id,
+            dojo_id=dojo_challenge.dojo_id,
+            challenge_id=dojo_challenge.challenge_id,
+            type=survey["type"],
+            prompt=survey["prompt"],
+            response=data["response"],
+        )
+        db.session.add(response)
+        db.session.commit()
+        return {"success": True}
 
 @dojos_namespace.route("/<dojo>/<module>/<challenge_id>/description")
 class DojoChallengeDescription(Resource):
