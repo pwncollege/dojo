@@ -274,7 +274,7 @@ class DojoSurvey(Resource):
             if data["response"] not in ["up", "down"]:
                 return {"success": False, "error": "Invalid response"}, 400
         elif survey["type"] == "multiplechoice":
-            if not isinstance(data["response"], int) or not (int(data["response"]) < len(survey["options"]) and int(data["response"]) >= 0):
+            if not isinstance(data["response"], int) or not (0 <= int(data["response"]) < len(survey["options"])):
                 return {"success": False, "error": "Invalid response"}, 400
         elif survey["type"] == "freeform":
             if not isinstance(data["response"], str):
