@@ -25,7 +25,7 @@ define () {
     value="${current:-${defined:-$default}}"
     echo "${name}=${value}" >> /data/.config.env
 }
-DEFAULT_DOJO_HOST=localhost.pwn.college
+DEFAULT_DOJO_HOST=dojo.localhost
 
 define DOJO_HOST "${DEFAULT_DOJO_HOST}"
 define VIRTUAL_HOST "${DEFAULT_DOJO_HOST}"
