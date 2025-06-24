@@ -121,6 +121,11 @@ case "$ACTION" in
         done
         ;;
 
+    # HELP: vscode: start vscode tunnel
+    "vscode")
+        dojo-vscode "$@"
+        ;;
+
     # HELP: logs: display dojo logs
     "logs")
         journalctl -u pwn.college -f --no-tail
