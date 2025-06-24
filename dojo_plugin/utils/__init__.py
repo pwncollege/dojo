@@ -318,6 +318,14 @@ def generate_workspace_token(user, expiration=None):
     db.session.commit()
     return token
 
+def is_challenge_locked(dojo_challenge: DojoChallenges, user: Users) -> bool:
+    if all((dojo_challenge.progression_locked, dojo_challenge.challenge_index != 0, not dojo_challenge.dojo.is_admin())):
+        previous_dojo_challenge = dojo_challenge.module.challenges[dojo_challenge.challenge_index - 1]
+        return not (Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() or
+                Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first())
+    return False
+    
+
 
 # based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
 class ListHandler(logging.Handler): # Inherit from logging.Handler
