@@ -406,9 +406,14 @@ class RunDocker(Resource):
         if not dojo_challenge:
             return {"success": False, "error": "No active challenge"}
 
-        # TODO: errorhandling?
         user = get_current_user()
+        if not user:
+            return {"success": False, "error": "User not logged in"} #?
+
         container = get_current_container(user)
+        if not container:
+            return {"success": False, "error": "No challenge container"}
+
         practice = container.labels.get("dojo.mode") == "privileged"
 
         return {

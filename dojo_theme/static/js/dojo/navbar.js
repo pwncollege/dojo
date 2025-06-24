@@ -93,6 +93,7 @@ function DropdownStartChallenge(event) {
                 window.location.pathname +
                 window.location.hash;
         }
+
         return response.json();
     }).then(function (result) {
         var params = {
@@ -101,7 +102,6 @@ function DropdownStartChallenge(event) {
             "challenge": challenge,
             "practice": result.practice,
         };
-        console.log(params);
 
         var result_notification = dropdown_controls.find('#result-notification');
         var result_message = dropdown_controls.find('#result-message');
