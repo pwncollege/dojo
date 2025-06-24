@@ -181,7 +181,7 @@ class DojoSurvey(Resource):
         response = {
             "success": True,
             "prompt": survey["prompt"],
-            "data": survey["data"],
+            "data": survey["src"],
             "probability": survey.get("probability", 1.0),
             "type": "user-specified"
         }

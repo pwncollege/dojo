@@ -564,9 +564,9 @@ def test_surveys(surveys_dojo, random_user):
     assert module_level_survey["prompt"] == "Module-level prompt", "Module-level survey prompt is wrong/missing"
     assert dojo_level_survey["prompt"] == "Dojo-level prompt", "Dojo-level survey prompt is wrong/missing"
 
-    assert challenge_level_survey["data"] == "<div>challenge</div>", "Challenge-level survey data is wrong/missing"
-    assert module_level_survey["data"] == "<div>module</div>", "Module-level survey data is wrong/missing"
-    assert dojo_level_survey["data"] == "<div>dojo</div>", "Dojo-level survey data is wrong/missing"
+    assert challenge_level_survey["src"] == "<div>challenge</div>", "Challenge-level survey data is wrong/missing"
+    assert module_level_survey["src"] == "<div>module</div>", "Module-level survey data is wrong/missing"
+    assert dojo_level_survey["src"] == "<div>dojo</div>", "Dojo-level survey data is wrong/missing"
 
     post_survey_response(surveys_dojo, "surveys-module-1", "challenge-level", "Test response", session=session)
     post_survey_response(surveys_dojo, "surveys-module-1", "module-level", "up", session=session)

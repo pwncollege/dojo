@@ -74,7 +74,11 @@ DOJO_SPEC = Schema({
     Optional("survey"): {
         Optional("probability"): float,
         "prompt": str,
-        "data": str,
+        "src": str,
+    },
+
+    Optional("survey-sources", default={}): {
+        Optional(str): str
     },
 
     Optional("modules", default=[]): [{
@@ -93,7 +97,7 @@ DOJO_SPEC = Schema({
         Optional("survey"): {
             Optional("probability"): float,
             "prompt": str,
-            "data": str,
+            "src": str,
         },
 
         Optional("challenges", default=[]): [{
@@ -122,7 +126,7 @@ DOJO_SPEC = Schema({
             Optional("survey"): {
                 Optional("probability"): float,
                 "prompt": str,
-                "data": str,
+                "src": str,
             },
         }],
 
@@ -225,6 +229,23 @@ def load_dojo_subyamls(data, dojo_dir):
 
     return data
 
+def load_surveys(data, dojo_dir):
+    """
+    Optional survey data can be stored in an arbitrary directory under dojo_dir
+
+    This directory is specified by 'survey-sources' under the base yml file
+
+    This function will replace the data in the loaded yml file under survey-sources with a list of survey names mapped to html
+    """
+
+    survey_data = data.get("survey-sources", None)
+    if survey_data:
+        survey_dir = dojo_dir / survey_data
+        survey_data = {}
+        for survey in survey_dir.iterdir():
+            survey_data[survey.name] = survey.read_text()
+        data["survey-sources"] = survey_data
+    return data
 
 def dojo_initialize_files(data, dojo_dir):
     for dojo_file in data.get("files", []):
@@ -254,6 +275,7 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
 
     data_raw = yaml.safe_load(dojo_yml_path.read_text())
     data = load_dojo_subyamls(data_raw, dojo_dir)
+    data = load_surveys(data, dojo_dir)
     dojo_initialize_files(data, dojo_dir)
     return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
 
@@ -342,11 +364,16 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
         for data in reversed(datas):
             if "survey" in data:
                 survey = dict(data["survey"])
-                if not "data" in survey:
-                    raise KeyError(f"Survey has no data")
-                raw_html = base64.b64decode(survey["data"]).decode('utf-8')
-                survey["data"] = sanitize_survey(raw_html)
+                if not "src" in survey:
+                    raise KeyError(f"Survey source not specified")
+                elif not "survey-sources" in dojo_data:
+                    raise KeyError(f"No surveys are defined")
+                elif not survey["src"] in dojo_data["survey-sources"]:
+                    raise KeyError(f"Survey source {survey['src']} not found")
+                raw_html = dojo_data["survey-sources"][survey["src"]]
+                survey["src"] = sanitize_survey(raw_html)
                 return survey
+        return None
 
     def import_ids(attrs, *datas):
         datas_import = [data.get("import", {}) for data in datas]
