@@ -27,6 +27,7 @@ from ...utils import (
     serialize_user_flag,
     user_docker_client,
     user_ipv4,
+    is_challenge_locked
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
@@ -357,6 +358,7 @@ class RunDocker(Resource):
                 "success": False,
                 "error": "This challenge does not support practice mode.",
             }
+<<<<<<< feat/kata
 
         if all((dojo_challenge.progression_locked, dojo_challenge.challenge_index != 0, not dojo.is_admin())):
             previous_dojo_challenge = dojo_challenge.module.challenges[dojo_challenge.challenge_index - 1]
@@ -367,6 +369,14 @@ class RunDocker(Resource):
                     "success": False,
                     "error": "This challenge is locked"
                 }
+=======
+        
+        if is_challenge_locked(dojo_challenge, user):
+            return {
+                "success": False,
+                "error": "This challenge is locked"
+            }
+>>>>>>> master
 
         if dojo.is_admin(user) and "as_user" in data:
             try:
