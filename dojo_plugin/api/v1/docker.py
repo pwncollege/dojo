@@ -407,9 +407,6 @@ class RunDocker(Resource):
             return {"success": False, "error": "No active challenge"}
 
         user = get_current_user()
-        if not user:
-            return {"success": False, "error": "User not logged in"} #?
-
         container = get_current_container(user)
         if not container:
             return {"success": False, "error": "No challenge container"}
