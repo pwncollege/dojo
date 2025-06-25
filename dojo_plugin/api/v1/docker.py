@@ -358,25 +358,12 @@ class RunDocker(Resource):
                 "success": False,
                 "error": "This challenge does not support practice mode.",
             }
-<<<<<<< feat/kata
 
-        if all((dojo_challenge.progression_locked, dojo_challenge.challenge_index != 0, not dojo.is_admin())):
-            previous_dojo_challenge = dojo_challenge.module.challenges[dojo_challenge.challenge_index - 1]
-            solved = (Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() or
-                      Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first())
-            if not solved:
-                return {
-                    "success": False,
-                    "error": "This challenge is locked"
-                }
-=======
-        
         if is_challenge_locked(dojo_challenge, user):
             return {
                 "success": False,
                 "error": "This challenge is locked"
             }
->>>>>>> master
 
         if dojo.is_admin(user) and "as_user" in data:
             try:
