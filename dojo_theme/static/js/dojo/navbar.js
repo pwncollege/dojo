@@ -19,7 +19,12 @@ function get_and_set_iframe_url() {
             if (data.active) {
                 const iframe = $("#workspace_iframe")[0];
                 if (iframe.src !== window.location.origin + data.iframe_src) {
-                    iframe.src = data.iframe_src;
+                    const url = new URL(data.iframe_src);
+                    if (data.setPort) {
+                        url.port = window.location.port;
+                    }
+
+                    iframe.src = url.toString();
                 }
             }
         });
