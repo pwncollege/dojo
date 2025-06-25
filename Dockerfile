@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 EOF
 
 RUN <<EOF
-curl -fsSL https://get.docker.com | /bin/sh
+curl -fsSL https://get.docker.com | VERSION=27.5.1 sh
 sed -i 's|-H fd:// ||' /lib/systemd/system/docker.service
 EOF
 
@@ -46,7 +46,8 @@ EOF
 ADD https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json /etc/docker/seccomp.json
 
 RUN <<EOF
-curl -L https://github.com/kata-containers/kata-containers/releases/download/3.17.0/kata-static-3.17.0-amd64.tar.xz | tar -xJ --strip-components=2 -C /opt
+KATA_VERSION=3.18.0
+curl -L https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.xz | tar -xJ --strip-components=2 -C /opt
 ln -s /opt/kata/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2
 EOF
 
