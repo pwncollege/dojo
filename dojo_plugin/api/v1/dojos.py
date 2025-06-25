@@ -142,14 +142,6 @@ class DojoSolveList(Resource):
         return {"success": True, "solves": solves}
 
 
-
-
-
-
-#
-#   Endpoints associated with the /<dojo>/course resource
-#
-
 @dojos_namespace.route("/<dojo>/course")
 class DojoCourse(Resource):
     @dojo_route
@@ -200,13 +192,6 @@ class DojoCourseSolveList(Resource):
 
         return {"success": True, "solves": solves}
 
-
-
-
-
-#
-#   Endpoints associated with the /<dojo>/<module>/<challenge> resource
-#
 
 @dojos_namespace.route("/<dojo>/<module>/<challenge_id>/solve")
 class DojoChallengeSolve(Resource):
@@ -293,6 +278,7 @@ class DojoSurvey(Resource):
         db.session.add(response)
         db.session.commit()
         return {"success": True}
+
 
 @dojos_namespace.route("/<dojo>/<module>/<challenge_id>/description")
 class DojoChallengeDescription(Resource):
