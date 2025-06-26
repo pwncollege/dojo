@@ -35,7 +35,7 @@ let
     echo "sshd:x:112:65534::/run/sshd:/usr/sbin/nologin" >> /etc/passwd
     echo "root:x:0:" >> /etc/group
     echo "hacker:x:1000:" >> /etc/group
-    echo "PATH=\"/run/challenge/bin:/run/workspace/bin:$IMAGE_PATH\"" > /etc/environment
+    echo "PATH=\"/run/challenge/bin:/run/dojo/bin:$IMAGE_PATH\"" > /etc/environment
     ln -sfT /run/dojo/etc/profile.d/99-dojo-workspace.sh /etc/profile.d/99-dojo-workspace.sh
 
     echo $DOJO_AUTH_TOKEN > /run/dojo/var/auth_token
@@ -62,8 +62,8 @@ let
   '';
 
   profile = pkgs.writeText "dojo-profile" ''
-    if [[ "$PATH" != "/run/challenge/bin:/run/workspace/bin:"* ]]; then
-      export PATH="/run/challenge/bin:/run/workspace/bin:$PATH"
+    if [[ "$PATH" != "/run/challenge/bin:/run/dojo/bin:"* ]]; then
+      export PATH="/run/challenge/bin:/run/dojo/bin:$PATH"
     fi
 
     if [[ -z "$LANG" ]]; then

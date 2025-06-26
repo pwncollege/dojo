@@ -149,7 +149,6 @@ This overlay is built (e.g., the nix packages are installed) by the [workspace-b
 This will be done before the DOJO can start up, imposing a delay on the start of a fresh dojo.
 
 To improve isolation between the challenges themselves and the user tools, the DOJO uses a fuse-based overlay to block default challenge access to the `/nix` tools.
-This lives in the [workspace_fs](https://github.com/pwncollege/dojo/tree/master/workspacefs) container, also launched (automatically) via compose.
 
 ## DOJO Homes
 

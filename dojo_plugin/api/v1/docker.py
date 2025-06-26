@@ -87,12 +87,11 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     auth_token = os.urandom(32).hex()
 
     challenge_bin_path = "/run/challenge/bin"
-    workspace_bin_path = "/run/workspace/bin"
     dojo_bin_path = "/run/dojo/bin"
     image = docker_client.images.get(dojo_challenge.image)
     image_env = image.attrs["Config"].get("Env") or []
     image_path = next((env_var[len("PATH="):].split(":") for env_var in image_env if env_var.startswith("PATH=")), [])
-    env_path = ":".join([challenge_bin_path, workspace_bin_path, *image_path])
+    env_path = ":".join([challenge_bin_path, dojo_bin_path, *image_path])
 
     mounts = [
         docker.types.Mount(
@@ -100,13 +99,6 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             f"{HOST_DATA_PATH}/workspace/nix",
             "bind",
             read_only=True,
-        ),
-        docker.types.Mount(
-            "/run/workspace",
-            f"{HOST_DATA_PATH}/workspacefs",
-            "bind",
-            read_only=True,
-            propagation="shared",
         ),
         docker.types.Mount(
             "/run/dojo/sys",
@@ -165,8 +157,8 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         cap_add=["SYS_PTRACE"],
         security_opt=[f"seccomp={SECCOMP}"],
         sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
-        cpu_period=100000,
-        cpu_quota=400000,
+        # cpu_period=100000,
+        # cpu_quota=400000,
         pids_limit=1024,
         mem_limit="4G",
         detach=True,

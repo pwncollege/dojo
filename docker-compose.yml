@@ -8,17 +8,6 @@ services:
     volumes:
       - /data/workspace/nix:/nix
 
-  workspacefs:
-    container_name: workspacefs
-    privileged: true
-    build: ./workspacefs
-    volumes:
-      - /data/workspacefs:/run/workspace:shared
-      - /data/workspace/nix:/nix
-    depends_on:
-      workspace-builder:
-        condition: service_completed_successfully
-
   dojofs:
     container_name: dojofs
     privileged: true
@@ -124,8 +113,6 @@ services:
     depends_on:
       workspace-builder:
         condition: service_completed_successfully
-      workspacefs:
-        condition: service_started
       dojofs:
         condition: service_started
       homefs:
