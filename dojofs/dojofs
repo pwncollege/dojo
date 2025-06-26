@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import re
 import stat
 import sys
 import time
@@ -50,11 +51,8 @@ dojo_fs = DojoFS()
 
 def get_container_context():
     uid, gid, pid = fuse_get_context()
-    import pathlib
-    import re
-
     container_re = re.compile(r"/containers/([0-9a-f]+)/hostname")
-    mount_info = pathlib.Path(f"/proc/{pid}/mountinfo").read_text()
+    mount_info = Path(f"/proc/{pid}/mountinfo").read_text()
     container_id = match.group(1) if (match := container_re.search(mount_info)) else None
     if not container_id:
         return None

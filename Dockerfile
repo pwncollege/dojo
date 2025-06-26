@@ -63,7 +63,7 @@ ADD https://github.com/CTFd/CTFd.git#3.6.0 /opt/CTFd
 
 COPY <<EOF /etc/fstab
 shm /dev/shm tmpfs defaults,nosuid,nodev,noexec,size=50% 0 0
-tmpfs /run/dojofs tmpfs defaults,mode=755,shared 0 0
+tmpfs /run/dojo tmpfs defaults,mode=755,shared 0 0
 /data/homes /run/homefs none defaults,bind,nosuid 0 0
 EOF
 

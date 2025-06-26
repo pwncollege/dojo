@@ -110,7 +110,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         ),
         docker.types.Mount(
             "/run/dojo/sys",
-            "/run/dojofs",
+            "/run/dojo/dojofs",
             "bind",
             read_only=True,
             propagation="slave",
