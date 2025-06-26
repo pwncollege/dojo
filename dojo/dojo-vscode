@@ -1,0 +1,63 @@
+#!/bin/sh
+
+error () {
+    echo "Error: $1" >&2
+    exit 1
+}
+
+git checkout $(git for-each-ref --format='%(refname:lstrip=2)' refs/heads --points-at HEAD | head -n1) 2>/dev/null || error "Failed to checkout branch"
+git -C /opt/pwn.college checkout "$(git for-each-ref --format='%(refname:short) %(objectname)' refs/heads | awk -v head=$(git rev-parse HEAD) '$2==head{print $1; exit}')"
+
+if [ -x /usr/local/bin/code ]; then
+    echo "[-] VSCode server is already installed" >&2
+else
+    echo "[-] Installing VSCode server" >&2
+    curl -Lq 'https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64' | tar -xz -C /usr/local/bin
+    echo "[+] VSCode server installed successfully" >&2
+fi
+
+if code tunnel user show >/dev/null 2>&1; then
+    echo "[-] VSCode tunnel is already authenticated" >&2
+else
+    echo "[-] Authenticating with VSCode tunnel" >&2
+    trap 'echo "[-] Authentication interrupted"; exit 1' INT TERM
+    while true; do
+        code tunnel user login --provider github
+        code tunnel user show >/dev/null && {
+            break
+        }
+        echo "[-] Authentication failed, retrying..." >&2
+    done
+    trap - INT TERM
+    echo "[+] Authentication successful" >&2
+fi
+
+if [ ! -e /etc/systemd/system/vscode-tunnel.service ]; then
+    cat <<EOF >/etc/systemd/system/vscode-tunnel.service
+[Unit]
+Description=VS Code Remote Tunnel
+After=network.target
+[Service]
+ExecStart=/usr/local/bin/code tunnel \
+        --name dojo-$HOSTNAME \
+        --accept-server-license-terms
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target
+EOF
+fi
+if ! systemctl is-active --quiet vscode-tunnel; then
+    systemctl enable --now vscode-tunnel 2>/dev/null || error "Failed to enable VSCode tunnel service."
+    echo "[+] VSCode tunnel service enabled and started successfully" >&2
+else
+    echo "[-] VSCode tunnel service is already enabled and running" >&2
+fi
+
+service vscode-tunnel status | while IFS= read -r line; do
+    if echo "$line" | grep -q "Open this link in your browser https://vscode.dev/tunnel/dojo-$HOSTNAME"; then
+        break
+    fi
+done
+
+echo "[+] Setup complete"
+echo "[-] Access your VSCode instance at: https://vscode.dev/tunnel/dojo-$HOSTNAME/opt/pwn.college"

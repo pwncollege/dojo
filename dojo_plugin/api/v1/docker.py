@@ -28,6 +28,7 @@ from ...utils import (
     user_docker_client,
     user_ipv4,
     get_current_container,
+    is_challenge_locked,
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
@@ -358,15 +359,11 @@ class RunDocker(Resource):
                 "error": "This challenge does not support practice mode.",
             }
         
-        if all((dojo_challenge.progression_locked, dojo_challenge.challenge_index != 0, not dojo.is_admin())):
-            previous_dojo_challenge = dojo_challenge.module.challenges[dojo_challenge.challenge_index - 1]
-            solved = (Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() or
-                      Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first())
-            if not solved:
-                return {
-                    "success": False,
-                    "error": "This challenge is locked"
-                }
+        if is_challenge_locked(dojo_challenge, user):
+            return {
+                "success": False,
+                "error": "This challenge is locked"
+            }
 
         if dojo.is_admin(user) and "as_user" in data:
             try:
