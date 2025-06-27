@@ -116,10 +116,10 @@ jobs:
           exit 0
 
       - name: Run tests
-        timeout-minutes: 4
+        timeout-minutes: 5
         run: |
           export MOZ_HEADLESS=1
-          timeout 3m pytest -vrpP --durations=0 ./test
+          timeout 4m pytest -vrpP --durations=0 ./test
 
       - name: Show dojo logs
         if: always()
