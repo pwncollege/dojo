@@ -80,43 +80,9 @@ function DropdownStartChallenge(event) {
     const dropdown_controls = $("#dropdown-controls");
     dropdown_controls.find("button").prop("disabled", true);
 
-    var params = {
-        "dojo": dojo,
-        "module": module,
-        "challenge": challenge,
-        "practice": false,
-    };
-
-    var result_notification = dropdown_controls.find('#result-notification');
-    var result_message = dropdown_controls.find('#result-message');
-    result_notification.removeClass('alert-danger');
-    result_notification.addClass('alert alert-warning alert-dismissable text-center');
-    result_message.html("Loading.");
-    result_notification.slideDown();
-    var dot_max = 5;
-    var dot_counter = 0;
-    setTimeout(function loadmsg() {
-        if (result_message.html().startsWith("Loading")) {
-            if (dot_counter < dot_max - 1){
-                result_message.append(".");
-                dot_counter++;
-            }
-            else {
-                result_message.html("Loading.");
-                dot_counter = 0;
-            }
-            setTimeout(loadmsg, 500);
-        }
-    }, 500);
-
     CTFd.fetch('/pwncollege_api/v1/docker', {
-        method: 'POST',
+        method: 'GET',
         credentials: 'same-origin',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(params)
     }).then(function (response) {
         if (response.status === 403) {
             // User is not logged in or CTF is paused.
@@ -127,50 +93,101 @@ function DropdownStartChallenge(event) {
                 window.location.pathname +
                 window.location.hash;
         }
+
         return response.json();
-    }).then(async function (result) {
-        let result_notification = dropdown_controls.find('#result-notification');
-        let result_message = dropdown_controls.find('#result-message');
+    }).then(function (result) {
+        var params = {
+            "dojo": dojo,
+            "module": module,
+            "challenge": challenge,
+            "practice": result.practice,
+        };
 
-        result_notification.removeClass();
-
-        if (result.success) {
-            let message = `Challenge successfully started! You can interact with it through a <a href="/workspace/code" target="dojo_workspace">VSCode Workspace</a> or a <a href="/workspace/desktop">GUI Desktop</a>.`;
-            result_message.html(message);
-            result_notification.addClass('alert alert-info alert-dismissable text-center');
-            await updateNavbarDropdown();
-            $(".challenge-active").removeClass("challenge-active");
-            $(`.accordion-item input[value=${params.challenge}]`).closest(".accordion-item").find("h4.challenge-name").addClass("challenge-active");
-           const broadcast_send = new BroadcastChannel('broadcast');
-            broadcast_send.postMessage({
-               time: new Date().getTime(),
-               msg: 'New challenge started'
-           });
-        }
-        else {
-            let message = "Error:";
-            message += "<br>";
-            message += "<code>" + result.error + "</code>";
-            message += "<br>";
-            result_message.html(message);
-            result_notification.addClass('alert alert-warning alert-dismissable text-center');
-        }
-
-        result_notification.slideDown();
-
-        setTimeout(function() {
-            dropdown_controls.find("button").prop("disabled", false);
-            dropdown_controls.find(".alert").slideUp();
-            item.find("#challenge-submit").removeClass("disabled-button");
-            item.find("#challenge-submit").prop("disabled", false);
-        }, 10000);
-    }).catch(function (error) {
-        console.error(error);
-        let result_message = dropdown_controls.find('#result-message');
-        result_message.html("Submission request failed: " + ((error || {}).message || error));
+        var result_notification = dropdown_controls.find('#result-notification');
+        var result_message = dropdown_controls.find('#result-message');
+        result_notification.removeClass('alert-danger');
         result_notification.addClass('alert alert-warning alert-dismissable text-center');
+        result_message.html("Loading.");
+        result_notification.slideDown();
+        var dot_max = 5;
+        var dot_counter = 0;
+        setTimeout(function loadmsg() {
+            if (result_message.html().startsWith("Loading")) {
+                if (dot_counter < dot_max - 1){
+                    result_message.append(".");
+                    dot_counter++;
+                }
+                else {
+                    result_message.html("Loading.");
+                    dot_counter = 0;
+                }
+                setTimeout(loadmsg, 500);
+            }
+        }, 500);
+
+        CTFd.fetch('/pwncollege_api/v1/docker', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(params)
+        }).then(function (response) {
+            if (response.status === 403) {
+                // User is not logged in or CTF is paused.
+                window.location =
+                    CTFd.config.urlRoot +
+                    "/login?next=" +
+                    CTFd.config.urlRoot +
+                    window.location.pathname +
+                    window.location.hash;
+            }
+            return response.json();
+        }).then(async function (result) {
+            let result_notification = dropdown_controls.find('#result-notification');
+            let result_message = dropdown_controls.find('#result-message');
+
+            result_notification.removeClass();
+
+            if (result.success) {
+                let message = `Challenge successfully started! You can interact with it through a <a href="/workspace/code" target="dojo_workspace">VSCode Workspace</a> or a <a href="/workspace/desktop">GUI Desktop</a>.`;
+                result_message.html(message);
+                result_notification.addClass('alert alert-info alert-dismissable text-center');
+                await updateNavbarDropdown();
+                $(".challenge-active").removeClass("challenge-active");
+                $(`.accordion-item input[value=${params.challenge}]`).closest(".accordion-item").find("h4.challenge-name").addClass("challenge-active");
+            const broadcast_send = new BroadcastChannel('broadcast');
+                broadcast_send.postMessage({
+                time: new Date().getTime(),
+                msg: 'New challenge started'
+            });
+            }
+            else {
+                let message = "Error:";
+                message += "<br>";
+                message += "<code>" + result.error + "</code>";
+                message += "<br>";
+                result_message.html(message);
+                result_notification.addClass('alert alert-warning alert-dismissable text-center');
+            }
+
+            result_notification.slideDown();
+
+            setTimeout(function() {
+                dropdown_controls.find("button").prop("disabled", false);
+                dropdown_controls.find(".alert").slideUp();
+                item.find("#challenge-submit").removeClass("disabled-button");
+                item.find("#challenge-submit").prop("disabled", false);
+            }, 10000);
+        }).catch(function (error) {
+            console.error(error);
+            let result_message = dropdown_controls.find('#result-message');
+            result_message.html("Submission request failed: " + ((error || {}).message || error));
+            result_notification.addClass('alert alert-warning alert-dismissable text-center');
+        })
+        event.stopPropagation();
     })
-    event.stopPropagation();
 }
 
 function submitFlag(event) {
