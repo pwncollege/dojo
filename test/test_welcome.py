@@ -61,7 +61,7 @@ def desktop_terminal(browser, user_id):
 
     browser.switch_to.new_window("tab")
     browser.get(f"{DOJO_URL}/workspace/desktop")
-    time.sleep(2)
+    time.sleep(10)
     workspace_run("DISPLAY=:0 xfce4-terminal &", user=user_id)
     browser.switch_to.frame("workspace")
     e = browser.find_element("id", "noVNC_keyboardinput")
