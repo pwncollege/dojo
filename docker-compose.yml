@@ -76,6 +76,9 @@ services:
       - SERVER_SENT_EVENTS=false
       - SECRET_KEY=${SECRET_KEY}
       - DOJO_HOST=${DOJO_HOST}
+      - DOJO_ENV=${DOJO_ENV}
+      - WORKSPACE_HOST=${WORKSPACE_HOST}
+      - WORKSPACE_SECRET=${WORKSPACE_SECRET}
       - HOST_DATA_PATH=/data
       - MAIL_SERVER=${MAIL_SERVER}
       - MAIL_PORT=${MAIL_PORT}
@@ -89,9 +92,9 @@ services:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
       - INTERNET_FOR_ALL=${INTERNET_FOR_ALL}
-      - VIRTUAL_HOST=${VIRTUAL_HOST}
+      - VIRTUAL_HOST=${DOJO_HOST}
       - VIRTUAL_PORT=8000
-      - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
+      - LETSENCRYPT_HOST=${DOJO_HOST},${WORKSPACE_HOST}
       - MAC_HOSTNAME=${MAC_HOSTNAME}
       - MAC_USERNAME=${MAC_USERNAME}
       - MAC_KEY_FILE=${MAC_KEY_FILE}
@@ -193,13 +196,15 @@ services:
     container_name: nginx-proxy
     profiles:
       - main
-    image: nginxproxy/nginx-proxy:1.5
+    build: ./nginx-proxy
     restart: always
     ports:
       - "80:80"
       - "443:443"
     environment:
       - DEFAULT_HOST=${DOJO_HOST}
+      - WORKSPACE_HOST=${WORKSPACE_HOST}
+      - WORKSPACE_SECRET=${WORKSPACE_SECRET}
       - TRUST_DOWNSTREAM_PROXY=false
       - LOG_JSON=true
     volumes:
@@ -207,6 +212,7 @@ services:
       - html:/usr/share/nginx/html
       - certs:/etc/nginx/certs:ro
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx-proxy/etc/nginx/templates/workspace.template:/etc/nginx/templates/workspace.template:ro
       - /var/run/docker.sock:/tmp/docker.sock:ro
     networks:
       default:
