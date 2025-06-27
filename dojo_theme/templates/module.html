@@ -162,7 +162,7 @@
           <div class="row survey-row">
             <div class="col-md-12">
               <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{challenge.dojo.reference_id}}/surveys/{{challenge.module.id}}/{{challenge.id}}" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
-                {{ challenge.survey.src | safe }}
+                {{ challenge.survey.data | safe }}
               </form>
             </div>
           </div>

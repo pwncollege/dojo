@@ -71,15 +71,22 @@ DOJO_SPEC = Schema({
 
     Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
 
-    Optional("survey"): {
+    Optional("survey"): Or({
+        Optional("probability"): float,
+        "prompt": str,
+        "data": str
+    },{
         Optional("probability"): float,
         "prompt": str,
         "src": str,
-    },
+    },{
+        Optional("probability"): float,
+        "prompt": str,
+        "src": str,
+        "data": str
+    }),
 
-    Optional("survey-sources", default={}): {
-        Optional(str): str
-    },
+    Optional("survey-sources", default={}): str,
 
     Optional("modules", default=[]): [{
         **ID_NAME_DESCRIPTION,
@@ -94,11 +101,20 @@ DOJO_SPEC = Schema({
             "module": ID_REGEX,
         },
 
-        Optional("survey"): {
+        Optional("survey"): Or({
+            Optional("probability"): float,
+            "prompt": str,
+            "data": str
+        },{
             Optional("probability"): float,
             "prompt": str,
             "src": str,
-        },
+        },{
+            Optional("probability"): float,
+            "prompt": str,
+            "src": str,
+            "data": str
+        }),
 
         Optional("challenges", default=[]): [{
             **ID_NAME_DESCRIPTION,
@@ -123,11 +139,20 @@ DOJO_SPEC = Schema({
                 "challenge": ID_REGEX,
             },
 
-            Optional("survey"): {
+            Optional("survey"): Or({
+                Optional("probability"): float,
+                "prompt": str,
+                "data": str
+            },{
                 Optional("probability"): float,
                 "prompt": str,
                 "src": str,
-            },
+            },{
+                Optional("probability"): float,
+                "prompt": str,
+                "src": str,
+                "data": str
+            }),
         }],
 
         Optional("resources", default=[]): [Or(
@@ -177,7 +202,7 @@ def setdefault_name(entry):
 
 def setdefault_file(data, key, file_path):
     if file_path.exists():
-        data.setdefault("description", file_path.read_text())
+        data.setdefault(key, file_path.read_text())
 
 
 def setdefault_subyaml(data, subyaml_path):
@@ -235,16 +260,23 @@ def load_surveys(data, dojo_dir):
 
     This directory is specified by 'survey-sources' under the base yml file
 
-    This function will replace the data in the loaded yml file under survey-sources with a list of survey names mapped to html
+    This function copies the html survey data into the survey.src attribute
     """
 
     survey_data = data.get("survey-sources", None)
-    if survey_data:
+    if survey_data and type(survey_data) == str:
         survey_dir = dojo_dir / survey_data
-        survey_data = {}
-        for survey in survey_dir.iterdir():
-            survey_data[survey.name] = survey.read_text()
-        data["survey-sources"] = survey_data
+        if "survey" in data and "src" in data["survey"]:
+            setdefault_file(data["survey"], "data", survey_dir / data["survey"]["src"])
+
+        for module_data in data.get("modules", []):
+            if "survey" in module_data and "src" in module_data["survey"]:
+                setdefault_file(module_data["survey"], "data", survey_dir / module_data["survey"]["src"])
+
+            for challenge_data in module_data.get("challenges", []):
+                if "survey" in challenge_data and "src" in challenge_data["survey"]:
+                    setdefault_file(challenge_data["survey"], "data", survey_dir / challenge_data["survey"]["src"])
+
     return data
 
 def dojo_initialize_files(data, dojo_dir):
@@ -364,14 +396,9 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
         for data in reversed(datas):
             if "survey" in data:
                 survey = dict(data["survey"])
-                if not "src" in survey:
-                    raise KeyError(f"Survey source not specified")
-                elif not "survey-sources" in dojo_data:
-                    raise KeyError(f"No surveys are defined")
-                elif not survey["src"] in dojo_data["survey-sources"]:
-                    raise KeyError(f"Survey source {survey['src']} not found")
-                raw_html = dojo_data["survey-sources"][survey["src"]]
-                survey["src"] = sanitize_survey(raw_html)
+                if not "data" in survey:
+                    raise KeyError(f"Survey data not specified")
+                survey["data"] = sanitize_survey(survey["data"])
                 return survey
         return None
 

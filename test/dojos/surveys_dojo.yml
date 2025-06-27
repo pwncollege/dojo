@@ -2,12 +2,12 @@ id: surveys-dojo
 type: public
 survey:
   prompt: Dojo-level prompt
-  data: PGRpdj5kb2pvPC9kaXY+
+  data: <div>dojo</div>
 modules:
   - id: surveys-module-1
     survey:
       prompt: Module-level prompt
-      data: PGRpdj5tb2R1bGU8L2Rpdj4=
+      src: <div>module</div>
     challenges:
       - id: module-level
         import:
@@ -21,7 +21,7 @@ modules:
           challenge: mars
         survey:
           prompt: Challenge-level prompt
-          data: PGRpdj5jaGFsbGVuZ2U8L2Rpdj4=
+          src: <div>challenge</div>
   - id: surveys-module-2
     challenges:
       - id: dojo-level
