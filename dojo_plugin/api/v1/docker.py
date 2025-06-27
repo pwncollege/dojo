@@ -87,12 +87,11 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     auth_token = os.urandom(32).hex()
 
     challenge_bin_path = "/run/challenge/bin"
-    workspace_bin_path = "/run/workspace/bin"
     dojo_bin_path = "/run/dojo/bin"
     image = docker_client.images.get(dojo_challenge.image)
     image_env = image.attrs["Config"].get("Env") or []
     image_path = next((env_var[len("PATH="):].split(":") for env_var in image_env if env_var.startswith("PATH=")), [])
-    env_path = ":".join([challenge_bin_path, workspace_bin_path, *image_path])
+    env_path = ":".join([challenge_bin_path, dojo_bin_path, *image_path])
 
     mounts = [
         docker.types.Mount(
@@ -102,15 +101,8 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             read_only=True,
         ),
         docker.types.Mount(
-            "/run/workspace",
-            f"{HOST_DATA_PATH}/workspacefs",
-            "bind",
-            read_only=True,
-            propagation="shared",
-        ),
-        docker.types.Mount(
             "/run/dojo/sys",
-            "/run/dojofs",
+            "/run/dojo/dojofs",
             "bind",
             read_only=True,
             propagation="slave",
@@ -122,8 +114,10 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     available_devices = set(get_available_devices(docker_client))
     devices = [f"{device}:{device}:rwm" for device in allowed_devices if device in available_devices]
 
-    container = docker_client.containers.create(
-        dojo_challenge.image,
+    host_isolation = True
+
+    container_create_attributes = dict(
+        image=dojo_challenge.image,
         entrypoint=[
             "/nix/var/nix/profiles/dojo-workspace/bin/dojo-init",
             f"{dojo_bin_path}/sleep",
@@ -162,8 +156,8 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             **USER_FIREWALL_ALLOWED,
         },
         init=True,
-        cap_add=["SYS_PTRACE"],
-        security_opt=[f"seccomp={SECCOMP}"],
+        cap_add=["SYS_PTRACE", "SYS_ADMIN"] if host_isolation else ["SYS_PTRACE"],
+        security_opt=[] if host_isolation else [f"seccomp={SECCOMP}"],
         sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
         cpu_period=100000,
         cpu_quota=400000,
@@ -172,7 +166,10 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         detach=True,
         stdin_open=True,
         auto_remove=True,
+        runtime="io.containerd.run.kata.v2" if host_isolation else "runc",
     )
+
+    container = docker_client.containers.create(**container_create_attributes)
 
     workspace_net = docker_client.networks.get("workspace_net")
     workspace_net.connect(
@@ -357,7 +354,7 @@ class RunDocker(Resource):
                 "success": False,
                 "error": "This challenge does not support practice mode.",
             }
-        
+
         if is_challenge_locked(dojo_challenge, user):
             return {
                 "success": False,
