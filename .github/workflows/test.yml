@@ -94,6 +94,7 @@ jobs:
             -v "/mnt/dojo-test-data:/data:shared" \
             -p 2222:22 -p 80:80 -p 443:443 \
             pwncollege/dojo:test
+
       - name: Build and start services
         run: |
           docker exec dojo-test dojo wait || (docker exec dojo-test dojo compose logs && false)
@@ -118,7 +119,12 @@ jobs:
         timeout-minutes: 4
         run: |
           export MOZ_HEADLESS=1
-          timeout 3m pytest -vrpP --durations=0 ./test || (docker exec dojo-test dojo compose logs && false)
+          timeout 3m pytest -vrpP --durations=0 ./test
+
+      - name: Show dojo logs
+        if: always()
+        run: |
+          docker exec dojo-test dojo compose logs
 
       - name: Pack docker data cache
         if: github.event_name == 'schedule'
@@ -135,6 +141,7 @@ jobs:
           key: docker-data-${{ runner.os }}-${{ github.run_id }}
 
       - name: Final filesystem information
+        if: always()
         run: |
           echo "::group::Filesystem"
           df -h
