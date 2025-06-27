@@ -63,13 +63,26 @@ def create_dojo_yml(spec, *, session):
 def dojo_run(*args, **kwargs):
     kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return subprocess.run(
-        [shutil.which("docker"), "exec", "-i", DOJO_CONTAINER, "dojo", *args],
+        [shutil.which("docker"), "exec", "-i", DOJO_CONTAINER, *args],
         check=kwargs.pop("check", True), **kwargs
     )
 
+
+def db_sql(sql):
+    db_result = dojo_run("dojo", "db", input=sql)
+    return db_result.stdout
+
+
+def db_sql_one(sql):
+    return db_sql(sql).split()[1]
+
+
+def get_user_id(user_name):
+    return int(db_sql_one(f"SELECT id FROM users WHERE name = '{user_name}'"))
+
+
 def workspace_run(cmd, *, user, root=False, **kwargs):
-    args = [ "enter" ]
-    if root:
-        args += [ "-s" ]
-    args += [ user ]
-    return dojo_run(*args, input=cmd, check=True, **kwargs)
+    container_name = f"user_{get_user_id(user)}"
+    user_arg = f"--user=1000" if not root else f"--user=0"
+    args = [ "docker", "exec", user_arg, container_name, "bash", "-c", cmd ]
+    return dojo_run(*args, stdin=subprocess.DEVNULL, check=True, **kwargs)
