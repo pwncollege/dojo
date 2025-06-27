@@ -28,21 +28,21 @@ def start_challenge(dojo, module, challenge, practice=False, *, session, as_user
 def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):
     flag = flag if flag is not None else workspace_run("cat /flag", user=user, root=True).stdout.strip()
     response = session.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/challenges/solve",
-        json={"module_id": module, "challenge_id": challenge, "submission": flag}
+        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/{module}/{challenge}/solve",
+        json={"submission": flag}
     )
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], "Expected to successfully submit flag"
 
 def get_challenge_survey(dojo, module, challenge, session):
-    response = session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/surveys/{module}/{challenge}")
+    response = session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/{module}/{challenge}/surveys")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], "Expected to recieve valid survey"
     return response.json()
 
 def post_survey_response(dojo, module, challenge, survey_response, session):
     response = session.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/surveys/{module}/{challenge}",
+        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/{module}/{challenge}/surveys",
         json={"response": survey_response}
     )
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"

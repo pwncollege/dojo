@@ -571,7 +571,7 @@ def dojo_create(user, repository, public_key, private_key, spec):
             assert re.match(repository_re, repository), f"Invalid repository, expected format: <code>{repository_re}</code>"
 
             if Dojos.query.filter_by(repository=repository).first():
-                raise IntegrityError()
+                raise AssertionError("This repository already exists as a dojo")
 
             dojo_dir = dojo_clone(repository, private_key)
 
