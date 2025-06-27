@@ -68,7 +68,7 @@ def dojo_create():
         "dojo_create.html",
         public_key=public_key,
         private_key=private_key,
-        example_dojos=Dojos.viewable().where(Dojos.data["type"] == "example").all()
+        example_dojos=Dojos.viewable().where(Dojos.data["type"].astext == "example").all(),
     )
 
 

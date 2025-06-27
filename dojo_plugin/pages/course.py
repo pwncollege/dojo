@@ -14,7 +14,6 @@ from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, Dojo
 from ..utils import is_dojo_admin
 from ..utils.dojo import dojo_route
 from ..utils.discord import add_role, get_discord_member
-from .writeups import WriteupComments, writeup_weeks, all_writeups
 
 course = Blueprint("course", __name__)
 
