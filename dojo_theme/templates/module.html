@@ -120,34 +120,51 @@
               {{ challenge.description | markdown }}
             {% endif %}
           </div>
-          <div class="row">
-            <div class="col-sm-{% if challenge.allow_privileged %}6{% else %}12{% endif %} form-group text-center">
-              <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary w-100">
+          <!-- TODO: Start button which expands into contents. -->
+          <div class="challenge-workspace">
+            <!-- TODO: Challenge Workspace-->
+          </div>
+          <div class="row workspace-controls">
+            <div class="col-sm-1 form-group text-center">
+              <select name="challenge-content-select" id="challenge-content-select">
+                <option value="vscode">VS Code</option>>
+                <option value="desktop">Virtual Desktop</option>
+                <!-- TODO: Challenge specific selection options. -->
+                <!-- TODO: Workspace selection could take inspiration from youtube? -->
+              </select>
+            </div>
+            <div class="col-sm-1 form-group text-center">
+              <button id="challenge-restart" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
                 <span class="d-sm-block d-md-block d-lg-block">
-                  <i class="fas fa-play fa-2x pr-3"></i>Start
+                  <i class="fas fa-undo-alt fa-2x fa-flip-horizontal"></i>
                 </span>
               </button>
             </div>
             {% if challenge.allow_privileged %}
-            <div class="col-sm-6 form-group text-center">
-              <button id="challenge-practice" type="submit" class="btn btn-md btn-outline-secondary w-100">
+            <div class="col-sm-1 form-group text-center">
+              <button id="challenge-mode-swap" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
                 <span class="d-sm-block d-md-block d-lg-block">
-                  <i class="fas fa-flask fa-2x pr-3"></i>Practice
+                  <i class="fas fa-sync-alt fa-2x"></i>
                 </span>
               </button>
             </div>
             {% endif %}
-          </div>
-          <div class="row submit-row">
-            <div class="col-md-9 form-group">
+            <div class="col-md-7 form-group">
               <input id="module" type="hidden" value="{{ challenge.module.id }}">
               <input id="challenge" type="hidden" value="{{ challenge.id }}">
               <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
               <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
             </div>
-            <div class="col-md-3 form-group key-submit">
+            <div class="col-md-1 form-group key-submit">
               <button id="challenge-submit" type="submit" class="challenge-submit btn btn-md btn-outline-secondary float-right w-100 h-100">
-                Submit
+                <i class="fas fa-check fa-2x"></i>
+              </button>
+            </div>
+            <div class="col-sm-1 form-group text-center">
+              <button id="challenge-content-fullscreen" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
+                <span class="d-sm-block d-md-block d-lg-block">
+                  <i class="fas fa-expand fa-2x"></i>
+                </span>
               </button>
             </div>
           </div>
