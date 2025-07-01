@@ -121,22 +121,21 @@
             {% endif %}
           </div>
           <!-- TODO: Start button which expands into contents. -->
-          <div class="challenge-workspace">
-            <!-- TODO: Challenge Workspace-->
-          </div>
+          <iframe class="challenge-workspace" src="/workspace/code/" height=800 width=1070>
+          </iframe>
           <div class="row workspace-controls">
             <div class="col-sm-1 form-group text-center">
-              <select name="challenge-content-select" id="challenge-content-select">
-                <option value="vscode">VS Code</option>>
-                <option value="desktop">Virtual Desktop</option>
-                <!-- TODO: Challenge specific selection options. -->
-                <!-- TODO: Workspace selection could take inspiration from youtube? -->
+              <button id="challenge-content-select" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
+                <span class="d-sm-block d-md-block d-lg-block">
+                  <!-- TODO: Change to show the name of the current workspace. Requires shrinking of other buttons/fields. -->
+                  <i class="fa fa-bars fa-2x"></i>
+                </span>
               </select>
             </div>
             <div class="col-sm-1 form-group text-center">
-              <button id="challenge-restart" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
+              <button id="challenge-mode-swap" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
                 <span class="d-sm-block d-md-block d-lg-block">
-                  <i class="fas fa-undo-alt fa-2x fa-flip-horizontal"></i>
+                  <i class="fas fa-play fa-2x"></i>
                 </span>
               </button>
             </div>
@@ -144,21 +143,24 @@
             <div class="col-sm-1 form-group text-center">
               <button id="challenge-mode-swap" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
                 <span class="d-sm-block d-md-block d-lg-block">
-                  <i class="fas fa-sync-alt fa-2x"></i>
+                  <i class="fas fa-unlock fa-2x"></i>
                 </span>
               </button>
             </div>
             {% endif %}
-            <div class="col-md-7 form-group">
+            <div class="col-sm-1 form-group text-center">
+              <button id="challenge-restart" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
+                <span class="d-sm-block d-md-block d-lg-block">
+                  <i class="fas fa-undo-alt fa-2x fa-flip-horizontal"></i>
+                </span>
+              </button>
+            </div>
+			<!-- Autosubmit when data matches pwn.college{...} 	-->
+            <div class="col-md-{% if challenge.allow_privileged %}7{% else %}8{% endif %} form-group">
               <input id="module" type="hidden" value="{{ challenge.module.id }}">
               <input id="challenge" type="hidden" value="{{ challenge.id }}">
               <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
               <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
-            </div>
-            <div class="col-md-1 form-group key-submit">
-              <button id="challenge-submit" type="submit" class="challenge-submit btn btn-md btn-outline-secondary float-right w-100 h-100">
-                <i class="fas fa-check fa-2x"></i>
-              </button>
             </div>
             <div class="col-sm-1 form-group text-center">
               <button id="challenge-content-fullscreen" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
