@@ -1,10 +1,21 @@
 server {
   listen 80;
+  listen 443;
+
 
   server_name $WORKSPACE_HOST;
 
   resolver 127.0.0.11 valid=30s ipv6=off;
   resolver_timeout 1s;
+
+  location ^~ /.well-known/acme-challenge/ {
+    auth_basic off;
+    auth_request off;
+    allow all;
+    root /usr/share/nginx/html;
+    try_files $uri =404;
+    break;
+  }
 
   location ~ ^/workspace/(?P<container>[^/]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
         secure_link_hmac "$sig";

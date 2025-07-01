@@ -28,7 +28,7 @@ port_names = {
 def view_workspace(service):
     return render_template("workspace.html", iframe_name="workspace", service=service)
 
-def forward_workspace(service, sig, container_id, service_path="", include_host=True, **kwargs):
+def forward_workspace(service, signature, container_id, service_path="", include_host=True, **kwargs):
     if service.count("~") == 0:
         service_name = service
         try:
@@ -80,7 +80,7 @@ def forward_workspace(service, sig, container_id, service_path="", include_host=
         abort(500)
         return
 
-    url = f"/workspace/{container_id}/{sig}/{port}/{service_path}"
+    url = f"/workspace/{container_id}/{signature}/{port}/{service_path}"
 
     if include_host:
         url = f"http://{workspace_host}{url}"

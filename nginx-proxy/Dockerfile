@@ -31,6 +31,8 @@ FROM nginxproxy/nginx-proxy:${NGINX_PROXY_VERSION}
 COPY --from=builder /ngx_http_hmac_secure_link_module.so /usr/lib/nginx/modules/
 COPY ./etc/nginx /etc/nginx
 
+RUN apk add --no-cache bash
+
 RUN <<EOF
 set -e
 
@@ -43,8 +45,4 @@ echo 'map "" $workspace_secret { default {{ .Env.WORKSPACE_SECRET }}; }' >> /app
 echo 'map "" $default_host { default {{ .Env.DEFAULT_HOST }}; }' >> /app/nginx.tmpl
 EOF
 
-COPY ./entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-
-ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["forego", "start", "-r"]
+CMD bash -c "envsubst '\$WORKSPACE_HOST' < /etc/nginx/templates/workspace.template > /etc/nginx/conf.d/workspace.conf && forego start -r"
