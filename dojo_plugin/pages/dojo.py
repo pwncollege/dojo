@@ -76,8 +76,8 @@ def active_module():
     g.dojo = active_challenge.dojo
 
     current_challenge = active_challenge
-    current_index = current_challenge.challenge_index
-    challenges = current_challenge.module.challenges
+    challenges = list(filter(lambda x: x.visible(), current_challenge.module.challenges))
+    current_index = challenges.index(current_challenge)
 
     previous_challenge = challenges[current_index - 1] if current_index > 0 else None
     next_challenge = challenges[current_index + 1] if current_index < (len(challenges) - 1) else None

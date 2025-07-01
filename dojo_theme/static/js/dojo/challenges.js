@@ -93,7 +93,7 @@ function renderSubmissionResponse(response, item) {
 
         const survey_notification = item.find("#survey-notification")
 
-        CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/surveys/${module_name}/${challenge_name}`, {
+        CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/${module_name}/${challenge_name}/surveys`, {
             method: 'GET',
             credentials: 'same-origin',
             headers: {
