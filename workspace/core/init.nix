@@ -4,10 +4,10 @@ let
   initScript = pkgs.writeScript "dojo-init" ''
     #!${pkgs.bash}/bin/bash
 
+    FULL_PATH="$PATH"
     IMAGE_PATH="$(echo $PATH | cut -d: -f3-)"
     DEFAULT_PROFILE="/nix/var/nix/profiles/dojo-workspace"
-
-    export PATH="$DEFAULT_PROFILE/bin:$PATH"
+    PATH="$DEFAULT_PROFILE/bin"
 
     mkdir -p /run/current-system
     ln -sfT $DEFAULT_PROFILE /run/current-system/sw
@@ -28,6 +28,15 @@ let
       mkdir -p /bin && ln -sfT /run/dojo/bin/sh /bin/sh
     fi
 
+    home_directory="/home/hacker"
+    home_mount_options="$(findmnt -nro OPTIONS -- "$home_directory")"
+    if [ -n "$home_mount_options" ] && ! printf '%s' "$home_mount_options" | grep -Fqw 'nosuid'; then
+      mount -o remount,nosuid "$home_directory" || {
+        echo "Error: Failed to remount home '$home_directory' with nosuid option." >&2
+        exit 1
+      }
+    fi
+
     mkdir -p /home/hacker /root
     mkdir -p /etc /etc/profile.d && touch /etc/passwd /etc/group
     echo "root:x:0:0:root:/root:/run/dojo/bin/bash" >> /etc/passwd
@@ -35,7 +44,7 @@ let
     echo "sshd:x:112:65534::/run/sshd:/usr/sbin/nologin" >> /etc/passwd
     echo "root:x:0:" >> /etc/group
     echo "hacker:x:1000:" >> /etc/group
-    echo "PATH=\"/run/challenge/bin:/run/workspace/bin:$IMAGE_PATH\"" > /etc/environment
+    echo "PATH=\"$FULL_PATH\"" > /etc/environment
     ln -sfT /run/dojo/etc/profile.d/99-dojo-workspace.sh /etc/profile.d/99-dojo-workspace.sh
 
     mkdir -p /etc/gdb/gdbinit.d
@@ -65,8 +74,8 @@ let
   '';
 
   profile = pkgs.writeText "dojo-profile" ''
-    if [[ "$PATH" != "/run/challenge/bin:/run/workspace/bin:"* ]]; then
-      export PATH="/run/challenge/bin:/run/workspace/bin:$PATH"
+    if [[ "$PATH" != "/run/challenge/bin:/run/dojo/bin:"* ]]; then
+      export PATH="/run/challenge/bin:/run/dojo/bin:$PATH"
     fi
 
     if [[ -z "$LANG" ]]; then

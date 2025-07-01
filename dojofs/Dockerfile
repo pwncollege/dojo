@@ -7,8 +7,8 @@ RUN apt-get update && \
     pip install \
         docker \
         fusepy && \
-    mkdir -p /run/dojofs/workspace
+    mkdir -p /run/dojo/dojofs
 
 COPY ./dojofs /usr/local/bin/dojofs
 
-CMD ["dojofs", "/run/dojofs/workspace"]
+CMD ["dojofs", "/run/dojo/dojofs"]

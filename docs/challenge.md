@@ -55,7 +55,6 @@ For more information about how `PATH` works, see [8.3 Other Environment Variable
 There is no perfect way to marry together a file system that meets the precise needs of the DOJO, the challenge, and the user; nevertheless, we try our best.
 
 DOJO completely owns the following directories:
-- `/run/workspace`
 - `/run/dojo`
 - `/run/current-system`
 - `/nix`
