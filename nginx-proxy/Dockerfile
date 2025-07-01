@@ -46,5 +46,4 @@ EOF
 COPY ./entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["forego", "start", "-r"]
+CMD bash -c 'envsubst '$WORKSPACE_HOST' < /etc/nginx/templates/workspace.template > /etc/nginx/conf.d/workspace.conf && forgo start -r'
