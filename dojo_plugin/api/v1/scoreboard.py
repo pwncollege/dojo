@@ -46,12 +46,13 @@ def get_scoreboard_for(model, duration):
         .over(order_by=(solves.desc(), db.func.max(Solves.id)))
         .label("rank")
     )
+    user_entities = [Solves.user_id, Users.name, Users.email]
     query = (
         model.solves()
         .filter(duration_filter)
-        .group_by(Solves.user_id)
+        .group_by(*user_entities)
         .order_by(rank)
-        .with_entities(rank, solves, Solves.user_id, Users.name, Users.email)
+        .with_entities(rank, solves, *user_entities)
     )
 
     row_results = query.all()
@@ -63,12 +64,14 @@ def invalidate_scoreboard_cache():
 
 # handle cache invalidation for new solves, dojo creation, dojo challenge creation
 @event.listens_for(Dojos, 'after_insert', propagate=True)
+@event.listens_for(Dojos, 'after_delete', propagate=True)
 @event.listens_for(Solves, 'after_insert', propagate=True)
+@event.listens_for(Solves, 'after_delete', propagate=True)
 @event.listens_for(Awards, 'after_insert', propagate=True)
-@event.listens_for(Belts, 'after_insert', propagate=True)
-@event.listens_for(Emojis, 'after_insert', propagate=True)
 @event.listens_for(Awards, 'after_delete', propagate=True)
+@event.listens_for(Belts, 'after_insert', propagate=True)
 @event.listens_for(Belts, 'after_delete', propagate=True)
+@event.listens_for(Emojis, 'after_insert', propagate=True)
 @event.listens_for(Emojis, 'after_delete', propagate=True)
 def hook_object_creation(mapper, connection, target):
     invalidate_scoreboard_cache()
@@ -84,7 +87,6 @@ def hook_object_creation(mapper, connection, target):
 @event.listens_for(DojoChallengeVisibilities, 'after_update', propagate=True)
 @event.listens_for(Belts, 'after_update', propagate=True)
 @event.listens_for(Emojis, 'after_update', propagate=True)
-@event.listens_for(Awards, 'after_insert', propagate=True)
 def hook_object_update(mapper, connection, target):
     # according to the docs, this is a necessary check to see if the
     # target actually was modified (and thus an update was made)
