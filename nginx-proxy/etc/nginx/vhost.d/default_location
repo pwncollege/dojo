@@ -1,0 +1,11 @@
+location /internal/ {
+    internal;
+    set $redirect_uri "$upstream_http_redirect_uri";
+
+    proxy_buffering off;
+    proxy_http_version 1.1;
+    proxy_pass $redirect_uri;
+
+    proxy_ignore_headers X-Accel-Redirect;
+}
+

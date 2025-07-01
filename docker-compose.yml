@@ -196,30 +196,43 @@ services:
     container_name: nginx-proxy
     profiles:
       - main
-    image: jonasal/nginx-certbot:6
+    build: ./nginx-proxy
     restart: always
     ports:
       - "80:80"
       - "443:443"
     environment:
-      - DOJO_HOST=${DOJO_HOST}
+      - DEFAULT_HOST=${DOJO_HOST}
       - WORKSPACE_HOST=${WORKSPACE_HOST}
       - WORKSPACE_SECRET=${WORKSPACE_SECRET}
-      - CERTBOT_EMAIL=mail@yourdomain.tld
       - TRUST_DOWNSTREAM_PROXY=false
       - LOG_JSON=true
     volumes:
       - conf:/etc/nginx/conf.d
       - html:/usr/share/nginx/html
-      - cert-data:/etc/letsencrypt
-      - cert-data:/var/lib/letsencrypt
-      - ./nginx-proxy/etc/nginx/templates/:/etc/nginx/templates/:ro
+      - certs:/etc/nginx/certs:ro
+      - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx-proxy/etc/nginx/templates/workspace.template:/etc/nginx/templates/workspace.template:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
     networks:
       default:
       workspace_net:
         aliases:
           - nginx
         ipv4_address: 10.0.0.3
+
+  acme-companion:
+    container_name: nginx-proxy-acme
+    profiles:
+      - main
+    image: nginxproxy/acme-companion:2.3
+    restart: always
+    volumes_from:
+      - nginx-proxy
+    volumes:
+      - certs:/etc/nginx/certs:rw
+      - acme:/etc/acme.sh
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   node-exporter:
     container_name: node-exporter

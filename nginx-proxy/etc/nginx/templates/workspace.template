@@ -1,26 +1,14 @@
 server {
   listen 80;
-  listen 443 ssl http2;
 
   server_name $WORKSPACE_HOST;
-
-  ssl_certificate         /etc/letsencrypt/live/$host/fullchain.pem;
-  ssl_certificate_key     /etc/letsencrypt/live/$host/privkey.pem;
-  ssl_trusted_certificate /etc/letsencrypt/live/$host/chain.pem;
-
-  # Load the Diffie-Hellman parameter.
-  ssl_dhparam /etc/letsencrypt/dhparams/dhparam.pem;
-
-  if (-f /etc/letsencrypt/live/$host/fullchain.pem) {
-      return 301 https://$host$request_uri;
-  }
 
   resolver 127.0.0.11 valid=30s ipv6=off;
   resolver_timeout 1s;
 
   location ~ ^/workspace/(?P<container>[^/]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
         secure_link_hmac "$sig";
-        secure_link_hmac_secret "$WORKSPACE_SECRET";
+        secure_link_hmac_secret "$workspace_secret";
         secure_link_hmac_message "$container";
         secure_link_hmac_algorithm sha256;
 
