@@ -64,6 +64,10 @@ def desktop_terminal(browser, user_id):
     time.sleep(2)
     workspace_run("DISPLAY=:0 xfce4-terminal &", user=user_id)
     browser.switch_to.frame("workspace")
+
+    wait = WebDriverWait(browser, 30)
+    workspace_iframe = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "noVNC_connected")))
+
     e = browser.find_element("id", "noVNC_keyboardinput")
     time.sleep(2)
 
