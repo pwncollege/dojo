@@ -43,9 +43,6 @@ class view_desktop(Resource):
             return
 
         container_id = container.id
-        if not container_id:
-            abort(400, "Invalid container")
-            return
 
         container_id = container_id[:12]
 
