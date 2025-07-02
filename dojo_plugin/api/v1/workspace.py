@@ -12,13 +12,12 @@ from CTFd.utils.decorators import authed_only
 from ...utils import get_current_container, container_password
 from ...utils.workspace import start_on_demand_service, reset_home
 from ...pages.workspace import forward_workspace
+from ..config import WORKSPACE_SECRET
 
 
 workspace_namespace = Namespace(
     "workspace", description="Endpoint to manage workspace iframe urls"
 )
-
-signing_key = os.environ.get("WORKSPACE_SECRET")
 
 @workspace_namespace.route("")
 class view_desktop(Resource):
@@ -39,7 +38,7 @@ class view_desktop(Resource):
         if not container:
             return {"active": False}
 
-        if not signing_key:
+        if not WORKSPACE_SECRET:
             abort(500)
             return
 
@@ -51,7 +50,7 @@ class view_desktop(Resource):
         container_id = container_id[:12]
 
         digest = hmac.new(
-            signing_key.encode(),
+            WORKSPACE_SECRET.encode(),
             container_id.encode(),
             hashlib.sha256
         ).digest()
