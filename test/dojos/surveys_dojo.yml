@@ -7,7 +7,7 @@ modules:
   - id: surveys-module-1
     survey:
       prompt: Module-level prompt
-      src: <div>module</div>
+      data: <div>module</div>
     challenges:
       - id: module-level
         import:
@@ -21,7 +21,7 @@ modules:
           challenge: mars
         survey:
           prompt: Challenge-level prompt
-          src: <div>challenge</div>
+          data: <div>challenge</div>
   - id: surveys-module-2
     challenges:
       - id: dojo-level
