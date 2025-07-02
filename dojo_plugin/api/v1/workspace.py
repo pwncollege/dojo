@@ -12,7 +12,7 @@ from CTFd.utils.decorators import authed_only
 from ...utils import get_current_container, container_password
 from ...utils.workspace import start_on_demand_service, reset_home
 from ...pages.workspace import forward_workspace
-from ..config import WORKSPACE_SECRET
+from ...config import WORKSPACE_SECRET
 
 
 workspace_namespace = Namespace(
