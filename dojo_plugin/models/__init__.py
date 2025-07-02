@@ -353,7 +353,6 @@ class DojoModules(db.Model):
 
 
     def __init__(self, *args, **kwargs):
-        default = kwargs.pop("default", None)
         visibility = kwargs["visibility"] if "visibility" in kwargs else None
 
         data = kwargs.pop("data", {})
@@ -488,24 +487,11 @@ class DojoChallenges(db.Model):
     survey_responses = db.relationship("SurveyResponses", back_populates="challenge", cascade="all, delete-orphan")
 
     def __init__(self, *args, **kwargs):
-        default = kwargs.pop("default", None)
-
         data = kwargs.pop("data", {})
         for field in self.data_fields:
             if field in kwargs:
                 data[field] = kwargs.pop(field)
         kwargs["data"] = data
-
-        if default:
-            if kwargs.get("challenge") is not None:
-                raise AttributeError("Import requires challenge to be None")
-
-            for field in ["id", "name", "description", "challenge"]:
-                kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
-
-            # TODO: maybe we should track the entire import
-            kwargs["data"]["image"] = default.data.get("image")
-            kwargs["data"]["path_override"] = str(default.path)
 
         super().__init__(*args, **kwargs)
 
