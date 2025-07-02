@@ -56,7 +56,7 @@ class view_desktop(Resource):
             hashlib.sha256
         ).digest()
 
-        sig = base64.urlsafe_b64encode(digest).decode()
+        signature = base64.urlsafe_b64encode(digest).decode()
 
         if service == "desktop":
             interact_password = container_password(container, "desktop", "interact")
@@ -77,11 +77,11 @@ class view_desktop(Resource):
                 "reconnect": 1,
                 "reconnect_delay": 200,
                 "resize": "remote",
-                "path": forward_workspace(service=service_param, service_path="websockify", sig=sig, container_id=container_id, include_host=False),
+                "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, container_id=container_id, include_host=False),
                 "view_only": int(view_only),
                 "password": password,
             }
-            iframe_src = forward_workspace(service=service_param, service_path="vnc.html", sig=sig, container_id=container_id, **vnc_params)
+            iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, container_id=container_id, **vnc_params)
 
         elif service == "desktop-windows":
             service_param = "~".join(("desktop-windows", str(user.id), container_password(container, "desktop-windows")))
@@ -90,12 +90,12 @@ class view_desktop(Resource):
                 "reconnect": 1,
                 "reconnect_delay": 200,
                 "resize": "local",
-                "path": forward_workspace(service=service_param, service_path="websockify", sig=sig, container_id=container_id, include_host=False),
+                "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, container_id=container_id, include_host=False),
                 "password": "password",
             }
-            iframe_src = forward_workspace(service=service_param, service_path="vnc.html", sig=sig, container_id=container_id, **vnc_params)
+            iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, container_id=container_id, **vnc_params)
         else:
-            iframe_src = forward_workspace(service=service, service_path="", sig=sig, container_id=container_id)
+            iframe_src = forward_workspace(service=service, service_path="", signature=signature, container_id=container_id)
 
         if start_on_demand_service(user, service) is False:
             return {"active": False}
