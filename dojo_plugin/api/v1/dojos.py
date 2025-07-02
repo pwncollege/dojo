@@ -231,12 +231,11 @@ class DojoSurvey(Resource):
             return {"success": True, "type": "none"}
         response = {
             "success": True,
-            "type": survey["type"],
             "prompt": survey["prompt"],
+            "data": survey["data"],
             "probability": survey.get("probability", 1.0),
+            "type": "user-specified"
         }
-        if "options" in survey:
-            response["options"] = survey["options"]
         return response
 
     @authed_only
@@ -255,23 +254,10 @@ class DojoSurvey(Resource):
         if "response" not in data:
             return {"success": False, "error": "Missing response"}, 400
 
-        if survey["type"] == "thumb":
-            if data["response"] not in ["up", "down"]:
-                return {"success": False, "error": "Invalid response"}, 400
-        elif survey["type"] == "multiplechoice":
-            if not isinstance(data["response"], int) or not (0 <= int(data["response"]) < len(survey["options"])):
-                return {"success": False, "error": "Invalid response"}, 400
-        elif survey["type"] == "freeform":
-            if not isinstance(data["response"], str):
-                return {"success": False, "error": "Invalid response"}, 400
-        else:
-            return {"success": False, "error": "Bad survey type"}, 400
-
         response = SurveyResponses(
             user_id=user.id,
             dojo_id=dojo_challenge.dojo_id,
             challenge_id=dojo_challenge.challenge_id,
-            type=survey["type"],
             prompt=survey["prompt"],
             response=data["response"],
         )
