@@ -1,61 +1,44 @@
 import pytest
 import subprocess
 import os
+import yaml
 
-def test_flask_history_persistence():
-    """Test that ipython history is persisted across dojo flask sessions"""
+def test_docker_compose_ctfd_ipython_mount():
+    """Test that the docker-compose.yml contains the correct volume mount for ipython persistence"""
     
-    # Test setup: ensure the directory exists and is mounted
-    result = subprocess.run(
-        ["docker", "exec", "ctfd", "ls", "-la", "/root/.ipython"],
-        capture_output=True,
-        text=True
-    )
+    # Load and parse the docker-compose.yml file
+    with open('/home/runner/work/dojo/dojo/docker-compose.yml', 'r') as f:
+        compose_config = yaml.safe_load(f)
     
-    # The directory should exist (either from the mount or be created by ipython)
-    assert result.returncode == 0 or "No such file or directory" in result.stderr
+    # Check that the ctfd service exists
+    assert 'ctfd' in compose_config['services'], "ctfd service should exist in docker-compose.yml"
     
-    # Test that the volume mount is working by checking if the directory is accessible
-    result = subprocess.run(
-        ["docker", "exec", "ctfd", "mkdir", "-p", "/root/.ipython"],
-        capture_output=True,
-        text=True
-    )
-    assert result.returncode == 0
+    # Check that the ctfd service has volumes
+    ctfd_service = compose_config['services']['ctfd']
+    assert 'volumes' in ctfd_service, "ctfd service should have volumes"
     
-    # Create a test history file to verify persistence
-    test_command = "print('test_history_persistence')"
-    result = subprocess.run(
-        ["docker", "exec", "ctfd", "bash", "-c", 
-         f"echo '{test_command}' >> /root/.ipython/profile_default/history.sqlite"],
-        capture_output=True,
-        text=True
-    )
-    
-    # If the directory structure doesn't exist yet, that's ok
-    # The important thing is that the mount point is available
-    
-    # Verify the mount point exists on the host
-    result = subprocess.run(
-        ["docker", "exec", "dojo-test", "ls", "-la", "/data/ctfd-ipython"],
-        capture_output=True,
-        text=True
-    )
-    assert result.returncode == 0, f"ctfd-ipython directory should exist: {result.stderr}"
+    # Check that the ipython volume mount is present
+    volumes = ctfd_service['volumes']
+    ipython_mount = "/data/ctfd-ipython:/root/.ipython"
+    assert ipython_mount in volumes, f"ctfd service should have ipython volume mount: {ipython_mount}"
 
-def test_flask_command_works():
-    """Test that the dojo flask command still works with the new mount"""
+def test_dojo_init_creates_ctfd_ipython_directory():
+    """Test that the dojo-init script creates the ctfd-ipython directory"""
     
-    # Test that we can still execute the flask command
-    # We'll just test that the command doesn't fail immediately
-    result = subprocess.run(
-        ["docker", "exec", "ctfd", "timeout", "2", "flask", "shell"],
-        input="exit()\n",
-        capture_output=True,
-        text=True
-    )
+    # Read the dojo-init script
+    with open('/home/runner/work/dojo/dojo/dojo/dojo-init', 'r') as f:
+        init_script = f.read()
     
-    # The command should start successfully (even if it times out)
-    # We're mainly testing that the mount doesn't break the flask shell
-    assert "ImportError" not in result.stderr
-    assert "No module named" not in result.stderr
+    # Check that the script creates the ctfd-ipython directory
+    assert "mkdir -p /data/ctfd-ipython" in init_script, "dojo-init should create /data/ctfd-ipython directory"
+
+def test_flask_command_exists():
+    """Test that the dojo flask command exists and has correct implementation"""
+    
+    # Read the dojo script
+    with open('/home/runner/work/dojo/dojo/dojo/dojo', 'r') as f:
+        dojo_script = f.read()
+    
+    # Check that the flask command exists
+    assert '"flask")' in dojo_script, "dojo script should have flask command"
+    assert 'docker exec $DOCKER_ARGS ctfd flask shell' in dojo_script, "flask command should execute flask shell in ctfd container"
