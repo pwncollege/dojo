@@ -3,6 +3,7 @@ import re
 import sys
 import subprocess
 import tempfile
+import traceback
 import pathlib
 import urllib.request
 
@@ -255,7 +256,7 @@ def dojo_create(user: Users, repository: str, public_key: str, private_key: str 
         raise RuntimeError(str(e))
 
     except Exception as e:
-        print(f"Encountered error: {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
         raise RuntimeError("An error occurred while creating the dojo")
 
     return dojo
