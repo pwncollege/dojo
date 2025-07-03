@@ -1,6 +1,6 @@
 from schema import Schema, Optional, SchemaError
 
-from ...models import Dojos, DojoChallenges, DojoChallengeVisibilities, Challenges, Flags
+from ..models import Dojos, DojoChallenges, DojoChallengeVisibilities, Challenges, Flags
 from CTFd.utils.user import is_admin
 from .builder_utils import (
     ID_REGEX,

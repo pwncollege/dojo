@@ -16,9 +16,9 @@ from pathlib import Path
 from CTFd.models import db, Users
 from CTFd.utils.user import is_admin
 
-from ...models import DojoAdmins, Dojos
-from ...config import DOJOS_DIR
-from ..dojo import dojo_git_command
+from ..models import DojoAdmins, Dojos
+from ..config import DOJOS_DIR
+from ..utils.dojo import dojo_git_command
 from .dojo_builder import dojo_from_spec
 
 

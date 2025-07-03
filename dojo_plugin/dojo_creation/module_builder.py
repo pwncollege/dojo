@@ -1,6 +1,6 @@
 from schema import Schema, Optional, Or, SchemaError
 
-from ...models import DojoModules, DojoResources, DojoModuleVisibilities, DojoResourceVisibilities
+from ..models import DojoModules, DojoResources, DojoModuleVisibilities, DojoResourceVisibilities
 from .builder_utils import (
     ID_REGEX,
     UNIQUE_ID_REGEX,

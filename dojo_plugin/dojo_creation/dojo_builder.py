@@ -2,7 +2,7 @@ import yaml
 
 from schema import Schema, Optional, Regex, Or, SchemaError
 
-from ...models import Dojos
+from ..models import Dojos
 from .builder_utils import (
     ID_REGEX,
     UNIQUE_ID_REGEX,
