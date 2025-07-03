@@ -619,27 +619,11 @@ class DojoResources(db.Model):
 
 
     def __init__(self, *args, **kwargs):
-        default = kwargs.pop("default", None)
-
         data = kwargs.pop("data", {})
         for field in self.data_fields:
             if field in kwargs:
                 data[field] = kwargs.pop(field)
         kwargs["data"] = data
-
-        if default:
-            if kwargs.get("data"):
-                raise AttributeError("Import requires data to be empty")
-
-            for field in ["type", "name"]:
-                kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
-
-            for field in self.data_fields:
-                kwargs["data"][field] = (
-                    kwargs["data"][field]
-                    if kwargs["data"].get(field) is not None
-                    else getattr(default, field, None)
-                )
 
         super().__init__(*args, **kwargs)
 
