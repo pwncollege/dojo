@@ -20,7 +20,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
 from ..config import DOJOS_DIR
 from ..utils import get_current_container
-from .dojo_builder import dojo_from_spec
+from .dojo_creation.dojo_builder import dojo_from_spec
 
 
 DOJOS_TMP_DIR = DOJOS_DIR/"tmp"
@@ -122,7 +122,50 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
     data_raw = yaml.safe_load(dojo_yml_path.read_text())
     data = load_dojo_subyamls(data_raw, dojo_dir)
     dojo_initialize_files(data, dojo_dir)
-    return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
+
+    built_dojo = dojo_from_spec(data, dojo=dojo)
+
+    validate_challenge_paths(built_dojo, dojo_dir)
+    initialize_course(built_dojo, dojo_dir)
+
+    return built_dojo
+
+
+    
+def validate_challenge_paths(dojo, dojo_dir):
+    with dojo.located_at(dojo_dir):
+        missing_challenge_paths = [
+            challenge
+            for module in dojo.modules
+            for challenge in module.challenges
+            if not challenge.path.exists()
+        ]
+        assert not missing_challenge_paths, "".join(
+            f"Missing challenge path: {challenge.module.id}/{challenge.id}\n"
+            for challenge in missing_challenge_paths)
+
+def initialize_course(dojo, dojo_dir):
+    course_yml_path = dojo_dir / "course.yml"
+    if course_yml_path.exists():
+        course = yaml.safe_load(course_yml_path.read_text())
+
+        if "discord_role" in course and not dojo.official:
+            raise AssertionError("Unofficial dojos cannot have a discord role")
+
+        dojo.course = course
+
+        students_yml_path = dojo_dir / "students.yml"
+        if students_yml_path.exists():
+            students = yaml.safe_load(students_yml_path.read_text())
+            dojo.course["students"] = students
+
+        syllabus_path = dojo_dir / "SYLLABUS.md"
+        if "syllabus" not in dojo.course and syllabus_path.exists():
+            dojo.course["syllabus"] = syllabus_path.read_text()
+
+        grade_path = dojo_dir / "grade.py"
+        if grade_path.exists():
+            dojo.course["grade_code"] = grade_path.read_text()
 
 
 

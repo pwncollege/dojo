@@ -353,32 +353,12 @@ class DojoModules(db.Model):
 
 
     def __init__(self, *args, **kwargs):
-        visibility = kwargs["visibility"] if "visibility" in kwargs else None
-
         data = kwargs.pop("data", {})
+
         for field in self.data_fields:
             if field in kwargs:
                 data[field] = kwargs.pop(field)
         kwargs["data"] = data
-
-        if default:
-            for field in ["id", "name", "description"]:
-                kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
-
-        kwargs["challenges"] = (
-            kwargs.pop("challenges", None) or
-            ([DojoChallenges(
-                default=challenge,
-                visibility=(DojoChallengeVisibilities(start=visibility.start) if visibility else None),
-            ) for challenge in default.challenges] if default else [])
-        )
-        kwargs["resources"] = (
-            kwargs.pop("resources", None) or
-            ([DojoResources(
-                default=resource,
-                visibility=(DojoResourceVisibilities(start=visibility.start) if visibility else None),
-            ) for resource in default.resources] if default else [])
-        )
 
         super().__init__(*args, **kwargs)
 
@@ -488,6 +468,7 @@ class DojoChallenges(db.Model):
 
     def __init__(self, *args, **kwargs):
         data = kwargs.pop("data", {})
+
         for field in self.data_fields:
             if field in kwargs:
                 data[field] = kwargs.pop(field)
