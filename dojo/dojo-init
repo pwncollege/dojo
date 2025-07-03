@@ -75,6 +75,7 @@ mv /data/.config.env /data/config.env
 
 mkdir -p /data/workspace/nix
 mkdir -p /data/workspacefs/bin
+mkdir -p /data/ctfd-ipython
 
 mkdir -p /data/homes
 if [ "$(findmnt -n -o FSTYPE /data/homes)" != "btrfs" ] && [ "$(findmnt -n -o FSTYPE /data)" != "btrfs" ]; then
