@@ -83,6 +83,8 @@ def dojo_from_spec(data: dict, *, dojo=None) -> Dojos:
         for name, value in dojo_kwargs.items():
             setattr(dojo, name, value)
     
+    assert dojo_data.get("id") is not None, "Dojo id must be defined"
+    
     dojo.modules = modules_from_spec(dojo, dojo_data)
 
     return dojo

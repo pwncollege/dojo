@@ -69,10 +69,12 @@ def import_one(query, error_message):
     except NoResultFound:
         raise AssertionError(error_message)
 
-def first_present(key, *dicts):
+def first_present(key, *dicts, required=False):
     for d in dicts:
-        if key in d:
+        if d and key in d:
             return d[key]
+    if required:
+        raise KeyError(f"Required key '{key}' not found in data.")
     return None
 
 def get_visibility(cls, *dicts):

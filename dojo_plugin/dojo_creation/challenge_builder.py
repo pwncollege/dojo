@@ -52,11 +52,14 @@ def get_challenge(dojo, module_id, challenge_id, transfer) -> Challenges:
 
 def import_challenge(challenge_data, module_data, dojo_data) -> DojoChallenges:
     # Handles the heirarchy of imports
-    import_data = (
-        first_present("dojo", challenge_data["import"], module_data["import"], dojo_data["import"]),
-        first_present("module", challenge_data["import"], module_data["import"]), # No need to check dojo_data imports because module can never be defined there
-        challenge_data["import"]["challenge"],
-    )
+    try:
+        import_data = (
+            first_present("dojo", challenge_data["import"], module_data.get("import"), dojo_data.get("import"), required=True),
+            first_present("module", challenge_data["import"], module_data.get("import"), required=True), # No need to check dojo_data imports because module can never be defined there
+            challenge_data["import"]["challenge"],
+        )
+    except KeyError as e:
+        raise AssertionError(f'Import Error: {e}')
 
     imported_challenge = import_one(DojoChallenges.from_id(*import_data), f"{'/'.join(import_data)} does not exist")
     for attr in ["id", "name", "description"]:
@@ -95,6 +98,8 @@ def challenges_from_spec(dojo, dojo_data, module_data) -> list[DojoChallenges]:
             ctfd_challenge = existing_challenges[challenge_id]
         else:
             ctfd_challenge = get_challenge(dojo, module_id, challenge_data.get("id"), transfer=challenge_data.get("transfer"))
+        
+        assert challenge_data.get("id") is not None, f"Challenge id not present in challenge data. {challenge_data=}"
         
         result.append(
             DojoChallenges(

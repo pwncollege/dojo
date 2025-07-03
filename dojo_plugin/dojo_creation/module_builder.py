@@ -60,10 +60,13 @@ def build_dojo_resources(module_data, dojo_data):
 
 
 def import_module(module_data, dojo_data):
-    import_data = (
-        first_present("dojo", module_data["import"], dojo_data["import"]),
-        module_data["import"]["module"],
-    )
+    try:
+        import_data = (
+            first_present("dojo", module_data["import"], dojo_data.get("import"), required=True),
+            module_data["import"]["module"],
+        )
+    except KeyError as e:
+        raise AssertionError(f'Import Error: {e}')
 
     imported_module = import_one(DojoModules.from_id(*import_data), f"{'/'.join(import_data)} does not exist")
     for attr in ["id", "name", "description"]:
@@ -92,6 +95,8 @@ def modules_from_spec(dojo, dojo_data):
     for module_data in module_list:
         if "import" in module_data:
             import_module(module_data, dojo_data)
+        
+        assert module_data.get("id") is not None, f"Module id not present in module data. {module_data=}"
 
         result.append(
             DojoModules(
