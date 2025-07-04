@@ -37,8 +37,7 @@ def test_flask_ipython_history_persistence():
     result = dojo_run(
         "flask", 
         input=command_input,
-        timeout=60,
-        check=False  # Don't fail if flask exits with non-zero (normal for interactive shells)
+        timeout=60
     )
     
     # Allow some time for IPython to write the history file
@@ -65,8 +64,7 @@ def test_flask_ipython_history_persistence():
     dojo_run(
         "flask",
         input=second_input, 
-        timeout=60,
-        check=False
+        timeout=60
     )
     
     time.sleep(3)
