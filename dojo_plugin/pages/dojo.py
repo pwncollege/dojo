@@ -147,7 +147,7 @@ def update_dojo(dojo, update_code=None):
         dojo_update(dojo)
         db.session.commit()
     except Exception as e:
-        print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
+        print(f"ERROR: Dojo update failed.", file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
         return {"success": False, "error": str(e)}, 400
     return {"success": True}
