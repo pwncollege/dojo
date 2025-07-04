@@ -6,6 +6,8 @@ from sqlalchemy.exc import IntegrityError
 from CTFd.models import db
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
+from sshpubkeys import SSHKey, InvalidKeyError
+import base64
 
 from ...models import SSHKeys
 
@@ -23,17 +25,27 @@ class UpdateKey(Resource):
         key_value = data.get("ssh_key", "")
 
         if key_value:
-            key_re = "ssh-(rsa|ed25519|dss) AAAA[0-9A-Za-z+/]{1,730}[=]{0,2}"
-            key_match = re.match(key_re, key_value)
-            if not key_match:
+            try:
+                # From the docs: Disallows keys OpenSSH’s ssh-keygen refuses to create. 
+                # For instance, this includes DSA keys where length != 1024 bits and RSA keys shorter than 1024-bit. 
+                # If set to False, tries to allow all keys OpenSSH accepts, including highly insecure 1-bit DSA keys.
+                key = SSHKey(key_value, strict=True)
+                key.parse()
+
+                key_type = key.key_type.decode("ascii")
+
+                blob_bytes = base64.b64encode(key._decoded_key)
+                blob_str   = blob_bytes.decode("ascii")
+
+                key_value = f"{key_type} {blob_str}"
+            except (InvalidKeyError or NotImplementedError) as e:
                 return (
                     {
                         "success": False,
-                        "error": f"Invalid SSH Key, expected format:<br><code>{key_re}</code>"
+                        "error": f"Invalid SSH Key, error:<br><code>{e}</code>"
                     },
                     400,
                 )
-            key_value = key_match.group()
 
         user = get_current_user()
 
