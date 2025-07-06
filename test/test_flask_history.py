@@ -1,10 +1,25 @@
 import subprocess
 import os
 import time
+import shutil
 
-from utils import dojo_run
+import pytest
+
+from utils import dojo_run, DOJO_CONTAINER
 
 
+def is_dojo_environment_available():
+    """Check if the dojo container is available for testing."""
+    try:
+        result = subprocess.run([
+            shutil.which("docker"), "exec", "-i", DOJO_CONTAINER, "echo", "test"
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(not is_dojo_environment_available(), reason="Dojo container not available")
 def test_flask_ipython_history_persistence():
     """
     Functional test: Check that you can run `dojo flask`, enter a command, 
