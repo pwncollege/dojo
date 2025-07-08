@@ -184,7 +184,7 @@ def _assert_no_symlinks(dojo_dir):
 
 def dojo_clone(repository, private_key):
     tmp_dojos_dir = DOJOS_TMP_DIR
-    tmp_dojos_dir.mkdir(exist_ok=True) # Creates the DOJOS_TMP_DIR if it doesn't already exist
+    tmp_dojos_dir.mkdir(exist_ok=True)
     clone_dir = tempfile.TemporaryDirectory(dir=tmp_dojos_dir)  # TODO: ignore_cleanup_errors=True
 
     key_file = tempfile.NamedTemporaryFile("w")
@@ -193,7 +193,6 @@ def dojo_clone(repository, private_key):
 
     url = f"https://github.com/{repository}"
 
-    # If the github repository isn't public, the url is set so that cloning can be done over ssh
     if requests.head(url).status_code != 200:
         url = f"git@github.com:{repository}"
 
