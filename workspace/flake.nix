@@ -34,6 +34,10 @@
 		ida-free = (import nixpkgs-24-11 { inherit system config; }).ida-free;
 	    };
 
+	    pwndbg-overlay = self: super: {
+		pwndbg = pwndbg.packages.${system}.default;
+	    };
+
             sage-overlay = final: prev: {
               sage = prev.sage.override {
                 extraPythonPackages = ps: with ps; [
@@ -113,9 +117,7 @@
               desktop-service
             ];
 
-            fullPackages = corePackages ++ additional.packages ++ [
-              pwndbg.packages.${system}.default 
-            ];
+            fullPackages = corePackages ++ additional.packages;
 
             buildDojoEnv =
               name: paths:
