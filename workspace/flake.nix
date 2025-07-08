@@ -85,7 +85,6 @@
               curl
               findutils
               gawk
-	      git
               glibc
               glibc.static
               glibcLocales
