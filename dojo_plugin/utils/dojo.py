@@ -71,20 +71,11 @@ DOJO_SPEC = Schema({
 
     Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
 
-    Optional("survey"): Or({
+    Optional("survey"): {
         Optional("probability"): float,
         "prompt": str,
         "data": str
-    },{
-        Optional("probability"): float,
-        "prompt": str,
-        "src": str,
-    },{
-        Optional("probability"): float,
-        "prompt": str,
-        "src": str,
-        "data": str
-    }),
+    },
 
     Optional("survey-sources", default={}): str,
 
@@ -101,20 +92,11 @@ DOJO_SPEC = Schema({
             "module": ID_REGEX,
         },
 
-        Optional("survey"): Or({
+        Optional("survey"): {
             Optional("probability"): float,
             "prompt": str,
             "data": str
-        },{
-            Optional("probability"): float,
-            "prompt": str,
-            "src": str,
-        },{
-            Optional("probability"): float,
-            "prompt": str,
-            "src": str,
-            "data": str
-        }),
+        },
 
         Optional("challenges", default=[]): [{
             **ID_NAME_DESCRIPTION,
@@ -139,20 +121,11 @@ DOJO_SPEC = Schema({
                 "challenge": ID_REGEX,
             },
 
-            Optional("survey"): Or({
+            Optional("survey"): {
                 Optional("probability"): float,
                 "prompt": str,
                 "data": str
-            },{
-                Optional("probability"): float,
-                "prompt": str,
-                "src": str,
-            },{
-                Optional("probability"): float,
-                "prompt": str,
-                "src": str,
-                "data": str
-            }),
+            },
         }],
 
         Optional("resources", default=[]): [Or(
@@ -260,7 +233,7 @@ def load_surveys(data, dojo_dir):
 
     This directory is specified by 'survey-sources' under the base yml file
 
-    This function copies the html survey data into the survey.src attribute
+    This function copies the html survey data into the survey.data attribute
     """
 
     survey_data = data.get("survey-sources", None)
@@ -268,14 +241,17 @@ def load_surveys(data, dojo_dir):
         survey_dir = dojo_dir / survey_data
         if "survey" in data and "src" in data["survey"]:
             setdefault_file(data["survey"], "data", survey_dir / data["survey"]["src"])
+            del data["survey"]["src"]
 
         for module_data in data.get("modules", []):
             if "survey" in module_data and "src" in module_data["survey"]:
                 setdefault_file(module_data["survey"], "data", survey_dir / module_data["survey"]["src"])
+                del module_data["survey"]["src"]
 
             for challenge_data in module_data.get("challenges", []):
                 if "survey" in challenge_data and "src" in challenge_data["survey"]:
                     setdefault_file(challenge_data["survey"], "data", survey_dir / challenge_data["survey"]["src"])
+                    del challenge_data["survey"]["src"]
 
     return data
 

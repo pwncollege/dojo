@@ -316,7 +316,7 @@ function surveySubmit(data, item) {
     const challenge_name = item.find('#challenge').val()
     const module_name = item.find('#module').val()
     const dojo_name = init.dojo
-    return CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/surveys/${module_name}/${challenge_name}`, {
+    return CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/${module_name}/${challenge_name}/surveys`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
