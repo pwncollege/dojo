@@ -37,7 +37,7 @@ let
 
     network = [ netcat-openbsd tcpdump wireshark termshark nmap burpsuite ];
 
-    debugging = [ strace ltrace gdb gef bata24-gef ];
+    debugging = [ strace ltrace gdb pwndbg gef bata24-gef ];
 
     reversing = [ file ghidra ida-free radare2 cutter angr-management binaryninja-free ];
 
