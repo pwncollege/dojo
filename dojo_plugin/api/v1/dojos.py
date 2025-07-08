@@ -123,7 +123,7 @@ class DojoSolveList(Resource):
     def get(self, dojo):
         username = request.args.get("username")
         user = Users.query.filter_by(name=username, hidden=False).first() if username else get_current_user()
-        if user is None:
+        if not user:
             return {"error": "User not found"}, 400
             
         solves_query = dojo.solves(user=user, ignore_visibility=True, ignore_admins=False)
