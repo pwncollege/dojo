@@ -121,15 +121,10 @@ class DojoModuleList(Resource):
 class DojoSolveList(Resource):
     @dojo_route
     def get(self, dojo):
-        if not (username := request.args.get("username")):
-            user = get_current_user()
-            if not user:
-                return {"error": "`username` parameter is required if not logged in"}
-        else:
-            user = Users.query.filter_by(name=username, hidden=False).first()
-
-        if not user:
-            return {"error": "user does not exist"}
+        username = request.args.get("username")
+        user = Users.query.filter_by(name=username, hidden=False).first() if username else get_current_user()
+        if user is None:
+            return {"error": "User not found"}, 400
             
         solves_query = dojo.solves(user=user, ignore_visibility=True, ignore_admins=False)
 
