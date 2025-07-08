@@ -35,7 +35,7 @@
 	    };
 
 	    pwndbg-overlay = self: super: {
-		pwndbg = pwndbg.packages.${system}.default;
+		pwndbg = pwndbg.packages.${system}.pwndbg;
 	    };
 
             sage-overlay = final: prev: {
@@ -54,6 +54,7 @@
                 angr-management-overlay
 		ida-free-overlay
                 sage-overlay
+		pwndbg-overlay
               ];
             };
 
