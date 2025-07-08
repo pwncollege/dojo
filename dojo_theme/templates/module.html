@@ -120,56 +120,69 @@
               {{ challenge.description | markdown }}
             {% endif %}
           </div>
-          <!-- TODO: Start button which expands into contents. -->
-          <iframe class="challenge-workspace" src="/workspace/code/" height=800 width=1070>
-          </iframe>
-          <div class="row workspace-controls">
-            <div class="col-sm-1 form-group text-center">
-              <button id="challenge-content-select" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
-                <span class="d-sm-block d-md-block d-lg-block">
-                  <!-- TODO: Change to show the name of the current workspace. Requires shrinking of other buttons/fields. -->
-                  <i class="fa fa-bars fa-2x"></i>
-                </span>
-              </select>
+          <div class="challenge-start" id="challenge-start-{{ challenge.challenge_id }}" style="display:{% if active %}none{% else %}block{% endif%}">
+            <div class="col-sm-12 form-group text-center">
+                <button id="btn-challenge-start-{{challenge.challenge_id}}" type="submit" class="btn-challenge-start challenge-run btn btn-md btn-outline-secondary w-100 h-100">
+                  <span class="d-sm-block d-md-block d-lg-block">
+                    <i class="fas fa-play fa-2x"></i> Start
+                  </span>
+                </button>
+              </div>
+          </div>
+          <div class="challenge-workspace" id="challenge-workspace-{{challenge.challenge_id}}" style="display:{% if active %}block{% else %}none{% endif%}">
+            <div class="challenge-content" id="challenge-content-{{challenge.challenge_id}}" style="display: flex">
+              {% if active %}<iframe id="challenge-content-iframe" src="/workspace/code/" style="display: flex; width: 100%; aspect-ratio: 16 / 9;"></iframe>{% endif %}
             </div>
-            <div class="col-sm-1 form-group text-center">
-              <button id="challenge-mode-swap" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
-                <span class="d-sm-block d-md-block d-lg-block">
-                  <i class="fas fa-play fa-2x"></i>
-                </span>
-              </button>
-            </div>
-            {% if challenge.allow_privileged %}
-            <div class="col-sm-1 form-group text-center">
-              <button id="challenge-mode-swap" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
-                <span class="d-sm-block d-md-block d-lg-block">
-                  <i class="fas fa-unlock fa-2x"></i>
-                </span>
-              </button>
-            </div>
-            {% endif %}
-            <div class="col-sm-1 form-group text-center">
-              <button id="challenge-restart" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
-                <span class="d-sm-block d-md-block d-lg-block">
-                  <i class="fas fa-undo-alt fa-2x fa-flip-horizontal"></i>
-                </span>
-              </button>
-            </div>
-			<!-- Autosubmit when data matches pwn.college{...} 	-->
-            <div class="col-md-{% if challenge.allow_privileged %}7{% else %}8{% endif %} form-group">
-              <input id="module" type="hidden" value="{{ challenge.module.id }}">
-              <input id="challenge" type="hidden" value="{{ challenge.id }}">
-              <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
-              <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
-            </div>
-            <div class="col-sm-1 form-group text-center">
-              <button id="challenge-content-fullscreen" type="submit" class="btn btn-md btn-outline-secondary w-100 h-100">
-                <span class="d-sm-block d-md-block d-lg-block">
-                  <i class="fas fa-expand fa-2x"></i>
-                </span>
-              </button>
+            <div style="visibility:hidden">E</div>
+            <div class="row workspace-controls">
+              <div class="col-sm-1 form-group text-center">
+                <button id="btn-challenge-workspace-select-{{challenge.challenge_id}}" type="submit" class="btn-challenge-select btn btn-md btn-outline-secondary w-100 h-100">
+                  <span class="d-sm-block d-md-block d-lg-block">
+                    <!-- TODO: Change to show the name of the current workspace. Requires shrinking of other buttons/fields. -->
+                    <i class="fa fa-bars fa-2x"></i>
+                  </span>
+                </select>
+              </div>
+              <div class="col-sm-1 form-group text-center">
+                <button id="btn-challenge-mode-norm-{{challenge.challenge_id}}" type="submit" class="btn-challenge-norm challenge-run btn btn-md btn-outline-secondary w-100 h-100">
+                  <span class="d-sm-block d-md-block d-lg-block">
+                    <i class="fas fa-play fa-2x"></i>
+                  </span>
+                </button>
+              </div>
+              {% if challenge.allow_privileged %}
+              <div class="col-sm-1 form-group text-center">
+                <button id="btn-challenge-mode-priv-{{challenge.challenge_id}}" type="submit" class="btn-challenge-priv priv challenge-run btn btn-md btn-outline-secondary w-100 h-100">
+                  <span class="d-sm-block d-md-block d-lg-block">
+                    <i class="fas fa-unlock fa-2x"></i>
+                  </span>
+                </button>
+              </div>
+              {% endif %}
+              <div class="col-sm-1 form-group text-center">
+                <button id="btn-challenge-restart-{{challenge.challenge_id}}" type="submit" class="btn-challenge-restart restart challenge-run btn btn-md btn-outline-secondary w-100 h-100">
+                  <span class="d-sm-block d-md-block d-lg-block">
+                    <i class="fas fa-undo-alt fa-2x fa-flip-horizontal"></i>
+                  </span>
+                </button>
+              </div>
+              <!-- Autosubmit when data matches pwn.college{...} -->
+              <div class="col-md-{% if challenge.allow_privileged %}7{% else %}8{% endif %} form-group">
+                <input id="module" type="hidden" value="{{ challenge.module.id }}">
+                <input id="challenge" type="hidden" value="{{ challenge.id }}">
+                <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
+                <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
+              </div>
+              <div class="col-sm-1 form-group text-center">
+                <button id="btn-challenge-fullscreen-{challenge.challenge_id}" type="submit" class="btn-challenge-fullscreen btn btn-md btn-outline-secondary w-100 h-100">
+                  <span class="d-sm-block d-md-block d-lg-block">
+                    <i class="fas fa-expand fa-2x"></i>
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
+          
           <div class="row notification-row">
 	          <div class="col-md-12">
 	            <div id="result-notification" class="alert alert-dismissable text-center w-100" role="alert" style="display: none;">
