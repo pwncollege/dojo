@@ -569,3 +569,28 @@ def test_surveys(surveys_dojo, random_user):
     post_survey_response(surveys_dojo, "surveys-module-1", "challenge-level", "Test response", session=session)
     post_survey_response(surveys_dojo, "surveys-module-1", "module-level", "up", session=session)
     post_survey_response(surveys_dojo, "surveys-module-2", "dojo-level", 1, session=session)
+
+@pytest.mark.dependency(depends=["test_start_challenge"])
+def test_dojo_solves_api(example_dojo, random_user):
+    user_name, session = random_user
+    dojo = example_dojo
+
+    random_id = "".join(random.choices(string.ascii_lowercase, k=16))
+    other_session = login(random_id, random_id, register=True)
+
+    start_challenge(dojo, "hello", "apple", session=session)
+    solve_challenge(dojo, "hello", "apple", session=session, user=user_name)
+
+    response = session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/solves")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"]
+    assert len(data["solves"]) == 1
+    assert data["solves"][0]["challenge_id"] == "apple"
+
+    response = other_session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/solves", params={"username": user_name})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"]
+    assert len(data["solves"]) == 1
+    assert data["solves"][0]["challenge_id"] == "apple"
