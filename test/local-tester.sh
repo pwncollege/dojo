@@ -73,7 +73,7 @@ then
 	docker exec "$DOJO_CONTAINER" dojo restore "$BASENAME"
 fi
 
-until curl -Ls dojo.localhost | grep -q pwn; do sleep 1; done
+until curl -Ls localhost.pwn.college | grep -q pwn; do sleep 1; done
 
 docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
 docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
