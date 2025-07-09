@@ -79,7 +79,7 @@ case "$ACTION" in
 
     # HELP: flask: drop into a flask shell in the ctfd container
     "flask")
-        docker exec -it ctfd flask shell "$@"
+        docker exec $DOCKER_ARGS ctfd flask shell "$@"
         ;;
 
     # HELP: db: launch a mysql client session, connected to the ctfd db
