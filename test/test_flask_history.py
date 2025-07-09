@@ -37,8 +37,18 @@ def test_flask_ipython_history_persistence():
     
     # Test commands to run in the flask shell
     # These are simple Python commands that should create IPython history
+    # First, let's check if IPython is actually being used
     test_commands = [
-        "# Testing IPython history persistence",
+        "import sys",
+        "print('Python shell info:')",
+        "print(f'Shell: {sys.ps1 if hasattr(sys, \"ps1\") else \"No ps1\"}')",
+        "print(f'IPython: {\"IPython\" in sys.modules}')",
+        "try:",
+        "    import IPython",
+        "    print(f'IPython version: {IPython.__version__}')",
+        "    print(f'Profile dir: {IPython.get_ipython().profile_dir if IPython.get_ipython() else \"No IPython instance\"}')",
+        "except ImportError:",
+        "    print('IPython not available')",
         "x = 42", 
         "print(f'The answer is {x}')",
         "exit()"
@@ -66,6 +76,10 @@ def test_flask_ipython_history_persistence():
     post_run_check = dojo_run("exec", "ctfd", "find", "/root/.ipython", "-name", "*.sqlite", check=False)
     print(f"SQLite files in /root/.ipython: {post_run_check.stdout}")
     
+    # Check the entire .ipython directory structure
+    ipython_tree = dojo_run("exec", "ctfd", "find", "/root/.ipython", "-type", "f", check=False)
+    print(f"All files in /root/.ipython: {ipython_tree.stdout}")
+    
     # Check what's in the host directory 
     if os.path.exists("/data/ctfd-ipython"):
         print(f"Contents of /data/ctfd-ipython: {os.listdir('/data/ctfd-ipython')}")
@@ -73,6 +87,22 @@ def test_flask_ipython_history_persistence():
             print(f"Contents of /data/ctfd-ipython/profile_default: {os.listdir('/data/ctfd-ipython/profile_default')}")
     else:
         print("/data/ctfd-ipython does not exist")
+    
+    # Let's also check if there are any other sqlite files that might be the history
+    host_find = subprocess.run(["find", "/data", "-name", "*.sqlite"], capture_output=True, text=True)
+    print(f"All sqlite files in /data: {host_find.stdout}")
+    
+    # Check if we can create a simple file in the mount to verify it's working
+    test_file_result = dojo_run("exec", "ctfd", "bash", "-c", "echo 'test' > /root/.ipython/test_file && cat /root/.ipython/test_file", check=False)
+    print(f"Test file creation: {test_file_result.stdout}")
+    
+    # Check if the test file appears on host
+    if os.path.exists("/data/ctfd-ipython/test_file"):
+        print("Test file exists on host - mount is working")
+        with open("/data/ctfd-ipython/test_file", "r") as f:
+            print(f"Test file content: {f.read()}")
+    else:
+        print("Test file does not exist on host - mount may not be working")
     
     # Verify that the history file was created
     assert os.path.exists(history_file), f"IPython history file not created at {history_file}"
