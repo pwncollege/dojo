@@ -6,7 +6,7 @@ import shutil
 import re
 import os
 
-DOJO_URL = os.getenv("DOJO_URL", "http://dojo.localhost")
+DOJO_URL = os.getenv("DOJO_URL", "http://localhost.pwn.college")
 DOJO_CONTAINER = os.getenv("DOJO_CONTAINER", "dojo-test")
 TEST_DOJOS_LOCATION = pathlib.Path(__file__).parent / "dojos"
 
