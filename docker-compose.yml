@@ -99,6 +99,7 @@ services:
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
+      - /data/ctfd-ipython:/root/.ipython
       - /data/mac:/var/data/mac
       - /data/homes:/var/homes:shared
       - /data/dojos:/var/dojos
