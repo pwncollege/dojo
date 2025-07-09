@@ -14,18 +14,61 @@ def test_flask_ipython_history_persistence():
     just checking configuration files.
     """
     
-    # First, let's verify that the mount point exists and debug what's happening
-    debug_result = dojo_run("exec", "ctfd", "ls", "-la", "/root", check=False)
-    print(f"Contents of /root in ctfd container: {debug_result.stdout}")
+    # First test: verify the volume mount is working by creating a simple test file
+    test_file_result = dojo_run("exec", "ctfd", "bash", "-c", "echo 'test' > /root/.ipython/test_file && cat /root/.ipython/test_file", check=False)
+    print(f"Test file creation in container: {test_file_result.stdout}")
+    print(f"Test file error: {test_file_result.stderr}")
     
-    # Check if the .ipython directory exists and what's in it
-    ipython_check = dojo_run("exec", "ctfd", "ls", "-la", "/root/.ipython", check=False)
-    print(f"Contents of /root/.ipython: {ipython_check.stdout}")
-    print(f"Error output: {ipython_check.stderr}")
+    # Check if the test file appears on host
+    if os.path.exists("/data/ctfd-ipython/test_file"):
+        print("Volume mount is working - test file exists on host")
+        with open("/data/ctfd-ipython/test_file", "r") as f:
+            print(f"Test file content: {f.read()}")
+    else:
+        print("ERROR: Volume mount is not working - test file does not exist on host")
+        # This is a fundamental issue, so let's investigate further
+        if os.path.exists("/data/ctfd-ipython"):
+            print(f"Directory exists but empty: {os.listdir('/data/ctfd-ipython')}")
+        else:
+            print("/data/ctfd-ipython directory does not exist")
+        
+        # Let's check if /data exists at all
+        if os.path.exists("/data"):
+            print(f"Contents of /data: {os.listdir('/data')}")
+        else:
+            print("/data directory does not exist")
     
-    # Check if the mount is working by creating a test file
-    mount_test = dojo_run("exec", "ctfd", "touch", "/root/.ipython/test_mount", check=False)
-    print(f"Mount test result: {mount_test.returncode}")
+    # Test if flask shell runs at all and what shell it uses
+    simple_test = dojo_run("flask", input="print('Hello from flask shell')\nexit()\n", timeout=30, check=False)
+    print(f"Simple flask test stdout: {simple_test.stdout}")
+    print(f"Simple flask test stderr: {simple_test.stderr}")
+    print(f"Simple flask test returncode: {simple_test.returncode}")
+    
+    # Test if IPython is available and what happens when we try to use it
+    ipython_test_commands = [
+        "import sys",
+        "print('Python executable:', sys.executable)",
+        "print('Python version:', sys.version)",
+        "print('IPython available:', 'IPython' in sys.modules)",
+        "try:",
+        "    import IPython",
+        "    print('IPython version:', IPython.__version__)",
+        "    ipython_instance = IPython.get_ipython()",
+        "    if ipython_instance:",
+        "        print('IPython instance found')",
+        "        print('Profile dir:', ipython_instance.profile_dir.location)",
+        "        print('History manager:', type(ipython_instance.history_manager))",
+        "    else:",
+        "        print('No IPython instance - using regular Python shell')",
+        "except ImportError as e:",
+        "    print('IPython import failed:', e)",
+        "exit()"
+    ]
+    
+    ipython_test_input = "\n".join(ipython_test_commands) + "\n"
+    ipython_result = dojo_run("flask", input=ipython_test_input, timeout=30, check=False)
+    print(f"IPython test stdout: {ipython_result.stdout}")
+    print(f"IPython test stderr: {ipython_result.stderr}")
     
     # Set up paths for the test
     history_dir = "/data/ctfd-ipython/profile_default"
@@ -35,52 +78,27 @@ def test_flask_ipython_history_persistence():
     if os.path.exists(history_file):
         os.remove(history_file)
     
-    # Test commands to run in the flask shell
-    # These are simple Python commands that should create IPython history
-    # First, let's check if IPython is actually being used
-    test_commands = [
-        "import sys",
-        "print('Python shell info:')",
-        "print(f'Shell: {sys.ps1 if hasattr(sys, \"ps1\") else \"No ps1\"}')",
-        "print(f'IPython: {\"IPython\" in sys.modules}')",
-        "try:",
-        "    import IPython",
-        "    print(f'IPython version: {IPython.__version__}')",
-        "    print(f'Profile dir: {IPython.get_ipython().profile_dir if IPython.get_ipython() else \"No IPython instance\"}')",
-        "except ImportError:",
-        "    print('IPython not available')",
-        "x = 42", 
-        "print(f'The answer is {x}')",
+    # Now try to run some commands that should create history
+    history_test_commands = [
+        "x = 42",
+        "y = x * 2", 
+        "print(f'The answer is {x}, double is {y}')",
         "exit()"
     ]
     
-    command_input = "\n".join(test_commands) + "\n"
-    
-    # Run the flask shell with commands that will create history
-    result = dojo_run(
-        "flask", 
-        input=command_input,
-        timeout=60,
-        check=False  # Don't fail if flask exits with non-zero (normal for interactive shells)
-    )
-    
-    print(f"Flask command stdout: {result.stdout}")
-    print(f"Flask command stderr: {result.stderr}")
-    print(f"Flask command returncode: {result.returncode}")
+    history_input = "\n".join(history_test_commands) + "\n"
+    history_result = dojo_run("flask", input=history_input, timeout=30, check=False)
+    print(f"History test stdout: {history_result.stdout}")
+    print(f"History test stderr: {history_result.stderr}")
     
     # Allow some time for IPython to write the history file
-    # IPython may write history on exit, so we need to wait
     time.sleep(3)
     
     # Check what was created in the container
-    post_run_check = dojo_run("exec", "ctfd", "find", "/root/.ipython", "-name", "*.sqlite", check=False)
-    print(f"SQLite files in /root/.ipython: {post_run_check.stdout}")
+    container_files = dojo_run("exec", "ctfd", "find", "/root/.ipython", "-type", "f", check=False)
+    print(f"All files in container /root/.ipython: {container_files.stdout}")
     
-    # Check the entire .ipython directory structure
-    ipython_tree = dojo_run("exec", "ctfd", "find", "/root/.ipython", "-type", "f", check=False)
-    print(f"All files in /root/.ipython: {ipython_tree.stdout}")
-    
-    # Check what's in the host directory 
+    # Check what's in the host directory
     if os.path.exists("/data/ctfd-ipython"):
         print(f"Contents of /data/ctfd-ipython: {os.listdir('/data/ctfd-ipython')}")
         if os.path.exists("/data/ctfd-ipython/profile_default"):
@@ -88,25 +106,19 @@ def test_flask_ipython_history_persistence():
     else:
         print("/data/ctfd-ipython does not exist")
     
-    # Let's also check if there are any other sqlite files that might be the history
-    host_find = subprocess.run(["find", "/data", "-name", "*.sqlite"], capture_output=True, text=True)
-    print(f"All sqlite files in /data: {host_find.stdout}")
+    # Check if there are any sqlite files anywhere in /data
+    if os.path.exists("/data"):
+        host_find = subprocess.run(["find", "/data", "-name", "*.sqlite"], capture_output=True, text=True)
+        print(f"All sqlite files in /data: {host_find.stdout}")
     
-    # Check if we can create a simple file in the mount to verify it's working
-    test_file_result = dojo_run("exec", "ctfd", "bash", "-c", "echo 'test' > /root/.ipython/test_file && cat /root/.ipython/test_file", check=False)
-    print(f"Test file creation: {test_file_result.stdout}")
-    
-    # Check if the test file appears on host
-    if os.path.exists("/data/ctfd-ipython/test_file"):
-        print("Test file exists on host - mount is working")
-        with open("/data/ctfd-ipython/test_file", "r") as f:
-            print(f"Test file content: {f.read()}")
+    # The actual test - this will fail if the implementation is wrong
+    if os.path.exists(history_file):
+        print(f"SUCCESS: History file exists at {history_file}")
+        file_size = os.path.getsize(history_file)
+        print(f"History file size: {file_size} bytes")
+        assert file_size > 0, f"IPython history file is empty: {history_file}"
     else:
-        print("Test file does not exist on host - mount may not be working")
-    
-    # Verify that the history file was created
-    assert os.path.exists(history_file), f"IPython history file not created at {history_file}"
-    
-    # Verify the file has content (should not be empty for a real SQLite database)
-    file_size = os.path.getsize(history_file)
-    assert file_size > 0, f"IPython history file is empty: {history_file}"
+        print(f"FAILURE: History file not created at {history_file}")
+        print("This indicates the implementation is not working correctly")
+        # Let's fail with a clear message about what's wrong
+        assert False, f"IPython history file not created at {history_file} - flask shell may not be using IPython or volume mount is broken"
