@@ -27,7 +27,8 @@ from ...utils import (
     serialize_user_flag,
     user_docker_client,
     user_ipv4,
-    is_challenge_locked
+    get_current_container,
+    is_challenge_locked,
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
@@ -401,9 +402,18 @@ class RunDocker(Resource):
         dojo_challenge = get_current_dojo_challenge()
         if not dojo_challenge:
             return {"success": False, "error": "No active challenge"}
+
+        user = get_current_user()
+        container = get_current_container(user)
+        if not container:
+            return {"success": False, "error": "No challenge container"}
+
+        practice = container.labels.get("dojo.mode") == "privileged"
+
         return {
             "success": True,
             "dojo": dojo_challenge.dojo.reference_id,
             "module": dojo_challenge.module.id,
             "challenge": dojo_challenge.id,
+            "practice" : practice
         }
