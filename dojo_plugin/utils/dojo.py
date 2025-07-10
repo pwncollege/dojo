@@ -331,6 +331,8 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
         for field in ["id", "name", "description", "password", "type", "award"]
     }
 
+    assert dojo_kwargs.get("id") is not None, "Dojo id must be defined"
+
     if dojo is None:
         dojo = Dojos(**dojo_kwargs)
     else:
