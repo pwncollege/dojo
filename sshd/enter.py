@@ -28,7 +28,7 @@ def get_docker_client(user_id):
 
     is_mac = False
     if image_name and b"mac:" in image_name:
-        docker_client = mac_docker.MacDockerClient(key_filename="/opt/sshd/pwn-college-mac-key")
+        docker_client = mac_docker.MacDockerClient(key_filename="/tmp/mac-key")
         is_mac = True
     else:
         docker_client = docker.DockerClient(base_url=docker_host, tls=False)

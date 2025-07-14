@@ -59,7 +59,6 @@ define DB_HOST db
 define DB_NAME ctfd
 define DB_USER ctfd
 define DB_PASS ctfd
-define DB_EXTERNAL no # change to anything but no and the db container will not start mysql
 define BACKUP_AES_KEY_FILE
 define S3_BACKUP_BUCKET
 define AWS_DEFAULT_REGION
