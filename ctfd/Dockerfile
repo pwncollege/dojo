@@ -26,8 +26,8 @@ WORKDIR /opt/CTFd
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        libffi6 \
-        libssl1.1 \
+        libffi8 \
+        libssl3 \
         git \
         openssh-client \
     && apt-get clean \
