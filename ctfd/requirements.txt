@@ -38,3 +38,4 @@ tenacity==6.2.0
 pybluemonday==0.0.14
 freezegun==1.2.2
 Flask-Babel==2.0.0
+legacy-cgi==2.6.3
