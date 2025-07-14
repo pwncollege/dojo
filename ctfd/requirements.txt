@@ -1,6 +1,6 @@
 # DOJO
 docker==6.1.2
-pyyaml==5.4.1
+pyyaml==6.0.2
 schema==0.7.5
 bleach==6.1.0
 ipython==8.16.1
