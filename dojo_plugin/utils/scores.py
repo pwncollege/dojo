@@ -15,6 +15,7 @@ def scores_query(granularity, dojo_filter):
         dojo_filter
     ).group_by(*grouping).order_by(Dojos.id, solve_count.desc(), last_solve_date)
 
+    return []
     return dsc_query
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
