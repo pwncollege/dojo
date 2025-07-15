@@ -26,19 +26,10 @@ class UpdateKey(Resource):
 
         if key_value:
             try:
-                # From the docs: Disallows keys OpenSSH’s ssh-keygen refuses to create. 
-                # For instance, this includes DSA keys where length != 1024 bits and RSA keys shorter than 1024-bit. 
-                # If set to False, tries to allow all keys OpenSSH accepts, including highly insecure 1-bit DSA keys.
                 key = SSHKey(key_value, strict=True)
                 key.parse()
-
-                key_type = key.key_type.decode("ascii")
-
-                blob_bytes = base64.b64encode(key._decoded_key)
-                blob_str   = blob_bytes.decode("ascii")
-
-                key_value = f"{key_type} {blob_str}"
-            except (InvalidKeyError or NotImplementedError) as e:
+                key_value = f"{key.key_type.decode()} {base64.b64encode(key._decoded_key).decode()}"
+            except (InvalidKeyError, NotImplementedError) as e:
                 return (
                     {
                         "success": False,
