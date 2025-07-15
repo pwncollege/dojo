@@ -4,8 +4,8 @@ import re
 import string
 import subprocess
 
-import requests
 import pytest
+import requests
 
 from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, dojo_run, workspace_run, create_dojo_yml
 
@@ -49,16 +49,12 @@ def post_survey_response(dojo, module, challenge, survey_response, session):
     assert response.json()["success"], "Expected to successfully submit survey"
 
 def db_sql(sql):
-    db_result = dojo_run("db", input=sql)
+    db_result = dojo_run("db", "-qAt", input=sql)
     return db_result.stdout
 
 
-def db_sql_one(sql):
-    return db_sql(sql).split()[1]
-
-
 def get_user_id(user_name):
-    return int(db_sql_one(f"SELECT id FROM users WHERE name = '{user_name}'"))
+    return int(db_sql(f"SELECT id FROM users WHERE name = '{user_name}'"))
 
 
 @pytest.mark.parametrize("endpoint", ["/", "/dojos", "/login", "/register"])
@@ -221,13 +217,7 @@ def test_no_import(no_import_challenge_dojo, admin_session):
 @pytest.mark.dependency(depends=["test_join_dojo"])
 def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user):
     user_name, _ = completionist_user
-    db_sql(f"DELETE FROM solves WHERE user_id={get_user_id(user_name)} LIMIT 1")
-
-    # unfortunately, the scoreboard cache makes this test impossible without going through ctfd or `dojo flask`
-    #scoreboard = admin_session.get(f"{PROTO}://{HOST}/pwncollege_api/v1/scoreboard/example/_/0/1").json()
-    #us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
-    #assert us["solves"] == 4
-    #assert len(us["badges"]) == 1
+    db_sql(f"DELETE FROM solves WHERE id IN (SELECT id FROM solves WHERE user_id={get_user_id(user_name)} ORDER BY id DESC LIMIT 1)")
 
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{simple_award_dojo}/awards/prune", json={})
     assert response.status_code == 200
