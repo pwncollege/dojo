@@ -196,6 +196,7 @@ def lookup_workspace_token(token):
         return token.user
     else:
         raise UserNotFoundException
+    return None
 
 
 # https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/security/auth.py#L37-L48
