@@ -38,6 +38,9 @@ let
     echo "PATH=\"/run/challenge/bin:/run/workspace/bin:$IMAGE_PATH\"" > /etc/environment
     ln -sfT /run/dojo/etc/profile.d/99-dojo-workspace.sh /etc/profile.d/99-dojo-workspace.sh
 
+    mkdir -p /etc/gdb/gdbinit.d
+    echo "set debug-file-directory /lib/debug" > /etc/gdb/gdbinit.d/dojo.gdb
+
     echo $DOJO_AUTH_TOKEN > /run/dojo/var/auth_token
 
     echo "Initialized."

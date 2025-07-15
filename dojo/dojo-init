@@ -4,12 +4,20 @@ mount --make-shared /
 
 data_mount_options="$(findmnt -no OPTIONS /data)"
 if [ "$?" -ne 0 ]; then
-    echo '[!] Data mount does not exist; start the dojo with a data mount (`-v /data:/data`).'
-    exit 1
-fi
-if printf '%s' "$data_mount_options" | grep -q '\bnosuid\b'; then
-    echo '[!] Data mount is mounted nosuid; check the mount options on the data directory.'
-    exit 1
+    echo "[+] Creating data storage"
+    truncate -s 32G /data.img
+    mkfs.ext4 /data.img
+    loop_device=$(losetup -f)
+    if [ ! -e "$loop_device" ]; then
+        mknod $loop_device b 7 $(echo $loop_device | tr -cd '0-9')
+        chmod --reference=/dev/loop0 $loop_device
+        chown --reference=/dev/loop0 $loop_device
+    fi
+    losetup "$loop_device" /data.img
+    mount --options X-mount.mkdir "$loop_device" /data
+elif printf '%s' "$data_mount_options" | grep -q '\bnosuid\b'; then
+    echo "[+] Remounting /data with suid enabled"
+    mount --options remount,suid /data
 fi
 mount --make-shared /data
 
@@ -51,7 +59,6 @@ define DB_HOST db
 define DB_NAME ctfd
 define DB_USER ctfd
 define DB_PASS ctfd
-define DB_EXTERNAL no # change to anything but no and the db container will not start mysql
 define BACKUP_AES_KEY_FILE
 define S3_BACKUP_BUCKET
 define AWS_DEFAULT_REGION
@@ -59,8 +66,6 @@ define AWS_ACCESS_KEY_ID
 define AWS_SECRET_ACCESS_KEY
 define MAC_HOSTNAME
 define MAC_USERNAME
-define MAC_KEY_FILE
-define MAC_GUEST_CONTROL_FILE
 
 mv /data/.config.env /data/config.env
 . /data/config.env

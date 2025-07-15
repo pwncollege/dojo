@@ -66,7 +66,7 @@ services:
             hard: 1048576
     environment:
       - UPLOAD_FOLDER=/var/uploads
-      - DATABASE_URL=mysql+pymysql://${DB_USER}:${DB_PASS}@${DB_HOST}/${DB_NAME}
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@${DB_HOST}/${DB_NAME}
       - REDIS_URL=redis://cache:6379
       - WORKERS=8
       - LOG_FOLDER=/var/log/CTFd
@@ -94,12 +94,10 @@ services:
       - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
       - MAC_HOSTNAME=${MAC_HOSTNAME}
       - MAC_USERNAME=${MAC_USERNAME}
-      - MAC_KEY_FILE=${MAC_KEY_FILE}
-      - MAC_GUEST_CONTROL_FILE=${MAC_GUEST_CONTROL_FILE}
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
-      - /data/mac:/var/data/mac
+      - /data/mac:/var/mac
       - /data/homes:/var/homes:shared
       - /data/dojos:/var/dojos
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
@@ -140,19 +138,18 @@ services:
     container_name: db
     profiles:
       - main
-    build: ./db
+    image: postgres:17.5
     restart: always
     environment:
-      - MYSQL_ROOT_PASSWORD=${DB_PASS}
-      - MYSQL_USER=${DB_USER}
-      - MYSQL_PASSWORD=${DB_PASS}
-      - MYSQL_DATABASE=${DB_NAME}
-      - DB_EXTERNAL=${DB_EXTERNAL}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+      - POSTGRES_DB=${DB_NAME}
+      - PGUSER=${DB_USER}
     volumes:
-      - /data/mysql:/var/lib/mysql
-    command: [/start.sh]
+      - /data/postgres:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-p${DB_PASS}", "-u${DB_USER}", "-h${DB_HOST}"]
+      test: ["CMD", "pg_isready"]
       interval: 10s
       timeout: 10s
       retries: 3
@@ -175,17 +172,12 @@ services:
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys:/etc/ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /data/mac:/var/data/mac:ro
+      - /data/mac:/var/mac:ro
     environment:
-      - DB_HOST=${DB_HOST}
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASS=${DB_PASS}
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@${DB_HOST}/${DB_NAME}
       - REDIS_URL=redis://cache:6379
       - MAC_HOSTNAME=${MAC_HOSTNAME}
       - MAC_USERNAME=${MAC_USERNAME}
-      - MAC_KEY_FILE=${MAC_KEY_FILE}
-      - MAC_GUEST_CONTROL_FILE=${MAC_GUEST_CONTROL_FILE}
     ports:
       - "22:22"
 
