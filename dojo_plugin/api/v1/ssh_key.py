@@ -42,7 +42,7 @@ class UpdateKey(Resource):
                 return (
                     {
                         "success": False,
-                        "error": f"Invalid SSH Key, error:<br><code>{e}</code>"
+                        "error": f"Invalid SSH Key, error: <code>{e}</code> <br>Refer below for how to generate a valid ssh key"
                     },
                     400,
                 )
