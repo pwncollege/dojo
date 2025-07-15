@@ -10,7 +10,7 @@ import time
 import docker
 import redis
 
-import mac_docker
+from mac_docker import MacDockerClient
 
 
 WORKSPACE_NODES = {
@@ -19,16 +19,18 @@ WORKSPACE_NODES = {
     json.load(pathlib.Path("/var/workspace_nodes.json").open()).items()
 }
 
-r = redis.from_url(os.environ.get("REDIS_URL"))
+redis_client = redis.from_url(os.environ.get("REDIS_URL"))
 
 def get_docker_client(user_id):
-    image_name = r.get(f"flask_cache_user_{user_id}-running-image")
+    image_name = redis_client.get(f"flask_cache_user_{user_id}-running-image")
     node_id = list(WORKSPACE_NODES.keys())[user_id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
     docker_host = f"tcp://192.168.42.{node_id + 1}:2375" if node_id is not None else "unix:///var/run/docker.sock"
 
     is_mac = False
     if image_name and b"mac:" in image_name:
-        docker_client = mac_docker.MacDockerClient(key_filename="/opt/sshd/pwn-college-mac-key")
+        docker_client = MacDockerClient(hostname=os.getenv("MAC_HOSTNAME"),
+                                        username=os.getenv("MAC_USERNAME"),
+                                        key_path="/home/hacker/.ssh/key")
         is_mac = True
     else:
         docker_client = docker.DockerClient(base_url=docker_host, tls=False)
