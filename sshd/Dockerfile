@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 FROM alpine:3.20.3
 
 RUN apk add --no-cache \
@@ -26,4 +28,15 @@ RUN chmod 700 /opt/sshd/auth.py
 
 EXPOSE 22
 
-ENTRYPOINT ["/bin/sh", "-c", "env > /etc/environment && exec /usr/sbin/sshd.pam -D -e -f /opt/sshd/sshd_config"]
+COPY --chmod=755 <<EOF /docker-entrypoint.sh
+#!/bin/sh
+env > /etc/environment
+if [ -f /var/mac/key ]; then
+    mkdir -p /home/hacker/.ssh
+    cp /var/mac/key /home/hacker/.ssh
+    chmod 600 /home/hacker/.ssh/key
+fi
+exec /usr/sbin/sshd.pam -D -e -f /opt/sshd/sshd_config
+EOF
+
+ENTRYPOINT ["/docker-entrypoint.sh"]

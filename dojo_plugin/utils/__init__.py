@@ -24,7 +24,7 @@ from CTFd.utils.security.sanitize import sanitize_html
 from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
 
-from ..config import WORKSPACE_NODES
+from ..config import WORKSPACE_NODES, MAC_HOSTNAME, MAC_USERNAME
 from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges, WorkspaceTokens
 from . import mac_docker
 
@@ -87,7 +87,9 @@ def user_node(user):
 
 def user_docker_client(user, image_name=None):
     if image_name and image_name.startswith("mac:"):
-        return mac_docker.MacDockerClient()
+        return mac_docker.MacDockerClient(hostname=MAC_HOSTNAME,
+                                          username=MAC_USERNAME,
+                                          key_path="/var/mac/key")
 
     node_id = user_node(user)
     return (docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
@@ -324,7 +326,6 @@ def is_challenge_locked(dojo_challenge: DojoChallenges, user: Users) -> bool:
         return not (Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() or
                 Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first())
     return False
-    
 
 
 # based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list

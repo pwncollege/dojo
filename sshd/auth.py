@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 
-import grp
 import os
 import pathlib
-import pwd
-import shutil
 import sys
 from urllib.parse import urlparse
 
@@ -29,11 +26,6 @@ def create_db_connection():
     )
 
 def main():
-    if (mac_key_file := os.environ.get("MAC_KEY_FILE")) and not os.path.exists("/tmp/mac-key"):
-        shutil.copy(mac_key_file, "/tmp/mac-key")
-        os.chown("/tmp/mac-key", pwd.getpwnam("hacker").pw_uid, grp.getgrnam("docker").gr_gid)
-        os.chmod("/tmp/mac-key", 0o600)
-
     enter_path = pathlib.Path(__file__).parent.resolve() / "enter.py"
 
     connection = create_db_connection()
