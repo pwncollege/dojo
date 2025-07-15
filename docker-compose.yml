@@ -129,8 +129,7 @@ services:
       homefs:
         condition: service_started
       pgbouncer:
-        condition: service_healthy
-        restart: true
+        condition: service_started
       cache:
         condition: service_started
 
@@ -165,14 +164,9 @@ services:
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 10000
       DEFAULT_POOL_SIZE: 20
-    healthcheck:
-      test: ["CMD", "pg_isready"]
-      interval: 10s
-      timeout: 10s
-      retries: 3
     depends_on:
       db:
-        condition: service_healthy
+        condition: service_started
 
   cache:
     container_name: cache
@@ -202,7 +196,7 @@ services:
       - "22:22"
     depends_on:
       pgbouncer:
-        condition: service_healthy
+        condition: service_started
       cache:
         condition: service_started
 
