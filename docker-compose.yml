@@ -66,7 +66,7 @@ services:
             hard: 1048576
     environment:
       - UPLOAD_FOLDER=/var/uploads
-      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@${DB_HOST}/${DB_NAME}
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
       - REDIS_URL=redis://cache:6379
       - WORKERS=8
       - LOG_FOLDER=/var/log/CTFd
@@ -128,9 +128,8 @@ services:
         condition: service_started
       homefs:
         condition: service_started
-      db:
-        condition: service_healthy
-        restart: true
+      pgbouncer:
+        condition: service_started
       cache:
         condition: service_started
 
@@ -154,6 +153,22 @@ services:
       timeout: 10s
       retries: 3
 
+  pgbouncer:
+    container_name: pgbouncer
+    profiles:
+      - main
+    image: edoburu/pgbouncer
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}/${DB_NAME}
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 10000
+      DEFAULT_POOL_SIZE: 20
+    depends_on:
+      db:
+        condition: service_started
+
   cache:
     container_name: cache
     profiles:
@@ -174,12 +189,17 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /data/mac:/var/mac:ro
     environment:
-      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@${DB_HOST}/${DB_NAME}
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
       - REDIS_URL=redis://cache:6379
       - MAC_HOSTNAME=${MAC_HOSTNAME}
       - MAC_USERNAME=${MAC_USERNAME}
     ports:
       - "22:22"
+    depends_on:
+      pgbouncer:
+        condition: service_started
+      cache:
+        condition: service_started
 
   nginx-proxy:
     container_name: nginx-proxy
