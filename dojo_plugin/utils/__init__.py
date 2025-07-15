@@ -24,7 +24,7 @@ from CTFd.utils.security.sanitize import sanitize_html
 from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
 
-from ..config import WORKSPACE_NODES
+from ..config import WORKSPACE_NODES, MAC_HOSTNAME, MAC_USERNAME
 from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges, WorkspaceTokens
 from . import mac_docker
 
@@ -87,7 +87,9 @@ def user_node(user):
 
 def user_docker_client(user, image_name=None):
     if image_name and image_name.startswith("mac:"):
-        return mac_docker.MacDockerClient()
+        return mac_docker.MacDockerClient(hostname=MAC_HOSTNAME,
+                                          username=MAC_USERNAME,
+                                          key_path="/var/mac/key")
 
     node_id = user_node(user)
     return (docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
@@ -185,113 +187,6 @@ def resolved_tar(dir, *, root_dir, filter=None):
     return tar_buffer
 
 
-def is_dojo_admin(user, dojo):
-    return user and dojo and dojo.is_admin(user)
-
-
-def user_dojos(user):
-    filters = [Dojos.official == True]
-    if user:
-        members = db.session.query(DojoMembers.dojo_id).filter(DojoMembers.user_id == user.id)
-        filters.append(Dojos.id.in_(members.subquery()))
-        admins = db.session.query(DojoAdmins.dojo_id).filter(DojoAdmins.user_id == user.id)
-        filters.append(Dojos.id.in_(admins.subquery()))
-    return Dojos.query.filter(or_(*filters)).all()
-
-
-def dojo_standings(dojo_id=None, fields=None, module_id=None):
-    if fields is None:
-        fields = []
-
-    Model = get_model()
-
-    dojo_filters = []
-    if dojo_id is None:
-        dojos = Dojos.query.filter_by(official=True).all()
-        dojo_filters.append(or_(*(dojo.challenges_query(module_id=module_id) for dojo in dojos)))
-    else:
-        dojo = Dojos.query.filter(Dojos.id == dojo_id).first()
-        dojo_filters.append(dojo.challenges_query(module_id=module_id))
-
-        if not dojo.public:
-            members = db.session.query(DojoMembers.user_id).filter_by(dojo_id=dojo_id)
-            dojo_filters.append(Solves.account_id.in_(members.subquery()))
-
-    standings_query = (
-        db.session.query(*fields)
-        .join(Challenges)
-        .join(Model, Model.id == Solves.account_id)
-        .filter(Challenges.value != 0, Model.banned == False, Model.hidden == False,
-                *dojo_filters)
-    )
-
-    return standings_query
-
-
-def load_dojo(dojo_id, dojo_spec, user=None, dojo_dir=None, commit=True, log=logging.getLogger(__name__), initial_join_code=None):
-    log.info("Initiating dojo load.")
-
-    dojo = Dojos.query.filter_by(id=dojo_id).first()
-    if not dojo:
-        dojo = Dojos(id=dojo_id, owner_id=None if not user else user.id, data=dojo_spec)
-        dojo.join_code = initial_join_code
-        log.info("Dojo is new, adding.")
-        db.session.add(dojo)
-    elif dojo.data == dojo_spec:
-        # make sure the previous load was fully successful (e.g., all the imports worked and weren't fixed since then)
-        num_loaded_chals = DojoChallenges.query.filter_by(dojo_id=dojo_id).count()
-        num_spec_chals = sum(len(module.get("challenges", [])) for module in dojo.config.get("modules", []))
-
-        if num_loaded_chals == num_spec_chals:
-            log.warning("Dojo is unchanged, aborting update.")
-            return
-    else:
-        dojo.data = dojo_spec
-        db.session.add(dojo)
-
-    if dojo.config.get("dojo_spec", None) != "v2":
-        log.warning("Incorrect dojo spec version (dojo_spec attribute). Should be 'v2'")
-
-    dojo.apply_spec(dojo_log=log, dojo_dir=dojo_dir)
-
-    if commit:
-        log.info("Committing database changes!")
-        db.session.commit()
-    else:
-        log.info("Rolling back database changes!")
-        db.session.rollback()
-
-
-def first_bloods():
-    first_blood_string = db.func.min(Solves.date.cast(String)+"|"+Solves.user_id.cast(String))
-    first_blood_query = (
-        db.session.query(Challenges.id.label("challenge_id"))
-        .join(Solves, Challenges.id == Solves.challenge_id)
-        .add_columns(
-            db.func.substring_index(first_blood_string, "|", -1).cast(Integer).label("user_id"),
-            db.func.min(Solves.date).label("timestamp")
-        )
-        .group_by(Challenges.id)
-        .order_by("timestamp")
-    ).all()
-    return first_blood_query
-
-
-def daily_solve_counts():
-    counts = (
-        db.session.query(
-            Solves.user_id, db.func.count(Solves.challenge_id).label("solves"),
-            db.func.year(Solves.date).label("year"),
-            db.func.month(Solves.date).label("month"),
-            db.func.day(Solves.date).label("day")
-        )
-        .join(Challenges, Challenges.id == Solves.challenge_id)
-        .filter(~Challenges.category.contains("embryo"))
-        .group_by("year", "month", "day", Solves.user_id)
-    ).all()
-    return counts
-
-
 # https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/security/auth.py#L51-L59
 def lookup_workspace_token(token):
     token = WorkspaceTokens.query.filter_by(value=token).first()
@@ -319,6 +214,14 @@ def generate_workspace_token(user, expiration=None):
     return token
 
 
+def is_challenge_locked(dojo_challenge: DojoChallenges, user: Users) -> bool:
+    if all((dojo_challenge.progression_locked, dojo_challenge.challenge_index != 0, not dojo_challenge.dojo.is_admin())):
+        previous_dojo_challenge = dojo_challenge.module.challenges[dojo_challenge.challenge_index - 1]
+        return not (Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() or
+                Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first())
+    return False
+
+
 # based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
 class ListHandler(logging.Handler): # Inherit from logging.Handler
     def __init__(self, log_list):
@@ -343,4 +246,3 @@ class HTMLHandler(logging.Handler): # Inherit from logging.Handler
         if self.html:
             self.html += self.join_tag
         self.html += f"{self.start_tag}<b>{record.levelname}</b>: {sanitize_html(record.getMessage())}{self.end_tag}"
-

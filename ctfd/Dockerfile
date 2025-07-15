@@ -1,4 +1,4 @@
-FROM python:3.9-slim-buster AS build
+FROM python:3.13-slim AS build
 WORKDIR /opt/CTFd
 
 RUN apt-get update \
@@ -17,17 +17,17 @@ COPY requirements.txt /opt/CTFd/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # TODO: Remove this when CTFd depends on Flask >= 2.1.0: "safe_join is removed, use werkzeug.utils.safe_join instead"
-RUN echo 'from werkzeug.utils import safe_join' >> /opt/venv/lib/python3.9/site-packages/flask/helpers.py
+RUN echo 'from werkzeug.utils import safe_join' >> /opt/venv/lib/python3.13/site-packages/flask/helpers.py
 
 COPY . /opt/CTFd
 
-FROM python:3.9-slim-buster AS release
+FROM python:3.13-slim AS release
 WORKDIR /opt/CTFd
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        libffi6 \
-        libssl1.1 \
+        libffi8 \
+        libssl3 \
         git \
         openssh-client \
     && apt-get clean \
