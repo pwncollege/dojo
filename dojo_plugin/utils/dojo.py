@@ -346,8 +346,8 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
         if transfer:
             if not (dojo.official or (is_admin() and not Dojos.from_id(dojo.id).first())):
                 raise RuntimeError("Permission denied: only official dojos and admins can transfer challenges")
-            if existing_challenge and Solves.query.filter(challenge=existing_challenge).count() > 0:
-                raise RuntimeError("Cannot transfer when existing challenge already has solves")
+            if existing_challenge:
+                raise RuntimeError("Cannot transfer when existing challenge already exists")
             transfer_challenge = (Challenges.query.filter_by(category=transfer_dojo.hex_dojo_id, name=f"{transfer['module']}:{transfer['challenge']}").first()
                                   if (transfer_dojo := Dojos.from_id(transfer["dojo"]).first()) else None)
             if transfer_challenge:
