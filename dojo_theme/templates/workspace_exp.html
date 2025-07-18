@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+
+{% block stylesheets %}
+{{ super() }}
+
+{% endblock %}
+
+
+{% block content %}
+
+<div id="temp">VSCode</div>
+
+<iframe src="/workspace/code"></iframe>
+
+<div class="row">
+	<select>
+		<option value="code">VSCode</option>
+		<option value="desktop">Desktop</option>
+		<option value="ssh">SSH</option>
+	</select>
+	<button id="start">Start</button>
+	<button id="start-priv">Priv</button>
+	<button id="restart">Restart</button>
+	<input type="text" placeholder="Flag">
+	<button id="fullscreen">Fullscreen</button>
+</div>
+
+<div id="alert"></div>
+
+{% endblock %}
+
+
+{% block scripts %}
+
+<script defer src="{{ url_for('views.themes', path='js/dojo/workspace_exp.js') }}"></script>
+
+{% endblock %}

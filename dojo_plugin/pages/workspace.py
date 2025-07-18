@@ -21,6 +21,11 @@ port_names = {
 }
 
 
+@workspace.route("/workspace", methods=["GET"])
+@authed_only
+def view_workspace_exp():
+    return render_template("workspace_exp.html")
+
 @workspace.route("/workspace/<service>")
 @authed_only
 def view_workspace(service):
