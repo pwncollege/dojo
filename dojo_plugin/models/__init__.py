@@ -77,6 +77,7 @@ class Dojos(db.Model):
         "pages": [],
         "privileged": False,
         "importable": True,
+        "show_scoreboard": True,
     }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
@@ -342,7 +343,9 @@ class DojoModules(db.Model):
     data = db.Column(JSONB)
     data_fields = ["importable"]
     data_defaults = {
-        "importable": True
+        "importable": True,
+        "show_scoreboard": True,
+        "show_challenges": True,
     }
 
     dojo = db.relationship("Dojos", back_populates="_modules")
