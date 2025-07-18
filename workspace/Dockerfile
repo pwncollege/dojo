@@ -1,7 +1,7 @@
 FROM alpine
 
 RUN apk add --no-cache nix
-
+RUN apk add --no-cache git
 RUN cat >> /etc/nix/nix.conf <<EOF
 experimental-features = nix-command flakes
 substituters = https://cache.nixos.org/
