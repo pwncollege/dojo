@@ -9,15 +9,13 @@
 
 {% block content %}
 
-<div id="temp">VSCode</div>
-
-<iframe src="/workspace/code" id="challenge-content"></iframe>
+<iframe src="/workspace/code" id="challenge-content" width="1200px" height="800px"></iframe>
 
 <div class="row">
-	<select>
-		<option value="code">VSCode</option>
-		<option value="desktop">Desktop</option>
-		<option value="ssh">SSH</option>
+	<select id="workspace-select">
+		<option value="/workspace/code">VSCode</option>
+		<option value="/workspace/desktop">Desktop</option>
+		<option value="/settings#ssh-key">SSH</option>
 	</select>
 	<button id="start">Start</button>
 	<button id="start-priv">Priv</button>

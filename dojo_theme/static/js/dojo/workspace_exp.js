@@ -92,7 +92,17 @@ function challenge_start_callback(event) {
 	}
 }
 
+function content_select_callback(event) {
+	event.preventDefault();
+
+	var content_url = event.target.value;
+	var content_iframe = document.getElementById("challenge-content");
+
+	content_iframe.src = content_url;
+}
+
 $(() => {
+	$("#workspace-select").change(content_select_callback);
 	document.getElementById("start").onclick = challenge_start_callback;
 	document.getElementById("start-priv").onclick = challenge_start_callback;
 	document.getElementById("restart").onclick = challenge_start_callback;
