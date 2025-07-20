@@ -9,14 +9,16 @@
 
 {% block content %}
 
-<iframe src="/workspace/code" id="challenge-content" width="1200px" height="800px"></iframe>
+<iframe src="" id="challenge-content" width="1200px" height="800px"></iframe>
 
 <div class="row">
+	{% if workspace_selectable %}
 	<select id="workspace-select">
-		<option value="/workspace/code">VSCode</option>
-		<option value="/workspace/desktop">Desktop</option>
-		<option value="/settings#ssh-key">SSH</option>
+		{% for name, command in workspace_options.items() %}
+		<option value="{{ command }}" {% if name == workspace_active %}id="active"{% endif %}>{{ name }}</option>
+		{% endfor %}
 	</select>
+	{% endif %}
 	<button id="start">Start</button>
 	<button id="start-priv">Priv</button>
 	<button id="restart">Restart</button>

@@ -7,6 +7,12 @@ function reload_content() {
 	content.src = content.src;
 }
 
+function set_content(option) {
+	// TODO: more advanced control via the option's value.
+	var content = document.getElementById("challenge-content");
+	content.src = option.value;
+}
+
 function start_challenge(privileged) {
 	alert("Loading...");
 
@@ -95,13 +101,14 @@ function challenge_start_callback(event) {
 function content_select_callback(event) {
 	event.preventDefault();
 
-	var content_url = event.target.value;
-	var content_iframe = document.getElementById("challenge-content");
-
-	content_iframe.src = content_url;
+	set_content(event.target);
 }
 
 $(() => {
+	var option = document.getElementById("active");
+	option.selected = true;
+	set_content(option);
+
 	$("#workspace-select").change(content_select_callback);
 	document.getElementById("start").onclick = challenge_start_callback;
 	document.getElementById("start-priv").onclick = challenge_start_callback;
