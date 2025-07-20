@@ -14,7 +14,7 @@ from CTFd.cache import cache
 from CTFd.models import db, Solves, Challenges, Users, Submissions, Awards
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model, generate_account_url
-from sqlalchemy import event
+from sqlalchemy import event, cast
 from sqlalchemy.orm.session import Session
 
 from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities, Belts, Emojis
@@ -39,6 +39,9 @@ def get_scoreboard_for(model, duration):
         Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
         if duration else True
     )
+    required_filter = (
+        cast(DojoChallenges.data["required"].astext, db.Boolean()) == True
+    )
     solves = db.func.count().label("solves")
     rank = (
         db.func.row_number()
@@ -49,6 +52,7 @@ def get_scoreboard_for(model, duration):
     query = (
         model.solves()
         .filter(duration_filter)
+        .filter(required_filter)
         .group_by(*user_entities)
         .order_by(rank)
         .with_entities(rank, solves, *user_entities)

@@ -89,7 +89,13 @@
                 <span class="invisible-placeholder pr-2">{{ challenge.name or challenge.id }}</span>
               </div>
               {% else %}
-              <span class="pr-2">{{ challenge.name or challenge.id }}</span>
+              <span class="pr-2">
+                {% if not challenge.required %}
+                <i>{{ challenge.name or challenge.id }}</i>
+                {% else %}
+                {{ challenge.name or challenge.id }}
+                {% endif %}
+              </span>
               {% endif %}
               {% if dojo.is_admin() and (progression_locked or hidden) %}
               <small><small><small>
@@ -117,6 +123,7 @@
             {% if lock_challenge %}
               <p><em>This challenge is locked</em></p>
             {% else %}
+              {% if not challenge.required %}<small>This challenge is optional, it will not count towards completion.</small><br><br>{% endif %}
               {{ challenge.description | markdown }}
             {% endif %}
           </div>

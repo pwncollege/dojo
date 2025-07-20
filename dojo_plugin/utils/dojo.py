@@ -129,6 +129,7 @@ DOJO_SPEC = Schema({
             Optional("allow_privileged"): bool,
             Optional("importable"): bool,
             Optional("progression_locked"): bool,
+            Optional("required", default=True): bool,
             Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
             # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
 
@@ -395,6 +396,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                         module_data.get("id"), challenge_data.get("id"), transfer=challenge_data.get("transfer", None)
                     ) if "import" not in challenge_data else None,
                     progression_locked=challenge_data.get("progression_locked"),
+                    required=challenge_data.get("required"),
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
                     survey=shadow("survey", dojo_data, module_data, challenge_data, default=None),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
