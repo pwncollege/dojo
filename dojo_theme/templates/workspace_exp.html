@@ -23,13 +23,21 @@
 		{% endfor %}
 	</select>
 	{% endif %}
-	<button id="start">Start</button>
+	<button id="start" class="btn btn-md btn-outline-secondary">
+		<i class="fas fa-play fa-2x"></i> Start
+	</button>
 	{% if challenge.allow_privileged %}
-	<button id="start-priv">Priv</button>
+	<button id="start-priv" class="btn btn-md btn-outline-secondary">
+		<i class="fas fa-lock-open fa-2x"></i> Priv
+	</button>
 	{% endif %}
-	<button id="restart">Restart</button>
+	<button id="restart" class="btn btn-md btn-outline-secondary">
+		<i class="fas fa-undo fa-2x"></i> Restart
+	</button>
 	<input type="text" placeholder="Flag">
-	<button id="fullscreen">Fullscreen</button>
+	<button id="fullscreen" class="btn btn-md btn-outline-secondary">
+		<i class="fas fa-expand fa-2x"></i> Fullscreen
+	</button>
 </div>
 
 <div id="alert"></div>
