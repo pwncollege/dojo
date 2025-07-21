@@ -287,16 +287,36 @@ p[data-hide="true"] {
 }
 
 .card-body .progress-bar {
-  background-color: var(--old-brand-blue);
+  background-color: var(--brand-blue);
   opacity: 30%;
-  height: 8%;
+  height: 14px;
   width: 0;
-  margin: 0;
+  max-width: calc(100% - 24px);
   position: absolute;
-  left: 0;
-  bottom: 0;
+  left: 12px;
+  right: 12px;
+  bottom: 5px;
+  border-radius: 6px;
   transition: all 0.2s ease;
   container: progress-bar / inline-size;
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(255, 255, 255, 0.1);
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(0, 0, 0, 0.1) 51%,
+    rgba(0, 0, 0, 0.2) 100%
+  );
+}
+
+.card-body .progress-bar[style*="width: 100"] {
+  background-color: var(--brand-green) !important;
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(255, 255, 255, 0.1),
+    0 0 8px rgba(120, 190, 32, 0.4) !important;
 }
 
 .card-body .progress-bar .progress-bar-text {
@@ -332,6 +352,7 @@ p[data-hide="true"] {
     height: 13em;
     margin: 0.5em;
     padding: 0em;
+    border-radius: 12px !important;
     background-color: rgba(255, 255, 255, 0.05);
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
     transition: all 0.2s ease;
