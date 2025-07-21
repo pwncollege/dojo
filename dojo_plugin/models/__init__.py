@@ -271,7 +271,7 @@ class Dojos(db.Model):
         return awards
 
     def completed(self, user):
-        return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len(self.challenges)
+        return self.solves(user=user, ignore_visibility=True, ignore_admins=False, required_only=True).count() == len([challenge for challenge in self.challenges if challenge.data["required"]])
 
     def is_admin(self, user=None):
         if user is None:
@@ -544,7 +544,7 @@ class DojoChallenges(db.Model):
         ))
 
     @hybrid_method
-    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True):
+    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True, required_only=False):
         result = (
             Solves.query
             .join(DojoChallenges, and_(
@@ -587,6 +587,9 @@ class DojoChallenges(db.Model):
             result = result.filter(DojoChallenges.dojo == dojo)
         if module:
             result = result.filter(DojoChallenges.module == module)
+
+        if required_only:
+            result = result.filter(cast(DojoChallenges.data["required"].astext, db.Boolean()) == True)
 
         return result
 

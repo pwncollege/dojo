@@ -71,7 +71,7 @@
           ),
 	  "hidden" if not module.visible()
         ],
-        solve_percent=(num_solved / num_challs) * 100 if num_challs else 0,
+        solve_percent=(1 if num_solved > num_challs else (num_solved / num_challs)) * 100 if num_challs else 0,
       ) }}
     {% endif %}
     {% endfor %}

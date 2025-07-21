@@ -123,7 +123,7 @@
             {% if lock_challenge %}
               <p><em>This challenge is locked</em></p>
             {% else %}
-              {% if not challenge.required %}<small>This challenge is optional, it will not count towards completion.</small><br><br>{% endif %}
+              {% if not challenge.required %}<small>This challenge is optional, it will not count towards dojo completion.</small><br><br>{% endif %}
               {{ challenge.description | markdown }}
             {% endif %}
           </div>
