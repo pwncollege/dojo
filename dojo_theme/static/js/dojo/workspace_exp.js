@@ -114,11 +114,18 @@ function kill_navbar() {
 	navbar_search.remove();
 }
 
+function kill_footer() {
+	var footer = document.getElementsByClassName("footer")[0];
+
+	footer.remove();
+}
+
 $(() => {
 	var option = document.getElementById("active");
 	option.selected = true;
 	set_content(option);
 
+	kill_footer();
 	if (document.getElementById("hide-navbar") != null) {
 		kill_navbar();
 	}
