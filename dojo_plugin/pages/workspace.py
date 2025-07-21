@@ -25,6 +25,8 @@ port_names = {
 @authed_only
 def view_workspace_exp():
     content = request.args.get("service")
+    hide_navbar = request.args.get("hide-navbar")
+
 
     opt_vscode = {"VSCode": "/workspace/code"}
     opt_desktop = {"Desktop": "/workspace/desktop"}
@@ -37,16 +39,17 @@ def view_workspace_exp():
     # For now, add all the "standard" options.
     workspace_options = workspace_options | opt_vscode | opt_desktop | opt_ssh
 
-    if content == "none":
+
+    if not content or content == "default":
+        # Use the challenge-defined default content.
+        workspace_active = workspace_default
+
+    elif content == "none":
         # Use the same content page as when the workspace was previously used.
         if workspace_previous in workspace_options:
             workspace_active = workspace_previous
         else:
             workspace_active = workspace_default
-
-    elif content == "default" or not content:
-        # Use the challenge-defined default content.
-        workspace_active = workspace_default
 
     elif content == "vscode":
         # Use vscode.
@@ -55,7 +58,6 @@ def view_workspace_exp():
         else:
             abort(404)
 
-    
     elif content == "desktop":
         # Use desktop.
         if "Desktop" in workspace_options:
@@ -75,8 +77,17 @@ def view_workspace_exp():
         abort(404)
 
 
+    if not hide_navbar:
+        hide_navbar = False
+    elif hide_navbar == "true":
+        hide_navbar = True
+    else:
+        hide_navbar = False
+
+
     return render_template(
         "workspace_exp.html",
+        hide_navbar=hide_navbar,
         workspace_active=workspace_active,
         workspace_options=workspace_options,
         workspace_selectable=(len(workspace_options) > 1))

@@ -104,10 +104,27 @@ function content_select_callback(event) {
 	set_content(event.target);
 }
 
+function kill_navbar() {
+	var navbar = document.getElementsByClassName("navbar-expand-md")[0];
+	var navbar_pull = document.getElementsByClassName("navbar-pulldown")[0];
+	var navbar_search = document.getElementById("searchModal");
+
+	navbar.hidden = true;
+	navbar.style.display = "none";
+	navbar_pull.hidden = true;
+	navbar_pull.style.display = "none";
+	navbar_search.hidden = true;
+	navbar_search.style.display = "none";
+}
+
 $(() => {
 	var option = document.getElementById("active");
 	option.selected = true;
 	set_content(option);
+
+	if (document.getElementById("hide-navbar") != null) {
+		kill_navbar();
+	}
 
 	$("#workspace-select").change(content_select_callback);
 	document.getElementById("start").onclick = challenge_start_callback;
