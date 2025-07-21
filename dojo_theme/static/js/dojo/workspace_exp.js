@@ -109,12 +109,9 @@ function kill_navbar() {
 	var navbar_pull = document.getElementsByClassName("navbar-pulldown")[0];
 	var navbar_search = document.getElementById("searchModal");
 
-	navbar.hidden = true;
-	navbar.style.display = "none";
-	navbar_pull.hidden = true;
-	navbar_pull.style.display = "none";
-	navbar_search.hidden = true;
-	navbar_search.style.display = "none";
+	navbar.remove();
+	navbar_pull.remove();
+	navbar_search.remove();
 }
 
 $(() => {
