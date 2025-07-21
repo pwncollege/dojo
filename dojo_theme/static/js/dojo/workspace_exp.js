@@ -125,6 +125,8 @@ $(() => {
 
 	$("#workspace-select").change(content_select_callback);
 	document.getElementById("start").onclick = challenge_start_callback;
-	document.getElementById("start-priv").onclick = challenge_start_callback;
+	if (document.getElementById("start-priv") != null) {
+		document.getElementById("start-priv").onclick = challenge_start_callback;
+	}
 	document.getElementById("restart").onclick = challenge_start_callback;
 });
