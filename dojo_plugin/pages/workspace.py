@@ -85,8 +85,14 @@ def view_workspace_exp():
         hide_navbar = False
 
 
+    current_challenge = get_current_dojo_challenge()
+    if current_challenge is None:
+        abort(404) # TODO: Tell the user to start a challenge instead.
+
+
     return render_template(
         "workspace_exp.html",
+        challenge=current_challenge,
         hide_navbar=hide_navbar,
         workspace_active=workspace_active,
         workspace_options=workspace_options,

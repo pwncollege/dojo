@@ -24,7 +24,9 @@
 	</select>
 	{% endif %}
 	<button id="start">Start</button>
+	{% if challenge.allow_privileged %}
 	<button id="start-priv">Priv</button>
+	{% endif %}
 	<button id="restart">Restart</button>
 	<input type="text" placeholder="Flag">
 	<button id="fullscreen">Fullscreen</button>
