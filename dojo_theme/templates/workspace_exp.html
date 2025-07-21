@@ -31,6 +31,10 @@ html, body, main {
 	height: 90%;
 }
 
+.workspace-selector {
+	font-size: 1.75vw;
+}
+
 </style>
 
 {% endblock %}
@@ -47,7 +51,7 @@ html, body, main {
 
 	<div class="row workspace-controls">
 		{% if workspace_selectable %}
-		<select id="workspace-select" class="btn btn-outline-secondary" style="width: 10%;">
+		<select id="workspace-select" class="btn btn-outline-secondary workspace-selector" style="width: 10%;">
 			{% for name, command in workspace_options.items() %}
 			<option value="{{ command }}" {% if name == workspace_active %}id="active"{% endif %}>{{ name }}</option>
 			{% endfor %}
