@@ -37,6 +37,10 @@ html, body, main {
 	font-size: 1.75vw;
 }
 
+.flag-field-dynamic {
+	width: calc(50% + {% if not challenge.allow_privileged %}10%{% else %}0%{% endif %} + {% if hide_navbar %}10%{% else %}0%{% endif %});
+}
+
 </style>
 
 {% endblock %}
@@ -70,7 +74,7 @@ html, body, main {
 		<button id="restart" class="btn btn-md btn-outline-secondary" style="width: 10%;">
 			<i class="fas fa-undo fa-2x"></i>
 		</button>
-		<input class="form-control" type="text" placeholder="Flag" style="width: calc(50% + {% if not challenge.allow_privileged %}10%{% else %}0%{% endif %} + {% if hide_navbar %}10%{% else %}0%{% endif %});">
+		<input id="flag-input" class="form-control flag-field-dynamic" type="text" placeholder="Flag">
 		{% if not hide_navbar %}
 		<button id="fullscreen" class="btn btn-md btn-outline-secondary" style="width: 10%;">
 			<i class="fas fa-expand fa-2x"></i>
