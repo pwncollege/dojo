@@ -57,7 +57,7 @@
   <ul class="card-list">
     {% for module in dojo.modules %}
     {% set container_count = module_container_counts.get(module.id, 0) %}
-    {% set num_challs = module.visible_challenges() | length %}
+    {% set num_challs = module.visible_challenges(required_only=True) | length %}
     {% set num_solved = module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0 %}
     {% if module.visible() or dojo.is_admin(user) %}
       {{ card(

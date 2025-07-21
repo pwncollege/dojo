@@ -430,8 +430,8 @@ class DojoModules(db.Model):
     def assessments(self):
         return [assessment for assessment in (self.dojo.course or {}).get("assessments", []) if assessment.get("id") == self.id]
 
-    def visible_challenges(self, user=None):
-        return [challenge for challenge in self.challenges if challenge.visible() or self.dojo.is_admin(user=user)]
+    def visible_challenges(self, user=None, required_only=False):
+        return [challenge for challenge in self.challenges if (not required_only or challenge.data["required"]) and (challenge.visible() or self.dojo.is_admin(user=user))]
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
