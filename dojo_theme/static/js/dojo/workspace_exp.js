@@ -170,7 +170,7 @@ function submit_flag(flag) {
 	flag_input.placeholder = "Submitting...";
 
 	var body = {
-		'challenge_id': parseInt(document.getElementById("challenge-id").value),
+		'challenge_id': parseInt(document.getElementById("current-challenge-id").value),
 		'submission': flag,
 	};
 	var params = {};
