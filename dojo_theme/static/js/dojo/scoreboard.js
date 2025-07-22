@@ -5,6 +5,7 @@ function loadScoreboard(duration, page) {
 
     const endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${module}/${duration}/${page}`;
     scoreboard.empty();
+    // This is a message that we set, so it is safe to use the html method
     message = "Loading."
     scoreboard.html(`<td colspan=6>${message}</td>`);
     setTimeout(function loadmsg() {

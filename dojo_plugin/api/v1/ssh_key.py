@@ -34,7 +34,7 @@ class UpdateKey(Resource):
                 return (
                     {
                         "success": False,
-                        "error": f"Invalid SSH Key, error: <code>{markupsafe.escape(e)}</code> <br>Refer below for how to generate a valid ssh key"
+                        "error": e
                     },
                     400,
                 )
