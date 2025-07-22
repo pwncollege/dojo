@@ -28,9 +28,9 @@ def view_workspace_exp():
     hide_navbar = request.args.get("hide-navbar")
 
 
-    opt_vscode = {"VSCode": "/workspace/code"}
-    opt_desktop = {"Desktop": "/workspace/desktop"}
-    opt_ssh = {"SSH": "/settings#ssh-key"}
+    opt_vscode = {"VSCode": "RENDER/workspace/code"}
+    opt_desktop = {"Desktop": "RENDER/workspace/desktop"}
+    opt_ssh = {"SSH": "RENDER/settings#ssh-key"}
 
     workspace_default = "VSCode" # Set by challenge.
     workspace_previous = "VSCode" # Set by previous session.

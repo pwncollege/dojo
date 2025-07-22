@@ -7,10 +7,37 @@ function reload_content() {
 	content.src = content.src;
 }
 
+function process_content_operation_recursive(operations, content) {
+	if (operations.length == 0) {
+		return;
+	}
+
+	var operation = operations[0];
+
+	if (operation.match(/GET.*/) != null) {
+		fetch(operation.substring(3), {
+			method: "GET",
+			credentials: 'same-origin',
+		}).then(() => {
+			process_content_operation_recursive(operations.slice(1, operations.length), content);
+		});
+	}
+	else if (operation.match(/RENDER.*/)) {
+		content.src = operation.substring(6);
+	}
+	else {
+		console.log("Error processing content operation: " + operation);
+	}
+
+	process_content_operation_recursive(operations.slice(1, operations.length), content);
+}
+
 function set_content(option) {
-	// TODO: more advanced control via the option's value.
+	console.log(option);
+	var operations = option.value.split(";");
 	var content = document.getElementById("challenge-content");
-	content.src = option.value;
+
+	process_content_operation_recursive(operations, content);
 }
 
 function start_challenge(privileged) {
