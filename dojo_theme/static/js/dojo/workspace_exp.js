@@ -211,6 +211,32 @@ function flag_input_callback(event) {
 	submit_flag(event.target.value);
 }
 
+function trim_navbar() {
+	document.getElementsByClassName("close-link")[0].parentElement.remove();
+	document.getElementsByClassName("navbar-pulldown")[0].remove();
+}
+
+function hide_navbar() {
+	$(".navbar").addClass("navbar-hidden");
+	$("main").addClass("main-navbar-hidden");
+}
+
+function show_navbar() {
+	$(".navbar").removeClass("navbar-hidden");
+	$("main").removeClass("main-navbar-hidden");
+}
+
+function toggle_navbar() {
+	if (document.getElementsByClassName("navbar")[0].classList.contains("navbar-hidden")) {
+		show_navbar();
+		document.getElementById("fullscreen").innerHTML = "<i class=\"fas fa-expand fa-2x\"></i>";
+	}
+	else {
+		hide_navbar();
+		document.getElementById("fullscreen").innerHTML = "<i class=\"fas fa-compress fa-2x\"></i>";
+	}
+}
+
 $(() => {
 	var option = document.getElementById("active");
 	option.selected = true;
@@ -219,6 +245,9 @@ $(() => {
 	kill_footer();
 	if (document.getElementById("hide-navbar") != null) {
 		kill_navbar();
+	}
+	else {
+		trim_navbar();
 	}
 
 	$("#workspace-select").change(content_select_callback);
@@ -229,4 +258,8 @@ $(() => {
 	document.getElementById("restart").onclick = challenge_start_callback;
 	
 	document.getElementById("flag-input").oninput = flag_input_callback;
+
+	if (document.getElementById("fullscreen") != null) {
+		document.getElementById("fullscreen").onclick = toggle_navbar;
+	}
 });
