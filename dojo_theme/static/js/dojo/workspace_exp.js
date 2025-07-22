@@ -56,8 +56,6 @@ function set_content(option) {
 }
 
 function start_challenge(privileged) {
-	alert("Loading...");
-
 	CTFd.fetch("/pwncollege_api/v1/docker", {
 		method: "GET",
 		credentials: 'same-origin'
@@ -74,7 +72,6 @@ function start_challenge(privileged) {
 		return response.json();
 	}).then(function (result) {
 		if (result.success == false) {
-			alert(result.error);
 			return;
 		}
 
@@ -97,10 +94,8 @@ function start_challenge(privileged) {
 			return response.json;
 		}).then(function (result) {
 			if (result.success == false) {
-				alert("Error: " + result.error);
+				return;
 			}
-
-			alert("Challenge started");
 
 			reload_content();
 		})
@@ -109,6 +104,10 @@ function start_challenge(privileged) {
 
 function challenge_start_callback(event) {
 	event.preventDefault();
+
+	$(".btn-challenge-start")
+	.addClass("disabled")
+	.addClass("btn-disabled");
 
 	if (event.target.id == "start") {
 		start_challenge(false);
@@ -137,7 +136,12 @@ function challenge_start_callback(event) {
 	}
 	else {
 		alert("WTF?");
+		console.log(event.target);
 	}
+
+	$(".btn-challenge-start")
+	.removeClass("disabled")
+	.removeClass("btn-disabled");
 }
 
 function content_select_callback(event) {
