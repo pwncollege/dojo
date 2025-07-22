@@ -3,8 +3,7 @@ function alert(message) {
 }
 
 function reload_content() {
-	var content = document.getElementById("challenge-content");
-	content.src = content.src;
+	set_content(document.getElementById("workspace-select"));
 }
 
 function process_content_operation_recursive(operations, content) {
@@ -14,16 +13,32 @@ function process_content_operation_recursive(operations, content) {
 
 	var operation = operations[0];
 
-	if (operation.match(/GET.*/) != null) {
-		fetch(operation.substring(3), {
+	if (operation.match(/GET:.*/) != null) {
+		fetch(operation.substring(4), {
 			method: "GET",
 			credentials: 'same-origin',
 		}).then(() => {
 			process_content_operation_recursive(operations.slice(1, operations.length), content);
 		});
 	}
-	else if (operation.match(/RENDER.*/)) {
-		content.src = operation.substring(6);
+	else if (operation.match(/GET&RENDER:.*/)) {
+		var op = operation.substring(11);
+		var delin = op.indexOf(":");
+		url = op.substring(delin + 1);
+		param = op.substring(0, delin);
+
+		fetch(url, {
+			method: "GET",
+			credentials: "same-origin",
+		}).then(function (response) {
+			return response.json();
+		}).then(function (result) {
+			content.src = result[param];
+			process_content_operation_recursive(operations.slice(1, operations.length), content);
+		})
+	}
+	else if (operation.match(/RENDER:.*/)) {
+		content.src = operation.substring(7);
 	}
 	else {
 		console.log("Error processing content operation: " + operation);
@@ -152,7 +167,7 @@ function submit_flag(flag) {
 
 	flag_input = document.getElementById("flag-input");
 	flag_input.value = "";
-	flag_input.placeholder = "Submitting..."
+	flag_input.placeholder = "Submitting...";
 
 	var body = {
 		'challenge_id': parseInt(document.getElementById("challenge-id").value),
