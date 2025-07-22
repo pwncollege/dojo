@@ -43,7 +43,7 @@ COPY <<EOF /etc/docker/daemon.json
 }
 EOF
 
-ADD https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json /etc/docker/seccomp.json
+ADD https://raw.githubusercontent.com/moby/profiles/master/seccomp/default.json /etc/docker/seccomp.json
 
 RUN <<EOF
 cd /tmp
