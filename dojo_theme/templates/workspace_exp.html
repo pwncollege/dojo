@@ -41,6 +41,18 @@ html, body, main {
 	width: calc(50% + {% if not challenge.allow_privileged %}10%{% else %}0%{% endif %} + {% if hide_navbar %}10%{% else %}0%{% endif %});
 }
 
+.submit-correct {
+	background-color: #0f0 !important;
+}
+
+.submit-incorrect {
+	background-color: #f00 !important;
+}
+
+.submit-warn {
+	background-color: #ff0 !important;
+}
+
 </style>
 
 {% endblock %}
@@ -74,6 +86,7 @@ html, body, main {
 		<button id="restart" class="btn btn-md btn-outline-secondary" style="width: 10%;">
 			<i class="fas fa-undo fa-2x"></i>
 		</button>
+		<input type="hidden" id="challenge-id" value="{{ challenge.challenge_id }}">
 		<input id="flag-input" class="form-control flag-field-dynamic" type="text" placeholder="Flag">
 		{% if not hide_navbar %}
 		<button id="fullscreen" class="btn btn-md btn-outline-secondary" style="width: 10%;">

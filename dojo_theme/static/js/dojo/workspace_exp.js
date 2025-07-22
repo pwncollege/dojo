@@ -120,6 +120,55 @@ function kill_footer() {
 	footer.remove();
 }
 
+function submit_flag(flag) {
+	console.log("Submitting flag " + flag);
+
+	flag_input = document.getElementById("flag-input");
+	flag_input.value = "";
+	flag_input.placeholder = "Submitting..."
+
+	var body = {
+		'challenge_id': parseInt(document.getElementById("challenge-id").value),
+		'submission': flag,
+	};
+	var params = {};
+
+	CTFd.api.post_challenge_attempt(params, body)
+	.then(function (response) {
+		if (response.data.status == "incorrect") {
+			flag_input.placeholder = "Incorrect!";
+			flag_input.classList.add("submit-incorrect");
+		}
+		else if (response.data.status == "correct") {
+			flag_input.placeholder = "Correct!";
+			flag_input.classList.add("submit-correct");
+		}
+		else if (response.data.status == "already_solved") {
+			flag_input.placeholder = "Already Solved.";
+			flag_input.classList.add("submit-correct");
+		}
+		else {
+			flag_input.placeholder = "WTF???";
+			flag_input.classList.add("submit-warn");
+		}
+	});
+}
+
+function flag_input_callback(event) {
+	event.preventDefault();
+	event.target.classList.remove("submit-correct");
+	event.target.classList.remove("submit-incorrect");
+	event.target.classList.remove("submit-warn");
+	event.target.placeholder = "Flag";
+	const flag_regex = /pwn.college{.*}/;
+
+	if (event.target.value.match(flag_regex) == null) {
+		return;
+	}
+
+	submit_flag(event.target.value);
+}
+
 $(() => {
 	var option = document.getElementById("active");
 	option.selected = true;
@@ -136,4 +185,6 @@ $(() => {
 		document.getElementById("start-priv").onclick = challenge_start_callback;
 	}
 	document.getElementById("restart").onclick = challenge_start_callback;
+	
+	document.getElementById("flag-input").oninput = flag_input_callback;
 });
