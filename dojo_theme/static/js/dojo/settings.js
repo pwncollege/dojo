@@ -20,22 +20,16 @@ var loading_template =
     '</div>';
 
 
-function showSafeError(template, errorText, target) {
-    const [before, after] = template.split('{e}');
+function showSafeError(template, errorText, $target) {
+    const [before, after] = template.split("{e}");
 
-    target.empty();
-  
-    const beforeNode = document.createElement('span');
-    beforeNode.innerHTML = before;
-    target.append(beforeNode);
-  
-    const codeNode = document.createElement('code');
-    codeNode.textContent = errorText;
-    target.append(codeNode);
+    $target.empty();
 
-    const afterNode = document.createElement('span');
-    afterNode.innerHTML = after;
-    target.append(afterNode);
+    $("<span>").html(before).appendTo($target);
+
+    $("<code>").text(errorText).appendTo($target);
+
+    $("<span>").html(after).appendTo($target);
 }
 
 function form_fetch_and_show(name, endpoint, method, success_message, confirm_msg=null, error_message="{e}") {
