@@ -98,6 +98,11 @@ function start_challenge(privileged) {
 			}
 
 			reload_content();
+
+			$(".btn-challenge-start")
+			.removeClass("disabled")
+			.removeClass("btn-disabled")
+			.prop("disabled", false);
 		})
 	});
 }
@@ -107,7 +112,10 @@ function challenge_start_callback(event) {
 
 	$(".btn-challenge-start")
 	.addClass("disabled")
-	.addClass("btn-disabled");
+	.addClass("btn-disabled")
+	.prop("disabled", true);
+
+	console.log($(".btn-challenge-start"));
 
 	if (event.target.id == "start") {
 		start_challenge(false);
@@ -137,11 +145,12 @@ function challenge_start_callback(event) {
 	else {
 		alert("WTF?");
 		console.log(event.target);
-	}
 
-	$(".btn-challenge-start")
-	.removeClass("disabled")
-	.removeClass("btn-disabled");
+		$(".btn-challenge-start")
+		.removeClass("disabled")
+		.removeClass("btn-disabled")
+		.prop("disabled", false);
+	}
 }
 
 function content_select_callback(event) {
