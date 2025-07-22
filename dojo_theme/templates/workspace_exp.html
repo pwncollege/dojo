@@ -9,7 +9,7 @@ html, body, main {
 	width: 100%;
 	height: 100%;
 	margin-bottom: 0px;
-	padding-top: 0px;
+	{% if hide_navbar %}padding-top: 0px;{% endif %}
 }
 
 .challenge-workspace {
