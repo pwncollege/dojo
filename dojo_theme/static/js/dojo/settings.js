@@ -65,8 +65,11 @@ function form_fetch_and_show(name, endpoint, method, success_message, confirm_ms
                 results.find("#message").text(success_message);
             } else {
                 // This is a message that we set, and it sets the error as text on that html so it is safe to use the html method
-                results.html(error_template);
-                showSafeError(error_message, result.error, results.find("#message"));
+                const errorHtml = $(error_template);
+
+                showSafeError(error_message, result.error, errorHtml.find("#message"));
+
+                results.html(errorHtml);
             }
         });
     });
