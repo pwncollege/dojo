@@ -239,12 +239,12 @@ class Dojos(db.Model):
 
     def completions(self):
         solves_subquery = (
-            self.solves(ignore_visibility=True, ignore_admins=False)
+            self.solves(ignore_visibility=True, ignore_admins=False, required_only=True)
             .with_entities(Solves.user_id,
                            db.func.count().label("solve_count"),
                            db.func.max(Solves.date).label("last_solve"))
             .group_by(Solves.user_id)
-            .having(db.func.count() == len(self.challenges))
+            .having(db.func.count() == len([challenge for challenge in self.challenges if challenge.required]))
             .subquery()
         )
         return (
@@ -271,7 +271,7 @@ class Dojos(db.Model):
         return awards
 
     def completed(self, user):
-        return self.solves(user=user, ignore_visibility=True, ignore_admins=False, required_only=True).count() == len([challenge for challenge in self.challenges if challenge.data["required"]])
+        return self.solves(user=user, ignore_visibility=True, ignore_admins=False, required_only=True).count() == len([challenge for challenge in self.challenges if challenge.required])
 
     def is_admin(self, user=None):
         if user is None:
@@ -431,7 +431,7 @@ class DojoModules(db.Model):
         return [assessment for assessment in (self.dojo.course or {}).get("assessments", []) if assessment.get("id") == self.id]
 
     def visible_challenges(self, user=None, required_only=False):
-        return [challenge for challenge in self.challenges if (not required_only or challenge.data["required"]) and (challenge.visible() or self.dojo.is_admin(user=user))]
+        return [challenge for challenge in self.challenges if (not required_only or challenge.required) and (challenge.visible() or self.dojo.is_admin(user=user))]
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
@@ -473,14 +473,14 @@ class DojoChallenges(db.Model):
     id = db.Column(db.String(32), index=True, nullable=False)
     name = db.Column(db.String(128))
     description = db.Column(db.Text)
+    required = db.Column(db.Boolean, default=True)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "required"]
+    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey"]
     data_defaults = {
         "importable": True,
         "allow_privileged": True,
         "progression_locked": False,
-        "required": True
     }
 
     dojo = db.relationship("Dojos",
@@ -589,7 +589,7 @@ class DojoChallenges(db.Model):
             result = result.filter(DojoChallenges.module == module)
 
         if required_only:
-            result = result.filter(cast(DojoChallenges.data["required"].astext, db.Boolean()) == True)
+            result = result.filter(DojoChallenges.required)
 
         return result
 
