@@ -38,6 +38,7 @@ function form_fetch_and_show(name, endpoint, method, success_message) {
         }).then(response => {
             return response.json()
         }).then(result => {
+            // This is a message that we set, so it is safe to use the html method
             if (!result.success) {
                 results.html(error_template);
                 results.find("#message").html(result.error);

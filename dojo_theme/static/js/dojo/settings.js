@@ -19,7 +19,20 @@ var loading_template =
     '  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>\n' +
     '</div>';
 
-function form_fetch_and_show(name, endpoint, method, success_message, confirm_msg=null) {
+
+function showSafeError(template, errorText, $target) {
+    const [before, after] = template.split("{e}");
+
+    $target.empty();
+
+    $("<span>").html(before).appendTo($target);
+
+    $("<code>").text(errorText).appendTo($target);
+
+    $("<span>").html(after).appendTo($target);
+}
+
+function form_fetch_and_show(name, endpoint, method, success_message, confirm_msg=null, error_message="{e}") {
     const form = $(`#${name}-form`);
     const results = $(`#${name}-results`);
     form.submit(e => {
@@ -27,6 +40,7 @@ function form_fetch_and_show(name, endpoint, method, success_message, confirm_ms
         results.empty();
         const params = form.serializeJSON();
         if (confirm_msg && !confirm(confirm_msg(form, params))) return;
+        // This is a message that we set, so it is safe to use the html method
         results.html(loading_template);
         CTFd.fetch(endpoint, {
             method: method,
@@ -40,11 +54,16 @@ function form_fetch_and_show(name, endpoint, method, success_message, confirm_ms
             return response.json()
         }).then(result => {
             if (result.success) {
+                // This is a message that we set, so it is safe to use the html method
                 results.html(success_template);
                 results.find("#message").text(success_message);
             } else {
-                results.html(error_template);
-                results.find("#message").html(result.error);
+                // This is a message that we set, and it sets the error as text on that html so it is safe to use the html method
+                const $errorHtml = $(error_template);
+
+                showSafeError(error_message, result.error, $errorHtml.find("#message"));
+
+                results.html($errorHtml);
             }
         });
     });
@@ -57,10 +76,12 @@ function button_fetch_and_show(name, endpoint, method,data, success_message, abo
     button.click(()=>{
         results.empty();
         if (confirm_msg && !confirm_msg(data)) {
+            // This is a message that we set, so it is safe to use the html method
             results.html(error_template);
-            results.find("#message").html(abort_message);
+            results.find("#message").text(abort_message);
             return
         };
+        // This is a message that we set, so it is safe to use the html method
         results.html(loading_template);
         CTFd.fetch(endpoint, {
             method: method,
@@ -74,18 +95,19 @@ function button_fetch_and_show(name, endpoint, method,data, success_message, abo
             return response.json()
         }).then(result => {
             if (result.success) {
+                // This is a message that we set, so it is safe to use the html method
                 results.html(success_template);
                 results.find("#message").text(success_message);
             } else {
                 results.html(error_template);
-                results.find("#message").html(result.error);
+                results.find("#message").text(result.error);
             }
         });
     });
 }
 
 $(() => {
-    form_fetch_and_show("ssh-key", "/pwncollege_api/v1/ssh_key", "POST", "Your public key has been updated");
+    form_fetch_and_show("ssh-key", "/pwncollege_api/v1/ssh_key", "POST", "Your public key has been updated", null, "Invalid SSH Key, error: {e} <br>Refer below for how to generate a valid ssh key");
     form_fetch_and_show("discord", "/pwncollege_api/v1/discord", "DELETE", "Your discord account has been disconnected");
     form_fetch_and_show("dojo-create", "/pwncollege_api/v1/dojos/create", "POST", "Your dojo has been created");
     form_fetch_and_show("dojo-promote-admin", `/pwncollege_api/v1/dojos/${init.dojo}/admins/promote`, "POST", "User has been promoted to admin.", confirm_msg = (form, params) => {
