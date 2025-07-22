@@ -34,7 +34,7 @@ class UpdateKey(Resource):
                 return (
                     {
                         "success": False,
-                        "error": e
+                        "error": str(e)
                     },
                     400,
                 )
