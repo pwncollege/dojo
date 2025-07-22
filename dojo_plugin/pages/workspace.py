@@ -28,8 +28,8 @@ def view_workspace_exp():
     hide_navbar = request.args.get("hide-navbar")
 
 
-    opt_vscode = {"VSCode": "RENDER/workspace/code"}
-    opt_desktop = {"Desktop": "RENDER/workspace/desktop"}
+    opt_vscode = {"VSCode": "GET/pwncollege_api/v1/workspace?service=code;RENDER/workspace/code/"}
+    opt_desktop = {"Desktop": "GET/pwncollege_api/v1/workspace?service=desktop;RENDER/workspace/desktop/"}
     opt_ssh = {"SSH": "RENDER/settings#ssh-key"}
 
     workspace_default = "VSCode" # Set by challenge.
