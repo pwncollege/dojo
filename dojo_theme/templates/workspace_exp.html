@@ -34,7 +34,7 @@ html, body, main {
 }
 
 .flag-field-dynamic {
-	width: calc(50% + {% if not challenge.allow_privileged %}10%{% else %}0%{% endif %} + {% if hide_navbar %}10%{% else %}0%{% endif %});
+	width: calc(50% + {% if not challenge.allow_privileged %}10%{% else %}0%{% endif %} + {% if hide_navbar %}10%{% else %}0%{% endif %} + {% if workspace_selectable %}0%{% else %}10%{% endif %});
 }
 
 .submit-correct {
