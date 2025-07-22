@@ -8,7 +8,6 @@ from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 from sshpubkeys import SSHKey, InvalidKeyError
 import base64
-import markupsafe
 
 from ...models import SSHKeys
 
