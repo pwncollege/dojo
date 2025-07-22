@@ -35,6 +35,17 @@ html, body, main {
 
 .flag-field-dynamic {
 	width: calc(50% + {% if not challenge.allow_privileged %}10%{% else %}0%{% endif %} + {% if hide_navbar %}10%{% else %}0%{% endif %} + {% if workspace_selectable %}0%{% else %}10%{% endif %});
+	padding: .3%;
+}
+
+.control-btn-frame {
+	width: 10%;
+	padding: .3%;
+}
+
+.control-btn-std {
+	width: 100% !important;
+	height: 100% !important;
 }
 
 .submit-correct {
@@ -65,29 +76,41 @@ html, body, main {
 
 	<div class="row workspace-controls">
 		{% if workspace_selectable %}
-		<select id="workspace-select" class="btn btn-outline-secondary workspace-selector" style="width: 10%;">
-			{% for name, command in workspace_options.items() %}
-			<option value="{{ command }}" {% if name == workspace_active %}id="active"{% endif %}>{{ name }}</option>
-			{% endfor %}
-		</select>
+		<div class="control-btn-frame">
+			<select id="workspace-select" class="control-btn-std btn btn-outline-secondary workspace-selector">
+				{% for name, command in workspace_options.items() %}
+				<option value="{{ command }}" {% if name == workspace_active %}id="active"{% endif %}>{{ name }}</option>
+				{% endfor %}
+			</select>
+		</div>
 		{% endif %}
-		<button id="start" class="btn btn-md btn-outline-secondary" style="width: 10%;">
-			<i class="fas fa-play fa-2x"></i>
-		</button>
+		<div class="control-btn-frame">
+			<button id="start" class="control-btn-std btn btn-md btn-outline-secondary">
+				<i class="fas fa-play fa-2x"></i>
+			</button>
+		</div>
 		{% if challenge.allow_privileged %}
-		<button id="start-priv" class="btn btn-md btn-outline-secondary" style="width: 10%;">
-			<i class="fas fa-lock-open fa-2x"></i>
-		</button>
+		<div class="control-btn-frame">
+			<button id="start-priv" class="control-btn-std btn btn-md btn-outline-secondary">
+				<i class="fas fa-lock-open fa-2x"></i>
+			</button>
+		</div>
 		{% endif %}
-		<button id="restart" class="btn btn-md btn-outline-secondary" style="width: 10%;">
-			<i class="fas fa-undo fa-2x"></i>
-		</button>
-		<input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
-		<input id="flag-input" class="form-control flag-field-dynamic" type="text" placeholder="Flag">
+		<div class="control-btn-frame">
+			<button id="restart" class="control-btn-std btn btn-md btn-outline-secondary">
+				<i class="fas fa-undo fa-2x"></i>
+			</button>
+		</div>
+		<div class="flag-field-dynamic">
+			<input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
+			<input id="flag-input" class="control-btn-std form-control" type="text" placeholder="Flag">
+		</div>
 		{% if not hide_navbar %}
-		<button id="fullscreen" class="btn btn-md btn-outline-secondary" style="width: 10%;">
-			<i class="fas fa-expand fa-2x"></i>
-		</button>
+		<div class="control-btn-frame">
+			<button id="fullscreen" class="control-btn-std btn btn-md btn-outline-secondary">
+				<i class="fas fa-expand fa-2x"></i>
+			</button>
+		</div>
 		{% endif %}
 	</div>
 </div>
