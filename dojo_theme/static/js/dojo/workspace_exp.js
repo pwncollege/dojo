@@ -118,7 +118,7 @@ function challenge_start_callback(event) {
 	if (document.getElementById("start").contains(event.target)) {
 		start_challenge(false);
 	}
-	else if (document.getElementById("start-priv").contains(event.target)) {
+	else if (document.getElementById("start-priv") != null && document.getElementById("start-priv").contains(event.target)) {
 		start_challenge(true);
 	}
 	else if (document.getElementById("restart").contains(event.target)) {
