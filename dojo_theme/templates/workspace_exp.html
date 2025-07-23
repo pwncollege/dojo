@@ -35,7 +35,7 @@ html, body, main {
 }
 
 .flag-field-dynamic {
-	width: calc(50% + {% if not challenge.allow_privileged %}10%{% else %}0%{% endif %} + {% if hide_navbar %}10%{% else %}0%{% endif %} + {% if workspace_selectable %}0%{% else %}10%{% endif %});
+	width: {{ flag_field_width }};
 	padding: .3%;
 }
 
@@ -106,7 +106,7 @@ html, body, main {
 			<input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
 			<input id="flag-input" class="control-btn-std form-control" type="text" placeholder="Flag">
 		</div>
-		{% if not hide_navbar %}
+		{% if fullscreen_allowed %}
 		<div class="control-btn-frame">
 			<button id="fullscreen" class="control-btn-std btn btn-md btn-outline-secondary">
 				<i class="fas fa-expand fa-2x"></i>
