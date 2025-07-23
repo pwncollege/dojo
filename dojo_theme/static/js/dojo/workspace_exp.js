@@ -117,13 +117,13 @@ function challenge_start_callback(event) {
 
 	console.log($(".btn-challenge-start"));
 
-	if (event.target.id == "start") {
+	if (document.getElementById("start").contains(event.target)) {
 		start_challenge(false);
 	}
-	else if (event.target.id == "start-priv") {
+	else if (document.getElementById("start-priv").contains(event.target)) {
 		start_challenge(true);
 	}
-	else if (event.target.id == "restart") {
+	else if (document.getElementById("restart").contains(event.target)) {
 		CTFd.fetch("/pwncollege_api/v1/docker", {
 			method: "GET",
 			credentials: 'same-origin'
@@ -275,11 +275,7 @@ $(() => {
 	}
 
 	$("#workspace-select").change(content_select_callback);
-	document.getElementById("start").onclick = challenge_start_callback;
-	if (document.getElementById("start-priv") != null) {
-		document.getElementById("start-priv").onclick = challenge_start_callback;
-	}
-	document.getElementById("restart").onclick = challenge_start_callback;
+	$(".btn-challenge-start").click(challenge_start_callback);
 	
 	document.getElementById("flag-input").oninput = flag_input_callback;
 
