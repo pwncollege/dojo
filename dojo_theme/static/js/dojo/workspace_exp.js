@@ -115,8 +115,6 @@ function challenge_start_callback(event) {
 	.addClass("btn-disabled")
 	.prop("disabled", true);
 
-	console.log($(".btn-challenge-start"));
-
 	if (document.getElementById("start").contains(event.target)) {
 		start_challenge(false);
 	}
@@ -143,7 +141,7 @@ function challenge_start_callback(event) {
 		});
 	}
 	else {
-		alert("WTF?");
+		console.log("Unexpected element attempted to start a challenge:")
 		console.log(event.target);
 
 		$(".btn-challenge-start")
