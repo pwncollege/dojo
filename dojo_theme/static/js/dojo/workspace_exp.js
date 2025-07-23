@@ -250,6 +250,17 @@ function toggle_navbar() {
 	}
 }
 
+function do_fullscreen() {
+	toggle_navbar();
+}
+
+function fullscreen_callback(event) {
+	event.preventDefault();
+	// If the window is not an iframe, this will refer to its own do_fullscreen function.
+	// Otherwise it will call the do_fullscreen function of the window which we are iframed into.
+	window.parent.do_fullscreen();
+}
+
 $(() => {
 	var option = document.getElementById("active");
 	option.selected = true;
@@ -273,6 +284,6 @@ $(() => {
 	document.getElementById("flag-input").oninput = flag_input_callback;
 
 	if (document.getElementById("fullscreen") != null) {
-		document.getElementById("fullscreen").onclick = toggle_navbar;
+		document.getElementById("fullscreen").onclick = fullscreen_callback;
 	}
 });
