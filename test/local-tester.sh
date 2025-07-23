@@ -9,6 +9,7 @@ function usage {
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: dojo-test)"
 	echo "	-D	specify a directory for /data/docker (to avoid rebuilds)"
+	echo "	-W	specify a directory for /data/workspace (to avoid rebuilds)"
 	echo "	-T	don't run tests"
 	exit
 }
@@ -21,13 +22,15 @@ DB_RESTORE=""
 DOJO_CONTAINER=dojo-test
 TEST=yes
 DOCKER_DIR=""
-while getopts "r:c:he:TD:" OPT
+WORKSPACE_DIR=""
+while getopts "r:c:he:TD:W:" OPT
 do
 	case $OPT in
 		r) DB_RESTORE="$OPTARG" ;;
 		c) DOJO_CONTAINER="$OPTARG" ;;
 		T) TEST=no ;;
 		D) DOCKER_DIR="$OPTARG" ;;
+		W) WORKSPACE_DIR="$OPTARG" ;;
 		e) ENV_ARGS+=("-e" "$OPTARG") ;;
 		h) usage ;;
 		?)
@@ -55,6 +58,7 @@ then
 	VOLUME_ARGS+=( "-v" "$DOCKER_DIR:/data/docker" )
 	sudo rm -rf $DOCKER_DIR/{containers,volumes}
 fi
+[ -n "$WORKSPACE_DIR" ] && VOLUME_ARGS+=( "-v" "$WORKSPACE_DIR:/data/workspace:shared" )
 
 docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" -p 2222:22 -p 80:80 -p 443:443 --name "$DOJO_CONTAINER" pwncollege/dojo || exit 1
 

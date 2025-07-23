@@ -18,6 +18,9 @@ from .challenge_builder import challenges_from_spec
 MODULE_SPEC = Schema([{
     **BASE_SPEC,
 
+    Optional("show_challenges"): bool,
+    Optional("show_scoreboard"): bool,
+
     Optional("import"): {
         Optional("dojo"): UNIQUE_ID_REGEX,
         "module": ID_REGEX,
@@ -103,6 +106,8 @@ def modules_from_spec(dojo, dojo_data):
                 **{kwarg: module_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                 resources=build_dojo_resources(module_data, dojo_data),
                 visibility=get_visibility(DojoModuleVisibilities, module_data, dojo_data),
+                show_challenges=first_present("show_challenges", module_data, dojo_data, DojoModules.data_defaults),
+                show_scoreboard=first_present("show_scoreboard", module_data, dojo_data, DojoModules.data_defaults),
                 challenges=challenges_from_spec(dojo, dojo_data, module_data),
             )
         )

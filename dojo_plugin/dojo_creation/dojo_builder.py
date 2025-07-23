@@ -26,6 +26,8 @@ DOJO_SPEC = Schema({
         Optional("belt"): IMAGE_REGEX
     },
 
+    Optional("show_scoreboard"): bool,
+
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -50,7 +52,9 @@ DOJO_SPEC = Schema({
 })
 
 
-DOJO_ATTRIBUTES = ["id", "name", "description", "password", "type", "award", "pages"]
+DOJO_ATTRIBUTES = ["id", "name", "description", "password", "type", "award", "pages", "show_scoreboard"]
+
+
 def import_dojo(dojo_data):
     # TODO: we probably don't need to restrict imports to official dojos
     imported_dojo = import_one(

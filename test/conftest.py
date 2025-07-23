@@ -116,6 +116,12 @@ def searchable_dojo(admin_session):
     make_dojo_official(rid, admin_session)
     return rid
 
+@pytest.fixture
+def hidden_challenges_dojo(admin_session):
+    rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "hidden_challenges.yml").read(), session=admin_session)
+    make_dojo_official(rid, admin_session)
+    return rid
+
 @pytest.fixture(scope="session")
 def progression_locked_dojo(admin_session):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "progression_locked_dojo.yml").read(), session=admin_session)
