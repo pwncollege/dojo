@@ -85,7 +85,7 @@ def temp_ssh_keys():
 
 def ssh_command(private_key_file, command="echo 'SSH test successful'"):
     ssh_host = os.getenv('DOJO_SSH_HOST', 'localhost')
-    ssh_port = 22
+    ssh_port = int(os.getenv('DOJO_SSH_PORT', '22'))
     
     ssh_cmd = [
         'ssh',
