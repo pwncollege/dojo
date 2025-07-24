@@ -67,7 +67,13 @@ def get_available_devices(docker_client):
     if (cached := cache.get(key)) is not None:
         return cached
     find_command = ["/bin/find", "/dev", "-type", "c"]
-    devices = docker_client.containers.run("busybox:uclibc", find_command, privileged=True, remove=True).decode().splitlines()
+    # When using certain logging drivers (like Splunk), docker.containers.run() returns None
+    # Use detach=True and logs() to capture output instead
+    container = docker_client.containers.run("busybox:uclibc", find_command, privileged=True, detach=True)
+    container.wait()
+    output = container.logs()
+    container.remove()
+    devices = output.decode().splitlines() if output else []
     timeout = int(datetime.timedelta(days=1).total_seconds())
     cache.set(key, devices, timeout=timeout)
     return devices
