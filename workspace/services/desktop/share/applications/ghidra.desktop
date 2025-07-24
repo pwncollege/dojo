@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Ghidra
+Comment=Software Reverse Engineering Framework
+Exec=/run/dojo/bin/ghidra
+Icon=/run/dojo/share/ghidra/ghidra.png
+Categories=Application;Development;
