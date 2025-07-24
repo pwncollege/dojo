@@ -4,13 +4,14 @@ cd $(dirname "${BASH_SOURCE[0]}")/..
 
 function usage {
 	set +x
-	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -T ]"
+	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -T ] [ -p ]"
 	echo ""
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: dojo-test)"
 	echo "	-D	specify a directory for /data/docker (to avoid rebuilds)"
 	echo "	-W	specify a directory for /data/workspace (to avoid rebuilds)"
 	echo "	-T	don't run tests"
+	echo "	-p	export ports (80->80, 443->443, 22->2222)"
 	exit
 }
 
@@ -23,7 +24,8 @@ DOJO_CONTAINER=dojo-test
 TEST=yes
 DOCKER_DIR=""
 WORKSPACE_DIR=""
-while getopts "r:c:he:TD:W:" OPT
+EXPORT_PORTS=no
+while getopts "r:c:he:TD:W:p" OPT
 do
 	case $OPT in
 		r) DB_RESTORE="$OPTARG" ;;
@@ -32,6 +34,7 @@ do
 		D) DOCKER_DIR="$OPTARG" ;;
 		W) WORKSPACE_DIR="$OPTARG" ;;
 		e) ENV_ARGS+=("-e" "$OPTARG") ;;
+		p) EXPORT_PORTS=yes ;;
 		h) usage ;;
 		?)
 			OPTIND=$(($OPTIND-1))
@@ -60,7 +63,13 @@ then
 fi
 [ -n "$WORKSPACE_DIR" ] && VOLUME_ARGS+=( "-v" "$WORKSPACE_DIR:/data/workspace:shared" )
 
-docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" --name "$DOJO_CONTAINER" pwncollege/dojo || exit 1
+# Configure port mappings
+PORT_ARGS=()
+if [ "$EXPORT_PORTS" == "yes" ]; then
+	PORT_ARGS+=("-p" "80:80" "-p" "443:443" "-p" "2222:22")
+fi
+
+docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" "${PORT_ARGS[@]}" --name "$DOJO_CONTAINER" pwncollege/dojo || exit 1
 
 # Get container IP address
 CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER")
