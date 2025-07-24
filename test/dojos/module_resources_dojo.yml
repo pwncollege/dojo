@@ -1,0 +1,31 @@
+id: module-resources-test
+name: Module Resources Test
+description: Test dojo for module resources
+
+modules:
+  - id: test
+    name: Test Module
+    description: Test module with mixed resources
+    resources:
+      - name: "Resource A"
+        type: lecture
+        video: hh4XAU6XYP0
+        slides: 14ZJRIyf0HnoYO1N8GI5ygE-ZVgdhjJrvzkETFLz7NIo
+      - name: "Resource B" 
+        type: markdown
+        content: |
+          Test content B with unique string: TESTB123
+      - name: "Resource C"
+        type: lecture
+        video: hIK1Dfjxq4E
+        slides: 1NjoOj03eQsjnZWhm-A3IsxTVqeWUqFvR4wgfXnhsnu4
+        playlist: PLHhKcdBlprMfIBVorNvOfY5UiHJmOk9nh
+      - name: "Resource D"
+        type: markdown
+        content: |
+          Test content D with unique string: TESTD456
+      - name: "Resource E"
+        type: lecture
+        video: 1H1V1HkVt3k
+        slides: 1_xdrCm136NzcDl9bqSgAEQuigUHkNjkKmamhaej296Q
+    challenges: []
