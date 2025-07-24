@@ -8,7 +8,7 @@ DEFAULT_CONTAINER_NAME="local-${REPO_DIR}"
 
 function usage {
 	set +x
-	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -T ] [ -p ]"
+	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -T ] [ -p ] [ -e ENV_VAR=value ]"
 	echo ""
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: local-<dirname>)"
@@ -16,6 +16,7 @@ function usage {
 	echo "	-W	specify a directory for /data/workspace (to avoid rebuilds)"
 	echo "	-T	don't run tests"
 	echo "	-p	export ports (80->80, 443->443, 22->2222)"
+	echo "	-e	set environment variable (can be used multiple times)"
 	exit
 }
 
