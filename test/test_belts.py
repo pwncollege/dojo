@@ -1,10 +1,9 @@
 import pytest
 
-from utils import DOJO_URL, start_challenge
-from test_challenges import solve_challenge
+from utils import DOJO_URL, start_challenge, solve_challenge
 
 
-@pytest.mark.dependency(depends=["test_dojo_completion"])
+@pytest.mark.dependency(depends=["test/test_dojos.py::test_dojo_completion"], scope="session")
 def test_belts(belt_dojos, random_user):
     user_name, session = random_user
     for color,dojo in belt_dojos.items():

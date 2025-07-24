@@ -85,3 +85,13 @@ def start_challenge(dojo, module, challenge, practice=False, *, session, as_user
     
     if wait > 0:
         time.sleep(wait)
+
+
+def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):
+    flag = flag if flag is not None else workspace_run("cat /flag", user=user, root=True).stdout.strip()
+    response = session.post(
+        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/{module}/{challenge}/solve",
+        json={"submission": flag}
+    )
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    assert response.json()["success"], "Expected to successfully submit flag"

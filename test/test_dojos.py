@@ -1,7 +1,8 @@
-import pytest
+import subprocess
 import requests
+import pytest
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run
 
 
 def get_dojo_modules(dojo):
@@ -133,3 +134,45 @@ def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user)
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 1
     assert len(us["badges"]) == 0
+
+
+@pytest.mark.dependency(depends=["test_join_dojo"])
+def test_lfs(lfs_dojo, random_user):
+    uid, session = random_user
+    assert session.get(f"{DOJO_URL}/dojo/{lfs_dojo}/join/").status_code == 200
+    start_challenge(lfs_dojo, "test", "test", session=session)
+    try:
+        workspace_run("[ -f '/challenge/dojo.txt' ]", user=uid)
+    except subprocess.CalledProcessError:
+        assert False, "LFS didn't create dojo.txt"
+
+
+@pytest.mark.dependency(depends=["test_join_dojo"])
+def test_import_override(import_override_dojo, random_user):
+    uid, session = random_user
+    assert session.get(f"{DOJO_URL}/dojo/{import_override_dojo}/join/").status_code == 200
+    start_challenge(import_override_dojo, "test", "test", session=session)
+    try:
+        workspace_run("[ -f '/challenge/boom' ]", user=uid)
+        workspace_run("[ ! -f '/challenge/apple' ]", user=uid)
+    except subprocess.CalledProcessError:
+        assert False, "dojo_initialize_files didn't create /challenge/boom"
+
+
+@pytest.mark.dependency(depends=["test_join_dojo"])
+def test_challenge_transfer(transfer_src_dojo, transfer_dst_dojo, random_user):
+    user_name, session = random_user
+    assert session.get(f"{DOJO_URL}/dojo/{transfer_src_dojo}/join/").status_code == 200
+    assert session.get(f"{DOJO_URL}/dojo/{transfer_dst_dojo}/join/").status_code == 200
+    start_challenge(transfer_dst_dojo, "dst-module", "dst-challenge", session=session)
+    solve_challenge(transfer_dst_dojo, "dst-module", "dst-challenge", session=session, user=user_name)
+    scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{transfer_src_dojo}/_/0/1").json()
+    us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
+    assert us["solves"] == 1
+
+
+@pytest.mark.dependency(depends=["test_create_dojo"])
+def test_hidden_challenges(admin_session, random_user, hidden_challenges_dojo):
+    assert "CHALLENGE" in admin_session.get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").text
+    assert random_user[1].get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").status_code == 200
+    assert "CHALLENGE" not in random_user[1].get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").text

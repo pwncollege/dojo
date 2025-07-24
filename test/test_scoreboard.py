@@ -1,7 +1,6 @@
 import pytest
 
-from utils import DOJO_URL, workspace_run, start_challenge
-from test_challenges import solve_challenge
+from utils import DOJO_URL, workspace_run, start_challenge, solve_challenge
 
 
 def get_all_standings(session, dojo, module=None):
@@ -33,7 +32,7 @@ def get_all_standings(session, dojo, module=None):
     return to_return
 
 
-@pytest.mark.dependency(depends=["test_workspace_challenge"])
+@pytest.mark.dependency(depends=["test/test_challenges.py::test_workspace_challenge"], scope="session")
 def test_scoreboard(random_user):
     user, session = random_user
 

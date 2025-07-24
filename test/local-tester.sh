@@ -112,4 +112,4 @@ until curl -Ls "${CONTAINER_IP}" | grep -q pwn; do sleep 1; done
 docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
 docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 
-[ "$TEST" == "yes" ] && MOZ_HEADLESS=1 DOJO_URL="$DOJO_URL" DOJO_SSH_HOST="$CONTAINER_IP" pytest -v test/test_auth.py test/test_dojos.py test/test_challenges.py test/test_workspace.py test/test_scoreboard.py test/test_belts.py test/test_surveys.py test/test_search.py test/test_welcome.py test/test_ssh.py
+[ "$TEST" == "yes" ] && MOZ_HEADLESS=1 DOJO_URL="$DOJO_URL" DOJO_SSH_HOST="$CONTAINER_IP" pytest --order-dependencies -v test
