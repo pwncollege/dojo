@@ -369,10 +369,8 @@ function markChallengeAsSolved(item) {
         .catch(error => console.error("Award check failed:", error));
 }
 
-function fullscreen_callback(event) {
-    event.preventDefault();
+function do_fullscreen() {
     console.log("Called by my kid!");
-    console.log(event);
 }
 
 $(() => {
