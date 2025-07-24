@@ -7,22 +7,13 @@ import subprocess
 import pytest
 import requests
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, dojo_run, workspace_run, create_dojo_yml
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, dojo_run, workspace_run, create_dojo_yml, start_challenge
 
 
 def get_dojo_modules(dojo):
     response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/modules")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     return response.json()["modules"]
-
-
-def start_challenge(dojo, module, challenge, practice=False, *, session, as_user=None):
-    start_challenge_json = dict(dojo=dojo, module=module, challenge=challenge, practice=practice)
-    if as_user:
-        start_challenge_json["as_user"] = as_user
-    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=start_challenge_json)
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-    assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
 
 
 def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):
