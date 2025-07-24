@@ -14,8 +14,9 @@ from CTFd.utils.helpers import get_infos
 
 from ..utils import get_current_container, get_all_containers, render_markdown
 from ..utils.stats import get_container_stats, get_dojo_stats
-from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
+from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_admins_only
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
+from ..dojo_creation.dojo_initializer import dojo_update
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 #pylint:disable=redefined-outer-name
@@ -146,7 +147,7 @@ def update_dojo(dojo, update_code=None):
         dojo_update(dojo)
         db.session.commit()
     except Exception as e:
-        print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
+        print(f"ERROR: Dojo update failed.", file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
         return {"success": False, "error": str(e)}, 400
     return {"success": True}
