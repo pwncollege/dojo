@@ -7,6 +7,7 @@ from ..utils.dojo import dojo_create, generate_ssh_keypair
 from ..models import Users, db
 
 # operate outside of a session
+assert "unbound" in repr(CTFd.utils.user.session)
 class MockSession:
     def get(self, k, default=None):
         if k == "id":
