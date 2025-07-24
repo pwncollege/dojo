@@ -276,6 +276,7 @@ function startChallenge(event) {
         item.find("#challenge-practice").prop("disabled", false);
 
         $(".challenge-init").removeClass("challenge-hidden");
+        $(".challenge-workspace").removeClass("workspace-fullscreen");
         $(".challenge-workspace").html("");
         item.find(".challenge-workspace").html("<iframe class=\"challenge-iframe\" src=\"/workspace?as-iframe=true&hide-navbar=true\"></iframe>");
         item.find(".challenge-init").addClass("challenge-hidden");
@@ -370,7 +371,12 @@ function markChallengeAsSolved(item) {
 }
 
 function do_fullscreen() {
-    console.log("Called by my kid!");
+    if ($(".workspace-fullscreen")[0]) {
+        $(".challenge-workspace").removeClass("workspace-fullscreen");
+    }
+    else {
+        $(".challenge-workspace").addClass("workspace-fullscreen");
+    }
 }
 
 $(() => {
