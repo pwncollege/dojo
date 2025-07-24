@@ -4,6 +4,12 @@ function submitChallenge(event) {
     const challenge_id = parseInt(item.find('#challenge-id').val())
     const submission = item.find('#challenge-input').val()
 
+    const flag_regex = /pwn.college{.*}/;
+    if (submission.match(flag_regex) == null) {
+        return;
+    }
+    item.find("#challenge-input").val("");
+
     item.find("#challenge-submit").addClass("disabled-button");
     item.find("#challenge-submit").prop("disabled", true);
 
@@ -269,6 +275,11 @@ function startChallenge(event) {
         item.find("#challenge-practice").removeClass("disabled-button");
         item.find("#challenge-practice").prop("disabled", false);
 
+        $(".challenge-init").removeClass("challenge-hidden");
+        $(".challenge-workspace").html("");
+        item.find(".challenge-workspace").html("<iframe class=\"challenge-iframe\" src=\"/workspace?as-iframe=true&hide-navbar=true\"></iframe>");
+        item.find(".challenge-init").addClass("challenge-hidden");
+
         setTimeout(function() {
             item.find(".alert").slideUp();
             item.find("#challenge-submit").removeClass("disabled-button");
@@ -358,6 +369,12 @@ function markChallengeAsSolved(item) {
         .catch(error => console.error("Award check failed:", error));
 }
 
+function fullscreen_callback(event) {
+    event.preventDefault();
+    console.log("Called by my kid!");
+    console.log(event);
+}
+
 $(() => {
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
@@ -388,9 +405,11 @@ $(() => {
     });
 
 
-    $(".accordion-item").find("#challenge-submit").click(submitChallenge);
+    var submits = $(".accordion-item").find("#challenge-input");
+    for (var i = 0; i < submits.length; i++) {
+        submits[i].oninput = submitChallenge;
+    }
     $(".accordion-item").find("#challenge-start").click(startChallenge);
-    $(".accordion-item").find("#challenge-practice").click(startChallenge);
 
     $(".accordion-item").find("#survey-thumbs-up").click(clickSurveyThumb)
     $(".accordion-item").find("#survey-thumbs-down").click(clickSurveyThumb)

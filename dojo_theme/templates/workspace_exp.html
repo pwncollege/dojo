@@ -8,7 +8,7 @@
 html, body, main {
 	width: 100%;
 	height: 100%;
-	margin-bottom: 0px;
+	margin: 0;
 	{% if hide_navbar %}padding-top: 0px;{% endif %}
 }
 
@@ -18,6 +18,9 @@ html, body, main {
 }
 
 .workspace-controls {
+	position: fixed;
+	bottom: 0;
+	right: 0;
 	width: 100%;
 	height: 10%;
 	margin-right: 0px;
@@ -25,6 +28,9 @@ html, body, main {
 }
 
 .challenge-content {
+	position: fixed;
+	bottom: 10%;
+	right: 0;
 	width: 100%;
 	height: 90%;
 	border: 0;
