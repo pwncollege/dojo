@@ -60,7 +60,14 @@ then
 fi
 [ -n "$WORKSPACE_DIR" ] && VOLUME_ARGS+=( "-v" "$WORKSPACE_DIR:/data/workspace:shared" )
 
-docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" -p 2222:22 -p 80:80 -p 443:443 --name "$DOJO_CONTAINER" pwncollege/dojo || exit 1
+docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" --name "$DOJO_CONTAINER" pwncollege/dojo || exit 1
+
+# Get container IP address
+CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER")
+export DOJO_URL="http://${CONTAINER_IP}"
+
+echo "Container IP: $CONTAINER_IP"
+echo "DOJO_URL: $DOJO_URL"
 
 # fix the insane routing thing
 read -a GW <<<$(ip route show default)
@@ -77,9 +84,9 @@ then
 	docker exec "$DOJO_CONTAINER" dojo restore "$BASENAME"
 fi
 
-until curl -Ls localhost.pwn.college | grep -q pwn; do sleep 1; done
+until curl -Ls "${CONTAINER_IP}" | grep -q pwn; do sleep 1; done
 
 docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
 docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 
-[ "$TEST" == "yes" ] && MOZ_HEADLESS=1 pytest -v test/test_running.py test/test_welcome.py
+[ "$TEST" == "yes" ] && MOZ_HEADLESS=1 DOJO_URL="$DOJO_URL" DOJO_SSH_HOST="$CONTAINER_IP" pytest -v test/test_running.py test/test_welcome.py test/test_ssh_keys.py

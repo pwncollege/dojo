@@ -84,6 +84,9 @@ def temp_ssh_keys():
             Path(key_type['private_file']).unlink(missing_ok=True)
 
 def ssh_command(private_key_file, command="echo 'SSH test successful'"):
+    ssh_host = os.getenv('DOJO_SSH_HOST', 'localhost')
+    ssh_port = 22
+    
     ssh_cmd = [
         'ssh',
         '-o', 'StrictHostKeyChecking=no',
@@ -91,8 +94,8 @@ def ssh_command(private_key_file, command="echo 'SSH test successful'"):
         '-o', 'PasswordAuthentication=no',
         '-o', 'ConnectTimeout=10',
         '-i', private_key_file,
-        '-p', '2222',
-        'hacker@localhost.pwn.college',
+        '-p', str(ssh_port),
+        f'hacker@{ssh_host}',
         command
     ]
     
