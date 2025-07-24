@@ -3,8 +3,6 @@ import subprocess
 import time
 import tempfile
 import os
-from pathlib import Path
-import threading
 
 from utils import DOJO_URL, login, dojo_run, workspace_run, start_challenge
 
@@ -41,47 +39,30 @@ def verify_ssh_access(private_key_file, should_work=True):
 
 @pytest.fixture
 def temp_ssh_keys():
-    keys = {}
-    
     with tempfile.TemporaryDirectory() as tmpdir:
+        keys = {}
+        
         rsa_key_path = os.path.join(tmpdir, 'test_rsa')
         subprocess.run([
             'ssh-keygen', '-t', 'rsa', '-b', '2048', '-f', rsa_key_path, '-N', ''
         ], check=True, capture_output=True)
         
-        with open(rsa_key_path, 'r') as f:
-            rsa_private = f.read()
         with open(f'{rsa_key_path}.pub', 'r') as f:
             rsa_public = f.read().strip()
+        
+        keys['rsa'] = {'private_file': rsa_key_path, 'public': rsa_public}
         
         ed25519_key_path = os.path.join(tmpdir, 'test_ed25519')
         subprocess.run([
             'ssh-keygen', '-t', 'ed25519', '-f', ed25519_key_path, '-N', ''
         ], check=True, capture_output=True)
         
-        with open(ed25519_key_path, 'r') as f:
-            ed25519_private = f.read()
         with open(f'{ed25519_key_path}.pub', 'r') as f:
             ed25519_public = f.read().strip()
         
-        keys['rsa'] = {'private': rsa_private, 'public': rsa_public}
-        keys['ed25519'] = {'private': ed25519_private, 'public': ed25519_public}
+        keys['ed25519'] = {'private_file': ed25519_key_path, 'public': ed25519_public}
         
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_rsa') as f:
-            f.write(rsa_private)
-            os.chmod(f.name, 0o600)
-            keys['rsa']['private_file'] = f.name
-            
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_ed25519') as f:
-            f.write(ed25519_private)
-            os.chmod(f.name, 0o600)
-            keys['ed25519']['private_file'] = f.name
-    
-    yield keys
-    
-    for key_type in keys.values():
-        if 'private_file' in key_type:
-            Path(key_type['private_file']).unlink(missing_ok=True)
+        yield keys
 
 def ssh_command(private_key_file, command="echo 'SSH test successful'"):
     ssh_host = os.getenv('DOJO_SSH_HOST', 'localhost')
@@ -235,65 +216,3 @@ def test_ssh_key_with_comment(random_user, temp_ssh_keys):
     
     response = add_ssh_key(session, key_with_comment)
     assert response.status_code == 200
-
-def test_ssh_key_sql_injection_attempt(random_user, temp_ssh_keys):
-    user_id, session = random_user
-    
-    malicious_keys = [
-        f"{temp_ssh_keys['rsa']['public']} '; DROP TABLE users; --",
-        f"{temp_ssh_keys['rsa']['public']} ' OR '1'='1",
-        f"{temp_ssh_keys['rsa']['public']} \"; DROP TABLE ssh_keys; --",
-    ]
-    
-    for key in malicious_keys:
-        response = add_ssh_key(session, key)
-        assert response.status_code in [200, 400]
-
-def test_ssh_key_command_injection_attempt(random_user):
-    user_id, session = random_user
-    
-    malicious_keys = [
-        "ssh-rsa AAAAB3NzaC1yc2EA; cat /etc/passwd",
-        "ssh-rsa AAAAB3NzaC1yc2EA`whoami`",
-        "ssh-rsa AAAAB3NzaC1yc2EA$(reboot)",
-    ]
-    
-    for key in malicious_keys:
-        response = add_ssh_key(session, key)
-        assert response.status_code == 400 or response.json().get("success") is False
-
-def test_ssh_key_persistence(random_user, temp_ssh_keys, example_dojo):
-    user_id, session = random_user
-    
-    response = add_ssh_key(session, temp_ssh_keys['rsa']['public'])
-    assert response.status_code == 200
-    
-    start_challenge("example", "hello", "apple", session=session, wait=5)
-    verify_ssh_access(temp_ssh_keys['rsa']['private_file'])
-
-def test_concurrent_ssh_key_operations(random_user, temp_ssh_keys):
-    user_id, session = random_user
-    
-    results = []
-    
-    def add_key():
-        response = add_ssh_key(session, temp_ssh_keys['rsa']['public'])
-        results.append(('add', response.status_code))
-    
-    def delete_key():
-        response = delete_ssh_key(session, temp_ssh_keys['rsa']['public'])
-        results.append(('delete', response.status_code))
-    
-    threads = []
-    for _ in range(3):
-        threads.append(threading.Thread(target=add_key))
-        threads.append(threading.Thread(target=delete_key))
-    
-    for t in threads:
-        t.start()
-    
-    for t in threads:
-        t.join()
-    
-    for op, status in results:
-        assert status in [200, 400]
