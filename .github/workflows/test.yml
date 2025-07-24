@@ -118,6 +118,7 @@ jobs:
         timeout-minutes: 4
         run: |
           export MOZ_HEADLESS=1
+          export DOJO_SSH_PORT=2222
           timeout 3m pytest -vrpP --durations=0 ./test || (docker exec dojo-test dojo compose logs && false)
 
       - name: Pack docker data cache
