@@ -165,7 +165,7 @@ case "$ACTION" in
         ;;
 
     *)
-        echo "Unknown command."
+        echo "Unknown command $0."
         echo ""
         "$0" help
         exit 1
