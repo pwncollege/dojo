@@ -240,11 +240,20 @@ function show_navbar() {
 function toggle_navbar() {
 	if (document.getElementsByClassName("navbar")[0].classList.contains("navbar-hidden")) {
 		show_navbar();
-		document.getElementById("fullscreen").innerHTML = "<i class=\"fas fa-expand fa-2x\"></i>";
 	}
 	else {
 		hide_navbar();
-		document.getElementById("fullscreen").innerHTML = "<i class=\"fas fa-compress fa-2x\"></i>";
+	}
+}
+
+// We pray this never has desync issues lol.
+function toggle_fullscreen_icon() {
+	var fullscreen = document.getElementById("fullscreen");
+	if (fullscreen.innerHTML == "<i class=\"fas fa-compress fa-2x\"></i>") {
+		fullscreen.innerHTML = "<i class=\"fas fa-expand fa-2x\"></i>";
+	}
+	else {
+		fullscreen.innerHTML = "<i class=\"fas fa-compress fa-2x\"></i>";
 	}
 }
 
@@ -254,6 +263,7 @@ function do_fullscreen() {
 
 function fullscreen_callback(event) {
 	event.preventDefault();
+	toggle_fullscreen_icon();
 	// If the window is not an iframe, this will refer to its own do_fullscreen function.
 	// Otherwise it will call the do_fullscreen function of the window which we are iframed into.
 	window.parent.do_fullscreen();
