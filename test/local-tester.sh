@@ -2,12 +2,16 @@
 
 cd $(dirname "${BASH_SOURCE[0]}")/..
 
+# Get the directory name of the git repo
+REPO_DIR=$(basename "$PWD")
+DEFAULT_CONTAINER_NAME="local-${REPO_DIR}"
+
 function usage {
 	set +x
 	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -T ] [ -p ]"
 	echo ""
 	echo "	-r	full path to db backup to restore"
-	echo "	-c	the name of the dojo container (default: dojo-test)"
+	echo "	-c	the name of the dojo container (default: local-<dirname>)"
 	echo "	-D	specify a directory for /data/docker (to avoid rebuilds)"
 	echo "	-W	specify a directory for /data/workspace (to avoid rebuilds)"
 	echo "	-T	don't run tests"
@@ -20,7 +24,7 @@ WORKDIR=$(mktemp -d /tmp/dojo-test-XXXXXX)
 VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared")
 ENV_ARGS=( )
 DB_RESTORE=""
-DOJO_CONTAINER=dojo-test
+DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
 TEST=yes
 DOCKER_DIR=""
 WORKSPACE_DIR=""
