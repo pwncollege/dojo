@@ -19,9 +19,7 @@ function usage {
 	exit
 }
 
-WORKDIR=$(mktemp -d /tmp/dojo-test-XXXXXX)
-
-VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared")
+VOLUME_ARGS=()
 ENV_ARGS=( )
 DB_RESTORE=""
 DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
@@ -48,6 +46,10 @@ do
 done
 shift $((OPTIND-1))
 
+WORKDIR=$(mktemp -d /tmp/local-data-${DOJO_CONTAINER}-XXXXXX)
+# Prepend the base volumes to the array
+VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared" "${VOLUME_ARGS[@]}")
+
 export DOJO_CONTAINER
 docker kill "$DOJO_CONTAINER" 2>/dev/null || echo "No $DOJO_CONTAINER container to kill."
 docker rm "$DOJO_CONTAINER" 2>/dev/null || echo "No $DOJO_CONTAINER container to remove."
@@ -55,7 +57,7 @@ while docker ps -a | grep "$DOJO_CONTAINER"; do sleep 1; done
 
 # freaking bad unmount
 sleep 1
-mount | grep /tmp/dojo-test- | sed -e "s/.* on //" | sed -e "s/ .*//" | tac | while read ENTRY
+mount | grep /tmp/local-data-${DOJO_CONTAINER}- | sed -e "s/.* on //" | sed -e "s/ .*//" | tac | while read ENTRY
 do
 	sudo umount "$ENTRY"
 done
