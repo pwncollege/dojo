@@ -68,7 +68,12 @@ case "$ACTION" in
     "compose")
         profile="main"
         [ "$WORKSPACE_NODE" -gt 0 ] && profile="workspace"
-        docker compose --env-file=/data/config.env --profile "$profile" "$@"
+
+        if [ "${ENABLE_SPLUNK}" = "true" ]; then
+            docker compose --env-file=/data/config.env --profile "$profile" --profile splunk "$@"
+        else
+            docker compose --env-file=/data/config.env --profile "$profile" "$@"
+        fi
         ;;
 
     # HELP: node: run a dojo node command
