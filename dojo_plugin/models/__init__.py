@@ -422,7 +422,8 @@ class DojoModules(db.Model):
     @delete_before_insert("_resources")
     def resources(self, value):
         for resource_index, resource in enumerate(value):
-            resource.resource_index = resource_index
+            if not hasattr(resource, 'resource_index') or resource.resource_index is None:
+                resource.resource_index = resource_index
         self._resources = value
 
     @property
@@ -432,6 +433,31 @@ class DojoModules(db.Model):
     @property
     def assessments(self):
         return [assessment for assessment in (self.dojo.course or {}).get("assessments", []) if assessment.get("id") == self.id]
+    
+    @property
+    def unified_items(self):
+        items = []
+        
+        for resource in self.resources:
+            items.append({
+                'type': 'resource',
+                'item': resource,
+                'index': resource.resource_index
+            })
+        
+        for challenge in self.challenges:
+            if challenge.original_index is not None:
+                index = challenge.original_index
+            else:
+                index = 1000 + challenge.challenge_index
+            items.append({
+                'type': 'challenge',
+                'item': challenge,
+                'index': index
+            })
+        
+        items.sort(key=lambda x: x['index'])
+        return items
 
     def visible_challenges(self, user=None):
         return [challenge for challenge in self.challenges if challenge.visible() or self.dojo.is_admin(user=user)]
@@ -478,7 +504,7 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey"]
+    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "original_index"]
     data_defaults = {
         "importable": True,
         "allow_privileged": True,

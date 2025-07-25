@@ -20,6 +20,13 @@ modules:
         video: hIK1Dfjxq4E
         slides: 1NjoOj03eQsjnZWhm-A3IsxTVqeWUqFvR4wgfXnhsnu4
         playlist: PLHhKcdBlprMfIBVorNvOfY5UiHJmOk9nh
+      - name: "Challenge A"
+        id: test
+        type: challenge
+        import:
+          dojo: example
+          module: hello
+          challenge: apple
       - name: "Resource D"
         type: markdown
         content: |
@@ -28,4 +35,10 @@ modules:
         type: lecture
         video: 1H1V1HkVt3k
         slides: 1_xdrCm136NzcDl9bqSgAEQuigUHkNjkKmamhaej296Q
-    challenges: []
+    challenges:
+      - name: "Challenge B"
+        id: testb
+        import:
+          dojo: example
+          module: hello
+          challenge: banana
