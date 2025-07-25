@@ -21,6 +21,98 @@ port_names = {
 }
 
 
+@workspace.route("/workspace", methods=["GET"])
+@authed_only
+def view_workspace_exp():
+    content = request.args.get("service")
+    hide_navbar = request.args.get("hide-navbar")
+    as_iframe = request.args.get("as-iframe")
+
+    if content is None:
+        content = "default"
+    if hide_navbar is None:
+        hide_navbar = False
+    else:
+        hide_navbar = hide_navbar == "true"
+    if as_iframe is None:
+        as_iframe = False
+    else:
+        as_iframe = as_iframe == "true"
+
+
+    opt_vscode = {"VSCode": "GET&RENDER:iframe_src:/pwncollege_api/v1/workspace?service=code"}
+    opt_desktop = {"Desktop": "GET&RENDER:iframe_src:/pwncollege_api/v1/workspace?service=desktop"}
+    opt_ssh = {"SSH": "RENDER:/settings#ssh-key"}
+
+    workspace_default = "VSCode" # Set by challenge.
+    workspace_previous = "VSCode" # Set by previous session.
+    workspace_options = {} # Set by challenge.
+
+    # For now, add all the "standard" options.
+    workspace_options = workspace_options | opt_vscode | opt_desktop | opt_ssh
+
+
+    if content == "default":
+        workspace_active = workspace_default
+
+    elif content == "none":
+        if workspace_previous in workspace_options:
+            workspace_active = workspace_previous
+        else:
+            workspace_active = workspace_default
+
+    elif content == "vscode":
+        if "VSCode" in workspace_options:
+            workspace_active = "VSCode"
+        else:
+            abort(404)
+
+    elif content == "desktop":
+        if "Desktop" in workspace_options:
+            workspace_active = "Desktop"
+        else:
+            abort(404)
+
+    elif content == "SSH":
+        if "SSH" in workspace_options:
+            workspace_active = "SSH"
+        else:
+            abort(404)
+
+    else:
+        # Unknown content option.
+        abort(404)
+
+
+    allow_fullscreen = (not hide_navbar or as_iframe)
+
+
+    current_challenge = get_current_dojo_challenge()
+    if current_challenge is None:
+        abort(404) # TODO: Tell the user to start a challenge instead.
+
+
+    flag_field_width = 50
+    if not current_challenge.allow_privileged:
+        flag_field_width += 10
+    if not allow_fullscreen:
+        flag_field_width += 10
+    if len(workspace_options) <= 1:
+        flag_field_width += 10
+    flag_field_width = str(flag_field_width) + "%"
+
+
+    return render_template(
+        "workspace_exp.html",
+        flag_field_width=flag_field_width,
+        fullscreen_allowed=allow_fullscreen,
+        challenge=current_challenge,
+        hide_navbar=hide_navbar,
+        workspace_active=workspace_active,
+        workspace_options=workspace_options,
+        workspace_selectable=(len(workspace_options) > 1))
+
+
 @workspace.route("/workspace/<service>")
 @authed_only
 def view_workspace(service):

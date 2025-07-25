@@ -4,6 +4,12 @@ function submitChallenge(event) {
     const challenge_id = parseInt(item.find('#challenge-id').val())
     const submission = item.find('#challenge-input').val()
 
+    const flag_regex = /pwn.college{.*}/;
+    if (submission.match(flag_regex) == null) {
+        return;
+    }
+    item.find("#challenge-input").val("");
+
     item.find("#challenge-submit").addClass("disabled-button");
     item.find("#challenge-submit").prop("disabled", true);
 
@@ -269,6 +275,12 @@ function startChallenge(event) {
         item.find("#challenge-practice").removeClass("disabled-button");
         item.find("#challenge-practice").prop("disabled", false);
 
+        $(".challenge-init").removeClass("challenge-hidden");
+        $(".challenge-workspace").removeClass("workspace-fullscreen");
+        $(".challenge-workspace").html("");
+        item.find(".challenge-workspace").html("<iframe class=\"challenge-iframe\" src=\"/workspace?as-iframe=true&hide-navbar=true\"></iframe>");
+        item.find(".challenge-init").addClass("challenge-hidden");
+
         setTimeout(function() {
             item.find(".alert").slideUp();
             item.find("#challenge-submit").removeClass("disabled-button");
@@ -358,6 +370,54 @@ function markChallengeAsSolved(item) {
         .catch(error => console.error("Award check failed:", error));
 }
 
+var scroll_pos_x;
+var scroll_pox_y;
+
+function scroll_disable() {
+    scroll_pos_x = window.pageXOffset;
+    scroll_pos_y = window.pageYOffset;
+    document.body.classList.add("scroll-disabled");
+}
+
+function scroll_restore() {
+    document.body.classList.remove("scroll-disabled");
+    window.pageXOffset = scroll_pos_x;
+    window.pageYOffset = scroll_pos_y;
+}
+
+function content_expand() {
+    $(".challenge-workspace").addClass("workspace-fullscreen");
+    $(".challenge-iframe").addClass("challenge-iframe-fs");
+    $(".navbar").addClass("fullscreen-hidden");
+    $(".navbar-pulldown").addClass("fullscreen-hidden");
+    $("#scoreboard-heading").addClass("fullscreen-hidden");
+    $(".scoreboard-controls").addClass("fullscreen-hidden");
+    $(".scoreboard").addClass("fullscreen-hidden");
+    $(".alert").addClass("fullscreen-hidden");
+    scroll_disable();
+}
+
+function content_contract() {
+    $(".challenge-workspace").removeClass("workspace-fullscreen");
+    $(".challenge-iframe").removeClass("challenge-iframe-fs");
+    $(".navbar").removeClass("fullscreen-hidden");
+    $(".navbar-pulldown").removeClass("fullscreen-hidden");
+    $("#scoreboard-heading").removeClass("fullscreen-hidden");
+    $(".scoreboard-controls").removeClass("fullscreen-hidden");
+    $(".scoreboard").removeClass("fullscreen-hidden");
+    $(".alert").removeClass("fullscreen-hidden");
+    scroll_restore();
+}
+
+function do_fullscreen() {
+    if ($(".workspace-fullscreen")[0]) {
+        content_contract();
+    }
+    else {
+        content_expand();
+    }
+}
+
 $(() => {
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
@@ -388,9 +448,11 @@ $(() => {
     });
 
 
-    $(".accordion-item").find("#challenge-submit").click(submitChallenge);
+    var submits = $(".accordion-item").find("#challenge-input");
+    for (var i = 0; i < submits.length; i++) {
+        submits[i].oninput = submitChallenge;
+    }
     $(".accordion-item").find("#challenge-start").click(startChallenge);
-    $(".accordion-item").find("#challenge-practice").click(startChallenge);
 
     $(".accordion-item").find("#survey-thumbs-up").click(clickSurveyThumb)
     $(".accordion-item").find("#survey-thumbs-down").click(clickSurveyThumb)
