@@ -387,11 +387,13 @@ function scroll_restore() {
 
 function content_expand() {
     $(".challenge-workspace").addClass("workspace-fullscreen");
+    $(".challenge-iframe").addClass("challenge-iframe-fs");
     scroll_disable();
 }
 
 function content_contract() {
     $(".challenge-workspace").removeClass("workspace-fullscreen");
+    $(".challenge-iframe").removeClass("challenge-iframe-fs");
     scroll_restore();
 }
 
