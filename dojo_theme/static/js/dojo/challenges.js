@@ -370,12 +370,37 @@ function markChallengeAsSolved(item) {
         .catch(error => console.error("Award check failed:", error));
 }
 
+var scroll_pos_x;
+var scroll_pox_y;
+
+function scroll_disable() {
+    scroll_pos_x = window.pageXOffset;
+    scroll_pos_y = window.pageYOffset;
+    document.body.classList.add("scroll-disabled");
+}
+
+function scroll_restore() {
+    document.body.classList.remove("scroll-disabled");
+    window.pageXOffset = scroll_pos_x;
+    window.pageYOffset = scroll_pos_y;
+}
+
+function content_expand() {
+    $(".challenge-workspace").addClass("workspace-fullscreen");
+    scroll_disable();
+}
+
+function content_contract() {
+    $(".challenge-workspace").removeClass("workspace-fullscreen");
+    scroll_restore();
+}
+
 function do_fullscreen() {
     if ($(".workspace-fullscreen")[0]) {
-        $(".challenge-workspace").removeClass("workspace-fullscreen");
+        content_contract();
     }
     else {
-        $(".challenge-workspace").addClass("workspace-fullscreen");
+        content_expand();
     }
 }
 
