@@ -182,6 +182,46 @@ DOJO_SPEC = Schema({
                 Optional("slides"): str,
                 **VISIBILITY,
             },
+            {
+                "type": "challenge",
+                "id": ID_REGEX,
+                "name": NAME_REGEX,
+                Optional("description"): str,
+                **VISIBILITY,
+                Optional("image"): IMAGE_REGEX,
+                Optional("allow_privileged"): bool,
+                Optional("importable"): bool,
+                Optional("progression_locked"): bool,
+                Optional("auxiliary"): dict,
+                Optional("import"): {
+                    Optional("dojo"): UNIQUE_ID_REGEX,
+                    Optional("module"): ID_REGEX,
+                    "challenge": ID_REGEX,
+                },
+                Optional("transfer"): {
+                    Optional("dojo"): UNIQUE_ID_REGEX,
+                    Optional("module"): ID_REGEX,
+                    "challenge": ID_REGEX,
+                },
+                Optional("survey"): Or(
+                    {
+                        "type": "multiplechoice",
+                        "prompt": str,
+                        Optional("probability"): float,
+                        "options": [str],
+                    },
+                    {
+                        "type": "thumb",
+                        "prompt": str,
+                        Optional("probability"): float,
+                    },
+                    {
+                        "type": "freeform",  
+                        "prompt": str,
+                        Optional("probability"): float,
+                    },
+                ),
+            },
         )],
 
         Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
@@ -385,6 +425,16 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
         datas_import = [data.get("import", {}) for data in datas]
         return tuple(shadow(id, *datas_import) for id in attrs)
 
+    challenge_resources = []
+    regular_resources = []
+    for module_data in dojo_data.get("modules", []):
+        for resource_index, resource_data in enumerate(module_data.get("resources", [])):
+            if resource_data.get("type") == "challenge":
+                resource_data["original_index"] = resource_index
+                challenge_resources.append((module_data, resource_data))
+            else:
+                regular_resources.append((module_data, resource_data))
+
     dojo.modules = [
         DojoModules(
             **{kwarg: module_data.get(kwarg) for kwarg in ["id", "name", "description"]},
@@ -403,16 +453,22 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
                                         f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")
                              if "import" in challenge_data else None),
+                    original_index=challenge_data.get("original_index"),
                 )
-                for challenge_data in module_data["challenges"]
-            ] if "challenges" in module_data else None,
+                for challenge_data in (
+                    [r for m, r in challenge_resources if m == module_data] + 
+                    module_data.get("challenges", [])
+                )
+            ],
             resources = [
                 DojoResources(
                     **{kwarg: resource_data.get(kwarg) for kwarg in ["name", "type", "content", "video", "playlist", "slides"]},
                     visibility=visibility(DojoResourceVisibilities, dojo_data, module_data, resource_data),
+                    resource_index=resource_index,
                 )
-                for resource_data in module_data["resources"]
-            ] if "resources" in module_data else None,
+                for resource_index, resource_data in enumerate(module_data.get("resources", []))
+                if resource_data.get("type") != "challenge"
+            ],
             default=(assert_import_one(DojoModules.from_id(*import_ids(["dojo", "module"], dojo_data, module_data)),
                                 f"Import module `{'/'.join(import_ids(['dojo', 'module'], dojo_data, module_data))}` does not exist")
                      if "import" in module_data else None),
