@@ -35,6 +35,10 @@
     {% for entry in module.unified_items %}
       {% if entry.type == 'resource' %}
         {% set resource = entry.item %}
+        {% if resource.type == 'header' %}
+          <br>
+          <h2>{{ resource.content }}</h2>
+        {% else %}
         {% call(header) accordion_item("module-content", loop.index) %}
           {% if header %}
             {% set resource_icon = "fa-video" if resource.type == "lecture" else "fa-file-alt" %}
@@ -65,6 +69,7 @@
             {% endif %}
           {% endif %}
         {% endcall %}
+        {% endif %}
       {% elif entry.type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
         {% set challenge = entry.item %}
         {% set ns.challenge_count = ns.challenge_count + 1 %}

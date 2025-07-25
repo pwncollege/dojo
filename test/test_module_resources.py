@@ -83,7 +83,8 @@ def test_unified_ordering(module_resources_dojo, admin_session, example_dojo):
     
     items = [
         "Resource A",
-        "Resource B", 
+        "Resource B",
+        "Advanced Section",
         "Resource C",
         "Challenge A",
         "Resource D",
@@ -98,3 +99,21 @@ def test_unified_ordering(module_resources_dojo, admin_session, example_dojo):
     
     for i in range(len(positions) - 1):
         assert positions[i] < positions[i+1], f"{items[i]} (at {positions[i]}) should appear before {items[i+1]} (at {positions[i+1]})"
+
+
+def test_header_resources(module_resources_dojo, admin_session, example_dojo):
+    """Test that header resources render correctly"""
+    dojo_id = module_resources_dojo
+    
+    response = admin_session.get(f"{DOJO_URL}/{dojo_id}/test/")
+    assert response.status_code == 200
+    page_content = response.text
+    
+    assert "<hr>" in page_content
+    assert "<h2>Advanced Section</h2>" in page_content
+    
+    pos_b = page_content.find("Resource B")
+    pos_header = page_content.find("<h2>Advanced Section</h2>")
+    pos_c = page_content.find("Resource C")
+    
+    assert pos_b < pos_header < pos_c, f"Header should be between Resource B and C"
