@@ -109,7 +109,7 @@ def test_header_resources(module_resources_dojo, admin_session, example_dojo):
     assert response.status_code == 200
     page_content = response.text
     
-    assert "<hr>" in page_content
+    assert "<br>" in page_content
     assert "<h2>Advanced Section</h2>" in page_content
     
     pos_b = page_content.find("Resource B")
