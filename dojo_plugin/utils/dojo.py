@@ -183,6 +183,11 @@ DOJO_SPEC = Schema({
                 **VISIBILITY,
             },
             {
+                "type": "header",
+                "content": str,
+                **VISIBILITY,
+            },
+            {
                 "type": "challenge",
                 "id": ID_REGEX,
                 "name": NAME_REGEX,
