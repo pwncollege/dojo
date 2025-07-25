@@ -56,7 +56,7 @@ VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared" "${VOLUME
 export DOJO_CONTAINER
 docker kill "$DOJO_CONTAINER" 2>/dev/null || echo "No $DOJO_CONTAINER container to kill."
 docker rm "$DOJO_CONTAINER" 2>/dev/null || echo "No $DOJO_CONTAINER container to remove."
-while docker ps -a | grep "$DOJO_CONTAINER"; do sleep 1; done
+while docker ps -a | grep "$DOJO_CONTAINER$"; do sleep 1; done
 
 # freaking bad unmount
 sleep 1
@@ -112,4 +112,4 @@ until curl -Ls "${CONTAINER_IP}" | grep -q pwn; do sleep 1; done
 docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
 docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 
-[ "$TEST" == "yes" ] && MOZ_HEADLESS=1 DOJO_URL="$DOJO_URL" DOJO_SSH_HOST="$CONTAINER_IP" pytest --order-dependencies -v test
+[ "$TEST" == "yes" ] && MOZ_HEADLESS=1 DOJO_URL="$DOJO_URL" DOJO_SSH_HOST="$CONTAINER_IP" pytest --order-dependencies -v test "$@"
