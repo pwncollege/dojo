@@ -388,12 +388,24 @@ function scroll_restore() {
 function content_expand() {
     $(".challenge-workspace").addClass("workspace-fullscreen");
     $(".challenge-iframe").addClass("challenge-iframe-fs");
+    $(".navbar").addClass("fullscreen-hidden");
+    $(".navbar-pulldown").addClass("fullscreen-hidden");
+    $("#scoreboard-heading").addClass("fullscreen-hidden");
+    $(".scoreboard-controls").addClass("fullscreen-hidden");
+    $(".scoreboard").addClass("fullscreen-hidden");
+    $(".alert").addClass("fullscreen-hidden");
     scroll_disable();
 }
 
 function content_contract() {
     $(".challenge-workspace").removeClass("workspace-fullscreen");
     $(".challenge-iframe").removeClass("challenge-iframe-fs");
+    $(".navbar").removeClass("fullscreen-hidden");
+    $(".navbar-pulldown").removeClass("fullscreen-hidden");
+    $("#scoreboard-heading").removeClass("fullscreen-hidden");
+    $(".scoreboard-controls").removeClass("fullscreen-hidden");
+    $(".scoreboard").removeClass("fullscreen-hidden");
+    $(".alert").removeClass("fullscreen-hidden");
     scroll_restore();
 }
 
