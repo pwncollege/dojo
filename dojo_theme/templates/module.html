@@ -37,7 +37,11 @@
         {% set resource = entry.item %}
         {% call(header) accordion_item("module-content", loop.index) %}
           {% if header %}
-            <h4 class="accordion-item-name">{{ resource.name }}</h4>
+            {% set resource_icon = "fa-video" if resource.type == "lecture" else "fa-file-alt" %}
+            <h4 class="accordion-item-name">
+              <i class="resource-icon pr-3 fas {{ resource_icon }}"></i>
+              <span class="pr-2">{{ resource.name }}</span>
+            </h4>
           {% else %}
             {% if resource.type == "lecture" %}
             {% if resource.video %}
