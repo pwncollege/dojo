@@ -67,6 +67,7 @@
         {% endcall %}
       {% elif entry.type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
         {% set challenge = entry.item %}
+        {% set ns.challenge_count = ns.challenge_count + 1 %}
         {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
         {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
         
@@ -89,9 +90,9 @@
         {% set hidden = not challenge.visible() %}
         {% set icon = "fa-lock" if lock_challenge else "fa-flag" %}
 
-        {% call(header) accordion_item("module-content", loop.index, lock_challenge) %}
+        {% call(header) accordion_item("module-content", loop.index, lock_challenge, challenge_index=ns.challenge_count) %}
           {% if header %}
-            <h4 class="accordion-item-name challenge-name {{ active }}">
+            <h4 class="accordion-item-name challenge-name {{ active }}" data-challenge-index="{{ ns.challenge_count }}" data-challenge-name="{{ challenge.name or challenge.id }}" id="challenges-header-{{ ns.challenge_count }}">
                 <i class="challenge-icon pr-3 fas {{ icon }} {{ solved }} "></i>
                 {% if lock_challenge %}
                 <div class="challenge-text-wrapper">
@@ -203,7 +204,6 @@
             </div>
           {% endif %}
         {% endcall %}
-        {% set ns.challenge_count = ns.challenge_count + 1 %}
       {% endif %}
     {% endfor %}
   </div>
