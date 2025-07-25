@@ -23,6 +23,9 @@ def random_user_browser(random_user):
     browser.find_element("id", "name").send_keys(random_id)
     browser.find_element("id", "password").send_keys(random_id)
     browser.find_element("id", "_submit").click()
+    
+    browser.execute_script("localStorage.setItem('groundRulesAccepted', 'true');")
+    
     return random_id, random_session, browser
 
 
@@ -149,4 +152,58 @@ def test_welcome_practice(random_user_browser, welcome_dojo):
         time.sleep(5)
         flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
     challenge_submit(browser, idx, flag)
+    browser.close()
+
+
+def test_ground_rules_modal(random_user, welcome_dojo):
+    """Test that ground rules modal appears on first challenge start but not on second"""
+    random_id, random_session = random_user
+    
+    options = FirefoxOptions()
+    options.add_argument("--headless")
+    browser = Firefox(options=options)
+    
+    browser.get(f"{DOJO_URL}/login")
+    browser.find_element("id", "name").send_keys(random_id)
+    browser.find_element("id", "password").send_keys(random_id)
+    browser.find_element("id", "_submit").click()
+    time.sleep(1)  # Wait for login to complete
+    
+    browser.get(f"{DOJO_URL}/welcome/welcome")
+    time.sleep(1)  # Wait for page to fully load
+    idx = challenge_idx(browser, "The Flag File")
+    
+    challenge_expand(browser, idx)
+    body = browser.find_element("id", f"challenges-body-{idx}")
+    body.find_element("id", "challenge-start").click()
+    
+    wait = WebDriverWait(browser, 5)
+    wait.until(EC.visibility_of_element_located((By.ID, "groundRulesModal")))
+    
+    modal = browser.find_element("id", "groundRulesModal")
+    assert "show" in modal.get_attribute("class"), "Ground rules modal should be displayed on first challenge start"
+    
+    browser.execute_script("""
+        localStorage.setItem('groundRulesAccepted', 'true');
+        $('#groundRulesModal').modal('hide');
+        window.startChallenge(window.pendingChallengeEvent);
+    """)
+    
+    time.sleep(1)
+    while "started" not in body.find_element("id", "result-message").text:
+        time.sleep(0.5)
+    
+    browser.get(f"{DOJO_URL}/welcome/welcome")
+    idx2 = challenge_idx(browser, "Challenge Programs")
+    challenge_expand(browser, idx2)
+    body2 = browser.find_element("id", f"challenges-body-{idx2}")
+    body2.find_element("id", "challenge-start").click()
+    
+    time.sleep(1)
+    modal = browser.find_element("id", "groundRulesModal")
+    assert "show" not in modal.get_attribute("class"), "Ground rules modal should NOT be displayed on second challenge start"
+    
+    while "started" not in body2.find_element("id", "result-message").text:
+        time.sleep(0.5)
+    
     browser.close()

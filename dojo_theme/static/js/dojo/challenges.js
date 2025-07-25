@@ -174,6 +174,13 @@ function unlockChallenge(challenge_button) {
 
 function startChallenge(event) {
     event.preventDefault();
+    
+    if (!localStorage.getItem('groundRulesAccepted')) {
+        window.pendingChallengeEvent = event;
+        $('#groundRulesModal').modal('show');
+        return;
+    }
+    
     const item = $(event.currentTarget).closest(".accordion-item");
     const module = item.find("#module").val()
     const challenge = item.find("#challenge").val()
