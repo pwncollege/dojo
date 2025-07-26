@@ -439,25 +439,17 @@ class DojoModules(db.Model):
         items = []
         
         for resource in self.resources:
-            items.append({
-                'type': 'resource',
-                'item': resource,
-                'index': resource.resource_index
-            })
+            items.append((resource.resource_index, resource))
         
         for challenge in self.challenges:
             if challenge.original_index is not None:
                 index = challenge.original_index
             else:
                 index = 1000 + challenge.challenge_index
-            items.append({
-                'type': 'challenge',
-                'item': challenge,
-                'index': index
-            })
+            items.append((index, challenge))
         
-        items.sort(key=lambda x: x['index'])
-        return items
+        items.sort(key=lambda x: x[0])
+        return [item for _, item in items]
 
     def visible_challenges(self, user=None):
         return [challenge for challenge in self.challenges if challenge.visible() or self.dojo.is_admin(user=user)]
@@ -486,6 +478,7 @@ class DojoModules(db.Model):
 
 class DojoChallenges(db.Model):
     __tablename__ = "dojo_challenges"
+    item_type = "challenge"
     __table_args__ = (
         db.ForeignKeyConstraint(["dojo_id"], ["dojos.dojo_id"], ondelete="CASCADE"),
         db.ForeignKeyConstraint(["dojo_id", "module_index"],
@@ -663,6 +656,7 @@ class SurveyResponses(db.Model):
 
 class DojoResources(db.Model):
     __tablename__ = "dojo_resources"
+    item_type = "resource"
 
     __table_args__ = (
         db.ForeignKeyConstraint(["dojo_id", "module_index"],

@@ -32,9 +32,9 @@
 
   <div class="accordion" id="module-content">
     {% set ns = namespace(challenge_count=0) %}
-    {% for entry in module.unified_items %}
-      {% if entry.type == 'resource' %}
-        {% set resource = entry.item %}
+    {% for item in module.unified_items %}
+      {% if item.item_type == 'resource' %}
+        {% set resource = item %}
         {% if resource.type == 'header' %}
           <br>
           <h2>{{ resource.content }}</h2>
@@ -70,17 +70,17 @@
           {% endif %}
         {% endcall %}
         {% endif %}
-      {% elif entry.type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
-        {% set challenge = entry.item %}
+      {% elif item.item_type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
+        {% set challenge = item %}
         {% set ns.challenge_count = ns.challenge_count + 1 %}
         {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
         {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
         
         {% set previous_challenge = None %}
         {% set visible_challenges = [] %}
-        {% for prev_entry in module.unified_items[:loop.index0] %}
-          {% if prev_entry.type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
-            {% set _ = visible_challenges.append(prev_entry.item) %}
+        {% for prev_item in module.unified_items[:loop.index0] %}
+          {% if prev_item.item_type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
+            {% set _ = visible_challenges.append(prev_item) %}
           {% endif %}
         {% endfor %}
         {% if visible_challenges %}
@@ -217,9 +217,9 @@
   {% endif %}
 
   {% set visible_challenges = [] %}
-  {% for entry in module.unified_items %}
-    {% if entry.type == 'challenge' %}
-      {% set _ = visible_challenges.append(entry.item) %}
+  {% for item in module.unified_items %}
+    {% if item.item_type == 'challenge' %}
+      {% set _ = visible_challenges.append(item) %}
     {% endif %}
   {% endfor %}
   
