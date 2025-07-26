@@ -442,8 +442,8 @@ class DojoModules(db.Model):
             items.append((resource.resource_index, resource))
         
         for challenge in self.challenges:
-            if challenge.original_index is not None:
-                index = challenge.original_index
+            if challenge.unified_index is not None:
+                index = challenge.unified_index
             else:
                 index = 1000 + challenge.challenge_index
             items.append((index, challenge))
@@ -497,7 +497,7 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "original_index"]
+    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index"]
     data_defaults = {
         "importable": True,
         "allow_privileged": True,
