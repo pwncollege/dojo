@@ -83,6 +83,40 @@
       </div>
     </footer>
 
+    <!-- Ground Rules Modal -->
+    <div id="groundRulesModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="groundRulesModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content bg-dark text-white rounded-lg shadow-lg">
+          <div class="modal-header border-bottom border-secondary">
+            <h5 class="modal-title brand-mono-bold" id="groundRulesModalLabel">pwn.college Ground Rules</h5>
+          </div>
+          <div class="modal-body p-4">
+            <p class="lead">Please read and acknowledge the ground rules before starting challenges:</p>
+            
+            <div class="alert alert-warning mt-3 mb-4">
+              <h6 class="alert-heading brand-mono-bold">Important Notice</h6>
+              <p class="mb-0">The challenges created for pwn.college are, first and foremost, educational material, and are used to grade students at universities around the world. Because of this, we would appreciate that you <strong>do not post writeups, walkthrough videos, and livestreams of challenge solutions</strong> to the internet.</p>
+            </div>
+            
+            <p>Obviously, we can't enforce this, but we worked hard to make all of this public, and we would appreciate your help in keeping pwn.college a viable educational platform.</p>
+            
+            <div class="form-group mt-4">
+              <label for="groundRulesInput" class="font-weight-bold">To continue, please type the following exactly:</label>
+              <p class="text-info">I have read the ground rules and commit to not publish writeups on the internet.</p>
+              <input type="text" class="form-control bg-dark text-white border-secondary" id="groundRulesInput" placeholder="Type the confirmation text here..." autocomplete="off">
+              <div class="invalid-feedback">
+                Please type the exact confirmation text.
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer border-top border-secondary">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="acceptGroundRules" disabled>Accept and Continue</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script defer src="{{ url_for('views.themes', path='js/vendor.bundle.js') }}"></script>
     <script defer src="{{ url_for('views.themes', path='js/core.js') }}"></script>
     <script defer src="{{ url_for('views.themes', path='js/helpers.js') }}"></script>
@@ -94,6 +128,7 @@
     <script defer src="{{ url_for('views.themes', path='js/dojo/util.js') }}"></script>
     <script defer src="{{ url_for('views.themes', path='js/dojo/navbar.js') }}"></script>
     <script defer src="{{ url_for('views.themes', path='js/dojo/popup.js') }}"></script>
+    <script defer src="{{ url_for('views.themes', path='js/dojo/groundrules.js') }}"></script>
 
     {% block scripts %}
     {% endblock %}

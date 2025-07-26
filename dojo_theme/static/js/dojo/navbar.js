@@ -73,6 +73,13 @@ async function updateNavbarDropdown() {
 
 function DropdownStartChallenge(event) {
     event.preventDefault();
+    
+    if (!localStorage.getItem('groundRulesAccepted')) {
+        window.pendingNavbarChallengeEvent = event;
+        $('#groundRulesModal').modal('show');
+        return;
+    }
+    
     const item = $(event.currentTarget).closest(".overflow-hidden");
     const module = item.find("#module").val()
     const challenge = item.find("#challenge").val()
