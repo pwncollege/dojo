@@ -435,7 +435,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     for module_data in dojo_data.get("modules", []):
         for resource_index, resource_data in enumerate(module_data.get("resources", [])):
             if resource_data.get("type") == "challenge":
-                resource_data["original_index"] = resource_index
+                resource_data["unified_index"] = resource_index
                 challenge_resources.append((module_data, resource_data))
             else:
                 regular_resources.append((module_data, resource_data))
@@ -458,7 +458,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
                                         f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")
                              if "import" in challenge_data else None),
-                    original_index=challenge_data.get("original_index"),
+                    unified_index=challenge_data.get("unified_index"),
                 )
                 for challenge_data in (
                     [r for m, r in challenge_resources if m == module_data] + 
