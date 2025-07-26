@@ -124,48 +124,7 @@ DOJO_SPEC = Schema({
             },
         ),
 
-        Optional("challenges", default=[]): [{
-            **ID_NAME_DESCRIPTION,
-            **VISIBILITY,
-
-            Optional("image"): IMAGE_REGEX,
-            Optional("allow_privileged"): bool,
-            Optional("importable"): bool,
-            Optional("progression_locked"): bool,
-            Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
-            # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
-
-            Optional("import"): {
-                Optional("dojo"): UNIQUE_ID_REGEX,
-                Optional("module"): ID_REGEX,
-                "challenge": ID_REGEX,
-            },
-
-            Optional("transfer"): {
-                Optional("dojo"): UNIQUE_ID_REGEX,
-                Optional("module"): ID_REGEX,
-                "challenge": ID_REGEX,
-            },
-
-            Optional("survey"): Or(
-                {
-                    "type": "multiplechoice",
-                    "prompt": str,
-                    Optional("probability"): float,
-                    "options": [str],
-                },
-                {
-                    "type": "thumb",
-                    "prompt": str,
-                    Optional("probability"): float,
-                },
-                {
-                    "type": "freeform",
-                    "prompt": str,
-                    Optional("probability"): float,
-                },
-            )
-        }],
+        Optional("challenges", default=[]): [dict],
 
         Optional("resources", default=[]): [Or(
             {
@@ -300,14 +259,29 @@ def load_dojo_subyamls(data, dojo_dir):
         setdefault_file(module_data, "description", module_dir / "DESCRIPTION.md")
         setdefault_name(module_data)
 
-        for challenge_data in module_data.get("challenges", []):
-            if "id" not in challenge_data:
-                continue
+        challenges = module_data.pop("challenges", [])
+        if challenges:
+            if "resources" not in module_data:
+                module_data["resources"] = []
+            
+            for challenge_data in challenges:
+                if "import" in challenge_data and "id" not in challenge_data:
+                    challenge_data["id"] = challenge_data["import"]["challenge"]
+                
+                if "id" not in challenge_data:
+                    continue
 
-            challenge_dir = module_dir / challenge_data["id"]
-            setdefault_subyaml(challenge_data, challenge_dir / "challenge.yml")
-            setdefault_file(challenge_data, "description", challenge_dir / "DESCRIPTION.md")
-            setdefault_name(challenge_data)
+                challenge_dir = module_dir / challenge_data["id"]
+                setdefault_subyaml(challenge_data, challenge_dir / "challenge.yml")
+                setdefault_file(challenge_data, "description", challenge_dir / "DESCRIPTION.md")
+                setdefault_name(challenge_data)
+                
+                challenge_data["type"] = "challenge"
+                
+                if "import" in challenge_data and "name" not in challenge_data:
+                    challenge_data["name"] = challenge_data.get("id", "Imported Challenge").replace("-", " ").title()
+                
+                module_data["resources"].append(challenge_data)
 
     return data
 
@@ -460,10 +434,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                              if "import" in challenge_data else None),
                     unified_index=challenge_data.get("unified_index"),
                 )
-                for challenge_data in (
-                    [r for m, r in challenge_resources if m == module_data] + 
-                    module_data.get("challenges", [])
-                )
+                for challenge_data in [r for m, r in challenge_resources if m == module_data]
             ],
             resources = [
                 DojoResources(
