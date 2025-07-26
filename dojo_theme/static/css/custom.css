@@ -227,6 +227,11 @@ p[data-hide="true"] {
     width: 2.5rem;
 }
 
+.resource-icon {
+    width: 2.5rem;
+    color: #6c757d;
+}
+
 /* Styles for greying out the challenges button if it is disabled */
 .accordion-item-header:has(.disabled)  {
     opacity: 0.6 !important;

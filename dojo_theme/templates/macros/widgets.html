@@ -45,17 +45,17 @@
   </a>
 {%- endmacro %}
 
-{% macro accordion_item(accordion_id, item_id, is_disabled) %}
+{% macro accordion_item(accordion_id, item_id, is_disabled, challenge_index=None) %}
   <div class="accordion-item">
     <div class="accordion-item-header" id="{{ accordion_id }}-header-{{ item_id }}">
       <h2 class="mb-0 button-wrapper">
-        <button id="{{ accordion_id }}-header-button-{{ item_id }}" class="btn btn-link text-decoration-none w-100 challenge-button-2 collapsed {% if is_disabled %}disabled{% endif %}" type="button" data-toggle="collapse" data-target="#{{ accordion_id }}-body-{{ item_id }}" aria-expanded="false" aria-controls="{{ accordion_id }}-body-{{ item_id }}">
+        <button id="{% if challenge_index %}challenges-header-button-{{ challenge_index }}{% else %}{{ accordion_id }}-header-button-{{ item_id }}{% endif %}" class="btn btn-link text-decoration-none w-100 challenge-button-2 collapsed {% if is_disabled %}disabled{% endif %}" type="button" data-toggle="collapse" data-target="#{% if challenge_index %}challenges-body-{{ challenge_index }}{% else %}{{ accordion_id }}-body-{{ item_id }}{% endif %}" aria-expanded="false" aria-controls="{% if challenge_index %}challenges-body-{{ challenge_index }}{% else %}{{ accordion_id }}-body-{{ item_id }}{% endif %}">
           {{ caller(True) }}
         </button>
       </h2>
     </div>
 
-    <div id="{{ accordion_id }}-body-{{ item_id }}" class="collapse" aria-labelledby="{{ accordion_id }}-header-{{ item_id }}" data-parent="#{{ accordion_id }}">
+    <div id="{% if challenge_index %}challenges-body-{{ challenge_index }}{% else %}{{ accordion_id }}-body-{{ item_id }}{% endif %}" class="collapse" aria-labelledby="{{ accordion_id }}-header-{{ item_id }}" data-parent="#{{ accordion_id }}">
       <div class="accordion-item-body">
         {{ caller(False) }}
       </div>
