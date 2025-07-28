@@ -280,6 +280,7 @@ function startChallenge(event) {
         $(".challenge-workspace").html("");
         item.find(".challenge-workspace").html("<iframe class=\"challenge-iframe\" src=\"/workspace?as-iframe=true&hide-navbar=true\"></iframe>");
         item.find(".challenge-init").addClass("challenge-hidden");
+        window_resize_callback("");
 
         setTimeout(function() {
             item.find(".alert").slideUp();
@@ -466,4 +467,5 @@ $(() => {
     $(".accordion-item").find("#survey-submit").click(clickSurveySubmit)
 
     window.addEventListener("resize", window_resize_callback, true);
+    window_resize_callback("");
 });
