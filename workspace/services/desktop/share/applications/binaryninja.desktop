@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Binary Ninja Free
+Comment=The free version of Binary Ninja
+Exec=/run/dojo/bin/binaryninja
+Icon=/run/dojo/share/binaryninja/icon.png
+Categories=Application;Development;

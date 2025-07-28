@@ -8,6 +8,7 @@ from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 from sshpubkeys import SSHKey, InvalidKeyError
 import base64
+import markupsafe
 
 from ...models import SSHKeys
 
@@ -33,7 +34,7 @@ class UpdateKey(Resource):
                 return (
                     {
                         "success": False,
-                        "error": f"Invalid SSH Key, error: <code>{e}</code> <br>Refer below for how to generate a valid ssh key"
+                        "error": f"Invalid SSH Key, error: <code>{markupsafe.escape(e)}</code> <br>Refer below for how to generate a valid ssh key"
                     },
                     400,
                 )

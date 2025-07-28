@@ -72,11 +72,12 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(JSONB)
-    data_fields = ["type", "award", "course", "pages", "privileged", "importable", "comparator"]
+    data_fields = ["type", "award", "course", "pages", "privileged", "importable", "comparator", "show_scoreboard"]
     data_defaults = {
         "pages": [],
         "privileged": False,
         "importable": True,
+        "show_scoreboard": True,
     }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
@@ -349,9 +350,11 @@ class DojoModules(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(JSONB)
-    data_fields = ["importable"]
+    data_fields = ["importable", "show_scoreboard", "show_challenges"]
     data_defaults = {
-        "importable": True
+        "importable": True,
+        "show_scoreboard": True,
+        "show_challenges": True,
     }
 
     dojo = db.relationship("Dojos", back_populates="_modules")
