@@ -48,7 +48,6 @@ function process_content_operation_recursive(operations, content) {
 }
 
 function set_content(option) {
-	console.log(option);
 	var operations = option.value.split(";");
 	var content = document.getElementById("challenge-content");
 
@@ -153,6 +152,8 @@ function challenge_start_callback(event) {
 
 function content_select_callback(event) {
 	event.preventDefault();
+
+	document.cookie = `previous_workspace=${event.target.options[event.target.selectedIndex].text}; expires=${(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))}; path=/workspace;`;
 
 	set_content(event.target);
 }

@@ -45,7 +45,10 @@ def view_workspace_exp():
     opt_ssh = {"SSH": "RENDER:/settings#ssh-key"}
 
     workspace_default = "VSCode" # Set by challenge.
-    workspace_previous = "VSCode" # Set by previous session.
+    if "previous_workspace" in request.cookies:
+        workspace_previous = request.cookies.get("previous_workspace")
+    else:
+        workspace_previous = workspace_default;
     workspace_options = {} # Set by challenge.
 
     # For now, add all the "standard" options.
@@ -61,27 +64,11 @@ def view_workspace_exp():
         else:
             workspace_active = workspace_default
 
-    elif content == "vscode":
-        if "VSCode" in workspace_options:
-            workspace_active = "VSCode"
-        else:
-            abort(404)
-
-    elif content == "desktop":
-        if "Desktop" in workspace_options:
-            workspace_active = "Desktop"
-        else:
-            abort(404)
-
-    elif content == "SSH":
-        if "SSH" in workspace_options:
-            workspace_active = "SSH"
-        else:
-            abort(404)
-
     else:
-        # Unknown content option.
-        abort(404)
+        if content in workspace_options:
+            workspace_active = content
+        else:
+            workspace_active = workspace_default
 
 
     allow_fullscreen = (not hide_navbar or as_iframe)
