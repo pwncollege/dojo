@@ -13,7 +13,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.helpers import get_infos
 
 from ..utils import get_current_container, get_all_containers, render_markdown
-from ..utils.stats import get_container_stats, get_dojo_stats
+from ..utils.stats import get_container_stats, get_dojo_stats, get_challenge_active_users
 from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
 
@@ -285,6 +285,8 @@ def view_module(dojo, module):
         for container in get_container_stats()
         if container["module"] == module.id and container["dojo"] == dojo.reference_id
     )
+    
+    challenge_active_users = get_challenge_active_users()
 
     return render_template(
         "module.html",
@@ -297,6 +299,7 @@ def view_module(dojo, module):
         current_dojo_challenge=current_dojo_challenge,
         assessments=assessments,
         challenge_container_counts=challenge_container_counts,
+        challenge_active_users=challenge_active_users,
     )
 
 

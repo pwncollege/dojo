@@ -1,5 +1,5 @@
 from CTFd.cache import cache
-from CTFd.models import Solves
+from CTFd.models import Solves, Users
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 
@@ -11,6 +11,39 @@ def get_container_stats():
     return [{attr: container.labels[f"dojo.{attr}_id"]
             for attr in ["dojo", "module", "challenge"]}
             for container in containers]
+
+@cache.memoize(timeout=10, forced_update=force_cache_updates)
+def get_challenge_active_users():
+    containers = get_all_containers()
+    challenge_users = {}
+    
+    for container in containers:
+        try:
+            challenge_id = container.labels.get("dojo.challenge_id")
+            user_id = container.labels.get("dojo.user_id")
+            
+            if challenge_id and user_id:
+                if challenge_id not in challenge_users:
+                    challenge_users[challenge_id] = set()
+                challenge_users[challenge_id].add(int(user_id))
+        except (KeyError, ValueError):
+            continue
+    
+    # Convert to list of user data with names
+    result = {}
+    for challenge_id, user_ids in challenge_users.items():
+        users_data = []
+        for user_id in user_ids:
+            user = Users.query.filter_by(id=user_id).first()
+            if user and not user.hidden:  # Respect privacy settings
+                users_data.append({
+                    'id': user.id,
+                    'name': user.name,
+                    'display_name': user.name
+                })
+        result[challenge_id] = users_data
+    
+    return result
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def get_dojo_stats(dojo):
