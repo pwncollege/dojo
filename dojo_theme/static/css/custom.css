@@ -1106,17 +1106,28 @@ code {
     height: 5px;
 }
 
+.hacker-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0;
+}
+
 .hacker-link {
     color: var(--brand-blue);
     text-decoration: none;
-    display: block;
-    padding: 2px 0;
     transition: color 0.2s ease;
 }
 
 .hacker-link:hover {
     color: var(--brand-gold);
     text-decoration: underline;
+}
+
+.hacker-duration {
+    color: var(--brand-light-gray);
+    font-size: 0.85em;
+    margin-left: 10px;
 }
 
 .more-hackers {

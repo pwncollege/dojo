@@ -179,7 +179,10 @@
                 {% if active_users %}
                 <div class="hacker-list-dropdown">
                   {% for user in active_users[:10] %}
-                    <a href="{{ url_for('pwncollege_users.view_other', user_id=user.id) }}" class="hacker-link">{{ user.display_name }}</a>
+                    <div class="hacker-entry">
+                      <a href="{{ url_for('pwncollege_users.view_other', user_id=user.id) }}" class="hacker-link">{{ user.display_name }}</a>
+                      <span class="hacker-duration">{{ user.duration }}</span>
+                    </div>
                   {% endfor %}
                   {% if active_users|length > 10 %}
                     <span class="more-hackers">and {{ active_users|length - 10 }} more...</span>

@@ -24,22 +24,44 @@ def get_challenge_active_users():
             
             if challenge_id and user_id:
                 if challenge_id not in challenge_users:
-                    challenge_users[challenge_id] = set()
-                challenge_users[challenge_id].add(int(user_id))
+                    challenge_users[challenge_id] = {}
+                challenge_users[challenge_id][int(user_id)] = {
+                    'container': container,
+                    'started_at': container.attrs['State']['StartedAt']
+                }
         except (KeyError, ValueError):
             continue
     
-    # Convert to list of user data with names
+    # Convert to list of user data with names and durations
     result = {}
-    for challenge_id, user_ids in challenge_users.items():
+    for challenge_id, user_containers in challenge_users.items():
         users_data = []
-        for user_id in user_ids:
+        for user_id, container_info in user_containers.items():
             user = Users.query.filter_by(id=user_id).first()
             if user and not user.hidden:  # Respect privacy settings
+                # Calculate duration
+                from datetime import datetime
+                import dateutil.parser
+                
+                started_at = dateutil.parser.parse(container_info['started_at'])
+                now = datetime.now(started_at.tzinfo)
+                duration = now - started_at
+                
+                # Format duration
+                total_seconds = int(duration.total_seconds())
+                hours = total_seconds // 3600
+                minutes = (total_seconds % 3600) // 60
+                
+                if hours > 0:
+                    duration_str = f"{hours}h {minutes}m"
+                else:
+                    duration_str = f"{minutes}m"
+                
                 users_data.append({
                     'id': user.id,
                     'name': user.name,
-                    'display_name': user.name
+                    'display_name': user.name,
+                    'duration': duration_str
                 })
         result[challenge_id] = users_data
     
