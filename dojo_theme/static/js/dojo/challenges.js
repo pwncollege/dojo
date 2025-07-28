@@ -418,6 +418,10 @@ function do_fullscreen() {
     }
 }
 
+function window_resize_callback(event) {
+    $(".challenge-iframe").not(".challenge-iframe-fs").css("aspect-ratio", `${window.innerWidth} / ${window.innerHeight}`);
+}
+
 $(() => {
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
@@ -460,4 +464,6 @@ $(() => {
     $(".accordion-item").find(".survey-option").click(clickSurveyOption)
 
     $(".accordion-item").find("#survey-submit").click(clickSurveySubmit)
+
+    window.addEventListener("resize", window_resize_callback, true);
 });
