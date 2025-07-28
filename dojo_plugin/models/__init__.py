@@ -182,6 +182,15 @@ class Dojos(db.Model):
             .scalar_subquery(),
             deferred=True)
 
+    @deferred_definition
+    def required_challenges_count():
+        return db.column_property(
+            db.select([db.func.count()])
+            .where(Dojos.dojo_id == DojoChallenges.dojo_id)
+            .where(DojoChallenges.required)
+            .scalar_subquery(),
+            deferred=True) 
+
     @property
     def solves_code(self):
         return hashlib.md5(self.private_key.encode() + b"SOLVES").hexdigest()
