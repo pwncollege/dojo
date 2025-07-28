@@ -29,7 +29,7 @@ def view_workspace_exp():
     as_iframe = request.args.get("as-iframe")
 
     if content is None:
-        content = "default"
+        content = "none"
     if hide_navbar is None:
         hide_navbar = False
     else:
