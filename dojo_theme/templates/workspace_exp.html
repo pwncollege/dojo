@@ -55,6 +55,11 @@ html, body, main {
 	height: 100% !important;
 }
 
+.control-selector-frame {
+	width: 15%;
+	padding: .3%;
+}
+
 .submit-correct {
 	background-color: #008000 !important;
 }
@@ -83,7 +88,7 @@ html, body, main {
 
 	<div class="row workspace-controls">
 		{% if workspace_selectable %}
-		<div class="control-btn-frame">
+		<div class="control-selector-frame">
 			<select id="workspace-select" class="control-btn-std btn btn-outline-secondary workspace-selector">
 				{% for name, command in workspace_options.items() %}
 				<option value="{{ command }}" {% if name == workspace_active %}id="active"{% endif %}>{{ name }}</option>

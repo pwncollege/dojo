@@ -92,13 +92,13 @@ def view_workspace_exp():
         abort(404) # TODO: Tell the user to start a challenge instead.
 
 
-    flag_field_width = 50
+    flag_field_width = 45
     if not current_challenge.allow_privileged:
         flag_field_width += 10
     if not allow_fullscreen:
         flag_field_width += 10
     if len(workspace_options) <= 1:
-        flag_field_width += 10
+        flag_field_width += 15
     flag_field_width = str(flag_field_width) + "%"
 
 
