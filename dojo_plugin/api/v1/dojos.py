@@ -11,7 +11,8 @@ from CTFd.utils.user import get_current_user, is_admin, get_ip
 
 from ...models import DojoStudents, Dojos, DojoModules, DojoChallenges, DojoUsers, Emojis, SurveyResponses
 from ...utils import render_markdown, is_challenge_locked
-from ...utils.dojo import dojo_route, dojo_admins_only, dojo_create
+from ...utils.dojo import dojo_route, dojo_admins_only
+from ...dojo_creation.dojo_initializer import dojo_create
 
 
 dojos_namespace = Namespace(
