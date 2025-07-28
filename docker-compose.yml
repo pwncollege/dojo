@@ -100,6 +100,7 @@ services:
       - /data/mac:/var/mac
       - /data/homes:/var/homes:shared
       - /data/dojos:/var/dojos
+      - /data/ctfd-ipython:/root/.ipython
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro

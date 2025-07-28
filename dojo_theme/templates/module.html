@@ -111,8 +111,12 @@
   <br>
   {% endif %}
 
-  {% if challenges %}
-  <h2>Challenges</h2>
+  {% if challenges and (module.show_challenges or dojo.is_admin()) %}
+  <h2>{% if dojo.is_admin() %}(Hidden) {% endif %}Challenges</h2>
+
+  {% if dojo.is_admin() %}
+  <p><i>This module's challenges are hidden from view. You can see them as the dojo's administrator.</i></p>
+  {% endif %}
 
   <div class="accordion" id="challenges">
     {% for challenge in challenges %}
@@ -232,6 +236,9 @@
   </div>
 
   <br>
+  {% endif %}
+
+  {% if challenges and module.show_scoreboard %}
 
   <h2 class="row" id="scoreboard-heading">30-Day Scoreboard:</h2>
   <p>This scoreboard reflects solves for challenges in this module after the module launched in this dojo.</p>
