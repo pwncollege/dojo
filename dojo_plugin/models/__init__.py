@@ -112,7 +112,7 @@ class Dojos(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name, self.data_defaults.get(name))
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     def __setattr__(self, name, value):
@@ -396,7 +396,7 @@ class DojoModules(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name, self.data_defaults.get(name))
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
@@ -422,7 +422,8 @@ class DojoModules(db.Model):
     @delete_before_insert("_resources")
     def resources(self, value):
         for resource_index, resource in enumerate(value):
-            resource.resource_index = resource_index
+            if not hasattr(resource, 'resource_index') or resource.resource_index is None:
+                resource.resource_index = resource_index
         self._resources = value
 
     @property
@@ -432,6 +433,23 @@ class DojoModules(db.Model):
     @property
     def assessments(self):
         return [assessment for assessment in (self.dojo.course or {}).get("assessments", []) if assessment.get("id") == self.id]
+    
+    @property
+    def unified_items(self):
+        items = []
+        
+        for resource in self.resources:
+            items.append((resource.resource_index, resource))
+        
+        for challenge in self.challenges:
+            if challenge.unified_index is not None:
+                index = challenge.unified_index
+            else:
+                index = 1000 + challenge.challenge_index
+            items.append((index, challenge))
+        
+        items.sort(key=lambda x: x[0])
+        return [item for _, item in items]
 
     def visible_challenges(self, user=None):
         return [challenge for challenge in self.challenges if challenge.visible() or self.dojo.is_admin(user=user)]
@@ -460,6 +478,7 @@ class DojoModules(db.Model):
 
 class DojoChallenges(db.Model):
     __tablename__ = "dojo_challenges"
+    item_type = "challenge"
     __table_args__ = (
         db.ForeignKeyConstraint(["dojo_id"], ["dojos.dojo_id"], ondelete="CASCADE"),
         db.ForeignKeyConstraint(["dojo_id", "module_index"],
@@ -478,7 +497,7 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey"]
+    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index"]
     data_defaults = {
         "importable": True,
         "allow_privileged": True,
@@ -522,7 +541,7 @@ class DojoChallenges(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name, self.data_defaults.get(name))
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
@@ -637,6 +656,7 @@ class SurveyResponses(db.Model):
 
 class DojoResources(db.Model):
     __tablename__ = "dojo_resources"
+    item_type = "resource"
 
     __table_args__ = (
         db.ForeignKeyConstraint(["dojo_id", "module_index"],

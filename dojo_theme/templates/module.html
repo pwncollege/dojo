@@ -74,171 +74,192 @@
   <br>
   {% endif %}
 
-  {% if module.resources %}
-  <h2>Lectures and Reading</h2>
+  {% if module.resources or module.challenges %}
+  <h2>Module Content</h2>
 
-  <div class="accordion" id="resources">
-    {% for resource in module.resources %}
-      {% call(header) accordion_item("resources", loop.index) %}
-        {% if header %}
-          <h4 class="accordion-item-name">{{ resource.name }}</h4>
-        {% else %}
-          {% if resource.type == "lecture" %}
-          {% if resource.video %}
-          {% set src = "https://www.youtube.com/embed/" + resource.video + "?" + ("list=" + resource.playlist + "&" if resource.playlist else "") + "rel=0" %}
-          <div class="embed-responsive embed-responsive-16by9">
-            <iframe class="embed-responsive-item" data-src="{{ src }}" title="YouTube video player" allowfullscreen></iframe>
-          </div>
-          {% endif %}
-          {% if resource.slides %}
-          {% set src = "https://docs.google.com/presentation/d/" + resource.slides + "/embed" %}
-          <div class="embed-responsive embed-responsive-16by9">
-            <iframe class="embed-responsive-item" data-src="{{ src }}"></iframe>
-          </div>
-          <button onclick="window.open('{{ src.replace('/embed', '') }}', '_blank')" class="btn btn-primary">Open Slides in New Window</button>
-          {% endif %}
-
-          {% elif resource.type == "markdown" %}
-          <div class="embed-responsive">
-            {{ resource.content | markdown }}
-          </div>
-          {% endif %}
-        {% endif %}
-      {% endcall %}
-    {% endfor %}
-  </div>
-
-  <br>
-  {% endif %}
-
-  {% if challenges and (module.show_challenges or dojo.is_admin()) %}
-  <h2>{% if dojo.is_admin() %}(Hidden) {% endif %}Challenges</h2>
-
-  {% if dojo.is_admin() %}
+  {% if dojo.is_admin() and not module.show_challenges %}
   <p><i>This module's challenges are hidden from view. You can see them as the dojo's administrator.</i></p>
   {% endif %}
 
-  <div class="accordion" id="challenges">
-    {% for challenge in challenges %}
-
-      {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
-      {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
-      {% set previous_challenge = challenges[loop.index0 - 1] %}
-      {% set progression_locked = challenge.progression_locked and not loop.first %}
-      {% set lock_challenge = progression_locked
-        and previous_challenge.challenge_id not in user_solves
-        and solved == "challenge-unsolved"
-        and not dojo.is_admin() %}
-      {% set hidden = not challenge.visible() %}
-      {% set icon = "fa-lock" if lock_challenge else "fa-flag" %}
-
-      {% call(header) accordion_item("challenges", loop.index, lock_challenge) %}
-        {% if header %}
-          <h4 class="accordion-item-name challenge-name {{ active }}">
-              <i class="challenge-icon pr-3 fas {{ icon }} {{ solved }} "></i>
-              {% if lock_challenge %}
-              <div class="challenge-text-wrapper">
-                <span class="challenge-name-text">{{ challenge.name or challenge.id }}</span>
-                <span class="challenge-locked-text">Solve <strong></string><span style="color: white">{{ previous_challenge.name or previous_challenge.id }}</span></strong> to unlock this challenge</span>
-                <!-- Invisible placeholder has the same text as challenge-name-text and is used so that the button is sized to fit the text properly -->
-                <span class="invisible-placeholder pr-2">{{ challenge.name or challenge.id }}</span>
-              </div>
-              {% else %}
-              <span class="pr-2">{{ challenge.name or challenge.id }}</span>
-              {% endif %}
-              {% if dojo.is_admin() and (progression_locked or hidden) %}
-              <small><small><small>
-                    <i>
-                      {% if progression_locked %}progression locked{% endif %}
-                      {% if progression_locked and hidden %} & {% endif %}
-                      {% if hidden %}hidden{% endif %}
-                    </i>
-                    &mdash; this challenge is accessible because you are this dojo's administrator
-              </small></small></small>
-              {% endif %}
-          </h4>
-          <span class="challenge-header-right">
-            {% if challenge_container_counts.get(challenge.id, 0) > 0 %}
-            <span class="total-hackers">
-              {{ challenge_container_counts.get(challenge.id, 0) }} hacking,
-            </span>
-            {% endif %}
-            <span class="total-solves">
-              {{ total_solves.get(challenge.challenge_id, 0) }} solves
-            </span>
-          </span>
+  <div class="accordion" id="module-content">
+    {% set ns = namespace(challenge_count=0) %}
+    {% for item in module.unified_items %}
+      {% if item.item_type == 'resource' %}
+        {% set resource = item %}
+        {% if resource.type == 'header' %}
+          <br>
+          <h2>{{ resource.content }}</h2>
         {% else %}
-          <div class="embed-responsive challenge-description">
-            {% if lock_challenge %}
-              <p><em>This challenge is locked</em></p>
-            {% else %}
-              {{ challenge.description | markdown }}
+        {% call(header) accordion_item("module-content", loop.index) %}
+          {% if header %}
+            {% set resource_icon = "fa-video" if resource.type == "lecture" else "fa-file-alt" %}
+            <h4 class="accordion-item-name">
+              <i class="resource-icon pr-3 fas {{ resource_icon }}"></i>
+              <span class="pr-2">{{ resource.name }}</span>
+            </h4>
+          {% else %}
+            {% if resource.type == "lecture" %}
+            {% if resource.video %}
+            {% set src = "https://www.youtube.com/embed/" + resource.video + "?" + ("list=" + resource.playlist + "&" if resource.playlist else "") + "rel=0" %}
+            <div class="embed-responsive embed-responsive-16by9">
+              <iframe class="embed-responsive-item" data-src="{{ src }}" title="YouTube video player" allowfullscreen></iframe>
+            </div>
             {% endif %}
-          </div>
-          <div class="challenge-init row{% if active %} challenge-hidden{% endif %}">
-            <div class="col-md-3 form=group text-center">
-              <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
-                <i class="fas fa-play fa-2x pr-3"></i>Start
-              </button>
+            {% if resource.slides %}
+            {% set src = "https://docs.google.com/presentation/d/" + resource.slides + "/embed" %}
+            <div class="embed-responsive embed-responsive-16by9">
+              <iframe class="embed-responsive-item" data-src="{{ src }}"></iframe>
             </div>
-            <div class="col-md-9">
-              <input id="module" type="hidden" value="{{ challenge.module.id }}">
-              <input id="challenge" type="hidden" value="{{ challenge.id }}">
-              <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
-              <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
+            <button onclick="window.open('{{ src.replace('/embed', '') }}', '_blank')" class="btn btn-primary">Open Slides in New Window</button>
+            {% endif %}
+
+            {% elif resource.type == "markdown" %}
+            <div class="embed-responsive">
+              {{ resource.content | markdown }}
             </div>
-          </div>
-          <div class="challenge-workspace">
-            {% if active %}<iframe class="challenge-iframe" src="/workspace?as-iframe=true&hide-navbar=true"></iframe>{% endif %}
-          </div>
-          <div class="row notification-row">
-	          <div class="col-md-12">
-	            <div id="result-notification" class="alert alert-dismissable text-center w-100" role="alert" style="display: none;">
-		            <strong id="result-message"></strong>
-	            </div>
-	          </div>
-	        </div>
-          <div class="row survey-row">
-            <div class="col-md-12">
-              <div id="survey-notification" class="survey alert-dismissable w-100" role="alert" style="display: none;">
-                <span id="survey-prompt" class="survey-prompt">{{ challenge.survey.prompt }}</span>
-                {% if challenge.survey.type == "thumb" %}
-                <div id="survey-thumb" class="survey-thumb">
-                  <i id="survey-thumbs-up" class="fa fa-thumbs-up"></i>
-                  <i id="survey-thumbs-down" class="fa fa-thumbs-down"></i>
+            {% endif %}
+          {% endif %}
+        {% endcall %}
+        {% endif %}
+      {% elif item.item_type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
+        {% set challenge = item %}
+        {% set ns.challenge_count = ns.challenge_count + 1 %}
+        {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
+        {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
+        
+        {% set previous_challenge = None %}
+        {% set visible_challenges = [] %}
+        {% for prev_item in module.unified_items[:loop.index0] %}
+          {% if prev_item.item_type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
+            {% set _ = visible_challenges.append(prev_item) %}
+          {% endif %}
+        {% endfor %}
+        {% if visible_challenges %}
+          {% set previous_challenge = visible_challenges[-1] %}
+        {% endif %}
+        
+        {% set progression_locked = challenge.progression_locked and previous_challenge %}
+        {% set lock_challenge = progression_locked
+          and previous_challenge.challenge_id not in user_solves
+          and solved == "challenge-unsolved"
+          and not dojo.is_admin() %}
+        {% set hidden = not challenge.visible() %}
+        {% set icon = "fa-lock" if lock_challenge else "fa-flag" %}
+
+        {% call(header) accordion_item("module-content", loop.index, lock_challenge, challenge_index=ns.challenge_count) %}
+          {% if header %}
+            <h4 class="accordion-item-name challenge-name {{ active }}" data-challenge-index="{{ ns.challenge_count }}" data-challenge-name="{{ challenge.name or challenge.id }}" id="challenges-header-{{ ns.challenge_count }}">
+                <i class="challenge-icon pr-3 fas {{ icon }} {{ solved }} "></i>
+                {% if lock_challenge %}
+                <div class="challenge-text-wrapper">
+                  <span class="challenge-name-text">{{ challenge.name or challenge.id }}</span>
+                  <span class="challenge-locked-text">Solve <strong></string><span style="color: white">{{ previous_challenge.name or previous_challenge.id }}</span></strong> to unlock this challenge</span>
+                  <span class="invisible-placeholder pr-2">{{ challenge.name or challenge.id }}</span>
                 </div>
-                {% elif challenge.survey.type == "freeform" %}
-                <div id="survey-freeresponse">
-                  <div class="row survey-freeresponse-row">
-                    <div class="col-md-9 form-group">
-                      <input id="survey-freeresponse-input" class="form-control survey-text-input" type="text" name="answer">
-                    </div>
-                    <div class="col-md-3 form-group key-submit">
-                      <button id="survey-submit" type="submit" class="btn btn-md btn-outline-secondary float-right w-100 h-100 survey-submit">
-                        Submit
-                      </button>
+                {% else %}
+                <span class="pr-2">{{ challenge.name or challenge.id }}</span>
+                {% endif %}
+                {% if dojo.is_admin() and (progression_locked or hidden) %}
+                <small><small><small>
+                      <i>
+                        {% if progression_locked %}progression locked{% endif %}
+                        {% if progression_locked and hidden %} & {% endif %}
+                        {% if hidden %}hidden{% endif %}
+                      </i>
+                      &mdash; this challenge is accessible because you are this dojo's administrator
+                </small></small></small>
+                {% endif %}
+            </h4>
+            <span class="challenge-header-right">
+              {% if challenge_container_counts.get(challenge.id, 0) > 0 %}
+              <span class="total-hackers">
+                {{ challenge_container_counts.get(challenge.id, 0) }} hacking,
+              </span>
+              {% endif %}
+              <span class="total-solves">
+                {{ total_solves.get(challenge.challenge_id, 0) }} solves
+              </span>
+            </span>
+          {% else %}
+            <div class="embed-responsive challenge-description">
+              {% if lock_challenge %}
+                <p><em>This challenge is locked</em></p>
+              {% else %}
+                {{ challenge.description | markdown }}
+              {% endif %}
+            </div>    
+            <div class="challenge-init row{% if active %} challenge-hidden{% endif %}">
+              <div class="col-md-3 form=group text-center">
+                <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
+                  <i class="fas fa-play fa-2x pr-3"></i>Start
+                </button>
+              </div>
+              <div class="col-md-9">
+                <input id="module" type="hidden" value="{{ challenge.module.id }}">
+                <input id="challenge" type="hidden" value="{{ challenge.id }}">
+                <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
+                <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
+              </div>
+            </div>
+            <div class="challenge-workspace">
+              {% if active %}<iframe class="challenge-iframe" src="/workspace?as-iframe=true&hide-navbar=true"></iframe>{% endif %}
+            </div>
+            <div class="row notification-row">
+              <div class="col-md-12">
+                <div id="result-notification" class="alert alert-dismissable text-center w-100" role="alert" style="display: none;">
+                  <strong id="result-message"></strong>
+                </div>
+              </div>
+            </div>
+            <div class="row survey-row">
+              <div class="col-md-12">
+                <div id="survey-notification" class="survey alert-dismissable w-100" role="alert" style="display: none;">
+                  <span id="survey-prompt" class="survey-prompt">{{ challenge.survey.prompt }}</span>
+                  {% if challenge.survey.type == "thumb" %}
+                  <div id="survey-thumb" class="survey-thumb">
+                    <i id="survey-thumbs-up" class="fa fa-thumbs-up"></i>
+                    <i id="survey-thumbs-down" class="fa fa-thumbs-down"></i>
+                  </div>
+                  {% elif challenge.survey.type == "freeform" %}
+                  <div id="survey-freeresponse">
+                    <div class="row survey-freeresponse-row">
+                      <div class="col-md-9 form-group">
+                        <input id="survey-freeresponse-input" class="form-control survey-text-input" type="text" name="answer">
+                      </div>
+                      <div class="col-md-3 form-group key-submit">
+                        <button id="survey-submit" type="submit" class="btn btn-md btn-outline-secondary float-right w-100 h-100 survey-submit">
+                          Submit
+                        </button>
+                      </div>
                     </div>
                   </div>
+                  {% elif challenge.survey.type == "multiplechoice" %}
+                  <div id="survey-multiplechoice" class="survey-multiplechoice">
+                    {% for option in challenge.survey.options %}
+                    <div class="survey-option" data-id={{ loop.index - 1 }}>{{ option }}</div>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
                 </div>
-                {% elif challenge.survey.type == "multiplechoice" %}
-                <div id="survey-multiplechoice" class="survey-multiplechoice">
-                  {% for option in challenge.survey.options %}
-                  <div class="survey-option" data-id={{ loop.index - 1 }}>{{ option }}</div>
-                  {% endfor %}
-                </div>
-                {% endif %}
               </div>
             </div>
-          </div>
-        {% endif %}
-      {% endcall %}
+          {% endif %}
+        {% endcall %}
+      {% endif %}
     {% endfor %}
   </div>
 
   <br>
   {% endif %}
 
-  {% if challenges and module.show_scoreboard %}
+  {% set visible_challenges = [] %}
+  {% for item in module.unified_items %}
+    {% if item.item_type == 'challenge' %}
+      {% set _ = visible_challenges.append(item) %}
+    {% endif %}
+  {% endfor %}
+  
+  {% if visible_challenges and module.show_scoreboard %}
 
   <h2 class="row" id="scoreboard-heading">30-Day Scoreboard:</h2>
   <p>This scoreboard reflects solves for challenges in this module after the module launched in this dojo.</p>
