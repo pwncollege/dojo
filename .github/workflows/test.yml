@@ -85,42 +85,18 @@ jobs:
           load: true
           cache-to: type=gha
 
-      - name: Run dojo
-        run: |
-          docker run \
-            --name dojo-test \
-            --privileged \
-            --detach \
-            --rm \
-            -v "/mnt/dojo-test-data:/data:shared" \
-            -p 2222:22 -p 80:80 -p 443:443 \
-            pwncollege/dojo
-      - name: Build and start services
-        run: |
-          docker exec dojo-test dojo wait || (docker exec dojo-test dojo compose logs && false)
-          docker exec dojo-test docker pull pwncollege/challenge-simple
-          docker exec dojo-test docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
-          docker exec dojo-test docker image ls
-
-      - name: Wait for services to start
-        timeout-minutes: 3
-        run: |
-          docker exec dojo-test dojo compose logs -f &
-          log_pid=$!
-
-          until [[ "$(docker exec dojo-test docker inspect --format='{{.State.Health.Status}}' ctfd)" == "healthy" ]]; do
-            sleep 1
-          done
-
-          kill $log_pid
-          exit 0
-
-      - name: Run tests
-        timeout-minutes: 4
+      - name: Run single-node dojo tests
+        timeout-minutes: 10
         run: |
           export MOZ_HEADLESS=1
-          export DOJO_SSH_PORT=2222
-          timeout 3m pytest -vrpP --order-dependencies --durations=0 ./test || (docker exec dojo-test dojo compose logs && false)
+          echo "Starting single-node integration tests..."
+          test/local-tester.sh -c dojo-test -D /mnt/dojo-docker -W /mnt/dojo-workspace || {
+            echo "Single-node tests failed, checking container logs..."
+            echo "::group::{node logs}"
+            docker exec dojo-test dojo compose logs
+            echo "::endgroup::"
+            exit 1
+          }
 
       - name: Pack docker data cache
         if: github.event_name == 'schedule'
