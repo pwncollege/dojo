@@ -83,17 +83,26 @@ def challenge_expand(browser, idx):
 def challenge_start(browser, idx, practice=False):
     challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
-    body.find_element("id", "challenge-practice" if practice else "challenge-start").click()
-    while "started" not in body.find_element("id", "result-message").text:
-        time.sleep(0.5)
-    time.sleep(1)
+    if practice:
+        body.find_element("id", "challenge-start").click()
+        while "started" not in body.find_element("id", "result-message").text:
+            time.sleep(0.5)
+        body.find_element("id", "start-priv").click()
+        time.sleep(1)
+        while "btn-disabled" in body.find_element("id", "start-priv").get_attribute("class").split(" "):
+            time.sleep(0.5)
+        time.sleep(1)
+    else:
+        body.find_element("id", "challenge-start").click()
+        while "started" not in body.find_element("id", "result-message").text:
+            time.sleep(0.5)
+        time.sleep(1)
 
 
 def challenge_submit(browser, idx, flag):
     challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
-    body.find_element("id", "challenge-input").send_keys(flag)
-    body.find_element("id", "challenge-submit").click()
+    body.find_element("id", "flag-input").send_keys(flag)
     while "Correct" not in body.find_element("id", "result-message").text:
         time.sleep(0.5)
 
