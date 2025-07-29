@@ -87,6 +87,7 @@ def challenge_start(browser, idx, practice=False):
         body.find_element("id", "challenge-start").click()
         while "started" not in body.find_element("id", "result-message").text:
             time.sleep(0.5)
+        time.sleep(1)
         body.find_element("id", "start-priv").click()
         time.sleep(1)
         while "btn-disabled" in body.find_element("id", "start-priv").get_attribute("class").split(" "):
