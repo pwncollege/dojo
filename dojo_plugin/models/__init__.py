@@ -112,7 +112,7 @@ class Dojos(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name, self.data_defaults.get(name))
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     def __setattr__(self, name, value):
@@ -396,7 +396,7 @@ class DojoModules(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name, self.data_defaults.get(name))
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
@@ -541,7 +541,7 @@ class DojoChallenges(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name, self.data_defaults.get(name))
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
