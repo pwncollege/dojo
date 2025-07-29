@@ -50,23 +50,16 @@ jobs:
         run: |
           sudo chown $USER:$USER /mnt
 
-      - name: Restore docker data cache
+      - name: Restore docker and workspace cache
         if: github.event_name != 'schedule'
         uses: actions/cache/restore@v4
         with:
           path: |
-            /mnt/data-docker.tar.gz
-          key: docker-data-${{ runner.os }}-${{ github.run_id }}
+            /mnt/dojo-docker
+            /mnt/dojo-workspace
+          key: dojo-cache-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            docker-data-${{ runner.os }}-
-      # TEMP: Disable for now, cache holds bad docker network state
-      # - name: Unpack docker data cache
-      #   if: github.event_name != 'schedule'
-      #   run: |
-      #     if [ -f /mnt/data-docker.tar.gz ]; then
-      #       mkdir -p /mnt/dojo-test-data
-      #       sudo tar --use-compress-program=pigz -xf /mnt/data-docker.tar.gz -C /mnt/dojo-test-data
-      #     fi
+            dojo-cache-${{ runner.os }}-
 
       - name: Build docker image
         if: github.event_name != 'schedule'
@@ -98,19 +91,14 @@ jobs:
             exit 1
           }
 
-      - name: Pack docker data cache
-        if: github.event_name == 'schedule'
-        run: |
-          docker exec dojo-test dojo compose down
-          sudo tar --use-compress-program=pigz -cf /mnt/data-docker.tar.gz -C /mnt/dojo-test-data ./docker
-
-      - name: Save docker data cache
+      - name: Save docker and workspace cache
         if: github.event_name == 'schedule'
         uses: actions/cache/save@v4
         with:
           path: |
-            /mnt/data-docker.tar.gz
-          key: docker-data-${{ runner.os }}-${{ github.run_id }}
+            /mnt/dojo-docker
+            /mnt/dojo-workspace
+          key: dojo-cache-${{ runner.os }}-${{ github.run_id }}
 
       - name: Final filesystem information
         run: |
@@ -157,6 +145,23 @@ jobs:
             requests \
             selenium
 
+      - name: Make docker cache dir owned by our user
+        run: |
+          sudo chown $USER:$USER /mnt
+
+      - name: Restore docker and workspace cache
+        if: github.event_name != 'schedule'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            /mnt/dojo-docker
+            /mnt/dojo-docker-node1
+            /mnt/dojo-docker-node2
+            /mnt/dojo-workspace
+          key: dojo-multinode-cache-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            dojo-multinode-cache-${{ runner.os }}-
+
       - name: Build docker image
         if: github.event_name != 'schedule'
         uses: docker/build-push-action@v5
@@ -179,7 +184,7 @@ jobs:
         run: |
           export MOZ_HEADLESS=1
           echo "Starting multi-node integration tests..."
-          test/local-tester.sh -c dojo-test -M || {
+          test/local-tester.sh -c dojo-test -M -D /mnt/dojo-docker -W /mnt/dojo-workspace || {
             echo "Multi-node tests failed, checking container logs..."
             echo "::group::{main node logs}"
             docker exec dojo-test dojo compose logs
@@ -192,6 +197,17 @@ jobs:
             echo "::endgroup::"
             exit 1
           }
+
+      - name: Save docker and workspace cache
+        if: github.event_name == 'schedule'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /mnt/dojo-docker
+            /mnt/dojo-docker-node1
+            /mnt/dojo-docker-node2
+            /mnt/dojo-workspace
+          key: dojo-multinode-cache-${{ runner.os }}-${{ github.run_id }}
 
       - name: Final filesystem information
         run: |
