@@ -2,16 +2,12 @@ id: surveys-dojo
 type: public
 survey:
   prompt: Dojo-level prompt
-  type: multiplechoice
-  options:
-    - Option 1
-    - Option 2
-    - Option 3
+  data: <div>dojo</div>
 modules:
   - id: surveys-module-1
     survey:
       prompt: Module-level prompt
-      type: thumb
+      data: <div>module</div>
     challenges:
       - id: module-level
         import:
@@ -25,7 +21,7 @@ modules:
           challenge: mars
         survey:
           prompt: Challenge-level prompt
-          type: freeform
+          data: <div>challenge</div>
   - id: surveys-module-2
     challenges:
       - id: dojo-level
