@@ -1,4 +1,30 @@
 services:
+  splunk:
+    container_name: splunk
+    image: splunk/splunk:9.1.2
+    profiles:
+      - splunk
+    hostname: splunk
+    restart: always
+    environment:
+      - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_PASSWORD=DojoSplunk2024!
+      - SPLUNK_HEC_TOKEN=11111111-1111-1111-1111-111111111111
+    ports:
+      - "8001:8000"  # Splunk Web (changed from 8000 to avoid conflict with CTFd)
+      - "8088:8088"  # HEC
+      - "8089:8089"  # Splunk management
+    volumes:
+      - /data/splunk/etc:/opt/splunk/etc
+      - /data/splunk/var:/opt/splunk/var
+      - /opt/pwn.college/Splunk.License:/tmp/Splunk.License:ro
+      - /opt/pwn.college/splunk/default.yml:/tmp/defaults/default.yml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   workspace-builder:
     container_name: workspace-builder
     build: ./workspace
@@ -66,7 +92,7 @@ services:
             hard: 1048576
     environment:
       - UPLOAD_FOLDER=/var/uploads
-      - DATABASE_URL=mysql+pymysql://${DB_USER}:${DB_PASS}@${DB_HOST}/${DB_NAME}
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
       - REDIS_URL=redis://cache:6379
       - WORKERS=8
       - LOG_FOLDER=/var/log/CTFd
@@ -94,14 +120,13 @@ services:
       - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
       - MAC_HOSTNAME=${MAC_HOSTNAME}
       - MAC_USERNAME=${MAC_USERNAME}
-      - MAC_KEY_FILE=${MAC_KEY_FILE}
-      - MAC_GUEST_CONTROL_FILE=${MAC_GUEST_CONTROL_FILE}
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
-      - /data/mac:/var/data/mac
+      - /data/mac:/var/mac
       - /data/homes:/var/homes:shared
       - /data/dojos:/var/dojos
+      - /data/ctfd-ipython:/root/.ipython
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
@@ -130,9 +155,8 @@ services:
         condition: service_started
       homefs:
         condition: service_started
-      db:
-        condition: service_healthy
-        restart: true
+      pgbouncer:
+        condition: service_started
       cache:
         condition: service_started
 
@@ -140,22 +164,37 @@ services:
     container_name: db
     profiles:
       - main
-    build: ./db
+    image: postgres:17.5
     restart: always
     environment:
-      - MYSQL_ROOT_PASSWORD=${DB_PASS}
-      - MYSQL_USER=${DB_USER}
-      - MYSQL_PASSWORD=${DB_PASS}
-      - MYSQL_DATABASE=${DB_NAME}
-      - DB_EXTERNAL=${DB_EXTERNAL}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+      - POSTGRES_DB=${DB_NAME}
+      - PGUSER=${DB_USER}
     volumes:
-      - /data/mysql:/var/lib/mysql
-    command: [/start.sh]
+      - /data/postgres:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-p${DB_PASS}", "-u${DB_USER}", "-h${DB_HOST}"]
+      test: ["CMD", "pg_isready"]
       interval: 10s
       timeout: 10s
       retries: 3
+
+  pgbouncer:
+    container_name: pgbouncer
+    profiles:
+      - main
+    image: edoburu/pgbouncer
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}/${DB_NAME}
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 10000
+      DEFAULT_POOL_SIZE: 20
+    depends_on:
+      db:
+        condition: service_started
 
   cache:
     container_name: cache
@@ -175,19 +214,19 @@ services:
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys:/etc/ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /data/mac:/var/data/mac:ro
+      - /data/mac:/var/mac:ro
     environment:
-      - DB_HOST=${DB_HOST}
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASS=${DB_PASS}
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
       - REDIS_URL=redis://cache:6379
       - MAC_HOSTNAME=${MAC_HOSTNAME}
       - MAC_USERNAME=${MAC_USERNAME}
-      - MAC_KEY_FILE=${MAC_KEY_FILE}
-      - MAC_GUEST_CONTROL_FILE=${MAC_GUEST_CONTROL_FILE}
     ports:
       - "22:22"
+    depends_on:
+      pgbouncer:
+        condition: service_started
+      cache:
+        condition: service_started
 
   nginx-proxy:
     container_name: nginx-proxy

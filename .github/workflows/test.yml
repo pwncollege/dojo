@@ -41,6 +41,7 @@ jobs:
           pip install \
             pytest \
             pytest-dependency \
+            pytest-order \
             pytest-github-actions-annotate-failures \
             requests \
             selenium
@@ -118,7 +119,8 @@ jobs:
         timeout-minutes: 4
         run: |
           export MOZ_HEADLESS=1
-          timeout 3m pytest -vrpP --durations=0 ./test || (docker exec dojo-test dojo compose logs && false)
+          export DOJO_SSH_PORT=2222
+          timeout 3m pytest -vrpP --order-dependencies --durations=0 ./test || (docker exec dojo-test dojo compose logs && false)
 
       - name: Pack docker data cache
         if: github.event_name == 'schedule'

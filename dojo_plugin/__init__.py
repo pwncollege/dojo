@@ -29,7 +29,6 @@ from .pages.settings import settings_override
 from .pages.discord import discord
 from .pages.course import course
 from .pages.canvas import sync_canvas_user, canvas
-from .pages.writeups import writeups
 from .pages.belts import belts
 from .pages.research import research
 from .pages.index import static_html_override
@@ -146,7 +145,6 @@ def load(app):
     app.register_blueprint(users)
     app.register_blueprint(course)
     app.register_blueprint(canvas)
-    app.register_blueprint(writeups)
     app.register_blueprint(belts)
     app.register_blueprint(research)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")

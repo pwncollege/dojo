@@ -327,6 +327,36 @@ function surveySubmit(data, item) {
     })
 }
 
+
+function markChallengeAsSolved(item) {
+    const unsolved_flag = item.find(".challenge-unsolved");
+    if (unsolved_flag.hasClass("challenge-solved")) {
+        return;
+    }
+
+    unsolved_flag.removeClass("challenge-unsolved");
+    unsolved_flag.addClass("challenge-solved");
+
+    const total_solves = item.find(".total-solves");
+    total_solves.text(
+        (parseInt(total_solves.text().trim().split(" ")[0]) + 1) + " solves"
+    );
+
+    const answer_input = item.find("#challenge-input");
+    answer_input.val("");
+    answer_input.removeClass("wrong");
+    answer_input.addClass("correct");
+
+    const header = item.find('[id^="challenges-header-"]');
+    const current_challenge_id = parseInt(header.attr('id').match(/(\d+)$/)[1]);
+    const next_challenge_button = $(`#challenges-header-button-${current_challenge_id + 1}`);
+
+    unlockChallenge(next_challenge_button);
+    checkUserAwards()
+        .then(handleAwardPopup)
+        .catch(error => console.error("Award check failed:", error));
+}
+
 $(() => {
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
@@ -338,12 +368,24 @@ $(() => {
         });
     });
 
+    const broadcast = new BroadcastChannel('broadcast');
+    broadcast.onmessage = (event) => {
+        if (event.data.msg === 'challengeSolved') {
+            const challenge_id = event.data.challenge_id;
+            const item = $(`input#challenge-id[value='${challenge_id}']`).closest(".accordion-item");
+            if (item.length) {
+                markChallengeAsSolved(item);
+            }
+        }
+    };
+
     $(".challenge-input").keyup(function (event) {
         if (event.keyCode == 13) {
             const submit = $(event.currentTarget).closest(".accordion-item").find("#challenge-submit");
             submit.click();
         }
     });
+
 
     $(".accordion-item").find("#challenge-submit").click(submitChallenge);
     $(".accordion-item").find("#challenge-start").click(startChallenge);
