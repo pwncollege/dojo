@@ -72,6 +72,10 @@ html, body, main {
 	background-color: #d0c000 !important;
 }
 
+.option-active {
+	background-color: var(--brand-green) !important;
+}
+
 </style>
 
 {% endblock %}
@@ -97,13 +101,13 @@ html, body, main {
 		</div>
 		{% endif %}
 		<div class="control-btn-frame">
-			<button id="start" class="control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
+			<button id="start" class="{% if not practice %}option-active {% endif %}control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
 				<i class="fas fa-play fa-2x"></i>
 			</button>
 		</div>
 		{% if challenge.allow_privileged %}
 		<div class="control-btn-frame">
-			<button id="start-priv" class="control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
+			<button id="start-priv" class="{% if practice %}option-active {% endif %}control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
 				<i class="fas fa-lock-open fa-2x"></i>
 			</button>
 		</div>

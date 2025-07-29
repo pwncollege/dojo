@@ -115,9 +115,13 @@ function challenge_start_callback(event) {
 	.prop("disabled", true);
 
 	if (document.getElementById("start").contains(event.target)) {
+		$(".option-active").removeClass("option-active");
+		document.getElementById("start").classList.add("option-active");
 		start_challenge(false);
 	}
 	else if (document.getElementById("start-priv") != null && document.getElementById("start-priv").contains(event.target)) {
+		$(".option-active").removeClass("option-active");
+		document.getElementById("start-priv").classList.add("option-active");
 		start_challenge(true);
 	}
 	else if (document.getElementById("restart").contains(event.target)) {
