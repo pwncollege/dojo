@@ -1,4 +1,4 @@
-name: Integration Test
+name: Integration Tests
 on:
   pull_request:
   push:
@@ -8,7 +8,7 @@ on:
     - cron: '42 06 * * *'
 jobs:
   test:
-    name: Integration Test
+    name: Single-Node Integration Test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -73,7 +73,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          tags: pwncollege/dojo:test
+          tags: pwncollege/dojo
           load: true
           cache-from: type=gha
       - name: Build and cache docker image
@@ -81,7 +81,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          tags: pwncollege/dojo:test
+          tags: pwncollege/dojo
           load: true
           cache-to: type=gha
 
@@ -94,7 +94,7 @@ jobs:
             --rm \
             -v "/mnt/dojo-test-data:/data:shared" \
             -p 2222:22 -p 80:80 -p 443:443 \
-            pwncollege/dojo:test
+            pwncollege/dojo
       - name: Build and start services
         run: |
           docker exec dojo-test dojo wait || (docker exec dojo-test dojo compose logs && false)
@@ -135,6 +135,81 @@ jobs:
           path: |
             /mnt/data-docker.tar.gz
           key: docker-data-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Final filesystem information
+        run: |
+          echo "::group::Filesystem"
+          df -h
+          echo "::endgroup::"
+
+  test-multinode:
+    name: Multi-Node Integration Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Host information
+        run: |
+          echo "::group::Host information"
+          echo "Hostname: $(hostname)"
+          echo "IP: $(hostname -I)"
+          echo "::endgroup::"
+          echo "::group::Filesystem"
+          df -h
+          echo "::endgroup::"
+          echo "::group::Memory"
+          free -h
+          echo "::endgroup::"
+          echo "::group::CPU"
+          lscpu
+          echo "::endgroup::"
+
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      - name: Setup firefox
+        uses: browser-actions/setup-firefox@latest
+      - name: Install test dependencies
+        run: |
+          pip install \
+            pytest \
+            pytest-dependency \
+            pytest-order \
+            pytest-github-actions-annotate-failures \
+            requests \
+            selenium
+
+      - name: Build docker image
+        if: github.event_name != 'schedule'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: pwncollege/dojo
+          load: true
+          cache-from: type=gha
+      - name: Build and cache docker image
+        if: github.event_name == 'schedule'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: pwncollege/dojo
+          load: true
+          cache-to: type=gha
+
+      - name: Run multi-node dojo tests
+        timeout-minutes: 15
+        run: |
+          export MOZ_HEADLESS=1
+          echo "Starting multi-node integration tests..."
+          test/local-tester.sh -M || {
+            echo "Multi-node tests failed, checking container logs..."
+            docker logs local-dojo-multi-node-test 2>&1 | tail -50 || true
+            docker logs local-dojo-multi-node-test-node1 2>&1 | tail -50 || true
+            docker logs local-dojo-multi-node-test-node2 2>&1 | tail -50 || true
+            exit 1
+          }
 
       - name: Final filesystem information
         run: |
