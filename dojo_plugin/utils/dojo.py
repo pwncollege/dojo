@@ -264,6 +264,11 @@ def load_dojo_subyamls(data, dojo_dir):
             if "resources" not in module_data:
                 module_data["resources"] = []
             
+            module_data["resources"].append({
+                "type": "header",
+                "content": "Challenges"
+            })
+            
             for challenge_data in challenges:
                 if "import" in challenge_data and "id" not in challenge_data:
                     challenge_data["id"] = challenge_data["import"]["challenge"]
