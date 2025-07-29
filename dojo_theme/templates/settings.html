@@ -11,6 +11,7 @@
     <div class="col-md-2 offset-md-1">
       <div class="nav flex-column nav-pills" role="tablist">
         <a class="nav-link active" id="settings-profile-tab" data-toggle="pill" href="#profile" role="tab">Profile</a>
+        <a class="nav-link" id="settings-privacy-tab" data-toggle="pill" href="#privacy" role="tab">Privacy</a>
         <a class="nav-link" id="settings-ssh-key-tab" data-toggle="pill" href="#ssh-key" role="tab">SSH Key</a>
         {% if discord_enabled %}
         <a class="nav-link" id="settings-discord-tab" data-toggle="pill" href="#discord" role="tab">Discord</a>
@@ -63,13 +64,6 @@
               <b>{{ form.country.label }}</b>
               {{ form.country(class="form-control custom-select", value=user.country) }}
             </div>
-            <div class="form-group">
-              <b><label for="hidden">Visibility</label></b>
-              <select class="form-control custom-select" id="hidden" name="hidden" value="{{ user.hidden }}">
-                <option value="False" {{ "selected" if not user.hidden else "" }}>Visible</option>
-                <option value="True" {{ "selected" if user.hidden else "" }}>Hidden</option>
-              </select>
-            </div>
 
 	    {{ render_extra_fields(form.extra) }}
 
@@ -81,6 +75,75 @@
             </div>
           </form>
           {% endwith %}
+        </div>
+
+        <div class="tab-pane fade" id="privacy" role="tabpanel">
+          <h4>Privacy Settings</h4>
+          <p class="text-muted">Control what information is visible on your profile and in activity displays.</p>
+          
+          <form method="post" id="privacy-form" autocomplete="off">
+            <div class="form-group">
+              <b><label for="hidden">Profile Visibility</label></b>
+              <select class="form-control custom-select" id="hidden" name="hidden" value="{{ user.hidden }}">
+                <option value="False" {{ "selected" if not user.hidden else "" }}>Visible</option>
+                <option value="True" {{ "selected" if user.hidden else "" }}>Hidden</option>
+              </select>
+              <small class="form-text text-muted">When hidden, your profile will not be accessible to other users.</small>
+            </div>
+
+            <hr>
+
+            <div class="form-group">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="show_discord" name="show_discord" 
+                       {{ "checked" if privacy_settings.show_discord else "" }}>
+                <label class="form-check-label" for="show_discord">
+                  <b>Show Discord username on profile</b>
+                </label>
+              </div>
+              <small class="form-text text-muted">Display your linked Discord username on your public profile.</small>
+            </div>
+
+            <div class="form-group">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="show_activity" name="show_activity"
+                       {{ "checked" if privacy_settings.show_activity else "" }}>
+                <label class="form-check-label" for="show_activity">
+                  <b>Show activity graph on profile</b>
+                </label>
+              </div>
+              <small class="form-text text-muted">Display your year-long hacking activity visualization on your profile.</small>
+            </div>
+
+            <div class="form-group">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="show_solve_data" name="show_solve_data"
+                       {{ "checked" if privacy_settings.show_solve_data else "" }}>
+                <label class="form-check-label" for="show_solve_data">
+                  <b>Show per-dojo solve data on profile</b>
+                </label>
+              </div>
+              <small class="form-text text-muted">Display detailed solve information and rankings for each dojo.</small>
+            </div>
+
+            <div class="form-group">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="show_username_in_activity" name="show_username_in_activity"
+                       {{ "checked" if privacy_settings.show_username_in_activity else "" }}>
+                <label class="form-check-label" for="show_username_in_activity">
+                  <b>Show username in "Hacking Now" hover</b>
+                </label>
+              </div>
+              <small class="form-text text-muted">Display your username when others hover over your activity in the "Hacking Now" feature.</small>
+            </div>
+
+            <div id="privacy-results" class="form-group">
+            </div>
+
+            <div class="form-group">
+              <input class="btn btn-md btn-primary float-right" type="submit" value="Update Privacy Settings">
+            </div>
+          </form>
         </div>
 
         <div class="tab-pane fade" id="ssh-key" role="tabpanel">
