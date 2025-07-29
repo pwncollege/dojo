@@ -60,11 +60,10 @@ def iframe_find(browser, id):
     wait = WebDriverWait(browser, 30)
     workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace-iframe")))
     browser.switch_to.frame(workspace_iframe)
-
-    yield browser.find_element("id", id)
-
+    item = browser.find_element("id", id)
     browser.switch_to.window(module_window)
 
+    return item
 
 @contextlib.contextmanager
 def desktop_terminal(browser, user_id):
