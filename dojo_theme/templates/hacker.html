@@ -47,6 +47,16 @@
         </h3>
       {% endfor %}
 
+      {% if discord_member %}
+        <h3 class="d-inline-block">
+          <span class="badge badge-secondary">
+            <img src="{{ url_for('views.themes', path='img/dojo/discord_logo.svg') }}" 
+                 style="width: 16px; height: 16px; margin-right: 5px;">
+            {{ discord_member.user.username }}
+          </span>
+        </h3>
+      {% endif %}
+
       <div class="pt-3">
         {% if user.website %}
           <a href="{{ user.website }}" target="_blank" style="color: inherit;" rel="noopener">
