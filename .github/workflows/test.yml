@@ -203,11 +203,17 @@ jobs:
         run: |
           export MOZ_HEADLESS=1
           echo "Starting multi-node integration tests..."
-          test/local-tester.sh -M || {
+          test/local-tester.sh -c dojo-test -M || {
             echo "Multi-node tests failed, checking container logs..."
-            docker logs local-dojo-multi-node-test 2>&1 | tail -50 || true
-            docker logs local-dojo-multi-node-test-node1 2>&1 | tail -50 || true
-            docker logs local-dojo-multi-node-test-node2 2>&1 | tail -50 || true
+            echo "::group::{main node logs}"
+            docker exec dojo-test dojo compose logs
+            echo "::endgroup::"
+            echo "::group::{worker node 1 logs}"
+            docker exec dojo-test-node1 dojo compose logs
+            echo "::endgroup::"
+            echo "::group::{worker node 2 logs}"
+            docker exec dojo-test-node2 dojo compose logs
+            echo "::endgroup::"
             exit 1
           }
 
