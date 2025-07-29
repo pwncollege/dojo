@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=angr-management
+Comment=A GUI for angr
+Exec=/run/dojo/bin/angr-management
+Icon=/run/dojo/share/angr-management/angr.ico
+Categories=Application;Development;

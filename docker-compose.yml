@@ -1,4 +1,30 @@
 services:
+  splunk:
+    container_name: splunk
+    image: splunk/splunk:9.1.2
+    profiles:
+      - splunk
+    hostname: splunk
+    restart: always
+    environment:
+      - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_PASSWORD=DojoSplunk2024!
+      - SPLUNK_HEC_TOKEN=11111111-1111-1111-1111-111111111111
+    ports:
+      - "8001:8000"  # Splunk Web (changed from 8000 to avoid conflict with CTFd)
+      - "8088:8088"  # HEC
+      - "8089:8089"  # Splunk management
+    volumes:
+      - /data/splunk/etc:/opt/splunk/etc
+      - /data/splunk/var:/opt/splunk/var
+      - /opt/pwn.college/Splunk.License:/tmp/Splunk.License:ro
+      - /opt/pwn.college/splunk/default.yml:/tmp/defaults/default.yml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   workspace-builder:
     container_name: workspace-builder
     build: ./workspace
@@ -100,6 +126,7 @@ services:
       - /data/mac:/var/mac
       - /data/homes:/var/homes:shared
       - /data/dojos:/var/dojos
+      - /data/ctfd-ipython:/root/.ipython
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
