@@ -103,7 +103,7 @@ def challenge_start(browser, idx, practice=False):
 def challenge_submit(browser, idx, flag):
     challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
-    body.find_element("id", "flag-input").send_keys(flag)
+    body.find_element("id", "challenge-input").send_keys(flag)
     while "Correct" not in body.find_element("id", "result-message").text:
         time.sleep(0.5)
 
