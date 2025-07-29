@@ -278,7 +278,7 @@ function startChallenge(event) {
         $(".challenge-init").removeClass("challenge-hidden");
         $(".challenge-workspace").removeClass("workspace-fullscreen");
         $(".challenge-workspace").html("");
-        item.find(".challenge-workspace").html("<iframe class=\"challenge-iframe\" src=\"/workspace?as-iframe=true&hide-navbar=true\"></iframe>");
+        item.find(".challenge-workspace").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"/workspace?as-iframe=true&hide-navbar=true\"></iframe>");
         item.find(".challenge-init").addClass("challenge-hidden");
         window_resize_callback("");
 

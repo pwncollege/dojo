@@ -58,7 +58,7 @@ def iframe_find(browser, id):
     module_window = browser.current_window_handle
 
     wait = WebDriverWait(browser, 30)
-    workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, id)))
+    workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace-iframe")))
     browser.switch_to.frame(workspace_iframe)
 
     yield browser.find_element("id", id)
