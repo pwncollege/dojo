@@ -27,6 +27,8 @@ case "$ACTION" in
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
     "update")
         git pull
+        # rebuild the workspace so that ctfd isn't down for too long
+        dojo compose up -d --build --no-deps workspace-builder
         dojo up "$@"
         ;;
 
@@ -66,7 +68,12 @@ case "$ACTION" in
     "compose")
         profile="main"
         [ "$WORKSPACE_NODE" -gt 0 ] && profile="workspace"
-        docker compose --env-file=/data/config.env --profile "$profile" "$@"
+
+        if [ "${ENABLE_SPLUNK}" = "true" ]; then
+            docker compose --env-file=/data/config.env --profile "$profile" --profile splunk "$@"
+        else
+            docker compose --env-file=/data/config.env --profile "$profile" "$@"
+        fi
         ;;
 
     # HELP: node: run a dojo node command
@@ -131,6 +138,12 @@ case "$ACTION" in
         journalctl -u pwn.college -f --no-tail
         ;;
 
+    # HELP: load-dojo: load a dojo from a git repository
+    "load-dojo")
+        "$0" flask -- /opt/CTFd/CTFd/plugins/dojo_plugin/scripts/load_dojo.py -- "$@"
+        exit $?
+        ;;
+
     # HELP: wait: wait for the dojo to finish starting
     "wait")
         dojo logs | while IFS= read -r line; do
@@ -165,7 +178,7 @@ case "$ACTION" in
         ;;
 
     *)
-        echo "Unknown command."
+        echo "Unknown command $0."
         echo ""
         "$0" help
         exit 1
