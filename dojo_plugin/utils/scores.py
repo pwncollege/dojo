@@ -15,11 +15,12 @@ def scores_query(granularity, dojo_filter):
         dojo_filter
     ).group_by(*grouping).order_by(Dojos.id, solve_count.desc(), last_solve_date)
 
+    return []
     return dsc_query
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def dojo_scores():
-    dsc_query = scores_query([Dojos.id], or_(Dojos.data["type"] == "public", Dojos.official))
+    dsc_query = scores_query([Dojos.id], or_(Dojos.data["type"].astext == "public", Dojos.official))
 
     user_ranks = { }
     user_solves = { }
@@ -37,7 +38,7 @@ def dojo_scores():
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def module_scores():
-    dsc_query = scores_query([Dojos.id, DojoChallenges.module_index], or_(Dojos.data["type"] == "public", Dojos.official))
+    dsc_query = scores_query([Dojos.id, DojoChallenges.module_index], or_(Dojos.data["type"].astext == "public", Dojos.official))
 
     user_ranks = { }
     user_solves = { }
