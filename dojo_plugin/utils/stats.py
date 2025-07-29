@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 
 from . import force_cache_updates, get_all_containers, DojoChallenges
+from ..models import UserPrivacySettings
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def get_container_stats():
@@ -38,31 +39,34 @@ def get_challenge_active_users():
         users_data = []
         for user_id, container_info in user_containers.items():
             user = Users.query.filter_by(id=user_id).first()
-            if user and not user.hidden:  # Respect privacy settings
-                # Calculate duration
-                from datetime import datetime
-                import dateutil.parser
-                
-                started_at = dateutil.parser.parse(container_info['started_at'])
-                now = datetime.now(started_at.tzinfo)
-                duration = now - started_at
-                
-                # Format duration
-                total_seconds = int(duration.total_seconds())
-                hours = total_seconds // 3600
-                minutes = (total_seconds % 3600) // 60
-                
-                if hours > 0:
-                    duration_str = f"{hours}h {minutes}m"
-                else:
-                    duration_str = f"{minutes}m"
-                
-                users_data.append({
-                    'id': user.id,
-                    'name': user.name,
-                    'display_name': user.name,
-                    'duration': duration_str
-                })
+            if user and not user.hidden:  # Respect basic privacy settings
+                # Check if user allows username in activity display
+                privacy_settings = UserPrivacySettings.get_or_create(user_id)
+                if privacy_settings.show_username_in_activity:
+                    # Calculate duration
+                    from datetime import datetime
+                    import dateutil.parser
+                    
+                    started_at = dateutil.parser.parse(container_info['started_at'])
+                    now = datetime.now(started_at.tzinfo)
+                    duration = now - started_at
+                    
+                    # Format duration
+                    total_seconds = int(duration.total_seconds())
+                    hours = total_seconds // 3600
+                    minutes = (total_seconds % 3600) // 60
+                    
+                    if hours > 0:
+                        duration_str = f"{hours}h {minutes}m"
+                    else:
+                        duration_str = f"{minutes}m"
+                    
+                    users_data.append({
+                        'id': user.id,
+                        'name': user.name,
+                        'display_name': user.name,
+                        'duration': duration_str
+                    })
         result[challenge_id] = users_data
     
     return result

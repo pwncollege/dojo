@@ -5,7 +5,7 @@ from CTFd.utils.helpers import get_infos, markup
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 
-from ..models import SSHKeys, DiscordUsers
+from ..models import SSHKeys, DiscordUsers, UserPrivacySettings
 from ..config import DISCORD_CLIENT_ID
 from ..utils.discord import get_discord_member, discord_avatar_asset
 
@@ -21,6 +21,8 @@ def settings_override():
 
     discord_member = get_discord_member(DiscordUsers.query.filter_by(user=user)
                                         .with_entities(DiscordUsers.discord_id).scalar())
+    
+    privacy_settings = UserPrivacySettings.get_or_create(user.id)
 
     prevent_name_change = get_config("prevent_name_change")
 
@@ -43,5 +45,6 @@ def settings_override():
         discord_member=discord_member,
         discord_avatar_asset=discord_avatar_asset,
         prevent_name_change=prevent_name_change,
+        privacy_settings=privacy_settings,
         infos=infos,
     )
