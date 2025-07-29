@@ -295,7 +295,8 @@ class DojoUsers(db.Model):
     dojo = db.relationship("Dojos", back_populates="users", overlaps="admins,members,students")
     user = db.relationship("Users")
 
-    # survey_responses = db.relationship("SurveyResponses", back_populates="users", overlaps="admins,members,students")
+    def survey_responses(self):
+        return DojoChallenges.survey_responses(user=self.user)
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(user=self.user, dojo=self.dojo, **kwargs)
@@ -515,8 +516,6 @@ class DojoChallenges(db.Model):
                                  cascade="all, delete-orphan",
                                  back_populates="challenge")
 
-    # survey_responses = db.relationship("SurveyResponses", back_populates="challenge", cascade="all, delete-orphan")
-
     def __init__(self, *args, **kwargs):
         default = kwargs.pop("default", None)
 
@@ -563,6 +562,19 @@ class DojoChallenges(db.Model):
             cls.visibility.has(or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start)),
             cls.visibility.has(or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop)),
         ))
+
+    # note: currently unused, may need future testing
+    @hybrid_method
+    def survey_responses(self, user=None):
+        result = SurveyResponses.query.filter(
+            SurveyResponses.dojo_id == self.dojo_id,
+            SurveyResponses.challenge_id == self.challenge_id
+            )
+        
+        if user is not None:
+            result = result.filter(SurveyResponses.user_id == user.id)
+
+        return result
 
     @hybrid_method
     def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True):
@@ -639,19 +651,16 @@ class DojoChallenges(db.Model):
 
 class SurveyResponses(db.Model):
     __tablename__ = "survey_responses"
-
+    
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"))
-    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    dojo_id = db.Column(db.Integer, nullable=False)
+    challenge_id = db.Column(db.Integer, index=True, nullable=False)
+    user_id = db.Column(db.Integer, nullable=False)
+    
+    prompt = db.Column(db.Text, nullable=False)
+    response = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
 
-    type = db.Column(db.String(64))
-    prompt = db.Column(db.Text)
-    response = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-
-    # challenge = db.relationship("DojoChallenges", back_populates="survey_responses")
-    # users = db.relationship("DojoUsers", back_populates="survey_responses")
 
 
 class DojoResources(db.Model):
