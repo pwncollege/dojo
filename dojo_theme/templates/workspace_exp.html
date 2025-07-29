@@ -73,7 +73,7 @@ html, body, main {
 }
 
 .option-active {
-	background-color: var(--brand-green) !important;
+	{% if challenge.allow_privileged %}background-color: var(--brand-green) !important;{% endif %}
 }
 
 </style>
