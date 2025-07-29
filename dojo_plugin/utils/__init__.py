@@ -23,6 +23,7 @@ from CTFd.utils.config.pages import build_markdown
 from CTFd.utils.security.sanitize import sanitize_html
 from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
+from bleach.css_sanitizer import CSSSanitizer
 
 from ..config import WORKSPACE_NODES, MAC_HOSTNAME, MAC_USERNAME
 from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges, WorkspaceTokens
@@ -159,6 +160,29 @@ def render_markdown(s):
     clean_html = bleach.clean(raw_html, tags=markdown_tags, attributes=markdown_attrs)
     return Markup(clean_html)
 
+def sanitize_survey(data):
+    allowed_tags = [
+        "h1", "h2", "h3", "h4", "h5", "h6",
+        "b", "i", "strong", "em", "tt",
+        "p", "br",
+        "span", "div", "blockquote", "code", "pre", "hr",
+        "ul", "ol", "li", "dd", "dt",
+        "sub", "sup",
+        "style", "input", "label", "button"
+    ]
+
+    allowed_attrs = {
+        "*": ["class", "style", "data-form-submit"],
+        "input": ["type", "name", "checked", "value", "placeholder", "readonly"],
+        "label": ["for"],
+        "button": ["type"],
+    }
+
+    allowed_css = bleach.css_sanitizer.ALLOWED_CSS_PROPERTIES.union([
+        "transition", "transform"
+    ])
+
+    return bleach.clean(data, tags=allowed_tags, attributes=allowed_attrs, css_sanitizer=CSSSanitizer(allowed_css_properties=allowed_css)) 
 
 def unserialize_user_flag(user_flag, *, secret=None):
     if secret is None:

@@ -9,6 +9,8 @@ import functools
 import inspect
 import pathlib
 import urllib.request
+import base64
+import logging
 
 import yaml
 import requests
@@ -21,7 +23,7 @@ from CTFd.utils.user import get_current_user, is_admin
 
 from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
 from ..config import DOJOS_DIR
-from ..utils import get_current_container
+from ..utils import get_current_container, sanitize_survey
 
 
 DOJOS_TMP_DIR = DOJOS_DIR/"tmp"
@@ -71,24 +73,13 @@ DOJO_SPEC = Schema({
 
     Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
 
-    Optional("survey"): Or(
-        {
-            "type": "multiplechoice",
-            "prompt": str,
-            Optional("probability"): float,
-            "options": [str],
-        },
-        {
-            "type": "thumb",
-            "prompt": str,
-            Optional("probability"): float,
-        },
-        {
-            "type": "freeform",
-            "prompt": str,
-            Optional("probability"): float,
-        },
-    ),
+    Optional("survey"): {
+        Optional("probability"): float,
+        "prompt": str,
+        "data": str
+    },
+
+    Optional("survey-sources", default={}): str,
 
     Optional("modules", default=[]): [{
         **ID_NAME_DESCRIPTION,
@@ -105,24 +96,11 @@ DOJO_SPEC = Schema({
             "module": ID_REGEX,
         },
 
-        Optional("survey"): Or(
-            {
-                "type": "multiplechoice",
-                "prompt": str,
-                Optional("probability"): float,
-                "options": [str],
-            },
-            {
-                "type": "thumb",
-                "prompt": str,
-                Optional("probability"): float,
-            },
-            {
-                "type": "freeform",
-                "prompt": str,
-                Optional("probability"): float,
-            },
-        ),
+        Optional("survey"): {
+            Optional("probability"): float,
+            "prompt": str,
+            "data": str
+        },
 
         Optional("challenges", default=[]): [dict],
 
@@ -167,24 +145,11 @@ DOJO_SPEC = Schema({
                     Optional("module"): ID_REGEX,
                     "challenge": ID_REGEX,
                 },
-                Optional("survey"): Or(
-                    {
-                        "type": "multiplechoice",
-                        "prompt": str,
-                        Optional("probability"): float,
-                        "options": [str],
-                    },
-                    {
-                        "type": "thumb",
-                        "prompt": str,
-                        Optional("probability"): float,
-                    },
-                    {
-                        "type": "freeform",  
-                        "prompt": str,
-                        Optional("probability"): float,
-                    },
-                ),
+                Optional("survey"): {
+                    Optional("probability"): float,
+                    "prompt": str,
+                    "data": str
+                },
             },
         )],
 
@@ -218,7 +183,7 @@ def setdefault_name(entry):
 
 def setdefault_file(data, key, file_path):
     if file_path.exists():
-        data.setdefault("description", file_path.read_text())
+        data.setdefault(key, file_path.read_text())
 
 
 def setdefault_subyaml(data, subyaml_path):
@@ -290,6 +255,34 @@ def load_dojo_subyamls(data, dojo_dir):
 
     return data
 
+def load_surveys(data, dojo_dir):
+    """
+    Optional survey data can be stored in an arbitrary directory under dojo_dir
+
+    This directory is specified by 'survey-sources' under the base yml file
+
+    This function copies the html survey data into the survey.data attribute
+    """
+
+    survey_data = data.get("survey-sources", None)
+    if survey_data and type(survey_data) == str:
+        survey_dir = dojo_dir / survey_data
+        if "survey" in data and "src" in data["survey"]:
+            setdefault_file(data["survey"], "data", survey_dir / data["survey"]["src"])
+            del data["survey"]["src"]
+
+        for module_data in data.get("modules", []):
+            if "survey" in module_data and "src" in module_data["survey"]:
+                setdefault_file(module_data["survey"], "data", survey_dir / module_data["survey"]["src"])
+                del module_data["survey"]["src"]
+
+            for challenge_data in module_data.get("resources", []):
+                if challenge_data["type"] != "challenge": continue
+                if "survey" in challenge_data and "src" in challenge_data["survey"]:
+                    setdefault_file(challenge_data["survey"], "data", survey_dir / challenge_data["survey"]["src"])
+                    del challenge_data["survey"]["src"]
+
+    return data
 
 def dojo_initialize_files(data, dojo_dir):
     for dojo_file in data.get("files", []):
@@ -319,6 +312,7 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
 
     data_raw = yaml.safe_load(dojo_yml_path.read_text())
     data = load_dojo_subyamls(data_raw, dojo_dir)
+    data = load_surveys(data, dojo_dir)
     dojo_initialize_files(data, dojo_dir)
     return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
 
@@ -405,6 +399,16 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             return default_dict[attr]
         raise KeyError(f"Missing `{attr}` in `{datas}`")
 
+    def survey(*datas):
+        for data in reversed(datas):
+            if "survey" in data:
+                survey = dict(data["survey"])
+                if not "data" in survey:
+                    raise KeyError(f"Survey data not specified")
+                survey["data"] = sanitize_survey(survey["data"])
+                return survey
+        return None
+
     def import_ids(attrs, *datas):
         datas_import = [data.get("import", {}) for data in datas]
         return tuple(shadow(id, *datas_import) for id in attrs)
@@ -433,7 +437,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     ) if "import" not in challenge_data else None,
                     progression_locked=challenge_data.get("progression_locked"),
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
-                    survey=shadow("survey", dojo_data, module_data, challenge_data, default=None),
+                    survey=survey(dojo_data, module_data, challenge_data),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
                                         f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")
                              if "import" in challenge_data else None),
