@@ -7,7 +7,7 @@ DEFAULT_CONTAINER_NAME="local-${REPO_DIR}"
 
 function usage {
 	set +x
-	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -T ] [ -p ] [ -e ENV_VAR=value ] [ -b ] [ -M ]"
+	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -T ] [ -p ] [ -e ENV_VAR=value ] [ -b ] [ -M ] [ -g ]"
 	echo ""
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: local-<dirname>)"
@@ -18,6 +18,7 @@ function usage {
 	echo "	-e	set environment variable (can be used multiple times)"
 	echo "	-b	build the Docker image locally (tag: same as container name)"
 	echo "	-M	run in multi-node mode (3 containers: 1 main + 2 workspace nodes)"
+	echo "	-g	use GitHub Actions group output formatting"
 	exit
 }
 
@@ -44,6 +45,21 @@ function fix_insane_routing {
 	[ "${GW[2]}" == "${NS[1]}" ] || docker exec "$CONTAINER" ip route add "${NS[1]}" via 172.17.0.1
 }
 
+function log_newgroup {
+	local title="$1"
+	if [ "$GITHUB_ACTIONS" == "yes" ]; then
+		echo "::group::$title"
+	else
+		echo "=== $title ==="
+	fi
+}
+
+function log_endgroup {
+	if [ "$GITHUB_ACTIONS" == "yes" ]; then
+		echo "::endgroup::"
+	fi
+}
+
 VOLUME_ARGS=()
 ENV_ARGS=( )
 DB_RESTORE=""
@@ -54,7 +70,8 @@ WORKSPACE_DIR=""
 EXPORT_PORTS=no
 BUILD_IMAGE=no
 MULTINODE=no
-while getopts "r:c:he:TD:W:pbM" OPT
+GITHUB_ACTIONS=no
+while getopts "r:c:he:TD:W:pbMg" OPT
 do
 	case $OPT in
 		r) DB_RESTORE="$OPTARG" ;;
@@ -66,6 +83,7 @@ do
 		p) EXPORT_PORTS=yes ;;
 		b) BUILD_IMAGE=yes ;;
 		M) MULTINODE=yes ;;
+		g) GITHUB_ACTIONS=yes ;;
 		h) usage ;;
 		?)
 			OPTIND=$(($OPTIND-1))
@@ -113,9 +131,10 @@ fi
 
 IMAGE_NAME="pwncollege/dojo"
 if [ "$BUILD_IMAGE" == "yes" ]; then
-	echo "Building Docker image with tag: $DOJO_CONTAINER"
+	log_newgroup "Building Docker image with tag: $DOJO_CONTAINER"
 	docker build -t "$DOJO_CONTAINER" . || exit 1
 	IMAGE_NAME="$DOJO_CONTAINER"
+	log_endgroup
 fi
 
 PORT_ARGS=()
@@ -126,6 +145,7 @@ fi
 MULTINODE_ARGS=()
 [ "$MULTINODE" == "yes" ] && MULTINODE_ARGS+=("-e" "WORKSPACE_NODE=0")
 
+log_newgroup "Starting main dojo container"
 docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" "${PORT_ARGS[@]}" "${MULTINODE_ARGS[@]}" --name "$DOJO_CONTAINER" "$IMAGE_NAME" || exit 1
 CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER")
 fix_insane_routing "$DOJO_CONTAINER"
@@ -133,8 +153,10 @@ fix_insane_routing "$DOJO_CONTAINER"
 docker exec "$DOJO_CONTAINER" dojo wait
 docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
 docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
+log_endgroup
 
 if [ "$MULTINODE" == "yes" ]; then
+	log_newgroup "Setting up multi-node cluster"
 	docker exec "$DOJO_CONTAINER" dojo-node refresh
 	MAIN_KEY=$(docker exec "$DOJO_CONTAINER" cat /data/wireguard/publickey)
 	
@@ -183,21 +205,28 @@ if [ "$MULTINODE" == "yes" ]; then
 	docker exec "$DOJO_CONTAINER" dojo up
 	docker exec "$DOJO_CONTAINER-node1" dojo up
 	docker exec "$DOJO_CONTAINER-node2" dojo up
+	log_endgroup
 fi
 
 if [ -n "$DB_RESTORE" ]
 then
+	log_newgroup "Restoring database backup"
 	BASENAME=$(basename $DB_RESTORE)
 	docker exec "$DOJO_CONTAINER" mkdir -p /data/backups/
 	[ -f "$DB_RESTORE" ] && docker cp "$DB_RESTORE" "$DOJO_CONTAINER":/data/backups/"$BASENAME"
 	docker exec "$DOJO_CONTAINER" dojo restore "$BASENAME"
+	log_endgroup
 fi
 
+log_newgroup "Waiting for dojo to be ready"
 export DOJO_URL="http://${CONTAINER_IP}"
 export DOJO_SSH_HOST="$CONTAINER_IP" 
 until curl -Ls "${DOJO_URL}" | grep -q pwn; do sleep 1; done
+log_endgroup
 
 if [ "$TEST" == "yes" ]; then
+	log_newgroup "Running tests"
 	export MOZ_HEADLESS=1
 	pytest --order-dependencies -v test "$@"
+	log_endgroup
 fi

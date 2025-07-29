@@ -83,7 +83,7 @@ jobs:
         run: |
           export MOZ_HEADLESS=1
           echo "Starting single-node integration tests..."
-          test/local-tester.sh -c dojo-test -D /mnt/dojo-docker -W /mnt/dojo-workspace || {
+          test/local-tester.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace || {
             echo "Single-node tests failed, checking container logs..."
             echo "::group::{node logs}"
             docker exec dojo-test dojo compose logs
@@ -184,7 +184,7 @@ jobs:
         run: |
           export MOZ_HEADLESS=1
           echo "Starting multi-node integration tests..."
-          test/local-tester.sh -c dojo-test -M -D /mnt/dojo-docker -W /mnt/dojo-workspace || {
+          test/local-tester.sh -c dojo-test -g -M -D /mnt/dojo-docker -W /mnt/dojo-workspace || {
             echo "Multi-node tests failed, checking container logs..."
             echo "::group::{main node logs}"
             docker exec dojo-test dojo compose logs
