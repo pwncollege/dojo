@@ -54,16 +54,23 @@ def vscode_terminal(browser):
     browser.close()
     browser.switch_to.window(module_window)
 
-def iframe_find(browser, id):
+def iframe_click(browser, id):
     module_window = browser.current_window_handle
 
     wait = WebDriverWait(browser, 30)
     workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace-iframe")))
     browser.switch_to.frame(workspace_iframe)
-    item = browser.find_element("id", id)
+    browser.find_element("id", id).click()
     browser.switch_to.window(module_window)
 
-    return item
+def iframe_submit(browser, flag):
+    module_window = browser.current_window_handle
+
+    wait = WebDriverWait(browser, 30)
+    workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace-iframe")))
+    browser.switch_to.frame(workspace_iframe)
+    browser.find_element("id", "flag-input").send_keys(flag)
+    browser.switch_to.window(module_window)
 
 @contextlib.contextmanager
 def desktop_terminal(browser, user_id):
@@ -98,7 +105,7 @@ def challenge_start(browser, idx, practice=False):
         while "started" not in body.find_element("id", "result-message").text:
             time.sleep(0.5)
         time.sleep(1)
-        iframe_find(browser, "start-priv").click()
+        iframe_click(browser, "start-priv")
         time.sleep(1)
     else:
         body.find_element("id", "challenge-start").click()
@@ -110,7 +117,7 @@ def challenge_start(browser, idx, practice=False):
 def challenge_submit(browser, idx, flag):
     challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
-    iframe_find(browser, "flag-input").send_keys(flag)
+    iframe_submit(browser, flag)
     while "Correct" not in body.find_element("id", "result-message").text:
         time.sleep(0.5)
 
