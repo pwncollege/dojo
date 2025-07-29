@@ -6,6 +6,9 @@ from sqlalchemy.exc import IntegrityError
 from CTFd.models import db
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
+from sshpubkeys import SSHKey, InvalidKeyError
+import base64
+import markupsafe
 
 from ...models import SSHKeys
 
@@ -23,17 +26,18 @@ class UpdateKey(Resource):
         key_value = data.get("ssh_key", "")
 
         if key_value:
-            key_re = "ssh-(rsa|ed25519|dss) AAAA[0-9A-Za-z+/]{1,730}[=]{0,2}"
-            key_match = re.match(key_re, key_value)
-            if not key_match:
+            try:
+                key = SSHKey(key_value, strict=True)
+                key.parse()
+                key_value = f"{key.key_type.decode()} {base64.b64encode(key._decoded_key).decode()}"
+            except (InvalidKeyError, NotImplementedError) as e:
                 return (
                     {
                         "success": False,
-                        "error": f"Invalid SSH Key, expected format:<br><code>{key_re}</code>"
+                        "error": f"Invalid SSH Key, error: <code>{markupsafe.escape(e)}</code> <br>Refer below for how to generate a valid ssh key"
                     },
                     400,
                 )
-            key_value = key_match.group()
 
         user = get_current_user()
 
