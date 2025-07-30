@@ -101,6 +101,7 @@ def challenge_start(browser, idx, practice=False):
     challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
     if practice:
+        # Start, then go in iframe and click privileged mode.
         body.find_element("id", "challenge-start").click()
         while "started" not in body.find_element("id", "result-message").text:
             time.sleep(0.5)
