@@ -160,6 +160,7 @@ function unlockChallenge(challenge_button) {
         const challenge_id = item.find("#challenge").val();
         const description = item.find(".challenge-description");
 
+        // This returns html that is parsed markdown, so it is fine to set the description to the raw html
         CTFd.fetch(`/pwncollege_api/v1/dojos/${init.dojo}/${module_id}/${challenge_id}/description`)
             .then(response => response.json())
             .then(data => description.html(data.description));
@@ -196,18 +197,18 @@ function startChallenge(event) {
     var result_message = item.find('#result-message');
     result_notification.removeClass('alert-danger');
     result_notification.addClass('alert alert-warning alert-dismissable text-center');
-    result_message.html("Loading.");
+    result_message.text("Loading.");
     result_notification.slideDown();
     var dot_max = 5;
     var dot_counter = 0;
     setTimeout(function loadmsg() {
-        if (result_message.html().startsWith("Loading")) {
+        if (result_message.text().startsWith("Loading")) {
             if (dot_counter < dot_max - 1){
                 result_message.append(".");
                 dot_counter++;
             }
             else {
-                result_message.html("Loading.");
+                result_message.text("Loading.");
                 dot_counter = 0;
             }
             setTimeout(loadmsg, 500);
@@ -241,6 +242,7 @@ function startChallenge(event) {
 
         if (result.success) {
             var message = `Challenge successfully started! You can interact with it through a <a href="/workspace/code" target="dojo_workspace">VSCode Workspace</a> or a <a href="/workspace/desktop" target="dojo_workspace">GUI Desktop Workspace</a>.`;
+            // This is a message that we set, so it is safe to use the html method
             result_message.html(message);
             result_notification.addClass('alert alert-info alert-dismissable text-center');
 
@@ -249,12 +251,12 @@ function startChallenge(event) {
             setTimeout(() => updateNavbarDropdown(), 1000);
         }
         else {
-            var message = "";
-            message += "Error:";
-            message += "<br>";
-            message += "<code>" + result.error + "</code>";
-            message += "<br>";
-            result_message.html(message);
+            result_message.empty();
+
+            result_message.append("Error: <br>");
+            var errorInfo = $("<code></code>").text(result.error);
+            result_message.append(errorInfo);
+            result_message.append("<br>");
             result_notification.addClass('alert alert-warning alert-dismissable text-center');
         }
 
@@ -272,7 +274,7 @@ function startChallenge(event) {
     }).catch(function (error) {
         console.error(error);
         var result_message = item.find('#result-message');
-        result_message.html("Submission request failed: " + ((error || {}).message || error));
+        result_message.text("Submission request failed: " + ((error || {}).message || error));
         result_notification.addClass('alert alert-warning alert-dismissable text-center');
     })
 }
