@@ -52,7 +52,7 @@ def view_workspace_exp():
     workspace_options = {} # Set by challenge.
 
     # For now, add all the "standard" options.
-    workspace_options = workspace_options | opt_vscode | opt_desktop | opt_ssh
+    workspace_options = workspace_options | opt_vscode | opt_desktop
 
 
     if content == "default":
