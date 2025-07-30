@@ -1,19 +1,26 @@
+# syntax=docker/dockerfile:1
+
 FROM alpine:3.20.3
 
 RUN apk add --no-cache \
-        python3 \
-        py3-pip \
-        openssh-server-pam \
-        openssh-client \
-        docker-cli \
-        mysql-client
+    python3 \
+    py3-pip \
+    openssh-server-pam \
+    openssh-client \
+    docker-cli
 
-RUN pip3 install --break-system-packages requests==2.31.0 docker redis
+RUN pip3 install --break-system-packages \
+    requests \
+    docker \
+    redis \
+    psycopg2-binary
 
-RUN addgroup -g 995 docker && \
-    adduser -S hacker -G docker -s /bin/sh && \
-    mkdir -p /home/hacker/.docker && \
-    echo '{ "detachKeys": "ctrl-q,ctrl-q" }' > /home/hacker/.docker/config.json
+RUN adduser -D hacker && \
+    addgroup -g 995 docker && \
+    addgroup hacker docker && \
+    mkdir -p /home/hacker/.docker /home/hacker/.ssh && \
+    echo '{ "detachKeys": "ctrl-q,ctrl-q" }' > /home/hacker/.docker/config.json && \
+    chown -R hacker:hacker /home/hacker
 
 RUN mkdir -p /run/sshd
 
@@ -23,4 +30,15 @@ RUN chmod 700 /opt/sshd/auth.py
 
 EXPOSE 22
 
-ENTRYPOINT ["/opt/sshd/start.sh"]
+COPY --chmod=755 <<EOF /docker-entrypoint.sh
+#!/bin/sh
+env > /etc/environment
+if [ -f /var/mac/key ]; then
+    cp /var/mac/key /home/hacker/.ssh
+    chown hacker:hacker /home/hacker/.ssh/key
+    chmod 600 /home/hacker/.ssh/key
+fi
+exec /usr/sbin/sshd.pam -D -e -f /opt/sshd/sshd_config
+EOF
+
+ENTRYPOINT ["/docker-entrypoint.sh"]

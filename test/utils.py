@@ -73,3 +73,25 @@ def workspace_run(cmd, *, user, root=False, **kwargs):
         args += [ "-s" ]
     args += [ user ]
     return dojo_run(*args, input=cmd, check=True, **kwargs)
+
+
+def start_challenge(dojo, module, challenge, practice=False, *, session, as_user=None, wait=0):
+    start_challenge_json = dict(dojo=dojo, module=module, challenge=challenge, practice=practice)
+    if as_user:
+        start_challenge_json["as_user"] = as_user
+    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=start_challenge_json)
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
+    
+    if wait > 0:
+        time.sleep(wait)
+
+
+def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):
+    flag = flag if flag is not None else workspace_run("cat /flag", user=user, root=True).stdout.strip()
+    response = session.post(
+        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/{module}/{challenge}/solve",
+        json={"submission": flag}
+    )
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+    assert response.json()["success"], "Expected to successfully submit flag"

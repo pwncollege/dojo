@@ -1,50 +1,38 @@
 #!/usr/bin/env python3
 
-import sys
-import pathlib
 import os
-import subprocess
+import pathlib
+import sys
+from urllib.parse import urlparse
 
-# adamd: insanity to reload the environment varaibles from the docker compose
+import psycopg2
 
-global_env = "/etc/environment"
-if os.path.exists(global_env):
-    with open(global_env, "r") as f:
-        for line in f.readlines():
-            res = line.strip().split("=", maxsplit=1)
-            if res and len(res) == 2:
-                key = res[0]
-                value = res[1]
-                os.environ[key] = value
-
-
-DB_HOST = os.environ.get('DB_HOST', "db")
-DB_NAME = os.environ.get('DB_NAME', "ctfd")
-DB_USER = os.environ.get('DB_USER', "ctfd")
-DB_PASS = os.environ.get('DB_PASS', "ctfd")
 
 def error(msg):
     print(msg, file=sys.stderr)
     exit(1)
 
+def create_db_connection():
+    os.environ.update(dict(entry.split("=", maxsplit=1) for entry in open("/etc/environment", "r").read().splitlines()))
+    if not (db_url := os.environ.get("DATABASE_URL")):
+        error("DATABASE_URL environment variable is not set")
+    parsed = urlparse(db_url)
+    return psycopg2.connect(
+        host=parsed.hostname,
+        port=parsed.port or 5432,
+        database=parsed.path.lstrip("/"),
+        user=parsed.username,
+        password=parsed.password,
+    )
 
 def main():
     enter_path = pathlib.Path(__file__).parent.resolve() / "enter.py"
 
-    # dirty dirty hack
-    target_key = pathlib.Path(__file__).parent.resolve() / "pwn-college-mac-key"
-    subprocess.run(f"cp {os.environ.get('MAC_KEY_FILE', '/opt/pwn.college/data/mac-key')} {target_key} ; chown hacker:docker {target_key} ; chmod 600 {target_key}",
-                   shell=True,
-                   )
-    connect_arg = f"-h{DB_HOST}" if DB_HOST else ""
-    result = subprocess.run(["mysql", connect_arg, f"-p{DB_PASS}", f"-u{DB_USER}", f"-D{DB_NAME}", "-sNe", 'select value, user_id from ssh_keys;'], stdout=subprocess.PIPE)
-    if result.returncode != 0:
-        error(f"Error: db query exited with code '{result.returncode}'")
-
-    for row in result.stdout.strip().split(b"\n"):
-        key, user_id = row.decode().split("\t")
-        print(f'command="{enter_path} user_{user_id}" {key}')
-
+    connection = create_db_connection()
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT user_id, value FROM ssh_keys")
+        for user_id, key in cursor.fetchall():
+            print(f'command="{enter_path} user_{user_id}" {key}')
 
 if __name__ == "__main__":
     main()

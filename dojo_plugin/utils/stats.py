@@ -34,6 +34,25 @@ def get_dojo_stats(dojo):
     chart_solves = []
     chart_users = []
 
+    return {
+        'users': total_users,
+        'challenges': total_challenges,
+        'visible_challenges': visible_challenges,
+        'solves': total_solves,
+        'recent_solves': [],
+        'trends': {
+            'solves': 0,
+            'users': 0,
+            'active': 0,
+            'challenges': 0,
+        },
+        'chart_data': {
+            'labels': chart_labels,
+            'solves': chart_solves,
+            'users': chart_users
+        }
+    }
+
     for days_ago in snapshot_days:
         # get day given how many days ago
         snapshot_date = now - timedelta(days=days_ago)
