@@ -160,13 +160,13 @@ def test_welcome_practice(random_user_browser, welcome_dojo):
     idx = challenge_idx(browser, "Using Practice Mode")
 
     challenge_start(browser, idx, practice=True)
-    with vscode_terminal(browser) as vs:
+    with desktop_terminal(browser, random_id) as vs:
         vs.send_keys("sudo chmod 644 /challenge/secret\n")
         vs.send_keys("cp /challenge/secret /home/hacker/\n")
         time.sleep(1)
 
     challenge_start(browser, idx, practice=False, first=False)
-    with desktop_terminal(browser) as vs:
+    with desktop_terminal(browser, random_id) as vs:
         vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
         time.sleep(5)
         flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
