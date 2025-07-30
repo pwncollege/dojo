@@ -202,6 +202,36 @@ if [ "$MULTINODE" == "yes" ]; then
 	docker exec "$DOJO_CONTAINER" dojo up
 	docker exec "$DOJO_CONTAINER-node1" dojo up
 	docker exec "$DOJO_CONTAINER-node2" dojo up
+	
+	# Fix routing for user containers on workspace nodes
+	log_newgroup "Configuring multi-node networking"
+	
+	# Enable IP forwarding on all nodes
+	docker exec "$DOJO_CONTAINER" sysctl -w net.ipv4.ip_forward=1
+	docker exec "$DOJO_CONTAINER-node1" sysctl -w net.ipv4.ip_forward=1
+	docker exec "$DOJO_CONTAINER-node2" sysctl -w net.ipv4.ip_forward=1
+	
+	# Fix routes on main node to match production (direct to wg0, not via specific IP)
+	docker exec "$DOJO_CONTAINER" bash -c "ip route del 10.16.0.0/12 2>/dev/null || true"
+	docker exec "$DOJO_CONTAINER" bash -c "ip route del 10.32.0.0/12 2>/dev/null || true"
+	docker exec "$DOJO_CONTAINER" ip route add 10.16.0.0/12 dev wg0
+	docker exec "$DOJO_CONTAINER" ip route add 10.32.0.0/12 dev wg0
+	
+	# Add the critical MASQUERADE rule from production for the entire 10.0.0.0/8 network
+	docker exec "$DOJO_CONTAINER" bash -c "iptables -t nat -C POSTROUTING -s 10.0.0.0/8 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.0.0.0/8 -j MASQUERADE"
+	
+	# Configure NAT on workspace nodes for user containers
+	docker exec "$DOJO_CONTAINER-node1" bash -c "iptables -t nat -C POSTROUTING -s 10.16.0.0/12 -o wg0 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.16.0.0/12 -o wg0 -j MASQUERADE"
+	docker exec "$DOJO_CONTAINER-node2" bash -c "iptables -t nat -C POSTROUTING -s 10.32.0.0/12 -o wg0 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.32.0.0/12 -o wg0 -j MASQUERADE"
+	
+	# Allow forwarding between docker0 and wg0 on workspace nodes
+	docker exec "$DOJO_CONTAINER-node1" bash -c "iptables -C FORWARD -i docker0 -o wg0 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i docker0 -o wg0 -j ACCEPT"
+	docker exec "$DOJO_CONTAINER-node1" bash -c "iptables -C FORWARD -i wg0 -o docker0 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i wg0 -o docker0 -j ACCEPT"
+	docker exec "$DOJO_CONTAINER-node2" bash -c "iptables -C FORWARD -i docker0 -o wg0 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i docker0 -o wg0 -j ACCEPT"
+	docker exec "$DOJO_CONTAINER-node2" bash -c "iptables -C FORWARD -i wg0 -o docker0 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i wg0 -o docker0 -j ACCEPT"
+	
+	log_endgroup
+	
 	log_endgroup
 fi
 
