@@ -161,8 +161,7 @@ def test_welcome_practice(random_user_browser, welcome_dojo):
 
     challenge_start(browser, idx, practice=True)
     with desktop_terminal(browser, random_id) as vs:
-        vs.send_keys("sudo chmod 644 /challenge/secret\n")
-        vs.send_keys("cp /challenge/secret /home/hacker/\n")
+        vs.send_keys("sudo cat /challenge/secret >/home/hacker/secret 2>&1\n")
         time.sleep(1)
 
     challenge_start(browser, idx, practice=False, first=False)
