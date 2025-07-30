@@ -167,8 +167,8 @@ def test_welcome_practice(random_user_browser, welcome_dojo):
 
     challenge_start(browser, idx, practice=False, first=False)
     with desktop_terminal(browser, random_id) as vs:
-        vs.send_keys("/challenge/solve < secret 2>&1 > ~/out\n")
+        vs.send_keys("/challenge/solve < secret 2>&1 > /tmp/out\n")
         time.sleep(10)
-        flag = workspace_run("tail -n1 ~/out", user=random_id).stdout.split()[-1]
+        flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
     challenge_submit(browser, idx, flag)
     browser.close()
