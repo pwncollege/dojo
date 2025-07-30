@@ -220,16 +220,6 @@ if [ "$MULTINODE" == "yes" ]; then
 	# Add the critical MASQUERADE rule from production for the entire 10.0.0.0/8 network
 	docker exec "$DOJO_CONTAINER" bash -c "iptables -t nat -C POSTROUTING -s 10.0.0.0/8 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.0.0.0/8 -j MASQUERADE"
 	
-	# Configure NAT on workspace nodes for user containers
-	docker exec "$DOJO_CONTAINER-node1" bash -c "iptables -t nat -C POSTROUTING -s 10.16.0.0/12 -o wg0 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.16.0.0/12 -o wg0 -j MASQUERADE"
-	docker exec "$DOJO_CONTAINER-node2" bash -c "iptables -t nat -C POSTROUTING -s 10.32.0.0/12 -o wg0 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.32.0.0/12 -o wg0 -j MASQUERADE"
-	
-	# Allow forwarding between docker0 and wg0 on workspace nodes
-	docker exec "$DOJO_CONTAINER-node1" bash -c "iptables -C FORWARD -i docker0 -o wg0 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i docker0 -o wg0 -j ACCEPT"
-	docker exec "$DOJO_CONTAINER-node1" bash -c "iptables -C FORWARD -i wg0 -o docker0 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i wg0 -o docker0 -j ACCEPT"
-	docker exec "$DOJO_CONTAINER-node2" bash -c "iptables -C FORWARD -i docker0 -o wg0 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i docker0 -o wg0 -j ACCEPT"
-	docker exec "$DOJO_CONTAINER-node2" bash -c "iptables -C FORWARD -i wg0 -o docker0 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i wg0 -o docker0 -j ACCEPT"
-	
 	# Wait a moment for routes to settle
 	sleep 10
 	
