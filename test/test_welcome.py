@@ -93,6 +93,7 @@ def challenge_start(browser, idx, practice=False, first=True):
         time.sleep(1)
 
     browser.switch_to.frame(body.find_element("id", "workspace-iframe"))
+    time.sleep(10)
 
     if practice:
         browser.find_element("id", "start-priv").click()
