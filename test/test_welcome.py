@@ -54,24 +54,6 @@ def vscode_terminal(browser):
     browser.close()
     browser.switch_to.window(module_window)
 
-def iframe_click(browser, id):
-    module_window = browser.current_window_handle
-
-    wait = WebDriverWait(browser, 30)
-    workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace-iframe")))
-    browser.switch_to.frame(workspace_iframe)
-    browser.find_element("id", id).click()
-    browser.switch_to.window(module_window)
-
-def iframe_submit(browser, flag):
-    module_window = browser.current_window_handle
-
-    wait = WebDriverWait(browser, 30)
-    workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace-iframe")))
-    browser.switch_to.frame(workspace_iframe)
-    browser.find_element("id", "flag-input").send_keys(flag)
-    browser.switch_to.window(module_window)
-
 @contextlib.contextmanager
 def desktop_terminal(browser, user_id):
     module_window = browser.current_window_handle
@@ -97,35 +79,43 @@ def challenge_expand(browser, idx):
     time.sleep(0.5)
 
 
-def challenge_start(browser, idx, practice=False, iframe=False):
-    challenge_expand(browser, idx)
+def challenge_start(browser, idx, practice=False, first=True):
+    if first:
+        challenge_expand(browser, idx)
+
     body = browser.find_element("id", f"challenges-body-{idx}")
+    restore = browser.current_window_handle
+
+    if first:
+        body.find_element("id", "challenge-start").click()
+        while "started" not in body.find_element("id", "result-message").text:
+            time.sleep(0.5)
+        time.sleep(1)
+
+    browser.switch_to.frame(body.find_element("id", "workspace-iframe"))
+
     if practice:
-        # Start, then go in iframe and click privileged mode.
-        body.find_element("id", "challenge-start").click()
-        while "started" not in body.find_element("id", "result-message").text:
+        browser.find_element("id", "start-priv").click()
+        while "disabled" in browser.find_element("id", "start-priv").getAttribute("class"):
             time.sleep(0.5)
-        time.sleep(1)
-        iframe_click(browser, "start-priv")
-        time.sleep(1)
-    elif iframe:
-        iframe_click(browser, "start")
-        while "started" not in body.find_element("id", "result-message").text:
+    elif not first:
+        browser.find_element("id", "start").click()
+        while "disabled" in browser.find_element("id", "start").getAttribute("class"):
             time.sleep(0.5)
-        time.sleep(1)
-    else:
-        body.find_element("id", "challenge-start").click()
-        while "started" not in body.find_element("id", "result-message").text:
-            time.sleep(0.5)
-        time.sleep(1)
+    
+    browser.switch_to.window(restore)
 
 
 def challenge_submit(browser, idx, flag):
-    challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
-    iframe_submit(browser, flag)
-    while "Correct" not in body.find_element("id", "result-message").text:
+    restore = browser.current_window_handle
+
+    browser.switch_to.frame(body.find_element("id", "workspace-iframe"))
+    browser.find_element("id", "flag-input").send_keys(flag)
+    
+    while not "orrect" in browser.find_element("id", "flag-input").getAttribute("placeholder"):
         time.sleep(0.5)
+    browser.switch_to.window(restore)
 
 # Gets the accordion entry index
 def challenge_idx(browser, name):
@@ -134,8 +124,7 @@ def challenge_idx(browser, name):
     return idx+1
 
 
-# Figure out why this is failing, but the desktop works.
-def no_test_welcome_desktop(random_user_browser, welcome_dojo):
+def test_welcome_desktop(random_user_browser, welcome_dojo):
     random_id, _, browser = random_user_browser
     browser.get(f"{DOJO_URL}/welcome/welcome")
     idx = challenge_idx(browser, "The Flag File")
@@ -144,12 +133,12 @@ def no_test_welcome_desktop(random_user_browser, welcome_dojo):
     with desktop_terminal(browser, random_id) as vs:
         vs.send_keys("/challenge/solve; cat /flag | tee /tmp/out\n")
         time.sleep(5)
-        flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1] # This is failing for some reason.
+        flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
     challenge_submit(browser, idx, flag)
     browser.close()
 
 
-def no_test_welcome_vscode(random_user_browser, welcome_dojo):
+def test_welcome_vscode(random_user_browser, welcome_dojo):
     random_id, _, browser = random_user_browser
     browser.get(f"{DOJO_URL}/welcome/welcome")
     idx = challenge_idx(browser, "Challenge Programs")
@@ -163,7 +152,7 @@ def no_test_welcome_vscode(random_user_browser, welcome_dojo):
     browser.close()
 
 
-def no_test_welcome_practice(random_user_browser, welcome_dojo):
+def test_welcome_practice(random_user_browser, welcome_dojo):
     random_id, _, browser = random_user_browser
     browser.get(f"{DOJO_URL}/welcome/welcome")
     idx = challenge_idx(browser, "Using Practice Mode")
@@ -174,9 +163,9 @@ def no_test_welcome_practice(random_user_browser, welcome_dojo):
         vs.send_keys("cp /challenge/secret /home/hacker/\n")
         time.sleep(1)
 
-    challenge_start(browser, idx, practice=False, iframe=True)
+    challenge_start(browser, idx, practice=False, first=False)
     with vscode_terminal(browser) as vs:
-        vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
+        vs.send_keys("/challenge/solve < ~/secret | tee /tmp/out\n")
         time.sleep(5)
         flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
     challenge_submit(browser, idx, flag)
