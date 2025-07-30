@@ -28,7 +28,6 @@
         <value type="int" value="4"/>  <!-- Pager -->
         <value type="int" value="5"/>  <!-- Separator -->
         <value type="int" value="6"/>  <!-- System Tray -->
-        <value type="int" value="19"/> <!-- Notification Plugin -->
         <value type="int" value="11"/> <!-- Separator -->
         <value type="int" value="12"/> <!-- Clock -->
       </property>
@@ -54,7 +53,7 @@
     </property>
     <property name="plugin-7" type="string" value="launcher">
       <property name="items" type="array">
-        <value type="string" value="terminal-emulator.desktop"/>
+        <value type="string" value="xfce4-terminal.desktop"/>
       </property>
     </property>
     <property name="plugin-8" type="string" value="directorymenu">
@@ -72,12 +71,12 @@
     <property name="plugin-12" type="string" value="clock"/>
     <property name="plugin-13" type="string" value="launcher">
       <property name="items" type="array">
-        <value type="string" value="ida64.desktop"/>
+        <value type="string" value="ida-free.desktop"/>
       </property>
     </property>
     <property name="plugin-14" type="string" value="launcher">
       <property name="items" type="array">
-        <value type="string" value="binaryninja.desktop"/>
+        <value type="string" value="com.vector35.binaryninja.desktop"/>
       </property>
     </property>
     <property name="plugin-15" type="string" value="separator"/>
@@ -89,10 +88,9 @@
     </property>
     <property name="plugin-18" type="string" value="launcher">
       <property name="items" type="array">
-        <value type="string" value="wireshark.desktop"/>
+        <value type="string" value="org.wireshark.Wireshark.desktop"/>
       </property>
     </property>
-    <property name="plugin-19" type="string" value="notification-plugin"/>
     <property name="plugin-20" type="string" value="launcher">
       <property name="items" type="array">
         <value type="string" value="firefox.desktop"/>
