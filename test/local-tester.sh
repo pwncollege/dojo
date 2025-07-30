@@ -60,7 +60,6 @@ function log_endgroup {
 	fi
 }
 
-VOLUME_ARGS=()
 ENV_ARGS=( )
 DB_RESTORE=""
 DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
@@ -107,13 +106,11 @@ if [ "$MULTINODE" == "yes" ]; then
 	WORKDIR_NODE2=$(mktemp -d /tmp/local-data-${DOJO_CONTAINER}-node2-XXXXXX)
 fi
 
-VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared" "${VOLUME_ARGS[@]}")
-[ -n "$WORKSPACE_DIR" ] && VOLUME_ARGS+=( "-v" "$WORKSPACE_DIR:/data/workspace:shared" )
+MAIN_NODE_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared")
+[ -n "$WORKSPACE_DIR" ] && MAIN_NODE_VOLUME_ARGS+=( "-v" "$WORKSPACE_DIR:/data/workspace:shared" )
 if [ -n "$DOCKER_DIR" ]; then
-	if [ "$MULTINODE" != "yes" ]; then
-		VOLUME_ARGS+=( "-v" "$DOCKER_DIR:/data/docker" )
-		sudo rm -rf $DOCKER_DIR/{containers,volumes}
-	fi
+	MAIN_NODE_VOLUME_ARGS+=( "-v" "$DOCKER_DIR:/data/docker" )
+	sudo rm -rf $DOCKER_DIR/{containers,volumes}
 fi
 
 if [ "$MULTINODE" == "yes" ]; then
@@ -146,7 +143,7 @@ MULTINODE_ARGS=()
 [ "$MULTINODE" == "yes" ] && MULTINODE_ARGS+=("-e" "WORKSPACE_NODE=0")
 
 log_newgroup "Starting main dojo container"
-docker run --rm --privileged -d "${VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" "${PORT_ARGS[@]}" "${MULTINODE_ARGS[@]}" --name "$DOJO_CONTAINER" "$IMAGE_NAME" || exit 1
+docker run --rm --privileged -d "${MAIN_NODE_VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" "${PORT_ARGS[@]}" "${MULTINODE_ARGS[@]}" --name "$DOJO_CONTAINER" "$IMAGE_NAME" || exit 1
 CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER")
 fix_insane_routing "$DOJO_CONTAINER"
 
