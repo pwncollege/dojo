@@ -169,5 +169,7 @@ def test_welcome_practice(random_user_browser, welcome_dojo):
         vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
         time.sleep(10)
         flag = workspace_run("tail -n1 /tmp/out 2>&1", user=random_id).stdout.split()[-1]
+        print(f"Hey look at this -> {workspace_run("tail -n1 /tmp/out 2>&1", user=random_id).stdout}")
+        print(f"Hey look at this -> {workspace_run("tail -n1 secret 2>&1", user=random_id).stdout}")
     challenge_submit(browser, idx, flag)
     browser.close()
