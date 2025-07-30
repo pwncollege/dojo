@@ -102,7 +102,9 @@ def challenge_start(browser, idx, practice=False, first=True):
         browser.find_element("id", "start").click()
         while "disabled" in browser.find_element("id", "start").get_attribute("class"):
             time.sleep(0.5)
-    
+
+    time.sleep(1)
+
     browser.switch_to.window(restore)
 
 
@@ -165,7 +167,7 @@ def test_welcome_practice(random_user_browser, welcome_dojo):
 
     challenge_start(browser, idx, practice=False, first=False)
     with vscode_terminal(browser) as vs:
-        vs.send_keys("ca secret | /challenge/solve | tee /tmp/out\n")
+        vs.send_keys("cat secret | /challenge/solve | tee /tmp/out\n")
         time.sleep(5)
         flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
     challenge_submit(browser, idx, flag)
