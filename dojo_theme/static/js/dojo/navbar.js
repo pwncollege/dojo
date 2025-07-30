@@ -210,11 +210,15 @@ function submitFlag(event) {
     result_notification.addClass('alert alert-warning alert-dismissable text-center');
     result_message.html("Loading...");
     result_notification.slideDown();
+
+    var timer = setTimeout(() => {
+        result_notification.slideUp();
+    }, 5000);
+
     if (submission === "pwn.college{practice}") {
         result_notification.removeClass();
         result_notification.addClass('alert alert-success alert-dismissable text-center');
-        result_message.html('You have submitted the \"practice\" flag from launching the challenge in Practice mode! This flag is not valid for scoring. Run the challenge in non-practice mode by pressing Start above, then use your solution to get the \"real\" flag and submit it!');
-        setTimeout(() => result_notification.slideUp(), 5000);
+        result_message.html('You have submitted the "practice" flag from launching the challenge in Practice mode! This flag is not valid for scoring. Run the challenge in non-practice mode by pressing Start above, then use your solution to get the "real" flag and submit it!');
         event.stopPropagation();
         return
     }
@@ -226,11 +230,25 @@ function submitFlag(event) {
             result_notification.addClass('alert alert-success alert-dismissable text-center');
             result_message.html('Flag submitted successfully!');
             $("#dropdown-challenge-input").val("");
+
+            const broadcast_send = new BroadcastChannel('broadcast');
+            broadcast_send.postMessage({
+                msg: 'challengeSolved',
+                challenge_id: body.challenge_id
+            });
         } else {
             result_notification.removeClass();
             result_notification.addClass('alert alert-danger alert-dismissable text-center');
             result_message.html('Flag submission failed: '+ result.message);
         }
+        clearTimeout(timer);
+        setTimeout(() => result_notification.slideUp(), 5000);
+    }).catch(err => {
+        const result = err.data;
+        result_notification.removeClass();
+        result_notification.addClass('alert alert-danger alert-dismissable text-center');
+        result_message.html('Flag submission failed: '+ result.message);
+        clearTimeout(timer);
         setTimeout(() => result_notification.slideUp(), 5000);
     });
     event.stopPropagation();

@@ -94,7 +94,8 @@ DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
 INTERNET_FOR_ALL = bool(ast.literal_eval(os.getenv("INTERNET_FOR_ALL") or "False"))
-WINDOWS_VM_ENABLED = os.getenv("WINDOWS_VM") == "full"
+MAC_HOSTNAME = os.getenv("MAC_HOSTNAME")
+MAC_USERNAME = os.getenv("MAC_USERNAME")
 
 missing_errors = ["DOJO_HOST", "HOST_DATA_PATH"]
 for config_option in missing_errors:

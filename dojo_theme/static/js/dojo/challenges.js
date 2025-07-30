@@ -106,11 +106,6 @@ function renderSubmissionResponse(response, item) {
         }).then(function (data) {
             if(data.type === "none") return
             if(Math.random() > data.probability) return
-            if(data.type === "thumb") {
-                survey_notification.addClass("text-center")
-            } else {
-                survey_notification.addClass("text-left")
-            }
             survey_notification.addClass(
                 "alert-warning alert-dismissable"
             );
@@ -282,52 +277,85 @@ function startChallenge(event) {
     })
 }
 
-function clickSurveyThumb(event) {
-    const clicked = $(event.currentTarget)
-    const item = $(event.currentTarget).closest(".accordion-item")
-    const survey_notification = item.find("#survey-notification")
-    if(clicked.hasClass("fa-thumbs-up")) {
-        surveySubmit("up", item)
-    } else {
-        surveySubmit("down", item)
+async function buildSurvey(item) {
+    const form = item.find("form#survey-notification")
+    if(form.html() === "") return
+
+    // fix styles
+    const challenge_id = item.find('#challenge-id').val()
+    for(const style of form.find("style")) {
+        let cssText = ""
+        for(const rule of style.sheet.cssRules) {
+            cssText += ".survey-id-" + challenge_id + " " + rule.cssText + " "
+        }
+        style.innerHTML = cssText
     }
-    survey_notification.slideUp()
-}
 
-function clickSurveyOption(event) {
-    const clicked = $(event.currentTarget)
-    const item = $(event.currentTarget).closest(".accordion-item")
-    const survey_notification = item.find("#survey-notification")
-    const index = clicked.attr("data-id")
-    surveySubmit(parseInt(index), item)
-    survey_notification.slideUp()
-}
-
-function clickSurveySubmit(event) {
-    const item = $(event.currentTarget).closest(".accordion-item")
-    const survey_notification = item.find("#survey-notification")
-    const response = item.find("#survey-freeresponse-input").val()
-    surveySubmit(response, item)
-    survey_notification.slideUp()
+    const customSubmits = item.find("[data-form-submit]")
+    customSubmits.each((_, element) => {
+        $(element).click(() => {
+            surveySubmit(
+                JSON.stringify({
+                    response: $(element).attr("data-form-submit")
+                }),
+                item
+            )
+            form.slideUp()
+        })
+    })
+    // csrf fix
+    const formData = new FormData(form[0])
+    form.submit(event => {
+        event.preventDefault()
+        surveySubmit(JSON.stringify(Object.fromEntries(formData)), item)
+        form.slideUp()
+    })
 }
 
 function surveySubmit(data, item) {
     const challenge_name = item.find('#challenge').val()
     const module_name = item.find('#module').val()
     const dojo_name = init.dojo
-    return CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/surveys/${module_name}/${challenge_name}`, {
+    return CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/${module_name}/${challenge_name}/surveys`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            response: data
-        })
+        body: data
     })
 }
 
+
+function markChallengeAsSolved(item) {
+    const unsolved_flag = item.find(".challenge-unsolved");
+    if (unsolved_flag.hasClass("challenge-solved")) {
+        return;
+    }
+
+    unsolved_flag.removeClass("challenge-unsolved");
+    unsolved_flag.addClass("challenge-solved");
+
+    const total_solves = item.find(".total-solves");
+    total_solves.text(
+        (parseInt(total_solves.text().trim().split(" ")[0]) + 1) + " solves"
+    );
+
+    const answer_input = item.find("#challenge-input");
+    answer_input.val("");
+    answer_input.removeClass("wrong");
+    answer_input.addClass("correct");
+
+    const header = item.find('[id^="challenges-header-"]');
+    const current_challenge_id = parseInt(header.attr('id').match(/(\d+)$/)[1]);
+    const next_challenge_button = $(`#challenges-header-button-${current_challenge_id + 1}`);
+
+    unlockChallenge(next_challenge_button);
+    checkUserAwards()
+        .then(handleAwardPopup)
+        .catch(error => console.error("Award check failed:", error));
+}
 
 $(() => {
     $(".accordion-item").on("show.bs.collapse", function (event) {
@@ -340,6 +368,17 @@ $(() => {
         });
     });
 
+    const broadcast = new BroadcastChannel('broadcast');
+    broadcast.onmessage = (event) => {
+        if (event.data.msg === 'challengeSolved') {
+            const challenge_id = event.data.challenge_id;
+            const item = $(`input#challenge-id[value='${challenge_id}']`).closest(".accordion-item");
+            if (item.length) {
+                markChallengeAsSolved(item);
+            }
+        }
+    };
+
     $(".challenge-input").keyup(function (event) {
         if (event.keyCode == 13) {
             const submit = $(event.currentTarget).closest(".accordion-item").find("#challenge-submit");
@@ -347,14 +386,12 @@ $(() => {
         }
     });
 
+
     $(".accordion-item").find("#challenge-submit").click(submitChallenge);
     $(".accordion-item").find("#challenge-start").click(startChallenge);
     $(".accordion-item").find("#challenge-practice").click(startChallenge);
 
-    $(".accordion-item").find("#survey-thumbs-up").click(clickSurveyThumb)
-    $(".accordion-item").find("#survey-thumbs-down").click(clickSurveyThumb)
-
-    $(".accordion-item").find(".survey-option").click(clickSurveyOption)
-
-    $(".accordion-item").find("#survey-submit").click(clickSurveySubmit)
+    $(".accordion-item").each((_, item) => {
+        buildSurvey($(item))
+    })
 });
