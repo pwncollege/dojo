@@ -97,8 +97,10 @@ def challenge_start(browser, idx, practice=False, first=True):
     if practice:
         browser.find_element("id", "start-priv").click()
         print("Look here now -> ")
-        print(browser.find_element("id", "start-priv"))
+        print(browser.find_element("id", "start-priv").get_attribute("class"))
         time.sleep(5)
+        print("Look here now -> ")
+        print(browser.find_element("id", "start-priv").get_attribute("class"))
         while "disabled" in browser.find_element("id", "start-priv").get_attribute("class"):
             time.sleep(0.5)
     elif not first:
