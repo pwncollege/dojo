@@ -97,7 +97,7 @@ def challenge_expand(browser, idx):
     time.sleep(0.5)
 
 
-def challenge_start(browser, idx, practice=False):
+def challenge_start(browser, idx, practice=False, iframe=False):
     challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
     if practice:
@@ -107,6 +107,11 @@ def challenge_start(browser, idx, practice=False):
             time.sleep(0.5)
         time.sleep(1)
         iframe_click(browser, "start-priv")
+        time.sleep(1)
+    elif iframe:
+        iframe_click(browser, "start")
+        while "started" not in body.find_element("id", "result-message").text:
+            time.sleep(0.5)
         time.sleep(1)
     else:
         body.find_element("id", "challenge-start").click()
@@ -169,7 +174,7 @@ def test_welcome_practice(random_user_browser, welcome_dojo):
         vs.send_keys("cp /challenge/secret /home/hacker/\n")
         time.sleep(1)
 
-    challenge_start(browser, idx, practice=False)
+    challenge_start(browser, idx, practice=False, iframe=True)
     with vscode_terminal(browser) as vs:
         vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
         time.sleep(5)
