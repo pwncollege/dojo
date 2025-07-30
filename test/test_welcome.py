@@ -96,11 +96,11 @@ def challenge_start(browser, idx, practice=False, first=True):
 
     if practice:
         browser.find_element("id", "start-priv").click()
-        while "disabled" in browser.find_element("id", "start-priv").getAttribute("class"):
+        while "disabled" in browser.find_element("id", "start-priv").get_attribute("class"):
             time.sleep(0.5)
     elif not first:
         browser.find_element("id", "start").click()
-        while "disabled" in browser.find_element("id", "start").getAttribute("class"):
+        while "disabled" in browser.find_element("id", "start").get_attribute("class"):
             time.sleep(0.5)
     
     browser.switch_to.window(restore)
@@ -113,7 +113,7 @@ def challenge_submit(browser, idx, flag):
     browser.switch_to.frame(body.find_element("id", "workspace-iframe"))
     browser.find_element("id", "flag-input").send_keys(flag)
     
-    while not "orrect" in browser.find_element("id", "flag-input").getAttribute("placeholder"):
+    while not "orrect" in browser.find_element("id", "flag-input").get_attribute("placeholder"):
         time.sleep(0.5)
     browser.switch_to.window(restore)
 
