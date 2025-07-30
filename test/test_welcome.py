@@ -119,6 +119,7 @@ def challenge_submit(browser, idx, flag):
     while not "orrect" in browser.find_element("id", "flag-input").get_attribute("placeholder") and counter < 20:
         time.sleep(0.5)
         counter = counter + 1
+    assert counter != 20
     browser.switch_to.window(restore)
 
 # Gets the accordion entry index
