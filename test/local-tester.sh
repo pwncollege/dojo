@@ -212,21 +212,10 @@ if [ "$MULTINODE" == "yes" ]; then
 	docker exec "$DOJO_CONTAINER-node2" sysctl -w net.ipv4.ip_forward=1
 	
 	# Fix routes on main node to match production (direct to wg0, not via specific IP)
-	# First check existing routes
-	echo "Existing routes on main node before changes:"
-	docker exec "$DOJO_CONTAINER" ip route | grep -E "10\.(16|32)\.0\.0/12" || echo "No existing routes for user containers"
-	
-	# Delete any existing routes that might conflict
 	docker exec "$DOJO_CONTAINER" bash -c "ip route del 10.16.0.0/12 2>/dev/null || true"
 	docker exec "$DOJO_CONTAINER" bash -c "ip route del 10.32.0.0/12 2>/dev/null || true"
-	
-	# Add the correct routes
-	docker exec "$DOJO_CONTAINER" ip route add 10.16.0.0/12 dev wg0 || echo "Failed to add route for 10.16.0.0/12"
-	docker exec "$DOJO_CONTAINER" ip route add 10.32.0.0/12 dev wg0 || echo "Failed to add route for 10.32.0.0/12"
-	
-	# Verify routes were added
-	echo "Routes after changes:"
-	docker exec "$DOJO_CONTAINER" ip route | grep -E "10\.(16|32)\.0\.0/12"
+	docker exec "$DOJO_CONTAINER" ip route add 10.16.0.0/12 dev wg0
+	docker exec "$DOJO_CONTAINER" ip route add 10.32.0.0/12 dev wg0
 	
 	# Add the critical MASQUERADE rule from production for the entire 10.0.0.0/8 network
 	docker exec "$DOJO_CONTAINER" bash -c "iptables -t nat -C POSTROUTING -s 10.0.0.0/8 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.0.0.0/8 -j MASQUERADE"
@@ -242,19 +231,7 @@ if [ "$MULTINODE" == "yes" ]; then
 	docker exec "$DOJO_CONTAINER-node2" bash -c "iptables -C FORWARD -i wg0 -o docker0 -j ACCEPT 2>/dev/null || iptables -A FORWARD -i wg0 -o docker0 -j ACCEPT"
 	
 	# Wait a moment for routes to settle
-	sleep 2
-	
-	# Test connectivity from main node
-	echo "Testing connectivity to workspace nodes:"
-	docker exec "$DOJO_CONTAINER" ping -c 1 192.168.42.2 || echo "Cannot ping workspace node 1"
-	docker exec "$DOJO_CONTAINER" ping -c 1 192.168.42.3 || echo "Cannot ping workspace node 2"
-	
-	# Check if nginx-proxy can reach a test IP in user container range
-	echo "Testing if nginx-proxy can reach user container IPs:"
-	docker exec "$DOJO_CONTAINER" docker exec nginx-proxy ping -c 1 -W 2 10.16.0.1 || echo "nginx-proxy cannot reach 10.16.0.1"
-	docker exec "$DOJO_CONTAINER" docker exec nginx-proxy ping -c 1 -W 2 10.32.0.1 || echo "nginx-proxy cannot reach 10.32.0.1"
-	
-	log_endgroup
+	sleep 10
 	
 	log_endgroup
 fi
