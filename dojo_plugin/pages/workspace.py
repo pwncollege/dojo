@@ -92,7 +92,7 @@ def view_workspace_exp():
 
     return render_template(
         "workspace_exp.html",
-        no_challenge=True,
+        no_challenge=False,
         practice=practice,
         flag_field_width=flag_field_width,
         fullscreen_allowed=allow_fullscreen,
