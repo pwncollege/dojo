@@ -96,11 +96,6 @@ def challenge_start(browser, idx, practice=False, first=True):
 
     if practice:
         browser.find_element("id", "start-priv").click()
-        print("Look here now -> ")
-        print(browser.find_element("id", "start-priv").get_attribute("class"))
-        time.sleep(5)
-        print("Look here now -> ")
-        print(browser.find_element("id", "start-priv").get_attribute("class"))
         while "disabled" in browser.find_element("id", "start-priv").get_attribute("class"):
             time.sleep(0.5)
     elif not first:
@@ -175,7 +170,7 @@ def test_welcome_practice(random_user_browser, welcome_dojo):
     challenge_start(browser, idx, practice=False, first=False)
     with desktop_terminal(browser, random_id) as vs:
         vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
-        time.sleep(10)
+        time.sleep(2)
         flag = workspace_run("tail -n1 /tmp/out 2>&1", user=random_id).stdout.split()[-1]
         temp = workspace_run("tail -n1 /tmp/out 2>&1", user=random_id).stdout
         secret = workspace_run("tail -n1 secret 2>&1", user=random_id).stdout
