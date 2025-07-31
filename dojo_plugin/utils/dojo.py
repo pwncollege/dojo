@@ -224,11 +224,16 @@ def load_dojo_subyamls(data, dojo_dir):
         setdefault_file(module_data, "description", module_dir / "DESCRIPTION.md")
         setdefault_name(module_data)
 
+        if "resources" not in module_data:
+            module_data["resources"] = []
+        if module_data["resources"]:
+            module_data["resources"].insert(0, {
+                "type": "header",
+                "content": "Resources"
+            })
+
         challenges = module_data.pop("challenges", [])
         if challenges:
-            if "resources" not in module_data:
-                module_data["resources"] = []
-            
             module_data["resources"].append({
                 "type": "header",
                 "content": "Challenges"
