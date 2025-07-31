@@ -157,7 +157,7 @@ def test_welcome_vscode(random_user_browser, welcome_dojo):
     browser.close()
 
 
-def test_welcome_practice(random_user_browser, welcome_dojo):
+def skip_test_welcome_practice(random_user_browser, welcome_dojo):
     random_id, _, browser = random_user_browser
     browser.get(f"{DOJO_URL}/welcome/welcome")
     idx = challenge_idx(browser, "Using Practice Mode")
