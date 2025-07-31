@@ -1,5 +1,5 @@
 function alert(message) {
-	document.getElementById("alert").innerHTML = message;
+	console.log(message)
 }
 
 function reload_content() {
@@ -144,8 +144,7 @@ function challenge_start_callback(event) {
 		});
 	}
 	else {
-		console.log("Unexpected element attempted to start a challenge:")
-		console.log(event.target);
+		alert("Failed to start challenge.")
 
 		$(".btn-challenge-start")
 		.removeClass("disabled")
@@ -179,8 +178,6 @@ function kill_footer() {
 }
 
 function submit_flag(flag) {
-	console.log("Submitting flag " + flag);
-
 	flag_input = document.getElementById("flag-input");
 	flag_input.value = "";
 	flag_input.placeholder = "Submitting...";
@@ -206,7 +203,7 @@ function submit_flag(flag) {
 			flag_input.classList.add("submit-correct");
 		}
 		else {
-			flag_input.placeholder = "WTF???";
+			flag_input.placeholder = "Submission Failed.";
 			flag_input.classList.add("submit-warn");
 		}
 	});

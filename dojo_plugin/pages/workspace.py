@@ -76,7 +76,7 @@ def view_workspace_exp():
 
     current_challenge = get_current_dojo_challenge()
     if current_challenge is None:
-        abort(404) # TODO: Tell the user to start a challenge instead.
+        return render_template("workspace_exp.html", no_challenge=True)
     practice = get_current_container(get_current_user()).labels.get("dojo.mode") == "privileged"
 
 
@@ -92,6 +92,7 @@ def view_workspace_exp():
 
     return render_template(
         "workspace_exp.html",
+        no_challenge=True,
         practice=practice,
         flag_field_width=flag_field_width,
         fullscreen_allowed=allow_fullscreen,

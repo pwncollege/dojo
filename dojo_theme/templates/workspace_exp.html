@@ -4,6 +4,7 @@
 {% block stylesheets %}
 {{ super() }}
 
+{% if not no_challenge %}
 <style>
 html, body, main {
 	width: 100%;
@@ -75,13 +76,15 @@ html, body, main {
 .option-active {
 	{% if challenge.allow_privileged %}background-color: var(--brand-green) !important;{% endif %}
 }
-
 </style>
+{% endif %}
 
 {% endblock %}
 
 
 {% block content %}
+
+{% if not no_challenge %}
 
 {% if hide_navbar %}
 <div id="hide-navbar"></div>
@@ -133,11 +136,21 @@ html, body, main {
 
 <div id="alert"></div>
 
+{% else %}
+
+<h1 style="height: 50%; display: flex; flex-direction: column; justify-content: center; text-align: center;">
+	No active challenge session; start a challenge!
+</h1>
+
+{% endif %}
+
 {% endblock %}
 
 
 {% block scripts %}
 
+{% if not no_challenge %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/workspace_exp.js') }}"></script>
+{% endif %}
 
 {% endblock %}
