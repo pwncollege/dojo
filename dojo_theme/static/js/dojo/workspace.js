@@ -1,11 +1,3 @@
-function alert(message) {
-    console.log(message)
-}
-
-function reload_content() {
-    set_content(document.getElementById("workspace-select"));
-}
-
 function process_content_operation_recursive(operations, content) {
     if (operations.length == 0) {
         return;
@@ -96,7 +88,7 @@ function start_challenge(privileged) {
                 return;
             }
 
-            reload_content();
+            set_content(document.getElementById("workspace-select"));
 
             $(".btn-challenge-start")
             .removeClass("disabled")
@@ -144,37 +136,13 @@ function challenge_start_callback(event) {
         });
     }
     else {
-        alert("Failed to start challenge.")
+        console.log("Failed to start challenge.");
 
         $(".btn-challenge-start")
         .removeClass("disabled")
         .removeClass("btn-disabled")
         .prop("disabled", false);
     }
-}
-
-function content_select_callback(event) {
-    event.preventDefault();
-
-    document.cookie = `previous_workspace=${event.target.options[event.target.selectedIndex].text}; expires=${(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))}; path=/workspace;`;
-
-    set_content(event.target);
-}
-
-function kill_navbar() {
-    var navbar = document.getElementsByClassName("navbar-expand-md")[0];
-    var navbar_pull = document.getElementsByClassName("navbar-pulldown")[0];
-    var navbar_search = document.getElementById("searchModal");
-
-    navbar.remove();
-    navbar_pull.remove();
-    navbar_search.remove();
-}
-
-function kill_footer() {
-    var footer = document.getElementsByClassName("footer")[0];
-
-    footer.remove();
 }
 
 function submit_flag(flag) {
@@ -209,26 +177,6 @@ function submit_flag(flag) {
     });
 }
 
-function flag_input_callback(event) {
-    event.preventDefault();
-    event.target.classList.remove("submit-correct");
-    event.target.classList.remove("submit-incorrect");
-    event.target.classList.remove("submit-warn");
-    event.target.placeholder = "Flag";
-    const flag_regex = /pwn.college{.*}/;
-
-    if (event.target.value.match(flag_regex) == null) {
-        return;
-    }
-
-    submit_flag(event.target.value);
-}
-
-function trim_navbar() {
-    document.getElementsByClassName("close-link")[0].parentElement.remove();
-    document.getElementsByClassName("navbar-pulldown")[0].remove();
-}
-
 function hide_navbar() {
     $(".navbar").addClass("navbar-hidden");
     $("main").addClass("main-navbar-hidden");
@@ -239,7 +187,7 @@ function show_navbar() {
     $("main").removeClass("main-navbar-hidden");
 }
 
-function toggle_navbar() {
+function do_fullscreen() {
     if (document.getElementsByClassName("navbar")[0].classList.contains("navbar-hidden")) {
         show_navbar();
     }
@@ -248,48 +196,37 @@ function toggle_navbar() {
     }
 }
 
-// We pray this never has desync issues lol.
-function toggle_fullscreen_icon() {
-    var fullscreen = document.getElementById("fullscreen");
-    if (fullscreen.innerHTML == "<i class=\"fas fa-compress fa-2x\"></i>") {
-        fullscreen.innerHTML = "<i class=\"fas fa-expand fa-2x\"></i>";
-    }
-    else {
-        fullscreen.innerHTML = "<i class=\"fas fa-compress fa-2x\"></i>";
-    }
-}
-
-function do_fullscreen() {
-    toggle_navbar();
-}
-
-function fullscreen_callback(event) {
-    event.preventDefault();
-    toggle_fullscreen_icon();
-    // If the window is not an iframe, this will refer to its own do_fullscreen function.
-    // Otherwise it will call the do_fullscreen function of the window which we are iframed into.
-    window.parent.do_fullscreen();
-}
-
 $(() => {
     var option = document.getElementById("active");
     option.selected = true;
     set_content(option);
 
-    kill_footer();
-    if (document.getElementById("hide-navbar") != null) {
-        kill_navbar();
+    if (new URLSearchParams(window.location.search).has("hide-navbar")) {
+        $("nav").hide();
     }
-    else {
-        trim_navbar();
-    }
+    $("footer").hide();
 
-    $("#workspace-select").change(content_select_callback);
+    $("#workspace-select").change((event) => {
+        event.preventDefault();
+        document.cookie = `previous_workspace=${event.target.options[event.target.selectedIndex].text}; expires=${(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))}; path=/workspace;`;
+        set_content(event.target);
+    });
+
     $(".btn-challenge-start").click(challenge_start_callback);
 
-    document.getElementById("flag-input").oninput = flag_input_callback;
+    $("#flag-input").on("input", function(event) {
+        event.preventDefault();
+        $(this).removeClass("submit-correct submit-incorrect submit-warn");
+        if ($(this).val().match(/pwn.college{.*}/)) {
+            submit_flag($(this).val());
+        }
+    });
 
-    if (document.getElementById("fullscreen") != null) {
-        document.getElementById("fullscreen").onclick = fullscreen_callback;
-    }
+    $("#fullscreen").click((event) => {
+        event.preventDefault();
+        $("#fullscreen i").toggleClass("fa-compress fa-expand");
+        // If the window is not an iframe, this will refer to its own do_fullscreen function.
+        // Otherwise it will call the do_fullscreen function of the window which we are iframed into.
+        window.parent.do_fullscreen();
+    });
 });

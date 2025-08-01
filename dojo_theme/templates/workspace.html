@@ -4,7 +4,6 @@
 {% block stylesheets %}
 {{ super() }}
 
-{% if not no_challenge %}
 <style>
 html, body, main {
     width: 100%;
@@ -39,6 +38,9 @@ html, body, main {
 
 .workspace-selector {
     font-size: 1.75vw;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
 }
 
 .flag-field-dynamic {
@@ -77,24 +79,14 @@ html, body, main {
     {% if challenge.allow_privileged %}background-color: var(--brand-green) !important;{% endif %}
 }
 </style>
-{% endif %}
-
 {% endblock %}
 
 
 {% block content %}
-
-{% if not no_challenge %}
-
-{% if hide_navbar %}
-<div id="hide-navbar"></div>
-{% endif %}
-
 <div class="challenge-workspace">
     <iframe src="" id="challenge-content" class="challenge-content"></iframe>
 
     <div class="row workspace-controls">
-        {% if workspace_selectable %}
         <div class="control-selector-frame">
             <select id="workspace-select" class="control-btn-std btn btn-outline-secondary workspace-selector">
                 {% for name, command in workspace_options.items() %}
@@ -102,7 +94,6 @@ html, body, main {
                 {% endfor %}
             </select>
         </div>
-        {% endif %}
         <div class="control-btn-frame">
             <button id="start" class="{% if not practice %}option-active {% endif %}control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
                 <i class="fas fa-play fa-2x"></i>
@@ -124,33 +115,18 @@ html, body, main {
             <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
             <input id="flag-input" class="control-btn-std form-control" type="text" placeholder="Flag">
         </div>
-        {% if fullscreen_allowed %}
         <div class="control-btn-frame">
             <button id="fullscreen" class="control-btn-std btn btn-md btn-outline-secondary">
                 <i class="fas fa-expand fa-2x"></i>
             </button>
         </div>
-        {% endif %}
     </div>
 </div>
 
 <div id="alert"></div>
-
-{% else %}
-
-<h1 style="height: 50%; display: flex; flex-direction: column; justify-content: center; text-align: center;">
-    No active challenge session; start a challenge!
-</h1>
-
-{% endif %}
-
 {% endblock %}
 
 
 {% block scripts %}
-
-{% if not no_challenge %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/workspace.js') }}"></script>
-{% endif %}
-
 {% endblock %}

@@ -24,83 +24,28 @@ port_names = {
 @workspace.route("/workspace", methods=["GET"])
 @authed_only
 def view_workspace():
-    content = request.args.get("service")
-    hide_navbar = request.args.get("hide-navbar")
-    as_iframe = request.args.get("as-iframe")
+    workspace_options = {
+        "VSCode": "GET&RENDER:iframe_src:/pwncollege_api/v1/workspace?service=code",
+        "Desktop": "GET&RENDER:iframe_src:/pwncollege_api/v1/workspace?service=desktop",
+    }
 
-    if content is None:
-        content = "none"
-    if hide_navbar is None:
-        hide_navbar = False
-    else:
-        hide_navbar = hide_navbar == "true"
-    if as_iframe is None:
-        as_iframe = False
-    else:
-        as_iframe = as_iframe == "true"
-
-
-    opt_vscode = {"VSCode": "GET&RENDER:iframe_src:/pwncollege_api/v1/workspace?service=code"}
-    opt_desktop = {"Desktop": "GET&RENDER:iframe_src:/pwncollege_api/v1/workspace?service=desktop"}
-    opt_ssh = {"SSH": "RENDER:/settings#ssh-key"}
-
-    workspace_default = "VSCode" # Set by challenge.
-    if "previous_workspace" in request.cookies:
-        workspace_previous = request.cookies.get("previous_workspace")
-    else:
-        workspace_previous = workspace_default;
-    workspace_options = {} # Set by challenge.
-
-    # For now, add all the "standard" options.
-    workspace_options = workspace_options | opt_vscode | opt_desktop
-
-
-    if content == "default":
-        workspace_active = workspace_default
-
-    elif content == "none":
-        if workspace_previous in workspace_options:
-            workspace_active = workspace_previous
-        else:
-            workspace_active = workspace_default
-
-    else:
-        if content in workspace_options:
-            workspace_active = content
-        else:
-            workspace_active = workspace_default
-
-
-    allow_fullscreen = (not hide_navbar or as_iframe)
-
+    workspace_default = "VSCode"
+    workspace_previous = request.cookies.get("previous_workspace")
+    workspace_active = workspace_previous if workspace_previous in workspace_options else workspace_default
 
     current_challenge = get_current_dojo_challenge()
-    if current_challenge is None:
-        return render_template("workspace.html", no_challenge=True)
-    practice = get_current_container(get_current_user()).labels.get("dojo.mode") == "privileged"
+    if not current_challenge:
+        return render_template("error.html", error="No active challenge session; start a challenge!")
 
-
-    flag_field_width = 45
-    if not current_challenge.allow_privileged:
-        flag_field_width += 10
-    if not allow_fullscreen:
-        flag_field_width += 10
-    if len(workspace_options) <= 1:
-        flag_field_width += 15
-    flag_field_width = str(flag_field_width) + "%"
-
+    practice = get_current_container().labels.get("dojo.mode") == "privileged"
 
     return render_template(
         "workspace.html",
-        no_challenge=False,
         practice=practice,
-        flag_field_width=flag_field_width,
-        fullscreen_allowed=allow_fullscreen,
         challenge=current_challenge,
-        hide_navbar=hide_navbar,
         workspace_active=workspace_active,
         workspace_options=workspace_options,
-        workspace_selectable=(len(workspace_options) > 1))
+    )
 
 
 @workspace.route("/workspace/<service>")
