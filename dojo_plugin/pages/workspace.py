@@ -23,7 +23,7 @@ port_names = {
 
 @workspace.route("/workspace", methods=["GET"])
 @authed_only
-def view_workspace_exp():
+def view_workspace():
     content = request.args.get("service")
     hide_navbar = request.args.get("hide-navbar")
     as_iframe = request.args.get("as-iframe")
@@ -76,7 +76,7 @@ def view_workspace_exp():
 
     current_challenge = get_current_dojo_challenge()
     if current_challenge is None:
-        return render_template("workspace_exp.html", no_challenge=True)
+        return render_template("workspace.html", no_challenge=True)
     practice = get_current_container(get_current_user()).labels.get("dojo.mode") == "privileged"
 
 
@@ -91,7 +91,7 @@ def view_workspace_exp():
 
 
     return render_template(
-        "workspace_exp.html",
+        "workspace.html",
         no_challenge=False,
         practice=practice,
         flag_field_width=flag_field_width,
@@ -105,8 +105,8 @@ def view_workspace_exp():
 
 @workspace.route("/workspace/<service>")
 @authed_only
-def view_workspace(service):
-    return render_template("workspace.html", iframe_name="workspace", service=service)
+def view_workspace_service(service):
+    return render_template("workspace_service.html", iframe_name="workspace", service=service)
 
 @workspace.route("/workspace/<service>/", websocket=True)
 @workspace.route("/workspace/<service>/<path:service_path>", websocket=True)
