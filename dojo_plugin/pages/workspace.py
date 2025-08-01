@@ -21,10 +21,37 @@ port_names = {
 }
 
 
+@workspace.route("/workspace", methods=["GET"])
+@authed_only
+def view_workspace():
+    workspace_options = {
+        "VSCode": "GET&RENDER:iframe_src:/pwncollege_api/v1/workspace?service=code",
+        "Desktop": "GET&RENDER:iframe_src:/pwncollege_api/v1/workspace?service=desktop",
+    }
+
+    workspace_default = "VSCode"
+    workspace_previous = request.cookies.get("previous_workspace")
+    workspace_active = workspace_previous if workspace_previous in workspace_options else workspace_default
+
+    current_challenge = get_current_dojo_challenge()
+    if not current_challenge:
+        return render_template("error.html", error="No active challenge session; start a challenge!")
+
+    practice = get_current_container().labels.get("dojo.mode") == "privileged"
+
+    return render_template(
+        "workspace.html",
+        practice=practice,
+        challenge=current_challenge,
+        workspace_active=workspace_active,
+        workspace_options=workspace_options,
+    )
+
+
 @workspace.route("/workspace/<service>")
 @authed_only
-def view_workspace(service):
-    return render_template("workspace.html", iframe_name="workspace", service=service)
+def view_workspace_service(service):
+    return render_template("workspace_service.html", iframe_name="workspace", service=service)
 
 @workspace.route("/workspace/<service>/", websocket=True)
 @workspace.route("/workspace/<service>/<path:service_path>", websocket=True)
