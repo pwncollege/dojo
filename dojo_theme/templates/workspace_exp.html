@@ -7,74 +7,74 @@
 {% if not no_challenge %}
 <style>
 html, body, main {
-	width: 100%;
-	height: 100%;
-	margin: 0;
-	{% if hide_navbar %}padding-top: 0px;{% endif %}
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    {% if hide_navbar %}padding-top: 0px;{% endif %}
 }
 
 .challenge-workspace {
-	width: 100%;
-	height: 100%;
+    width: 100%;
+    height: 100%;
 }
 
 .workspace-controls {
-	position: fixed;
-	bottom: 0;
-	right: 0;
-	width: 100%;
-	height: 10%;
-	margin-right: 0px;
-	margin-left: 0px;
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    width: 100%;
+    height: 10%;
+    margin-right: 0px;
+    margin-left: 0px;
 }
 
 .challenge-content {
-	position: fixed;
-	bottom: 10%;
-	right: 0;
-	width: 100%;
-	height: 90%;
-	border: 0;
+    position: fixed;
+    bottom: 10%;
+    right: 0;
+    width: 100%;
+    height: 90%;
+    border: 0;
 }
 
 .workspace-selector {
-	font-size: 1.75vw;
+    font-size: 1.75vw;
 }
 
 .flag-field-dynamic {
-	width: {{ flag_field_width }};
-	padding: .3%;
+    width: {{ flag_field_width }};
+    padding: .3%;
 }
 
 .control-btn-frame {
-	width: 10%;
-	padding: .3%;
+    width: 10%;
+    padding: .3%;
 }
 
 .control-btn-std {
-	width: 100% !important;
-	height: 100% !important;
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .control-selector-frame {
-	width: 15%;
-	padding: .3%;
+    width: 15%;
+    padding: .3%;
 }
 
 .submit-correct {
-	background-color: #008000 !important;
+    background-color: #008000 !important;
 }
 
 .submit-incorrect {
-	background-color: #800000 !important;
+    background-color: #800000 !important;
 }
 
 .submit-warn {
-	background-color: #d0c000 !important;
+    background-color: #d0c000 !important;
 }
 
 .option-active {
-	{% if challenge.allow_privileged %}background-color: var(--brand-green) !important;{% endif %}
+    {% if challenge.allow_privileged %}background-color: var(--brand-green) !important;{% endif %}
 }
 </style>
 {% endif %}
@@ -91,47 +91,47 @@ html, body, main {
 {% endif %}
 
 <div class="challenge-workspace">
-	<iframe src="" id="challenge-content" class="challenge-content"></iframe>
+    <iframe src="" id="challenge-content" class="challenge-content"></iframe>
 
-	<div class="row workspace-controls">
-		{% if workspace_selectable %}
-		<div class="control-selector-frame">
-			<select id="workspace-select" class="control-btn-std btn btn-outline-secondary workspace-selector">
-				{% for name, command in workspace_options.items() %}
-				<option value="{{ command }}" {% if name == workspace_active %}id="active"{% endif %}>{{ name }}</option>
-				{% endfor %}
-			</select>
-		</div>
-		{% endif %}
-		<div class="control-btn-frame">
-			<button id="start" class="{% if not practice %}option-active {% endif %}control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
-				<i class="fas fa-play fa-2x"></i>
-			</button>
-		</div>
-		{% if challenge.allow_privileged %}
-		<div class="control-btn-frame">
-			<button id="start-priv" class="{% if practice %}option-active {% endif %}control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
-				<i class="fas fa-lock-open fa-2x"></i>
-			</button>
-		</div>
-		{% endif %}
-		<div class="control-btn-frame">
-			<button id="restart" class="control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
-				<i class="fas fa-undo fa-2x"></i>
-			</button>
-		</div>
-		<div class="flag-field-dynamic">
-			<input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
-			<input id="flag-input" class="control-btn-std form-control" type="text" placeholder="Flag">
-		</div>
-		{% if fullscreen_allowed %}
-		<div class="control-btn-frame">
-			<button id="fullscreen" class="control-btn-std btn btn-md btn-outline-secondary">
-				<i class="fas fa-expand fa-2x"></i>
-			</button>
-		</div>
-		{% endif %}
-	</div>
+    <div class="row workspace-controls">
+        {% if workspace_selectable %}
+        <div class="control-selector-frame">
+            <select id="workspace-select" class="control-btn-std btn btn-outline-secondary workspace-selector">
+                {% for name, command in workspace_options.items() %}
+                <option value="{{ command }}" {% if name == workspace_active %}id="active"{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+        <div class="control-btn-frame">
+            <button id="start" class="{% if not practice %}option-active {% endif %}control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
+                <i class="fas fa-play fa-2x"></i>
+            </button>
+        </div>
+        {% if challenge.allow_privileged %}
+        <div class="control-btn-frame">
+            <button id="start-priv" class="{% if practice %}option-active {% endif %}control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
+                <i class="fas fa-lock-open fa-2x"></i>
+            </button>
+        </div>
+        {% endif %}
+        <div class="control-btn-frame">
+            <button id="restart" class="control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
+                <i class="fas fa-undo fa-2x"></i>
+            </button>
+        </div>
+        <div class="flag-field-dynamic">
+            <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
+            <input id="flag-input" class="control-btn-std form-control" type="text" placeholder="Flag">
+        </div>
+        {% if fullscreen_allowed %}
+        <div class="control-btn-frame">
+            <button id="fullscreen" class="control-btn-std btn btn-md btn-outline-secondary">
+                <i class="fas fa-expand fa-2x"></i>
+            </button>
+        </div>
+        {% endif %}
+    </div>
 </div>
 
 <div id="alert"></div>
@@ -139,7 +139,7 @@ html, body, main {
 {% else %}
 
 <h1 style="height: 50%; display: flex; flex-direction: column; justify-content: center; text-align: center;">
-	No active challenge session; start a challenge!
+    No active challenge session; start a challenge!
 </h1>
 
 {% endif %}
