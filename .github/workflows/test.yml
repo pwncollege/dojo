@@ -1,4 +1,4 @@
-name: Integration Test
+name: Integration Tests
 on:
   pull_request:
   push:
@@ -8,7 +8,7 @@ on:
     - cron: '42 06 * * *'
 jobs:
   test:
-    name: Integration Test
+    name: Single-Node Integration Test
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -50,30 +50,23 @@ jobs:
         run: |
           sudo chown $USER:$USER /mnt
 
-      - name: Restore docker data cache
+      - name: Restore docker and workspace cache
         if: github.event_name != 'schedule'
         uses: actions/cache/restore@v4
         with:
           path: |
-            /mnt/data-docker.tar.gz
-          key: docker-data-${{ runner.os }}-${{ github.run_id }}
+            /mnt/dojo-docker
+            /mnt/dojo-workspace
+          key: dojo-cache-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            docker-data-${{ runner.os }}-
-      # TEMP: Disable for now, cache holds bad docker network state
-      # - name: Unpack docker data cache
-      #   if: github.event_name != 'schedule'
-      #   run: |
-      #     if [ -f /mnt/data-docker.tar.gz ]; then
-      #       mkdir -p /mnt/dojo-test-data
-      #       sudo tar --use-compress-program=pigz -xf /mnt/data-docker.tar.gz -C /mnt/dojo-test-data
-      #     fi
+            dojo-cache-${{ runner.os }}-
 
       - name: Build docker image
         if: github.event_name != 'schedule'
         uses: docker/build-push-action@v5
         with:
           context: .
-          tags: pwncollege/dojo:test
+          tags: pwncollege/dojo
           load: true
           cache-from: type=gha
       - name: Build and cache docker image
@@ -81,60 +74,159 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          tags: pwncollege/dojo:test
+          tags: pwncollege/dojo
           load: true
           cache-to: type=gha
 
-      - name: Run dojo
-        run: |
-          docker run \
-            --name dojo-test \
-            --privileged \
-            --detach \
-            --rm \
-            -v "/mnt/dojo-test-data:/data:shared" \
-            -p 2222:22 -p 80:80 -p 443:443 \
-            pwncollege/dojo:test
-      - name: Build and start services
-        run: |
-          docker exec dojo-test dojo wait || (docker exec dojo-test dojo compose logs && false)
-          docker exec dojo-test docker pull pwncollege/challenge-simple
-          docker exec dojo-test docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
-          docker exec dojo-test docker image ls
-
-      - name: Wait for services to start
-        timeout-minutes: 3
-        run: |
-          docker exec dojo-test dojo compose logs -f &
-          log_pid=$!
-
-          until [[ "$(docker exec dojo-test docker inspect --format='{{.State.Health.Status}}' ctfd)" == "healthy" ]]; do
-            sleep 1
-          done
-
-          kill $log_pid
-          exit 0
-
-      - name: Run tests
-        timeout-minutes: 4
+      - name: Run single-node dojo tests
+        timeout-minutes: 10
         run: |
           export MOZ_HEADLESS=1
-          export DOJO_SSH_PORT=2222
-          timeout 3m pytest -vrpP --order-dependencies --durations=0 ./test || (docker exec dojo-test dojo compose logs && false)
+          echo "Starting single-node integration tests..."
+          test/local-tester.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace || {
+            echo "Single-node tests failed, checking container logs..."
+            echo "::group::{node logs}"
+            docker exec dojo-test dojo compose logs
+            echo "::endgroup::"
+            exit 1
+          }
 
-      - name: Pack docker data cache
-        if: github.event_name == 'schedule'
-        run: |
-          docker exec dojo-test dojo compose down
-          sudo tar --use-compress-program=pigz -cf /mnt/data-docker.tar.gz -C /mnt/dojo-test-data ./docker
-
-      - name: Save docker data cache
+      - name: Save docker and workspace cache
         if: github.event_name == 'schedule'
         uses: actions/cache/save@v4
         with:
           path: |
-            /mnt/data-docker.tar.gz
-          key: docker-data-${{ runner.os }}-${{ github.run_id }}
+            /mnt/dojo-docker
+            /mnt/dojo-workspace
+          key: dojo-cache-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Final filesystem information
+        run: |
+          echo "::group::Filesystem"
+          df -h
+          echo "::endgroup::"
+
+  test-multinode:
+    name: Multi-Node Integration Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Host information
+        run: |
+          echo "::group::Host information"
+          echo "Hostname: $(hostname)"
+          echo "IP: $(hostname -I)"
+          echo "::endgroup::"
+          echo "::group::Filesystem"
+          df -h
+          echo "::endgroup::"
+          echo "::group::Memory"
+          free -h
+          echo "::endgroup::"
+          echo "::group::CPU"
+          lscpu
+          echo "::endgroup::"
+
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      - name: Setup firefox
+        uses: browser-actions/setup-firefox@latest
+      - name: Install test dependencies
+        run: |
+          pip install \
+            pytest \
+            pytest-dependency \
+            pytest-order \
+            pytest-github-actions-annotate-failures \
+            requests \
+            selenium
+
+      - name: Free up disk space
+        run: |
+          echo "::group::Initial disk usage"
+          df -h
+          echo "::endgroup::"
+          
+          echo "::group::Cleaning up disk space"
+          # Remove unnecessary pre-installed software
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          sudo apt-get clean
+          
+          # Clean up Docker
+          docker system prune -a -f
+          
+          echo "::endgroup::"
+          echo "::group::Final disk usage"
+          df -h
+          echo "::endgroup::"
+
+      - name: Make docker cache dir owned by our user
+        run: |
+          sudo chown $USER:$USER /mnt
+
+      - name: Restore docker and workspace cache
+        if: github.event_name != 'schedule'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            /mnt/dojo-docker
+            /mnt/dojo-docker-node1
+            /mnt/dojo-docker-node2
+            /mnt/dojo-workspace
+          key: dojo-multinode-cache-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            dojo-multinode-cache-${{ runner.os }}-
+
+      - name: Build docker image
+        if: github.event_name != 'schedule'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: pwncollege/dojo
+          load: true
+          cache-from: type=gha
+      - name: Build and cache docker image
+        if: github.event_name == 'schedule'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: pwncollege/dojo
+          load: true
+          cache-to: type=gha
+
+      - name: Run multi-node dojo tests
+        timeout-minutes: 15
+        run: |
+          export MOZ_HEADLESS=1
+          echo "Starting multi-node integration tests..."
+          test/local-tester.sh -c dojo-test -g -M -D /mnt/dojo-docker -W /mnt/dojo-workspace || {
+            echo "Multi-node tests failed, checking container logs..."
+            echo "::group::{main node logs}"
+            docker exec dojo-test dojo compose logs
+            echo "::endgroup::"
+            echo "::group::{worker node 1 logs}"
+            docker exec dojo-test-node1 dojo compose logs
+            echo "::endgroup::"
+            echo "::group::{worker node 2 logs}"
+            docker exec dojo-test-node2 dojo compose logs
+            echo "::endgroup::"
+            exit 1
+          }
+
+      - name: Save docker and workspace cache
+        if: github.event_name == 'schedule'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /mnt/dojo-docker
+            /mnt/dojo-docker-node1
+            /mnt/dojo-docker-node2
+            /mnt/dojo-workspace
+          key: dojo-multinode-cache-${{ runner.os }}-${{ github.run_id }}
 
       - name: Final filesystem information
         run: |

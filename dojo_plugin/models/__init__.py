@@ -112,7 +112,7 @@ class Dojos(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name, self.data_defaults.get(name))
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     def __setattr__(self, name, value):
@@ -304,7 +304,8 @@ class DojoUsers(db.Model):
     dojo = db.relationship("Dojos", back_populates="users", overlaps="admins,members,students")
     user = db.relationship("Users")
 
-    # survey_responses = db.relationship("SurveyResponses", back_populates="users", overlaps="admins,members,students")
+    def survey_responses(self):
+        return DojoChallenges.survey_responses(user=self.user)
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(user=self.user, dojo=self.dojo, **kwargs)
@@ -405,7 +406,7 @@ class DojoModules(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name, self.data_defaults.get(name))
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
@@ -431,7 +432,8 @@ class DojoModules(db.Model):
     @delete_before_insert("_resources")
     def resources(self, value):
         for resource_index, resource in enumerate(value):
-            resource.resource_index = resource_index
+            if not hasattr(resource, 'resource_index') or resource.resource_index is None:
+                resource.resource_index = resource_index
         self._resources = value
 
     @property
@@ -441,6 +443,23 @@ class DojoModules(db.Model):
     @property
     def assessments(self):
         return [assessment for assessment in (self.dojo.course or {}).get("assessments", []) if assessment.get("id") == self.id]
+    
+    @property
+    def unified_items(self):
+        items = []
+        
+        for resource in self.resources:
+            items.append((resource.resource_index, resource))
+        
+        for challenge in self.challenges:
+            if challenge.unified_index is not None:
+                index = challenge.unified_index
+            else:
+                index = 1000 + challenge.challenge_index
+            items.append((index, challenge))
+        
+        items.sort(key=lambda x: x[0])
+        return [item for _, item in items]
 
     def visible_challenges(self, user=None, required_only=False):
         return [challenge for challenge in self.challenges if (not required_only or challenge.required) and (challenge.visible() or self.dojo.is_admin(user=user))]
@@ -469,6 +488,7 @@ class DojoModules(db.Model):
 
 class DojoChallenges(db.Model):
     __tablename__ = "dojo_challenges"
+    item_type = "challenge"
     __table_args__ = (
         db.ForeignKeyConstraint(["dojo_id"], ["dojos.dojo_id"], ondelete="CASCADE"),
         db.ForeignKeyConstraint(["dojo_id", "module_index"],
@@ -488,7 +508,7 @@ class DojoChallenges(db.Model):
     required = db.Column(db.Boolean, default=True)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey"]
+    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index"]
     data_defaults = {
         "importable": True,
         "allow_privileged": True,
@@ -505,8 +525,6 @@ class DojoChallenges(db.Model):
                                  uselist=False,
                                  cascade="all, delete-orphan",
                                  back_populates="challenge")
-
-    # survey_responses = db.relationship("SurveyResponses", back_populates="challenge", cascade="all, delete-orphan")
 
     def __init__(self, *args, **kwargs):
         default = kwargs.pop("default", None)
@@ -532,7 +550,7 @@ class DojoChallenges(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name, self.data_defaults.get(name))
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @classmethod
@@ -554,6 +572,19 @@ class DojoChallenges(db.Model):
             cls.visibility.has(or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start)),
             cls.visibility.has(or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop)),
         ))
+
+    # note: currently unused, may need future testing
+    @hybrid_method
+    def survey_responses(self, user=None):
+        result = SurveyResponses.query.filter(
+            SurveyResponses.dojo_id == self.dojo_id,
+            SurveyResponses.challenge_id == self.challenge_id
+            )
+        
+        if user is not None:
+            result = result.filter(SurveyResponses.user_id == user.id)
+
+        return result
 
     @hybrid_method
     def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True, required_only=False):
@@ -633,23 +664,21 @@ class DojoChallenges(db.Model):
 
 class SurveyResponses(db.Model):
     __tablename__ = "survey_responses"
-
+    
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"))
-    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    dojo_id = db.Column(db.Integer, nullable=False)
+    challenge_id = db.Column(db.Integer, index=True, nullable=False)
+    user_id = db.Column(db.Integer, nullable=False)
+    
+    prompt = db.Column(db.Text, nullable=False)
+    response = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
 
-    type = db.Column(db.String(64))
-    prompt = db.Column(db.Text)
-    response = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-
-    # challenge = db.relationship("DojoChallenges", back_populates="survey_responses")
-    # users = db.relationship("DojoUsers", back_populates="survey_responses")
 
 
 class DojoResources(db.Model):
     __tablename__ = "dojo_resources"
+    item_type = "resource"
 
     __table_args__ = (
         db.ForeignKeyConstraint(["dojo_id", "module_index"],

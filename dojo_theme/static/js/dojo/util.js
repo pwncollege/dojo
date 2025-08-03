@@ -1,15 +1,18 @@
 function copyToClipboard(event) {
-    event.preventDefault();
-    const text = event.currentTarget.dataset.copy;
-    navigator.clipboard.writeText(text)
-    .then(() => {
-        const tooltip = event.currentTarget.querySelector("#tooltip");
-        const original = tooltip.innerText;
-        tooltip.innerText = "Copied!";
-        setTimeout(() => {
-            tooltip.innerText = original;
-        }, 1000);
-    })
+  const input = document.getElementById('user-token-result');
+  input.select();
+  input.setSelectionRange(0, 99999);
+  document.execCommand("copy");
+
+  $(event.target).tooltip({
+    title: "Copied!",
+    trigger: "manual"
+  });
+  $(event.target).tooltip("show");
+
+  setTimeout(function() {
+    $(event.target).tooltip("hide");
+  }, 1500);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
