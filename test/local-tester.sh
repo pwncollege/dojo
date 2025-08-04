@@ -245,6 +245,6 @@ log_endgroup
 if [ "$TEST" == "yes" ]; then
 	log_newgroup "Running tests"
 	export MOZ_HEADLESS=1
-	pytest --order-dependencies -v test "$@"
+	pytest --order-dependencies --timeout=60 -v test "$@"
 	log_endgroup
 fi
