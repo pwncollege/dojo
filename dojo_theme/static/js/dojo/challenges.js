@@ -4,6 +4,12 @@ function submitChallenge(event) {
     const challenge_id = parseInt(item.find('#challenge-id').val())
     const submission = item.find('#challenge-input').val()
 
+    const flag_regex = /pwn.college{.*}/;
+    if (submission.match(flag_regex) == null) {
+        return;
+    }
+    item.find("#challenge-input").val("");
+
     item.find("#challenge-submit").addClass("disabled-button");
     item.find("#challenge-submit").prop("disabled", true);
 
@@ -240,7 +246,7 @@ function startChallenge(event) {
         result_notification.removeClass();
 
         if (result.success) {
-            var message = `Challenge successfully started! You can interact with it through a <a href="/workspace/code" target="dojo_workspace">VSCode Workspace</a> or a <a href="/workspace/desktop" target="dojo_workspace">GUI Desktop Workspace</a>.`;
+            var message = `Challenge successfully started!`;
             result_message.html(message);
             result_notification.addClass('alert alert-info alert-dismissable text-center');
 
@@ -263,6 +269,15 @@ function startChallenge(event) {
         item.find("#challenge-start").prop("disabled", false);
         item.find("#challenge-practice").removeClass("disabled-button");
         item.find("#challenge-practice").prop("disabled", false);
+
+        $(".challenge-init").removeClass("challenge-hidden");
+        $(".challenge-workspace").removeClass("workspace-fullscreen");
+        $(".challenge-workspace").html("");
+        if (result.success) {
+            item.find(".challenge-workspace").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"/workspace?hide-navbar=true\"></iframe>");
+            item.find(".challenge-init").addClass("challenge-hidden");
+        }
+        windowResizeCallback("");
 
         setTimeout(function() {
             item.find(".alert").slideUp();
@@ -357,6 +372,58 @@ function markChallengeAsSolved(item) {
         .catch(error => console.error("Award check failed:", error));
 }
 
+var scroll_pos_x;
+var scroll_pox_y;
+
+function scrollDisable() {
+    scroll_pos_x = window.pageXOffset;
+    scroll_pox_y = window.pageYOffset;
+    document.body.classList.add("scroll-disabled");
+}
+
+function scrollRestore() {
+    document.body.classList.remove("scroll-disabled");
+    window.pageXOffset = scroll_pos_x;
+    window.pageYOffset = scroll_pos_y;
+}
+
+function contentExpand() {
+    $(".challenge-workspace").addClass("workspace-fullscreen");
+    $(".challenge-iframe").addClass("challenge-iframe-fs");
+    $(".navbar").addClass("fullscreen-hidden");
+    $(".navbar-pulldown").addClass("fullscreen-hidden");
+    $("#scoreboard-heading").addClass("fullscreen-hidden");
+    $(".scoreboard-controls").addClass("fullscreen-hidden");
+    $(".scoreboard").addClass("fullscreen-hidden");
+    $(".alert").addClass("fullscreen-hidden");
+    scrollDisable();
+}
+
+function contentContract() {
+    $(".challenge-workspace").removeClass("workspace-fullscreen");
+    $(".challenge-iframe").removeClass("challenge-iframe-fs");
+    $(".navbar").removeClass("fullscreen-hidden");
+    $(".navbar-pulldown").removeClass("fullscreen-hidden");
+    $("#scoreboard-heading").removeClass("fullscreen-hidden");
+    $(".scoreboard-controls").removeClass("fullscreen-hidden");
+    $(".scoreboard").removeClass("fullscreen-hidden");
+    $(".alert").removeClass("fullscreen-hidden");
+    scrollRestore();
+}
+
+function doFullscreen() {
+    if ($(".workspace-fullscreen")[0]) {
+        contentContract();
+    }
+    else {
+        contentExpand();
+    }
+}
+
+function windowResizeCallback(event) {
+    $(".challenge-iframe").not(".challenge-iframe-fs").css("aspect-ratio", `${window.innerWidth} / ${window.innerHeight}`);
+}
+
 $(() => {
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
@@ -387,10 +454,14 @@ $(() => {
     });
 
 
-    $(".accordion-item").find("#challenge-submit").click(submitChallenge);
+    var submits = $(".accordion-item").find("#challenge-input");
+    for (var i = 0; i < submits.length; i++) {
+        submits[i].oninput = submitChallenge;
+    }
     $(".accordion-item").find("#challenge-start").click(startChallenge);
-    $(".accordion-item").find("#challenge-practice").click(startChallenge);
 
+    window.addEventListener("resize", windowResizeCallback, true);
+    windowResizeCallback("");
     $(".accordion-item").each((_, item) => {
         buildSurvey($(item))
     })

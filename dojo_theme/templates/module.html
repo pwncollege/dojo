@@ -1,6 +1,58 @@
 {% extends "base.html" %}
 {% from "macros/widgets.html" import accordion_item %}
 
+{% block stylesheets %}
+{{ super() }}
+
+<style>
+.scroll-disabled {
+  overflow: hidden;
+}
+
+.challenge-workspace {
+  margin-bottom: 16px;
+  margin-top: 16px;
+}
+
+.challenge-iframe {
+  width: 100%;
+  min-height: 60vh;
+  aspect-ratio: 16/9;
+  border: 0;
+}
+
+.challenge-iframe-fs {
+  aspect-ratio: unset !important;
+  height: 100%;
+}
+
+.challenge-init {
+  height: 100% !important;
+  width: 100% !important;
+  padding-right: 15px;
+  padding-left: 15px;
+}
+
+.challenge-hidden {
+  visibility: hidden;
+  max-height: 0 !important;
+}
+
+.fullscreen-hidden {
+  display: none !important;
+}
+
+.workspace-fullscreen {
+  position: fixed;
+  bottom: -16px;
+  right: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+</style>
+
+{% endblock %}
+
 {% block content %}
 <div class="jumbotron">
   <div class="container">
@@ -73,7 +125,7 @@
         {% set ns.challenge_count = ns.challenge_count + 1 %}
         {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
         {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
-        
+
         {% set previous_challenge = None %}
         {% set visible_challenges = [] %}
         {% for prev_item in module.unified_items[:loop.index0] %}
@@ -84,7 +136,7 @@
         {% if visible_challenges %}
           {% set previous_challenge = visible_challenges[-1] %}
         {% endif %}
-        
+
         {% set progression_locked = challenge.progression_locked and previous_challenge %}
         {% set lock_challenge = progression_locked
           and previous_challenge.challenge_id not in user_solves
@@ -135,36 +187,21 @@
                 {{ challenge.description | markdown }}
               {% endif %}
             </div>
-            <div class="row">
-              <div class="col-sm-{% if challenge.allow_privileged %}6{% else %}12{% endif %} form-group text-center">
-                <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary w-100">
-                  <span class="d-sm-block d-md-block d-lg-block">
-                    <i class="fas fa-play fa-2x pr-3"></i>Start
-                  </span>
+            <div class="challenge-init row{% if active %} challenge-hidden{% endif %}">
+              <div class="col-md-3 form=group text-center">
+                <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
+                  <i class="fas fa-play fa-2x pr-3"></i>Start
                 </button>
               </div>
-              {% if challenge.allow_privileged %}
-              <div class="col-sm-6 form-group text-center">
-                <button id="challenge-practice" type="submit" class="btn btn-md btn-outline-secondary w-100">
-                  <span class="d-sm-block d-md-block d-lg-block">
-                    <i class="fas fa-flask fa-2x pr-3"></i>Practice
-                  </span>
-                </button>
-              </div>
-              {% endif %}
-            </div>
-            <div class="row submit-row">
-              <div class="col-md-9 form-group">
+              <div class="col-md-9">
                 <input id="module" type="hidden" value="{{ challenge.module.id }}">
                 <input id="challenge" type="hidden" value="{{ challenge.id }}">
                 <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
                 <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
               </div>
-              <div class="col-md-3 form-group key-submit">
-                <button id="challenge-submit" type="submit" class="challenge-submit btn btn-md btn-outline-secondary float-right w-100 h-100">
-                  Submit
-                </button>
-              </div>
+            </div>
+            <div class="challenge-workspace">
+              {% if active %}<iframe id="workspace-iframe" class="challenge-iframe" src="/workspace?hide-navbar=true"></iframe>{% endif %}
             </div>
             <div class="row notification-row">
               <div class="col-md-12">
@@ -195,7 +232,7 @@
       {% set _ = visible_challenges.append(item) %}
     {% endif %}
   {% endfor %}
-  
+
   {% if visible_challenges and module.show_scoreboard %}
 
   <h2 class="row" id="scoreboard-heading">30-Day Scoreboard:</h2>

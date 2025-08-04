@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block stylesheets %}
+{{ super() }}
+<style>
+    .error {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 60vh;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="error">
+    <h1>{{ error | safe}}</h1>
+</div>
+{% endblock %}
