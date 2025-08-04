@@ -16,6 +16,12 @@ let
     for path in /run/current-system/sw/*; do
       ln -sfT $path /run/dojo/$(basename $path)
     done
+    
+    # Ensure dojo command is available if it exists
+    if [ -x /nix/store/*/bin/dojo ]; then
+      mkdir -p /run/dojo/bin
+      ln -sf /nix/store/*/bin/dojo /run/dojo/bin/dojo
+    fi
 
     mkdir -pm 1777 /run/dojo/var /tmp
     mkdir /run/dojo/var/root

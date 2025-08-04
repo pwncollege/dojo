@@ -122,6 +122,12 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             read_only=True,
             propagation="slave",
         ),
+        docker.types.Mount(
+            "/run/dojo/socket",
+            f"{HOST_DATA_PATH}/dojo-command/socket",
+            "bind",
+            read_only=True,
+        ),
         *user_mounts,
     ]
 

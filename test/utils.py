@@ -72,7 +72,7 @@ def workspace_run(cmd, *, user, root=False, **kwargs):
     if root:
         args += [ "-s" ]
     args += [ user ]
-    return dojo_run(*args, input=cmd, check=True, **kwargs)
+    return dojo_run(*args, input=cmd, check=kwargs.pop("check", True), **kwargs)
 
 
 def start_challenge(dojo, module, challenge, practice=False, *, session, as_user=None, wait=0):
