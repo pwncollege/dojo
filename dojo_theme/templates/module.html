@@ -193,7 +193,14 @@
                   <i class="fas fa-play fa-2x pr-3"></i>Start
                 </button>
               </div>
-              <div class="col-md-9">
+              {% if challenge.allow_privileged %}
+              <div class="col-md-3 form=group text-center">
+                <button id="challenge-priv" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
+                  <i class="fas fa-unlock fa-2x pr-3"></i>Privileged
+                </button>
+              </div>
+              {% endif %}
+              <div class="col-md-{% if challenge.allow_privileged %}6{% else %}9{% endif %}">
                 <input id="module" type="hidden" value="{{ challenge.module.id }}">
                 <input id="challenge" type="hidden" value="{{ challenge.id }}">
                 <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
