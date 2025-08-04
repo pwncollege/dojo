@@ -11,10 +11,10 @@ function usage {
 	echo ""
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: local-<dirname>)"
-	echo "	-D	specify a directory for /data/docker (to avoid rebuilds)"
-	echo "	-W	specify a directory for /data/workspace (to avoid rebuilds)"
+	echo "	-D	specify a directory for /data/docker to avoid rebuilds (default: none)"
+	echo "	-W	specify a directory for /data/workspace to avoid rebuilds (default: ./cache/workspace; specify as blank to disable)"
 	echo "	-T	don't run tests"
-	echo "	-p	export ports (80->80, 443->443, 22->2222)"
+	echo "	-P	export ports (80->80, 443->443, 22->2222)"
 	echo "	-e	set environment variable (can be used multiple times)"
 	echo "	-b	build the Docker image locally (tag: same as container name)"
 	echo "	-M	run in multi-node mode (3 containers: 1 main + 2 workspace nodes)"
@@ -65,12 +65,12 @@ DB_RESTORE=""
 DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
 TEST=yes
 DOCKER_DIR=""
-WORKSPACE_DIR=""
+WORKSPACE_DIR="./cache/dojo-workspace"
 EXPORT_PORTS=no
 BUILD_IMAGE=no
 MULTINODE=no
 GITHUB_ACTIONS=no
-while getopts "r:c:he:TD:W:pbMg" OPT
+while getopts "r:c:he:TD:W:PbMg" OPT
 do
 	case $OPT in
 		r) DB_RESTORE="$OPTARG" ;;
