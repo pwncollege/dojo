@@ -277,7 +277,7 @@ function startChallenge(event) {
             item.find(".challenge-workspace").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"/workspace?hide-navbar=true\"></iframe>");
             item.find(".challenge-init").addClass("challenge-hidden");
         }
-        window_resize_callback("");
+        windowResizeCallback("");
 
         setTimeout(function() {
             item.find(".alert").slideUp();
@@ -420,7 +420,7 @@ function doFullscreen() {
     }
 }
 
-function window_resize_callback(event) {
+function windowResizeCallback(event) {
     $(".challenge-iframe").not(".challenge-iframe-fs").css("aspect-ratio", `${window.innerWidth} / ${window.innerHeight}`);
 }
 
@@ -460,8 +460,8 @@ $(() => {
     }
     $(".accordion-item").find("#challenge-start").click(startChallenge);
 
-    window.addEventListener("resize", window_resize_callback, true);
-    window_resize_callback("");
+    window.addEventListener("resize", windowResizeCallback, true);
+    windowResizeCallback("");
     $(".accordion-item").each((_, item) => {
         buildSurvey($(item))
     })
