@@ -84,7 +84,7 @@
         text_lines=[
           "{} Hacking".format(dojo_container_counts.get(dojo.reference_id, 0)) if dojo_container_counts.get(dojo.reference_id, 0) else "",
           "{} Module{}".format(dojo.modules_count, "" if dojo.modules_count == 1 else "s"),
-          "{} Challenge{}".format(dojo.challenges_count, "" if dojo.challenges_count == 1 else "s"),
+          "{} Challenge{}".format(dojo.required_challenges_count, "" if dojo.required_challenges_count == 1 else "s"),
         ],
         icon=icon,
         emoji=dojo.award.emoji,
