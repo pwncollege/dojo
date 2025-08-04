@@ -11,7 +11,7 @@ function usage {
 	echo ""
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: local-<dirname>)"
-	echo "	-D	specify a directory for /data/docker to avoid rebuilds (default: none)"
+	echo "	-D	specify a directory for /data/docker to avoid rebuilds (default: ./cache/docker; specify as blank to disable)"
 	echo "	-W	specify a directory for /data/workspace to avoid rebuilds (default: ./cache/workspace; specify as blank to disable)"
 	echo "	-T	don't run tests"
 	echo "	-P	export ports (80->80, 443->443, 22->2222)"
@@ -64,7 +64,7 @@ ENV_ARGS=( )
 DB_RESTORE=""
 DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
 TEST=yes
-DOCKER_DIR=""
+DOCKER_DIR="./cache/docker"
 WORKSPACE_DIR="./cache/workspace"
 EXPORT_PORTS=no
 BUILD_IMAGE=no
