@@ -15,30 +15,25 @@ def test_integrations_solve_endpoint(example_dojo, random_user):
     
     response = requests.post(
         f"{DOJO_URL}/pwncollege_api/v1/integrations/solve",
-        json={"auth_code": auth_token, "submission": flag}
+        json={"auth_token": auth_token, "submission": flag}
     )
     assert response.status_code == 200
     assert response.json()["status"] == "solved"
     
     response = requests.post(
         f"{DOJO_URL}/pwncollege_api/v1/integrations/solve",
-        json={"auth_code": auth_token, "submission": flag}
+        json={"auth_token": auth_token, "submission": flag}
     )
     assert response.status_code == 200
     assert response.json()["status"] == "already_solved"
 
 
 def test_dojo_command_files(example_dojo, random_user):
-    """Test that socket has correct permissions"""
     uid, session = random_user
     start_challenge(example_dojo, "hello", "apple", session=session)
     
     result = workspace_run("ls -la /run/dojo/bin/dojo", user=uid)
     assert result.returncode == 0, f"dojo command should exist, got {result.stderr}"
-
-    result = workspace_run("ls -la /run/dojo/socket", user=uid)
-    assert result.returncode == 0, f"Socket should exist, got {result.stderr}"
-    assert "srw" in result.stdout, f"Expected socket file, got {result.stdout}"
 
 
 def test_dojo_command_submit(random_user, example_dojo):

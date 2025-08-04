@@ -16,16 +16,16 @@ integrations_namespace = Namespace(
 )
 
 
-def authenticate_container(auth_code):
-    if not auth_code:
-        return None, ({"success": False, "error": "Missing auth_code"}, 400)
+def authenticate_container(auth_token):
+    if not auth_token:
+        return None, ({"success": False, "error": "Missing auth_token"}, 400)
         
     docker_client = docker.DockerClient(base_url="unix://var/run/docker.sock")
     
     container = None
     try:
         for c in docker_client.containers.list():
-            if c.labels.get("dojo.auth_token") == auth_code:
+            if c.labels.get("dojo.auth_token") == auth_token:
                 container = c
                 break
     except Exception as e:
@@ -52,13 +52,13 @@ def authenticate_container(auth_code):
 class IntegrationSolve(Resource):
     def post(self):
         data = request.get_json()
-        auth_code = data.get("auth_code")
+        auth_token = data.get("auth_token") or data.get("auth_code")  # Support both for backward compatibility
         submission = data.get("submission")
         
         if not submission:
             return {"success": False, "error": "Missing submission"}, 400
             
-        auth_result, error_response = authenticate_container(auth_code)
+        auth_result, error_response = authenticate_container(auth_token)
         if error_response:
             return error_response
             

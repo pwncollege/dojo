@@ -159,24 +159,10 @@ services:
         condition: service_started
       cache:
         condition: service_started
-      dojo-socket:
-        condition: service_started
-
-  dojo-socket:
-    container_name: dojo-socket
-    profiles:
-      - main
-    hostname: dojo-socket
-    build: ./dojo-socket
-    restart: always
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /data/dojo-command:/var/run/dojo-command
-    healthcheck:
-      test: ["CMD", "test", "-S", "/var/run/dojo-command/socket"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+    networks:
+      default:
+      workspace_net:
+        ipv4_address: 10.0.0.2
 
   db:
     container_name: db

@@ -122,12 +122,6 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             read_only=True,
             propagation="slave",
         ),
-        docker.types.Mount(
-            "/run/dojo/socket",
-            f"{HOST_DATA_PATH}/dojo-command/socket",
-            "bind",
-            read_only=True,
-        ),
         *user_mounts,
     ]
 
@@ -172,6 +166,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             "challenge.localhost": "127.0.0.1",
             "hacker.localhost": "127.0.0.1",
             "dojo-user": user_ipv4(user),
+            "ctfd": "10.0.0.2",
             **USER_FIREWALL_ALLOWED,
         },
         init=True,
