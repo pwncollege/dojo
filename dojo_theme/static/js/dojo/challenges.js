@@ -375,19 +375,19 @@ function markChallengeAsSolved(item) {
 var scroll_pos_x;
 var scroll_pox_y;
 
-function scroll_disable() {
+function scrollDisable() {
     scroll_pos_x = window.pageXOffset;
-    scroll_pos_y = window.pageYOffset;
+    scroll_pox_y = window.pageYOffset;
     document.body.classList.add("scroll-disabled");
 }
 
-function scroll_restore() {
+function scrollRestore() {
     document.body.classList.remove("scroll-disabled");
     window.pageXOffset = scroll_pos_x;
     window.pageYOffset = scroll_pos_y;
 }
 
-function content_expand() {
+function contentExpand() {
     $(".challenge-workspace").addClass("workspace-fullscreen");
     $(".challenge-iframe").addClass("challenge-iframe-fs");
     $(".navbar").addClass("fullscreen-hidden");
@@ -396,10 +396,10 @@ function content_expand() {
     $(".scoreboard-controls").addClass("fullscreen-hidden");
     $(".scoreboard").addClass("fullscreen-hidden");
     $(".alert").addClass("fullscreen-hidden");
-    scroll_disable();
+    scrollDisable();
 }
 
-function content_contract() {
+function contentContract() {
     $(".challenge-workspace").removeClass("workspace-fullscreen");
     $(".challenge-iframe").removeClass("challenge-iframe-fs");
     $(".navbar").removeClass("fullscreen-hidden");
@@ -408,15 +408,15 @@ function content_contract() {
     $(".scoreboard-controls").removeClass("fullscreen-hidden");
     $(".scoreboard").removeClass("fullscreen-hidden");
     $(".alert").removeClass("fullscreen-hidden");
-    scroll_restore();
+    scrollRestore();
 }
 
 function doFullscreen() {
     if ($(".workspace-fullscreen")[0]) {
-        content_contract();
+        contentContract();
     }
     else {
-        content_expand();
+        contentExpand();
     }
 }
 

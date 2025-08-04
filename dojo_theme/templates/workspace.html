@@ -69,6 +69,7 @@
         border: 0;
         border-color: #000 !important;
         border-radius: 1em;
+        box-shadow: none !important;
     }
 
     .workspace-control input::placeholder {
@@ -76,26 +77,25 @@
         opacity: 1;
     }
 
-    .workspace-control input:focus,
-    .workspace-control input:hover {
-        box-shadow: none !important;
+    .workspace-control input:focus:not(.submit-correct):not(.submit-incorrect):not(.submit-warn),
+    .workspace-control input:hover:not(.submit-correct):not(.submit-incorrect):not(.submit-warn) {
         outline: 2px solid #6c757d !important;
+    }
+
+    .submit-correct {
+        outline: 2px solid #008000 !important;
+    }
+
+    .submit-incorrect {
+        outline: 2px solid #800000 !important;
+    }
+
+    .submit-warn {
+        outline: 2px solid #d0c000 !important;
     }
 
     .workspace-control-spacer {
         flex: 1;
-    }
-
-    .submit-correct {
-        background-color: #008000 !important;
-    }
-
-    .submit-incorrect {
-        background-color: #800000 !important;
-    }
-
-    .submit-warn {
-        background-color: #d0c000 !important;
     }
 </style>
 {% endblock %}
@@ -113,8 +113,8 @@
         </select>
     </div>
     <div title="Submit flag" class="workspace-control">
-        <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
         <input id="flag-input" class="" type="text" placeholder="Flag">
+        <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
     </div>
     <div class="workspace-control-spacer"></div>
     {% if challenge.allow_privileged %}
