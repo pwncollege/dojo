@@ -178,7 +178,7 @@ function startChallenge(event) {
     const item = $(event.currentTarget).closest(".accordion-item");
     const module = item.find("#module").val()
     const challenge = item.find("#challenge").val()
-    const practice = event.currentTarget.id == "challenge-practice";
+    const practice = event.currentTarget.id == "challenge-priv";
 
     item.find("#challenge-start").addClass("disabled-button");
     item.find("#challenge-start").prop("disabled", true);
@@ -459,6 +459,7 @@ $(() => {
         submits[i].oninput = submitChallenge;
     }
     $(".accordion-item").find("#challenge-start").click(startChallenge);
+    $(".challenge-init").find("#challenge-priv").click(startChallenge);
 
     window.addEventListener("resize", windowResizeCallback, true);
     windowResizeCallback("");
