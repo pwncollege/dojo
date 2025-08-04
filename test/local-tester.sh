@@ -116,7 +116,9 @@ MAIN_NODE_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared"
 [ -n "$WORKSPACE_DIR" ] && MAIN_NODE_VOLUME_ARGS+=( "-v" "$WORKSPACE_DIR:/data/workspace:shared" )
 if [ -n "$DOCKER_DIR" ]; then
 	MAIN_NODE_VOLUME_ARGS+=( "-v" "$DOCKER_DIR:/data/docker" )
-	sudo rm -rf $DOCKER_DIR/{containers,volumes}
+	if [ "$START" == "yes" ]; then
+		sudo rm -rf $DOCKER_DIR/{containers,volumes}
+	fi
 fi
 
 if [ "$MULTINODE" == "yes" ]; then
