@@ -411,7 +411,7 @@ function content_contract() {
     scroll_restore();
 }
 
-function do_fullscreen() {
+function doFullscreen() {
     if ($(".workspace-fullscreen")[0]) {
         content_contract();
     }

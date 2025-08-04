@@ -1,15 +1,14 @@
 import hmac
 
-from flask import request, Blueprint, render_template, url_for, abort
+from flask import request, Blueprint, render_template, abort
 from CTFd.models import Users
-from CTFd.utils.user import get_current_user, is_admin
+from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.plugins import bypass_csrf_protection
 
 from ..models import Dojos
 from ..utils import redirect_user_socket, get_current_container, container_password
 from ..utils.dojo import get_current_dojo_challenge
-from ..utils.workspace import exec_run, start_on_demand_service
 
 
 workspace = Blueprint("pwncollege_workspace", __name__)
@@ -24,14 +23,10 @@ port_names = {
 @workspace.route("/workspace", methods=["GET"])
 @authed_only
 def view_workspace():
-    workspace_options = {
-        "VSCode": "GET&RENDER:iframe_src:/pwncollege_api/v1/workspace?service=code",
-        "Desktop": "GET&RENDER:iframe_src:/pwncollege_api/v1/workspace?service=desktop",
-    }
-
-    workspace_default = "VSCode"
-    workspace_previous = request.cookies.get("previous_workspace")
-    workspace_active = workspace_previous if workspace_previous in workspace_options else workspace_default
+    workspace_services = [
+        "Code",
+        "Desktop",
+    ]
 
     current_challenge = get_current_dojo_challenge()
     if not current_challenge:
@@ -43,8 +38,7 @@ def view_workspace():
         "workspace.html",
         practice=practice,
         challenge=current_challenge,
-        workspace_active=workspace_active,
-        workspace_options=workspace_options,
+        workspace_services=workspace_services,
     )
 
 

@@ -1,52 +1,19 @@
-function process_content_operation_recursive(operations, content) {
-    if (operations.length == 0) {
-        return;
-    }
 
-    var operation = operations[0];
-
-    if (operation.match(/GET:.*/) != null) {
-        fetch(operation.substring(4), {
-            method: "GET",
-            credentials: 'same-origin',
-        }).then(() => {
-            process_content_operation_recursive(operations.slice(1, operations.length), content);
-        });
-    }
-    else if (operation.match(/GET&RENDER:.*/)) {
-        var op = operation.substring(11);
-        var delin = op.indexOf(":");
-        url = op.substring(delin + 1);
-        param = op.substring(0, delin);
-
-        fetch(url, {
-            method: "GET",
-            credentials: "same-origin",
-        }).then(function (response) {
-            return response.json();
-        }).then(function (result) {
-            content.src = result[param];
-            process_content_operation_recursive(operations.slice(1, operations.length), content);
-        })
-    }
-    else if (operation.match(/RENDER:.*/)) {
-        content.src = operation.substring(7);
-    }
-    else {
-        console.log("Error processing content operation: " + operation);
-    }
-
-    process_content_operation_recursive(operations.slice(1, operations.length), content);
+function selectService(service) {
+    const content = document.getElementById("workspace-content");
+    const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
+    url.searchParams.set("service", service);
+    fetch(url, {
+        method: "GET",
+        credentials: "same-origin"
+    })
+    .then(response => response.json())
+    .then(result => {
+        content.src = result["iframe_src"];
+    });
 }
 
-function set_content(option) {
-    var operations = option.value.split(";");
-    var content = document.getElementById("challenge-content");
-
-    process_content_operation_recursive(operations, content);
-}
-
-function start_challenge(privileged) {
+function startChallenge(privileged) {
     CTFd.fetch("/pwncollege_api/v1/docker", {
         method: "GET",
         credentials: 'same-origin'
@@ -88,7 +55,7 @@ function start_challenge(privileged) {
                 return;
             }
 
-            set_content(document.getElementById("workspace-select"));
+            selectService($("#workspace-select").val());
 
             $(".btn-challenge-start")
             .removeClass("disabled")
@@ -98,7 +65,7 @@ function start_challenge(privileged) {
     });
 }
 
-function challenge_start_callback(event) {
+function challengeStartCallback(event) {
     event.preventDefault();
 
     $(".btn-challenge-start")
@@ -106,34 +73,15 @@ function challenge_start_callback(event) {
     .addClass("btn-disabled")
     .prop("disabled", true);
 
-    if (document.getElementById("start").contains(event.target)) {
+    if (document.getElementById("start-unprivileged").contains(event.target)) {
         $(".option-active").removeClass("option-active");
-        document.getElementById("start").classList.add("option-active");
-        start_challenge(false);
+        document.getElementById("start-unprivileged").classList.add("option-active");
+        startChallenge(false);
     }
-    else if (document.getElementById("start-priv") != null && document.getElementById("start-priv").contains(event.target)) {
+    else if (document.getElementById("start-privileged") != null && document.getElementById("start-privileged").contains(event.target)) {
         $(".option-active").removeClass("option-active");
-        document.getElementById("start-priv").classList.add("option-active");
-        start_challenge(true);
-    }
-    else if (document.getElementById("restart").contains(event.target)) {
-        CTFd.fetch("/pwncollege_api/v1/docker", {
-            method: "GET",
-            credentials: 'same-origin'
-        }).then(function (response) {
-            if (response.status === 403) {
-                // User is not logged in or CTF is paused.
-                window.location =
-                    CTFd.config.urlRoot +
-                    "/login?next=" +
-                    CTFd.config.urlRoot +
-                    window.location.pathname +
-                    window.location.hash;
-            }
-            return response.json();
-        }).then(function (result) {
-            start_challenge(result.practice);
-        });
+        document.getElementById("start-privileged").classList.add("option-active");
+        startChallenge(true);
     }
     else {
         console.log("Failed to start challenge.");
@@ -145,7 +93,7 @@ function challenge_start_callback(event) {
     }
 }
 
-function submit_flag(flag) {
+function submitFlag(flag) {
     flag_input = document.getElementById("flag-input");
     flag_input.value = "";
     flag_input.placeholder = "Submitting...";
@@ -177,48 +125,59 @@ function submit_flag(flag) {
     });
 }
 
-function hide_navbar() {
+function hideNavbar() {
     $(".navbar").addClass("navbar-hidden");
     $("main").addClass("main-navbar-hidden");
 }
 
-function show_navbar() {
+function showNavbar() {
     $(".navbar").removeClass("navbar-hidden");
     $("main").removeClass("main-navbar-hidden");
 }
 
-function do_fullscreen() {
+function doFullscreen() {
     if (document.getElementsByClassName("navbar")[0].classList.contains("navbar-hidden")) {
-        show_navbar();
+        showNavbar();
     }
     else {
-        hide_navbar();
+        hideNavbar();
     }
 }
 
 $(() => {
-    var option = document.getElementById("active");
-    option.selected = true;
-    set_content(option);
-
     if (new URLSearchParams(window.location.search).has("hide-navbar")) {
-        $("nav").hide();
+        hideNavbar();
     }
     $("footer").hide();
 
+    var previousWorkspace = localStorage.getItem("previousWorkspace");
+    var workspaceSelect = document.getElementById("workspace-select");
+    var option = workspaceSelect.options[0];
+    if (previousWorkspace && workspaceSelect) {
+        for (var i = 0; i < workspaceSelect.options.length; i++) {
+            if (workspaceSelect.options[i].text === previousWorkspace) {
+                option = workspaceSelect.options[i];
+                option.selected = true;
+                break;
+            }
+        }
+    }
+    selectService(option.value);
+
     $("#workspace-select").change((event) => {
         event.preventDefault();
-        document.cookie = `previous_workspace=${event.target.options[event.target.selectedIndex].text}; expires=${(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))}; path=/workspace;`;
-        set_content(event.target);
+        localStorage.setItem("previousWorkspace", event.target.options[event.target.selectedIndex].text);
+        selectService(event.target.value);
     });
 
-    $(".btn-challenge-start").click(challenge_start_callback);
+    $(".btn-challenge-start").click(challengeStartCallback);
 
     $("#flag-input").on("input", function(event) {
         event.preventDefault();
         $(this).removeClass("submit-correct submit-incorrect submit-warn");
+        $(this).attr("placeholder", "Flag");
         if ($(this).val().match(/pwn.college{.*}/)) {
-            submit_flag($(this).val());
+            submitFlag($(this).val());
         }
     });
 
@@ -227,6 +186,6 @@ $(() => {
         $("#fullscreen i").toggleClass("fa-compress fa-expand");
         // If the window is not an iframe, this will refer to its own do_fullscreen function.
         // Otherwise it will call the do_fullscreen function of the window which we are iframed into.
-        window.parent.do_fullscreen();
+        window.parent.doFullscreen();
     });
 });

@@ -95,12 +95,12 @@ def challenge_start(browser, idx, practice=False, first=True):
     browser.switch_to.frame(body.find_element("id", "workspace-iframe"))
 
     if practice:
-        browser.find_element("id", "start-priv").click()
-        while "disabled" in browser.find_element("id", "start-priv").get_attribute("class"):
+        browser.find_element("id", "start-privileged").click()
+        while "disabled" in browser.find_element("id", "start-privileged").get_attribute("class"):
             time.sleep(0.5)
     elif not first:
-        browser.find_element("id", "start").click()
-        while "disabled" in browser.find_element("id", "start").get_attribute("class"):
+        browser.find_element("id", "start-unprivileged").click()
+        while "disabled" in browser.find_element("id", "start-unprivileged").get_attribute("class"):
             time.sleep(0.5)
 
     time.sleep(1)

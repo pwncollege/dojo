@@ -5,122 +5,129 @@
 {{ super() }}
 
 <style>
-html, body, main {
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    {% if hide_navbar %}padding-top: 0px;{% endif %}
-}
+    html, body {
+        margin: 0;
+        height: 100%;
+        min-height: 100%;
+        background-color: #111;
+    }
 
-.challenge-workspace {
-    width: 100%;
-    height: 100%;
-}
+    body {
+        display: flex;
+        flex-direction: column;
+    }
 
-.workspace-controls {
-    position: fixed;
-    bottom: 0;
-    right: 0;
-    width: 100%;
-    height: 10%;
-    margin-right: 0px;
-    margin-left: 0px;
-}
+    nav, footer {
+        flex: none;
+    }
 
-.challenge-content {
-    position: fixed;
-    bottom: 10%;
-    right: 0;
-    width: 100%;
-    height: 90%;
-    border: 0;
-}
+    main {
+        flex: auto;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+    }
 
-.workspace-selector {
-    font-size: 1.75vw;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-}
+    #workspace-content {
+        flex: 1;
+        width: 100%;
+        border: none;
+    }
 
-.flag-field-dynamic {
-    width: {{ flag_field_width }};
-    padding: .3%;
-}
+    #workspace-controls {
+        width: 100%;
+        height: 2.5em;
+        margin: 5px 0;
+        padding: 0 5px;
+        display: flex;
+        flex-wrap: nowrap;
+    }
 
-.control-btn-frame {
-    width: 10%;
-    padding: .3%;
-}
+    .workspace-control {
+        height: 100%;
+        margin: 0 2px;
+        border: 0;
+        border-radius: 1em;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+    }
 
-.control-btn-std {
-    width: 100% !important;
-    height: 100% !important;
-}
+    button.workspace-control  {
+        width: 2.5em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 
-.control-selector-frame {
-    width: 15%;
-    padding: .3%;
-}
+    .workspace-control input {
+        height: 100% !important;
+        box-sizing: border-box;
+        padding: 1em;
+        color: #fff;
+        background-color: #111;
+        border: 0;
+        border-color: #000 !important;
+        border-radius: 1em;
+    }
 
-.submit-correct {
-    background-color: #008000 !important;
-}
+    .workspace-control input::placeholder {
+        color: #6c757d;
+        opacity: 1;
+    }
 
-.submit-incorrect {
-    background-color: #800000 !important;
-}
+    .workspace-control input:focus,
+    .workspace-control input:hover {
+        box-shadow: none !important;
+        outline: 2px solid #6c757d !important;
+    }
 
-.submit-warn {
-    background-color: #d0c000 !important;
-}
+    .workspace-control-spacer {
+        flex: 1;
+    }
 
-.option-active {
-    {% if challenge.allow_privileged %}background-color: var(--brand-green) !important;{% endif %}
-}
+    .submit-correct {
+        background-color: #008000 !important;
+    }
+
+    .submit-incorrect {
+        background-color: #800000 !important;
+    }
+
+    .submit-warn {
+        background-color: #d0c000 !important;
+    }
 </style>
 {% endblock %}
 
 
 {% block content %}
-<div class="challenge-workspace">
-    <iframe src="" id="challenge-content" class="challenge-content"></iframe>
+<iframe src="" id="workspace-content"></iframe>
 
-    <div class="row workspace-controls">
-        <div class="control-selector-frame">
-            <select id="workspace-select" class="control-btn-std btn btn-outline-secondary workspace-selector">
-                {% for name, command in workspace_options.items() %}
-                <option value="{{ command }}" {% if name == workspace_active %}id="active"{% endif %}>{{ name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="control-btn-frame">
-            <button id="start" class="{% if not practice %}option-active {% endif %}control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
-                <i class="fas fa-play fa-2x"></i>
-            </button>
-        </div>
-        {% if challenge.allow_privileged %}
-        <div class="control-btn-frame">
-            <button id="start-priv" class="{% if practice %}option-active {% endif %}control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
-                <i class="fas fa-lock-open fa-2x"></i>
-            </button>
-        </div>
-        {% endif %}
-        <div class="control-btn-frame">
-            <button id="restart" class="control-btn-std btn btn-md btn-outline-secondary btn-challenge-start">
-                <i class="fas fa-undo fa-2x"></i>
-            </button>
-        </div>
-        <div class="flag-field-dynamic">
-            <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
-            <input id="flag-input" class="control-btn-std form-control" type="text" placeholder="Flag">
-        </div>
-        <div class="control-btn-frame">
-            <button id="fullscreen" class="control-btn-std btn btn-md btn-outline-secondary">
-                <i class="fas fa-expand fa-2x"></i>
-            </button>
-        </div>
+<div id="workspace-controls">
+    <div title="Change workspace">
+        <select id="workspace-select" class="workspace-control btn btn-outline-secondary workspace-selector">
+            {% for service in workspace_services %}
+            <option value="{{ service | lower }}">{{ service }}</option>
+            {% endfor %}
+        </select>
     </div>
+    <div title="Submit flag" class="workspace-control">
+        <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
+        <input id="flag-input" class="" type="text" placeholder="Flag">
+    </div>
+    <div class="workspace-control-spacer"></div>
+    {% if challenge.allow_privileged %}
+    <button id="start-privileged" title="Restart privileged" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
+        <i class="fas fa-unlock"></i>
+    </button>
+    {% endif %}
+    <button id="start-unprivileged" title="Restart unprivileged" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
+        <i class="fas fa-lock"></i>
+    </button>
+    <button id="fullscreen" title="Toggle fullscreen" class="workspace-control btn btn-md btn-outline-secondary">
+        <i class="fas fa-expand"></i>
+    </button>
 </div>
 
 <div id="alert"></div>
