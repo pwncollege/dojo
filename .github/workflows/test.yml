@@ -42,6 +42,7 @@ jobs:
             pytest \
             pytest-dependency \
             pytest-order \
+            pytest-timeout \
             pytest-github-actions-annotate-failures \
             requests \
             selenium
@@ -141,6 +142,7 @@ jobs:
             pytest \
             pytest-dependency \
             pytest-order \
+            pytest-timeout \
             pytest-github-actions-annotate-failures \
             requests \
             selenium
