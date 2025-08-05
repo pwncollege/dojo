@@ -12,18 +12,16 @@ from utils import DOJO_URL, workspace_run
 
 
 @pytest.fixture
-def random_user_browser(random_user):
-    random_id, random_session = random_user
-
+def random_user_browser(random_user_name):
     options = FirefoxOptions()
     options.add_argument("--headless")
     browser = Firefox(options=options)
 
     browser.get(f"{DOJO_URL}/login")
-    browser.find_element("id", "name").send_keys(random_id)
-    browser.find_element("id", "password").send_keys(random_id)
+    browser.find_element("id", "name").send_keys(random_user_name)
+    browser.find_element("id", "password").send_keys(random_user_name)
     browser.find_element("id", "_submit").click()
-    return random_id, random_session, browser
+    return browser
 
 
 @contextlib.contextmanager
@@ -153,62 +151,58 @@ def challenge_idx(browser, name):
     return idx+1
 
 
-def test_welcome_desktop(random_user_browser, welcome_dojo):
-    random_id, _, browser = random_user_browser
-    browser.get(f"{DOJO_URL}/welcome/welcome")
-    idx = challenge_idx(browser, "The Flag File")
+def test_welcome_desktop(random_user_browser, random_user_name, welcome_dojo):
+    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    idx = challenge_idx(random_user_browser, "The Flag File")
 
-    challenge_start(browser, idx)
-    with desktop_terminal(browser, random_id) as vs:
+    challenge_start(random_user_browser, idx)
+    with desktop_terminal(random_user_browser, random_user_name) as vs:
         vs.send_keys("/challenge/solve; cat /flag | tee /tmp/out\n")
         time.sleep(5)
-        flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
-    challenge_submit(browser, idx, flag)
-    browser.close()
+        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
+    challenge_submit(random_user_browser, idx, flag)
+    random_user_browser.close()
 
 
-def test_welcome_vscode(random_user_browser, welcome_dojo):
-    random_id, _, browser = random_user_browser
-    browser.get(f"{DOJO_URL}/welcome/welcome")
-    idx = challenge_idx(browser, "Challenge Programs")
+def test_welcome_vscode(random_user_browser, random_user_name, welcome_dojo):
+    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    idx = challenge_idx(random_user_browser, "Challenge Programs")
 
-    challenge_start(browser, idx)
-    with vscode_terminal(browser) as vs:
+    challenge_start(random_user_browser, idx)
+    with vscode_terminal(random_user_browser) as vs:
         vs.send_keys("/challenge/solve | tee /tmp/out\n")
         time.sleep(5)
-        flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
-    challenge_submit(browser, idx, flag)
-    browser.close()
+        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
+    challenge_submit(random_user_browser, idx, flag)
+    random_user_browser.close()
 
 
-def test_welcome_ttyd(random_user_browser, welcome_dojo):
-    random_id, _, browser = random_user_browser
-    browser.get(f"{DOJO_URL}/welcome/welcome")
-    idx = challenge_idx(browser, "The Flag File")
+def test_welcome_ttyd(random_user_browser, random_user_name, welcome_dojo):
+    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    idx = challenge_idx(random_user_browser, "The Flag File")
 
-    challenge_start(browser, idx)
-    with ttyd_terminal(browser) as terminal:
+    challenge_start(random_user_browser, idx)
+    with ttyd_terminal(random_user_browser) as terminal:
         terminal.send_keys("/challenge/solve; cat /flag | tee /tmp/out\n")
         time.sleep(5)
-        flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
-    challenge_submit(browser, idx, flag)
-    browser.close()
+        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
+    challenge_submit(random_user_browser, idx, flag)
+    random_user_browser.close()
 
 
-def skip_test_welcome_practice(random_user_browser, welcome_dojo):
-    random_id, _, browser = random_user_browser
-    browser.get(f"{DOJO_URL}/welcome/welcome")
-    idx = challenge_idx(browser, "Using Practice Mode")
+def skip_test_welcome_practice(random_user_browser, random_user_name, welcome_dojo):
+    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    idx = challenge_idx(random_user_browser, "Using Practice Mode")
 
-    challenge_start(browser, idx, practice=True)
-    with desktop_terminal(browser, random_id) as vs:
+    challenge_start(random_user_browser, idx, practice=True)
+    with desktop_terminal(random_user_browser, random_user_name) as vs:
         vs.send_keys("sudo cat /challenge/secret >/home/hacker/secret 2>&1\n")
         time.sleep(1)
 
-    challenge_start(browser, idx, practice=False, first=False)
-    with desktop_terminal(browser, random_id) as vs:
+    challenge_start(random_user_browser, idx, practice=False, first=False)
+    with desktop_terminal(random_user_browser, random_user_name) as vs:
         vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
         time.sleep(2)
-        flag = workspace_run("tail -n1 /tmp/out 2>&1", user=random_id).stdout.split()[-1]
-    challenge_submit(browser, idx, flag)
-    browser.close()
+        flag = workspace_run("tail -n1 /tmp/out 2>&1", user=random_user_name).stdout.split()[-1]
+    challenge_submit(random_user_browser, idx, flag)
+    random_user_browser.close()

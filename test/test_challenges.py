@@ -24,14 +24,13 @@ def check_mount(path, *, user, fstype=None, check_nosuid=True):
 
 
 
-def test_start_challenge(admin_session):
-    start_challenge("example", "hello", "apple", session=admin_session)
+def test_start_challenge(admin_session, example_dojo):
+    start_challenge(example_dojo, "hello", "apple", session=admin_session)
 
 
-def test_active_module_endpoint(random_user):
-    _, session = random_user
-    start_challenge("example", "hello", "banana", session=session)
-    response = session.get(f"{DOJO_URL}/active-module")
+def test_active_module_endpoint(random_user_session, example_dojo):
+    start_challenge(example_dojo, "hello", "banana", session=random_user_session)
+    response = random_user_session.get(f"{DOJO_URL}/active-module")
     challenges = {
         "apple": {
             "challenge_id": 1,
@@ -63,8 +62,8 @@ def test_active_module_endpoint(random_user):
     assert response.json()["c_previous"] == challenges["apple"], f"Expected challenge 'Apple'\n{challenges['apple']}\n, but got {response.json()['c_previous']}"
     challenges["apple"]["description"] = apple_description
 
-    start_challenge("example", "hello", "apple", session=session)
-    response = session.get(f"{DOJO_URL}/active-module")
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session)
+    response = random_user_session.get(f"{DOJO_URL}/active-module")
     banana_description = challenges["banana"].pop("description")
     challenges["banana"]["description"] = None
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
@@ -74,16 +73,15 @@ def test_active_module_endpoint(random_user):
     challenges["banana"]["description"] = banana_description
 
 
-def test_progression_locked(progression_locked_dojo, random_user):
-    uid, session = random_user
-    assert session.get(f"{DOJO_URL}/dojo/{progression_locked_dojo}/join/").status_code == 200
-    start_challenge(progression_locked_dojo, "progression-locked-module", "unlocked-challenge", session=session)
+def test_progression_locked(progression_locked_dojo, random_user_name, random_user_session):
+    assert random_user_session.get(f"{DOJO_URL}/dojo/{progression_locked_dojo}/join/").status_code == 200
+    start_challenge(progression_locked_dojo, "progression-locked-module", "unlocked-challenge", session=random_user_session)
 
     with pytest.raises(AssertionError, match="Failed to start challenge: This challenge is locked"):
-        start_challenge(progression_locked_dojo, "progression-locked-module", "locked-challenge", session=session)
+        start_challenge(progression_locked_dojo, "progression-locked-module", "locked-challenge", session=random_user_session)
 
-    solve_challenge(progression_locked_dojo, "progression-locked-module", "unlocked-challenge", session=session, user=uid)
-    start_challenge(progression_locked_dojo, "progression-locked-module", "locked-challenge", session=session)
+    solve_challenge(progression_locked_dojo, "progression-locked-module", "unlocked-challenge", session=random_user_session, user=random_user_name)
+    start_challenge(progression_locked_dojo, "progression-locked-module", "locked-challenge", session=random_user_session)
 
 
 @pytest.mark.parametrize("path", ["/flag", "/challenge/apple"])
@@ -122,37 +120,34 @@ def test_workspace_no_sudo():
         assert False, f"Expected sudo to fail, but got no error: {(s.stdout, s.stderr)}"
 
 
-def test_workspace_practice_challenge(random_user):
-    user, session = random_user
-    start_challenge("example", "hello", "apple", practice=True, session=session)
+def test_workspace_practice_challenge(random_user_name, random_user_session, example_dojo):
+    start_challenge(example_dojo, "hello", "apple", practice=True, session=random_user_session)
     try:
-        result = workspace_run("sudo whoami", user=user)
+        result = workspace_run("sudo whoami", user=random_user_name)
         assert result.stdout.strip() == "root", f"Expected 'root', but got: ({result.stdout}, {result.stderr})"
     except subprocess.CalledProcessError as e:
         assert False, f"Expected sudo to succeed, but got: {(e.stdout, e.stderr)}"
 
 
-def test_workspace_home_persistent(random_user):
-    user, session = random_user
-    start_challenge("example", "hello", "apple", session=session)
-    workspace_run("touch /home/hacker/test", user=user)
-    start_challenge("example", "hello", "apple", session=session)
+def test_workspace_home_persistent(random_user_name, random_user_session, example_dojo):
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session)
+    workspace_run("touch /home/hacker/test", user=random_user_name)
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session)
     try:
-        workspace_run("[ -f '/home/hacker/test' ]", user=user)
+        workspace_run("[ -f '/home/hacker/test' ]", user=random_user_name)
     except subprocess.CalledProcessError as e:
         assert False, f"Expected file to exist, but got: {(e.stdout, e.stderr)}"
 
 
 @pytest.mark.skip(reason="Disabling test temporarily until overlay issue is resolved")
-def test_workspace_as_user(admin_user, random_user):
+def test_workspace_as_user(admin_user, random_user_name, random_user_session, example_dojo):
     admin_user, admin_session = admin_user
-    random_user, random_session = random_user
-    random_user_id = get_user_id(random_user)
+    random_user_id = get_user_id(random_user_name)
 
-    start_challenge("example", "hello", "apple", session=random_session)
-    workspace_run("touch /home/hacker/test", user=random_user)
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session)
+    workspace_run("touch /home/hacker/test", user=random_user_name)
 
-    start_challenge("example", "hello", "apple", session=admin_session, as_user=random_user_id)
+    start_challenge(example_dojo, "hello", "apple", session=admin_session, as_user=random_user_id)
     check_mount("/home/hacker", user=admin_user)
     check_mount("/home/me", user=admin_user)
 
@@ -161,7 +156,7 @@ def test_workspace_as_user(admin_user, random_user):
     except subprocess.CalledProcessError as e:
         assert False, f"Expected existing file to exist, but got: {(e.stdout, e.stderr)}"
 
-    workspace_run("touch /home/hacker/test2", user=random_user)
+    workspace_run("touch /home/hacker/test2", user=random_user_name)
     try:
         workspace_run("[ -f '/home/hacker/test2' ]", user=admin_user)
     except subprocess.CalledProcessError as e:
@@ -169,29 +164,27 @@ def test_workspace_as_user(admin_user, random_user):
 
     workspace_run("touch /home/hacker/test3", user=admin_user)
     try:
-        workspace_run("[ ! -e '/home/hacker/test3' ]", user=random_user)
+        workspace_run("[ ! -e '/home/hacker/test3' ]", user=random_user_name)
     except subprocess.CalledProcessError as e:
         assert False, f"Expected overlay file to not exist, but got: {(e.stdout, e.stderr)}"
 
 
-def test_reset_home_directory(random_user):
-    user, session = random_user
-
+def test_reset_home_directory(random_user_name, random_user_session, example_dojo):
     # Create a file in the home directory
-    start_challenge("example", "hello", "apple", session=session)
-    workspace_run("touch /home/hacker/testfile", user=user)
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session)
+    workspace_run("touch /home/hacker/testfile", user=random_user_name)
 
     # Reset the home directory
-    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/workspace/reset_home", json={})
+    response = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/workspace/reset_home", json={})
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to reset home directory: {response.json()['error']}"
 
     try:
-        workspace_run("[ -f '/home/hacker/home-backup.tar.gz' ]", user=user)
+        workspace_run("[ -f '/home/hacker/home-backup.tar.gz' ]", user=random_user_name)
     except subprocess.CalledProcessError as e:
         assert False, f"Expected zip file to exist, but got: {(e.stdout, e.stderr)}"
 
     try:
-        workspace_run("[ ! -f '/home/hacker/testfile' ]", user=user)
+        workspace_run("[ ! -f '/home/hacker/testfile' ]", user=random_user_name)
     except subprocess.CalledProcessError as e:
         assert False, f"Expected test file to be wiped, but got: {(e.stdout, e.stderr)}"
