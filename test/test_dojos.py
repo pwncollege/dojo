@@ -106,10 +106,11 @@ def test_no_practice(no_practice_challenge_dojo, no_practice_dojo, random_user):
         assert "practice" in response.json()["error"]
 
 
-@pytest.mark.dependency(depends=["test_join_dojo"])
 def test_no_import(no_import_challenge_dojo, admin_session):
     try:
-        create_dojo_yml(open(TEST_DOJOS_LOCATION / "forbidden_import.yml").read(), session=admin_session)
+        create_dojo_yml(open(
+            TEST_DOJOS_LOCATION / "forbidden_import.yml"
+        ).read().replace("no-import-challenge", no_import_challenge_dojo), session=admin_session)
     except AssertionError as e:
         assert "Import disallowed" in str(e)
     else:
