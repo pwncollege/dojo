@@ -5,7 +5,7 @@ from utils import DOJO_URL, create_dojo_yml, TEST_DOJOS_LOCATION
 
 
 @pytest.fixture(scope="session")
-def module_resources_dojo(admin_session):
+def module_resources_dojo(admin_session, example_dojo):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "module_resources_dojo.yml").read(), session=admin_session)
 
 

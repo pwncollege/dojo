@@ -354,7 +354,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
 
     dojo_kwargs = {
         field: dojo_data.get(field, getattr(import_dojo, field, None))
-        for field in ["id", "name", "description", "password", "type", "award", "show_scoreboard"]
+        for field in ["id", "name", "description", "password", "type", "award"]
     }
 
     assert dojo_kwargs.get("id") is not None, "Dojo id must be defined"

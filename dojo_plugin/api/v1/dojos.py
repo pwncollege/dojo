@@ -3,7 +3,7 @@ import datetime
 from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.sql import and_
-from CTFd.models import db, Solves
+from CTFd.models import db, Solves, Users
 from CTFd.cache import cache
 from CTFd.plugins.challenges import get_chal_class
 from CTFd.utils.decorators import authed_only, admins_only, ratelimit
@@ -119,10 +119,13 @@ class DojoModuleList(Resource):
 
 @dojos_namespace.route("/<dojo>/solves")
 class DojoSolveList(Resource):
-    @authed_only
     @dojo_route
     def get(self, dojo):
-        user = get_current_user()
+        username = request.args.get("username")
+        user = Users.query.filter_by(name=username, hidden=False).first() if username else get_current_user()
+        if not user:
+            return {"error": "User not found"}, 400
+            
         solves_query = dojo.solves(user=user, ignore_visibility=True, ignore_admins=False)
 
         if after := request.args.get("after"):

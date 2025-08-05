@@ -88,59 +88,55 @@ def ssh_command(private_key_file, command="echo 'SSH test successful'"):
     )
     return result
 
-def test_add_single_ssh_key(random_user, temp_ssh_keys, example_dojo):
-    user_id, session = random_user
+def test_add_single_ssh_key(random_user_session, temp_ssh_keys, example_dojo):
     
-    response = add_ssh_key(session, temp_ssh_keys['rsa']['public'])
+    response = add_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
     assert response.status_code == 200
     assert response.json()["success"] is True
     
-    start_challenge("example", "hello", "apple", session=session, wait=5)
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session, wait=5)
     verify_ssh_access(temp_ssh_keys['rsa']['private_file'])
 
-def test_add_multiple_ssh_keys(random_user, temp_ssh_keys, example_dojo):
-    user_id, session = random_user
+def test_add_multiple_ssh_keys(random_user_session, temp_ssh_keys, example_dojo):
     
-    response = add_ssh_key(session, temp_ssh_keys['rsa']['public'])
+    response = add_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
     assert response.status_code == 200
     
-    response = add_ssh_key(session, temp_ssh_keys['ed25519']['public'])
+    response = add_ssh_key(random_user_session, temp_ssh_keys['ed25519']['public'])
     assert response.status_code == 200
     
-    start_challenge("example", "hello", "apple", session=session, wait=5)
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session, wait=5)
     
     verify_ssh_access(temp_ssh_keys['rsa']['private_file'])
     verify_ssh_access(temp_ssh_keys['ed25519']['private_file'])
 
-def test_delete_ssh_key(random_user, temp_ssh_keys, example_dojo):
-    user_id, session = random_user
+def test_delete_ssh_key(random_user_session, temp_ssh_keys, example_dojo):
     
-    response = add_ssh_key(session, temp_ssh_keys['rsa']['public'])
+    response = add_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
     assert response.status_code == 200
     
-    start_challenge("example", "hello", "apple", session=session, wait=5)
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session, wait=5)
     verify_ssh_access(temp_ssh_keys['rsa']['private_file'])
     
-    response = delete_ssh_key(session, temp_ssh_keys['rsa']['public'])
+    response = delete_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
     assert response.status_code == 200
     assert response.json()["success"] is True
     
     time.sleep(2)
     verify_ssh_access(temp_ssh_keys['rsa']['private_file'], should_work=False)
 
-def test_change_ssh_key(random_user, temp_ssh_keys, example_dojo):
-    user_id, session = random_user
+def test_change_ssh_key(random_user_session, temp_ssh_keys, example_dojo):
     
-    response = add_ssh_key(session, temp_ssh_keys['rsa']['public'])
+    response = add_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
     assert response.status_code == 200
     
-    start_challenge("example", "hello", "apple", session=session, wait=5)
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session, wait=5)
     verify_ssh_access(temp_ssh_keys['rsa']['private_file'])
     
-    response = delete_ssh_key(session, temp_ssh_keys['rsa']['public'])
+    response = delete_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
     assert response.status_code == 200
     
-    response = add_ssh_key(session, temp_ssh_keys['ed25519']['public'])
+    response = add_ssh_key(random_user_session, temp_ssh_keys['ed25519']['public'])
     assert response.status_code == 200
     
     time.sleep(2)
@@ -148,8 +144,7 @@ def test_change_ssh_key(random_user, temp_ssh_keys, example_dojo):
     verify_ssh_access(temp_ssh_keys['rsa']['private_file'], should_work=False)
     verify_ssh_access(temp_ssh_keys['ed25519']['private_file'])
 
-def test_add_invalid_ssh_key(random_user):
-    user_id, session = random_user
+def test_add_invalid_ssh_key(random_user_session):
     
     invalid_keys = [
         "not a valid ssh key",
@@ -160,35 +155,32 @@ def test_add_invalid_ssh_key(random_user):
     ]
     
     for invalid_key in invalid_keys:
-        response = add_ssh_key(session, invalid_key)
+        response = add_ssh_key(random_user_session, invalid_key)
         assert response.status_code == 400
         assert response.json().get("success") is False
         assert "Invalid SSH Key" in response.json().get("error", "")
 
-def test_add_duplicate_ssh_key(random_user, temp_ssh_keys):
-    user_id, session = random_user
+def test_add_duplicate_ssh_key(random_user_session, temp_ssh_keys):
     
-    response = add_ssh_key(session, temp_ssh_keys['rsa']['public'])
+    response = add_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
     assert response.status_code == 200
     
-    response = add_ssh_key(session, temp_ssh_keys['rsa']['public'])
+    response = add_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
     assert response.status_code == 400
     assert "already in use" in response.json().get("error", "")
 
-def test_delete_nonexistent_ssh_key(random_user, temp_ssh_keys):
-    user_id, session = random_user
+def test_delete_nonexistent_ssh_key(random_user_session, temp_ssh_keys):
     
-    response = delete_ssh_key(session, temp_ssh_keys['rsa']['public'])
+    response = delete_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
     assert response.status_code == 400
     assert "does not exist" in response.json().get("error", "")
 
-def test_ssh_command_execution(random_user, temp_ssh_keys, example_dojo):
-    user_id, session = random_user
+def test_ssh_command_execution(random_user_name, random_user_session, temp_ssh_keys, example_dojo):
     
-    response = add_ssh_key(session, temp_ssh_keys['rsa']['public'])
+    response = add_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
     assert response.status_code == 200
     
-    start_challenge("example", "hello", "apple", session=session, wait=5)
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session, wait=5)
     
     commands = [
         ("whoami", "hacker"),
@@ -209,10 +201,9 @@ def test_ssh_command_execution(random_user, temp_ssh_keys, example_dojo):
             print(f"stdout: {repr(result.stdout)}")
         assert expected in result.stdout
 
-def test_ssh_key_with_comment(random_user, temp_ssh_keys):
-    user_id, session = random_user
+def test_ssh_key_with_comment(random_user_session, temp_ssh_keys):
     
     key_with_comment = f"{temp_ssh_keys['rsa']['public']} test@example.com"
     
-    response = add_ssh_key(session, key_with_comment)
+    response = add_ssh_key(random_user_session, key_with_comment)
     assert response.status_code == 200
