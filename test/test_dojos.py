@@ -165,9 +165,9 @@ def test_challenge_transfer(transfer_src_dojo, transfer_dst_dojo, random_user):
     assert us["solves"] == 1
 
 
-@pytest.mark.dependency(depends=["test_create_dojo"])
 def test_hidden_challenges(admin_session, random_user, hidden_challenges_dojo):
     assert "CHALLENGE" in admin_session.get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").text
+    assert random_user[1].get(f"{DOJO_URL}/dojo/{hidden_challenges_dojo}/join/").status_code == 200
     assert random_user[1].get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").status_code == 200
     assert "CHALLENGE" not in random_user[1].get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").text
 
