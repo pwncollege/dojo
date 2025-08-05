@@ -108,19 +108,19 @@ function submitFlag(flag) {
     .then(function (response) {
         if (response.data.status == "incorrect") {
             flag_input.placeholder = "Incorrect!";
-            flag_input.classList.add("submit-incorrect");
+            $(".workspace-input").addClass("submit-incorrect");
         }
         else if (response.data.status == "correct") {
             flag_input.placeholder = "Correct!";
-            flag_input.classList.add("submit-correct");
+            $(".workspace-input").addClass("submit-correct");
         }
         else if (response.data.status == "already_solved") {
             flag_input.placeholder = "Already Solved.";
-            flag_input.classList.add("submit-correct");
+            $(".workspace-input").addClass("submit-correct");
         }
         else {
             flag_input.placeholder = "Submission Failed.";
-            flag_input.classList.add("submit-warn");
+            $(".workspace-input").addClass("submit-warn");
         }
     });
 }
@@ -174,9 +174,16 @@ $(() => {
 
     $("#flag-input").on("input", function(event) {
         event.preventDefault();
-        $(this).removeClass("submit-correct submit-incorrect submit-warn");
+        $(".workspace-input").removeClass("submit-correct submit-incorrect submit-warn");
         $(this).attr("placeholder", "Flag");
         if ($(this).val().match(/pwn.college{.*}/)) {
+            submitFlag($(this).val());
+        }
+    });
+    $("#flag-input").on("keypress", function(event) {
+        $(".workspace-input").removeClass("submit-correct submit-incorrect submit-warn");
+        $(this).attr("placeholder", "Flag");
+        if (event.key === "Enter" || event.keyCode === 13) {
             submitFlag($(this).val());
         }
     });
