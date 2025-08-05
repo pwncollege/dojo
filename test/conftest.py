@@ -86,13 +86,18 @@ def import_override_dojo(admin_session):
 
 @pytest.fixture(scope="session")
 def transfer_src_dojo(admin_session):
-    rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "transfer_src.yml").read(), session=admin_session)
-    make_dojo_official(rid, admin_session)
+    n = "".join(random.choices(string.ascii_lowercase, k=8))
+    yml = open(TEST_DOJOS_LOCATION / "transfer_src.yml").read().replace("src-dojo", f"src-dojo-{n}")
+    rid = create_dojo_yml(yml, session=admin_session)
     return rid
 
 @pytest.fixture(scope="session")
-def transfer_dst_dojo(admin_session):
-    rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "transfer_dst.yml").read(), session=admin_session)
+def transfer_dst_dojo(transfer_src_dojo, admin_session):
+    n = "".join(random.choices(string.ascii_lowercase, k=8))
+    yml = open(
+        TEST_DOJOS_LOCATION / "transfer_dst.yml"
+    ).read().replace("src-dojo", transfer_src_dojo).replace("dst-dojo", f"dst-dojo-{n}")
+    rid = create_dojo_yml(yml, session=admin_session)
     make_dojo_official(rid, admin_session)
     return rid
 
