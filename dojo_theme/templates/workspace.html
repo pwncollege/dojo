@@ -8,7 +8,7 @@
     :root {
         --background: #111;
         --foreground: #222;
-        --outline: #6c757d;
+        --highlight: #6c757d;
     }
 
     html, body {
@@ -60,7 +60,7 @@
         background-color: var(--foreground);
     }
 
-    button.workspace-control  {
+    button.workspace-control {
         width: 2.5em;
         display: flex;
         align-items: center;
@@ -80,7 +80,7 @@
     }
 
     .workspace-control input::placeholder {
-        color: var(--outline);
+        color: var(--highlight);
         opacity: 1;
     }
 
@@ -89,18 +89,18 @@
         outline: 0 !important;
     }
 
-    .workspace-selector {
+    .workspace-control select {
         height: 100%;
         border: 0;
         background-color: var(--foreground);
-        color: var(--outline);
+        color: var(--highlight);
         font-size: 16px;
         line-height: 20px;
         font-weight: 700;
     }
 
     .workspace-highlight {
-        color: var(--outline);
+        color: var(--highlight);
     }
 
     .workspace-input {
@@ -137,7 +137,7 @@
 <div id="workspace-controls">
     <div title="Change workspace" class="workspace-selector-body workspace-control">
         <i class="fas fa-bars workspace-highlight"></i>
-        <select id="workspace-select" class="workspace-selector">
+        <select id="workspace-select">
             {% for service in workspace_services %}
             <option value="{{ service | lower }}">{{ service }}</option>
             {% endfor %}
@@ -153,19 +153,12 @@
         <i class="fas fa-redo"></i>
     </button>
     {% if challenge.allow_privileged %}
-    {% if practice %}
-    <button id="challenge-switch" title="Restart unprivileged" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
-        <i class="fas fa-unlock"></i>
+    <button id="challenge-switch"
+            title="Restart {{'unprivileged' if practice else 'privileged'}}"
+            class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start"
+            data-privileged="{{'true' if practice else 'false'}}">
+        <i class="fas fa-{{'unlock' if practice else 'lock'}}"></i>
     </button>
-    <script>var practice = true;</script>
-    {% else %}
-    <button id="challenge-switch" title="Restart privileged" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
-        <i class="fas fa-lock"></i>
-    </button>
-    <script>var practice = false;</script>
-    {% endif %}
-    {% else %}
-    <script>var practice = false;</script>
     {% endif %}
     <!-- Add some cool new UX features here! -->
     <button id="fullscreen" title="Toggle fullscreen" class="workspace-control btn btn-md btn-outline-secondary">

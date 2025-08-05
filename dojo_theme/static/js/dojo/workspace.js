@@ -13,6 +13,14 @@ function selectService(service) {
     });
 }
 
+function isPrivileged() {
+    if ($("#challenge-switch").length == 0) {
+        return false;
+    }
+
+    return $("#challenge-switch").attr("data-privileged") == "true";
+}
+
 function startChallenge(privileged) {
     CTFd.fetch("/pwncollege_api/v1/docker", {
         method: "GET",
@@ -67,13 +75,13 @@ function startChallenge(privileged) {
 
 function setSwitch(invert) {
     // XOR
-    if (practice != invert) {
+    if (isPrivileged() != invert) {
         $("#challenge-switch").find(".fas").addClass("fa-unlock").removeClass("fa-lock");
     }
     else {
         $("#challenge-switch").find(".fas").addClass("fa-lock").removeClass("fa-unlock");
     }
-    if (practice) {
+    if (isPrivileged()) {
         $("#challenge-switch").attr("title", "Restart unprivileged");
     }
     else {
@@ -90,12 +98,17 @@ function challengeStartCallback(event) {
     .prop("disabled", true);
 
     if (document.getElementById("challenge-restart").contains(event.target)) {
-        startChallenge(practice);
+        startChallenge(isPrivileged());
     }
     else if (document.getElementById("challenge-switch") != null && document.getElementById("challenge-switch").contains(event.target)) {
-        practice = !practice;
+        if (isPrivileged()) {
+            $("#challenge-switch").attr("data-privileged", "false");
+        }
+        else {
+            $("#challenge-switch").attr("data-privileged", "true");
+        }
         setSwitch(false);
-        startChallenge(practice);
+        startChallenge(isPrivileged());
     }
     else {
         console.log("Failed to start challenge.");
