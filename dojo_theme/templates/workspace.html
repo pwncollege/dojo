@@ -149,14 +149,24 @@
         <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
     </div>
     <div class="workspace-control-spacer"></div>
+    <button id="challenge-restart" title="Restart challenge" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
+        <i class="fas fa-redo"></i>
+    </button>
     {% if challenge.allow_privileged %}
-    <button id="start-privileged" title="Restart privileged" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
+    {% if practice %}
+    <button id="challenge-switch" title="Restart unprivileged" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
         <i class="fas fa-unlock"></i>
     </button>
-    {% endif %}
-    <button id="start-unprivileged" title="Restart unprivileged" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
+    <script>var practice = true;</script>
+    {% else %}
+    <button id="challenge-switch" title="Restart privileged" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
         <i class="fas fa-lock"></i>
     </button>
+    <script>var practice = false;</script>
+    {% endif %}
+    {% else %}
+    <script>var practice = false;</script>
+    {% endif %}
     <!-- Add some cool new UX features here! -->
     <button id="fullscreen" title="Toggle fullscreen" class="workspace-control btn btn-md btn-outline-secondary">
         <i class="fas fa-expand"></i>

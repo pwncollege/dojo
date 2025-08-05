@@ -73,15 +73,19 @@ function challengeStartCallback(event) {
     .addClass("btn-disabled")
     .prop("disabled", true);
 
-    if (document.getElementById("start-unprivileged").contains(event.target)) {
-        $(".option-active").removeClass("option-active");
-        document.getElementById("start-unprivileged").classList.add("option-active");
-        startChallenge(false);
+    if (document.getElementById("challenge-restart").contains(event.target)) {
+        startChallenge(practice);
     }
-    else if (document.getElementById("start-privileged") != null && document.getElementById("start-privileged").contains(event.target)) {
-        $(".option-active").removeClass("option-active");
-        document.getElementById("start-privileged").classList.add("option-active");
-        startChallenge(true);
+    else if (document.getElementById("challenge-switch") != null && document.getElementById("challenge-switch").contains(event.target)) {
+        practice = !practice;
+        $("#challenge-switch").find(".fas").toggleClass("fa-lock fa-unlock");
+        if (practice) {
+            $("#challenge-switch").attr("title", "Restart unprivileged");
+        }
+        else {
+            $("#challenge-switch").attr("title", "Restart privileged");
+        }
+        startChallenge(practice);
     }
     else {
         console.log("Failed to start challenge.");
