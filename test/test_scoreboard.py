@@ -32,27 +32,24 @@ def get_all_standings(session, dojo, module=None):
     return to_return
 
 
-@pytest.mark.dependency(depends=["test/test_challenges.py::test_workspace_challenge"], scope="session")
-def test_scoreboard(random_user):
-    user, session = random_user
-
-    dojo = "example"
+def test_scoreboard(random_user_name, random_user_session, example_dojo):
+    dojo = example_dojo
     module = "hello"
     challenge = "apple"
 
-    prior_standings = get_all_standings(session, dojo, module)
+    prior_standings = get_all_standings(random_user_session, dojo, module)
 
-    start_challenge(dojo, module, challenge, session=session)
-    result = workspace_run("/challenge/apple", user=user)
+    start_challenge(dojo, module, challenge, session=random_user_session)
+    result = workspace_run("/challenge/apple", user=random_user_name)
     flag = result.stdout.strip()
-    solve_challenge(dojo, module, challenge, session=session, flag=flag)
+    solve_challenge(dojo, module, challenge, session=random_user_session, flag=flag)
 
-    new_standings = get_all_standings(session, dojo, module)
+    new_standings = get_all_standings(random_user_session, dojo, module)
     assert len(prior_standings) != len(new_standings), "Expected to have a new entry in the standings"
 
     found_me = False
     for standing in new_standings:
-        if standing['name'] == user:
+        if standing['name'] == random_user_name:
             found_me = True
             break
-    assert found_me, f"Unable to find new user {user} in new standings after solving a challenge"
+    assert found_me, f"Unable to find new user {random_user_name} in new standings after solving a challenge"

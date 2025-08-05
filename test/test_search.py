@@ -3,7 +3,6 @@ import pytest
 from utils import DOJO_URL
 
 
-@pytest.mark.dependency()
 def test_searchable_content(searchable_dojo, admin_session):
     search_url = f"{DOJO_URL}/pwncollege_api/v1/search"
 
