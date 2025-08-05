@@ -65,6 +65,22 @@ function startChallenge(privileged) {
     });
 }
 
+function setSwitch(invert) {
+    // XOR
+    if (practice != invert) {
+        $("#challenge-switch").find(".fas").addClass("fa-unlock").removeClass("fa-lock");
+    }
+    else {
+        $("#challenge-switch").find(".fas").addClass("fa-lock").removeClass("fa-unlock");
+    }
+    if (practice) {
+        $("#challenge-switch").attr("title", "Restart unprivileged");
+    }
+    else {
+        $("#challenge-switch").attr("title", "Restart privileged");
+    }
+}
+
 function challengeStartCallback(event) {
     event.preventDefault();
 
@@ -78,13 +94,7 @@ function challengeStartCallback(event) {
     }
     else if (document.getElementById("challenge-switch") != null && document.getElementById("challenge-switch").contains(event.target)) {
         practice = !practice;
-        $("#challenge-switch").find(".fas").toggleClass("fa-lock fa-unlock");
-        if (practice) {
-            $("#challenge-switch").attr("title", "Restart unprivileged");
-        }
-        else {
-            $("#challenge-switch").attr("title", "Restart privileged");
-        }
+        setSwitch(false);
         startChallenge(practice);
     }
     else {
@@ -191,6 +201,14 @@ $(() => {
             submitFlag($(this).val());
         }
     });
+
+    if ($("#challenge-switch").length) {
+        $("#challenge-switch").on("mouseenter", function(event) {
+            setSwitch(true);
+        }).on("mouseleave", function(event) {
+            setSwitch(false);
+        });
+    }
 
     $("#fullscreen").click((event) => {
         event.preventDefault();
