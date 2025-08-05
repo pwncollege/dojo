@@ -5,11 +5,17 @@
 {{ super() }}
 
 <style>
+    :root {
+        --background: #111;
+        --foreground: #222;
+        --outline: #6c757d;
+    }
+
     html, body {
         margin: 0;
         height: 100%;
         min-height: 100%;
-        background-color: #111;
+        background-color: var(--background);
     }
 
     body {
@@ -46,11 +52,12 @@
     .workspace-control {
         height: 100%;
         margin: 0 2px;
-        border: 0;
+        border-width: 0px;
         border-radius: 1em;
         appearance: none;
         -webkit-appearance: none;
         -moz-appearance: none;
+        background-color: var(--foreground);
     }
 
     button.workspace-control  {
@@ -65,7 +72,7 @@
         box-sizing: border-box;
         padding: 1em;
         color: #fff;
-        background-color: #111;
+        background-color: var(--foreground);
         border: 0;
         border-color: #000 !important;
         border-radius: 1em;
@@ -73,13 +80,36 @@
     }
 
     .workspace-control input::placeholder {
-        color: #6c757d;
+        color: var(--outline);
         opacity: 1;
     }
 
     .workspace-control input:focus:not(.submit-correct):not(.submit-incorrect):not(.submit-warn),
     .workspace-control input:hover:not(.submit-correct):not(.submit-incorrect):not(.submit-warn) {
         outline: 2px solid #6c757d !important;
+    }
+
+    .workspace-selector {
+        height: 100%;
+        border: 0;
+        background-color: var(--foreground);
+        color: var(--outline);
+        font-size: 16px;
+        line-height: 20px;
+        font-weight: 700;
+    }
+
+    .workspace-highlight {
+        color: var(--outline);
+    }
+
+    .workspace-input {
+        padding-left: 1em;
+    }
+
+    .workspace-selector-body {
+        padding-left: 1em;
+        padding-right: 1em;
     }
 
     .submit-correct {
@@ -105,14 +135,16 @@
 <iframe src="" id="workspace-content"></iframe>
 
 <div id="workspace-controls">
-    <div title="Change workspace">
-        <select id="workspace-select" class="workspace-control btn btn-outline-secondary workspace-selector">
+    <div title="Change workspace" class="workspace-selector-body workspace-control">
+        <i class="fas fa-bars workspace-highlight"></i>
+        <select id="workspace-select" class="workspace-selector">
             {% for service in workspace_services %}
             <option value="{{ service | lower }}">{{ service }}</option>
             {% endfor %}
         </select>
     </div>
-    <div title="Submit flag" class="workspace-control">
+    <div title="Enter flag" class="workspace-control workspace-input">
+        <i class="fas fa-flag workspace-highlight"></i>
         <input id="flag-input" class="" type="text" placeholder="Flag">
         <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
     </div>
