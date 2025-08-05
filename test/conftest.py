@@ -59,7 +59,10 @@ def belt_dojos(admin_session):
 
 @pytest.fixture(scope="session")
 def example_import_dojo(admin_session):
-    rid = create_dojo("pwncollege/example-import-dojo", session=admin_session)
+    try:
+        rid = create_dojo("pwncollege/example-import-dojo", session=admin_session)
+    except AssertionError:
+        rid = "example-import"
     make_dojo_official(rid, admin_session)
     return rid
 
@@ -70,6 +73,10 @@ def simple_award_dojo(admin_session):
 @pytest.fixture(scope="session")
 def no_practice_challenge_dojo(admin_session):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "no_practice_challenge.yml").read(), session=admin_session)
+
+@pytest.fixture(scope="session")
+def import_dojo(admin_session):
+    return create_dojo_yml(open(TEST_DOJOS_LOCATION / "import.yml").read(), session=admin_session)
 
 @pytest.fixture(scope="session")
 def import_override_dojo(admin_session):

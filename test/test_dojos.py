@@ -40,11 +40,13 @@ def test_delete_dojo(admin_session):
     assert admin_session.get(f"{DOJO_URL}/{reference_id}/").status_code == 404
 
 
-@pytest.mark.dependency(depends=["test_create_dojo"])
+def test_import(import_dojo, admin_session):
+    assert admin_session.get(f"{DOJO_URL}/{import_dojo}/hello").status_code == 200
+
+# this exists despite test_import because it doesn't re-run on re-test, but we still want to make sure our public example-import dojo passes
 def test_create_import_dojo(example_import_dojo, admin_session):
     assert admin_session.get(f"{DOJO_URL}/{example_import_dojo}/").status_code == 200
     assert admin_session.get(f"{DOJO_URL}/example-import/").status_code == 200
-
 
 @pytest.mark.dependency(depends=["test_create_dojo"])
 def test_join_dojo(admin_session, guest_dojo_admin):
