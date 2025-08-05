@@ -13,13 +13,11 @@ def get_dojo_modules(dojo):
     return response.json()["modules"]
 
 
-@pytest.mark.dependency()
 def test_create_dojo(example_dojo, admin_session):
     assert admin_session.get(f"{DOJO_URL}/{example_dojo}/").status_code == 200
     assert admin_session.get(f"{DOJO_URL}/example/").status_code == 200
 
 
-@pytest.mark.dependency()
 def test_get_dojo_modules(example_dojo):
     modules = get_dojo_modules(example_dojo)
 
@@ -32,7 +30,6 @@ def test_get_dojo_modules(example_dojo):
     assert world_module['name'] == "World", f"Expected module name to be 'World' but got {world_module['name']}"
 
 
-@pytest.mark.dependency(depends=["test_create_dojo"])
 def test_delete_dojo(admin_session):
     reference_id = create_dojo_yml("""id: delete-test""", session=admin_session)
     assert admin_session.get(f"{DOJO_URL}/{reference_id}/").status_code == 200
@@ -48,7 +45,6 @@ def test_create_import_dojo(example_import_dojo, admin_session):
     assert admin_session.get(f"{DOJO_URL}/{example_import_dojo}/").status_code == 200
     assert admin_session.get(f"{DOJO_URL}/example-import/").status_code == 200
 
-@pytest.mark.dependency(depends=["test_create_dojo"])
 def test_join_dojo(admin_session, guest_dojo_admin):
     random_user_name, random_session = guest_dojo_admin
     response = random_session.get(f"{DOJO_URL}/dojo/example/join/")
@@ -58,7 +54,6 @@ def test_join_dojo(admin_session, guest_dojo_admin):
     assert random_user_name in response.text and response.text.index("Members") < response.text.index(random_user_name)
 
 
-@pytest.mark.dependency(depends=["test_join_dojo"])
 def test_promote_dojo_member(admin_session, guest_dojo_admin):
     random_user_name, _ = guest_dojo_admin
     random_user_id = get_user_id(random_user_name)
@@ -68,7 +63,6 @@ def test_promote_dojo_member(admin_session, guest_dojo_admin):
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
 
 
-@pytest.mark.dependency(depends=["test_join_dojo"])
 def test_dojo_completion(simple_award_dojo, completionist_user):
     user_name, session = completionist_user
     dojo = simple_award_dojo
@@ -89,7 +83,6 @@ def test_dojo_completion(simple_award_dojo, completionist_user):
     assert len(us["badges"]) == 1
 
 
-@pytest.mark.dependency(depends=["test_join_dojo"])
 def test_no_practice(no_practice_challenge_dojo, no_practice_dojo, random_user):
     _, session = random_user
     for dojo in [ no_practice_challenge_dojo, no_practice_dojo ]:
@@ -117,7 +110,6 @@ def test_no_import(no_import_challenge_dojo, admin_session):
         raise AssertionError("forbidden-import dojo creation should have failed, but it succeeded")
 
 
-@pytest.mark.dependency(depends=["test_join_dojo"])
 def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user):
     user_name, _ = completionist_user
     db_sql(f"DELETE FROM solves WHERE id IN (SELECT id FROM solves WHERE user_id={get_user_id(user_name)} ORDER BY id DESC LIMIT 1)")
@@ -131,7 +123,6 @@ def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user)
     assert len(us["badges"]) == 0
 
 
-@pytest.mark.dependency(depends=["test_join_dojo"])
 def test_lfs(lfs_dojo, random_user):
     uid, session = random_user
     assert session.get(f"{DOJO_URL}/dojo/{lfs_dojo}/join/").status_code == 200
@@ -142,7 +133,6 @@ def test_lfs(lfs_dojo, random_user):
         assert False, "LFS didn't create dojo.txt"
 
 
-@pytest.mark.dependency(depends=["test_join_dojo"])
 def test_import_override(import_override_dojo, random_user):
     uid, session = random_user
     assert session.get(f"{DOJO_URL}/dojo/{import_override_dojo}/join/").status_code == 200
@@ -172,7 +162,6 @@ def test_hidden_challenges(admin_session, random_user, hidden_challenges_dojo):
     assert "CHALLENGE" not in random_user[1].get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").text
 
 
-@pytest.mark.dependency(depends=["test/test_challenges.py::test_start_challenge"], scope="session")
 def test_dojo_solves_api(example_dojo, random_user):
     user_name, session = random_user
     dojo = example_dojo
