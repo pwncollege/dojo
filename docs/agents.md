@@ -44,6 +44,12 @@ docker exec -i "$DOJO_CONTAINER" dojo flask
 
 # enter a learner's container (must be started first via a testcase or the web interface)
 docker exec -i "$DOJO_CONTAINER" dojo enter USER_ID
+
+# run an inidividual testcase --- environment variables need to be set!
+export DOJO_CONTAINER
+export DOJO_CONTAINER
+export DOJO_SSH_HOST="$DOJO_IP"
+pytest -v test/test_dojos.py::test_create_dojo
 ```
 
 ### Troubleshooting
@@ -52,17 +58,22 @@ Container start failures show up in the ctfd container logs.
 
 ### Testing
 
-**IMPORTANT: Tests MUST be run using the local-tester.sh script. Individual test files cannot be run directly because:**
-- Tests have dependencies and must run in order (uses `--order-dependencies`)
-- The script sets up required Docker containers and environment
-- Environment variables like DOJO_URL are set dynamically based on container IP
-
 ```bash
-# Run all tests (required - cannot run individual test files)
+# Restart the dojo and run all tests
 test/local-tester.sh
+
+# Run the testcases again (without restarting the dojo)
+test/local-tester.sh -N
 
 # Run without using docker or workspace cache
 test/local-tester.sh -D "" -W ""
+
+# Run an individual testcase (needs environment variables)
+export DOJO_CONTAINER=local-$(basename "$PWD")
+DOJO_IP=$(docker inspect "$DOJO_CONTAINER" | jq -r '.[0].NetworkSettings.Networks.bridge.IPAddress')
+export DOJO_URL="http://$DOJO_IP:80/"
+export DOJO_SSH_HOST="$DOJO_IP"
+pytest -v test/test_dojos.py::test_create_dojo
 ```
 
 **Test Script Options:**
