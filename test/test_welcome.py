@@ -72,6 +72,30 @@ def desktop_terminal(browser, user_id):
     browser.switch_to.window(module_window)
 
 
+@contextlib.contextmanager
+def ttyd_terminal(browser):
+    module_window = browser.current_window_handle
+
+    browser.switch_to.new_window("tab")
+    browser.get(f"{DOJO_URL}/workspace/terminal")
+
+    wait = WebDriverWait(browser, 30)
+    workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace_iframe")))
+    browser.switch_to.frame(workspace_iframe)
+
+    # Wait for ttyd to be ready and find the terminal input
+    time.sleep(3)
+    # ttyd uses body as the input element
+    body = browser.find_element("tag name", "body")
+    body.click()  # Focus the terminal
+    time.sleep(1)
+
+    yield body
+
+    browser.close()
+    browser.switch_to.window(module_window)
+
+
 # Expands the accordion entry of the challenge
 def challenge_expand(browser, idx):
     browser.refresh()
@@ -151,6 +175,20 @@ def test_welcome_vscode(random_user_browser, welcome_dojo):
     challenge_start(browser, idx)
     with vscode_terminal(browser) as vs:
         vs.send_keys("/challenge/solve | tee /tmp/out\n")
+        time.sleep(5)
+        flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
+    challenge_submit(browser, idx, flag)
+    browser.close()
+
+
+def test_welcome_ttyd(random_user_browser, welcome_dojo):
+    random_id, _, browser = random_user_browser
+    browser.get(f"{DOJO_URL}/welcome/welcome")
+    idx = challenge_idx(browser, "The Flag File")
+
+    challenge_start(browser, idx)
+    with ttyd_terminal(browser) as terminal:
+        terminal.send_keys("/challenge/solve; cat /flag | tee /tmp/out\n")
         time.sleep(5)
         flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
     challenge_submit(browser, idx, flag)
