@@ -1,8 +1,10 @@
 import subprocess
 import requests
 import pytest
+import random
+import string
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login
 
 
 def get_dojo_modules(dojo):
@@ -176,3 +178,29 @@ def test_hidden_challenges(admin_session, random_user, hidden_challenges_dojo):
     assert "CHALLENGE" in admin_session.get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").text
     assert random_user[1].get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").status_code == 200
     assert "CHALLENGE" not in random_user[1].get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").text
+
+
+@pytest.mark.dependency(depends=["test/test_challenges.py::test_start_challenge"], scope="session")
+def test_dojo_solves_api(example_dojo, random_user):
+    user_name, session = random_user
+    dojo = example_dojo
+
+    random_id = "".join(random.choices(string.ascii_lowercase, k=16))
+    other_session = login(random_id, random_id, register=True)
+
+    start_challenge(dojo, "hello", "apple", session=session)
+    solve_challenge(dojo, "hello", "apple", session=session, user=user_name)
+
+    response = session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/solves")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"]
+    assert len(data["solves"]) == 1
+    assert data["solves"][0]["challenge_id"] == "apple"
+
+    response = other_session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/solves", params={"username": user_name})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"]
+    assert len(data["solves"]) == 1
+    assert data["solves"][0]["challenge_id"] == "apple"
