@@ -4,22 +4,13 @@ import pytest
 import random
 import string
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id
 
 
 def get_dojo_modules(dojo):
     response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/modules")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     return response.json()["modules"]
-
-
-def db_sql(sql):
-    db_result = dojo_run("db", "-qAt", input=sql)
-    return db_result.stdout
-
-
-def get_user_id(user_name):
-    return int(db_sql(f"SELECT id FROM users WHERE name = '{user_name}'"))
 
 
 @pytest.mark.dependency()
@@ -82,7 +73,6 @@ def test_dojo_completion(simple_award_dojo, completionist_user):
 
     response = session.get(f"{DOJO_URL}/dojo/{dojo}/join/")
     assert response.status_code == 200
-    from test_challenges import solve_challenge
     for module, challenge in [
         ("hello", "apple"), ("hello", "banana"),
         #("world", "earth"), ("world", "mars"), ("world", "venus")

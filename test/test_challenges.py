@@ -3,7 +3,7 @@ import pytest
 import json
 import re
 
-from utils import DOJO_URL, dojo_run, workspace_run, start_challenge, solve_challenge
+from utils import DOJO_URL, dojo_run, workspace_run, start_challenge, solve_challenge, db_sql, get_user_id
 
 def check_mount(path, *, user, fstype=None, check_nosuid=True):
     try:
@@ -21,15 +21,6 @@ def check_mount(path, *, user, fstype=None, check_nosuid=True):
         assert filesystem["fstype"] == fstype, f"Expected '{path}' to be mounted as '{fstype}', but got: {filesystem}"
     if check_nosuid:
         assert "nosuid" in filesystem["options"], f"Expected '{path}' to be mounted nosuid, but got: {filesystem}"
-
-
-def db_sql(sql):
-    db_result = dojo_run("db", "-qAt", input=sql)
-    return db_result.stdout
-
-
-def get_user_id(user_name):
-    return int(db_sql(f"SELECT id FROM users WHERE name = '{user_name}'"))
 
 
 
