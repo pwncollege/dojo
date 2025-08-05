@@ -103,7 +103,10 @@ def transfer_dst_dojo(transfer_src_dojo, admin_session):
 
 @pytest.fixture(scope="session")
 def no_import_challenge_dojo(admin_session):
-    rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "no_import_challenge.yml").read(), session=admin_session)
+    n = "".join(random.choices(string.ascii_lowercase, k=8))
+    rid = create_dojo_yml(
+        open(TEST_DOJOS_LOCATION / "no_import_challenge.yml"
+      ).read().replace("no-import-challenge", f"no-import-challenge-{n}"), session=admin_session)
     make_dojo_official(rid, admin_session)
     return rid
 
