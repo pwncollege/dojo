@@ -23,6 +23,16 @@ def random_user():
     session = login(random_id, random_id, register=True)
     yield random_id, session
 
+@pytest.fixture
+def random_user_name(random_user):
+    uid, _ = random_user
+    yield uid
+
+@pytest.fixture
+def random_user_session(random_user):
+    _, session = random_user
+    yield session
+
 
 @pytest.fixture(scope="session")
 def completionist_user():
