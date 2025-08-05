@@ -24,12 +24,10 @@ def check_mount(path, *, user, fstype=None, check_nosuid=True):
 
 
 
-@pytest.mark.dependency(depends=["test/test_dojos.py::test_create_dojo"], scope="session")
 def test_start_challenge(admin_session):
     start_challenge("example", "hello", "apple", session=admin_session)
 
 
-@pytest.mark.dependency(depends=["test_start_challenge"])
 def test_active_module_endpoint(random_user):
     _, session = random_user
     start_challenge("example", "hello", "banana", session=session)
@@ -76,7 +74,6 @@ def test_active_module_endpoint(random_user):
     challenges["banana"]["description"] = banana_description
 
 
-@pytest.mark.dependency(depends=["test_start_challenge"])
 def test_progression_locked(progression_locked_dojo, random_user):
     uid, session = random_user
     assert session.get(f"{DOJO_URL}/dojo/{progression_locked_dojo}/join/").status_code == 200
@@ -89,7 +86,6 @@ def test_progression_locked(progression_locked_dojo, random_user):
     start_challenge(progression_locked_dojo, "progression-locked-module", "locked-challenge", session=session)
 
 
-@pytest.mark.dependency(depends=["test_start_challenge"])
 @pytest.mark.parametrize("path", ["/flag", "/challenge/apple"])
 def test_workspace_path_exists(path):
     try:
@@ -98,7 +94,6 @@ def test_workspace_path_exists(path):
         assert False, f"Path does not exist: {path}"
 
 
-@pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_flag_permission():
     try:
         workspace_run("cat /flag", user="admin")
@@ -108,19 +103,16 @@ def test_workspace_flag_permission():
         assert False, f"Expected permission denied, but got no error: {(e.stdout, e.stderr)}"
 
 
-@pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_challenge():
     result = workspace_run("/challenge/apple", user="admin")
     match = re.search("pwn.college{(\\S+)}", result.stdout)
     assert match, f"Expected flag, but got: {result.stdout}"
 
 
-@pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_home_mount():
     check_mount("/home/hacker", user="admin")
 
 
-@pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_no_sudo():
     try:
         s = workspace_run("sudo whoami", user="admin")
@@ -130,7 +122,6 @@ def test_workspace_no_sudo():
         assert False, f"Expected sudo to fail, but got no error: {(s.stdout, s.stderr)}"
 
 
-@pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_practice_challenge(random_user):
     user, session = random_user
     start_challenge("example", "hello", "apple", practice=True, session=session)
@@ -141,7 +132,6 @@ def test_workspace_practice_challenge(random_user):
         assert False, f"Expected sudo to succeed, but got: {(e.stdout, e.stderr)}"
 
 
-@pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_home_persistent(random_user):
     user, session = random_user
     start_challenge("example", "hello", "apple", session=session)
@@ -154,7 +144,6 @@ def test_workspace_home_persistent(random_user):
 
 
 @pytest.mark.skip(reason="Disabling test temporarily until overlay issue is resolved")
-@pytest.mark.dependency(depends=["test_workspace_home_persistent"])
 def test_workspace_as_user(admin_user, random_user):
     admin_user, admin_session = admin_user
     random_user, random_session = random_user
@@ -185,7 +174,6 @@ def test_workspace_as_user(admin_user, random_user):
         assert False, f"Expected overlay file to not exist, but got: {(e.stdout, e.stderr)}"
 
 
-@pytest.mark.dependency(depends=["test_start_challenge"])
 def test_reset_home_directory(random_user):
     user, session = random_user
 

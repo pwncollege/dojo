@@ -32,7 +32,6 @@ def get_all_standings(session, dojo, module=None):
     return to_return
 
 
-@pytest.mark.dependency(depends=["test/test_challenges.py::test_workspace_challenge"], scope="session")
 def test_scoreboard(random_user):
     user, session = random_user
 
