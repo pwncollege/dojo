@@ -72,7 +72,7 @@ def workspace_run(cmd, *, user, root=False, **kwargs):
     if root:
         args += [ "-s" ]
     args += [ user ]
-    return dojo_run(*args, input=cmd, check=True, **kwargs)
+    return dojo_run(*args, input=cmd, check=kwargs.pop("check", True), **kwargs)
 
 
 def start_challenge(dojo, module, challenge, practice=False, *, session, as_user=None, wait=0):
@@ -95,3 +95,12 @@ def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):
     )
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], "Expected to successfully submit flag"
+
+
+def db_sql(sql):
+    db_result = dojo_run("db", "-qAt", input=sql)
+    return db_result.stdout
+
+
+def get_user_id(user_name):
+    return int(db_sql(f"SELECT id FROM users WHERE name = '{user_name}'"))

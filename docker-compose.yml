@@ -159,6 +159,10 @@ services:
         condition: service_started
       cache:
         condition: service_started
+    networks:
+      default:
+      workspace_net:
+        ipv4_address: 10.0.0.2
 
   db:
     container_name: db
