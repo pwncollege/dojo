@@ -59,7 +59,6 @@ define DB_HOST db
 define DB_NAME ctfd
 define DB_USER ctfd
 define DB_PASS ctfd
-define DB_EXTERNAL no # change to anything but no and the db container will not start mysql
 define BACKUP_AES_KEY_FILE
 define S3_BACKUP_BUCKET
 define AWS_DEFAULT_REGION
@@ -67,13 +66,30 @@ define AWS_ACCESS_KEY_ID
 define AWS_SECRET_ACCESS_KEY
 define MAC_HOSTNAME
 define MAC_USERNAME
-define MAC_KEY_FILE
-define MAC_GUEST_CONTROL_FILE
+define ENABLE_SPLUNK false
 
 mv /data/.config.env /data/config.env
 . /data/config.env
 
+# Configure Docker daemon for Splunk logging if enabled
+if [ "${ENABLE_SPLUNK}" = "true" ]; then
+    echo "[+] Configuring Docker daemon for Splunk logging..."
+    if [ -f /tmp/daemon-splunk.json ]; then
+        cp /tmp/daemon-splunk.json /etc/docker/daemon.json
+        echo "[+] Docker daemon configured for Splunk logging"
+    else
+        echo "[!] Warning: Splunk daemon configuration not found"
+    fi
+else
+    # Ensure standard configuration is used
+    if [ -f /tmp/daemon.json ]; then
+        cp /tmp/daemon.json /etc/docker/daemon.json
+    fi
+fi
+
 mkdir -p /data/workspace/nix
+mkdir -p /data/workspacefs/bin
+mkdir -p /data/ctfd-ipython
 
 mkdir -p /data/homes
 if [ "$(findmnt -nro FSTYPE -- /data/homes)" != "btrfs" ] && [ "$(findmnt -nro FSTYPE -- /data)" != "btrfs" ]; then

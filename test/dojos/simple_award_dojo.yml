@@ -3,6 +3,19 @@ type: public
 award:
   emoji: 🧪
 modules:
-  - import:
-      dojo: example
-      module: hello
+modules:
+  - id: hello
+    challenges:
+      - id: apple
+      - id: banana
+files:
+  - type: text
+    path: hello/apple/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: hello/banana/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

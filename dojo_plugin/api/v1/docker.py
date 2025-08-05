@@ -27,7 +27,8 @@ from ...utils import (
     serialize_user_flag,
     user_docker_client,
     user_ipv4,
-    is_challenge_locked
+    get_current_container,
+    is_challenge_locked,
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
@@ -66,7 +67,13 @@ def get_available_devices(docker_client):
     if (cached := cache.get(key)) is not None:
         return cached
     find_command = ["/bin/find", "/dev", "-type", "c"]
-    devices = docker_client.containers.run("busybox:uclibc", find_command, privileged=True, remove=True).decode().splitlines()
+    # When using certain logging drivers (like Splunk), docker.containers.run() returns None
+    # Use detach=True and logs() to capture output instead
+    container = docker_client.containers.run("busybox:uclibc", find_command, privileged=True, detach=True)
+    container.wait()
+    output = container.logs()
+    container.remove()
+    devices = output.decode().splitlines() if output else []
     timeout = int(datetime.timedelta(days=1).total_seconds())
     cache.set(key, devices, timeout=timeout)
     return devices
@@ -398,9 +405,18 @@ class RunDocker(Resource):
         dojo_challenge = get_current_dojo_challenge()
         if not dojo_challenge:
             return {"success": False, "error": "No active challenge"}
+
+        user = get_current_user()
+        container = get_current_container(user)
+        if not container:
+            return {"success": False, "error": "No challenge container"}
+
+        practice = container.labels.get("dojo.mode") == "privileged"
+
         return {
             "success": True,
             "dojo": dojo_challenge.dojo.reference_id,
             "module": dojo_challenge.module.id,
             "challenge": dojo_challenge.id,
+            "practice" : practice
         }

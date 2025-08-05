@@ -3,11 +3,14 @@ import re
 import subprocess
 import sys
 import tempfile
+import traceback
 import datetime
 import functools
 import inspect
 import pathlib
 import urllib.request
+import base64
+import logging
 
 import yaml
 import requests
@@ -20,7 +23,7 @@ from CTFd.utils.user import get_current_user, is_admin
 
 from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
 from ..config import DOJOS_DIR
-from ..utils import get_current_container
+from ..utils import get_current_container, sanitize_survey
 
 
 DOJOS_TMP_DIR = DOJOS_DIR/"tmp"
@@ -61,6 +64,7 @@ DOJO_SPEC = Schema({
 
     Optional("image"): IMAGE_REGEX,
     Optional("allow_privileged"): bool,
+    Optional("show_scoreboard"): bool,
     Optional("importable"): bool,
 
     Optional("import"): {
@@ -69,24 +73,13 @@ DOJO_SPEC = Schema({
 
     Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
 
-    Optional("survey"): Or(
-        {
-            "type": "multiplechoice",
-            "prompt": str,
-            Optional("probability"): float,
-            "options": [str],
-        },
-        {
-            "type": "thumb",
-            "prompt": str,
-            Optional("probability"): float,
-        },
-        {
-            "type": "freeform",
-            "prompt": str,
-            Optional("probability"): float,
-        },
-    ),
+    Optional("survey"): {
+        Optional("probability"): float,
+        "prompt": str,
+        "data": str
+    },
+
+    Optional("survey-sources", default={}): str,
 
     Optional("modules", default=[]): [{
         **ID_NAME_DESCRIPTION,
@@ -94,6 +87,8 @@ DOJO_SPEC = Schema({
 
         Optional("image"): IMAGE_REGEX,
         Optional("allow_privileged"): bool,
+        Optional("show_challenges"): bool,
+        Optional("show_scoreboard"): bool,
         Optional("importable"): bool,
 
         Optional("import"): {
@@ -101,67 +96,13 @@ DOJO_SPEC = Schema({
             "module": ID_REGEX,
         },
 
-        Optional("survey"): Or(
-            {
-                "type": "multiplechoice",
-                "prompt": str,
-                Optional("probability"): float,
-                "options": [str],
-            },
-            {
-                "type": "thumb",
-                "prompt": str,
-                Optional("probability"): float,
-            },
-            {
-                "type": "freeform",
-                "prompt": str,
-                Optional("probability"): float,
-            },
-        ),
+        Optional("survey"): {
+            Optional("probability"): float,
+            "prompt": str,
+            "data": str
+        },
 
-        Optional("challenges", default=[]): [{
-            **ID_NAME_DESCRIPTION,
-            **VISIBILITY,
-
-            Optional("image"): IMAGE_REGEX,
-            Optional("allow_privileged"): bool,
-            Optional("importable"): bool,
-            Optional("progression_locked"): bool,
-            Optional("auxiliary", default={}, ignore_extra_keys=True): dict,
-            # Optional("path"): Regex(r"^[^\s\.\/][^\s\.]{,255}$"),
-
-            Optional("import"): {
-                Optional("dojo"): UNIQUE_ID_REGEX,
-                Optional("module"): ID_REGEX,
-                "challenge": ID_REGEX,
-            },
-
-            Optional("transfer"): {
-                Optional("dojo"): UNIQUE_ID_REGEX,
-                Optional("module"): ID_REGEX,
-                "challenge": ID_REGEX,
-            },
-
-            Optional("survey"): Or(
-                {
-                    "type": "multiplechoice",
-                    "prompt": str,
-                    Optional("probability"): float,
-                    "options": [str],
-                },
-                {
-                    "type": "thumb",
-                    "prompt": str,
-                    Optional("probability"): float,
-                },
-                {
-                    "type": "freeform",
-                    "prompt": str,
-                    Optional("probability"): float,
-                },
-            )
-        }],
+        Optional("challenges", default=[]): [dict],
 
         Optional("resources", default=[]): [Or(
             {
@@ -177,6 +118,38 @@ DOJO_SPEC = Schema({
                 Optional("playlist"): str,
                 Optional("slides"): str,
                 **VISIBILITY,
+            },
+            {
+                "type": "header",
+                "content": str,
+                **VISIBILITY,
+            },
+            {
+                "type": "challenge",
+                "id": ID_REGEX,
+                "name": NAME_REGEX,
+                Optional("description"): str,
+                **VISIBILITY,
+                Optional("image"): IMAGE_REGEX,
+                Optional("allow_privileged"): bool,
+                Optional("importable"): bool,
+                Optional("progression_locked"): bool,
+                Optional("auxiliary"): dict,
+                Optional("import"): {
+                    Optional("dojo"): UNIQUE_ID_REGEX,
+                    Optional("module"): ID_REGEX,
+                    "challenge": ID_REGEX,
+                },
+                Optional("transfer"): {
+                    Optional("dojo"): UNIQUE_ID_REGEX,
+                    Optional("module"): ID_REGEX,
+                    "challenge": ID_REGEX,
+                },
+                Optional("survey"): {
+                    Optional("probability"): float,
+                    "prompt": str,
+                    "data": str
+                },
             },
         )],
 
@@ -210,7 +183,7 @@ def setdefault_name(entry):
 
 def setdefault_file(data, key, file_path):
     if file_path.exists():
-        data.setdefault("description", file_path.read_text())
+        data.setdefault(key, file_path.read_text())
 
 
 def setdefault_subyaml(data, subyaml_path):
@@ -251,17 +224,70 @@ def load_dojo_subyamls(data, dojo_dir):
         setdefault_file(module_data, "description", module_dir / "DESCRIPTION.md")
         setdefault_name(module_data)
 
-        for challenge_data in module_data.get("challenges", []):
-            if "id" not in challenge_data:
-                continue
+        if "resources" not in module_data:
+            module_data["resources"] = []
+        if module_data["resources"]:
+            module_data["resources"].insert(0, {
+                "type": "header",
+                "content": "Resources"
+            })
 
-            challenge_dir = module_dir / challenge_data["id"]
-            setdefault_subyaml(challenge_data, challenge_dir / "challenge.yml")
-            setdefault_file(challenge_data, "description", challenge_dir / "DESCRIPTION.md")
-            setdefault_name(challenge_data)
+        challenges = module_data.pop("challenges", [])
+        if challenges:
+            module_data["resources"].append({
+                "type": "header",
+                "content": "Challenges"
+            })
+            
+            for challenge_data in challenges:
+                if "import" in challenge_data and "id" not in challenge_data:
+                    challenge_data["id"] = challenge_data["import"]["challenge"]
+                
+                if "id" not in challenge_data:
+                    continue
+
+                challenge_dir = module_dir / challenge_data["id"]
+                setdefault_subyaml(challenge_data, challenge_dir / "challenge.yml")
+                setdefault_file(challenge_data, "description", challenge_dir / "DESCRIPTION.md")
+                setdefault_name(challenge_data)
+                
+                challenge_data["type"] = "challenge"
+                
+                if "import" in challenge_data and "name" not in challenge_data:
+                    challenge_data["name"] = challenge_data.get("id", "Imported Challenge").replace("-", " ").title()
+                
+                module_data["resources"].append(challenge_data)
 
     return data
 
+def load_surveys(data, dojo_dir):
+    """
+    Optional survey data can be stored in an arbitrary directory under dojo_dir
+
+    This directory is specified by 'survey-sources' under the base yml file
+
+    This function copies the html survey data into the survey.data attribute
+    """
+
+    survey_data = data.get("survey-sources", None)
+    if survey_data and type(survey_data) == str:
+        survey_dir = dojo_dir / survey_data
+        if "survey" in data and "src" in data["survey"]:
+            setdefault_file(data["survey"], "data", survey_dir / data["survey"]["src"])
+            del data["survey"]["src"]
+
+        for module_data in data.get("modules", []):
+            if "survey" in module_data and "src" in module_data["survey"]:
+                setdefault_file(module_data["survey"], "data", survey_dir / module_data["survey"]["src"])
+                del module_data["survey"]["src"]
+
+            for challenge_data in module_data.get("resources", []):
+                if challenge_data["type"] != "challenge": continue
+                if "survey" in challenge_data and "src" in challenge_data["survey"]:
+                    setdefault_file(challenge_data["survey"], "data", survey_dir / challenge_data["survey"]["src"])
+                    del challenge_data["survey"]["src"]
+
+    return data
 
 def dojo_initialize_files(data, dojo_dir):
     for dojo_file in data.get("files", []):
@@ -291,6 +317,7 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
 
     data_raw = yaml.safe_load(dojo_yml_path.read_text())
     data = load_dojo_subyamls(data_raw, dojo_dir)
+    data = load_surveys(data, dojo_dir)
     dojo_initialize_files(data, dojo_dir)
     return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
 
@@ -329,6 +356,8 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
         field: dojo_data.get(field, getattr(import_dojo, field, None))
         for field in ["id", "name", "description", "password", "type", "award"]
     }
+
+    assert dojo_kwargs.get("id") is not None, "Dojo id must be defined"
 
     if dojo is None:
         dojo = Dojos(**dojo_kwargs)
@@ -375,9 +404,29 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             return default_dict[attr]
         raise KeyError(f"Missing `{attr}` in `{datas}`")
 
+    def survey(*datas):
+        for data in reversed(datas):
+            if "survey" in data:
+                survey = dict(data["survey"])
+                if not "data" in survey:
+                    raise KeyError(f"Survey data not specified")
+                survey["data"] = sanitize_survey(survey["data"])
+                return survey
+        return None
+
     def import_ids(attrs, *datas):
         datas_import = [data.get("import", {}) for data in datas]
         return tuple(shadow(id, *datas_import) for id in attrs)
+
+    challenge_resources = []
+    regular_resources = []
+    for module_data in dojo_data.get("modules", []):
+        for resource_index, resource_data in enumerate(module_data.get("resources", [])):
+            if resource_data.get("type") == "challenge":
+                resource_data["unified_index"] = resource_index
+                challenge_resources.append((module_data, resource_data))
+            else:
+                regular_resources.append((module_data, resource_data))
 
     dojo.modules = [
         DojoModules(
@@ -393,24 +442,29 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     ) if "import" not in challenge_data else None,
                     progression_locked=challenge_data.get("progression_locked"),
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
-                    survey=shadow("survey", dojo_data, module_data, challenge_data, default=None),
+                    survey=survey(dojo_data, module_data, challenge_data),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
                                         f"Import challenge `{'/'.join(import_ids(['dojo', 'module', 'challenge'], dojo_data, module_data, challenge_data))}` does not exist")
                              if "import" in challenge_data else None),
+                    unified_index=challenge_data.get("unified_index"),
                 )
-                for challenge_data in module_data["challenges"]
-            ] if "challenges" in module_data else None,
+                for challenge_data in [r for m, r in challenge_resources if m == module_data]
+            ],
             resources = [
                 DojoResources(
                     **{kwarg: resource_data.get(kwarg) for kwarg in ["name", "type", "content", "video", "playlist", "slides"]},
                     visibility=visibility(DojoResourceVisibilities, dojo_data, module_data, resource_data),
+                    resource_index=resource_index,
                 )
-                for resource_data in module_data["resources"]
-            ] if "resources" in module_data else None,
+                for resource_index, resource_data in enumerate(module_data.get("resources", []))
+                if resource_data.get("type") != "challenge"
+            ],
             default=(assert_import_one(DojoModules.from_id(*import_ids(["dojo", "module"], dojo_data, module_data)),
                                 f"Import module `{'/'.join(import_ids(['dojo', 'module'], dojo_data, module_data))}` does not exist")
                      if "import" in module_data else None),
             visibility=visibility(DojoModuleVisibilities, dojo_data, module_data),
+            show_challenges=shadow("show_challenges", dojo_data, module_data, default_dict=DojoModules.data_defaults),
+            show_scoreboard=shadow("show_scoreboard", dojo_data, module_data, default_dict=DojoModules.data_defaults),
         )
         for module_data in dojo_data["modules"]
     ] if "modules" in dojo_data else [
@@ -582,7 +636,7 @@ def dojo_create(user, repository, public_key, private_key, spec):
         raise RuntimeError(str(e))
 
     except Exception as e:
-        print(f"Encountered error: {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
         raise RuntimeError("An error occurred while creating the dojo")
 
     return dojo

@@ -11,16 +11,15 @@
 <div class="container">
   <div id="dojo-delete-results" class="form-group">
   <div class="row text-center">
-    <div class="col-lg-auto m-3">
-      <figure>
-      <a class="text-decoration-none" href="#"
-        data-copy="{{ url_for('pwncollege_dojo.join_dojo', dojo=dojo.reference_id, password=dojo.password, _external=True) }}"
-        onclick="copyToClipboard(event)">
-        <i class="fas fa-share fa-3x"></i>
-        <figcaption><b id="tooltip">&nbsp;Share&nbsp;</b></figcaption>
-      </a>
-      </figure>
-    </div>
+    <p style="margin-left: 1rem;">Share the dojo using this link!</p>
+    <div class="input-group mx-3 mb-2">
+      <input type="text" id="user-token-result" class="form-control" value="{{ url_for('pwncollege_dojo.join_dojo', dojo=dojo.reference_id, password=dojo.password, _external=True) }}" readonly>
+      <div class="input-group-append">
+        <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard(event)">
+          <i class="fas fa-clipboard"></i>
+        </button>
+      </div>
+      </div>
     <div class="col-lg-auto m-3">
       <figure>
       <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.update_dojo', dojo=dojo.reference_id, update_code=dojo.update_code) }}" target="_blank">

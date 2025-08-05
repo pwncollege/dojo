@@ -112,8 +112,6 @@ The DOJO uses mysql.
 
 The DOJO database lives in the `db` container by default.
 You can use an external database by setting `DB_HOST` in `config.env`.
-To save resources, also set `DB_EXTERNAL` to `yes` so that the `db` container does not actually start mysql.
-
 You can launch a database client session with `dojo db`.
 
 ## CTFd and the dojo-plugin

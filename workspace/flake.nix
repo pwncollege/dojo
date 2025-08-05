@@ -2,17 +2,19 @@
   description = "DOJO Workspace Flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs-24-11.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-pr-angr-management.url = "github:NixOS/nixpkgs/pull/360310/head";
+    pwndbg.url = "github:pwndbg/pwndbg";
   };
 
   outputs =
     {
       self,
       nixpkgs,
-      nixpkgs-unstable,
+      nixpkgs-24-11,
       nixpkgs-pr-angr-management,
+      pwndbg,
     }:
     {
       packages = {
@@ -24,13 +26,17 @@
               allowBroken = true; # angr is currently marked "broken" in nixpkgs, but works fine (without unicorn)
             };
 
-            binaryninja-free-overlay = self: super: {
-              binaryninja-free = (import nixpkgs-unstable { inherit system config; }).binaryninja-free;
-            };
-
             angr-management-overlay = self: super: {
               angr-management = (import nixpkgs-pr-angr-management { inherit system config; }).angr-management;
             };
+
+	    ida-free-overlay = self: super: {
+		ida-free = (import nixpkgs-24-11 { inherit system config; }).ida-free;
+	    };
+
+	    pwndbg-overlay = self: super: {
+		pwndbg = pwndbg.packages.${system}.pwndbg;
+	    };
 
             sage-overlay = final: prev: {
               sage = prev.sage.override {
@@ -45,9 +51,10 @@
             pkgs = import nixpkgs {
               inherit system config;
               overlays = [
-                binaryninja-free-overlay
                 angr-management-overlay
+		ida-free-overlay
                 sage-overlay
+		pwndbg-overlay
               ];
             };
 
@@ -58,6 +65,7 @@
             service = import ./services/service.nix { inherit pkgs; };
             code-service = import ./services/code.nix { inherit pkgs; };
             desktop-service = import ./services/desktop.nix { inherit pkgs; };
+            terminal-service = import ./services/terminal.nix { inherit pkgs; };
 
             ldd = pkgs.writeShellScriptBin "ldd" ''
               ldd=/usr/bin/ldd
@@ -109,6 +117,7 @@
               service
               code-service
               desktop-service
+              terminal-service
             ];
 
             fullPackages = corePackages ++ additional.packages;

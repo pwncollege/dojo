@@ -27,6 +27,8 @@ case "$ACTION" in
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
     "update")
         git pull
+        # rebuild the workspace so that ctfd isn't down for too long
+        dojo compose up -d --build --no-deps workspace-builder
         dojo up "$@"
         ;;
 
@@ -46,10 +48,7 @@ case "$ACTION" in
             shift
         fi
         DOJO_UID="$1"
-        [ -n "${DOJO_UID//[0-9]}" ] && DOJO_UID=$(
-            echo "select id from users where name='$DOJO_UID'" |
-            $0 db -s
-        )
+        [ -n "${DOJO_UID//[0-9]}" ] && DOJO_UID=$(echo "select id from users where name='$DOJO_UID'" | dojo db -qAt)
         CONTAINER="user_$DOJO_UID"
         shift
 
@@ -69,7 +68,12 @@ case "$ACTION" in
     "compose")
         profile="main"
         [ "$WORKSPACE_NODE" -gt 0 ] && profile="workspace"
-        docker compose --env-file=/data/config.env --profile "$profile" "$@"
+
+        if [ "${ENABLE_SPLUNK}" = "true" ]; then
+            docker compose --env-file=/data/config.env --profile "$profile" --profile splunk "$@"
+        else
+            docker compose --env-file=/data/config.env --profile "$profile" "$@"
+        fi
         ;;
 
     # HELP: node: run a dojo node command
@@ -84,13 +88,25 @@ case "$ACTION" in
 
     # HELP: db: launch a mysql client session, connected to the ctfd db
     "db")
-        docker exec $DOCKER_ARGS db mysql -h ${DB_HOST} -p${DB_PASS} -D${DB_NAME} -u${DB_USER} "$@"
+        docker exec $DOCKER_ARGS db psql "$@"
         ;;
 
     # HELP: backup: does a dojo db backup into the `/data/backups` directory.
     "backup")
         mkdir -p /data/backups
-        docker exec db mysqldump -h ${DB_HOST} -p${DB_PASS} -u${DB_USER} --single-transaction --routines --triggers ${DB_NAME} | gzip > "/data/backups/db-$(date -Iseconds).sql.gz"
+        BACKUP_PATH="/data/backups/db-$(date -Iseconds).dump"
+        docker exec db pg_dump -Fc > "$BACKUP_PATH"
+        echo "Created backup at $BACKUP_PATH"
+        ;;
+
+    # HELP: restore PATH: restores a dojo db backup. Path arg is relative to the `/data/backups` directory
+    "restore")
+        BACKUP_PATH="/data/backups/$1"
+        if [ -f "$BACKUP_PATH" ]; then
+            docker exec -i db pg_restore --clean --if-exists --dbname="$DB_NAME" < "$BACKUP_PATH"
+        else
+            echo "Error: missing file to restore from" >&2
+        fi
         ;;
 
     # HELP: cloud-backup: upload the last day's worth of cloud backups to S3, but encrypt it at rest
@@ -112,16 +128,6 @@ case "$ACTION" in
         done
         ;;
 
-    # HELP: restore PATH: restores a dojo db backup. Path arg is relative to the `/data/backups` directory
-    "restore")
-        BACKUP_PATH="/data/backups/$1"
-        if [ -f "$BACKUP_PATH" ]; then
-            gunzip < "$BACKUP_PATH" | docker exec -i db mysql -h ${DB_HOST} -p${DB_PASS} -u${DB_USER} -D${DB_NAME}
-        else
-            echo "Error: missing file to restore from" >&2
-        fi
-        ;;
-
     # HELP: vscode: start vscode tunnel
     "vscode")
         dojo-vscode "$@"
@@ -130,6 +136,12 @@ case "$ACTION" in
     # HELP: logs: display dojo logs
     "logs")
         journalctl -u pwn.college -f --no-tail
+        ;;
+
+    # HELP: load-dojo: load a dojo from a git repository
+    "load-dojo")
+        "$0" flask -- /opt/CTFd/CTFd/plugins/dojo_plugin/scripts/load_dojo.py -- "$@"
+        exit $?
         ;;
 
     # HELP: wait: wait for the dojo to finish starting
@@ -166,7 +178,7 @@ case "$ACTION" in
         ;;
 
     *)
-        echo "Unknown command."
+        echo "Unknown command $0."
         echo ""
         "$0" help
         exit 1

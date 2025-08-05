@@ -47,6 +47,9 @@ let
     echo "PATH=\"$FULL_PATH\"" > /etc/environment
     ln -sfT /run/dojo/etc/profile.d/99-dojo-workspace.sh /etc/profile.d/99-dojo-workspace.sh
 
+    mkdir -p /etc/gdb/gdbinit.d
+    echo "set debug-file-directory /lib/debug" > /etc/gdb/gdbinit.d/dojo.gdb
+
     echo $DOJO_AUTH_TOKEN > /run/dojo/var/auth_token
 
     echo "Initialized."
@@ -86,6 +89,18 @@ let
 
     if [[ -z "$SSL_CERT_FILE" ]]; then
       export SSL_CERT_FILE="/run/dojo/etc/ssl/certs/ca-bundle.crt"
+    fi
+
+    if tput setaf 1 &> /dev/null; then
+      # Terminal supports colors
+      PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+      alias ls='ls --color=auto'
+      alias grep='grep --color=auto'
+    fi
+
+    if [[ "$TERM" == xterm* ]]; then
+      # Set the terminal title to the current user and host
+      PS1="\[\e]0;\u@\h: \w\a\]$PS1"
     fi
 
     PROMPT_COMMAND="history -a; $PROMPT_COMMAND"

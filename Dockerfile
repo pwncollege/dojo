@@ -31,19 +31,10 @@ curl -fsSL https://get.docker.com | VERSION=27.5.1 sh
 sed -i 's|-H fd:// ||' /lib/systemd/system/docker.service
 EOF
 
-COPY <<EOF /etc/docker/daemon.json
-{
-    "data-root": "/data/docker",
-    "hosts": ["unix:///run/docker.sock"],
-    "builder": {
-        "Entitlements": {
-            "security-insecure": true
-        }
-    }
-}
-EOF
+COPY etc/docker/daemon*.json /tmp/
+RUN cp /tmp/daemon.json /etc/docker/daemon.json
 
-ADD https://raw.githubusercontent.com/moby/moby/master/profiles/seccomp/default.json /etc/docker/seccomp.json
+ADD https://raw.githubusercontent.com/moby/profiles/master/seccomp/default.json /etc/docker/seccomp.json
 
 RUN <<EOF
 KATA_VERSION=3.18.0
@@ -89,4 +80,5 @@ EOF
 EXPOSE 22
 EXPOSE 80
 EXPOSE 443
+EXPOSE 8001
 CMD ["dojo", "init"]
