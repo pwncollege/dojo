@@ -135,6 +135,7 @@ DOJO_SPEC = Schema({
                 Optional("importable"): bool,
                 Optional("progression_locked"): bool,
                 Optional("auxiliary"): dict,
+                Optional("required", default=True): bool,
                 Optional("import"): {
                     Optional("dojo"): UNIQUE_ID_REGEX,
                     Optional("module"): ID_REGEX,
