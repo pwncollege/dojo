@@ -153,7 +153,6 @@ def test_import_override(import_override_dojo, random_user):
         assert False, "dojo_initialize_files didn't create /challenge/boom"
 
 
-@pytest.mark.dependency(depends=["test_join_dojo"])
 def test_challenge_transfer(transfer_src_dojo, transfer_dst_dojo, random_user):
     user_name, session = random_user
     assert session.get(f"{DOJO_URL}/dojo/{transfer_src_dojo}/join/").status_code == 200
