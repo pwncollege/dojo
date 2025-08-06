@@ -13,7 +13,10 @@ The DOJO runs in a docker-in-docker setting, with the "outer" container using do
 ### Quick Development Setup
 
 ```bash
-# Start up the dojo (without running testcases)
+# Start up the dojo and run all testcases
+test/local-tester.sh
+
+# (Re)start the dojo, but don't run testcases
 test/local-tester.sh -T
 
 # Run the testcases (without restarting the dojo)
