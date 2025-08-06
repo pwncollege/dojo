@@ -373,11 +373,11 @@ function markChallengeAsSolved(item) {
 }
 
 var scroll_pos_x;
-var scroll_pox_y;
+var scroll_pos_y;
 
 function scrollDisable() {
     scroll_pos_x = window.pageXOffset;
-    scroll_pox_y = window.pageYOffset;
+    scroll_pos_y = window.pageYOffset;
     document.body.classList.add("scroll-disabled");
 }
 
