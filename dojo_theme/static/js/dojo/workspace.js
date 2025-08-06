@@ -1,3 +1,18 @@
+function animateBanner(message, type) {
+    const color = {
+        success: "var(--brand-green)",
+        error:   "var(--error)",
+        warn:    "var(--warn)"
+    }[type] ?? "var(--warn)";
+    const animation = type === "success" ? "animate-banner" : "animate-banner-fast";
+
+    $("#workspace-notification-banner").removeClass("animate-banner animate-banner-fast");
+    $("#workspace-notification-banner").offsetHeight;  // Force reflow of element to play animation again.
+    $("#workspace-notification-banner")
+      .html(message)
+      .css("border-color", color)
+      .addClass(animation);
+}
 
 function selectService(service) {
     const content = document.getElementById("workspace-content");
@@ -13,7 +28,9 @@ function selectService(service) {
     });
 }
 
-function startChallenge(privileged) {
+function startChallenge() {
+    const privileged = $("#workspace-change-privilege").attr("data-privileged") === "true";
+
     CTFd.fetch("/pwncollege_api/v1/docker", {
         method: "GET",
         credentials: 'same-origin'
@@ -65,6 +82,19 @@ function startChallenge(privileged) {
     });
 }
 
+function displayPrivileged(invert) {
+    const button = $("#workspace-change-privilege");
+    const privileged = button.attr("data-privileged") === "true";
+    const lockStatus = privileged === invert;
+
+    button.find(".fas")
+        .toggleClass("fa-lock", lockStatus);
+        .toggleClass("fa-unlock", !lockStatus);
+
+    button.attr("title", privileged ? "Restart unprivileged"
+                                    : "Restart privileged");
+}
+
 function challengeStartCallback(event) {
     event.preventDefault();
 
@@ -73,15 +103,13 @@ function challengeStartCallback(event) {
     .addClass("btn-disabled")
     .prop("disabled", true);
 
-    if (document.getElementById("start-unprivileged").contains(event.target)) {
-        $(".option-active").removeClass("option-active");
-        document.getElementById("start-unprivileged").classList.add("option-active");
-        startChallenge(false);
+    if (document.getElementById("challenge-restart").contains(event.target)) {
+        startChallenge();
     }
-    else if (document.getElementById("start-privileged") != null && document.getElementById("start-privileged").contains(event.target)) {
-        $(".option-active").removeClass("option-active");
-        document.getElementById("start-privileged").classList.add("option-active");
-        startChallenge(true);
+    else if (document.getElementById("workspace-change-privilege") != null && document.getElementById("workspace-change-privilege").contains(event.target)) {
+        $("#workspace-change-privilege").attr("data-privileged", (_, v) => v !== "true");
+        displayPrivileged(false);
+        startChallenge();
     }
     else {
         console.log("Failed to start challenge.");
@@ -94,10 +122,6 @@ function challengeStartCallback(event) {
 }
 
 function submitFlag(flag) {
-    flag_input = document.getElementById("flag-input");
-    flag_input.value = "";
-    flag_input.placeholder = "Submitting...";
-
     var body = {
         'challenge_id': parseInt(document.getElementById("current-challenge-id").value),
         'submission': flag,
@@ -106,21 +130,18 @@ function submitFlag(flag) {
 
     CTFd.api.post_challenge_attempt(params, body)
     .then(function (response) {
+        const challengeName = $("#current-challenge-id").attr("data-challenge-name");
         if (response.data.status == "incorrect") {
-            flag_input.placeholder = "Incorrect!";
-            flag_input.classList.add("submit-incorrect");
+            animateBanner("Incorrect!", "error");
         }
         else if (response.data.status == "correct") {
-            flag_input.placeholder = "Correct!";
-            flag_input.classList.add("submit-correct");
+            animateBanner(`&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
         }
         else if (response.data.status == "already_solved") {
-            flag_input.placeholder = "Already Solved.";
-            flag_input.classList.add("submit-correct");
+            animateBanner(`&#127881 Solved <b>${challengeName}</b>! &#127881`, "success");
         }
         else {
-            flag_input.placeholder = "Submission Failed.";
-            flag_input.classList.add("submit-warn");
+            animateBanner("Submission Failed.", "warn");
         }
     });
 }
@@ -174,12 +195,23 @@ $(() => {
 
     $("#flag-input").on("input", function(event) {
         event.preventDefault();
-        $(this).removeClass("submit-correct submit-incorrect submit-warn");
-        $(this).attr("placeholder", "Flag");
         if ($(this).val().match(/pwn.college{.*}/)) {
             submitFlag($(this).val());
         }
     });
+    $("#flag-input").on("keypress", function(event) {
+        if (event.key === "Enter" || event.keyCode === 13) {
+            submitFlag($(this).val());
+        }
+    });
+
+    if ($("#workspace-change-privilege").length) {
+        $("#workspace-change-privilege").on("mouseenter", function(event) {
+            displayPrivileged(true);
+        }).on("mouseleave", function(event) {
+            displayPrivileged(false);
+        });
+    }
 
     $("#fullscreen").click((event) => {
         event.preventDefault();
