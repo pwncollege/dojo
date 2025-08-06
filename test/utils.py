@@ -69,16 +69,12 @@ def dojo_run(*args, **kwargs):
 
 
 def db_sql(sql):
-    db_result = dojo_run("dojo", "db", input=sql)
-    return db_result.stdout
-
-
-def db_sql_one(sql):
-    return db_sql(sql).split()[1]
+     db_result = dojo_run("db", "-qAt", input=sql)
+     return db_result.stdout
 
 
 def get_user_id(user_name):
-    return int(db_sql_one(f"SELECT id FROM users WHERE name = '{user_name}'"))
+    return int(db_sql(f"SELECT id FROM users WHERE name = '{user_name}'"))
 
 
 def workspace_run(cmd, *, user, root=False, **kwargs):
