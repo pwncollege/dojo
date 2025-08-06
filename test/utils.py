@@ -63,16 +63,25 @@ def create_dojo_yml(spec, *, session):
 def dojo_run(*args, **kwargs):
     kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return subprocess.run(
-        [shutil.which("docker"), "exec", "-i", DOJO_CONTAINER, "dojo", *args],
+        [shutil.which("docker"), "exec", "-i", DOJO_CONTAINER, *args],
         check=kwargs.pop("check", True), **kwargs
     )
 
+
+def db_sql(sql):
+     db_result = dojo_run("dojo", "db", "-qAt", input=sql)
+     return db_result.stdout
+
+
+def get_user_id(user_name):
+    return int(db_sql(f"SELECT id FROM users WHERE name = '{user_name}'"))
+
+
 def workspace_run(cmd, *, user, root=False, **kwargs):
-    args = [ "enter" ]
-    if root:
-        args += [ "-s" ]
-    args += [ user ]
-    return dojo_run(*args, input=cmd, check=True, **kwargs)
+    container_name = f"user_{get_user_id(user)}"
+    user_arg = f"--user=1000" if not root else f"--user=0"
+    args = [ "docker", "exec", user_arg, container_name, "bash", "-c", cmd ]
+    return dojo_run(*args, stdin=subprocess.DEVNULL, check=True, **kwargs)
 
 
 def start_challenge(dojo, module, challenge, practice=False, *, session, as_user=None, wait=0):
@@ -82,7 +91,7 @@ def start_challenge(dojo, module, challenge, practice=False, *, session, as_user
     response = session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=start_challenge_json)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
-    
+
     if wait > 0:
         time.sleep(wait)
 
@@ -95,12 +104,3 @@ def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):
     )
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], "Expected to successfully submit flag"
-
-
-def db_sql(sql):
-    db_result = dojo_run("db", "-qAt", input=sql)
-    return db_result.stdout
-
-
-def get_user_id(user_name):
-    return int(db_sql(f"SELECT id FROM users WHERE name = '{user_name}'"))

@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 EOF
 
 RUN <<EOF
-curl -fsSL https://get.docker.com | /bin/sh
+curl -fsSL https://get.docker.com | VERSION=27.5.1 sh
 sed -i 's|-H fd:// ||' /lib/systemd/system/docker.service
 EOF
 
@@ -35,6 +35,12 @@ COPY etc/docker/daemon*.json /tmp/
 RUN cp /tmp/daemon.json /etc/docker/daemon.json
 
 ADD https://raw.githubusercontent.com/moby/profiles/master/seccomp/default.json /etc/docker/seccomp.json
+
+RUN <<EOF
+KATA_VERSION=3.18.0
+curl -L https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.xz | tar -xJ --strip-components=2 -C /opt
+ln -s /opt/kata/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2
+EOF
 
 RUN <<EOF
 cd /tmp
@@ -47,7 +53,8 @@ EOF
 ADD https://github.com/CTFd/CTFd.git#3.6.0 /opt/CTFd
 
 COPY <<EOF /etc/fstab
-tmpfs /run/dojofs tmpfs defaults,mode=755,shared 0 0
+shm /dev/shm tmpfs defaults,nosuid,nodev,noexec,size=50% 0 0
+tmpfs /run/dojo tmpfs defaults,mode=755,shared 0 0
 /data/homes /run/homefs none defaults,bind,nosuid 0 0
 EOF
 
