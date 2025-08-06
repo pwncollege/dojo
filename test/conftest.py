@@ -160,4 +160,6 @@ def surveys_dojo(admin_session, example_dojo):
 
 @pytest.fixture(scope="session")
 def privileged_dojo(admin_session, example_dojo):
-    return create_dojo_yml(open(TEST_DOJOS_LOCATION / "privileged_dojo.yml").read(), session=admin_session)
+    rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "privileged_dojo.yml").read(), session=admin_session)
+    make_dojo_official(rid, admin_session)
+    return rid
