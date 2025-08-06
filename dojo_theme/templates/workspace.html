@@ -5,11 +5,20 @@
 {{ super() }}
 
 <style>
+    :root {
+        --background: #111;
+        --foreground: #222;
+        --highlight: #6c757d;
+        --error: #800000;
+        --warn: #d0c000;
+    }
+
     html, body {
         margin: 0;
         height: 100%;
         min-height: 100%;
-        background-color: #111;
+        background-color: var(--background);
+        overflow: hidden;
     }
 
     body {
@@ -46,14 +55,12 @@
     .workspace-control {
         height: 100%;
         margin: 0 2px;
-        border: 0;
+        border-width: 0px;
         border-radius: 1em;
-        appearance: none;
-        -webkit-appearance: none;
-        -moz-appearance: none;
+        background-color: var(--foreground);
     }
 
-    button.workspace-control  {
+    button.workspace-control {
         width: 2.5em;
         display: flex;
         align-items: center;
@@ -65,7 +72,7 @@
         box-sizing: border-box;
         padding: 1em;
         color: #fff;
-        background-color: #111;
+        background-color: var(--foreground);
         border: 0;
         border-color: #000 !important;
         border-radius: 1em;
@@ -73,29 +80,95 @@
     }
 
     .workspace-control input::placeholder {
-        color: #6c757d;
+        color: var(--highlight);
         opacity: 1;
     }
 
-    .workspace-control input:focus:not(.submit-correct):not(.submit-incorrect):not(.submit-warn),
-    .workspace-control input:hover:not(.submit-correct):not(.submit-incorrect):not(.submit-warn) {
-        outline: 2px solid #6c757d !important;
+    .workspace-control input:focus,
+    .workspace-control input:hover {
+        outline: 0 !important;
     }
 
-    .submit-correct {
-        outline: 2px solid #008000 !important;
+    .workspace-control select {
+        height: 100%;
+        border: 0;
+        background-color: var(--foreground);
+        color: var(--highlight);
+        font-size: 16px;
+        line-height: 20px;
+        font-weight: 700;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
     }
 
-    .submit-incorrect {
-        outline: 2px solid #800000 !important;
+    .workspace-highlight {
+        color: var(--highlight);
     }
 
-    .submit-warn {
-        outline: 2px solid #d0c000 !important;
+    .workspace-input {
+        padding-left: 1em;
+    }
+
+    .workspace-selector-body {
+        padding-left: 1em;
+        padding-right: 1em;
     }
 
     .workspace-control-spacer {
         flex: 1;
+    }
+
+    @keyframes banner-animation {
+        0% {
+            bottom: -6em;
+            left: 50%;
+            width: 0%;
+        }
+        5% {
+            bottom: 4em;
+            left: 10%;
+            width: 80%;
+        }
+        95% {
+            bottom: 4em;
+            left: 10%;
+            width: 80%;
+        }
+        100% {
+            bottom: -6em;
+            left: 50%;
+            width: 0%;
+        }
+    }
+
+    .animate-banner {
+        animation-name: banner-animation;
+        animation-duration: 20s;
+        animation-fill-mode: forwards;
+        display: block !important;
+    }
+
+    .animate-banner-fast {
+        animation-name: banner-animation;
+        animation-duration: 5s;
+        animation-fill-mode: forwards;
+        display: block !important;
+    }
+
+    #workspace-notification-banner {
+        position: absolute;
+        background-color: var(--foreground);
+        color: #fff;
+        border-color: var(--brand-green);
+        border-style: solid;
+        border-width: 2px;
+        border-radius: 1em;
+        padding: 1em;
+        height: 4em;
+        text-align: center;
+        overflow: hidden;
+        display: none;
     }
 </style>
 {% endblock %}
@@ -105,26 +178,32 @@
 <iframe src="" id="workspace-content"></iframe>
 
 <div id="workspace-controls">
-    <div title="Change workspace">
-        <select id="workspace-select" class="workspace-control btn btn-outline-secondary workspace-selector">
+    <div id="workspace-notification-banner"></div>
+    <div title="Change workspace" class="workspace-selector-body workspace-control">
+        <i class="fas fa-bars workspace-highlight"></i>
+        <select id="workspace-select">
             {% for service in workspace_services %}
             <option value="{{ service | lower }}">{{ service }}</option>
             {% endfor %}
         </select>
     </div>
-    <div title="Submit flag" class="workspace-control">
+    <div title="Enter flag" class="workspace-control workspace-input">
+        <i class="fas fa-flag workspace-highlight"></i>
         <input id="flag-input" class="" type="text" placeholder="Flag">
-        <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
+        <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}" data-challenge-name="{{ challenge.name }}">
     </div>
     <div class="workspace-control-spacer"></div>
+    <button id="challenge-restart" title="Restart challenge" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
+        <i class="fas fa-redo"></i>
+    </button>
     {% if challenge.allow_privileged %}
-    <button id="start-privileged" title="Restart privileged" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
-        <i class="fas fa-unlock"></i>
+    <button id="workspace-change-privilege"
+            title="Restart {{'unprivileged' if practice else 'privileged'}}"
+            class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start"
+            data-privileged="{{'true' if practice else 'false'}}">
+        <i class="fas fa-{{'unlock' if practice else 'lock'}}"></i>
     </button>
     {% endif %}
-    <button id="start-unprivileged" title="Restart unprivileged" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
-        <i class="fas fa-lock"></i>
-    </button>
     <button id="fullscreen" title="Toggle fullscreen" class="workspace-control btn btn-md btn-outline-secondary">
         <i class="fas fa-expand"></i>
     </button>

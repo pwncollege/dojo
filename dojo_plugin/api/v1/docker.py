@@ -305,7 +305,7 @@ def docker_locked(func):
             with redis_client.lock(f"user.{user.id}.docker.lock", blocking_timeout=0, timeout=60):
                 return func(*args, **kwargs)
         except redis.exceptions.LockError:
-            return {"success": False, "error": "Already starting a challenge"}
+            return {"success": False, "error": "Already starting a challenge; try again in one minute."}
     return wrapper
 
 
@@ -415,5 +415,5 @@ class RunDocker(Resource):
             "dojo": dojo_challenge.dojo.reference_id,
             "module": dojo_challenge.module.id,
             "challenge": dojo_challenge.id,
-            "practice" : practice
+            "practice" : practice,
         }
