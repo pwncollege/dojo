@@ -138,7 +138,8 @@ def challenge_submit(browser, idx, flag):
     browser.find_element("id", "flag-input").send_keys(flag)
 
     counter = 0
-    while not "orrect" in browser.find_element("id", "flag-input").get_attribute("placeholder") and counter < 20:
+    matches = ["Solved", "completed"]
+    while not any(x in browser.find_element("id", "notif-banner").get_attribute("innerHTML") for x in matches) and counter < 20:
         time.sleep(0.5)
         counter = counter + 1
     assert counter != 20
