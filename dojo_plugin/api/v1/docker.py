@@ -422,6 +422,4 @@ class RunDocker(Resource):
             "module": dojo_challenge.module.id,
             "challenge": dojo_challenge.id,
             "practice" : practice,
-            "challengeName" : dojo_challenge.name,
-            "dojoName" : dojo_challenge.dojo.name
         }

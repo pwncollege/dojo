@@ -139,7 +139,7 @@ def challenge_submit(browser, idx, flag):
 
     counter = 0
     matches = ["Solved", "completed"]
-    while not any(x in browser.find_element("id", "notif-banner").get_attribute("innerHTML") for x in matches) and counter < 20:
+    while not any(x in browser.find_element("id", "workspace-notification-banner").get_attribute("innerHTML") for x in matches) and counter < 20:
         time.sleep(0.5)
         counter = counter + 1
     assert counter != 20

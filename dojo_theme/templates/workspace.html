@@ -9,7 +9,7 @@
         --background: #111;
         --foreground: #222;
         --highlight: #6c757d;
-        --incorrect: #800000;
+        --error: #800000;
         --warn: #d0c000;
     }
 
@@ -87,8 +87,8 @@
         opacity: 1;
     }
 
-    .workspace-control input:focus:not(.submit-correct):not(.submit-incorrect):not(.submit-warn),
-    .workspace-control input:hover:not(.submit-correct):not(.submit-incorrect):not(.submit-warn) {
+    .workspace-control input:focus,
+    .workspace-control input:hover {
         outline: 0 !important;
     }
 
@@ -119,7 +119,7 @@
         flex: 1;
     }
 
-    @keyframes banner-animate {
+    @keyframes banner-animation {
         0% {
             bottom: -6em;
             left: 50%;
@@ -142,21 +142,21 @@
         }
     }
 
-    .notif-animate {
-        animation-name: banner-animate;
+    .animate-banner {
+        animation-name: banner-animation;
         animation-duration: 20s;
         animation-fill-mode: forwards;
         display: block !important;
     }
 
-    .notif-animate-fast {
-        animation-name: banner-animate;
+    .animate-banner-fast {
+        animation-name: banner-animation;
         animation-duration: 5s;
         animation-fill-mode: forwards;
         display: block !important;
     }
 
-    #notif-banner {
+    #workspace-notification-banner {
         position: absolute;
         background-color: var(--foreground);
         color: #fff;
@@ -178,7 +178,7 @@
 <iframe src="" id="workspace-content"></iframe>
 
 <div id="workspace-controls">
-    <div id="notif-banner"></div>
+    <div id="workspace-notification-banner"></div>
     <div title="Change workspace" class="workspace-selector-body workspace-control">
         <i class="fas fa-bars workspace-highlight"></i>
         <select id="workspace-select">
@@ -190,21 +190,20 @@
     <div title="Enter flag" class="workspace-control workspace-input">
         <i class="fas fa-flag workspace-highlight"></i>
         <input id="flag-input" class="" type="text" placeholder="Flag">
-        <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}">
+        <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}" data-challenge-name="{{ challenge.name }}">
     </div>
     <div class="workspace-control-spacer"></div>
     <button id="challenge-restart" title="Restart challenge" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
         <i class="fas fa-redo"></i>
     </button>
     {% if challenge.allow_privileged %}
-    <button id="challenge-switch"
+    <button id="workspace-change-privilege"
             title="Restart {{'unprivileged' if practice else 'privileged'}}"
             class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start"
             data-privileged="{{'true' if practice else 'false'}}">
         <i class="fas fa-{{'unlock' if practice else 'lock'}}"></i>
     </button>
     {% endif %}
-    <!-- Add some cool new UX features here! -->
     <button id="fullscreen" title="Toggle fullscreen" class="workspace-control btn btn-md btn-outline-secondary">
         <i class="fas fa-expand"></i>
     </button>
