@@ -69,7 +69,7 @@ def dojo_run(*args, **kwargs):
 
 
 def db_sql(sql):
-     db_result = dojo_run("db", "-qAt", input=sql)
+     db_result = dojo_run("dojo", "db", "-qAt", input=sql)
      return db_result.stdout
 
 
