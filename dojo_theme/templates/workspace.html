@@ -9,7 +9,6 @@
         --background: #111;
         --foreground: #222;
         --highlight: #6c757d;
-        --correct: #008000;
     }
 
     html, body {
@@ -115,7 +114,7 @@
     }
 
     .submit-correct {
-        outline: 2px solid var(--correct) !important;
+        outline: 2px solid var(--brand-green) !important;
     }
 
     .submit-incorrect {
@@ -163,15 +162,14 @@
     #notif-banner {
         position: absolute;
         background-color: var(--foreground);
-        color: var(--highlight);
-        border-color: var(--correct);
+        color: #fff;
+        border-color: var(--brand-green);
         border-style: solid;
         border-width: 2px;
         border-radius: 1em;
         padding: 1em;
         height: 4em;
         text-align: center;
-        font-weight: bold;
         overflow: hidden;
         display: none;
     }

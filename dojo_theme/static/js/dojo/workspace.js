@@ -6,7 +6,7 @@ function animateBanner(prefix) {
         // We can assume the response will be OK since this is called by the flag submission code.
         return response.json();
     }).then(function (result) {
-        $("#notif-banner").html(prefix + ` ${result.challengeName} from ${result.dojoName}!`);
+        $("#notif-banner").html(prefix + ` <b>${result.challengeName}</b>!`);
         $("#notif-banner").removeClass("notif-animate");
         // Force reflow of element to play animation again.
         document.getElementById("notif-banner").offsetHeight;
