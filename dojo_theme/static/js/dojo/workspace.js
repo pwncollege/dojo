@@ -1,3 +1,18 @@
+function animateBanner(prefix) {
+    CTFd.fetch("/pwncollege_api/v1/docker", {
+        method: "GET",
+        credentials: 'same-origin'
+    }).then(function (response) {
+        // We can assume the response will be OK since this is called by the flag submission code.
+        return response.json();
+    }).then(function (result) {
+        $("#notif-banner").html(prefix + ` ${result.challengeName} from ${result.dojoName}!`);
+        $("#notif-banner").removeClass("notif-animate");
+        // Force reflow of element to play animation again.
+        document.getElementById("notif-banner").offsetHeight;
+        $("#notif-banner").addClass("notif-animate")
+    });
+}
 
 function selectService(service) {
     const content = document.getElementById("workspace-content");
@@ -140,10 +155,12 @@ function submitFlag(flag) {
         else if (response.data.status == "correct") {
             flag_input.placeholder = "Correct!";
             $(".workspace-input").addClass("submit-correct");
+            animateBanner("Successfully completed");
         }
         else if (response.data.status == "already_solved") {
             flag_input.placeholder = "Already Solved.";
             $(".workspace-input").addClass("submit-correct");
+            animateBanner("Solved");
         }
         else {
             flag_input.placeholder = "Submission Failed.";

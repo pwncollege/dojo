@@ -9,6 +9,7 @@
         --background: #111;
         --foreground: #222;
         --highlight: #6c757d;
+        --correct: #008000;
     }
 
     html, body {
@@ -16,6 +17,7 @@
         height: 100%;
         min-height: 100%;
         background-color: var(--background);
+        overflow: hidden;
     }
 
     body {
@@ -113,7 +115,7 @@
     }
 
     .submit-correct {
-        outline: 2px solid #008000 !important;
+        outline: 2px solid var(--correct) !important;
     }
 
     .submit-incorrect {
@@ -127,6 +129,52 @@
     .workspace-control-spacer {
         flex: 1;
     }
+
+    @keyframes banner-animate {
+        0% {
+            bottom: -6em;
+            left: 50%;
+            width: 0%;
+        }
+        5% {
+            bottom: 4em;
+            left: 10%;
+            width: 80%;
+        }
+        95% {
+            bottom: 4em;
+            left: 10%;
+            width: 80%;
+        }
+        100% {
+            bottom: -6em;
+            left: 50%;
+            width: 0%;
+        }
+    }
+
+    .notif-animate {
+        animation-name: banner-animate;
+        animation-duration: 20s;
+        animation-fill-mode: forwards;
+        display: block !important;
+    }
+
+    #notif-banner {
+        position: absolute;
+        background-color: var(--foreground);
+        color: var(--highlight);
+        border-color: var(--correct);
+        border-style: solid;
+        border-width: 2px;
+        border-radius: 1em;
+        padding: 1em;
+        height: 4em;
+        text-align: center;
+        font-weight: bold;
+        overflow: hidden;
+        display: none;
+    }
 </style>
 {% endblock %}
 
@@ -135,6 +183,7 @@
 <iframe src="" id="workspace-content"></iframe>
 
 <div id="workspace-controls">
+    <div id="notif-banner"></div>
     <div title="Change workspace" class="workspace-selector-body workspace-control">
         <i class="fas fa-bars workspace-highlight"></i>
         <select id="workspace-select">
