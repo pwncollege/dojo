@@ -9,6 +9,8 @@
         --background: #111;
         --foreground: #222;
         --highlight: #6c757d;
+        --incorrect: #800000;
+        --warn: #d0c000;
     }
 
     html, body {
@@ -113,18 +115,6 @@
         padding-right: 1em;
     }
 
-    .submit-correct {
-        outline: 2px solid var(--brand-green) !important;
-    }
-
-    .submit-incorrect {
-        outline: 2px solid #800000 !important;
-    }
-
-    .submit-warn {
-        outline: 2px solid #d0c000 !important;
-    }
-
     .workspace-control-spacer {
         flex: 1;
     }
@@ -155,6 +145,13 @@
     .notif-animate {
         animation-name: banner-animate;
         animation-duration: 20s;
+        animation-fill-mode: forwards;
+        display: block !important;
+    }
+
+    .notif-animate-fast {
+        animation-name: banner-animate;
+        animation-duration: 5s;
         animation-fill-mode: forwards;
         display: block !important;
     }
