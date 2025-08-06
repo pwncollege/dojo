@@ -91,6 +91,10 @@ let
       export SSL_CERT_FILE="/run/dojo/etc/ssl/certs/ca-bundle.crt"
     fi
 
+    if [[ -z "$TERMINFO" ]]; then
+      export TERMINFO="/run/dojo/share/terminfo"
+    fi
+
     if tput setaf 1 &> /dev/null; then
       # Terminal supports colors
       PS1='\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
