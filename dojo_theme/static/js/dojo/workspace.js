@@ -6,7 +6,7 @@ function solveChallenge(prefix) {
         // We can assume the response will be OK since this is called by the flag submission code.
         return response.json();
     }).then(function (result) {
-        animateBanner(prefix + ` <b>${result.challengeName}</b>!`, "var(--brand-green)", false);
+        animateBanner("&#127881 " + prefix + ` <b>${result.challengeName}</b>! &#127881`, "var(--brand-green)", false);
     });
 }
 
