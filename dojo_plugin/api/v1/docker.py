@@ -121,8 +121,6 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     available_devices = set(get_available_devices(docker_client))
     devices = [f"{device}:{device}:rwm" for device in allowed_devices if device in available_devices]
 
-    host_isolation = True
-
     container_create_attributes = dict(
         image=dojo_challenge.image,
         entrypoint=[
@@ -163,8 +161,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             **USER_FIREWALL_ALLOWED,
         },
         init=True,
-        cap_add=["SYS_PTRACE", "SYS_ADMIN"] if host_isolation else ["SYS_PTRACE"],
-        security_opt=[] if host_isolation else [f"seccomp={SECCOMP}"],
+        cap_add=["SYS_PTRACE", "SYS_ADMIN"] if dojo_challenge.privileged else ["SYS_PTRACE"],
         sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
         cpu_period=100000,
         cpu_quota=400000,
@@ -173,7 +170,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         detach=True,
         stdin_open=True,
         auto_remove=True,
-        runtime="io.containerd.run.kata.v2" if host_isolation else "runc",
+        runtime="io.containerd.run.kata.v2" if dojo_challenge.privileged else "runc",
     )
 
     container = docker_client.containers.create(**container_create_attributes)

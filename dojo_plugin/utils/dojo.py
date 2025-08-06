@@ -63,6 +63,7 @@ DOJO_SPEC = Schema({
     },
 
     Optional("image"): IMAGE_REGEX,
+    Optional("privileged"): bool,
     Optional("allow_privileged"): bool,
     Optional("show_scoreboard"): bool,
     Optional("importable"): bool,
@@ -86,6 +87,7 @@ DOJO_SPEC = Schema({
         **VISIBILITY,
 
         Optional("image"): IMAGE_REGEX,
+        Optional("privileged"): bool,
         Optional("allow_privileged"): bool,
         Optional("show_challenges"): bool,
         Optional("show_scoreboard"): bool,
@@ -131,6 +133,7 @@ DOJO_SPEC = Schema({
                 Optional("description"): str,
                 **VISIBILITY,
                 Optional("image"): IMAGE_REGEX,
+                Optional("privileged"): bool,
                 Optional("allow_privileged"): bool,
                 Optional("importable"): bool,
                 Optional("progression_locked"): bool,
@@ -238,11 +241,11 @@ def load_dojo_subyamls(data, dojo_dir):
                 "type": "header",
                 "content": "Challenges"
             })
-            
+
             for challenge_data in challenges:
                 if "import" in challenge_data and "id" not in challenge_data:
                     challenge_data["id"] = challenge_data["import"]["challenge"]
-                
+
                 if "id" not in challenge_data:
                     continue
 
@@ -250,12 +253,12 @@ def load_dojo_subyamls(data, dojo_dir):
                 setdefault_subyaml(challenge_data, challenge_dir / "challenge.yml")
                 setdefault_file(challenge_data, "description", challenge_dir / "DESCRIPTION.md")
                 setdefault_name(challenge_data)
-                
+
                 challenge_data["type"] = "challenge"
-                
+
                 if "import" in challenge_data and "name" not in challenge_data:
                     challenge_data["name"] = challenge_data.get("id", "Imported Challenge").replace("-", " ").title()
-                
+
                 module_data["resources"].append(challenge_data)
 
     return data
@@ -435,6 +438,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                     image=shadow("image", dojo_data, module_data, challenge_data, default=None),
+                    privileged=shadow("privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     importable=shadow("importable", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     challenge=challenge(
