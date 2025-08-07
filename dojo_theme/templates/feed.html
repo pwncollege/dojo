@@ -1,11 +1,19 @@
 {% extends "base.html" %}
 
+{% block stylesheets %}
+<style>
+#feed-container .card-body {
+    text-align: left !important;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <h1 class="text-center mb-4">Live Activity Feed</h1>
     
     <div id="feed-container" class="mx-auto" style="max-width: 800px;">
-        <div id="connection-status" class="alert alert-info text-center mb-3" style="display: none;">
+        <div id="connection-status" class="alert alert-info mb-3" style="display: none;">
             <span id="connection-message">Connecting to live feed...</span>
         </div>
         
@@ -13,8 +21,8 @@
             {% for event in initial_events %}
             <div class="event-card card mb-3 bg-dark text-white border-secondary" data-event-id="{{ event.id }}">
                 <div class="card-body">
-                    <div class="d-flex align-items-start">
-                        <div class="event-icon me-3">
+                    <div class="d-flex align-items-center">
+                        <div class="event-icon me-4" style="min-width: 50px;">
                             {% if event.type == "container_start" %}
                                 <i class="fas fa-play-circle fa-2x text-primary"></i>
                             {% elif event.type == "challenge_solve" %}
@@ -31,7 +39,25 @@
                         <div class="flex-grow-1">
                             <div class="event-content">
                                 {% if event.type == "container_start" %}
-                                    <strong><a href="/users/{{ event.user_id }}">{{ event.user_name }}</a></strong>
+                                    <strong>
+                                        <a href="/users/{{ event.user_id }}">
+                                            {% if event.get('user_belt') %}
+                                                <img src="{{ url_for('pwncollege_belts.view_belt', color=event.user_belt) }}" 
+                                                     class="scoreboard-belt" 
+                                                     style="height: 1.5em; vertical-align: middle; margin-right: 0.25em;"
+                                                     title="{{ event.user_belt.title() }} Belt">
+                                            {% endif %}
+                                            {{ event.user_name }}
+                                            {% if event.get('user_emojis') %}
+                                                {% for emoji in event.user_emojis[:3] %}
+                                                    <span title="{{ emoji }}">{{ emoji }}</span>
+                                                {% endfor %}
+                                                {% if event.user_emojis|length > 3 %}
+                                                    <small class="text-muted">+{{ event.user_emojis|length - 3 }}</small>
+                                                {% endif %}
+                                            {% endif %}
+                                        </a>
+                                    </strong>
                                     started a container in 
                                     <span class="badge bg-{{ 'warning' if event.data.mode == 'practice' else 'primary' }}">
                                         {{ event.data.mode }} mode
@@ -42,7 +68,25 @@
                                     {% endif %}
                                 
                                 {% elif event.type == "challenge_solve" %}
-                                    <strong><a href="/users/{{ event.user_id }}">{{ event.user_name }}</a></strong>
+                                    <strong>
+                                        <a href="/users/{{ event.user_id }}">
+                                            {% if event.get('user_belt') %}
+                                                <img src="{{ url_for('pwncollege_belts.view_belt', color=event.user_belt) }}" 
+                                                     class="scoreboard-belt" 
+                                                     style="height: 1.5em; vertical-align: middle; margin-right: 0.25em;"
+                                                     title="{{ event.user_belt.title() }} Belt">
+                                            {% endif %}
+                                            {{ event.user_name }}
+                                            {% if event.get('user_emojis') %}
+                                                {% for emoji in event.user_emojis[:3] %}
+                                                    <span title="{{ emoji }}">{{ emoji }}</span>
+                                                {% endfor %}
+                                                {% if event.user_emojis|length > 3 %}
+                                                    <small class="text-muted">+{{ event.user_emojis|length - 3 }}</small>
+                                                {% endif %}
+                                            {% endif %}
+                                        </a>
+                                    </strong>
                                     solved the <strong>{{ event.data.challenge_name }}</strong> challenge
                                     {% if event.data.module_name and event.data.dojo_id %}
                                         in the <a href="/{{ event.data.dojo_id }}/{{ event.data.module_id }}">{{ event.data.module_name }}</a> module

@@ -18,6 +18,33 @@
         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     }
     
+    function formatUserName(event) {
+        let userHtml = '';
+        
+        if (event.user_belt) {
+            const beltTitle = event.user_belt.charAt(0).toUpperCase() + event.user_belt.slice(1) + ' Belt';
+            userHtml += `<img src="/belts/belt/${event.user_belt}.svg" 
+                              class="scoreboard-belt" 
+                              style="height: 1.5em; vertical-align: middle; margin-right: 0.25em;"
+                              title="${beltTitle}"> `;
+        }
+        
+        userHtml += event.user_name;
+        
+        if (event.user_emojis && event.user_emojis.length > 0) {
+            const displayEmojis = event.user_emojis.slice(0, 3);
+            displayEmojis.forEach(emoji => {
+                userHtml += ` <span title="${emoji}">${emoji}</span>`;
+            });
+            
+            if (event.user_emojis.length > 3) {
+                userHtml += ` <small class="text-muted">+${event.user_emojis.length - 3}</small>`;
+            }
+        }
+        
+        return userHtml;
+    }
+    
     function updateTimestamps() {
         document.querySelectorAll('.event-time').forEach(elem => {
             const timestamp = elem.dataset.timestamp;
@@ -41,7 +68,7 @@
                 iconHtml = '<i class="fas fa-play-circle fa-2x text-primary"></i>';
                 const modeClass = event.data.mode === 'practice' ? 'warning' : 'primary';
                 contentHtml = `
-                    <strong><a href="/users/${event.user_id}">${event.user_name}</a></strong>
+                    <strong><a href="/users/${event.user_id}">${formatUserName(event)}</a></strong>
                     started a container in 
                     <span class="badge bg-${modeClass}">${event.data.mode} mode</span>
                     for <strong>${event.data.challenge_name}</strong>
@@ -52,7 +79,7 @@
             case 'challenge_solve':
                 iconHtml = '<i class="fas fa-flag-checkered fa-2x text-success"></i>';
                 contentHtml = `
-                    <strong><a href="/users/${event.user_id}">${event.user_name}</a></strong>
+                    <strong><a href="/users/${event.user_id}">${formatUserName(event)}</a></strong>
                     solved the <strong>${event.data.challenge_name}</strong> challenge
                     ${event.data.module_name && event.data.dojo_id && event.data.module_id ? 
                         `in the <a href="/${event.data.dojo_id}/${event.data.module_id}">${event.data.module_name}</a> module` : 
@@ -65,7 +92,7 @@
             case 'emoji_earned':
                 iconHtml = `<span style="font-size: 2em;">${event.data.emoji}</span>`;
                 contentHtml = `
-                    <strong><a href="/users/${event.user_id}">${event.user_name}</a></strong>
+                    <strong><a href="/users/${event.user_id}">${formatUserName(event)}</a></strong>
                     earned the <strong>${event.data.emoji} ${event.data.emoji_name}</strong> emoji!
                     <br><small class="text-muted">${event.data.reason}</small>
                 `;
@@ -74,7 +101,7 @@
             case 'belt_earned':
                 iconHtml = '<i class="fas fa-award fa-2x text-warning"></i>';
                 contentHtml = `
-                    <strong><a href="/users/${event.user_id}">${event.user_name}</a></strong>
+                    <strong><a href="/users/${event.user_id}">${formatUserName(event)}</a></strong>
                     earned their <strong>${event.data.belt_name}</strong>!
                     ${event.data.dojo_name ? `<br><small class="text-muted">Completed <a href="/dojos/${event.data.dojo_id}">${event.data.dojo_name}</a></small>` : ''}
                 `;
@@ -92,8 +119,8 @@
         
         card.innerHTML = `
             <div class="card-body">
-                <div class="d-flex align-items-start">
-                    <div class="event-icon me-3">${iconHtml}</div>
+                <div class="d-flex align-items-center">
+                    <div class="event-icon me-4" style="min-width: 50px;">${iconHtml}</div>
                     <div class="flex-grow-1">
                         <div class="event-content">${contentHtml}</div>
                         <small class="text-muted event-time" data-timestamp="${event.timestamp}">
@@ -146,7 +173,7 @@
             statusDiv.style.display = 'none';
         } else {
             statusDiv.style.display = 'block';
-            statusDiv.className = `alert ${status === 'error' ? 'alert-danger' : 'alert-info'} text-center mb-3`;
+            statusDiv.className = `alert ${status === 'error' ? 'alert-danger' : 'alert-info'} mb-3`;
             messageSpan.textContent = message;
         }
     }

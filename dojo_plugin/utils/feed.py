@@ -36,6 +36,19 @@ def create_event(
         logger.debug(f"Skipping event for hidden user {user.id}")
         return None
     
+    # Get user's belts and emojis
+    from ..models import Belts, Emojis
+    user_belts = [belt.name for belt in Belts.query.filter_by(user=user)]
+    user_emojis = [emoji.name for emoji in Emojis.query.filter_by(user=user)]
+    
+    # Get highest belt (order: white, yellow, blue, orange, green, black)
+    belt_order = ["white", "yellow", "blue", "orange", "green", "black"]
+    highest_belt = None
+    for belt in reversed(belt_order):
+        if belt in user_belts:
+            highest_belt = belt
+            break
+    
     event_id = str(uuid.uuid4())
     timestamp = datetime.now(timezone.utc).isoformat()
     
@@ -45,6 +58,8 @@ def create_event(
         "timestamp": timestamp,
         "user_id": user.id,
         "user_name": user.name,
+        "user_belt": highest_belt,
+        "user_emojis": user_emojis,
         "data": data
     }
     
