@@ -37,11 +37,16 @@ class FeedEvents(Resource):
 @feed_namespace.route("/stream")
 class FeedStream(Resource):
     def get(self):
+        # Get Redis URL while we have app context
+        import redis
+        redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
+        
         def generate():
-            r = get_redis_client()
+            r = redis.from_url(redis_url, decode_responses=True)
             pubsub = r.pubsub()
             pubsub.subscribe("activity_feed:live")
             
+            # Send initial connected message
             yield f"data: {json.dumps({'type': 'connected'})}\n\n"
             
             last_heartbeat = time.time()
@@ -50,13 +55,18 @@ class FeedStream(Resource):
                 while True:
                     message = pubsub.get_message(timeout=1)
                     
-                    if message and message['type'] == 'message':
-                        try:
-                            event_data = json.loads(message['data'])
-                            yield f"data: {json.dumps(event_data)}\n\n"
-                        except json.JSONDecodeError:
-                            logger.error(f"Failed to decode message: {message['data']}")
+                    if message:
+                        if message['type'] == 'message':
+                            try:
+                                event_data = json.loads(message['data'])
+                                yield f"data: {json.dumps(event_data)}\n\n"
+                            except (json.JSONDecodeError, TypeError):
+                                logger.error(f"Failed to decode message: {message['data']}")
+                        elif message['type'] == 'subscribe':
+                            # Subscription confirmed
+                            logger.info("Subscribed to activity_feed:live")
                     
+                    # Send heartbeat every 30 seconds
                     if time.time() - last_heartbeat > 30:
                         yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
                         last_heartbeat = time.time()
@@ -68,7 +78,7 @@ class FeedStream(Resource):
                 logger.error(f"Error in SSE stream: {e}")
                 pubsub.close()
                 
-        return Response(
+        response = Response(
             generate(),
             mimetype="text/event-stream",
             headers={
@@ -77,3 +87,5 @@ class FeedStream(Resource):
                 "Connection": "keep-alive"
             }
         )
+        response.implicit_sequence_conversion = False
+        return response

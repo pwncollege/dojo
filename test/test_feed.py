@@ -159,7 +159,7 @@ def test_feed_shows_all_events(welcome_dojo):
                 elif "solved" in event_text.lower():
                     solve_events += 1
                     found_solve_event = True
-                    print(f"✓ Challenge solve event: {event_text[:100]}...")
+                    print(f"✓ Challenge solve event: {event_text}")
         
         assert container_events > 0, f"No container start events found for {user_name}"
         assert found_solve_event, f"Challenge solve event for {user_name} not found"
@@ -172,3 +172,5 @@ def test_feed_shows_all_events(welcome_dojo):
     finally:
         watcher.quit()
         user_browser.quit()
+
+

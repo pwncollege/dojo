@@ -7,21 +7,15 @@
     
     function formatTimestamp(timestamp) {
         const date = new Date(timestamp);
-        const now = new Date();
-        const diff = now - date;
         
-        if (diff < 60000) {
-            return 'just now';
-        } else if (diff < 3600000) {
-            const minutes = Math.floor(diff / 60000);
-            return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-        } else if (diff < 86400000) {
-            const hours = Math.floor(diff / 3600000);
-            return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-        } else {
-            const days = Math.floor(diff / 86400000);
-            return `${days} day${days > 1 ? 's' : ''} ago`;
-        }
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     }
     
     function updateTimestamps() {
@@ -35,7 +29,7 @@
     
     function createEventCard(event) {
         const card = document.createElement('div');
-        card.className = 'event-card card mb-3';
+        card.className = 'event-card card mb-3 bg-dark text-white border-secondary';
         card.dataset.eventId = event.id;
         card.style.opacity = '0';
         
@@ -59,10 +53,12 @@
                 iconHtml = '<i class="fas fa-flag-checkered fa-2x text-success"></i>';
                 contentHtml = `
                     <strong><a href="/users/${event.user_id}">${event.user_name}</a></strong>
-                    solved <strong>${event.data.challenge_name}</strong>
+                    solved the <strong>${event.data.challenge_name}</strong> challenge
+                    ${event.data.module_name && event.data.dojo_id && event.data.module_id ? 
+                        `in the <a href="/${event.data.dojo_id}/${event.data.module_id}">${event.data.module_name}</a> module` : 
+                        event.data.module_name ? `in the <strong>${event.data.module_name}</strong> module` : ''}
+                    ${event.data.dojo_name ? `of the <a href="/dojos/${event.data.dojo_id}">${event.data.dojo_name}</a> dojo!` : ''}
                     ${event.data.first_blood ? '<span class="badge bg-danger">FIRST BLOOD!</span>' : ''}
-                    for <strong>${event.data.points}</strong> points
-                    ${event.data.dojo_name ? `in <a href="/dojos/${event.data.dojo_id}">${event.data.dojo_name}</a>` : ''}
                 `;
                 break;
                 
