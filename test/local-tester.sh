@@ -31,7 +31,7 @@ function cleanup_container {
 	while docker ps -a | grep "$CONTAINER$"; do sleep 1; done
 
 	# freaking bad unmount
-	sleep 4
+	mount | grep /tmp/local-data-${CONTAINER}-....../ && sleep 4
 	mount | grep /tmp/local-data-${CONTAINER}-....../ | sed -e "s/.* on //" | sed -e "s/ .*//" | tac | while read ENTRY
 	do
 		sudo umount "$ENTRY" || echo "Failed ^"
@@ -99,9 +99,8 @@ export DOJO_CONTAINER
 
 if [ "$START" == "yes" ]; then
 	cleanup_container $DOJO_CONTAINER
-fi
 
-if [ "$MULTINODE" == "yes" ]; then
+	# just in case a previous run was multinode...
 	cleanup_container $DOJO_CONTAINER-node1
 	cleanup_container $DOJO_CONTAINER-node2
 fi
@@ -171,6 +170,10 @@ log_endgroup
 
 if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	log_newgroup "Setting up multi-node cluster"
+	
+	# Disconnect nginx-proxy from workspace_net for multinode routing to work
+	docker exec "$DOJO_CONTAINER" docker network disconnect workspace_net nginx-proxy 2>/dev/null || true
+	
 	docker exec "$DOJO_CONTAINER" dojo-node refresh
 	MAIN_KEY=$(docker exec "$DOJO_CONTAINER" cat /data/wireguard/publickey)
 	
@@ -210,16 +213,18 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	docker exec "$DOJO_CONTAINER" dojo-node add 1 "$NODE1_KEY"
 	docker exec "$DOJO_CONTAINER" dojo-node add 2 "$NODE2_KEY"
 
+	# Restart CTFd and SSH to pick up the workspace_nodes.json file
+	log_newgroup "Restarting services to load workspace nodes"
+	docker exec "$DOJO_CONTAINER" dojo compose restart ctfd sshd
+	sleep 5
+	docker exec "$DOJO_CONTAINER" dojo wait
+	log_endgroup
+
 	docker exec "$DOJO_CONTAINER-node1" docker pull pwncollege/challenge-simple
 	docker exec "$DOJO_CONTAINER-node1" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 	docker exec "$DOJO_CONTAINER-node2" docker pull pwncollege/challenge-simple
 	docker exec "$DOJO_CONTAINER-node2" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 
-	# this is needed for the main node to understand that it's in multi-node mode
-	docker exec "$DOJO_CONTAINER" dojo up
-	docker exec "$DOJO_CONTAINER-node1" dojo up
-	docker exec "$DOJO_CONTAINER-node2" dojo up
-	
 	# Fix routing for user containers on workspace nodes
 	log_newgroup "Configuring multi-node networking"
 	

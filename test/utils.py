@@ -1,8 +1,9 @@
 import subprocess
-import time
 import requests
 import pathlib
 import shutil
+import json
+import time
 import re
 import os
 
@@ -62,8 +63,9 @@ def create_dojo_yml(spec, *, session):
 
 def dojo_run(*args, **kwargs):
     kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    container = kwargs.pop("container", DOJO_CONTAINER)
     return subprocess.run(
-        [shutil.which("docker"), "exec", "-i", DOJO_CONTAINER, *args],
+        [shutil.which("docker"), "exec", "-i", container, *args],
         check=kwargs.pop("check", True), **kwargs
     )
 
@@ -76,12 +78,42 @@ def db_sql(sql):
 def get_user_id(user_name):
     return int(db_sql(f"SELECT id FROM users WHERE name = '{user_name}'"))
 
+def get_outer_container_for(container_name):
+    # Check main node first
+    result = subprocess.run(
+        [shutil.which("docker"), "exec", "-i", DOJO_CONTAINER, "docker", "ps", "--format", "{{.Names}}"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    if result.returncode == 0 and container_name in result.stdout.strip().split('\n'):
+        return DOJO_CONTAINER
+    
+    # Check worker nodes if they exist
+    result = subprocess.run(
+        [shutil.which("docker"), "exec", "-i", DOJO_CONTAINER, "cat", "/data/workspace_nodes.json"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        try:
+            workspace_nodes = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            workspace_nodes = {}
+        for node_id in workspace_nodes.keys():
+            node_container = f"{DOJO_CONTAINER}-node{node_id}"
+            result = subprocess.run(
+                [shutil.which("docker"), "exec", "-i", node_container, "docker", "ps", "--format", "{{.Names}}"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            if result.returncode == 0 and container_name in result.stdout.strip().split('\n'):
+                return node_container
+    
+    raise RuntimeError(f"container {container_name} not found on any nodes")
 
 def workspace_run(cmd, *, user, root=False, **kwargs):
     container_name = f"user_{get_user_id(user)}"
+    outer_container = get_outer_container_for(container_name)
     user_arg = f"--user=1000" if not root else f"--user=0"
     args = [ "docker", "exec", user_arg, container_name, "bash", "-c", cmd ]
-    return dojo_run(*args, stdin=subprocess.DEVNULL, check=True, **kwargs)
+    return dojo_run(*args, stdin=subprocess.DEVNULL, check=True, container=outer_container, **kwargs)
 
 
 def start_challenge(dojo, module, challenge, practice=False, *, session, as_user=None, wait=0):
