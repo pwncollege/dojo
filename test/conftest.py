@@ -4,8 +4,8 @@ import pytest
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
-from utils import TEST_DOJOS_LOCATION
-from utils import login, make_dojo_official, create_dojo, create_dojo_yml
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml
+from selenium.webdriver import Firefox, FirefoxOptions
 
 @pytest.fixture(scope="session")
 def admin_session():
@@ -171,3 +171,17 @@ def random_private_dojo(admin_session):
     yml = open(TEST_DOJOS_LOCATION / "private_test.yml").read().replace("private-dojo", f"private-dojo-{n}")
     rid = create_dojo_yml(yml, session=admin_session)
     return rid
+
+@pytest.fixture
+def browser_fixture():
+    options = FirefoxOptions()
+    options.add_argument("--headless")
+    return Firefox(options=options)
+
+@pytest.fixture
+def random_user_browser(browser_fixture, random_user_name):
+    browser_fixture.get(f"{DOJO_URL}/login")
+    browser_fixture.find_element("id", "name").send_keys(random_user_name)
+    browser_fixture.find_element("id", "password").send_keys(random_user_name)
+    browser_fixture.find_element("id", "_submit").click()
+    return browser_fixture
