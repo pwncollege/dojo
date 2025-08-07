@@ -22,6 +22,34 @@
     </strong>
 {% endmacro %}
 
+{% macro render_dojo_module_challenge(data) %}
+    {% if data.dojo_name %}
+        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_name }}</a> /
+    {% elif data.dojo_id %}
+        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_id }}</a> /
+    {% endif %}
+    {% if data.module_name %}
+        {% if data.dojo_id %}
+            <a href="/{{ data.dojo_id }}/{{ data.module_id }}">{{ data.module_name }}</a> /
+        {% else %}
+            {{ data.module_name }} /
+        {% endif %}
+    {% endif %}
+    {% if data.dojo_id and data.module_id and data.challenge_id %}
+        <a href="/{{ data.dojo_id }}/{{ data.module_id }}#{{ data.challenge_id }}"><strong>{{ data.challenge_name }}</strong></a>
+    {% else %}
+        <strong>{{ data.challenge_name }}</strong>
+    {% endif %}
+{% endmacro %}
+
+{% macro render_dojo_link(data) %}
+    {% if data.dojo_name %}
+        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_name }}</a>
+    {% elif data.dojo_id %}
+        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_id }}</a>
+    {% endif %}
+{% endmacro %}
+
 {% block stylesheets %}
 <style>
 #feed-container .card-body {
@@ -67,44 +95,12 @@
                                         {{ event.data.mode }}
                                     </span>
                                     container for
-                                    {% if event.data.dojo_name %}
-                                        <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a> /
-                                    {% elif event.data.dojo_id %}
-                                        <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_id }}</a> /
-                                    {% endif %}
-                                    {% if event.data.module_name %}
-                                        {% if event.data.dojo_id %}
-                                            <a href="/{{ event.data.dojo_id }}/{{ event.data.module_id }}">{{ event.data.module_name }}</a> /
-                                        {% else %}
-                                            {{ event.data.module_name }} /
-                                        {% endif %}
-                                    {% endif %}
-                                    {% if event.data.dojo_id and event.data.module_id and event.data.challenge_id %}
-                                        <a href="/{{ event.data.dojo_id }}/{{ event.data.module_id }}#{{ event.data.challenge_id }}"><strong>{{ event.data.challenge_name }}</strong></a>
-                                    {% else %}
-                                        <strong>{{ event.data.challenge_name }}</strong>
-                                    {% endif %}
+                                    {{ render_dojo_module_challenge(event.data) }}
                                 
                                 {% elif event.type == "challenge_solve" %}
                                     {{ render_user(event) }}
                                     solved 
-                                    {% if event.data.dojo_name %}
-                                        <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a> /
-                                    {% elif event.data.dojo_id %}
-                                        <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_id }}</a> /
-                                    {% endif %}
-                                    {% if event.data.module_name %}
-                                        {% if event.data.dojo_id %}
-                                            <a href="/{{ event.data.dojo_id }}/{{ event.data.module_id }}">{{ event.data.module_name }}</a> /
-                                        {% else %}
-                                            {{ event.data.module_name }} /
-                                        {% endif %}
-                                    {% endif %}
-                                    {% if event.data.dojo_id and event.data.module_id and event.data.challenge_id %}
-                                        <a href="/{{ event.data.dojo_id }}/{{ event.data.module_id }}#{{ event.data.challenge_id }}"><strong>{{ event.data.challenge_name }}</strong></a>
-                                    {% else %}
-                                        <strong>{{ event.data.challenge_name }}</strong>
-                                    {% endif %}
+                                    {{ render_dojo_module_challenge(event.data) }}
                                     {% if event.data.first_blood %}
                                         <span class="badge bg-danger">FIRST BLOOD!</span>
                                     {% endif %}
@@ -112,10 +108,8 @@
                                 {% elif event.type == "emoji_earned" %}
                                     {{ render_user(event) }}
                                     earned the <strong>{{ event.data.emoji }}</strong> emoji!
-                                    {% if event.data.dojo_name %}
-                                        <br><small class="text-muted">Completed <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a></small>
-                                    {% elif event.data.dojo_id %}
-                                        <br><small class="text-muted">Completed <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_id }}</a></small>
+                                    {% if event.data.dojo_name or event.data.dojo_id %}
+                                        <br><small class="text-muted">Completed {{ render_dojo_link(event.data) }}</small>
                                     {% else %}
                                         <br><small class="text-muted">{{ event.data.reason }}</small>
                                     {% endif %}
@@ -123,15 +117,13 @@
                                 {% elif event.type == "belt_earned" %}
                                     {{ render_user(event) }}
                                     earned their <strong>{{ event.data.belt_name }}</strong>!
-                                    {% if event.data.dojo_name %}
-                                        <br><small class="text-muted">Completed <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a></small>
-                                    {% elif event.data.dojo_id %}
-                                        <br><small class="text-muted">Completed <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_id }}</a></small>
+                                    {% if event.data.dojo_name or event.data.dojo_id %}
+                                        <br><small class="text-muted">Completed {{ render_dojo_link(event.data) }}</small>
                                     {% endif %}
                                 
                                 {% elif event.type == "dojo_update" %}
                                     {{ render_user(event) }}
-                                    updated <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name or event.data.dojo_id }}</a>
+                                    updated {{ render_dojo_link(event.data) or event.data.dojo_id }}
                                     <br><small class="text-muted">{{ event.data.summary }}</small>
                                 {% endif %}
                             </div>
