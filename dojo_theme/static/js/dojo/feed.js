@@ -88,7 +88,9 @@
                         (event.data.dojo_id && event.data.module_id ? 
                             ` <a href="/${escapeHtml(event.data.dojo_id)}/${escapeHtml(event.data.module_id)}">${escapeHtml(event.data.module_name)}</a> /` : 
                             ` ${escapeHtml(event.data.module_name)} /`) : ''}
-                    <strong>${escapeHtml(event.data.challenge_name)}</strong>
+                    ${event.data.dojo_id && event.data.module_id && event.data.challenge_id ?
+                        `<a href="/${escapeHtml(event.data.dojo_id)}/${escapeHtml(event.data.module_id)}#${escapeHtml(event.data.challenge_id)}"><strong>${escapeHtml(event.data.challenge_name)}</strong></a>` :
+                        `<strong>${escapeHtml(event.data.challenge_name)}</strong>`}
                 `;
                 break;
                 
@@ -103,7 +105,9 @@
                         (event.data.dojo_id && event.data.module_id ? 
                             `<a href="/${escapeHtml(event.data.dojo_id)}/${escapeHtml(event.data.module_id)}">${escapeHtml(event.data.module_name)}</a> / ` : 
                             `${escapeHtml(event.data.module_name)} / `) : ''}
-                    <strong>${escapeHtml(event.data.challenge_name)}</strong>
+                    ${event.data.dojo_id && event.data.module_id && event.data.challenge_id ?
+                        `<a href="/${escapeHtml(event.data.dojo_id)}/${escapeHtml(event.data.module_id)}#${escapeHtml(event.data.challenge_id)}"><strong>${escapeHtml(event.data.challenge_name)}</strong></a>` :
+                        `<strong>${escapeHtml(event.data.challenge_name)}</strong>`}
                     ${event.data.first_blood ? ' <span class="badge bg-danger">FIRST BLOOD!</span>' : ''}
                 `;
                 break;

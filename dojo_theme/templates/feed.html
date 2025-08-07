@@ -79,7 +79,11 @@
                                             {{ event.data.module_name }} /
                                         {% endif %}
                                     {% endif %}
-                                    <strong>{{ event.data.challenge_name }}</strong>
+                                    {% if event.data.dojo_id and event.data.module_id and event.data.challenge_id %}
+                                        <a href="/{{ event.data.dojo_id }}/{{ event.data.module_id }}#{{ event.data.challenge_id }}"><strong>{{ event.data.challenge_name }}</strong></a>
+                                    {% else %}
+                                        <strong>{{ event.data.challenge_name }}</strong>
+                                    {% endif %}
                                 
                                 {% elif event.type == "challenge_solve" %}
                                     {{ render_user(event) }}
@@ -96,7 +100,11 @@
                                             {{ event.data.module_name }} /
                                         {% endif %}
                                     {% endif %}
-                                    <strong>{{ event.data.challenge_name }}</strong>
+                                    {% if event.data.dojo_id and event.data.module_id and event.data.challenge_id %}
+                                        <a href="/{{ event.data.dojo_id }}/{{ event.data.module_id }}#{{ event.data.challenge_id }}"><strong>{{ event.data.challenge_name }}</strong></a>
+                                    {% else %}
+                                        <strong>{{ event.data.challenge_name }}</strong>
+                                    {% endif %}
                                     {% if event.data.first_blood %}
                                         <span class="badge bg-danger">FIRST BLOOD!</span>
                                     {% endif %}
