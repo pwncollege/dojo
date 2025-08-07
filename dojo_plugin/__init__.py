@@ -51,11 +51,13 @@ class DojoChallenge(BaseChallenge):
         dojo_challenge = DojoChallenges.query.filter_by(challenge_id=challenge.id).first()
         if dojo_challenge:
             dojo = dojo_challenge.module.dojo
-            module = dojo_challenge.module
-            points = challenge.value
-            from CTFd.models import Solves
-            first_blood = Solves.query.filter_by(challenge_id=challenge.id).count() == 1
-            publish_challenge_solve(user, dojo_challenge, dojo, module, points, first_blood)
+            # Only publish events for official or public dojos
+            if dojo.official or (dojo.data and dojo.data.get("type") == "public"):
+                module = dojo_challenge.module
+                points = challenge.value
+                from CTFd.models import Solves
+                first_blood = Solves.query.filter_by(challenge_id=challenge.id).count() == 1
+                publish_challenge_solve(user, dojo_challenge, dojo, module, points, first_blood)
 
 
 class DojoFlag(BaseFlag):

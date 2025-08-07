@@ -387,17 +387,19 @@ class RunDocker(Resource):
                 logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
                 start_challenge(user, dojo_challenge, practice, as_user=as_user)
                 
-                challenge_data = {
-                    "id": dojo_challenge.challenge_id,
-                    "name": dojo_challenge.name,
-                    "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
-                    "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
-                    "dojo_id": dojo.reference_id,
-                    "dojo_name": dojo.name
-                }
-                mode = "practice" if practice else "assessment"
-                actual_user = as_user or user
-                publish_container_start(actual_user, mode, challenge_data)
+                # Only publish events for official or public dojos
+                if dojo.official or (dojo.data and dojo.data.get("type") == "public"):
+                    challenge_data = {
+                        "id": dojo_challenge.challenge_id,
+                        "name": dojo_challenge.name,
+                        "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
+                        "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
+                        "dojo_id": dojo.reference_id,
+                        "dojo_name": dojo.name
+                    }
+                    mode = "practice" if practice else "assessment"
+                    actual_user = as_user or user
+                    publish_container_start(actual_user, mode, challenge_data)
                 
                 break
             except Exception as e:
