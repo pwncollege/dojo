@@ -1,5 +1,27 @@
 {% extends "base.html" %}
 
+{% macro render_user(event) %}
+    <strong>
+        <a href="/users/{{ event.user_id }}">
+            {% if event.get('user_belt') %}
+                <img src="{{ url_for('pwncollege_belts.view_belt', color=event.user_belt) }}" 
+                     class="scoreboard-belt" 
+                     style="height: 1.5em; vertical-align: middle; margin-right: 0.25em;"
+                     title="{{ event.user_belt.title() }} Belt">
+            {% endif %}
+            {{ event.user_name }}
+            {% if event.get('user_emojis') %}
+                {% for emoji in event.user_emojis[:3] %}
+                    <span title="{{ emoji }}">{{ emoji }}</span>
+                {% endfor %}
+                {% if event.user_emojis|length > 3 %}
+                    <small class="text-muted">+{{ event.user_emojis|length - 3 }}</small>
+                {% endif %}
+            {% endif %}
+        </a>
+    </strong>
+{% endmacro %}
+
 {% block stylesheets %}
 <style>
 #feed-container .card-body {
@@ -39,25 +61,7 @@
                         <div class="flex-grow-1">
                             <div class="event-content">
                                 {% if event.type == "container_start" %}
-                                    <strong>
-                                        <a href="/users/{{ event.user_id }}">
-                                            {% if event.get('user_belt') %}
-                                                <img src="{{ url_for('pwncollege_belts.view_belt', color=event.user_belt) }}" 
-                                                     class="scoreboard-belt" 
-                                                     style="height: 1.5em; vertical-align: middle; margin-right: 0.25em;"
-                                                     title="{{ event.user_belt.title() }} Belt">
-                                            {% endif %}
-                                            {{ event.user_name }}
-                                            {% if event.get('user_emojis') %}
-                                                {% for emoji in event.user_emojis[:3] %}
-                                                    <span title="{{ emoji }}">{{ emoji }}</span>
-                                                {% endfor %}
-                                                {% if event.user_emojis|length > 3 %}
-                                                    <small class="text-muted">+{{ event.user_emojis|length - 3 }}</small>
-                                                {% endif %}
-                                            {% endif %}
-                                        </a>
-                                    </strong>
+                                    {{ render_user(event) }}
                                     started a container in 
                                     <span class="badge bg-{{ 'warning' if event.data.mode == 'practice' else 'primary' }}">
                                         {{ event.data.mode }} mode
@@ -68,25 +72,7 @@
                                     {% endif %}
                                 
                                 {% elif event.type == "challenge_solve" %}
-                                    <strong>
-                                        <a href="/users/{{ event.user_id }}">
-                                            {% if event.get('user_belt') %}
-                                                <img src="{{ url_for('pwncollege_belts.view_belt', color=event.user_belt) }}" 
-                                                     class="scoreboard-belt" 
-                                                     style="height: 1.5em; vertical-align: middle; margin-right: 0.25em;"
-                                                     title="{{ event.user_belt.title() }} Belt">
-                                            {% endif %}
-                                            {{ event.user_name }}
-                                            {% if event.get('user_emojis') %}
-                                                {% for emoji in event.user_emojis[:3] %}
-                                                    <span title="{{ emoji }}">{{ emoji }}</span>
-                                                {% endfor %}
-                                                {% if event.user_emojis|length > 3 %}
-                                                    <small class="text-muted">+{{ event.user_emojis|length - 3 }}</small>
-                                                {% endif %}
-                                            {% endif %}
-                                        </a>
-                                    </strong>
+                                    {{ render_user(event) }}
                                     solved the <strong>{{ event.data.challenge_name }}</strong> challenge
                                     {% if event.data.module_name and event.data.dojo_id %}
                                         in the <a href="/{{ event.data.dojo_id }}/{{ event.data.module_id }}">{{ event.data.module_name }}</a> module
@@ -101,19 +87,19 @@
                                     {% endif %}
                                 
                                 {% elif event.type == "emoji_earned" %}
-                                    <strong><a href="/users/{{ event.user_id }}">{{ event.user_name }}</a></strong>
+                                    {{ render_user(event) }}
                                     earned the <strong>{{ event.data.emoji }} {{ event.data.emoji_name }}</strong> emoji!
                                     <br><small class="text-muted">{{ event.data.reason }}</small>
                                 
                                 {% elif event.type == "belt_earned" %}
-                                    <strong><a href="/users/{{ event.user_id }}">{{ event.user_name }}</a></strong>
+                                    {{ render_user(event) }}
                                     earned their <strong>{{ event.data.belt_name }}</strong>!
                                     {% if event.data.dojo_name %}
                                         <br><small class="text-muted">Completed <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a></small>
                                     {% endif %}
                                 
                                 {% elif event.type == "dojo_update" %}
-                                    <strong><a href="/users/{{ event.user_id }}">{{ event.user_name }}</a></strong>
+                                    {{ render_user(event) }}
                                     updated <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a>
                                     <br><small class="text-muted">{{ event.data.summary }}</small>
                                 {% endif %}

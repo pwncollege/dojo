@@ -110,7 +110,7 @@
             case 'dojo_update':
                 iconHtml = '<i class="fas fa-sync-alt fa-2x text-info"></i>';
                 contentHtml = `
-                    <strong><a href="/users/${event.user_id}">${event.user_name}</a></strong>
+                    <strong><a href="/users/${event.user_id}">${formatUserName(event)}</a></strong>
                     updated <a href="/dojos/${event.data.dojo_id}">${event.data.dojo_name}</a>
                     <br><small class="text-muted">${event.data.summary}</small>
                 `;
