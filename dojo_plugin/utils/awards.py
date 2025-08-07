@@ -6,6 +6,7 @@ from flask import url_for
 
 from .discord import get_discord_roles, get_discord_member, add_role, send_message
 from ..models import Dojos, Belts, Emojis, DiscordUsers
+from .feed import publish_belt_earned, publish_emoji_earned
 
 
 BELT_ORDER = [ "orange", "yellow", "green", "purple", "blue", "brown", "red", "black" ]
@@ -97,6 +98,9 @@ def update_awards(user):
         db.session.add(Belts(user=user, name=belt))
         db.session.commit()
         current_belts.append(belt)
+        
+        belt_display = belt.title() + " Belt"
+        publish_belt_earned(user, belt, belt_display, dojo)
 
     discord_user = DiscordUsers.query.filter_by(user=user).first()
     discord_member = discord_user and get_discord_member(discord_user.discord_id)
@@ -118,5 +122,8 @@ def update_awards(user):
         emoji_award = Emojis.query.filter_by(user=user, name=emoji, category=dojo_id).first()
         if emoji_award:
             continue
-        db.session.add(Emojis(user=user, name=emoji, description=f"Awarded for completing the {dojo_name} dojo.", category=dojo_id))
+        description = f"Awarded for completing the {dojo_name} dojo."
+        db.session.add(Emojis(user=user, name=emoji, description=description, category=dojo_id))
         db.session.commit()
+        
+        publish_emoji_earned(user, emoji, dojo_name, description)

@@ -20,6 +20,7 @@ from .models import Dojos, DojoChallenges, Belts, Emojis
 from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
 from .utils.awards import update_awards
+from .utils.feed import publish_challenge_solve
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
@@ -31,6 +32,7 @@ from .pages.course import course
 from .pages.canvas import sync_canvas_user, canvas
 from .pages.belts import belts
 from .pages.research import research
+from .pages.feed import feed
 from .pages.index import static_html_override
 from .api import api
 
@@ -45,6 +47,14 @@ class DojoChallenge(BaseChallenge):
         super().solve(user, team, challenge, request)
         update_awards(user)
         sync_canvas_user(user.id, challenge.id)
+        
+        dojo_challenge = DojoChallenges.query.filter_by(challenge_id=challenge.id).first()
+        if dojo_challenge:
+            dojo = dojo_challenge.module.dojo
+            points = challenge.value
+            from CTFd.models import Solves
+            first_blood = Solves.query.filter_by(challenge_id=challenge.id).count() == 1
+            publish_challenge_solve(user, challenge, dojo, points, first_blood)
 
 
 class DojoFlag(BaseFlag):
@@ -147,6 +157,7 @@ def load(app):
     app.register_blueprint(canvas)
     app.register_blueprint(belts)
     app.register_blueprint(research)
+    app.register_blueprint(feed)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
 
     app.jinja_env.filters["markdown"] = render_markdown

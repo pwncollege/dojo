@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="text-center mb-4">Live Activity Feed</h1>
+    
+    <div id="feed-container" class="mx-auto" style="max-width: 800px;">
+        <div id="connection-status" class="alert alert-info text-center mb-3" style="display: none;">
+            <span id="connection-message">Connecting to live feed...</span>
+        </div>
+        
+        <div id="events-list">
+            {% for event in initial_events %}
+            <div class="event-card card mb-3" data-event-id="{{ event.id }}">
+                <div class="card-body">
+                    <div class="d-flex align-items-start">
+                        <div class="event-icon me-3">
+                            {% if event.type == "container_start" %}
+                                <i class="fas fa-play-circle fa-2x text-primary"></i>
+                            {% elif event.type == "challenge_solve" %}
+                                <i class="fas fa-flag-checkered fa-2x text-success"></i>
+                            {% elif event.type == "emoji_earned" %}
+                                <span style="font-size: 2em;">{{ event.data.emoji }}</span>
+                            {% elif event.type == "belt_earned" %}
+                                <i class="fas fa-award fa-2x text-warning"></i>
+                            {% elif event.type == "dojo_update" %}
+                                <i class="fas fa-sync-alt fa-2x text-info"></i>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="flex-grow-1">
+                            <div class="event-content">
+                                {% if event.type == "container_start" %}
+                                    <strong><a href="/users/{{ event.user_id }}">{{ event.user_name }}</a></strong>
+                                    started a container in 
+                                    <span class="badge bg-{{ 'warning' if event.data.mode == 'practice' else 'primary' }}">
+                                        {{ event.data.mode }} mode
+                                    </span>
+                                    for <strong>{{ event.data.challenge_name }}</strong>
+                                    {% if event.data.dojo_name %}
+                                        in <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a>
+                                    {% endif %}
+                                
+                                {% elif event.type == "challenge_solve" %}
+                                    <strong><a href="/users/{{ event.user_id }}">{{ event.user_name }}</a></strong>
+                                    solved <strong>{{ event.data.challenge_name }}</strong>
+                                    {% if event.data.first_blood %}
+                                        <span class="badge bg-danger">FIRST BLOOD!</span>
+                                    {% endif %}
+                                    for <strong>{{ event.data.points }}</strong> points
+                                    {% if event.data.dojo_name %}
+                                        in <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a>
+                                    {% endif %}
+                                
+                                {% elif event.type == "emoji_earned" %}
+                                    <strong><a href="/users/{{ event.user_id }}">{{ event.user_name }}</a></strong>
+                                    earned the <strong>{{ event.data.emoji }} {{ event.data.emoji_name }}</strong> emoji!
+                                    <br><small class="text-muted">{{ event.data.reason }}</small>
+                                
+                                {% elif event.type == "belt_earned" %}
+                                    <strong><a href="/users/{{ event.user_id }}">{{ event.user_name }}</a></strong>
+                                    earned their <strong>{{ event.data.belt_name }}</strong>!
+                                    {% if event.data.dojo_name %}
+                                        <br><small class="text-muted">Completed <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a></small>
+                                    {% endif %}
+                                
+                                {% elif event.type == "dojo_update" %}
+                                    <strong><a href="/users/{{ event.user_id }}">{{ event.user_name }}</a></strong>
+                                    updated <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a>
+                                    <br><small class="text-muted">{{ event.data.summary }}</small>
+                                {% endif %}
+                            </div>
+                            
+                            <small class="text-muted event-time" data-timestamp="{{ event.timestamp }}">
+                                {{ event.timestamp }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% if not initial_events %}
+        <div class="text-center text-muted py-5">
+            <i class="fas fa-stream fa-3x mb-3"></i>
+            <p>No recent activity. Waiting for live events...</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('views.themes', path='js/feed.js') }}"></script>
+{% endblock %}
