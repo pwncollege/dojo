@@ -34,15 +34,12 @@ def test_feed_shows_all_events(welcome_dojo, random_user_name, random_user_sessi
     watcher = Firefox(options=watcher_options)
 
     try:
-        watcher.get(f"{DOJO_URL}/feed")
-        initial_events = watcher.find_element(By.ID, "events-list").find_elements(By.CLASS_NAME, "event-card")
-        initial_count = len(initial_events)
-        logging.info(f"Initial events on feed: {initial_count}")
-
         start_challenge(welcome_dojo, "welcome", "flag", session=random_user_session)
+        time.sleep(1)
+
+        # make sure past events show up at load timej
+        watcher.get(f"{DOJO_URL}/feed")
         events_after_start = watcher.find_element(By.ID, "events-list").find_elements(By.CLASS_NAME, "event-card")
-        time.sleep(5)
-        logging.info(f"Events after container start: {len(events_after_start)}")
 
         found_start_event = False
         for event in events_after_start:
@@ -67,11 +64,9 @@ def test_feed_shows_all_events(welcome_dojo, random_user_name, random_user_sessi
             if random_user_name in event_text:
                 if "started a" in event_text and "container" in event_text:
                     container_events += 1
-                    print(f"✓ Container start event: {event_text[:100]}...")
                 elif "solved" in event_text.lower():
                     solve_events += 1
                     found_solve_event = True
-                    print(f"✓ Challenge solve event: {event_text}")
 
         assert container_events > 0, f"No container start events found for {random_user_name}"
         assert found_solve_event, f"Challenge solve event for {random_user_name} not found"
