@@ -137,11 +137,13 @@ def publish_challenge_solve(user: Users, dojo_challenge: Any, dojo: Any, module:
     return create_event("challenge_solve", user, data)
 
 
-def publish_emoji_earned(user: Users, emoji: str, emoji_name: str, reason: str) -> Optional[str]:
+def publish_emoji_earned(user: Users, emoji: str, emoji_name: str, reason: str, dojo_id: str = None, dojo_name: str = None) -> Optional[str]:
     data = {
         "emoji": emoji,
         "emoji_name": emoji_name,
-        "reason": reason
+        "reason": reason,
+        "dojo_id": dojo_id,
+        "dojo_name": dojo_name
     }
     return create_event("emoji_earned", user, data)
 

@@ -5,6 +5,16 @@
     const MAX_RECONNECT_ATTEMPTS = 10;
     const RECONNECT_DELAY = 3000;
     
+    function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return String(unsafe)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+    
     function formatTimestamp(timestamp) {
         const date = new Date(timestamp);
         
@@ -29,7 +39,7 @@
                               title="${beltTitle}"> `;
         }
         
-        userHtml += event.user_name;
+        userHtml += escapeHtml(event.user_name);
         
         if (event.user_emojis && event.user_emojis.length > 0) {
             const displayEmojis = event.user_emojis.slice(0, 3);
@@ -68,30 +78,32 @@
                 iconHtml = '<i class="fas fa-play-circle fa-2x text-primary"></i>';
                 const modeClass = event.data.mode === 'practice' ? 'warning' : 'primary';
                 contentHtml = `
-                    <strong><a href="/hacker/${event.user_name}">${formatUserName(event)}</a></strong>
+                    <strong><a href="/hacker/${escapeHtml(event.user_name)}">${formatUserName(event)}</a></strong>
                     started a 
-                    <span class="badge bg-${modeClass}">${event.data.mode}</span>
+                    <span class="badge bg-${modeClass}">${escapeHtml(event.data.mode)}</span>
                     container for
-                    ${event.data.dojo_name ? ` <a href="/dojos/${event.data.dojo_id}">${event.data.dojo_name}</a> /` : ''}
+                    ${event.data.dojo_name ? ` <a href="/dojos/${escapeHtml(event.data.dojo_id)}">${escapeHtml(event.data.dojo_name)}</a> /` : 
+                       (event.data.dojo_id ? ` <a href="/dojos/${escapeHtml(event.data.dojo_id)}">${escapeHtml(event.data.dojo_id)}</a> /` : '')}
                     ${event.data.module_name ? 
                         (event.data.dojo_id && event.data.module_id ? 
-                            ` <a href="/${event.data.dojo_id}/${event.data.module_id}">${event.data.module_name}</a> /` : 
-                            ` ${event.data.module_name} /`) : ''}
-                    <strong>${event.data.challenge_name}</strong>
+                            ` <a href="/${escapeHtml(event.data.dojo_id)}/${escapeHtml(event.data.module_id)}">${escapeHtml(event.data.module_name)}</a> /` : 
+                            ` ${escapeHtml(event.data.module_name)} /`) : ''}
+                    <strong>${escapeHtml(event.data.challenge_name)}</strong>
                 `;
                 break;
                 
             case 'challenge_solve':
                 iconHtml = '<i class="fas fa-flag-checkered fa-2x text-success"></i>';
                 contentHtml = `
-                    <strong><a href="/hacker/${event.user_name}">${formatUserName(event)}</a></strong>
+                    <strong><a href="/hacker/${escapeHtml(event.user_name)}">${formatUserName(event)}</a></strong>
                     solved 
-                    ${event.data.dojo_name ? `<a href="/dojos/${event.data.dojo_id}">${event.data.dojo_name}</a> / ` : ''}
+                    ${event.data.dojo_name ? `<a href="/dojos/${escapeHtml(event.data.dojo_id)}">${escapeHtml(event.data.dojo_name)}</a> / ` : 
+                       (event.data.dojo_id ? `<a href="/dojos/${escapeHtml(event.data.dojo_id)}">${escapeHtml(event.data.dojo_id)}</a> / ` : '')}
                     ${event.data.module_name ? 
                         (event.data.dojo_id && event.data.module_id ? 
-                            `<a href="/${event.data.dojo_id}/${event.data.module_id}">${event.data.module_name}</a> / ` : 
-                            `${event.data.module_name} / `) : ''}
-                    <strong>${event.data.challenge_name}</strong>
+                            `<a href="/${escapeHtml(event.data.dojo_id)}/${escapeHtml(event.data.module_id)}">${escapeHtml(event.data.module_name)}</a> / ` : 
+                            `${escapeHtml(event.data.module_name)} / `) : ''}
+                    <strong>${escapeHtml(event.data.challenge_name)}</strong>
                     ${event.data.first_blood ? ' <span class="badge bg-danger">FIRST BLOOD!</span>' : ''}
                 `;
                 break;
@@ -99,27 +111,34 @@
             case 'emoji_earned':
                 iconHtml = `<span style="font-size: 2em;">${event.data.emoji}</span>`;
                 contentHtml = `
-                    <strong><a href="/hacker/${event.user_name}">${formatUserName(event)}</a></strong>
-                    earned the <strong>${event.data.emoji} ${event.data.emoji_name}</strong> emoji!
-                    <br><small class="text-muted">${event.data.reason}</small>
+                    <strong><a href="/hacker/${escapeHtml(event.user_name)}">${formatUserName(event)}</a></strong>
+                    earned the <strong>${event.data.emoji}</strong> emoji!
+                    ${event.data.dojo_name ? 
+                        `<br><small class="text-muted">Completed <a href="/dojos/${escapeHtml(event.data.dojo_id)}">${escapeHtml(event.data.dojo_name)}</a></small>` :
+                        (event.data.dojo_id ? 
+                            `<br><small class="text-muted">Completed <a href="/dojos/${escapeHtml(event.data.dojo_id)}">${escapeHtml(event.data.dojo_id)}</a></small>` :
+                            `<br><small class="text-muted">${escapeHtml(event.data.reason)}</small>`)}
                 `;
                 break;
                 
             case 'belt_earned':
                 iconHtml = '<i class="fas fa-award fa-2x text-warning"></i>';
                 contentHtml = `
-                    <strong><a href="/hacker/${event.user_name}">${formatUserName(event)}</a></strong>
-                    earned their <strong>${event.data.belt_name}</strong>!
-                    ${event.data.dojo_name ? `<br><small class="text-muted">Completed <a href="/dojos/${event.data.dojo_id}">${event.data.dojo_name}</a></small>` : ''}
+                    <strong><a href="/hacker/${escapeHtml(event.user_name)}">${formatUserName(event)}</a></strong>
+                    earned their <strong>${escapeHtml(event.data.belt_name)}</strong>!
+                    ${event.data.dojo_name ? 
+                        `<br><small class="text-muted">Completed <a href="/dojos/${escapeHtml(event.data.dojo_id)}">${escapeHtml(event.data.dojo_name)}</a></small>` : 
+                        (event.data.dojo_id ? 
+                            `<br><small class="text-muted">Completed <a href="/dojos/${escapeHtml(event.data.dojo_id)}">${escapeHtml(event.data.dojo_id)}</a></small>` : '')}
                 `;
                 break;
                 
             case 'dojo_update':
                 iconHtml = '<i class="fas fa-sync-alt fa-2x text-info"></i>';
                 contentHtml = `
-                    <strong><a href="/hacker/${event.user_name}">${formatUserName(event)}</a></strong>
-                    updated <a href="/dojos/${event.data.dojo_id}">${event.data.dojo_name}</a>
-                    <br><small class="text-muted">${event.data.summary}</small>
+                    <strong><a href="/hacker/${escapeHtml(event.user_name)}">${formatUserName(event)}</a></strong>
+                    updated <a href="/dojos/${escapeHtml(event.data.dojo_id)}">${escapeHtml(event.data.dojo_name || event.data.dojo_id)}</a>
+                    <br><small class="text-muted">${escapeHtml(event.data.summary)}</small>
                 `;
                 break;
         }

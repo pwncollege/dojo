@@ -24,7 +24,7 @@ def get_user_emojis(user):
         if not emoji:
             continue
         if dojo.challenges and dojo.completed(user):
-            emojis.append((emoji, dojo.name, dojo.hex_dojo_id))
+            emojis.append((emoji, dojo.name or dojo.reference_id, dojo.hex_dojo_id))
     return emojis
 
 def get_belts():
@@ -117,16 +117,24 @@ def update_awards(user):
         cache.delete_memoized(get_discord_member, discord_user.discord_id)
 
     current_emojis = get_user_emojis(user)
-    for emoji,dojo_name,dojo_id in current_emojis:
+    for emoji,dojo_display_name,hex_dojo_id in current_emojis:
         # note: the category filter is critical, since SQL seems to be unable to query by emoji!
-        emoji_award = Emojis.query.filter_by(user=user, name=emoji, category=dojo_id).first()
+        emoji_award = Emojis.query.filter_by(user=user, name=emoji, category=hex_dojo_id).first()
         if emoji_award:
             continue
-        description = f"Awarded for completing the {dojo_name} dojo."
-        db.session.add(Emojis(user=user, name=emoji, description=description, category=dojo_id))
+        
+        # Get the dojo to use its reference_id for human-facing text
+        dojo = Dojos.query.filter_by(dojo_id=Dojos.hex_to_int(hex_dojo_id)).first()
+        if not dojo:
+            continue
+            
+        # Use dojo name if available, otherwise use reference_id (which is human-readable)
+        display_name = dojo.name or dojo.reference_id
+        description = f"Awarded for completing the {display_name} dojo."
+        db.session.add(Emojis(user=user, name=emoji, description=description, category=hex_dojo_id))
         db.session.commit()
         
         # Only publish events for official or public dojos
-        dojo = Dojos.query.filter_by(dojo_id=int(dojo_id, 16)).first()
-        if dojo and (dojo.official or (dojo.data and dojo.data.get("type") == "public")):
-            publish_emoji_earned(user, emoji, dojo_name, description)
+        if dojo.official or (dojo.data and dojo.data.get("type") == "public"):
+            publish_emoji_earned(user, emoji, display_name, description, 
+                               dojo_id=dojo.reference_id, dojo_name=display_name)
