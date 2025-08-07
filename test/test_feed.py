@@ -1,28 +1,13 @@
 import time
 import random
 import string
+import requests
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from utils import DOJO_URL, login
-
-
-def test_feed_api_endpoint():
-    username = "apitest" + "".join(random.choices(string.ascii_lowercase, k=8))
-    session = login(username, username, register=True)
-    
-    response = session.get(f"{DOJO_URL}/pwncollege_api/v1/feed/events")
-    assert response.status_code == 200
-    
-    data = response.json()
-    assert "success" in data
-    assert data["success"] is True
-    assert "data" in data
-    assert isinstance(data["data"], list)
-    print(f"✓ Feed API endpoint works")
-
 
 def challenge_expand(browser, idx):
     browser.refresh()
@@ -164,13 +149,10 @@ def test_feed_shows_all_events(welcome_dojo):
 
 
 def test_private_dojo_events_not_shown(random_private_dojo, random_user_name, random_user_session):
-    import requests
-    
     response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/feed/events")
     assert response.status_code == 200
     initial_events = response.json()["data"]
     initial_count = len(initial_events)
-    print(f"Initial events on feed: {initial_count}")
     
     start_data = {
         "dojo": random_private_dojo,
@@ -178,27 +160,20 @@ def test_private_dojo_events_not_shown(random_private_dojo, random_user_name, ra
         "challenge": "test-challenge"
     }
     response = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=start_data)
-    if response.status_code == 200:
-        print(f"✓ Started container in private dojo '{random_private_dojo}'")
-    else:
-        print(f"Warning: Could not start container: {response.json()}")
-    
+    assert response.status_code == 200
     time.sleep(1)
     
     response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/feed/events")
     assert response.status_code == 200
     events_after = response.json()["data"]
-    print(f"Events after private dojo action: {len(events_after)}")
     
     found_event = False
     for event in events_after:
         if event.get("user_name") == random_user_name:
             found_event = True
-            print(f"✗ FAILED: Found private dojo event in feed: {event}")
             break
     
     assert not found_event, f"Private dojo events should NOT appear in the feed!"
     assert len(events_after) == initial_count, f"Event count changed! Before: {initial_count}, After: {len(events_after)}"
-    print(f"✓ Private dojo events correctly filtered from feed")
 
 
