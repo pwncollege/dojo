@@ -163,12 +163,7 @@ def test_feed_shows_all_events(welcome_dojo):
         
         assert container_events > 0, f"No container start events found for {user_name}"
         assert found_solve_event, f"Challenge solve event for {user_name} not found"
-        
-        print(f"\n✓ Feed successfully shows all event types:")
-        print(f"  - Container starts: {container_events}")
-        print(f"  - Challenge solves: {solve_events}")
-        print(f"✓ ALL REAL events triggered and displayed on feed!")
-        
+
     finally:
         watcher.quit()
         user_browser.quit()
