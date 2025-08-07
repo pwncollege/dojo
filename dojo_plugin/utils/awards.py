@@ -127,6 +127,6 @@ def update_awards(user):
         db.session.commit()
         
         # Only publish events for official or public dojos
-        dojo = Dojos.query.filter_by(id=int(dojo_id, 16)).first()
+        dojo = Dojos.query.filter_by(dojo_id=int(dojo_id, 16)).first()
         if dojo and (dojo.official or (dojo.data and dojo.data.get("type") == "public")):
             publish_emoji_earned(user, emoji, dojo_name, description)

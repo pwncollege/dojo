@@ -28,7 +28,7 @@ def challenge_start(browser, idx):
     time.sleep(1)
 
 
-def test_feed_shows_all_events(welcome_dojo, random_user_name, random_user_session):
+def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name, random_user_session):
     watcher_options = FirefoxOptions()
     watcher_options.add_argument("--headless")
     watcher = Firefox(options=watcher_options)
@@ -70,6 +70,23 @@ def test_feed_shows_all_events(welcome_dojo, random_user_name, random_user_sessi
 
         assert container_events > 0, f"No container start events found for {random_user_name}"
         assert found_solve_event, f"Challenge solve event for {random_user_name} not found"
+
+        random_user_session.get(f"{DOJO_URL}/dojo/{simple_award_dojo}/join/")
+        start_challenge(simple_award_dojo, "hello", "apple", session=random_user_session)
+        solve_challenge(simple_award_dojo, "hello", "apple", session=random_user_session, user=random_user_name)
+        start_challenge(simple_award_dojo, "hello", "banana", session=random_user_session)
+        solve_challenge(simple_award_dojo, "hello", "banana", session=random_user_session, user=random_user_name)
+        time.sleep(1)
+        events_with_emoji = watcher.find_element(By.ID, "events-list").find_elements(By.CLASS_NAME, "event-card")
+        
+        found_emoji_event = False
+        for event in events_with_emoji:
+            event_text = event.text
+            if random_user_name in event_text and "earned" in event_text.lower() and "🧪" in event_text:
+                found_emoji_event = True
+                break
+        
+        assert found_emoji_event, f"Emoji earned event for {random_user_name} not found"
 
     finally:
         watcher.quit()
