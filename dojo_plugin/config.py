@@ -24,16 +24,6 @@ WORKSPACE_NODES = {
 def create_seccomp():
     seccomp = json.load(pathlib.Path("/etc/docker/seccomp.json").open())
 
-    seccomp["syscalls"].append({
-        "names": [
-            "clone",
-            "sethostname",
-            "setns",
-            "unshare",
-        ],
-        "action": "SCMP_ACT_ALLOW",
-    })
-
     READ_IMPLIES_EXEC = 0x0400000
     ADDR_NO_RANDOMIZE = 0x0040000
 

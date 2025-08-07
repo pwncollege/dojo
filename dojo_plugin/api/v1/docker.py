@@ -171,6 +171,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         stdin_open=True,
         auto_remove=True,
         runtime="io.containerd.run.kata.v2" if dojo_challenge.privileged else "runc",
+        security_opt=[f"seccomp={SECCOMP}"],
     )
 
     container = docker_client.containers.create(**container_create_attributes)
