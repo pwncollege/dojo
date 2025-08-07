@@ -174,3 +174,43 @@ def test_feed_shows_all_events(welcome_dojo):
         user_browser.quit()
 
 
+def test_private_dojo_events_not_shown(random_private_dojo, random_user_name, random_user_session):
+    """Test that events from private (non-official) dojos don't show up in the feed"""
+    import requests
+    
+    response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/feed/events")
+    assert response.status_code == 200
+    initial_events = response.json()["data"]
+    initial_count = len(initial_events)
+    print(f"Initial events on feed: {initial_count}")
+    
+    start_data = {
+        "dojo": random_private_dojo,
+        "module": "test-module",
+        "challenge": "test-challenge"
+    }
+    response = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=start_data)
+    if response.status_code == 200:
+        print(f"✓ Started container in private dojo '{random_private_dojo}'")
+    else:
+        print(f"Warning: Could not start container: {response.json()}")
+    
+    time.sleep(1)
+    
+    response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/feed/events")
+    assert response.status_code == 200
+    events_after = response.json()["data"]
+    print(f"Events after private dojo action: {len(events_after)}")
+    
+    found_event = False
+    for event in events_after:
+        if event.get("user_name") == random_user_name:
+            found_event = True
+            print(f"✗ FAILED: Found private dojo event in feed: {event}")
+            break
+    
+    assert not found_event, f"Private dojo events should NOT appear in the feed!"
+    assert len(events_after) == initial_count, f"Event count changed! Before: {initial_count}, After: {len(events_after)}"
+    print(f"✓ Private dojo events correctly filtered from feed")
+
+

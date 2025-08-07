@@ -163,3 +163,11 @@ def privileged_dojo(admin_session, example_dojo):
     rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "privileged_dojo.yml").read(), session=admin_session)
     make_dojo_official(rid, admin_session)
     return rid
+
+@pytest.fixture
+def random_private_dojo(admin_session):
+    """Create a private (non-official, non-public) dojo with random ID"""
+    n = "".join(random.choices(string.ascii_lowercase, k=8))
+    yml = open(TEST_DOJOS_LOCATION / "private_test.yml").read().replace("private-dojo", f"private-dojo-{n}")
+    rid = create_dojo_yml(yml, session=admin_session)
+    return rid
