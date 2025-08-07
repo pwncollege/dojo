@@ -43,8 +43,9 @@ def create_event(
     
     logger.debug(f"User {user.name} has belts: {user_belts}")
     
-    # Get highest belt (order: white, yellow, blue, orange, green, black)
-    belt_order = ["white", "yellow", "blue", "orange", "green", "black"]
+    # Get highest belt - use the official belt order from awards.py
+    from ..utils.awards import BELT_ORDER
+    belt_order = BELT_ORDER
     highest_belt = None
     for belt in reversed(belt_order):
         if belt in user_belts:
