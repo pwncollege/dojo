@@ -2,7 +2,7 @@
 
 {% macro render_user(event) %}
     <strong>
-        <a href="/users/{{ event.user_id }}">
+        <a href="/hacker/{{ event.user_name }}">
             {% if event.get('user_belt') %}
                 <img src="{{ url_for('pwncollege_belts.view_belt', color=event.user_belt) }}" 
                      class="scoreboard-belt" 
@@ -62,26 +62,37 @@
                             <div class="event-content">
                                 {% if event.type == "container_start" %}
                                     {{ render_user(event) }}
-                                    started a container in 
+                                    started a 
                                     <span class="badge bg-{{ 'warning' if event.data.mode == 'practice' else 'primary' }}">
-                                        {{ event.data.mode }} mode
+                                        {{ event.data.mode }}
                                     </span>
-                                    for <strong>{{ event.data.challenge_name }}</strong>
+                                    container for
                                     {% if event.data.dojo_name %}
-                                        in <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a>
+                                        <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a> /
                                     {% endif %}
+                                    {% if event.data.module_name %}
+                                        {% if event.data.dojo_id %}
+                                            <a href="/{{ event.data.dojo_id }}/{{ event.data.module_id }}">{{ event.data.module_name }}</a> /
+                                        {% else %}
+                                            {{ event.data.module_name }} /
+                                        {% endif %}
+                                    {% endif %}
+                                    <strong>{{ event.data.challenge_name }}</strong>
                                 
                                 {% elif event.type == "challenge_solve" %}
                                     {{ render_user(event) }}
-                                    solved the <strong>{{ event.data.challenge_name }}</strong> challenge
-                                    {% if event.data.module_name and event.data.dojo_id %}
-                                        in the <a href="/{{ event.data.dojo_id }}/{{ event.data.module_id }}">{{ event.data.module_name }}</a> module
-                                    {% elif event.data.module_name %}
-                                        in the <strong>{{ event.data.module_name }}</strong> module
-                                    {% endif %}
+                                    solved 
                                     {% if event.data.dojo_name %}
-                                        of the <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a> dojo!
+                                        <a href="/dojos/{{ event.data.dojo_id }}">{{ event.data.dojo_name }}</a> /
                                     {% endif %}
+                                    {% if event.data.module_name %}
+                                        {% if event.data.dojo_id %}
+                                            <a href="/{{ event.data.dojo_id }}/{{ event.data.module_id }}">{{ event.data.module_name }}</a> /
+                                        {% else %}
+                                            {{ event.data.module_name }} /
+                                        {% endif %}
+                                    {% endif %}
+                                    <strong>{{ event.data.challenge_name }}</strong>
                                     {% if event.data.first_blood %}
                                         <span class="badge bg-danger">FIRST BLOOD!</span>
                                     {% endif %}

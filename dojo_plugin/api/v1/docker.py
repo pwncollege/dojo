@@ -390,6 +390,8 @@ class RunDocker(Resource):
                 challenge_data = {
                     "id": dojo_challenge.challenge_id,
                     "name": dojo_challenge.name,
+                    "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
+                    "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
                     "dojo_id": dojo.reference_id,
                     "dojo_name": dojo.name
                 }

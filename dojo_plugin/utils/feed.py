@@ -41,6 +41,8 @@ def create_event(
     user_belts = [belt.name for belt in Belts.query.filter_by(user=user)]
     user_emojis = [emoji.name for emoji in Emojis.query.filter_by(user=user)]
     
+    logger.debug(f"User {user.name} has belts: {user_belts}")
+    
     # Get highest belt (order: white, yellow, blue, orange, green, black)
     belt_order = ["white", "yellow", "blue", "orange", "green", "black"]
     highest_belt = None
@@ -48,6 +50,8 @@ def create_event(
         if belt in user_belts:
             highest_belt = belt
             break
+    
+    logger.debug(f"User {user.name} highest belt: {highest_belt}")
     
     event_id = str(uuid.uuid4())
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -110,6 +114,8 @@ def publish_container_start(user: Users, mode: str, challenge_data: Dict) -> Opt
         "mode": mode,
         "challenge_id": challenge_data.get("id"),
         "challenge_name": challenge_data.get("name"),
+        "module_id": challenge_data.get("module_id"),
+        "module_name": challenge_data.get("module_name"),
         "dojo_id": challenge_data.get("dojo_id"),
         "dojo_name": challenge_data.get("dojo_name")
     }

@@ -106,7 +106,7 @@ def test_feed_shows_all_events(welcome_dojo):
         found_start_event = False
         for event in events_after_start:
             event_text = event.text
-            if user_name in event_text and "started a container" in event_text:
+            if user_name in event_text and "started a" in event_text and "container" in event_text:
                 found_start_event = True
                 print(f"✓ Found container start event: {event_text[:100]}...")
                 break
@@ -153,7 +153,7 @@ def test_feed_shows_all_events(welcome_dojo):
         for event in events_after_solve:
             event_text = event.text
             if user_name in event_text:
-                if "started a container" in event_text:
+                if "started a" in event_text and "container" in event_text:
                     container_events += 1
                     print(f"✓ Container start event: {event_text[:100]}...")
                 elif "solved" in event_text.lower():
