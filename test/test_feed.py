@@ -1,5 +1,3 @@
-"""Test that the fucking feed actually works with REAL events"""
-
 import time
 import random
 import string
@@ -12,7 +10,6 @@ from utils import DOJO_URL, login
 
 
 def test_feed_api_endpoint():
-    """Test that the feed API endpoint works"""
     username = "apitest" + "".join(random.choices(string.ascii_lowercase, k=8))
     session = login(username, username, register=True)
     
@@ -28,14 +25,12 @@ def test_feed_api_endpoint():
 
 
 def challenge_expand(browser, idx):
-    """Expand a challenge accordion"""
     browser.refresh()
     browser.find_element("id", f"challenges-header-button-{idx}").click()
     time.sleep(0.5)
 
 
 def challenge_start(browser, idx):
-    """Start a challenge"""
     challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
     body.find_element("id", "challenge-start").click()
@@ -53,7 +48,6 @@ def challenge_start(browser, idx):
 
 
 def test_feed_shows_all_events(welcome_dojo):
-    """Test that container starts and challenge solves show up in the feed"""
     from utils import workspace_run
     
     user_name = "feeduser" + "".join(random.choices(string.ascii_lowercase, k=8))
@@ -170,7 +164,6 @@ def test_feed_shows_all_events(welcome_dojo):
 
 
 def test_private_dojo_events_not_shown(random_private_dojo, random_user_name, random_user_session):
-    """Test that events from private (non-official) dojos don't show up in the feed"""
     import requests
     
     response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/feed/events")
