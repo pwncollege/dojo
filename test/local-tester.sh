@@ -212,39 +212,16 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	
 	docker exec "$DOJO_CONTAINER" dojo-node add 1 "$NODE1_KEY"
 	docker exec "$DOJO_CONTAINER" dojo-node add 2 "$NODE2_KEY"
-
-	# Restart CTFd and SSH to pick up the workspace_nodes.json file
-	log_newgroup "Restarting services to load workspace nodes"
+	sleep 5
 	docker exec "$DOJO_CONTAINER" dojo compose restart ctfd sshd
 	sleep 5
 	docker exec "$DOJO_CONTAINER" dojo wait
-	log_endgroup
 
 	docker exec "$DOJO_CONTAINER-node1" docker pull pwncollege/challenge-simple
 	docker exec "$DOJO_CONTAINER-node1" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 	docker exec "$DOJO_CONTAINER-node2" docker pull pwncollege/challenge-simple
 	docker exec "$DOJO_CONTAINER-node2" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 
-	# Fix routing for user containers on workspace nodes
-	log_newgroup "Configuring multi-node networking"
-	
-	# Enable IP forwarding on all nodes
-	docker exec "$DOJO_CONTAINER" sysctl -w net.ipv4.ip_forward=1
-	docker exec "$DOJO_CONTAINER-node1" sysctl -w net.ipv4.ip_forward=1
-	docker exec "$DOJO_CONTAINER-node2" sysctl -w net.ipv4.ip_forward=1
-	
-	# Fix routes on main node to match production (direct to wg0, not via specific IP)
-	docker exec "$DOJO_CONTAINER" bash -c "ip route del 10.16.0.0/12 2>/dev/null || true"
-	docker exec "$DOJO_CONTAINER" bash -c "ip route del 10.32.0.0/12 2>/dev/null || true"
-	docker exec "$DOJO_CONTAINER" ip route add 10.16.0.0/12 dev wg0
-	docker exec "$DOJO_CONTAINER" ip route add 10.32.0.0/12 dev wg0
-	
-	# Add the critical MASQUERADE rule from production for the entire 10.0.0.0/8 network
-	docker exec "$DOJO_CONTAINER" bash -c "iptables -t nat -C POSTROUTING -s 10.0.0.0/8 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.0.0.0/8 -j MASQUERADE"
-	
-	# Wait a moment for routes to settle
-	sleep 10
-	
 	log_endgroup
 fi
 
