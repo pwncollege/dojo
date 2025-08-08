@@ -5,6 +5,111 @@
     const MAX_RECONNECT_ATTEMPTS = 10;
     const RECONNECT_DELAY = 3000;
     
+    const EVENT_TEMPLATES = {
+        container_start: `
+            <div class="event-card card mb-3 bg-dark text-white border-secondary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="event-icon me-4" style="min-width: 50px;">
+                            <i class="fas fa-play-circle fa-2x text-primary"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="event-content">
+                                <span class="event-user"></span>
+                                <span> started a </span>
+                                <span class="event-mode badge"></span>
+                                <span> container for </span>
+                                <span class="event-location"></span>
+                            </div>
+                            <small class="text-muted event-time"></small>
+                        </div>
+                    </div>
+                </div>
+            </div>`,
+        
+        challenge_solve: `
+            <div class="event-card card mb-3 bg-dark text-white border-secondary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="event-icon me-4" style="min-width: 50px;">
+                            <i class="fas fa-flag-checkered fa-2x text-success"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="event-content">
+                                <span class="event-user"></span>
+                                <span> solved </span>
+                                <span class="event-location"></span>
+                                <span class="event-first-blood"></span>
+                            </div>
+                            <small class="text-muted event-time"></small>
+                        </div>
+                    </div>
+                </div>
+            </div>`,
+        
+        emoji_earned: `
+            <div class="event-card card mb-3 bg-dark text-white border-secondary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="event-icon me-4" style="min-width: 50px;">
+                            <span class="event-emoji-icon" style="font-size: 2em;"></span>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="event-content">
+                                <span class="event-user"></span>
+                                <span> earned the </span>
+                                <strong class="event-emoji"></strong>
+                                <span> emoji!</span>
+                                <span class="event-emoji-detail"></span>
+                            </div>
+                            <small class="text-muted event-time"></small>
+                        </div>
+                    </div>
+                </div>
+            </div>`,
+        
+        belt_earned: `
+            <div class="event-card card mb-3 bg-dark text-white border-secondary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="event-icon me-4" style="min-width: 50px;">
+                            <i class="fas fa-award fa-2x text-warning"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="event-content">
+                                <span class="event-user"></span>
+                                <span> earned their </span>
+                                <strong class="event-belt-name"></strong>
+                                <span>!</span>
+                                <span class="event-belt-detail"></span>
+                            </div>
+                            <small class="text-muted event-time"></small>
+                        </div>
+                    </div>
+                </div>
+            </div>`,
+        
+        dojo_update: `
+            <div class="event-card card mb-3 bg-dark text-white border-secondary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="event-icon me-4" style="min-width: 50px;">
+                            <i class="fas fa-sync-alt fa-2x text-info"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="event-content">
+                                <span class="event-user"></span>
+                                <span> updated </span>
+                                <a class="event-dojo-link" href="#"></a>
+                                <span class="event-update-detail"></span>
+                            </div>
+                            <small class="text-muted event-time"></small>
+                        </div>
+                    </div>
+                </div>
+            </div>`
+    };
+    
     function formatTimestamp(timestamp) {
         return new Date(timestamp).toISOString().slice(0, 19).replace('T', ' ');
     }
@@ -16,65 +121,57 @@
         return link;
     }
     
-    function createBadge(text, colorClass) {
-        const badge = document.createElement('span');
-        badge.className = `badge bg-${colorClass}`;
-        badge.textContent = text;
-        return badge;
-    }
-    
-    function createBeltImage(belt) {
-        const img = document.createElement('img');
-        img.src = `/belt/${belt}.svg`;
-        img.className = 'scoreboard-belt';
-        img.style.cssText = 'height: 1.5em; vertical-align: middle; margin-right: 0.25em;';
-        img.title = belt.charAt(0).toUpperCase() + belt.slice(1) + ' Belt';
-        return img;
-    }
-    
-    function createUserElement(event) {
-        const strong = document.createElement('strong');
-        const userLink = createLink(`/hacker/${event.user_name}`, '');
+    function createUserElement(userName, belt, emojis) {
+        const container = document.createElement('strong');
+        const link = document.createElement('a');
+        link.href = `/hacker/${userName}`;
         
-        if (event.user_belt) {
-            userLink.appendChild(createBeltImage(event.user_belt));
+        if (belt) {
+            const img = document.createElement('img');
+            img.src = `/belt/${belt}.svg`;
+            img.className = 'scoreboard-belt';
+            img.style.cssText = 'height: 1.5em; vertical-align: middle; margin-right: 0.25em;';
+            img.title = belt.charAt(0).toUpperCase() + belt.slice(1) + ' Belt';
+            link.appendChild(img);
         }
         
         const nameSpan = document.createElement('span');
-        nameSpan.textContent = event.user_name;
-        userLink.appendChild(nameSpan);
+        nameSpan.textContent = userName;
+        link.appendChild(nameSpan);
         
-        if (event.user_emojis?.length > 0) {
-            event.user_emojis.slice(0, 3).forEach(emoji => {
-                const emojiSpan = document.createElement('span');
-                emojiSpan.textContent = ' ' + emoji;
-                emojiSpan.title = emoji;
-                userLink.appendChild(emojiSpan);
+        if (emojis?.length > 0) {
+            emojis.slice(0, 3).forEach(emoji => {
+                const span = document.createElement('span');
+                span.textContent = ' ' + emoji;
+                span.title = emoji;
+                link.appendChild(span);
             });
             
-            if (event.user_emojis.length > 3) {
-                const moreSpan = document.createElement('small');
-                moreSpan.className = 'text-muted';
-                moreSpan.textContent = ` +${event.user_emojis.length - 3}`;
-                userLink.appendChild(moreSpan);
+            if (emojis.length > 3) {
+                const more = document.createElement('small');
+                more.className = 'text-muted';
+                more.textContent = ` +${emojis.length - 3}`;
+                link.appendChild(more);
             }
         }
         
-        strong.appendChild(userLink);
-        return strong;
+        container.appendChild(link);
+        return container;
     }
     
-    function createDojoModuleChallengeElement(data) {
+    function createLocationElement(data) {
         const fragment = document.createDocumentFragment();
         
         if (data.dojo_name || data.dojo_id) {
-            fragment.appendChild(createLink(`/dojos/${data.dojo_id}`, data.dojo_name || data.dojo_id));
+            const dojoLink = createLink(`/dojos/${data.dojo_id}`, data.dojo_name || data.dojo_id);
+            fragment.appendChild(dojoLink);
             fragment.appendChild(document.createTextNode(' / '));
         }
         
         if (data.module_name) {
             if (data.dojo_id && data.module_id) {
-                fragment.appendChild(createLink(`/${data.dojo_id}/${data.module_id}`, data.module_name));
+                const moduleLink = createLink(`/${data.dojo_id}/${data.module_id}`, data.module_name);
+                fragment.appendChild(moduleLink);
             } else {
                 fragment.appendChild(document.createTextNode(data.module_name));
             }
@@ -82,166 +179,160 @@
         }
         
         if (data.challenge_name) {
-            const challengeStrong = document.createElement('strong');
+            const strong = document.createElement('strong');
             if (data.dojo_id && data.module_id && data.challenge_id) {
-                const link = createLink(`/${data.dojo_id}/${data.module_id}#${data.challenge_id}`, data.challenge_name);
-                challengeStrong.appendChild(link);
+                const challengeLink = createLink(
+                    `/${data.dojo_id}/${data.module_id}#${data.challenge_id}`,
+                    data.challenge_name
+                );
+                strong.appendChild(challengeLink);
             } else {
-                challengeStrong.textContent = data.challenge_name;
+                strong.textContent = data.challenge_name;
             }
-            fragment.appendChild(challengeStrong);
+            fragment.appendChild(strong);
         }
         
         return fragment;
     }
     
+    function createEventFromTemplate(templateHtml, event) {
+        const temp = document.createElement('div');
+        temp.innerHTML = templateHtml;
+        const card = temp.firstElementChild;
+        card.dataset.eventId = event.id;
+        card.style.opacity = '0';
+        
+        const timeElem = card.querySelector('.event-time');
+        if (timeElem) {
+            timeElem.dataset.timestamp = event.timestamp;
+            timeElem.textContent = formatTimestamp(event.timestamp);
+        }
+        
+        const userElem = card.querySelector('.event-user');
+        if (userElem) {
+            userElem.replaceWith(createUserElement(event.user_name, event.user_belt, event.user_emojis));
+        }
+        
+        return card;
+    }
+    
     const eventRenderers = {
         container_start: (event) => {
-            const content = document.createElement('div');
-            content.appendChild(createUserElement(event));
-            content.appendChild(document.createTextNode(' started a '));
-            content.appendChild(createBadge(event.data.mode, event.data.mode === 'practice' ? 'warning' : 'primary'));
-            content.appendChild(document.createTextNode(' container for '));
-            content.appendChild(createDojoModuleChallengeElement(event.data));
+            const card = createEventFromTemplate(EVENT_TEMPLATES.container_start, event);
             
-            return {
-                icon: '<i class="fas fa-play-circle fa-2x text-primary"></i>',
-                content: content
-            };
+            const modeElem = card.querySelector('.event-mode');
+            modeElem.classList.add(`bg-${event.data.mode === 'practice' ? 'warning' : 'primary'}`);
+            modeElem.textContent = event.data.mode;
+            
+            const locationElem = card.querySelector('.event-location');
+            locationElem.replaceWith(createLocationElement(event.data));
+            
+            return card;
         },
         
         challenge_solve: (event) => {
-            const content = document.createElement('div');
-            content.appendChild(createUserElement(event));
-            content.appendChild(document.createTextNode(' solved '));
-            content.appendChild(createDojoModuleChallengeElement(event.data));
+            const card = createEventFromTemplate(EVENT_TEMPLATES.challenge_solve, event);
             
+            const locationElem = card.querySelector('.event-location');
+            locationElem.replaceWith(createLocationElement(event.data));
+            
+            const firstBloodElem = card.querySelector('.event-first-blood');
             if (event.data.first_blood) {
-                content.appendChild(document.createTextNode(' '));
-                content.appendChild(createBadge('FIRST BLOOD!', 'danger'));
+                firstBloodElem.innerHTML = ' <span class="badge bg-danger">FIRST BLOOD!</span>';
+            } else {
+                firstBloodElem.remove();
             }
             
-            return {
-                icon: '<i class="fas fa-flag-checkered fa-2x text-success"></i>',
-                content: content
-            };
+            return card;
         },
         
         emoji_earned: (event) => {
-            const content = document.createElement('div');
-            content.appendChild(createUserElement(event));
-            content.appendChild(document.createTextNode(' earned the '));
+            const card = createEventFromTemplate(EVENT_TEMPLATES.emoji_earned, event);
             
-            const emojiStrong = document.createElement('strong');
-            emojiStrong.textContent = event.data.emoji;
-            content.appendChild(emojiStrong);
-            content.appendChild(document.createTextNode(' emoji!'));
+            card.querySelector('.event-emoji-icon').textContent = event.data.emoji;
+            card.querySelector('.event-emoji').textContent = event.data.emoji;
             
+            const detailElem = card.querySelector('.event-emoji-detail');
             if (event.data.dojo_name || event.data.dojo_id) {
                 const br = document.createElement('br');
                 const small = document.createElement('small');
                 small.className = 'text-muted';
                 small.appendChild(document.createTextNode('Completed '));
                 small.appendChild(createLink(`/dojos/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
-                content.appendChild(br);
-                content.appendChild(small);
+                
+                detailElem.appendChild(br);
+                detailElem.appendChild(small);
             } else if (event.data.reason) {
                 const br = document.createElement('br');
                 const small = document.createElement('small');
                 small.className = 'text-muted';
                 small.textContent = event.data.reason;
-                content.appendChild(br);
-                content.appendChild(small);
+                
+                detailElem.appendChild(br);
+                detailElem.appendChild(small);
+            } else {
+                detailElem.remove();
             }
             
-            return {
-                icon: `<span style="font-size: 2em;">${event.data.emoji}</span>`,
-                content: content
-            };
+            return card;
         },
         
         belt_earned: (event) => {
-            const content = document.createElement('div');
-            content.appendChild(createUserElement(event));
-            content.appendChild(document.createTextNode(' earned their '));
+            const card = createEventFromTemplate(EVENT_TEMPLATES.belt_earned, event);
             
-            const beltStrong = document.createElement('strong');
-            beltStrong.textContent = event.data.belt_name;
-            content.appendChild(beltStrong);
-            content.appendChild(document.createTextNode('!'));
+            card.querySelector('.event-belt-name').textContent = event.data.belt_name;
             
+            const detailElem = card.querySelector('.event-belt-detail');
             if (event.data.dojo_name || event.data.dojo_id) {
                 const br = document.createElement('br');
                 const small = document.createElement('small');
                 small.className = 'text-muted';
                 small.appendChild(document.createTextNode('Completed '));
                 small.appendChild(createLink(`/dojos/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
-                content.appendChild(br);
-                content.appendChild(small);
+                
+                detailElem.appendChild(br);
+                detailElem.appendChild(small);
+            } else {
+                detailElem.remove();
             }
             
-            return {
-                icon: '<i class="fas fa-award fa-2x text-warning"></i>',
-                content: content
-            };
+            return card;
         },
         
         dojo_update: (event) => {
-            const content = document.createElement('div');
-            content.appendChild(createUserElement(event));
-            content.appendChild(document.createTextNode(' updated '));
-            content.appendChild(createLink(`/dojos/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
+            const card = createEventFromTemplate(EVENT_TEMPLATES.dojo_update, event);
             
+            const dojoLink = card.querySelector('.event-dojo-link');
+            dojoLink.href = `/dojos/${event.data.dojo_id}`;
+            dojoLink.textContent = event.data.dojo_name || event.data.dojo_id;
+            
+            const detailElem = card.querySelector('.event-update-detail');
             if (event.data.summary) {
                 const br = document.createElement('br');
                 const small = document.createElement('small');
                 small.className = 'text-muted';
                 small.textContent = event.data.summary;
-                content.appendChild(br);
-                content.appendChild(small);
+                
+                detailElem.appendChild(br);
+                detailElem.appendChild(small);
+            } else {
+                detailElem.remove();
             }
             
-            return {
-                icon: '<i class="fas fa-sync-alt fa-2x text-info"></i>',
-                content: content
-            };
+            return card;
         }
     };
     
     function createEventCard(event) {
-        const card = document.createElement('div');
-        card.className = 'event-card card mb-3 bg-dark text-white border-secondary';
-        card.dataset.eventId = event.id;
-        card.style.opacity = '0';
-        
         const renderer = eventRenderers[event.type];
-        if (!renderer) return card;
-        
-        const {icon, content} = renderer(event);
-        
-        // Create structure with innerHTML (trusted HTML only)
-        card.innerHTML = `
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="event-icon me-4" style="min-width: 50px;">${icon}</div>
-                    <div class="flex-grow-1">
-                        <div class="event-content"></div>
-                        <small class="text-muted event-time" data-timestamp="${event.timestamp}">
-                            ${formatTimestamp(event.timestamp)}
-                        </small>
-                    </div>
-                </div>
-            </div>`;
-        
-        // Append the content DOM element (with user data safely inserted)
-        const contentDiv = card.querySelector('.event-content');
-        if (content instanceof Node) {
-            contentDiv.appendChild(content);
-        } else {
-            contentDiv.textContent = content;
+        if (!renderer) {
+            const card = document.createElement('div');
+            card.className = 'event-card card mb-3 bg-dark text-white border-secondary';
+            card.dataset.eventId = event.id;
+            return card;
         }
         
-        return card;
+        return renderer(event);
     }
     
     function addEvent(event) {
