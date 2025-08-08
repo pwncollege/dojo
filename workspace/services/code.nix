@@ -51,7 +51,7 @@ let
         --extensions-dir=$EXTENSIONS_DIR \
         --config=/dev/null
 
-    until ${pkgs.curl}/bin/curl -s localhost:8080 >/dev/null; do sleep 0.1; done
+    until ${pkgs.curl}/bin/curl -fs localhost:8080 >/dev/null; do sleep 0.1; done
   '';
 
 in pkgs.stdenv.mkDerivation {

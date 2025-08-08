@@ -2,7 +2,7 @@
 
 mount --make-shared /
 
-data_mount_options="$(findmnt -no OPTIONS /data)"
+data_mount_options="$(findmnt -nro OPTIONS -- /data)"
 if [ "$?" -ne 0 ]; then
     echo "[+] Creating data storage"
     truncate -s 32G /data.img
@@ -15,7 +15,7 @@ if [ "$?" -ne 0 ]; then
     fi
     losetup "$loop_device" /data.img
     mount --options X-mount.mkdir "$loop_device" /data
-elif printf '%s' "$data_mount_options" | grep -q '\bnosuid\b'; then
+elif printf '%s' "$data_mount_options" | grep -Fqw 'nosuid'; then
     echo "[+] Remounting /data with suid enabled"
     mount --options remount,suid /data
 fi
@@ -92,7 +92,7 @@ mkdir -p /data/workspacefs/bin
 mkdir -p /data/ctfd-ipython
 
 mkdir -p /data/homes
-if [ "$(findmnt -n -o FSTYPE /data/homes)" != "btrfs" ] && [ "$(findmnt -n -o FSTYPE /data)" != "btrfs" ]; then
+if [ "$(findmnt -nro FSTYPE -- /data/homes)" != "btrfs" ] && [ "$(findmnt -nro FSTYPE -- /data)" != "btrfs" ]; then
     if [ ! -f /data/homes/btrfs.img ]; then
         echo "[+] Creating home storage"
         truncate -s 256G /data/homes/btrfs.img

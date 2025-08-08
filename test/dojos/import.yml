@@ -1,0 +1,6 @@
+id: import
+type: topic
+modules:
+  - import:
+      dojo: example
+      module: hello

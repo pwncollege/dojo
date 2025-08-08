@@ -1,0 +1,10 @@
+id: privileged-dojo
+modules:
+  - id: test
+    challenges:
+      - id: test
+        privileged: true
+        import:
+          dojo: example
+          module: world
+          challenge: earth
