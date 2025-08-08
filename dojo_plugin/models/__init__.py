@@ -434,21 +434,21 @@ class DojoModules(db.Model):
     @property
     def assessments(self):
         return [assessment for assessment in (self.dojo.course or {}).get("assessments", []) if assessment.get("id") == self.id]
-    
+
     @property
     def unified_items(self):
         items = []
-        
+
         for resource in self.resources:
             items.append((resource.resource_index, resource))
-        
+
         for challenge in self.challenges:
             if challenge.unified_index is not None:
                 index = challenge.unified_index
             else:
                 index = 1000 + challenge.challenge_index
             items.append((index, challenge))
-        
+
         items.sort(key=lambda x: x[0])
         return [item for _, item in items]
 
@@ -498,8 +498,9 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index"]
+    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index"]
     data_defaults = {
+        "privileged": False,
         "importable": True,
         "allow_privileged": True,
         "progression_locked": False,
@@ -570,7 +571,7 @@ class DojoChallenges(db.Model):
             SurveyResponses.dojo_id == self.dojo_id,
             SurveyResponses.challenge_id == self.challenge_id
             )
-        
+
         if user is not None:
             result = result.filter(SurveyResponses.user_id == user.id)
 
@@ -651,12 +652,12 @@ class DojoChallenges(db.Model):
 
 class SurveyResponses(db.Model):
     __tablename__ = "survey_responses"
-    
+
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     dojo_id = db.Column(db.Integer, nullable=False)
     challenge_id = db.Column(db.Integer, index=True, nullable=False)
     user_id = db.Column(db.Integer, nullable=False)
-    
+
     prompt = db.Column(db.Text, nullable=False)
     response = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)

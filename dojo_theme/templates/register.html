@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% set commitment_text = "I have read the ground rules and commit to not publish pwn.college writeups on the internet." %}
+
 {% block content %}
 <div class="jumbotron">
 	<div class="container">
@@ -22,10 +24,22 @@
       If you find a vulnerability in this platform, please <a href="mailto:pwn-college@asu.edu">email</a> us rather than pwn us.
       We'll appreciate it, and you'll get extra credit (if you're an ASU student) or an awesome scoreboard award!</p>
 
+			<div class="form-group" id="commitment-section">
+				<div class="alert alert-warning">
+					To register, please type the following commitment exactly as shown:
+					<br><br>
+					<strong id="commitment-text">{{ commitment_text }}</strong>
+				</div>
+				<input type="text" id="commitment-input" class="form-control" placeholder="Type the commitment above" autocomplete="off">
+				<small class="form-text text-muted" id="commitment-feedback">
+					Please type the commitment exactly as shown above to enable registration
+				</small>
+			</div>
+
       <h2>Sign Up!</h2>
 			{% with form = Forms.auth.RegistrationForm() %}
 			{% from "macros/forms.html" import render_extra_fields %}
-			<form method="post" accept-charset="utf-8" autocomplete="off" role="form">
+			<form method="post" accept-charset="utf-8" autocomplete="off" role="form" id="registration-form">
 				<div class="form-group">
 					<b>{{ form.name.label }}</b>
 					{{ form.name(class="form-control", value=name) }}
@@ -47,13 +61,16 @@
 						Password used to log into your account
 					</small>
 				</div>
+
 				{{ form.nonce() }}
+				
+				<input type="hidden" id="commitment-verified" name="commitment_verified" value="">
 
 				{{ render_extra_fields(form.extra) }}
 
 				<div class="row pt-3">
 					<div class="col-md-12">
-						{{ form.submit(class="btn btn-md btn-primary btn-outlined float-right") }}
+						{{ form.submit(class="btn btn-md btn-primary btn-outlined float-right btn-disabled", id="register-submit", style="opacity: 0.5; cursor: not-allowed;") }}
 					</div>
 				</div>
 
@@ -76,4 +93,108 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const commitmentText = {{ commitment_text | tojson }};
+    const commitmentInput = document.getElementById('commitment-input');
+    const commitmentFeedback = document.getElementById('commitment-feedback');
+    const registerButton = document.getElementById('register-submit');
+    const registerForm = document.getElementById('registration-form');
+    const commitmentVerifiedField = document.getElementById('commitment-verified');
+    let commitmentValid = false;
+    
+    function normalizeText(text) {
+        return text.toLowerCase().replace(/[^a-z]/g, '').split('').sort().join('');
+    }
+    
+    function validateCommitment() {
+        const userInput = commitmentInput.value.trim();
+        
+        if (userInput === '') {
+            commitmentValid = false;
+            commitmentVerifiedField.value = '';
+            commitmentInput.classList.remove('is-valid', 'is-invalid');
+            commitmentFeedback.textContent = 'Please type the commitment exactly as shown above to enable registration';
+            commitmentFeedback.classList.remove('text-success', 'text-danger');
+            commitmentFeedback.classList.add('text-muted');
+            
+            registerButton.style.opacity = '0.5';
+            registerButton.style.cursor = 'not-allowed';
+            registerButton.classList.add('btn-disabled');
+        } else {
+            const normalizedUser = normalizeText(userInput);
+            const normalizedCommitment = normalizeText(commitmentText);
+            
+            if (normalizedUser === normalizedCommitment) {
+                commitmentValid = true;
+                commitmentVerifiedField.value = 'verified';
+                commitmentInput.classList.remove('is-invalid');
+                commitmentInput.classList.add('is-valid');
+                commitmentFeedback.textContent = 'Thank you for helping keep pwn.college viable!';
+                commitmentFeedback.classList.remove('text-muted', 'text-danger');
+                commitmentFeedback.classList.add('text-success');
+                
+                registerButton.style.opacity = '1';
+                registerButton.style.cursor = 'pointer';
+                registerButton.classList.remove('btn-disabled');
+            } else {
+                commitmentValid = false;
+                commitmentVerifiedField.value = '';
+                commitmentInput.classList.remove('is-valid');
+                commitmentInput.classList.add('is-invalid');
+                commitmentFeedback.textContent = 'Please type the commitment as shown above';
+                commitmentFeedback.classList.remove('text-muted', 'text-success');
+                commitmentFeedback.classList.add('text-danger');
+                
+                registerButton.style.opacity = '0.5';
+                registerButton.style.cursor = 'not-allowed';
+                registerButton.classList.add('btn-disabled');
+            }
+        }
+    }
+    
+    function showCommitmentReminder() {
+        alert('Please type the commitment exactly as shown to enable registration.');
+        document.getElementById('commitment-section').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        commitmentInput.focus();
+        commitmentInput.style.animation = 'shake 0.5s';
+        setTimeout(() => {
+            commitmentInput.style.animation = '';
+        }, 500);
+    }
+    
+    commitmentInput.addEventListener('input', validateCommitment);
+    commitmentInput.addEventListener('paste', function() {
+        setTimeout(validateCommitment, 10);
+    });
+    
+    registerForm.addEventListener('submit', function(e) {
+        if (!commitmentValid) {
+            e.preventDefault();
+            e.stopPropagation();
+            showCommitmentReminder();
+            return false;
+        }
+        return true;
+    });
+    
+    registerButton.addEventListener('click', function(e) {
+        if (!commitmentValid) {
+            e.preventDefault();
+            e.stopPropagation();
+            showCommitmentReminder();
+            return false;
+        }
+    });
+    
+    validateCommitment();
+});
+</script>
 {% endblock %}

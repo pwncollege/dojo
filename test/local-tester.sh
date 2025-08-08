@@ -7,14 +7,15 @@ DEFAULT_CONTAINER_NAME="local-${REPO_DIR}"
 
 function usage {
 	set +x
-	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -T ] [ -p ] [ -e ENV_VAR=value ] [ -b ] [ -M ] [ -g ]"
+	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -T ] [ -N ] [ -p ] [ -e ENV_VAR=value ] [ -b ] [ -M ] [ -g ]"
 	echo ""
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: local-<dirname>)"
-	echo "	-D	specify a directory for /data/docker (to avoid rebuilds)"
-	echo "	-W	specify a directory for /data/workspace (to avoid rebuilds)"
+	echo "	-D	specify a directory for /data/docker to avoid rebuilds (default: ./cache/docker; specify as blank to disable)"
+	echo "	-W	specify a directory for /data/workspace to avoid rebuilds (default: ./cache/workspace; specify as blank to disable)"
 	echo "	-T	don't run tests"
-	echo "	-p	export ports (80->80, 443->443, 22->2222)"
+	echo "	-N	don't (re)start the dojo"
+	echo "	-P	export ports (80->80, 443->443, 22->2222)"
 	echo "	-e	set environment variable (can be used multiple times)"
 	echo "	-b	build the Docker image locally (tag: same as container name)"
 	echo "	-M	run in multi-node mode (3 containers: 1 main + 2 workspace nodes)"
@@ -30,7 +31,7 @@ function cleanup_container {
 	while docker ps -a | grep "$CONTAINER$"; do sleep 1; done
 
 	# freaking bad unmount
-	sleep 4
+	mount | grep /tmp/local-data-${CONTAINER}-....../ && sleep 4
 	mount | grep /tmp/local-data-${CONTAINER}-....../ | sed -e "s/.* on //" | sed -e "s/ .*//" | tac | while read ENTRY
 	do
 		sudo umount "$ENTRY" || echo "Failed ^"
@@ -64,13 +65,14 @@ ENV_ARGS=( )
 DB_RESTORE=""
 DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
 TEST=yes
-DOCKER_DIR=""
-WORKSPACE_DIR=""
+DOCKER_DIR="./cache/docker"
+WORKSPACE_DIR="./cache/workspace"
 EXPORT_PORTS=no
 BUILD_IMAGE=no
 MULTINODE=no
 GITHUB_ACTIONS=no
-while getopts "r:c:he:TD:W:pbMg" OPT
+START=yes
+while getopts "r:c:he:TD:W:PbMgN" OPT
 do
 	case $OPT in
 		r) DB_RESTORE="$OPTARG" ;;
@@ -83,6 +85,7 @@ do
 		b) BUILD_IMAGE=yes ;;
 		M) MULTINODE=yes ;;
 		g) GITHUB_ACTIONS=yes ;;
+		N) START=no ;;
 		h) usage ;;
 		?)
 			OPTIND=$(($OPTIND-1))
@@ -94,8 +97,10 @@ shift $((OPTIND-1))
 
 export DOJO_CONTAINER
 
-cleanup_container $DOJO_CONTAINER
-if [ "$MULTINODE" == "yes" ]; then
+if [ "$START" == "yes" ]; then
+	cleanup_container $DOJO_CONTAINER
+
+	# just in case a previous run was multinode...
 	cleanup_container $DOJO_CONTAINER-node1
 	cleanup_container $DOJO_CONTAINER-node2
 fi
@@ -110,7 +115,9 @@ MAIN_NODE_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared"
 [ -n "$WORKSPACE_DIR" ] && MAIN_NODE_VOLUME_ARGS+=( "-v" "$WORKSPACE_DIR:/data/workspace:shared" )
 if [ -n "$DOCKER_DIR" ]; then
 	MAIN_NODE_VOLUME_ARGS+=( "-v" "$DOCKER_DIR:/data/docker" )
-	sudo rm -rf $DOCKER_DIR/{containers,volumes}
+	if [ "$START" == "yes" ]; then
+		sudo rm -rf $DOCKER_DIR/{containers,volumes}
+	fi
 fi
 
 if [ "$MULTINODE" == "yes" ]; then
@@ -121,8 +128,10 @@ if [ "$MULTINODE" == "yes" ]; then
 	if [ -n "$DOCKER_DIR" ]; then
 		NODE1_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node1:/data/docker")
 		NODE2_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node2:/data/docker")
-		sudo rm -rf $DOCKER_DIR-node1/{containers,volumes}
-		sudo rm -rf $DOCKER_DIR-node2/{containers,volumes}
+		if [ "$START" == "yes" ]; then
+			sudo rm -rf $DOCKER_DIR-node1/{containers,volumes}
+			sudo rm -rf $DOCKER_DIR-node2/{containers,volumes}
+		fi
 	fi
 fi
 
@@ -143,17 +152,28 @@ MULTINODE_ARGS=()
 [ "$MULTINODE" == "yes" ] && MULTINODE_ARGS+=("-e" "WORKSPACE_NODE=0")
 
 log_newgroup "Starting main dojo container"
-docker run --rm --privileged -d "${MAIN_NODE_VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" "${PORT_ARGS[@]}" "${MULTINODE_ARGS[@]}" --name "$DOJO_CONTAINER" "$IMAGE_NAME" || exit 1
+if [ "$START" == "yes" ]; then
+	docker run --rm --privileged -d \
+		"${MAIN_NODE_VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" "${PORT_ARGS[@]}" "${MULTINODE_ARGS[@]}" \
+		--name "$DOJO_CONTAINER" "$IMAGE_NAME" \
+		|| exit 1
+fi
 CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER")
-fix_insane_routing "$DOJO_CONTAINER"
+if [ "$START" == "yes" ]; then
+	fix_insane_routing "$DOJO_CONTAINER"
+	docker exec "$DOJO_CONTAINER" dojo wait
+fi
 
-docker exec "$DOJO_CONTAINER" dojo wait
 docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
 docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 log_endgroup
 
-if [ "$MULTINODE" == "yes" ]; then
+if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	log_newgroup "Setting up multi-node cluster"
+	
+	# Disconnect nginx-proxy from workspace_net for multinode routing to work
+	docker exec "$DOJO_CONTAINER" docker network disconnect workspace_net nginx-proxy 2>/dev/null || true
+	
 	docker exec "$DOJO_CONTAINER" dojo-node refresh
 	MAIN_KEY=$(docker exec "$DOJO_CONTAINER" cat /data/wireguard/publickey)
 	
@@ -192,42 +212,20 @@ if [ "$MULTINODE" == "yes" ]; then
 	
 	docker exec "$DOJO_CONTAINER" dojo-node add 1 "$NODE1_KEY"
 	docker exec "$DOJO_CONTAINER" dojo-node add 2 "$NODE2_KEY"
+	sleep 5
+	docker exec "$DOJO_CONTAINER" dojo compose restart ctfd sshd
+	sleep 5
+	docker exec "$DOJO_CONTAINER" dojo wait
 
 	docker exec "$DOJO_CONTAINER-node1" docker pull pwncollege/challenge-simple
 	docker exec "$DOJO_CONTAINER-node1" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 	docker exec "$DOJO_CONTAINER-node2" docker pull pwncollege/challenge-simple
 	docker exec "$DOJO_CONTAINER-node2" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 
-	# this is needed for the main node to understand that it's in multi-node mode
-	docker exec "$DOJO_CONTAINER" dojo up
-	docker exec "$DOJO_CONTAINER-node1" dojo up
-	docker exec "$DOJO_CONTAINER-node2" dojo up
-	
-	# Fix routing for user containers on workspace nodes
-	log_newgroup "Configuring multi-node networking"
-	
-	# Enable IP forwarding on all nodes
-	docker exec "$DOJO_CONTAINER" sysctl -w net.ipv4.ip_forward=1
-	docker exec "$DOJO_CONTAINER-node1" sysctl -w net.ipv4.ip_forward=1
-	docker exec "$DOJO_CONTAINER-node2" sysctl -w net.ipv4.ip_forward=1
-	
-	# Fix routes on main node to match production (direct to wg0, not via specific IP)
-	docker exec "$DOJO_CONTAINER" bash -c "ip route del 10.16.0.0/12 2>/dev/null || true"
-	docker exec "$DOJO_CONTAINER" bash -c "ip route del 10.32.0.0/12 2>/dev/null || true"
-	docker exec "$DOJO_CONTAINER" ip route add 10.16.0.0/12 dev wg0
-	docker exec "$DOJO_CONTAINER" ip route add 10.32.0.0/12 dev wg0
-	
-	# Add the critical MASQUERADE rule from production for the entire 10.0.0.0/8 network
-	docker exec "$DOJO_CONTAINER" bash -c "iptables -t nat -C POSTROUTING -s 10.0.0.0/8 -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s 10.0.0.0/8 -j MASQUERADE"
-	
-	# Wait a moment for routes to settle
-	sleep 10
-	
 	log_endgroup
 fi
 
-if [ -n "$DB_RESTORE" ]
-then
+if [ -n "$DB_RESTORE" ]; then
 	log_newgroup "Restoring database backup"
 	BASENAME=$(basename $DB_RESTORE)
 	docker exec "$DOJO_CONTAINER" mkdir -p /data/backups/
@@ -245,6 +243,6 @@ log_endgroup
 if [ "$TEST" == "yes" ]; then
 	log_newgroup "Running tests"
 	export MOZ_HEADLESS=1
-	pytest --order-dependencies -v test "$@"
+	pytest --order-dependencies --timeout=60 -v test "$@"
 	log_endgroup
 fi
