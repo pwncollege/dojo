@@ -45,7 +45,7 @@ def create_event(event_type: str, user: Users, data: Dict[str, Any]) -> Optional
         r.publish("activity_feed:live", json.dumps(event))
         
         return event["id"]
-    except:
+    except (redis.RedisError, redis.ConnectionError):
         return None
 
 def get_recent_events(limit: int = 50, offset: int = 0):
@@ -55,7 +55,7 @@ def get_recent_events(limit: int = 50, offset: int = 0):
         r.zremrangebyscore("activity_feed:events", "-inf", time.time() - FEED_EVENT_TTL)
         events = r.zrevrange("activity_feed:events", offset, offset + limit - 1)
         return [json.loads(e) for e in events]
-    except:
+    except (redis.RedisError, redis.ConnectionError, json.JSONDecodeError):
         return []
 
 def publish_container_start(user: Users, mode: str, challenge_data: Dict) -> Optional[str]:

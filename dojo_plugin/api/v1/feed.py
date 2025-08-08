@@ -10,8 +10,11 @@ feed_namespace = Namespace("feed", description="Activity feed endpoints")
 @feed_namespace.route("/events")
 class FeedEvents(Resource):
     def get(self):
-        limit = min(int(request.args.get("limit", 50)), 100)
-        offset = int(request.args.get("offset", 0))
+        try:
+            limit = min(int(request.args.get("limit", 50)), 100)
+            offset = max(int(request.args.get("offset", 0)), 0)
+        except (ValueError, TypeError):
+            limit, offset = 50, 0
         events = get_recent_events(limit=limit, offset=offset)
         return {"success": True, "data": events, "meta": {"limit": limit, "offset": offset, "count": len(events)}}
 
@@ -35,14 +38,15 @@ class FeedStream(Resource):
                     if message and message['type'] == 'message':
                         try:
                             yield f"data: {message['data']}\n\n"
-                        except: pass
+                        except (TypeError, ValueError):
+                            continue
                     if time.time() - last_heartbeat > 30:
                         yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
                         last_heartbeat = time.time()
             except GeneratorExit:
                 pubsub.close()
                 raise
-            except:
+            except Exception:
                 pubsub.close()
                 
         return Response(generate(), mimetype="text/event-stream",
