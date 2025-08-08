@@ -47,6 +47,16 @@
         </h3>
       {% endfor %}
 
+      {% if discord_member and user_privacy.show_discord %}
+        <h3 class="d-inline-block">
+          <span class="badge badge-secondary">
+            <img src="{{ url_for('views.themes', path='img/dojo/discord_logo.svg') }}" 
+                 style="width: 16px; height: 16px; margin-right: 5px;">
+            {{ discord_member.user.username }}
+          </span>
+        </h3>
+      {% endif %}
+
       <div class="pt-3">
         {% if user.website %}
           <a href="{{ user.website }}" target="_blank" style="color: inherit;" rel="noopener">
@@ -74,12 +84,17 @@
       </a>
       {% endif %}
     </div>
+      {% if user_privacy.show_activity %}
       <div id="activity-tracker" user-id="{{ user.id }}"></div> 
+      {% endif %}
   </div>
+  {% if user_privacy.show_activity %}
   <script defer src="{{ url_for('views.themes', path='js/dojo/activity.js') }}"></script>
+  {% endif %}
   {% block scripts %}
   {% endblock %}
   
+  {% if user_privacy.show_solve_data %}
   <div class="container">
     {% for dojo in dojos if dojo_scores.user_ranks[user.id] and dojo_scores.user_ranks[user.id][dojo.id] %}
       {% set rank = dojo_scores.user_ranks[user.id][dojo.id] %}
@@ -155,4 +170,6 @@
       </style>
       <br>
     {% endfor %}
+  </div>
+  {% endif %}
 {% endblock %}

@@ -10,9 +10,10 @@ from CTFd.utils.decorators import authed_only
 from CTFd.models import db, Users, Challenges, Solves
 from CTFd.cache import cache
 
-from ..models import Dojos, DojoModules, DojoChallenges
+from ..models import Dojos, DojoModules, DojoChallenges, DiscordUsers, UserPrivacySettings
 from ..utils.scores import dojo_scores, module_scores
 from ..utils.awards import get_belts, get_viewable_emojis
+from ..utils.discord import get_discord_member
 
 
 users = Blueprint("pwncollege_users", __name__)
@@ -39,12 +40,20 @@ def view_hacker(user, bypass_hidden=False):
                 user_solves[dojo_id][module_id] = {
                     solve.challenge_id: solve.date.strftime("%Y-%m-%d %H:%M:%S") for solve in solves
                 }
+    
+    discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
+    discord_member = get_discord_member(discord_user.discord_id) if discord_user else None
+    
+    user_privacy = UserPrivacySettings.get_or_create(user.id)
+    
     return render_template(
         "hacker.html",
         dojos=dojos, user=user,
         dojo_scores=dojo_scores(), module_scores=module_scores(),
         belts=get_belts(), badges=get_viewable_emojis(get_current_user()),
-        user_solves=user_solves
+        user_solves=user_solves,
+        discord_member=discord_member,
+        user_privacy=user_privacy
     )
 
 @users.route("/hacker/<int:user_id>")

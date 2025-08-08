@@ -886,6 +886,29 @@ class WorkspaceTokens(db.Model):
         return f"<{self.__class__.__name__} {self.id!r}>"
 
 
+class UserPrivacySettings(db.Model):
+    __tablename__ = "user_privacy_settings"
+    
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    show_discord = db.Column(db.Boolean, default=True, nullable=False)
+    show_activity = db.Column(db.Boolean, default=True, nullable=False)  
+    show_solve_data = db.Column(db.Boolean, default=True, nullable=False)
+    show_username_in_activity = db.Column(db.Boolean, default=True, nullable=False)
+    
+    user = db.relationship("Users")
+    
+    @classmethod
+    def get_or_create(cls, user_id):
+        settings = cls.query.filter_by(user_id=user_id).first()
+        if not settings:
+            settings = cls(user_id=user_id)
+            db.session.add(settings)
+            db.session.commit()
+        return settings
+    
+    __repr__ = columns_repr(["user_id", "show_discord", "show_activity", "show_solve_data", "show_username_in_activity"])
+
+
 for deferral in deferred_definitions:
     deferral()
 del deferred_definitions

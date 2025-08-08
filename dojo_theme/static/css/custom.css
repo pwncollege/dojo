@@ -1062,3 +1062,76 @@ code {
         background-color: rgba(0, 0, 0, 0.8);
     }
 }
+
+/* Hacker dropdown styles */
+.total-hackers-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.total-hackers {
+    cursor: help;
+    border-bottom: 1px dashed var(--brand-light-gray);
+}
+
+.hacker-list-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 10px 15px;
+    margin-top: 0;
+    min-width: 200px;
+    max-width: 300px;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    line-height: 1.6;
+}
+
+.total-hackers-wrapper:hover .hacker-list-dropdown {
+    display: block;
+}
+
+/* Invisible bridge to maintain hover between text and dropdown */
+.hacker-list-dropdown::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 0;
+    right: 0;
+    height: 5px;
+}
+
+.hacker-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 0;
+}
+
+.hacker-link {
+    color: var(--brand-blue);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.hacker-link:hover {
+    color: var(--brand-gold);
+    text-decoration: underline;
+}
+
+.hacker-duration {
+    color: var(--brand-light-gray);
+    font-size: 0.85em;
+    margin-left: 10px;
+}
+
+.more-hackers {
+    color: var(--brand-light-gray);
+    font-style: italic;
+    font-size: 0.9em;
+}
