@@ -5,94 +5,207 @@
     const MAX_RECONNECT_ATTEMPTS = 10;
     const RECONNECT_DELAY = 3000;
     
-    function escapeHtml(unsafe) {
-        if (!unsafe) return '';
-        return String(unsafe)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-    
     function formatTimestamp(timestamp) {
         return new Date(timestamp).toISOString().slice(0, 19).replace('T', ' ');
     }
     
-    function renderLink(href, text, escape = true) {
-        if (!href) return escape ? escapeHtml(text) : text;
-        return `<a href="${escapeHtml(href)}">${escape ? escapeHtml(text) : text}</a>`;
+    function createLink(href, text) {
+        const link = document.createElement('a');
+        link.href = href;
+        link.textContent = text;
+        return link;
     }
     
-    function renderDojoLink(data) {
-        const name = data.dojo_name || data.dojo_id;
-        return name ? renderLink(`/dojos/${data.dojo_id}`, name) + ' / ' : '';
+    function createBadge(text, colorClass) {
+        const badge = document.createElement('span');
+        badge.className = `badge bg-${colorClass}`;
+        badge.textContent = text;
+        return badge;
     }
     
-    function renderModuleLink(data) {
-        if (!data.module_name) return '';
-        const href = data.dojo_id && data.module_id ? `/${data.dojo_id}/${data.module_id}` : null;
-        return renderLink(href, data.module_name) + ' / ';
+    function createBeltImage(belt) {
+        const img = document.createElement('img');
+        img.src = `/belt/${belt}.svg`;
+        img.className = 'scoreboard-belt';
+        img.style.cssText = 'height: 1.5em; vertical-align: middle; margin-right: 0.25em;';
+        img.title = belt.charAt(0).toUpperCase() + belt.slice(1) + ' Belt';
+        return img;
     }
     
-    function renderChallengeLink(data) {
-        const href = data.dojo_id && data.module_id && data.challenge_id 
-            ? `/${data.dojo_id}/${data.module_id}#${data.challenge_id}` : null;
-        return renderLink(href, `<strong>${escapeHtml(data.challenge_name)}</strong>`, false);
-    }
-    
-    function formatUserName(event) {
-        let html = '';
+    function createUserElement(event) {
+        const strong = document.createElement('strong');
+        const userLink = createLink(`/hacker/${event.user_name}`, '');
+        
         if (event.user_belt) {
-            const title = event.user_belt.charAt(0).toUpperCase() + event.user_belt.slice(1) + ' Belt';
-            html += `<img src="/belt/${event.user_belt}.svg" class="scoreboard-belt" 
-                     style="height: 1.5em; vertical-align: middle; margin-right: 0.25em;" title="${title}"> `;
+            userLink.appendChild(createBeltImage(event.user_belt));
         }
-        html += escapeHtml(event.user_name);
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = event.user_name;
+        userLink.appendChild(nameSpan);
+        
         if (event.user_emojis?.length > 0) {
-            event.user_emojis.slice(0, 3).forEach(e => html += ` <span title="${e}">${e}</span>`);
-            if (event.user_emojis.length > 3) html += ` <small class="text-muted">+${event.user_emojis.length - 3}</small>`;
+            event.user_emojis.slice(0, 3).forEach(emoji => {
+                const emojiSpan = document.createElement('span');
+                emojiSpan.textContent = ' ' + emoji;
+                emojiSpan.title = emoji;
+                userLink.appendChild(emojiSpan);
+            });
+            
+            if (event.user_emojis.length > 3) {
+                const moreSpan = document.createElement('small');
+                moreSpan.className = 'text-muted';
+                moreSpan.textContent = ` +${event.user_emojis.length - 3}`;
+                userLink.appendChild(moreSpan);
+            }
         }
-        return html;
+        
+        strong.appendChild(userLink);
+        return strong;
     }
     
-    function renderUser(event) {
-        return `<strong>${renderLink(`/hacker/${event.user_name}`, formatUserName(event), false)}</strong>`;
+    function createDojoModuleChallengeElement(data) {
+        const fragment = document.createDocumentFragment();
+        
+        if (data.dojo_name || data.dojo_id) {
+            fragment.appendChild(createLink(`/dojos/${data.dojo_id}`, data.dojo_name || data.dojo_id));
+            fragment.appendChild(document.createTextNode(' / '));
+        }
+        
+        if (data.module_name) {
+            if (data.dojo_id && data.module_id) {
+                fragment.appendChild(createLink(`/${data.dojo_id}/${data.module_id}`, data.module_name));
+            } else {
+                fragment.appendChild(document.createTextNode(data.module_name));
+            }
+            fragment.appendChild(document.createTextNode(' / '));
+        }
+        
+        if (data.challenge_name) {
+            const challengeStrong = document.createElement('strong');
+            if (data.dojo_id && data.module_id && data.challenge_id) {
+                const link = createLink(`/${data.dojo_id}/${data.module_id}#${data.challenge_id}`, data.challenge_name);
+                challengeStrong.appendChild(link);
+            } else {
+                challengeStrong.textContent = data.challenge_name;
+            }
+            fragment.appendChild(challengeStrong);
+        }
+        
+        return fragment;
     }
     
     const eventRenderers = {
-        container_start: (event) => ({
-            icon: '<i class="fas fa-play-circle fa-2x text-primary"></i>',
-            content: `${renderUser(event)} started a 
-                <span class="badge bg-${event.data.mode === 'practice' ? 'warning' : 'primary'}">${escapeHtml(event.data.mode)}</span>
-                container for ${renderDojoLink(event.data)}${renderModuleLink(event.data)}${renderChallengeLink(event.data)}`
-        }),
-        challenge_solve: (event) => ({
-            icon: '<i class="fas fa-flag-checkered fa-2x text-success"></i>',
-            content: `${renderUser(event)} solved ${renderDojoLink(event.data)}${renderModuleLink(event.data)}${renderChallengeLink(event.data)}
-                ${event.data.first_blood ? ' <span class="badge bg-danger">FIRST BLOOD!</span>' : ''}`
-        }),
-        emoji_earned: (event) => ({
-            icon: `<span style="font-size: 2em;">${event.data.emoji}</span>`,
-            content: `${renderUser(event)} earned the <strong>${event.data.emoji}</strong> emoji!
-                ${event.data.dojo_name || event.data.dojo_id ? 
-                    `<br><small class="text-muted">Completed ${renderLink(`/dojos/${event.data.dojo_id}`, 
-                     event.data.dojo_name || event.data.dojo_id)}</small>` :
-                    `<br><small class="text-muted">${escapeHtml(event.data.reason)}</small>`}`
-        }),
-        belt_earned: (event) => ({
-            icon: '<i class="fas fa-award fa-2x text-warning"></i>',
-            content: `${renderUser(event)} earned their <strong>${escapeHtml(event.data.belt_name)}</strong>!
-                ${event.data.dojo_name || event.data.dojo_id ? 
-                    `<br><small class="text-muted">Completed ${renderLink(`/dojos/${event.data.dojo_id}`,
-                     event.data.dojo_name || event.data.dojo_id)}</small>` : ''}`
-        }),
-        dojo_update: (event) => ({
-            icon: '<i class="fas fa-sync-alt fa-2x text-info"></i>',
-            content: `${renderUser(event)} updated ${renderLink(`/dojos/${event.data.dojo_id}`, 
-                event.data.dojo_name || event.data.dojo_id)}
-                <br><small class="text-muted">${escapeHtml(event.data.summary)}</small>`
-        })
+        container_start: (event) => {
+            const content = document.createElement('div');
+            content.appendChild(createUserElement(event));
+            content.appendChild(document.createTextNode(' started a '));
+            content.appendChild(createBadge(event.data.mode, event.data.mode === 'practice' ? 'warning' : 'primary'));
+            content.appendChild(document.createTextNode(' container for '));
+            content.appendChild(createDojoModuleChallengeElement(event.data));
+            
+            return {
+                icon: '<i class="fas fa-play-circle fa-2x text-primary"></i>',
+                content: content
+            };
+        },
+        
+        challenge_solve: (event) => {
+            const content = document.createElement('div');
+            content.appendChild(createUserElement(event));
+            content.appendChild(document.createTextNode(' solved '));
+            content.appendChild(createDojoModuleChallengeElement(event.data));
+            
+            if (event.data.first_blood) {
+                content.appendChild(document.createTextNode(' '));
+                content.appendChild(createBadge('FIRST BLOOD!', 'danger'));
+            }
+            
+            return {
+                icon: '<i class="fas fa-flag-checkered fa-2x text-success"></i>',
+                content: content
+            };
+        },
+        
+        emoji_earned: (event) => {
+            const content = document.createElement('div');
+            content.appendChild(createUserElement(event));
+            content.appendChild(document.createTextNode(' earned the '));
+            
+            const emojiStrong = document.createElement('strong');
+            emojiStrong.textContent = event.data.emoji;
+            content.appendChild(emojiStrong);
+            content.appendChild(document.createTextNode(' emoji!'));
+            
+            if (event.data.dojo_name || event.data.dojo_id) {
+                const br = document.createElement('br');
+                const small = document.createElement('small');
+                small.className = 'text-muted';
+                small.appendChild(document.createTextNode('Completed '));
+                small.appendChild(createLink(`/dojos/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
+                content.appendChild(br);
+                content.appendChild(small);
+            } else if (event.data.reason) {
+                const br = document.createElement('br');
+                const small = document.createElement('small');
+                small.className = 'text-muted';
+                small.textContent = event.data.reason;
+                content.appendChild(br);
+                content.appendChild(small);
+            }
+            
+            return {
+                icon: `<span style="font-size: 2em;">${event.data.emoji}</span>`,
+                content: content
+            };
+        },
+        
+        belt_earned: (event) => {
+            const content = document.createElement('div');
+            content.appendChild(createUserElement(event));
+            content.appendChild(document.createTextNode(' earned their '));
+            
+            const beltStrong = document.createElement('strong');
+            beltStrong.textContent = event.data.belt_name;
+            content.appendChild(beltStrong);
+            content.appendChild(document.createTextNode('!'));
+            
+            if (event.data.dojo_name || event.data.dojo_id) {
+                const br = document.createElement('br');
+                const small = document.createElement('small');
+                small.className = 'text-muted';
+                small.appendChild(document.createTextNode('Completed '));
+                small.appendChild(createLink(`/dojos/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
+                content.appendChild(br);
+                content.appendChild(small);
+            }
+            
+            return {
+                icon: '<i class="fas fa-award fa-2x text-warning"></i>',
+                content: content
+            };
+        },
+        
+        dojo_update: (event) => {
+            const content = document.createElement('div');
+            content.appendChild(createUserElement(event));
+            content.appendChild(document.createTextNode(' updated '));
+            content.appendChild(createLink(`/dojos/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
+            
+            if (event.data.summary) {
+                const br = document.createElement('br');
+                const small = document.createElement('small');
+                small.className = 'text-muted';
+                small.textContent = event.data.summary;
+                content.appendChild(br);
+                content.appendChild(small);
+            }
+            
+            return {
+                icon: '<i class="fas fa-sync-alt fa-2x text-info"></i>',
+                content: content
+            };
+        }
     };
     
     function createEventCard(event) {
@@ -105,18 +218,29 @@
         if (!renderer) return card;
         
         const {icon, content} = renderer(event);
+        
+        // Create structure with innerHTML (trusted HTML only)
         card.innerHTML = `
             <div class="card-body">
                 <div class="d-flex align-items-center">
                     <div class="event-icon me-4" style="min-width: 50px;">${icon}</div>
                     <div class="flex-grow-1">
-                        <div class="event-content">${content}</div>
+                        <div class="event-content"></div>
                         <small class="text-muted event-time" data-timestamp="${event.timestamp}">
                             ${formatTimestamp(event.timestamp)}
                         </small>
                     </div>
                 </div>
             </div>`;
+        
+        // Append the content DOM element (with user data safely inserted)
+        const contentDiv = card.querySelector('.event-content');
+        if (content instanceof Node) {
+            contentDiv.appendChild(content);
+        } else {
+            contentDiv.textContent = content;
+        }
+        
         return card;
     }
     
