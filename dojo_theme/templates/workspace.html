@@ -182,6 +182,21 @@
         color: var(--brand-green);
         font-weight: bold;
     }
+
+    #settings {
+        position: absolute;
+        border-top-left-radius: 1em;
+        border-left: .5em solid;
+        border-top: .5em solid;
+        background-color: var(--foreground);
+        border-color: var(--background);
+        flex-direction: column;
+        right: 0;
+        bottom: calc(2.5em + 10px);
+        padding: 1em;
+        color: var(--highlight);
+        display: none;
+    }
 </style>
 {% endblock %}
 
@@ -218,6 +233,14 @@
         <i class="fas fa-{{'unlock' if practice else 'lock'}}"></i>
     </button>
     {% endif %}
+    <div id="settings">
+        <div>Setting number one.</div>
+        <div>Small</div>
+        <div>Another cool setting!</div>
+    </div>
+    <button id="show-menu" title="Additional workspace settings" class="workspace-control btn btn-md btn-outline-secondary">
+        <i class="fas fa-wrench"></i>
+    </button>
     <button id="fullscreen" title="Toggle fullscreen" class="workspace-control btn btn-md btn-outline-secondary">
         <i class="fas fa-expand"></i>
     </button>

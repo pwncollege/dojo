@@ -238,4 +238,13 @@ $(() => {
         // Otherwise it will call the do_fullscreen function of the window which we are iframed into.
         window.parent.doFullscreen();
     });
+
+    $("#show-menu").click(function(event) {
+        if ($("#settings").css("display") === "none") {
+            $("#settings").css("display", "flex");
+        }
+        else {
+            $("#settings").css("display", "none");
+        }
+    })
 });
