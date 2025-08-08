@@ -12,21 +12,6 @@ from selenium.webdriver.common.keys import Keys
 
 from utils import DOJO_URL, workspace_run
 
-@pytest.fixture
-def browser_fixture():
-    options = FirefoxOptions()
-    options.add_argument("--headless")
-    return Firefox(options=options)
-
-@pytest.fixture
-def random_user_browser(browser_fixture, random_user_name):
-    browser_fixture.get(f"{DOJO_URL}/login")
-    browser_fixture.find_element("id", "name").send_keys(random_user_name)
-    browser_fixture.find_element("id", "password").send_keys(random_user_name)
-    browser_fixture.find_element("id", "_submit").click()
-    return browser_fixture
-
-
 @contextlib.contextmanager
 def vscode_terminal(browser):
     module_window = browser.current_window_handle

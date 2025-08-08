@@ -15,6 +15,10 @@ logger.setLevel(logging.INFO)
 
 DOJOS_DIR = pathlib.Path("/var/dojos")
 
+FEED_EVENT_TTL = int(os.environ.get("FEED_EVENT_TTL", "86400"))
+FEED_MAX_EVENTS = int(os.environ.get("FEED_MAX_EVENTS", "1000"))
+FEED_BATCH_SIZE = int(os.environ.get("FEED_BATCH_SIZE", "50"))
+
 WORKSPACE_NODES = {
     int(node_id): node_key
     for node_id, node_key in
