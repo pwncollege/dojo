@@ -118,23 +118,19 @@ def update_awards(user):
 
     current_emojis = get_user_emojis(user)
     for emoji,dojo_display_name,hex_dojo_id in current_emojis:
-        # note: the category filter is critical, since SQL seems to be unable to query by emoji!
         emoji_award = Emojis.query.filter_by(user=user, name=emoji, category=hex_dojo_id).first()
         if emoji_award:
             continue
         
-        # Get the dojo to use its reference_id for human-facing text
         dojo = Dojos.query.filter_by(dojo_id=Dojos.hex_to_int(hex_dojo_id)).first()
         if not dojo:
             continue
             
-        # Use dojo name if available, otherwise use reference_id (which is human-readable)
         display_name = dojo.name or dojo.reference_id
         description = f"Awarded for completing the {display_name} dojo."
         db.session.add(Emojis(user=user, name=emoji, description=description, category=hex_dojo_id))
         db.session.commit()
         
-        # Only publish events for official or public dojos
         if dojo.official or dojo.data.get("type") == "public":
             publish_emoji_earned(user, emoji, display_name, description, 
                                dojo_id=dojo.reference_id, dojo_name=display_name)
