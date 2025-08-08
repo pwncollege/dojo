@@ -28,7 +28,7 @@ def view_workspace():
         "Terminal",
         "Code",
         "Desktop",
-        "None",
+        "SSH",
     ]
 
     current_challenge = get_current_dojo_challenge()

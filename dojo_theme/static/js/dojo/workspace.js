@@ -15,15 +15,17 @@ function animateBanner(message, type) {
 }
 
 function contentNone() {
-    $("main").css("flex-direction", "row");
+    $("#workspace-content").css("display", "none");
+    $("#ssh-hint").css("display", "block").css("height", "2.5 em");
 };
 function contentSome() {
-    $("main").css("flex-direction", "column");
+    $("#workspace-content").css("display", "initial");
+    $("#ssh-hint").css("display", "none");
 };
 
 function selectService(service) {
     const content = document.getElementById("workspace-content");
-    if (service === "none") {
+    if (service === "ssh") {
         content.src = "";
         window.parent.contentNone();
         contentNone();

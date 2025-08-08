@@ -171,12 +171,25 @@
         overflow: hidden;
         display: none;
     }
+
+    #ssh-hint {
+        font-size: 2em;
+        padding: .25em;
+        height: 2em;
+    }
+
+    .ref {
+        color: var(--brand-green);
+        font-weight: bold;
+    }
 </style>
 {% endblock %}
 
 
 {% block content %}
 <iframe src="" id="workspace-content"></iframe>
+
+<div id="ssh-hint">Configure your SSH keys in the <a class="ref" href="/settings#ssh-key">settings page</a>.</div>
 
 <div id="workspace-controls">
     <div id="workspace-notification-banner"></div>
