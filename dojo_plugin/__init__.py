@@ -10,7 +10,7 @@ from flask import Response, request, redirect, current_app
 from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
-from CTFd.models import db, Challenges, Users
+from CTFd.models import db, Challenges, Users, Solves
 from CTFd.utils.user import get_current_user
 from CTFd.plugins import register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
@@ -52,10 +52,9 @@ class DojoChallenge(BaseChallenge):
         if dojo_challenge:
             dojo = dojo_challenge.module.dojo
             # Only publish events for official or public dojos
-            if dojo.official or (dojo.data and dojo.data.get("type") == "public"):
+            if dojo.official or dojo.data.get("type") == "public":
                 module = dojo_challenge.module
                 points = challenge.value
-                from CTFd.models import Solves
                 first_blood = Solves.query.filter_by(challenge_id=challenge.id).count() == 1
                 publish_challenge_solve(user, dojo_challenge, dojo, module, points, first_blood)
 

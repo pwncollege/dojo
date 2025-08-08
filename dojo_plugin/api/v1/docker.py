@@ -388,7 +388,7 @@ class RunDocker(Resource):
                 start_challenge(user, dojo_challenge, practice, as_user=as_user)
                 
                 # Only publish events for official or public dojos
-                if dojo.official or (dojo.data and dojo.data.get("type") == "public"):
+                if dojo.official or dojo.data.get("type") == "public":
                     challenge_data = {
                         "id": dojo_challenge.challenge_id,
                         "name": dojo_challenge.name,

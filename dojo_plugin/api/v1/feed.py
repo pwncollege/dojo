@@ -1,5 +1,6 @@
 import json
 import time
+import redis
 from flask import Response, request, current_app
 from flask_restx import Namespace, Resource
 from ...utils.feed import get_recent_events
@@ -22,7 +23,6 @@ class FeedEvents(Resource):
 @feed_namespace.route("/stream")
 class FeedStream(Resource):
     def get(self):
-        import redis
         redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
         
         def generate():
