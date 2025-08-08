@@ -26,7 +26,7 @@ function selectService(service) {
     .then(result => {
         let url = new URL(result["iframe_src"]);
         // Set the port if in dev environment (may be forwarded via a server)
-        if (data.setPort) {
+        if (result["setPort"]) {
             url.port = window.location.port;
         }
 
