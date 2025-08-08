@@ -14,8 +14,22 @@ function animateBanner(message, type) {
       .addClass(animation);
 }
 
+function contentNone() {
+    $("main").css("flex-direction", "row");
+};
+function contentSome() {
+    $("main").css("flex-direction", "column");
+};
+
 function selectService(service) {
     const content = document.getElementById("workspace-content");
+    if (service === "none") {
+        content.src = "";
+        window.parent.contentNone();
+        contentNone();
+        return;
+    }
+
     const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
     url.searchParams.set("service", service);
     fetch(url, {
@@ -25,6 +39,8 @@ function selectService(service) {
     .then(response => response.json())
     .then(result => {
         content.src = result["iframe_src"];
+        contentSome();
+        window.parent.contentSome();
     });
 }
 

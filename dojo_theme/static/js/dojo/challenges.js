@@ -1,3 +1,12 @@
+function contentNone() {
+    $(".challenge-iframe").addClass("challenge-iframe-min")
+    $(".challenge-iframe").offsetHeight;
+};
+function contentSome() {
+    $(".challenge-iframe").removeClass("challenge-iframe-min")
+    $(".challenge-iframe").offsetHeight;
+};
+
 function submitChallenge(event) {
     event.preventDefault();
     const item = $(event.currentTarget).closest(".accordion-item");
