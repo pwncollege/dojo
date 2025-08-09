@@ -80,6 +80,10 @@
         box-shadow: none !important;
     }
 
+    .workspace-control input.disabled {
+        color: var(--background);
+    }
+
     .workspace-control input::placeholder {
         color: var(--highlight);
         opacity: 1;
@@ -171,12 +175,26 @@
         overflow: hidden;
         display: none;
     }
+
+    #ssh-hint {
+        font-size: 2em;
+        padding: .25em;
+        flex: 1;
+        display: none;
+    }
+
+    a {
+        color: var(--brand-green);
+        font-weight: bold;
+    }
 </style>
 {% endblock %}
 
 
 {% block content %}
 <iframe src="" id="workspace-content"></iframe>
+
+<div id="ssh-hint">Configure your SSH keys in the <a target="_blank" href="/settings#ssh-key">settings page</a>.</div>
 
 <div id="workspace-controls">
     <div id="workspace-notification-banner"></div>
@@ -189,7 +207,7 @@
         </select>
     </div>
     <div title="Enter flag" class="workspace-control workspace-input">
-        <i class="fas fa-flag workspace-highlight"></i>
+        <i id="flag-icon" class="fas fa-flag workspace-highlight"></i>
         <input id="flag-input" class="" type="text" placeholder="Flag">
         <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}" data-challenge-name="{{ challenge.name }}">
     </div>
