@@ -7,7 +7,6 @@ from email.utils import formatdate
 from urllib.parse import urlparse, urlunparse
 
 from flask import Response, request, redirect, current_app
-from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
 from CTFd.models import db, Challenges, Users, Solves
@@ -21,6 +20,7 @@ from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
 from .utils.awards import update_awards
 from .utils.feed import publish_challenge_solve
+from .utils.error_logging import log_exception
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
@@ -34,6 +34,7 @@ from .pages.belts import belts
 from .pages.research import research
 from .pages.feed import feed
 from .pages.index import static_html_override
+from .pages.test_error import test_error_pages
 from .api import api
 
 
@@ -129,6 +130,16 @@ def handle_authorization(default_handler):
     default_handler()
 
 
+def flask_error_handler(app):
+    @app.errorhandler(Exception)
+    def handle_page_exception(error):
+        if hasattr(error, 'code') and error.code == 404:
+            raise
+            
+        log_exception(error, event_type="page_exception")
+        raise
+
+
 def load(app):
     db.create_all()
 
@@ -159,7 +170,10 @@ def load(app):
     app.register_blueprint(belts)
     app.register_blueprint(research)
     app.register_blueprint(feed)
+    app.register_blueprint(test_error_pages)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
+
+    flask_error_handler(app)
 
     app.jinja_env.filters["markdown"] = render_markdown
 

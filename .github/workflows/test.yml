@@ -39,6 +39,7 @@ jobs:
       - name: Install test dependencies
         run: |
           pip install \
+            marshmallow_sqlalchemy \
             pytest \
             pytest-dependency \
             pytest-order \
@@ -139,6 +140,7 @@ jobs:
       - name: Install test dependencies
         run: |
           pip install \
+            marshmallow_sqlalchemy \
             pytest \
             pytest-dependency \
             pytest-order \

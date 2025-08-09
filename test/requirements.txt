@@ -1,0 +1,8 @@
+marshmallow_sqlalchemy
+pytest
+pytest-dependency
+pytest-order
+pytest-timeout
+pytest-github-actions-annotate-failures
+requests
+selenium
