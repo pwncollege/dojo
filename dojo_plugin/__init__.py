@@ -51,7 +51,6 @@ class DojoChallenge(BaseChallenge):
         dojo_challenge = DojoChallenges.query.filter_by(challenge_id=challenge.id).first()
         if dojo_challenge:
             dojo = dojo_challenge.module.dojo
-            # Only publish events for official or public dojos
             if dojo.official or dojo.data.get("type") == "public":
                 module = dojo_challenge.module
                 points = challenge.value

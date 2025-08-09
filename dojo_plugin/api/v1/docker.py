@@ -388,11 +388,10 @@ class RunDocker(Resource):
                 logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
                 start_challenge(user, dojo_challenge, practice, as_user=as_user)
                 
-                # Only publish events for official or public dojos
                 if dojo.official or dojo.data.get("type") == "public":
                     challenge_data = {
-                        "id": dojo_challenge.challenge_id,
-                        "name": dojo_challenge.name,
+                        "challenge_id": dojo_challenge.challenge_id,
+                        "challenge_name": dojo_challenge.name,
                         "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
                         "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
                         "dojo_id": dojo.reference_id,
