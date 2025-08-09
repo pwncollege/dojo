@@ -140,6 +140,7 @@ function challengeStartCallback(event) {
 }
 
 function submitFlag(flag) {
+    $("#flag-input").prop("disabled", true).addClass("disabled");
     var body = {
         'challenge_id': parseInt(document.getElementById("current-challenge-id").value),
         'submission': flag,
@@ -164,6 +165,7 @@ function submitFlag(flag) {
         else {
             animateBanner("Submission Failed.", "warn");
         }
+        $("#flag-input").prop("disabled", false).removeClass("disabled");
     });
 }
 
