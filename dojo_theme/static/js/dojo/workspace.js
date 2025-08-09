@@ -242,4 +242,11 @@ $(() => {
         // Otherwise it will call the do_fullscreen function of the window which we are iframed into.
         window.parent.doFullscreen();
     });
+
+    $(document).click((event) => {
+        if (document.getElementById("workspace-notification-banner").contains(event.target)) {
+            return;
+        }
+        $("#workspace-notification-banner").removeClass("animate-banner animate-banner-fast")
+    });
 });
