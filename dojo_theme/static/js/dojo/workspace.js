@@ -7,7 +7,7 @@ function animateBanner(message, type) {
     const animation = type === "success" ? "animate-banner" : "animate-banner-fast";
 
     $("#workspace-notification-banner").removeClass("animate-banner animate-banner-fast");
-    $("#workspace-notification-banner").offsetHeight;  // Force reflow of element to play animation again.
+    document.getElementById("workspace-notification-banner").offsetHeight;  // Force reflow of element to play animation again. JQUERY does not do this.
     $("#workspace-notification-banner")
       .html(message)
       .css("border-color", color)
@@ -158,6 +158,9 @@ function submitFlag(flag) {
         else if (response.data.status == "already_solved") {
             animateBanner(`&#127881 Solved <b>${challengeName}</b>! &#127881`, "success");
         }
+        else if (response.data.status == "ratelimited") {
+            animateBanner(response.data.message, "warn");
+        }
         else {
             animateBanner("Submission Failed.", "warn");
         }
@@ -183,11 +186,36 @@ function doFullscreen() {
     }
 }
 
+function initializeSettings() {
+    const settings = [
+        "autostart",
+        "autosubmit",
+    ];
+
+    const defaults = {
+        autostart: "disabled",
+        autosubmit: "enabled",
+    };
+
+    settings.forEach((setting, index) => {
+        if (!localStorage.getItem(setting)) {
+            localStorage.setItem(setting, defaults[setting]);
+        }
+        var control = $(`#${setting}-checkbox`);
+        control.attr("checked", localStorage.getItem(setting) === "enabled")
+        .click((event) => {
+            localStorage.setItem(setting, control.prop("checked") ? "enabled" : "disabled");
+        });
+    });
+}
+
 $(() => {
     if (new URLSearchParams(window.location.search).has("hide-navbar")) {
         hideNavbar();
     }
     $("footer").hide();
+
+    initializeSettings();
 
     var previousWorkspace = localStorage.getItem("previousWorkspace");
     var workspaceSelect = document.getElementById("workspace-select");
@@ -213,7 +241,7 @@ $(() => {
 
     $("#flag-input").on("input", function(event) {
         event.preventDefault();
-        if ($(this).val().match(/pwn.college{.*}/)) {
+        if ($(this).val().match(/pwn.college{.*}/) && localStorage.getItem("autosubmit") === "enabled") {
             submitFlag($(this).val());
         }
     });

@@ -465,7 +465,14 @@ $(() => {
 
     var submits = $(".accordion-item").find("#challenge-input");
     for (var i = 0; i < submits.length; i++) {
-        submits[i].oninput = submitChallenge;
+        submits[i].oninput = (event) => {
+            if (!localStorage.getItem("autosubmit")) {
+                localStorage.setItem("autosubmit", "enabled");
+            }
+            if (localStorage.getItem("autosubmit") === "enabled") {
+                submitChallenge(event);
+            }
+        };
     }
     $(".accordion-item").find("#challenge-start").click(startChallenge);
     $(".challenge-init").find("#challenge-priv").click(startChallenge);
