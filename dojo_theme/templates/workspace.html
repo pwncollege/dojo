@@ -194,6 +194,11 @@
         <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}" data-challenge-name="{{ challenge.name }}">
     </div>
     <div class="workspace-control-spacer"></div>
+    <div id="challenge-info" hidden>
+        <input type="hidden" id="challenge-dojo" value="{{ challenge.dojo.reference_id }}">
+        <input type="hidden" id="challenge-module" value="{{ challenge.module.id }}">
+        <input type="hidden" id="challenge-challenge" value="{{ challenge.id }}">
+    </div>
     <button id="challenge-restart" title="Restart challenge" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">
         <i class="fas fa-redo"></i>
     </button>
