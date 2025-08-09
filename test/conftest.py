@@ -4,7 +4,7 @@ import pytest
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, DOJO_IP, login, make_dojo_official, create_dojo, create_dojo_yml, dojo_run
 from selenium.webdriver import Firefox, FirefoxOptions
 
 @pytest.fixture(scope="session")
@@ -185,3 +185,12 @@ def random_user_browser(browser_fixture, random_user_name):
     browser_fixture.find_element("id", "password").send_keys(random_user_name)
     browser_fixture.find_element("id", "_submit").click()
     return browser_fixture
+
+def setup_host_file():
+    lines = [
+        f"{DOJO_IP} localhost.pwn.college",
+        f"{DOJO_IP} workspace.localhost.pwn.college"
+    ]
+
+    for line in lines:
+        dojo_run("tee", "-a", "/etc/hosts", input=line + "\n")

@@ -7,6 +7,7 @@ import time
 import re
 import os
 
+DOJO_IP = os.getenv("DOJO_IP")
 DOJO_URL = os.getenv("DOJO_URL", "http://localhost.pwn.college")
 DOJO_CONTAINER = os.getenv("DOJO_CONTAINER", "dojo-test")
 TEST_DOJOS_LOCATION = pathlib.Path(__file__).parent / "dojos"
@@ -86,7 +87,7 @@ def get_outer_container_for(container_name):
     )
     if result.returncode == 0 and container_name in result.stdout.strip().split('\n'):
         return DOJO_CONTAINER
-    
+
     # Check worker nodes if they exist
     result = subprocess.run(
         [shutil.which("docker"), "exec", "-i", DOJO_CONTAINER, "cat", "/data/workspace_nodes.json"],
@@ -105,7 +106,7 @@ def get_outer_container_for(container_name):
             )
             if result.returncode == 0 and container_name in result.stdout.strip().split('\n'):
                 return node_container
-    
+
     raise RuntimeError(f"container {container_name} not found on any nodes")
 
 def workspace_run(cmd, *, user, root=False, **kwargs):
