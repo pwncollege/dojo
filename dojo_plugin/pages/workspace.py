@@ -25,9 +25,10 @@ port_names = {
 @authed_only
 def view_workspace():
     workspace_services = [
-        "Terminal",
+        "SSH",
         "Code",
         "Desktop",
+        "Terminal",
     ]
 
     current_challenge = get_current_dojo_challenge()

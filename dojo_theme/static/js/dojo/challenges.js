@@ -411,6 +411,14 @@ function contentContract() {
     scrollRestore();
 }
 
+function shrinkContent() {
+    $(".challenge-iframe").addClass("challenge-iframe-min");
+}
+
+function restoreContent() {
+    $(".challenge-iframe").removeClass("challenge-iframe-min");
+}
+
 function doFullscreen() {
     if ($(".workspace-fullscreen")[0]) {
         contentContract();
