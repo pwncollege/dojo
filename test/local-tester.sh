@@ -11,6 +11,7 @@ function usage {
 	echo ""
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: local-<dirname>)"
+	echo "	-u	the url of the dojo container"
 	echo "	-D	specify a directory for /data/docker to avoid rebuilds (default: ./cache/docker; specify as blank to disable)"
 	echo "	-W	specify a directory for /data/workspace to avoid rebuilds (default: ./cache/workspace; specify as blank to disable)"
 	echo "	-T	don't run tests"
@@ -72,11 +73,12 @@ BUILD_IMAGE=no
 MULTINODE=no
 GITHUB_ACTIONS=no
 START=yes
-while getopts "r:c:he:TD:W:PbMgN" OPT
+while getopts "r:c:u:he:TD:W:PbMgN" OPT
 do
 	case $OPT in
 		r) DB_RESTORE="$OPTARG" ;;
 		c) DOJO_CONTAINER="$OPTARG" ;;
+		c) DOJO_URL="$OPTARG" ;;
 		T) TEST=no ;;
 		D) DOCKER_DIR="$OPTARG" ;;
 		W) WORKSPACE_DIR="$OPTARG" ;;
@@ -170,13 +172,13 @@ log_endgroup
 
 if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	log_newgroup "Setting up multi-node cluster"
-	
+
 	# Disconnect nginx-proxy from workspace_net for multinode routing to work
 	docker exec "$DOJO_CONTAINER" docker network disconnect workspace_net nginx-proxy 2>/dev/null || true
-	
+
 	docker exec "$DOJO_CONTAINER" dojo-node refresh
 	MAIN_KEY=$(docker exec "$DOJO_CONTAINER" cat /data/wireguard/publickey)
-	
+
 	docker run --rm --privileged -d \
 		"${NODE1_VOLUME_ARGS[@]}" \
 		"${ENV_ARGS[@]}" \
@@ -187,7 +189,7 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 		--name "$DOJO_CONTAINER-node1" \
 		"$IMAGE_NAME"
 	fix_insane_routing "$DOJO_CONTAINER-node1"
-	
+
 	docker run --rm --privileged -d \
 		"${NODE2_VOLUME_ARGS[@]}" \
 		"${ENV_ARGS[@]}" \
@@ -198,18 +200,18 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 		--name "$DOJO_CONTAINER-node2" \
 		"$IMAGE_NAME"
 	fix_insane_routing "$DOJO_CONTAINER-node2"
-	
-	# Wait for workspace containers and set up WireGuard  
+
+	# Wait for workspace containers and set up WireGuard
 	docker exec "$DOJO_CONTAINER-node1" dojo wait
 	docker exec "$DOJO_CONTAINER-node2" dojo wait
-	
+
 	docker exec "$DOJO_CONTAINER-node1" dojo-node refresh
 	docker exec "$DOJO_CONTAINER-node2" dojo-node refresh
-	
+
 	# Register workspace nodes with main node
 	NODE1_KEY=$(docker exec "$DOJO_CONTAINER-node1" cat /data/wireguard/publickey)
 	NODE2_KEY=$(docker exec "$DOJO_CONTAINER-node2" cat /data/wireguard/publickey)
-	
+
 	docker exec "$DOJO_CONTAINER" dojo-node add 1 "$NODE1_KEY"
 	docker exec "$DOJO_CONTAINER" dojo-node add 2 "$NODE2_KEY"
 	sleep 5
@@ -235,9 +237,9 @@ if [ -n "$DB_RESTORE" ]; then
 fi
 
 log_newgroup "Waiting for dojo to be ready"
-export DOJO_URL="http://${CONTAINER_IP}"
-export DOJO_SSH_HOST="$CONTAINER_IP" 
-until curl -Ls "${DOJO_URL}" | grep -q pwn; do sleep 1; done
+export DOJO_IP="http://${CONTAINER_IP}"
+export DOJO_SSH_HOST="$CONTAINER_IP"
+until curl -Ls "${DOJO_IP}" | grep -q pwn; do sleep 1; done
 log_endgroup
 
 if [ "$TEST" == "yes" ]; then
