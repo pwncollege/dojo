@@ -1,10 +1,12 @@
 import hmac
+import os
 
 from flask import request, Blueprint, render_template, abort
 from CTFd.models import Users
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.plugins import bypass_csrf_protection
+from urllib.parse import urlencode
 
 from ..models import Dojos
 from ..utils import redirect_user_socket, get_current_container, container_password
@@ -49,17 +51,7 @@ def view_workspace():
 def view_workspace_service(service):
     return render_template("workspace_service.html", iframe_name="workspace", service=service)
 
-@workspace.route("/workspace/<service>/", websocket=True)
-@workspace.route("/workspace/<service>/<path:service_path>", websocket=True)
-@workspace.route("/workspace/<service>/", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"])
-@workspace.route("/workspace/<service>/<path:service_path>", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"])
-@authed_only
-@bypass_csrf_protection
-def forward_workspace(service, service_path=""):
-    prefix = f"/workspace/{service}/"
-    assert request.full_path.startswith(prefix)
-    service_path = request.full_path[len(prefix):]
-
+def forward_workspace(service, signature, container_id, service_path="", include_host=True, **kwargs):
     if service.count("~") == 0:
         service_name = service
         try:
@@ -105,4 +97,19 @@ def forward_workspace(service, service_path=""):
     if user != current_user:
         print(f"User {current_user.id} is accessing User {user.id}'s workspace (port {port})", flush=True)
 
-    return redirect_user_socket(user, port, service_path)
+    workspace_host = os.environ.get("WORKSPACE_HOST")
+
+    if not workspace_host:
+        abort(500)
+        return
+
+    url = f"/workspace/{container_id}/{signature}/{port}/{service_path}"
+
+    if include_host:
+        url = f"http://{workspace_host}{url}"
+
+    if not len(kwargs) == 0:
+        args = urlencode(kwargs)
+        url = f"{url}?{args}"
+
+    return url
