@@ -190,12 +190,12 @@ function doFullscreen() {
 
 function initializeSettings() {
     const settings = [
-        "autostart",
+        //"autostart",
         "autosubmit",
     ];
 
     const defaults = {
-        autostart: "disabled",
+        //autostart: "disabled",
         autosubmit: "enabled",
     };
 
