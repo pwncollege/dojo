@@ -50,7 +50,7 @@ def main():
     try:
         os.execve(command_path, [args.command, *args.args], os.environ)
     except:
-        os.exit(1)
+        os._exit(1)
 
 
 if __name__ == "__main__":
