@@ -424,6 +424,11 @@ function windowResizeCallback(event) {
     $(".challenge-iframe").not(".challenge-iframe-fs").css("aspect-ratio", `${window.innerWidth} / ${window.innerHeight}`);
 }
 
+// TODO: Implement this function if it is needed.
+function updateNavbarDropdown(){
+
+}
+
 $(() => {
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
