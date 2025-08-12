@@ -1,8 +1,8 @@
-function controls(event) {
-    return $(event.target).closest(".workspace-controls");
+function ab_controls(event) {
+    return $(event.target).closest(".workspace-ab_controls");
 }
 
-function selectService(service) {
+function ab_selectService(service) {
     // Pages using the actionbar should define their own iframe.
     const content = document.getElementById("workspace-iframe");
     if (!content) {
@@ -21,7 +21,7 @@ function selectService(service) {
     });
 }
 
-function animateBanner(event, message, type) {
+function ab_animateBanner(event, message, type) {
     const color = {
         success: "var(--brand-green)",
         error:   "var(--error)",
@@ -29,41 +29,41 @@ function animateBanner(event, message, type) {
     }[type] ?? "var(--warn)";
     const animation = type === "success" ? "animate-banner" : "animate-banner-fast";
 
-    controls(event).find("#workspace-notification-banner").removeClass("animate-banner animate-banner-fast");
-    controls(event).find("#workspace-notification-banner").offsetHeight;  // Force reflow of element to play animation again.
-    controls(event).find("#workspace-notification-banner")
+    ab_controls(event).find("#workspace-notification-banner").removeClass("animate-banner animate-banner-fast");
+    ab_controls(event).find("#workspace-notification-banner").offsetHeight;  // Force reflow of element to play animation again.
+    ab_controls(event).find("#workspace-notification-banner")
       .html(message)
       .css("border-color", color)
       .addClass(animation);
 }
 
-function submitFlag(event) {
+function ab_submitFlag(event) {
     var body = {
-        'challenge_id': parseInt(controls(event).find("#current-challenge-id").val()),
+        'challenge_id': parseInt(ab_controls(event).find("#current-challenge-id").val()),
         'submission': $(event.target).val(),
     };
     var params = {};
 
     CTFd.api.post_challenge_attempt(params, body)
     .then(function (response) {
-        const challengeName = controls(event).find("#current-challenge-id").attr("data-challenge-name");
+        const challengeName = ab_controls(event).find("#current-challenge-id").attr("data-challenge-name");
         if (response.data.status == "incorrect") {
-            animateBanner(event, "Incorrect!", "error");
+            ab_animateBanner(event, "Incorrect!", "error");
         }
         else if (response.data.status == "correct") {
-            animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
+            ab_animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
         }
         else if (response.data.status == "already_solved") {
-            animateBanner(event, `&#127881 Solved <b>${challengeName}</b>! &#127881`, "success");
+            ab_animateBanner(event, `&#127881 Solved <b>${challengeName}</b>! &#127881`, "success");
         }
         else {
-            animateBanner(event, "Submission Failed.", "warn");
+            ab_animateBanner(event, "Submission Failed.", "warn");
         }
     });
 }
 
-function startChallenge(event) {
-    const privileged = controls(event).find("#workspace-change-privilege").attr("data-privileged") === "true";
+function ab_startChallenge(event) {
+    const privileged = ab_controls(event).find("#workspace-change-privilege").attr("data-privileged") === "true";
 
     CTFd.fetch("/pwncollege_api/v1/docker", {
         method: "GET",
@@ -106,9 +106,9 @@ function startChallenge(event) {
                 return;
             }
 
-            selectService(controls(event).find("#workspace-select").val());
+            ab_selectService(ab_controls(event).find("#workspace-select").val());
 
-            controls(event).find(".btn-challenge-start")
+            ab_controls(event).find(".btn-challenge-start")
             .removeClass("disabled")
             .removeClass("btn-disabled")
             .prop("disabled", false);
@@ -116,39 +116,39 @@ function startChallenge(event) {
     });
 }
 
-function actionbarSetPrivileged(event, privileged) {
-    controls(event).find("#workspace-change-privilege").attr("data-privileged", privileged);
-    displayPrivileged(false);
+function ab_setPrivileged(event, privileged) {
+    ab_controls(event).find("#workspace-change-privilege").attr("data-privileged", privileged);
+    ab_displayPrivileged(false);
 }
 
-function challengeStartCallback(event) {
+function ab_challengeStartCallback(event) {
     event.preventDefault();
 
-    controls(event).find(".btn-challenge-start")
+    ab_controls(event).find(".btn-challenge-start")
     .addClass("disabled")
     .addClass("btn-disabled")
     .prop("disabled", true);
 
-    if (controls(event).find("#challenge-restart")[0].contains(event.target)) {
-        startChallenge(event);
+    if (ab_controls(event).find("#challenge-restart")[0].contains(event.target)) {
+        ab_startChallenge(event);
     }
-    else if (controls(event).find("#workspace-change-privilege").length > 0 && controls(event).find("#workspace-change-privilege")[0].contains(event.target)) {
-        controls(event).find("#workspace-change-privilege").attr("data-privileged", (_, v) => v !== "true");
-        displayPrivileged(event, false);
-        startChallenge(event);
+    else if (ab_controls(event).find("#workspace-change-privilege").length > 0 && ab_controls(event).find("#workspace-change-privilege")[0].contains(event.target)) {
+        ab_controls(event).find("#workspace-change-privilege").attr("data-privileged", (_, v) => v !== "true");
+        ab_displayPrivileged(event, false);
+        ab_startChallenge(event);
     }
     else {
         console.log("Failed to start challenge.");
 
-        controls(event).find(".btn-challenge-start")
+        ab_controls(event).find(".btn-challenge-start")
         .removeClass("disabled")
         .removeClass("btn-disabled")
         .prop("disabled", false);
     }
 }
 
-function displayPrivileged(event, invert) {
-    const button = controls(event).find("#workspace-change-privilege");
+function ab_displayPrivileged(event, invert) {
+    const button = ab_controls(event).find("#workspace-change-privilege");
     const privileged = button.attr("data-privileged") === "true";
     const lockStatus = privileged === invert;
 
@@ -160,7 +160,7 @@ function displayPrivileged(event, invert) {
                                     : "Restart privileged");
 }
 
-function loadWorkspace() {
+function ab_loadWorkspace() {
     if ($("#workspace-iframe").length == 0 ) {
         return;
     }
@@ -176,43 +176,43 @@ function loadWorkspace() {
             }
         }
     }
-    selectService(option.value);
+    ab_selectService(option.value);
 }
 
 $(() => {
-    loadWorkspace();
-    $(".workspace-controls").each(function () {
+    ab_loadWorkspace();
+    $(".workspace-ab_controls").each(function () {
         $(this).find("#workspace-select").change((event) => {
             event.preventDefault();
             localStorage.setItem("previousWorkspace", event.target.options[event.target.selectedIndex].text);
-            selectService(event.target.value);
+            ab_selectService(event.target.value);
         });
 
         $(this).find("#flag-input").on("input", function(event) {
             event.preventDefault();
             if ($(this).val().match(/pwn.college{.*}/)) {
-                submitFlag(event);
+                ab_submitFlag(event);
             }
         });
         $(this).find("#flag-input").on("keypress", function(event) {
             if (event.key === "Enter" || event.keyCode === 13) {
-                submitFlag(event);
+                ab_submitFlag(event);
             }
         });
 
-        $(this).find(".btn-challenge-start").click(challengeStartCallback);
+        $(this).find(".btn-challenge-start").click(ab_challengeStartCallback);
 
         if ($(this).find("#workspace-change-privilege").length) {
             $(this).find("#workspace-change-privilege").on("mouseenter", function(event) {
-                displayPrivileged(event, true);
+                ab_displayPrivileged(event, true);
             }).on("mouseleave", function(event) {
-                displayPrivileged(event, false);
+                ab_displayPrivileged(event, false);
             });
         }
 
         $(this).find("#fullscreen").click((event) => {
             event.preventDefault();
-            controls(event).find("#fullscreen i").toggleClass("fa-compress fa-expand");
+            ab_controls(event).find("#fullscreen i").toggleClass("fa-compress fa-expand");
             // Pages using the actionbar should implement their own fullscreen.
             doFullscreen(event);
         })
