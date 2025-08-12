@@ -161,8 +161,11 @@ function displayPrivileged(event, invert) {
 }
 
 function loadWorkspace() {
+    if ($("#workspace-iframe").length == 0 ) {
+        return;
+    }
     var previousWorkspace = localStorage.getItem("previousWorkspace");
-    var workspaceSelect = document.getElementById("workspace-select");
+    var workspaceSelect = $("#workspace-iframe").closest(".challenge-workspace").find("#workspace-select")[0];
     var option = workspaceSelect.options[0];
     if (previousWorkspace && workspaceSelect) {
         for (var i = 0; i < workspaceSelect.options.length; i++) {
@@ -177,8 +180,8 @@ function loadWorkspace() {
 }
 
 $(() => {
+    loadWorkspace();
     $(".workspace-controls").each(function () {
-        loadWorkspace();
         $(this).find("#workspace-select").change((event) => {
             event.preventDefault();
             localStorage.setItem("previousWorkspace", event.target.options[event.target.selectedIndex].text);

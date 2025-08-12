@@ -25,5 +25,6 @@ $(() => {
     if (new URLSearchParams(window.location.search).has("hide-navbar")) {
         hideNavbar();
     }
+    $(".close-link").hide();
     $("footer").hide();
 })

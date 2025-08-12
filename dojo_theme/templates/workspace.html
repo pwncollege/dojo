@@ -34,14 +34,21 @@
         width: 100%;
         border: none;
     }
+
+    .challenge-workspace {
+        flex: auto;
+        display:flex;
+        flex-direction: column;
+    }
 </style>
 {% endblock %}
 
 
 {% block content %}
-<iframe src="" id="workspace-iframe"></iframe>
-
-{% include "components/actionbar.html" %}
+<div class="challenge-workspace">
+  <iframe src="" id="workspace-iframe"></iframe>
+  {% include "components/actionbar.html" %}
+</div>
 {% endblock %}
 
 
