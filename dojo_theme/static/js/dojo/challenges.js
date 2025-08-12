@@ -274,12 +274,15 @@ function startChallenge(event) {
         item.find("#challenge-practice").prop("disabled", false);
 
         $(".challenge-init").removeClass("challenge-hidden");
-        $(".challenge-workspace").removeClass("workspace-fullscreen");
+        $(".challenge-workspace")
+            .removeClass("workspace-fullscreen")
+            .addClass("challenge-hidden");
         $(".iframe-wrapper").html("");
         if (result.success) {
             item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\"></iframe>");
             ab_loadWorkspace();
             item.find(".challenge-init").addClass("challenge-hidden");
+            item.find(".challenge-workspace").removeClass("challenge-hidden");
         }
         windowResizeCallback("");
 
