@@ -107,6 +107,11 @@ function startChallenge() {
     });
 }
 
+function actionbarSetPrivileged(privileged) {
+    $("#workspace-change-privilege").attr("data-privileged", privileged);
+    displayPrivileged(false);
+}
+
 function challengeStartCallback(event) {
     event.preventDefault();
 
