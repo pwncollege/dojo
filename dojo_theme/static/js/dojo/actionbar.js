@@ -1,5 +1,5 @@
 function selectService(service) {
-    const content = document.getElementById("workspace-content");
+    const content = getContentIframe();
     const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
     url.searchParams.set("service", service);
     fetch(url, {

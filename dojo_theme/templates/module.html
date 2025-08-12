@@ -208,7 +208,12 @@
               </div>
             </div>
             <div class="challenge-workspace">
-              {% if active %}<iframe id="workspace-iframe" class="challenge-iframe" src="/workspace?hide-navbar=true"></iframe>{% endif %}
+              {% if active %}
+              <iframe id="workspace-iframe" class="challenge-iframe" src=""></iframe>
+              {% endif %}
+              {% set practice = false %}
+              {% set workspace_services = ["Terminal", "Code", "Desktop"] %}
+              {% include "components/actionbar.html" %}
             </div>
             <div class="row notification-row">
               <div class="col-md-12">
@@ -255,4 +260,5 @@
 {% block scripts %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/challenges.js') }}"></script>
 <script defer onload="loadScoreboard(30, 1);" src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
+<script defer src="{{ url_for('views.themes', path='js/dojo/actionbar.js') }}"></script>
 {% endblock %}
