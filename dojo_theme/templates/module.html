@@ -208,9 +208,11 @@
               </div>
             </div>
             <div class="challenge-workspace">
-              {% if active %}
-              <iframe id="workspace-iframe" class="challenge-iframe" src=""></iframe>
-              {% endif %}
+              <div class="iframe-wrapper">
+                {% if active %}
+                <iframe id="workspace-iframe" class="challenge-iframe" src=""></iframe>
+                {% endif %}
+              </div>
               {% set practice = false %}
               {% set workspace_services = ["Terminal", "Code", "Desktop"] %}
               {% include "components/actionbar.html" %}

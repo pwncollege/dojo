@@ -256,7 +256,6 @@ function startChallenge(event) {
 
             $(".challenge-active").removeClass("challenge-active");
             item.find(".challenge-name").addClass("challenge-active");
-            setTimeout(() => updateNavbarDropdown(), 1000);
         }
         else {
             var message = "";
@@ -276,9 +275,10 @@ function startChallenge(event) {
 
         $(".challenge-init").removeClass("challenge-hidden");
         $(".challenge-workspace").removeClass("workspace-fullscreen");
-        $(".challenge-workspace").html("");
+        $(".iframe-wrapper").html("");
         if (result.success) {
-            item.find(".challenge-workspace").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"/workspace?hide-navbar=true\"></iframe>");
+            item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\"></iframe>");
+            ab_loadWorkspace();
             item.find(".challenge-init").addClass("challenge-hidden");
         }
         windowResizeCallback("");

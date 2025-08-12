@@ -14,6 +14,7 @@
     padding: 0 5px;
     display: flex;
     flex-wrap: nowrap;
+    position: relative;
   }
 
   .workspace-control {
@@ -86,24 +87,27 @@
 
   @keyframes banner-animation {
     0% {
-      bottom: -6em;
       left: 50%;
       width: 0%;
     }
     5% {
-      bottom: 4em;
       left: 10%;
       width: 80%;
     }
     95% {
-      bottom: 4em;
       left: 10%;
       width: 80%;
+      border-width: 2px;
+      padding-left: 1em;
+      padding-right: 1em;
     }
     100% {
-      bottom: -6em;
       left: 50%;
-      width: 0%;
+      width: 0;
+      border-left-width: 0;
+      border-right-width: 0;
+      padding-left: 0;
+      padding-right: 0;
     }
   }
 
@@ -131,6 +135,8 @@
     border-radius: 1em;
     padding: 1em;
     height: 4em;
+    bottom: 4em;
+    white-space: nowrap;
     text-align: center;
     overflow: hidden;
     display: none;

@@ -1,5 +1,5 @@
 function ab_controls(event) {
-    return $(event.target).closest(".workspace-ab_controls");
+    return $(event.target).closest(".workspace-controls");
 }
 
 function ab_selectService(service) {
@@ -30,7 +30,7 @@ function ab_animateBanner(event, message, type) {
     const animation = type === "success" ? "animate-banner" : "animate-banner-fast";
 
     ab_controls(event).find("#workspace-notification-banner").removeClass("animate-banner animate-banner-fast");
-    ab_controls(event).find("#workspace-notification-banner").offsetHeight;  // Force reflow of element to play animation again.
+    ab_controls(event).find("#workspace-notification-banner")[0].offsetHeight;  // Force reflow of element to play animation again.
     ab_controls(event).find("#workspace-notification-banner")
       .html(message)
       .css("border-color", color)
@@ -181,7 +181,7 @@ function ab_loadWorkspace() {
 
 $(() => {
     ab_loadWorkspace();
-    $(".workspace-ab_controls").each(function () {
+    $(".workspace-controls").each(function () {
         $(this).find("#workspace-select").change((event) => {
             event.preventDefault();
             localStorage.setItem("previousWorkspace", event.target.options[event.target.selectedIndex].text);
