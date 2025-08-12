@@ -20,3 +20,10 @@ function doFullscreen() {
         hideNavbar();
     }
 }
+
+$(() => {
+    if (new URLSearchParams(window.location.search).has("hide-navbar")) {
+        hideNavbar();
+    }
+    $("footer").hide();
+})
