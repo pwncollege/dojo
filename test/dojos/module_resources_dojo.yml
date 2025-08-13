@@ -7,6 +7,10 @@ modules:
     name: Test Module
     description: Test module with mixed resources
     resources:
+      - type: description
+        content: |
+          First description resource at the top.
+          Unique test string: DESC789
       - name: "Resource A"
         type: lecture
         video: hh4XAU6XYP0
@@ -15,6 +19,10 @@ modules:
         type: markdown
         content: |
           Test content B with unique string: TESTB123
+      - type: description
+        content: |
+          Second description resource in the middle.
+          Unique test string: DESC_MIDDLE
       - type: header
         content: Advanced Section
       - name: "Resource C"
@@ -33,6 +41,10 @@ modules:
         type: markdown
         content: |
           Test content D with unique string: TESTD456
+      - type: description
+        content: |
+          Third description resource after challenges.
+          Unique test string: DESC_BOTTOM
       - name: "Resource E"
         type: lecture
         video: 1H1V1HkVt3k
