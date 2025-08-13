@@ -114,6 +114,11 @@ DOJO_SPEC = Schema({
                 **VISIBILITY,
             },
             {
+                "type": "description",
+                "content": str,
+                **VISIBILITY,
+            },
+            {
                 "type": "lecture",
                 "name": NAME_REGEX,
                 Optional("video"): str,
