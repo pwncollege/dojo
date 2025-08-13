@@ -252,7 +252,6 @@ function startChallenge(event) {
 
             $(".challenge-active").removeClass("challenge-active");
             item.find(".challenge-name").addClass("challenge-active");
-            setTimeout(() => updateNavbarDropdown(), 1000);
         }
         else {
             var message = "";
@@ -422,11 +421,6 @@ function doFullscreen() {
 
 function windowResizeCallback(event) {
     $(".challenge-iframe").not(".challenge-iframe-fs").css("aspect-ratio", `${window.innerWidth} / ${window.innerHeight}`);
-}
-
-// TODO: Implement this function if it is needed.
-function updateNavbarDropdown(){
-
 }
 
 $(() => {
