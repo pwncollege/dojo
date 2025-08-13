@@ -49,7 +49,11 @@
     let response =  fetch("/pwncollege_api/v1/workspace?service={{ service }}").then(response => response.json()).then(data => {
         console.log(data);
         if (data.active) {
-            document.getElementById("workspace_iframe").src = data.iframe_src;
+            let url = new URL(data.iframe_src);
+            if (data.setPort) {
+                url.port = window.location.port;
+            }
+            document.getElementById("workspace_iframe").src = url.toString();
             document.querySelector("h1").classList.add("d-none");
             document.getElementById("workspace_iframe").classList.remove("d-none");
         }

@@ -37,7 +37,7 @@ This will run the initial setup, including building the challenge docker image.
 > -v "dojo-data-docker:/data/docker"
 > ```
 
-By default, the dojo will initialize itself to listen on and serve from `localhost.pwn.college` (which resolves to 127.0.0.1).
+By default, the dojo will initialize itself to listen on and serve from `localhost.pwn.college` and `workspace.localhost.pwn.college` (which resolve to 127.0.0.1).
 This is fine for development, but to serve your dojo to the world, you will need to update this (see Production Deployment).
 
 It will take some time to initialize everything and build the challenge docker image.
