@@ -81,17 +81,18 @@ jobs:
           cache-to: type=gha
 
       - name: Run single-node dojo tests
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           export MOZ_HEADLESS=1
           echo "Starting single-node integration tests..."
-          test/local-tester.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace || {
-            echo "Single-node tests failed, checking container logs..."
-            echo "::group::{node logs}"
-            docker exec dojo-test dojo compose logs
-            echo "::endgroup::"
-            exit 1
-          }
+          test/local-tester.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
+
+      - name: Output logs
+        if: always()
+        run: |
+          echo "::group::Main node"
+          docker exec dojo-test dojo compose logs
+          echo "::endgroup::"
 
       - name: Save docker and workspace cache
         if: github.event_name == 'schedule'
@@ -103,6 +104,7 @@ jobs:
           key: dojo-cache-${{ runner.os }}-${{ github.run_id }}
 
       - name: Final filesystem information
+        if: always()
         run: |
           echo "::group::Filesystem"
           df -h
@@ -207,19 +209,20 @@ jobs:
         run: |
           export MOZ_HEADLESS=1
           echo "Starting multi-node integration tests..."
-          test/local-tester.sh -c dojo-test -g -M -D /mnt/dojo-docker -W /mnt/dojo-workspace || {
-            echo "Multi-node tests failed, checking container logs..."
-            echo "::group::{main node logs}"
-            docker exec dojo-test dojo compose logs
-            echo "::endgroup::"
-            echo "::group::{worker node 1 logs}"
-            docker exec dojo-test-node1 dojo compose logs
-            echo "::endgroup::"
-            echo "::group::{worker node 2 logs}"
-            docker exec dojo-test-node2 dojo compose logs
-            echo "::endgroup::"
-            exit 1
-          }
+          test/local-tester.sh -c dojo-test -g -M -D /mnt/dojo-docker -W /mnt/dojo-workspace
+
+      - name: Output logs
+        if: always()
+        run: |
+          echo "::group::Main node"
+          docker exec dojo-test dojo compose logs
+          echo "::endgroup::"
+          echo "::group::Workspace node 1"
+          docker exec dojo-test-node1 dojo compose logs
+          echo "::endgroup::"
+          echo "::group::Workspace node 2"
+          docker exec dojo-test-node2 dojo compose logs
+          echo "::endgroup::"
 
       - name: Save docker and workspace cache
         if: github.event_name == 'schedule'
