@@ -252,7 +252,6 @@ function startChallenge(event) {
 
             $(".challenge-active").removeClass("challenge-active");
             item.find(".challenge-name").addClass("challenge-active");
-            setTimeout(() => updateNavbarDropdown(), 1000);
         }
         else {
             var message = "";
