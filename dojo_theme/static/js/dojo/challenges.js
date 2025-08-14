@@ -1,7 +1,3 @@
-function getContentIframe() {
-    return document.getElementById("workspace-iframe");
-}
-
 function submitChallenge(event) {
     event.preventDefault();
     const item = $(event.currentTarget).closest(".accordion-item");
