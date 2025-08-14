@@ -1,9 +1,14 @@
-function ab_controls(event) {
+// To use the actionbar, the following parameters should be met:
+// 1. There is an iframe for controled workspace content with the id "workspace-iframe"
+// 2. The actionbar and iframe are decendents of a common ancestor with the class "challenge-workspace"
+// 3. The page implements a function, doFullscreen(event) to handle a fullscreen event
+
+// Returns the controls object containing the origin of the event.
+function context(event) {
     return $(event.target).closest(".workspace-controls");
 }
 
-function ab_selectService(service) {
-    // Pages using the actionbar should define their own iframe.
+function selectService(service) {
     const content = document.getElementById("workspace-iframe");
     if (!content) {
         console.log("Missing workspace iframe :(")
@@ -21,7 +26,7 @@ function ab_selectService(service) {
     });
 }
 
-function ab_animateBanner(event, message, type) {
+function animateBanner(event, message, type) {
     const color = {
         success: "var(--brand-green)",
         error:   "var(--error)",
@@ -29,29 +34,29 @@ function ab_animateBanner(event, message, type) {
     }[type] ?? "var(--warn)";
     const animation = type === "success" ? "animate-banner" : "animate-banner-fast";
 
-    ab_controls(event).find("#workspace-notification-banner").removeClass("animate-banner animate-banner-fast");
-    ab_controls(event).find("#workspace-notification-banner")[0].offsetHeight;  // Force reflow of element to play animation again.
-    ab_controls(event).find("#workspace-notification-banner")
+    context(event).find("#workspace-notification-banner").removeClass("animate-banner animate-banner-fast");
+    context(event).find("#workspace-notification-banner")[0].offsetHeight;  // Force reflow of element to play animation again.
+    context(event).find("#workspace-notification-banner")
       .html(message)
       .css("border-color", color)
       .addClass(animation);
 }
 
-function ab_submitFlag(event) {
+function actionSubmitFlag(event) {
     var body = {
-        'challenge_id': parseInt(ab_controls(event).find("#current-challenge-id").val()),
+        'challenge_id': parseInt(context(event).find("#current-challenge-id").val()),
         'submission': $(event.target).val(),
     };
     var params = {};
 
     CTFd.api.post_challenge_attempt(params, body)
     .then(function (response) {
-        const challengeName = ab_controls(event).find("#current-challenge-id").attr("data-challenge-name");
+        const challengeName = context(event).find("#current-challenge-id").attr("data-challenge-name");
         if (response.data.status == "incorrect") {
-            ab_animateBanner(event, "Incorrect!", "error");
+            animateBanner(event, "Incorrect!", "error");
         }
         else if (response.data.status == "correct") {
-            ab_animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
+            animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
             if ($(".challenge-active").length) {
                 $(".challenge-active")
                     .find("i.challenge-unsolved")
@@ -60,16 +65,16 @@ function ab_submitFlag(event) {
             }
         }
         else if (response.data.status == "already_solved") {
-            ab_animateBanner(event, `&#127881 Solved <b>${challengeName}</b>! &#127881`, "success");
+            animateBanner(event, `&#127881 Solved <b>${challengeName}</b>! &#127881`, "success");
         }
         else {
-            ab_animateBanner(event, "Submission Failed.", "warn");
+            animateBanner(event, "Submission Failed.", "warn");
         }
     });
 }
 
-function ab_startChallenge(event) {
-    const privileged = ab_controls(event).find("#workspace-change-privilege").attr("data-privileged") === "true";
+function actionStartChallenge(event) {
+    const privileged = context(event).find("#workspace-change-privilege").attr("data-privileged") === "true";
 
     CTFd.fetch("/pwncollege_api/v1/docker", {
         method: "GET",
@@ -112,9 +117,9 @@ function ab_startChallenge(event) {
                 return;
             }
 
-            ab_selectService(ab_controls(event).find("#workspace-select").val());
+            selectService(context(event).find("#workspace-select").val());
 
-            ab_controls(event).find(".btn-challenge-start")
+            context(event).find(".btn-challenge-start")
             .removeClass("disabled")
             .removeClass("btn-disabled")
             .prop("disabled", false);
@@ -122,34 +127,34 @@ function ab_startChallenge(event) {
     });
 }
 
-function ab_challengeStartCallback(event) {
+function actionStartCallback(event) {
     event.preventDefault();
 
-    ab_controls(event).find(".btn-challenge-start")
+    context(event).find(".btn-challenge-start")
     .addClass("disabled")
     .addClass("btn-disabled")
     .prop("disabled", true);
 
-    if (ab_controls(event).find("#challenge-restart")[0].contains(event.target)) {
-        ab_startChallenge(event);
+    if (context(event).find("#challenge-restart")[0].contains(event.target)) {
+        actionStartChallenge(event);
     }
-    else if (ab_controls(event).find("#workspace-change-privilege").length > 0 && ab_controls(event).find("#workspace-change-privilege")[0].contains(event.target)) {
-        ab_controls(event).find("#workspace-change-privilege").attr("data-privileged", (_, v) => v !== "true");
-        ab_displayPrivileged(event, false);
-        ab_startChallenge(event);
+    else if (context(event).find("#workspace-change-privilege").length > 0 && context(event).find("#workspace-change-privilege")[0].contains(event.target)) {
+        context(event).find("#workspace-change-privilege").attr("data-privileged", (_, v) => v !== "true");
+        displayPrivileged(event, false);
+        actionStartChallenge(event);
     }
     else {
         console.log("Failed to start challenge.");
 
-        ab_controls(event).find(".btn-challenge-start")
+        context(event).find(".btn-challenge-start")
         .removeClass("disabled")
         .removeClass("btn-disabled")
         .prop("disabled", false);
     }
 }
 
-function ab_displayPrivileged(event, invert) {
-    const button = ab_controls(event).find("#workspace-change-privilege");
+function displayPrivileged(event, invert) {
+    const button = context(event).find("#workspace-change-privilege");
     const privileged = button.attr("data-privileged") === "true";
     const lockStatus = privileged === invert;
 
@@ -161,7 +166,7 @@ function ab_displayPrivileged(event, invert) {
                                     : "Restart privileged");
 }
 
-function ab_loadWorkspace() {
+function loadWorkspace() {
     if ($("#workspace-iframe").length == 0 ) {
         return;
     }
@@ -177,44 +182,43 @@ function ab_loadWorkspace() {
             }
         }
     }
-    ab_selectService(option.value);
+    selectService(option.value);
 }
 
 $(() => {
-    ab_loadWorkspace();
+    loadWorkspace();
     $(".workspace-controls").each(function () {
         $(this).find("#workspace-select").change((event) => {
             event.preventDefault();
             localStorage.setItem("previousWorkspace", event.target.options[event.target.selectedIndex].text);
-            ab_selectService(event.target.value);
+            selectService(event.target.value);
         });
 
         $(this).find("#flag-input").on("input", function(event) {
             event.preventDefault();
             if ($(this).val().match(/pwn.college{.*}/)) {
-                ab_submitFlag(event);
+                actionSubmitFlag(event);
             }
         });
         $(this).find("#flag-input").on("keypress", function(event) {
             if (event.key === "Enter" || event.keyCode === 13) {
-                ab_submitFlag(event);
+                actionSubmitFlag(event);
             }
         });
 
-        $(this).find(".btn-challenge-start").click(ab_challengeStartCallback);
+        $(this).find(".btn-challenge-start").click(actionStartCallback);
 
         if ($(this).find("#workspace-change-privilege").length) {
             $(this).find("#workspace-change-privilege").on("mouseenter", function(event) {
-                ab_displayPrivileged(event, true);
+                displayPrivileged(event, true);
             }).on("mouseleave", function(event) {
-                ab_displayPrivileged(event, false);
+                displayPrivileged(event, false);
             });
         }
 
         $(this).find("#fullscreen").click((event) => {
             event.preventDefault();
-            ab_controls(event).find("#fullscreen i").toggleClass("fa-compress fa-expand");
-            // Pages using the actionbar should implement their own fullscreen.
+            context(event).find("#fullscreen i").toggleClass("fa-compress fa-expand");
             doFullscreen(event);
         })
     });
