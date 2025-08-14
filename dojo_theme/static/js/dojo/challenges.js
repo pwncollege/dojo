@@ -279,6 +279,12 @@ function startChallenge(event) {
             ab_loadWorkspace();
             item.find(".challenge-init").addClass("challenge-hidden");
             item.find(".challenge-workspace").removeClass("challenge-hidden");
+            item.find("#workspace-change-privilege")
+                .attr("title", practice ? "Restart unprivileged" : "Restart privileged")
+                .attr("data-privileged", practice)
+                .find(".fas")
+                    .toggleClass("fa-lock", !practice)
+                    .toggleClass("fa-unlock", practice);
             windowResizeCallback("");
         }
 

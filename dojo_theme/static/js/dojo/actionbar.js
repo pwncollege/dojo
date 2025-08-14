@@ -116,11 +116,6 @@ function ab_startChallenge(event) {
     });
 }
 
-function ab_setPrivileged(event, privileged) {
-    ab_controls(event).find("#workspace-change-privilege").attr("data-privileged", privileged);
-    ab_displayPrivileged(false);
-}
-
 function ab_challengeStartCallback(event) {
     event.preventDefault();
 
