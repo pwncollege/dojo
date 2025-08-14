@@ -5,6 +5,7 @@ import errno
 import os
 import re
 import stat
+import subprocess
 import sys
 from collections import deque
 from contextlib import contextmanager
@@ -39,12 +40,11 @@ class DojoFSNode:
         self.mode = mode
         self.uid = uid
         self.gid = gid
+
         self.parent = self
         self.inode = None
-        self.ctx = None
 
     def getattr(self):
-        created_ns = get_container_created_ns() or get_context().pid
         attributes = dict(
             entry_timeout=0,
             attr_timeout=0,
@@ -54,9 +54,9 @@ class DojoFSNode:
             st_uid=self.uid,
             st_gid=self.gid,
             st_size=self.size,
-            st_atime_ns=created_ns,
-            st_ctime_ns=created_ns,
-            st_mtime_ns=created_ns
+            # st_atime_ns=0,
+            # st_ctime_ns=0,
+            # st_mtime_ns=0,
         )
         result = pyfuse3.EntryAttributes()
         for attr, value in attributes.items():
@@ -141,12 +141,6 @@ class DojoFSDirectory(DojoFSNode):
         node.parent = self
         self.children[node.name] = node
         return node
-
-    def mkdir(self, name):
-        return self.add(DojoFSDirectory(name))
-
-    def mkfile(self, name, data=b""):
-        return self.add(DojoFSFile(name, data=data))
 
     @property
     def nlink(self):
@@ -272,7 +266,21 @@ def get_container_created_ns():
     return created_time.timestamp() * 1_000_000_000
 
 
-class WorkspacePrivilegedFile(DojoFSFile):
+class WorkspaceNode(DojoFSNode):
+    def getattr(self):
+        created_ns = get_container_created_ns()
+        attributes = super().getattr()
+        attributes.st_ctime_ns = created_ns
+        attributes.st_mtime_ns = created_ns
+        return attributes
+
+
+class WorkspaceDirectory(DojoFSDirectory, WorkspaceNode):
+    def __init__(self, name):
+        super().__init__(name)
+
+
+class WorkspacePrivilegedFile(DojoFSFile, WorkspaceNode):
     def __init__(self, name):
         super().__init__(name)
 
@@ -297,18 +305,25 @@ def main():
         print(f"Usage: {sys.argv[0]} <mountpoint>")
         sys.exit(1)
 
-    mountpoint = sys.argv[1]
-    Path(mountpoint).mkdir(parents=True, exist_ok=True)
+    mountpoint = Path(sys.argv[1])
+
+    try:
+        mountpoint.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        if error.errno == errno.ENOTCONN:
+            subprocess.run(["umount", mountpoint], check=True)
+        else:
+            raise error
 
     root = DojoFSDirectory("")
-    workspace = root.mkdir("workspace")
+    workspace = root.add(WorkspaceDirectory("workspace"))
     workspace.add(WorkspacePrivilegedFile("privileged"))
 
     dojofs = DojoFS(root)
     fuse_options = set(pyfuse3.default_options)
     fuse_options.add("fsname=dojofs")
     fuse_options.add("allow_other")
-    pyfuse3.init(dojofs, mountpoint, fuse_options)
+    pyfuse3.init(dojofs, str(mountpoint), fuse_options)
 
     try:
         trio.run(pyfuse3.main)
