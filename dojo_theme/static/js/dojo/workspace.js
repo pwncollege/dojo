@@ -1,7 +1,3 @@
-function getContentIframe() {
-    return document.getElementById("workspace-content");
-}
-
 function hideNavbar() {
     $(".navbar").addClass("navbar-hidden");
     $("main").addClass("main-navbar-hidden");
