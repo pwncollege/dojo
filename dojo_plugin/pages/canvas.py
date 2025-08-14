@@ -79,6 +79,7 @@ def sync_canvas_user(user_id, challenge_id):
             sync_canvas(dojo, module=dojo_challenge.module, user_id=user_id)
         except RuntimeError as e:
             logger.error("Canvas sync error for dojo %s", dojo, exc_info=True)
+            break
 
 
 def sync_canvas(dojo, module=None, user_id=None, ignore_pending=False):

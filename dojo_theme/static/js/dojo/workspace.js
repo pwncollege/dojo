@@ -116,6 +116,7 @@ function submitFlag(flag) {
         }
         else if (response.data.status == "correct") {
             animateBanner(`&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
+            markChallengeAsSolved();
         }
         else if (response.data.status == "already_solved") {
             animateBanner(`&#127881 Solved <b>${challengeName}</b>! &#127881`, "success");
@@ -124,6 +125,17 @@ function submitFlag(flag) {
             animateBanner("Submission Failed.", "warn");
         }
     });
+}
+
+// change the challenge icon to solved
+function markChallengeAsSolved(){
+    const $parent = window.parent.$; // Use parent jQuery from iframe context 
+    const $activeChallenge = $parent('.challenge-active')
+    if($activeChallenge.length) {
+        $flagIcon = $activeChallenge.find('i.challenge-unsolved');
+        $flagIcon.removeClass('challenge-unsolved')
+                 .addClass('challenge-solved');
+    }
 }
 
 function hideNavbar() {
