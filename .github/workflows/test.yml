@@ -16,6 +16,9 @@ jobs:
         run: |
           echo "::group::Host information"
           echo "Hostname: $(hostname)"
+          echo "OS: $(lsb_release -d | cut -f2)"
+          echo "Kernel: $(uname -r)"
+          echo "Architecture: $(uname -m)"
           echo "IP: $(hostname -I)"
           echo "::endgroup::"
           echo "::group::Filesystem"
@@ -119,6 +122,9 @@ jobs:
         run: |
           echo "::group::Host information"
           echo "Hostname: $(hostname)"
+          echo "OS: $(lsb_release -d | cut -f2)"
+          echo "Kernel: $(uname -r)"
+          echo "Architecture: $(uname -m)"
           echo "IP: $(hostname -I)"
           echo "::endgroup::"
           echo "::group::Filesystem"
