@@ -184,10 +184,9 @@ function startChallenge(event) {
     const challenge = item.find("#challenge").val()
     const practice = event.currentTarget.id == "challenge-priv";
 
-    item.find("#challenge-start").addClass("disabled-button");
-    item.find("#challenge-start").prop("disabled", true);
-    item.find("#challenge-practice").addClass("disabled-button");
-    item.find("#challenge-practice").prop("disabled", true);
+    item.find(".challenge-init")
+        .addClass("disabled-button")
+        .prop("disabled", true);
 
     var params = {
         "dojo": init.dojo,
@@ -268,23 +267,20 @@ function startChallenge(event) {
         }
 
         result_notification.slideDown();
-        item.find("#challenge-start").removeClass("disabled-button");
-        item.find("#challenge-start").prop("disabled", false);
-        item.find("#challenge-practice").removeClass("disabled-button");
-        item.find("#challenge-practice").prop("disabled", false);
+        item.find(".challenge-init")
+            .removeClass("disabled-button")
+            .prop("disabled", false);
 
         $(".challenge-init").removeClass("challenge-hidden");
-        $(".challenge-workspace")
-            .removeClass("workspace-fullscreen")
-            .addClass("challenge-hidden");
+        $(".challenge-workspace").addClass("challenge-hidden");
         $(".iframe-wrapper").html("");
         if (result.success) {
             item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\"></iframe>");
             ab_loadWorkspace();
             item.find(".challenge-init").addClass("challenge-hidden");
             item.find(".challenge-workspace").removeClass("challenge-hidden");
+            windowResizeCallback("");
         }
-        windowResizeCallback("");
 
         setTimeout(function() {
             item.find(".alert").slideUp();
@@ -397,24 +393,12 @@ function scrollRestore() {
 function contentExpand() {
     $(".challenge-workspace").addClass("workspace-fullscreen");
     $(".challenge-iframe").addClass("challenge-iframe-fs");
-    $(".navbar").addClass("fullscreen-hidden");
-    $(".navbar-pulldown").addClass("fullscreen-hidden");
-    $("#scoreboard-heading").addClass("fullscreen-hidden");
-    $(".scoreboard-controls").addClass("fullscreen-hidden");
-    $(".scoreboard").addClass("fullscreen-hidden");
-    $(".alert").addClass("fullscreen-hidden");
     scrollDisable();
 }
 
 function contentContract() {
     $(".challenge-workspace").removeClass("workspace-fullscreen");
     $(".challenge-iframe").removeClass("challenge-iframe-fs");
-    $(".navbar").removeClass("fullscreen-hidden");
-    $(".navbar-pulldown").removeClass("fullscreen-hidden");
-    $("#scoreboard-heading").removeClass("fullscreen-hidden");
-    $(".scoreboard-controls").removeClass("fullscreen-hidden");
-    $(".scoreboard").removeClass("fullscreen-hidden");
-    $(".alert").removeClass("fullscreen-hidden");
     scrollRestore();
 }
 

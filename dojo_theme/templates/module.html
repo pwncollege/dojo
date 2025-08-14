@@ -15,6 +15,7 @@
 }
 
 .challenge-iframe {
+  display: block;
   width: 100%;
   min-height: 60vh;
   aspect-ratio: 16/9;
@@ -23,7 +24,7 @@
 
 .challenge-iframe-fs {
   aspect-ratio: unset !important;
-  height: 100%;
+  height: calc(100vh - 2.5em - 10px);
 }
 
 .challenge-init {
@@ -38,18 +39,17 @@
   max-height: 0 !important;
 }
 
-.fullscreen-hidden {
-  display: none !important;
-}
-
 .workspace-fullscreen {
   position: fixed;
+  z-index: 1031;/* Navbar z-index + 1 */
   bottom: -16px;
   right: 0;
+  background-color: #111;
   width: 100% !important;
   height: 100% !important;
 }
 </style>
+
 
 {% endblock %}
 
