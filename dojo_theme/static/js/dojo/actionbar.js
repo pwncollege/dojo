@@ -52,6 +52,12 @@ function ab_submitFlag(event) {
         }
         else if (response.data.status == "correct") {
             ab_animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
+            if ($(".challenge-active").length) {
+                $(".challenge-active")
+                    .find("i.challenge-unsolved")
+                    .removeClass("challenge-unsolved")
+                    .addClass("challenge-solved");
+            }
         }
         else if (response.data.status == "already_solved") {
             ab_animateBanner(event, `&#127881 Solved <b>${challengeName}</b>! &#127881`, "success");
