@@ -33,7 +33,7 @@ def before_request():
         method=request.method,
         path=request.path,
         query=request.query_string.decode(),
-        body=request.get_json(silent=True) if request.is_json else None,
+        body=request.get_json(force=True, silent=True),
     )))
 
 
@@ -45,7 +45,7 @@ def after_request(response):
         id=g.request_id,
         timestamp=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         status=response.status_code,
-        body=response.get_json(silent=True) if response.is_json else None,
+        body=response.get_json(force=True, silent=True),
         duration=duration,
     )))
     response.headers["X-Request-ID"] = g.request_id
