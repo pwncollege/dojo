@@ -117,9 +117,7 @@ class DojoFSDirectory(DojoFSNode):
         self.children = {}
 
     def lookup(self, name):
-        print("Lookup:", self.inode, "->", name, "!!!")
         node = self.children.get(name)
-        print(f"Found node: {node} for name '{name}' in directory '{self.name}'")
         if not node:
             raise pyfuse3.FUSEError(errno.ENOENT)
         return node.getattr()
