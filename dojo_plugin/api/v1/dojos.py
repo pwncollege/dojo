@@ -125,7 +125,7 @@ class DojoSolveList(Resource):
         user = Users.query.filter_by(name=username, hidden=False).first() if username else get_current_user()
         if not user:
             return {"error": "User not found"}, 400
-            
+
         solves_query = dojo.solves(user=user, ignore_visibility=True, ignore_admins=False)
 
         if after := request.args.get("after"):
@@ -149,7 +149,7 @@ class DojoSolveList(Resource):
 class DojoCourse(Resource):
     @dojo_route
     def get(self, dojo):
-        result = dict(syllabus=dojo.course.get("syllabus", ""), grade_code=dojo.course.get("grade_code", ""))
+        result = dict(syllabus=dojo.course.get("syllabus"), scripts=dojo.course.get("scripts"))
         student = DojoStudents.query.filter_by(dojo=dojo, user=get_current_user()).first()
         if student:
             result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token)

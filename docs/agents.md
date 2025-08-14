@@ -5,7 +5,7 @@ This file provides guidance to AI agents when working with code in this reposito
 ## Overview
 
 The pwn.college DOJO is a cybersecurity education platform built as a comprehensive CTFd plugin.
-It provides isolated Docker-based workspace environments for hands-on security challenges, with integrated support for Canvas LMS, Discord, and SSH access.
+It provides isolated Docker-based workspace environments for hands-on security challenges.
 The DOJO runs in a docker-in-docker setting, with the "outer" container using docker-compose to spin up "inner" containers running infrastructure components.
 
 ## Common Development Commands
@@ -186,7 +186,7 @@ Examples of unacceptable comments:
 ```python
 # DON'T DO THIS
 # Generate RSA key
-# Get user by ID  
+# Get user by ID
 # Increment counter
 # Call the function
 ```
