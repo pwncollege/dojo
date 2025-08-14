@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -40,5 +41,13 @@ def create_app():
 
     app.register_blueprint(volume_driver, url_prefix="/")
     app.register_blueprint(volume_server, url_prefix="/volume")
+
+    root = logging.getLogger()
+    if not root.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
+        root.setLevel(logging.INFO)
 
     return app
