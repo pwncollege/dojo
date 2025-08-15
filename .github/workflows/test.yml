@@ -8,134 +8,12 @@ on:
     - cron: '42 06 * * *'
 jobs:
   test:
-    name: Single-Node Integration Test
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Host information
-        run: |
-          echo "::group::Host information"
-          echo "Hostname: $(hostname)"
-          echo "OS: $(lsb_release -d | cut -f2)"
-          echo "Kernel: $(uname -r)"
-          echo "Architecture: $(uname -m)"
-          echo "IP: $(hostname -I)"
-          echo "::endgroup::"
-          echo "::group::Filesystem"
-          df -h
-          echo "::endgroup::"
-          echo "::group::Memory"
-          free -h
-          echo "::endgroup::"
-          echo "::group::CPU"
-          lscpu
-          echo "::endgroup::"
-
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-          cache: 'pip'
-      - name: Setup firefox
-        uses: browser-actions/setup-firefox@latest
-      - name: Install test dependencies
-        run: |
-          pip install \
-            marshmallow_sqlalchemy \
-            pytest \
-            pytest-dependency \
-            pytest-order \
-            pytest-timeout \
-            pytest-github-actions-annotate-failures \
-            requests \
-            selenium
-
-      - name: Free up disk space
-        run: |
-          echo "::group::Initial disk usage"
-          df -h
-          echo "::endgroup::"
-
-          echo "::group::Cleaning up disk space"
-          # Remove unnecessary pre-installed software
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
-          sudo apt-get clean
-
-          # Clean up Docker
-          docker system prune -a -f
-
-          echo "::endgroup::"
-          echo "::group::Final disk usage"
-          df -h
-          echo "::endgroup::"
-
-      - name: Make docker cache dir owned by our user
-        run: |
-          sudo chown $USER:$USER /mnt
-
-      - name: Restore docker and workspace cache
-        if: github.event_name != 'schedule'
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            /mnt/dojo-docker
-            /mnt/dojo-workspace
-          key: dojo-cache-${{ runner.os }}-${{ github.run_id }}
-          restore-keys: |
-            dojo-cache-${{ runner.os }}-
-
-      - name: Build docker image
-        if: github.event_name != 'schedule'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          tags: pwncollege/dojo
-          load: true
-          cache-from: type=gha
-      - name: Build and cache docker image
-        if: github.event_name == 'schedule'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          tags: pwncollege/dojo
-          load: true
-          cache-to: type=gha
-
-      - name: Run single-node dojo tests
-        timeout-minutes: 15
-        run: |
-          export MOZ_HEADLESS=1
-          echo "Starting single-node integration tests..."
-          ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
-
-      - name: Output logs
-        if: always()
-        run: |
-          echo "::group::Main node"
-          docker exec dojo-test dojo compose logs
-          echo "::endgroup::"
-
-      - name: Save docker and workspace cache
-        if: github.event_name == 'schedule'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            /mnt/dojo-docker
-            /mnt/dojo-workspace
-          key: dojo-cache-${{ runner.os }}-${{ github.run_id }}
-
-      - name: Final filesystem information
-        if: always()
-        run: |
-          echo "::group::Filesystem"
-          df -h
-          echo "::endgroup::"
-
-  test-multinode:
-    name: Multi-Node Integration Test
+    name: ${{ matrix.mode == 'multinode' && 'Multi-Node' || 'Single-Node' }} Integration Test
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      matrix:
+        mode: [singlenode, multinode]
     steps:
       - name: Host information
         run: |
@@ -205,12 +83,12 @@ jobs:
         with:
           path: |
             /mnt/dojo-docker
-            /mnt/dojo-docker-node1
-            /mnt/dojo-docker-node2
+            ${{ matrix.mode == 'multinode' && '/mnt/dojo-docker-node1' || '' }}
+            ${{ matrix.mode == 'multinode' && '/mnt/dojo-docker-node2' || '' }}
             /mnt/dojo-workspace
-          key: dojo-multinode-cache-${{ runner.os }}-${{ github.run_id }}
+          key: dojo-${{ matrix.mode }}-cache-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            dojo-multinode-cache-${{ runner.os }}-
+            dojo-${{ matrix.mode }}-cache-${{ runner.os }}-
 
       - name: Build docker image
         if: github.event_name != 'schedule'
@@ -229,12 +107,12 @@ jobs:
           load: true
           cache-to: type=gha
 
-      - name: Run multi-node dojo tests
+      - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
         run: |
           export MOZ_HEADLESS=1
-          echo "Starting multi-node integration tests..."
-          ./deploy.sh -c dojo-test -g -M -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
+          echo "Starting ${{ matrix.mode }} integration tests..."
+          ./deploy.sh -c dojo-test -g ${{ matrix.mode == 'multinode' && '-M' || '' }} -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
 
       - name: Output logs
         if: always()
@@ -242,12 +120,14 @@ jobs:
           echo "::group::Main node"
           docker exec dojo-test dojo compose logs
           echo "::endgroup::"
-          echo "::group::Workspace node 1"
-          docker exec dojo-test-node1 dojo compose logs
-          echo "::endgroup::"
-          echo "::group::Workspace node 2"
-          docker exec dojo-test-node2 dojo compose logs
-          echo "::endgroup::"
+          if [ "${{ matrix.mode }}" = "multinode" ]; then
+            echo "::group::Workspace node 1"
+            docker exec dojo-test-node1 dojo compose logs
+            echo "::endgroup::"
+            echo "::group::Workspace node 2"
+            docker exec dojo-test-node2 dojo compose logs
+            echo "::endgroup::"
+          fi
 
       - name: Save docker and workspace cache
         if: github.event_name == 'schedule'
@@ -255,10 +135,10 @@ jobs:
         with:
           path: |
             /mnt/dojo-docker
-            /mnt/dojo-docker-node1
-            /mnt/dojo-docker-node2
+            ${{ matrix.mode == 'multinode' && '/mnt/dojo-docker-node1' || '' }}
+            ${{ matrix.mode == 'multinode' && '/mnt/dojo-docker-node2' || '' }}
             /mnt/dojo-workspace
-          key: dojo-multinode-cache-${{ runner.os }}-${{ github.run_id }}
+          key: dojo-${{ matrix.mode }}-cache-${{ runner.os }}-${{ github.run_id }}
 
       - name: Final filesystem information
         if: always()
