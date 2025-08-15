@@ -111,7 +111,7 @@ async function loadGrades(selector) {
     await gradeWorker.waitForMessage("ready");
     const courseData = await coursePromise;
 
-    gradeWorker.postMessage({ type: "load", code: courseData.course.grade_code });
+    gradeWorker.postMessage({ type: "load", code: courseData.course.scripts.grade });
     await gradeWorker.waitForMessage("loaded");
 
     const [modulesData, solvesData] = await Promise.all([modulesPromise, solvesPromise])
@@ -149,7 +149,7 @@ async function loadAllGrades(selector) {
     await gradeWorker.waitForMessage("ready");
     const courseData = await coursePromise;
 
-    gradeWorker.postMessage({ type: "load", code: courseData.course.grade_code });
+    gradeWorker.postMessage({ type: "load", code: courseData.course.scripts.grade });
     await gradeWorker.waitForMessage("loaded");
 
     const [modulesData, solvesData, studentsData] = await Promise.all([modulesPromise, solvesPromise, studentsPromise])

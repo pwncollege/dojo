@@ -13,7 +13,7 @@ RUN apt-get update && \
 WORKDIR /opt/homefs
 COPY . .
 
-EXPOSE 80
+EXPOSE 4201
 CMD ["gunicorn", \
      "homefs:create_app()", \
      "--bind=unix:/run/docker/plugins/homefs.sock", \

@@ -29,7 +29,6 @@ from .pages.users import users
 from .pages.settings import settings_override
 from .pages.discord import discord
 from .pages.course import course
-from .pages.canvas import sync_canvas_user, canvas
 from .pages.belts import belts
 from .pages.research import research
 from .pages.feed import feed
@@ -47,8 +46,7 @@ class DojoChallenge(BaseChallenge):
     def solve(cls, user, team, challenge, request):
         super().solve(user, team, challenge, request)
         update_awards(user)
-        sync_canvas_user(user.id, challenge.id)
-        
+
         dojo_challenge = DojoChallenges.query.filter_by(challenge_id=challenge.id).first()
         if dojo_challenge:
             dojo = dojo_challenge.module.dojo
@@ -135,7 +133,7 @@ def flask_error_handler(app):
     def handle_page_exception(error):
         if hasattr(error, 'code') and error.code == 404:
             raise
-            
+
         log_exception(error, event_type="page_exception")
         raise
 
@@ -166,7 +164,6 @@ def load(app):
     app.register_blueprint(discord)
     app.register_blueprint(users)
     app.register_blueprint(course)
-    app.register_blueprint(canvas)
     app.register_blueprint(belts)
     app.register_blueprint(research)
     app.register_blueprint(feed)

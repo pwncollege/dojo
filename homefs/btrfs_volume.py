@@ -44,8 +44,8 @@ class BTRFSVolume:
 
 
     @contextmanager
-    def active_lock(self, *, timeout=None):
-        with file_lock(self.path / ".active.lock", timeout=timeout):
+    def active_lock(self, *, blocking=True):
+        with file_lock(self.path / ".active.lock", blocking=blocking):
             yield
 
     def activate(self, host, *, locked=False):
@@ -97,9 +97,9 @@ class BTRFSVolume:
             if locked:
                 return active_snapshot()
             try:
-                with self.active_lock(timeout=0):
+                with self.active_lock(blocking=False):
                     return active_snapshot()
-            except TimeoutError:
+            except BlockingIOError:
                 pass
 
         if not self.latest_snapshot_path:
