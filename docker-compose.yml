@@ -1,9 +1,9 @@
 services:
   splunk:
     container_name: splunk
-    image: splunk/splunk:9.1.2
     profiles:
       - splunk
+    image: splunk/splunk:9.1.2
     hostname: splunk
     restart: always
     environment:
@@ -27,6 +27,8 @@ services:
 
   workspace-builder:
     container_name: workspace-builder
+    profiles:
+      - workspace
     build: ./workspace
     environment:
       - DOJO_WORKSPACE=${DOJO_WORKSPACE}
@@ -36,6 +38,8 @@ services:
 
   dojofs:
     container_name: dojofs
+    profiles:
+      - workspace
     privileged: true
     pid: host
     build: ./dojofs
@@ -45,6 +49,9 @@ services:
 
   homefs:
     container_name: homefs
+    profiles:
+      - main
+      - workspace
     privileged: true
     build: ./homefs
     environment:
@@ -136,12 +143,6 @@ services:
       timeout: 10s
       retries: 3
     depends_on:
-      workspace-builder:
-        condition: service_completed_successfully
-      dojofs:
-        condition: service_started
-      homefs:
-        condition: service_started
       pgbouncer:
         condition: service_started
       cache:
@@ -256,6 +257,9 @@ services:
 
   node-exporter:
     container_name: node-exporter
+    profiles:
+      - main
+      - workspace
     image: prom/node-exporter
     command:
       - "--path.rootfs=/host"
@@ -266,6 +270,9 @@ services:
 
   cadvisor:
     container_name: cadvisor
+    profiles:
+      - main
+      - workspace
     image: gcr.io/cadvisor/cadvisor
     privileged: true
     ports:
@@ -351,6 +358,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   create-workspace-net:
+    profiles:
+      - main
+      - workspace
     image: busybox:uclibc
     command: /bin/true
     networks:

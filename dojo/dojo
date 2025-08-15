@@ -27,8 +27,6 @@ case "$ACTION" in
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
     "update")
         git pull
-        # rebuild the workspace so that ctfd isn't down for too long
-        dojo compose up -d --build --no-deps workspace-builder
         dojo up "$@"
         ;;
 
@@ -66,14 +64,24 @@ case "$ACTION" in
 
     # HELP: compose ARGS: run a docker compose command with the config.env file loaded
     "compose")
-        profile="main"
-        [ "$WORKSPACE_NODE" -gt 0 ] && profile="workspace"
+        profiles=()
 
-        if [ "${ENABLE_SPLUNK}" = "true" ]; then
-            docker compose --env-file=/data/config.env --profile "$profile" --profile splunk "$@"
+        multi_node=$(jq 'length > 0' /data/workspace_nodes.json 2>/dev/null || echo "unknown")
+        if [ "$WORKSPACE_NODE" -gt 0 ]; then
+            profiles+=("workspace")
+        elif [ "$multi_node" == "true" ]; then
+            profiles+=("main")
         else
-            docker compose --env-file=/data/config.env --profile "$profile" "$@"
+            profiles+=("main" "workspace")
         fi
+
+        [ "${ENABLE_SPLUNK}" = "true" ] && profiles+=("splunk")
+
+        args=(--env-file=/data/config.env)
+        for p in "${profiles[@]}"; do
+            args+=(--profile "$p")
+        done
+        docker compose "${args[@]}" "$@"
         ;;
 
     # HELP: node: run a dojo node command

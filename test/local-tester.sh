@@ -162,21 +162,25 @@ CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress
 if [ "$START" == "yes" ]; then
 	fix_insane_routing "$DOJO_CONTAINER"
 	docker exec "$DOJO_CONTAINER" dojo wait
+
+	if [ "$MULTINODE" == "no" ]; then
+		docker exec "$DOJO_CONTAINER" docker wait workspace-builder
+		docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
+		docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
+	fi
 fi
 
-docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
-docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 log_endgroup
 
 if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	log_newgroup "Setting up multi-node cluster"
-	
+
 	# Disconnect nginx-proxy from workspace_net for multinode routing to work
 	docker exec "$DOJO_CONTAINER" docker network disconnect workspace_net nginx-proxy 2>/dev/null || true
-	
+
 	docker exec "$DOJO_CONTAINER" dojo-node refresh
 	MAIN_KEY=$(docker exec "$DOJO_CONTAINER" cat /data/wireguard/publickey)
-	
+
 	docker run --rm --privileged -d \
 		"${NODE1_VOLUME_ARGS[@]}" \
 		"${ENV_ARGS[@]}" \
@@ -187,7 +191,7 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 		--name "$DOJO_CONTAINER-node1" \
 		"$IMAGE_NAME"
 	fix_insane_routing "$DOJO_CONTAINER-node1"
-	
+
 	docker run --rm --privileged -d \
 		"${NODE2_VOLUME_ARGS[@]}" \
 		"${ENV_ARGS[@]}" \
@@ -198,18 +202,18 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 		--name "$DOJO_CONTAINER-node2" \
 		"$IMAGE_NAME"
 	fix_insane_routing "$DOJO_CONTAINER-node2"
-	
-	# Wait for workspace containers and set up WireGuard  
+
+	# Wait for workspace containers and set up WireGuard
 	docker exec "$DOJO_CONTAINER-node1" dojo wait
 	docker exec "$DOJO_CONTAINER-node2" dojo wait
-	
+
 	docker exec "$DOJO_CONTAINER-node1" dojo-node refresh
 	docker exec "$DOJO_CONTAINER-node2" dojo-node refresh
-	
+
 	# Register workspace nodes with main node
 	NODE1_KEY=$(docker exec "$DOJO_CONTAINER-node1" cat /data/wireguard/publickey)
 	NODE2_KEY=$(docker exec "$DOJO_CONTAINER-node2" cat /data/wireguard/publickey)
-	
+
 	docker exec "$DOJO_CONTAINER" dojo-node add 1 "$NODE1_KEY"
 	docker exec "$DOJO_CONTAINER" dojo-node add 2 "$NODE2_KEY"
 	sleep 5
@@ -217,8 +221,10 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	sleep 5
 	docker exec "$DOJO_CONTAINER" dojo wait
 
+	docker exec "$DOJO_CONTAINER-node1" docker wait workspace-builder
 	docker exec "$DOJO_CONTAINER-node1" docker pull pwncollege/challenge-simple
 	docker exec "$DOJO_CONTAINER-node1" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
+	docker exec "$DOJO_CONTAINER-node2" docker wait workspace-builder
 	docker exec "$DOJO_CONTAINER-node2" docker pull pwncollege/challenge-simple
 	docker exec "$DOJO_CONTAINER-node2" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 
@@ -236,7 +242,7 @@ fi
 
 log_newgroup "Waiting for dojo to be ready"
 export DOJO_URL="http://${CONTAINER_IP}"
-export DOJO_SSH_HOST="$CONTAINER_IP" 
+export DOJO_SSH_HOST="$CONTAINER_IP"
 until curl -Ls "${DOJO_URL}" | grep -q pwn; do sleep 1; done
 log_endgroup
 
