@@ -243,23 +243,24 @@ def load_dojo_subyamls(data, dojo_dir):
             })
 
             for challenge_data in challenges:
-                if "import" in challenge_data and "id" not in challenge_data:
-                    challenge_data["id"] = challenge_data["import"]["challenge"]
+                challenge_data["type"] = "challenge"
+                module_data["resources"].append(challenge_data)
 
-                if "id" not in challenge_data:
+        for resource_data in module_data["resources"]:
+            if resource_data.get("type") == "challenge":
+                if "import" in resource_data and "id" not in resource_data:
+                    resource_data["id"] = resource_data["import"]["challenge"]
+
+                if "id" not in resource_data:
                     continue
 
-                challenge_dir = module_dir / challenge_data["id"]
-                setdefault_subyaml(challenge_data, challenge_dir / "challenge.yml")
-                setdefault_file(challenge_data, "description", challenge_dir / "DESCRIPTION.md")
-                setdefault_name(challenge_data)
+                challenge_dir = module_dir / resource_data["id"]
+                setdefault_subyaml(resource_data, challenge_dir / "challenge.yml")
+                setdefault_file(resource_data, "description", challenge_dir / "DESCRIPTION.md")
+                setdefault_name(resource_data)
 
-                challenge_data["type"] = "challenge"
-
-                if "import" in challenge_data and "name" not in challenge_data:
-                    challenge_data["name"] = challenge_data.get("id", "Imported Challenge").replace("-", " ").title()
-
-                module_data["resources"].append(challenge_data)
+                if "import" in resource_data and "name" not in resource_data:
+                    resource_data["name"] = resource_data.get("id", "Imported Challenge").replace("-", " ").title()
 
     return data
 
