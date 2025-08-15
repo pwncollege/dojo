@@ -165,7 +165,8 @@ def test_welcome_practice(random_user_browser, random_user_name, welcome_dojo):
         vs.send_keys("sudo cp /challenge/secret /home/hacker/secret\n")
         time.sleep(1)
 
-    challenge_start(random_user_browser, idx, practice=False)
+    random_user_browser.find_element("id", "workspace-change-privilege").click()
+    time.sleep(10)
     with desktop_terminal(random_user_browser, random_user_name) as vs:
         vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
         time.sleep(2)
