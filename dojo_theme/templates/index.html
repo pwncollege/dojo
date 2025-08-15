@@ -29,10 +29,17 @@
 
   <p><br><br>
 
-  <h2>Ground Rules</h2>
+  <h2>The Rules</h2>
   <p>The challenges created for pwn.college are, first and foremost, educational material, and are used to grade students at universities around the world.
   Because of this, we would appreciate that you <b>do not post writeups, walkthrough videos, and livestreams of challenge solutions</b> to the internet.
-  Obviously, we can’t enforce this, but we worked hard to make all of this public, and we would appreciate your help in keeping pwn.college a viable educational platform.
+  Obviously, we can't enforce this, but we worked hard to make all of this public, and we would appreciate your help in keeping pwn.college a viable educational platform.
+
+  <div id="agreement-section" class="text-center mt-4 mb-4">
+    <p>Please agree to these rules to continue to the material!<br>
+    <button id="agree-button" class="btn btn-success btn-lg">I Agree to the Rules</button>
+  </div>
+
+  <div id="content-after-rules" style="display: none;">
 
 
 
@@ -197,8 +204,25 @@
     </div>
   </div>
 
+  </div>
+
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script>
+document.getElementById('agree-button').addEventListener('click', function() {
+  document.getElementById('content-after-rules').style.display = 'block';
+  document.getElementById('agreement-section').style.display = 'none';
+  
+  // Store agreement in localStorage
+  localStorage.setItem('agreedToRules', 'true');
+});
+
+// Check if user already agreed
+if (localStorage.getItem('agreedToRules') === 'true') {
+  document.getElementById('content-after-rules').style.display = 'block';
+  document.getElementById('agreement-section').style.display = 'none';
+}
+</script>
 {% endblock %}
