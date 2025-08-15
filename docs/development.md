@@ -24,7 +24,7 @@ docker exec -i "dojo-$TAG" dojo vscode
 
 ## Testing
 
-You can run the dojo CI testcases locally using `test/local-tester.sh`.
+You can run the dojo CI testcases locally using `./deploy.sh -t`.
 
 ## Adding a config entry
 
