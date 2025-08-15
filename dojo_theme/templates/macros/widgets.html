@@ -63,16 +63,6 @@
   </div>
 {% endmacro %}
 
-{% macro github_edit_link(dojo, file_path) %}
-  {% if dojo.official and dojo.repository and file_path %}
-    <a href="https://github.com/{{ dojo.repository }}/edit/main/{{ file_path }}" 
-       target="_blank" 
-       class="github-edit-link"
-       title="Edit on GitHub">
-      <i class="fas fa-edit"></i>
-    </a>
-  {% endif %}
-{% endmacro %}
 
 {% set svg_add_icon %}
 <svg class="w-100 h-100">

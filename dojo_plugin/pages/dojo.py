@@ -1,6 +1,7 @@
 import collections
 import traceback
 import datetime
+import ruamel
 import sys
 
 from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context, request, g
@@ -21,6 +22,79 @@ dojo = Blueprint("pwncollege_dojo", __name__)
 #pylint:disable=redefined-outer-name
 
 
+def find_description_edit_url(dojo, base_path, candidates, yaml_search_paths=None, resource_name=None):
+    """Find description file and return GitHub edit URL with line number"""
+    if not (dojo.official and dojo.repository):
+        return None
+        
+    for candidate in candidates:
+        if isinstance(candidate, tuple):
+            relative_path, full_path = candidate
+        else:
+            full_path = base_path / candidate
+            try:
+                relative_path = full_path.relative_to(dojo.path)
+            except ValueError:
+                relative_path = candidate
+            
+        if full_path.exists():
+            line_num = 1  # Default to line 1 for .md files
+            
+            if str(relative_path).endswith('.yml') and (yaml_search_paths or resource_name):
+                try:
+                    yaml = ruamel.YAML()
+                    yaml.preserve_quotes = True
+                    
+                    with open(full_path, 'r') as f:
+                        data = yaml.load(f)
+                    
+                    # If looking for a resource by name, search in resources array
+                    if resource_name and 'resources' in data:
+                        for i, res in enumerate(data['resources']):
+                            if isinstance(res, dict) and res.get('name') == resource_name:
+                                # Get line number of this specific resource entry
+                                if hasattr(res, 'lc'):
+                                    line_num = res.lc.line + 1
+                                    break
+                    
+                    # Otherwise use the provided search paths
+                    if line_num == 1 and yaml_search_paths:
+                        for path in yaml_search_paths:
+                            parts = path.split('.')
+                            current = data
+                            
+                            try:
+                                for part in parts:
+                                    if '[' in part and ']' in part:
+                                        key, idx = part.split('[')
+                                        idx = int(idx.rstrip(']'))
+                                        current = current[key][idx]
+                                    else:
+                                        current = current[part]
+                                
+                                if hasattr(current, 'lc'):
+                                    line_num = current.lc.line + 1
+                                    break
+                                elif hasattr(data, 'lc') and path in data:
+                                    line_num = data.lc.key(path)[0] + 1
+                                    break
+                            except (KeyError, IndexError, AttributeError, TypeError):
+                                continue
+                    
+                    # Fallback to simple keys
+                    if line_num == 1:
+                        for key in ['description', 'content']:
+                            if key in data and hasattr(data, 'lc'):
+                                line_num = data.lc.key(key)[0] + 1
+                                break
+                except Exception:
+                    pass
+            
+            return f"https://github.com/{dojo.repository}/edit/main/{relative_path}#L{line_num}"
+    
+    return None
+
+
 @dojo.route("/<dojo>")
 @dojo.route("/<dojo>/")
 @dojo_route
@@ -37,15 +111,9 @@ def listing(dojo):
     )
     stats["active"] = sum(module_container_counts.values())
     
-    def find_description_source(base_path, *file_candidates):
-        for file_path in file_candidates:
-            if (base_path / file_path).exists():
-                return file_path
-        return None
-    
-    description_file = None
+    description_edit_url = None
     if dojo.description and dojo.path.exists():
-        description_file = find_description_source(dojo.path, "DESCRIPTION.md", "dojo.yml")
+        description_edit_url = find_description_edit_url(dojo, dojo.path, ["DESCRIPTION.md", "dojo.yml"], ['description'])
     
     return render_template(
         "dojo.html",
@@ -56,7 +124,7 @@ def listing(dojo):
         infos=infos,
         awards=awards,
         module_container_counts=module_container_counts,
-        description_file=description_file,
+        description_edit_url=description_edit_url,
     )
 
 
@@ -298,43 +366,37 @@ def view_module(dojo, module):
         if container["module"] == module.id and container["dojo"] == dojo.reference_id
     )
     
-    def find_description_file(base_path, candidates_with_paths):
-        """Returns the relative path of the first existing file from candidates"""
-        for relative_path, full_path in candidates_with_paths:
-            if full_path.exists():
-                return relative_path
-        return None
-    
-    module_description_file = None
-    challenge_description_files = {}
-    resource_description_files = {}
+    module_description_edit_url = None
+    challenge_description_edit_urls = {}
+    resource_description_edit_urls = {}
     
     if dojo.path.exists():
         module_path = dojo.path / module.id
         
         if module.description:
-            module_description_file = find_description_file(dojo.path, [
-                (f"{module.id}/DESCRIPTION.md", module_path / "DESCRIPTION.md"),
-                (f"{module.id}/module.yml", module_path / "module.yml"),
+            module_description_edit_url = find_description_edit_url(dojo, module_path, [
+                "DESCRIPTION.md",
+                "module.yml",
                 ("dojo.yml", dojo.path / "dojo.yml")
-            ])
+            ], ['description'])
         
         for challenge in module.challenges:
             if challenge.description:
                 challenge_path = module_path / challenge.id
-                challenge_description_files[challenge.id] = find_description_file(dojo.path, [
-                    (f"{module.id}/{challenge.id}/DESCRIPTION.md", challenge_path / "DESCRIPTION.md"),
-                    (f"{module.id}/{challenge.id}/challenge.yml", challenge_path / "challenge.yml"),
-                    (f"{module.id}/module.yml", module_path / "module.yml"),
+                challenge_description_edit_urls[challenge.id] = find_description_edit_url(dojo, challenge_path, [
+                    "DESCRIPTION.md",
+                    "challenge.yml",
+                    ("module.yml", module_path / "module.yml"),
                     ("dojo.yml", dojo.path / "dojo.yml")
-                ])
+                ], [f'challenges.{challenge.id}.description', 'description'])
         
         for resource in module.resources:
             if resource.type == "markdown":
-                resource_description_files[resource.resource_index] = find_description_file(dojo.path, [
-                    (f"{module.id}/module.yml", module_path / "module.yml"),
-                    ("dojo.yml", dojo.path / "dojo.yml")
-                ])
+                resource_description_edit_urls[resource.resource_index] = find_description_edit_url(
+                    dojo, module_path, 
+                    ["module.yml", ("dojo.yml", dojo.path / "dojo.yml")],
+                    resource_name=resource.name
+                )
 
     return render_template(
         "module.html",
@@ -347,9 +409,9 @@ def view_module(dojo, module):
         current_dojo_challenge=current_dojo_challenge,
         assessments=assessments,
         challenge_container_counts=challenge_container_counts,
-        module_description_file=module_description_file,
-        challenge_description_files=challenge_description_files,
-        resource_description_files=resource_description_files,
+        module_description_edit_url=module_description_edit_url,
+        challenge_description_edit_urls=challenge_description_edit_urls,
+        resource_description_edit_urls=resource_description_edit_urls,
     )
 
 

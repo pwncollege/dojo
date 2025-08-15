@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros/widgets.html" import accordion_item, github_edit_link %}
+{% from "macros/widgets.html" import accordion_item %}
 
 {% block stylesheets %}
 {{ super() }}
@@ -72,8 +72,13 @@
 
   {% if module.description %}
   <div>
-    {% if module_description_file %}
-      {{ github_edit_link(dojo, module_description_file) }}
+    {% if module_description_edit_url %}
+      <a href="{{ module_description_edit_url }}" 
+         target="_blank" 
+         class="github-edit-link"
+         title="Edit on GitHub">
+        <i class="fas fa-edit"></i>
+      </a>
     {% endif %}
     {{ module.description | markdown }}
   </div>
@@ -119,8 +124,13 @@
 
             {% elif resource.type == "markdown" %}
             <div class="embed-responsive">
-              {% if resource_description_files.get(resource.resource_index) %}
-                {{ github_edit_link(dojo, resource_description_files[resource.resource_index]) }}
+              {% if resource_description_edit_urls.get(resource.resource_index) %}
+                <a href="{{ resource_description_edit_urls[resource.resource_index] }}" 
+                   target="_blank" 
+                   class="github-edit-link"
+                   title="Edit on GitHub">
+                  <i class="fas fa-edit"></i>
+                </a>
               {% endif %}
               {{ resource.content | markdown }}
             </div>
@@ -192,8 +202,13 @@
               {% if lock_challenge %}
                 <p><em>This challenge is locked</em></p>
               {% else %}
-                {% if challenge_description_files.get(challenge.id) %}
-                  {{ github_edit_link(dojo, challenge_description_files[challenge.id]) }}
+                {% if challenge_description_edit_urls.get(challenge.id) %}
+                  <a href="{{ challenge_description_edit_urls[challenge.id] }}" 
+                     target="_blank" 
+                     class="github-edit-link"
+                     title="Edit on GitHub">
+                    <i class="fas fa-edit"></i>
+                  </a>
                 {% endif %}
                 {{ challenge.description | markdown }}
               {% endif %}

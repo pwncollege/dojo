@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros/widgets.html" import card, github_edit_link %}
+{% from "macros/widgets.html" import card %}
 
 {% block content %}
 <div class="jumbotron">
@@ -12,8 +12,13 @@
 
   {% if dojo.description %}
   <div>
-    {% if description_file %}
-      {{ github_edit_link(dojo, description_file) }}
+    {% if description_edit_url %}
+      <a href="{{ description_edit_url }}" 
+         target="_blank" 
+         class="github-edit-link"
+         title="Edit on GitHub">
+        <i class="fas fa-edit"></i>
+      </a>
     {% endif %}
     {{ dojo.description | markdown }}
   </div>
