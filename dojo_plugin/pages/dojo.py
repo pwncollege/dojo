@@ -22,12 +22,52 @@ dojo = Blueprint("pwncollege_dojo", __name__)
 #pylint:disable=redefined-outer-name
 
 
+def get_yaml_line_number(yaml_path, resource_name=None, search_paths=None):
+    """Get line number for a specific key in a YAML file"""
+    try:
+        yaml = ruamel.YAML()
+        yaml.preserve_quotes = True
+        
+        with open(yaml_path, 'r') as f:
+            data = yaml.load(f)
+        
+        # Search for resource by name
+        if resource_name and 'resources' in data:
+            for res in data['resources']:
+                if isinstance(res, dict) and res.get('name') == resource_name:
+                    if hasattr(res, 'lc'):
+                        return res.lc.line + 1
+        
+        # Search using provided paths
+        if search_paths:
+            for path in search_paths:
+                if '.' in path:
+                    # Navigate nested path (e.g., "challenges.challenge1.description")
+                    parts = path.split('.')
+                    current = data
+                    try:
+                        for part in parts:
+                            current = current[part]
+                        if hasattr(current, 'lc'):
+                            return current.lc.line + 1
+                    except (KeyError, TypeError):
+                        continue
+                elif path in data and hasattr(data, 'lc'):
+                    # Top-level key
+                    return data.lc.key(path)[0] + 1
+    except Exception:
+        pass
+    
+    return 1  # Default to line 1
+
+
 def find_description_edit_url(dojo, base_path, candidates, yaml_search_paths=None, resource_name=None):
     """Find description file and return GitHub edit URL with line number"""
     if not (dojo.official and dojo.repository):
         return None
-        
+    
     for candidate in candidates:
+        # Handle tuple or string candidates
         if isinstance(candidate, tuple):
             relative_path, full_path = candidate
         else:
@@ -36,61 +76,16 @@ def find_description_edit_url(dojo, base_path, candidates, yaml_search_paths=Non
                 relative_path = full_path.relative_to(dojo.path)
             except ValueError:
                 relative_path = candidate
+        
+        if not full_path.exists():
+            continue
             
-        if full_path.exists():
-            line_num = 1  # Default to line 1 for .md files
-            
-            if str(relative_path).endswith('.yml') and (yaml_search_paths or resource_name):
-                try:
-                    yaml = ruamel.YAML()
-                    yaml.preserve_quotes = True
-                    
-                    with open(full_path, 'r') as f:
-                        data = yaml.load(f)
-                    
-                    # If looking for a resource by name, search in resources array
-                    if resource_name and 'resources' in data:
-                        for i, res in enumerate(data['resources']):
-                            if isinstance(res, dict) and res.get('name') == resource_name:
-                                # Get line number of this specific resource entry
-                                if hasattr(res, 'lc'):
-                                    line_num = res.lc.line + 1
-                                    break
-                    
-                    # Otherwise use the provided search paths
-                    if line_num == 1 and yaml_search_paths:
-                        for path in yaml_search_paths:
-                            parts = path.split('.')
-                            current = data
-                            
-                            try:
-                                for part in parts:
-                                    if '[' in part and ']' in part:
-                                        key, idx = part.split('[')
-                                        idx = int(idx.rstrip(']'))
-                                        current = current[key][idx]
-                                    else:
-                                        current = current[part]
-                                
-                                if hasattr(current, 'lc'):
-                                    line_num = current.lc.line + 1
-                                    break
-                                elif hasattr(data, 'lc') and path in data:
-                                    line_num = data.lc.key(path)[0] + 1
-                                    break
-                            except (KeyError, IndexError, AttributeError, TypeError):
-                                continue
-                    
-                    # Fallback to simple keys
-                    if line_num == 1:
-                        for key in ['description', 'content']:
-                            if key in data and hasattr(data, 'lc'):
-                                line_num = data.lc.key(key)[0] + 1
-                                break
-                except Exception:
-                    pass
-            
-            return f"https://github.com/{dojo.repository}/edit/main/{relative_path}#L{line_num}"
+        # Get line number for YAML files
+        line_num = 1
+        if str(relative_path).endswith('.yml'):
+            line_num = get_yaml_line_number(full_path, resource_name, yaml_search_paths)
+        
+        return f"https://github.com/{dojo.repository}/edit/main/{relative_path}#L{line_num}"
     
     return None
 
