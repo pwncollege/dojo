@@ -1062,3 +1062,25 @@ code {
         background-color: rgba(0, 0, 0, 0.8);
     }
 }
+
+.github-edit-link {
+    float: right;
+    padding: 2px 6px;
+    margin-left: 10px;
+    font-size: 0.7rem;
+    color: var(--brand-light-gray);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    opacity: 0.6;
+}
+
+.github-edit-link:hover {
+    color: var(--brand-green);
+    text-decoration: none;
+    opacity: 1;
+}
+
+.github-edit-link i {
+    margin-right: 2px;
+    font-size: 0.65rem;
+}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros/widgets.html" import card %}
+{% from "macros/widgets.html" import card, github_edit_link %}
 
 {% block content %}
 <div class="jumbotron">
@@ -11,7 +11,12 @@
   {% include "components/errors.html" %}
 
   {% if dojo.description %}
-  <p>{{ dojo.description | markdown }}</p>
+  <div>
+    {% if description_file %}
+      {{ github_edit_link(dojo, description_file) }}
+    {% endif %}
+    {{ dojo.description | markdown }}
+  </div>
   <br>
   {% endif %}
 

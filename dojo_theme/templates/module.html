@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros/widgets.html" import accordion_item %}
+{% from "macros/widgets.html" import accordion_item, github_edit_link %}
 
 {% block stylesheets %}
 {{ super() }}
@@ -71,7 +71,12 @@
 <div class="container">
 
   {% if module.description %}
-  <p>{{ module.description | markdown }}</p>
+  <div>
+    {% if module_description_file %}
+      {{ github_edit_link(dojo, module_description_file) }}
+    {% endif %}
+    {{ module.description | markdown }}
+  </div>
   <br>
   {% endif %}
 
@@ -184,6 +189,9 @@
               {% if lock_challenge %}
                 <p><em>This challenge is locked</em></p>
               {% else %}
+                {% if challenge_description_files.get(challenge.id) %}
+                  {{ github_edit_link(dojo, challenge_description_files[challenge.id]) }}
+                {% endif %}
                 {{ challenge.description | markdown }}
               {% endif %}
             </div>
