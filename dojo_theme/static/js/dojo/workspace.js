@@ -7,7 +7,7 @@ function animateBanner(message, type) {
     const animation = type === "success" ? "animate-banner" : "animate-banner-fast";
 
     $("#workspace-notification-banner").removeClass("animate-banner animate-banner-fast");
-    $("#workspace-notification-banner").offsetHeight;  // Force reflow of element to play animation again.
+    void(document.getElementById("workspace-notification-banner").offsetHeight);  // Force reflow of element to play animation again (JQUERY does not trigger reflow).
     $("#workspace-notification-banner")
       .html(message)
       .css("border-color", color)
@@ -16,6 +16,12 @@ function animateBanner(message, type) {
 
 function selectService(service) {
     const content = document.getElementById("workspace-content");
+    if (service === "ssh") {
+        content.src = "";
+        shrinkContent();
+        window.parent.shrinkContent();
+        return;
+    }
     const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
     url.searchParams.set("service", service);
     fetch(url, {
@@ -25,6 +31,8 @@ function selectService(service) {
     .then(response => response.json())
     .then(result => {
         content.src = result["iframe_src"];
+        restoreContent();
+        window.parent.restoreContent();
     });
 }
 
@@ -122,6 +130,8 @@ function challengeStartCallback(event) {
 }
 
 function submitFlag(flag) {
+    $("#flag-input").prop("disabled", true).addClass("disabled");
+    $("#flag-icon").toggleClass("fa-spin fa-flag fa-spinner");
     var body = {
         'challenge_id': parseInt(document.getElementById("current-challenge-id").value),
         'submission': flag,
@@ -144,6 +154,8 @@ function submitFlag(flag) {
         else {
             animateBanner("Submission Failed.", "warn");
         }
+        $("#flag-input").prop("disabled", false).removeClass("disabled");
+        $("#flag-icon").toggleClass("fa-spin fa-flag fa-spinner");
     });
 }
 
@@ -175,6 +187,16 @@ function doFullscreen() {
     else {
         hideNavbar();
     }
+}
+
+function shrinkContent() {
+    $("#workspace-content").css("display", "none");
+    $("#ssh-hint").css("display", "block");
+}
+
+function restoreContent() {
+    $("#workspace-content").css("display", "initial");
+    $("#ssh-hint").css("display", "none");
 }
 
 $(() => {
@@ -231,5 +253,12 @@ $(() => {
         // If the window is not an iframe, this will refer to its own do_fullscreen function.
         // Otherwise it will call the do_fullscreen function of the window which we are iframed into.
         window.parent.doFullscreen();
+    });
+
+    $(document).click((event) => {
+        if (document.getElementById("workspace-notification-banner").contains(event.target)) {
+            return;
+        }
+        $("#workspace-notification-banner").removeClass("animate-banner animate-banner-fast")
     });
 });
