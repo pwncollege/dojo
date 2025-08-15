@@ -88,7 +88,7 @@ jobs:
         run: |
           export MOZ_HEADLESS=1
           echo "Starting single-node integration tests..."
-          test/local-tester.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
+          ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
 
       - name: Output logs
         if: always()
@@ -215,7 +215,7 @@ jobs:
         run: |
           export MOZ_HEADLESS=1
           echo "Starting multi-node integration tests..."
-          test/local-tester.sh -c dojo-test -g -M -D /mnt/dojo-docker -W /mnt/dojo-workspace
+          ./deploy.sh -c dojo-test -g -M -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
 
       - name: Output logs
         if: always()
