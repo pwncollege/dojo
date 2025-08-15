@@ -89,49 +89,34 @@ def challenge_expand(browser, idx):
     time.sleep(0.5)
 
 
-def challenge_start(browser, idx, practice=False, first=True):
-    if first:
-        challenge_expand(browser, idx)
-
+def challenge_start(browser, idx, practice=False, first=True, current="unprivileged"):
     body = browser.find_element("id", f"challenges-body-{idx}")
-    restore = browser.current_window_handle
 
     if first:
-        body.find_element("id", "challenge-start").click()
+        body.find_element("id", "challenge-priv" if practice else "challenge-start").click()
         while "started" not in body.find_element("id", "result-message").text:
             time.sleep(0.5)
         time.sleep(1)
 
-    browser.switch_to.frame(body.find_element("id", "workspace-iframe"))
-
-    if practice:
-        browser.find_element("id", "start-privileged").click()
-        while "disabled" in browser.find_element("id", "start-privileged").get_attribute("class"):
-            time.sleep(0.5)
-    elif not first:
-        browser.find_element("id", "start-unprivileged").click()
-        while "disabled" in browser.find_element("id", "start-unprivileged").get_attribute("class"):
+    else:
+        restart = (practice and current == "privileged") or (not practice and current == "unprivileged")
+        body.find_element("id", "challenge-restart" if restart else "workspace-change-privilege").click()
+        while "disabled" in body.find_element("id", "challenge-restart").get_attribute("class"):
             time.sleep(0.5)
 
     time.sleep(1)
 
-    browser.switch_to.window(restore)
-
 
 def challenge_submit(browser, idx, flag):
     body = browser.find_element("id", f"challenges-body-{idx}")
-    restore = browser.current_window_handle
-
-    browser.switch_to.frame(body.find_element("id", "workspace-iframe"))
-    browser.find_element("id", "flag-input").send_keys(flag)
+    body.find_element("id", "flag-input").send_keys(flag)
 
     counter = 0
     matches = ["Solved", "completed"]
-    while not any(x in browser.find_element("id", "workspace-notification-banner").get_attribute("innerHTML") for x in matches) and counter < 20:
+    while not any(x in body.find_element("id", "workspace-notification-banner").get_attribute("innerHTML") for x in matches) and counter < 20:
         time.sleep(0.5)
         counter = counter + 1
     assert counter != 20
-    browser.switch_to.window(restore)
 
 # Gets the accordion entry index
 def challenge_idx(browser, name):
@@ -179,20 +164,20 @@ def test_welcome_ttyd(random_user_browser, random_user_name, welcome_dojo):
     random_user_browser.close()
 
 
-def skip_test_welcome_practice(random_user_browser, random_user_name, welcome_dojo):
+def test_welcome_practice(random_user_browser, random_user_name, welcome_dojo):
     random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
     idx = challenge_idx(random_user_browser, "Using Practice Mode")
 
     challenge_start(random_user_browser, idx, practice=True)
     with desktop_terminal(random_user_browser, random_user_name) as vs:
-        vs.send_keys("sudo cat /challenge/secret >/home/hacker/secret 2>&1\n")
+        vs.send_keys("sudo cp /challenge/secret /home/hacker/secret\n")
         time.sleep(1)
 
-    challenge_start(random_user_browser, idx, practice=False, first=False)
+    challenge_start(random_user_browser, idx, practice=False, first=False, current="privileged")
     with desktop_terminal(random_user_browser, random_user_name) as vs:
         vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
         time.sleep(2)
-        flag = workspace_run("tail -n1 /tmp/out 2>&1", user=random_user_name).stdout.split()[-1]
+        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
     challenge_submit(random_user_browser, idx, flag)
     random_user_browser.close()
 
