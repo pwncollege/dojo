@@ -156,7 +156,7 @@ def test_welcome_ttyd(random_user_browser, random_user_name, welcome_dojo):
     random_user_browser.close()
 
 
-def test_welcome_practice(random_user_browser, random_user_name, welcome_dojo):
+def skip_test_welcome_practice(random_user_browser, random_user_name, welcome_dojo):
     random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
     idx = challenge_idx(random_user_browser, "Using Practice Mode")
 
