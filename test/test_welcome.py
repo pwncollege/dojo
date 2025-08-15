@@ -89,21 +89,13 @@ def challenge_expand(browser, idx):
     time.sleep(0.5)
 
 
-def challenge_start(browser, idx, practice=False, first=True, current="unprivileged"):
+def challenge_start(browser, idx, practice=False):
+    challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
 
-    if first:
-        body.find_element("id", "challenge-priv" if practice else "challenge-start").click()
-        while "started" not in body.find_element("id", "result-message").text:
-            time.sleep(0.5)
-        time.sleep(1)
-
-    else:
-        restart = (practice and current == "privileged") or (not practice and current == "unprivileged")
-        body.find_element("id", "challenge-restart" if restart else "workspace-change-privilege").click()
-        while "disabled" in body.find_element("id", "challenge-restart").get_attribute("class"):
-            time.sleep(0.5)
-
+    body.find_element("id", "challenge-priv" if practice else "challenge-start").click()
+    while "started" not in body.find_element("id", "result-message").text:
+        time.sleep(0.5)
     time.sleep(1)
 
 
@@ -173,7 +165,7 @@ def test_welcome_practice(random_user_browser, random_user_name, welcome_dojo):
         vs.send_keys("sudo cp /challenge/secret /home/hacker/secret\n")
         time.sleep(1)
 
-    challenge_start(random_user_browser, idx, practice=False, first=False, current="privileged")
+    challenge_start(random_user_browser, idx, practice=False)
     with desktop_terminal(random_user_browser, random_user_name) as vs:
         vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
         time.sleep(2)
