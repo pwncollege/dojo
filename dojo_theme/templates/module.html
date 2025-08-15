@@ -71,7 +71,17 @@
 <div class="container">
 
   {% if module.description %}
-  <p>{{ module.description | markdown }}</p>
+  <div>
+    {% if module_description_edit_url %}
+      <a href="{{ module_description_edit_url }}" 
+         target="_blank" 
+         class="github-edit-link"
+         title="Edit on GitHub">
+        <i class="fas fa-edit"></i>
+      </a>
+    {% endif %}
+    {{ module.description | markdown }}
+  </div>
   <br>
   {% endif %}
 
@@ -114,6 +124,14 @@
 
             {% elif resource.type == "markdown" %}
             <div class="embed-responsive">
+              {% if resource_description_edit_urls.get(resource.resource_index) %}
+                <a href="{{ resource_description_edit_urls[resource.resource_index] }}" 
+                   target="_blank" 
+                   class="github-edit-link"
+                   title="Edit on GitHub">
+                  <i class="fas fa-edit"></i>
+                </a>
+              {% endif %}
               {{ resource.content | markdown }}
             </div>
             {% endif %}
@@ -184,6 +202,14 @@
               {% if lock_challenge %}
                 <p><em>This challenge is locked</em></p>
               {% else %}
+                {% if challenge_description_edit_urls.get(challenge.id) %}
+                  <a href="{{ challenge_description_edit_urls[challenge.id] }}" 
+                     target="_blank" 
+                     class="github-edit-link"
+                     title="Edit on GitHub">
+                    <i class="fas fa-edit"></i>
+                  </a>
+                {% endif %}
                 {{ challenge.description | markdown }}
               {% endif %}
             </div>
