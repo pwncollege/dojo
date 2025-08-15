@@ -306,6 +306,8 @@ def view_module(dojo, module):
                         .group_by(Solves.challenge_id)
                         .with_entities(Solves.challenge_id, db.func.count()))
     current_dojo_challenge = get_current_dojo_challenge()
+    container = get_current_container();
+    practice = container.labels.get("dojo.mode") == "privileged" if container else False
 
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
     assessments = []
@@ -375,6 +377,7 @@ def view_module(dojo, module):
         total_solves=total_solves,
         user=user,
         current_dojo_challenge=current_dojo_challenge,
+        practice=practice,
         assessments=assessments,
         challenge_container_counts=challenge_container_counts,
         module_description_edit_url=module_description_edit_url,
