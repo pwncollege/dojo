@@ -31,55 +31,35 @@ function selectService(service) {
 function startChallenge() {
     const privileged = $("#workspace-change-privilege").attr("data-privileged") === "true";
 
-    CTFd.fetch("/pwncollege_api/v1/docker", {
-        method: "GET",
-        credentials: 'same-origin'
+    var params = {
+        "dojo": $("#challenge-dojo").attr("value"),
+        "module": $("#challenge-module").attr("value"),
+        "challenge": $("#challenge-challenge").attr("value"),
+        "practice": privileged,
+    };
+
+    CTFd.fetch('/pwncollege_api/v1/docker', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(params)
     }).then(function (response) {
-        if (response.status === 403) {
-            // User is not logged in or CTF is paused.
-            window.location =
-                CTFd.config.urlRoot +
-                "/login?next=" +
-                CTFd.config.urlRoot +
-                window.location.pathname +
-                window.location.hash;
-        }
-        return response.json();
+        return response.json;
     }).then(function (result) {
         if (result.success == false) {
             return;
         }
 
-        var params = {
-            "dojo": result.dojo,
-            "module": result.module,
-            "challenge": result.challenge,
-            "practice": privileged,
-        };
+        selectService($("#workspace-select").val());
 
-        CTFd.fetch('/pwncollege_api/v1/docker', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(params)
-        }).then(function (response) {
-            return response.json;
-        }).then(function (result) {
-            if (result.success == false) {
-                return;
-            }
-
-            selectService($("#workspace-select").val());
-
-            $(".btn-challenge-start")
-            .removeClass("disabled")
-            .removeClass("btn-disabled")
-            .prop("disabled", false);
-        })
-    });
+        $(".btn-challenge-start")
+        .removeClass("disabled")
+        .removeClass("btn-disabled")
+        .prop("disabled", false);
+    })
 }
 
 function displayPrivileged(invert) {
