@@ -51,6 +51,25 @@ jobs:
             requests \
             selenium
 
+      - name: Free up disk space
+        run: |
+          echo "::group::Initial disk usage"
+          df -h
+          echo "::endgroup::"
+
+          echo "::group::Cleaning up disk space"
+          # Remove unnecessary pre-installed software
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          sudo apt-get clean
+
+          # Clean up Docker
+          docker system prune -a -f
+
+          echo "::endgroup::"
+          echo "::group::Final disk usage"
+          df -h
+          echo "::endgroup::"
+
       - name: Make docker cache dir owned by our user
         run: |
           sudo chown $USER:$USER /mnt
@@ -88,7 +107,7 @@ jobs:
         run: |
           export MOZ_HEADLESS=1
           echo "Starting single-node integration tests..."
-          test/local-tester.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
+          ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
 
       - name: Output logs
         if: always()
@@ -215,7 +234,7 @@ jobs:
         run: |
           export MOZ_HEADLESS=1
           echo "Starting multi-node integration tests..."
-          test/local-tester.sh -c dojo-test -g -M -D /mnt/dojo-docker -W /mnt/dojo-workspace
+          ./deploy.sh -c dojo-test -g -M -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
 
       - name: Output logs
         if: always()

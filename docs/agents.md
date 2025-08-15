@@ -13,22 +13,21 @@ The DOJO runs in a docker-in-docker setting, with the "outer" container using do
 ### Quick Development Setup
 
 ```bash
-# Start up the dojo and run all testcases
-test/local-tester.sh
+# Start up the dojo
+./deploy.sh
 
-# (Re)start the dojo, but don't run testcases
-test/local-tester.sh -T
+# (Re)start the dojo, and run all testcases
+./deploy.sh -t
 
 # Run the testcases (without restarting the dojo)
-test/local-tester.sh -N
+./deploy.sh -N -t
 
 # Get container details
-DOJO_CONTAINER=local-$(basename "$PWD")
-DOJO_IP=$(docker inspect "$DOJO_CONTAINER" | jq -r '.[0].NetworkSettings.Networks.bridge.IPAddress')
-DOJO_URL="http://$DOJO_IP:80/"
+DOJO_CONTAINER=$(basename "$PWD")
 
 # access the web instance
-curl "$DOJO_URL"
+DOJO_IP=$(docker inspect "$DOJO_CONTAINER" | jq -r '.[0].NetworkSettings.Networks.bridge.IPAddress')
+curl "http://$DOJO_URL"
 
 # get CTFd logs
 docker exec "$DOJO_CONTAINER" docker logs ctfd
@@ -50,8 +49,6 @@ docker exec -i "$DOJO_CONTAINER" dojo enter USER_ID
 
 # run an inidividual testcase --- environment variables need to be set!
 export DOJO_CONTAINER
-export DOJO_CONTAINER
-export DOJO_SSH_HOST="$DOJO_IP"
 pytest -v test/test_dojos.py::test_create_dojo
 ```
 
@@ -63,25 +60,22 @@ Container start failures show up in the ctfd container logs.
 
 ```bash
 # Restart the dojo and run all tests
-test/local-tester.sh
+./deploy.sh -t
 
 # Run the testcases again (without restarting the dojo)
-test/local-tester.sh -N
+./deploy.sh -N -t
 
-# Run without using docker or workspace cache
-test/local-tester.sh -D "" -W ""
+# Run tests without using docker or workspace cache
+./deploy.sh -D "" -W "" -t
 
 # Run an individual testcase (needs environment variables)
-export DOJO_CONTAINER=local-$(basename "$PWD")
-DOJO_IP=$(docker inspect "$DOJO_CONTAINER" | jq -r '.[0].NetworkSettings.Networks.bridge.IPAddress')
-export DOJO_URL="http://$DOJO_IP:80/"
-export DOJO_SSH_HOST="$DOJO_IP"
+export DOJO_CONTAINER=$(basename "$PWD")
 pytest -v test/test_dojos.py::test_create_dojo
 ```
 
 **Test Script Options:**
 - `-r DB_BACKUP`: Restore database backup before testing
-- `-c CONTAINER_NAME`: Custom container name (default: local-<dirname>)
+- `-c CONTAINER_NAME`: Custom container name (default: <dirname>)
 - `-D DOCKER_DIR`: Persistent Docker directory (avoids rebuilds)
 - `-W WORKSPACE_DIR`: Persistent workspace directory (avoids rebuilds)
 - `-T`: Skip running tests (only setup environment)
@@ -171,7 +165,7 @@ The project uses pytest with fixtures for:
 - Dojo creation and loading
 - Challenge interaction testing
 
-Run tests with `test/local-tester.sh` which handles container setup and cleanup.
+Run tests with `./deploy.sh -t` which handles container setup and cleanup.
 Tests are in `test/test_*.py`, implemented as module-level `test_*` functions, not classes.
 
 ## Coding Standards

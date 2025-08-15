@@ -4,7 +4,7 @@ import time
 import tempfile
 import os
 
-from utils import DOJO_URL, login, dojo_run, workspace_run, start_challenge
+from utils import DOJO_URL, DOJO_SSH_HOST, login, dojo_run, workspace_run, start_challenge
 
 
 def add_ssh_key(session, ssh_key):
@@ -65,7 +65,6 @@ def temp_ssh_keys():
         yield keys
 
 def ssh_command(private_key_file, command="echo 'SSH test successful'"):
-    ssh_host = os.getenv('DOJO_SSH_HOST', 'localhost')
     ssh_port = int(os.getenv('DOJO_SSH_PORT', '22'))
     
     ssh_cmd = [
@@ -76,7 +75,7 @@ def ssh_command(private_key_file, command="echo 'SSH test successful'"):
         '-o', 'ConnectTimeout=10',
         '-i', private_key_file,
         '-p', str(ssh_port),
-        f'hacker@{ssh_host}',
+        f'hacker@{DOJO_SSH_HOST}',
         command
     ]
     
