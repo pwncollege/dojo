@@ -28,5 +28,7 @@ RUN wget -q https://github.com/mozilla/geckodriver/releases/download/v0.36.0/gec
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-WORKDIR /opt/pwn.college
+WORKDIR /opt/pwn.college/test
 ADD . .
+
+CMD ["pytest"]
