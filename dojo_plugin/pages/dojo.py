@@ -37,7 +37,6 @@ def listing(dojo):
     )
     stats["active"] = sum(module_container_counts.values())
     
-    # Check for description source file
     def find_description_source(base_path, *file_candidates):
         for file_path in file_candidates:
             if (base_path / file_path).exists():
@@ -299,7 +298,6 @@ def view_module(dojo, module):
         if container["module"] == module.id and container["dojo"] == dojo.reference_id
     )
     
-    # Helper to find description source files
     def find_description_file(base_path, candidates_with_paths):
         """Returns the relative path of the first existing file from candidates"""
         for relative_path, full_path in candidates_with_paths:
@@ -307,14 +305,13 @@ def view_module(dojo, module):
                 return relative_path
         return None
     
-    # Check for description source files
     module_description_file = None
     challenge_description_files = {}
+    resource_description_files = {}
     
     if dojo.path.exists():
         module_path = dojo.path / module.id
         
-        # Check for module description source
         if module.description:
             module_description_file = find_description_file(dojo.path, [
                 (f"{module.id}/DESCRIPTION.md", module_path / "DESCRIPTION.md"),
@@ -322,13 +319,19 @@ def view_module(dojo, module):
                 ("dojo.yml", dojo.path / "dojo.yml")
             ])
         
-        # Check for each challenge description source
         for challenge in module.challenges:
             if challenge.description:
                 challenge_path = module_path / challenge.id
                 challenge_description_files[challenge.id] = find_description_file(dojo.path, [
                     (f"{module.id}/{challenge.id}/DESCRIPTION.md", challenge_path / "DESCRIPTION.md"),
                     (f"{module.id}/{challenge.id}/challenge.yml", challenge_path / "challenge.yml"),
+                    (f"{module.id}/module.yml", module_path / "module.yml"),
+                    ("dojo.yml", dojo.path / "dojo.yml")
+                ])
+        
+        for resource in module.resources:
+            if resource.type == "markdown":
+                resource_description_files[resource.resource_index] = find_description_file(dojo.path, [
                     (f"{module.id}/module.yml", module_path / "module.yml"),
                     ("dojo.yml", dojo.path / "dojo.yml")
                 ])
@@ -346,6 +349,7 @@ def view_module(dojo, module):
         challenge_container_counts=challenge_container_counts,
         module_description_file=module_description_file,
         challenge_description_files=challenge_description_files,
+        resource_description_files=resource_description_files,
     )
 
 

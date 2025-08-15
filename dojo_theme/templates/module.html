@@ -119,6 +119,9 @@
 
             {% elif resource.type == "markdown" %}
             <div class="embed-responsive">
+              {% if resource_description_files.get(resource.resource_index) %}
+                {{ github_edit_link(dojo, resource_description_files[resource.resource_index]) }}
+              {% endif %}
               {{ resource.content | markdown }}
             </div>
             {% endif %}
