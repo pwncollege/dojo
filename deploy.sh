@@ -241,9 +241,7 @@ if [ -n "$DB_RESTORE" ]; then
 fi
 
 log_newgroup "Waiting for dojo to be ready"
-export DOJO_URL="http://${CONTAINER_IP}"
-export DOJO_SSH_HOST="$CONTAINER_IP"
-until curl -Ls "${DOJO_URL}" | grep -q pwn; do sleep 1; done
+until curl -Ls "http://${CONTAINER_IP}" | grep -q pwn; do sleep 1; done
 log_endgroup
 
 if [ "$TEST" == "yes" ]; then
