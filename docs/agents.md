@@ -24,11 +24,10 @@ The DOJO runs in a docker-in-docker setting, with the "outer" container using do
 
 # Get container details
 DOJO_CONTAINER=$(basename "$PWD")
-DOJO_IP=$(docker inspect "$DOJO_CONTAINER" | jq -r '.[0].NetworkSettings.Networks.bridge.IPAddress')
-DOJO_URL="http://$DOJO_IP:80/"
 
 # access the web instance
-curl "$DOJO_URL"
+DOJO_IP=$(docker inspect "$DOJO_CONTAINER" | jq -r '.[0].NetworkSettings.Networks.bridge.IPAddress')
+curl "http://$DOJO_URL"
 
 # get CTFd logs
 docker exec "$DOJO_CONTAINER" docker logs ctfd
@@ -50,8 +49,6 @@ docker exec -i "$DOJO_CONTAINER" dojo enter USER_ID
 
 # run an inidividual testcase --- environment variables need to be set!
 export DOJO_CONTAINER
-export DOJO_CONTAINER
-export DOJO_SSH_HOST="$DOJO_IP"
 pytest -v test/test_dojos.py::test_create_dojo
 ```
 
@@ -73,9 +70,6 @@ Container start failures show up in the ctfd container logs.
 
 # Run an individual testcase (needs environment variables)
 export DOJO_CONTAINER=$(basename "$PWD")
-DOJO_IP=$(docker inspect "$DOJO_CONTAINER" | jq -r '.[0].NetworkSettings.Networks.bridge.IPAddress')
-export DOJO_URL="http://$DOJO_IP:80/"
-export DOJO_SSH_HOST="$DOJO_IP"
 pytest -v test/test_dojos.py::test_create_dojo
 ```
 

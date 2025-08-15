@@ -7,8 +7,24 @@ import time
 import re
 import os
 
-DOJO_URL = os.getenv("DOJO_URL", "http://localhost.pwn.college")
 DOJO_CONTAINER = os.getenv("DOJO_CONTAINER", "dojo-test")
+
+def _get_container_ip(container_name):
+    result = subprocess.run(
+        ["docker", "inspect", container_name],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    if result.returncode == 0:
+        try:
+            info = json.loads(result.stdout)
+            return info[0]["NetworkSettings"]["Networks"]["bridge"]["IPAddress"]
+        except (json.JSONDecodeError, KeyError, IndexError):
+            pass
+    return None
+
+DOJO_IP = _get_container_ip(DOJO_CONTAINER) or os.getenv("DOJO_IP", "localhost")
+DOJO_URL = os.getenv("DOJO_URL", f"http://{DOJO_IP}:80/")
+DOJO_SSH_HOST = os.getenv("DOJO_SSH_HOST", DOJO_IP)
 TEST_DOJOS_LOCATION = pathlib.Path(__file__).parent / "dojos"
 
 
