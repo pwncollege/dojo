@@ -1,8 +1,8 @@
 import collections
 import traceback
 import datetime
-import ruamel
 import sys
+import re
 
 from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context, request, g
 from sqlalchemy.exc import IntegrityError
@@ -22,68 +22,27 @@ dojo = Blueprint("pwncollege_dojo", __name__)
 #pylint:disable=redefined-outer-name
 
 
-def get_yaml_line_number(yaml_path, resource_name=None, search_paths=None):
-    """Get line number for a specific key in a YAML file"""
-    try:
-        yaml = ruamel.YAML()
-        yaml.preserve_quotes = True
-        
-        with open(yaml_path, 'r') as f:
-            data = yaml.load(f)
-        
-        # Search for resource by name
-        if resource_name and 'resources' in data:
-            for res in data['resources']:
-                if isinstance(res, dict) and res.get('name') == resource_name:
-                    if hasattr(res, 'lc'):
-                        return res.lc.line + 1
-        
-        # Search using provided paths
-        if search_paths:
-            for path in search_paths:
-                if '.' in path:
-                    # Navigate nested path (e.g., "challenges.challenge1.description")
-                    parts = path.split('.')
-                    current = data
-                    try:
-                        for part in parts:
-                            current = current[part]
-                        if hasattr(current, 'lc'):
-                            return current.lc.line + 1
-                    except (KeyError, TypeError):
-                        continue
-                elif path in data and hasattr(data, 'lc'):
-                    # Top-level key
-                    return data.lc.key(path)[0] + 1
-    except Exception:
-        pass
-    
-    return 1  # Default to line 1
-
-
-def find_description_edit_url(dojo, base_path, candidates, yaml_search_paths=None, resource_name=None):
-    """Find description file and return GitHub edit URL with line number"""
+def find_description_edit_url(dojo, relative_paths, search_pattern=None):
     if not (dojo.official and dojo.repository):
         return None
     
-    for candidate in candidates:
-        # Handle tuple or string candidates
-        if isinstance(candidate, tuple):
-            relative_path, full_path = candidate
-        else:
-            full_path = base_path / candidate
-            try:
-                relative_path = full_path.relative_to(dojo.path)
-            except ValueError:
-                relative_path = candidate
+    for relative_path in relative_paths:
+        full_path = dojo.path / relative_path
         
         if not full_path.exists():
             continue
             
-        # Get line number for YAML files
         line_num = 1
-        if str(relative_path).endswith('.yml'):
-            line_num = get_yaml_line_number(full_path, resource_name, yaml_search_paths)
+        if relative_path.endswith('.yml') and search_pattern:
+            try:
+                pattern = re.compile(search_pattern)
+                with open(full_path, 'r') as f:
+                    for i, line in enumerate(f, 1):
+                        if pattern.search(line):
+                            line_num = i
+                            break
+            except (IOError, re.error):
+                pass
         
         return f"https://github.com/{dojo.repository}/edit/main/{relative_path}#L{line_num}"
     
@@ -108,7 +67,7 @@ def listing(dojo):
     
     description_edit_url = None
     if dojo.description and dojo.path.exists():
-        description_edit_url = find_description_edit_url(dojo, dojo.path, ["DESCRIPTION.md", "dojo.yml"], ['description'])
+        description_edit_url = find_description_edit_url(dojo, ["DESCRIPTION.md", "dojo.yml"], r"^description:")
     
     return render_template(
         "dojo.html",
@@ -366,31 +325,29 @@ def view_module(dojo, module):
     resource_description_edit_urls = {}
     
     if dojo.path.exists():
-        module_path = dojo.path / module.id
-        
         if module.description:
-            module_description_edit_url = find_description_edit_url(dojo, module_path, [
-                "DESCRIPTION.md",
-                "module.yml",
-                ("dojo.yml", dojo.path / "dojo.yml")
-            ], ['description'])
+            module_description_edit_url = find_description_edit_url(dojo, [
+                f"{module.id}/DESCRIPTION.md",
+                f"{module.id}/module.yml",
+                "dojo.yml"
+            ], r"^description:")
         
         for challenge in module.challenges:
             if challenge.description:
-                challenge_path = module_path / challenge.id
-                challenge_description_edit_urls[challenge.id] = find_description_edit_url(dojo, challenge_path, [
-                    "DESCRIPTION.md",
-                    "challenge.yml",
-                    ("module.yml", module_path / "module.yml"),
-                    ("dojo.yml", dojo.path / "dojo.yml")
-                ], [f'challenges.{challenge.id}.description', 'description'])
+                # Search for "- id: challenge_name" with optional quotes
+                challenge_description_edit_urls[challenge.id] = find_description_edit_url(dojo, [
+                    f"{module.id}/{challenge.id}/DESCRIPTION.md",
+                    f"{module.id}/{challenge.id}/challenge.yml",
+                    f"{module.id}/module.yml",
+                    "dojo.yml"
+                ], rf"^\s*-?\s*id:\s*[\"']?{re.escape(challenge.id)}[\"']?")
         
         for resource in module.resources:
             if resource.type == "markdown":
+                # Search for "- name: Resource Name" with optional quotes
                 resource_description_edit_urls[resource.resource_index] = find_description_edit_url(
-                    dojo, module_path, 
-                    ["module.yml", ("dojo.yml", dojo.path / "dojo.yml")],
-                    resource_name=resource.name
+                    dojo, [f"{module.id}/module.yml", "dojo.yml"],
+                    rf"^\s*-?\s*name:\s*[\"']?{re.escape(resource.name)}[\"']?"
                 )
 
     return render_template(
