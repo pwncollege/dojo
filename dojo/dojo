@@ -83,7 +83,6 @@ case "$ACTION" in
         for p in "${profiles[@]}"; do
             args+=(--profile "$p")
         done
-        echo docker compose "${args[@]}" "$@"
         docker compose "${args[@]}" "$@"
         ;;
 
