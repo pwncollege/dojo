@@ -118,6 +118,7 @@
   To join a private dojo, ask its sensei to send you an invite link!
   {% endif %}
 
+  {% if authed() %}
   <p><br><br>
   <h2>Your Own Dojos &mdash; Share With the World!</h2>
   <p>You can create your own dojo, either hosting your own challenges or remixing existing material!
@@ -126,6 +127,7 @@
   {{ dojo_grid(categorized_dojos["admin"], dojo_container_counts, create_icon=true) }}
 
   <p>Want to add your dojo to the fray? <a href="/dojos/create"><b>Create it here</b></a>!
+  {% endif %}
 
 
 
