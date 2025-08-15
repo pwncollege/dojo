@@ -68,7 +68,7 @@ case "$ACTION" in
     "compose")
         profiles=()
 
-        multi_node=$(jq -e 'length > 0' /data/workspace_nodes.json 2>/dev/null)
+        multi_node=$(jq 'length > 0' /data/workspace_nodes.json 2>/dev/null || echo "unknown")
         if [ "$WORKSPACE_NODE" -gt 0 ]; then
             profiles+=("workspace")
         elif [ "$multi_node" == "true" ]; then
@@ -83,6 +83,7 @@ case "$ACTION" in
         for p in "${profiles[@]}"; do
             args+=(--profile "$p")
         done
+        echo docker compose "${args[@]}" "$@"
         docker compose "${args[@]}" "$@"
         ;;
 
