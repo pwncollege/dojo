@@ -1,4 +1,5 @@
 import collections
+import subprocess
 import traceback
 import datetime
 import sys
@@ -26,6 +27,21 @@ def find_description_edit_url(dojo, relative_paths, search_pattern=None):
     if not (dojo.official and dojo.repository):
         return None
     
+    branch = "main"
+    if dojo.path.exists():
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=dojo.path,
+                capture_output=True,
+                text=True,
+                timeout=1
+            )
+            if result.returncode == 0:
+                branch = result.stdout.strip()
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+    
     for relative_path in relative_paths:
         full_path = dojo.path / relative_path
         
@@ -44,7 +60,7 @@ def find_description_edit_url(dojo, relative_paths, search_pattern=None):
             except (IOError, re.error):
                 pass
         
-        return f"https://github.com/{dojo.repository}/edit/main/{relative_path}#L{line_num}"
+        return f"https://github.com/{dojo.repository}/edit/{branch}/{relative_path}#L{line_num}"
     
     return None
 
