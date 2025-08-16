@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "macros/widgets.html" import card %}
+{% from "macros/widgets.html" import dojo_grid %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1 class="brand-mono-bold wordmark-large"><span class="brand-white">pwn</span><span class="brand-dot brand-blink">.</span><span class="brand-green">sensei</span></h1>
+  </div>
+</div>
+
+<div class="container">
+  <p>Team work makes the dream work, and the team behind pwn.college is full of dreamers!  They are:
+
+  <ul>
+    <li><a href="https://yancomm.net">Zardus (Yan Shoshitaishvili)</a> originated the idea, created the initial prototype and many of the challenges, and continues to cajole everyone else into a shared vision!
+    <li><a href="https://connornelson.com">kanak (Connor Nelson)</a> made the mistake of signing up to TA an “easy A” course and quickly found himself reimplementing Yan’s insane code into the amazing dojo you see today, along with the creation of many challenges.
+    <li><a href="https://github.com/robwaz">robwaz (Robert Wasinger)</a> for the creation of the Software Exploitation dojo.
+    <li><a href="https://adamdoupe.com">Adam Doupe</a> for helping in the brainstorming of the initial concept and helping develop the pwn.college platform.
+    <li><a href="https://www.zionbasque.com">mahaloz (Zion Basque)</a> for contributing ROP challenges and embryoasm to pwn.college.
+    <li><a href="https://twitter.com/eriktrickel">Erik Trickel</a> for helping in the development of pedagogical concepts underlying pwn.college.
+    <li>redgate, for contributing to embryoasm.
+    <li><a href="https://twitter.com/pascal_0x90">Pascal-0x90</a>, for contributing to embryoasm.
+    <li><a href="https://twitter.com/frqmod">frqmod</a>, for contributing embryogdb.
+    <li><a href="https://www.kylebot.net">kylebot</a>, for contributing babyfmt, Kernel Exploitation, and the inaugural Quarterly Quiz!
+    <li>ramen, for contributing babyfile.
+    <li>zolutal, for contributing babyarch.
+    <li>spencerpogo, for contributing Windows support.
+    <li><a href="https://github.com/sinamhdv">sinamhdv</a> for contributing V8 Exploitation.
+    <li>smcxdeathburger, for contributing Windows Injection and Hijacking.
+  </ul>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

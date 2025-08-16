@@ -34,3 +34,7 @@ def view_belt(color):
         "Content-Type": "image/svg+xml"
     }
     return Response(svg_content, status=200, headers=headers)
+
+@belts.route("/sensei")
+def view_sensei():
+    return render_template("team.html")
