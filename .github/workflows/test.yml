@@ -8,12 +8,13 @@ on:
     - cron: '42 06 * * *'
 jobs:
   test:
-    name: ${{ matrix.mode == 'multinode' && 'Multi-Node' || matrix.mode == 'vibecheck' && 'Vibe Check' || 'Single-Node' }} Integration Test
+    name: "${{ matrix.mode }} Integration Test"
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       matrix:
         mode: [singlenode, multinode, vibecheck]
+      fail-fast: false
     steps:
       - name: Host information
         run: |
@@ -103,7 +104,7 @@ jobs:
           then
             ./deploy.sh -c dojo-test -M -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
           else #vibecheck
-            ./deploy.sh -c dojo-test -M -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
+            ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
             docker exec -it dojo-test dojo load http://github.com/pwncollege/welcome-dojo
             docker exec -it dojo-test dojo load http://github.com/pwncollege/intro-to-cybersecurity-dojo
             docker exec -it dojo-test dojo load http://github.com/pwncollege/program-security-dojo

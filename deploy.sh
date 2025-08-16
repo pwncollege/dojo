@@ -1,4 +1,4 @@
-#!/bin/bash -exu
+#!/bin/bash -eu
 
 cd $(dirname "${BASH_SOURCE[0]}")
 
