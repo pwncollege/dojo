@@ -16,6 +16,11 @@ jobs:
         mode: [singlenode, multinode, vibecheck]
       fail-fast: false
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # needed for the vibe check to find the fork point
+          ref: ${{ github.ref }}
+
       - name: Host information
         run: |
           echo "::group::Host information"
@@ -24,6 +29,10 @@ jobs:
           echo "Kernel: $(uname -r)"
           echo "Architecture: $(uname -m)"
           echo "IP: $(hostname -I)"
+          echo "::endgroup::"
+          echo "::group::Repo"
+          pwd
+          git log
           echo "::endgroup::"
           echo "::group::Filesystem"
           df -h
@@ -35,10 +44,6 @@ jobs:
           lscpu
           echo "::endgroup::"
 
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # needed for the vibe check to find the fork point
-          ref: ${{ github.ref }}
       - uses: docker/setup-buildx-action@v3
 
       - uses: easimon/maximize-build-space@master
@@ -92,6 +97,7 @@ jobs:
           tags: pwncollege/dojo
           load: true
           cache-from: type=gha
+
       - name: Build and cache docker image
         if: github.event_name == 'schedule'
         uses: docker/build-push-action@v5
@@ -108,12 +114,7 @@ jobs:
           timeout-minutes: 15
           max_attempts: 3
           run: |
-            if [ "${{ matrix.mode }}" = "multinode" ]
-            then
-              ./deploy.sh -c dojo-test -M -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
-            else
-              ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
-            fi
+            ./deploy.sh -g -D /mnt/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }}
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
@@ -121,22 +122,20 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          echo "Starting ${{ matrix.mode }} integration tests..."
           if [ "${{ matrix.mode }}" = "singlenode" ]
           then
-            ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
+            ./deploy.sh -N -g -t
           elif [ "${{ matrix.mode }}" = "multinode" ]
           then
-            ./deploy.sh -c dojo-test -M -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
+            ./deploy.sh -N -g -t -M
           else #vibecheck
-            ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
             echo "::group::Loading some dojos for vibing"
-            docker exec dojo-test dojo load-dojo --official pwncollege/welcome-dojo
-            docker exec dojo-test dojo load-dojo --official pwncollege/intro-to-cybersecurity-dojo
-            docker exec dojo-test dojo load-dojo --official pwncollege/program-security-dojo
+            docker exec dojo dojo load-dojo --official pwncollege/welcome-dojo
+            docker exec dojo dojo load-dojo --official pwncollege/intro-to-cybersecurity-dojo
+            docker exec dojo dojo load-dojo --official pwncollege/program-security-dojo
             echo "::endgroup::"
             git fetch origin master
-            ./deploy.sh -c dojo-test -g -N -v
+            ./deploy.sh -N -g -v
           fi
 
       - name: Output logs
