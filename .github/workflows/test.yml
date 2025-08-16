@@ -160,12 +160,12 @@ jobs:
           fi
 
       - name: Prepare the cache
-        if: matrix.mode == 'singenode' #&& github.event_name == 'schedule'
+        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
         run:
           sudo tar czf /mnt/cache.tar /mnt/dojo-docker /mnt/dojo-workspace
 
       - name: Save docker and workspace cache
-        #if: github.event_name == 'schedule'
+        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
         uses: actions/cache/save@v4
         with:
           path: |
