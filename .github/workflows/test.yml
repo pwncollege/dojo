@@ -81,7 +81,7 @@ jobs:
         run: |
           if [ -e /mnt/cache.tar ]; then
             cd /
-            sudo tar xvzf /mnt/cache.tar
+            sudo tar xzf /mnt/cache.tar
             cd -
           fi
           if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multimode" ]; then
@@ -162,7 +162,7 @@ jobs:
       - name: Prepare the cache
         if: matrix.mode == 'singenode' #&& github.event_name == 'schedule'
         run:
-          sudo tar cf /mnt/cache.tar /mnt/dojo-docker /mnt/dojo-workspace
+          sudo tar czf /mnt/cache.tar /mnt/dojo-docker /mnt/dojo-workspace
 
       - name: Save docker and workspace cache
         #if: github.event_name == 'schedule'
