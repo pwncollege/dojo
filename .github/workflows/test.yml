@@ -144,14 +144,14 @@ jobs:
         if: ${{ matrix.mode != 'vibecheck' || github.event_name == 'pull_request' }}
         run: |
           echo "::group::Main node"
-          docker exec dojo-test dojo compose logs
+          docker exec dojo dojo compose logs
           echo "::endgroup::"
           if [ "${{ matrix.mode }}" = "multinode" ]; then
             echo "::group::Workspace node 1"
-            docker exec dojo-test-node1 dojo compose logs
+            docker exec dojo-node1 dojo compose logs
             echo "::endgroup::"
             echo "::group::Workspace node 2"
-            docker exec dojo-test-node2 dojo compose logs
+            docker exec dojo-node2 dojo compose logs
             echo "::endgroup::"
           fi
 
