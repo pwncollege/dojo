@@ -14,6 +14,14 @@ function selectService(service) {
         console.log("Missing workspace iframe :(")
         return;
     }
+    if (service == "ssh") {
+        content.src = "";
+        $(content).addClass("SSH");
+        return;
+    }
+    else {
+        $(content).removeClass("SSH");
+    }
     const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
     url.searchParams.set("service", service);
     fetch(url, {
