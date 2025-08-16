@@ -97,8 +97,8 @@ jobs:
         run: |
           echo "Starting ${{ matrix.mode }} integration tests..."
           if [ "${{ matrix.mode }}" = "singlenode" ]
-            ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
           then
+            ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
           elif [ "${{ matrix.mode }}" = "multinode" ]
           then
             ./deploy.sh -c dojo-test -M -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t

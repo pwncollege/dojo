@@ -89,7 +89,7 @@ try:
         report = json.loads(json_str)
     else:
         # Try to parse the whole thing as JSON
-        report = json.loads(exploration_result)
+        report = json.loads(exploration_result.strip())
     
     print("\n=== Exploration Report ===")
     print(f"Result: {'PASS' if report['pass'] else 'FAIL'}")
@@ -121,12 +121,12 @@ try:
             print(f"Functionality issues found: {issue_list}")
             sys.exit(1)
     
-except json.JSONDecodeError:
+except json.JSONDecodeError as e:
     print(f"\n=== Raw GPT Response ===")
     print(exploration_result)
     # Don't fail the test if GPT's response isn't valid JSON
     # This might mean the exploration itself had issues
-    print("\nWarning: Could not parse GPT's JSON response. Site might be OK, or GPT had issues exploring.")
+    print(f"\nWarning: Could not parse GPT's JSON response ({e}). Site might be OK, or GPT had issues exploring.")
     sys.exit(1)
 except Exception as e:
     print(f"\nError during exploration: {e}")
