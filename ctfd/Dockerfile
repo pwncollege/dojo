@@ -1,4 +1,4 @@
-FROM python:3.13-slim AS build
+FROM python:3.13.4-slim AS build
 WORKDIR /opt/CTFd
 
 RUN apt-get update \
