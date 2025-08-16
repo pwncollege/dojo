@@ -7,8 +7,9 @@ import os
 from utils import DOJO_URL, DOJO_CONTAINER
 
 api_key = os.environ.get('OPENAI_API_KEY')
+
 if not api_key:
-    print("OPENAI_API_KEY not set")
+    print("::warning::OPENAI_API_KEY not set - skipping vibe check")
     sys.exit(0)
 
 prompt = f"""
@@ -54,6 +55,9 @@ After exploration, return a JSON report:
 Be thorough but focus on ACTUAL BREAKAGE. Empty pages, missing descriptions, etc are OK if intentional. Bad design is OK. Only fail for things that literally don't work.
 """
 
+print("::group::Running AI-powered exploration")
+print("Starting GPT-powered website exploration with Playwright MCP...")
+
 cmd = [
     "npx", "--yes", "@openai/codex",
     "exec",
@@ -74,14 +78,25 @@ result = subprocess.run(
     env=env
 )
 
+print("::endgroup::")
+
 if result.returncode != 0:
+    print(f"::error::GPT exploration failed with return code {result.returncode}")
+    if result.stderr:
+        print("::group::Error output")
+        print(result.stderr)
+        print("::endgroup::")
     raise RuntimeError(f"GPT exploration failed: {result.stderr}")
 
 exploration_result = result.stdout
+print("::group::Full GPT Output")
+print(exploration_result)
+print("::endgroup::")
     
 # Try to extract JSON from the response
 try:
     # Look for JSON in the response (GPT might include other text)
+    exploration_result = exploration_result.split("] codex\n")[-1].strip()
     json_start = exploration_result.find('{')
     json_end = exploration_result.rfind('}') + 1
     if json_start >= 0 and json_end > json_start:
@@ -91,22 +106,38 @@ try:
         # Try to parse the whole thing as JSON
         report = json.loads(exploration_result.strip())
     
-    print("\n=== Exploration Report ===")
-    print(f"Result: {'PASS' if report['pass'] else 'FAIL'}")
+    print("\n::group::Exploration Report")
+    print(f"Result: {'PASS ✅' if report['pass'] else 'FAIL ❌'}")
+    print("::endgroup::")
+    
+    print("::group::Pages Explored")
     print(f"Pages explored: {len(report.get('pages_explored', []))}")
     for page in report.get('pages_explored', []):
         print(f"  - {page}")
+    print("::endgroup::")
     
     if report.get('issues_found'):
-        print(f"\nIssues found: {len(report['issues_found'])}")
+        print(f"::group::Issues Found ({len(report['issues_found'])} total)")
+        
         for issue in report['issues_found']:
             severity = issue.get('severity', 'unknown')
-            print(f"  [{severity.upper()}] {issue['page']}")
+            severity_icon = {'critical': '🔴', 'major': '🟠', 'minor': '🟡'}.get(severity.lower(), '⚪')
+            
+            if severity.lower() == 'critical':
+                print(f"::error title=Critical Issue::{issue['issue']} (at {issue['page']})")
+            elif severity.lower() == 'major':
+                print(f"::warning title=Major Issue::{issue['issue']} (at {issue['page']})")
+            
+            print(f"  {severity_icon} [{severity.upper()}] {issue['page']}")
             print(f"    {issue['issue']}")
+        
+        print("::endgroup::")
     else:
-        print("\nNo issues found!")
+        print("::notice::No issues found! ✅")
     
+    print("::group::Summary")
     print(f"\nSummary: {report.get('summary', 'No summary provided')}")
+    print("::endgroup::")
     
     # Assert based on pass/fail
     if not report['pass']:
@@ -122,13 +153,8 @@ try:
             sys.exit(1)
     
 except json.JSONDecodeError as e:
-    print(f"\n=== Raw GPT Response ===")
-    print(exploration_result)
-    # Don't fail the test if GPT's response isn't valid JSON
-    # This might mean the exploration itself had issues
-    print(f"\nWarning: Could not parse GPT's JSON response ({e}). Site might be OK, or GPT had issues exploring.")
+    print(f"::warning::Could not parse GPT's JSON response: {e}")
     sys.exit(1)
 except Exception as e:
-    print(f"\nError during exploration: {e}")
-    print(f"Site exploration failed: {e}")
+    print(f"::error::Site exploration failed: {e}")
     sys.exit(1)
