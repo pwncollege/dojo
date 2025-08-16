@@ -245,8 +245,17 @@ until curl -Ls "http://${CONTAINER_IP}" | grep -q pwn; do sleep 1; done
 log_endgroup
 
 if [ "$TEST" == "yes" ]; then
-	log_newgroup "Running tests"
-	export MOZ_HEADLESS=1
-	pytest --order-dependencies --timeout=60 -v test "$@"
+	log_newgroup "Building test container"
+	docker build -t "${DOJO_CONTAINER}-test" test/
+	log_endgroup
+	
+	log_newgroup "Running tests in container"
+	docker run --rm \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v "$PWD:/opt/pwn.college" \
+		-e DOJO_CONTAINER="$DOJO_CONTAINER" \
+		-e MOZ_HEADLESS=1 \
+		"${DOJO_CONTAINER}-test" \
+		pytest --order-dependencies --timeout=60 -v . "$@"
 	log_endgroup
 fi
