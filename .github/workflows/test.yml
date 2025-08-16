@@ -36,6 +36,9 @@ jobs:
           echo "::endgroup::"
 
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # needed for the vibe check to find the fork point
+          ref: ${{ github.ref }}
       - uses: docker/setup-buildx-action@v3
 
       - name: Free up disk space
@@ -112,7 +115,7 @@ jobs:
             docker exec dojo-test dojo load-dojo pwncollege/intro-to-cybersecurity-dojo
             docker exec dojo-test dojo load-dojo pwncollege/program-security-dojo
             echo "::endgroup::"
-            git fetch --no-tags --depth=1 origin +refs/heads/master:refs/remotes/origin/master
+            git fetch origin master
             ./deploy.sh -c dojo-test -g -N -v
           fi
 

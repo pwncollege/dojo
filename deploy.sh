@@ -273,10 +273,7 @@ if [ "$VIBECHECK" == "yes" ]; then
 		exit 0
 	fi
 	
-	git diff $(
-		git merge-base --fork-point origin/master HEAD ||
-		git merge-base --fork-point master HEAD
-	) > test/git_diff.txt
+	git diff $(git merge-base --fork-point origin/master HEAD) > test/git_diff.txt
 	test_container npx --yes @openai/codex exec \
 		--full-auto --skip-git-repo-check \
 		'Summarize the following git diff in a concise way, focusing on what functionality has changed and what areas of the application might be affected. The + lines are things added in this PR, the - lines are things deleted by this PR. Be specific about files and components modified. The raw diff is saved in git_diff.txt. Save your analysis in the file `diff_summary`.'
