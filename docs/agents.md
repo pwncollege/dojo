@@ -47,9 +47,8 @@ docker exec -i "$DOJO_CONTAINER" dojo flask
 # enter a learner's container (must be started first via a testcase or the web interface)
 docker exec -i "$DOJO_CONTAINER" dojo enter USER_ID
 
-# run an inidividual testcase --- environment variables need to be set!
-export DOJO_CONTAINER
-pytest -v test/test_dojos.py::test_create_dojo
+# run an inidividual testcase (needs docker socket)
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/opt/pwn.college pytest -v test/test_dojos.py::test_create_dojo
 ```
 
 ### Troubleshooting
@@ -68,9 +67,8 @@ Container start failures show up in the ctfd container logs.
 # Run tests without using docker or workspace cache
 ./deploy.sh -D "" -W "" -t
 
-# Run an individual testcase (needs environment variables)
-export DOJO_CONTAINER=$(basename "$PWD")
-pytest -v test/test_dojos.py::test_create_dojo
+# Run an individual testcase (needs docker socket)
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/opt/pwn.college pytest -v test/test_dojos.py::test_create_dojo
 ```
 
 **Test Script Options:**

@@ -95,8 +95,6 @@ do
 done
 shift $((OPTIND-1))
 
-export DOJO_CONTAINER
-
 if [ "$START" == "yes" ]; then
 	cleanup_container $DOJO_CONTAINER
 
@@ -142,6 +140,9 @@ if [ "$BUILD_IMAGE" == "yes" ]; then
 	IMAGE_NAME="$DOJO_CONTAINER"
 	log_endgroup
 fi
+log_newgroup "Building test container"
+docker build -t "${DOJO_CONTAINER}-test" test/
+log_endgroup
 
 PORT_ARGS=()
 if [ "$EXPORT_PORTS" == "yes" ]; then
@@ -245,16 +246,11 @@ until curl -Ls "http://${CONTAINER_IP}" | grep -q pwn; do sleep 1; done
 log_endgroup
 
 if [ "$TEST" == "yes" ]; then
-	log_newgroup "Building test container"
-	docker build -t "${DOJO_CONTAINER}-test" test/
-	log_endgroup
-	
 	log_newgroup "Running tests in container"
 	docker run --rm \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v "$PWD:/opt/pwn.college" \
-		-e DOJO_CONTAINER="$DOJO_CONTAINER" \
-		-e MOZ_HEADLESS=1 \
+		--name "${DOJO_CONTAINER}-test" \
 		"${DOJO_CONTAINER}-test" \
 		pytest --order-dependencies --timeout=60 -v . "$@"
 	log_endgroup
