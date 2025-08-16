@@ -68,14 +68,12 @@ def listing(template="dojos.html"):
         if getting_started_dojo:
             categorized_dojos["next"].append(getting_started_dojo)
     else:
-        if getting_started_dojo and getting_started_dojo[1] < len(getting_started_dojo[0].challenges):
-            categorized_dojos["next"].append(getting_started_dojo)
-        
         dojos_with_progress = set()
+        
         for dojo, solves in all_welcome_and_topic_dojos:
             if solves > 0:
                 dojos_with_progress.add(dojo.dojo_id)
-                if solves < len(dojo.challenges):
+                if solves < len(dojo.challenges) and (dojo, solves) not in categorized_dojos["next"]:
                     categorized_dojos["next"].append((dojo, solves))
         
         for i, (dojo, solves) in enumerate(all_welcome_and_topic_dojos):
