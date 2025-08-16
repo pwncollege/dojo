@@ -108,7 +108,7 @@ jobs:
           load: true
           cache-to: type=gha
 
-      - name: Clean up after docekr build
+      - name: Clean up after docker build
         run: |
           docker system prune -a -f
           df -h
