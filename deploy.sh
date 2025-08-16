@@ -1,4 +1,4 @@
-#!/bin/bash -exu
+#!/bin/bash -eu
 
 cd $(dirname "${BASH_SOURCE[0]}")
 
@@ -7,13 +7,14 @@ DEFAULT_CONTAINER_NAME="${REPO_DIR}"
 
 function usage {
 	set +x
-	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -t ] [ -N ] [ -p ] [ -e ENV_VAR=value ] [ -b ] [ -M ] [ -g ]"
+	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -t ] [ -v ] [ -N ] [ -p ] [ -e ENV_VAR=value ] [ -b ] [ -M ] [ -g ]"
 	echo ""
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: <dirname>)"
 	echo "	-D	specify a directory for /data/docker to avoid rebuilds (default: ./cache/docker; specify as blank to disable)"
 	echo "	-W	specify a directory for /data/workspace to avoid rebuilds (default: ./cache/workspace; specify as blank to disable)"
 	echo "	-t	run dojo testcases (this will create a lot of test data)"
+	echo "	-v	run vibecheck mode (summarize git diff and test with AI)"
 	echo "	-N	don't (re)start the dojo"
 	echo "	-P	export ports (80->80, 443->443, 22->2222)"
 	echo "	-e	set environment variable (can be used multiple times)"
@@ -61,10 +62,21 @@ function log_endgroup {
 	fi
 }
 
+function test_container {
+	docker run --rm \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		-v "$PWD:/opt/pwn.college" \
+		--name "${DOJO_CONTAINER}-test" \
+		-e "OPENAI_API_KEY=${OPENAI_API_KEY:-}" \
+		"${DOJO_CONTAINER}-test" \
+		"$@"
+}
+
 ENV_ARGS=( )
 DB_RESTORE=""
 DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
 TEST=no
+VIBECHECK=no
 DOCKER_DIR="./cache/docker"
 WORKSPACE_DIR="./cache/workspace"
 EXPORT_PORTS=no
@@ -72,12 +84,13 @@ BUILD_IMAGE=no
 MULTINODE=no
 GITHUB_ACTIONS=no
 START=yes
-while getopts "r:c:he:tD:W:PbMgN" OPT
+while getopts "r:c:he:tvD:W:PbMgN" OPT
 do
 	case $OPT in
 		r) DB_RESTORE="$OPTARG" ;;
 		c) DOJO_CONTAINER="$OPTARG" ;;
 		t) TEST=yes ;;
+		v) VIBECHECK=yes ;;
 		D) DOCKER_DIR="$OPTARG" ;;
 		W) WORKSPACE_DIR="$OPTARG" ;;
 		e) ENV_ARGS+=("-e" "$OPTARG") ;;
@@ -97,6 +110,7 @@ shift $((OPTIND-1))
 
 if [ "$START" == "yes" ]; then
 	cleanup_container $DOJO_CONTAINER
+	cleanup_container $DOJO_CONTAINER-test
 
 	# just in case a previous run was multinode...
 	cleanup_container $DOJO_CONTAINER-node1
@@ -247,11 +261,25 @@ log_endgroup
 
 if [ "$TEST" == "yes" ]; then
 	log_newgroup "Running tests in container"
-	docker run --rm \
-		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v "$PWD:/opt/pwn.college" \
-		--name "${DOJO_CONTAINER}-test" \
-		"${DOJO_CONTAINER}-test" \
-		pytest --order-dependencies --timeout=60 -v . "$@"
+	test_container pytest --order-dependencies --timeout=60 -v . "$@"
+	log_endgroup
+fi
+
+if [ "$VIBECHECK" == "yes" ]; then
+	log_newgroup "Preparing vibe check"
+
+	if [ -z "${OPENAI_API_KEY:-}" ]; then
+		echo "Warning: OPENAI_API_KEY not set. Skipping vibecheck."
+		exit 0
+	fi
+	
+	git diff $(git merge-base --fork-point origin/master HEAD) > test/git_diff.txt
+	test_container npx --yes @openai/codex exec \
+		--full-auto --skip-git-repo-check \
+		'Summarize the following git diff in a concise way, focusing on what functionality has changed and what areas of the application might be affected. The + lines are things added in this PR, the - lines are things deleted by this PR. Be specific about files and components modified. The raw diff is saved in git_diff.txt. Save your analysis in the file `diff_summary`.'
+	log_endgroup
+	
+	log_newgroup "Running vibe check"
+	test_container python3 vibe_check.py
 	log_endgroup
 fi
