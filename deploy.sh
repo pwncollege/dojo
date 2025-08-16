@@ -269,7 +269,7 @@ if [ "$VIBECHECK" == "yes" ]; then
 	log_newgroup "Preparing vibe check"
 
 	if [ -z "${OPENAI_API_KEY:-}" ]; then
-		echo "Warning: OPENAI_API_KEY not set. Skipping vibecheck."
+		echo "::warning title=openai key not set::skipping vibe check"
 		exit 0
 	fi
 	
@@ -282,7 +282,5 @@ if [ "$VIBECHECK" == "yes" ]; then
 		'Summarize the following git diff in a concise way, focusing on what functionality has changed and what areas of the application might be affected. The + lines are things added in this PR, the - lines are things deleted by this PR. Be specific about files and components modified. The raw diff is saved in git_diff.txt. Save your analysis in the file `diff_summary`.'
 	log_endgroup
 	
-	log_newgroup "Running vibe check"
 	test_container python3 vibe_check.py
-	log_endgroup
 fi
