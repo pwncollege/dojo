@@ -8,12 +8,12 @@ on:
     - cron: '42 06 * * *'
 jobs:
   test:
-    name: ${{ matrix.mode == 'multinode' && 'Multi-Node' || 'Single-Node' }} Integration Test
+    name: ${{ matrix.mode == 'multinode' && 'Multi-Node' || matrix.mode == 'vibecheck' && 'Vibe Check' || 'Single-Node' }} Integration Test
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       matrix:
-        mode: [singlenode, multinode]
+        mode: [singlenode, multinode, vibecheck]
     steps:
       - name: Host information
         run: |
@@ -96,7 +96,19 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           echo "Starting ${{ matrix.mode }} integration tests..."
-          ./deploy.sh -c dojo-test -g ${{ matrix.mode == 'multinode' && '-M' || '' }} -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
+          if [ "${{ matrix.mode }}" = "singlenode" ]
+            ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
+          then
+          elif [ "${{ matrix.mode }}" = "multinode" ]
+          then
+            ./deploy.sh -c dojo-test -M -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
+          else #vibecheck
+            ./deploy.sh -c dojo-test -M -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
+            docker exec -it dojo-test dojo load http://github.com/pwncollege/welcome-dojo
+            docker exec -it dojo-test dojo load http://github.com/pwncollege/intro-to-cybersecurity-dojo
+            docker exec -it dojo-test dojo load http://github.com/pwncollege/program-security-dojo
+            ./deploy.sh -c dojo-test -N -v
+          fi
 
       - name: Output logs
         if: always()
