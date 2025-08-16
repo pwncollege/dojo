@@ -255,6 +255,7 @@ if [ "$TEST" == "yes" ]; then
 		-v "$PWD:/opt/pwn.college" \
 		-e DOJO_CONTAINER="$DOJO_CONTAINER" \
 		-e MOZ_HEADLESS=1 \
+		--name "${DOJO_CONTAINER}-test" \
 		"${DOJO_CONTAINER}-test" \
 		pytest --order-dependencies --timeout=60 -v . "$@"
 	log_endgroup
