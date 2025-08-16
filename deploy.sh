@@ -140,6 +140,9 @@ if [ "$BUILD_IMAGE" == "yes" ]; then
 	IMAGE_NAME="$DOJO_CONTAINER"
 	log_endgroup
 fi
+log_newgroup "Building test container"
+docker build -t "${DOJO_CONTAINER}-test" test/
+log_endgroup
 
 PORT_ARGS=()
 if [ "$EXPORT_PORTS" == "yes" ]; then
@@ -240,10 +243,6 @@ fi
 
 log_newgroup "Waiting for dojo to be ready"
 until curl -Ls "http://${CONTAINER_IP}" | grep -q pwn; do sleep 1; done
-log_endgroup
-
-log_newgroup "Building test container"
-docker build -t "${DOJO_CONTAINER}-test" test/
 log_endgroup
 
 if [ "$TEST" == "yes" ]; then
