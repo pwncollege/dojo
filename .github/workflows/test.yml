@@ -60,7 +60,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Cleaning up disk space"
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /opt/hostedtoolcache /usr/local/lib/azure-cli /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /opt/hostedtoolcache /usr/local/lib/azure-cli
           sudo apt-get clean
           docker system prune -a -f
 
