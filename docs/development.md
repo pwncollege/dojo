@@ -25,6 +25,14 @@ docker exec -i "dojo-$TAG" dojo vscode
 ## Testing
 
 You can run the dojo CI testcases locally using `./deploy.sh -t`.
+If you want to recreate the exact(ish) environment of our CI, do:
+
+```console
+apt install gh # github CLI
+gh auth login # login to your github
+gh extension install nektos/gh-act # a github extension to simulate github actions
+gh act # run the CI
+```
 
 ## Adding a config entry
 
