@@ -7,7 +7,36 @@ import time
 import re
 import os
 
-DOJO_CONTAINER = os.getenv("DOJO_CONTAINER", "dojo-test")
+def _get_dojo_container():
+    if os.getenv("DOJO_CONTAINER"):
+        return os.getenv("DOJO_CONTAINER")
+    
+    if os.path.exists("/.dockerenv"):
+        import socket
+        hostname = socket.gethostname()
+        
+        def docker_cmd(args):
+            result = subprocess.run(["docker"] + args, capture_output=True, text=True, check=True)
+            return result.stdout.strip() if result.returncode == 0 else None
+        
+        container_name = docker_cmd(["ps", "--filter", f"id={hostname}", "--format", "{{.Names}}"])
+        if container_name.endswith("-test"):
+            return container_name[:-5]
+        
+        all_containers = docker_cmd(["ps", "--format", "{{.Names}}"])
+        if len(all_containers) == 2:
+            return next(c for c in all_containers.split('\n') if c and c != container_name)
+    else:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, cwd=os.path.dirname(__file__)
+        )
+        if result.returncode == 0:
+            return os.path.basename(result.stdout.strip())
+
+    raise RuntimeError(f"Unable to determine the container the dojo is running in. Please set DOJO_CONTAINER.")
+
+DOJO_CONTAINER = _get_dojo_container()
 
 def _get_container_ip(container_name):
     result = subprocess.run(
