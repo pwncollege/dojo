@@ -180,10 +180,9 @@ function startChallenge(event) {
     const challenge = item.find("#challenge").val()
     const practice = event.currentTarget.id == "challenge-priv";
 
-    item.find("#challenge-start").addClass("disabled-button");
-    item.find("#challenge-start").prop("disabled", true);
-    item.find("#challenge-practice").addClass("disabled-button");
-    item.find("#challenge-practice").prop("disabled", true);
+    item.find(".challenge-init")
+        .addClass("disabled-button")
+        .prop("disabled", true);
 
     var params = {
         "dojo": init.dojo,
@@ -264,19 +263,26 @@ function startChallenge(event) {
         }
 
         result_notification.slideDown();
-        item.find("#challenge-start").removeClass("disabled-button");
-        item.find("#challenge-start").prop("disabled", false);
-        item.find("#challenge-practice").removeClass("disabled-button");
-        item.find("#challenge-practice").prop("disabled", false);
+        item.find(".challenge-init")
+            .removeClass("disabled-button")
+            .prop("disabled", false);
 
         $(".challenge-init").removeClass("challenge-hidden");
-        $(".challenge-workspace").removeClass("workspace-fullscreen");
-        $(".challenge-workspace").html("");
+        $(".challenge-workspace").addClass("challenge-hidden");
+        $(".iframe-wrapper").html("");
         if (result.success) {
-            item.find(".challenge-workspace").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"/workspace?hide-navbar=true\"></iframe>");
+            item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\"></iframe>");
+            loadWorkspace();
             item.find(".challenge-init").addClass("challenge-hidden");
+            item.find(".challenge-workspace").removeClass("challenge-hidden");
+            item.find("#workspace-change-privilege")
+                .attr("title", practice ? "Restart unprivileged" : "Restart privileged")
+                .attr("data-privileged", practice)
+                .find(".fas")
+                    .toggleClass("fa-lock", !practice)
+                    .toggleClass("fa-unlock", practice);
+            windowResizeCallback("");
         }
-        windowResizeCallback("");
 
         setTimeout(function() {
             item.find(".alert").slideUp();
@@ -386,36 +392,24 @@ function scrollRestore() {
     window.pageYOffset = scroll_pos_y;
 }
 
-function contentExpand() {
-    $(".challenge-workspace").addClass("workspace-fullscreen");
+function contentExpand(event) {
+    $(event.target).closest(".challenge-workspace").addClass("workspace-fullscreen");
     $(".challenge-iframe").addClass("challenge-iframe-fs");
-    $(".navbar").addClass("fullscreen-hidden");
-    $(".navbar-pulldown").addClass("fullscreen-hidden");
-    $("#scoreboard-heading").addClass("fullscreen-hidden");
-    $(".scoreboard-controls").addClass("fullscreen-hidden");
-    $(".scoreboard").addClass("fullscreen-hidden");
-    $(".alert").addClass("fullscreen-hidden");
     scrollDisable();
 }
 
-function contentContract() {
-    $(".challenge-workspace").removeClass("workspace-fullscreen");
+function contentContract(event) {
+    $(event.target).closest(".challenge-workspace").removeClass("workspace-fullscreen");
     $(".challenge-iframe").removeClass("challenge-iframe-fs");
-    $(".navbar").removeClass("fullscreen-hidden");
-    $(".navbar-pulldown").removeClass("fullscreen-hidden");
-    $("#scoreboard-heading").removeClass("fullscreen-hidden");
-    $(".scoreboard-controls").removeClass("fullscreen-hidden");
-    $(".scoreboard").removeClass("fullscreen-hidden");
-    $(".alert").removeClass("fullscreen-hidden");
     scrollRestore();
 }
 
-function doFullscreen() {
+function doFullscreen(event) {
     if ($(".workspace-fullscreen")[0]) {
-        contentContract();
+        contentContract(event);
     }
     else {
-        contentExpand();
+        contentExpand(event);
     }
 }
 
