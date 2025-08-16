@@ -111,9 +111,9 @@ jobs:
           else #vibecheck
             ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
             echo "::group::Loading some dojos for vibing"
-            docker exec dojo-test dojo load-dojo pwncollege/welcome-dojo
-            docker exec dojo-test dojo load-dojo pwncollege/intro-to-cybersecurity-dojo
-            docker exec dojo-test dojo load-dojo pwncollege/program-security-dojo
+            docker exec dojo-test dojo load-dojo --official pwncollege/welcome-dojo
+            docker exec dojo-test dojo load-dojo --official pwncollege/intro-to-cybersecurity-dojo
+            docker exec dojo-test dojo load-dojo --official pwncollege/program-security-dojo
             echo "::endgroup::"
             git fetch origin master
             ./deploy.sh -c dojo-test -g -N -v
