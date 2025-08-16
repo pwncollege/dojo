@@ -41,7 +41,14 @@ jobs:
           ref: ${{ github.ref }}
       - uses: docker/setup-buildx-action@v3
 
-      - name: Free up disk space
+      - uses: easimon/maximize-build-space@master
+        with:
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-dotnet: 'true'
+          remove-codeql: 'true'
+
+      - name: Free up more disk space
         run: |
           echo "::group::Initial disk usage"
           df -h
@@ -94,9 +101,22 @@ jobs:
           load: true
           cache-to: type=gha
 
+      - name: Start the dojo in ${{ matrix.mode }} mode
+        if: ${{ matrix.mode != 'vibecheck' || github.event_name == 'pull_request' }}
+        uses: nick-fields/retry@master
+        with:
+          timeout-minutes: 15
+          max_attempts: 3
+          run: |
+            if [ "${{ matrix.mode }}" = "multinode" ]
+            then
+              ./deploy.sh -c dojo-test -M -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
+            else
+              ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
+            fi
+
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
-        # Skip vibecheck for non-PR events
         if: ${{ matrix.mode != 'vibecheck' || github.event_name == 'pull_request' }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
