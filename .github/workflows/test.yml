@@ -92,6 +92,8 @@ jobs:
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           echo "Starting ${{ matrix.mode }} integration tests..."
           ./deploy.sh -c dojo-test -g ${{ matrix.mode == 'multinode' && '-M' || '' }} -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
