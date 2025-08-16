@@ -37,6 +37,7 @@ TRICKS:
 IMPORTANT: 
 - Focus ONLY on actual broken functionality, not design preferences
 - Actually use the dojo, don't just navigate around.
+- It is a known issue that sensai does not work in CI environments. Please ignore it.
 
 After exploration, return a JSON report:
 {{
