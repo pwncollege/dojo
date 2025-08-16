@@ -73,17 +73,22 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            /mnt/dojo-docker
-            /mnt/dojo-workspace
+            /mnt/cache.tar
           key: dojo-cache
           restore-keys: |
             dojo-cache
 
-      - name: Duplicate cached docker for multinode
+      - name: Extract the cache
         if: github.event_name == 'multinode'
         run: |
-          if [ -e /mnt/dojo-docker ]; then
+          if [ -e /mnt/cache.tar ]; then
+            cd /
+            sudo tar xvzf /mnt/cache.tar
+            cd -
+          fi
+          if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multimode" ]; then
             cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
+            cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
           fi
 
       - name: Build docker image
@@ -110,7 +115,7 @@ jobs:
           df -h
 
       - name: Start the dojo in ${{ matrix.mode }} mode
-        if: ${{ matrix.mode != 'vibecheck' || github.event_name == 'pull_request' }}
+        if: matrix.mode != 'vibecheck' || github.event_name == 'pull_request'
         uses: nick-fields/retry@master
         with:
           timeout_minutes: 15
@@ -120,7 +125,7 @@ jobs:
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
-        if: ${{ matrix.mode != 'vibecheck' || github.event_name == 'pull_request' }}
+        if: matrix.mode != 'vibecheck' || github.event_name == 'pull_request'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
@@ -141,7 +146,7 @@ jobs:
           fi
 
       - name: Output logs
-        if: ${{ matrix.mode != 'vibecheck' || github.event_name == 'pull_request' }}
+        if: matrix.mode != 'vibecheck' || github.event_name == 'pull_request'
         run: |
           echo "::group::Main node"
           docker exec dojo dojo compose logs
@@ -155,13 +160,17 @@ jobs:
             echo "::endgroup::"
           fi
 
+      - name: Prepare the cache
+        if: matrix.mode == 'singenode' #&& github.event_name == 'schedule'
+        run:
+          sudo tar cf /mnt/cache.tar /mnt/dojo-docker /mnt/dojo-workspace
+
       - name: Save docker and workspace cache
         #if: github.event_name == 'schedule'
         uses: actions/cache/save@v4
         with:
           path: |
-            /mnt/dojo-docker
-            /mnt/dojo-workspace
+            /mnt/cache.tar
           key: dojo-cache
 
       - name: Final filesystem information
