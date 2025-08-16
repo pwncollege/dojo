@@ -105,9 +105,9 @@ jobs:
             ./deploy.sh -c dojo-test -M -g -D /mnt/dojo-docker -W /mnt/dojo-workspace -t
           else #vibecheck
             ./deploy.sh -c dojo-test -g -D /mnt/dojo-docker -W /mnt/dojo-workspace
-            docker exec dojo-test dojo load http://github.com/pwncollege/welcome-dojo
-            docker exec dojo-test dojo load http://github.com/pwncollege/intro-to-cybersecurity-dojo
-            docker exec dojo-test dojo load http://github.com/pwncollege/program-security-dojo
+            docker exec dojo-test dojo load-dojo http://github.com/pwncollege/welcome-dojo
+            docker exec dojo-test dojo load-dojo http://github.com/pwncollege/intro-to-cybersecurity-dojo
+            docker exec dojo-test dojo load-dojo http://github.com/pwncollege/program-security-dojo
             ./deploy.sh -c dojo-test -N -v
           fi
 
