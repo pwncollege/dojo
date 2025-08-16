@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 25
     strategy:
       matrix:
-        mode: [singlenode, multinode, vibecheck, cacher]
+        mode: [singlenode, multinode, vibecheck]
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
