@@ -106,7 +106,6 @@ jobs:
 
       - name: Clean up after docekr build
         run: |
-          sudo chown $USER:$USER /mnt
           docker system prune -a -f
           df -h
 
