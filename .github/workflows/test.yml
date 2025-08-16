@@ -1,4 +1,4 @@
-name: Integration Tests
+name: DOJO Tests
 on:
   pull_request:
   push:
