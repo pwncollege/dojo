@@ -129,8 +129,8 @@ jobs:
       - name: Clean up after docker build
         run: |
           if [ "$SAVE_CACHE" == "yes" ]; then
-            sudo rm -rf /mnt/outer-caches
-            mv /tmp/outer-caches-new /mnt/outer-caches
+            sudo rm -rf /mnt/outer-cache
+            mv /tmp/outer-cache-new /mnt/outer-cache
           fi
           docker images
           df -h
