@@ -96,7 +96,7 @@ jobs:
             ln -s /tmp/dojo-docker-node2 /mnt/dojo-docker-node2
           fi
           
-          mkdir /mnt/outer-cache
+          mkdir -p /mnt/outer-cache
 
       - name: Build outer docker image
         uses: docker/build-push-action@v5
