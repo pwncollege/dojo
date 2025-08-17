@@ -5,7 +5,7 @@ on:
     branches:
       - master
   schedule:
-    - cron: '* * * * *'
+    - cron: '*/5 * * * *'
 jobs:
   test:
     name: "${{ matrix.mode }} DOJO Test"
