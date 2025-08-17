@@ -84,8 +84,8 @@ jobs:
             cd -
           fi
           if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
-            cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
-            cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
+            sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
+            sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
           fi
           sudo rm -f /mnt/cache.tar
 
@@ -159,12 +159,12 @@ jobs:
           fi
 
       - name: Prepare the cache
-        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
+        if: matrix.mode == 'singlenode' && github.event_name == 'schedule'
         run:
           sudo tar czf /mnt/cache.tar /mnt/dojo-docker /mnt/dojo-workspace
 
       - name: Save docker and workspace cache
-        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
+        if: matrix.mode == 'singlenode' && github.event_name == 'schedule'
         uses: actions/cache/save@v4
         with:
           path: |
