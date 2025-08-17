@@ -109,7 +109,8 @@ jobs:
           mkdir -p /mnt/outer-cache
           mkdir -p /mnt/test-cache
 
-      - name: Build outer docker image
+      - name: Build (and cache) outer docker image
+        if: env.SAVE_CACHE == "yes"
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -118,7 +119,8 @@ jobs:
           cache-from: type=local,src=/mnt/outer-cache
           cache-to: type=local,dest=/tmp/outer-cache-new,mode=max
 
-      - name: Build test docker image
+      - name: Build (and cache) test docker image
+        if: env.SAVE_CACHE == "yes"
         uses: docker/build-push-action@v5
         with:
           context: test
@@ -126,6 +128,24 @@ jobs:
           load: true
           cache-from: type=local,src=/mnt/test-cache
           cache-to: type=local,dest=/tmp/test-cache-new,mode=max
+
+      - name: Build outer docker image
+        if: env.SAVE_CACHE != "yes"
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: pwncollege/dojo
+          load: true
+          cache-from: type=local,src=/mnt/outer-cache
+
+      - name: Build test docker image
+        if: env.SAVE_CACHE != "yes"
+        uses: docker/build-push-action@v5
+        with:
+          context: test
+          tags: dojo-test
+          load: true
+          cache-from: type=local,src=/mnt/test-cache
 
       - name: Clean up after docker build
         run: |
