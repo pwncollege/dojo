@@ -167,6 +167,7 @@ jobs:
         run: |
           ./deploy.sh -K -g
           sudo umount /mnt/
+          df -h
           du -sm /tmp/dojo-cache.img
 
       - name: Save docker and workspace cache
