@@ -72,7 +72,7 @@ jobs:
         with:
           path: |
             /mnt/cache.tar
-          key: dojo-cache
+          key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
           restore-keys: |
             dojo-cache
 
@@ -169,7 +169,7 @@ jobs:
         with:
           path: |
             /mnt/cache.tar
-          key: dojo-cache
+          key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
 
       - name: Final filesystem information
         if: always()
