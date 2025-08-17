@@ -48,6 +48,15 @@
   width: 100% !important;
   height: 100% !important;
 }
+
+.ssh-hint {
+  font-size: 2em;
+}
+
+.ssh-hint a{
+  font-weight: bold;
+  color: var(--brand-green);
+}
 </style>
 
 
@@ -239,7 +248,8 @@
                 <iframe id="workspace-iframe" class="challenge-iframe" src=""></iframe>
                 {% endif %}
               </div>
-              {% set workspace_services = ["Terminal", "Code", "Desktop"] %}
+              <div class="ssh-hint">Configure your SSH keys in the <a href="/settings#ssh-key" target="_blank">settings</a>.</div>
+              {% set workspace_services = ["Terminal", "Code", "Desktop", "SSH"] %}
               {% include "components/actionbar.html" %}
             </div>
             <div class="row notification-row">

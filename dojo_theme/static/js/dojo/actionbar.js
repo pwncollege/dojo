@@ -2,6 +2,7 @@
 // 1. There is an iframe for controled workspace content with the id "workspace-iframe"
 // 2. The actionbar and iframe are decendents of a common ancestor with the class "challenge-workspace"
 // 3. The page implements a function, doFullscreen(event) to handle a fullscreen event
+// 4. Optionally, the page can have a div with the class "ssh-hint" which will be displayed when the SSH option is selected.
 
 // Returns the controls object containing the origin of the event.
 function context(event) {
@@ -13,6 +14,16 @@ function selectService(service) {
     if (!content) {
         console.log("Missing workspace iframe :(")
         return;
+    }
+    if (service == "ssh") {
+        content.src = "";
+        $(content).addClass("SSH");
+        $(".ssh-hint").show();
+        return;
+    }
+    else {
+        $(content).removeClass("SSH");
+        $(".ssh-hint").hide();
     }
     const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
     url.searchParams.set("service", service);
