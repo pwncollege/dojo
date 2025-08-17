@@ -115,7 +115,7 @@ jobs:
           tags: pwncollege/dojo
           load: true
           cache-from: type=local,src=/mnt/outer-cache
-          cache-to: type=local,dest=/mnt/outer-cache-new,mode=max
+          cache-to: type=local,dest=/tmp/outer-cache-new,mode=max
 
       - name: Build test docker image
         uses: docker/build-push-action@v5
@@ -124,12 +124,12 @@ jobs:
           tags: dojo-test
           load: true
           cache-from: type=local,src=/mnt/outer-cache
-          cache-to: type=local,dest=/mnt/outer-cache-new,mode=max
+          cache-to: type=local,dest=/tmp/outer-cache-new,mode=max
 
       - name: Clean up after docker build
         run: |
           sudo rm -rf /mnt/outer-caches
-          mv /mnt/outer-caches-new /mnt/outer-caches
+          mv /tmp/outer-caches-new /mnt/outer-caches
           docker images
           df -h
           docker images | grep "^pwncollege/dojo "
