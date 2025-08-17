@@ -148,7 +148,7 @@ jobs:
           fi
 
       - name: Output logs
-        if: matrix.mode != 'vibecheck' || github.event_name == 'pull_request'
+        if: always()
         run: |
           echo "::group::Main node"
           docker exec dojo dojo compose logs
