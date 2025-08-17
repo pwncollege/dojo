@@ -2,6 +2,7 @@
 
 import contextvars
 import errno
+import logging
 import os
 import re
 import stat
@@ -14,10 +15,14 @@ from pathlib import Path
 
 import docker
 import pyfuse3
+import requests
 import trio
 
 
+logger = logging.getLogger(__name__)
+
 ctx_var = contextvars.ContextVar("ctx")
+
 
 def get_context():
     try:
@@ -252,7 +257,10 @@ def get_container():
     try:
         return docker_client.containers.get(container_id)
     except docker.errors.NotFound:
-        return None
+        pass  # Container may have been removed since the mount info was read
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to connect to Docker: {e}", exc_info=True)
+    return None
 
 
 def get_container_created_ns():
@@ -314,6 +322,14 @@ def main():
             subprocess.run(["umount", mountpoint], check=True)
         else:
             raise error
+
+    root = logging.getLogger()
+    if not root.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
+        root.setLevel(logging.INFO)
 
     root = DojoFSDirectory("")
     workspace = root.add(WorkspaceDirectory("workspace"))
