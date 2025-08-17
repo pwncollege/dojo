@@ -101,7 +101,7 @@ do
 		M) MULTINODE=yes ;;
 		g) GITHUB_ACTIONS=yes ;;
 		N) START=no ;;
-		N) CLEAN_ONLY=yes ;;
+		K) CLEAN_ONLY=yes ;;
 		h) usage ;;
 		?)
 			OPTIND=$(($OPTIND-1))
