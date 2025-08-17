@@ -1,9 +1,7 @@
-{% extends "base.html" %}
-
-{% block stylesheets %}
-{{ super() }}
+{% extends "base.html" %} {% block stylesheets %} {{ super() }}
 <style>
-    html, body {
+    html,
+    body {
         margin: 0;
         height: 100%;
         min-height: 100%;
@@ -12,7 +10,8 @@
         display: flex;
         flex-direction: column;
     }
-    nav, footer {
+    nav,
+    footer {
         flex: none;
     }
     main {
@@ -33,31 +32,41 @@
         text-align: center;
     }
 </style>
-{% endblock %}
+{% endblock %} {% block content %}
 
-{% block content %}
-
-<iframe id="workspace_iframe" name="{{ iframe_name }}" src="" class="d-none"></iframe>
+<iframe
+    id="workspace_iframe"
+    name="{{ iframe_name }}"
+    src=""
+    class="d-none"
+></iframe>
 <h1 class="inactive">Loading...</h1>
 
-{% endblock %}
-
-{% block scripts %}
-{{ super() }}
+{% endblock %} {% block scripts %} {{ super() }}
 
 <script>
-    let response =  fetch("/pwncollege_api/v1/workspace?service={{ service }}").then(response => response.json()).then(data => {
-        console.log(data);
-        if (data.active) {
-            document.getElementById("workspace_iframe").src = data.iframe_src;
-            document.querySelector("h1").classList.add("d-none");
-            document.getElementById("workspace_iframe").classList.remove("d-none");
-        }
-        else {
-            document.querySelector("h1").innerText = "No active challenge session; start a challenge!";
-        }
-    }).catch(error => {
-        document.querySelector("h1").innerText= `Error while retrieving IFrame Url: ${error}`;
-    });
+    let response = fetch("/pwncollege_api/v1/workspace?service={{ service }}")
+        .then((response) => response.json())
+        .then((data) => {
+            if (data.active) {
+                let url = new URL(data.iframe_src);
+                if (data.setPort) {
+                    url.port = window.location.port;
+                }
+                document.getElementById("workspace_iframe").src =
+                    url.toString();
+                document.querySelector("h1").classList.add("d-none");
+                document
+                    .getElementById("workspace_iframe")
+                    .classList.remove("d-none");
+            } else {
+                document.querySelector("h1").innerText =
+                    "No active challenge session; start a challenge!";
+            }
+        })
+        .catch((error) => {
+            document.querySelector("h1").innerText =
+                `Error while retrieving IFrame Url: ${error}`;
+        });
 </script>
 {% endblock %}
