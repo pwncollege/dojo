@@ -110,7 +110,7 @@ jobs:
           mkdir -p /mnt/test-cache
 
       - name: Build (and cache) outer docker image
-        if: env.SAVE_CACHE == "yes"
+        if: env.SAVE_CACHE == 'yes'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -120,7 +120,7 @@ jobs:
           cache-to: type=local,dest=/tmp/outer-cache-new,mode=max
 
       - name: Build (and cache) test docker image
-        if: env.SAVE_CACHE == "yes"
+        if: env.SAVE_CACHE == 'yes'
         uses: docker/build-push-action@v5
         with:
           context: test
@@ -130,7 +130,7 @@ jobs:
           cache-to: type=local,dest=/tmp/test-cache-new,mode=max
 
       - name: Build outer docker image
-        if: env.SAVE_CACHE != "yes"
+        if: env.SAVE_CACHE != 'yes'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -139,7 +139,7 @@ jobs:
           cache-from: type=local,src=/mnt/outer-cache
 
       - name: Build test docker image
-        if: env.SAVE_CACHE != "yes"
+        if: env.SAVE_CACHE != 'yes'
         uses: docker/build-push-action@v5
         with:
           context: test
