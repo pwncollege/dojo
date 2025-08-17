@@ -163,7 +163,7 @@ jobs:
           fi
 
       - name: Prepare the cache
-        if: matrix.mode == 'singlenode' && github.event_name == 'schedule'
+        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
         run: |
           ./deploy.sh -K -g
           sudo umount /mnt/
