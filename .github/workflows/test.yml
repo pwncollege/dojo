@@ -83,7 +83,7 @@ jobs:
           fi
           
           sudo mount -o loop,compress=zstd:3 /tmp/dojo-cache.img /mnt/
-          sudo chown $USER:$USER /mnt/cache
+          sudo chown $USER:$USER /mnt/
           
           if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
             sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node1
