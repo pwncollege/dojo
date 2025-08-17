@@ -121,6 +121,8 @@ jobs:
           docker system prune -a -f
           docker images
           df -h
+          docker images | grep "^dojo "
+          docker images | grep "^dojo-test "
 
       - name: Start the dojo in ${{ matrix.mode }} mode
         if: matrix.mode != 'vibecheck' || github.event_name == 'pull_request'
