@@ -128,8 +128,10 @@ jobs:
 
       - name: Clean up after docker build
         run: |
-          sudo rm -rf /mnt/outer-caches
-          mv /tmp/outer-caches-new /mnt/outer-caches
+          if [ "$SAVE_CACHE" == "yes" ]; then
+            sudo rm -rf /mnt/outer-caches
+            mv /tmp/outer-caches-new /mnt/outer-caches
+          fi
           docker images
           df -h
           docker images | grep "^pwncollege/dojo "
