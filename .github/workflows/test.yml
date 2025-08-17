@@ -106,7 +106,8 @@ jobs:
             ln -s /tmp/dojo-docker-node2 /mnt/dojo-docker-node2
           fi
           
-          mkdir -p /mnt/outer-cache /mnt/outer-cache-new
+          mkdir -p /mnt/outer-cache
+          mkdir -p /mnt/test-cache
 
       - name: Build outer docker image
         uses: docker/build-push-action@v5
@@ -123,14 +124,15 @@ jobs:
           context: test
           tags: dojo-test
           load: true
-          cache-from: type=local,src=/mnt/outer-cache
-          cache-to: type=local,dest=/tmp/outer-cache-new,mode=max
+          cache-from: type=local,src=/mnt/test-cache
+          cache-to: type=local,dest=/tmp/test-cache-new,mode=max
 
       - name: Clean up after docker build
         run: |
           if [ "$SAVE_CACHE" == "yes" ]; then
-            sudo rm -rf /mnt/outer-cache
+            sudo rm -rf /mnt/outer-cache /mnt/test-cache
             mv /tmp/outer-cache-new /mnt/outer-cache
+            mv /tmp/test-cache-new /mnt/test-cache
           fi
           docker images
           df -h
