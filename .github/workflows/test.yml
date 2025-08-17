@@ -16,6 +16,16 @@ jobs:
         mode: [singlenode, multinode, vibecheck]
       fail-fast: false
     steps:
+      - name: enable cache saving
+        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
+        run: |
+          echo "SAVE_CACHE=yes" >> "$GITHUB_ENV"
+
+      - name: enable cache loading
+        if: env.SAVE_CACHE != 'yes'
+        run: |
+          echo "LOAD_CACHE=yes" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # needed for the vibe check to find the fork point
@@ -66,7 +76,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Restore docker and workspace cache
-        if: github.event_name != 'schedule'
+        if: env.LOAD_CACHE == 'yes'
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -118,7 +128,6 @@ jobs:
 
       - name: Clean up after docker build
         run: |
-          docker system prune -a -f
           docker images
           df -h
           docker images | grep "^dojo "
@@ -171,7 +180,7 @@ jobs:
           fi
 
       - name: Prepare the cache
-        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
+        if: env.SAVE_CACHE == 'yes'
         run: |
           ./deploy.sh -K -g
           df -h
@@ -179,7 +188,7 @@ jobs:
           du -sm /tmp/dojo-cache.img
 
       - name: Save docker and workspace cache
-        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
+        if: env.SAVE_CACHE == 'yes'
         uses: actions/cache/save@v4
         with:
           path: |
