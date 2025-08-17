@@ -34,14 +34,17 @@ jobs:
           pwd
           git log
           echo "::endgroup::"
-          echo "::group::Filesystem"
+          echo "::group::df -h"
           df -h
           echo "::endgroup::"
-          echo "::group::Memory"
+          echo "::group::free -h"
           free -h
           echo "::endgroup::"
-          echo "::group::CPU"
+          echo "::group::lscpu"
           lscpu
+          echo "::endgroup::"
+          echo "::group::docker images"
+          docker images
           echo "::endgroup::"
 
       - uses: docker/setup-buildx-action@v3
@@ -116,6 +119,7 @@ jobs:
       - name: Clean up after docker build
         run: |
           docker system prune -a -f
+          docker images
           df -h
 
       - name: Start the dojo in ${{ matrix.mode }} mode
