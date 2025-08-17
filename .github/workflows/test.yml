@@ -17,12 +17,12 @@ jobs:
       fail-fast: false
     steps:
       - name: enable cache saving
-        if: matrix.mode == 'singlenode' && github.event_name == 'schedule'
+        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
         run: |
           echo "SAVE_CACHE=yes" >> "$GITHUB_ENV"
 
       - name: enable cache loading
-        if: env.SAVE_CACHE != 'yes'
+        #if: env.SAVE_CACHE != 'yes'
         run: |
           echo "LOAD_CACHE=yes" >> "$GITHUB_ENV"
 
