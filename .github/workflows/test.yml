@@ -96,7 +96,6 @@ jobs:
           mkdir /mnt/outer-cache
 
       - name: Build outer docker image
-        if: github.event_name != 'schedule'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -106,7 +105,6 @@ jobs:
           cache-to: type=local,dest=/mnt/outer-cache,mode=max
 
       - name: Build test docker image
-        if: github.event_name != 'schedule'
         uses: docker/build-push-action@v5
         with:
           context: test
@@ -114,15 +112,6 @@ jobs:
           load: true
           cache-from: type=local,src=/mnt/outer-cache
           cache-to: type=local,dest=/mnt/outer-cache,mode=max
-
-      - name: Build and cache dojo docker image
-        if: github.event_name == 'schedule'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          tags: pwncollege/dojo
-          load: true
-          cache-to: type=local,src=/mnt/outer-cache,mode=max
 
       - name: Clean up after docker build
         run: |
