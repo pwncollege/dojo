@@ -16,6 +16,7 @@ function usage {
 	echo "	-t	run dojo testcases (this will create a lot of test data)"
 	echo "	-v	run vibecheck mode (summarize git diff and test with AI)"
 	echo "	-N	don't (re)start the dojo"
+	echo "	-K	clean up and exit"
 	echo "	-P	export ports (80->80, 443->443, 22->2222)"
 	echo "	-e	set environment variable (can be used multiple times)"
 	echo "	-b	build the Docker image locally (tag: same as container name)"
@@ -83,8 +84,9 @@ EXPORT_PORTS=no
 BUILD_IMAGE=no
 MULTINODE=no
 GITHUB_ACTIONS=no
+CLEAN_ONLY=no
 START=yes
-while getopts "r:c:he:tvD:W:PbMgN" OPT
+while getopts "r:c:he:tvD:W:PbMgNK" OPT
 do
 	case $OPT in
 		r) DB_RESTORE="$OPTARG" ;;
@@ -99,6 +101,7 @@ do
 		M) MULTINODE=yes ;;
 		g) GITHUB_ACTIONS=yes ;;
 		N) START=no ;;
+		N) CLEAN_ONLY=yes ;;
 		h) usage ;;
 		?)
 			OPTIND=$(($OPTIND-1))
@@ -108,13 +111,17 @@ do
 done
 shift $((OPTIND-1))
 
-if [ "$START" == "yes" ]; then
+if [ "$START" == "yes" -o "$CLEAN_ONLY" == "yes"]; then
 	cleanup_container $DOJO_CONTAINER
 	cleanup_container $DOJO_CONTAINER-test
 
 	# just in case a previous run was multinode...
 	cleanup_container $DOJO_CONTAINER-node1
 	cleanup_container $DOJO_CONTAINER-node2
+fi
+
+if [ "$CLEAN_ONLY" == "yes"]; then
+	exit
 fi
 
 WORKDIR=$(mktemp -d /tmp/data-${DOJO_CONTAINER}-XXXXXX)

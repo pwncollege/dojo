@@ -62,32 +62,36 @@ jobs:
           df -h
           echo "::endgroup::"
 
-      - name: Fix up some permissions
-        run: |
-          sudo chown $USER:$USER /mnt
-
       - name: Restore docker and workspace cache
         if: github.event_name != 'schedule'
         uses: actions/cache/restore@v4
         with:
           path: |
-            /mnt/cache.tar
+            /tmp/dojo-cache.img
           key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
           restore-keys: |
             dojo-cache
 
-      - name: Extract the cache
+      - name: Setup cache filesystem
         run: |
-          if [ -e /mnt/cache.tar ]; then
-            cd /
-            sudo tar xzf /mnt/cache.tar
-            cd -
+          if [ ! -e /tmp/dojo-cache.img ]; then
+            echo "Creating fresh loopback filesystem image..."
+            sudo fallocate -l 9.8G /tmp/dojo-cache.img
+            sudo mkfs.btrfs -L cache /tmp/dojo-cache.img
+          else
+            echo "Using cached loopback filesystem image"
           fi
+          
+          sudo mount -o loop,compress=zstd:3 /tmp/dojo-cache.img /mnt/
+          sudo chown $USER:$USER /mnt/cache
+          
           if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
-            sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
-            sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
+            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node1
+            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node2
+            rm -f /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
+            ln -s /tmp/dojo-docker-node1 /mnt/dojo-docker-node1
+            ln -s /tmp/dojo-docker-node2 /mnt/dojo-docker-node2
           fi
-          sudo rm -f /mnt/cache.tar
 
       - name: Build docker image
         if: github.event_name != 'schedule'
@@ -98,7 +102,7 @@ jobs:
           load: true
           cache-from: type=gha
 
-      - name: Build and cache docker image
+      - name: Build and cache dojo docker image
         if: github.event_name == 'schedule'
         uses: docker/build-push-action@v5
         with:
@@ -160,15 +164,17 @@ jobs:
 
       - name: Prepare the cache
         if: matrix.mode == 'singlenode' && github.event_name == 'schedule'
-        run:
-          sudo tar czf /mnt/cache.tar /mnt/dojo-docker /mnt/dojo-workspace
+        run: |
+          ./deploy.sh -K -g
+          sudo umount /mnt/
+          du -sm /tmp/dojo-cache.img
 
       - name: Save docker and workspace cache
-        if: matrix.mode == 'singlenode' && github.event_name == 'schedule'
+        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
         uses: actions/cache/save@v4
         with:
           path: |
-            /mnt/cache.tar
+            /tmp/dojo-cache.img
           key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
 
       - name: Final filesystem information
