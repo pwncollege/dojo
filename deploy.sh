@@ -160,12 +160,12 @@ if [ "$BUILD_IMAGE" == "yes" ]; then
 	docker build -t "$DOJO_CONTAINER" . || exit 1
 	IMAGE_NAME="$DOJO_CONTAINER"
 	log_endgroup
-	log_newgroup "Building test container"
+	log_newgroup "Building test container $DOJO_CONTAINER-test"
 	docker build -t "${DOJO_CONTAINER}-test" test/
 	log_endgroup
 elif ! docker image inspect "${DOJO_CONTAINER}-test" >&/dev/null
 then
-	log_newgroup "Building test container"
+	log_newgroup "Building test container $DOJO_CONTAINER-test (it doesn't exist)"
 	docker build -t "${DOJO_CONTAINER}-test" test/
 	log_endgroup
 fi
