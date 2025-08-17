@@ -103,7 +103,7 @@ jobs:
           tags: pwncollege/dojo
           load: true
           cache-from: type=local,src=/mnt/outer-cache
-          cache-to: type=local,src=/mnt/outer-cache,mode=max
+          cache-to: type=local,dest=/mnt/outer-cache,mode=max
 
       - name: Build test docker image
         if: github.event_name != 'schedule'
@@ -113,7 +113,7 @@ jobs:
           tags: dojo-test
           load: true
           cache-from: type=local,src=/mnt/outer-cache
-          cache-to: type=local,src=/mnt/outer-cache,mode=max
+          cache-to: type=local,dest=/mnt/outer-cache,mode=max
 
       - name: Build and cache dojo docker image
         if: github.event_name == 'schedule'
