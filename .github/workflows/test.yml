@@ -77,14 +77,13 @@ jobs:
             dojo-cache
 
       - name: Extract the cache
-        if: github.event_name == 'multinode'
         run: |
           if [ -e /mnt/cache.tar ]; then
             cd /
             sudo tar xzf /mnt/cache.tar
             cd -
           fi
-          if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multimode" ]; then
+          if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
             cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
             cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
           fi
