@@ -111,7 +111,7 @@ do
 done
 shift $((OPTIND-1))
 
-if [ "$START" == "yes" -o "$CLEAN_ONLY" == "yes"]; then
+if [ "$START" == "yes" -o "$CLEAN_ONLY" == "yes" ]; then
 	cleanup_container $DOJO_CONTAINER
 	cleanup_container $DOJO_CONTAINER-test
 
@@ -120,7 +120,7 @@ if [ "$START" == "yes" -o "$CLEAN_ONLY" == "yes"]; then
 	cleanup_container $DOJO_CONTAINER-node2
 fi
 
-if [ "$CLEAN_ONLY" == "yes"]; then
+if [ "$CLEAN_ONLY" == "yes" ]; then
 	exit
 fi
 
