@@ -160,10 +160,15 @@ if [ "$BUILD_IMAGE" == "yes" ]; then
 	docker build -t "$DOJO_CONTAINER" . || exit 1
 	IMAGE_NAME="$DOJO_CONTAINER"
 	log_endgroup
+	log_newgroup "Building test container"
+	docker build -t "${DOJO_CONTAINER}-test" test/
+	log_endgroup
+elif ! docker image inspect "${DOJO_CONTAINER}-test" >&/dev/null
+then
+	log_newgroup "Building test container"
+	docker build -t "${DOJO_CONTAINER}-test" test/
+	log_endgroup
 fi
-log_newgroup "Building test container"
-docker build -t "${DOJO_CONTAINER}-test" test/
-log_endgroup
 
 PORT_ARGS=()
 if [ "$EXPORT_PORTS" == "yes" ]; then

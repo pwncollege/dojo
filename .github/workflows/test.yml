@@ -92,15 +92,28 @@ jobs:
             ln -s /tmp/dojo-docker-node1 /mnt/dojo-docker-node1
             ln -s /tmp/dojo-docker-node2 /mnt/dojo-docker-node2
           fi
+          
+          mkdir /mnt/outer-cache
 
-      - name: Build docker image
+      - name: Build outer docker image
         if: github.event_name != 'schedule'
         uses: docker/build-push-action@v5
         with:
           context: .
           tags: pwncollege/dojo
           load: true
-          cache-from: type=gha
+          cache-from: type=local,src=/mnt/outer-cache
+          cache-to: type=local,src=/mnt/outer-cache,mode=max
+
+      - name: Build test docker image
+        if: github.event_name != 'schedule'
+        uses: docker/build-push-action@v5
+        with:
+          context: test
+          tags: dojo-test
+          load: true
+          cache-from: type=local,src=/mnt/outer-cache
+          cache-to: type=local,src=/mnt/outer-cache,mode=max
 
       - name: Build and cache dojo docker image
         if: github.event_name == 'schedule'
@@ -109,7 +122,7 @@ jobs:
           context: .
           tags: pwncollege/dojo
           load: true
-          cache-to: type=gha
+          cache-to: type=local,src=/mnt/outer-cache,mode=max
 
       - name: Clean up after docker build
         run: |
@@ -163,7 +176,7 @@ jobs:
           fi
 
       - name: Prepare the cache
-        if: matrix.mode == 'singlenode' && github.event_name == 'schedule'
+        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
         run: |
           ./deploy.sh -K -g
           df -h
@@ -171,7 +184,7 @@ jobs:
           du -sm /tmp/dojo-cache.img
 
       - name: Save docker and workspace cache
-        if: matrix.mode == 'singlenode' && github.event_name == 'schedule'
+        if: matrix.mode == 'singlenode' #&& github.event_name == 'schedule'
         uses: actions/cache/save@v4
         with:
           path: |
