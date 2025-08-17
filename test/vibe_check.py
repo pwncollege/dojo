@@ -58,9 +58,6 @@ After exploration, return a JSON report:
 Be thorough but focus on ACTUAL BREAKAGE. Empty pages, missing descriptions, etc are OK if intentional. Bad design is OK. Only fail for things that literally don't work.
 """
 
-print("::group::Running AI-powered exploration")
-print("Starting GPT-powered website exploration with Playwright MCP...")
-
 cmd = [
     "npx", "--yes", "@openai/codex",
     "exec",
@@ -81,8 +78,6 @@ result = subprocess.run(
     env=env
 )
 
-print("::endgroup::")
-
 if result.returncode != 0:
     print(f"::error::GPT exploration failed with return code {result.returncode}")
     if result.stderr:
@@ -96,9 +91,7 @@ print("::group::Full GPT Output")
 print(exploration_result)
 print("::endgroup::")
     
-# Try to extract JSON from the response
 try:
-    # Look for JSON in the response (GPT might include other text)
     exploration_result = exploration_result.split("] codex\n")[-1].strip()
     json_start = exploration_result.find('{')
     json_end = exploration_result.rfind('}') + 1
@@ -106,14 +99,10 @@ try:
         json_str = exploration_result[json_start:json_end]
         report = json.loads(json_str)
     else:
-        # Try to parse the whole thing as JSON
         report = json.loads(exploration_result.strip())
     
     print("\n::group::Exploration Report")
     print(f"Result: {'PASS ✅' if report['pass'] else 'FAIL ❌'}")
-    print("::endgroup::")
-    
-    print("::group::Pages Explored")
     print(f"Pages explored: {len(report.get('pages_explored', []))}")
     for page in report.get('pages_explored', []):
         print(f"  - {page}")
@@ -142,7 +131,6 @@ try:
     print(f"\nSummary: {report.get('summary', 'No summary provided')}")
     print("::endgroup::")
     
-    # Assert based on pass/fail
     if not report['pass']:
         critical_issues = [i for i in report.get('issues_found', []) 
                          if i.get('severity') == 'critical']
@@ -157,7 +145,4 @@ try:
     
 except json.JSONDecodeError as e:
     print(f"::warning::Could not parse GPT's JSON response: {e}")
-    sys.exit(1)
-except Exception as e:
-    print(f"::error::Site exploration failed: {e}")
     sys.exit(1)
