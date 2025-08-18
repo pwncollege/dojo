@@ -56,44 +56,41 @@ def listing(template="dojos.html"):
                                                if dojo_member.dojo == dojo and dojo.type not in ["welcome", "topic", "public"])
         categorized_dojos["admin"].extend((dojo_admin.dojo, 0) for dojo_admin in user_dojo_admins if dojo_admin.dojo == dojo)
 
-    all_welcome_and_topic_dojos = categorized_dojos["welcome"] + categorized_dojos["topic"]
+    curriculum = categorized_dojos["welcome"] + categorized_dojos["topic"]
     
-    getting_started_dojo = None
-    for dojo, solves in categorized_dojos["welcome"]:
-        if "getting" in dojo.name.lower() and "started" in dojo.name.lower():
-            getting_started_dojo = (dojo, solves)
-            break
+    getting_started = next(
+        ((dojo, solves) for dojo, solves in categorized_dojos["welcome"] 
+         if "getting" in dojo.name.lower() and "started" in dojo.name.lower()),
+        None
+    )
     
     if not user:
-        if getting_started_dojo:
-            categorized_dojos["next"].append(getting_started_dojo)
+        categorized_dojos["next"] = [getting_started] if getting_started else []
     else:
-        if getting_started_dojo and getting_started_dojo[1] < len(getting_started_dojo[0].challenges):
-            categorized_dojos["next"].append(getting_started_dojo)
+        next_dojos = []
+        dojos_with_any_progress = []
         
-        dojos_with_progress = set()
+        for i, (dojo, solves) in enumerate(curriculum):
+            has_progress = solves > 0
+            is_incomplete = solves < len(dojo.challenges)
+            
+            if has_progress:
+                dojos_with_any_progress.append(dojo.dojo_id)
+                if is_incomplete:
+                    next_dojos.append((dojo, solves))
+                    
+                if i + 1 < len(curriculum):
+                    next_dojo, next_solves = curriculum[i + 1]
+                    if next_dojo.dojo_id not in dojos_with_any_progress and (next_dojo, next_solves) not in next_dojos:
+                        next_dojos.append((next_dojo, next_solves))
         
-        for dojo, solves in all_welcome_and_topic_dojos:
-            if solves > 0:
-                dojos_with_progress.add(dojo.dojo_id)
-                if solves < len(dojo.challenges) and (dojo, solves) not in categorized_dojos["next"]:
-                    categorized_dojos["next"].append((dojo, solves))
+        if not next_dojos:
+            if getting_started and getting_started[1] == 0:
+                next_dojos = [getting_started]
+            elif all(solves >= len(dojo.challenges) for dojo, solves in curriculum):
+                next_dojos = categorized_dojos["public"][:]
         
-        for i, (dojo, solves) in enumerate(all_welcome_and_topic_dojos):
-            if dojo.dojo_id in dojos_with_progress:
-                if i + 1 < len(all_welcome_and_topic_dojos):
-                    next_dojo, next_solves = all_welcome_and_topic_dojos[i + 1]
-                    if next_dojo.dojo_id not in dojos_with_progress and (next_dojo, next_solves) not in categorized_dojos["next"]:
-                        categorized_dojos["next"].append((next_dojo, next_solves))
-        
-        all_completed = True
-        for dojo, solves in all_welcome_and_topic_dojos:
-            if solves < len(dojo.challenges):
-                all_completed = False
-                break
-        
-        if all_completed:
-            categorized_dojos["next"] = categorized_dojos["public"][:]
+        categorized_dojos["next"] = next_dojos
 
     dojo_container_counts = collections.Counter(stats["dojo"] for stats in get_container_stats())
 
