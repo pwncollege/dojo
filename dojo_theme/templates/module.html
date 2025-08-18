@@ -49,13 +49,11 @@
   height: 100% !important;
 }
 
-.ssh-hint {
-  font-size: 2em;
-}
-
-.ssh-hint a{
-  font-weight: bold;
-  color: var(--brand-green);
+.workspace-ssh {
+  padding: 1em;
+  margin-bottom: 1em;
+  background-color: var(--foreground);
+  border-radius: 0.5em;
 }
 </style>
 
@@ -82,8 +80,8 @@
   {% if module.description %}
   <div>
     {% if module_description_edit_url %}
-      <a href="{{ module_description_edit_url }}" 
-         target="_blank" 
+      <a href="{{ module_description_edit_url }}"
+         target="_blank"
          class="github-edit-link"
          title="Edit on GitHub">
         <i class="fas fa-edit"></i>
@@ -134,8 +132,8 @@
             {% elif resource.type == "markdown" %}
             <div class="embed-responsive">
               {% if resource_description_edit_urls.get(resource.resource_index) %}
-                <a href="{{ resource_description_edit_urls[resource.resource_index] }}" 
-                   target="_blank" 
+                <a href="{{ resource_description_edit_urls[resource.resource_index] }}"
+                   target="_blank"
                    class="github-edit-link"
                    title="Edit on GitHub">
                   <i class="fas fa-edit"></i>
@@ -212,8 +210,8 @@
                 <p><em>This challenge is locked</em></p>
               {% else %}
                 {% if challenge_description_edit_urls.get(challenge.id) %}
-                  <a href="{{ challenge_description_edit_urls[challenge.id] }}" 
-                     target="_blank" 
+                  <a href="{{ challenge_description_edit_urls[challenge.id] }}"
+                     target="_blank"
                      class="github-edit-link"
                      title="Edit on GitHub">
                     <i class="fas fa-edit"></i>
@@ -248,7 +246,10 @@
                 <iframe id="workspace-iframe" class="challenge-iframe" src=""></iframe>
                 {% endif %}
               </div>
-              <div class="ssh-hint">Configure your SSH keys in the <a href="/settings#ssh-key" target="_blank">settings</a>.</div>
+              <div class="workspace-ssh">
+                <h3>Connect with SSH</h3>
+                Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@pwn.college</code>
+              </div>
               {% set workspace_services = ["Terminal", "Code", "Desktop", "SSH"] %}
               {% include "components/actionbar.html" %}
             </div>
