@@ -70,14 +70,10 @@ def listing(template="dojos.html"):
         categorized_dojos["next"] = []
 
         for i, (dojo, solves) in enumerate(curriculum):
-            if not solves:
-                continue
-
-            if solves < len(dojo.challenges) and (dojo, solves) not in categorized_dojos["next"]:
+            if 0 < solves < len(dojo.challenges):
                 categorized_dojos["next"].append((dojo, solves))
-
-            if i + 1 < len(curriculum) and curriculum[i+1] not in categorized_dojos["next"]:
-                categorized_dojos["next"].append(curriculum[i+1])
+            if solves < len(dojo.challenges) and (i and curriculum[i-1] in categorized_dojos["next"]):
+                categorized_dojos["next"].append((dojo, solves))
 
         if not categorized_dojos["next"]:
             if getting_started and getting_started[1] == 0:
