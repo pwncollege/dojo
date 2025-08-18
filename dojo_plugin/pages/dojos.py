@@ -58,11 +58,10 @@ def listing(template="dojos.html"):
 
     curriculum = categorized_dojos["welcome"] + categorized_dojos["topic"]
 
-    getting_started = next(
-        ((dojo, solves) for dojo, solves in categorized_dojos["welcome"]
-         if dojo.reference_id == "welcome",
-        None
-    )
+    getting_started = next((
+        (dojo, solves) for dojo, solves in categorized_dojos["welcome"]
+        if dojo.reference_id == "welcome"
+    ), None)
 
     if not user:
         categorized_dojos["next"] = [getting_started] if getting_started else []
