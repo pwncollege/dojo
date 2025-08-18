@@ -364,6 +364,7 @@ p[data-hide="true"] {
     width: 100%;
     color: #eaeaea;
     font-size: 0.75em;
+    text-align: center;
 }
 
 .card-icon {

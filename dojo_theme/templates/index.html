@@ -150,6 +150,10 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+p { text-align: justify; }
+</style>
+
 <script>
 document.getElementById('agree-button').addEventListener('click', function() {
   document.getElementById('content-after-rules').style.display = 'block';
