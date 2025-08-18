@@ -72,7 +72,7 @@ def listing(template="dojos.html"):
         for i, (dojo, solves) in enumerate(curriculum):
             if 0 < solves < len(dojo.challenges):
                 categorized_dojos["next"].append((dojo, solves))
-            if solves < len(dojo.challenges) and i and curriculum[i-1][1] > 0:
+            elif solves < len(dojo.challenges) and i and curriculum[i-1][1] > 0:
                 categorized_dojos["next"].append((dojo, solves))
 
         if not categorized_dojos["next"]:
