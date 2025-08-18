@@ -22,6 +22,7 @@ def listing(template="dojos.html"):
         "course": [],
         "member": [],
         "admin": [],
+        "next": [],
     }
 
     user = get_current_user()
@@ -54,6 +55,31 @@ def listing(template="dojos.html"):
             categorized_dojos["member"].extend((dojo_member.dojo, 0) for dojo_member in user_dojo_members
                                                if dojo_member.dojo == dojo and dojo.type not in ["welcome", "topic", "public"])
         categorized_dojos["admin"].extend((dojo_admin.dojo, 0) for dojo_admin in user_dojo_admins if dojo_admin.dojo == dojo)
+
+    curriculum = categorized_dojos["welcome"] + categorized_dojos["topic"]
+
+    getting_started = next(
+        ((dojo, solves) for dojo, solves in categorized_dojos["welcome"]
+         if "getting" in dojo.name.lower() and "started" in dojo.name.lower()),
+        None
+    )
+
+    if not user:
+        categorized_dojos["next"] = [getting_started] if getting_started else []
+    else:
+        categorized_dojos["next"] = []
+
+        for i, (dojo, solves) in enumerate(curriculum):
+            if 0 < solves < len(dojo.challenges):
+                categorized_dojos["next"].append((dojo, solves))
+            if solves < len(dojo.challenges) and i and curriculum[i-1][1] > 0:
+                categorized_dojos["next"].append((dojo, solves))
+
+        if not categorized_dojos["next"]:
+            if getting_started and getting_started[1] == 0:
+                categorized_dojos["next"].append(getting_started)
+            elif all(solves >= len(dojo.challenges) for dojo, solves in curriculum):
+                categorized_dojos["next"] = categorized_dojos["public"][:]
 
     dojo_container_counts = collections.Counter(stats["dojo"] for stats in get_container_stats())
 
