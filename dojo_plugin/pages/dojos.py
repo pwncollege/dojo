@@ -57,40 +57,33 @@ def listing(template="dojos.html"):
         categorized_dojos["admin"].extend((dojo_admin.dojo, 0) for dojo_admin in user_dojo_admins if dojo_admin.dojo == dojo)
 
     curriculum = categorized_dojos["welcome"] + categorized_dojos["topic"]
-    
+
     getting_started = next(
-        ((dojo, solves) for dojo, solves in categorized_dojos["welcome"] 
+        ((dojo, solves) for dojo, solves in categorized_dojos["welcome"]
          if "getting" in dojo.name.lower() and "started" in dojo.name.lower()),
         None
     )
-    
+
     if not user:
         categorized_dojos["next"] = [getting_started] if getting_started else []
     else:
-        next_dojos = []
-        dojos_with_any_progress = []
-        
+        categorized_dojos["next"] = []
+
         for i, (dojo, solves) in enumerate(curriculum):
-            has_progress = solves > 0
-            is_incomplete = solves < len(dojo.challenges)
-            
-            if has_progress:
-                dojos_with_any_progress.append(dojo.dojo_id)
-                if is_incomplete:
-                    next_dojos.append((dojo, solves))
-                    
-                if i + 1 < len(curriculum):
-                    next_dojo, next_solves = curriculum[i + 1]
-                    if next_dojo.dojo_id not in dojos_with_any_progress and (next_dojo, next_solves) not in next_dojos:
-                        next_dojos.append((next_dojo, next_solves))
-        
-        if not next_dojos:
+            if not solves:
+                continue
+
+            if solves < len(dojo.challenges) and (dojo, solves) not in categorized_dojos["next"]:
+                categorized_dojos["next"].append((dojo, solves))
+
+            if i + 1 < len(curriculum) and curriculum[i+1] not in categorized_dojos["next"]:
+                categorized_dojos["next"].append(curriculum[i+1])
+
+        if not categorized_dojos["next"]:
             if getting_started and getting_started[1] == 0:
-                next_dojos = [getting_started]
+                categorized_dojos["next"].append(getting_started)
             elif all(solves >= len(dojo.challenges) for dojo, solves in curriculum):
-                next_dojos = categorized_dojos["public"][:]
-        
-        categorized_dojos["next"] = next_dojos
+                categorized_dojos["next"] = categorized_dojos["public"][:]
 
     dojo_container_counts = collections.Counter(stats["dojo"] for stats in get_container_stats())
 
