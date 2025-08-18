@@ -3,12 +3,15 @@ function selector(event) {
 }
 
 function selectorOpen(event) {
-	selector(event).find(".selector-options").toggleClass("selector-collapsed");
+	var root = selector(event);
+	root.find(".selector-options").toggleClass("selector-collapsed");
+	root.find(".selector-active").toggleClass("selector-hat");
 }
 
 function selectorChoose(event) {
 	var root = selector(event);
 	root.find(".selector-options").addClass("selector-collapsed");
+	root.find(".selector-active").removeClass("selector-hat");
 
 	select(root, $(event.target).prop("value"), $(event.target).html())
 

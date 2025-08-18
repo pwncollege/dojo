@@ -32,7 +32,7 @@
   }
 
   .selector-current {
-    float: right;
+    float: left;
     margin-left: .3em;
     font-weight: 700;
   }
@@ -40,8 +40,10 @@
   .selector-options {
     bottom: 100%;
     position: absolute;
-    border-radius: 1em;
     padding: 1em;
+    padding-bottom: 0.5em;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
   }
 
   .selector-collapsed {
@@ -55,17 +57,35 @@
   }
 
   .selector-choose {
-    border-radius: 1em;
+    padding:0;
+  }
+
+  .selector-hat {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
   }
 </style>
 
 <div id="{{ id }}" class="s-comp selector-body" title="{{ title }}">
   <div class="s-comp selector-active">
     <button class="s-comp selector-open">
-      {{ prefix | safe }}
-      <div class="s-comp selector-current" value="{{ options[0] | lower }}">
-        {{ options[0] }}
+      <div style="display: flex; align-items: center; height: 100%;">
+        <div style="float: left;">{{ prefix | safe }}</div>
+        <div class="s-comp selector-current" value="{{ options[0] | lower }}">
+          {{ options[0] }}
+        </div>
       </div>
+      <!-- Spacer so the selector will always fit the largest item. -->
+      {% for option in options %}
+      <div style="visibility: hidden;">
+        <div style="float: left;">
+          {{ prefix | safe }}
+        </div>
+        <div style="float: right;margin-left: .3em;font-weight: 700;">
+          {{ option }}
+        </div>
+      </div>
+      {% endfor %}
     </button>
   </div>
   <div class="s-comp selector-options selector-collapsed">
