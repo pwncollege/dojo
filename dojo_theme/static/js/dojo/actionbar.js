@@ -182,13 +182,13 @@ function loadWorkspace() {
         return;
     }
     var previousWorkspace = localStorage.getItem("previousWorkspace");
-    var workspaceSelect = $("#workspace-iframe").closest(".challenge-workspace").find("#workspace-select")[0];
-    var option = workspaceSelect.options[0];
+    var workspaceSelect = $("#workspace-iframe").closest(".challenge-workspace").find(".selector-choose");
+    var option = workspaceSelect[0];
     if (previousWorkspace && workspaceSelect) {
-        for (var i = 0; i < workspaceSelect.options.length; i++) {
-            if (workspaceSelect.options[i].text === previousWorkspace) {
-                option = workspaceSelect.options[i];
-                option.selected = true;
+        for (var i = 0; i < workspaceSelect.length; i++) {
+            if (workspaceSelect[i].text === previousWorkspace) {
+                option = workspaceSelect[i];
+                select($("#workspace-iframe").closest(".challenge-workspace"), option.value, option.text)
                 break;
             }
         }
@@ -199,11 +199,10 @@ function loadWorkspace() {
 $(() => {
     loadWorkspace();
     $(".workspace-controls").each(function () {
-        /*$(this).find("#workspace-select").change((event) => {
-            event.preventDefault();
-            localStorage.setItem("previousWorkspace", event.target.options[event.target.selectedIndex].text);
+        $(this).find(".selector-choose").on("selected", (event) => {
+            localStorage.setItem("previousWorkspace", event.target.text);
             selectService(event.target.value);
-        });*/
+        });
 
         $(this).find("#flag-input").on("input", function(event) {
             event.preventDefault();

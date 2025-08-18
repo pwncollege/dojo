@@ -26,7 +26,5 @@ function select(root, value, display) {
 
 $(() => {
 	$(".selector-open").click(selectorOpen);
-	$(".selector-choose").click(selectorChoose).on("selected", (event) => {
-		console.log(event);
-	});
+	$(".selector-choose").click(selectorChoose);
 });
