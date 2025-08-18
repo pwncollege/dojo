@@ -144,10 +144,6 @@ h4 {
     text-shadow: rgba(104, 182, 255, 0.15) 0px 0px 5px;
 }
 
-p {
-	text-align: justify;
-}
-
 p[data-hide="true"] {
   font-size: 1px;
   opacity: 0;
