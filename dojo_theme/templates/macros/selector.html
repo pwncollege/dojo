@@ -1,0 +1,79 @@
+{% macro selector(id, options, title="", prefix="") %}
+
+<style>
+  :root {
+    --background: #111;
+    --foreground: #222;
+    --highlight: #6c757d;
+  }
+
+  .s-comp {
+    color: var(--highlight);
+    background-color: var(--foreground);
+    border-radius: 1em;
+    border-width: 0px;
+    outline: 0 !important;
+  }
+
+  .selector-body {
+    position: relative;
+    height: 100%;
+    margin-right: 5px;
+  }
+
+  .selector-active {
+    height: 100%;
+  }
+
+  .selector-open {
+    padding-left: 1em;
+    padding-right: 1em;
+    height: 100%;
+  }
+
+  .selector-current {
+    float: right;
+    margin-left: .3em;
+    font-weight: 700;
+  }
+
+  .selector-options {
+    bottom: 100%;
+    position: absolute;
+    border-radius: 1em;
+    padding: 1em;
+  }
+
+  .selector-collapsed {
+    height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .selector-collapsed .selector-choose {
+    display: none;
+  }
+
+  .selector-choose {
+    border-radius: 1em;
+  }
+</style>
+
+<div id="{{ id }}" class="s-comp selector-body" title="{{ title }}">
+  <div class="s-comp selector-active">
+    <button class="s-comp selector-open">
+      {{ prefix | safe }}
+      <div class="s-comp selector-current" value="{{ options[0] | lower }}">
+        {{ options[0] }}
+      </div>
+    </button>
+  </div>
+  <div class="s-comp selector-options selector-collapsed">
+  {% for option in options %}
+    <button class="s-comp selector-choose" value="{{ option | lower }}">
+      {{ option }}
+    </button>
+  {% endfor %}
+  </div>
+</div>
+{% endmacro %}

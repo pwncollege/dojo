@@ -199,11 +199,11 @@ function loadWorkspace() {
 $(() => {
     loadWorkspace();
     $(".workspace-controls").each(function () {
-        $(this).find("#workspace-select").change((event) => {
+        /*$(this).find("#workspace-select").change((event) => {
             event.preventDefault();
             localStorage.setItem("previousWorkspace", event.target.options[event.target.selectedIndex].text);
             selectService(event.target.value);
-        });
+        });*/
 
         $(this).find("#flag-input").on("input", function(event) {
             event.preventDefault();
