@@ -186,9 +186,9 @@ function loadWorkspace() {
     var option = workspaceSelect[0];
     if (previousWorkspace && workspaceSelect) {
         for (var i = 0; i < workspaceSelect.length; i++) {
-            if (workspaceSelect[i].text === previousWorkspace) {
+            if ($(workspaceSelect[i]).html().trim() === previousWorkspace) {
                 option = workspaceSelect[i];
-                select($("#workspace-iframe").closest(".challenge-workspace"), option.value, option.text)
+                select($("#workspace-iframe").closest(".challenge-workspace"), $(option).prop("value"), $(option).html().trim())
                 break;
             }
         }
@@ -200,7 +200,7 @@ $(() => {
     loadWorkspace();
     $(".workspace-controls").each(function () {
         $(this).find(".selector-choose").on("selected", (event) => {
-            localStorage.setItem("previousWorkspace", event.target.text);
+            localStorage.setItem("previousWorkspace", $(event.target).html().trim());
             selectService(event.target.value);
         });
 
