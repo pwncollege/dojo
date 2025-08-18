@@ -46,8 +46,8 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
             event_text = event.text
             if random_user_name in event_text and "started a" in event_text and "container" in event_text:
                 found_start_event = True
-                assert "Getting Started" in event_text, \
-                    f"Dojo name 'Getting Started' not found in event: {event_text}"
+                assert "Start Here" in event_text, \
+                    f"Dojo name 'Start Here' not found in event: {event_text}"
                 assert "Using the Dojo" in event_text, \
                     f"Module name 'Using the Dojo' not found in event: {event_text}"
                 assert "The Flag File" in event_text, \
@@ -75,8 +75,8 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
                 elif "solved" in event_text.lower():
                     solve_events += 1
                     found_solve_event = True
-                    assert "Getting Started" in event_text, \
-                        f"Dojo name 'Getting Started' not found in solve event: {event_text}"
+                    assert "Start Here" in event_text, \
+                        f"Dojo name 'Start Here' not found in solve event: {event_text}"
                     assert "Using the Dojo" in event_text, \
                         f"Module name 'Using the Dojo' not found in solve event: {event_text}"
                     assert "The Flag File" in event_text, \
