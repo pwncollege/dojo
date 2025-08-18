@@ -33,7 +33,13 @@ function selectService(service) {
     })
     .then(response => response.json())
     .then(result => {
-        content.src = result["iframe_src"];
+        const url = new URL(result["iframe_src"]);
+        // Set the port if in dev environment (may be forwarded via a server)
+        if (result["setPort"]) {
+            url.port = window.location.port;
+        }
+
+        content.src = url.toString();
     });
 }
 
