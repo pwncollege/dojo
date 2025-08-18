@@ -60,7 +60,7 @@ def listing(template="dojos.html"):
 
     getting_started = next(
         ((dojo, solves) for dojo, solves in categorized_dojos["welcome"]
-         if "getting" in dojo.name.lower() and "started" in dojo.name.lower()),
+         if dojo.reference_id == "welcome",
         None
     )
 
