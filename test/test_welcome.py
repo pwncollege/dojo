@@ -70,7 +70,7 @@ def ttyd_terminal(browser):
     browser.switch_to.frame(workspace_iframe)
 
     # Wait for ttyd to be ready and find the terminal input
-    time.sleep(3)
+    time.sleep(10)
     # ttyd uses body as the input element
     body = browser.find_element("tag name", "body")
     body.click()  # Focus the terminal
