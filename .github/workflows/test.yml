@@ -88,6 +88,7 @@ jobs:
 
       - name: Setup cache filesystem
         run: |
+          set -x
           if [ ! -e /tmp/dojo-cache.img ]; then
             echo "Creating fresh loopback filesystem image..."
             sudo fallocate -l 9.8G /tmp/dojo-cache.img
@@ -99,16 +100,30 @@ jobs:
           sudo mount -o loop,compress=zstd:3 /tmp/dojo-cache.img /mnt/
           sudo chown $USER:$USER /mnt/
           
-          if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
-            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node1
-            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node2
-            rm -f /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
-            ln -s /tmp/dojo-docker-node1 /mnt/dojo-docker-node1
-            ln -s /tmp/dojo-docker-node2 /mnt/dojo-docker-node2
+          # Create docker subvolume if it doesn't exist
+          [ -e /mnt/@docker ] || sudo btrfs subvolume create /mnt/@docker
+          
+          # Mount docker subvolume(s)
+          if [ "${{ matrix.mode }}" = "multinode" -a "$LOAD_CACHE" = "yes" ]; then
+            # For multinode with cache, create COW snapshots
+            [ -e /mnt/@docker-node1 ] || sudo btrfs subvolume snapshot /mnt/@docker /mnt/@docker-node1
+            [ -e /mnt/@docker-node2 ] || sudo btrfs subvolume snapshot /mnt/@docker /mnt/@docker-node2
+            
+            sudo mkdir -p /mnt/dojo-docker /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
+            sudo mount -o subvol=@docker /tmp/dojo-cache.img /mnt/dojo-docker
+            sudo mount -o subvol=@docker-node1 /tmp/dojo-cache.img /mnt/dojo-docker-node1
+            sudo mount -o subvol=@docker-node2 /tmp/dojo-cache.img /mnt/dojo-docker-node2
+            sudo chown $USER:$USER /mnt/dojo-docker*
+          else
+            # Single node or saving cache - just mount docker normally
+            sudo mkdir -p /mnt/dojo-docker
+            sudo mount -o subvol=@docker /tmp/dojo-cache.img /mnt/dojo-docker
+            sudo chown $USER:$USER /mnt/dojo-docker
           fi
           
           mkdir -p /mnt/outer-cache
           mkdir -p /mnt/test-cache
+          mkdir -p /mnt/dojo-workspace
 
       - name: Build (and cache) outer docker image
         if: env.SAVE_CACHE == 'yes'
@@ -211,6 +226,12 @@ jobs:
         run: |
           ./deploy.sh -K -g
           df -h
+          # Clean up docker subvolume mount and multinode snapshots before saving
+          sudo umount /mnt/dojo-docker 2>/dev/null || true
+          if [ "${{ matrix.mode }}" = "multinode" ]; then
+            sudo btrfs subvolume delete /mnt/@docker-node1 2>/dev/null || true
+            sudo btrfs subvolume delete /mnt/@docker-node2 2>/dev/null || true
+          fi
           sudo umount /mnt/
           du -sm /tmp/dojo-cache.img
 
