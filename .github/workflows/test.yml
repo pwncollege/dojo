@@ -96,39 +96,20 @@ jobs:
           else
             echo "Using cached loopback filesystem image"
           fi
-
-          if [ "$LOAD_CACHE" = "yes" ]; then
-            truncate -s +10G /tmp/dojo-cache.img
-          fi
           
           sudo mount -o loop,compress=zstd:3 /tmp/dojo-cache.img /mnt/
+          sudo chown $USER:$USER /mnt/
           
-          [ -e /mnt/@docker ] || sudo btrfs subvolume create /mnt/@docker
-          if [ "${{ matrix.mode }}" = "multinode" -a "$LOAD_CACHE" = "yes" ]; then
-            sudo btrfs filesystem resize max /mnt
-
-            test ! -e /mnt/@docker-node0
-            test ! -e /mnt/@docker-node1
-            test ! -e /mnt/@docker-node2
-
-            sudo btrfs balance start -m /mnt
-            sudo btrfs subvolume snapshot /mnt/@docker /mnt/@docker-node0
-            sudo btrfs subvolume snapshot /mnt/@docker /mnt/@docker-node1
-            sudo btrfs subvolume snapshot /mnt/@docker /mnt/@docker-node2
-            
-            sudo mkdir -p /mnt/dojo-docker /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
-            sudo mount -o subvol=@docker-node0 /tmp/dojo-cache.img /mnt/dojo-docker
-            sudo mount -o subvol=@docker-node1 /tmp/dojo-cache.img /mnt/dojo-docker-node1
-            sudo mount -o subvol=@docker-node2 /tmp/dojo-cache.img /mnt/dojo-docker-node2
-
-            echo "AFTER:"
-            sudo btrfs fi usage -T /mnt
-          else
-            sudo mkdir -p /mnt/dojo-docker
-            sudo mount -o subvol=@docker /tmp/dojo-cache.img /mnt/dojo-docker
+          if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
+            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node1
+            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node2
+            rm -f /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
+            ln -s /tmp/dojo-docker-node1 /mnt/dojo-docker-node1
+            ln -s /tmp/dojo-docker-node2 /mnt/dojo-docker-node2
           fi
           
-          sudo mkdir -p /mnt/outer-cache /mnt/test-cache
+          mkdir -p /mnt/outer-cache
+          mkdir -p /mnt/test-cache
 
       - name: Build (and cache) outer docker image
         if: env.SAVE_CACHE == 'yes'
@@ -249,12 +230,6 @@ jobs:
         run: |
           ./deploy.sh -K -g
           df -h
-          sudo umount /mnt/dojo-docker*
-          if [ "${{ matrix.mode }}" = "multinode" ]; then
-            sudo btrfs subvolume delete /mnt/@docker-node0
-            sudo btrfs subvolume delete /mnt/@docker-node1
-            sudo btrfs subvolume delete /mnt/@docker-node2
-          fi
           sudo umount /mnt/
           du -sm /tmp/dojo-cache.img
 
