@@ -112,7 +112,6 @@ jobs:
             sudo mkdir -p /mnt/dojo-docker
             sudo mount -o subvol=@docker /tmp/dojo-cache.img /mnt/dojo-docker
           fi
-          ln -s /mnt/dojo-docker* /tmp
           
           sudo mkdir -p /mnt/outer-cache /mnt/test-cache
 
@@ -173,7 +172,7 @@ jobs:
           timeout_minutes: 15
           max_attempts: 3
           command: |
-            ./deploy.sh -g -D /tmp/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }}
+            ./deploy.sh -g -D /mnt/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }}
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
