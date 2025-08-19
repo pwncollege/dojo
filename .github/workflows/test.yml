@@ -113,8 +113,7 @@ jobs:
             sudo mount -o subvol=@docker /tmp/dojo-cache.img /mnt/dojo-docker
           fi
           
-          mkdir -p /mnt/outer-cache
-          mkdir -p /mnt/test-cache
+          sudo mkdir -p /mnt/outer-cache /mnt/test-cache
 
       - name: Build (and cache) outer docker image
         if: env.SAVE_CACHE == 'yes'
