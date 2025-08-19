@@ -116,8 +116,8 @@ jobs:
 
             echo "BEFORE:"
             sudo btrfs fi usage -T /mnt
-            sudo btrfs balance start -musage=0 /mnt
-            sudo btrfs balance start -dlimit=1 -m /mnt
+            sudo btrfs balance start -musage=0 -dusage=0 /mnt
+            sudo btrfs balance start -m /mnt
             echo "AFTER:"
             sudo btrfs fi usage -T /mnt
           else
