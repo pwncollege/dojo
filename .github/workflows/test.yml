@@ -115,10 +115,10 @@ jobs:
             sudo mount -o subvol=@docker-node2 /tmp/dojo-cache.img /mnt/dojo-docker-node2
 
             echo "BEFORE:"
-            btrfs fi usage -T /mnt
-            btrfs balance start -musage=50 -dusage=50 /mnt
+            sudo btrfs fi usage -T /mnt
+            sudo btrfs balance start -musage=50 -dusage=50 /mnt
             echo "AFTER:"
-            btrfs fi usage -T /mnt
+            sudo btrfs fi usage -T /mnt
           else
             sudo mkdir -p /mnt/dojo-docker
             sudo mount -o subvol=@docker /tmp/dojo-cache.img /mnt/dojo-docker
