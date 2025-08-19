@@ -201,20 +201,20 @@ jobs:
         if: always()
         run: |
           echo "::group::Main node systemd logs"
-          docker exec dojo journalctl -u '*' -b
+          docker exec dojo journalctl -u '*' -b || echo "No main outer container..."
           echo "::endgroup::"
           echo "::group::Main node compose logs"
           docker exec dojo dojo compose logs || echo "No main outer container..."
           echo "::endgroup::"
           if [ "${{ matrix.mode }}" = "multinode" ]; then
             echo "::group::Workspace node 1 systemd logs"
-            docker exec dojo-node1 journalctl -u '*' -b
+            docker exec dojo-node1 journalctl -u '*' -b || echo "No node1 outer container..."
             echo "::endgroup::"
             echo "::group::Workspace node 1 compose logs"
             docker exec dojo-node1 dojo compose logs || echo "No node1 outer container..."
             echo "::endgroup::"
             echo "::group::Workspace node 2 systemd logs"
-            docker exec dojo-node2 journalctl -u '*' -b
+            docker exec dojo-node2 journalctl -u '*' -b || echo "No node2 outer container..."
             echo "::endgroup::"
             echo "::group::Workspace node 2 compose logs"
             docker exec dojo-node2 dojo compose logs || echo "No node2 outer container..."
