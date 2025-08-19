@@ -157,6 +157,7 @@ DOJO_SPEC = Schema({
                     "prompt": str,
                     "data": str
                 },
+                Optional("interface"): [dict],
             },
         )],
 
