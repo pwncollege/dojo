@@ -163,6 +163,9 @@ case "$ACTION" in
                 *"Failed to start pwn.college.service - pwn.college docker compose service."*)
                     exit 1
                     ;;
+                *"Job pwn.college.service/start failed"*)
+                    exit 1
+                    ;;
             esac
         done
         ;;
