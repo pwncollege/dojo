@@ -200,6 +200,12 @@ jobs:
       - name: Output logs
         if: always()
         run: |
+          echo "::group::Host docker ps"
+          docker ps
+          echo "::endgroup::"
+          echo "::group::Host logs"
+          journalctl -u '*' -b
+          echo "::endgroup::"
           echo "::group::Main node systemd logs"
           docker exec dojo journalctl -u '*' -b || echo "No main outer container..."
           echo "::endgroup::"
