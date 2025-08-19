@@ -99,11 +99,8 @@ jobs:
           sudo chown $USER:$USER /mnt/
           
           if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
-            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node1
-            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node2
-            rm -f /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
-            ln -s /tmp/dojo-docker-node1 /mnt/dojo-docker-node1
-            ln -s /tmp/dojo-docker-node2 /mnt/dojo-docker-node2
+            [ -e /mnt/dojo-docker-node1 ] || sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
+            [ -e /mnt/dojo-docker-node2 ] || sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
           fi
           
           mkdir -p /mnt/outer-cache
@@ -208,7 +205,12 @@ jobs:
       - name: Prepare the cache
         if: env.SAVE_CACHE == 'yes'
         run: |
+          set -x
           ./deploy.sh -K -g
+          df -h
+          rm -rf /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
+          sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
+          sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
           df -h
           sudo umount /mnt/
           du -sm /tmp/dojo-cache.img
