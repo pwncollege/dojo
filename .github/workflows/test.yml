@@ -227,8 +227,8 @@ jobs:
           df -h
           sudo umount /mnt/dojo-docker*
           if [ "${{ matrix.mode }}" = "multinode" ]; then
-            sudo btrfs subvolume delete /mnt/@docker-node1 2>/dev/null || true
-            sudo btrfs subvolume delete /mnt/@docker-node2 2>/dev/null || true
+            sudo btrfs subvolume delete /mnt/@docker-node1
+            sudo btrfs subvolume delete /mnt/@docker-node2
           fi
           sudo umount /mnt/
           du -sm /tmp/dojo-cache.img
