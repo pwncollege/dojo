@@ -1,3 +1,5 @@
+{% from "macros/selector.html" import selector with context %}
+
 <style>
   :root {
     --background: #111;
@@ -150,14 +152,7 @@
 
 <div class="workspace-controls">
   <div id="workspace-notification-banner"></div>
-  <div title="Change workspace" class="workspace-selector-body workspace-control">
-    <i class="fas fa-bars workspace-highlight"></i>
-    <select id="workspace-select">
-      {% for service in workspace_services %}
-      <option value="{{ service | lower }}">{{ service }}</option>
-      {% endfor %}
-    </select>
-  </div>
+  {{ selector("workspace-selector", workspace_services, title="Change workspace", prefix="<i class=\"fas fa-bars workspace-highlight\"></i>") }}
   <div title="Enter flag" class="workspace-control workspace-input">
     <i class="fas fa-flag workspace-highlight"></i>
     <input id="flag-input" type="text" placeholder="Flag">
