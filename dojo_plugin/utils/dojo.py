@@ -67,6 +67,7 @@ DOJO_SPEC = Schema({
     Optional("allow_privileged"): bool,
     Optional("show_scoreboard"): bool,
     Optional("importable"): bool,
+    Optional("interface"): [dict],
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -92,6 +93,7 @@ DOJO_SPEC = Schema({
         Optional("show_challenges"): bool,
         Optional("show_scoreboard"): bool,
         Optional("importable"): bool,
+        Optional("interface"): [dict],
 
         Optional("import"): {
             Optional("dojo"): UNIQUE_ID_REGEX,
@@ -455,6 +457,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     privileged=shadow("privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     importable=shadow("importable", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
+                    interface=shadow("interface", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     challenge=challenge(
                         module_data.get("id"), challenge_data.get("id"), transfer=challenge_data.get("transfer", None)
                     ) if "import" not in challenge_data else None,
