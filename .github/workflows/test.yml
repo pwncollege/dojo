@@ -100,6 +100,7 @@ jobs:
           sudo chown $USER:$USER /mnt/
           
           if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
+            rm -f /mnt/dojo-docker-node1 /mnt/dojo-docker-node2 || echo "link cleanup previously done"
             [ -e /mnt/dojo-docker-node1 ] || sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
             [ -e /mnt/dojo-docker-node2 ] || sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
           fi
