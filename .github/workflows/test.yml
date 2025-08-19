@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
     steps:
       - name: enable cache saving
-        if: matrix.mode == 'singlenode' && (github.event_name == 'schedule' || github.event_name == 'dispatch')
+        if: matrix.mode == 'singlenode' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         run: |
           echo "SAVE_CACHE=yes" >> "$GITHUB_ENV"
 
@@ -82,12 +82,13 @@ jobs:
         with:
           path: |
             /tmp/dojo-cache.img
-          key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
+          key: dojo-cache2-${{ matrix.mode }}-${{ github.run_id }}
           restore-keys: |
-            dojo-cache
+            dojo-cache2-
 
       - name: Setup cache filesystem
         run: |
+          set -x
           if [ ! -e /tmp/dojo-cache.img ]; then
             echo "Creating fresh loopback filesystem image..."
             sudo fallocate -l 9.8G /tmp/dojo-cache.img
@@ -97,18 +98,22 @@ jobs:
           fi
           
           sudo mount -o loop,compress=zstd:3 /tmp/dojo-cache.img /mnt/
-          sudo chown $USER:$USER /mnt/
           
-          if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
-            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node1
-            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node2
-            rm -f /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
-            ln -s /tmp/dojo-docker-node1 /mnt/dojo-docker-node1
-            ln -s /tmp/dojo-docker-node2 /mnt/dojo-docker-node2
+          [ -e /mnt/@docker ] || sudo btrfs subvolume create /mnt/@docker
+          if [ "${{ matrix.mode }}" = "multinode" -a "$LOAD_CACHE" = "yes" ]; then
+            [ -e /mnt/@docker-node1 ] || sudo btrfs subvolume snapshot /mnt/@docker /mnt/@docker-node1
+            [ -e /mnt/@docker-node2 ] || sudo btrfs subvolume snapshot /mnt/@docker /mnt/@docker-node2
+            
+            sudo mkdir -p /mnt/dojo-docker /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
+            sudo mount -o subvol=@docker /tmp/dojo-cache.img /mnt/dojo-docker
+            sudo mount -o subvol=@docker-node1 /tmp/dojo-cache.img /mnt/dojo-docker-node1
+            sudo mount -o subvol=@docker-node2 /tmp/dojo-cache.img /mnt/dojo-docker-node2
+          else
+            sudo mkdir -p /mnt/dojo-docker
+            sudo mount -o subvol=@docker /tmp/dojo-cache.img /mnt/dojo-docker
           fi
           
-          mkdir -p /mnt/outer-cache
-          mkdir -p /mnt/test-cache
+          sudo mkdir -p /mnt/outer-cache /mnt/test-cache
 
       - name: Build (and cache) outer docker image
         if: env.SAVE_CACHE == 'yes'
@@ -152,8 +157,8 @@ jobs:
         run: |
           if [ "$SAVE_CACHE" == "yes" ]; then
             sudo rm -rf /mnt/outer-cache /mnt/test-cache
-            mv /tmp/outer-cache-new /mnt/outer-cache
-            mv /tmp/test-cache-new /mnt/test-cache
+            sudo mv /tmp/outer-cache-new /mnt/outer-cache
+            sudo mv /tmp/test-cache-new /mnt/test-cache
           fi
           docker images
           df -h
@@ -211,6 +216,11 @@ jobs:
         run: |
           ./deploy.sh -K -g
           df -h
+          sudo umount /mnt/dojo-docker* 2>/dev/null || true
+          if [ "${{ matrix.mode }}" = "multinode" ]; then
+            sudo btrfs subvolume delete /mnt/@docker-node1 2>/dev/null || true
+            sudo btrfs subvolume delete /mnt/@docker-node2 2>/dev/null || true
+          fi
           sudo umount /mnt/
           du -sm /tmp/dojo-cache.img
 
@@ -220,7 +230,7 @@ jobs:
         with:
           path: |
             /tmp/dojo-cache.img
-          key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
+          key: dojo-cache2-${{ matrix.mode }}-${{ github.run_id }}
 
       - name: Final filesystem information
         if: always()
