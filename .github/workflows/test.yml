@@ -96,11 +96,17 @@ jobs:
           else
             echo "Using cached loopback filesystem image"
           fi
+
+          if [ "$LOAD_CACHE" = "yes" ]; then
+            truncate -s +10G /tmp/dojo-cache.img
+          fi
           
           sudo mount -o loop,compress=zstd:3 /tmp/dojo-cache.img /mnt/
           
           [ -e /mnt/@docker ] || sudo btrfs subvolume create /mnt/@docker
           if [ "${{ matrix.mode }}" = "multinode" -a "$LOAD_CACHE" = "yes" ]; then
+            sudo btrfs filesystem resize max /mnt
+
             test ! -e /mnt/@docker-node0
             test ! -e /mnt/@docker-node1
             test ! -e /mnt/@docker-node2
