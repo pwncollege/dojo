@@ -98,16 +98,17 @@ jobs:
           sudo mount -o loop,compress=zstd:3 /tmp/dojo-cache.img /mnt/
           sudo chown $USER:$USER /mnt/
           
-          if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
-            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node1
-            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node2
-            rm -f /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
-            ln -s /tmp/dojo-docker-node1 /mnt/dojo-docker-node1
-            ln -s /tmp/dojo-docker-node2 /mnt/dojo-docker-node2
+          if [ "$SAVE_CACHE" = "yes" ]; then
+            ln -s /mnt/dojo-docker /tmp/dojo-docker
+          else
+            for dir in dojo-docker ${{ matrix.mode == 'multinode' && 'dojo-docker-node1 dojo-docker-node2' || '' }}; do
+              mkdir -p /tmp/overlay-upper/$dir /tmp/overlay-work/$dir /tmp/$dir
+              [ -e /mnt/dojo-docker ] && sudo mount -t overlay overlay \
+                -o lowerdir=/mnt/dojo-docker,upperdir=/tmp/overlay-upper/$dir,workdir=/tmp/overlay-work/$dir /tmp/$dir
+            done
           fi
           
-          mkdir -p /mnt/outer-cache
-          mkdir -p /mnt/test-cache
+          mkdir -p /mnt/outer-cache /mnt/test-cache
 
       - name: Build (and cache) outer docker image
         if: env.SAVE_CACHE == 'yes'
@@ -166,7 +167,7 @@ jobs:
           timeout_minutes: 15
           max_attempts: 3
           command: |
-            ./deploy.sh -g -D /mnt/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }}
+            ./deploy.sh -g -D /tmp/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }}
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
