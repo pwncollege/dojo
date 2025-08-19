@@ -104,7 +104,8 @@ jobs:
             test ! -e /mnt/@docker-node0
             test ! -e /mnt/@docker-node1
             test ! -e /mnt/@docker-node2
-            
+
+            sudo btrfs balance start -m /mnt
             sudo btrfs subvolume snapshot /mnt/@docker /mnt/@docker-node0
             sudo btrfs subvolume snapshot /mnt/@docker /mnt/@docker-node1
             sudo btrfs subvolume snapshot /mnt/@docker /mnt/@docker-node2
@@ -114,10 +115,6 @@ jobs:
             sudo mount -o subvol=@docker-node1 /tmp/dojo-cache.img /mnt/dojo-docker-node1
             sudo mount -o subvol=@docker-node2 /tmp/dojo-cache.img /mnt/dojo-docker-node2
 
-            echo "BEFORE:"
-            sudo btrfs fi usage -T /mnt
-            sudo btrfs balance start -musage=0 -dusage=0 /mnt
-            sudo btrfs balance start -m /mnt
             echo "AFTER:"
             sudo btrfs fi usage -T /mnt
           else
