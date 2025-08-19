@@ -514,7 +514,10 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
 
             students_yml_path = dojo_dir / "students.yml"
             if "students" not in course and students_yml_path.exists():
-                course["students"] = yaml.safe_load(students_yml_path.read_text())
+                students = yaml.safe_load(students_yml_path.read_text())
+                if isinstance(students, list):
+                    students = {student_token: {} for student_token in students}
+                course["students"] = students
 
             syllabus_path = dojo_dir / "SYLLABUS.md"
             if "syllabus" not in course and syllabus_path.exists():
