@@ -364,6 +364,7 @@ p[data-hide="true"] {
     width: 100%;
     color: #eaeaea;
     font-size: 0.75em;
+    text-align: center;
 }
 
 .card-icon {
@@ -1009,7 +1010,7 @@ code {
 @keyframes brand-blinker {
     0% {
         color: var(--brand-black);
-        background: var(--brand-gold);
+        background: linear-gradient(to right, transparent 10%, var(--brand-gold) 10%, var(--brand-gold) 90%, transparent 90%);
     }
     5% {
         color: var(--brand-green);
@@ -1017,7 +1018,7 @@ code {
     }
     10% {
         color: var(--brand-black);
-        background: var(--brand-gold);
+        background: linear-gradient(to right, transparent 10%, var(--brand-gold) 10%, var(--brand-gold) 90%, transparent 90%);
     }
     15% {
         color: var(--brand-green);
@@ -1025,7 +1026,7 @@ code {
     }
     20% {
         color: var(--brand-black);
-        background: var(--brand-gold);
+        background: linear-gradient(to right, transparent 10%, var(--brand-gold) 10%, var(--brand-gold) 90%, transparent 90%);
     }
     25% {
         color: var(--brand-green);
@@ -1033,7 +1034,7 @@ code {
     }
     30% {
         color: var(--brand-black);
-        background: var(--brand-gold);
+        background: linear-gradient(to right, transparent 10%, var(--brand-gold) 10%, var(--brand-gold) 90%, transparent 90%);
     }
     35% {
         color: var(--brand-green);
@@ -1041,7 +1042,7 @@ code {
     }
     40% {
         color: var(--brand-black);
-        background: var(--brand-gold);
+        background: linear-gradient(to right, transparent 10%, var(--brand-gold) 10%, var(--brand-gold) 90%, transparent 90%);
     }
 }
 
@@ -1061,4 +1062,26 @@ code {
     to {
         background-color: rgba(0, 0, 0, 0.8);
     }
+}
+
+.github-edit-link {
+    float: right;
+    padding: 2px 6px;
+    margin-left: 10px;
+    font-size: 0.7rem;
+    color: var(--brand-light-gray);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    opacity: 0.6;
+}
+
+.github-edit-link:hover {
+    color: var(--brand-green);
+    text-decoration: none;
+    opacity: 1;
+}
+
+.github-edit-link i {
+    margin-right: 2px;
+    font-size: 0.65rem;
 }

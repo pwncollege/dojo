@@ -1,110 +1,351 @@
 #!/usr/bin/env python
 
+import contextvars
+import errno
+import logging
+import os
+import re
 import stat
+import subprocess
 import sys
-import time
+from collections import deque
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-import fuse
 import docker
-from fuse import FUSE, Operations, fuse_get_context
+import pyfuse3
+import requests
+import trio
 
 
-docker_client = docker.from_env()
+logger = logging.getLogger(__name__)
+
+ctx_var = contextvars.ContextVar("ctx")
 
 
-class DojoFS(Operations):
-    def __init__(self):
-        self.files = {}
+def get_context():
+    try:
+        return ctx_var.get()
+    except LookupError as e:
+        raise RuntimeError("Context is not available.") from e
 
-    def path(self, path):
-        def decorator(cls):
-            self.files[path] = cls()
-            return cls
-        return decorator
-
-    def getattr(self, path, fh=None):
-        if path == "/":
-            return dict(st_mode=(stat.S_IFDIR | 0o755), st_nlink=2)
-        file = self.files.get(path)
-        if not file:
-            raise fuse.FuseOSError(fuse.errno.ENOENT)
-        return file.getattr(path, fh)
-
-    def readdir(self, path, fh):
-        if path == "/":
-            return [".", "..", *(path.lstrip("/") for path, file in self.files.items() if file)]
-        else:
-            raise fuse.FuseOSError(fuse.errno.ENOENT)
-
-    def read(self, path, size, offset, fh):
-        file = self.files.get(path)
-        if not file:
-            raise fuse.FuseOSError(fuse.errno.ENOENT)
-        return file.read(path, size, offset, fh)
+@contextmanager
+def set_context(ctx):
+    token = ctx_var.set(ctx)
+    try:
+        yield
+    finally:
+        ctx_var.reset(token)
 
 
-dojo_fs = DojoFS()
+class DojoFSNode:
+    def __init__(self, name, mode, uid=0, gid=0):
+        self.name = name
+        self.mode = mode
+        self.uid = uid
+        self.gid = gid
+
+        self.parent = self
+        self.inode = None
+
+    def getattr(self):
+        attributes = dict(
+            entry_timeout=0,
+            attr_timeout=0,
+            st_ino=self.inode,
+            st_mode=self.mode,
+            st_nlink=self.nlink,
+            st_uid=self.uid,
+            st_gid=self.gid,
+            st_size=self.size,
+            # st_atime_ns=0,
+            # st_ctime_ns=0,
+            # st_mtime_ns=0,
+        )
+        result = pyfuse3.EntryAttributes()
+        for attr, value in attributes.items():
+            setattr(result, attr, value)
+        return result
+
+    @property
+    def path(self):
+        parts, node = [], self
+        while node and node.name:
+            parts.append(node.name)
+            node = node.parent
+        return "/" + "/".join(reversed(parts))
+
+    @property
+    def nlink(self):
+        return 1
+
+    @property
+    def size(self):
+        return 0
 
 
-def get_container_context():
-    uid, gid, pid = fuse_get_context()
-    import pathlib
-    import re
+class DojoFSFile(DojoFSNode):
+    def __init__(self, name, data=b"", uid=0, gid=0, mode=(stat.S_IFREG | 0o444)):
+        super().__init__(name, mode, uid, gid)
+        self._data = data
+
+    def lookup(self, name):
+        raise pyfuse3.FUSEError(errno.ENOTDIR)
+
+    def open(self, flags):
+        if flags & (os.O_WRONLY | os.O_RDWR):
+            raise pyfuse3.FUSEError(errno.EACCES)
+        return pyfuse3.FileInfo(fh=self.inode, direct_io=True)
+
+    def opendir(self):
+        raise pyfuse3.FUSEError(errno.ENOTDIR)
+
+    def read(self, off, size):
+        return self.data[off:off + size]
+
+    def readdir(self, start_id, token):
+        raise pyfuse3.FUSEError(errno.ENOTDIR)
+
+    @property
+    def data(self):
+        return self._data
+
+    @property
+    def size(self):
+        return len(self.data)
+
+
+class DojoFSDirectory(DojoFSNode):
+    def __init__(self, name, uid=0, gid=0, mode=(stat.S_IFDIR | 0o755)):
+        super().__init__(name, mode, uid, gid)
+        self.children = {}
+
+    def lookup(self, name):
+        node = self.children.get(name)
+        if not node:
+            raise pyfuse3.FUSEError(errno.ENOENT)
+        return node.getattr()
+
+    def open(self, flags):
+        raise pyfuse3.FUSEError(errno.EISDIR)
+
+    def opendir(self):
+        return self.inode
+
+    def read(self, off, size):
+        raise pyfuse3.FUSEError(errno.EISDIR)
+
+    def readdir(self, start_id, token):
+        entries = [(".", self), ("..", self.parent), *self.children.items()]
+        for next_id, (name, entry) in enumerate(entries[start_id:], start=start_id + 1):
+            if not pyfuse3.readdir_reply(token, name.encode(), entry.getattr(), next_id):
+                break
+
+    def add(self, node):
+        node.parent = self
+        self.children[node.name] = node
+        return node
+
+    @property
+    def nlink(self):
+        return 2 + sum(isinstance(child, DojoFSDirectory) for child in self.children.values())
+
+
+class DojoFS(pyfuse3.Operations):
+    def __init__(self, root):
+        super().__init__()
+        self.root = root
+        self.inode_to_node = {}
+        self.handle_ctx = {}
+        self._next_handle_ctx_id = 0
+
+        inode = pyfuse3.ROOT_INODE
+        queue = deque([self.root])
+        while queue:
+            node = queue.popleft()
+            node.inode = inode
+            self.inode_to_node[inode] = node
+            inode += 1
+            if isinstance(node, DojoFSDirectory):
+                queue.extend(node.children.values())
+        if inode >= 2**32:
+            raise RuntimeError("Too many inodes; DojoFS can only handle up to 2^32 inodes.")
+
+
+    def get_node(self, inode):
+        node = self.inode_to_node.get(inode)
+        if node is None:
+            raise pyfuse3.FUSEError(errno.ENOENT)
+        return node
+
+    def get_node_ctx(self, fh):
+        inode = (fh >> 0) & 0xFFFFFFFF
+        ctx_id = (fh >> 32) & 0xFFFFFFFF
+        node = self.get_node(inode)
+        ctx = self.handle_ctx.get(ctx_id, None)
+        if ctx is None:
+            raise pyfuse3.FUSEError(errno.EBADF)
+        return node, ctx
+
+    def add_node_ctx(self, inode, ctx):
+        fh = (inode & 0xFFFFFFFF) | (self._next_handle_ctx_id << 32)
+        self.handle_ctx[self._next_handle_ctx_id] = ctx
+        self._next_handle_ctx_id = (self._next_handle_ctx_id + 1) & 0xFFFFFFFF
+        return fh
+
+    def remove_node_ctx(self, fh):
+        ctx_id = (fh >> 32) & 0xFFFFFFFF
+        self.handle_ctx.pop(ctx_id, None)
+
+    async def getattr(self, inode, ctx):
+        with set_context(ctx):
+            return self.get_node(inode).getattr()
+
+    async def lookup(self, parent_inode, name, ctx):
+        with set_context(ctx):
+            return self.get_node(parent_inode).lookup(name.decode())
+
+    async def open(self, inode, flags, ctx):
+        with set_context(ctx):
+            file_info = self.get_node(inode).open(flags)
+            file_info.fh = self.add_node_ctx(inode, ctx)
+            return file_info
+
+    async def opendir(self, inode, ctx):
+        with set_context(ctx):
+            fh = self.get_node(inode).opendir()
+            inode = (fh & 0xFFFFFFFF)
+            return self.add_node_ctx(inode, ctx)
+
+    async def readdir(self, fh, start_id, token):
+        node, ctx = self.get_node_ctx(fh)
+        with set_context(ctx):
+            return node.readdir(start_id, token)
+
+    async def read(self, fh, off, size):
+        node, ctx = self.get_node_ctx(fh)
+        with set_context(ctx):
+            return node.read(off, size)
+
+    async def release(self, fh):
+        self.remove_node_ctx(fh)
+
+    async def releasedir(self, fh):
+        self.remove_node_ctx(fh)
+
+
+def get_container():
+    if not hasattr(get_container, "docker_client"):
+        try:
+            get_container.docker_client = docker.from_env()
+        except docker.errors.DockerException:
+            return None
+    docker_client = get_container.docker_client
+
+    pid = get_context().pid
+    try:
+        mount_info = Path(f"/proc/{pid}/mountinfo").read_text()
+    except FileNotFoundError:
+        return None
 
     container_re = re.compile(r"/containers/([0-9a-f]+)/hostname")
-    mount_info = pathlib.Path(f"/proc/{pid}/mountinfo").read_text()
-    container_id = match.group(1) if (match := container_re.search(mount_info)) else None
+    container_id = match.group(1) if (match := re.search(container_re, mount_info)) else None
     if not container_id:
         return None
 
     try:
-        container = docker_client.containers.get(container_id)
+        return docker_client.containers.get(container_id)
     except docker.errors.NotFound:
-        return None
-    return container
+        pass  # Container may have been removed since the mount info was read
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to connect to Docker: {e}", exc_info=True)
+    return None
 
 
-def unix_time(timestamp):
+def get_container_created_ns():
+    container = get_container()
+    if not container:
+        return 0
+    timestamp = container.attrs["Created"]
     if "." in timestamp:
         timestamp = timestamp[:timestamp.index(".") + 7] + "Z"
     created_time = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-    created_unix_time = time.mktime(created_time.timetuple())
-    return created_unix_time
+    return created_time.timestamp() * 1_000_000_000
 
 
-@dojo_fs.path("/privileged")
-class PrivilegedFile:
-    def getattr(self, path, fh=None):
-        container = get_container_context()
-        created_unix_time = unix_time(container.attrs["Created"])
-        return dict(
-            st_mode=(stat.S_IFREG | 0o444),
-            st_nlink=1,
-            st_size=4096,
-            st_ctime=created_unix_time,
-            st_mtime=created_unix_time,
-            st_atime=created_unix_time,
-        )
-
-    def read(self, path, size, offset, fh):
-        container = get_container_context()
-        mode = container.labels.get("dojo.mode")
-        content = b"1\n" if mode == "privileged" else b"0\n"
-        return content[offset:offset + size]
-
-    def __bool__(self):
-        container = get_container_context()
-        return bool(container)
+class WorkspaceNode(DojoFSNode):
+    def getattr(self):
+        created_ns = get_container_created_ns()
+        attributes = super().getattr()
+        attributes.st_ctime_ns = created_ns
+        attributes.st_mtime_ns = created_ns
+        return attributes
 
 
-if __name__ == "__main__":
+class WorkspaceDirectory(DojoFSDirectory, WorkspaceNode):
+    def __init__(self, name):
+        super().__init__(name)
+
+
+class WorkspacePrivilegedFile(DojoFSFile, WorkspaceNode):
+    def __init__(self, name):
+        super().__init__(name)
+
+    @property
+    def size(self):
+        container = get_container()
+        if not container:
+            return 0
+        return len(self.data)
+
+    @property
+    def data(self):
+        container = get_container()
+        if not container:
+            raise pyfuse3.FUSEError(errno.EIO)
+        mode = container.labels.get("dojo.mode") if container.labels else None
+        return b"1\n" if mode == "privileged" else b"0\n"
+
+
+def main():
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <mountpoint>")
         sys.exit(1)
 
-    mountpoint = sys.argv[1]
-    Path(mountpoint).mkdir(parents=True, exist_ok=True)
-    dojo_fs.__class__.__name__ = "dojofs"
-    FUSE(dojo_fs, mountpoint, foreground=True, allow_other=True)
+    mountpoint = Path(sys.argv[1])
+
+    try:
+        mountpoint.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        if error.errno == errno.ENOTCONN:
+            subprocess.run(["umount", mountpoint], check=True)
+        else:
+            raise error
+
+    root = logging.getLogger()
+    if not root.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
+        root.setLevel(logging.INFO)
+
+    root = DojoFSDirectory("")
+    workspace = root.add(WorkspaceDirectory("workspace"))
+    workspace.add(WorkspacePrivilegedFile("privileged"))
+
+    dojofs = DojoFS(root)
+    fuse_options = set(pyfuse3.default_options)
+    fuse_options.add("fsname=dojofs")
+    fuse_options.add("allow_other")
+    pyfuse3.init(dojofs, str(mountpoint), fuse_options)
+
+    try:
+        trio.run(pyfuse3.main)
+    finally:
+        pyfuse3.close(unmount=True)
+
+
+if __name__ == "__main__":
+    main()

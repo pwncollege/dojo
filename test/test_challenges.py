@@ -188,3 +188,21 @@ def test_reset_home_directory(random_user_name, random_user_session, example_doj
         workspace_run("[ ! -f '/home/hacker/testfile' ]", user=random_user_name)
     except subprocess.CalledProcessError as e:
         assert False, f"Expected test file to be wiped, but got: {(e.stdout, e.stderr)}"
+
+
+def test_unprivileged_challenge(random_user_name, random_user_session, example_dojo):
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session)
+    try:
+        workspace_run("unshare true", user=random_user_name)
+    except subprocess.CalledProcessError as e:
+        assert "unshare: unshare failed: Operation not permitted" in e.stderr, f"Expected unshare to fail, but got: {(e.stdout, e.stderr)}"
+    else:
+        assert False, f"Expected unshare to fail, but it succeeded: {(e.stdout, e.stderr)}"
+
+
+def test_privileged_challenge(random_user_name, random_user_session, privileged_dojo):
+    start_challenge(privileged_dojo, "test", "test", session=random_user_session)
+    try:
+        workspace_run("unshare true", user=random_user_name)
+    except subprocess.CalledProcessError as e:
+        assert False, f"Expected unshare to succeed, but got: {(e.stdout, e.stderr)}"

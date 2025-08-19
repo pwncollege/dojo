@@ -15,6 +15,7 @@
 }
 
 .challenge-iframe {
+  display: block;
   width: 100%;
   min-height: 60vh;
   aspect-ratio: 16/9;
@@ -23,7 +24,7 @@
 
 .challenge-iframe-fs {
   aspect-ratio: unset !important;
-  height: 100%;
+  height: calc(100vh - 2.5em - 10px);
 }
 
 .challenge-init {
@@ -38,18 +39,24 @@
   max-height: 0 !important;
 }
 
-.fullscreen-hidden {
-  display: none !important;
-}
-
 .workspace-fullscreen {
   position: fixed;
+  z-index: 1031;/* Navbar z-index + 1 */
   bottom: -16px;
   right: 0;
+  background-color: #111;
   width: 100% !important;
   height: 100% !important;
 }
+
+.workspace-ssh {
+  padding: 1em;
+  margin-bottom: 1em;
+  background-color: var(--foreground);
+  border-radius: 0.5em;
+}
 </style>
+
 
 {% endblock %}
 
@@ -71,7 +78,17 @@
 <div class="container">
 
   {% if module.description %}
-  <p>{{ module.description | markdown }}</p>
+  <div>
+    {% if module_description_edit_url %}
+      <a href="{{ module_description_edit_url }}"
+         target="_blank"
+         class="github-edit-link"
+         title="Edit on GitHub">
+        <i class="fas fa-edit"></i>
+      </a>
+    {% endif %}
+    {{ module.description | markdown }}
+  </div>
   <br>
   {% endif %}
 
@@ -85,7 +102,11 @@
     {% for item in module.unified_items %}
       {% if item.item_type == 'resource' %}
         {% set resource = item %}
-        {% if resource.type == 'header' %}
+        {% if resource.type == 'markdown' and resource.expandable == False %}
+          <div class="description-content my-3">
+            {{ resource.content | markdown }}
+          </div>
+        {% elif resource.type == 'header' %}
           <br>
           <h2>{{ resource.content }}</h2>
         {% else %}
@@ -114,6 +135,14 @@
 
             {% elif resource.type == "markdown" %}
             <div class="embed-responsive">
+              {% if resource_description_edit_urls.get(resource.resource_index) %}
+                <a href="{{ resource_description_edit_urls[resource.resource_index] }}"
+                   target="_blank"
+                   class="github-edit-link"
+                   title="Edit on GitHub">
+                  <i class="fas fa-edit"></i>
+                </a>
+              {% endif %}
               {{ resource.content | markdown }}
             </div>
             {% endif %}
@@ -191,6 +220,14 @@
                 <p><em>This challenge is locked</em></p>
               {% else %}
                 {% if not challenge.required %}<small>This challenge is optional, it will not count towards dojo completion.</small><br><br>{% endif %}
+                {% if challenge_description_edit_urls.get(challenge.id) %}
+                  <a href="{{ challenge_description_edit_urls[challenge.id] }}"
+                     target="_blank"
+                     class="github-edit-link"
+                     title="Edit on GitHub">
+                    <i class="fas fa-edit"></i>
+                  </a>
+                {% endif %}
                 {{ challenge.description | markdown }}
               {% endif %}
             </div>
@@ -214,8 +251,18 @@
                 <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
               </div>
             </div>
-            <div class="challenge-workspace">
-              {% if active %}<iframe id="workspace-iframe" class="challenge-iframe" src="/workspace?hide-navbar=true"></iframe>{% endif %}
+            <div class="challenge-workspace {{ "challenge-hidden" if not active }}">
+              <div class="iframe-wrapper">
+                {% if active %}
+                <iframe id="workspace-iframe" class="challenge-iframe" src=""></iframe>
+                {% endif %}
+              </div>
+              <div class="workspace-ssh">
+                <h3>Connect with SSH</h3>
+                Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@pwn.college</code>
+              </div>
+              {% set workspace_services = ["Terminal", "Code", "Desktop", "SSH"] %}
+              {% include "components/actionbar.html" %}
             </div>
             <div class="row notification-row">
               <div class="col-md-12">
@@ -262,4 +309,5 @@
 {% block scripts %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/challenges.js') }}"></script>
 <script defer onload="loadScoreboard(30, 1);" src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
+<script defer src="{{ url_for('views.themes', path='js/dojo/actionbar.js') }}"></script>
 {% endblock %}

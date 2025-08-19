@@ -7,10 +7,9 @@ from email.utils import formatdate
 from urllib.parse import urlparse, urlunparse
 
 from flask import Response, request, redirect, current_app
-from flask.json import JSONEncoder
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
-from CTFd.models import db, Challenges, Users
+from CTFd.models import db, Challenges, Users, Solves
 from CTFd.utils.user import get_current_user
 from CTFd.plugins import register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
@@ -20,6 +19,8 @@ from .models import Dojos, DojoChallenges, Belts, Emojis
 from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
 from .utils.awards import update_awards
+from .utils.feed import publish_challenge_solve
+from .utils.error_logging import log_exception
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
@@ -28,10 +29,11 @@ from .pages.users import users
 from .pages.settings import settings_override
 from .pages.discord import discord
 from .pages.course import course
-from .pages.canvas import sync_canvas_user, canvas
 from .pages.belts import belts
 from .pages.research import research
+from .pages.feed import feed
 from .pages.index import static_html_override
+from .pages.test_error import test_error_pages
 from .api import api
 
 
@@ -44,7 +46,15 @@ class DojoChallenge(BaseChallenge):
     def solve(cls, user, team, challenge, request):
         super().solve(user, team, challenge, request)
         update_awards(user)
-        sync_canvas_user(user.id, challenge.id)
+
+        dojo_challenge = DojoChallenges.query.filter_by(challenge_id=challenge.id).first()
+        if dojo_challenge:
+            dojo = dojo_challenge.module.dojo
+            if dojo.official or dojo.data.get("type") == "public":
+                module = dojo_challenge.module
+                points = challenge.value
+                first_blood = Solves.query.filter_by(challenge_id=challenge.id).count() == 1
+                publish_challenge_solve(user, dojo_challenge, dojo, module, points, first_blood)
 
 
 class DojoFlag(BaseFlag):
@@ -118,6 +128,16 @@ def handle_authorization(default_handler):
     default_handler()
 
 
+def flask_error_handler(app):
+    @app.errorhandler(Exception)
+    def handle_page_exception(error):
+        if hasattr(error, 'code') and error.code == 404:
+            raise
+
+        log_exception(error, event_type="page_exception")
+        raise
+
+
 def load(app):
     db.create_all()
 
@@ -144,10 +164,13 @@ def load(app):
     app.register_blueprint(discord)
     app.register_blueprint(users)
     app.register_blueprint(course)
-    app.register_blueprint(canvas)
     app.register_blueprint(belts)
     app.register_blueprint(research)
+    app.register_blueprint(feed)
+    app.register_blueprint(test_error_pages)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
+
+    flask_error_handler(app)
 
     app.jinja_env.filters["markdown"] = render_markdown
 

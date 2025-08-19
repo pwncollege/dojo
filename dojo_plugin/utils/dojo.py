@@ -63,6 +63,7 @@ DOJO_SPEC = Schema({
     },
 
     Optional("image"): IMAGE_REGEX,
+    Optional("privileged"): bool,
     Optional("allow_privileged"): bool,
     Optional("show_scoreboard"): bool,
     Optional("importable"): bool,
@@ -86,6 +87,7 @@ DOJO_SPEC = Schema({
         **VISIBILITY,
 
         Optional("image"): IMAGE_REGEX,
+        Optional("privileged"): bool,
         Optional("allow_privileged"): bool,
         Optional("show_challenges"): bool,
         Optional("show_scoreboard"): bool,
@@ -108,7 +110,9 @@ DOJO_SPEC = Schema({
             {
                 "type": "markdown",
                 "name": NAME_REGEX,
-                "content": str,
+                Optional("content"): str,
+                Optional("file"): FILE_PATH_REGEX,
+                Optional("expandable", default=True): bool,
                 **VISIBILITY,
             },
             {
@@ -131,6 +135,7 @@ DOJO_SPEC = Schema({
                 Optional("description"): str,
                 **VISIBILITY,
                 Optional("image"): IMAGE_REGEX,
+                Optional("privileged"): bool,
                 Optional("allow_privileged"): bool,
                 Optional("importable"): bool,
                 Optional("progression_locked"): bool,
@@ -227,11 +232,6 @@ def load_dojo_subyamls(data, dojo_dir):
 
         if "resources" not in module_data:
             module_data["resources"] = []
-        if module_data["resources"]:
-            module_data["resources"].insert(0, {
-                "type": "header",
-                "content": "Resources"
-            })
 
         challenges = module_data.pop("challenges", [])
         if challenges:
@@ -239,25 +239,26 @@ def load_dojo_subyamls(data, dojo_dir):
                 "type": "header",
                 "content": "Challenges"
             })
-            
+
             for challenge_data in challenges:
-                if "import" in challenge_data and "id" not in challenge_data:
-                    challenge_data["id"] = challenge_data["import"]["challenge"]
-                
-                if "id" not in challenge_data:
+                challenge_data["type"] = "challenge"
+                module_data["resources"].append(challenge_data)
+
+        for resource_data in module_data["resources"]:
+            if resource_data.get("type") == "challenge":
+                if "import" in resource_data and "id" not in resource_data:
+                    resource_data["id"] = resource_data["import"]["challenge"]
+
+                if "id" not in resource_data:
                     continue
 
-                challenge_dir = module_dir / challenge_data["id"]
-                setdefault_subyaml(challenge_data, challenge_dir / "challenge.yml")
-                setdefault_file(challenge_data, "description", challenge_dir / "DESCRIPTION.md")
-                setdefault_name(challenge_data)
-                
-                challenge_data["type"] = "challenge"
-                
-                if "import" in challenge_data and "name" not in challenge_data:
-                    challenge_data["name"] = challenge_data.get("id", "Imported Challenge").replace("-", " ").title()
-                
-                module_data["resources"].append(challenge_data)
+                challenge_dir = module_dir / resource_data["id"]
+                setdefault_subyaml(resource_data, challenge_dir / "challenge.yml")
+                setdefault_file(resource_data, "description", challenge_dir / "DESCRIPTION.md")
+                setdefault_name(resource_data)
+
+                if "import" in resource_data and "name" not in resource_data:
+                    resource_data["name"] = resource_data.get("id", "Imported Challenge").replace("-", " ").title()
 
     return data
 
@@ -427,6 +428,22 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 resource_data["unified_index"] = resource_index
                 challenge_resources.append((module_data, resource_data))
             else:
+                # Handle markdown file loading
+                if resource_data.get("type") == "markdown" and resource_data.get("file") and dojo_dir:
+                    module_dir = dojo_dir / module_data["id"]
+                    file_path = module_dir / resource_data["file"]
+                    # Validate file is within dojo directory
+                    try:
+                        file_path = file_path.resolve()
+                        dojo_dir_resolved = dojo_dir.resolve()
+                        if dojo_dir_resolved not in file_path.parents and file_path != dojo_dir_resolved:
+                            raise AssertionError(f"Markdown file {resource_data['file']} is outside dojo directory")
+                        if file_path.exists():
+                            resource_data["content"] = file_path.read_text()
+                        else:
+                            raise AssertionError(f"Markdown file {resource_data['file']} not found")
+                    except (OSError, ValueError) as e:
+                        raise AssertionError(f"Invalid markdown file path: {resource_data['file']}")
                 regular_resources.append((module_data, resource_data))
 
     dojo.modules = [
@@ -436,6 +453,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
                     image=shadow("image", dojo_data, module_data, challenge_data, default=None),
+                    privileged=shadow("privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     importable=shadow("importable", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     challenge=challenge(
@@ -454,7 +472,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             ],
             resources = [
                 DojoResources(
-                    **{kwarg: resource_data.get(kwarg) for kwarg in ["name", "type", "content", "video", "playlist", "slides"]},
+                    **{kwarg: resource_data.get(kwarg) for kwarg in ["name", "type", "content", "video", "playlist", "slides", "expandable"]},
                     visibility=visibility(DojoResourceVisibilities, dojo_data, module_data, resource_data),
                     resource_index=resource_index,
                 )
@@ -496,20 +514,24 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             if "discord_role" in course and not dojo.official:
                 raise AssertionError("Unofficial dojos cannot have a discord role")
 
-            dojo.course = course
-
             students_yml_path = dojo_dir / "students.yml"
-            if students_yml_path.exists():
+            if "students" not in course and students_yml_path.exists():
                 students = yaml.safe_load(students_yml_path.read_text())
-                dojo.course["students"] = students
+                if isinstance(students, list):
+                    students = {student_token: {} for student_token in students}
+                course["students"] = students
 
             syllabus_path = dojo_dir / "SYLLABUS.md"
-            if "syllabus" not in dojo.course and syllabus_path.exists():
-                dojo.course["syllabus"] = syllabus_path.read_text()
+            if "syllabus" not in course and syllabus_path.exists():
+                course["syllabus"] = syllabus_path.read_text()
+
+            course_scripts = course.setdefault("scripts", {})
 
             grade_path = dojo_dir / "grade.py"
-            if grade_path.exists():
-                dojo.course["grade_code"] = grade_path.read_text()
+            if "grade" not in course and grade_path.exists():
+                course_scripts["grade"] = grade_path.read_text()
+
+            dojo.course = course
 
         if dojo_data.get("pages"):
             dojo.pages = dojo_data["pages"]

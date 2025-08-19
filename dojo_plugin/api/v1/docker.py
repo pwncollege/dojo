@@ -32,6 +32,7 @@ from ...utils import (
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
+from ...utils.feed import publish_container_start
 
 logger = logging.getLogger(__name__)
 
@@ -94,12 +95,11 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     auth_token = os.urandom(32).hex()
 
     challenge_bin_path = "/run/challenge/bin"
-    workspace_bin_path = "/run/workspace/bin"
     dojo_bin_path = "/run/dojo/bin"
     image = docker_client.images.get(dojo_challenge.image)
     image_env = image.attrs["Config"].get("Env") or []
     image_path = next((env_var[len("PATH="):].split(":") for env_var in image_env if env_var.startswith("PATH=")), [])
-    env_path = ":".join([challenge_bin_path, workspace_bin_path, *image_path])
+    env_path = ":".join([challenge_bin_path, dojo_bin_path, *image_path])
 
     mounts = [
         docker.types.Mount(
@@ -109,15 +109,8 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             read_only=True,
         ),
         docker.types.Mount(
-            "/run/workspace",
-            f"{HOST_DATA_PATH}/workspacefs",
-            "bind",
-            read_only=True,
-            propagation="shared",
-        ),
-        docker.types.Mount(
             "/run/dojo/sys",
-            "/run/dojofs",
+            "/run/dojo/dojofs",
             "bind",
             read_only=True,
             propagation="slave",
@@ -129,8 +122,8 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     available_devices = set(get_available_devices(docker_client))
     devices = [f"{device}:{device}:rwm" for device in allowed_devices if device in available_devices]
 
-    container = docker_client.containers.create(
-        dojo_challenge.image,
+    container_create_attributes = dict(
+        image=dojo_challenge.image,
         entrypoint=[
             "/nix/var/nix/profiles/dojo-workspace/bin/dojo-init",
             f"{dojo_bin_path}/sleep",
@@ -169,7 +162,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             **USER_FIREWALL_ALLOWED,
         },
         init=True,
-        cap_add=["SYS_PTRACE"],
+        cap_add=["SYS_PTRACE", "SYS_ADMIN"] if dojo_challenge.privileged else ["SYS_PTRACE"],
         security_opt=[f"seccomp={SECCOMP}"],
         sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
         cpu_period=100000,
@@ -179,7 +172,10 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         detach=True,
         stdin_open=True,
         auto_remove=True,
+        runtime="io.containerd.run.kata.v2" if dojo_challenge.privileged else "runc",
     )
+
+    container = docker_client.containers.create(**container_create_attributes)
 
     workspace_net = docker_client.networks.get("workspace_net")
     workspace_net.connect(
@@ -311,7 +307,7 @@ def docker_locked(func):
             with redis_client.lock(f"user.{user.id}.docker.lock", blocking_timeout=0, timeout=60):
                 return func(*args, **kwargs)
         except redis.exceptions.LockError:
-            return {"success": False, "error": "Already starting a challenge"}
+            return {"success": False, "error": "Already starting a challenge; try again in one minute."}
     return wrapper
 
 
@@ -364,7 +360,7 @@ class RunDocker(Resource):
                 "success": False,
                 "error": "This challenge does not support practice mode.",
             }
-        
+
         if is_challenge_locked(dojo_challenge, user):
             return {
                 "success": False,
@@ -391,6 +387,20 @@ class RunDocker(Resource):
             try:
                 logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
                 start_challenge(user, dojo_challenge, practice, as_user=as_user)
+                
+                if dojo.official or dojo.data.get("type") == "public":
+                    challenge_data = {
+                        "challenge_id": dojo_challenge.challenge_id,
+                        "challenge_name": dojo_challenge.name,
+                        "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
+                        "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
+                        "dojo_id": dojo.reference_id,
+                        "dojo_name": dojo.name
+                    }
+                    mode = "practice" if practice else "assessment"
+                    actual_user = as_user or user
+                    publish_container_start(actual_user, mode, challenge_data)
+                
                 break
             except Exception as e:
                 logger.exception(f"Attempt {attempt} failed for user {user.id} with error: {e}")
@@ -421,5 +431,5 @@ class RunDocker(Resource):
             "dojo": dojo_challenge.dojo.reference_id,
             "module": dojo_challenge.module.id,
             "challenge": dojo_challenge.id,
-            "practice" : practice
+            "practice" : practice,
         }

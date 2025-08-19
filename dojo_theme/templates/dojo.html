@@ -11,7 +11,17 @@
   {% include "components/errors.html" %}
 
   {% if dojo.description %}
-  <p>{{ dojo.description | markdown }}</p>
+  <div>
+    {% if description_edit_url %}
+      <a href="{{ description_edit_url }}" 
+         target="_blank" 
+         class="github-edit-link"
+         title="Edit on GitHub">
+        <i class="fas fa-edit"></i>
+      </a>
+    {% endif %}
+    {{ dojo.description | markdown }}
+  </div>
   <br>
   {% endif %}
 

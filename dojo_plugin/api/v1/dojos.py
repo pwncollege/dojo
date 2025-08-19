@@ -125,7 +125,7 @@ class DojoSolveList(Resource):
         user = Users.query.filter_by(name=username, hidden=False).first() if username else get_current_user()
         if not user:
             return {"error": "User not found"}, 400
-            
+
         solves_query = dojo.solves(user=user, ignore_visibility=True, ignore_admins=False)
 
         if after := request.args.get("after"):
@@ -149,10 +149,10 @@ class DojoSolveList(Resource):
 class DojoCourse(Resource):
     @dojo_route
     def get(self, dojo):
-        result = dict(syllabus=dojo.course.get("syllabus", ""), grade_code=dojo.course.get("grade_code", ""))
+        result = dict(syllabus=dojo.course.get("syllabus"), scripts=dojo.course.get("scripts"))
         student = DojoStudents.query.filter_by(dojo=dojo, user=get_current_user()).first()
         if student:
-            result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token)
+            result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token, user_id=student.user_id)
         return {"success": True, "course": result}
 
 
@@ -161,7 +161,12 @@ class DojoCourseStudentList(Resource):
     @dojo_route
     @dojo_admins_only
     def get(self, dojo):
-        students = dojo.course.get("students", {})
+        dojo_students = {student.token: student.user_id for student in DojoStudents.query.filter_by(dojo=dojo)}
+        course_students = dojo.course.get("students", {})
+        students = {
+            token: course_data | dict(token=(token if token in dojo_students else None), user_id=dojo_students.get(token)) 
+            for token, course_data in course_students.items()
+        }
         return {"success": True, "students": students}
 
 
@@ -184,13 +189,14 @@ class DojoCourseSolveList(Resource):
         if students:
             solves_query = solves_query.filter(DojoStudents.token.in_(students))
 
-        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoModules.id, DojoChallenges.id)
+        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoStudents.user_id, DojoModules.id, DojoChallenges.id)
         solves = [
-            dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),
+            dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),                 
                  student_token=student_token,
+                 user_id=user_id,
                  module_id=module_id,
                  challenge_id=challenge_id)
-            for timestamp, student_token, module_id, challenge_id in solves_query.all()
+            for timestamp, student_token, user_id, module_id, challenge_id in solves_query.all()
         ]
 
         return {"success": True, "solves": solves}
