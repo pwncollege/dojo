@@ -231,11 +231,6 @@ def load_dojo_subyamls(data, dojo_dir):
 
         if "resources" not in module_data:
             module_data["resources"] = []
-        if module_data["resources"]:
-            module_data["resources"].insert(0, {
-                "type": "header",
-                "content": "Resources"
-            })
 
         challenges = module_data.pop("challenges", [])
         if challenges:
