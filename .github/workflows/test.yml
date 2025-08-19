@@ -157,8 +157,8 @@ jobs:
         run: |
           if [ "$SAVE_CACHE" == "yes" ]; then
             sudo rm -rf /mnt/outer-cache /mnt/test-cache
-            mv /tmp/outer-cache-new /mnt/outer-cache
-            mv /tmp/test-cache-new /mnt/test-cache
+            sudo mv /tmp/outer-cache-new /mnt/outer-cache
+            sudo mv /tmp/test-cache-new /mnt/test-cache
           fi
           docker images
           df -h
