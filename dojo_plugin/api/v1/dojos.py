@@ -152,7 +152,7 @@ class DojoCourse(Resource):
         result = dict(syllabus=dojo.course.get("syllabus"), scripts=dojo.course.get("scripts"))
         student = DojoStudents.query.filter_by(dojo=dojo, user=get_current_user()).first()
         if student:
-            result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token)
+            result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token, user_id=student.user_id)
         return {"success": True, "course": result}
 
 
@@ -161,7 +161,12 @@ class DojoCourseStudentList(Resource):
     @dojo_route
     @dojo_admins_only
     def get(self, dojo):
-        students = dojo.course.get("students", {})
+        dojo_students = {student.token: student.user_id for student in DojoStudents.query.filter_by(dojo=dojo)}
+        course_students = dojo.course.get("students", {})
+        students = {
+            token: course_data | dict(token=(token if token in dojo_students else None), user_id=dojo_students.get(token)) 
+            for token, course_data in course_students.items()
+        }
         return {"success": True, "students": students}
 
 
