@@ -102,7 +102,11 @@
     {% for item in module.unified_items %}
       {% if item.item_type == 'resource' %}
         {% set resource = item %}
-        {% if resource.type == 'header' %}
+        {% if resource.type == 'markdown' and resource.expandable == False %}
+          <div class="description-content my-3">
+            {{ resource.content | markdown }}
+          </div>
+        {% elif resource.type == 'header' %}
           <br>
           <h2>{{ resource.content }}</h2>
         {% else %}

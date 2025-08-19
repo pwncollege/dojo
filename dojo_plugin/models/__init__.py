@@ -682,7 +682,8 @@ class DojoResources(db.Model):
     name = db.Column(db.String(128))
 
     data = db.Column(JSONB)
-    data_fields = ["content", "video", "playlist", "slides"]
+    data_fields = ["content", "video", "playlist", "slides", "expandable"]
+    data_defaults = {"expandable": True}
 
     dojo = db.relationship("Dojos", back_populates="resources", viewonly=True)
     module = db.relationship("DojoModules", back_populates="_resources")
@@ -719,7 +720,7 @@ class DojoResources(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name)
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @hybrid_property
