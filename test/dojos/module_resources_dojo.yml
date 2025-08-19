@@ -7,7 +7,9 @@ modules:
     name: Test Module
     description: Test module with mixed resources
     resources:
-      - type: description
+      - type: markdown
+        name: "First Description"
+        expandable: false
         content: |
           First description resource at the top.
           Unique test string: DESC789
@@ -19,7 +21,9 @@ modules:
         type: markdown
         content: |
           Test content B with unique string: TESTB123
-      - type: description
+      - type: markdown
+        name: "Second Description"
+        expandable: false
         content: |
           Second description resource in the middle.
           Unique test string: DESC_MIDDLE
@@ -41,7 +45,9 @@ modules:
         type: markdown
         content: |
           Test content D with unique string: TESTD456
-      - type: description
+      - type: markdown
+        name: "Third Description"
+        expandable: false
         content: |
           Third description resource after challenges.
           Unique test string: DESC_BOTTOM
@@ -49,6 +55,9 @@ modules:
         type: lecture
         video: 1H1V1HkVt3k
         slides: 1_xdrCm136NzcDl9bqSgAEQuigUHkNjkKmamhaej296Q
+      - name: "Resource from File"
+        type: markdown
+        file: test_content.md
     challenges:
       - name: "Challenge B"
         id: testb
@@ -56,3 +65,16 @@ modules:
           dojo: example
           module: hello
           challenge: banana
+files:
+  - type: text
+    path: test/test_content.md
+    content: |
+      # Test Content from File
+      
+      This content is loaded from a markdown file.
+      
+      - Feature 1
+      - Feature 2
+      - Feature 3
+      
+      Test unique string: FILE_CONTENT_123

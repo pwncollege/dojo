@@ -102,7 +102,7 @@
     {% for item in module.unified_items %}
       {% if item.item_type == 'resource' %}
         {% set resource = item %}
-        {% if resource.type == 'description' %}
+        {% if resource.type == 'markdown' and resource.expandable == False %}
           <div class="description-content my-3">
             {{ resource.content | markdown }}
           </div>

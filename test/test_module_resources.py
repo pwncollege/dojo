@@ -122,15 +122,15 @@ def test_header_resources(module_resources_dojo, admin_session, example_dojo):
     assert pos_b < pos_header < pos_c, f"Header should be between Resource B and C"
 
 
-def test_description_resources(module_resources_dojo, admin_session, example_dojo):
-    """Test that description resources render inline at their specified positions"""
+def test_non_expandable_markdown_resources(module_resources_dojo, admin_session, example_dojo):
+    """Test that markdown resources with expandable=false render inline at their specified positions"""
     dojo_id = module_resources_dojo
     
     response = admin_session.get(f"{DOJO_URL}/{dojo_id}/test/")
     assert response.status_code == 200
     page_content = response.text
     
-    # Check all description resources exist
+    # Check all non-expandable markdown resources exist
     assert "DESC789" in page_content
     assert "First description resource at the top" in page_content
     assert "DESC_MIDDLE" in page_content
@@ -138,7 +138,7 @@ def test_description_resources(module_resources_dojo, admin_session, example_doj
     assert "DESC_BOTTOM" in page_content
     assert "Third description resource after challenges" in page_content
     
-    # Check ordering - description resources should appear in their specified positions
+    # Check ordering - non-expandable markdown resources should appear in their specified positions
     pos_first_desc = page_content.find("DESC789")
     pos_resource_a = page_content.find("Resource A")
     pos_resource_b = page_content.find("Resource B")
@@ -156,3 +156,25 @@ def test_description_resources(module_resources_dojo, admin_session, example_doj
     
     # Bottom description should be between Resource D and Resource E
     assert pos_resource_d < pos_bottom_desc < pos_resource_e, "Bottom description should be between Resource D and Resource E"
+
+
+def test_markdown_file_loading(module_resources_dojo, admin_session, example_dojo):
+    """Test that markdown resources can load content from files"""
+    dojo_id = module_resources_dojo
+    
+    response = admin_session.get(f"{DOJO_URL}/{dojo_id}/test/")
+    assert response.status_code == 200
+    page_content = response.text
+    
+    # Check that file-loaded content appears
+    assert "FILE_CONTENT_123" in page_content
+    assert "Test Content from File" in page_content
+    assert "Feature 1" in page_content
+    assert "Feature 2" in page_content
+    assert "Feature 3" in page_content
+    
+    # Check that it appears after Resource E (it's expandable by default)
+    assert "Resource from File" in page_content
+    pos_resource_e = page_content.find("Resource E")
+    pos_file_resource = page_content.find("Resource from File")
+    assert pos_resource_e < pos_file_resource, "File-loaded resource should appear after Resource E"

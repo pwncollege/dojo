@@ -273,6 +273,7 @@ log_endgroup
 
 if [ "$TEST" == "yes" ]; then
 	log_newgroup "Running tests in container"
+	cleanup_container $DOJO_CONTAINER-test
 	test_container pytest --order-dependencies --timeout=60 -v . "$@"
 	log_endgroup
 fi

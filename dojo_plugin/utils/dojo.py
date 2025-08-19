@@ -110,12 +110,9 @@ DOJO_SPEC = Schema({
             {
                 "type": "markdown",
                 "name": NAME_REGEX,
-                "content": str,
-                **VISIBILITY,
-            },
-            {
-                "type": "description",
-                "content": str,
+                Optional("content"): str,
+                Optional("file"): FILE_PATH_REGEX,
+                Optional("expandable", default=True): bool,
                 **VISIBILITY,
             },
             {
@@ -435,6 +432,22 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 resource_data["unified_index"] = resource_index
                 challenge_resources.append((module_data, resource_data))
             else:
+                # Handle markdown file loading
+                if resource_data.get("type") == "markdown" and resource_data.get("file") and dojo_dir:
+                    module_dir = dojo_dir / module_data["id"]
+                    file_path = module_dir / resource_data["file"]
+                    # Validate file is within dojo directory
+                    try:
+                        file_path = file_path.resolve()
+                        dojo_dir_resolved = dojo_dir.resolve()
+                        if dojo_dir_resolved not in file_path.parents and file_path != dojo_dir_resolved:
+                            raise AssertionError(f"Markdown file {resource_data['file']} is outside dojo directory")
+                        if file_path.exists():
+                            resource_data["content"] = file_path.read_text()
+                        else:
+                            raise AssertionError(f"Markdown file {resource_data['file']} not found")
+                    except (OSError, ValueError) as e:
+                        raise AssertionError(f"Invalid markdown file path: {resource_data['file']}")
                 regular_resources.append((module_data, resource_data))
 
     dojo.modules = [
@@ -462,7 +475,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             ],
             resources = [
                 DojoResources(
-                    **{kwarg: resource_data.get(kwarg) for kwarg in ["name", "type", "content", "video", "playlist", "slides"]},
+                    **{kwarg: resource_data.get(kwarg) for kwarg in ["name", "type", "content", "video", "playlist", "slides", "expandable"]},
                     visibility=visibility(DojoResourceVisibilities, dojo_data, module_data, resource_data),
                     resource_index=resource_index,
                 )
