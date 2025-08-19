@@ -101,8 +101,8 @@ jobs:
           
           if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
             rm -f /mnt/dojo-docker-node1 /mnt/dojo-docker-node2 || echo "link cleanup previously done"
-            [ -e /mnt/dojo-docker-node1 ] || sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
-            [ -e /mnt/dojo-docker-node2 ] || sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
+            [ -e /mnt/dojo-docker-node1 ] || sudo cp --reflink=always -a /mnt/dojo-docker /mnt/dojo-docker-node1
+            [ -e /mnt/dojo-docker-node2 ] || sudo cp --reflink=always -a /mnt/dojo-docker /mnt/dojo-docker-node2
           fi
           
           mkdir -p /mnt/outer-cache
@@ -211,8 +211,8 @@ jobs:
           ./deploy.sh -K -g
           df -h
           rm -rf /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
-          sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
-          sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
+          sudo cp --reflink=always -a /mnt/dojo-docker /mnt/dojo-docker-node1
+          sudo cp --reflink=always -a /mnt/dojo-docker /mnt/dojo-docker-node2
           df -h
           sudo umount /mnt/
           du -sm /tmp/dojo-cache.img
