@@ -184,13 +184,14 @@ class DojoCourseSolveList(Resource):
         if students:
             solves_query = solves_query.filter(DojoStudents.token.in_(students))
 
-        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoModules.id, DojoChallenges.id)
+        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoStudents.user_id, DojoModules.id, DojoChallenges.id)
         solves = [
-            dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),
+            dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),                 
                  student_token=student_token,
+                 user_id=user_id,
                  module_id=module_id,
                  challenge_id=challenge_id)
-            for timestamp, student_token, module_id, challenge_id in solves_query.all()
+            for timestamp, student_token, user_id, module_id, challenge_id in solves_query.all()
         ]
 
         return {"success": True, "solves": solves}
