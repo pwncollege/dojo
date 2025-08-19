@@ -87,6 +87,7 @@ jobs:
 
       - name: Setup cache filesystem
         run: |
+          set -x
           if [ ! -e /tmp/dojo-cache.img ]; then
             echo "Creating fresh loopback filesystem image..."
             sudo fallocate -l 9.8G /tmp/dojo-cache.img
@@ -108,6 +109,8 @@ jobs:
             done
           fi
           
+          ls -d /tmp/dojo-docker
+          ls /tmp/dojo-docker
           mkdir -p /mnt/outer-cache /mnt/test-cache
 
       - name: Build (and cache) outer docker image
