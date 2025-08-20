@@ -3,7 +3,7 @@ import datetime
 from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.sql import and_
-from CTFd.models import db, Solves
+from CTFd.models import db, Solves, Users
 from CTFd.cache import cache
 from CTFd.plugins.challenges import get_chal_class
 from CTFd.utils.decorators import authed_only, admins_only, ratelimit
@@ -119,10 +119,13 @@ class DojoModuleList(Resource):
 
 @dojos_namespace.route("/<dojo>/solves")
 class DojoSolveList(Resource):
-    @authed_only
     @dojo_route
     def get(self, dojo):
-        user = get_current_user()
+        username = request.args.get("username")
+        user = Users.query.filter_by(name=username, hidden=False).first() if username else get_current_user()
+        if not user:
+            return {"error": "User not found"}, 400
+
         solves_query = dojo.solves(user=user, ignore_visibility=True, ignore_admins=False)
 
         if after := request.args.get("after"):
@@ -146,10 +149,10 @@ class DojoSolveList(Resource):
 class DojoCourse(Resource):
     @dojo_route
     def get(self, dojo):
-        result = dict(syllabus=dojo.course.get("syllabus", ""), grade_code=dojo.course.get("grade_code", ""))
+        result = dict(syllabus=dojo.course.get("syllabus"), scripts=dojo.course.get("scripts"))
         student = DojoStudents.query.filter_by(dojo=dojo, user=get_current_user()).first()
         if student:
-            result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token)
+            result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token, user_id=student.user_id)
         return {"success": True, "course": result}
 
 
@@ -158,7 +161,12 @@ class DojoCourseStudentList(Resource):
     @dojo_route
     @dojo_admins_only
     def get(self, dojo):
-        students = dojo.course.get("students", {})
+        dojo_students = {student.token: student.user_id for student in DojoStudents.query.filter_by(dojo=dojo)}
+        course_students = dojo.course.get("students", {})
+        students = {
+            token: course_data | dict(token=(token if token in dojo_students else None), user_id=dojo_students.get(token)) 
+            for token, course_data in course_students.items()
+        }
         return {"success": True, "students": students}
 
 
@@ -181,13 +189,14 @@ class DojoCourseSolveList(Resource):
         if students:
             solves_query = solves_query.filter(DojoStudents.token.in_(students))
 
-        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoModules.id, DojoChallenges.id)
+        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoStudents.user_id, DojoModules.id, DojoChallenges.id)
         solves = [
-            dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),
+            dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),                 
                  student_token=student_token,
+                 user_id=user_id,
                  module_id=module_id,
                  challenge_id=challenge_id)
-            for timestamp, student_token, module_id, challenge_id in solves_query.all()
+            for timestamp, student_token, user_id, module_id, challenge_id in solves_query.all()
         ]
 
         return {"success": True, "solves": solves}
@@ -231,12 +240,11 @@ class DojoSurvey(Resource):
             return {"success": True, "type": "none"}
         response = {
             "success": True,
-            "type": survey["type"],
             "prompt": survey["prompt"],
+            "data": survey["data"],
             "probability": survey.get("probability", 1.0),
+            "type": "user-specified"
         }
-        if "options" in survey:
-            response["options"] = survey["options"]
         return response
 
     @authed_only
@@ -255,23 +263,10 @@ class DojoSurvey(Resource):
         if "response" not in data:
             return {"success": False, "error": "Missing response"}, 400
 
-        if survey["type"] == "thumb":
-            if data["response"] not in ["up", "down"]:
-                return {"success": False, "error": "Invalid response"}, 400
-        elif survey["type"] == "multiplechoice":
-            if not isinstance(data["response"], int) or not (0 <= int(data["response"]) < len(survey["options"])):
-                return {"success": False, "error": "Invalid response"}, 400
-        elif survey["type"] == "freeform":
-            if not isinstance(data["response"], str):
-                return {"success": False, "error": "Invalid response"}, 400
-        else:
-            return {"success": False, "error": "Bad survey type"}, 400
-
         response = SurveyResponses(
             user_id=user.id,
             dojo_id=dojo_challenge.dojo_id,
             challenge_id=dojo_challenge.challenge_id,
-            type=survey["type"],
             prompt=survey["prompt"],
             response=data["response"],
         )

@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=IDA Freeware (x64)
-Comment=The freeware version of IDA
-Exec=/run/dojo/bin/ida64
-Terminal=true
-Icon=/run/dojo/share/ida/appico64.png
-Categories=Application;Development;

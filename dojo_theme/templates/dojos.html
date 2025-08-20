@@ -3,38 +3,81 @@
 {% from "macros/widgets.html" import dojo_grid %}
 
 {% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1 class="brand-mono-bold wordmark-large"><span class="brand-white">pwn</span><span class="brand-dot brand-blink">.</span><span class="brand-green">dojos</span></h1>
+  </div>
+</div>
+
 <div class="container">
+  <p>The material on pwn.college is split into a number of "dojos", with each dojo typically covering a high-level topic.
+  <b>The material is designed to be tackled in order.</b>
+  You can, of course, jump around, but keep in mind that each dojo expects you to know everything taught by the previous ones.
+
   <p><br><br>
-  <h2>Getting Started</h2>
+  <h2>Getting Started &mdash; Learn the Basics!</h2>
+  These first few dojos are designed to help you Get Started with the platform.
+  Start here before venturing onwards!
 
   {{ dojo_grid(categorized_dojos["welcome"], dojo_container_counts) }}
 
+  <p>After completing the dojos above, dive into the Core Material below!
+
   <p><br><br>
-  <h2>Core Material</h2>
+  <h2>Core Material &mdash; Earn Your Belts!</h2>
+
+  <p>These dojos form the official pwn.college curriculum, taking you on a curated journey through the art of hacking.
+  As you progress and build your skills, like in a martial art, you will earn <a href="belts">belts</a> for completing dojo after dojo.
+  We won't stop you from jumping around if you want (and have the requisite skills), but you must earn belts sequentially.
 
   {{ dojo_grid(categorized_dojos["topic"], dojo_container_counts) }}
 
-  <p><br><br>
-  <h2>Community Material</h2>
+  <p>After completing the dojos above, not only will you be added to the <a href="belts">belts</a> page, but <i>we will send you actual pwn.college-embroidered belts</i>!
+  <p>To get your belt, <a href="mailto:pwn@pwn.college">send us an email</a> from the email address associated with your pwn.college account.
+  We’ll then get your belt over to you (eventually)!
+  Note that, due to logistical challenges, we're currently only <i>shipping</i> belts to hackers after they earn their blue belt.
+  Until then, we will belt you in person, at ASU or some security conference.
+
+  <p id="community-dojos"><br><br>
+  <h2>Community Material &mdash; Earn Badges!</h2>
+
+  <p>No matter how much material we create, there is always more to learn!
+  This section contains additional dojos created by the pwn.college community.
+  Some are designed to be tackled after you complete the dojos above, whereas others are open to anyone interested in more specialized topics.
 
   {{ dojo_grid(categorized_dojos["public"], dojo_container_counts) }}
 
   <p><br><br>
-  <h2>The Courses</h2>
+  <h2>The Courses &mdash; Earning Credit</h2>
+
+  <p>We leverage the above material to run a number of courses on this platform.
+  For the most part, these courses import the above material, though some might introduce new concepts and challenges.
 
   {{ dojo_grid(categorized_dojos["course"], dojo_container_counts) }}
 
   {% if categorized_dojos["member"] %}
   <p><br><br>
-  <h2>Dojos You've Joined</h2>
+  <h2>Dojos You've Joined &mdash; Keep Hacking!</h2>
+
+  <p>These are the private dojos that have been shared with you.
+  Keep hacking!
 
   {{ dojo_grid(categorized_dojos["member"], dojo_container_counts) }}
+
+  To join a private dojo, ask its sensei to send you an invite link!
   {% endif %}
 
+  {% if authed() %}
   <p><br><br>
-  <h2>Your Dojos</h2>
+  <h2>Your Dojos &mdash; Challenge the World!</h2>
+  <p>You can create your own dojo, either hosting your own challenges or remixing existing material!
+  Once created, a dojo can be shared with your friends or students (providing a private scoreboard and curated experience) or made public to the world to appear in the Community Material list above!
 
   {{ dojo_grid(categorized_dojos["admin"], dojo_container_counts, create_icon=True) }}
+
+  <p>Want to add your dojo to the fray? <a href="/dojos/create"><b>Create it here</b></a>!
+
+  {% endif %}
 
 </div>
 {% endblock %}

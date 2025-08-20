@@ -1,8 +1,12 @@
 import functools
 import inspect
+import json
+import logging
 import os
+import time
+import uuid
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 from sqlalchemy.exc import IntegrityError
 
 from models import DockerVolumes, db
@@ -10,11 +14,42 @@ from models import DockerVolumes, db
 
 STORAGE_HOST = os.environ.get("STORAGE_HOST", "localhost")
 volume_driver = Blueprint("volume_driver", __name__)
+logger = logging.getLogger(__name__)
 
 
 @volume_driver.route("/Plugin.Activate", methods=["POST"])
 def plugin_activate():
     return jsonify({"Implements": ["VolumeDriver"]})
+
+
+@volume_driver.before_request
+def before_request():
+    g.start_time = time.monotonic()
+    g.request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    logger.info(json.dumps(dict(
+        type="request",
+        id=g.request_id,
+        timestamp=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        method=request.method,
+        path=request.path,
+        query=request.query_string.decode(),
+        body=request.get_json(force=True, silent=True),
+    )))
+
+
+@volume_driver.after_request
+def after_request(response):
+    duration = time.monotonic() - g.start_time
+    logger.info(json.dumps(dict(
+        type="response",
+        id=g.request_id,
+        timestamp=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        status=response.status_code,
+        body=response.get_json(force=True, silent=True),
+        duration=duration,
+    )))
+    response.headers["X-Request-ID"] = g.request_id
+    return response
 
 
 def driver_route(method_name):
