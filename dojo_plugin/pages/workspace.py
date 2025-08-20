@@ -24,11 +24,6 @@ port_names = {
 @workspace.route("/workspace", methods=["GET"])
 @authed_only
 def view_workspace():
-    workspace_services = [
-        "Terminal",
-        "Code",
-        "Desktop",
-    ]
 
     current_challenge = get_current_dojo_challenge()
     if not current_challenge:
@@ -40,7 +35,6 @@ def view_workspace():
         "workspace.html",
         practice=practice,
         challenge=current_challenge,
-        workspace_services=workspace_services,
     )
 
 

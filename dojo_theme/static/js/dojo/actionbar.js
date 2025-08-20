@@ -9,12 +9,53 @@ function context(event) {
     return $(event.target).closest(".workspace-controls");
 }
 
+function getServiceHistory() {
+    var raw = localStorage.getItem("service_history");
+    if (raw === null) {
+        return [];
+    }
+
+    return raw.split(", ");
+}
+
+function logService(service) {
+    var services = getServiceHistory();
+    var index = services.indexOf(service);
+    if (index >= 0) {
+        services.splice(index, 1);
+    }
+    services.forEach((element, index, array) => {
+        service += ",";
+        service += element;
+    })
+    localStorage.setItem("service_history", service);
+}
+
+// Get most recent service which is allowed by the selector within the given root actionbar.
+function getRecentService(root) {
+    var options = [];
+    var allowed = root.find("#workspace-select").find("option");
+    allowed.each((index) => {
+        options.push($(this).val());
+    });
+    var history = getServiceHistory();
+    history.forEach((element, index, array) => {
+        if (allowed.contains(element)) {
+            return element;
+        }
+    });
+
+    return null;
+}
+
 function selectService(service) {
     const content = document.getElementById("workspace-iframe");
     if (!content) {
         console.log("Missing workspace iframe :(")
         return;
     }
+    logService(service);
+    service = service.split(":")[0];
     if (service == "ssh") {
         content.src = "";
         $(content).addClass("SSH");
@@ -181,19 +222,12 @@ function loadWorkspace() {
     if ($("#workspace-iframe").length == 0 ) {
         return;
     }
-    var previousWorkspace = localStorage.getItem("previousWorkspace");
-    var workspaceSelect = $("#workspace-iframe").closest(".challenge-workspace").find("#workspace-select")[0];
-    var option = workspaceSelect.options[0];
-    if (previousWorkspace && workspaceSelect) {
-        for (var i = 0; i < workspaceSelect.options.length; i++) {
-            if (workspaceSelect.options[i].text === previousWorkspace) {
-                option = workspaceSelect.options[i];
-                option.selected = true;
-                break;
-            }
-        }
+    var workspaceRoot = $("#workspace-iframe").closest(".challenge-workspace");
+    var recent = getRecentService(workspaceRoot);
+    if (recent == null) {
+        recent = workspaceRoot.find("#workspace-select").val();
     }
-    selectService(option.value);
+    selectService(recent);
 }
 
 $(() => {
@@ -201,7 +235,6 @@ $(() => {
     $(".workspace-controls").each(function () {
         $(this).find("#workspace-select").change((event) => {
             event.preventDefault();
-            localStorage.setItem("previousWorkspace", event.target.options[event.target.selectedIndex].text);
             selectService(event.target.value);
         });
 
