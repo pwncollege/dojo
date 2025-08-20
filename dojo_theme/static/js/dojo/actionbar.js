@@ -25,7 +25,7 @@ function logService(service) {
         services.splice(index, 1);
     }
     services.forEach((element, index, array) => {
-        service += ",";
+        service += ", ";
         service += element;
     })
     localStorage.setItem("service_history", service);
