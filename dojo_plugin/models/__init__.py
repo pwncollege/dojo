@@ -504,7 +504,7 @@ class DojoChallenges(db.Model):
         "importable": True,
         "allow_privileged": True,
         "progression_locked": False,
-        "interface": { # Pulled from plugin/pages/workspace.py
+        "interface": {
             "Terminal": 7681,
             "Code": 8080,
             "Desktop": 6080,
