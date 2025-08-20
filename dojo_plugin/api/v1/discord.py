@@ -77,11 +77,6 @@ def get_user_activity_prop(discord_id, activity, start=None, end=None):
     return {"success": True, activity: count}
 
 def get_user_activity(discord_id, activity, request):
-    authorization = request.headers.get("Authorization")
-    res, code = auth_check(authorization)
-    if res:
-        return res, code
-
     start_stamp = request.args.get("start")
     end_stamp = request.args.get("end")
     start = None
@@ -97,8 +92,6 @@ def get_user_activity(discord_id, activity, request):
             end = datetime.fromisoformat(start_stamp)
         except:
             return {"success": False, "error": "invalid end format"}, 400
-
-    user = DiscordUsers.query.filter_by(discord_id=discord_id).first()
 
     return get_user_activity_prop(discord_id, activity, start, end)
 
