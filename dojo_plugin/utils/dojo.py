@@ -67,7 +67,7 @@ DOJO_SPEC = Schema({
     Optional("allow_privileged"): bool,
     Optional("show_scoreboard"): bool,
     Optional("importable"): bool,
-    Optional("interface"): [dict],
+    Optional("interface"): dict,
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -93,7 +93,7 @@ DOJO_SPEC = Schema({
         Optional("show_challenges"): bool,
         Optional("show_scoreboard"): bool,
         Optional("importable"): bool,
-        Optional("interface"): [dict],
+        Optional("interface"): dict,
 
         Optional("import"): {
             Optional("dojo"): UNIQUE_ID_REGEX,
@@ -157,7 +157,7 @@ DOJO_SPEC = Schema({
                     "prompt": str,
                     "data": str
                 },
-                Optional("interface"): [dict],
+                Optional("interface"): dict,
             },
         )],
 
