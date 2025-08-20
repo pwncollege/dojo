@@ -227,6 +227,9 @@ function loadWorkspace() {
     if (recent == null) {
         recent = workspaceRoot.find("#workspace-select").val();
     }
+    else {
+        workspaceRoot.find("#workspace-select").val(recent);
+    }
     selectService(recent);
 }
 
