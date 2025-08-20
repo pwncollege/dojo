@@ -318,5 +318,5 @@ class DojoChallengeInterface(Resource):
 
         return {
             "success": True,
-            "description": dojo_challenge.interface,
+            "interface": dojo_challenge.interface,
         }
