@@ -35,17 +35,18 @@ function logService(service) {
 function getRecentService(root) {
     var options = [];
     var allowed = root.find("#workspace-select").find("option");
-    allowed.each((index) => {
-        options.push($(this).prop("value"));
+    allowed.each((index, value) => {
+        options.push($(value).prop("value"));
     });
     var history = getServiceHistory();
+    var match = null;
     history.forEach((element, index, array) => {
-        if (options.indexOf(element) != -1) {
-            return element;
+        if (match == null && options.indexOf(element) != -1) {
+            match = element;
         }
     });
 
-    return null;
+    return match;
 }
 
 function selectService(service) {
