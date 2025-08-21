@@ -24,7 +24,8 @@
 
 .challenge-iframe-fs {
   aspect-ratio: unset !important;
-  height: calc(100vh - 2.5em - 10px);
+  display: flex;
+  flex: 1;
 }
 
 .challenge-init {
@@ -40,6 +41,8 @@
 }
 
 .workspace-fullscreen {
+  display:flex;
+  flex-direction: column;
   position: fixed;
   z-index: 1031;/* Navbar z-index + 1 */
   bottom: -16px;
@@ -47,6 +50,11 @@
   background-color: #111;
   width: 100% !important;
   height: 100% !important;
+}
+
+.workspace-fullscreen .iframe-wrapper {
+  display: flex;
+  flex: 1;
 }
 
 .workspace-ssh {
