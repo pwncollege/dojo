@@ -34,6 +34,8 @@ def get_dojo_stats(dojo):
     chart_solves = []
     chart_users = []
 
+    challenge_solves = dict(module.solves()
+
     return {
         'users': total_users,
         'challenges': total_challenges,
