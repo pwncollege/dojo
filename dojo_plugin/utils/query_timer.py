@@ -42,7 +42,7 @@ def after_cursor_execute(conn, cursor, statement, parameters, context, executema
         try:
             if frame_path.is_relative_to(DOJO_PLUGIN_PATH) and "query_timer" not in frame.filename:
                 relative_path = frame_path.relative_to(DOJO_PLUGIN_PATH.parent)
-                dojo_frames.append(f"{relative_path}:{frame.lineno}")
+                dojo_frames.append(f"{relative_path}:{frame.lineno}:{frame.name}")
         except (ValueError, OSError):
             pass
     
