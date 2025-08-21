@@ -237,6 +237,12 @@ function loadWorkspace() {
 $(() => {
     loadWorkspace();
     $(".workspace-controls").each(function () {
+        if ($(this).find("option").length < 2) {
+            $(this).find("#workspace-select")
+                .prop("disabled", true)
+                .prop("title", "");
+        }
+
         $(this).find("#workspace-select").change((event) => {
             event.preventDefault();
             selectService(event.target.value);
