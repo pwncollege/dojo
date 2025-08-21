@@ -17,6 +17,7 @@ from CTFd.utils.helpers import get_infos
 from ..utils import get_current_container, get_all_containers, render_markdown
 from ..utils.stats import get_container_stats, get_dojo_stats
 from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
+from ..utils.query_timer import query_timeout
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
 
 dojo = Blueprint("pwncollege_dojo", __name__)
@@ -302,11 +303,13 @@ def view_module(dojo, module):
     user_solves = set(solve.challenge_id for solve in (
         module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
     ))
-    total_solves = dict(module.solves()
-                        .group_by(Solves.challenge_id)
-                        .with_entities(Solves.challenge_id, db.func.count()))
+    total_solves = dict(query_timeout(
+        module.solves().group_by(Solves.challenge_id).with_entities(Solves.challenge_id, db.func.count()).all,
+        5000,
+        []
+    ))
     current_dojo_challenge = get_current_dojo_challenge()
-    container = get_current_container();
+    container = get_current_container()
     practice = container.labels.get("dojo.mode") == "privileged" if container else False
 
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
