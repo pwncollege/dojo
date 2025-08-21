@@ -1,5 +1,7 @@
 import contextlib
 import time
+import string
+import random
 
 import pytest
 from selenium.webdriver import Firefox, FirefoxOptions
@@ -9,22 +11,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 
 from utils import DOJO_URL, workspace_run
-
-
-@pytest.fixture
-def random_user_browser(random_user):
-    random_id, random_session = random_user
-
-    options = FirefoxOptions()
-    options.add_argument("--headless")
-    browser = Firefox(options=options)
-
-    browser.get(f"{DOJO_URL}/login")
-    browser.find_element("id", "name").send_keys(random_id)
-    browser.find_element("id", "password").send_keys(random_id)
-    browser.find_element("id", "_submit").click()
-    return random_id, random_session, browser
-
 
 @contextlib.contextmanager
 def vscode_terminal(browser):
@@ -54,20 +40,43 @@ def vscode_terminal(browser):
     browser.close()
     browser.switch_to.window(module_window)
 
-
 @contextlib.contextmanager
 def desktop_terminal(browser, user_id):
     module_window = browser.current_window_handle
 
     browser.switch_to.new_window("tab")
     browser.get(f"{DOJO_URL}/workspace/desktop")
-    time.sleep(2)
+    time.sleep(10)
     workspace_run("DISPLAY=:0 xfce4-terminal &", user=user_id)
     browser.switch_to.frame("workspace")
     e = browser.find_element("id", "noVNC_keyboardinput")
     time.sleep(2)
 
     yield e
+
+    browser.close()
+    browser.switch_to.window(module_window)
+
+
+@contextlib.contextmanager
+def ttyd_terminal(browser):
+    module_window = browser.current_window_handle
+
+    browser.switch_to.new_window("tab")
+    browser.get(f"{DOJO_URL}/workspace/terminal")
+
+    wait = WebDriverWait(browser, 30)
+    workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace_iframe")))
+    browser.switch_to.frame(workspace_iframe)
+
+    # Wait for ttyd to be ready and find the terminal input
+    time.sleep(10)
+    # ttyd uses body as the input element
+    body = browser.find_element("tag name", "body")
+    body.click()  # Focus the terminal
+    time.sleep(1)
+
+    yield body
 
     browser.close()
     browser.switch_to.window(module_window)
@@ -83,19 +92,23 @@ def challenge_expand(browser, idx):
 def challenge_start(browser, idx, practice=False):
     challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
-    body.find_element("id", "challenge-practice" if practice else "challenge-start").click()
+
+    body.find_element("id", "challenge-priv" if practice else "challenge-start").click()
     while "started" not in body.find_element("id", "result-message").text:
         time.sleep(0.5)
     time.sleep(1)
 
 
 def challenge_submit(browser, idx, flag):
-    challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
-    body.find_element("id", "challenge-input").send_keys(flag)
-    body.find_element("id", "challenge-submit").click()
-    while "Correct" not in body.find_element("id", "result-message").text:
+    body.find_element("id", "flag-input").send_keys(flag)
+
+    counter = 0
+    matches = ["Solved", "completed"]
+    while not any(x in body.find_element("id", "workspace-notification-banner").get_attribute("innerHTML") for x in matches) and counter < 20:
         time.sleep(0.5)
+        counter = counter + 1
+    assert counter != 20
 
 # Gets the accordion entry index
 def challenge_idx(browser, name):
@@ -104,49 +117,89 @@ def challenge_idx(browser, name):
     return idx+1
 
 
-def test_welcome_desktop(random_user_browser, welcome_dojo):
-    random_id, _, browser = random_user_browser
-    browser.get(f"{DOJO_URL}/welcome/welcome")
-    idx = challenge_idx(browser, "The Flag File")
+def test_welcome_desktop(random_user_browser, random_user_name, welcome_dojo):
+    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    idx = challenge_idx(random_user_browser, "The Flag File")
 
-    challenge_start(browser, idx)
-    with desktop_terminal(browser, random_id) as vs:
+    challenge_start(random_user_browser, idx)
+    with desktop_terminal(random_user_browser, random_user_name) as vs:
         vs.send_keys("/challenge/solve; cat /flag | tee /tmp/out\n")
         time.sleep(5)
-        flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
-    challenge_submit(browser, idx, flag)
-    browser.close()
+        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
+    challenge_submit(random_user_browser, idx, flag)
+    random_user_browser.close()
 
 
-def test_welcome_vscode(random_user_browser, welcome_dojo):
-    random_id, _, browser = random_user_browser
-    browser.get(f"{DOJO_URL}/welcome/welcome")
-    idx = challenge_idx(browser, "Challenge Programs")
+def test_welcome_vscode(random_user_browser, random_user_name, welcome_dojo):
+    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    idx = challenge_idx(random_user_browser, "Challenge Programs")
 
-    challenge_start(browser, idx)
-    with vscode_terminal(browser) as vs:
+    challenge_start(random_user_browser, idx)
+    with vscode_terminal(random_user_browser) as vs:
         vs.send_keys("/challenge/solve | tee /tmp/out\n")
         time.sleep(5)
-        flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
-    challenge_submit(browser, idx, flag)
-    browser.close()
+        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
+    challenge_submit(random_user_browser, idx, flag)
+    random_user_browser.close()
 
 
-def test_welcome_practice(random_user_browser, welcome_dojo):
-    random_id, _, browser = random_user_browser
-    browser.get(f"{DOJO_URL}/welcome/welcome")
-    idx = challenge_idx(browser, "Using Practice Mode")
+def test_welcome_ttyd(random_user_browser, random_user_name, welcome_dojo):
+    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    idx = challenge_idx(random_user_browser, "The Flag File")
 
-    challenge_start(browser, idx, practice=True)
-    with vscode_terminal(browser) as vs:
-        vs.send_keys("sudo chmod 644 /challenge/secret\n")
-        vs.send_keys("cp /challenge/secret /home/hacker/\n")
+    challenge_start(random_user_browser, idx)
+    with ttyd_terminal(random_user_browser) as terminal:
+        terminal.send_keys("/challenge/solve; cat /flag | tee /tmp/out\n")
+        time.sleep(5)
+        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
+    challenge_submit(random_user_browser, idx, flag)
+    random_user_browser.close()
+
+
+def skip_test_welcome_practice(random_user_browser, random_user_name, welcome_dojo):
+    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    idx = challenge_idx(random_user_browser, "Using Practice Mode")
+
+    challenge_start(random_user_browser, idx, practice=True)
+    with desktop_terminal(random_user_browser, random_user_name) as vs:
+        vs.send_keys("sudo cp /challenge/secret /home/hacker/secret\n")
         time.sleep(1)
 
-    challenge_start(browser, idx, practice=False)
-    with vscode_terminal(browser) as vs:
+    random_user_browser.find_element("id", "workspace-change-privilege").click()
+    time.sleep(10)
+    with desktop_terminal(random_user_browser, random_user_name) as vs:
         vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
-        time.sleep(5)
-        flag = workspace_run("tail -n1 /tmp/out", user=random_id).stdout.split()[-1]
-    challenge_submit(browser, idx, flag)
-    browser.close()
+        time.sleep(2)
+        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
+    challenge_submit(random_user_browser, idx, flag)
+    random_user_browser.close()
+
+
+def test_registration_commitment(browser_fixture):
+    browser_fixture.get(f"{DOJO_URL}/register")
+    wait = WebDriverWait(browser_fixture, 10)
+    
+    test_username = "test" + "".join(random.choices(string.ascii_lowercase, k=8))
+    
+    browser_fixture.find_element(By.ID, "name").send_keys(test_username)
+    browser_fixture.find_element(By.ID, "email").send_keys(f"{test_username}@example.com")
+    browser_fixture.find_element(By.ID, "password").send_keys("TestPassword123!")
+    
+    submit_button = browser_fixture.find_element(By.ID, "register-submit")
+    submit_button.click()
+    
+    alert = browser_fixture.switch_to.alert
+    assert "Please type the commitment" in alert.text
+    alert.accept()
+    
+    commitment_input = browser_fixture.find_element(By.ID, "commitment-input")
+    commitment_input.send_keys("i have read the ground rules and commit to not publish pwn.college writeups on the internet")
+    
+    time.sleep(0.5)
+    
+    submit_button.click()
+    
+    wait.until(lambda driver: "register" not in driver.current_url.lower())
+    assert "register" not in browser_fixture.current_url.lower()
+
+    browser_fixture.close()

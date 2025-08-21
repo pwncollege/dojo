@@ -4,6 +4,12 @@ function submitChallenge(event) {
     const challenge_id = parseInt(item.find('#challenge-id').val())
     const submission = item.find('#challenge-input').val()
 
+    const flag_regex = /pwn.college{.*}/;
+    if (submission.match(flag_regex) == null) {
+        return;
+    }
+    item.find("#challenge-input").val("");
+
     item.find("#challenge-submit").addClass("disabled-button");
     item.find("#challenge-submit").prop("disabled", true);
 
@@ -106,11 +112,6 @@ function renderSubmissionResponse(response, item) {
         }).then(function (data) {
             if(data.type === "none") return
             if(Math.random() > data.probability) return
-            if(data.type === "thumb") {
-                survey_notification.addClass("text-center")
-            } else {
-                survey_notification.addClass("text-left")
-            }
             survey_notification.addClass(
                 "alert-warning alert-dismissable"
             );
@@ -177,12 +178,11 @@ function startChallenge(event) {
     const item = $(event.currentTarget).closest(".accordion-item");
     const module = item.find("#module").val()
     const challenge = item.find("#challenge").val()
-    const practice = event.currentTarget.id == "challenge-practice";
+    const practice = event.currentTarget.id == "challenge-priv";
 
-    item.find("#challenge-start").addClass("disabled-button");
-    item.find("#challenge-start").prop("disabled", true);
-    item.find("#challenge-practice").addClass("disabled-button");
-    item.find("#challenge-practice").prop("disabled", true);
+    item.find(".challenge-init")
+        .addClass("disabled-button")
+        .prop("disabled", true);
 
     var params = {
         "dojo": init.dojo,
@@ -245,13 +245,12 @@ function startChallenge(event) {
         result_notification.removeClass();
 
         if (result.success) {
-            var message = `Challenge successfully started! You can interact with it through a <a href="/workspace/code" target="dojo_workspace">VSCode Workspace</a> or a <a href="/workspace/desktop" target="dojo_workspace">GUI Desktop Workspace</a>.`;
+            var message = `Challenge successfully started!`;
             result_message.html(message);
             result_notification.addClass('alert alert-info alert-dismissable text-center');
 
             $(".challenge-active").removeClass("challenge-active");
             item.find(".challenge-name").addClass("challenge-active");
-            setTimeout(() => updateNavbarDropdown(), 1000);
         }
         else {
             var message = "";
@@ -264,10 +263,26 @@ function startChallenge(event) {
         }
 
         result_notification.slideDown();
-        item.find("#challenge-start").removeClass("disabled-button");
-        item.find("#challenge-start").prop("disabled", false);
-        item.find("#challenge-practice").removeClass("disabled-button");
-        item.find("#challenge-practice").prop("disabled", false);
+        item.find(".challenge-init")
+            .removeClass("disabled-button")
+            .prop("disabled", false);
+
+        $(".challenge-init").removeClass("challenge-hidden");
+        $(".challenge-workspace").addClass("challenge-hidden");
+        $(".iframe-wrapper").html("");
+        if (result.success) {
+            item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\"></iframe>");
+            loadWorkspace();
+            item.find(".challenge-init").addClass("challenge-hidden");
+            item.find(".challenge-workspace").removeClass("challenge-hidden");
+            item.find("#workspace-change-privilege")
+                .attr("title", practice ? "Restart unprivileged" : "Restart privileged")
+                .attr("data-privileged", practice)
+                .find(".fas")
+                    .toggleClass("fa-lock", !practice)
+                    .toggleClass("fa-unlock", practice);
+            windowResizeCallback("");
+        }
 
         setTimeout(function() {
             item.find(".alert").slideUp();
@@ -282,49 +297,53 @@ function startChallenge(event) {
     })
 }
 
-function clickSurveyThumb(event) {
-    const clicked = $(event.currentTarget)
-    const item = $(event.currentTarget).closest(".accordion-item")
-    const survey_notification = item.find("#survey-notification")
-    if(clicked.hasClass("fa-thumbs-up")) {
-        surveySubmit("up", item)
-    } else {
-        surveySubmit("down", item)
+async function buildSurvey(item) {
+    const form = item.find("form#survey-notification")
+    if(form.html() === "") return
+
+    // fix styles
+    const challenge_id = item.find('#challenge-id').val()
+    for(const style of form.find("style")) {
+        let cssText = ""
+        for(const rule of style.sheet.cssRules) {
+            cssText += ".survey-id-" + challenge_id + " " + rule.cssText + " "
+        }
+        style.innerHTML = cssText
     }
-    survey_notification.slideUp()
-}
 
-function clickSurveyOption(event) {
-    const clicked = $(event.currentTarget)
-    const item = $(event.currentTarget).closest(".accordion-item")
-    const survey_notification = item.find("#survey-notification")
-    const index = clicked.attr("data-id")
-    surveySubmit(parseInt(index), item)
-    survey_notification.slideUp()
-}
-
-function clickSurveySubmit(event) {
-    const item = $(event.currentTarget).closest(".accordion-item")
-    const survey_notification = item.find("#survey-notification")
-    const response = item.find("#survey-freeresponse-input").val()
-    surveySubmit(response, item)
-    survey_notification.slideUp()
+    const customSubmits = item.find("[data-form-submit]")
+    customSubmits.each((_, element) => {
+        $(element).click(() => {
+            surveySubmit(
+                JSON.stringify({
+                    response: $(element).attr("data-form-submit")
+                }),
+                item
+            )
+            form.slideUp()
+        })
+    })
+    // csrf fix
+    const formData = new FormData(form[0])
+    form.submit(event => {
+        event.preventDefault()
+        surveySubmit(JSON.stringify(Object.fromEntries(formData)), item)
+        form.slideUp()
+    })
 }
 
 function surveySubmit(data, item) {
     const challenge_name = item.find('#challenge').val()
     const module_name = item.find('#module').val()
     const dojo_name = init.dojo
-    return CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/surveys/${module_name}/${challenge_name}`, {
+    return CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/${module_name}/${challenge_name}/surveys`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            response: data
-        })
+        body: data
     })
 }
 
@@ -358,6 +377,46 @@ function markChallengeAsSolved(item) {
         .catch(error => console.error("Award check failed:", error));
 }
 
+var scroll_pos_x;
+var scroll_pos_y;
+
+function scrollDisable() {
+    scroll_pos_x = window.pageXOffset;
+    scroll_pos_y = window.pageYOffset;
+    document.body.classList.add("scroll-disabled");
+}
+
+function scrollRestore() {
+    document.body.classList.remove("scroll-disabled");
+    window.pageXOffset = scroll_pos_x;
+    window.pageYOffset = scroll_pos_y;
+}
+
+function contentExpand(event) {
+    $(event.target).closest(".challenge-workspace").addClass("workspace-fullscreen");
+    $(".challenge-iframe").addClass("challenge-iframe-fs");
+    scrollDisable();
+}
+
+function contentContract(event) {
+    $(event.target).closest(".challenge-workspace").removeClass("workspace-fullscreen");
+    $(".challenge-iframe").removeClass("challenge-iframe-fs");
+    scrollRestore();
+}
+
+function doFullscreen(event) {
+    if ($(".workspace-fullscreen")[0]) {
+        contentContract(event);
+    }
+    else {
+        contentExpand(event);
+    }
+}
+
+function windowResizeCallback(event) {
+    $(".challenge-iframe").not(".challenge-iframe-fs").css("aspect-ratio", `${window.innerWidth} / ${window.innerHeight}`);
+}
+
 $(() => {
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
@@ -388,14 +447,16 @@ $(() => {
     });
 
 
-    $(".accordion-item").find("#challenge-submit").click(submitChallenge);
+    var submits = $(".accordion-item").find("#challenge-input");
+    for (var i = 0; i < submits.length; i++) {
+        submits[i].oninput = submitChallenge;
+    }
     $(".accordion-item").find("#challenge-start").click(startChallenge);
-    $(".accordion-item").find("#challenge-practice").click(startChallenge);
+    $(".challenge-init").find("#challenge-priv").click(startChallenge);
 
-    $(".accordion-item").find("#survey-thumbs-up").click(clickSurveyThumb)
-    $(".accordion-item").find("#survey-thumbs-down").click(clickSurveyThumb)
-
-    $(".accordion-item").find(".survey-option").click(clickSurveyOption)
-
-    $(".accordion-item").find("#survey-submit").click(clickSurveySubmit)
+    window.addEventListener("resize", windowResizeCallback, true);
+    windowResizeCallback("");
+    $(".accordion-item").each((_, item) => {
+        buildSurvey($(item))
+    })
 });

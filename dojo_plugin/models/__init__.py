@@ -295,7 +295,8 @@ class DojoUsers(db.Model):
     dojo = db.relationship("Dojos", back_populates="users", overlaps="admins,members,students")
     user = db.relationship("Users")
 
-    # survey_responses = db.relationship("SurveyResponses", back_populates="users", overlaps="admins,members,students")
+    def survey_responses(self):
+        return DojoChallenges.survey_responses(user=self.user)
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(user=self.user, dojo=self.dojo, **kwargs)
@@ -433,21 +434,21 @@ class DojoModules(db.Model):
     @property
     def assessments(self):
         return [assessment for assessment in (self.dojo.course or {}).get("assessments", []) if assessment.get("id") == self.id]
-    
+
     @property
     def unified_items(self):
         items = []
-        
+
         for resource in self.resources:
             items.append((resource.resource_index, resource))
-        
+
         for challenge in self.challenges:
             if challenge.unified_index is not None:
                 index = challenge.unified_index
             else:
                 index = 1000 + challenge.challenge_index
             items.append((index, challenge))
-        
+
         items.sort(key=lambda x: x[0])
         return [item for _, item in items]
 
@@ -497,11 +498,18 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index"]
+    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interfaces"]
     data_defaults = {
+        "privileged": False,
         "importable": True,
         "allow_privileged": True,
         "progression_locked": False,
+        "interfaces": {
+            "Terminal": 7681,
+            "Code": 8080,
+            "Desktop": 6080,
+            "SSH": "ssh",
+        },
     }
 
     dojo = db.relationship("Dojos",
@@ -514,8 +522,6 @@ class DojoChallenges(db.Model):
                                  uselist=False,
                                  cascade="all, delete-orphan",
                                  back_populates="challenge")
-
-    # survey_responses = db.relationship("SurveyResponses", back_populates="challenge", cascade="all, delete-orphan")
 
     def __init__(self, *args, **kwargs):
         default = kwargs.pop("default", None)
@@ -563,6 +569,19 @@ class DojoChallenges(db.Model):
             cls.visibility.has(or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start)),
             cls.visibility.has(or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop)),
         ))
+
+    # note: currently unused, may need future testing
+    @hybrid_method
+    def survey_responses(self, user=None):
+        result = SurveyResponses.query.filter(
+            SurveyResponses.dojo_id == self.dojo_id,
+            SurveyResponses.challenge_id == self.challenge_id
+            )
+
+        if user is not None:
+            result = result.filter(SurveyResponses.user_id == user.id)
+
+        return result
 
     @hybrid_method
     def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True):
@@ -641,17 +660,14 @@ class SurveyResponses(db.Model):
     __tablename__ = "survey_responses"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    dojo_id = db.Column(db.Integer, db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"))
-    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    dojo_id = db.Column(db.Integer, nullable=False)
+    challenge_id = db.Column(db.Integer, index=True, nullable=False)
+    user_id = db.Column(db.Integer, nullable=False)
 
-    type = db.Column(db.String(64))
-    prompt = db.Column(db.Text)
-    response = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    prompt = db.Column(db.Text, nullable=False)
+    response = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
 
-    # challenge = db.relationship("DojoChallenges", back_populates="survey_responses")
-    # users = db.relationship("DojoUsers", back_populates="survey_responses")
 
 
 class DojoResources(db.Model):
@@ -672,7 +688,8 @@ class DojoResources(db.Model):
     name = db.Column(db.String(128))
 
     data = db.Column(JSONB)
-    data_fields = ["content", "video", "playlist", "slides"]
+    data_fields = ["content", "video", "playlist", "slides", "expandable"]
+    data_defaults = {"expandable": True}
 
     dojo = db.relationship("Dojos", back_populates="resources", viewonly=True)
     module = db.relationship("DojoModules", back_populates="_resources")
@@ -709,7 +726,7 @@ class DojoResources(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name)
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @hybrid_property

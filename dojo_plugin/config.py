@@ -15,6 +15,10 @@ logger.setLevel(logging.INFO)
 
 DOJOS_DIR = pathlib.Path("/var/dojos")
 
+FEED_EVENT_TTL = int(os.environ.get("FEED_EVENT_TTL", "86400"))
+FEED_MAX_EVENTS = int(os.environ.get("FEED_MAX_EVENTS", "1000"))
+FEED_BATCH_SIZE = int(os.environ.get("FEED_BATCH_SIZE", "50"))
+
 WORKSPACE_NODES = {
     int(node_id): node_key
     for node_id, node_key in
@@ -23,16 +27,6 @@ WORKSPACE_NODES = {
 
 def create_seccomp():
     seccomp = json.load(pathlib.Path("/etc/docker/seccomp.json").open())
-
-    seccomp["syscalls"].append({
-        "names": [
-            "clone",
-            "sethostname",
-            "setns",
-            "unshare",
-        ],
-        "action": "SCMP_ACT_ALLOW",
-    })
 
     READ_IMPLIES_EXEC = 0x0400000
     ADDR_NO_RANDOMIZE = 0x0040000

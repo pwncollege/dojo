@@ -1,11 +1,11 @@
 services:
   splunk:
     container_name: splunk
-    image: splunk/splunk:9.1.2
     profiles:
       - splunk
-    hostname: splunk
     restart: always
+    image: splunk/splunk:9.1.2
+    hostname: splunk
     environment:
       - SPLUNK_START_ARGS=--accept-license
       - SPLUNK_PASSWORD=DojoSplunk2024!
@@ -27,6 +27,8 @@ services:
 
   workspace-builder:
     container_name: workspace-builder
+    profiles:
+      - workspace
     build: ./workspace
     environment:
       - DOJO_WORKSPACE=${DOJO_WORKSPACE}
@@ -34,28 +36,24 @@ services:
     volumes:
       - /data/workspace/nix:/nix
 
-  workspacefs:
-    container_name: workspacefs
-    privileged: true
-    build: ./workspacefs
-    volumes:
-      - /data/workspacefs:/run/workspace:shared
-      - /data/workspace/nix:/nix
-    depends_on:
-      workspace-builder:
-        condition: service_completed_successfully
-
   dojofs:
     container_name: dojofs
+    profiles:
+      - workspace
+    restart: always
     privileged: true
     pid: host
     build: ./dojofs
     volumes:
-      - /run/dojofs:/run/dojofs:shared
+      - /run/dojo:/run/dojo:shared
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   homefs:
     container_name: homefs
+    profiles:
+      - main
+      - workspace
+    restart: always
     privileged: true
     build: ./homefs
     environment:
@@ -71,11 +69,11 @@ services:
     container_name: ctfd
     profiles:
       - main
+    restart: always
     hostname: ctfd
     build: /opt/CTFd
     platform: linux/amd64
     user: root
-    restart: always
     entrypoint: ""
     command:
       - /bin/sh
@@ -147,14 +145,6 @@ services:
       timeout: 10s
       retries: 3
     depends_on:
-      workspace-builder:
-        condition: service_completed_successfully
-      workspacefs:
-        condition: service_started
-      dojofs:
-        condition: service_started
-      homefs:
-        condition: service_started
       pgbouncer:
         condition: service_started
       cache:
@@ -164,8 +154,8 @@ services:
     container_name: db
     profiles:
       - main
-    image: postgres:17.5
     restart: always
+    image: postgres:17.5
     environment:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASS}
@@ -184,8 +174,8 @@ services:
     container_name: pgbouncer
     profiles:
       - main
-    image: edoburu/pgbouncer
     restart: always
+    image: edoburu/pgbouncer
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}/${DB_NAME}
       AUTH_TYPE: scram-sha-256
@@ -200,8 +190,8 @@ services:
     container_name: cache
     profiles:
       - main
-    image: redis:4
     restart: always
+    image: redis:4
     volumes:
       - /data/redis:/data
 
@@ -209,6 +199,7 @@ services:
     container_name: sshd
     profiles:
       - main
+    restart: always
     build: ./sshd
     volumes:
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
@@ -232,8 +223,8 @@ services:
     container_name: nginx-proxy
     profiles:
       - main
-    image: nginxproxy/nginx-proxy:1.5
     restart: always
+    image: nginxproxy/nginx-proxy:1.5
     ports:
       - "80:80"
       - "443:443"
@@ -258,8 +249,8 @@ services:
     container_name: nginx-proxy-acme
     profiles:
       - main
-    image: nginxproxy/acme-companion:2.3
     restart: always
+    image: nginxproxy/acme-companion:2.3
     volumes_from:
       - nginx-proxy
     volumes:
@@ -269,6 +260,10 @@ services:
 
   node-exporter:
     container_name: node-exporter
+    profiles:
+      - main
+      - workspace
+    restart: always
     image: prom/node-exporter
     command:
       - "--path.rootfs=/host"
@@ -279,6 +274,10 @@ services:
 
   cadvisor:
     container_name: cadvisor
+    profiles:
+      - main
+      - workspace
+    restart: always
     image: gcr.io/cadvisor/cadvisor
     privileged: true
     ports:
@@ -294,6 +293,7 @@ services:
     container_name: prometheus
     profiles:
       - main
+    restart: always
     image: prom/prometheus
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -339,6 +339,7 @@ services:
     container_name: grafana
     profiles:
       - main
+    restart: always
     image: grafana/grafana
     ports:
       - "3000:3000"
@@ -358,12 +359,16 @@ services:
     container_name: watchdog
     profiles:
       - main
+    restart: always
     build: ./watchdog
     volumes:
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   create-workspace-net:
+    profiles:
+      - main
+      - workspace
     image: busybox:uclibc
     command: /bin/true
     networks:

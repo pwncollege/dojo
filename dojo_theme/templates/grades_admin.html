@@ -7,16 +7,6 @@
   </div>
 </div>
 <div class="container">
-  <div class="row text-center">
-    <div class="col-lg-auto m-3">
-      <figure>
-        <a class="text-decoration-none" href="{{ url_for('course.download_all_grades', dojo=dojo.reference_id) }}">
-          <i class="fas fa-file-csv fa-3x"></i>
-          <figcaption><b>Download</b></figcaption>
-        </a>
-      </figure>
-    </div>
-  </div>
   <div id="grades" class="row">
     {% if grades %}
       <div class="col-md-12">

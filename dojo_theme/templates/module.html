@@ -1,6 +1,65 @@
 {% extends "base.html" %}
 {% from "macros/widgets.html" import accordion_item %}
 
+{% block stylesheets %}
+{{ super() }}
+
+<style>
+.scroll-disabled {
+  overflow: hidden;
+}
+
+.challenge-workspace {
+  margin-bottom: 16px;
+  margin-top: 16px;
+}
+
+.challenge-iframe {
+  display: block;
+  width: 100%;
+  min-height: 60vh;
+  aspect-ratio: 16/9;
+  border: 0;
+}
+
+.challenge-iframe-fs {
+  aspect-ratio: unset !important;
+  height: calc(100vh - 2.5em - 10px);
+}
+
+.challenge-init {
+  height: 100% !important;
+  width: 100% !important;
+  padding-right: 15px;
+  padding-left: 15px;
+}
+
+.challenge-hidden {
+  visibility: hidden;
+  max-height: 0 !important;
+}
+
+.workspace-fullscreen {
+  position: fixed;
+  z-index: 1031;/* Navbar z-index + 1 */
+  bottom: -16px;
+  right: 0;
+  background-color: #111;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.workspace-ssh {
+  padding: 1em;
+  margin-bottom: 1em;
+  background-color: var(--foreground);
+  border-radius: 0.5em;
+}
+</style>
+
+
+{% endblock %}
+
 {% block content %}
 <div class="jumbotron">
   <div class="container">
@@ -19,13 +78,21 @@
 <div class="container">
 
   {% if module.description %}
-  <p>{{ module.description | markdown }}</p>
+  <div>
+    {% if module_description_edit_url %}
+      <a href="{{ module_description_edit_url }}"
+         target="_blank"
+         class="github-edit-link"
+         title="Edit on GitHub">
+        <i class="fas fa-edit"></i>
+      </a>
+    {% endif %}
+    {{ module.description | markdown }}
+  </div>
   <br>
   {% endif %}
 
   {% if module.resources or module.challenges %}
-  <h2>Module Content</h2>
-
   {% if dojo.is_admin() and not module.show_challenges %}
   <p><i>This module's challenges are hidden from view. You can see them as the dojo's administrator.</i></p>
   {% endif %}
@@ -35,7 +102,11 @@
     {% for item in module.unified_items %}
       {% if item.item_type == 'resource' %}
         {% set resource = item %}
-        {% if resource.type == 'header' %}
+        {% if resource.type == 'markdown' and resource.expandable == False %}
+          <div class="description-content my-3">
+            {{ resource.content | markdown }}
+          </div>
+        {% elif resource.type == 'header' %}
           <br>
           <h2>{{ resource.content }}</h2>
         {% else %}
@@ -64,6 +135,14 @@
 
             {% elif resource.type == "markdown" %}
             <div class="embed-responsive">
+              {% if resource_description_edit_urls.get(resource.resource_index) %}
+                <a href="{{ resource_description_edit_urls[resource.resource_index] }}"
+                   target="_blank"
+                   class="github-edit-link"
+                   title="Edit on GitHub">
+                  <i class="fas fa-edit"></i>
+                </a>
+              {% endif %}
               {{ resource.content | markdown }}
             </div>
             {% endif %}
@@ -75,7 +154,7 @@
         {% set ns.challenge_count = ns.challenge_count + 1 %}
         {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
         {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
-        
+
         {% set previous_challenge = None %}
         {% set visible_challenges = [] %}
         {% for prev_item in module.unified_items[:loop.index0] %}
@@ -86,7 +165,7 @@
         {% if visible_challenges %}
           {% set previous_challenge = visible_challenges[-1] %}
         {% endif %}
-        
+
         {% set progression_locked = challenge.progression_locked and previous_challenge %}
         {% set lock_challenge = progression_locked
           and previous_challenge.challenge_id not in user_solves
@@ -134,39 +213,48 @@
               {% if lock_challenge %}
                 <p><em>This challenge is locked</em></p>
               {% else %}
+                {% if challenge_description_edit_urls.get(challenge.id) %}
+                  <a href="{{ challenge_description_edit_urls[challenge.id] }}"
+                     target="_blank"
+                     class="github-edit-link"
+                     title="Edit on GitHub">
+                    <i class="fas fa-edit"></i>
+                  </a>
+                {% endif %}
                 {{ challenge.description | markdown }}
               {% endif %}
             </div>
-            <div class="row">
-              <div class="col-sm-{% if challenge.allow_privileged %}6{% else %}12{% endif %} form-group text-center">
-                <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary w-100">
-                  <span class="d-sm-block d-md-block d-lg-block">
-                    <i class="fas fa-play fa-2x pr-3"></i>Start
-                  </span>
+            <div class="challenge-init row{% if active %} challenge-hidden{% endif %}">
+              <div class="col-md-3 form=group text-center">
+                <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
+                  <i class="fas fa-play fa-2x pr-3"></i>Start
                 </button>
               </div>
               {% if challenge.allow_privileged %}
-              <div class="col-sm-6 form-group text-center">
-                <button id="challenge-practice" type="submit" class="btn btn-md btn-outline-secondary w-100">
-                  <span class="d-sm-block d-md-block d-lg-block">
-                    <i class="fas fa-flask fa-2x pr-3"></i>Practice
-                  </span>
+              <div class="col-md-3 form=group text-center">
+                <button id="challenge-priv" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
+                  <i class="fas fa-unlock fa-2x pr-3"></i>Privileged
                 </button>
               </div>
               {% endif %}
-            </div>
-            <div class="row submit-row">
-              <div class="col-md-9 form-group">
+              <div class="col-md-{% if challenge.allow_privileged %}6{% else %}9{% endif %}">
                 <input id="module" type="hidden" value="{{ challenge.module.id }}">
                 <input id="challenge" type="hidden" value="{{ challenge.id }}">
                 <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
                 <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
               </div>
-              <div class="col-md-3 form-group key-submit">
-                <button id="challenge-submit" type="submit" class="challenge-submit btn btn-md btn-outline-secondary float-right w-100 h-100">
-                  Submit
-                </button>
+            </div>
+            <div class="challenge-workspace {{ "challenge-hidden" if not active }}">
+              <div class="iframe-wrapper">
+                {% if active %}
+                <iframe id="workspace-iframe" class="challenge-iframe" src=""></iframe>
+                {% endif %}
               </div>
+              <div class="workspace-ssh">
+                <h3>Connect with SSH</h3>
+                Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@pwn.college</code>
+              </div>
+              {% include "components/actionbar.html" %}
             </div>
             <div class="row notification-row">
               <div class="col-md-12">
@@ -177,34 +265,9 @@
             </div>
             <div class="row survey-row">
               <div class="col-md-12">
-                <div id="survey-notification" class="survey alert-dismissable w-100" role="alert" style="display: none;">
-                  <span id="survey-prompt" class="survey-prompt">{{ challenge.survey.prompt }}</span>
-                  {% if challenge.survey.type == "thumb" %}
-                  <div id="survey-thumb" class="survey-thumb">
-                    <i id="survey-thumbs-up" class="fa fa-thumbs-up"></i>
-                    <i id="survey-thumbs-down" class="fa fa-thumbs-down"></i>
-                  </div>
-                  {% elif challenge.survey.type == "freeform" %}
-                  <div id="survey-freeresponse">
-                    <div class="row survey-freeresponse-row">
-                      <div class="col-md-9 form-group">
-                        <input id="survey-freeresponse-input" class="form-control survey-text-input" type="text" name="answer">
-                      </div>
-                      <div class="col-md-3 form-group key-submit">
-                        <button id="survey-submit" type="submit" class="btn btn-md btn-outline-secondary float-right w-100 h-100 survey-submit">
-                          Submit
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  {% elif challenge.survey.type == "multiplechoice" %}
-                  <div id="survey-multiplechoice" class="survey-multiplechoice">
-                    {% for option in challenge.survey.options %}
-                    <div class="survey-option" data-id={{ loop.index - 1 }}>{{ option }}</div>
-                    {% endfor %}
-                  </div>
-                  {% endif %}
-                </div>
+                <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{challenge.dojo.reference_id}}/surveys/{{challenge.module.id}}/{{challenge.id}}" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
+                  {{ challenge.survey.data | safe }}
+                </form>
               </div>
             </div>
           {% endif %}
@@ -222,7 +285,7 @@
       {% set _ = visible_challenges.append(item) %}
     {% endif %}
   {% endfor %}
-  
+
   {% if visible_challenges and module.show_scoreboard %}
 
   <h2 class="row" id="scoreboard-heading">30-Day Scoreboard:</h2>
@@ -238,4 +301,5 @@
 {% block scripts %}
 <script defer src="{{ url_for('views.themes', path='js/dojo/challenges.js') }}"></script>
 <script defer onload="loadScoreboard(30, 1);" src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
+<script defer src="{{ url_for('views.themes', path='js/dojo/actionbar.js') }}"></script>
 {% endblock %}
