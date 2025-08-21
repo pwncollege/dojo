@@ -3,9 +3,11 @@ import logging
 import threading
 import traceback
 from pathlib import Path
-from sqlalchemy import event
+from sqlalchemy import event, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.engine import Engine
 from CTFd.utils.user import get_current_user
+from CTFd.models import db
 
 logger = logging.getLogger("dojo.query_timer")
 logger.setLevel(logging.INFO)
@@ -27,16 +29,16 @@ def before_cursor_execute(conn, cursor, statement, parameters, context, executem
 def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
     if not hasattr(thread_local, "query_start_times") or not thread_local.query_start_times:
         return
-    
+
     start_time = thread_local.query_start_times.pop()
     query_time = time.time() - start_time
-    
+
     if query_time < SLOW_QUERY_THRESHOLD:
         return
-    
+
     stack = traceback.extract_stack()
     dojo_frames = []
-    
+
     for frame in stack:
         frame_path = Path(frame.filename).resolve()
         try:
@@ -45,19 +47,26 @@ def after_cursor_execute(conn, cursor, statement, parameters, context, executema
                 dojo_frames.append(f"{relative_path}:{frame.lineno}:{frame.name}")
         except (ValueError, OSError):
             pass
-    
+
     traceback_str = " ".join(reversed(dojo_frames)) if dojo_frames else "no_dojo_frames"
-    
-    try:
-        current_user = get_current_user()
-        user_info = f"user_id={current_user.id}" if current_user else "user_id=None"
-    except Exception:
-        user_info = "user_id=error"
-    
-    logger.info(
-        f"Slow query: time={query_time=:.3f}s {user_info=} {traceback_str=}"
+
+    logger.warning(
+        f"Slow query: {query_time=:.3f}s user={get_current_user()} {traceback_str=}"
     )
 
+def query_timeout(stmt, ms, default):
+    db.session.execute(text(f"SET LOCAL statement_timeout = {ms}"))
+    try:
+        return stmt()
+    except DBAPIError as e:
+        if getattr(getattr(e, "orig", None), "pgcode", None) == "57014": #ugly postgres hack for timeouts
+            db.session.rollback()
+            return default
+        else:
+            raise
+    finally:
+        db.session.execute(text("SET LOCAL statement_timeout = 0"))
 
 def init_query_timer():
+    # this does nothing because all the magic happens at import time now
     pass
