@@ -35,7 +35,7 @@ NAME_REGEX = Regex(r"^[\S ]{1,128}$")
 IMAGE_REGEX = Regex(r"^[\S]{1,256}$")
 FILE_PATH_REGEX = Regex(r"^[A-Za-z0-9_][A-Za-z0-9-_./]*$")
 FILE_URL_REGEX = Regex(r"^https://www.dropbox.com/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9.-_]*?rlkey=[a-zA-Z0-9]*&dl=1")
-INTERFACE_KEY = Regex(r"[a-zA-Z]{1,32}")
+INTERFACES_KEY = Regex(r"[a-zA-Z]{1,32}")
 DATE = Use(datetime.datetime.fromisoformat)
 
 ID_NAME_DESCRIPTION = {
@@ -68,8 +68,8 @@ DOJO_SPEC = Schema({
     Optional("allow_privileged"): bool,
     Optional("show_scoreboard"): bool,
     Optional("importable"): bool,
-    Optional("interface"): {
-        INTERFACE_KEY: Or("ssh", int)
+    Optional("interfaces"): {
+        INTERFACES_KEY: Or("ssh", int)
     },
 
     Optional("import"): {
@@ -96,8 +96,8 @@ DOJO_SPEC = Schema({
         Optional("show_challenges"): bool,
         Optional("show_scoreboard"): bool,
         Optional("importable"): bool,
-        Optional("interface"): {
-            INTERFACE_KEY: Or("ssh", int)
+        Optional("interfaces"): {
+            INTERFACES_KEY: Or("ssh", int)
         },
 
         Optional("import"): {
@@ -162,8 +162,8 @@ DOJO_SPEC = Schema({
                     "prompt": str,
                     "data": str
                 },
-                Optional("interface"): {
-                    INTERFACE_KEY: Or("ssh", int)
+                Optional("interfaces"): {
+                    INTERFACES_KEY: Or("ssh", int)
                 },
             },
         )],
@@ -465,7 +465,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     privileged=shadow("privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     importable=shadow("importable", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
-                    interface=shadow("interface", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
+                    interfaces=shadow("interfaces", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     challenge=challenge(
                         module_data.get("id"), challenge_data.get("id"), transfer=challenge_data.get("transfer", None)
                     ) if "import" not in challenge_data else None,
