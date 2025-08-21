@@ -21,6 +21,7 @@ from .utils import unserialize_user_flag, render_markdown
 from .utils.awards import update_awards
 from .utils.feed import publish_challenge_solve
 from .utils.error_logging import log_exception
+from .utils.query_timer import init_query_timer
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
@@ -140,6 +141,8 @@ def flask_error_handler(app):
 
 def load(app):
     db.create_all()
+    
+    init_query_timer()
 
     app.permanent_session_lifetime = datetime.timedelta(days=180)
 
