@@ -191,7 +191,7 @@ class DojoCourseSolveList(Resource):
 
         solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoStudents.user_id, DojoModules.id, DojoChallenges.id)
         solves = [
-            dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),                 
+            dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),
                  student_token=student_token,
                  user_id=user_id,
                  module_id=module_id,
@@ -296,4 +296,27 @@ class DojoChallengeDescription(Resource):
         return {
             "success": True,
             "description": render_markdown(dojo_challenge.description)
+        }
+
+@dojos_namespace.route("/<dojo>/<module>/<challenge_id>/interface")
+class DojoChallengeInterface(Resource):
+    @authed_only
+    @dojo_route
+    def get(self, dojo, module, challenge_id):
+        user = get_current_user()
+
+        dojo_challenge = next((c for c in module.visible_challenges() if c.id == challenge_id), None)
+
+        if dojo_challenge is None:
+            return {"success": False, "error": "Invalid challenge id"}, 404
+
+        if is_challenge_locked(dojo_challenge, user):
+            return {
+                "success": False,
+                "error": "This challenge is locked"
+            }, 403
+
+        return {
+            "success": True,
+            "interface": dojo_challenge.interface,
         }

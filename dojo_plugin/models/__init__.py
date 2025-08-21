@@ -498,12 +498,18 @@ class DojoChallenges(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index"]
+    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interface"]
     data_defaults = {
         "privileged": False,
         "importable": True,
         "allow_privileged": True,
         "progression_locked": False,
+        "interface": {
+            "Terminal": 7681,
+            "Code": 8080,
+            "Desktop": 6080,
+            "SSH": "ssh",
+        },
     }
 
     dojo = db.relationship("Dojos",
