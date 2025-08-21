@@ -297,26 +297,3 @@ class DojoChallengeDescription(Resource):
             "success": True,
             "description": render_markdown(dojo_challenge.description)
         }
-
-@dojos_namespace.route("/<dojo>/<module>/<challenge_id>/interface")
-class DojoChallengeInterface(Resource):
-    @authed_only
-    @dojo_route
-    def get(self, dojo, module, challenge_id):
-        user = get_current_user()
-
-        dojo_challenge = next((c for c in module.visible_challenges() if c.id == challenge_id), None)
-
-        if dojo_challenge is None:
-            return {"success": False, "error": "Invalid challenge id"}, 404
-
-        if is_challenge_locked(dojo_challenge, user):
-            return {
-                "success": False,
-                "error": "This challenge is locked"
-            }, 403
-
-        return {
-            "success": True,
-            "interface": dojo_challenge.interface,
-        }
