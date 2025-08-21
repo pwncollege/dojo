@@ -36,11 +36,11 @@ function getRecentService(root) {
     var options = [];
     var allowed = root.find("#workspace-select").find("option");
     allowed.each((index) => {
-        options.push($(this).val());
+        options.push($(this).prop("value"));
     });
     var history = getServiceHistory();
     history.forEach((element, index, array) => {
-        if (allowed.contains(element)) {
+        if (options.indexOf(element) != -1) {
             return element;
         }
     });
@@ -169,7 +169,7 @@ function actionStartChallenge(event) {
                 return;
             }
 
-            selectService(context(event).find("#workspace-select").val());
+            selectService(context(event).find("#workspace-select").prop("value"));
 
             context(event).find(".btn-challenge-start")
             .removeClass("disabled")
@@ -225,10 +225,10 @@ function loadWorkspace() {
     var workspaceRoot = $("#workspace-iframe").closest(".challenge-workspace");
     var recent = getRecentService(workspaceRoot);
     if (recent == null) {
-        recent = workspaceRoot.find("#workspace-select").val();
+        recent = workspaceRoot.find("#workspace-select").prop("value");
     }
     else {
-        workspaceRoot.find("#workspace-select").val(recent);
+        workspaceRoot.find("#workspace-select").prop("value", recent);
     }
     selectService(recent);
 }
