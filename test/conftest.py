@@ -164,6 +164,10 @@ def privileged_dojo(admin_session, example_dojo):
     make_dojo_official(rid, admin_session)
     return rid
 
+@pytest.fixture(scope="session")
+def visibility_test_dojo(admin_session, example_dojo):
+    return create_dojo_yml(open(TEST_DOJOS_LOCATION / "visibility_test.yml").read(), session=admin_session)
+
 @pytest.fixture
 def random_private_dojo(admin_session):
     """Create a private (non-official, non-public) dojo with random ID"""
