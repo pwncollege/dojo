@@ -69,6 +69,7 @@ let
     fi
 
     touch /run/dojo/var/ready
+    echo "Ready."
 
     exec "$@"
   '';
