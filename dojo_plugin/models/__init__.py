@@ -615,7 +615,7 @@ class DojoChallenges(db.Model):
                     or_(DojoChallengeVisibilities.start == None, Solves.date >= DojoChallengeVisibilities.start),
                     or_(DojoChallengeVisibilities.stop == None, Solves.date <= DojoChallengeVisibilities.stop),
                 )
-                .filter(Users.hidden == False)
+                .filter(~Users.hidden)
             )
 
         if ignore_admins:

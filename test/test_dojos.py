@@ -111,7 +111,7 @@ def test_no_import(no_import_challenge_dojo, admin_session):
 
 def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user):
     user_name, _ = completionist_user
-    db_sql(f"DELETE FROM solves WHERE id IN (SELECT id FROM solves WHERE user_id={get_user_id(user_name)} ORDER BY id DESC LIMIT 1)")
+    db_sql(f"DELETE FROM submissions WHERE id IN (SELECT id FROM submissions WHERE user_id={get_user_id(user_name)} ORDER BY id DESC LIMIT 1)")
 
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{simple_award_dojo}/awards/prune", json={})
     assert response.status_code == 200

@@ -69,6 +69,8 @@ EOF
 WORKDIR /opt/pwn.college
 COPY . .
 
+RUN find /opt/pwn.college/ctfd/patches -exec patch -d /opt/CTFd -p1 -N -i {} \;
+
 RUN <<EOF
 find /opt/pwn.college/etc/systemd/system -type f -exec ln -s {} /etc/systemd/system/ \;
 find /opt/pwn.college/etc/systemd/system -type f -name '*.timer' -exec sh -c \
