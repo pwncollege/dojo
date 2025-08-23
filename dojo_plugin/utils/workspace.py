@@ -7,7 +7,7 @@ on_demand_services = { "terminal", "code", "desktop"}
 
 def start_on_demand_service(user, service_name):
     if service_name not in on_demand_services:
-        return False
+        return
     try:
         exec_run(
             f"/run/current-system/sw/bin/dojo-{service_name}",
