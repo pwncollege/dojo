@@ -93,6 +93,7 @@ jobs:
           df -h
           if [ "${{ env.ACT }}" == "true" ]; then
             echo "Not using a loopback mount for local CI..."
+            sudo apt-get update && sudo apt-get install -y iproute2
           elif [ "$SAVE_CACHE" == "yes" -o ! -e /tmp/dojo-cache.img ]; then
             echo "Creating fresh loopback filesystem image..."
             sudo fallocate -l 9.8G /tmp/dojo-cache.img
@@ -116,7 +117,7 @@ jobs:
           mkdir -p /mnt/test-cache
 
       - name: Build (and cache) outer docker image
-        if: env.SAVE_CACHE == 'yes'
+        if: env.SAVE_CACHE == 'yes' && !env.ACT
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -126,7 +127,7 @@ jobs:
           cache-to: type=local,dest=/tmp/outer-cache-new,mode=max
 
       - name: Build (and cache) test docker image
-        if: env.SAVE_CACHE == 'yes'
+        if: env.SAVE_CACHE == 'yes' && !env.ACT
         uses: docker/build-push-action@v5
         with:
           context: test
@@ -136,7 +137,7 @@ jobs:
           cache-to: type=local,dest=/tmp/test-cache-new,mode=max
 
       - name: Build outer docker image
-        if: env.SAVE_CACHE != 'yes'
+        if: env.SAVE_CACHE != 'yes' && !env.ACT
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -145,7 +146,7 @@ jobs:
           cache-from: type=local,src=/mnt/outer-cache
 
       - name: Build test docker image
-        if: env.SAVE_CACHE != 'yes'
+        if: env.SAVE_CACHE != 'yes' && !env.ACT
         uses: docker/build-push-action@v5
         with:
           context: test
@@ -162,8 +163,10 @@ jobs:
           fi
           docker images
           df -h
-          docker images | grep "^pwncollege/dojo "
-          docker images | grep "^dojo-test "
+          if [ "${{ env.ACT }}" != "true" ]; then
+            docker images | grep "^pwncollege/dojo "
+            docker images | grep "^dojo-test "
+          fi
 
       - name: Start the dojo in ${{ matrix.mode }} mode
         if: matrix.mode != 'vibecheck' || github.event_name == 'pull_request'
