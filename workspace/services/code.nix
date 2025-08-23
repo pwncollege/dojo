@@ -84,7 +84,6 @@ in pkgs.stdenv.mkDerivation {
       --disable-telemetry \
       --extensions-dir=$out/share/code/extensions \
       --install-extension ms-python.python \
-      --install-extension juanblanco.solidity \
       --install-extension $NIX_BUILD_TOP/cpptools-linux.vsix
     chmod +x $out/share/code/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*}
 
