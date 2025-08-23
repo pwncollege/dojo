@@ -233,7 +233,7 @@
               </div>
               {% endif %}
               <div class="col-md-{% if challenge.allow_privileged %}6{% else %}9{% endif %}">
-                <input id="module" type="hidden" value="{{ challenge.module.id }}">
+                <input id="module" type="hidden" value="{{ module.id }}">
                 <input id="challenge" type="hidden" value="{{ challenge.id }}">
                 <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
                 <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
@@ -260,7 +260,7 @@
             </div>
             <div class="row survey-row">
               <div class="col-md-12">
-                <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{challenge.dojo.reference_id}}/surveys/{{challenge.module.id}}/{{challenge.id}}" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
+                <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{dojo.reference_id}}/surveys/{{module.id}}/{{challenge.id}}" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
                   {{ challenge.survey.data | safe }}
                 </form>
               </div>
@@ -276,7 +276,7 @@
   <br>
   {% endif %}
 
-  {% if visible_challenges and module.show_scoreboard %}
+  {% if challenge_visibility and module.show_scoreboard %}
 
   <h2 class="row" id="scoreboard-heading">30-Day Scoreboard:</h2>
   <p>This scoreboard reflects solves for challenges in this module after the module launched in this dojo.</p>
