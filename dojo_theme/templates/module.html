@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros/widgets.html" import accordion_item %}
+{% set dojo_is_admin = dojo.is_admin() %}
 
 {% block stylesheets %}
 {{ super() }}
@@ -93,7 +94,7 @@
   {% endif %}
 
   {% if module.resources or module.challenges %}
-  {% if dojo.is_admin() and not module.show_challenges %}
+  {% if dojo_is_admin and not module.show_challenges %}
   <p><i>This module's challenges are hidden from view. You can see them as the dojo's administrator.</i></p>
   {% endif %}
 
@@ -149,10 +150,10 @@
           {% endif %}
         {% endcall %}
         {% endif %}
-      {% elif item.item_type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
+      {% elif item.item_type == 'challenge' and (module.show_challenges or dojo_is_admin) %}
         {% set challenge = item %}
         {% set hidden = not challenge_visibility.get(challenge.challenge_id, False) %}
-        {% if hidden and not dojo.is_admin() %}
+        {% if hidden and not dojo_is_admin %}
           {# Skip hidden challenges for non-admins #}
         {% else %}
         {% set ns.challenge_count = ns.challenge_count + 1 %}
@@ -162,7 +163,7 @@
         {% set previous_challenge = None %}
         {% set visible_challenges = [] %}
         {% for prev_item in module.unified_items[:loop.index0] %}
-          {% if prev_item.item_type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
+          {% if prev_item.item_type == 'challenge' and (module.show_challenges or dojo_is_admin) %}
             {% set _ = visible_challenges.append(prev_item) %}
           {% endif %}
         {% endfor %}
@@ -174,7 +175,7 @@
         {% set lock_challenge = progression_locked
           and previous_challenge.challenge_id not in user_solves
           and solved == "challenge-unsolved"
-          and not dojo.is_admin() %}
+          and not dojo_is_admin %}
         {% set icon = "fa-lock" if lock_challenge else "fa-flag" %}
 
         {% call(header) accordion_item("module-content", loop.index, lock_challenge, challenge_index=ns.challenge_count) %}
@@ -190,7 +191,7 @@
                 {% else %}
                 <span class="pr-2">{{ challenge.name or challenge.id }}</span>
                 {% endif %}
-                {% if dojo.is_admin() and (progression_locked or hidden) %}
+                {% if dojo_is_admin and (progression_locked or hidden) %}
                 <small><small><small>
                       <i>
                         {% if progression_locked %}progression locked{% endif %}
