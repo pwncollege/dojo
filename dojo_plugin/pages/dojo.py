@@ -36,15 +36,11 @@ def find_description_edit_url(dojo, relative_paths, search_pattern=None, branch=
 
         line_num = 1
         if relative_path.endswith('.yml') and search_pattern:
-            try:
-                pattern = re.compile(search_pattern)
-                with open(full_path, 'r') as f:
-                    for i, line in enumerate(f, 1):
-                        if pattern.search(line):
-                            line_num = i
-                            break
-            except (IOError, re.error):
-                pass
+            with open(full_path, 'r') as f:
+                content = f.read()
+            match = search_pattern.search(content)
+            if match:
+                line_num = content[:match.start()].count('\n') + 1
 
         return f"https://github.com/{dojo.repository}/edit/{branch}/{relative_path}#L{line_num}"
 
@@ -350,24 +346,27 @@ def view_module(dojo, module):
                 f"{module.id}/DESCRIPTION.md",
                 f"{module.id}/module.yml",
                 "dojo.yml"
-            ], search_pattern=r"^description:", branch=branch)
+            ], search_pattern=re.compile(r"^description:"), branch=branch)
 
         for challenge in module.challenges:
             if challenge.description:
                 # Search for "- id: challenge_name" with optional quotes
-                challenge_description_edit_urls[challenge.id] = find_description_edit_url(dojo, [
-                    f"{module.id}/{challenge.id}/DESCRIPTION.md",
-                    f"{module.id}/{challenge.id}/challenge.yml",
-                    f"{module.id}/module.yml",
-                    "dojo.yml"
-                ], search_pattern=rf"^\s*-?\s*id:\s*[\"']?{re.escape(challenge.id)}[\"']?", branch=branch)
+                challenge_description_edit_urls[challenge.id] = find_description_edit_url(
+                    dojo, [
+                        f"{module.id}/{challenge.id}/DESCRIPTION.md",
+                        f"{module.id}/{challenge.id}/challenge.yml",
+                        f"{module.id}/module.yml",
+                        "dojo.yml"
+                    ], search_pattern=re.compile(rf"^\s*-?\s*id:\s*[\"']?{re.escape(challenge.id)}[\"']?"),
+                    branch=branch
+                )
 
         for resource in module.resources:
             if resource.type == "markdown":
                 # Search for "- name: Resource Name" with optional quotes
                 resource_description_edit_urls[resource.resource_index] = find_description_edit_url(
                     dojo, [f"{module.id}/module.yml", "dojo.yml"],
-                    search_pattern=rf"^\s*-?\s*name:\s*[\"']?{re.escape(resource.name)}[\"']?",
+                    search_pattern=re.compile(rf"^\s*-?\s*name:\s*[\"']?{re.escape(resource.name)}[\"']?"),
                     branch=branch
                 )
 
