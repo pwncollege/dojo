@@ -1,7 +1,7 @@
 import hmac
 from datetime import datetime, date
 
-from flask import request
+from flask import request, Request
 from flask_restx import Namespace, Resource
 from CTFd.models import db
 from CTFd.utils.decorators import authed_only
@@ -145,7 +145,7 @@ class CourseMemes(Resource):
             return {"success": False, "error": "Discord not linked"}
 
         start = min([m.visibility.start for m in dojo.modules if m.visibility]).isoformat()
-        request = {"start": start}
+        request = Request.from_values(query_string={"start": start})
 
         return get_user_activity(discord_user.discord_id, "memes", request)
 
@@ -160,7 +160,7 @@ class CourseMemes(Resource):
             return {"success": False, "error": "Discord not linked"}
 
         start = min([m.visibility.start for m in dojo.modules if m.visibility]).isoformat()
-        request = {"start": start}
+        request = Request.from_values(query_string={"start": start})
 
         return get_user_activity(discord_user.discord_id, "thanks", request)
 
