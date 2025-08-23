@@ -198,9 +198,6 @@ jobs:
           echo "::group::Host docker ps"
           docker ps
           echo "::endgroup::"
-          echo "::group::btrfs insanity"
-          btrfs fi usage -T /mnt || echo "no btrfs mount?"
-          echo "::endgroup::"
           echo "::group::Host logs"
           journalctl -u '*' -b
           echo "::endgroup::"
