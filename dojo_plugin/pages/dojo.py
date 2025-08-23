@@ -23,6 +23,21 @@ from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, D
 dojo = Blueprint("pwncollege_dojo", __name__)
 #pylint:disable=redefined-outer-name
 
+def get_dojo_branch(dojo):
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=dojo.path,
+            capture_output=True,
+            text=True,
+            timeout=1
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+
+    return "main"
 
 def find_description_edit_url(dojo, relative_paths, search_pattern=None, branch="main"):
     if not (dojo.official and dojo.repository):
@@ -65,7 +80,11 @@ def listing(dojo):
 
     description_edit_url = None
     if dojo.description and dojo.path.exists():
-        description_edit_url = find_description_edit_url(dojo, ["DESCRIPTION.md", "dojo.yml"], r"^description:")
+        description_edit_url = find_description_edit_url(
+            dojo, ["DESCRIPTION.md", "dojo.yml"],
+            search_pattern=re.compile(r"^description:"),
+            branch=get_dojo_branch(dojo)
+        )
 
     return render_template(
         "dojo.html",
@@ -327,19 +346,7 @@ def view_module(dojo, module):
     resource_description_edit_urls = {}
 
     if dojo.path.exists():
-        branch = "main"
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                cwd=dojo.path,
-                capture_output=True,
-                text=True,
-                timeout=1
-            )
-            if result.returncode == 0:
-                branch = result.stdout.strip()
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+        branch = get_dojo_branch(dojo)
 
         if module.description:
             module_description_edit_url = find_description_edit_url(dojo, [
