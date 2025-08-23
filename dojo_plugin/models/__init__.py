@@ -456,7 +456,7 @@ class DojoModules(db.Model):
         is_admin = False if no_admin else self.dojo.is_admin(user=user)
         module_visible = self.visible()
         now = datetime.datetime.utcnow()
-        
+
         return [
             challenge for challenge in self.challenges
             if (module_visible and (
@@ -598,6 +598,7 @@ class DojoChallenges(db.Model):
     def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True):
         result = (
             Solves.query
+            .filter_by(type=Solves.__mapper__.polymorphic_identity)
             .join(DojoChallenges, and_(
                 DojoChallenges.challenge_id==Solves.challenge_id,
                 ))
