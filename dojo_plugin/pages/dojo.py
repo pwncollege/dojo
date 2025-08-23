@@ -7,7 +7,7 @@ import re
 
 from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context, request, g
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.sql import and_, or_
+from sqlalchemy.sql import or_
 from CTFd.plugins import bypass_csrf_protection
 from CTFd.models import db, Solves, Users
 from CTFd.utils.decorators import authed_only
@@ -24,31 +24,16 @@ dojo = Blueprint("pwncollege_dojo", __name__)
 #pylint:disable=redefined-outer-name
 
 
-def find_description_edit_url(dojo, relative_paths, search_pattern=None):
+def find_description_edit_url(dojo, relative_paths, search_pattern=None, branch="main"):
     if not (dojo.official and dojo.repository):
         return None
-    
-    branch = "main"
-    if dojo.path.exists():
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                cwd=dojo.path,
-                capture_output=True,
-                text=True,
-                timeout=1
-            )
-            if result.returncode == 0:
-                branch = result.stdout.strip()
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
-    
+
     for relative_path in relative_paths:
         full_path = dojo.path / relative_path
-        
+
         if not full_path.exists():
             continue
-            
+
         line_num = 1
         if relative_path.endswith('.yml') and search_pattern:
             try:
@@ -60,9 +45,9 @@ def find_description_edit_url(dojo, relative_paths, search_pattern=None):
                             break
             except (IOError, re.error):
                 pass
-        
+
         return f"https://github.com/{dojo.repository}/edit/{branch}/{relative_path}#L{line_num}"
-    
+
     return None
 
 
@@ -81,11 +66,11 @@ def listing(dojo):
         if container["dojo"] == dojo.reference_id
     )
     stats["active"] = sum(module_container_counts.values())
-    
+
     description_edit_url = None
     if dojo.description and dojo.path.exists():
         description_edit_url = find_description_edit_url(dojo, ["DESCRIPTION.md", "dojo.yml"], r"^description:")
-    
+
     return render_template(
         "dojo.html",
         dojo=dojo,
@@ -340,19 +325,33 @@ def view_module(dojo, module):
         for container in get_container_stats()
         if container["module"] == module.id and container["dojo"] == dojo.reference_id
     )
-    
+
     module_description_edit_url = None
     challenge_description_edit_urls = {}
     resource_description_edit_urls = {}
-    
+
     if dojo.path.exists():
+        branch = "main"
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=dojo.path,
+                capture_output=True,
+                text=True,
+                timeout=1
+            )
+            if result.returncode == 0:
+                branch = result.stdout.strip()
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+
         if module.description:
             module_description_edit_url = find_description_edit_url(dojo, [
                 f"{module.id}/DESCRIPTION.md",
                 f"{module.id}/module.yml",
                 "dojo.yml"
-            ], r"^description:")
-        
+            ], search_pattern=r"^description:", branch=branch)
+
         for challenge in module.challenges:
             if challenge.description:
                 # Search for "- id: challenge_name" with optional quotes
@@ -361,19 +360,20 @@ def view_module(dojo, module):
                     f"{module.id}/{challenge.id}/challenge.yml",
                     f"{module.id}/module.yml",
                     "dojo.yml"
-                ], rf"^\s*-?\s*id:\s*[\"']?{re.escape(challenge.id)}[\"']?")
-        
+                ], search_pattern=rf"^\s*-?\s*id:\s*[\"']?{re.escape(challenge.id)}[\"']?", branch=branch)
+
         for resource in module.resources:
             if resource.type == "markdown":
                 # Search for "- name: Resource Name" with optional quotes
                 resource_description_edit_urls[resource.resource_index] = find_description_edit_url(
                     dojo, [f"{module.id}/module.yml", "dojo.yml"],
-                    rf"^\s*-?\s*name:\s*[\"']?{re.escape(resource.name)}[\"']?"
+                    search_pattern=rf"^\s*-?\s*name:\s*[\"']?{re.escape(resource.name)}[\"']?",
+                    branch=branch
                 )
 
     challenges = module.visible_challenges(user=user)
     challenge_visibility = {c.challenge_id: True for c in module.visible_challenges(user=user, no_admin=True)}
-    
+
     return render_template(
         "module.html",
         dojo=dojo,
