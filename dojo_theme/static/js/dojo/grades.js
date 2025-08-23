@@ -116,7 +116,7 @@ async function loadGrades(selector) {
     gradeWorker.postMessage({ type: "load", code: courseData.course.scripts.grade });
     await gradeWorker.waitForMessage("loaded");
 
-    const [modulesData, solvesData] = await Promise.all([modulesPromise, solvesPromise, memesPromise, thanksPromise])
+    const [modulesData, solvesData, memesData, thanksData] = await Promise.all([modulesPromise, solvesPromise, memesPromise, thanksPromise])
     gradeWorker.postMessage({ type: "grade", data: { course: courseData.course, modules: modulesData.modules, solves: solvesData.solves, thanks: thanksData.thanks, memes: memesData.memes } });
 
     const gradesData = (await gradeWorker.waitForMessage("graded")).grades;
