@@ -103,6 +103,7 @@ class CreateDojo(Resource):
 class DojoModuleList(Resource):
     @dojo_route
     def get(self, dojo):
+        user = get_current_user()
         modules = [
             dict(id=module.id,
                  name=module.name,
@@ -111,9 +112,10 @@ class DojoModuleList(Resource):
                     dict(id=challenge.id,
                          name=challenge.name,
                          description=challenge.description)
-                    for challenge in module.visible_challenges()
+                    for challenge in module.visible_challenges(user=user)
                  ])
             for module in dojo.modules
+            if module.visible() or dojo.is_admin(user=user)
         ]
         return {"success": True, "modules": modules}
 

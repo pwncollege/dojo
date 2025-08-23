@@ -1,15 +1,16 @@
 import hmac
 from datetime import datetime, date
 
-from flask import request
+from flask import request, Request
 from flask_restx import Namespace, Resource
 from CTFd.models import db
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
+from sqlalchemy import func, tuple_
 
 from ...config import DISCORD_CLIENT_SECRET
 from ...models import DiscordUsers, DiscordUserActivity
-from ...utils.dojo import get_current_dojo_challenge
+from ...utils.dojo import get_current_dojo_challenge, dojo_route
 
 discord_namespace = Namespace("discord", description="Endpoint to manage discord")
 
@@ -69,14 +70,17 @@ def get_user_activity_prop(discord_id, activity, start=None, end=None):
     if not user:
         count = 0
     elif activity == "thanks":
-        count = (user.thanks(start, end)
-                 .group_by(DiscordUserActivity.message_id, DiscordUserActivity.source_user_id)
-                 .count())
+        count = user.thanks(start, end).with_entities(
+            func.count(func.distinct(
+                tuple_(DiscordUserActivity.message_id,
+                DiscordUserActivity.source_user_id)
+        ))).scalar()
     elif activity == "memes":
         count = user.memes(start, end).count()
     return {"success": True, activity: count}
 
 def get_user_activity(discord_id, activity, request):
+
     start_stamp = request.args.get("start")
     end_stamp = request.args.get("end")
     start = None
@@ -130,9 +134,43 @@ def post_user_activity(discord_id, activity, request):
 
     return get_user_activity_prop(discord_id, activity), 200
 
+@discord_namespace.route("/course/<dojo>/memes", methods=["GET"])
+class CourseMemes(Resource):
+    @authed_only
+    @dojo_route
+    def get(self, dojo):
+        user = get_current_user()
+        discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
+        if discord_user is None:
+            return {"success": False, "error": "Discord not linked"}
+
+        start = min([m.visibility.start for m in dojo.modules if m.visibility]).isoformat()
+        request = Request.from_values(query_string={"start": start})
+
+        return get_user_activity(discord_user.discord_id, "memes", request)
+
+@discord_namespace.route("/course/<dojo>/thanks", methods=["GET"])
+class CourseMemes(Resource):
+    @authed_only
+    @dojo_route
+    def get(self, dojo):
+        user = get_current_user()
+        discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
+        if discord_user is None:
+            return {"success": False, "error": "Discord not linked"}
+
+        start = min([m.visibility.start for m in dojo.modules if m.visibility]).isoformat()
+        request = Request.from_values(query_string={"start": start})
+
+        return get_user_activity(discord_user.discord_id, "thanks", request)
+
 @discord_namespace.route("/memes/user/<discord_id>", methods=["GET", "POST"])
 class DiscordMemes(Resource):
     def get(self, discord_id):
+        authorization = request.headers.get("Authorization")
+        res, code = auth_check(authorization)
+        if res:
+            return res, code
         return get_user_activity(discord_id, "memes", request)
 
     def post(self, discord_id):
@@ -141,6 +179,10 @@ class DiscordMemes(Resource):
 @discord_namespace.route("/thanks/user/<discord_id>", methods=["GET", "POST"])
 class DiscordThanks(Resource):
     def get(self, discord_id):
+        authorization = request.headers.get("Authorization")
+        res, code = auth_check(authorization)
+        if res:
+            return res, code
         return get_user_activity(discord_id, "thanks", request)
 
     def post(self, discord_id):

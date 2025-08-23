@@ -107,6 +107,8 @@ async function loadGrades(selector) {
     const coursePromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/course`).then(response => response.json());
     const modulesPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/modules`).then(response => response.json());
     const solvesPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/solves`).then(response => response.json());
+    const memesPromise = fetch(`/pwncollege_api/v1/discord/course/${init.dojo}/memes`).then(response => response.json());
+    const thanksPromise = fetch(`/pwncollege_api/v1/discord/course/${init.dojo}/thanks`).then(response => response.json());
 
     await gradeWorker.waitForMessage("ready");
     const courseData = await coursePromise;
@@ -114,8 +116,8 @@ async function loadGrades(selector) {
     gradeWorker.postMessage({ type: "load", code: courseData.course.scripts.grade });
     await gradeWorker.waitForMessage("loaded");
 
-    const [modulesData, solvesData] = await Promise.all([modulesPromise, solvesPromise])
-    gradeWorker.postMessage({ type: "grade", data: { course: courseData.course, modules: modulesData.modules, solves: solvesData.solves } });
+    const [modulesData, solvesData, memesData, thanksData] = await Promise.all([modulesPromise, solvesPromise, memesPromise, thanksPromise])
+    gradeWorker.postMessage({ type: "grade", data: { course: courseData.course, modules: modulesData.modules, solves: solvesData.solves, thanks: thanksData.thanks, memes: memesData.memes } });
 
     const gradesData = (await gradeWorker.waitForMessage("graded")).grades;
 
