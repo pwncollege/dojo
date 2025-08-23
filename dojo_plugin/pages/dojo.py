@@ -371,11 +371,15 @@ def view_module(dojo, module):
                     rf"^\s*-?\s*name:\s*[\"']?{re.escape(resource.name)}[\"']?"
                 )
 
+    challenges = module.visible_challenges(user=user)
+    challenge_visibility = {c.challenge_id: True for c in module.visible_challenges(user=user, no_admin=True)}
+    
     return render_template(
         "module.html",
         dojo=dojo,
         module=module,
-        challenges=module.visible_challenges(),
+        challenges=challenges,
+        challenge_visibility=challenge_visibility,
         user_solves=user_solves,
         total_solves=total_solves,
         user=user,

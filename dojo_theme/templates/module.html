@@ -151,6 +151,10 @@
         {% endif %}
       {% elif item.item_type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
         {% set challenge = item %}
+        {% set hidden = not challenge_visibility.get(challenge.challenge_id, False) %}
+        {% if hidden and not dojo.is_admin() %}
+          {# Skip hidden challenges for non-admins #}
+        {% else %}
         {% set ns.challenge_count = ns.challenge_count + 1 %}
         {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
         {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
@@ -171,7 +175,6 @@
           and previous_challenge.challenge_id not in user_solves
           and solved == "challenge-unsolved"
           and not dojo.is_admin() %}
-        {% set hidden = not challenge.visible() %}
         {% set icon = "fa-lock" if lock_challenge else "fa-flag" %}
 
         {% call(header) accordion_item("module-content", loop.index, lock_challenge, challenge_index=ns.challenge_count) %}
@@ -272,6 +275,7 @@
             </div>
           {% endif %}
         {% endcall %}
+        {% endif %}
       {% endif %}
     {% endfor %}
   </div>
