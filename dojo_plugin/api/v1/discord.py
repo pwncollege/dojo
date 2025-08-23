@@ -10,7 +10,7 @@ from sqlalchemy import func, tuple_
 
 from ...config import DISCORD_CLIENT_SECRET
 from ...models import DiscordUsers, DiscordUserActivity
-from ...utils.dojo import get_current_dojo_challenge
+from ...utils.dojo import get_current_dojo_challenge, dojo_route
 
 discord_namespace = Namespace("discord", description="Endpoint to manage discord")
 
@@ -134,24 +134,34 @@ def post_user_activity(discord_id, activity, request):
 
     return get_user_activity_prop(discord_id, activity), 200
 
-@discord_namespace.route("/course/memes", methods=["GET"])
+@discord_namespace.route("/course/<dojo>/memes", methods=["GET"])
 class CourseMemes(Resource):
     @authed_only
-    def get(self):
+    @dojo_route
+    def get(self, dojo):
         user = get_current_user()
         discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
         if discord_user is None:
             return {"success": False, "error": "Discord not linked"}
+
+        start = min([m.visibility.start for m in dojo.modules if m.visibility]).isoformat()
+        request = {"start": start}
+
         return get_user_activity(discord_user.discord_id, "memes", request)
 
-@discord_namespace.route("/course/thanks", methods=["GET"])
+@discord_namespace.route("/course/<dojo>/thanks", methods=["GET"])
 class CourseMemes(Resource):
     @authed_only
-    def get(self):
+    @dojo_route
+    def get(self, dojo):
         user = get_current_user()
         discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
         if discord_user is None:
             return {"success": False, "error": "Discord not linked"}
+
+        start = min([m.visibility.start for m in dojo.modules if m.visibility]).isoformat()
+        request = {"start": start}
+
         return get_user_activity(discord_user.discord_id, "thanks", request)
 
 @discord_namespace.route("/memes/user/<discord_id>", methods=["GET", "POST"])

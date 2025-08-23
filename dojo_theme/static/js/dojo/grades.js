@@ -107,8 +107,8 @@ async function loadGrades(selector) {
     const coursePromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/course`).then(response => response.json());
     const modulesPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/modules`).then(response => response.json());
     const solvesPromise = fetch(`/pwncollege_api/v1/dojos/${init.dojo}/solves`).then(response => response.json());
-    const memesPromise = fetch(`/pwncollege_api/v1/discord/course/memes`).then(response => response.json());
-    const thanksPromise = fetch(`/pwncollege_api/v1/discord/course/thanks`).then(response => response.json());
+    const memesPromise = fetch(`/pwncollege_api/v1/discord/course/${init.dojo}/memes`).then(response => response.json());
+    const thanksPromise = fetch(`/pwncollege_api/v1/discord/course/${init.dojo}/thanks`).then(response => response.json());
 
     await gradeWorker.waitForMessage("ready");
     const courseData = await coursePromise;
