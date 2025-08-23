@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 25
     strategy:
       matrix:
-        mode: [singlenode, vibecheck]
+        mode: [singlenode, multinode, vibecheck]
       fail-fast: false
     steps:
       - name: enable cache saving
@@ -105,11 +105,8 @@ jobs:
           sudo chown $USER:$USER /mnt/
 
           if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
-            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node1
-            sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node2
-            rm -f /mnt/dojo-docker-node1 /mnt/dojo-docker-node2
-            ln -s /tmp/dojo-docker-node1 /mnt/dojo-docker-node1
-            ln -s /tmp/dojo-docker-node2 /mnt/dojo-docker-node2
+            sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
+            sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
           fi
           
           mkdir -p /mnt/outer-cache
