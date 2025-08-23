@@ -7,7 +7,7 @@ on_demand_services = { "terminal", "code", "desktop"}
 
 def start_on_demand_service(user, service_name):
     if service_name not in on_demand_services:
-        return
+        return False
     try:
         exec_run(
             f"/run/current-system/sw/bin/dojo-{service_name}",
@@ -15,7 +15,7 @@ def start_on_demand_service(user, service_name):
             user_id=user.id,
             assert_success=True,
         )
-    except docker.errors.NotFound:
+    except (docker.errors.NotFound, AssertionError):
         return False
     return True
 

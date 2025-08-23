@@ -80,7 +80,18 @@ function selectService(service) {
         })
         .then(response => response.json())
         .then(result => {
-            content.src = result["iframe_src"];
+            if (result.success) {
+                content.src = result["iframe_src"];
+            }
+            else {
+                content.src = "";
+                console.log
+                animateBanner(
+                    {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
+                    result.error,
+                    "error"
+                );
+            }
         });
     }
     else {
