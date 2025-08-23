@@ -61,6 +61,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       - name: Free up more disk space
+        if: ${{ !env.ACT }}
         run: |
           echo "::group::Initial disk usage"
           df -h
@@ -90,7 +91,9 @@ jobs:
         run: |
           set -x
           df -h
-          if [ "$SAVE_CACHE" == "yes" -o ! -e /tmp/dojo-cache.img ]; then
+          if [ "${{ env.ACT }}" == "true" ]; then
+            echo "Not using a loopback mount for local CI..."
+          elif [ "$SAVE_CACHE" == "yes" -o ! -e /tmp/dojo-cache.img ]; then
             echo "Creating fresh loopback filesystem image..."
             sudo fallocate -l 9.8G /tmp/dojo-cache.img
             sudo mkfs.btrfs -L cache /tmp/dojo-cache.img
