@@ -190,7 +190,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         default_network.disconnect(container)
 
     container.start()
-    for message in container.attach(stream=True):
+    for message in container.logs(stream=True, follow=True):
         if b"DOJO_INIT_INITIALIZED" in message or message == b"Initialized.\n":
             break
     else:
@@ -300,7 +300,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         flag = serialize_user_flag(as_user.id, dojo_challenge.challenge_id)
     insert_flag(container, flag)
 
-    for message in container.attach(stream=True):
+    for message in container.logs(stream=True, follow=True):
         if b"DOJO_INIT_READY" in message or message == b"Ready.\n":
             break
         if b"DOJO_INIT_FAILED:" in message:
