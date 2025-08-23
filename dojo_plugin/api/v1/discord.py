@@ -131,18 +131,20 @@ def post_user_activity(discord_id, activity, request):
 
     return get_user_activity_prop(discord_id, activity), 200
 
-@discord_namespace.route("/course/memes/user/<user_id>", methods=["GET"])
+@discord_namespace.route("/course/memes", methods=["GET"])
 class CourseMemes(Resource):
     @authed_only
-    def get(self, user_id):
-        discord_id = DiscordUsers.query.filter_by(user_id=user_id).first()
+    def get(self):
+        user = get_current_user()
+        discord_id = DiscordUsers.query.filter_by(user_id=user.id).first()
         return get_user_activity(discord_id, "memes", request)
 
-@discord_namespace.route("/course/thanks/user/<user_id>", methods=["GET"])
+@discord_namespace.route("/course/thanks", methods=["GET"])
 class CourseMemes(Resource):
     @authed_only
-    def get(self, user_id):
-        discord_id = DiscordUsers.query.filter_by(user_id=user_id).first()
+    def get(self):
+        user = get_current_user()
+        discord_id = DiscordUsers.query.filter_by(user_id=user.id).first()
         return get_user_activity(discord_id, "thanks", request)
 
 @discord_namespace.route("/memes/user/<discord_id>", methods=["GET", "POST"])
