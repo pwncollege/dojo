@@ -452,19 +452,23 @@ class DojoModules(db.Model):
         items.sort(key=lambda x: x[0])
         return [item for _, item in items]
 
-    def visible_challenges(self, user=None, no_admin=False):
-        is_admin = False if no_admin else self.dojo.is_admin(user=user)
-        module_visible = self.visible()
-        now = datetime.datetime.utcnow()
-        
-        return [
-            challenge for challenge in self.challenges
-            if (module_visible and (
-                not challenge.visibility or
-                (not challenge.visibility.start or now >= challenge.visibility.start) and
-                (not challenge.visibility.stop or now <= challenge.visibility.stop)
-            )) or is_admin
-        ]
+    def visible_challenges(self, when=None):
+        when = when or datetime.datetime.utcnow()
+        return list(
+            DojoChallenges.query
+            .filter(DojoChallenges.dojo_id == self.dojo_id,
+                    DojoChallenges.module_index == self.module_index)
+            .outerjoin(DojoChallengeVisibilities, and_(
+                DojoChallengeVisibilities.dojo_id == DojoChallenges.dojo_id,
+                DojoChallengeVisibilities.module_index == DojoChallenges.module_index,
+                DojoChallengeVisibilities.challenge_index == DojoChallenges.challenge_index
+                ))
+            .filter(
+                or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start),
+                or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop),
+            )
+            .order_by(DojoChallenges.challenge_index)
+        )
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
