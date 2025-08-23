@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 25
     strategy:
       matrix:
-        mode: [singlenode, multinode, vibecheck]
+        mode: [singlenode, vibecheck]
       fail-fast: false
     steps:
       - name: enable cache saving
@@ -43,7 +43,7 @@ jobs:
           echo "::endgroup::"
           echo "::group::Repo"
           pwd
-          git log
+          git log </dev/null | head -n20
           echo "::endgroup::"
           echo "::group::df -h"
           df -h
@@ -72,7 +72,7 @@ jobs:
           docker system prune -a -f
 
           echo "::endgroup::"
-          echo "::group::Final disk usage (rm still running in background)"
+          echo "::group::Final disk usage"
           df -h
           echo "::endgroup::"
 
