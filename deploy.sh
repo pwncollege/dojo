@@ -192,6 +192,12 @@ if [ "$START" == "yes" ]; then
 
 	if [ "$MULTINODE" == "no" ]; then
 		docker exec "$DOJO_CONTAINER" docker wait workspace-builder
+		if ! docker exec "$DOJO_CONTAINER" docker ps -a | grep workspace-builder | grep "Exited (0)"
+		then
+			docker exec "$DOJO_CONTAINER" docker logs workspace-builder | tail -n100
+			echo "WORKSPACE BUILDER FAILED"
+			exit 1
+		fi
 		docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
 		docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 	fi
