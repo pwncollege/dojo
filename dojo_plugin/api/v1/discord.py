@@ -6,6 +6,7 @@ from flask_restx import Namespace, Resource
 from CTFd.models import db
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
+from sqlalchemy import func, tuple_
 
 from ...config import DISCORD_CLIENT_SECRET
 from ...models import DiscordUsers, DiscordUserActivity
@@ -69,9 +70,11 @@ def get_user_activity_prop(discord_id, activity, start=None, end=None):
     if not user:
         count = 0
     elif activity == "thanks":
-        count = (user.thanks(start, end)
-                 .group_by(DiscordUserActivity.message_id, DiscordUserActivity.source_user_id)
-                 .count())
+        count = user.thanks(start, end).with_entities(
+            func.count(func.distinct(
+                tuple_(DiscordUserActivity.message_id,
+                DiscordUserActivity.source_user_id)
+        ))).scalar()
     elif activity == "memes":
         count = user.memes(start, end).count()
     return {"success": True, activity: count}
