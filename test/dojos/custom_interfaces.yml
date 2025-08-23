@@ -1,0 +1,23 @@
+id: testing-interfaces
+type: topic
+interfaces:
+- name: SSH
+- name: Terminal
+  port: 7681
+modules:
+  - id: test
+    challenges:
+      - id: test1
+        name: test1
+      - id: test2
+        name: test2
+        interfaces:
+        - name: Code
+          port: 8080
+        - name: Desktop
+          port: 6080
+      - id: test3
+        name: test3
+        interfaces:
+        - name: Terminal
+          port: 7681
