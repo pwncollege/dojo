@@ -89,17 +89,21 @@ jobs:
       - name: Setup cache filesystem
         run: |
           set -x
-          if [ ! -e /tmp/dojo-cache.img ]; then
+          df -h
+          if [ "$SAVE_CACHE" == "yes" -o ! -e /tmp/dojo-cache.img ]; then
             echo "Creating fresh loopback filesystem image..."
             sudo fallocate -l 9.8G /tmp/dojo-cache.img
             sudo mkfs.btrfs -L cache /tmp/dojo-cache.img
+            sudo mount -o loop,compress=zstd:9 /tmp/dojo-cache.img /mnt/
           else
             echo "Using cached loopback filesystem image"
+            truncate -s +20G /tmp/dojo-cache.img
+            sudo mount -o loop,compress=zstd:6 /tmp/dojo-cache.img /mnt/
+            sudo btrfs filesystem resize max /mnt
           fi
           
-          sudo mount -o loop,compress=zstd:3 /tmp/dojo-cache.img /mnt/
           sudo chown $USER:$USER /mnt/
-          
+
           if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
             sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node1
             sudo cp -a /mnt/dojo-docker /tmp/dojo-docker-node2
