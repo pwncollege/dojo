@@ -20,6 +20,10 @@ fi
 case "$ACTION" in
     # HELP: up: bring the dojo up
     "up")
+        if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_TOKEN" ]; then
+            echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
+        fi
+
         dojo sync
         dojo compose up -d --build --remove-orphans "$@"
         ;;
