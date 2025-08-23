@@ -191,7 +191,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
 
     container.start()
     for message in container.attach(stream=True):
-        if message == b"Initialized.\n":
+        if b"DOJO_INIT_INITIALIZED" in message or message == b"Initialized.\n":
             break
 
     cache.set(f"user_{user.id}-running-image", dojo_challenge.image, timeout=0)
@@ -299,8 +299,12 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     insert_flag(container, flag)
 
     for message in container.attach(stream=True):
-        if message == b"Ready.\n":
+        if b"DOJO_INIT_READY" in message or message == b"Ready.\n":
             break
+        if b"DOJO_INIT_FAILED:" in message:
+            cause = message.split(b"DOJO_INIT_FAILED:")[1].split(b"\n")[0]
+            raise RuntimeError(f"DOJO_INIT_FAILED: {cause}")
+
 
 
 def docker_locked(func):
