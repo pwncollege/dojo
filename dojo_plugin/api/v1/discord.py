@@ -136,16 +136,20 @@ class CourseMemes(Resource):
     @authed_only
     def get(self):
         user = get_current_user()
-        discord_id = DiscordUsers.query.filter_by(user_id=user.id).first()
-        return get_user_activity(discord_id, "memes", request)
+        discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
+        if discord_user is None:
+            return {"success": False, "error": "Discord not linked"}
+        return get_user_activity(discord_user.discord_id, "memes", request)
 
 @discord_namespace.route("/course/thanks", methods=["GET"])
 class CourseMemes(Resource):
     @authed_only
     def get(self):
         user = get_current_user()
-        discord_id = DiscordUsers.query.filter_by(user_id=user.id).first()
-        return get_user_activity(discord_id, "thanks", request)
+        discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
+        if discord_user is None:
+            return {"success": False, "error": "Discord not linked"}
+        return get_user_activity(discord_user.discord_id, "thanks", request)
 
 @discord_namespace.route("/memes/user/<discord_id>", methods=["GET", "POST"])
 class DiscordMemes(Resource):
