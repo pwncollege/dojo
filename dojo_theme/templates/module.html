@@ -154,7 +154,8 @@
         {% endif %}
       {% elif item.item_type == 'challenge' and (module.show_challenges or is_dojo_admin) %}
         {% set challenge = item %}
-        {% if challenge in visible_challenges or is_dojo_admin %}
+        {% set hidden = challenge not in visible_challenges %}
+        {% if not hidden or is_dojo_admin %}
         {% set ns.challenge_count = ns.challenge_count + 1 %}
         {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
         {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
