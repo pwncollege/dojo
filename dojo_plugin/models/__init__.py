@@ -452,8 +452,23 @@ class DojoModules(db.Model):
         items.sort(key=lambda x: x[0])
         return [item for _, item in items]
 
-    def visible_challenges(self, user=None):
-        return [challenge for challenge in self.challenges if challenge.visible() or self.dojo.is_admin(user=user)]
+    def visible_challenges(self, when=None):
+        when = when or datetime.datetime.utcnow()
+        return list(
+            DojoChallenges.query
+            .filter(DojoChallenges.dojo_id == self.dojo_id,
+                    DojoChallenges.module_index == self.module_index)
+            .outerjoin(DojoChallengeVisibilities, and_(
+                DojoChallengeVisibilities.dojo_id == DojoChallenges.dojo_id,
+                DojoChallengeVisibilities.module_index == DojoChallenges.module_index,
+                DojoChallengeVisibilities.challenge_index == DojoChallenges.challenge_index
+                ))
+            .filter(
+                or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start),
+                or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop),
+            )
+            .order_by(DojoChallenges.challenge_index)
+        )
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
@@ -615,7 +630,7 @@ class DojoChallenges(db.Model):
                     or_(DojoChallengeVisibilities.start == None, Solves.date >= DojoChallengeVisibilities.start),
                     or_(DojoChallengeVisibilities.stop == None, Solves.date <= DojoChallengeVisibilities.stop),
                 )
-                .filter(Users.hidden == False)
+                .filter(~Users.hidden)
             )
 
         if ignore_admins:

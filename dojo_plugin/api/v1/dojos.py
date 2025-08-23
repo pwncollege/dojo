@@ -103,6 +103,7 @@ class CreateDojo(Resource):
 class DojoModuleList(Resource):
     @dojo_route
     def get(self, dojo):
+        is_dojo_admin = dojo.is_admin()
         modules = [
             dict(id=module.id,
                  name=module.name,
@@ -111,9 +112,11 @@ class DojoModuleList(Resource):
                     dict(id=challenge.id,
                          name=challenge.name,
                          description=challenge.description)
-                    for challenge in module.visible_challenges()
+                    for challenge in (module.visible_challenges() if not is_dojo_admin
+                                      else module.challenges)
                  ])
             for module in dojo.modules
+            if module.visible() or is_dojo_admin
         ]
         return {"success": True, "modules": modules}
 
@@ -164,7 +167,7 @@ class DojoCourseStudentList(Resource):
         dojo_students = {student.token: student.user_id for student in DojoStudents.query.filter_by(dojo=dojo)}
         course_students = dojo.course.get("students", {})
         students = {
-            token: course_data | dict(token=(token if token in dojo_students else None), user_id=dojo_students.get(token)) 
+            token: course_data | dict(token=(token if token in dojo_students else None), user_id=dojo_students.get(token))
             for token, course_data in course_students.items()
         }
         return {"success": True, "students": students}
@@ -282,9 +285,9 @@ class DojoChallengeDescription(Resource):
     def get(self, dojo, module, challenge_id):
         user = get_current_user()
 
-        dojo_challenge = next((c for c in module.visible_challenges() if c.id == challenge_id), None)
+        dojo_challenge = DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id).first()
 
-        if dojo_challenge is None:
+        if dojo_challenge is None or not (dojo_challenge.visible() or dojo.is_admin(user=user)):
             return {"success": False, "error": "Invalid challenge id"}, 404
 
         if is_challenge_locked(dojo_challenge, user):

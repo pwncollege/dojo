@@ -81,6 +81,17 @@ class MacDockerClient:
 
 
 
+class MockDetachedContainer:
+    """Mock container for detach=True mode compatibility"""
+    def wait(self):
+        pass
+
+    def logs(self):
+        return b""
+
+    def remove(self):
+        pass
+
 class MacContainerCollection:
     def __init__(self, client):
         self.client = client
@@ -143,6 +154,8 @@ class MacContainerCollection:
     # For our mac-backed shim we only need interface compatibility, so we
     # accept the same parameters and immediately return an empty byte string. :contentReference[oaicite:2]{index=2}
     def run(self, image, command=None, **kwargs):
+        if kwargs.get('detach', False):
+            return MockDetachedContainer()
         return b""
 
 class MacContainer:
