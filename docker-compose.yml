@@ -237,6 +237,7 @@ services:
       - html:/usr/share/nginx/html
       - certs:/etc/nginx/certs:ro
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
+      - ./nginx-proxy/etc/nginx/conf.d/pwn-trace-id.conf:/etc/nginx/conf.d/pwn-trace-id.conf:ro
       - /var/run/docker.sock:/tmp/docker.sock:ro
     networks:
       default:
