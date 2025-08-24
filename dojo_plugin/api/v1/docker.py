@@ -191,7 +191,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
 
     container.start()
     for message in container.attach(stream=True):
-        if message == b"Initialized.\n":
+        if b"DOJO_INIT_INITIALIZED" in message or message == b"Initialized.\n":
             break
 
     cache.set(f"user_{user.id}-running-image", dojo_challenge.image, timeout=0)
@@ -298,16 +298,24 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         flag = serialize_user_flag(as_user.id, dojo_challenge.challenge_id)
     insert_flag(container, flag)
 
+    for message in container.attach(stream=True):
+        if b"DOJO_INIT_READY" in message or message == b"Ready.\n":
+            break
+        if b"DOJO_INIT_FAILED:" in message:
+            cause = message.split(b"DOJO_INIT_FAILED:")[1].split(b"\n")[0]
+            raise RuntimeError(f"DOJO_INIT_FAILED: {cause}")
+
+
 
 def docker_locked(func):
     def wrapper(*args, **kwargs):
         user = get_current_user()
         redis_client = redis.from_url(current_app.config["REDIS_URL"])
         try:
-            with redis_client.lock(f"user.{user.id}.docker.lock", blocking_timeout=0, timeout=60):
+            with redis_client.lock(f"user.{user.id}.docker.lock", blocking_timeout=0, timeout=20):
                 return func(*args, **kwargs)
         except redis.exceptions.LockError:
-            return {"success": False, "error": "Already starting a challenge; try again in one minute."}
+            return {"success": False, "error": "Already starting a challenge; try again in 20 seconds."}
     return wrapper
 
 
@@ -387,7 +395,7 @@ class RunDocker(Resource):
             try:
                 logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
                 start_challenge(user, dojo_challenge, practice, as_user=as_user)
-                
+
                 if dojo.official or dojo.data.get("type") == "public":
                     challenge_data = {
                         "challenge_id": dojo_challenge.challenge_id,
@@ -400,7 +408,7 @@ class RunDocker(Resource):
                     mode = "practice" if practice else "assessment"
                     actual_user = as_user or user
                     publish_container_start(actual_user, mode, challenge_data)
-                
+
                 break
             except Exception as e:
                 logger.exception(f"Attempt {attempt} failed for user {user.id} with error: {e}")

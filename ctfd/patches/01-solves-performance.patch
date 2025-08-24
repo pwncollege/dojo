@@ -1,0 +1,67 @@
+diff --git a/CTFd/models/__init__.py b/CTFd/models/__init__.py
+index 86538bfa..9e310793 100644
+--- a/CTFd/models/__init__.py
++++ b/CTFd/models/__init__.py
+@@ -3,6 +3,7 @@ from collections import defaultdict
+
+ from flask_marshmallow import Marshmallow
+ from flask_sqlalchemy import SQLAlchemy
++from sqlalchemy import text
+ from sqlalchemy.ext.compiler import compiles
+ from sqlalchemy.ext.hybrid import hybrid_property
+ from sqlalchemy.orm import column_property, validates
+@@ -767,6 +768,21 @@ class Teams(db.Model):
+
+ class Submissions(db.Model):
+     __tablename__ = "submissions"
++    __table_args__ = (
++        db.Index(
++            "solves_challenge_id_user_id_key",
++            "challenge_id", "user_id",
++            unique=True,
++            postgresql_where=text("type = 'correct' AND user_id IS NOT NULL")
++        ),
++        db.Index(
++            "solves_challenge_id_team_id_key",
++            "challenge_id", "team_id",
++            unique=True,
++            postgresql_where=text("type = 'correct' AND team_id IS NOT NULL")
++        ),
++    )
++
+     id = db.Column(db.Integer, primary_key=True)
+     challenge_id = db.Column(
+         db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE")
+@@ -820,34 +836,6 @@ class Submissions(db.Model):
+
+
+ class Solves(Submissions):
+-    __tablename__ = "solves"
+-    __table_args__ = (
+-        db.UniqueConstraint("challenge_id", "user_id"),
+-        db.UniqueConstraint("challenge_id", "team_id"),
+-        {},
+-    )
+-    id = db.Column(
+-        None, db.ForeignKey("submissions.id", ondelete="CASCADE"), primary_key=True
+-    )
+-    challenge_id = column_property(
+-        db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE")),
+-        Submissions.challenge_id,
+-    )
+-    user_id = column_property(
+-        db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE")),
+-        Submissions.user_id,
+-    )
+-    team_id = column_property(
+-        db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE")),
+-        Submissions.team_id,
+-    )
+-
+-    user = db.relationship("Users", foreign_keys="Solves.user_id", lazy="select")
+-    team = db.relationship("Teams", foreign_keys="Solves.team_id", lazy="select")
+-    challenge = db.relationship(
+-        "Challenges", foreign_keys="Solves.challenge_id", lazy="select"
+-    )
+-
+     __mapper_args__ = {"polymorphic_identity": "correct"}

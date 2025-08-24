@@ -1,0 +1,39 @@
+id: visibility-test
+name: Visibility Test Dojo
+description: This dojo tests module and challenge visibility.
+modules:
+  - id: module1
+    name: Module 1
+    description: Module with future visibility
+    visibility:
+      start: "2099-01-01T00:00:00Z"
+    challenges:
+      - id: challenge-a
+        name: Challenge A
+        description: Challenge with no visibility modifier
+        import:
+          dojo: example
+          module: hello
+          challenge: apple
+
+  - id: module2
+    name: Module 2
+    description: Module with no visibility modifier
+    challenges:
+      - id: challenge-b
+        name: Challenge B
+        description: Challenge with future visibility
+        visibility:
+          start: "2099-01-01T00:00:00Z"
+        import:
+          dojo: example
+          module: hello
+          challenge: banana
+      
+      - id: challenge-c
+        name: Challenge C
+        description: Challenge with no visibility modifier
+        import:
+          dojo: example
+          module: world
+          challenge: earth

@@ -461,8 +461,24 @@ class DojoModules(db.Model):
         items.sort(key=lambda x: x[0])
         return [item for _, item in items]
 
-    def visible_challenges(self, user=None, required_only=False):
-        return [challenge for challenge in self.challenges if (not required_only or challenge.required) and (challenge.visible() or self.dojo.is_admin(user=user))]
+    def visible_challenges(self, when=None, required_only=False):
+        when = when or datetime.datetime.utcnow()
+        query = DojoChallenges.query
+            .filter(DojoChallenges.dojo_id == self.dojo_id,
+                    DojoChallenges.module_index == self.module_index)
+            .outerjoin(DojoChallengeVisibilities, and_(
+                DojoChallengeVisibilities.dojo_id == DojoChallenges.dojo_id,
+                DojoChallengeVisibilities.module_index == DojoChallenges.module_index,
+                DojoChallengeVisibilities.challenge_index == DojoChallenges.challenge_index
+                ))
+            .filter(
+                or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start),
+                or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop),
+            )
+            .order_by(DojoChallenges.challenge_index)
+        if required_only:
+            query = query.filter(DojoChallenges.required)
+        return list(query)
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
@@ -508,12 +524,18 @@ class DojoChallenges(db.Model):
     required = db.Column(db.Boolean, default=True)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index"]
+    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interfaces"]
     data_defaults = {
         "privileged": False,
         "importable": True,
         "allow_privileged": True,
         "progression_locked": False,
+        "interfaces": {
+            "Terminal": 7681,
+            "Code": 8080,
+            "Desktop": 6080,
+            "SSH": "ssh",
+        },
     }
 
     dojo = db.relationship("Dojos",
@@ -591,6 +613,7 @@ class DojoChallenges(db.Model):
     def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True, required_only=False):
         result = (
             Solves.query
+            .filter_by(type=Solves.__mapper__.polymorphic_identity)
             .join(DojoChallenges, and_(
                 DojoChallenges.challenge_id==Solves.challenge_id,
                 ))
@@ -619,7 +642,7 @@ class DojoChallenges(db.Model):
                     or_(DojoChallengeVisibilities.start == None, Solves.date >= DojoChallengeVisibilities.start),
                     or_(DojoChallengeVisibilities.stop == None, Solves.date <= DojoChallengeVisibilities.stop),
                 )
-                .filter(Users.hidden == False)
+                .filter(~Users.hidden)
             )
 
         if ignore_admins:
