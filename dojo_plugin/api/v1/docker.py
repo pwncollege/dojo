@@ -33,6 +33,7 @@ from ...utils import (
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
 from ...utils.feed import publish_container_start
+from ...utils.request_logging import get_trace_id
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +259,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
                 str(user.id),
                 "volume",
                 no_copy=True,
-                driver_config=docker.types.DriverConfig("homefs"),
+                driver_config=docker.types.DriverConfig("homefs", options=dict(trace_id=get_trace_id())),
             )
         )
     else:
@@ -268,14 +269,14 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
                 f"{user.id}-overlay",
                 "volume",
                 no_copy=True,
-                driver_config=docker.types.DriverConfig("homefs", options=dict(overlay=str(as_user.id))),
+                driver_config=docker.types.DriverConfig("homefs", options=dict(overlay=str(as_user.id), trace_id=get_trace_id())),
             ),
             docker.types.Mount(
                 "/home/me",
                 str(user.id),
                 "volume",
                 no_copy=True,
-                driver_config=docker.types.DriverConfig("homefs"),
+                driver_config=docker.types.DriverConfig("homefs", options=dict(trace_id=get_trace_id())),
             ),
         ])
 
