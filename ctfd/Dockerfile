@@ -21,7 +21,7 @@ RUN echo 'from werkzeug.utils import safe_join' >> /opt/venv/lib/python3.13/site
 
 COPY . /opt/CTFd
 
-FROM python:3.13.4-slim AS release
+FROM python:3.13-slim AS release
 WORKDIR /opt/CTFd
 
 RUN apt-get update \

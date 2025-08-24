@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% from "macros/widgets.html" import accordion_item %}
-{% set is_dojo_admin = dojo.is_admin() %}
 
 {% block stylesheets %}
 {{ super() }}
@@ -94,22 +93,16 @@
   {% endif %}
 
   {% if module.resources or module.challenges %}
-  {% if is_dojo_admin and not module.show_challenges %}
+  {% if dojo.is_admin() and not module.show_challenges %}
   <p><i>This module's challenges are hidden from view. You can see them as the dojo's administrator.</i></p>
   {% endif %}
-
-  {% set previous_challenge = None %}
 
   <div class="accordion" id="module-content">
     {% set ns = namespace(challenge_count=0) %}
     {% for item in module.unified_items %}
       {% if item.item_type == 'resource' %}
         {% set resource = item %}
-        {% if resource.type == 'markdown' and resource.expandable == False %}
-          <div class="description-content my-3">
-            {{ resource.content | markdown }}
-          </div>
-        {% elif resource.type == 'header' %}
+        {% if resource.type == 'header' %}
           <br>
           <h2>{{ resource.content }}</h2>
         {% else %}
@@ -152,19 +145,29 @@
           {% endif %}
         {% endcall %}
         {% endif %}
-      {% elif item.item_type == 'challenge' and (module.show_challenges or is_dojo_admin) %}
+      {% elif item.item_type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
         {% set challenge = item %}
-        {% set hidden = challenge not in visible_challenges %}
-        {% if not hidden or is_dojo_admin %}
         {% set ns.challenge_count = ns.challenge_count + 1 %}
         {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
         {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
+
+        {% set previous_challenge = None %}
+        {% set visible_challenges = [] %}
+        {% for prev_item in module.unified_items[:loop.index0] %}
+          {% if prev_item.item_type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
+            {% set _ = visible_challenges.append(prev_item) %}
+          {% endif %}
+        {% endfor %}
+        {% if visible_challenges %}
+          {% set previous_challenge = visible_challenges[-1] %}
+        {% endif %}
 
         {% set progression_locked = challenge.progression_locked and previous_challenge %}
         {% set lock_challenge = progression_locked
           and previous_challenge.challenge_id not in user_solves
           and solved == "challenge-unsolved"
-          and not is_dojo_admin %}
+          and not dojo.is_admin() %}
+        {% set hidden = not challenge.visible() %}
         {% set icon = "fa-lock" if lock_challenge else "fa-flag" %}
 
         {% call(header) accordion_item("module-content", loop.index, lock_challenge, challenge_index=ns.challenge_count) %}
@@ -180,7 +183,7 @@
                 {% else %}
                 <span class="pr-2">{{ challenge.name or challenge.id }}</span>
                 {% endif %}
-                {% if is_dojo_admin and (progression_locked or hidden) %}
+                {% if dojo.is_admin() and (progression_locked or hidden) %}
                 <small><small><small>
                       <i>
                         {% if progression_locked %}progression locked{% endif %}
@@ -231,7 +234,7 @@
               </div>
               {% endif %}
               <div class="col-md-{% if challenge.allow_privileged %}6{% else %}9{% endif %}">
-                <input id="module" type="hidden" value="{{ module.id }}">
+                <input id="module" type="hidden" value="{{ challenge.module.id }}">
                 <input id="challenge" type="hidden" value="{{ challenge.id }}">
                 <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
                 <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
@@ -247,6 +250,7 @@
                 <h3>Connect with SSH</h3>
                 Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@pwn.college</code>
               </div>
+              {% set workspace_services = ["Terminal", "Code", "Desktop", "SSH"] %}
               {% include "components/actionbar.html" %}
             </div>
             <div class="row notification-row">
@@ -258,21 +262,26 @@
             </div>
             <div class="row survey-row">
               <div class="col-md-12">
-                <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{dojo.reference_id}}/surveys/{{module.id}}/{{challenge.id}}" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
+                <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{challenge.dojo.reference_id}}/surveys/{{challenge.module.id}}/{{challenge.id}}" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
                   {{ challenge.survey.data | safe }}
                 </form>
               </div>
             </div>
           {% endif %}
         {% endcall %}
-        {% endif %}
-        {% set previous_challenge = challenge %}
       {% endif %}
     {% endfor %}
   </div>
 
   <br>
   {% endif %}
+
+  {% set visible_challenges = [] %}
+  {% for item in module.unified_items %}
+    {% if item.item_type == 'challenge' %}
+      {% set _ = visible_challenges.append(item) %}
+    {% endif %}
+  {% endfor %}
 
   {% if visible_challenges and module.show_scoreboard %}
 

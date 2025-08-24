@@ -15,7 +15,7 @@ def start_on_demand_service(user, service_name):
             user_id=user.id,
             assert_success=True,
         )
-    except (docker.errors.NotFound, AssertionError):
+    except docker.errors.NotFound:
         return False
     return True
 

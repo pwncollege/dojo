@@ -103,7 +103,6 @@ class CreateDojo(Resource):
 class DojoModuleList(Resource):
     @dojo_route
     def get(self, dojo):
-        is_dojo_admin = dojo.is_admin()
         modules = [
             dict(id=module.id,
                  name=module.name,
@@ -112,11 +111,9 @@ class DojoModuleList(Resource):
                     dict(id=challenge.id,
                          name=challenge.name,
                          description=challenge.description)
-                    for challenge in (module.visible_challenges() if not is_dojo_admin
-                                      else module.challenges)
+                    for challenge in module.visible_challenges()
                  ])
             for module in dojo.modules
-            if module.visible() or is_dojo_admin
         ]
         return {"success": True, "modules": modules}
 
@@ -155,7 +152,7 @@ class DojoCourse(Resource):
         result = dict(syllabus=dojo.course.get("syllabus"), scripts=dojo.course.get("scripts"))
         student = DojoStudents.query.filter_by(dojo=dojo, user=get_current_user()).first()
         if student:
-            result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token, user_id=student.user_id)
+            result["student"] = dojo.course.get("students", {}).get(student.token, {}) | dict(token=student.token)
         return {"success": True, "course": result}
 
 
@@ -164,12 +161,7 @@ class DojoCourseStudentList(Resource):
     @dojo_route
     @dojo_admins_only
     def get(self, dojo):
-        dojo_students = {student.token: student.user_id for student in DojoStudents.query.filter_by(dojo=dojo)}
-        course_students = dojo.course.get("students", {})
-        students = {
-            token: course_data | dict(token=(token if token in dojo_students else None), user_id=dojo_students.get(token))
-            for token, course_data in course_students.items()
-        }
+        students = dojo.course.get("students", {})
         return {"success": True, "students": students}
 
 
@@ -192,14 +184,13 @@ class DojoCourseSolveList(Resource):
         if students:
             solves_query = solves_query.filter(DojoStudents.token.in_(students))
 
-        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoStudents.user_id, DojoModules.id, DojoChallenges.id)
+        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoModules.id, DojoChallenges.id)
         solves = [
             dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),
                  student_token=student_token,
-                 user_id=user_id,
                  module_id=module_id,
                  challenge_id=challenge_id)
-            for timestamp, student_token, user_id, module_id, challenge_id in solves_query.all()
+            for timestamp, student_token, module_id, challenge_id in solves_query.all()
         ]
 
         return {"success": True, "solves": solves}
@@ -285,9 +276,9 @@ class DojoChallengeDescription(Resource):
     def get(self, dojo, module, challenge_id):
         user = get_current_user()
 
-        dojo_challenge = DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id).first()
+        dojo_challenge = next((c for c in module.visible_challenges() if c.id == challenge_id), None)
 
-        if dojo_challenge is None or not (dojo_challenge.visible() or dojo.is_admin(user=user)):
+        if dojo_challenge is None:
             return {"success": False, "error": "Invalid challenge id"}, 404
 
         if is_challenge_locked(dojo_challenge, user):

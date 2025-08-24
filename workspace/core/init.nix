@@ -52,32 +52,23 @@ let
 
     echo $DOJO_AUTH_TOKEN > /run/dojo/var/auth_token
 
-    echo "DOJO_INIT_INITIALIZED"
+    echo "Initialized."
 
-    if ! read -t 5 DOJO_FLAG; then
-      echo "DOJO_INIT_FAILED:Flag initialization error."
-      exit 1
-    fi
+    read DOJO_FLAG
     echo $DOJO_FLAG | install -m 400 /dev/stdin /flag
+
+    exec > /run/dojo/var/root/init.log 2>&1
+    chmod 600 /run/dojo/var/root/init.log
 
     for path in /home/hacker /home/hacker/.config; do
       mkdir -p "$path" && chown 1000:1000 "$path" && chmod 755 "$path"
     done
 
     if [ -x "/challenge/.init" ]; then
-      (
-        exec > /run/dojo/var/root/init.log 2>&1
-        chmod 600 /run/dojo/var/root/init.log
-        if ! PATH="/run/challenge/bin:$IMAGE_PATH" /challenge/.init
-        then
-          echo "DOJO_INIT_FAILED:Challenge initialization error."
-          exit 1
-        fi
-      )
+        PATH="/run/challenge/bin:$IMAGE_PATH" /challenge/.init
     fi
 
     touch /run/dojo/var/ready
-    echo "DOJO_INIT_READY"
 
     exec "$@"
   '';
