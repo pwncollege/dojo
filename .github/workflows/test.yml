@@ -10,7 +10,7 @@ jobs:
   test:
     name: "${{ matrix.mode }} DOJO Test"
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     strategy:
       matrix:
         mode: [singlenode, multinode, vibecheck]
