@@ -463,7 +463,8 @@ class DojoModules(db.Model):
 
     def visible_challenges(self, when=None, required_only=False):
         when = when or datetime.datetime.utcnow()
-        query = DojoChallenges.query
+        return list(
+            DojoChallenges.query
             .filter(DojoChallenges.dojo_id == self.dojo_id,
                     DojoChallenges.module_index == self.module_index)
             .outerjoin(DojoChallengeVisibilities, and_(
@@ -475,10 +476,11 @@ class DojoModules(db.Model):
                 or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start),
                 or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop),
             )
+            .filter(
+                not required_only or DojoChallenges.required
+            )
             .order_by(DojoChallenges.challenge_index)
-        if required_only:
-            query = query.filter(DojoChallenges.required)
-        return list(query)
+        )
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
