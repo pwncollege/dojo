@@ -34,19 +34,23 @@ def log_exception(error, event_type="exception"):
         exc_info=True
     )
 
-def get_trace_id():
-    trace_id = "NONE"
-
+def get_tracked_attr(attr, default="NONE"):
     try:
-        if has_request_context() and hasattr(g, 'trace_id'):
-            trace_id = g.trace_id
-    except RuntimeError:
+        if has_request_context():
+            return getattr(g, attr)
+    except (RuntimeError, AttributeError):
         pass
 
-    if hasattr(_trace_id_storage, 'trace_id'):
-        trace_id = _trace_id_storage.trace_id
+    try:
+        return getattr(_trace_id_storage, attr)
+    except AttributeError:
+        pass
 
-    return trace_id
+    return default
+
+
+def get_trace_id():
+    return get_tracked_attr("trace_id", default="NONE")
 
 def get_user_id():
     try:
@@ -66,6 +70,7 @@ class RequestIdFilter(logging.Filter):
         record.trace_id = get_trace_id()
         record.user_id = get_user_id()
         record.remote_addr = get_ip_address()
+        record.reltime = "%.2f" % (time.time() - get_tracked_attr("start_time", time.time()))
         record.name = record.name.replace("CTFd.plugins.dojo_plugin", "dojo_plugin")
         return True
 
@@ -81,21 +86,24 @@ def setup_uncaught_error_logging(app):
 
 def setup_trace_id_tracking(app):
     def before_request_handler():
-        trace_id = request.headers.get('PWN-Trace-ID')
-        if not trace_id:
-            # Mark requests not from nginx (health checks, direct access)
-            trace_id = "LOCAL"
+        # not all requests are via nginx (health checks, direct access)
+        trace_id = request.headers.get('PWN-Trace-ID') or "LOCAL"
+        user = get_current_user()
+        start_time = time.time()
+
+        # save stuff to request object because it might have a tighter lifespan?
         try:
             if has_request_context():
                 g.trace_id = trace_id
+                g.start_time = start_time
         except RuntimeError:
             pass
-        _trace_id_storage.trace_id = trace_id
 
-        # werkzeug's logger doesn't have access to the flask session
-        user = get_current_user()
+        # werkzeug's logger doesn't have access to the flask requests or g objects
+        _trace_id_storage.trace_id = trace_id
         _trace_id_storage.user_id = user.id if user else None
         _trace_id_storage.remote_addr = request.remote_addr
+        _trace_id_storage.start_time = start_time
 
     def teardown_request_handler(exception=None):
         try:
@@ -127,7 +135,7 @@ def setup_logging(app):
 
     # Create a custom handler that includes trace_id
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter('time="%(asctime)s" trace_id=%(trace_id)s %(levelname)s remote_ip=%(remote_addr)s user_id=%(user_id)s logger=%(name)s %(message)s'))
+    handler.setFormatter(logging.Formatter('time="%(asctime)s" trace_id=%(trace_id)s request_reltime=%(reltime)s remote_ip=%(remote_addr)s user_id=%(user_id)s logger=%(name)s %(levelname)s %(message)s'))
     handler.addFilter(trace_id_filter)
 
     # Remove existing handlers and add our custom one
