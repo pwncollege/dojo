@@ -1,7 +1,11 @@
+import requests
+import logging
 import docker
 from CTFd.models import Users
 
 from . import user_docker_client
+
+LOG = logging.getLogger(__name__)
 
 on_demand_services = { "terminal", "code", "desktop"}
 
@@ -15,7 +19,8 @@ def start_on_demand_service(user, service_name):
             user_id=user.id,
             assert_success=True,
         )
-    except (docker.errors.NotFound, AssertionError):
+    except (docker.errors.NotFound, AssertionError, requests.HTTPError) as exception:
+        LOG.warning(f"start_on_demand_service error: {service_name=} {exception=}")
         return False
     return True
 
