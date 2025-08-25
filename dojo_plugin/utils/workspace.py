@@ -48,7 +48,7 @@ def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", us
     if log:
         exec_id = docker_client.api.exec_create(container.id, cmd, privileged=False, user=workspace_user)["Id"]
         out_stream = docker_client.api.exec_start(exec_id, stream=True, demux=False)
-        output = "".join(log_generator_output("exec_run {cmd=} ", out_stream, start_time=start_time))
+        output = b"".join(log_generator_output("exec_run {cmd=} ", out_stream, start_time=start_time))
         exit_code = docker_client.api.exec_inspect(exec_id)['ExitCode']
     else:
         exit_code, output = container.exec_run(cmd, user=workspace_user, **kwargs)
