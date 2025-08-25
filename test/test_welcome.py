@@ -183,7 +183,7 @@ def get_interfaces(browser, idx):
 def match_interfaces(interfaces, expected):
     assert len(interfaces) == len(expected)
     for interface, value in zip(interfaces, expected) :
-        assert interface.value == value
+        assert interface.get_attribute("value") == value
 
 def test_interface_inherit(random_user_browser, random_user_name, interfaces_dojo):
     random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
