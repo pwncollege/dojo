@@ -190,9 +190,11 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         default_network.disconnect(container)
 
     container.start()
-    for message in container.attach(stream=True):
+    for message in container.logs(stream=True, follow=True):
         if b"DOJO_INIT_INITIALIZED" in message or message == b"Initialized.\n":
             break
+    else:
+        raise RuntimeError("Workspace failed to initialize.")
 
     cache.set(f"user_{user.id}-running-image", dojo_challenge.image, timeout=0)
     return container
@@ -298,14 +300,14 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         flag = serialize_user_flag(as_user.id, dojo_challenge.challenge_id)
     insert_flag(container, flag)
 
-    for message in container.attach(stream=True):
+    for message in container.logs(stream=True, follow=True):
         if b"DOJO_INIT_READY" in message or message == b"Ready.\n":
             break
         if b"DOJO_INIT_FAILED:" in message:
             cause = message.split(b"DOJO_INIT_FAILED:")[1].split(b"\n")[0]
             raise RuntimeError(f"DOJO_INIT_FAILED: {cause}")
-
-
+    else:
+        raise RuntimeError("Workspace failed to become ready.")
 
 def docker_locked(func):
     def wrapper(*args, **kwargs):
