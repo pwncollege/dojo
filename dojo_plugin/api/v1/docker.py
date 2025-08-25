@@ -258,7 +258,9 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     node_id = user_node(user)
     if node_id is None:
         node_id = -1
-    logger.info(f"starting challenge {dojo_challenge=} {practice=} {as_user=} node_id={node_id+1}")
+    logger.info(f"starting challenge dojo={
+        dojo_challenge.dojo.reference_id
+    } module={dojo_challenge.module.id} challenge={dojo_challenge.id} {practice=} {as_user=} node_id={node_id+1}")
     remove_container(user)
 
     user_mounts = []
