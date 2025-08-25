@@ -377,15 +377,13 @@ def view_module(dojo, module):
                     branch=branch
                 )
 
-    challenges = module.visible_challenges(user=user)
-    challenge_visibility = {c.challenge_id: True for c in module.visible_challenges(user=user, no_admin=True)}
+    visible_challenges = set(module.visible_challenges())
 
     return render_template(
         "module.html",
         dojo=dojo,
         module=module,
-        challenges=challenges,
-        challenge_visibility=challenge_visibility,
+        visible_challenges=visible_challenges,
         user_solves=user_solves,
         total_solves=total_solves,
         user=user,
