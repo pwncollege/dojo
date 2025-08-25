@@ -1,6 +1,7 @@
+import datetime
+import logging
 import sys
 import os
-import datetime
 
 from email.message import EmailMessage
 from email.utils import formatdate

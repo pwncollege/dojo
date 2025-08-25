@@ -1,10 +1,10 @@
+import datetime
 import hashlib
-import os
 import pathlib
-import re
 import logging
 import time
-import datetime
+import os
+import re
 
 import docker
 import docker.errors
@@ -33,7 +33,7 @@ from ...utils import (
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
 from ...utils.feed import publish_container_start
-from ...utils.request_logging import get_trace_id
+from ...utils.request_logging import get_trace_id, log_generator_output
 
 logger = logging.getLogger(__name__)
 
@@ -190,12 +190,17 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     if not internet_access:
         default_network.disconnect(container)
 
+    start_time = time.time()
     container.start()
-    for message in container.logs(stream=True, follow=True):
+    logger.info(f"container started after {time.time()-start_time:.1f} seconds")
+    for message in log_generator_output(
+        "workspace initialization ", container.logs(stream=True, follow=True), start_time=start_time
+    ):
         if b"DOJO_INIT_INITIALIZED" in message or message == b"Initialized.\n":
+            logger.info(f"workspace initialized after {time.time()-start_time:.1f} seconds")
             break
     else:
-        raise RuntimeError("Workspace failed to initialize.")
+        raise RuntimeError(f"Workspace failed to initialize after {time.time()-start_time:.1f} seconds.")
 
     cache.set(f"user_{user.id}-running-image", dojo_challenge.image, timeout=0)
     return container
@@ -301,15 +306,14 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         flag = serialize_user_flag(as_user.id, dojo_challenge.challenge_id)
     insert_flag(container, flag)
 
-    for message in container.logs(stream=True, follow=True):
-        logger.info(f"message from workspace initialization: {message}")
+    for message in log_generator_output("workspace readying ", container.logs(stream=True, follow=True)):
         if b"DOJO_INIT_READY" in message or message == b"Ready.\n":
             break
         if b"DOJO_INIT_FAILED:" in message:
             cause = message.split(b"DOJO_INIT_FAILED:")[1].split(b"\n")[0]
             raise RuntimeError(f"DOJO_INIT_FAILED: {cause}")
     else:
-        raise RuntimeError("Workspace failed to become ready.")
+        raise RuntimeError(f"Workspace failed to become ready.")
 
 def docker_locked(func):
     def wrapper(*args, **kwargs):
