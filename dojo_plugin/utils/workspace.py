@@ -16,7 +16,7 @@ def start_on_demand_service(user, service_name):
         return None
     try:
         exec_run(
-            f"timeout -k 10 30 /run/current-system/sw/bin/dojo-{service_name}",
+            f"/run/current-system/sw/bin/timeout -k 10 30 /run/current-system/sw/bin/dojo-{service_name}",
             workspace_user="hacker",
             user_id=user.id,
             assert_success=True,
