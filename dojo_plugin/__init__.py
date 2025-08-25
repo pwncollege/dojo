@@ -134,6 +134,8 @@ def load(app):
 
     init_query_timer()
 
+    logging.getLogger(__name__).setLevel(logging.INFO)
+
     setup_logging(app)
     setup_trace_id_tracking(app)
     setup_uncaught_error_logging(app)

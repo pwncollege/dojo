@@ -11,7 +11,6 @@ from CTFd.models import db, Admins, Pages
 from CTFd.utils import config, set_config
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 DOJOS_DIR = pathlib.Path("/var/dojos")
 
