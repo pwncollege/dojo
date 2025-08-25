@@ -414,7 +414,7 @@ class RunDocker(Resource):
 
                 break
             except Exception as e:
-                logger.exception(f"Attempt {attempt} failed for user {user.id} with error: {e}")
+                logger.warning(f"Attempt {attempt} failed for user {user.id} with error: {e}")
                 if attempt < max_attempts:
                     logger.info(f"Retrying... ({attempt}/{max_attempts})")
                     time.sleep(2)
