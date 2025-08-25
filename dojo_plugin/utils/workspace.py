@@ -53,7 +53,7 @@ def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", us
     else:
         exit_code, output = container.exec_run(cmd, user=workspace_user, **kwargs)
 
-    logger.info(f"exec_run finished {cmd=} elapsed={time.time()-start_time:.1f}s {exit_code=} output={output[:13337]}")
+    logger.info(f"exec_run finished {cmd=} {workspace_user=} elapsed={time.time()-start_time:.1f}s {exit_code=} output={output[:13337]}")
 
     if assert_success:
         assert exit_code in (0, None), output
