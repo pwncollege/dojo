@@ -50,7 +50,8 @@ def guest_dojo_admin():
 @pytest.fixture(scope="session")
 def example_dojo(admin_session):
     try:
-        rid = create_dojo("pwncollege/example-dojo", session=admin_session)
+        #rid = create_dojo("pwncollege/example-dojo", session=admin_session)
+        rid = create_dojo("TheodorKitzenmaier/example-dojo", session=admin_session)
     except AssertionError:
         rid = "example"
     make_dojo_official(rid, admin_session)
