@@ -523,7 +523,7 @@ class DojoChallenges(db.Model):
     id = db.Column(db.String(32), index=True, nullable=False)
     name = db.Column(db.String(128))
     description = db.Column(db.Text)
-    required = db.Column(db.Boolean, default=True)
+    required = db.Column(db.Boolean, default=True, nullable=False)
 
     data = db.Column(JSONB)
     data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interfaces"]
