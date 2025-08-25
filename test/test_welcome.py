@@ -178,7 +178,7 @@ def get_interfaces(browser, idx):
     challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
     options = Select(body.find_element("id", "workspace-select"))
-    return options
+    return options.options
 
 def match_interfaces(interfaces, expected):
     assert len(interfaces) == len(expected)
