@@ -71,7 +71,7 @@ let
       (
         touch /run/dojo/var/root/init.log
         chmod 600 /run/dojo/var/root/init.log
-        PATH="/run/challenge/bin:$IMAGE_PATH" "$DEFAULT_PROFILE"/timeout -k 10 30 /challenge/.init >& /run/dojo/var/root/init.log &
+        PATH="/run/challenge/bin:$IMAGE_PATH" "$DEFAULT_PROFILE"/bin/timeout -k 10 30 /challenge/.init >& /run/dojo/var/root/init.log &
         INIT_PID=$!
         tail -f /run/dojo/var/root/init.log --pid "$INIT_PID" | head -n1M
         if ! wait "$INIT_PID"
