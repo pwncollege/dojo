@@ -110,9 +110,9 @@ def setup_trace_id_tracking(app):
     app.teardown_request(teardown_request_handler)
 
 
-def log_generator_output(prefix, generator, start_time=None):
+def log_generator_output(prefix, generator, start_time=None, last_time=None):
     start_time = start_time or time.time()
-    last_msg = start_time
+    last_msg = last_time or time.time()
     for message in generator:
         since_start = time.time() - start_time
         since_last_msg = time.time() - last_msg

@@ -81,6 +81,7 @@ def get_available_devices(docker_client):
     return devices
 
 def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, practice):
+    start_time = time.time()
     hostname = "~".join(
         (["practice"] if practice else [])
         + [
@@ -190,7 +191,6 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     if not internet_access:
         default_network.disconnect(container)
 
-    start_time = time.time()
     container.start()
     logger.info(f"container started after {time.time()-start_time:.1f} seconds")
     for message in log_generator_output(
@@ -287,6 +287,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
 
     as_user = as_user or user
 
+    start_time = time.time()
     container = start_container(
         docker_client=docker_client,
         user=user,
@@ -306,8 +307,11 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         flag = serialize_user_flag(as_user.id, dojo_challenge.challenge_id)
     insert_flag(container, flag)
 
-    for message in log_generator_output("workspace readying ", container.logs(stream=True, follow=True)):
+    for message in log_generator_output(
+        "workspace readying ", container.logs(stream=True, follow=True), start_time=start_time
+    ):
         if b"DOJO_INIT_READY" in message or message == b"Ready.\n":
+            logger.info(f"workspace ready after {time.time()-start_time:.1f} seconds")
             break
         if b"DOJO_INIT_FAILED:" in message:
             cause = message.split(b"DOJO_INIT_FAILED:")[1].split(b"\n")[0]
