@@ -235,7 +235,7 @@ def insert_challenge(container, as_user, dojo_challenge):
         container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
     exec_run(
-        "/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chown root:root {} \;", container=container
+        r"/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chown root:root {} \;", container=container
     )
     exec_run(r"/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chmod 4755 {} \;", container=container)
 
