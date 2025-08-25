@@ -237,7 +237,7 @@ def insert_challenge(container, as_user, dojo_challenge):
     exec_run(
         "/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chown root:root {} \;", container=container
     )
-    exec_run("/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chmod 4755 {} \;", container=container)
+    exec_run(r"/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chmod 4755 {} \;", container=container)
 
 
 def insert_flag(container, flag):
