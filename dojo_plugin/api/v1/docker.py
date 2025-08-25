@@ -302,6 +302,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     insert_flag(container, flag)
 
     for message in container.logs(stream=True, follow=True):
+        logger.info(f"message from workspace initialization: {message}")
         if b"DOJO_INIT_READY" in message or message == b"Ready.\n":
             break
         if b"DOJO_INIT_FAILED:" in message:

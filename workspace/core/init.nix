@@ -4,6 +4,8 @@ let
   initScript = pkgs.writeScript "dojo-init" ''
     #!${pkgs.bash}/bin/bash
 
+    set -o pipefail
+
     FULL_PATH="$PATH"
     IMAGE_PATH="$(echo $PATH | cut -d: -f3-)"
     DEFAULT_PROFILE="/nix/var/nix/profiles/dojo-workspace"
@@ -32,7 +34,7 @@ let
     home_mount_options="$(findmnt -nro OPTIONS -- "$home_directory")"
     if [ -n "$home_mount_options" ] && ! printf '%s' "$home_mount_options" | grep -Fqw 'nosuid'; then
       mount -o remount,nosuid "$home_directory" || {
-        echo "Error: Failed to remount home '$home_directory' with nosuid option." >&2
+        echo "DOJO_INIT_FAILED:Failed to remount home '$home_directory' with nosuid option." >&2
         exit 1
       }
     fi
@@ -67,9 +69,9 @@ let
 
     if [ -x "/challenge/.init" ]; then
       (
-        exec > /run/dojo/var/root/init.log 2>&1
+        touch /run/dojo/var/root/init.log
         chmod 600 /run/dojo/var/root/init.log
-        if ! PATH="/run/challenge/bin:$IMAGE_PATH" /challenge/.init
+        if ! PATH="/run/challenge/bin:$IMAGE_PATH" timeout -k 10 30 /challenge/.init |& tee /run/dojo/var/root/init.log | head -n1M
         then
           echo "DOJO_INIT_FAILED:Challenge initialization error."
           exit 1
