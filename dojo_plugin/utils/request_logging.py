@@ -153,7 +153,14 @@ def setup_logging(app):
     ctfd_logger.handlers = []
     ctfd_logger.addHandler(handler)
 
-    # Make sure werkzeug inherits from root
+    # inherit stuff from root
     werkzeug_logger = logging.getLogger('werkzeug')
-    werkzeug_logger.handlers = []  # Remove any existing handlers
-    # Don't set propagate=False, let it use root logger's handler
+    werkzeug_logger.handlers = []
+
+    gunicorn_error_logger = logging.getLogger('gunicorn.error')
+    gunicorn_error_logger.handlers = []
+    gunicorn_error_logger.propagate = True
+
+    gunicorn_access_logger = logging.getLogger('gunicorn.access')
+    gunicorn_access_logger.handlers = []
+    gunicorn_access_logger.propagate = True
