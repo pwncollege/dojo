@@ -54,10 +54,17 @@ def get_user_id():
     except RuntimeError:
         return getattr(_trace_id_storage, "user_id", None)
 
+def get_ip_address():
+    try:
+        return request.remote_addr
+    except RuntimeError:
+        return getattr(_trace_id_storage, "remote_addr", None)
+
 class RequestIdFilter(logging.Filter):
     def filter(self, record):
         record.trace_id = get_trace_id()
         record.user_id = get_user_id()
+        record.remote_addr = get_ip_address()
         record.name = record.name.replace("CTFd.plugins.dojo_plugin", "dojo_plugin")
         return True
 
@@ -87,6 +94,7 @@ def setup_trace_id_tracking(app):
         # werkzeug's logger doesn't have access to the flask session
         user = get_current_user()
         _trace_id_storage.user_id = user.id if user else None
+        _trace_id_storage.remote_addr = request.remote_addr
 
     def teardown_request_handler(exception=None):
         try:
@@ -107,7 +115,7 @@ def setup_logging(app):
 
     # Create a custom handler that includes trace_id
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter('time="%(asctime)s" trace_id=%(trace_id)s %(levelname)s user_id=%(user_id)s logger=%(name)s %(message)s'))
+    handler.setFormatter(logging.Formatter('time="%(asctime)s" trace_id=%(trace_id)s %(levelname)s remote_ip=%(remote_addr)s user_id=%(user_id)s logger=%(name)s %(message)s'))
     handler.addFilter(trace_id_filter)
 
     # Remove existing handlers and add our custom one
