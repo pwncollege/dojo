@@ -728,7 +728,7 @@ class DojoResources(db.Model):
             if kwargs.get("data"):
                 raise AttributeError("Import requires data to be empty")
 
-            for field in ["type", "name"]:
+            for field in ["type", "name", "resource_index"]:
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
 
             for field in self.data_fields:
