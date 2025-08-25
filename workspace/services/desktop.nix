@@ -26,6 +26,11 @@ let
     export XDG_DATA_DIRS="/run/dojo/share:''${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
     export XDG_CONFIG_DIRS="/run/dojo/etc/xdg:''${XDG_CONFIG_DIRS:-/etc/xdg}"
 
+    if ! test -d "$XDG_RUNTIME_DIR"; then
+      mkdir -p "$XDG_RUNTIME_DIR"
+      chown hacker:hacker "$XDG_RUNTIME_DIR"
+    fi
+
     auth_token="$(cat /run/dojo/var/auth_token)"
     password_interact="$(printf 'desktop-interact' | ${pkgs.openssl}/bin/openssl dgst -sha256 -hmac "$auth_token" | awk '{print $2}' | head -c 8)"
     password_view="$(printf 'desktop-view' | ${pkgs.openssl}/bin/openssl dgst -sha256 -hmac "$auth_token" | awk '{print $2}' | head -c 8)"
