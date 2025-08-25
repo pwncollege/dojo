@@ -116,7 +116,7 @@ def log_generator_output(prefix, generator, start_time=None, last_time=None):
     for message in generator:
         since_start = time.time() - start_time
         since_last_msg = time.time() - last_msg
-        logger.info(f"{prefix}{since_start=:.1f} {since_last_msg=:.1f} {message=}")
+        logger.info(f"generator output: {prefix}{since_start=:.1f} {since_last_msg=:.1f} {message=}")
         yield message
         last_msg = time.time()
 
