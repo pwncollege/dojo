@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 EOF
 
 RUN <<EOF
-curl -fsSL https://get.docker.com | VERSION=28.3.3 sh
+curl -fsSL https://get.docker.com | VERSION=27.5.1 sh
 sed -i 's|-H fd:// ||' /lib/systemd/system/docker.service
 EOF
 
