@@ -71,7 +71,7 @@ let
       (
         touch /run/dojo/var/root/init.log
         chmod 600 /run/dojo/var/root/init.log
-        if ! PATH="/run/challenge/bin:$IMAGE_PATH" timeout -k 10 30 /challenge/.init |& tee /run/dojo/var/root/init.log | head -n1M
+        if ! PATH="/run/challenge/bin:$IMAGE_PATH" timeout -k 10 30 bash -c "/challenge/.init |& tee /run/dojo/var/root/init.log | head -n1M"
         then
           echo "DOJO_INIT_FAILED:Challenge initialization error."
           exit 1
