@@ -39,7 +39,6 @@ def get_scoreboard_for(model, duration):
         Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
         if duration else True
     )
-    required_filter = DojoChallenges.required == True
     solves = db.func.count().label("solves")
     rank = (
         db.func.row_number()
@@ -50,7 +49,6 @@ def get_scoreboard_for(model, duration):
     query = (
         model.solves()
         .filter(duration_filter)
-        .filter(required_filter)
         .group_by(*user_entities)
         .order_by(rank)
         .with_entities(rank, solves, *user_entities)

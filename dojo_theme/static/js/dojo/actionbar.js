@@ -131,12 +131,8 @@ function actionSubmitFlag(event) {
         else if (response.data.status == "correct") {
             animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
             if ($(".challenge-active").length) {
-                const unsolved_flag = $(".challenge-active").find("i.challenge-unsolved")
-                if(unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
-                    unsolved_flag.removeClass("far")
-                    unsolved_flag.addClass("fas")
-                }
-                unsolved_flag
+                $(".challenge-active")
+                    .find("i.challenge-unsolved")
                     .removeClass("challenge-unsolved")
                     .addClass("challenge-solved");
             }
