@@ -10,7 +10,6 @@ from CTFd.utils.user import get_current_user
 from CTFd.models import db
 
 logger = logging.getLogger("dojo.query_timer")
-logger.setLevel(logging.INFO)
 
 thread_local = threading.local()
 
