@@ -171,7 +171,7 @@ def visibility_test_dojo(admin_session, example_dojo):
 
 @pytest.fixture(scope="session")
 def interfaces_dojo(admin_session, example_dojo):
-    rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "custom_interfaces.yml".read(), session=admin_session))
+    rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "custom_interfaces.yml").read(), session=admin_session)
     make_dojo_official(rid, admin_session)
     return rid
 
