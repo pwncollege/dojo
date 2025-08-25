@@ -185,7 +185,7 @@ def match_interfaces(interfaces, expected):
     for interface, value in zip(interfaces, expected) :
         assert interface.value == value
 
-def test_interface_inherit(random_user_browser, random_user_name, welcome_dojo):
+def test_interface_inherit(random_user_browser, random_user_name, interfaces_dojo):
     random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
     idx = challenge_idx(random_user_browser, "test1")
     interfaces = get_interfaces(random_user_browser, idx)
@@ -193,7 +193,7 @@ def test_interface_inherit(random_user_browser, random_user_name, welcome_dojo):
     values = ["ssh: ", "terminal: 7681"]
     match_interfaces(interfaces, values)
 
-def test_interface_inherit(random_user_browser, random_user_name, welcome_dojo):
+def test_interface_chal_override(random_user_browser, random_user_name, interfaces_dojo):
     random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
     idx = challenge_idx(random_user_browser, "test2")
     interfaces = get_interfaces(random_user_browser, idx)
@@ -201,7 +201,7 @@ def test_interface_inherit(random_user_browser, random_user_name, welcome_dojo):
     values = ["code: 8080", "desktop: 6080"]
     match_interfaces(interfaces, values)
 
-def test_interface_inherit(random_user_browser, random_user_name, welcome_dojo):
+def test_interface_chal_narrow(random_user_browser, random_user_name, interfaces_dojo):
     random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
     idx = challenge_idx(random_user_browser, "test3")
     interfaces = get_interfaces(random_user_browser, idx)
