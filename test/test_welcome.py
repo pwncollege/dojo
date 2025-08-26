@@ -6,7 +6,7 @@ import random
 import pytest
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 
@@ -173,6 +173,41 @@ def skip_test_welcome_practice(random_user_browser, random_user_name, welcome_do
         flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
     challenge_submit(random_user_browser, idx, flag)
     random_user_browser.close()
+
+def get_interfaces(browser, idx):
+    challenge_expand(browser, idx)
+    body = browser.find_element("id", f"challenges-body-{idx}")
+    options = Select(body.find_element("id", "workspace-select"))
+    return options.options
+
+def match_interfaces(interfaces, expected):
+    assert len(interfaces) == len(expected)
+    for interface, value in zip(interfaces, expected) :
+        assert interface.get_attribute("value") == value
+
+def test_interface_inherit(random_user_browser, random_user_name, interfaces_dojo):
+    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    idx = challenge_idx(random_user_browser, "test1")
+    interfaces = get_interfaces(random_user_browser, idx)
+
+    values = ["ssh: ", "terminal: 7681"]
+    match_interfaces(interfaces, values)
+
+def test_interface_chal_override(random_user_browser, random_user_name, interfaces_dojo):
+    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    idx = challenge_idx(random_user_browser, "test2")
+    interfaces = get_interfaces(random_user_browser, idx)
+
+    values = ["code: 8080", "desktop: 6080"]
+    match_interfaces(interfaces, values)
+
+def test_interface_chal_narrow(random_user_browser, random_user_name, interfaces_dojo):
+    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    idx = challenge_idx(random_user_browser, "test3")
+    interfaces = get_interfaces(random_user_browser, idx)
+
+    values = ["terminal: 7681"]
+    match_interfaces(interfaces, values)
 
 
 def test_registration_commitment(browser_fixture):

@@ -1,0 +1,39 @@
+id: testing-interfaces
+type: public
+interfaces:
+- name: SSH
+- name: Terminal
+  port: 7681
+modules:
+  - id: test
+    challenges:
+      - id: test1
+        name: test1
+      - id: test2
+        name: test2
+        interfaces:
+        - name: Code
+          port: 8080
+        - name: Desktop
+          port: 6080
+      - id: test3
+        name: test3
+        interfaces:
+        - name: Terminal
+          port: 7681
+files:
+  - type: text
+    path: test/test1/test
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: test/test2/test
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: test/test3/test
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
