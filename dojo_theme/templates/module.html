@@ -164,13 +164,19 @@
         {% set lock_challenge = progression_locked
           and previous_challenge.challenge_id not in user_solves
           and solved == "challenge-unsolved"
-          and not is_dojo_admin %}
-        {% set icon = "fa-lock" if lock_challenge else "fa-flag" %}
+          and not dojo.is_admin() %}
+        {% if lock_challenge %}
+          {% set icon = "fas fa-lock" %}
+        {% elif not challenge.required and solved == "challenge-unsolved" %}
+          {% set icon = "far fa-flag" %}
+        {% else %}
+          {% set icon = "fas fa-flag" %}
+        {% endif %}
 
         {% call(header) accordion_item("module-content", loop.index, lock_challenge, challenge_index=ns.challenge_count) %}
           {% if header %}
             <h4 class="accordion-item-name challenge-name {{ active }}" data-challenge-index="{{ ns.challenge_count }}" data-challenge-name="{{ challenge.name or challenge.id }}" id="challenges-header-{{ ns.challenge_count }}">
-                <i class="challenge-icon pr-3 fas {{ icon }} {{ solved }} "></i>
+                <i class="challenge-icon pr-3 {{ icon }} {{ solved }} "></i>
                 {% if lock_challenge %}
                 <div class="challenge-text-wrapper">
                   <span class="challenge-name-text">{{ challenge.name or challenge.id }}</span>
@@ -206,6 +212,7 @@
               {% if lock_challenge %}
                 <p><em>This challenge is locked</em></p>
               {% else %}
+                {% if not challenge.required %}<small>This challenge is optional, it will not count towards dojo completion.</small><br><br>{% endif %}
                 {% if challenge_description_edit_urls.get(challenge.id) %}
                   <a href="{{ challenge_description_edit_urls[challenge.id] }}"
                      target="_blank"

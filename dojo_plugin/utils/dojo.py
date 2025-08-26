@@ -147,6 +147,7 @@ DOJO_SPEC = Schema({
                 Optional("importable"): bool,
                 Optional("progression_locked"): bool,
                 Optional("auxiliary"): dict,
+                Optional("required", default=True): bool,
                 Optional("import"): {
                     Optional("dojo"): UNIQUE_ID_REGEX,
                     Optional("module"): ID_REGEX,
@@ -470,6 +471,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                         module_data.get("id"), challenge_data.get("id"), transfer=challenge_data.get("transfer", None)
                     ) if "import" not in challenge_data else None,
                     progression_locked=challenge_data.get("progression_locked"),
+                    required=challenge_data.get("required"),
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
                     survey=survey(dojo_data, module_data, challenge_data),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),

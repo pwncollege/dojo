@@ -85,6 +85,10 @@ function renderSubmissionResponse(response, item) {
 
         unsolved_flag.removeClass("challenge-unsolved");
         unsolved_flag.addClass("challenge-solved");
+        if(unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
+            unsolved_flag.removeClass("far")
+            unsolved_flag.addClass("fas")
+        }
 
         total_solves.text(
             (parseInt(total_solves.text().trim().split(" ")[0]) + 1) + " solves"
@@ -352,6 +356,11 @@ function markChallengeAsSolved(item) {
     const unsolved_flag = item.find(".challenge-unsolved");
     if (unsolved_flag.hasClass("challenge-solved")) {
         return;
+    }
+
+    if(unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
+        unsolved_flag.removeClass("far")
+        unsolved_flag.addClass("fas")
     }
 
     unsolved_flag.removeClass("challenge-unsolved");
