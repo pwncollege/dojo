@@ -6,6 +6,7 @@ from CTFd.models import Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
+from ...utils.dojo import get_current_dojo_challenge
 from ...utils import get_current_container, container_password
 from ...utils.workspace import start_on_demand_service, reset_home
 
@@ -77,6 +78,26 @@ class view_desktop(Resource):
             return {"success": False, "active": True, "error": f"Failed to start service {service}"}
 
         return {"success": True, "active": True, "iframe_src": iframe_src, "service": service}
+
+
+@workspace_namespace.route("/update")
+class UpdateWorkspace(Resource):
+    @authed_only
+    def get(self):
+        user = get_current_user
+        container = get_current_container(user)
+        challenge = get_current_dojo_challenge(user)
+        if challenge is None:
+            return {"success": False}
+        
+        return {
+            "success": True,
+            "id": challenge.challenge_id,
+            "name": challenge.name,
+            "privileged": container.labels.get("dojo.mode") == "privileged",
+            "allow-privileged": challenge.allow_privileged,
+            "interfaces": challenge.interfaces,
+        }
 
 
 @workspace_namespace.route("/reset_home")
