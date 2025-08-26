@@ -9,7 +9,7 @@
     "log-driver": "splunk",
     "log-opts": {
         "splunk-token": "11111111-1111-1111-1111-111111111111",
-        "splunk-url": "http://127.0.0.1:8088",
+        "splunk-url": "http://splunk:8088",
         "splunk-insecureskipverify": "true",
         "splunk-verify-connection": "false",
         "splunk-gzip": "false",

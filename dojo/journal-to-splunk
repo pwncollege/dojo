@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""
+Forward systemd journal logs to Splunk HEC.
+Reads journal entries and forwards them to Splunk's HTTP Event Collector.
+"""
+
+import json
+import os
+import sys
+import time
+import subprocess
+import requests
+from datetime import datetime
+
+# Configuration from environment
+SPLUNK_HEC_TOKEN = os.environ.get('SPLUNK_HEC_TOKEN', '11111111-1111-1111-1111-111111111111')
+SPLUNK_HEC_URL = os.environ.get('SPLUNK_HEC_URL', 'http://splunk:8088/services/collector/event')
+WORKSPACE_NODE = os.environ.get('WORKSPACE_NODE', '0')
+ENABLE_SPLUNK = os.environ.get('ENABLE_SPLUNK', 'false')
+
+def wait_for_splunk():
+    """Wait for Splunk HEC to be available."""
+    health_url = SPLUNK_HEC_URL.replace('/event', '/health')
+    headers = {'Authorization': f'Splunk {SPLUNK_HEC_TOKEN}'}
+    
+    print(f"Waiting for Splunk HEC at {health_url}...", flush=True)
+    while True:
+        try:
+            response = requests.get(health_url, headers=headers, timeout=5, verify=False)
+            if response.status_code == 200:
+                print("Splunk HEC is available", flush=True)
+                return
+        except Exception as e:
+            print(f"Waiting for Splunk HEC: {e}", flush=True)
+        time.sleep(2)
+
+def send_to_splunk(event_data):
+    """Send an event to Splunk HEC."""
+    headers = {
+        'Authorization': f'Splunk {SPLUNK_HEC_TOKEN}',
+        'Content-Type': 'application/json'
+    }
+    
+    try:
+        response = requests.post(
+            SPLUNK_HEC_URL, 
+            json=event_data, 
+            headers=headers, 
+            timeout=5,
+            verify=False
+        )
+        if response.status_code != 200:
+            print(f"Failed to send to Splunk: {response.status_code} - {response.text}", flush=True)
+    except Exception as e:
+        print(f"Error sending to Splunk: {e}", flush=True)
+
+def process_journal_entry(entry):
+    """Process a journal entry and format it for Splunk."""
+    try:
+        data = json.loads(entry)
+        
+        # Extract relevant fields
+        timestamp = data.get('__REALTIME_TIMESTAMP', '0')
+        # Convert microseconds to seconds
+        timestamp = float(timestamp) / 1000000 if timestamp else time.time()
+        
+        hostname = data.get('_HOSTNAME', 'unknown')
+        unit = data.get('_SYSTEMD_UNIT', data.get('UNIT', 'system'))
+        message = data.get('MESSAGE', '')
+        priority = data.get('PRIORITY', '6')
+        
+        # Additional metadata
+        pid = data.get('_PID', '')
+        uid = data.get('_UID', '')
+        exe = data.get('_EXE', '')
+        
+        # Build Splunk event
+        event = {
+            'time': timestamp,
+            'host': f'node-{WORKSPACE_NODE}-{hostname}',
+            'source': 'systemd-journal',
+            'sourcetype': 'systemd',
+            'event': {
+                'message': message,
+                'unit': unit,
+                'priority': priority,
+                'workspace_node': WORKSPACE_NODE,
+                'pid': pid,
+                'uid': uid,
+                'exe': exe,
+                'hostname': hostname
+            }
+        }
+        
+        # Remove empty fields from event
+        event['event'] = {k: v for k, v in event['event'].items() if v}
+        
+        return event
+    except json.JSONDecodeError:
+        print(f"Failed to parse journal entry: {entry}", flush=True)
+        return None
+    except Exception as e:
+        print(f"Error processing journal entry: {e}", flush=True)
+        return None
+
+def main():
+    """Main function to read journal and forward to Splunk."""
+    if ENABLE_SPLUNK.lower() != 'true':
+        print("Splunk is not enabled, exiting", flush=True)
+        sys.exit(0)
+    
+    print(f"Starting journal-to-splunk forwarder for node {WORKSPACE_NODE}", flush=True)
+    
+    # Wait for Splunk to be available
+    wait_for_splunk()
+    
+    # Start following journal
+    cmd = [
+        'journalctl', 
+        '-f',  # Follow
+        '-o', 'json',  # JSON output
+        '--since', '5 minutes ago'  # Start from 5 minutes ago
+    ]
+    
+    print(f"Starting journal monitoring: {' '.join(cmd)}", flush=True)
+    
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        bufsize=1
+    )
+    
+    # Process each line
+    for line in process.stdout:
+        line = line.strip()
+        if not line:
+            continue
+        
+        event = process_journal_entry(line)
+        if event:
+            send_to_splunk(event)
+    
+    # Should never reach here unless journalctl exits
+    process.wait()
+    print(f"journalctl exited with code {process.returncode}", flush=True)
+    sys.exit(process.returncode)
+
+if __name__ == '__main__':
+    main()
