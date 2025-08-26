@@ -21,6 +21,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         iputils-ping
         jq
         kmod
+        python3-requests
         unzip
         wget
         wireguard

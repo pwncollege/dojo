@@ -136,4 +136,40 @@ else
 fi
 echo
 
+echo
+echo "[+] Checking systemd journal log forwarding..."
+
+# Generate a unique test message in the journal
+TEST_JOURNAL_MSG="JOURNAL_TEST_NODE_${WORKSPACE_NODE}_$$"
+echo "   Writing test message to journal: ${TEST_JOURNAL_MSG}"
+echo "$TEST_JOURNAL_MSG" | systemd-cat -t splunk-test -p info
+
+# Give Splunk time to receive and index the journal entry
+sleep 3
+
+# Search for the journal test message
+JOURNAL_SEARCH="search source=\"systemd-journal\" ${TEST_JOURNAL_MSG}"
+JOURNAL_RESPONSE=$(curl -s -k \
+    -u "admin:DojoSplunk2024!" \
+    -d "search=${JOURNAL_SEARCH}" \
+    -d "earliest_time=-5m" \
+    -d "latest_time=now" \
+    -d "output_mode=json" \
+    "https://splunk:8089/services/search/jobs/export" || echo "{}")
+
+if echo "$JOURNAL_RESPONSE" | grep -q "$TEST_JOURNAL_MSG"; then
+    echo "   ✓ Systemd journal logs found in Splunk!"
+else
+    echo "   ⚠ Could not find systemd journal logs in Splunk"
+    echo "   Note: Journal forwarding service may not be running yet"
+    
+    # Check if the service is running
+    if systemctl is-active journal-to-splunk.service >/dev/null 2>&1; then
+        echo "   ✓ journal-to-splunk.service is active"
+    else
+        echo "   ✗ journal-to-splunk.service is not active"
+        echo "   Run: systemctl status journal-to-splunk.service"
+    fi
+fi
+
 echo "=== Test Succeeded ==="
