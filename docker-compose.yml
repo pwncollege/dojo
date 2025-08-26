@@ -17,7 +17,6 @@ services:
     volumes:
       - /data/splunk/etc:/opt/splunk/etc
       - /data/splunk/var:/opt/splunk/var
-      - /opt/pwn.college/Splunk.License:/tmp/Splunk.License:ro
       - /opt/pwn.college/splunk/default.yml:/tmp/defaults/default.yml:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000"]
