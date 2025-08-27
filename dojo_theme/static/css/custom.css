@@ -289,7 +289,7 @@ p[data-hide="true"] {
 .card-body {
     text-align: left;
     position: relative;
-    padding: 1rem;
+    padding: 0.95rem;
     height: 100%;
     box-sizing: border-box;
     display: flex;
@@ -313,10 +313,6 @@ p[data-hide="true"] {
 
 .card-body .progress-bar[style*="width: 100"] {
   background-color: var(--brand-green) !important;
-  box-shadow: 
-    inset 0 2px 4px rgba(0, 0, 0, 0.3),
-    0 1px 2px rgba(255, 255, 255, 0.1),
-    0 0 8px rgba(120, 190, 32, 0.4) !important;
 }
 
 .card-body .progress-bar .progress-bar-text {
@@ -326,16 +322,15 @@ p[data-hide="true"] {
 }
 
 .card-title {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     font-weight: 600;
     color: var(--brand-blue);
     max-width: 100%;
     position: relative;
     padding-bottom: 8px;
     line-height: 1.4;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    overflow: hidden;
+    overflow-wrap: normal;
+    text-overflow: ellipsis;
 }
 
 @container progress-bar (width < 2em) {
@@ -394,7 +389,7 @@ p[data-hide="true"] {
 
 .card-icon {
     position: absolute;
-    top: 73%;
+    top: 70%;
     left: 75%;
     transform: translate(-50%, -50%);
     right: auto;
@@ -406,8 +401,8 @@ p[data-hide="true"] {
 }
 
 .card-icon > img {
-    height: 40px;
-    width: 110px;
+    height: 35px;
+    width: 100px;
     margin-right: 20px;
 }
 
@@ -870,7 +865,6 @@ code {
 
 .stat-card {
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--brand-black);
     padding: 16px;
     border-radius: 8px;
     height: 185px;
