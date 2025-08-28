@@ -298,27 +298,27 @@ p[data-hide="true"] {
 }
 
 .card-body .progress-bar {
-  background-color: var(--brand-blue);
-  opacity: 30%;
-  position: absolute;
-  left: 0px;
-  right: 0px;
-  bottom: 0px;
-  height: 18px;
-  max-width: 100%;
-  border-radius: 2px;
-  transition: all 0.2s ease;
-  container: progress-bar / inline-size;
+    background-color: var(--brand-blue);
+    opacity: 30%;
+    position: absolute;
+    left: 0px;
+    right: 0px;
+    bottom: 0px;
+    height: 18px;
+    max-width: 100%;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+    container: progress-bar / inline-size;
 }
 
 .card-body .progress-bar[style*="width: 100"] {
-  background-color: var(--brand-green) !important;
+    background-color: var(--brand-green) !important;
 }
 
 .card-body .progress-bar .progress-bar-text {
-  opacity: 0%;
-  font-size: 0.75em;
-  transition: all 0.2s ease;
+    opacity: 0%;
+    font-size: 0.75em;
+    transition: all 0.2s ease;
 }
 
 .card-title {
