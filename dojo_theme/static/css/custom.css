@@ -322,12 +322,12 @@ p[data-hide="true"] {
 }
 
 .card-title {
-    font-size: 1.4rem;
+    font-size: 1.5rem;
     font-weight: 600;
     color: var(--brand-blue);
     max-width: 100%;
     position: relative;
-    line-height: 1.4;
+    line-height: 1.5;
     overflow-wrap: normal;
     overflow: hidden;
     text-overflow: ellipsis;
