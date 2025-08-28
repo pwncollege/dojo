@@ -322,7 +322,7 @@ p[data-hide="true"] {
 }
 
 .card-title {
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     font-weight: 600;
     color: var(--brand-blue);
     max-width: 100%;
@@ -405,9 +405,9 @@ p[data-hide="true"] {
 }
 
 .card-icon > img {
-    height: 35px;
-    width: 100px;
-    margin-right: 20px;
+    height: 40px;
+    width: 105px;
+    margin-right: 18px;
 }
 
 .accordion-item {
