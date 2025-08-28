@@ -321,7 +321,6 @@ p[data-hide="true"] {
   transition: all 0.2s ease;
 }
 
-/* dojo_theme/static/css/custom.css */
 .card-title {
     font-size: 1.4rem;
     font-weight: 600;
@@ -345,12 +344,12 @@ p[data-hide="true"] {
 }
 
 .card-small:hover .card-body .progress-bar .progress-bar-text {
-  opacity: 100%;
+    opacity: 100%;
 }
 
 
 .card-small:hover .card-body .progress-bar {
-  opacity: 100%;
+    opacity: 100%;
 }
 
 .card-list {
