@@ -393,8 +393,8 @@ p[data-hide="true"] {
 
 .card-icon {
     position: absolute;
-    top: 70%;
-    left: 75%;
+    top: 75%;
+    left: 78%;
     transform: translate(-50%, -50%);
     right: auto;
     bottom: auto;
@@ -408,6 +408,7 @@ p[data-hide="true"] {
     height: 40px;
     width: 105px;
     margin-right: 18px;
+    margin-top: 17px;
 }
 
 .accordion-item {
