@@ -287,27 +287,54 @@ p[data-hide="true"] {
 }
 
 .card-body {
-  text-align: center;
-  position: relative;
+    text-align: left;
+    position: relative;
+    padding: 0.95rem;
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .card-body .progress-bar {
-  background-color: var(--old-brand-blue);
-  opacity: 30%;
-  height: 8%;
-  width: 0;
-  margin: 0;
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  transition: all 0.2s ease;
-  container: progress-bar / inline-size;
+    background-color: var(--brand-blue);
+    opacity: 30%;
+    position: absolute;
+    left: 0px;
+    right: 0px;
+    bottom: 0px;
+    height: 20px;
+    max-width: 100%;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+    container: progress-bar / inline-size;
+}
+
+.card-body .progress-bar[style*="width: 100"] {
+    background-color: var(--brand-green) !important;
 }
 
 .card-body .progress-bar .progress-bar-text {
-  opacity: 0%;
-  font-size: 0.75em;
-  transition: all 0.2s ease;
+    opacity: 0%;
+    font-size: 0.75em;
+    transition: all 0.2s ease;
+}
+
+.card-title {
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--brand-blue);
+    max-width: 100%;
+    position: relative;
+    line-height: 1.5;
+    overflow-wrap: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
 }
 
 @container progress-bar (width < 2em) {
@@ -317,12 +344,12 @@ p[data-hide="true"] {
 }
 
 .card-small:hover .card-body .progress-bar .progress-bar-text {
-  opacity: 100%;
+    opacity: 100%;
 }
 
 
 .card-small:hover .card-body .progress-bar {
-  opacity: 100%;
+    opacity: 100%;
 }
 
 .card-list {
@@ -337,9 +364,12 @@ p[data-hide="true"] {
     height: 13em;
     margin: 0.5em;
     padding: 0em;
+    border-radius: 8px !important;
     background-color: rgba(255, 255, 255, 0.05);
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
     transition: all 0.2s ease;
+    overflow: hidden;
+    position: relative;
 }
 
 .card-active {
@@ -356,29 +386,29 @@ p[data-hide="true"] {
 }
 
 .card-text {
-    position: absolute;
-    left: 50%;
-    bottom: 0%;
-    top: 75%;
-    transform: translate(-50%, -50%);
-    width: 100%;
-    color: #eaeaea;
-    font-size: 0.75em;
-    text-align: center;
+    color: var(--brand-white);
+    font-size: 0.875rem;
+    font-weight: 400;
 }
 
 .card-icon {
-    width: calc(100% - 40px);
-    font-size: 64px;
     position: absolute;
-    top: 50%;
-    left: 50%;
+    top: 75%;
+    left: 78%;
     transform: translate(-50%, -50%);
-    filter: drop-shadow(0px 0px 3px black);
+    right: auto;
+    bottom: auto;
+    font-size: 65px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .card-icon > img {
-    width: 75%;
+    height: 40px;
+    width: 105px;
+    margin-right: 18px;
+    margin-top: 17px;
 }
 
 .accordion-item {
@@ -839,8 +869,7 @@ code {
 }
 
 .stat-card {
-    background: linear-gradient(110deg, rgba(0, 0, 0, 1) 0%, rgb(8, 8, 8) 60%, rgb(17, 17, 17) 100%);
-    border: 1px solid var(--brand-black);
+    background: rgba(255, 255, 255, 0.05);
     padding: 16px;
     border-radius: 8px;
     height: 185px;
