@@ -49,6 +49,28 @@ function getRecentService(root) {
     return match;
 }
 
+function setSource(url, target, message, fail=false) {
+    if (fail) {
+        target.src = "";
+        animateBanner(
+            {target: $(target).closest(".challenge-workspace").find("#workspace-select")[0]},
+            message,
+            "error"
+        );
+        return;
+    }
+
+    fetch(url, {
+        method: "GET",
+        credentials: "same-origin"
+    }).then((response) => {
+        if (!response.ok) {
+            return setSource(url, target, message, true);
+        }
+        target.src = url;
+    });
+}
+
 function selectService(service) {
     const content = document.getElementById("workspace-iframe");
     if (!content) {
@@ -84,18 +106,12 @@ function selectService(service) {
                 content.src = result["iframe_src"];
             }
             else {
-                content.src = "";
-                console.log
-                animateBanner(
-                    {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
-                    result.error,
-                    "error"
-                );
+                setSource("", content, result.error, true);
             }
         });
     }
     else {
-        content.src = "/workspace/" + port + "/";
+        setSource("/workspace/" + port + "/", content, "Failed to connect to service, try restarting or contact dojo admin");
     }
 }
 
