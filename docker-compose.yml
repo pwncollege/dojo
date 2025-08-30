@@ -238,6 +238,7 @@ services:
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
       - ./nginx-proxy/etc/nginx/conf.d/pwn-trace-id.conf:/etc/nginx/conf.d/pwn-trace-id.conf:ro
       - /var/run/docker.sock:/tmp/docker.sock:ro
+      - /opt/pwn.college/dojo_theme/static:/var/www/static:ro
     networks:
       default:
       workspace_net:
