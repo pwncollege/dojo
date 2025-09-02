@@ -183,6 +183,15 @@ class Dojos(db.Model):
             .scalar_subquery(),
             deferred=True)
 
+    @deferred_definition
+    def required_challenges_count():
+        return db.column_property(
+            db.select([db.func.count()])
+            .where(Dojos.dojo_id == DojoChallenges.dojo_id)
+            .where(DojoChallenges.required)
+            .scalar_subquery(),
+            deferred=True)
+
     @property
     def solves_code(self):
         return hashlib.md5(self.private_key.encode() + b"SOLVES").hexdigest()
@@ -245,7 +254,7 @@ class Dojos(db.Model):
                            db.func.count().label("solve_count"),
                            db.func.max(Solves.date).label("last_solve"))
             .group_by(Solves.user_id)
-            .having(db.func.count() == len(self.challenges))
+            .having(db.func.count() == len([challenge for challenge in self.challenges if challenge.required]))
             .subquery()
         )
         return (
@@ -272,7 +281,7 @@ class Dojos(db.Model):
         return awards
 
     def completed(self, user):
-        return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len(self.challenges)
+        return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len([challenge for challenge in self.challenges if challenge.required])
 
     def is_admin(self, user=None):
         if user is None:
@@ -456,7 +465,7 @@ class DojoModules(db.Model):
         items.sort(key=lambda x: x[0])
         return [item for _, item in items]
 
-    def visible_challenges(self, when=None):
+    def visible_challenges(self, when=None, required_only=False):
         when = when or datetime.datetime.utcnow()
         return list(
             DojoChallenges.query
@@ -470,6 +479,9 @@ class DojoModules(db.Model):
             .filter(
                 or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start),
                 or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop),
+            )
+            .filter(
+                not required_only or DojoChallenges.required
             )
             .order_by(DojoChallenges.challenge_index)
         )
@@ -515,6 +527,7 @@ class DojoChallenges(db.Model):
     id = db.Column(db.String(32), index=True, nullable=False)
     name = db.Column(db.String(128))
     description = db.Column(db.Text)
+    required = db.Column(db.Boolean, default=True, nullable=False)
 
     data = db.Column(JSONB)
     data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interfaces"]
@@ -606,7 +619,7 @@ class DojoChallenges(db.Model):
         return result
 
     @hybrid_method
-    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True):
+    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True, required_only=True):
         result = (
             Solves.query
             .filter_by(type=Solves.__mapper__.polymorphic_identity)
@@ -650,6 +663,9 @@ class DojoChallenges(db.Model):
             result = result.filter(DojoChallenges.dojo == dojo)
         if module:
             result = result.filter(DojoChallenges.module == module)
+
+        if required_only:
+            result = result.filter(DojoChallenges.required)
 
         return result
 
