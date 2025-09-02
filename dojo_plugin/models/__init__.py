@@ -536,12 +536,12 @@ class DojoChallenges(db.Model):
         "importable": True,
         "allow_privileged": True,
         "progression_locked": False,
-        "interfaces": {
-            "Terminal": 7681,
-            "Code": 8080,
-            "Desktop": 6080,
-            "SSH": "ssh",
-        },
+        "interfaces": [
+            dict(name="Terminal", port=7681),
+            dict(name="Code",     port=8080),
+            dict(name="Desktop",  port=6080),
+            dict(name="SSH"),
+        ],
     }
 
     dojo = db.relationship("Dojos",
