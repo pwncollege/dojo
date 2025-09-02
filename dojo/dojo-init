@@ -74,6 +74,11 @@ mv /data/.config.env /data/config.env
 # Configure Docker daemon for Splunk logging if enabled
 if [ "${ENABLE_SPLUNK}" = "true" ]; then
     echo "[+] Configuring Docker daemon for Splunk logging..."
+    if [ "$WORKSPACE_NODE" -eq 0 ]; then
+        echo "127.0.0.1 splunk" >> /etc/hosts
+    else
+        echo "192.168.42.1 splunk" >> /etc/hosts
+    fi
     if [ -f /tmp/daemon-splunk.json ]; then
         cp /tmp/daemon-splunk.json /etc/docker/daemon.json
         echo "[+] Docker daemon configured for Splunk logging"
@@ -90,6 +95,12 @@ fi
 mkdir -p /data/workspace/nix
 mkdir -p /data/workspacefs/bin
 mkdir -p /data/ctfd-ipython
+
+# Enable systemd journal forwarding to Splunk if configured
+if [ "${ENABLE_SPLUNK}" = "true" ]; then
+    echo "[+] Enabling systemd journal forwarding to Splunk..."
+    systemctl enable journal-to-splunk.service 2>/dev/null || true
+fi
 
 mkdir -p /data/homes
 if [ "$(findmnt -nro FSTYPE -- /data/homes)" != "btrfs" ] && [ "$(findmnt -nro FSTYPE -- /data)" != "btrfs" ]; then

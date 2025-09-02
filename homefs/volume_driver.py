@@ -126,8 +126,9 @@ def remove_volume(name):
 
     if docker_volume.overlay:
         docker_volume.btrfs.remove_overlay(docker_volume.name)
-    else:
-        docker_volume.btrfs.snapshot()
+    # TODO: Restore snapshotting; it has been disabled for performance
+    # else:
+    #     docker_volume.btrfs.snapshot()
 
     db.session.delete(docker_volume)
     db.session.commit()

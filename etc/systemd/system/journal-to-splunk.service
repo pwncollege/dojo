@@ -1,0 +1,18 @@
+[Unit]
+Description=Forward systemd journal to Splunk HEC
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+EnvironmentFile=-/data/config.env
+Environment="SPLUNK_HEC_TOKEN=11111111-1111-1111-1111-111111111111"
+Environment="SPLUNK_HEC_URL=http://splunk:8088/services/collector/event"
+ExecStart=/usr/local/bin/journal-to-splunk
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
