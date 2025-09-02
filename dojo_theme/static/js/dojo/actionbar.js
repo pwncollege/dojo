@@ -80,7 +80,18 @@ function selectService(service) {
         })
         .then(response => response.json())
         .then(result => {
-            content.src = result["iframe_src"];
+            if (result.success) {
+                content.src = result["iframe_src"];
+            }
+            else {
+                content.src = "";
+                console.log
+                animateBanner(
+                    {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
+                    result.error,
+                    "error"
+                );
+            }
         });
     }
     else {
@@ -120,8 +131,12 @@ function actionSubmitFlag(event) {
         else if (response.data.status == "correct") {
             animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
             if ($(".challenge-active").length) {
-                $(".challenge-active")
-                    .find("i.challenge-unsolved")
+                const unsolved_flag = $(".challenge-active").find("i.challenge-unsolved")
+                if(unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
+                    unsolved_flag.removeClass("far")
+                    unsolved_flag.addClass("fas")
+                }
+                unsolved_flag
                     .removeClass("challenge-unsolved")
                     .addClass("challenge-solved");
             }

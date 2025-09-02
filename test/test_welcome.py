@@ -178,28 +178,71 @@ def skip_test_welcome_practice(random_user_browser, random_user_name, welcome_do
 def test_registration_commitment(browser_fixture):
     browser_fixture.get(f"{DOJO_URL}/register")
     wait = WebDriverWait(browser_fixture, 10)
-    
+
     test_username = "test" + "".join(random.choices(string.ascii_lowercase, k=8))
-    
+
     browser_fixture.find_element(By.ID, "name").send_keys(test_username)
     browser_fixture.find_element(By.ID, "email").send_keys(f"{test_username}@example.com")
     browser_fixture.find_element(By.ID, "password").send_keys("TestPassword123!")
-    
+
     submit_button = browser_fixture.find_element(By.ID, "register-submit")
     submit_button.click()
-    
+
     alert = browser_fixture.switch_to.alert
     assert "Please type the commitment" in alert.text
     alert.accept()
-    
+
     commitment_input = browser_fixture.find_element(By.ID, "commitment-input")
     commitment_input.send_keys("i have read the ground rules and commit to not publish pwn.college writeups on the internet")
-    
+
     time.sleep(0.5)
-    
+
     submit_button.click()
-    
+
     wait.until(lambda driver: "register" not in driver.current_url.lower())
     assert "register" not in browser_fixture.current_url.lower()
 
     browser_fixture.close()
+
+
+def test_welcome_graded_lecture(random_user_browser, random_user_name, example_dojo):
+    random_user_browser.get(f"{DOJO_URL}/{example_dojo}/lectures")
+    idx = challenge_idx(random_user_browser, "Graded Lecture")
+
+    challenge_expand(random_user_browser, idx)
+    body = random_user_browser.find_element("id", f"challenges-body-{idx}")
+
+    body.find_element("id", "challenge-start").click()
+    while "started" not in body.find_element("id", "result-message").text:
+        time.sleep(0.5)
+    time.sleep(1)
+
+    wait = WebDriverWait(random_user_browser, 30)
+    lecture_iframe = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, f"#challenges-body-{idx} #workspace-iframe")))
+    assert lecture_iframe.is_displayed()
+    lecture_iframe_src = lecture_iframe.get_attribute("src")
+    assert "/workspace/80/" in lecture_iframe_src
+
+    random_user_browser.switch_to.frame(lecture_iframe)
+    youtube_iframe_inline = wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
+    assert youtube_iframe_inline.is_displayed()
+    inline_iframe_src = youtube_iframe_inline.get_attribute("src")
+    assert "youtube.com" in inline_iframe_src or "youtube-nocookie.com" in inline_iframe_src
+    assert "hh4XAU6XYP0" in inline_iframe_src
+    random_user_browser.switch_to.default_content()
+
+    challenge_window = random_user_browser.current_window_handle
+    random_user_browser.switch_to.new_window("tab")
+    random_user_browser.get(f"{DOJO_URL}/workspace/80/")
+
+    time.sleep(2)
+
+    youtube_iframe = wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
+    assert youtube_iframe.is_displayed()
+    iframe_src = youtube_iframe.get_attribute("src")
+    assert "youtube.com" in iframe_src or "youtube-nocookie.com" in iframe_src
+    assert "hh4XAU6XYP0" in iframe_src
+
+    random_user_browser.close()
+    random_user_browser.switch_to.window(challenge_window)
+    random_user_browser.close()
