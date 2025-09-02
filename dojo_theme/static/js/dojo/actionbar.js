@@ -116,6 +116,8 @@ function animateBanner(event, message, type) {
 }
 
 function actionSubmitFlag(event) {
+    context(event).find("input").prop("disabled", true).addClass("disabled");
+    context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     var body = {
         'challenge_id': parseInt(context(event).find("#current-challenge-id").val()),
         'submission': $(event.target).val(),
@@ -147,6 +149,8 @@ function actionSubmitFlag(event) {
         else {
             animateBanner(event, "Submission Failed.", "warn");
         }
+        context(event).find("input").prop("disabled", false).removeClass("disabled");
+        context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     });
 }
 

@@ -55,6 +55,10 @@
     opacity: 1;
   }
 
+  .workspace-control input.disabled {
+    color: var(--highlight);
+  }
+
   .workspace-control select,
   .workspace-control input:focus,
   .workspace-control input:hover {
@@ -159,7 +163,7 @@
     </select>
   </div>
   <div title="Enter flag" class="workspace-control workspace-input">
-    <i class="fas fa-flag workspace-highlight"></i>
+    <i class="fas fa-flag workspace-highlight input-icon"></i>
     <input id="flag-input" type="text" placeholder="Flag">
     <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}" data-challenge-name="{{ challenge.name }}">
   </div>
