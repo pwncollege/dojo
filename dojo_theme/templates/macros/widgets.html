@@ -78,7 +78,7 @@
   <ul class="card-list">
     {% for dojo, solves in dojos %}
       {% set icon = url_for("pwncollege_belts.view_belt", color=dojo.award.belt) if (dojo.award.belt and dojo.official) else None %}
-      {% set solve_percent = (dojo.solves(required_only=True).count() / dojo.required_challenges_count) * 100 if dojo.required_challenges_count else 0 %}
+      {% set solve_percent = (solves / dojo.required_challenges_count) * 100 if dojo.required_challenges_count else 0 %}
       {{ card(
         url_for("pwncollege_dojo.view_dojo", dojo=dojo.reference_id),
         title=dojo.name or dojo.id,

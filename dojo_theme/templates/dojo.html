@@ -13,8 +13,8 @@
   {% if dojo.description %}
   <div>
     {% if description_edit_url %}
-      <a href="{{ description_edit_url }}" 
-         target="_blank" 
+      <a href="{{ description_edit_url }}"
+         target="_blank"
          class="github-edit-link"
          title="Edit on GitHub">
         <i class="fas fa-edit"></i>
@@ -68,7 +68,7 @@
     {% for module in dojo.modules %}
     {% set container_count = module_container_counts.get(module.id, 0) %}
     {% set num_challs = module.visible_challenges(required_only=True) | length %}
-    {% set num_solved_required = module.solves(user=user, ignore_visibility=True, ignore_admins=False, required_only=True).count() if user else 0 %}
+    {% set num_solved_required = module.solves(user=user, ignore_visibility=True, ignore_admins=False).count() if user else 0 %}
     {% if module.visible() or dojo.is_admin(user) %}
       {{ card(
         url_for('pwncollege_dojo.view_dojo_path', dojo=dojo_id, path=module.id),

@@ -190,7 +190,7 @@ class Dojos(db.Model):
             .where(Dojos.dojo_id == DojoChallenges.dojo_id)
             .where(DojoChallenges.required)
             .scalar_subquery(),
-            deferred=True) 
+            deferred=True)
 
     @property
     def solves_code(self):
@@ -249,7 +249,7 @@ class Dojos(db.Model):
 
     def completions(self):
         solves_subquery = (
-            self.solves(ignore_visibility=True, ignore_admins=False, required_only=True)
+            self.solves(ignore_visibility=True, ignore_admins=False)
             .with_entities(Solves.user_id,
                            db.func.count().label("solve_count"),
                            db.func.max(Solves.date).label("last_solve"))
@@ -281,7 +281,7 @@ class Dojos(db.Model):
         return awards
 
     def completed(self, user):
-        return self.solves(user=user, ignore_visibility=True, ignore_admins=False, required_only=True).count() == len([challenge for challenge in self.challenges if challenge.required])
+        return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len([challenge for challenge in self.challenges if challenge.required])
 
     def is_admin(self, user=None):
         if user is None:
@@ -612,7 +612,7 @@ class DojoChallenges(db.Model):
         return result
 
     @hybrid_method
-    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True, required_only=False):
+    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True, required_only=True):
         result = (
             Solves.query
             .filter_by(type=Solves.__mapper__.polymorphic_identity)
