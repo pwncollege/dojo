@@ -557,6 +557,7 @@ class DojoChallenges(db.Model):
             # TODO: maybe we should track the entire import
             kwargs["data"]["image"] = default.data.get("image")
             kwargs["data"]["path_override"] = str(default.path)
+            kwargs["data"]["unified_index"] = default.data.get("unified_index")
 
         super().__init__(*args, **kwargs)
 
