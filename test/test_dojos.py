@@ -119,7 +119,8 @@ def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user)
     scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 1
-    assert len(us["badges"]) == 0
+    assert len(us["badges"]) == 1
+    assert us["badges"][0]["stale"] == True
 
 
 def test_lfs(lfs_dojo, random_user_name, random_user_session):
