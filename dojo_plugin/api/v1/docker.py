@@ -26,6 +26,7 @@ from ...utils import (
     resolved_tar,
     serialize_user_flag,
     user_docker_client,
+    user_node,
     user_ipv4,
     get_current_container,
     is_challenge_locked,
@@ -235,7 +236,7 @@ def insert_challenge(container, as_user, dojo_challenge):
         container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
     exec_run(
-        "/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chown root:root {} \;", container=container
+        r"/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chown root:root {} \;", container=container
     )
     exec_run(r"/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chmod 4755 {} \;", container=container)
 
@@ -254,6 +255,12 @@ def insert_flag(container, flag):
 
 def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     docker_client = user_docker_client(user, image_name=dojo_challenge.image)
+    node_id = user_node(user)
+    if node_id is None:
+        node_id = -1
+    logger.info(f"starting challenge dojo={
+        dojo_challenge.dojo.reference_id
+    } module={dojo_challenge.module.id} challenge={dojo_challenge.id} {practice=} {as_user=} node_id={node_id+1}")
     remove_container(user)
 
     user_mounts = []

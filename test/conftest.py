@@ -4,7 +4,7 @@ import pytest
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge
 from selenium.webdriver import Firefox, FirefoxOptions
 
 @pytest.fixture(scope="session")
@@ -34,10 +34,17 @@ def random_user_session(random_user):
     yield session
 
 
-@pytest.fixture(scope="session")
-def completionist_user():
+@pytest.fixture
+def completionist_user(simple_award_dojo):
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))
     session = login(random_id, random_id, register=True)
+
+    response = session.get(f"{DOJO_URL}/dojo/{simple_award_dojo}/join/")
+    assert response.status_code == 200
+    for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
+        start_challenge(simple_award_dojo, module, challenge, session=session)
+        solve_challenge(simple_award_dojo, module, challenge, session=session, user=random_id)
+
     yield random_id, session
 
 
@@ -77,7 +84,7 @@ def example_import_dojo(admin_session, example_dojo):
     make_dojo_official(rid, admin_session)
     return rid
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def simple_award_dojo(admin_session):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "simple_award_dojo.yml").read(), session=admin_session)
 
@@ -167,6 +174,12 @@ def privileged_dojo(admin_session, example_dojo):
 @pytest.fixture(scope="session")
 def visibility_test_dojo(admin_session, example_dojo):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "visibility_test.yml").read(), session=admin_session)
+
+@pytest.fixture(scope="session")
+def interfaces_dojo(admin_session, example_dojo):
+    rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "custom_interfaces.yml").read(), session=admin_session)
+    make_dojo_official(rid, admin_session)
+    return rid
 
 @pytest.fixture
 def random_private_dojo(admin_session):

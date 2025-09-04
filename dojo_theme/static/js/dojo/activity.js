@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     const now = Date.now();
+    let monthCount = 1;
     for (let i = 363; i >= 0; i--) {
         const cell = document.createElement('div');
         cell.className = 'activity-cell';
@@ -47,13 +48,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         if(currentMonth !== monthLabels.lastChild?.textContent &&
            (currentMonth !== monthLabels.childNodes[0]?.textContent)) {
             const monthLabel = document.createElement('span');
+            monthLabel.id = `month-label-${monthCount++}`;
             monthLabel.className = 'month-label';
             monthLabel.textContent = currentMonth;
             monthLabel.style.left = `${(Math.ceil((363 - i) / 7) * 12)}px`;
             monthLabels.appendChild(monthLabel);
         }
     }
-    
+
+    if (document.getElementById('month-label-1').getBoundingClientRect().right >
+        document.getElementById('month-label-2').getBoundingClientRect().left) {
+        document.getElementById('month-label-1').style.display = 'none';
+    }
+
     for (let i = 0; i < 5; i++) {
         const cell = document.createElement('div');
         cell.className = `activity-cell level-${i}`;
