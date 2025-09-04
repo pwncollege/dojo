@@ -272,11 +272,9 @@ class Dojos(db.Model):
         if "belt" in self.award:
             result = result.where(Awards.type == "belt", Awards.name == self.award["belt"])
         elif "emoji" in self.award:
-            result = result.where(Awards.type == "emoji", Awards.name == self.award["emoji"], Awards.category == self.hex_dojo_id)
+            result = result.where(Awards.type == "emoji", Awards.name != "STALE", Awards.category == self.hex_dojo_id)
 
         awards = result.order_by(Awards.date.desc()).all()
-        if "emoji" in self.award:
-            awards = [ a for a in awards if a.name == self.award["emoji"] ]
 
         return awards
 
