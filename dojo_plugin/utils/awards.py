@@ -91,7 +91,7 @@ def get_viewable_emojis(user):
             url = "#"
         else:
             dojo = viewable_dojos.get(emoji.category)
-            if not dojo or not dojo.award:
+            if not dojo or not dojo.award or not dojo.award.get('emoji'):
                 continue
             emoji_symbol = dojo.award.get('emoji')
             url = url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
