@@ -30,7 +30,9 @@ def listing(template="dojos.html"):
     user_dojo_members = []
     dojo_solves = (
         Dojos.viewable(user=user)
-        .options(db.undefer(Dojos.modules_count), db.undefer(Dojos.challenges_count))
+        .options(db.undefer(Dojos.modules_count),
+                 db.undefer(Dojos.challenges_count),
+                 db.undefer(Dojos.required_challenges_count))
     )
     if user:
         solves_subquery = (

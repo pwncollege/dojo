@@ -58,7 +58,7 @@ function selectService(service) {
     logService(service);
     port = service.split(": ")[1];
     service = service.split(": ")[0];
-    if (port == "ssh") {
+    if (service == "ssh" && port == "") {
         content.src = "";
         $(content).addClass("SSH");
         $(".workspace-ssh").show();
@@ -71,7 +71,6 @@ function selectService(service) {
     const specialServices = ["terminal", "code", "desktop"];
     const specialPorts = ["7681", "8080", "6080"];
     if (specialServices.indexOf(service) > -1 && specialServices.indexOf(service) == specialPorts.indexOf(port)) {
-        console.log("Special Case");
         const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
         url.searchParams.set("service", service);
         fetch(url, {
@@ -116,6 +115,8 @@ function animateBanner(event, message, type) {
 }
 
 function actionSubmitFlag(event) {
+    context(event).find("input").prop("disabled", true).addClass("disabled");
+    context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     var body = {
         'challenge_id': parseInt(context(event).find("#current-challenge-id").val()),
         'submission': $(event.target).val(),
@@ -131,8 +132,12 @@ function actionSubmitFlag(event) {
         else if (response.data.status == "correct") {
             animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
             if ($(".challenge-active").length) {
-                $(".challenge-active")
-                    .find("i.challenge-unsolved")
+                const unsolved_flag = $(".challenge-active").find("i.challenge-unsolved")
+                if(unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
+                    unsolved_flag.removeClass("far")
+                    unsolved_flag.addClass("fas")
+                }
+                unsolved_flag
                     .removeClass("challenge-unsolved")
                     .addClass("challenge-solved");
             }
@@ -143,6 +148,8 @@ function actionSubmitFlag(event) {
         else {
             animateBanner(event, "Submission Failed.", "warn");
         }
+        context(event).find("input").prop("disabled", false).removeClass("disabled");
+        context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     });
 }
 

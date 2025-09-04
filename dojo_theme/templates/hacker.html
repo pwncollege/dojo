@@ -18,7 +18,7 @@
       </h1>
       <h2>
         {% for badge in badges[user.id] %}
-        <span title="{{badge.text}}">
+        <span title="{{badge.text}}" {% if badge.stale %}style="opacity: 0.4; filter: grayscale(100%);"{% endif %}>
           <a href="{{badge.url}}">{{badge.emoji}}</a>
           </span><span>
         </span>
