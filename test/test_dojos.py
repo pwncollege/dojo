@@ -63,21 +63,10 @@ def test_promote_dojo_member(admin_session, guest_dojo_admin, example_dojo):
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
 
 
-def test_dojo_completion(simple_award_dojo, completionist_user):
+def test_dojo_completion_emoji(simple_award_dojo, completionist_user):
     user_name, session = completionist_user
-    dojo = simple_award_dojo
 
-    response = session.get(f"{DOJO_URL}/dojo/{dojo}/join/")
-    assert response.status_code == 200
-    for module, challenge in [
-        ("hello", "apple"), ("hello", "banana"),
-        #("world", "earth"), ("world", "mars"), ("world", "venus")
-    ]:
-        start_challenge(dojo, module, challenge, session=session)
-        solve_challenge(dojo, module, challenge, session=session, user=user_name)
-
-    # check for emoji
-    scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
+    scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 2
     assert len(us["badges"]) == 1
