@@ -84,7 +84,7 @@ def example_import_dojo(admin_session, example_dojo):
     make_dojo_official(rid, admin_session)
     return rid
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def simple_award_dojo(admin_session):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "simple_award_dojo.yml").read(), session=admin_session)
 
