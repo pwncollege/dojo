@@ -146,9 +146,10 @@ class CourseMemes(Resource):
 
         memes = (discord_user.memes(start=course_start, end=course_start + timedelta(weeks=16))
                  .order_by(DiscordUserActivity.message_timestamp))
-        return len(set((meme.message_timestamp.astimezone(timezone.utc) - course_start).days // 7
+        valid_meme_cnt = len(set((meme.message_timestamp.astimezone(timezone.utc) - course_start).days // 7
                   for meme in memes))
 
+        return {"success": False, "memes": valid_meme_cnt}
 
 @discord_namespace.route("/course/<dojo>/thanks", methods=["GET"])
 class CourseMemes(Resource):
