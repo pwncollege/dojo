@@ -21,6 +21,10 @@ RUN echo 'from werkzeug.utils import safe_join' >> /opt/venv/lib/python3.13/site
 
 COPY . /opt/CTFd
 
+# adamd: this needs to be the last step of this process
+RUN echo "RUN_ID=$(openssl rand -hex 4)" > /.run_id.env
+
+
 FROM python:3.13.4-slim AS release
 WORKDIR /opt/CTFd
 
@@ -45,6 +49,10 @@ RUN useradd \
     && chmod +x /opt/CTFd/docker-entrypoint.sh
 
 COPY --chown=1001:1001 --from=build /opt/venv /opt/venv
+
+# adamd: this needs to be the last step of this process
+RUN echo "RUN_ID=$(openssl rand -hex 4)" > /.run_id.env
+
 ENV PATH="/opt/venv/bin:$PATH"
 
 USER 1001
