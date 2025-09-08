@@ -165,6 +165,10 @@ class MacContainer:
         self.vm_info = vm_info
         self.status = vm_info.get("status", "creating")
 
+    def logs(self, stream, follow):
+        # Very hacky thing, just return the other hacky thing that we did
+        return self.attach(stream)
+
     def attach(self, stream):
         # Super hacky thing, this just needs to return [b"Initialized.\n"]
         return [b"Initialized.\n"]
