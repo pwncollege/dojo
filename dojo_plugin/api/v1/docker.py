@@ -331,7 +331,7 @@ def docker_locked(func):
         user = get_current_user()
         redis_client = redis.from_url(current_app.config["REDIS_URL"])
         try:
-            with redis_client.lock(f"user.{user.id}.docker.lock", blocking_timeout=0, timeout=20):
+            with redis_client.lock(f"user.{user.id}.docker.lock", blocking_timeout=0, timeout=20, raise_on_release_error=False):
                 return func(*args, **kwargs)
         except redis.exceptions.LockError:
             return {"success": False, "error": "Already starting a challenge; try again in 20 seconds."}
