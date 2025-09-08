@@ -1,6 +1,6 @@
 # Docker Registry
 
-This document describes the DOJO private Docker Registry, the token auth server, certificate options (ACME vs static), the CTFd verification endpoint, and client usage.
+This document describes the DOJO private Docker Registry, the token auth server, the CTFd verification endpoint, client usage, Image Puller, Production Checklist, troubleshooting, and future work.
 
 ## Overview
 
