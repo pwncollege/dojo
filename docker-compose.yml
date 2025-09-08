@@ -78,6 +78,7 @@ services:
       - /bin/sh
       - -c
       - |
+        . /.run_id.env
         if [ "$DOJO_ENV" != "development" ]; then
           ./docker-entrypoint.sh;
         else
