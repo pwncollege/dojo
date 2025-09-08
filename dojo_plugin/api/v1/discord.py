@@ -140,9 +140,10 @@ class CourseMemes(Resource):
     @dojo_route
     def get(self, dojo):
         discord_user = DiscordUsers.query.filter_by(user_id=get_current_user().id).first()
-        course_start = datetime.fromisoformat(dojo.course.get("start_date", None))
+        course_start = dojo.course.get("start_date", None)
         if course_start is None:
             return {"success": False, "error": "No course start"}
+        course_start = datetime.fromisoformat(course_start)
 
         memes = (discord_user.memes(start=course_start, end=course_start + timedelta(weeks=16))
                  .order_by(DiscordUserActivity.message_timestamp))
