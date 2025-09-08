@@ -16,13 +16,13 @@ app = Flask(__name__)
 app.logger.setLevel(logging.DEBUG)
 
 
-@app.before_request
-def log_request():
-    app.logger.debug(
-        "%s %s from %s args=%s headers=%s",
-        request.method, request.path, request.remote_addr,
-        request.args, dict(request.headers)
-    )
+# @app.before_request
+# def log_request():
+#     app.logger.debug(
+#         "%s %s from %s args=%s headers=%s",
+#         request.method, request.path, request.remote_addr,
+#         request.args, dict(request.headers)
+#     )
 
 
 PRIVATE_KEY_PATH = os.getenv("PRIVATE_KEY_PATH", "/keys/private.key")

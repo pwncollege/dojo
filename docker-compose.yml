@@ -349,7 +349,7 @@ services:
   registry-auth:
     build: ./registry_auth
     container_name: registry-auth
-    command: gunicorn -b 0.0.0.0:8080 auth:app --log-level debug --access-logfile -
+    command: gunicorn -b 0.0.0.0:8080 auth:app --log-level warning --access-logfile /dev/null
     environment:
       - VIRTUAL_HOST=registry.localhost.pwn.college
       - VIRTUAL_PORT=8080
