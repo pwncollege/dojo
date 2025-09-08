@@ -171,7 +171,7 @@ class MacContainer:
 
     def attach(self, stream):
         # Super hacky thing, this just needs to return [b"Initialized.\n"]
-        return [b"Initialized.\n"]
+        return [b"Initialized.\n", b"Ready.\n"]
 
     def remove(self, force=True):
         # Kill the VM
