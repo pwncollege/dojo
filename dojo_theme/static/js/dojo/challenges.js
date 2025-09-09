@@ -448,7 +448,6 @@ function moduleStartChallenge(event, channel) {
         "challenge-privilege": (event.target.id == "challenge-priv").toString(),
     };
 
-    console.log(challengeData)
     channel.postMessage(challengeData);
 }
 

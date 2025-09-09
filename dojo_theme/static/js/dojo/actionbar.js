@@ -63,7 +63,6 @@ function specialSelect(serviceName, content) {
         }
         else {
             content.src = "";
-            console.log
             animateBanner(
                 {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
                 result.error,
@@ -180,7 +179,6 @@ function postStartChallenge(event, channel) {
         "challenge-privilege": privilege.length > 0 ? privilege.attr("data-privileged") : "false",
     };
 
-    console.log(challengeData)
     channel.postMessage(challengeData);
 }
 

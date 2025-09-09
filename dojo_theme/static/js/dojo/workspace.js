@@ -41,6 +41,7 @@ function updateWorkspace(data) {
         selector.append($("<option></option>").attr("value", item.value).text(item.text))
         if (item.value == current) {
             console.log("found match");
+            selector.prop("value", item.value)
             selectService(item.value, true);
             loadedService = true;
         }
@@ -65,7 +66,6 @@ $(() => {
     $("footer").hide();
 
     channel.addEventListener("message", (event) => {
-        console.log(event.data);
         updateWorkspace(event.data);
     });
 })
