@@ -32,10 +32,6 @@ function updateWorkspace(data) {
         displayPrivileged({"target": priv[0]}, false);
     }
 
-    if (!changed) {
-        return;
-    }
-
     var current = $("#workspace-select").prop("value")
     console.log(current);
 }
