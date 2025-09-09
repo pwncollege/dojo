@@ -45,8 +45,14 @@ function updateWorkspace(data) {
     console.log(current);
     selector.empty();
     data.options.forEach((item, index) => {
-        selector.append($("<option></option>").attr("value", item).text(item))
+        selector.append($("<option></option>").attr("value", item.value).text(item.text))
     })
+    if (data.options.length > 1) {
+        selector.prop("disabled", false);
+    }
+    else {
+        selector.prop("disabled", true);
+    }
 }
 
 $(() => {
