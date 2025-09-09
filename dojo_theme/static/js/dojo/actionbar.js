@@ -73,13 +73,15 @@ function specialSelect(serviceName) {
     });
 }
 
-function selectService(service) {
+function selectService(service, log=true) {
     const content = document.getElementById("workspace-iframe");
     if (!content) {
         console.log("Missing workspace iframe :(")
         return;
     }
-    logService(service);
+    if (log) {
+        logService(service);
+    }
     port = service.split(": ")[1];
     service = service.split(": ")[0];
     if (service == "ssh" && port == "") {
