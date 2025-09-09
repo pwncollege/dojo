@@ -39,9 +39,7 @@ function updateWorkspace(data) {
             loadedService = true;
         }
     })
-    if (!loadedService) {
-        loadWorkspace(log=false);
-    }
+    if (!loadedService) {loadWorkspace(log=false);}
     selector.prop("disabled", data.options.length < 2);
 }
 

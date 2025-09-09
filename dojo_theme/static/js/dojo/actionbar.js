@@ -78,9 +78,7 @@ function selectService(service, log=true) {
         console.log("Missing workspace iframe :(")
         return;
     }
-    if (log) {
-        logService(service);
-    }
+    if (log) {logService(service);}
     port = service.split(": ")[1];
     service = service.split(": ")[0];
     if (service == "ssh" && port == "") {
