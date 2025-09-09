@@ -91,12 +91,15 @@ class CreateDojo(Resource):
             return {"success": False, "error": "You can only create 1 dojo per day."}, 429
 
         try:
-            dojo = dojo_create(user, repository, public_key, private_key, spec)
+            dojos = dojo_create(user, repository, public_key, private_key, spec)
         except RuntimeError as e:
             return {"success": False, "error": str(e)}, 400
 
         cache.set(key, 1, timeout=timeout)
-        return {"success": True, "dojo": dojo.reference_id}
+        if len(dojos) == 1:
+            return {"success": True, "dojo": dojos[0].reference_id}
+        else:
+            return {"success": True, "dojos": [dojo.reference_id for dojo in dojos]}
 
 
 @dojos_namespace.route("/<dojo>/modules")
