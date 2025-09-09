@@ -106,6 +106,7 @@ in pkgs.stdenv.mkDerivation {
     mkdir -p $out/bin
     cp ${serviceScript} $out/bin/dojo-desktop
     rsync -a --ignore-existing $src/. ${xfce}/. ${pkgs.elementary-xfce-icon-theme}/. $out
+    ln -s ${pkgs.xfce.xfce4-terminal}/bin/xfce4-terminal $out/bin/x-terminal-emulator
     runHook postInstall
   '';
 }
