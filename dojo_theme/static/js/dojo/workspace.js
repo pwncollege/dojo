@@ -32,6 +32,14 @@ function updateWorkspace(data) {
         displayPrivileged({"target": priv[0]}, false);
     }
 
+    if (!changed) {
+        iframe = $("#workspace-iframe");
+        if (iframe.length > 0) {
+            iframe[0].src = iframe[0].src;
+        }
+        return;
+    }
+
     var current = $("#workspace-select").prop("value")
     console.log(current);
 }
