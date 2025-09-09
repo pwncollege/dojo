@@ -173,8 +173,8 @@ function postStartChallenge(event, channel) {
     challengeData = {
         "options": options,
         "challenge-id": challenge.prop("value"),
-        "challenge-name": challenge.prop("data-challenge-name"),
-        "challenge-privilege": privilege.prop("data-privileged"),
+        "challenge-name": challenge.attr("data-challenge-name"),
+        "challenge-privilege": privilege.length > 0 ? privilege.attr("data-privileged") : "false",
     };
 
     console.log(challengeData)
