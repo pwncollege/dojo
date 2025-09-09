@@ -462,6 +462,8 @@ $(() => {
                     priv.attr("data-privileged", event.data["challenge-privilege"]);
                     displayPrivileged({"target": priv[0]}, false);
                 }
+
+                selectService($(item).find("#workspace-select").prop("value"), log=false);
             }
         })
     });

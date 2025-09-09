@@ -26,9 +26,9 @@ function updateWorkspace(data) {
     $("#current-challenge-id").prop("value", data["challenge-id"])
                               .attr("data-challenge-name", data["challenge-name"]);
     
-    var priv = $("#workspace-change-privilege")
+    var priv = $("#workspace-change-privilege");
     if (priv.length > 0) {
-        priv.attr("data-privileged", data["challenge-privilege"])
+        priv.attr("data-privileged", data["challenge-privilege"]);
         displayPrivileged({"target": priv[0]}, false);
     }
 
@@ -40,7 +40,7 @@ function updateWorkspace(data) {
         selector.append($("<option></option>").attr("value", item.value).text(item.text))
         if (item.value == current) {
             selector.prop("value", item.value)
-            selectService(item.value, true);
+            selectService(item.value, log=true);
             loadedService = true;
         }
     })
