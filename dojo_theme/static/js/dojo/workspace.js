@@ -40,8 +40,13 @@ function updateWorkspace(data) {
         return;
     }
 
-    var current = $("#workspace-select").prop("value")
+    var selector = $("#workspace-select");
+    var current = selector.prop("value");
     console.log(current);
+    selector.empty();
+    data.options.forEach((item, index) => {
+        selector.append($("<option></option>").attr("value", item).text(item))
+    })
 }
 
 $(() => {
