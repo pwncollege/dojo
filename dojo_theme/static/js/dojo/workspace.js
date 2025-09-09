@@ -18,9 +18,15 @@ function doFullscreen() {
 }
 
 $(() => {
+    const channel = new BroadcastChannel("Challenge-Sync-Channel");
+
     if (new URLSearchParams(window.location.search).has("hide-navbar")) {
         hideNavbar();
     }
     $(".close-link").hide();
     $("footer").hide();
+
+    channel.addEventListener("message", (event) => {
+        console.log(event);
+    });
 })

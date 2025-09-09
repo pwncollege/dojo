@@ -450,7 +450,7 @@ function moduleStartChallenge(event, channel) {
 
 $(() => {
     const channel = new BroadcastChannel("Challenge-Sync-Channel");
-    
+
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
             if ($(iframe).prop("src"))
@@ -488,7 +488,10 @@ $(() => {
         startChallenge(event);
         moduleStartChallenge(event, channel);
     });
-    $(".challenge-init").find("#challenge-priv").click(startChallenge);
+    $(".challenge-init").find("#challenge-priv").click((event) => {
+        startChallenge(event);
+        moduleStartChallenge(event, channel);
+    });
 
     window.addEventListener("resize", windowResizeCallback, true);
     windowResizeCallback("");
