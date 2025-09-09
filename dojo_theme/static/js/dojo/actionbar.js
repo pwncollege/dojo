@@ -97,7 +97,7 @@ function selectService(service, log=true) {
     const specialServices = ["terminal", "code", "desktop"];
     const specialPorts = ["7681", "8080", "6080"];
     if (specialServices.indexOf(service) > -1 && specialServices.indexOf(service) == specialPorts.indexOf(port)) {
-        specialSelect(service)
+        specialSelect(service);
     }
     else {
         content.src = "/workspace/" + port + "/";
