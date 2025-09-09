@@ -277,7 +277,7 @@ function displayPrivileged(event, invert) {
                                     : "Restart privileged");
 }
 
-function loadWorkspace() {
+function loadWorkspace(log=true) {
     if ($("#workspace-iframe").length == 0 ) {
         return;
     }
@@ -289,7 +289,7 @@ function loadWorkspace() {
     else {
         workspaceRoot.find("#workspace-select").prop("value", recent);
     }
-    selectService(recent);
+    selectService(recent, log=log);
 }
 
 $(() => {
