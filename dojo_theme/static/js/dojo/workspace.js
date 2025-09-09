@@ -32,14 +32,6 @@ function updateWorkspace(data) {
         displayPrivileged({"target": priv[0]}, false);
     }
 
-    if (!changed) {
-        iframe = $("#workspace-iframe");
-        if (iframe.length > 0) {
-            iframe[0].src = iframe[0].src;
-        }
-        return;
-    }
-
     var selector = $("#workspace-select");
     var current = selector.prop("value");
     var loadedService = false;
@@ -48,11 +40,13 @@ function updateWorkspace(data) {
     data.options.forEach((item, index) => {
         selector.append($("<option></option>").attr("value", item.value).text(item.text))
         if (item.value == current) {
+            console.log("found match");
             selectService(item.value, true);
             loadedService = true;
         }
     })
     if (!loadedService) {
+        console.log("no match");
         loadWorkspace(log=false);
     }
     if (data.options.length > 1) {
@@ -64,8 +58,6 @@ function updateWorkspace(data) {
 }
 
 $(() => {
-    const channel = new BroadcastChannel("Challenge-Sync-Channel");
-
     if (new URLSearchParams(window.location.search).has("hide-navbar")) {
         hideNavbar();
     }

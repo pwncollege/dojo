@@ -286,6 +286,7 @@ function startChallenge(event) {
                     .toggleClass("fa-lock", !practice)
                     .toggleClass("fa-unlock", practice);
             windowResizeCallback("");
+            moduleStartChallenge(event, channel);
         }
 
         setTimeout(function() {
@@ -452,8 +453,6 @@ function moduleStartChallenge(event, channel) {
 }
 
 $(() => {
-    const channel = new BroadcastChannel("Challenge-Sync-Channel");
-
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
             if ($(iframe).prop("src"))
@@ -487,14 +486,8 @@ $(() => {
     for (var i = 0; i < submits.length; i++) {
         submits[i].oninput = submitChallenge;
     }
-    $(".accordion-item").find("#challenge-start").click((event) => {
-        startChallenge(event);
-        moduleStartChallenge(event, channel);
-    });
-    $(".challenge-init").find("#challenge-priv").click((event) => {
-        startChallenge(event);
-        moduleStartChallenge(event, channel);
-    });
+    $(".accordion-item").find("#challenge-start").click(startChallenge);
+    $(".challenge-init").find("#challenge-priv").click(startChallenge);
 
     window.addEventListener("resize", windowResizeCallback, true);
     windowResizeCallback("");

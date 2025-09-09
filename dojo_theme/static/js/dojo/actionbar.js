@@ -229,6 +229,7 @@ function actionStartChallenge(event) {
             }
 
             selectService(context(event).find("#workspace-select").prop("value"));
+            postStartChallenge(event, channel);
 
             context(event).find(".btn-challenge-start")
             .removeClass("disabled")
@@ -292,9 +293,8 @@ function loadWorkspace(log=true) {
     selectService(recent, log=log);
 }
 
+const channel = new BroadcastChannel("Challenge-Sync-Channel");
 $(() => {
-    const channel = new BroadcastChannel("Challenge-Sync-Channel");
-
     loadWorkspace();
     $(".workspace-controls").each(function () {
         if ($(this).find("option").length < 2) {
@@ -320,10 +320,7 @@ $(() => {
             }
         });
 
-        $(this).find(".btn-challenge-start").click((event) => {
-            actionStartCallback(event);
-            postStartChallenge(event, channel);
-        });
+        $(this).find(".btn-challenge-start").click(actionStartCallback);
 
         if ($(this).find("#workspace-change-privilege").length) {
             $(this).find("#workspace-change-privilege").on("mouseenter", function(event) {
