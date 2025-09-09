@@ -18,6 +18,11 @@ function doFullscreen() {
 }
 
 function updateWorkspace(data) {
+    var changed = false;
+    if ($("#current-challenge-id").prop("value") != data["challenge-id"]) {
+        changed = true;
+    }
+
     $("#current-challenge-id").prop("value", data["challenge-id"])
                               .attr("data-challenge-name", data["challenge-name"]);
     
@@ -25,6 +30,10 @@ function updateWorkspace(data) {
     if (priv.length > 0) {
         priv.attr("data-privileged", data["challenge-privilege"])
         displayPrivileged({"target": priv[0]}, false);
+    }
+
+    if (!changed) {
+        return;
     }
 
     var current = $("#workspace-select").prop("value")
