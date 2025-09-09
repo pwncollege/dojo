@@ -49,7 +49,7 @@ function getRecentService(root) {
     return match;
 }
 
-function specialSelect(serviceName) {
+function specialSelect(serviceName, content) {
     const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
     url.searchParams.set("service", serviceName);
     fetch(url, {
@@ -97,7 +97,7 @@ function selectService(service, log=true) {
     const specialServices = ["terminal", "code", "desktop"];
     const specialPorts = ["7681", "8080", "6080"];
     if (specialServices.indexOf(service) > -1 && specialServices.indexOf(service) == specialPorts.indexOf(port)) {
-        specialSelect(service);
+        specialSelect(service, content);
     }
     else {
         content.src = "/workspace/" + port + "/";
@@ -162,10 +162,22 @@ function actionSubmitFlag(event) {
 function postStartChallenge(event, channel) {
     root = context(event);
 
-    challengeData = {
+    options = []
+    root.find("#workspace-select option").each(() => {
+        options.push($(this).val())
+    })
 
+    challenge = root.find("#current-challenge-id");
+    privilege = root.find("#workspace-change-privilege");
+
+    challengeData = {
+        "options": options,
+        "challenge-id": challenge.prop("value"),
+        "challenge-name": challenge.prop("data-challenge-name"),
+        "challenge-privilege": privilege.prop("data-privileged"),
     };
 
+    console.log(challengeData)
     channel.postMessage(challengeData);
 }
 
