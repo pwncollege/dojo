@@ -17,6 +17,20 @@ function doFullscreen() {
     }
 }
 
+function updateWorkspace(data) {
+    $("#current-challenge-id").prop("value", data["challenge-id"])
+                              .attr("data-challenge-name", data["challenge-name"]);
+    
+    var priv = $("#workspace-change-privilege")
+    if (priv.length > 0) {
+        priv.attr("data-privileged", data["challenge-privilege"])
+        displayPrivileged({"target": priv[0]}, false);
+    }
+
+    var current = $("#workspace-select").prop("value")
+    console.log(current);
+}
+
 $(() => {
     const channel = new BroadcastChannel("Challenge-Sync-Channel");
 
@@ -27,6 +41,7 @@ $(() => {
     $("footer").hide();
 
     channel.addEventListener("message", (event) => {
-        console.log(event);
+        console.log(event.data);
+        updateWorkspace(event.data);
     });
 })
