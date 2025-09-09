@@ -18,11 +18,6 @@ function doFullscreen() {
 }
 
 function updateWorkspace(data) {
-    var changed = false;
-    if ($("#current-challenge-id").prop("value") != data["challenge-id"]) {
-        changed = true;
-    }
-
     $("#current-challenge-id").prop("value", data["challenge-id"])
                               .attr("data-challenge-name", data["challenge-name"]);
     
