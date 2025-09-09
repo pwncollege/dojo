@@ -47,12 +47,7 @@ function updateWorkspace(data) {
     if (!loadedService) {
         loadWorkspace(log=false);
     }
-    if (data.options.length > 1) {
-        selector.prop("disabled", false);
-    }
-    else {
-        selector.prop("disabled", true);
-    }
+    selector.prop("disabled", data.options.length < 2);
 }
 
 $(() => {
