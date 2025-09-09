@@ -35,19 +35,16 @@ function updateWorkspace(data) {
     var selector = $("#workspace-select");
     var current = selector.prop("value");
     var loadedService = false;
-    console.log(current);
     selector.empty();
     data.options.forEach((item, index) => {
         selector.append($("<option></option>").attr("value", item.value).text(item.text))
         if (item.value == current) {
-            console.log("found match");
             selector.prop("value", item.value)
             selectService(item.value, true);
             loadedService = true;
         }
     })
     if (!loadedService) {
-        console.log("no match");
         loadWorkspace(log=false);
     }
     if (data.options.length > 1) {
