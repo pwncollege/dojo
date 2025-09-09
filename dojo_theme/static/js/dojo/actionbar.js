@@ -163,8 +163,8 @@ function postStartChallenge(event, channel) {
     root = context(event);
 
     options = []
-    root.find("#workspace-select option").each(() => {
-        options.push($(this).val())
+    root.find("#workspace-select option").each((index, element) => {
+        options.push($(element).prop("value"));
     })
 
     challenge = root.find("#current-challenge-id");
