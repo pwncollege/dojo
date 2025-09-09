@@ -426,7 +426,31 @@ function windowResizeCallback(event) {
     $(".challenge-iframe").not(".challenge-iframe-fs").css("aspect-ratio", `${window.innerWidth} / ${window.innerHeight}`);
 }
 
+function moduleStartChallenge(event, channel) {
+    root = $(event.target).closest(".accordion-item-body").find(".workspace-controls");
+
+    options = []
+    root.find("#workspace-select option").each((index, element) => {
+        options.push($(element).prop("value"));
+    })
+
+    challenge = root.find("#current-challenge-id");
+    privilege = root.find("#workspace-change-privilege");
+
+    challengeData = {
+        "options": options,
+        "challenge-id": challenge.prop("value"),
+        "challenge-name": challenge.attr("data-challenge-name"),
+        "challenge-privilege": (event.target.id == "challenge-priv").toString(),
+    };
+
+    console.log(challengeData)
+    channel.postMessage(challengeData);
+}
+
 $(() => {
+    const channel = new BroadcastChannel("Challenge-Sync-Channel");
+    
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
             if ($(iframe).prop("src"))
@@ -460,7 +484,10 @@ $(() => {
     for (var i = 0; i < submits.length; i++) {
         submits[i].oninput = submitChallenge;
     }
-    $(".accordion-item").find("#challenge-start").click(startChallenge);
+    $(".accordion-item").find("#challenge-start").click((event) => {
+        startChallenge(event);
+        moduleStartChallenge(event, channel);
+    });
     $(".challenge-init").find("#challenge-priv").click(startChallenge);
 
     window.addEventListener("resize", windowResizeCallback, true);
