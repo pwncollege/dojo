@@ -159,6 +159,16 @@ function actionSubmitFlag(event) {
     });
 }
 
+function postStartChallenge(event, channel) {
+    root = context(event);
+
+    challengeData = {
+
+    };
+
+    channel.postMessage(challengeData);
+}
+
 function actionStartChallenge(event) {
     const privileged = context(event).find("#workspace-change-privilege").attr("data-privileged") === "true";
 
@@ -268,6 +278,8 @@ function loadWorkspace() {
 }
 
 $(() => {
+    const channel = new BroadcastChannel("Challenge-Sync-Channel");
+
     loadWorkspace();
     $(".workspace-controls").each(function () {
         if ($(this).find("option").length < 2) {
@@ -293,7 +305,10 @@ $(() => {
             }
         });
 
-        $(this).find(".btn-challenge-start").click(actionStartCallback);
+        $(this).find(".btn-challenge-start").click((event) => {
+            actionStartCallback(event);
+            postStartChallenge(event, channel);
+        });
 
         if ($(this).find("#workspace-change-privilege").length) {
             $(this).find("#workspace-change-privilege").on("mouseenter", function(event) {
