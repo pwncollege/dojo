@@ -29,7 +29,7 @@ let
 
     compression = [ zip unzip gzip gnutar ];
 
-    system = [ htop rsync openssh nftables ];
+    system = [ htop rsync openssh nftables landrun firejail ];
 
     editors = [ vim neovim emacs nano gedit ];
 
