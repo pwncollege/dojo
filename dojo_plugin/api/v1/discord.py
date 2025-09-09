@@ -1,5 +1,5 @@
 import hmac
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, timezone
 
 from flask import request, Request
 from flask_restx import Namespace, Resource
@@ -139,15 +139,18 @@ class CourseMemes(Resource):
     @authed_only
     @dojo_route
     def get(self, dojo):
-        user = get_current_user()
-        discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
-        if discord_user is None:
-            return {"success": False, "error": "Discord not linked"}
+        discord_user = DiscordUsers.query.filter_by(user_id=get_current_user().id).first()
+        course_start = dojo.course.get("start_date", None)
+        if course_start is None:
+            return {"success": False, "error": "No course start"}
+        course_start = datetime.fromisoformat(course_start)
 
-        start = min([m.visibility.start for m in dojo.modules if m.visibility]).isoformat()
-        request = Request.from_values(query_string={"start": start})
+        memes = (discord_user.memes(start=course_start, end=course_start + timedelta(weeks=16))
+                 .order_by(DiscordUserActivity.message_timestamp))
+        valid_meme_cnt = len(set((meme.message_timestamp.astimezone(timezone.utc) - course_start).days // 7
+                  for meme in memes))
 
-        return get_user_activity(discord_user.discord_id, "memes", request)
+        return {"success": False, "memes": valid_meme_cnt}
 
 @discord_namespace.route("/course/<dojo>/thanks", methods=["GET"])
 class CourseMemes(Resource):

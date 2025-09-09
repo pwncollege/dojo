@@ -111,6 +111,7 @@ class DojoModuleList(Resource):
                  challenges=[
                     dict(id=challenge.id,
                          name=challenge.name,
+                         required=challenge.required,
                          description=challenge.description)
                     for challenge in (module.visible_challenges() if not is_dojo_admin
                                       else module.challenges)

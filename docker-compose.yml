@@ -79,7 +79,7 @@ services:
       - -c
       - |
         if [ "$DOJO_ENV" != "development" ]; then
-          ./docker-entrypoint.sh;
+          RUN_ID=$(openssl rand -hex 4) ./docker-entrypoint.sh;
         else
           FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
         fi
