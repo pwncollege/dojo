@@ -49,6 +49,30 @@ function getRecentService(root) {
     return match;
 }
 
+function specialSelect(serviceName) {
+    const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
+    url.searchParams.set("service", serviceName);
+    fetch(url, {
+        method: "GET",
+        credentials: "same-origin"
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            content.src = result["iframe_src"];
+        }
+        else {
+            content.src = "";
+            console.log
+            animateBanner(
+                {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
+                result.error,
+                "error"
+            );
+        }
+    });
+}
+
 function selectService(service) {
     const content = document.getElementById("workspace-iframe");
     if (!content) {
@@ -71,27 +95,7 @@ function selectService(service) {
     const specialServices = ["terminal", "code", "desktop"];
     const specialPorts = ["7681", "8080", "6080"];
     if (specialServices.indexOf(service) > -1 && specialServices.indexOf(service) == specialPorts.indexOf(port)) {
-        const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
-        url.searchParams.set("service", service);
-        fetch(url, {
-            method: "GET",
-            credentials: "same-origin"
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                content.src = result["iframe_src"];
-            }
-            else {
-                content.src = "";
-                console.log
-                animateBanner(
-                    {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
-                    result.error,
-                    "error"
-                );
-            }
-        });
+        specialSelect(service)
     }
     else {
         content.src = "/workspace/" + port + "/";
