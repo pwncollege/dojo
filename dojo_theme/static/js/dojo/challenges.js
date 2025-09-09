@@ -452,6 +452,20 @@ function moduleStartChallenge(event, channel) {
 }
 
 $(() => {
+    channel.addEventListener("message", (event) => {
+        var challenge_id = event.data["challenge-id"];
+        $(".workspace-controls").each((index, item) => {
+            item_chal_id = $(item).find("#current-challenge-id").prop("value");
+            if (item_chal_id == challenge_id) {
+                var priv = $(item).find("#workspace-change-privilege");
+                if (priv.length > 0) {
+                    priv.attr("data-privileged", event.data["challenge-privilege"]);
+                    displayPrivileged({"target": priv[0]}, false);
+                }
+            }
+        })
+    });
+
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
             if ($(iframe).prop("src"))
