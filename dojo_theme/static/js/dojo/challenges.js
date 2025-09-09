@@ -429,26 +429,7 @@ function windowResizeCallback(event) {
 
 function moduleStartChallenge(event, channel) {
     root = $(event.target).closest(".accordion-item-body").find(".workspace-controls");
-
-    options = []
-    root.find("#workspace-select option").each((index, element) => {
-        options.push({
-            "value": $(element).prop("value"),
-            "text": $(element).text(),
-        });
-    })
-
-    challenge = root.find("#current-challenge-id");
-    privilege = root.find("#workspace-change-privilege");
-
-    challengeData = {
-        "options": options,
-        "challenge-id": challenge.prop("value"),
-        "challenge-name": challenge.attr("data-challenge-name"),
-        "challenge-privilege": (event.target.id == "challenge-priv").toString(),
-    };
-
-    channel.postMessage(challengeData);
+    sendChallengeInfo(root, channel);
 }
 
 $(() => {

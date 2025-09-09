@@ -158,9 +158,7 @@ function actionSubmitFlag(event) {
     });
 }
 
-function postStartChallenge(event, channel) {
-    root = context(event);
-
+function sendChallengeInfo(root, channel) {
     options = []
     root.find("#workspace-select option").each((index, element) => {
         options.push({
@@ -180,6 +178,11 @@ function postStartChallenge(event, channel) {
     };
 
     channel.postMessage(challengeData);
+}
+
+function postStartChallenge(event, channel) {
+    root = context(event);
+    sendChallengeInfo(root, channel);
 }
 
 function actionStartChallenge(event) {
