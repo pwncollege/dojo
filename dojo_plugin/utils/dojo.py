@@ -320,7 +320,7 @@ def dojo_initialize_files(data, dojo_dir):
                 o.write(dojo_file["content"])
 
 
-def dojo_from_dir(dojo_dir, *, dojo=None, load_multiple=False):
+def dojo_from_dir(dojo_dir, *, dojo=None, shared_repository=False):
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
 
@@ -328,7 +328,13 @@ def dojo_from_dir(dojo_dir, *, dojo=None, load_multiple=False):
         assert dojo_dir == path or dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
 
     data_raw = yaml.safe_load(dojo_yml_path.read_text())
-    if load_multiple:
+    if shared_repository:
+        # Update a specific dojo in a shared repository
+        if dojo is not None:
+            data = load_dojo_subyamls(next(item for item in data_raw["dojos"] if item["id"] == dojo.id), dojo_dir)
+            data = load_surveys(data, dojo_dir)
+            dojo_initialize_files(data, dojo_dir)
+            return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
         if data_raw.get("dojos") is None:
             data_raw["dojos"] = [data_raw]
         dojos = []
@@ -658,7 +664,7 @@ def dojo_create(user, repository, public_key, private_key, spec):
 
         dojo_path = pathlib.Path(dojo_dir.name)
 
-        dojos = dojo_from_dir(dojo_path, load_multiple=True)
+        dojos = dojo_from_dir(dojo_path, shared_repository=True)
         for dojo in dojos:
             dojo.repository = repository
             dojo.public_key = public_key
@@ -693,7 +699,6 @@ def dojo_create(user, repository, public_key, private_key, spec):
 
 
 def dojo_update(dojo):
-    print(dojo, flush=True)
     if dojo.path.exists():
         old_commit = dojo_git_command(dojo, "rev-parse", "HEAD").stdout.decode().strip()
 
@@ -716,7 +721,7 @@ def dojo_update(dojo):
     else:
         tmpdir = dojo_clone(dojo.repository, dojo.private_key)
         os.rename(tmpdir.name, str(dojo.path))
-    return dojo_from_dir(dojo.path, dojo=dojo)
+    return dojo_from_dir(dojo.path, dojo=dojo, shared_repository=True)
 
 
 def dojo_accessible(id):
