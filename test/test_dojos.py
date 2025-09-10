@@ -63,21 +63,10 @@ def test_promote_dojo_member(admin_session, guest_dojo_admin, example_dojo):
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
 
 
-def test_dojo_completion(simple_award_dojo, completionist_user):
+def test_dojo_completion_emoji(simple_award_dojo, completionist_user):
     user_name, session = completionist_user
-    dojo = simple_award_dojo
 
-    response = session.get(f"{DOJO_URL}/dojo/{dojo}/join/")
-    assert response.status_code == 200
-    for module, challenge in [
-        ("hello", "apple"), ("hello", "banana"),
-        #("world", "earth"), ("world", "mars"), ("world", "venus")
-    ]:
-        start_challenge(dojo, module, challenge, session=session)
-        solve_challenge(dojo, module, challenge, session=session, user=user_name)
-
-    # check for emoji
-    scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{dojo}/_/0/1").json()
+    scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 2
     assert len(us["badges"]) == 1
@@ -109,7 +98,7 @@ def test_no_import(no_import_challenge_dojo, admin_session):
         raise AssertionError("forbidden-import dojo creation should have failed, but it succeeded")
 
 
-def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user):
+def test_prune_dojo_emoji(simple_award_dojo, admin_session, completionist_user):
     user_name, _ = completionist_user
     db_sql(f"DELETE FROM submissions WHERE id IN (SELECT id FROM submissions WHERE user_id={get_user_id(user_name)} ORDER BY id DESC LIMIT 1)")
 
@@ -119,6 +108,25 @@ def test_prune_dojo_awards(simple_award_dojo, admin_session, completionist_user)
     scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 1
+    assert len(us["badges"]) == 1
+    assert us["badges"][0]["stale"] == True
+
+
+def test_dojo_removes_emoji(simple_award_dojo, admin_session, completionist_user):
+    user_name, _ = completionist_user
+
+    scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
+    us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
+    assert us["solves"] == 2
+    assert len(us["badges"]) == 1
+    assert us["badges"][0]["stale"] == False
+
+    dojo_id = simple_award_dojo.split("~")[1]
+    db_sql(f"UPDATE dojos SET data = data - 'award' || jsonb_build_object('award', jsonb_build_object('belt', 'orange')) WHERE dojo_id = x'{dojo_id}'::int")
+
+    scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
+    us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
+    assert us["solves"] == 2
     assert len(us["badges"]) == 0
 
 

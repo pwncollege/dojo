@@ -155,8 +155,8 @@
   <div title="Change workspace" class="workspace-selector-body workspace-control">
     <i class="fas fa-bars workspace-highlight"></i>
     <select id="workspace-select">
-      {% for service, port in challenge.interfaces.items() %}
-      <option value="{{ service | lower }}: {{ port }}">{{ service }}</option>
+      {% for service in challenge.interfaces %}
+      <option value="{{ service.name | lower }}: {{ service.port }}">{{ service.name }}</option>
       {% endfor %}
     </select>
   </div>

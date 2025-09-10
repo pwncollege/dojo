@@ -276,11 +276,9 @@ class Dojos(db.Model):
         if "belt" in self.award:
             result = result.where(Awards.type == "belt", Awards.name == self.award["belt"])
         elif "emoji" in self.award:
-            result = result.where(Awards.type == "emoji", Awards.name == self.award["emoji"], Awards.category == self.hex_dojo_id)
+            result = result.where(Awards.type == "emoji", Awards.name != "STALE", Awards.category == self.hex_dojo_id)
 
         awards = result.order_by(Awards.date.desc()).all()
-        if "emoji" in self.award:
-            awards = [ a for a in awards if a.name == self.award["emoji"] ]
 
         return awards
 
@@ -540,12 +538,12 @@ class DojoChallenges(db.Model):
         "importable": True,
         "allow_privileged": True,
         "progression_locked": False,
-        "interfaces": {
-            "Terminal": 7681,
-            "Code": 8080,
-            "Desktop": 6080,
-            "SSH": "ssh",
-        },
+        "interfaces": [
+            dict(name="Terminal", port=7681),
+            dict(name="Code",     port=8080),
+            dict(name="Desktop",  port=6080),
+            dict(name="SSH"),
+        ],
     }
 
     dojo = db.relationship("Dojos",

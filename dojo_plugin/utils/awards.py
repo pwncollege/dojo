@@ -62,15 +62,16 @@ def get_belts():
 
 def get_viewable_emojis(user):
     result = { }
-    viewable_dojo_urls = {
-        dojo.hex_dojo_id: url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
+    viewable_dojos = {
+        dojo.hex_dojo_id: dojo
         for dojo in Dojos.viewable(user=user).where(Dojos.data["type"].astext != "example")
     }
+    
     emojis = (
         Emojis.query
         .join(Users)
-        .filter(~Users.hidden, db.or_(Emojis.category.in_(viewable_dojo_urls.keys()), Emojis.category == None))
-        .order_by(Emojis.date)
+        .filter(~Users.hidden, db.or_(Emojis.category.in_(viewable_dojos.keys()), Emojis.category == None))
+        .order_by(Emojis.date, Emojis.name.desc())  # Order by date, then name DESC (STALE < CURRENT < legacy emojis)
         .with_entities(
             Emojis.name,
             Emojis.description,
@@ -78,13 +79,34 @@ def get_viewable_emojis(user):
             Users.id.label("user_id"),
         )
     )
+    
+    seen = set()
     for emoji in emojis:
+        key = (emoji.user_id, emoji.category)
+        if key in seen:
+            continue
+            
+        if emoji.category is None:
+            emoji_symbol = emoji.name
+            url = "#"
+        else:
+            dojo = viewable_dojos.get(emoji.category)
+            if not dojo or not dojo.award or not dojo.award.get('emoji'):
+                continue
+            emoji_symbol = dojo.award.get('emoji')
+            url = url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
+        
+        is_stale = emoji.name == "STALE"
+        
         result.setdefault(emoji.user_id, []).append({
             "text": emoji.description,
-            "emoji": emoji.name,
+            "emoji": emoji_symbol,
             "count": 1,
-            "url": viewable_dojo_urls.get(emoji.category, "#"),
+            "url": url,
+            "stale": is_stale,
         })
+        seen.add(key)
+    
     return result
 
 def update_awards(user):
@@ -118,7 +140,7 @@ def update_awards(user):
 
     current_emojis = get_user_emojis(user)
     for emoji,dojo_display_name,hex_dojo_id in current_emojis:
-        emoji_award = Emojis.query.filter_by(user=user, name=emoji, category=hex_dojo_id).first()
+        emoji_award = Emojis.query.filter(Emojis.user==user, Emojis.category==hex_dojo_id, Emojis.name != "STALE").first()
         if emoji_award:
             continue
         
@@ -128,7 +150,7 @@ def update_awards(user):
             
         display_name = dojo.name or dojo.reference_id
         description = f"Awarded for completing the {display_name} dojo."
-        db.session.add(Emojis(user=user, name=emoji, description=description, category=hex_dojo_id))
+        db.session.add(Emojis(user=user, name="CURRENT", description=description, category=hex_dojo_id))
         db.session.commit()
         
         if dojo.official or dojo.data.get("type") == "public":

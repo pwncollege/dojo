@@ -58,7 +58,7 @@ function selectService(service) {
     logService(service);
     port = service.split(": ")[1];
     service = service.split(": ")[0];
-    if (port == "ssh") {
+    if (service == "ssh" && port == "") {
         content.src = "";
         $(content).addClass("SSH");
         $(".workspace-ssh").show();
@@ -71,7 +71,6 @@ function selectService(service) {
     const specialServices = ["terminal", "code", "desktop"];
     const specialPorts = ["7681", "8080", "6080"];
     if (specialServices.indexOf(service) > -1 && specialServices.indexOf(service) == specialPorts.indexOf(port)) {
-        console.log("Special Case");
         const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
         url.searchParams.set("service", service);
         fetch(url, {

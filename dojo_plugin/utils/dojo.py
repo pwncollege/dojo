@@ -35,7 +35,7 @@ NAME_REGEX = Regex(r"^[\S ]{1,128}$")
 IMAGE_REGEX = Regex(r"^[\S]{1,256}$")
 FILE_PATH_REGEX = Regex(r"^[A-Za-z0-9_][A-Za-z0-9-_./]*$")
 FILE_URL_REGEX = Regex(r"^https://www.dropbox.com/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9.-_]*?rlkey=[a-zA-Z0-9]*&dl=1")
-INTERFACES_KEY = Regex(r"[a-zA-Z]{1,32}")
+INTERFACES_LIST = [Or({"name": Regex(r"[a-zA-Z]{1,32}"),"port": int},{"name": "SSH"})]
 DATE = Use(datetime.datetime.fromisoformat)
 
 ID_NAME_DESCRIPTION = {
@@ -68,9 +68,7 @@ DOJO_SPEC = Schema({
     Optional("allow_privileged"): bool,
     Optional("show_scoreboard"): bool,
     Optional("importable"): bool,
-    Optional("interfaces"): {
-        INTERFACES_KEY: Or("ssh", int)
-    },
+    Optional("interfaces"): INTERFACES_LIST,
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -96,9 +94,7 @@ DOJO_SPEC = Schema({
         Optional("show_challenges"): bool,
         Optional("show_scoreboard"): bool,
         Optional("importable"): bool,
-        Optional("interfaces"): {
-            INTERFACES_KEY: Or("ssh", int)
-        },
+        Optional("interfaces"): INTERFACES_LIST,
 
         Optional("import"): {
             Optional("dojo"): UNIQUE_ID_REGEX,
@@ -163,9 +159,7 @@ DOJO_SPEC = Schema({
                     "prompt": str,
                     "data": str
                 },
-                Optional("interfaces"): {
-                    INTERFACES_KEY: Or("ssh", int)
-                },
+                Optional("interfaces"): INTERFACES_LIST,
             },
         )],
 

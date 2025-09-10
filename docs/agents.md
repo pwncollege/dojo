@@ -48,7 +48,7 @@ docker exec -i "$DOJO_CONTAINER" dojo flask
 docker exec -i "$DOJO_CONTAINER" dojo enter USER_ID
 
 # run an inidividual testcase (needs docker socket)
-docker run -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/opt/pwn.college pytest -v test/test_dojos.py::test_create_dojo
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/opt/pwn.college -e "DOJO_CONTAINER=dojo" dojo-test pytest -v /opt/pwn.college/test/test_dojos.py::test_create_dojo
 ```
 
 ### Troubleshooting
@@ -68,7 +68,7 @@ Container start failures show up in the ctfd container logs.
 ./deploy.sh -D "" -W "" -t
 
 # Run an individual testcase (needs docker socket)
-docker run -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/opt/pwn.college pytest -v test/test_dojos.py::test_create_dojo
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/opt/pwn.college -e "DOJO_CONTAINER=dojo" dojo-test pytest -v /opt/pwn.college/test/test_dojos.py::test_create_dojo
 ```
 
 **Test Script Options:**
