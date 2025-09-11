@@ -3,8 +3,5 @@ modules:
   - id: test
     challenges:
       - id: test
+        image: pwncollege/challenge-simple
         privileged: true
-        import:
-          dojo: example
-          module: world
-          challenge: earth

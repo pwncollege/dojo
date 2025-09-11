@@ -306,7 +306,8 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         practice=practice,
     )
 
-    insert_challenge(container, as_user, dojo_challenge)
+    if dojo_challenge.path.exists():
+        insert_challenge(container, as_user, dojo_challenge)
 
     if practice:
         flag = "practice"
