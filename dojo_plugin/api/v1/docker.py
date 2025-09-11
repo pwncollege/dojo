@@ -82,6 +82,8 @@ def get_available_devices(docker_client):
     return devices
 
 def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, practice):
+    resolved_dojo_challenge = dojo_challenge.resolve()
+
     start_time = time.time()
     hostname = "~".join(
         (["practice"] if practice else [])
@@ -99,7 +101,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
 
     challenge_bin_path = "/run/challenge/bin"
     dojo_bin_path = "/run/dojo/bin"
-    image = docker_client.images.get(dojo_challenge.image)
+    image = docker_client.images.get(resolved_dojo_challenge.image)
     image_env = image.attrs["Config"].get("Env") or []
     image_path = next((env_var[len("PATH="):].split(":") for env_var in image_env if env_var.startswith("PATH=")), [])
     env_path = ":".join([challenge_bin_path, dojo_bin_path, *image_path])
@@ -125,10 +127,8 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     available_devices = set(get_available_devices(docker_client))
     devices = [f"{device}:{device}:rwm" for device in allowed_devices if device in available_devices]
 
-    privileged_runtime = dojo_challenge.resolve().privileged
-
     container_create_attributes = dict(
-        image=dojo_challenge.image,
+        image=resolved_dojo_challenge.image,
         entrypoint=[
             "/nix/var/nix/profiles/dojo-workspace/bin/dojo-init",
             f"{dojo_bin_path}/sleep",
@@ -174,8 +174,8 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         cpu_quota=400000,
         pids_limit=1024,
         mem_limit="4G",
-        runtime="io.containerd.run.kata.v2" if privileged_runtime else "runc",
-        cap_add=["SYS_PTRACE", "SYS_ADMIN"] if privileged_runtime else ["SYS_PTRACE"],
+        runtime="io.containerd.run.kata.v2" if resolved_dojo_challenge.privileged else "runc",
+        cap_add=["SYS_PTRACE", "SYS_ADMIN"] if resolved_dojo_challenge.privileged else ["SYS_PTRACE"],
         security_opt=[f"seccomp={SECCOMP}"],
         sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
     )
@@ -205,7 +205,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     else:
         raise RuntimeError(f"Workspace failed to initialize after {time.time()-start_time:.1f} seconds.")
 
-    cache.set(f"user_{user.id}-running-image", dojo_challenge.image, timeout=0)
+    cache.set(f"user_{user.id}-running-image", resolved_dojo_challenge.image, timeout=0)
     return container
 
 
