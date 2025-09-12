@@ -506,7 +506,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 challenge
                 for module in dojo.modules
                 for challenge in module.challenges
-                if not challenge.path.exists()
+                if not (challenge.data.get("image") or challenge.path.exists())
             ]
             assert not missing_challenge_paths, "".join(
                 f"Missing challenge path: {challenge.module.id}/{challenge.id}\n"
