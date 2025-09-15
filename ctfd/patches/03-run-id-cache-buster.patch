@@ -1,16 +1,21 @@
 diff --git a/CTFd/__init__.py b/CTFd/__init__.py
-index f950fe68..d09774a9 100644
+index f950fe68..70c07bbb 100644
 --- a/CTFd/__init__.py
 +++ b/CTFd/__init__.py
-@@ -57,7 +57,10 @@ class CTFdFlask(Flask):
+@@ -56,10 +56,14 @@ class CTFdFlask(Flask):
+         # Store server start time
          self.start_time = datetime.datetime.utcnow()
 
-         # Create generally unique run identifier
+-        # Create generally unique run identifier
 -        self.run_id = sha256(str(self.start_time))[0:8]
+         Flask.__init__(self, *args, **kwargs)
+
++        # Create generally unique run identifier
 +        if "RUN_ID" in os.environ and not self.debug:
 +            self.run_id = os.environ["RUN_ID"]
 +        else:
 +            self.run_id = sha256(str(self.start_time))[0:8]
-         Flask.__init__(self, *args, **kwargs)
-
++
      def create_jinja_environment(self):
+         """Overridden jinja environment constructor"""
+         return super(CTFdFlask, self).create_jinja_environment()
