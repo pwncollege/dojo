@@ -51,7 +51,7 @@ VISIBILITY = {
     }
 }
 
-DOJO_SPEC = Schema({
+SINGLE_DOJO_SPEC = {
     **ID_NAME_DESCRIPTION,
     **VISIBILITY,
 
@@ -178,7 +178,14 @@ DOJO_SPEC = Schema({
             "content": str,
         }
     )],
-})
+}
+
+DOJO_SPEC = Schema(Or(
+    {
+        "dojos": [SINGLE_DOJO_SPEC]
+    },
+    SINGLE_DOJO_SPEC
+))
 
 
 def setdefault_name(entry):
@@ -323,16 +330,18 @@ def dojo_from_dir(dojo_dir, *, dojo=None, shared_repository=False):
 
     data_raw = yaml.safe_load(dojo_yml_path.read_text())
     if shared_repository:
+        raw_dojos = []
         # Update a specific dojo in a shared repository
         if dojo is not None:
+            raw_dojos = data_raw.get("dojos", [])
             data = load_dojo_subyamls(next(item for item in data_raw["dojos"] if item["id"] == dojo.id), dojo_dir)
             data = load_surveys(data, dojo_dir)
             dojo_initialize_files(data, dojo_dir)
             return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
         if data_raw.get("dojos") is None:
-            data_raw["dojos"] = [data_raw]
+            raw_dojos = [data_raw]
         dojos = []
-        for dojo_data in data_raw.get("dojos", []):
+        for dojo_data in raw_dojos:
             data = load_dojo_subyamls(dojo_data, dojo_dir)
             data = load_surveys(data, dojo_dir)
             dojo_initialize_files(data, dojo_dir)
@@ -715,7 +724,7 @@ def dojo_update(dojo):
     else:
         tmpdir = dojo_clone(dojo.repository, dojo.private_key)
         os.rename(tmpdir.name, str(dojo.path))
-    return dojo_from_dir(dojo.path, dojo=dojo, shared_repository=True)
+    return dojo_from_dir(dojo.path, dojo=dojo, shared_repository=dojo.shared_repository)
 
 
 def dojo_accessible(id):
