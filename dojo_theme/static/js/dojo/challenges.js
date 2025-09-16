@@ -358,11 +358,6 @@ function markChallengeAsSolved(item) {
         return;
     }
 
-    if(unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
-        unsolved_flag.removeClass("far")
-        unsolved_flag.addClass("fas")
-    }
-
     unsolved_flag.removeClass("challenge-unsolved");
     unsolved_flag.addClass("challenge-solved");
 

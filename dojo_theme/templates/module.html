@@ -173,8 +173,8 @@
           and not dojo.is_admin() %}
         {% if lock_challenge %}
           {% set icon = "fas fa-lock" %}
-        {% elif not challenge.required and solved == "challenge-unsolved" %}
-          {% set icon = "far fa-flask" %}
+        {% elif not challenge.required %}
+          {% set icon = "fa fa-flask" %}
         {% else %}
           {% set icon = "fas fa-flag" %}
         {% endif %}
