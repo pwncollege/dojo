@@ -162,8 +162,11 @@ class CourseMemes(Resource):
         if discord_user is None:
             return {"success": False, "error": "Discord not linked"}
 
-        start = min([m.visibility.start for m in dojo.modules if m.visibility]).isoformat()
-        request = Request.from_values(query_string={"start": start})
+        course_start = dojo.course.get("start_date", None)
+        if course_start is None:
+            return {"success": False, "error": "No course start"}
+        course_start = datetime.fromisoformat(course_start)
+        request = Request.from_values(query_string={"start": course_start})
 
         return get_user_activity(discord_user.discord_id, "thanks", request)
 
