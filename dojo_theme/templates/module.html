@@ -31,8 +31,6 @@
 .challenge-init {
   height: 100% !important;
   width: 100% !important;
-  padding-right: 15px;
-  padding-left: 15px;
 }
 
 .challenge-hidden {
@@ -61,6 +59,10 @@
   margin-bottom: 1em;
   background-color: var(--foreground);
   border-radius: 0.5em;
+}
+
+.challenge-workspace.challenge-hidden .workspace-ssh{
+  display: none !important;
 }
 </style>
 
@@ -233,13 +235,13 @@
             <div class="challenge-init row{% if active %} challenge-hidden{% endif %}">
               <div class="col-md-3 form=group text-center">
                 <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
-                  <i class="fas fa-play fa-2x pr-3"></i>Start
+                  <i class="fas fa-play fa-lg"></i>Start
                 </button>
               </div>
               {% if challenge.allow_privileged %}
               <div class="col-md-3 form=group text-center">
                 <button id="challenge-priv" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
-                  <i class="fas fa-unlock fa-2x pr-3"></i>Privileged
+                  <i class="fas fa-unlock fa-lg"></i>Privileged
                 </button>
               </div>
               {% endif %}
