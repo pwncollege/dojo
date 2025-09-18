@@ -1,3 +1,7 @@
-Hello im making mortal kombat dojo game
+# Mortal Kombat Dojo Game
 
-[img]images (1).jpeg[/img]
+Hello! I'm making a Mortal Kombat dojo game.
+
+![Mortal Kombat](images%20(1).jpeg)
+
+Stay tuned for updates!
