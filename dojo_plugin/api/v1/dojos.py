@@ -39,10 +39,10 @@ class PruneAwards(Resource):
     def post(self, dojo):
         all_completions = set(user for user,_ in dojo.completions())
         num_pruned = 0
-        for award in Emojis.query.where(Emojis.category==dojo.hex_dojo_id):
+        for award in Emojis.query.where(Emojis.category==dojo.hex_dojo_id, Emojis.name != "STALE"):
             if award.user not in all_completions:
                 num_pruned += 1
-                db.session.delete(award)
+                award.name = "STALE"
         db.session.commit()
         return {"success": True, "pruned_awards": num_pruned}
 
@@ -111,6 +111,7 @@ class DojoModuleList(Resource):
                  challenges=[
                     dict(id=challenge.id,
                          name=challenge.name,
+                         required=challenge.required,
                          description=challenge.description)
                     for challenge in (module.visible_challenges() if not is_dojo_admin
                                       else module.challenges)

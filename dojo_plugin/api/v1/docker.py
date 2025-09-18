@@ -1,10 +1,10 @@
+import datetime
 import hashlib
-import os
 import pathlib
-import re
 import logging
 import time
-import datetime
+import os
+import re
 
 import docker
 import docker.errors
@@ -26,6 +26,7 @@ from ...utils import (
     resolved_tar,
     serialize_user_flag,
     user_docker_client,
+    user_node,
     user_ipv4,
     get_current_container,
     is_challenge_locked,
@@ -33,6 +34,7 @@ from ...utils import (
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
 from ...utils.feed import publish_container_start
+from ...utils.request_logging import get_trace_id, log_generator_output
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +82,9 @@ def get_available_devices(docker_client):
     return devices
 
 def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, practice):
+    resolved_dojo_challenge = dojo_challenge.resolve()
+
+    start_time = time.time()
     hostname = "~".join(
         (["practice"] if practice else [])
         + [
@@ -96,7 +101,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
 
     challenge_bin_path = "/run/challenge/bin"
     dojo_bin_path = "/run/dojo/bin"
-    image = docker_client.images.get(dojo_challenge.image)
+    image = docker_client.images.get(resolved_dojo_challenge.image)
     image_env = image.attrs["Config"].get("Env") or []
     image_path = next((env_var[len("PATH="):].split(":") for env_var in image_env if env_var.startswith("PATH=")), [])
     env_path = ":".join([challenge_bin_path, dojo_bin_path, *image_path])
@@ -123,7 +128,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     devices = [f"{device}:{device}:rwm" for device in allowed_devices if device in available_devices]
 
     container_create_attributes = dict(
-        image=dojo_challenge.image,
+        image=resolved_dojo_challenge.image,
         entrypoint=[
             "/nix/var/nix/profiles/dojo-workspace/bin/dojo-init",
             f"{dojo_bin_path}/sleep",
@@ -162,17 +167,17 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             **USER_FIREWALL_ALLOWED,
         },
         init=True,
-        cap_add=["SYS_PTRACE", "SYS_ADMIN"] if dojo_challenge.privileged else ["SYS_PTRACE"],
-        security_opt=[f"seccomp={SECCOMP}"],
-        sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
+        detach=True,
+        stdin_open=True,
+        auto_remove=True,
         cpu_period=100000,
         cpu_quota=400000,
         pids_limit=1024,
         mem_limit="4G",
-        detach=True,
-        stdin_open=True,
-        auto_remove=True,
-        runtime="io.containerd.run.kata.v2" if dojo_challenge.privileged else "runc",
+        runtime="io.containerd.run.kata.v2" if resolved_dojo_challenge.privileged else "runc",
+        cap_add=["SYS_PTRACE", "SYS_ADMIN"] if resolved_dojo_challenge.privileged else ["SYS_PTRACE"],
+        security_opt=[f"seccomp={SECCOMP}"],
+        sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
     )
 
     container = docker_client.containers.create(**container_create_attributes)
@@ -190,13 +195,17 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         default_network.disconnect(container)
 
     container.start()
-    for message in container.logs(stream=True, follow=True):
+    logger.info(f"container started after {time.time()-start_time:.1f} seconds")
+    for message in log_generator_output(
+        "workspace initialization ", container.logs(stream=True, follow=True), start_time=start_time
+    ):
         if b"DOJO_INIT_INITIALIZED" in message or message == b"Initialized.\n":
+            logger.info(f"workspace initialized after {time.time()-start_time:.1f} seconds")
             break
     else:
-        raise RuntimeError("Workspace failed to initialize.")
+        raise RuntimeError(f"Workspace failed to initialize after {time.time()-start_time:.1f} seconds.")
 
-    cache.set(f"user_{user.id}-running-image", dojo_challenge.image, timeout=0)
+    cache.set(f"user_{user.id}-running-image", resolved_dojo_challenge.image, timeout=0)
     return container
 
 
@@ -229,9 +238,9 @@ def insert_challenge(container, as_user, dojo_challenge):
         container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
     exec_run(
-        "/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chown root:root {} \;", container=container
+        r"/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chown root:root {} \;", container=container
     )
-    exec_run("/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chmod 4755 {} \;", container=container)
+    exec_run(r"/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chmod 4755 {} \;", container=container)
 
 
 def insert_flag(container, flag):
@@ -248,6 +257,12 @@ def insert_flag(container, flag):
 
 def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     docker_client = user_docker_client(user, image_name=dojo_challenge.image)
+    node_id = user_node(user)
+    if node_id is None:
+        node_id = -1
+    logger.info(f"starting challenge dojo={
+        dojo_challenge.dojo.reference_id
+    } module={dojo_challenge.module.id} challenge={dojo_challenge.id} {practice=} {as_user=} node_id={node_id+1}")
     remove_container(user)
 
     user_mounts = []
@@ -258,7 +273,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
                 str(user.id),
                 "volume",
                 no_copy=True,
-                driver_config=docker.types.DriverConfig("homefs"),
+                driver_config=docker.types.DriverConfig("homefs", options=dict(trace_id=get_trace_id())),
             )
         )
     else:
@@ -268,19 +283,20 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
                 f"{user.id}-overlay",
                 "volume",
                 no_copy=True,
-                driver_config=docker.types.DriverConfig("homefs", options=dict(overlay=str(as_user.id))),
+                driver_config=docker.types.DriverConfig("homefs", options=dict(overlay=str(as_user.id), trace_id=get_trace_id())),
             ),
             docker.types.Mount(
                 "/home/me",
                 str(user.id),
                 "volume",
                 no_copy=True,
-                driver_config=docker.types.DriverConfig("homefs"),
+                driver_config=docker.types.DriverConfig("homefs", options=dict(trace_id=get_trace_id())),
             ),
         ])
 
     as_user = as_user or user
 
+    start_time = time.time()
     container = start_container(
         docker_client=docker_client,
         user=user,
@@ -290,7 +306,8 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         practice=practice,
     )
 
-    insert_challenge(container, as_user, dojo_challenge)
+    if dojo_challenge.path.exists():
+        insert_challenge(container, as_user, dojo_challenge)
 
     if practice:
         flag = "practice"
@@ -300,22 +317,33 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         flag = serialize_user_flag(as_user.id, dojo_challenge.challenge_id)
     insert_flag(container, flag)
 
-    for message in container.logs(stream=True, follow=True):
+    for message in log_generator_output(
+        "workspace readying ", container.logs(stream=True, follow=True), start_time=start_time
+    ):
         if b"DOJO_INIT_READY" in message or message == b"Ready.\n":
+            logger.info(f"workspace ready after {time.time()-start_time:.1f} seconds")
             break
         if b"DOJO_INIT_FAILED:" in message:
             cause = message.split(b"DOJO_INIT_FAILED:")[1].split(b"\n")[0]
             raise RuntimeError(f"DOJO_INIT_FAILED: {cause}")
     else:
-        raise RuntimeError("Workspace failed to become ready.")
+        raise RuntimeError(f"Workspace failed to become ready.")
 
 def docker_locked(func):
     def wrapper(*args, **kwargs):
         user = get_current_user()
         redis_client = redis.from_url(current_app.config["REDIS_URL"])
         try:
+            # Super annoying that this will throw a LockNotOwned
+            # exception if the func takes longer than the timeout The
+            # real fix is raise_on_release_error=False to .lock (added
+            # https://github.com/redis/redis-py/issues/3532), however
+            # we're using an old version of the redis client. So for
+            # now we just catch LockNotOwnedError
             with redis_client.lock(f"user.{user.id}.docker.lock", blocking_timeout=0, timeout=20):
                 return func(*args, **kwargs)
+        except redis.exceptions.LockNotOwnedError:
+            pass
         except redis.exceptions.LockError:
             return {"success": False, "error": "Already starting a challenge; try again in 20 seconds."}
     return wrapper
@@ -413,7 +441,7 @@ class RunDocker(Resource):
 
                 break
             except Exception as e:
-                logger.exception(f"Attempt {attempt} failed for user {user.id} with error: {e}")
+                logger.warning(f"Attempt {attempt} failed for user {user.id} with error: {e}")
                 if attempt < max_attempts:
                     logger.info(f"Retrying... ({attempt}/{max_attempts})")
                     time.sleep(2)

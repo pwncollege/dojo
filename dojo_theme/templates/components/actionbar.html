@@ -14,17 +14,15 @@
 
   .workspace-controls {
     width: 100%;
-    height: 2.5em;
     margin: 5px 0;
     padding: 0 5px;
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     position: relative;
   }
 
   .workspace-control {
-    height: 100%;
-    margin: 0 2px;
+    margin: 2px 2px;
     border-width: 0px;
     border-radius: 1em;
     background-color: var(--foreground);
@@ -55,6 +53,10 @@
     opacity: 1;
   }
 
+  .workspace-control input.disabled {
+    color: var(--highlight);
+  }
+
   .workspace-control select,
   .workspace-control input:focus,
   .workspace-control input:hover {
@@ -65,12 +67,13 @@
     height: 100%;
     padding-left: 0.5em;
     border: 0;
-    background-color: var(--foreground);
+    background-color: transparent;
     color: var(--highlight);
     font-weight: 700;
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
+    z-index: 2;
   }
 
   .workspace-highlight {
@@ -84,6 +87,10 @@
   .workspace-selector-body {
     padding-left: 1em;
     padding-right: 1em;
+    position: relative;
+    display: flex;
+    align-items: center;
+    z-index: 1;
   }
 
   .workspace-control-spacer {
@@ -146,20 +153,25 @@
     overflow: hidden;
     display: none;
   }
+
+  .burger {
+    position: absolute;
+    z-index: 1;
+  }
 </style>
 
 <div class="workspace-controls">
   <div id="workspace-notification-banner"></div>
   <div title="Change workspace" class="workspace-selector-body workspace-control">
-    <i class="fas fa-bars workspace-highlight"></i>
+    <i class="fas fa-bars workspace-highlight burger"></i>
     <select id="workspace-select">
-      {% for service, port in challenge.interfaces.items() %}
-      <option value="{{ service | lower }}: {{ port }}">{{ service }}</option>
+      {% for service in challenge.interfaces %}
+      <option value="{{ service.name | lower }}: {{ service.port }}">&#160;&#160;{{ service.name }}</option><!-- I hate it :( -->
       {% endfor %}
     </select>
   </div>
   <div title="Enter flag" class="workspace-control workspace-input">
-    <i class="fas fa-flag workspace-highlight"></i>
+    <i class="fas fa-flag workspace-highlight input-icon"></i>
     <input id="flag-input" type="text" placeholder="Flag">
     <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}" data-challenge-name="{{ challenge.name }}">
   </div>
