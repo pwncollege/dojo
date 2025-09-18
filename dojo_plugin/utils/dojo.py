@@ -427,14 +427,8 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     challenge_resources = []
     regular_resources = []
     for module_data in dojo_data.get("modules", []):
-        seen_challenge_ids = set()
         for resource_index, resource_data in enumerate(module_data.get("resources", [])):
             if resource_data.get("type") == "challenge":
-                challenge_id = resource_data.get("id")
-                if challenge_id in seen_challenge_ids:
-                    raise AssertionError(f"Duplicate challenge id: {challenge_id} in module {module_data.get('id')}")
-                seen_challenge_ids.add(challenge_id)
-
                 resource_data["unified_index"] = resource_index
                 challenge_resources.append((module_data, resource_data))
             else:
@@ -664,7 +658,16 @@ def dojo_create(user, repository, public_key, private_key, spec):
         deploy_url = f"https://github.com/{repository}/settings/keys"
         raise RuntimeError(f"Failed to clone: <a href='{deploy_url}' target='_blank'>add deploy key</a>")
 
-    except IntegrityError:
+    except IntegrityError as e:
+        db.session.rollback()
+        if "dojo_challenges_dojo_id_module_index_id_key" in str(e):
+            match = re.search(r"Key \(dojo_id, module_index, id\)=\((?P<dojo_id>\d+), (?P<module_index>\d+), '(?P<challenge_id>[^']*)'\) already exists", str(e))
+            if match:
+                challenge_id = match.group("challenge_id")
+                module_index = int(match.group("module_index"))
+                module = next((m for m in dojo.modules if m.module_index == module_index), None)
+                module_id = module.id if module else "unknown"
+                raise RuntimeError(f"Duplicate challenge id: '{challenge_id}' in module '{module_id}'")
         raise RuntimeError("This repository already exists as a dojo")
 
     except AssertionError as e:
