@@ -1,8 +1,0 @@
-[Unit]
-Description=Timer to run pwn.college cachewarmer service
-
-[Timer]
-OnCalendar=*-*-* *:*:00
-
-[Install]
-WantedBy=timers.target

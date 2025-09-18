@@ -1,8 +1,0 @@
-[Unit]
-Description=Timer to run pwn.college imagepuller service
-
-[Timer]
-OnCalendar=*-*-* *:*:00
-
-[Install]
-WantedBy=timers.target

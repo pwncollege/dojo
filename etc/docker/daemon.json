@@ -1,9 +1,0 @@
-{
-    "data-root": "/data/docker",
-    "hosts": ["unix:///run/docker.sock"],
-    "builder": {
-        "Entitlements": {
-            "security-insecure": true
-        }
-    }
-}
