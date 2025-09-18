@@ -109,7 +109,7 @@ function selectService(service, log=true) {
           if (!response.ok) {
               return sourceFailed(content, "Failed to connect to service, try restarting or contact dojo admin");
           }
-          target.src = url;
+          content.src = url;
       });
     }
 }
