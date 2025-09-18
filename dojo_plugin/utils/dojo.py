@@ -427,8 +427,14 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     challenge_resources = []
     regular_resources = []
     for module_data in dojo_data.get("modules", []):
+        seen_challenge_ids = set()
         for resource_index, resource_data in enumerate(module_data.get("resources", [])):
             if resource_data.get("type") == "challenge":
+                challenge_id = resource_data.get("id")
+                if challenge_id in seen_challenge_ids:
+                    raise AssertionError(f"Duplicate challenge id: {challenge_id} in module {module_data.get('id')}")
+                seen_challenge_ids.add(challenge_id)
+
                 resource_data["unified_index"] = resource_index
                 challenge_resources.append((module_data, resource_data))
             else:
