@@ -1,7 +1,0 @@
-id: privileged-dojo
-modules:
-  - id: test
-    challenges:
-      - id: test
-        image: pwncollege/challenge-simple
-        privileged: true
