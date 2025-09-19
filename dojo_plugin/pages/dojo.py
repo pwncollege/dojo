@@ -200,26 +200,32 @@ def update_dojo(dojo, update_code=None):
         db.session.rollback()
         error = str(e)
         match = re.search(r"Key \(dojo_id, module_index, id\)=\(.*?,\s*(\d+),\s*([^\)]+)\)", error)
-        if match:
-            module_index, challenge_id = match.groups()
-            module_index = int(module_index)
-            challenge_id = challenge_id.strip()
-            try:
-                module = dojo.modules[module_index]
-                challenge = next((c for c in module.challenges if c.id == challenge_id), None)
-                module_name = module.name
-                challenge_name = challenge.name if challenge else challenge_id
-                error_message = f"Duplicate ID used in Module: {module_name}, for Challenge: {challenge_name}."
-                return {"success": False, "error": error_message}, 400
-            except (IndexError, StopIteration):
-                 return {"success": False, "error": "Database integrity error: Could not parse module/challenge."}, 400
-        else:
-            print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
+
+        if not match:
+            print(f"ERROR: Dojo update failed with unparsed IntegrityError for {dojo}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
-            return {"success": False, "error": "Database integrity error"}, 400
+            return {"success": False, "error": "Database integrity error: A challenge ID is likely duplicated."}, 400
+
+        module_index_str, challenge_id = match.groups()
+        module_index = int(module_index_str)
+        challenge_id = challenge_id.strip()
+
+        if module_index >= len(dojo.modules):
+            print(f"ERROR: IntegrityError for {dojo} references out-of-bounds module_index {module_index}", file=sys.stderr, flush=True)
+            return {"success": False, "error": "Database integrity error: Inconsistent module data."}, 400
+
+        module = dojo.modules[module_index]
+        challenge = next((c for c in module.challenges if c.id == challenge_id), None)
+
+        module_name = module.name
+        challenge_name = challenge.name if challenge else challenge_id
+        error_message = f"Duplicate ID '{challenge_id}' used in module '{module_name}'."
+
+        return {"success": False, "error": error_message}, 400
+
     except Exception as e:
         db.session.rollback()
-        print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
+        print(f"ERROR: Dojo update failed for {dojo}", file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
         return {"success": False, "error": str(e)}, 400
     return {"success": True}
