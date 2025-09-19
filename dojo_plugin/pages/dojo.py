@@ -196,7 +196,29 @@ def update_dojo(dojo, update_code=None):
     try:
         dojo_update(dojo)
         db.session.commit()
+    except IntegrityError as e:
+        db.session.rollback()
+        error = str(e)
+        match = re.search(r"Key \(dojo_id, module_index, id\)=\(.*?,\s*(\d+),\s*([^\)]+)\)", error)
+        if match:
+            module_index, challenge_id = match.groups()
+            module_index = int(module_index)
+            challenge_id = challenge_id.strip()
+            try:
+                module = dojo.modules[module_index]
+                challenge = next((c for c in module.challenges if c.id == challenge_id), None)
+                module_name = module.name
+                challenge_name = challenge.name if challenge else challenge_id
+                error_message = f"Duplicate ID used in Module: {module_name}, for Challenge: {challenge_name}."
+                return {"success": False, "error": error_message}, 400
+            except (IndexError, StopIteration):
+                 return {"success": False, "error": "Database integrity error: Could not parse module/challenge."}, 400
+        else:
+            print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+            return {"success": False, "error": "Database integrity error"}, 400
     except Exception as e:
+        db.session.rollback()
         print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
         return {"success": False, "error": str(e)}, 400
