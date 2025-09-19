@@ -658,16 +658,7 @@ def dojo_create(user, repository, public_key, private_key, spec):
         deploy_url = f"https://github.com/{repository}/settings/keys"
         raise RuntimeError(f"Failed to clone: <a href='{deploy_url}' target='_blank'>add deploy key</a>")
 
-    except IntegrityError as e:
-        db.session.rollback()
-        if "dojo_challenges_dojo_id_module_index_id_key" in str(e):
-            match = re.search(r"Key \(dojo_id, module_index, id\)=\((?P<dojo_id>\d+), (?P<module_index>\d+), '(?P<challenge_id>[^']*)'\) already exists", str(e))
-            if match:
-                challenge_id = match.group("challenge_id")
-                module_index = int(match.group("module_index"))
-                module = next((m for m in dojo.modules if m.module_index == module_index), None)
-                module_id = module.id if module else "unknown"
-                raise RuntimeError(f"Duplicate challenge id: '{challenge_id}' in module '{module_id}'")
+    except IntegrityError:
         raise RuntimeError("This repository already exists as a dojo")
 
     except AssertionError as e:
