@@ -71,7 +71,7 @@ services:
     container_name: ctfd
     profiles:
       - main
-    restart: always
+    #restart: always
     hostname: ctfd
     build: /opt/CTFd
     platform: linux/amd64
@@ -84,7 +84,7 @@ services:
         if [ "$DOJO_ENV" != "development" ]; then
           RUN_ID=$(openssl rand -hex 4) ./docker-entrypoint.sh;
         else
-          FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off coverage run --source=CTFd/plugins/dojo_plugin -m flask run --host 0.0.0.0 --port 8000;
+          FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off exec coverage run --source=CTFd/plugins/dojo_plugin -m flask run --no-reload --host 0.0.0.0 --port 8000;
         fi
     ulimits:
         nofile:
@@ -118,7 +118,6 @@ services:
       - INTERNET_FOR_ALL=${INTERNET_FOR_ALL}
       - MAC_HOSTNAME=${MAC_HOSTNAME}
       - MAC_USERNAME=${MAC_USERNAME}
-      - COVERAGE_FILE=/var/coverage/.coverage
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
@@ -126,7 +125,7 @@ services:
       - /data/homes:/var/homes:shared
       - /data/dojos:/var/dojos
       - /data/ctfd-ipython:/root/.ipython
-      - /data/coverage:/var/coverage
+      - ./data/coverage:/var/coverage
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
