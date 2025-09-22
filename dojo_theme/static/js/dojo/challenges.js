@@ -183,6 +183,7 @@ function startChallenge(event) {
     const module = item.find("#module").val()
     const challenge = item.find("#challenge").val()
     const practice = event.currentTarget.id == "challenge-priv";
+    const enable_iframe = $(event.currentTarget).hasClass("iframe-true");
 
     item.find(".challenge-init")
         .addClass("disabled-button")
@@ -274,7 +275,7 @@ function startChallenge(event) {
         $(".challenge-init").removeClass("challenge-hidden");
         $(".challenge-workspace").addClass("challenge-hidden");
         $(".iframe-wrapper").html("");
-        if (result.success) {
+        if (result.success && enable_iframe) {
             item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\"></iframe>");
             loadWorkspace();
             item.find(".challenge-init").addClass("challenge-hidden");

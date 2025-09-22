@@ -69,6 +69,7 @@ DOJO_SPEC = Schema({
     Optional("show_scoreboard"): bool,
     Optional("importable"): bool,
     Optional("interfaces"): INTERFACES_LIST,
+    Optional("allow_iframe"): bool,
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -360,7 +361,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
 
     dojo_kwargs = {
         field: dojo_data.get(field, getattr(import_dojo, field, None))
-        for field in ["id", "name", "description", "password", "type", "award"]
+        for field in ["id", "name", "description", "password", "type", "award", "allow_iframe"]
     }
 
     assert dojo_kwargs.get("id") is not None, "Dojo id must be defined"

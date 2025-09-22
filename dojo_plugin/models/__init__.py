@@ -72,12 +72,13 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(JSONB)
-    data_fields = ["type", "award", "course", "pages", "privileged", "importable", "comparator", "show_scoreboard"]
+    data_fields = ["type", "award", "course", "pages", "privileged", "importable", "comparator", "show_scoreboard", "allow_iframe"]
     data_defaults = {
         "pages": [],
         "privileged": False,
         "importable": True,
         "show_scoreboard": True,
+        "allow_iframe": True,
     }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
@@ -354,6 +355,7 @@ class DojoModules(db.Model):
         "importable": True,
         "show_scoreboard": True,
         "show_challenges": True,
+        "allow_iframe": True,
     }
 
     dojo = db.relationship("Dojos", back_populates="_modules")
@@ -528,7 +530,7 @@ class DojoChallenges(db.Model):
     required = db.Column(db.Boolean, default=True, nullable=False)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interfaces"]
+    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interfaces", "allow_iframe"]
     data_defaults = {
         "privileged": False,
         "importable": True,
