@@ -55,6 +55,12 @@ def remove_container(user):
         docker_client = user_docker_client(user, image_name)
         try:
             container = docker_client.containers.get(container_name(user))
+            runtime = (container.attrs or {}).get("HostConfig",{}).get("Runtime")
+            is_kata = runtime == "io.containerd.run.kata.v2"
+            if is_kata:
+                # drop the nuke 
+                exec_run(r"/run/dojo/bin/sh -lc 'pgrep -u hacker -f . | xargs -r kill -KILL'", container=container)
+
             container.remove(force=True)
             container.wait(condition="removed")
         except (docker.errors.NotFound, docker.errors.APIError):
