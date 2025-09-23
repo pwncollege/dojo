@@ -340,6 +340,8 @@ def dojo_from_dir(dojo_dir, *, dojo=None, shared_repository=False):
             return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
         if data_raw.get("dojos") is None:
             raw_dojos = [data_raw]
+        else:
+            raw_dojos = data_raw.get("dojos")
         dojos = []
         for dojo_data in raw_dojos:
             data = load_dojo_subyamls(dojo_data, dojo_dir)
@@ -688,7 +690,7 @@ def dojo_create(user, repository, public_key, private_key, spec):
         deploy_url = f"https://github.com/{repository}/settings/keys"
         raise RuntimeError(f"Failed to clone: <a href='{deploy_url}' target='_blank'>add deploy key</a>")
 
-    except IntegrityError as e:
+    except IntegrityError:
         raise RuntimeError(f"This repository already exists as a dojo: {str(e)}")
 
     except AssertionError as e:
