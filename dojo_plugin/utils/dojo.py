@@ -651,6 +651,7 @@ def dojo_create(user, repository, public_key, private_key, spec, dojo_yml_path=N
             raise AssertionError("Repository is required")
 
         dojo_path = pathlib.Path(dojo_dir.name)
+
         dojo = dojo_from_dir(dojo_path, dojo_yml_path=dojo_yml_path)
         dojo.repository = repository
         dojo.public_key = public_key
