@@ -139,9 +139,6 @@ class CourseMemes(Resource):
     @authed_only
     @dojo_route
     def get(self, dojo):
-
-        from datetime import timedelta, timezone
-
         def bucket_from_start_then_sundays(ts, course_start):
             start = course_start.astimezone(timezone.utc)
 
@@ -163,7 +160,7 @@ class CourseMemes(Resource):
         course_start = dojo.course.get("start_date", None)
         if course_start is None:
             return {"success": False, "error": "No course start"}
-        course_start = datetime.fromisoformat(course_start)
+        course_start = datetime.fromisoformat(course_start).astimezone(timezone.utc)
 
         memes = (
             discord_user.memes(start=course_start, end=course_start + timedelta(weeks=17))
