@@ -72,13 +72,13 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(JSONB)
-    data_fields = ["type", "award", "course", "pages", "privileged", "importable", "comparator", "show_scoreboard", "shared_repository"]
+    data_fields = ["type", "award", "course", "pages", "privileged", "importable", "comparator", "show_scoreboard", "dojo_yml_path"]
     data_defaults = {
         "pages": [],
         "privileged": False,
         "importable": True,
         "show_scoreboard": True,
-        "shared_repository": False,
+        "dojo_yml_path": "dojo.yml",
     }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
@@ -201,10 +201,7 @@ class Dojos(db.Model):
     def path(self):
         if hasattr(self, "_path"):
             return self._path
-        if self.shared_repository:
-            return DOJOS_DIR / f"shared-{hashlib.md5(self.repository.encode()).hexdigest()}"
-        else:
-            return DOJOS_DIR / self.hex_dojo_id
+        return DOJOS_DIR / self.hex_dojo_id
 
     @contextlib.contextmanager
     def located_at(self, path):

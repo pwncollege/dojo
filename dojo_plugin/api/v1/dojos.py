@@ -83,6 +83,7 @@ class CreateDojo(Resource):
         spec = data.get("spec", "")
         public_key = data.get("public_key", "")
         private_key = data.get("private_key", "").replace("\r\n", "\n")
+        dojo_yml = data.get("dojo_yml", "./dojo.yml")
 
         key = f"rl:{get_ip()}:{request.endpoint}"
         timeout = int(datetime.timedelta(days=1).total_seconds())
@@ -91,15 +92,12 @@ class CreateDojo(Resource):
             return {"success": False, "error": "You can only create 1 dojo per day."}, 429
 
         try:
-            dojos = dojo_create(user, repository, public_key, private_key, spec)
+            dojo = dojo_create(user, repository, public_key, private_key, spec, dojo_yml_path=dojo_yml)
         except RuntimeError as e:
             return {"success": False, "error": str(e)}, 400
 
         cache.set(key, 1, timeout=timeout)
-        if len(dojos) == 1:
-            return {"success": True, "dojo": dojos[0].reference_id}
-        else:
-            return {"success": True, "dojos": [dojo.reference_id for dojo in dojos]}
+        return {"success": True, "dojo": dojo.reference_id}
 
 
 @dojos_namespace.route("/<dojo>/modules")

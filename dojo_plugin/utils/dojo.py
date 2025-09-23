@@ -51,7 +51,7 @@ VISIBILITY = {
     }
 }
 
-SINGLE_DOJO_SPEC = {
+DOJO_SPEC = Schema({
     **ID_NAME_DESCRIPTION,
     **VISIBILITY,
 
@@ -178,14 +178,7 @@ SINGLE_DOJO_SPEC = {
             "content": str,
         }
     )],
-}
-
-DOJO_SPEC = Schema(Or(
-    {
-        "dojos": [SINGLE_DOJO_SPEC]
-    },
-    SINGLE_DOJO_SPEC
-))
+})
 
 
 def setdefault_name(entry):
@@ -321,42 +314,28 @@ def dojo_initialize_files(data, dojo_dir):
                 o.write(dojo_file["content"])
 
 
-def dojo_from_dir(dojo_dir, *, dojo=None, shared_repository=False):
-    dojo_yml_path = dojo_dir / "dojo.yml"
+def dojo_from_dir(dojo_dir, *, dojo=None, dojo_yml_path=None):
+    raw_dojo_yml_path = dojo_yml_path
+    if dojo_yml_path is None or dojo_yml_path == "":
+        if dojo is None:
+            dojo_yml_path = dojo_dir / "dojo.yml"
+        else:
+            dojo_yml_path = dojo_dir / dojo.dojo_yml_path
+    else:
+        dojo_yml_path = dojo_dir / dojo_yml_path
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
 
     for path in dojo_dir.rglob("**"):
         assert dojo_dir == path or dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
 
     data_raw = yaml.safe_load(dojo_yml_path.read_text())
-    if shared_repository:
-        raw_dojos = []
-        # Update a specific dojo in a shared repository
-        if dojo is not None:
-            raw_dojos = data_raw.get("dojos", [])
-            data = load_dojo_subyamls(next(item for item in data_raw["dojos"] if item["id"] == dojo.id), dojo_dir)
-            data = load_surveys(data, dojo_dir)
-            dojo_initialize_files(data, dojo_dir)
-            return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
-        if data_raw.get("dojos") is None:
-            raw_dojos = [data_raw]
-        else:
-            raw_dojos = data_raw.get("dojos")
-        dojos = []
-        for dojo_data in raw_dojos:
-            data = load_dojo_subyamls(dojo_data, dojo_dir)
-            data = load_surveys(data, dojo_dir)
-            dojo_initialize_files(data, dojo_dir)
-            dojos.append(dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo))
-        return dojos
-    else:
-        data = load_dojo_subyamls(data_raw, dojo_dir)
-        data = load_surveys(data, dojo_dir)
-        dojo_initialize_files(data, dojo_dir)
-        return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
+    data = load_dojo_subyamls(data_raw, dojo_dir)
+    data = load_surveys(data, dojo_dir)
+    dojo_initialize_files(data, dojo_dir)
+    return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo, dojo_yml_path=raw_dojo_yml_path)
 
 
-def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
+def dojo_from_spec(data, *, dojo_dir=None, dojo=None, dojo_yml_path=None):
     try:
         dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
@@ -398,6 +377,9 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     else:
         for name, value in dojo_kwargs.items():
             setattr(dojo, name, value)
+    
+    if dojo_yml_path is not None:
+        dojo.dojo_yml_path = dojo_yml_path
 
     existing_challenges = {(challenge.module.id, challenge.id): challenge.challenge for challenge in dojo.challenges}
     def challenge(module_id, challenge_id, transfer=None):
@@ -647,14 +629,15 @@ def dojo_git_command(dojo, *args, repo_path=None):
                           capture_output=True)
 
 
-def dojo_create(user, repository, public_key, private_key, spec):
+def dojo_create(user, repository, public_key, private_key, spec, dojo_yml_path=None):
     try:
         if repository:
             repository_re = r"[\w\-]+/[\w\-]+"
             repository = repository.replace("https://github.com/", "")
             assert re.match(repository_re, repository), f"Invalid repository, expected format: <code>{repository_re}</code>"
 
-            if Dojos.query.filter_by(repository=repository).first():
+            existing_dojo = Dojos.query.filter_by(repository=repository).first()
+            if existing_dojo and dojo_yml_path is not None and existing_dojo.dojo_yml_path == dojo_yml_path:
                 raise AssertionError("This repository already exists as a dojo")
 
             dojo_dir = dojo_clone(repository, private_key)
@@ -668,30 +651,25 @@ def dojo_create(user, repository, public_key, private_key, spec):
             raise AssertionError("Repository is required")
 
         dojo_path = pathlib.Path(dojo_dir.name)
+        dojo = dojo_from_dir(dojo_path, dojo_yml_path=dojo_yml_path)
+        dojo.repository = repository
+        dojo.public_key = public_key
+        dojo.private_key = private_key
+        dojo.admins = [DojoAdmins(user=user)]
 
-        dojos = dojo_from_dir(dojo_path, shared_repository=True)
-        for dojo in dojos:
-            dojo.repository = repository
-            dojo.public_key = public_key
-            dojo.private_key = private_key
-            dojo.shared_repository = len(dojos) > 1
-            dojo.admins = [DojoAdmins(user=user)]
-
-            db.session.add(dojo)
-
-            dojo.path.parent.mkdir(exist_ok=True)
-            if not pathlib.Path(dojo.path).is_dir():
-                dojo_path.rename(dojo.path)
-                dojo_path.mkdir()  # TODO: ignore_cleanup_errors=True
+        db.session.add(dojo)
         db.session.commit()
 
+        dojo.path.parent.mkdir(exist_ok=True)
+        dojo_path.rename(dojo.path)
+        dojo_path.mkdir()  # TODO: ignore_cleanup_errors=True
 
     except subprocess.CalledProcessError as e:
         deploy_url = f"https://github.com/{repository}/settings/keys"
         raise RuntimeError(f"Failed to clone: <a href='{deploy_url}' target='_blank'>add deploy key</a>")
 
     except IntegrityError:
-        raise RuntimeError(f"This repository already exists as a dojo: {str(e)}")
+        raise RuntimeError("This repository already exists as a dojo")
 
     except AssertionError as e:
         raise RuntimeError(str(e))
@@ -700,7 +678,7 @@ def dojo_create(user, repository, public_key, private_key, spec):
         traceback.print_exc(file=sys.stderr)
         raise RuntimeError("An error occurred while creating the dojo")
 
-    return dojos
+    return dojo
 
 
 def dojo_update(dojo):
@@ -726,7 +704,7 @@ def dojo_update(dojo):
     else:
         tmpdir = dojo_clone(dojo.repository, dojo.private_key)
         os.rename(tmpdir.name, str(dojo.path))
-    return dojo_from_dir(dojo.path, dojo=dojo, shared_repository=dojo.shared_repository)
+    return dojo_from_dir(dojo.path, dojo=dojo)
 
 
 def dojo_accessible(id):
