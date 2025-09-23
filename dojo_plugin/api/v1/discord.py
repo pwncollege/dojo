@@ -174,7 +174,7 @@ class CourseMemes(Resource):
             for m in memes
         })
 
-        return {"success": False, "memes": valid_meme_cnt}
+        return {"success": True, "memes": valid_meme_cnt}
 
 @discord_namespace.route("/course/<dojo>/thanks", methods=["GET"])
 class CourseMemes(Resource):
