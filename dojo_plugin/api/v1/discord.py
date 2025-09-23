@@ -141,6 +141,8 @@ class CourseMemes(Resource):
     def get(self, dojo):
         def bucket_from_start_then_sundays(ts, course_start):
             start = course_start.astimezone(timezone.utc)
+            ts_utc = ts.astimezone(timezone.utc)
+
 
             wd = start.weekday()
             days_until_next_sunday = (6 - wd) % 7
@@ -149,9 +151,9 @@ class CourseMemes(Resource):
 
             first_boundary = start + timedelta(days=days_until_next_sunday)  # first Sunday 00:00 after start
 
-            if ts < first_boundary:
+            if ts_utc < first_boundary:
                 return 0
-            return 1 + (ts.date() - first_boundary.date()).days // 7
+            return 1 + (ts_utc.date() - first_boundary.date()).days // 7
 
         discord_user = DiscordUsers.query.filter_by(user_id=get_current_user().id).first()
 
