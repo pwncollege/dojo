@@ -1,5 +1,5 @@
 {
-  description = "DOJO Workspace Flake";
+  description = "DOJO Workspace Flake - Updated";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
@@ -62,6 +62,7 @@
             exec-suid = import ./core/exec-suid.nix { inherit pkgs; };
             sudo = import ./core/sudo.nix { inherit pkgs; };
             ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
+            zsh-setup = import ./core/zsh-setup.nix { inherit pkgs; };
             service = import ./services/service.nix { inherit pkgs; };
             code-service = import ./services/code.nix { inherit pkgs; };
             desktop-service = import ./services/desktop.nix { inherit pkgs; };
@@ -84,13 +85,36 @@
 
             additional = import ./additional/additional.nix { inherit pkgs; };
 
+            pythonPackages = ps: with ps; [
+              angr
+              asteval
+              flask
+              ipython
+              jupyter
+              psutil
+              pwntools
+              pycryptodome
+              pyroute2
+              r2pipe
+              requests
+              ropper
+              scapy
+              selenium
+            ];
+
+            pythonEnv = pkgs.python3.withPackages pythonPackages;
+
             corePackages = with pkgs; [
               bashInteractive
+              zsh
+	      radare2
+              oh-my-zsh
               cacert
               coreutils
               curl
               findutils
               gawk
+              git
               glibc
               glibc.static
               glibcLocales
@@ -102,18 +126,22 @@
               man
               ncurses
               nettools
+              openssh
               procps
-              python3
               util-linux
               wget
               which
-
+              ncdu
+              nodejs
+              bat
+              (lib.hiPrio pythonEnv)
               (lib.hiPrio ldd)
-
               init
               exec-suid
               sudo
               ssh-entrypoint
+              cmatrix
+              zsh-setup
               service
               code-service
               desktop-service

@@ -4,6 +4,12 @@ let
   sshEntryPoint = pkgs.writeScript "ssh-entrypoint" ''
     #!${pkgs.bashInteractive}/bin/bash
 
+    # Handle SCP protocol directly
+    if [ "$#" -gt 0 ] && echo "$1" | grep -q "^scp "; then
+      exec "$@"
+    fi
+
+    # Handle other commands or interactive shell
     if [ "$#" -gt 0 ]; then
       $SHELL "$@"
     else
