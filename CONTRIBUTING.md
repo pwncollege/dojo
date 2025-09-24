@@ -13,5 +13,5 @@ When submitting a bug report, make sure to follow these guidelines:
 3. Write in your report what happens, and what you expect to happen.
 4. If you know what part of the code results in that bug, and don't know how to fix it, make sure to mention where that code is!
 
-
-
+### Feature Suggestion & Questions
+If you want to suggest a new feature, or you have a question, please use the [Discussions Tab](https://github.com/pwncollege/dojo/discussions).
