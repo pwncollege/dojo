@@ -9,8 +9,8 @@ from . import force_cache_updates, get_all_containers, DojoChallenges
 def get_container_stats():
     containers = get_all_containers()
     return [{attr: container.labels[f"dojo.{attr}_id"]
-            for attr in ["dojo", "module", "challenge"]}
-            for container in containers]
+            for attr in ["dojo", "module", "challenge", "user"]}
+            for container in containers if container.labels.get("dojo.dojo_id")]
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def get_dojo_stats(dojo):
@@ -34,24 +34,10 @@ def get_dojo_stats(dojo):
     chart_solves = []
     chart_users = []
 
-    return {
-        'users': total_users,
-        'challenges': total_challenges,
-        'visible_challenges': visible_challenges,
-        'solves': total_solves,
-        'recent_solves': [],
-        'trends': {
-            'solves': 0,
-            'users': 0,
-            'active': 0,
-            'challenges': 0,
-        },
-        'chart_data': {
-            'labels': chart_labels,
-            'solves': chart_solves,
-            'users': chart_users
-        }
-    }
+    # Get active users (users with containers currently running)
+    container_stats = get_container_stats()
+    active_users = len(set(container.get('user') for container in container_stats
+                          if container.get('dojo') == dojo.reference_id and container.get('user')))
 
     for days_ago in snapshot_days:
         # get day given how many days ago
@@ -87,7 +73,7 @@ def get_dojo_stats(dojo):
     recent_solves = [
         {
             'challenge_name': f'{solve.challenge_name}',
-            'date': solve.date,
+            'date': solve.date.isoformat() if solve.date else None,
             'date_display': solve.date.strftime('%m/%d/%y %I:%M %p') if solve.date else 'Unknown time'
         }
         for solve in basic_query
@@ -100,10 +86,10 @@ def get_dojo_stats(dojo):
         return max(-99, min(999, round(change)))
 
     trends = {
-        'solves': trend_calc(chart_solves[0], chart_solves[1]),
-        'users': trend_calc(chart_users[0], chart_users[1]),
-        'active': 0,
-        'challenges': 0,
+        'solves': trend_calc(chart_solves[0], chart_solves[1]) if len(chart_solves) > 1 else 0,
+        'users': trend_calc(chart_users[0], chart_users[1]) if len(chart_users) > 1 else 0,
+        'active': active_users,
+        'challenges': visible_challenges,
     }
 
     return {
