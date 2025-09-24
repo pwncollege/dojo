@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Workspace Proxy</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        #workspace-iframe {
+            width: 100%;
+            height: 100vh;
+            border: none;
+        }
+        .error {
+            padding: 20px;
+            text-align: center;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="content">
+        <div class="error">
+            <h3>Loading workspace...</h3>
+            <p>If this takes too long, make sure you've started a challenge at <a href="http://localhost" target="_parent">http://localhost</a></p>
+        </div>
+    </div>
+
+    <script>
+        // Get service type from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const service = urlParams.get('service') || 'terminal';
+        
+        // Create iframe that loads CTFd workspace with proper credentials
+        const iframe = document.createElement('iframe');
+        iframe.id = 'workspace-iframe';
+        iframe.src = `http://localhost/workspace/${service}`;
+        iframe.onload = function() {
+            document.getElementById('content').innerHTML = '';
+            document.getElementById('content').appendChild(iframe);
+        };
+        iframe.onerror = function() {
+            document.getElementById('content').innerHTML = `
+                <div class="error">
+                    <h3>Failed to load ${service}</h3>
+                    <p>Please start a challenge first at <a href="http://localhost" target="_parent">http://localhost</a></p>
+                    <button onclick="location.reload()">Retry</button>
+                </div>
+            `;
+        };
+        
+        // Add iframe after a short delay to show loading message
+        setTimeout(() => {
+            document.getElementById('content').appendChild(iframe);
+        }, 500);
+    </script>
+</body>
+</html>
