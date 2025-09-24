@@ -406,4 +406,3 @@ networks:
         - subnet: 10.0.0.0/8
     driver_opts:
       com.docker.network.bridge.name: "workspace_net"
-      com.docker.network.bridge.enable_icc: "false"
