@@ -1,4 +1,26 @@
 services:
+  frontend:
+    container_name: frontend
+    profiles:
+      - main
+    restart: always
+    build:
+      context: ./frontend
+      args:
+        - NEXT_PUBLIC_CTFD_API_URL=https://${DOJO_HOST}/api/v1
+        - NEXT_PUBLIC_DOJO_API_URL=https://${DOJO_HOST}/pwncollege_api/v1
+        - NEXT_PUBLIC_DOJO_BASE_URL=https://${DOJO_HOST}
+    environment:
+      - VIRTUAL_HOST=${FRONTEND_HOST}
+      - VIRTUAL_PORT=3000
+      - LETSENCRYPT_HOST=${FRONTEND_HOST}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-admin@dlock.tech}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   splunk:
     container_name: splunk
     profiles:
@@ -26,7 +48,6 @@ services:
 
   workspace-builder:
     container_name: workspace-builder
-    hostname: workspace-builder
     profiles:
       - workspace
     build: ./workspace
@@ -38,7 +59,6 @@ services:
 
   dojofs:
     container_name: dojofs
-    hostname: dojofs
     profiles:
       - workspace
     restart: always
@@ -51,7 +71,6 @@ services:
 
   homefs:
     container_name: homefs
-    hostname: homefs
     profiles:
       - main
       - workspace
@@ -61,6 +80,7 @@ services:
     environment:
       - STORAGE_ROOT=/run/homefs
       - STORAGE_HOST=192.168.42.1
+      - VOLUME_SIZE=5G
     volumes:
       - /run/homefs:/run/homefs:shared
       - /var/run/docker/plugins:/var/run/docker/plugins
@@ -108,6 +128,7 @@ services:
       - MAIL_USERNAME=${MAIL_USERNAME}
       - MAIL_PASSWORD=${MAIL_PASSWORD}
       - MAIL_ADDRESS=${MAIL_ADDRESS}
+      - CORS_ORIGINS=${CORS_ORIGINS}
       - DOCKER_USERNAME=${DOCKER_USERNAME}
       - DOCKER_TOKEN=${DOCKER_TOKEN}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
@@ -154,7 +175,6 @@ services:
 
   db:
     container_name: db
-    hostname: db
     profiles:
       - main
     restart: always
@@ -175,7 +195,6 @@ services:
 
   pgbouncer:
     container_name: pgbouncer
-    hostname: pgbouncer
     profiles:
       - main
     restart: always
@@ -192,7 +211,6 @@ services:
 
   cache:
     container_name: cache
-    hostname: cache
     profiles:
       - main
     restart: always
@@ -202,7 +220,6 @@ services:
 
   sshd:
     container_name: sshd
-    hostname: sshd
     profiles:
       - main
     restart: always
@@ -227,7 +244,6 @@ services:
 
   nginx-proxy:
     container_name: nginx-proxy
-    hostname: nginx-proxy
     profiles:
       - main
     restart: always
@@ -255,7 +271,6 @@ services:
 
   acme-companion:
     container_name: nginx-proxy-acme
-    hostname: nginx-proxy-acme
     profiles:
       - main
     restart: always
@@ -269,7 +284,6 @@ services:
 
   node-exporter:
     container_name: node-exporter
-    hostname: node-exporter
     profiles:
       - main
       - workspace
@@ -284,7 +298,6 @@ services:
 
   cadvisor:
     container_name: cadvisor
-    hostname: cadvisor
     profiles:
       - main
       - workspace
@@ -302,7 +315,6 @@ services:
 
   prometheus:
     container_name: prometheus
-    hostname: prometheus
     profiles:
       - main
     restart: always
@@ -349,7 +361,6 @@ services:
 
   grafana:
     container_name: grafana
-    hostname: grafana
     profiles:
       - main
     restart: always
@@ -370,7 +381,6 @@ services:
 
   watchdog:
     container_name: watchdog
-    hostname: watchdog
     profiles:
       - main
     restart: always
@@ -406,3 +416,4 @@ networks:
         - subnet: 10.0.0.0/8
     driver_opts:
       com.docker.network.bridge.name: "workspace_net"
+      com.docker.network.bridge.enable_icc: "false"
