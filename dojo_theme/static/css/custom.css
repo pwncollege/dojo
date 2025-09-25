@@ -359,6 +359,16 @@ p[data-hide="true"] {
     padding: 0px;
 }
 
+.btn, .challenge-input {
+    border-radius: 8px;
+    padding: 8px 8px;
+    font-size: 16px;
+}
+
+.fas {
+    padding-right: 0.75rem;
+}
+
 .card-small {
     width: 13em;
     height: 13em;
@@ -416,14 +426,23 @@ p[data-hide="true"] {
     background-color: inherit;
 }
 
+.accordion-item:has(.collapse.show) .accordion-item-header,
+.accordion-item:has(.collapsing) .accordion-item-header {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .accordion-item-header {
     padding: .75rem 1.25rem;
     background-color: rgba(255,255,255,0.1);
+    border-radius: 8px;
 }
 
 .accordion-item-body {
     padding: 1.25rem;
     background-color: rgba(255,255,255,0.03);
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
 }
 
 .accordion-item-name {

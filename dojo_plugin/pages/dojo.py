@@ -109,6 +109,7 @@ def view_dojo_path(dojo, path, subpath=None):
     if module:
         if subpath:
             DojoChallenges.query.filter_by(dojo=dojo, module=module, id=subpath).first_or_404()
+            return view_module(dojo, module, scroll_to_challenge=subpath)
         return view_module(dojo, module)
     elif path in dojo.pages and not subpath:
         return view_page(dojo, path)
@@ -326,7 +327,7 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
         return {"success": False, "error": "Invalid format"}, 400
 
 
-def view_module(dojo, module):
+def view_module(dojo, module, scroll_to_challenge=None):
     user = get_current_user()
     user_solves = set(solve.challenge_id for solve in (
         module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
@@ -422,6 +423,7 @@ def view_module(dojo, module):
         module_description_edit_url=module_description_edit_url,
         challenge_description_edit_urls=challenge_description_edit_urls,
         resource_description_edit_urls=resource_description_edit_urls,
+        scroll_to_challenge=scroll_to_challenge,
     )
 
 
