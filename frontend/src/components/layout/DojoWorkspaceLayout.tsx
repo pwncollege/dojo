@@ -353,18 +353,12 @@ export function DojoWorkspaceLayout({
             maxSize={50}
             className={`${sidebarCollapsed ? "max-w-[48px]" : "min-w-[200px]"} ${isFullScreen ? "hidden" : ""}`}
             onResize={(size) => {
-              console.log(
-                "Sidebar resize:",
-                size,
-                "collapsed:",
-                sidebarCollapsed,
-              );
+              // Only handle collapse state changes, not width updates during drag
               if (sidebarCollapsed && size > 10) {
                 setSidebarCollapsed(false);
+              } else if (!sidebarCollapsed && size <= 3) {
+                setSidebarCollapsed(true);
               }
-              // Ensure we don't set a width smaller than the minimum
-              const constrainedSize = Math.max(size, 3);
-              setSidebarWidth(constrainedSize);
             }}
           >
             <WorkspaceSidebar
@@ -382,11 +376,16 @@ export function DojoWorkspaceLayout({
             withHandle
             onDoubleClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             onMouseDown={() => {
-              setIsResizing(true);
+              // Use RAF to batch state updates
+              requestAnimationFrame(() => {
+                setIsResizing(true);
+              });
 
               // Listen for mouse up to end resizing
               const handleMouseUp = () => {
-                setIsResizing(false);
+                requestAnimationFrame(() => {
+                  setIsResizing(false);
+                });
                 document.removeEventListener('mouseup', handleMouseUp);
               };
               document.addEventListener('mouseup', handleMouseUp);

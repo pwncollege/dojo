@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useWorkspaceStore } from "@/stores";
-import { createPortal } from "react-dom";
+import { ArrowDownToDot } from "lucide-react";
 
 interface WorkspaceServiceProps {
   iframeSrc: string;
@@ -152,15 +152,12 @@ export function WorkspaceService({
     };
   }, [iframeSrc, activeService, onReady]);
 
-  const containerRect = containerRef.current?.getBoundingClientRect();
-  console.log("containerRect:", containerRect);
-
   const isResizing = useWorkspaceStore((state) => state.isResizing);
 
   return (
     <div
       ref={containerRef}
-      className="z-50 relative w-full h-full bg-red-100"
+      className="relative w-full h-full overflow-hidden"
       style={{
         backgroundColor:
           activeService === "terminal"
@@ -168,54 +165,53 @@ export function WorkspaceService({
             : "var(--background)",
       }}
     >
-      <h1 className="text-red-500 font-xl">{isResizing ? "resizing" : ""}</h1>
-      {/* Always show iframe, but hide it when not ready */}
-      {createPortal(
-        <motion.div
-          className="w-full h-full border-0 transition-opacity duration-300 rounded-lg"
+      {/* Iframe container with GPU acceleration */}
+      <div
+        className="absolute inset-0"
+        style={{
+          // transform: isResizing ? "scale(0.98)" : "scale(1)",
+          // opacity: isResizing ? 0.8 : 1,
+          // filter: isResizing ? "blur(2px)" : "none",
+          transition: "transform 150ms cubic-bezier(0.4, 0, 0.2, 1), opacity 150ms ease-out, filter 150ms ease-out",
+          willChange: "transform, opacity, filter",
+          backfaceVisibility: "hidden",
+          perspective: 1000,
+        }}
+      >
+        <iframe
+          ref={iframeRef}
+          className={`w-full h-full border-0 ${
+            activeService === "code" ? "" : "rounded-lg"
+          } ${isReady ? "opacity-100" : "opacity-0"}`}
           style={{
+            pointerEvents: isResizing ? "none" : "auto",
             backgroundColor:
               activeService === "terminal"
                 ? "var(--service-bg)"
                 : "var(--background)",
-            position: "fixed",
-            transition: "all 0.1s ease-out",
-            top: isFullScreen
-              ? activeService === "terminal"
-                ? 10
-                : 0
-              : containerRect?.top,
-            left: isFullScreen
-              ? activeService === "terminal"
-                ? 10
-                : 0
-              : containerRect?.left,
-            right: isFullScreen
-              ? activeService === "terminal"
-                ? 10
-                : 0
-              : containerRect?.right,
-            bottom: isFullScreen
-              ? activeService === "terminal"
-                ? 10
-                : 0
-              : containerRect?.bottom,
-
-            zIndex: 100,
-            opacity: isResizing ? 0 : 1,
+            transform: "translateZ(0)", // Force GPU layer
           }}
-        >
-          <iframe
-            ref={iframeRef}
-            className={`w-full h-full ${
-              activeService === "code" ? "" : "rounded-lg"
-            } ${isReady ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-            title={`Workspace ${activeService}`}
-            allow="clipboard-write"
-          />
-        </motion.div>,
-        document.body,
-      )}
+          title={`Workspace ${activeService}`}
+          allow="clipboard-write"
+        />
+      </div>
+
+      {/* Resizing overlay - optimized for performance */}
+      {/*<div
+        className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        style={{
+          opacity: isResizing ? 1 : 0,
+          transform: isResizing ? "scale(1)" : "scale(0.9)",
+          transition: "opacity 150ms ease-out, transform 150ms cubic-bezier(0.4, 0, 0.2, 1)",
+          willChange: "opacity, transform",
+        }}
+      >
+        <div clasName="text-center">
+          <ArrowDownToDot className="w-16 h-16 text-primary animate-pulse mx-auto mb-4" />
+          <p className="text-lg font-medium">Resizing...</p>
+        </div>
+      </div>
+              */}
 
       {/* Loading overlay when not ready */}
       {!isReady && (
