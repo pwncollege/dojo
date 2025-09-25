@@ -114,11 +114,14 @@ def main():
                 )
 
         else:
-            try:
-                container.wait(condition="not-running")
-                os.kill(child_pid, signal.SIGKILL)
-            except:
-                pass
+            runtime = (container.attrs or {}).get("HostConfig",{}).get("Runtime")
+            is_kata = runtime == "io.containerd.run.kata.v2"
+            if is_kata:
+                try:
+                    container.wait(condition="not-running")
+                    os.kill(child_pid, signal.SIGKILL)
+                except:
+                    pass
             _, status = os.wait()
             if simple or status == 0:
                 break
