@@ -155,7 +155,7 @@ export function WorkspaceService({
   const containerRect = containerRef.current?.getBoundingClientRect();
   console.log("containerRect:", containerRect);
 
-  const  isResizing  = useWorkspaceStore(state => state.isResizing);
+  const isResizing = useWorkspaceStore((state) => state.isResizing);
 
   return (
     <div
@@ -171,13 +171,9 @@ export function WorkspaceService({
       <h1 className="text-red-500 font-xl">{isResizing ? "resizing" : ""}</h1>
       {/* Always show iframe, but hide it when not ready */}
       {createPortal(
-        <iframe
-          ref={iframeRef}
-          className={`w-full h-full border-0 transition-opacity duration-300 ${
-            activeService === "code" ? "" : "rounded-lg"
-          } ${isReady ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        <motion.div
+          className="w-full h-full border-0 transition-opacity duration-300 rounded-lg"
           style={{
-            opacity: isResizing ? 0.5 : 1,
             backgroundColor:
               activeService === "terminal"
                 ? "var(--service-bg)"
@@ -206,10 +202,18 @@ export function WorkspaceService({
               : containerRect?.bottom,
 
             zIndex: 100,
+            opacity: isResizing ? 0 : 1,
           }}
-          title={`Workspace ${activeService}`}
-          allow="clipboard-write"
-        />,
+        >
+          <iframe
+            ref={iframeRef}
+            className={`w-full h-full ${
+              activeService === "code" ? "" : "rounded-lg"
+            } ${isReady ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+            title={`Workspace ${activeService}`}
+            allow="clipboard-write"
+          />
+        </motion.div>,
         document.body,
       )}
 

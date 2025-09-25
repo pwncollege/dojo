@@ -1,67 +1,68 @@
-import { create } from 'zustand'
-import { subscribeWithSelector } from 'zustand/middleware'
+import { create } from "zustand";
+import { subscribeWithSelector } from "zustand/middleware";
 
 interface ActiveChallenge {
-  dojoId: string
-  moduleId: string
-  challengeId: string
-  challengeName: string
-  dojoName: string
-  moduleName: string
-  isStarting?: boolean
+  dojoId: string;
+  moduleId: string;
+  challengeId: string;
+  challengeName: string;
+  dojoName: string;
+  moduleName: string;
+  isStarting?: boolean;
 }
 
 interface WorkspaceStore {
   // Sidebar state
-  sidebarCollapsed: boolean
-  sidebarWidth: number
-  isResizing: boolean
+  sidebarCollapsed: boolean;
+  sidebarWidth: number;
+  isResizing: boolean;
 
   // Workspace view state
-  isFullScreen: boolean
-  headerHidden: boolean
+  isFullScreen: boolean;
+  headerHidden: boolean;
 
   // Service state
-  activeService: string
-  preferredService: string
+  activeService: string;
+  preferredService: string;
 
   // UI state
-  commandPaletteOpen: boolean
+  commandPaletteOpen: boolean;
 
   // Active challenge/resource state
-  activeChallenge: ActiveChallenge | null
-  activeResource: string | null
+  activeChallenge: ActiveChallenge | null;
+  activeResource: string | null;
 
   // Actions - Sidebar
-  setSidebarCollapsed: (collapsed: boolean) => void
-  setSidebarWidth: (width: number) => void
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  setSidebarWidth: (width: number) => void;
+  setIsResizing: (isResizing: boolean) => void;
 
   // Actions - Workspace view
-  setFullScreen: (fullScreen: boolean) => void
-  setHeaderHidden: (hidden: boolean) => void
+  setFullScreen: (fullScreen: boolean) => void;
+  setHeaderHidden: (hidden: boolean) => void;
 
   // Actions - Service
-  setActiveService: (service: string) => void
+  setActiveService: (service: string) => void;
 
   // Actions - UI
-  setCommandPaletteOpen: (open: boolean) => void
+  setCommandPaletteOpen: (open: boolean) => void;
 
   // Actions - Active challenge/resource
-  setActiveChallenge: (challenge: ActiveChallenge | null) => void
-  setActiveResource: (resourceId: string | null) => void
+  setActiveChallenge: (challenge: ActiveChallenge | null) => void;
+  setActiveResource: (resourceId: string | null) => void;
 
   // Actions - Reset
-  resetWorkspace: () => void
+  resetWorkspace: () => void;
 }
 
 // Load preferred service from localStorage
 const getPreferredService = (): string => {
   try {
-    return localStorage.getItem('dojo-preferred-service') || 'terminal'
+    return localStorage.getItem("dojo-preferred-service") || "terminal";
   } catch {
-    return 'terminal'
+    return "terminal";
   }
-}
+};
 
 const defaultWorkspaceState = {
   sidebarCollapsed: false,
@@ -74,7 +75,7 @@ const defaultWorkspaceState = {
   activeChallenge: null,
   activeResource: null,
   isResizing: false,
-}
+};
 
 export const useWorkspaceStore = create<WorkspaceStore>()(
   subscribeWithSelector((set, get) => ({
@@ -95,15 +96,15 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     setActiveService: (service) => {
       // Save preference to localStorage
       try {
-        localStorage.setItem('dojo-preferred-service', service)
+        localStorage.setItem("dojo-preferred-service", service);
       } catch (error) {
-        console.warn('Failed to save service preference:', error)
+        console.warn("Failed to save service preference:", error);
       }
 
       set({
         activeService: service,
-        preferredService: service
-      })
+        preferredService: service,
+      });
     },
 
     // Actions - UI
@@ -117,67 +118,73 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     setIsResizing: (isResizing) => set({ isResizing }),
 
     // Actions - Reset
-    resetWorkspace: () => set(defaultWorkspaceState)
-  }))
-)
+    resetWorkspace: () => set(defaultWorkspaceState),
+  })),
+);
 
 // Selectors for common use cases
 export const useWorkspaceSidebar = () => {
-  const sidebarCollapsed = useWorkspaceStore(state => state.sidebarCollapsed)
-  const sidebarWidth = useWorkspaceStore(state => state.sidebarWidth)
-  const setSidebarCollapsed = useWorkspaceStore(state => state.setSidebarCollapsed)
-  const setSidebarWidth = useWorkspaceStore(state => state.setSidebarWidth)
+  const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
+  const sidebarWidth = useWorkspaceStore((state) => state.sidebarWidth);
+  const setSidebarCollapsed = useWorkspaceStore(
+    (state) => state.setSidebarCollapsed,
+  );
+  const setSidebarWidth = useWorkspaceStore((state) => state.setSidebarWidth);
 
   return {
     sidebarCollapsed,
     sidebarWidth,
     setSidebarCollapsed,
-    setSidebarWidth
-  }
-}
+    setSidebarWidth,
+  };
+};
 
 export const useWorkspaceService = () => {
-  const activeService = useWorkspaceStore(state => state.activeService)
-  const preferredService = useWorkspaceStore(state => state.preferredService)
-  const setActiveService = useWorkspaceStore(state => state.setActiveService)
+  const activeService = useWorkspaceStore((state) => state.activeService);
+  const preferredService = useWorkspaceStore((state) => state.preferredService);
+  const setActiveService = useWorkspaceStore((state) => state.setActiveService);
 
   return {
     activeService,
     preferredService,
-    setActiveService
-  }
-}
+    setActiveService,
+  };
+};
 
 export const useWorkspaceView = () => {
-  const isFullScreen = useWorkspaceStore(state => state.isFullScreen)
-  const headerHidden = useWorkspaceStore(state => state.headerHidden)
-  const setFullScreen = useWorkspaceStore(state => state.setFullScreen)
-  const setHeaderHidden = useWorkspaceStore(state => state.setHeaderHidden)
+  const isFullScreen = useWorkspaceStore((state) => state.isFullScreen);
+  const headerHidden = useWorkspaceStore((state) => state.headerHidden);
+  const setFullScreen = useWorkspaceStore((state) => state.setFullScreen);
+  const setHeaderHidden = useWorkspaceStore((state) => state.setHeaderHidden);
 
   return {
     isFullScreen,
     headerHidden,
     setFullScreen,
-    setHeaderHidden
-  }
-}
+    setHeaderHidden,
+  };
+};
 
 export const useWorkspaceChallenge = () => {
-  const activeChallenge = useWorkspaceStore(state => state.activeChallenge)
-  const setActiveChallenge = useWorkspaceStore(state => state.setActiveChallenge)
+  const activeChallenge = useWorkspaceStore((state) => state.activeChallenge);
+  const setActiveChallenge = useWorkspaceStore(
+    (state) => state.setActiveChallenge,
+  );
 
   return {
     activeChallenge,
-    setActiveChallenge
-  }
-}
+    setActiveChallenge,
+  };
+};
 
 export const useWorkspaceResource = () => {
-  const activeResource = useWorkspaceStore(state => state.activeResource)
-  const setActiveResource = useWorkspaceStore(state => state.setActiveResource)
+  const activeResource = useWorkspaceStore((state) => state.activeResource);
+  const setActiveResource = useWorkspaceStore(
+    (state) => state.setActiveResource,
+  );
 
   return {
     activeResource,
-    setActiveResource
-  }
-}
+    setActiveResource,
+  };
+};

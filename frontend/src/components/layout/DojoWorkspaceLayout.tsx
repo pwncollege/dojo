@@ -29,8 +29,6 @@ import { AnimatedWorkspaceHeader } from "@/components/workspace/AnimatedWorkspac
 import { WorkspaceContent } from "@/components/workspace/WorkspaceContent";
 import type { Dojo, DojoModule } from "@/types/api";
 import { useTheme } from "@/components/theme/ThemeProvider";
-
-// Context for sharing activeResourceTab between header and content
 const ResourceTabContext = createContext<{
   activeResourceTab: string;
   setActiveResourceTab: (tab: string) => void;
@@ -65,6 +63,8 @@ export function DojoWorkspaceLayout({
   const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
   const isFullScreen = useWorkspaceStore((state) => state.isFullScreen);
   const sidebarWidth = useWorkspaceStore((state) => state.sidebarWidth);
+  const isResizing = useWorkspaceStore((state) => state.isResizing);
+  const setIsResizing = useWorkspaceStore((state) => state.setIsResizing);
   const commandPaletteOpen = useWorkspaceStore(
     (state) => state.commandPaletteOpen,
   );
@@ -352,14 +352,6 @@ export function DojoWorkspaceLayout({
             minSize={3}
             maxSize={50}
             className={`${sidebarCollapsed ? "max-w-[48px]" : "min-w-[200px]"} ${isFullScreen ? "hidden" : ""}`}
-            onDragEnd={(size) => {
-              console.log(
-                "Sidebar resize:",
-                size,
-                "collapsed:",
-                sidebarCollapsed,
-              );
-            }}
             onResize={(size) => {
               console.log(
                 "Sidebar resize:",
@@ -389,6 +381,16 @@ export function DojoWorkspaceLayout({
           <ResizableHandle
             withHandle
             onDoubleClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            onMouseDown={() => {
+              setIsResizing(true);
+
+              // Listen for mouse up to end resizing
+              const handleMouseUp = () => {
+                setIsResizing(false);
+                document.removeEventListener('mouseup', handleMouseUp);
+              };
+              document.addEventListener('mouseup', handleMouseUp);
+            }}
             className={isFullScreen ? "hidden" : ""}
           />
 
