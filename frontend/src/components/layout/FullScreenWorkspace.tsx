@@ -1,33 +1,30 @@
 import { FlagSubmission } from '@/components/challenge/FlagSubmission'
+import { useWorkspaceStore } from '@/stores'
 
 interface FullScreenWorkspaceProps {
-  activeChallenge: {
-    dojoId: string
-    moduleId: string
-    challengeId: string
-    name: string
-  }
-  activeService: string
   workspaceStatus?: { active: boolean }
   workspaceData?: { iframe_src?: string }
 }
 
 export function FullScreenWorkspace({
-  activeChallenge,
-  activeService,
   workspaceStatus,
   workspaceData
 }: FullScreenWorkspaceProps) {
+  // Get state from workspace store
+  const activeChallenge = useWorkspaceStore(state => state.activeChallenge)
+  const activeService = useWorkspaceStore(state => state.activeService)
   return (
     <div className="w-full h-screen">
       {activeService === 'flag' ? (
         <div className="flex items-center justify-center h-full">
-          <FlagSubmission
-            dojoId={activeChallenge.dojoId}
-            moduleId={activeChallenge.moduleId}
-            challengeId={activeChallenge.challengeId}
-            challengeName={activeChallenge.name}
-          />
+          {activeChallenge && (
+            <FlagSubmission
+              dojoId={activeChallenge.dojoId}
+              moduleId={activeChallenge.moduleId}
+              challengeId={activeChallenge.challengeId}
+              challengeName={activeChallenge.challengeName}
+            />
+          )}
         </div>
       ) : workspaceStatus?.active && workspaceData?.iframe_src ? (
         <iframe

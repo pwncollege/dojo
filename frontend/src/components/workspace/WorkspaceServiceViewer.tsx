@@ -1,11 +1,10 @@
 import { motion } from 'framer-motion'
 import { WorkspaceService } from './WorkspaceService'
+import { useWorkspaceStore } from '@/stores'
 
 interface WorkspaceServiceViewerProps {
   workspaceActive: boolean
   workspaceData: any
-  activeService: string
-  isStarting?: boolean
   loadingMessage?: string
   className?: string
 }
@@ -13,11 +12,13 @@ interface WorkspaceServiceViewerProps {
 export function WorkspaceServiceViewer({
   workspaceActive,
   workspaceData,
-  activeService,
-  isStarting = false,
   loadingMessage,
   className
 }: WorkspaceServiceViewerProps) {
+  // Get state from workspace store
+  const activeService = useWorkspaceStore(state => state.activeService)
+  const activeChallenge = useWorkspaceStore(state => state.activeChallenge)
+  const isStarting = activeChallenge?.isStarting || false
   const iframeSrc = workspaceData?.iframe_src
 
   return (
@@ -45,7 +46,6 @@ export function WorkspaceServiceViewer({
       ) : workspaceActive && iframeSrc ? (
         <WorkspaceService
           iframeSrc={iframeSrc}
-          activeService={activeService}
         />
       ) : (
         <div className="flex items-center justify-center h-full text-muted-foreground" style={{ backgroundColor: activeService === 'terminal' ? 'var(--service-bg)' : undefined }}>

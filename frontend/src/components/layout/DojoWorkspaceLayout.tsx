@@ -47,7 +47,6 @@ export function DojoWorkspaceLayout({
 
   const { activeService, preferredService, setActiveService } = useWorkspaceService()
 
-  const [activeResourceTab, setActiveResourceTab] = useState<string>("video")
   const startChallengeMutation = useStartChallenge()
   const { palette } = useTheme()
   const pathname = usePathname()
@@ -276,8 +275,6 @@ export function DojoWorkspaceLayout({
   if (isFullScreen) {
     return (
       <FullScreenWorkspace
-        activeChallenge={activeChallenge}
-        activeService={activeService}
         workspaceStatus={workspaceData}
         workspaceData={workspaceData}
       />
@@ -302,7 +299,6 @@ export function DojoWorkspaceLayout({
           <WorkspaceSidebar
             module={currentModule ? { ...currentModule, challenges: currentModule.challenges.map(c => ({ ...c, id: c.id.toString() })) } : { id: '', name: 'Module', challenges: [] }}
             dojoName={dojo.name}
-            activeChallenge={activeChallenge}
             activeResource={resource?.id}
             onChallengeStart={handleChallengeStart}
             onChallengeClose={onChallengeClose}
@@ -321,18 +317,10 @@ export function DojoWorkspaceLayout({
           <div className="flex flex-col h-full bg-background">
             {/* Unified animated header for both challenges and resources */}
             <AnimatedWorkspaceHeader
-              activeChallenge={activeChallenge}
               dojoName={dojo.name}
               moduleName={currentModule?.name || 'Module'}
-              activeService={activeService}
               workspaceActive={workspaceData?.active || false}
               activeResource={resource}
-              activeResourceTab={activeResourceTab}
-              onResourceTabChange={setActiveResourceTab}
-              isFullScreen={isFullScreen}
-              headerHidden={workspaceHeaderHidden}
-              onServiceChange={setActiveService}
-              onFullScreenToggle={() => setFullScreen(!isFullScreen)}
               onClose={onChallengeClose}
               onResourceClose={() => {
                 if (onResourceSelect) {
@@ -344,21 +332,12 @@ export function DojoWorkspaceLayout({
             <WorkspaceContent
               workspaceActive={workspaceData?.active || false}
               workspaceData={workspaceData}
-              activeService={activeService}
               activeResource={resource}
-              activeResourceTab={activeResourceTab}
-              activeChallenge={activeChallenge}
-              dojoName={dojo.name}
-              moduleName={currentModule?.name || 'Module'}
-              isStarting={activeChallenge?.isStarting || false}
               onResourceClose={() => {
                 if (onResourceSelect) {
                   onResourceSelect(null)
                 }
               }}
-              onChallengeClose={onChallengeClose}
-              onServiceChange={setActiveService}
-              onResourceTabChange={setActiveResourceTab}
             />
           </div>
         </ResizablePanel>

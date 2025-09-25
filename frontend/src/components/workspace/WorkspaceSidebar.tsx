@@ -29,7 +29,7 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { ChallengePopoverContent } from '@/components/challenge/ChallengePopover'
-import { useWorkspaceSidebar, useWorkspaceView, useWorkspaceResource } from '@/stores'
+import { useWorkspaceSidebar, useWorkspaceView, useWorkspaceResource, useWorkspaceStore } from '@/stores'
 import { cn } from '@/lib/utils'
 
 interface Challenge {
@@ -61,9 +61,6 @@ interface Module {
 interface WorkspaceSidebarProps {
   module: Module
   dojoName: string
-  activeChallenge: {
-    challengeId: string
-  }
   activeResource?: string // ID of active resource
   onChallengeStart: (moduleId: string, challengeId: string) => void
   onChallengeClose: () => void
@@ -74,7 +71,6 @@ interface WorkspaceSidebarProps {
 export function WorkspaceSidebar({
   module,
   dojoName,
-  activeChallenge,
   activeResource,
   onChallengeStart,
   onChallengeClose,
@@ -85,6 +81,7 @@ export function WorkspaceSidebar({
   const { sidebarCollapsed, setSidebarCollapsed } = useWorkspaceSidebar()
   const { headerHidden, setHeaderHidden } = useWorkspaceView()
   const { setActiveResource } = useWorkspaceResource()
+  const activeChallenge = useWorkspaceStore(state => state.activeChallenge)
   return (
     <div
       className="bg-background flex flex-col h-full w-full"
@@ -302,7 +299,7 @@ export function WorkspaceSidebar({
                 </div>
                 <div className="space-y-1">
                   {module.challenges.map((challenge) => {
-                    const isActive = activeChallenge.challengeId === challenge.id
+                    const isActive = activeChallenge?.challengeId === challenge.id
 
                     return (
                       <div

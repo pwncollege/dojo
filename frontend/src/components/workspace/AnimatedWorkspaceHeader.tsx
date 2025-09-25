@@ -3,7 +3,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { SmartFlagInput } from '@/components/challenge/SmartFlagInput'
 import { NextChallengeButton } from '@/components/challenge/NextChallengeButton'
-import { useAnimations } from '@/stores'
+import { useAnimations, useWorkspaceStore } from '@/stores'
 import {
   Terminal,
   Code,
@@ -20,7 +20,7 @@ import {
   ChevronRight
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, createContext, useContext } from 'react'
 
 interface Resource {
   id: string
@@ -33,49 +33,52 @@ interface Resource {
 }
 
 interface AnimatedWorkspaceHeaderProps {
-  // Challenge mode props
-  activeChallenge: {
-    dojoId: string
-    moduleId: string
-    challengeId: string
-    name: string
-  }
+  // Required props from parent that aren't in store
   dojoName: string
   moduleName: string
-  activeService: string
   workspaceActive: boolean
 
   // Resource mode props
   activeResource?: Resource | null
-  activeResourceTab?: string
-  onResourceTabChange?: (tab: string) => void
 
-  // Common props
-  isFullScreen: boolean
-  headerHidden: boolean
-  onServiceChange: (service: string) => void
-  onFullScreenToggle: () => void
+  // Callbacks
   onClose?: () => void
   onResourceClose?: () => void
 }
 
+// Context for sharing activeResourceTab between header and content
+const ResourceTabContext = createContext<{
+  activeResourceTab: string;
+  setActiveResourceTab: (tab: string) => void;
+} | null>(null);
+
+export const useResourceTab = () => {
+  const context = useContext(ResourceTabContext);
+  return context;
+};
+
 export function AnimatedWorkspaceHeader({
-  activeChallenge,
   dojoName,
   moduleName,
-  activeService,
   workspaceActive,
   activeResource,
-  activeResourceTab,
-  onResourceTabChange,
-  isFullScreen,
-  headerHidden,
-  onServiceChange,
-  onFullScreenToggle,
   onClose,
   onResourceClose
 }: AnimatedWorkspaceHeaderProps) {
   const animations = useAnimations()
+
+  // Get state from workspace store
+  const activeChallenge = useWorkspaceStore(state => state.activeChallenge)
+  const activeService = useWorkspaceStore(state => state.activeService)
+  const isFullScreen = useWorkspaceStore(state => state.isFullScreen)
+  const headerHidden = useWorkspaceStore(state => state.headerHidden)
+
+  // Get actions from workspace store
+  const setActiveService = useWorkspaceStore(state => state.setActiveService)
+  const setFullScreen = useWorkspaceStore(state => state.setFullScreen)
+
+  // Manage activeResourceTab state locally
+  const [activeResourceTab, setActiveResourceTab] = useState<string>("video")
 
   if (headerHidden) {
     return null
@@ -103,7 +106,8 @@ export function AnimatedWorkspaceHeader({
   const isMarkdown = activeResource?.type === "markdown"
 
   return (
-    <div className="border-b bg-background backdrop-blur-md shadow-sm">
+    <ResourceTabContext.Provider value={{ activeResourceTab, setActiveResourceTab }}>
+      <div className="border-b bg-background backdrop-blur-md shadow-sm">
       <div className="px-6 py-3">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -157,14 +161,14 @@ export function AnimatedWorkspaceHeader({
                 {/* Animated title */}
                 <AnimatePresence mode="wait">
                   <motion.h1
-                    key={isResourceMode ? `resource-${activeResource.id}` : `challenge-${activeChallenge.challengeId}`}
+                    key={isResourceMode ? `resource-${activeResource.id}` : `challenge-${activeChallenge?.challengeId}`}
                     className="text-lg font-semibold leading-tight"
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ duration: animations.medium, ease: [0.25, 0.46, 0.45, 0.94] }}
                   >
-                    {isResourceMode ? activeResource.name : activeChallenge.name}
+                    {isResourceMode ? activeResource.name : activeChallenge?.challengeName}
                   </motion.h1>
                 </AnimatePresence>
 
@@ -234,18 +238,20 @@ export function AnimatedWorkspaceHeader({
                   transition={{ duration: animations.medium, ease: [0.25, 0.46, 0.45, 0.94] }}
                 >
                   {/* Smart Flag Input */}
-                  <SmartFlagInput
-                    dojoId={activeChallenge.dojoId}
-                    moduleId={activeChallenge.moduleId}
-                    challengeId={activeChallenge.challengeId}
-                  />
+                  {activeChallenge && (
+                    <SmartFlagInput
+                      dojoId={activeChallenge.dojoId}
+                      moduleId={activeChallenge.moduleId}
+                      challengeId={activeChallenge.challengeId}
+                    />
+                  )}
 
                   {/* Next Challenge Button */}
                   <NextChallengeButton />
 
                   {/* Service Tabs */}
                   {persistentWorkspaceActive && (
-                    <Tabs value={activeService} onValueChange={onServiceChange}>
+                    <Tabs value={activeService} onValueChange={setActiveService}>
                       <TabsList className="bg-muted/50 h-9 p-1">
                         <TabsTrigger value="terminal" className="gap-1.5 h-7 px-3 text-xs cursor-pointer transition-all duration-200 data-[state=active]:bg-background data-[state=active]:shadow-sm">
                           <Terminal className="h-3 w-3" />
@@ -273,7 +279,7 @@ export function AnimatedWorkspaceHeader({
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: animations.medium, ease: [0.25, 0.46, 0.45, 0.94] }}
                 >
-                  <Tabs value={activeResourceTab || "video"} onValueChange={onResourceTabChange}>
+                  <Tabs value={activeResourceTab} onValueChange={setActiveResourceTab}>
                     <TabsList className="bg-muted/50 h-9 p-1">
                       {hasVideo && (
                         <TabsTrigger value="video" className="gap-1.5 h-7 px-3 text-xs cursor-pointer transition-all duration-200 data-[state=active]:bg-background data-[state=active]:shadow-sm">
@@ -310,7 +316,7 @@ export function AnimatedWorkspaceHeader({
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={onFullScreenToggle}
+                    onClick={() => setFullScreen(!isFullScreen)}
                     className="hover:bg-primary/10 hover:text-primary h-8 w-8 transition-colors"
                   >
                     {isFullScreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -336,5 +342,6 @@ export function AnimatedWorkspaceHeader({
         </div>
       </div>
     </div>
+    </ResourceTabContext.Provider>
   )
 }

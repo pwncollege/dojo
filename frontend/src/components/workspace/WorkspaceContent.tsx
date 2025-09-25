@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion'
 import { ResourceViewer } from './ResourceViewer'
 import { WorkspaceServiceViewer } from './WorkspaceServiceViewer'
+import { useWorkspaceStore } from '@/stores'
+import { useResourceTab } from './AnimatedWorkspaceHeader'
 
 interface Resource {
   id: string
@@ -15,39 +17,20 @@ interface Resource {
 interface WorkspaceContentProps {
   workspaceActive: boolean
   workspaceData: any
-  activeService: string
   activeResource?: Resource | null
-  activeResourceTab?: string
-  activeChallenge: {
-    dojoId: string
-    moduleId: string
-    challengeId: string
-    name: string
-  }
-  dojoName: string
-  moduleName: string
-  isStarting?: boolean
   onResourceClose?: () => void
-  onChallengeClose?: () => void
-  onServiceChange?: (service: string) => void
-  onResourceTabChange?: (tab: string) => void
 }
 
 export function WorkspaceContent({
   workspaceActive,
   workspaceData,
-  activeService,
   activeResource,
-  activeResourceTab,
-  activeChallenge,
-  dojoName,
-  moduleName,
-  isStarting = false,
-  onResourceClose,
-  onChallengeClose,
-  onServiceChange,
-  onResourceTabChange
+  onResourceClose
 }: WorkspaceContentProps) {
+  // Get state from workspace store
+  const activeService = useWorkspaceStore(state => state.activeService)
+  const activeChallenge = useWorkspaceStore(state => state.activeChallenge)
+  const isStarting = activeChallenge?.isStarting || false
   // Show resource viewer if a resource is selected (but ignore header type resources)
   if (activeResource && activeResource.type !== "header") {
     return (
@@ -63,8 +46,7 @@ export function WorkspaceContent({
       >
         <ResourceViewer
           resource={activeResource}
-          activeTab={activeResourceTab}
-          onTabChange={onResourceTabChange}
+          activeTab={useResourceTab()?.activeResourceTab}
           onClose={onResourceClose}
           className="h-full"
         />
@@ -87,8 +69,6 @@ export function WorkspaceContent({
       <WorkspaceServiceViewer
         workspaceActive={workspaceActive}
         workspaceData={workspaceData}
-        activeService={activeService}
-        isStarting={isStarting}
         className="h-full"
       />
     </motion.div>

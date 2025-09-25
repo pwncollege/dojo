@@ -28,7 +28,6 @@ interface Resource {
 interface ResourceViewerProps {
   resource: Resource;
   activeTab?: string;
-  onTabChange?: (tab: string) => void;
   onClose?: () => void;
   className?: string;
 }
@@ -36,7 +35,6 @@ interface ResourceViewerProps {
 export function ResourceViewer({
   resource,
   activeTab: externalActiveTab,
-  onTabChange,
   onClose,
   className,
 }: ResourceViewerProps) {
@@ -58,17 +56,14 @@ export function ResourceViewer({
   // Auto-select the appropriate tab based on available content
   useEffect(() => {
     const newTab = hasVideo ? "video" : hasSlides ? "slides" : isMarkdown ? "reading" : "video";
-
-    if (onTabChange) {
-      onTabChange(newTab);
-    } else {
+    if (!externalActiveTab) {
       setInternalActiveTab(newTab);
     }
-  }, [resource.id, hasVideo, hasSlides, isMarkdown, onTabChange]);
+  }, [resource.id, hasVideo, hasSlides, isMarkdown, externalActiveTab]);
 
   return (
     <div className={cn("h-full", className)}>
-      {/* Content Area - tabs are now in the header */}
+      {/* Content Area - tabs are in the header */}
       <div className="h-full">
         <AnimatePresence mode="wait">
           {/* Video Content */}

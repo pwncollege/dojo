@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
+import { useWorkspaceStore } from '@/stores'
 
 interface WorkspaceServiceProps {
   iframeSrc: string
-  activeService: string
   onReady?: () => void
 }
 
-export function WorkspaceService({ iframeSrc, activeService, onReady }: WorkspaceServiceProps) {
+export function WorkspaceService({ iframeSrc, onReady }: WorkspaceServiceProps) {
+  // Get state from workspace store
+  const activeService = useWorkspaceStore(state => state.activeService)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isReady, setIsReady] = useState(false)
