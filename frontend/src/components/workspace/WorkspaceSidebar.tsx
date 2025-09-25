@@ -31,35 +31,12 @@ import {
 import { ChallengePopoverContent } from '@/components/challenge/ChallengePopover'
 import { useWorkspaceSidebar, useWorkspaceView, useWorkspaceResource, useWorkspaceStore } from '@/stores'
 import { cn } from '@/lib/utils'
-
-interface Challenge {
-  id: string
-  name: string
-  solved?: boolean
-  required?: boolean
-  description?: string
-}
-
-interface Resource {
-  id: string
-  name: string
-  type: 'markdown' | 'lecture' | 'header'
-  content?: string
-  video?: string
-  playlist?: string
-  slides?: string
-  expandable?: boolean
-}
-
-interface Module {
-  id: string
-  name: string
-  challenges: Challenge[]
-  resources?: Resource[]
-}
+import type { Challenge, Resource, DojoModule } from '@/types/api'
 
 interface WorkspaceSidebarProps {
-  module: Module
+  module: DojoModule & {
+    challenges: Challenge[]
+  }
   dojoName: string
   activeResource?: string // ID of active resource
   onChallengeStart: (moduleId: string, challengeId: string) => void
@@ -284,13 +261,12 @@ export function WorkspaceSidebar({
             )}
 
             {/* Separator */}
-            {module.resources && module.resources.filter(r => r.type === 'lecture' || r.type === 'markdown').length > 0 && module.challenges.length > 0 && (
+            {module.resources && module.resources.filter(r => r.type === 'lecture' || r.type === 'markdown').length > 0 && (
               <div className="border-t border-border/50 my-2" />
             )}
 
             {/* Challenges Section */}
-            {module.challenges.length > 0 && (
-              <div>
+            <div>
                 <div className="px-2 pb-2">
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                     <Circle className="h-3 w-3" />
@@ -362,7 +338,6 @@ export function WorkspaceSidebar({
                   })}
                 </div>
               </div>
-            )}
           </div>
         </ScrollArea>
       ) : (
@@ -371,7 +346,7 @@ export function WorkspaceSidebar({
           <div className="flex flex-col items-center py-4 gap-2">
             {module.challenges.map((challenge, index) => {
               const challengeNumber = index + 1
-              const isActive = activeChallenge.challengeId === challenge.id
+              const isActive = activeChallenge?.challengeId === challenge.id
 
               return (
                 <Popover key={challenge.id}>

@@ -2,17 +2,8 @@ import { motion } from 'framer-motion'
 import { ResourceViewer } from './ResourceViewer'
 import { WorkspaceServiceViewer } from './WorkspaceServiceViewer'
 import { useWorkspaceStore } from '@/stores'
-import { useResourceTab } from './AnimatedWorkspaceHeader'
-
-interface Resource {
-  id: string
-  name: string
-  type: 'markdown' | 'lecture' | 'header'
-  content?: string
-  video?: string
-  playlist?: string
-  slides?: string
-}
+import { useResourceTab } from '@/components/layout/DojoWorkspaceLayout'
+import type { Resource } from '@/types/api'
 
 interface WorkspaceContentProps {
   workspaceActive: boolean

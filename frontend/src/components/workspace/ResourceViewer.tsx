@@ -14,16 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAnimations } from "@/stores";
-
-interface Resource {
-  id: string;
-  name: string;
-  type: "markdown" | "lecture" | "header";
-  content?: string;
-  video?: string;
-  playlist?: string;
-  slides?: string;
-}
+import type { Resource } from "@/types/api";
 
 interface ResourceViewerProps {
   resource: Resource;
@@ -78,7 +69,7 @@ export function ResourceViewer({
             >
               <iframe
                 src={`https://www.youtube.com/embed/${resource.video}?rel=0&modestbranding`}
-                 frameborder="0"
+                 frameBorder={0}
                 className="w-full h-full"
                 title={resource.name}
                 allowFullScreen

@@ -20,17 +20,9 @@ import {
   ChevronRight
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useEffect, createContext, useContext } from 'react'
-
-interface Resource {
-  id: string
-  name: string
-  type: 'markdown' | 'lecture' | 'header'
-  content?: string
-  video?: string
-  playlist?: string
-  slides?: string
-}
+import { useState, useEffect } from 'react'
+import type { Resource } from '@/types/api'
+import { useResourceTab } from '@/components/layout/DojoWorkspaceLayout'
 
 interface AnimatedWorkspaceHeaderProps {
   // Required props from parent that aren't in store
@@ -45,17 +37,6 @@ interface AnimatedWorkspaceHeaderProps {
   onClose?: () => void
   onResourceClose?: () => void
 }
-
-// Context for sharing activeResourceTab between header and content
-const ResourceTabContext = createContext<{
-  activeResourceTab: string;
-  setActiveResourceTab: (tab: string) => void;
-} | null>(null);
-
-export const useResourceTab = () => {
-  const context = useContext(ResourceTabContext);
-  return context;
-};
 
 export function AnimatedWorkspaceHeader({
   dojoName,
@@ -77,8 +58,10 @@ export function AnimatedWorkspaceHeader({
   const setActiveService = useWorkspaceStore(state => state.setActiveService)
   const setFullScreen = useWorkspaceStore(state => state.setFullScreen)
 
-  // Manage activeResourceTab state locally
-  const [activeResourceTab, setActiveResourceTab] = useState<string>("video")
+  // Get resource tab state from context
+  const resourceTabContext = useResourceTab()
+  const activeResourceTab = resourceTabContext?.activeResourceTab || "video"
+  const setActiveResourceTab = resourceTabContext?.setActiveResourceTab
 
   if (headerHidden) {
     return null
@@ -106,8 +89,7 @@ export function AnimatedWorkspaceHeader({
   const isMarkdown = activeResource?.type === "markdown"
 
   return (
-    <ResourceTabContext.Provider value={{ activeResourceTab, setActiveResourceTab }}>
-      <div className="border-b bg-background backdrop-blur-md shadow-sm">
+    <div className="border-b bg-background backdrop-blur-md shadow-sm">
       <div className="px-6 py-3">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -279,7 +261,7 @@ export function AnimatedWorkspaceHeader({
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: animations.medium, ease: [0.25, 0.46, 0.45, 0.94] }}
                 >
-                  <Tabs value={activeResourceTab} onValueChange={setActiveResourceTab}>
+                  <Tabs value={activeResourceTab} onValueChange={setActiveResourceTab || (() => {})}>
                     <TabsList className="bg-muted/50 h-9 p-1">
                       {hasVideo && (
                         <TabsTrigger value="video" className="gap-1.5 h-7 px-3 text-xs cursor-pointer transition-all duration-200 data-[state=active]:bg-background data-[state=active]:shadow-sm">
@@ -342,6 +324,5 @@ export function AnimatedWorkspaceHeader({
         </div>
       </div>
     </div>
-    </ResourceTabContext.Provider>
   )
 }

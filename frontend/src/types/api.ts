@@ -21,12 +21,25 @@ export interface AuthResponse {
   message?: string
 }
 
+// Resource Types
+export interface Resource {
+  id: string
+  name: string
+  type: 'markdown' | 'lecture' | 'header'
+  content?: string
+  video?: string
+  playlist?: string
+  slides?: string
+  expandable?: boolean
+}
+
 // Dojo Types
 export interface DojoModule {
   id: string
   name: string
   description?: string
   challenges: Challenge[]
+  resources?: Resource[]
   type?: string
 }
 
@@ -62,7 +75,7 @@ export interface ChallengeFile {
 }
 
 export interface Challenge {
-  id: number
+  id: string
   name: string
   description?: string
   category?: string
@@ -75,8 +88,8 @@ export interface Challenge {
   hints?: Hint[]
   requirements?: number[]
   next_id?: number
-  solved_by_me?: boolean
   solves?: number
+  solved?: boolean
   attempts?: number
 }
 

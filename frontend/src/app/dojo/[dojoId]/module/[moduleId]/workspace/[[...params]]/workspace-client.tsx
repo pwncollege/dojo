@@ -65,7 +65,7 @@ export function WorkspacePageClient({
   )
 
   const handleResourceSelect = useMemo(() =>
-    (resourceId?: string) => {
+    (resourceId: string | null) => {
       if (resourceId) {
         router.push(`/dojo/${dojoId}/module/${moduleId}/workspace/resource/${resourceId}`)
       } else {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react'
 import { motion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
 import { useWorkspace } from '@/hooks/useWorkspace'
@@ -14,6 +14,17 @@ import { AnimatedWorkspaceHeader } from '@/components/workspace/AnimatedWorkspac
 import { WorkspaceContent } from '@/components/workspace/WorkspaceContent'
 import type { Dojo, DojoModule } from '@/types/api'
 import { useTheme } from '@/components/theme/ThemeProvider'
+
+// Context for sharing activeResourceTab between header and content
+const ResourceTabContext = createContext<{
+  activeResourceTab: string;
+  setActiveResourceTab: (tab: string) => void;
+} | null>(null);
+
+export const useResourceTab = () => {
+  const context = useContext(ResourceTabContext);
+  return context;
+};
 
 interface DojoWorkspaceLayoutProps {
   dojo: Dojo
@@ -46,6 +57,9 @@ export function DojoWorkspaceLayout({
   const setActiveChallenge = useWorkspaceStore(state => state.setActiveChallenge)
 
   const { activeService, preferredService, setActiveService } = useWorkspaceService()
+
+  // Manage activeResourceTab state for resource content
+  const [activeResourceTab, setActiveResourceTab] = useState<string>("video")
 
   const startChallengeMutation = useStartChallenge()
   const { palette } = useTheme()
@@ -167,7 +181,7 @@ export function DojoWorkspaceLayout({
       setActiveService(preferredService)
       // Don't auto-hide workspace header anymore since we want it visible by default
     }
-  }, [activeChallenge.challengeId, preferredService, setActiveService])
+  }, [activeChallenge?.challengeId, preferredService, setActiveService])
 
   // Clear isStarting when workspace becomes active
   useEffect(() => {
@@ -211,11 +225,9 @@ export function DojoWorkspaceLayout({
     const allTexts: string[] = []
 
     // Add challenge titles
-    if (currentModule.challenges) {
-      currentModule.challenges.forEach(challenge => {
-        if (challenge.name) allTexts.push(challenge.name)
-      })
-    }
+    currentModule.challenges.forEach(challenge => {
+      if (challenge.name) allTexts.push(challenge.name)
+    })
 
     // Add learning material titles
     if (currentModule.resources) {
@@ -282,7 +294,8 @@ export function DojoWorkspaceLayout({
   }
 
   return (
-    <div className="h-screen">
+    <ResourceTabContext.Provider value={{ activeResourceTab, setActiveResourceTab }}>
+      <div className="h-screen">
       <ResizablePanelGroup direction="horizontal" className="h-full">
         {/* Sidebar Panel */}
         <ResizablePanel
@@ -297,7 +310,7 @@ export function DojoWorkspaceLayout({
           }}
         >
           <WorkspaceSidebar
-            module={currentModule ? { ...currentModule, challenges: currentModule.challenges.map(c => ({ ...c, id: c.id.toString() })) } : { id: '', name: 'Module', challenges: [] }}
+            module={currentModule}
             dojoName={dojo.name}
             activeResource={resource?.id}
             onChallengeStart={handleChallengeStart}
@@ -350,5 +363,6 @@ export function DojoWorkspaceLayout({
         commands={commands}
       />
     </div>
+    </ResourceTabContext.Provider>
   )
 }
