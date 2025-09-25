@@ -286,6 +286,7 @@ function startChallenge(event) {
                     .toggleClass("fa-lock", !practice)
                     .toggleClass("fa-unlock", practice);
             windowResizeCallback("");
+            moduleStartChallenge(event, channel);
         }
 
         setTimeout(function() {
@@ -358,11 +359,6 @@ function markChallengeAsSolved(item) {
         return;
     }
 
-    if(unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
-        unsolved_flag.removeClass("far")
-        unsolved_flag.addClass("fas")
-    }
-
     unsolved_flag.removeClass("challenge-unsolved");
     unsolved_flag.addClass("challenge-solved");
 
@@ -426,7 +422,28 @@ function windowResizeCallback(event) {
     $(".challenge-iframe").not(".challenge-iframe-fs").css("aspect-ratio", `${window.innerWidth} / ${window.innerHeight}`);
 }
 
+function moduleStartChallenge(event, channel) {
+    root = $(event.target).closest(".accordion-item-body").find(".workspace-controls");
+    sendChallengeInfo(root, channel);
+}
+
 $(() => {
+    channel.addEventListener("message", (event) => {
+        var challenge_id = event.data["challenge-id"];
+        $(".workspace-controls").each((index, item) => {
+            item_chal_id = $(item).find("#current-challenge-id").prop("value");
+            if (item_chal_id == challenge_id) {
+                var priv = $(item).find("#workspace-change-privilege");
+                if (priv.length > 0) {
+                    priv.attr("data-privileged", event.data["challenge-privilege"]);
+                    displayPrivileged({"target": priv[0]}, false);
+                }
+
+                selectService($(item).find("#workspace-select").prop("value"), log=false);
+            }
+        })
+    });
+
     $(".accordion-item").on("show.bs.collapse", function (event) {
         $(event.currentTarget).find("iframe").each(function (i, iframe) {
             if ($(iframe).prop("src"))

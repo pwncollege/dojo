@@ -31,8 +31,6 @@
 .challenge-init {
   height: 100% !important;
   width: 100% !important;
-  padding-right: 15px;
-  padding-left: 15px;
 }
 
 .challenge-hidden {
@@ -61,6 +59,11 @@
   margin-bottom: 1em;
   background-color: var(--foreground);
   border-radius: 0.5em;
+}
+
+
+.challenge-hidden .workspace-ssh {
+  display: none !important;
 }
 </style>
 
@@ -173,15 +176,15 @@
           and not dojo.is_admin() %}
         {% if lock_challenge %}
           {% set icon = "fas fa-lock" %}
-        {% elif not challenge.required and solved == "challenge-unsolved" %}
-          {% set icon = "far fa-flask" %}
+        {% elif not challenge.required %}
+          {% set icon = "fa fa-flask" %}
         {% else %}
           {% set icon = "fas fa-flag" %}
         {% endif %}
 
         {% call(header) accordion_item("module-content", loop.index, lock_challenge, challenge_index=ns.challenge_count) %}
           {% if header %}
-            <h4 class="accordion-item-name challenge-name {{ active }}" data-challenge-index="{{ ns.challenge_count }}" data-challenge-name="{{ challenge.name or challenge.id }}" id="challenges-header-{{ ns.challenge_count }}">
+            <h4 class="accordion-item-name challenge-name {{ active }}" data-challenge-index="{{ ns.challenge_count }}" data-challenge-id="{{ challenge.id }}" data-challenge-name="{{ challenge.name or challenge.id }}" id="challenges-header-{{ ns.challenge_count }}">
                 <i class="challenge-icon pr-3 {{ icon }} {{ solved }} "></i>
                 {% if lock_challenge %}
                 <div class="challenge-text-wrapper">
@@ -233,13 +236,13 @@
             <div class="challenge-init row{% if active %} challenge-hidden{% endif %}">
               <div class="col-md-3 form=group text-center">
                 <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
-                  <i class="fas fa-play fa-2x pr-3"></i>Start
+                  <i class="fas fa-play fa-lg"></i>Start
                 </button>
               </div>
               {% if challenge.allow_privileged %}
               <div class="col-md-3 form=group text-center">
                 <button id="challenge-priv" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
-                  <i class="fas fa-unlock fa-2x pr-3"></i>Privileged
+                  <i class="fas fa-unlock fa-lg"></i>Privileged
                 </button>
               </div>
               {% endif %}
@@ -258,7 +261,7 @@
               </div>
               <div class="workspace-ssh">
                 <h3>Connect with SSH</h3>
-                Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@pwn.college</code>
+                Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@dojo.pwn.college</code>
               </div>
               {% include "components/actionbar.html" %}
             </div>
@@ -300,7 +303,34 @@
 {% endblock %}
 
 {% block scripts %}
+<script defer src="{{ url_for('views.themes', path='js/dojo/actionbar.js') }}"></script>
 <script defer src="{{ url_for('views.themes', path='js/dojo/challenges.js') }}"></script>
 <script defer onload="loadScoreboard(30, 1);" src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
-<script defer src="{{ url_for('views.themes', path='js/dojo/actionbar.js') }}"></script>
+{% if scroll_to_challenge %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(() => {
+    const el = document.querySelector('[data-challenge-id="{{ scroll_to_challenge }}"]');
+    if (!el) return;
+    const idx = el.getAttribute('data-challenge-index');
+    const btn = idx && document.getElementById(`challenges-header-button-${idx}`);
+    
+    const scrollToChallenge = () => {
+      const rect = el.getBoundingClientRect();
+      const offsetTop = window.pageYOffset + rect.top - 60;
+      window.scrollTo({
+        top: offsetTop,
+        behavior: 'smooth'
+      });
+    };
+    if (btn && btn.getAttribute('aria-expanded') !== 'true') {
+      btn.click();
+      setTimeout(scrollToChallenge, 400);
+    } else {
+      scrollToChallenge();
+    }
+  }, 500);
+});
+</script>
+{% endif %}
 {% endblock %}

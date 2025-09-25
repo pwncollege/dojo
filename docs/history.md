@@ -4,9 +4,10 @@ In the Fall of 2018, tasked with the responsibility of teaching *Computer System
 With a background in Capture The Flag (CTF) competitions, as members of [Shellphish](https://shellphish.net) and the DEF CON CTF organizing team [Order of the Overflow](https://www.oooverflow.io), we realized our best chance was to teach the course in the same way we learned: by doing.
 And so, the night before the first lecture, at a coffee shop in Tempe, Arizona---late into the night---we bought the domain [pwn.college](https://pwn.college), created the first assignment, and glued together a simple netcat interface in what would become [the first version]((https://github.com/pwncollege/oldschool)) of the pwn.college DOJO.
 
-For a more academic discussion of pwn.college, see our SIGCSE 2024 papers:
-- [DOJO: Applied Cybersecurity Education In The Browser](https://sefcom.asu.edu/publications/dojo-sigcse24.pdf)
-- [PWN The Learning Curve: Education-First CTF Challenges](https://sefcom.asu.edu/publications/pwn-sigcse24.pdf)
+For a more academic discussion of pwn.college, see our SIGCSE papers:
+- [DOJO: Applied Cybersecurity Education In The Browser](https://sefcom.asu.edu/publications/dojo-sigcse24.pdf) at SIGCSE 2024
+- [PWN The Learning Curve: Education-First CTF Challenges](https://sefcom.asu.edu/publications/pwn-sigcse24.pdf) at SIGCSE 2024
+- [SENSAI: Large Language Models as Applied Cybersecurity Tutors](https://sefcom.asu.edu/publications/sensai-sigcse25.pdf) at SIGCSE 2025
 
 See also Connor's PhD work, which focuses on pwn.college:
 - [Connor's PhD Dissertation](https://connornelson.com/docs/dissertation-hacking-the-learning-curve.pdf)
