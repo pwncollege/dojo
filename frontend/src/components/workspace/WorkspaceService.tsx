@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useWorkspaceStore } from "@/stores";
 import { createPortal } from "react-dom";
@@ -15,25 +15,28 @@ export function WorkspaceService({
   // Get state from workspace store
   const activeService = useWorkspaceStore((state) => state.activeService);
   const isFullScreen = useWorkspaceStore((state) => state.isFullScreen);
+  const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
+  const sidebarWidth = useWorkspaceStore((state) => state.sidebarWidth);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
-  const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
+  const [referenceRect, setReferenceRect] = useState<DOMRect | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const referenceRef = useRef<HTMLDivElement>(null);
   const checkIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const retryCount = useRef(0);
 
   const maxRetries = 30; // 30 seconds
   const checkInterval = 1000; // Check every second
 
-  // Update container position for portal positioning
+  // Update reference div position for portal positioning
   useEffect(() => {
     const updateRect = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        console.log("Container rect:", rect);
-        setContainerRect(rect);
+      if (referenceRef.current) {
+        const rect = referenceRef.current.getBoundingClientRect();
+        console.log("Reference rect:", rect);
+        setReferenceRect(rect);
       }
     };
 
@@ -149,10 +152,13 @@ export function WorkspaceService({
     };
   }, [iframeSrc, activeService, onReady]);
 
+  const containerRect = containerRef.current?.getBoundingClientRect();
+  console.log("containerRect:", containerRect);
+
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full"
+      className="z-50 relative w-full h-full bg-red-100"
       style={{
         backgroundColor:
           activeService === "terminal"
@@ -162,25 +168,6 @@ export function WorkspaceService({
     >
       {/* Always show iframe, but hide it when not ready */}
       {createPortal(
-        <div
-          style={{
-            position: "fixed",
-            ...(isFullScreen
-              ? {
-                  top: activeService === "terminal" ? "10px" : 0,
-                  left: activeService === "terminal" ? "10px" : 0,
-                  bottom: activeService === "terminal" ? "10px" : 0,
-                  right: activeService === "terminal" ? "10px" : 0,
-                }
-              : {
-                  top: containerRect?.top ?? 100,
-                  left: containerRect?.left ?? 100,
-                  width: containerRect?.width ?? 800,
-                  height: containerRect?.height ?? 600,
-                }),
-            zIndex: 100,
-          }}
-        >
           <iframe
             ref={iframeRef}
             className={`w-full h-full border-0 transition-opacity duration-300 ${
@@ -191,11 +178,34 @@ export function WorkspaceService({
                 activeService === "terminal"
                   ? "var(--service-bg)"
                   : "var(--background)",
+              position: "fixed",
+              transition: "all 0.1s ease-out",
+              top: isFullScreen
+                ? activeService === "terminal"
+                  ? 10
+                  : 0
+                : containerRect?.top,
+              left: isFullScreen
+                ? activeService === "terminal"
+                  ? 10
+                  : 0
+                : containerRect?.left,
+              right: isFullScreen
+                ? activeService === "terminal"
+                  ? 10
+                  : 0
+                : containerRect?.right,
+              bottom: isFullScreen
+                ? activeService === "terminal"
+                  ? 10
+                  : 0
+                : containerRect?.bottom,
+
+              zIndex: 100,
             }}
             title={`Workspace ${activeService}`}
             allow="clipboard-write"
-          />
-        </div>,
+          />,
         document.body,
       )}
 

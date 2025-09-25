@@ -294,9 +294,13 @@ export function DojoWorkspaceLayout({
           maxSize={50}
           className={`${sidebarCollapsed ? "max-w-[48px]" : "min-w-[200px]"} ${isFullScreen ? "hidden" : ""}`}
           onResize={(size) => {
+            console.log('Sidebar resize:', size, 'collapsed:', sidebarCollapsed)
             if (sidebarCollapsed && size > 10) {
               setSidebarCollapsed(false)
             }
+            // Ensure we don't set a width smaller than the minimum
+            const constrainedSize = Math.max(size, 3)
+            setSidebarWidth(constrainedSize)
           }}
         >
           <WorkspaceSidebar
