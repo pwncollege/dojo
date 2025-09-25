@@ -1,137 +1,214 @@
-import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
-import { useWorkspaceStore } from '@/stores'
+import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
+import { useWorkspaceStore } from "@/stores";
+import { createPortal } from "react-dom";
 
 interface WorkspaceServiceProps {
-  iframeSrc: string
-  onReady?: () => void
+  iframeSrc: string;
+  onReady?: () => void;
 }
 
-export function WorkspaceService({ iframeSrc, onReady }: WorkspaceServiceProps) {
+export function WorkspaceService({
+  iframeSrc,
+  onReady,
+}: WorkspaceServiceProps) {
   // Get state from workspace store
-  const activeService = useWorkspaceStore(state => state.activeService)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isReady, setIsReady] = useState(false)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-  const checkIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined)
-  const retryCount = useRef(0)
+  const activeService = useWorkspaceStore((state) => state.activeService);
+  const isFullScreen = useWorkspaceStore((state) => state.isFullScreen);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const checkIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const retryCount = useRef(0);
 
-  const maxRetries = 30 // 30 seconds
-  const checkInterval = 1000 // Check every second
+  const maxRetries = 30; // 30 seconds
+  const checkInterval = 1000; // Check every second
+
+  // Update container position for portal positioning
+  useEffect(() => {
+    const updateRect = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        console.log("Container rect:", rect);
+        setContainerRect(rect);
+      }
+    };
+
+    // Use requestAnimationFrame to ensure DOM is ready
+    const rafId = requestAnimationFrame(updateRect);
+
+    window.addEventListener("resize", updateRect);
+    window.addEventListener("scroll", updateRect);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", updateRect);
+      window.removeEventListener("scroll", updateRect);
+    };
+  }, []);
 
   useEffect(() => {
     // Construct full URL
-    const baseUrl = process.env.NEXT_PUBLIC_DOJO_BASE_URL
-    const fullUrl = iframeSrc.startsWith('/') ? `${baseUrl}${iframeSrc}` : iframeSrc
+    const baseUrl = process.env.NEXT_PUBLIC_DOJO_BASE_URL;
+    const fullUrl = iframeSrc.startsWith("/")
+      ? `${baseUrl}${iframeSrc}`
+      : iframeSrc;
 
     // Check if iframe already has the correct URL - if so, don't reload
     if (iframeRef.current && iframeRef.current.src === fullUrl && isReady) {
-      return
+      return;
     }
 
-    setIsLoading(true)
-    setError(null)
-    setIsReady(false)
-    retryCount.current = 0
+    setIsLoading(true);
+    setError(null);
+    setIsReady(false);
+    retryCount.current = 0;
 
     // Check if service is actually ready by making a HEAD request
     const checkServiceReady = async () => {
-      retryCount.current++
+      retryCount.current++;
 
       if (retryCount.current >= maxRetries) {
-        setError(`${activeService} service timed out after ${maxRetries} seconds`)
-        setIsLoading(false)
+        setError(
+          `${activeService} service timed out after ${maxRetries} seconds`,
+        );
+        setIsLoading(false);
         if (checkIntervalRef.current) {
-          clearInterval(checkIntervalRef.current)
+          clearInterval(checkIntervalRef.current);
         }
-        return
+        return;
       }
 
       try {
         // Make a HEAD request to check if service is ready
         const response = await fetch(fullUrl, {
-          method: 'HEAD',
-          credentials: 'include', // Include cookies for authentication
-        })
+          method: "HEAD",
+          credentials: "include", // Include cookies for authentication
+        });
 
         if (response.ok) {
           // Service is ready, load it in iframe
           if (iframeRef.current) {
-            iframeRef.current.src = fullUrl
+            console.log("Setting iframe src to:", fullUrl);
+            iframeRef.current.src = fullUrl;
           }
 
-          setIsLoading(false)
+          setIsLoading(false);
           // Add small delay to ensure iframe content is rendered before hiding spinner
           setTimeout(() => {
-            setIsReady(true)
-            setError(null)
-            onReady?.()
-          }, 100)
+            setIsReady(true);
+            setError(null);
+            onReady?.();
+          }, 100);
 
           if (checkIntervalRef.current) {
-            clearInterval(checkIntervalRef.current)
+            clearInterval(checkIntervalRef.current);
           }
         } else if (response.status === 502 || response.status === 503) {
           // Service not ready yet, keep checking
         } else {
           // Unexpected error
-          console.error(`${activeService} service returned unexpected status: ${response.status}`)
+          console.error(
+            `${activeService} service returned unexpected status: ${response.status}`,
+          );
         }
       } catch (err) {
         // Network error or CORS issue - try loading iframe anyway after a few attempts
         if (retryCount.current > 3) {
           if (iframeRef.current) {
-            iframeRef.current.src = fullUrl
+            console.log("Setting iframe src (fallback) to:", fullUrl);
+            iframeRef.current.src = fullUrl;
           }
 
-          setIsLoading(false)
+          setIsLoading(false);
           // Add small delay to ensure iframe content is rendered before hiding spinner
           setTimeout(() => {
-            setIsReady(true)
-            setError(null)
-            onReady?.()
-          }, 100)
+            setIsReady(true);
+            setError(null);
+            onReady?.();
+          }, 100);
 
           if (checkIntervalRef.current) {
-            clearInterval(checkIntervalRef.current)
+            clearInterval(checkIntervalRef.current);
           }
         }
       }
-    }
+    };
 
     // Start checking immediately
-    checkServiceReady()
-    checkIntervalRef.current = setInterval(checkServiceReady, checkInterval)
+    checkServiceReady();
+    checkIntervalRef.current = setInterval(checkServiceReady, checkInterval);
 
     return () => {
       if (checkIntervalRef.current) {
-        clearInterval(checkIntervalRef.current)
+        clearInterval(checkIntervalRef.current);
       }
-    }
-  }, [iframeSrc, activeService, onReady])
+    };
+  }, [iframeSrc, activeService, onReady]);
 
   return (
     <div
+      ref={containerRef}
       className="relative w-full h-full"
-      style={{ backgroundColor: activeService === 'terminal' ? 'var(--service-bg)' : 'var(--background)' }}
+      style={{
+        backgroundColor:
+          activeService === "terminal"
+            ? "var(--service-bg)"
+            : "var(--background)",
+      }}
     >
       {/* Always show iframe, but hide it when not ready */}
-      <iframe
-        ref={iframeRef}
-        className={`w-full h-full border-0 transition-opacity duration-300 ${
-          activeService === 'code' ? '' : 'rounded-lg'
-        } ${isReady ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        style={{ backgroundColor: activeService === 'terminal' ? 'var(--service-bg)' : 'var(--background)' }}
-        title={`Workspace ${activeService}`}
-        allow="clipboard-write"
-      />
+      {createPortal(
+        <div
+          style={{
+            position: "fixed",
+            ...(isFullScreen
+              ? {
+                  top: activeService === "terminal" ? "10px" : 0,
+                  left: activeService === "terminal" ? "10px" : 0,
+                  bottom: activeService === "terminal" ? "10px" : 0,
+                  right: activeService === "terminal" ? "10px" : 0,
+                }
+              : {
+                  top: containerRect?.top ?? 100,
+                  left: containerRect?.left ?? 100,
+                  width: containerRect?.width ?? 800,
+                  height: containerRect?.height ?? 600,
+                }),
+            zIndex: 100,
+          }}
+        >
+          <iframe
+            ref={iframeRef}
+            className={`w-full h-full border-0 transition-opacity duration-300 ${
+              activeService === "code" ? "" : "rounded-lg"
+            } ${isReady ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+            style={{
+              backgroundColor:
+                activeService === "terminal"
+                  ? "var(--service-bg)"
+                  : "var(--background)",
+            }}
+            title={`Workspace ${activeService}`}
+            allow="clipboard-write"
+          />
+        </div>,
+        document.body,
+      )}
 
       {/* Loading overlay when not ready */}
       {!isReady && (
         <motion.div
           className="absolute inset-0 flex items-center justify-center"
-          style={{ backgroundColor: activeService === 'terminal' ? 'var(--service-bg)' : 'var(--background)' }}
+          style={{
+            backgroundColor:
+              activeService === "terminal"
+                ? "var(--service-bg)"
+                : "var(--background)",
+          }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -140,11 +217,15 @@ export function WorkspaceService({ iframeSrc, onReady }: WorkspaceServiceProps) 
             {isLoading ? (
               <>
                 <div className="w-16 h-16 border-4 border-muted border-t-primary rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-lg font-medium">Loading {activeService}...</p>
+                <p className="text-lg font-medium">
+                  Loading {activeService}...
+                </p>
                 <p className="text-sm text-muted-foreground mt-2">
-                  {activeService === 'code' && 'Starting VS Code environment'}
-                  {activeService === 'terminal' && 'Initializing terminal session'}
-                  {activeService === 'desktop' && 'Setting up desktop environment'}
+                  {activeService === "code" && "Starting VS Code environment"}
+                  {activeService === "terminal" &&
+                    "Initializing terminal session"}
+                  {activeService === "desktop" &&
+                    "Setting up desktop environment"}
                 </p>
               </>
             ) : error ? (
@@ -152,7 +233,9 @@ export function WorkspaceService({ iframeSrc, onReady }: WorkspaceServiceProps) 
                 <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-destructive text-2xl">⚠</span>
                 </div>
-                <p className="text-lg font-medium text-destructive">Failed to load {activeService}</p>
+                <p className="text-lg font-medium text-destructive">
+                  Failed to load {activeService}
+                </p>
                 <p className="text-sm text-muted-foreground mt-2">{error}</p>
               </>
             ) : null}
@@ -160,5 +243,5 @@ export function WorkspaceService({ iframeSrc, onReady }: WorkspaceServiceProps) 
         </motion.div>
       )}
     </div>
-  )
+  );
 }

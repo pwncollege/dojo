@@ -3,7 +3,6 @@ import { motion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
 import { useWorkspace } from '@/hooks/useWorkspace'
 import { useStartChallenge } from '@/hooks/useDojo'
-import { FullScreenWorkspace } from './FullScreenWorkspace'
 import { useWorkspaceStore, useWorkspaceService, useWorkspaceView, useWorkspaceChallenge } from '@/stores'
 import { CommandPalette } from '@/components/ui/command-palette'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
@@ -283,15 +282,6 @@ export function DojoWorkspaceLayout({
   const optimalSidebarWidth = calculateOptimalSidebarWidth()
 
 
-  // Full screen mode
-  if (isFullScreen) {
-    return (
-      <FullScreenWorkspace
-        workspaceStatus={workspaceData}
-        workspaceData={workspaceData}
-      />
-    )
-  }
 
   return (
     <ResourceTabContext.Provider value={{ activeResourceTab, setActiveResourceTab }}>
@@ -302,7 +292,7 @@ export function DojoWorkspaceLayout({
           defaultSize={sidebarCollapsed ? 3 : optimalSidebarWidth}
           minSize={3}
           maxSize={50}
-          className={sidebarCollapsed ? "max-w-[48px]" : "min-w-[200px]"}
+          className={`${sidebarCollapsed ? "max-w-[48px]" : "min-w-[200px]"} ${isFullScreen ? "hidden" : ""}`}
           onResize={(size) => {
             if (sidebarCollapsed && size > 10) {
               setSidebarCollapsed(false)
@@ -323,24 +313,27 @@ export function DojoWorkspaceLayout({
         <ResizableHandle
           withHandle
           onDoubleClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className={isFullScreen ? "hidden" : ""}
         />
 
         {/* Main Workspace Panel */}
-        <ResizablePanel defaultSize={sidebarCollapsed ? 97 : (100 - optimalSidebarWidth)}>
+        <ResizablePanel defaultSize={isFullScreen ? 100 : (sidebarCollapsed ? 97 : (100 - optimalSidebarWidth))}>
           <div className="flex flex-col h-full bg-background">
             {/* Unified animated header for both challenges and resources */}
-            <AnimatedWorkspaceHeader
-              dojoName={dojo.name}
-              moduleName={currentModule?.name || 'Module'}
-              workspaceActive={workspaceData?.active || false}
-              activeResource={resource}
-              onClose={onChallengeClose}
-              onResourceClose={() => {
-                if (onResourceSelect) {
-                  onResourceSelect(null)
-                }
-              }}
-            />
+            <div className={isFullScreen ? "hidden" : ""}>
+              <AnimatedWorkspaceHeader
+                dojoName={dojo.name}
+                moduleName={currentModule?.name || 'Module'}
+                workspaceActive={workspaceData?.active || false}
+                activeResource={resource}
+                onClose={onChallengeClose}
+                onResourceClose={() => {
+                  if (onResourceSelect) {
+                    onResourceSelect(null)
+                  }
+                }}
+              />
+            </div>
 
             <WorkspaceContent
               workspaceActive={workspaceData?.active || false}
