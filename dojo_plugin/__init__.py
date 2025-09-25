@@ -19,6 +19,7 @@ from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 from .models import Dojos, DojoChallenges, Belts, Emojis
 from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
+from .utils.dojo import get_current_dojo_challenge
 from .utils.awards import update_awards
 from .utils.feed import publish_challenge_solve
 from .utils.query_timer import init_query_timer
@@ -143,6 +144,21 @@ def load(app):
 
     app.permanent_session_lifetime = datetime.timedelta(days=180)
 
+    
+    # Get CORS origin from environment variable
+    cors_origin = os.environ.get('CORS_ORIGINS', 'http://localhost:5173')
+    
+    # Add CORS headers for API endpoints
+    @app.after_request
+    def add_cors_headers(response):
+        # Only add CORS headers for API routes
+        if request.path.startswith('/pwncollege_api/'):
+            response.headers['Access-Control-Allow-Origin'] = cors_origin
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
+
     CHALLENGE_CLASSES["dojo"] = DojoChallenge
     FLAG_CLASSES["dojo"] = DojoFlag
 
@@ -171,6 +187,7 @@ def load(app):
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
 
     app.jinja_env.filters["markdown"] = render_markdown
+    app.jinja_env.globals["get_current_dojo_challenge"] = get_current_dojo_challenge
 
     register_admin_plugin_menu_bar("Dojos", "/admin/dojos")
     register_admin_plugin_menu_bar("Desktops", "/admin/desktops")
