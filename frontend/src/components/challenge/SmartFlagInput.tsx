@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useSubmitChallengeSolution, useStartChallenge } from '@/hooks/useDojo'
-import { useDojoStore, useUIStore } from '@/stores'
+import { useDojoStore, useUIStore, useWorkspaceStore } from '@/stores'
 import { useClipboardFlagSubmission } from '@/hooks/useClipboardFlagSubmission'
 import { workspaceService } from '@/services/workspace'
 import { useRouter } from 'next/navigation'
@@ -48,7 +48,7 @@ export function SmartFlagInput({
   const addSolve = useDojoStore(state => state.addSolve)
   const router = useRouter()
   const startChallenge = useStartChallenge()
-  const setActiveChallenge = useUIStore(state => state.setActiveChallenge)
+  const setActiveChallenge = useWorkspaceStore(state => state.setActiveChallenge)
 
   // Helper function to safely show popup with state
   const showPopupWithState = (state: 'clipboard_detection' | 'submission_result' | 'regular_feedback') => {

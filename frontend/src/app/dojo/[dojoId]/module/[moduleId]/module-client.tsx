@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Markdown } from '@/components/ui/markdown'
 import { StartChallengeButton } from '@/components/ui/start-challenge-button'
 import { StartResourceButton } from '@/components/ui/start-resource-button'
-import { useDojoStore, useHeaderState, useUIStore, useAuthStore } from '@/stores'
+import { useDojoStore, useHeaderState, useUIStore, useAuthStore, useWorkspaceStore } from '@/stores'
 import { ArrowLeft, CheckCircle, Circle, Clock, FileText, Video, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -65,7 +65,7 @@ export function ModulePageClient({ dojo, module, dojoId, moduleId }: ModulePageC
 
   // Direct state access to avoid selector issues
   const solvesMap = useDojoStore(state => state.solves)
-  const activeChallenge = useUIStore(state => state.activeChallenge)
+  const activeChallenge = useWorkspaceStore(state => state.activeChallenge)
 
   // Auth state
   const isAuthenticated = useAuthStore(state => state.isAuthenticated)

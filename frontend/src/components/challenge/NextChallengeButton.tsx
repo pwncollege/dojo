@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ChevronRight, Loader2 } from 'lucide-react'
-import { useUIStore } from '@/stores'
+import { useUIStore, useWorkspaceStore } from '@/stores'
 import { workspaceService } from '@/services/workspace'
 import { useStartChallenge } from '@/hooks/useDojo'
 import { cn } from '@/lib/utils'
@@ -14,7 +14,7 @@ export function NextChallengeButton() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const startChallenge = useStartChallenge()
-  const setActiveChallenge = useUIStore(state => state.setActiveChallenge)
+  const setActiveChallenge = useWorkspaceStore(state => state.setActiveChallenge)
 
   const handleNextChallenge = async () => {
     try {
