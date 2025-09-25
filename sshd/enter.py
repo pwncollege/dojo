@@ -6,7 +6,7 @@ import pathlib
 import shlex
 import sys
 import time
-
+import signal
 import docker
 import redis
 
@@ -86,8 +86,9 @@ def main():
 
         attempts = 0
         print("\r", " " * 80, "\rConnected!")
-
-        if not os.fork():
+        print()
+        child_pid = os.fork();
+        if not child_pid:
             ssh_entrypoint = "/run/dojo/bin/ssh-entrypoint"
             if is_mac:
                 cmd = f"/bin/bash -c {shlex.quote(original_command)}" if original_command  else "zsh -i"
@@ -114,6 +115,11 @@ def main():
                 )
 
         else:
+            try:
+                container.wait(condition="not-running")
+                os.kill(child_pid, signal.SIGKILL)
+            except:
+                pass
             _, status = os.wait()
             if simple or status == 0:
                 break
