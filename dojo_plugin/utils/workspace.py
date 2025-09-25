@@ -11,16 +11,25 @@ logger = logging.getLogger(__name__)
 
 on_demand_services = { "terminal", "code", "desktop"}
 
-def start_on_demand_service(user, service_name):
+def start_on_demand_service(user, service_name, theme_data=None):
     if service_name not in on_demand_services:
         return None
     try:
+        # Prepare environment variables for theme data
+        env_vars = {}
+        if service_name in ["terminal", "code"] and theme_data:
+            env_vars["TERMINAL_THEME_NAME"] = theme_data
+            print(f"[WORKSPACE] Setting TERMINAL_THEME_NAME={theme_data} for {service_name}")
+        elif service_name in ["terminal", "code"]:
+            print(f"[WORKSPACE] No theme data provided for {service_name}, using default")
+
         exec_run(
             f"/run/current-system/sw/bin/timeout -k 10 30 /run/current-system/sw/bin/dojo-{service_name}",
             workspace_user="hacker",
             user_id=user.id,
             assert_success=True,
             log=True,
+            environment=env_vars if env_vars else None,
         )
     except (docker.errors.NotFound, AssertionError, requests.HTTPError) as exception:
         logger.warning(f"start_on_demand_service failure: {service_name=} {exception=}")
@@ -46,7 +55,16 @@ def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", us
 
     start_time = time.time()
     if log:
-        exec_id = docker_client.api.exec_create(container.id, cmd, privileged=False, user=workspace_user)["Id"]
+        # Extract environment variables from kwargs for exec_create
+        environment = kwargs.get('environment', None)
+        exec_create_kwargs = {
+            "privileged": False,
+            "user": workspace_user
+        }
+        if environment:
+            exec_create_kwargs["environment"] = environment
+
+        exec_id = docker_client.api.exec_create(container.id, cmd, **exec_create_kwargs)["Id"]
         out_stream = docker_client.api.exec_start(exec_id, stream=True, demux=False)
         output = b"".join(log_generator_output(f"exec_run {cmd=} ", out_stream, start_time=start_time))
         exit_code = docker_client.api.exec_inspect(exec_id)['ExitCode']
