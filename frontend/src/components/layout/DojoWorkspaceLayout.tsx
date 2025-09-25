@@ -1,18 +1,34 @@
-import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react'
-import { motion } from 'framer-motion'
-import { usePathname } from 'next/navigation'
-import { useWorkspace } from '@/hooks/useWorkspace'
-import { useStartChallenge } from '@/hooks/useDojo'
-import { useWorkspaceStore, useWorkspaceService, useWorkspaceView, useWorkspaceChallenge } from '@/stores'
-import { CommandPalette } from '@/components/ui/command-palette'
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
-import { useCommands } from '@/hooks/useCommands'
-import { useHotkeys, hotkey } from '@/hooks/useHotkeys'
-import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar'
-import { AnimatedWorkspaceHeader } from '@/components/workspace/AnimatedWorkspaceHeader'
-import { WorkspaceContent } from '@/components/workspace/WorkspaceContent'
-import type { Dojo, DojoModule } from '@/types/api'
-import { useTheme } from '@/components/theme/ThemeProvider'
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  createContext,
+  useContext,
+} from "react";
+import { motion } from "framer-motion";
+import { usePathname } from "next/navigation";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { useStartChallenge } from "@/hooks/useDojo";
+import {
+  useWorkspaceStore,
+  useWorkspaceService,
+  useWorkspaceView,
+  useWorkspaceChallenge,
+} from "@/stores";
+import { CommandPalette } from "@/components/ui/command-palette";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+import { useCommands } from "@/hooks/useCommands";
+import { useHotkeys, hotkey } from "@/hooks/useHotkeys";
+import { WorkspaceSidebar } from "@/components/workspace/WorkspaceSidebar";
+import { AnimatedWorkspaceHeader } from "@/components/workspace/AnimatedWorkspaceHeader";
+import { WorkspaceContent } from "@/components/workspace/WorkspaceContent";
+import type { Dojo, DojoModule } from "@/types/api";
+import { useTheme } from "@/components/theme/ThemeProvider";
 
 // Context for sharing activeResourceTab between header and content
 const ResourceTabContext = createContext<{
@@ -26,11 +42,15 @@ export const useResourceTab = () => {
 };
 
 interface DojoWorkspaceLayoutProps {
-  dojo: Dojo
-  modules: DojoModule[]
-  onChallengeStart: (dojoId: string, moduleId: string, challengeId: string) => void
-  onChallengeClose: () => void
-  onResourceSelect?: (resourceId: string | null) => void
+  dojo: Dojo;
+  modules: DojoModule[];
+  onChallengeStart: (
+    dojoId: string,
+    moduleId: string,
+    challengeId: string,
+  ) => void;
+  onChallengeClose: () => void;
+  onResourceSelect?: (resourceId: string | null) => void;
 }
 
 export function DojoWorkspaceLayout({
@@ -38,66 +58,88 @@ export function DojoWorkspaceLayout({
   modules,
   onChallengeStart,
   onChallengeClose,
-  onResourceSelect
+  onResourceSelect,
 }: DojoWorkspaceLayoutProps) {
   // ALL HOOKS MUST BE AT THE TOP - before any conditional returns
   // Use workspace state from dedicated workspace store
-  const sidebarCollapsed = useWorkspaceStore(state => state.sidebarCollapsed)
-  const isFullScreen = useWorkspaceStore(state => state.isFullScreen)
-  const sidebarWidth = useWorkspaceStore(state => state.sidebarWidth)
-  const commandPaletteOpen = useWorkspaceStore(state => state.commandPaletteOpen)
-  const workspaceHeaderHidden = useWorkspaceStore(state => state.headerHidden)
+  const sidebarCollapsed = useWorkspaceStore((state) => state.sidebarCollapsed);
+  const isFullScreen = useWorkspaceStore((state) => state.isFullScreen);
+  const sidebarWidth = useWorkspaceStore((state) => state.sidebarWidth);
+  const commandPaletteOpen = useWorkspaceStore(
+    (state) => state.commandPaletteOpen,
+  );
+  const workspaceHeaderHidden = useWorkspaceStore(
+    (state) => state.headerHidden,
+  );
 
-  const setSidebarCollapsed = useWorkspaceStore(state => state.setSidebarCollapsed)
-  const setFullScreen = useWorkspaceStore(state => state.setFullScreen)
-  const setSidebarWidth = useWorkspaceStore(state => state.setSidebarWidth)
-  const setCommandPaletteOpen = useWorkspaceStore(state => state.setCommandPaletteOpen)
-  const setWorkspaceHeaderHidden = useWorkspaceStore(state => state.setHeaderHidden)
-  const setActiveChallenge = useWorkspaceStore(state => state.setActiveChallenge)
+  const setSidebarCollapsed = useWorkspaceStore(
+    (state) => state.setSidebarCollapsed,
+  );
+  const setFullScreen = useWorkspaceStore((state) => state.setFullScreen);
+  const setSidebarWidth = useWorkspaceStore((state) => state.setSidebarWidth);
+  const setCommandPaletteOpen = useWorkspaceStore(
+    (state) => state.setCommandPaletteOpen,
+  );
+  const setWorkspaceHeaderHidden = useWorkspaceStore(
+    (state) => state.setHeaderHidden,
+  );
+  const setActiveChallenge = useWorkspaceStore(
+    (state) => state.setActiveChallenge,
+  );
 
-  const { activeService, preferredService, setActiveService } = useWorkspaceService()
+  const { activeService, preferredService, setActiveService } =
+    useWorkspaceService();
 
   // Manage activeResourceTab state for resource content
-  const [activeResourceTab, setActiveResourceTab] = useState<string>("video")
+  const [activeResourceTab, setActiveResourceTab] = useState<string>("video");
 
-  const startChallengeMutation = useStartChallenge()
-  const { palette } = useTheme()
-  const pathname = usePathname()
+  const startChallengeMutation = useStartChallenge();
+  const { palette } = useTheme();
+  const pathname = usePathname();
 
   // Parse URL to determine active challenge/resource
-  const urlParts = pathname.split('/')
-  const workspaceIndex = urlParts.indexOf('workspace')
-  const type = urlParts[workspaceIndex + 1] // 'challenge' or 'resource'
-  const id = urlParts[workspaceIndex + 2] // challengeId or resourceId
+  const urlParts = pathname.split("/");
+  const workspaceIndex = urlParts.indexOf("workspace");
+  const type = urlParts[workspaceIndex + 1]; // 'challenge' or 'resource'
+  const id = urlParts[workspaceIndex + 2]; // challengeId or resourceId
 
-  const challengeId = type === 'challenge' ? id : undefined
-  const resourceId = type === 'resource' ? id : undefined
-  const isResourceMode = !!resourceId
-  const isChallenge = !!challengeId
-
+  const challengeId = type === "challenge" ? id : undefined;
+  const resourceId = type === "resource" ? id : undefined;
+  const isResourceMode = !!resourceId;
+  const isChallenge = !!challengeId;
 
   // Get the current module (we only have one in workspace view)
-  const currentModule = modules[0]
+  const currentModule = modules[0];
 
   // Find active challenge/resource
-  const challenge = currentModule?.challenges?.find(c => c.id === challengeId)
-  const resource = currentModule?.resources?.find(r => r.id === resourceId)
+  const challenge = currentModule?.challenges?.find(
+    (c) => c.id === challengeId,
+  );
+  const resource = currentModule?.resources?.find((r) => r.id === resourceId);
 
   // Create activeChallenge object for consistency
-  const activeChallenge = isChallenge && challenge ? {
-    dojoId: dojo.id,
-    moduleId: currentModule.id,
-    challengeId: challenge.id,
-    name: challenge.name
-  } : isResourceMode && resource ? {
-    dojoId: dojo.id,
-    moduleId: currentModule.id,
-    challengeId: 'resource',
-    name: resource.name
-  } : undefined
+  const activeChallenge =
+    isChallenge && challenge
+      ? {
+          dojoId: dojo.id,
+          moduleId: currentModule.id,
+          challengeId: challenge.id,
+          name: challenge.name,
+        }
+      : isResourceMode && resource
+        ? {
+            dojoId: dojo.id,
+            moduleId: currentModule.id,
+            challengeId: "resource",
+            name: resource.name,
+          }
+        : undefined;
 
   // Pass theme name for terminal and code services
-  const serviceTheme = (activeService === 'terminal' || activeService === 'code') ? palette : undefined
+  const serviceTheme =
+    activeService === "terminal" || activeService === "code"
+      ? palette
+      : undefined;
 
   // Single workspace call that gets status and data in one request
   // Only enable when we have an active challenge AND it's not currently starting
@@ -105,11 +147,13 @@ export function DojoWorkspaceLayout({
   const { data: workspaceData } = useWorkspace(
     {
       service: activeService,
-      challenge: activeChallenge ? `${activeChallenge.dojoId}-${activeChallenge.moduleId}-${activeChallenge.challengeId}` : '',
-      theme: serviceTheme
+      challenge: activeChallenge
+        ? `${activeChallenge.dojoId}-${activeChallenge.moduleId}-${activeChallenge.challengeId}`
+        : "",
+      theme: serviceTheme,
     },
-    !!activeChallenge
-  )
+    !!activeChallenge,
+  );
 
   // Set active challenge in workspace store for widget
   useEffect(() => {
@@ -120,15 +164,18 @@ export function DojoWorkspaceLayout({
         challengeId: activeChallenge.challengeId,
         challengeName: activeChallenge.name,
         dojoName: dojo.name,
-        moduleName: currentModule.name
-      })
+        moduleName: currentModule.name,
+      });
     }
-  }, [activeChallenge, dojo.name, currentModule?.name, setActiveChallenge])
+  }, [activeChallenge, dojo.name, currentModule?.name, setActiveChallenge]);
 
   // Handler function for challenge start
-  const handleChallengeStart = async (moduleId: string, challengeId: string) => {
+  const handleChallengeStart = async (
+    moduleId: string,
+    challengeId: string,
+  ) => {
     // 1. Navigate immediately for instant UX
-    onChallengeStart(dojo.id, moduleId, challengeId)
+    onChallengeStart(dojo.id, moduleId, challengeId);
 
     // 2. Start challenge on server in background
     try {
@@ -136,17 +183,20 @@ export function DojoWorkspaceLayout({
         dojoId: dojo.id,
         moduleId,
         challengeId,
-        practice: false
-      })
+        practice: false,
+      });
     } catch (error) {
-      console.error('Failed to start challenge:', error)
+      console.error("Failed to start challenge:", error);
     }
-  }
+  };
 
   // Commands hook
   const commands = useCommands({
     activeChallenge,
-    modules: modules.map(m => ({ ...m, challenges: m.challenges.map(c => ({ ...c, id: c.id.toString() })) })),
+    modules: modules.map((m) => ({
+      ...m,
+      challenges: m.challenges.map((c) => ({ ...c, id: c.id.toString() })),
+    })),
     activeService,
     sidebarCollapsed,
     isFullScreen,
@@ -156,210 +206,240 @@ export function DojoWorkspaceLayout({
     setIsFullScreen: setFullScreen,
     setHeaderHidden: setWorkspaceHeaderHidden,
     onChallengeStart: handleChallengeStart,
-    onChallengeClose
-  })
+    onChallengeClose,
+  });
 
   // Setup hotkeys
-  useHotkeys({
-    [hotkey.ctrlShift('p')]: () => setCommandPaletteOpen(!commandPaletteOpen),
-    [hotkey.cmdShift('p')]: () => setCommandPaletteOpen(!commandPaletteOpen),
-    [hotkey.ctrl('b')]: () => setSidebarCollapsed(!sidebarCollapsed),
-    [hotkey.cmd('b')]: () => setSidebarCollapsed(!sidebarCollapsed),
-    [hotkey.ctrl('h')]: () => setWorkspaceHeaderHidden(!workspaceHeaderHidden),
-    [hotkey.cmd('h')]: () => setWorkspaceHeaderHidden(!workspaceHeaderHidden),
-    ['f11']: () => setFullScreen(!isFullScreen),
-    ['escape']: () => isFullScreen && setFullScreen(false),
-    [hotkey.ctrl('1')]: () => workspaceData?.active && setActiveService('terminal'),
-    [hotkey.ctrl('2')]: () => workspaceData?.active && setActiveService('code'),
-    [hotkey.ctrl('3')]: () => workspaceData?.active && setActiveService('desktop'),
-  }, [isFullScreen, workspaceData?.active])
+  useHotkeys(
+    {
+      [hotkey.ctrlShift("p")]: () => setCommandPaletteOpen(!commandPaletteOpen),
+      [hotkey.cmdShift("p")]: () => setCommandPaletteOpen(!commandPaletteOpen),
+      [hotkey.ctrl("b")]: () => setSidebarCollapsed(!sidebarCollapsed),
+      [hotkey.cmd("b")]: () => setSidebarCollapsed(!sidebarCollapsed),
+      [hotkey.ctrl("h")]: () =>
+        setWorkspaceHeaderHidden(!workspaceHeaderHidden),
+      [hotkey.cmd("h")]: () => setWorkspaceHeaderHidden(!workspaceHeaderHidden),
+      ["f11"]: () => setFullScreen(!isFullScreen),
+      ["escape"]: () => isFullScreen && setFullScreen(false),
+      [hotkey.ctrl("1")]: () =>
+        workspaceData?.active && setActiveService("terminal"),
+      [hotkey.ctrl("2")]: () =>
+        workspaceData?.active && setActiveService("code"),
+      [hotkey.ctrl("3")]: () =>
+        workspaceData?.active && setActiveService("desktop"),
+    },
+    [isFullScreen, workspaceData?.active],
+  );
 
   // Auto-expand module and use preferred service
   useEffect(() => {
     if (activeChallenge) {
-      setActiveService(preferredService)
+      setActiveService(preferredService);
       // Don't auto-hide workspace header anymore since we want it visible by default
     }
-  }, [activeChallenge?.challengeId, preferredService, setActiveService])
+  }, [activeChallenge?.challengeId, preferredService, setActiveService]);
 
   // Clear isStarting when workspace becomes active
   useEffect(() => {
-    const currentChallenge = useWorkspaceStore.getState().activeChallenge
+    const currentChallenge = useWorkspaceStore.getState().activeChallenge;
     if (workspaceData?.active && currentChallenge?.isStarting) {
       setActiveChallenge({
         ...currentChallenge,
-        isStarting: false
-      })
+        isStarting: false,
+      });
     }
-  }, [workspaceData?.active, setActiveChallenge])
+  }, [workspaceData?.active, setActiveChallenge]);
 
   // Cached Canvas for text measurement (create once, reuse)
   const getTextMeasureCanvas = (() => {
-    let canvas: HTMLCanvasElement | null = null
-    let context: CanvasRenderingContext2D | null = null
+    let canvas: HTMLCanvasElement | null = null;
+    let context: CanvasRenderingContext2D | null = null;
 
     return () => {
       // Only create canvas on client side
-      if (typeof document === 'undefined') {
-        return null
+      if (typeof document === "undefined") {
+        return null;
       }
 
       if (!canvas || !context) {
-        canvas = document.createElement('canvas')
-        context = canvas.getContext('2d')
+        canvas = document.createElement("canvas");
+        context = canvas.getContext("2d");
         if (context) {
-          context.font = '500 14px Inter, system-ui, sans-serif'
+          context.font = "500 14px Inter, system-ui, sans-serif";
         }
       }
-      return context
-    }
-  })()
+      return context;
+    };
+  })();
 
   // Calculate optimal sidebar width based on actual text rendering requirements
   const calculateOptimalSidebarWidth = () => {
     if (!currentModule) {
-      return 25 // Default fallback
+      return 25; // Default fallback
     }
 
-    const allTexts: string[] = []
+    const allTexts: string[] = [];
 
     // Add challenge titles
-    currentModule.challenges.forEach(challenge => {
-      if (challenge.name) allTexts.push(challenge.name)
-    })
+    currentModule.challenges.forEach((challenge) => {
+      if (challenge.name) allTexts.push(challenge.name);
+    });
 
     // Add learning material titles
     if (currentModule.resources) {
-      currentModule.resources.forEach(resource => {
-        if (resource.name) allTexts.push(resource.name)
-      })
+      currentModule.resources.forEach((resource) => {
+        if (resource.name) allTexts.push(resource.name);
+      });
     }
 
     // Add module name and dojo name
-    if (currentModule.name) allTexts.push(currentModule.name)
-    if (dojo.name) allTexts.push(dojo.name)
+    if (currentModule.name) allTexts.push(currentModule.name);
+    if (dojo.name) allTexts.push(dojo.name);
 
     // If no texts found, use default
     if (allTexts.length === 0) {
-      return 25
+      return 25;
     }
 
     // Find the longest text
-    const longestText = allTexts.reduce((a, b) => a.length > b.length ? a : b)
+    const longestText = allTexts.reduce((a, b) =>
+      a.length > b.length ? a : b,
+    );
 
     // Measure actual text width using cached Canvas (optimal performance)
     const measureTextWidth = (text: string): number => {
-      const context = getTextMeasureCanvas()
+      const context = getTextMeasureCanvas();
       if (context) {
-        return Math.ceil(context.measureText(text).width) + 2 // +2px safety margin
+        return Math.ceil(context.measureText(text).width) + 2; // +2px safety margin
       } else {
         // Fallback to character estimation if Canvas fails
-        return text.length * 8.5 // Approximate Inter font width
+        return text.length * 8.5; // Approximate Inter font width
       }
-    }
+    };
 
-    const textWidth = measureTextWidth(longestText)
+    const textWidth = measureTextWidth(longestText);
 
     // Account for UI components around the text
-    const padding = 48 // px-6 = 24px each side
-    const margins = 24 // gaps and spacing
-    const iconsBadges = 60 // info badges and icons
-    const controls = 84 // header control buttons
+    const padding = 48; // px-6 = 24px each side
+    const margins = 24; // gaps and spacing
+    const iconsBadges = 60; // info badges and icons
+    const controls = 84; // header control buttons
 
-    const totalRequiredWidth = textWidth + padding + margins + iconsBadges + controls
+    const totalRequiredWidth =
+      textWidth + padding + margins + iconsBadges + controls;
 
     // Convert to percentage of screen width (assuming 1920px base)
-    const screenWidth = window?.innerWidth || 1920
-    const requiredPercentage = (totalRequiredWidth / screenWidth) * 100
+    const screenWidth = window?.innerWidth || 1920;
+    const requiredPercentage = (totalRequiredWidth / screenWidth) * 100;
 
     // Apply limits: minimum 20%, maximum 50%
-    const calculatedWidth = Math.min(Math.max(requiredPercentage, 20), 50)
+    const calculatedWidth = Math.min(Math.max(requiredPercentage, 20), 50);
 
+    return Math.round(calculatedWidth * 10) / 10; // Round to 1 decimal
+  };
 
-    return Math.round(calculatedWidth * 10) / 10 // Round to 1 decimal
-  }
-
-  const optimalSidebarWidth = calculateOptimalSidebarWidth()
-
-
+  const optimalSidebarWidth = calculateOptimalSidebarWidth();
 
   return (
-    <ResourceTabContext.Provider value={{ activeResourceTab, setActiveResourceTab }}>
+    <ResourceTabContext.Provider
+      value={{ activeResourceTab, setActiveResourceTab }}
+    >
       <div className="h-screen">
-      <ResizablePanelGroup direction="horizontal" className="h-full">
-        {/* Sidebar Panel */}
-        <ResizablePanel
-          defaultSize={sidebarCollapsed ? 3 : optimalSidebarWidth}
-          minSize={3}
-          maxSize={50}
-          className={`${sidebarCollapsed ? "max-w-[48px]" : "min-w-[200px]"} ${isFullScreen ? "hidden" : ""}`}
-          onResize={(size) => {
-            console.log('Sidebar resize:', size, 'collapsed:', sidebarCollapsed)
-            if (sidebarCollapsed && size > 10) {
-              setSidebarCollapsed(false)
-            }
-            // Ensure we don't set a width smaller than the minimum
-            const constrainedSize = Math.max(size, 3)
-            setSidebarWidth(constrainedSize)
-          }}
-        >
-          <WorkspaceSidebar
-            module={currentModule}
-            dojoName={dojo.name}
-            activeResource={resource?.id}
-            onChallengeStart={handleChallengeStart}
-            onChallengeClose={onChallengeClose}
-            onResourceSelect={onResourceSelect}
-            isPending={startChallengeMutation.isPending}
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          {/* Sidebar Panel */}
+          <ResizablePanel
+            defaultSize={sidebarCollapsed ? 3 : optimalSidebarWidth}
+            minSize={3}
+            maxSize={50}
+            className={`${sidebarCollapsed ? "max-w-[48px]" : "min-w-[200px]"} ${isFullScreen ? "hidden" : ""}`}
+            onDragEnd={(size) => {
+              console.log(
+                "Sidebar resize:",
+                size,
+                "collapsed:",
+                sidebarCollapsed,
+              );
+            }}
+            onResize={(size) => {
+              console.log(
+                "Sidebar resize:",
+                size,
+                "collapsed:",
+                sidebarCollapsed,
+              );
+              if (sidebarCollapsed && size > 10) {
+                setSidebarCollapsed(false);
+              }
+              // Ensure we don't set a width smaller than the minimum
+              const constrainedSize = Math.max(size, 3);
+              setSidebarWidth(constrainedSize);
+            }}
+          >
+            <WorkspaceSidebar
+              module={currentModule}
+              dojoName={dojo.name}
+              activeResource={resource?.id}
+              onChallengeStart={handleChallengeStart}
+              onChallengeClose={onChallengeClose}
+              onResourceSelect={onResourceSelect}
+              isPending={startChallengeMutation.isPending}
+            />
+          </ResizablePanel>
+
+          <ResizableHandle
+            withHandle
+            onDoubleClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className={isFullScreen ? "hidden" : ""}
           />
-        </ResizablePanel>
 
-        <ResizableHandle
-          withHandle
-          onDoubleClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className={isFullScreen ? "hidden" : ""}
-        />
+          {/* Main Workspace Panel */}
+          <ResizablePanel
+            defaultSize={
+              isFullScreen
+                ? 100
+                : sidebarCollapsed
+                  ? 97
+                  : 100 - optimalSidebarWidth
+            }
+          >
+            <div className="flex flex-col h-full bg-background">
+              {/* Unified animated header for both challenges and resources */}
+              <div className={isFullScreen ? "hidden" : ""}>
+                <AnimatedWorkspaceHeader
+                  dojoName={dojo.name}
+                  moduleName={currentModule?.name || "Module"}
+                  workspaceActive={workspaceData?.active || false}
+                  activeResource={resource}
+                  onClose={onChallengeClose}
+                  onResourceClose={() => {
+                    if (onResourceSelect) {
+                      onResourceSelect(null);
+                    }
+                  }}
+                />
+              </div>
 
-        {/* Main Workspace Panel */}
-        <ResizablePanel defaultSize={isFullScreen ? 100 : (sidebarCollapsed ? 97 : (100 - optimalSidebarWidth))}>
-          <div className="flex flex-col h-full bg-background">
-            {/* Unified animated header for both challenges and resources */}
-            <div className={isFullScreen ? "hidden" : ""}>
-              <AnimatedWorkspaceHeader
-                dojoName={dojo.name}
-                moduleName={currentModule?.name || 'Module'}
+              <WorkspaceContent
                 workspaceActive={workspaceData?.active || false}
+                workspaceData={workspaceData}
                 activeResource={resource}
-                onClose={onChallengeClose}
                 onResourceClose={() => {
                   if (onResourceSelect) {
-                    onResourceSelect(null)
+                    onResourceSelect(null);
                   }
                 }}
               />
             </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
 
-            <WorkspaceContent
-              workspaceActive={workspaceData?.active || false}
-              workspaceData={workspaceData}
-              activeResource={resource}
-              onResourceClose={() => {
-                if (onResourceSelect) {
-                  onResourceSelect(null)
-                }
-              }}
-            />
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-
-      {/* Command Palette */}
-      <CommandPalette
-        isOpen={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        commands={commands}
-      />
-    </div>
+        {/* Command Palette */}
+        <CommandPalette
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          commands={commands}
+        />
+      </div>
     </ResourceTabContext.Provider>
-  )
+  );
 }

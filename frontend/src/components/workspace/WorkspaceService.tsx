@@ -155,6 +155,8 @@ export function WorkspaceService({
   const containerRect = containerRef.current?.getBoundingClientRect();
   console.log("containerRect:", containerRect);
 
+  const  isResizing  = useWorkspaceStore(state => state.isResizing);
+
   return (
     <div
       ref={containerRef}
@@ -166,46 +168,48 @@ export function WorkspaceService({
             : "var(--background)",
       }}
     >
+      <h1 className="text-red-500 font-xl">{isResizing ? "resizing" : ""}</h1>
       {/* Always show iframe, but hide it when not ready */}
       {createPortal(
-          <iframe
-            ref={iframeRef}
-            className={`w-full h-full border-0 transition-opacity duration-300 ${
-              activeService === "code" ? "" : "rounded-lg"
-            } ${isReady ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-            style={{
-              backgroundColor:
-                activeService === "terminal"
-                  ? "var(--service-bg)"
-                  : "var(--background)",
-              position: "fixed",
-              transition: "all 0.1s ease-out",
-              top: isFullScreen
-                ? activeService === "terminal"
-                  ? 10
-                  : 0
-                : containerRect?.top,
-              left: isFullScreen
-                ? activeService === "terminal"
-                  ? 10
-                  : 0
-                : containerRect?.left,
-              right: isFullScreen
-                ? activeService === "terminal"
-                  ? 10
-                  : 0
-                : containerRect?.right,
-              bottom: isFullScreen
-                ? activeService === "terminal"
-                  ? 10
-                  : 0
-                : containerRect?.bottom,
+        <iframe
+          ref={iframeRef}
+          className={`w-full h-full border-0 transition-opacity duration-300 ${
+            activeService === "code" ? "" : "rounded-lg"
+          } ${isReady ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+          style={{
+            opacity: isResizing ? 0.5 : 1,
+            backgroundColor:
+              activeService === "terminal"
+                ? "var(--service-bg)"
+                : "var(--background)",
+            position: "fixed",
+            transition: "all 0.1s ease-out",
+            top: isFullScreen
+              ? activeService === "terminal"
+                ? 10
+                : 0
+              : containerRect?.top,
+            left: isFullScreen
+              ? activeService === "terminal"
+                ? 10
+                : 0
+              : containerRect?.left,
+            right: isFullScreen
+              ? activeService === "terminal"
+                ? 10
+                : 0
+              : containerRect?.right,
+            bottom: isFullScreen
+              ? activeService === "terminal"
+                ? 10
+                : 0
+              : containerRect?.bottom,
 
-              zIndex: 100,
-            }}
-            title={`Workspace ${activeService}`}
-            allow="clipboard-write"
-          />,
+            zIndex: 100,
+          }}
+          title={`Workspace ${activeService}`}
+          allow="clipboard-write"
+        />,
         document.body,
       )}
 

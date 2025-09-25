@@ -15,6 +15,7 @@ interface WorkspaceStore {
   // Sidebar state
   sidebarCollapsed: boolean
   sidebarWidth: number
+  isResizing: boolean
 
   // Workspace view state
   isFullScreen: boolean
@@ -71,7 +72,8 @@ const defaultWorkspaceState = {
   preferredService: getPreferredService(),
   commandPaletteOpen: false,
   activeChallenge: null,
-  activeResource: null
+  activeResource: null,
+  isResizing: false,
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>()(
@@ -111,6 +113,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
     setActiveChallenge: (challenge) => set({ activeChallenge: challenge }),
 
     setActiveResource: (resourceId) => set({ activeResource: resourceId }),
+
+    setIsResizing: (isResizing) => set({ isResizing }),
 
     // Actions - Reset
     resetWorkspace: () => set(defaultWorkspaceState)
