@@ -86,7 +86,6 @@ def main():
 
         attempts = 0
         print("\r", " " * 80, "\rConnected!")
-        print()
         child_pid = os.fork();
         if not child_pid:
             ssh_entrypoint = "/run/dojo/bin/ssh-entrypoint"
