@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Play, Loader2 } from 'lucide-react'
 import { useStartChallenge } from '@/hooks/useDojo'
-import { useUIStore, useAuthStore } from '@/stores'
+import { useWorkspaceChallenge, useAuthStore } from '@/stores'
 import { cn } from '@/lib/utils'
 
 interface StartChallengeButtonProps {
@@ -41,7 +41,7 @@ export function StartChallengeButton({
 }: StartChallengeButtonProps) {
   const router = useRouter()
   const startChallengeMutation = useStartChallenge()
-  const setActiveChallenge = useUIStore(state => state.setActiveChallenge)
+  const { setActiveChallenge } = useWorkspaceChallenge()
   const isAuthenticated = useAuthStore(state => state.isAuthenticated)
 
   const handleStart = async (e: React.MouseEvent) => {

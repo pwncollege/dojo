@@ -29,6 +29,7 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { ChallengePopoverContent } from '@/components/challenge/ChallengePopover'
+import { useWorkspaceSidebar, useWorkspaceView, useWorkspaceResource } from '@/stores'
 import { cn } from '@/lib/utils'
 
 interface Challenge {
@@ -64,15 +65,8 @@ interface WorkspaceSidebarProps {
     challengeId: string
   }
   activeResource?: string // ID of active resource
-  sidebarCollapsed: boolean
-  sidebarWidth: number
-  isResizing: boolean
-  headerHidden: boolean
-  onSidebarCollapse: (collapsed: boolean) => void
-  onHeaderToggle: (hidden: boolean) => void
   onChallengeStart: (moduleId: string, challengeId: string) => void
   onChallengeClose: () => void
-  onResizeStart: (e: React.MouseEvent) => void
   onResourceSelect?: (resourceId: string | null) => void
   isPending?: boolean
 }
@@ -82,18 +76,15 @@ export function WorkspaceSidebar({
   dojoName,
   activeChallenge,
   activeResource,
-  sidebarCollapsed,
-  sidebarWidth,
-  isResizing,
-  headerHidden,
-  onSidebarCollapse,
-  onHeaderToggle,
   onChallengeStart,
   onChallengeClose,
-  onResizeStart,
   onResourceSelect,
   isPending = false
 }: WorkspaceSidebarProps) {
+  // Use workspace store directly instead of props drilling
+  const { sidebarCollapsed, setSidebarCollapsed } = useWorkspaceSidebar()
+  const { headerHidden, setHeaderHidden } = useWorkspaceView()
+  const { setActiveResource } = useWorkspaceResource()
   return (
     <div
       className="bg-background flex flex-col h-full w-full"
@@ -156,7 +147,7 @@ export function WorkspaceSidebar({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onHeaderToggle(!headerHidden)}
+                      onClick={() => setHeaderHidden(!headerHidden)}
                       className="h-7 w-7 p-0 hover:bg-primary/10 hover:text-primary"
                     >
                       {headerHidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -172,7 +163,7 @@ export function WorkspaceSidebar({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onSidebarCollapse(!sidebarCollapsed)}
+                      onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
                       className="h-7 w-7 p-0 hover:bg-primary/10 hover:text-primary"
                     >
                       <PanelLeftClose className="h-3.5 w-3.5" />
@@ -207,7 +198,7 @@ export function WorkspaceSidebar({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onSidebarCollapse(!sidebarCollapsed)}
+                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
                     className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
                   >
                     <PanelLeftOpen className="h-4 w-4" />
@@ -254,8 +245,10 @@ export function WorkspaceSidebar({
                             : "hover:bg-muted/70"
                         )}
                         onClick={() => {
+                          const resourceId = isActiveResource ? null : resource.id
+                          setActiveResource(resourceId)
                           if (onResourceSelect) {
-                            onResourceSelect(isActiveResource ? null : resource.id)
+                            onResourceSelect(resourceId)
                           }
                         }}
                       >

@@ -2,7 +2,7 @@
 
 import { HeaderProvider } from '@/contexts/HeaderContext'
 import { ActiveChallengeWidget } from '@/components/workspace/ActiveChallengeWidget'
-import { useUIStore } from '@/stores'
+import { useUIStore, useWorkspaceStore } from '@/stores'
 import { workspaceService } from '@/services/workspace'
 
 interface WorkspaceProviderProps {
@@ -10,8 +10,8 @@ interface WorkspaceProviderProps {
 }
 
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
-  const activeChallenge = useUIStore(state => state.activeChallenge)
-  const setActiveChallenge = useUIStore(state => state.setActiveChallenge)
+  const activeChallenge = useWorkspaceStore(state => state.activeChallenge)
+  const setActiveChallenge = useWorkspaceStore(state => state.setActiveChallenge)
 
   const handleKillChallenge = async () => {
     try {

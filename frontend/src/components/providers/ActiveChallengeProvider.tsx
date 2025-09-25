@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
-import { useUIStore, useAuthStore } from '@/stores'
+import { useUIStore, useAuthStore, useWorkspaceStore } from '@/stores'
 import { workspaceService } from '@/services/workspace'
 import { ActiveChallengeWidget } from '@/components/workspace/ActiveChallengeWidget'
 
@@ -12,8 +12,8 @@ interface ActiveChallengeProviderProps {
 
 export function ActiveChallengeProvider({ children }: ActiveChallengeProviderProps) {
   const pathname = usePathname()
-  const activeChallenge = useUIStore(state => state.activeChallenge)
-  const setActiveChallenge = useUIStore(state => state.setActiveChallenge)
+  const activeChallenge = useWorkspaceStore(state => state.activeChallenge)
+  const setActiveChallenge = useWorkspaceStore(state => state.setActiveChallenge)
   const isAuthenticated = useAuthStore(state => state.isAuthenticated)
   const user = useAuthStore(state => state.user)
   const authError = useAuthStore(state => state.authError)

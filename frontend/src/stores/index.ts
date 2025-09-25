@@ -1,7 +1,15 @@
 // Main stores
 export { useDojoStore } from './dojoStore'
 export { useAuthStore } from './authStore'
-export { useUIStore, useHeaderState, useActiveChallenge, useAnimations } from './uiStore'
+export { useUIStore, useHeaderState, useAnimations } from './uiStore'
+export {
+  useWorkspaceStore,
+  useWorkspaceSidebar,
+  useWorkspaceService,
+  useWorkspaceView,
+  useWorkspaceChallenge,
+  useWorkspaceResource
+} from './workspaceStore'
 
 // Store initialization
 import { useAuthStore } from './authStore'

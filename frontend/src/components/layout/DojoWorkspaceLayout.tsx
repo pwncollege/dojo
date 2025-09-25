@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useWorkspace } from '@/hooks/useWorkspace'
 import { useStartChallenge } from '@/hooks/useDojo'
 import { FullScreenWorkspace } from './FullScreenWorkspace'
-import { useUIStore } from '@/stores'
+import { useWorkspaceStore, useWorkspaceService, useWorkspaceView, useWorkspaceChallenge } from '@/stores'
 import { CommandPalette } from '@/components/ui/command-palette'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { useCommands } from '@/hooks/useCommands'
@@ -31,22 +31,21 @@ export function DojoWorkspaceLayout({
   onResourceSelect
 }: DojoWorkspaceLayoutProps) {
   // ALL HOOKS MUST BE AT THE TOP - before any conditional returns
-  // Use workspace state from Zustand store with individual selectors to avoid infinite loops
-  const activeService = useUIStore(state => state.workspaceState.activeService)
-  const preferredService = useUIStore(state => state.workspaceState.preferredService)
-  const sidebarCollapsed = useUIStore(state => state.workspaceState.sidebarCollapsed)
-  const isFullScreen = useUIStore(state => state.workspaceState.isFullScreen)
-  const sidebarWidth = useUIStore(state => state.workspaceState.sidebarWidth)
-  const commandPaletteOpen = useUIStore(state => state.workspaceState.commandPaletteOpen)
-  const workspaceHeaderHidden = useUIStore(state => state.workspaceState.workspaceHeaderHidden)
+  // Use workspace state from dedicated workspace store
+  const sidebarCollapsed = useWorkspaceStore(state => state.sidebarCollapsed)
+  const isFullScreen = useWorkspaceStore(state => state.isFullScreen)
+  const sidebarWidth = useWorkspaceStore(state => state.sidebarWidth)
+  const commandPaletteOpen = useWorkspaceStore(state => state.commandPaletteOpen)
+  const workspaceHeaderHidden = useWorkspaceStore(state => state.headerHidden)
 
-  const setActiveService = useUIStore(state => state.setActiveService)
-  const setSidebarCollapsed = useUIStore(state => state.setSidebarCollapsed)
-  const setFullScreen = useUIStore(state => state.setFullScreen)
-  const setSidebarWidth = useUIStore(state => state.setSidebarWidth)
-  const setCommandPaletteOpen = useUIStore(state => state.setCommandPaletteOpen)
-  const setWorkspaceHeaderHidden = useUIStore(state => state.setWorkspaceHeaderHidden)
-  const setActiveChallenge = useUIStore(state => state.setActiveChallenge)
+  const setSidebarCollapsed = useWorkspaceStore(state => state.setSidebarCollapsed)
+  const setFullScreen = useWorkspaceStore(state => state.setFullScreen)
+  const setSidebarWidth = useWorkspaceStore(state => state.setSidebarWidth)
+  const setCommandPaletteOpen = useWorkspaceStore(state => state.setCommandPaletteOpen)
+  const setWorkspaceHeaderHidden = useWorkspaceStore(state => state.setHeaderHidden)
+  const setActiveChallenge = useWorkspaceStore(state => state.setActiveChallenge)
+
+  const { activeService, preferredService, setActiveService } = useWorkspaceService()
 
   const [activeResourceTab, setActiveResourceTab] = useState<string>("video")
   const startChallengeMutation = useStartChallenge()
@@ -100,7 +99,7 @@ export function DojoWorkspaceLayout({
     !!activeChallenge
   )
 
-  // Set active challenge in UI store for widget
+  // Set active challenge in workspace store for widget
   useEffect(() => {
     if (activeChallenge) {
       setActiveChallenge({
@@ -173,13 +172,14 @@ export function DojoWorkspaceLayout({
 
   // Clear isStarting when workspace becomes active
   useEffect(() => {
-    if (workspaceData?.active && activeChallenge?.isStarting) {
+    const currentChallenge = useWorkspaceStore.getState().activeChallenge
+    if (workspaceData?.active && currentChallenge?.isStarting) {
       setActiveChallenge({
-        ...activeChallenge,
+        ...currentChallenge,
         isStarting: false
       })
     }
-  }, [workspaceData?.active, activeChallenge?.isStarting, activeChallenge, setActiveChallenge])
+  }, [workspaceData?.active, setActiveChallenge])
 
   // Cached Canvas for text measurement (create once, reuse)
   const getTextMeasureCanvas = (() => {
@@ -304,14 +304,8 @@ export function DojoWorkspaceLayout({
             dojoName={dojo.name}
             activeChallenge={activeChallenge}
             activeResource={resource?.id}
-            sidebarCollapsed={sidebarCollapsed}
-            isResizing={false}
-            headerHidden={workspaceHeaderHidden}
-            onSidebarCollapse={setSidebarCollapsed}
-            onHeaderToggle={setWorkspaceHeaderHidden}
             onChallengeStart={handleChallengeStart}
             onChallengeClose={onChallengeClose}
-            onResizeStart={() => {}}
             onResourceSelect={onResourceSelect}
             isPending={startChallengeMutation.isPending}
           />

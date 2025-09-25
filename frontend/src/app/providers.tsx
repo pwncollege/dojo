@@ -9,8 +9,8 @@ import { WorkspaceProvider } from '@/components/providers/WorkspaceProvider'
 import { ConditionalHeader } from '@/components/layout/ConditionalHeader'
 import { ActiveChallengeProvider } from '@/components/providers/ActiveChallengeProvider'
 
+const queryClient = new QueryClient()
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient())
 
   useEffect(() => {
     initializeStores()

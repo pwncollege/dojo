@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Header } from './Header'
 import { HeaderProvider } from '@/contexts/HeaderContext'
 import { ActiveChallengeWidget } from '@/components/workspace/ActiveChallengeWidget'
-import { useUIStore, useAuthStore } from '@/stores'
+import { useWorkspaceChallenge, useAuthStore } from '@/stores'
 import { workspaceService } from '@/services/workspace'
 
 interface LayoutProps {
@@ -14,8 +14,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const pathname = usePathname()
-  const activeChallenge = useUIStore(state => state.activeChallenge)
-  const setActiveChallenge = useUIStore(state => state.setActiveChallenge)
+  const { activeChallenge, setActiveChallenge } = useWorkspaceChallenge()
   const isAuthenticated = useAuthStore(state => state.isAuthenticated)
   const user = useAuthStore(state => state.user)
   const authError = useAuthStore(state => state.authError)

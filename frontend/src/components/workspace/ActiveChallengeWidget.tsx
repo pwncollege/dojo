@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { useUIStore } from '@/stores'
+import { useWorkspaceChallenge } from '@/stores'
 import {
   Terminal,
   X,
@@ -31,9 +31,12 @@ interface ActiveChallengeWidgetProps {
 }
 
 export function ActiveChallengeWidget({
-  activeChallenge,
+  activeChallenge: propActiveChallenge,
   onKillChallenge
 }: ActiveChallengeWidgetProps) {
+  // Use workspace store as primary source, prop as fallback
+  const { activeChallenge: storeActiveChallenge } = useWorkspaceChallenge()
+  const activeChallenge = storeActiveChallenge || propActiveChallenge
   const pathname = usePathname()
   const router = useRouter()
   const [isExpanded, setIsExpanded] = useState(false)
