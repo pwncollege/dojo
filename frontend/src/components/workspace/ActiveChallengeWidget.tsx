@@ -39,30 +39,17 @@ export function ActiveChallengeWidget({
   const [isExpanded, setIsExpanded] = useState(false)
   const [isKilling, setIsKilling] = useState(false)
 
-  console.log('ActiveChallengeWidget render:', {
-    activeChallenge,
-    currentPath: pathname
-  })
-
   // Don't show if no active challenge
   if (!activeChallenge) {
-    console.log('No active challenge, hiding widget')
     return null
   }
 
   // Don't show if we're on any workspace page
   const isOnWorkspacePage = pathname.includes('/workspace/')
-  console.log('Workspace page check:', {
-    currentPath: pathname,
-    isOnWorkspacePage
-  })
 
   if (isOnWorkspacePage) {
-    console.log('On workspace page, hiding widget')
     return null
   }
-
-  console.log('Showing ActiveChallengeWidget')
 
   const handleGoToChallenge = () => {
     const challengePath = `/dojo/${activeChallenge.dojoId}/module/${activeChallenge.moduleId}/workspace/challenge/${activeChallenge.challengeId}`

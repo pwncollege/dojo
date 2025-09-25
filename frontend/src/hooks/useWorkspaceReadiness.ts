@@ -48,7 +48,6 @@ export function useWorkspaceReadiness({
         const handleLoad = () => {
           if (!isResolved) {
             isResolved = true
-            console.log('Workspace iframe loaded successfully')
             setState({ isReady: true, isChecking: false })
             document.body.removeChild(testIframe)
             if (timeoutRef.current) clearTimeout(timeoutRef.current)
@@ -59,7 +58,6 @@ export function useWorkspaceReadiness({
         const handleError = () => {
           if (!isResolved) {
             isResolved = true
-            console.log('Workspace iframe failed to load, retrying...')
             document.body.removeChild(testIframe)
             if (timeoutRef.current) clearTimeout(timeoutRef.current)
 
@@ -75,7 +73,6 @@ export function useWorkspaceReadiness({
         timeoutRef.current = setTimeout(() => {
           if (!isResolved) {
             isResolved = true
-            console.log('Workspace iframe load timeout, retrying...')
             document.body.removeChild(testIframe)
             retryTimeoutRef.current = setTimeout(checkReadiness, 2000)
           }
@@ -86,7 +83,6 @@ export function useWorkspaceReadiness({
         testIframe.src = url
 
       } catch (error) {
-        console.log('Error checking workspace readiness:', error)
         retryTimeoutRef.current = setTimeout(checkReadiness, 2000)
       }
     }

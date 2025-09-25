@@ -18,7 +18,6 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       const result = await workspaceService.terminateWorkspace()
 
       if (result.success) {
-        console.log('Workspace terminated successfully')
         setActiveChallenge(null)
       } else {
         console.error('Failed to terminate workspace:', result.error)

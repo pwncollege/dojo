@@ -229,8 +229,6 @@ class DojoService {
     challengeId: string,
     submission: SolveSubmission
   ): Promise<{ success: boolean; status?: string; error?: string }> {
-    console.log('Submitting to dojo solve endpoint...')
-
     return apiClient.post(`/dojos/${dojoId}/${moduleId}/${challengeId}/solve`, submission)
   }
 

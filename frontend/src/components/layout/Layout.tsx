@@ -20,37 +20,20 @@ export function Layout({ children }: LayoutProps) {
   const user = useAuthStore(state => state.user)
   const authError = useAuthStore(state => state.authError)
 
-  // Debug auth state changes
-  console.log('Layout render - Auth state:', {
-    isAuthenticated,
-    user,
-    authError,
-    hasActiveChallenge: !!activeChallenge,
-    pathname
-  })
 
   // Fetch active challenge from server on page load/refresh - only if authenticated
   useEffect(() => {
-    console.log('Layout: Auth state check:', {
-      isAuthenticated,
-      localStorage_ctfd_user: !!localStorage.getItem('ctfd_user')
-    })
-
     if (!isAuthenticated) {
-      console.log('Layout: Not authenticated, clearing active challenge')
       setActiveChallenge(null)
       return
     }
 
     const fetchActiveChallenge = async () => {
       try {
-        console.log('Layout: Fetching active challenge from server...')
         const response = await workspaceService.getCurrentChallenge()
-        console.log('Layout: Active challenge response:', response)
 
         if (response.current_challenge) {
           const challenge = response.current_challenge
-          console.log('Layout: Setting active challenge:', challenge)
 
           setActiveChallenge({
             dojoId: challenge.dojo_id,
@@ -62,7 +45,6 @@ export function Layout({ children }: LayoutProps) {
             isStarting: false
           })
         } else {
-          console.log('Layout: No active challenge from server, clearing state')
           setActiveChallenge(null)
         }
       } catch (error) {
@@ -80,7 +62,6 @@ export function Layout({ children }: LayoutProps) {
       const result = await workspaceService.terminateWorkspace()
 
       if (result.success) {
-        console.log('Workspace terminated successfully')
         setActiveChallenge(null)
       } else {
         console.error('Failed to terminate workspace:', result.error)

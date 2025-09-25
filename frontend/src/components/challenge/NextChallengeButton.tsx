@@ -45,7 +45,7 @@ export function NextChallengeButton() {
           console.error('Failed to start challenge:', error)
         })
       } else {
-        console.log(response.error || 'No next challenge available')
+        // No next challenge available
       }
     } catch (error) {
       console.error('Failed to get next challenge:', error)

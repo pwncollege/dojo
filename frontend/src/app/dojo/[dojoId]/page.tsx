@@ -10,7 +10,6 @@ interface DojoPageProps {
 
 async function getDojoDetail(dojoId: string) {
   try {
-    console.log('Fetching dojo detail for:', dojoId)
     const response = await dojoService.getDojoDetail(dojoId)
     return response.dojo
   } catch (error) {

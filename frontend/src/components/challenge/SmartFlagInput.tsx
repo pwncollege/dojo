@@ -52,14 +52,12 @@ export function SmartFlagInput({
 
   // Helper function to safely show popup with state
   const showPopupWithState = (state: 'clipboard_detection' | 'submission_result' | 'regular_feedback') => {
-    console.log('[Popup Helper] Setting state:', state)
     setPopupState(state)
     setShowUnifiedPopup(true)
   }
 
   // Helper function to safely hide popup
   const hidePopup = () => {
-    console.log('[Popup Helper] Hiding popup')
     setShowUnifiedPopup(false)
     setPopupState(null)
     // Clean up status and message when manually hiding
@@ -135,14 +133,13 @@ export function SmartFlagInput({
         if (navigator.clipboard) {
           const initialValue = await navigator.clipboard.readText()
           setInitialClipboardValue(initialValue.trim())
-          console.log('[Clipboard Init] Initial clipboard value:', initialValue.trim())
 
           // Reset state for fresh session
           setDismissedFlags(new Set())
           setLastProcessedFlag('')
         }
       } catch (error) {
-        console.log('[Clipboard Init] Could not read initial clipboard:', error)
+        // Could not read initial clipboard
       } finally {
         setIsInitialized(true)
       }
@@ -153,34 +150,19 @@ export function SmartFlagInput({
 
   // Simplified clipboard flag processing
   const processClipboardFlag = (flag: string) => {
-    console.log('[Flag Processing] 🎯 Processing flag:', flag)
-    console.log('[Flag Processing] Current state:', {
-      value,
-      showUnifiedPopup,
-      popupState,
-      lastProcessedFlag,
-      isDismissed: dismissedFlags.has(flag),
-      initialClipboardValue,
-      isInitialized
-    })
 
     // Basic checks
     if (!flag.trim()) {
-      console.log('[Flag Processing] ❌ Skipping - empty flag')
       return
     }
 
     if (flag === initialClipboardValue) {
-      console.log('[Flag Processing] ❌ Skipping - same as initial clipboard value')
       return
     }
 
     if (showUnifiedPopup) {
-      console.log('[Flag Processing] ❌ Skipping - popup already showing')
       return
     }
-
-    console.log('[Flag Processing] ✅ Showing popup for NEW flag:', flag)
 
     // Clear any existing timeout
     if (timeoutRef.current) {
@@ -205,12 +187,6 @@ export function SmartFlagInput({
     shouldProcessFlag: (flag: string) => {
       // Don't process if already dismissed or same as last processed
       const shouldNotProcess = dismissedFlags.has(flag) || flag === lastProcessedFlag
-      console.log('[Flag Processing] shouldProcessFlag check:', {
-        flag: flag.substring(0, 30),
-        isDismissed: dismissedFlags.has(flag),
-        isLastProcessed: flag === lastProcessedFlag,
-        shouldNotProcess
-      })
       return !shouldNotProcess
     }
   })
@@ -298,7 +274,6 @@ export function SmartFlagInput({
   // Watch for submission results to show in unified popup
   useEffect(() => {
     if ((status === 'success' || status === 'error') && message) {
-      console.log('[Unified Popup] Showing result state:', status, 'isClipboardSubmission:', isClipboardSubmission)
 
       // Determine the type of result based on status and message
       if (status === 'success') {
@@ -319,7 +294,6 @@ export function SmartFlagInput({
       } else {
         // Regular submission - show as regular feedback ONLY if we don't have clipboard popup open
         if (popupState !== 'clipboard_detection') {
-          console.log('[Unified Popup] Setting regular_feedback state')
           showPopupWithState('regular_feedback')
         }
       }
@@ -362,7 +336,6 @@ export function SmartFlagInput({
 
   const handleClipboardSubmit = () => {
     const flagToSubmit = clipboardFlag
-    console.log('[Flag Handler] Submitting flag:', flagToSubmit)
 
     // Clear timeout
     if (timeoutRef.current) {
@@ -380,7 +353,6 @@ export function SmartFlagInput({
 
   const handleClipboardDismiss = () => {
     const flagToDismiss = clipboardFlag
-    console.log('[Flag Handler] Dismissing flag:', flagToDismiss)
 
     // Clear timeout
     if (timeoutRef.current) {
@@ -397,7 +369,6 @@ export function SmartFlagInput({
   }
 
   const handleNextChallenge = async () => {
-    console.log('[Next Challenge] Navigating to next challenge')
 
     try {
       setIsNextChallengeLoading(true)
@@ -432,9 +403,7 @@ export function SmartFlagInput({
         setClipboardFlag('')
         setClipboardSubmissionResult(null)
       } else {
-        console.log('No next challenge available:', response.error || 'Unknown error')
-        // Keep the popup open and maybe show a message
-        // For now, just hide the popup
+        // No next challenge available - hide the popup
         hidePopup()
         setClipboardFlag('')
         setClipboardSubmissionResult(null)
@@ -553,8 +522,7 @@ export function SmartFlagInput({
           )}
           sideOffset={4}
           onInteractOutside={(e) => {
-            // Prevent closing when clicking outside for debugging
-            console.log('PopoverContent interact outside triggered')
+            // Prevent closing when clicking outside
           }}
         >
           <AnimatePresence mode="wait">

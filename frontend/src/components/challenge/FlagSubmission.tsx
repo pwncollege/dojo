@@ -34,9 +34,6 @@ export function FlagSubmission({ dojoId, moduleId, challengeId, challengeName }:
       submission: { submission: flag.trim() }
     }
 
-    console.log('Submitting flag:', submissionData)
-    console.log('CTFd token:', localStorage.getItem('ctfd_token'))
-    console.log('Auth cookies:', document.cookie)
 
     try {
       const result = await submitSolution.mutateAsync(submissionData)
@@ -51,7 +48,6 @@ export function FlagSubmission({ dojoId, moduleId, challengeId, challengeName }:
         setFlag('')
       }
     } catch (error: any) {
-      console.error('Flag submission error:', error)
 
       let errorMessage = 'Submission failed'
 
@@ -64,7 +60,6 @@ export function FlagSubmission({ dojoId, moduleId, challengeId, challengeName }:
         errorMessage = 'Server error. This might be due to authentication issues or the backend being unavailable.'
       } else if (error?.response) {
         errorMessage = error.response.message || error.response.error || `HTTP ${error.status}`
-        console.error('API Error Response:', error.response)
       } else if (error?.message) {
         errorMessage = error.message
       }

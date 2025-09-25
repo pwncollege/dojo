@@ -18,37 +18,20 @@ export function ActiveChallengeProvider({ children }: ActiveChallengeProviderPro
   const user = useAuthStore(state => state.user)
   const authError = useAuthStore(state => state.authError)
 
-  // Debug auth state changes
-  console.log('ActiveChallengeProvider render - Auth state:', {
-    isAuthenticated,
-    user,
-    authError,
-    hasActiveChallenge: !!activeChallenge,
-    pathname
-  })
 
   // Fetch active challenge from server on page load/refresh - only if authenticated
   useEffect(() => {
-    console.log('ActiveChallengeProvider: Auth state check:', {
-      isAuthenticated,
-      localStorage_ctfd_user: !!localStorage.getItem('ctfd_user')
-    })
-
     if (!isAuthenticated) {
-      console.log('ActiveChallengeProvider: Not authenticated, clearing active challenge')
       setActiveChallenge(null)
       return
     }
 
     const fetchActiveChallenge = async () => {
       try {
-        console.log('ActiveChallengeProvider: Fetching active challenge from server...')
         const response = await workspaceService.getCurrentChallenge()
-        console.log('ActiveChallengeProvider: Active challenge response:', response)
 
         if (response.current_challenge) {
           const challenge = response.current_challenge
-          console.log('ActiveChallengeProvider: Setting active challenge:', challenge)
 
           setActiveChallenge({
             dojoId: challenge.dojo_id,
@@ -60,7 +43,6 @@ export function ActiveChallengeProvider({ children }: ActiveChallengeProviderPro
             isStarting: false
           })
         } else {
-          console.log('ActiveChallengeProvider: No active challenge from server, clearing state')
           setActiveChallenge(null)
         }
       } catch (error) {
@@ -78,7 +60,6 @@ export function ActiveChallengeProvider({ children }: ActiveChallengeProviderPro
       const result = await workspaceService.terminateWorkspace()
 
       if (result.success) {
-        console.log('Workspace terminated successfully')
         setActiveChallenge(null)
       } else {
         console.error('Failed to terminate workspace:', result.error)

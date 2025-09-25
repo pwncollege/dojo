@@ -25,7 +25,6 @@ export function WorkspaceService({ iframeSrc, activeService, onReady }: Workspac
 
     // Check if iframe already has the correct URL - if so, don't reload
     if (iframeRef.current && iframeRef.current.src === fullUrl && isReady) {
-      console.log(`${activeService} iframe already loaded with correct URL, skipping reload`)
       return
     }
 
@@ -55,8 +54,6 @@ export function WorkspaceService({ iframeSrc, activeService, onReady }: Workspac
         })
 
         if (response.ok) {
-          console.log(`${activeService} service ready (status: ${response.status})`)
-
           // Service is ready, load it in iframe
           if (iframeRef.current) {
             iframeRef.current.src = fullUrl
@@ -75,7 +72,6 @@ export function WorkspaceService({ iframeSrc, activeService, onReady }: Workspac
           }
         } else if (response.status === 502 || response.status === 503) {
           // Service not ready yet, keep checking
-          console.log(`${activeService} service not ready yet (${retryCount.current}/${maxRetries})`)
         } else {
           // Unexpected error
           console.error(`${activeService} service returned unexpected status: ${response.status}`)
@@ -83,8 +79,6 @@ export function WorkspaceService({ iframeSrc, activeService, onReady }: Workspac
       } catch (err) {
         // Network error or CORS issue - try loading iframe anyway after a few attempts
         if (retryCount.current > 3) {
-          console.log(`${activeService} service check failed, loading anyway (CORS/network issue)`)
-
           if (iframeRef.current) {
             iframeRef.current.src = fullUrl
           }
@@ -100,8 +94,6 @@ export function WorkspaceService({ iframeSrc, activeService, onReady }: Workspac
           if (checkIntervalRef.current) {
             clearInterval(checkIntervalRef.current)
           }
-        } else {
-          console.log(`Checking ${activeService} service... (${retryCount.current}/${maxRetries})`)
         }
       }
     }

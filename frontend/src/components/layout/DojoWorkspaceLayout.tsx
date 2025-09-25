@@ -127,7 +127,6 @@ export function DojoWorkspaceLayout({
         challengeId,
         practice: false
       })
-      console.log('Challenge started successfully')
     } catch (error) {
       console.error('Failed to start challenge:', error)
     }
@@ -188,6 +187,11 @@ export function DojoWorkspaceLayout({
     let context: CanvasRenderingContext2D | null = null
 
     return () => {
+      // Only create canvas on client side
+      if (typeof document === 'undefined') {
+        return null
+      }
+
       if (!canvas || !context) {
         canvas = document.createElement('canvas')
         context = canvas.getContext('2d')
@@ -202,7 +206,6 @@ export function DojoWorkspaceLayout({
   // Calculate optimal sidebar width based on actual text rendering requirements
   const calculateOptimalSidebarWidth = () => {
     if (!currentModule) {
-      console.log('No current module, using default width: 25')
       return 25 // Default fallback
     }
 
@@ -228,7 +231,6 @@ export function DojoWorkspaceLayout({
 
     // If no texts found, use default
     if (allTexts.length === 0) {
-      console.log('No content found, using default width: 25')
       return 25
     }
 
@@ -242,7 +244,6 @@ export function DojoWorkspaceLayout({
         return Math.ceil(context.measureText(text).width) + 2 // +2px safety margin
       } else {
         // Fallback to character estimation if Canvas fails
-        console.warn('Canvas context not available, using fallback')
         return text.length * 8.5 // Approximate Inter font width
       }
     }
@@ -264,16 +265,6 @@ export function DojoWorkspaceLayout({
     // Apply limits: minimum 20%, maximum 50%
     const calculatedWidth = Math.min(Math.max(requiredPercentage, 20), 50)
 
-    console.log('Sidebar width calculation:', {
-      longestText,
-      textLength: longestText.length,
-      measuredTextWidth: Math.round(textWidth),
-      totalRequiredWidth: Math.round(totalRequiredWidth),
-      screenWidth,
-      requiredPercentage: Math.round(requiredPercentage * 10) / 10,
-      calculatedWidth: Math.round(calculatedWidth * 10) / 10,
-      totalTexts: allTexts.length
-    })
 
     return Math.round(calculatedWidth * 10) / 10 // Round to 1 decimal
   }

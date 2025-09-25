@@ -46,7 +46,6 @@ export function useClipboardFlagSubmission({
 
   const checkClipboard = async () => {
     if (!enabled || !permissionGranted.current) {
-      console.log('[Clipboard Monitor] Skipping check - enabled:', enabled, 'permission:', permissionGranted.current)
       return
     }
 
@@ -54,18 +53,12 @@ export function useClipboardFlagSubmission({
       const text = await navigator.clipboard.readText()
       const trimmedText = text.trim()
       const currentLastContent = lastClipboardContentRef.current
-      console.log('[Clipboard Monitor] Read clipboard:', trimmedText)
-      console.log('[Clipboard Monitor] Current lastClipboardContent:', currentLastContent)
 
       if (trimmedText && trimmedText !== currentLastContent) {
-        console.log('[Clipboard Monitor] Content changed from:', currentLastContent.substring(0, 30), 'to:', trimmedText.substring(0, 30))
-
         if (isFlag(trimmedText)) {
-          console.log('[Clipboard Monitor] ✅ FLAG DETECTED:', trimmedText)
 
           // Check if parent wants to process this flag
           if (shouldProcessFlag && !shouldProcessFlag(trimmedText)) {
-            console.log('[Clipboard Monitor] ⏭️ Skipping flag - parent says not to process')
             setLastClipboardContent(trimmedText)
             return
           }
@@ -77,20 +70,16 @@ export function useClipboardFlagSubmission({
 
           if (onFlagSubmit) {
             try {
-              const result = await onFlagSubmit(trimmedText)
-              console.log('[Clipboard Monitor] Flag submission result:', result)
+              await onFlagSubmit(trimmedText)
             } catch (error) {
               console.error('[Clipboard Monitor] Flag submission failed:', error)
             }
           }
         } else {
-          console.log('[Clipboard Monitor] ❌ Not a flag:', trimmedText.substring(0, 30))
           // Still update lastClipboardContent for non-flags to prevent repeated checks
           setLastClipboardContent(trimmedText)
           lastClipboardContentRef.current = trimmedText
         }
-      } else {
-        console.log('[Clipboard Monitor] No change or empty content')
       }
     } catch (error) {
       // Clipboard access failed - user might have denied permission or switched away
@@ -105,16 +94,13 @@ export function useClipboardFlagSubmission({
     }
 
     try {
-      console.log('[Clipboard Monitor] Requesting clipboard permission...')
       // Request clipboard read permission
       const permission = await navigator.permissions.query({ name: 'clipboard-read' as PermissionName })
-      console.log('[Clipboard Monitor] Permission state:', permission.state)
 
       if (permission.state === 'granted' || permission.state === 'prompt') {
         // Try to read clipboard to trigger permission prompt if needed
         const initialRead = await navigator.clipboard.readText()
         const trimmedInitial = initialRead.trim()
-        console.log('[Clipboard Monitor] Initial clipboard read successful:', trimmedInitial)
 
         // Set initial clipboard content to prevent immediate false positives
         setLastClipboardContent(trimmedInitial)
@@ -124,7 +110,6 @@ export function useClipboardFlagSubmission({
         // Start polling clipboard every 500ms
         intervalRef.current = setInterval(checkClipboard, 500)
         setIsMonitoring(true)
-        console.log('[Clipboard Monitor] ✅ Started monitoring clipboard every 500ms')
         return true
       } else {
         console.warn('[Clipboard Monitor] Clipboard permission denied:', permission.state)
@@ -136,7 +121,6 @@ export function useClipboardFlagSubmission({
       try {
         const fallbackRead = await navigator.clipboard.readText()
         const trimmedFallback = fallbackRead.trim()
-        console.log('[Clipboard Monitor] Fallback clipboard read:', trimmedFallback)
 
         // Set initial clipboard content
         setLastClipboardContent(trimmedFallback)
@@ -144,7 +128,6 @@ export function useClipboardFlagSubmission({
         permissionGranted.current = true
         intervalRef.current = setInterval(checkClipboard, 500)
         setIsMonitoring(true)
-        console.log('[Clipboard Monitor] ✅ Started monitoring clipboard (fallback)')
         return true
       } catch (fallbackError) {
         console.error('[Clipboard Monitor] Fallback also failed:', fallbackError)
@@ -160,7 +143,6 @@ export function useClipboardFlagSubmission({
     }
     setIsMonitoring(false)
     permissionGranted.current = false
-    console.log('[Clipboard Monitor] Stopped monitoring clipboard')
   }
 
   useEffect(() => {

@@ -31,7 +31,6 @@ export function LoginForm({ onSuccess, onRegisterClick, onForgotPasswordClick }:
       const response = await authService.login(formData)
 
       if (response.success) {
-        console.log('Login successful:', response.data)
         onSuccess?.()
       } else {
         setError(response.errors?.join(', ') || 'Login failed')

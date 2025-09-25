@@ -46,7 +46,6 @@ export function WorkspaceServiceViewer({
         <WorkspaceService
           iframeSrc={iframeSrc}
           activeService={activeService}
-          onReady={() => console.log(`${activeService} service ready`)}
         />
       ) : (
         <div className="flex items-center justify-center h-full text-muted-foreground" style={{ backgroundColor: activeService === 'terminal' ? 'var(--service-bg)' : undefined }}>

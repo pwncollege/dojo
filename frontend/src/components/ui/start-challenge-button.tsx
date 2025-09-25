@@ -82,7 +82,6 @@ export function StartChallengeButton({
       challengeId,
       practice
     }).then(() => {
-      console.log('Challenge started successfully')
       // Update the active challenge to remove isStarting flag
       setActiveChallenge({
         dojoId,

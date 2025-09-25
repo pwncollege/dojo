@@ -109,8 +109,6 @@ class ApiClient {
 }
 
 // Create separate API clients
-console.log('CTFD_API_BASE_URL', CTFD_API_BASE_URL)
-console.log('DOJO_API_BASE_URL', DOJO_API_BASE_URL)
 export const ctfdApiClient = new ApiClient(CTFD_API_BASE_URL)
 export const dojoApiClient = new ApiClient(DOJO_API_BASE_URL)
 

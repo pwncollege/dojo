@@ -134,7 +134,6 @@ export const useUIStore = create<UIStore>((set) => ({
 
   fetchActiveChallenge: async () => {
     // This method is deprecated - active challenge is now handled in Layout component
-    console.log('fetchActiveChallenge called but deprecated - active challenge handled in Layout')
   }
 }))
 
