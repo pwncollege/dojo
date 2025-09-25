@@ -27,7 +27,7 @@ def authenticate_container(token):
     try:
         for c in docker_client.containers.list():
             if c.labels.get("dojo.auth_token") == token:
-                continer = c
+                container = c
                 break
     except Exception as e:
         logger.error(f"Exception while listing containers: {e}")
@@ -41,7 +41,7 @@ def authenticate_container(token):
             "success": False,
             "error": "Invalid container authentication token",
             }, 401)
-    
+
     user_id = int(container.labels.get("dojo.as_user_id"))
     session["id"] = user_id
     user = Users.query.filter_by(id=user_id).one()
@@ -61,11 +61,30 @@ def authenticate(token, type):
         
         case "application":
             return authenticate_application(token)
-        
+
         case _:
             return None, ({
                 "success": False,
                 "error": f"Unrecognized authentication type \"{type}\"",
                 }, 400)
 
+@integrations_namespace.route("/check_auth")
+class check_authentication(Resource):
+    def post(self):
+        data = request.get_json()
+        token = data.get("token")
+        auth_type = data.get("type")
+        user, message = authenticate(token, auth_type)
+        if message:
+            return message
 
+        if not user:
+            return ({
+                "success": False,
+                "error": "Authentication process failed"
+                }, 500)
+
+        return ({
+            "success": True,
+            "user_id": user.id,
+            }, 200)
