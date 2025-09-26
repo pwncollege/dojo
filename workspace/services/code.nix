@@ -145,14 +145,15 @@ in pkgs.stdenv.mkDerivation {
       --disable-telemetry \
       --extensions-dir=$out/share/code/extensions \
        --install-extension ms-python.python \
-      --install-extension $NIX_BUILD_TOP/cpptools-linux.vsix
-    chmod +x $out/share/code/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*} \
+      --install-extension $NIX_BUILD_TOP/cpptools-linux.vsix \
       --install-extension vatsalsy.gruvbox-crisp-tex \
       --install-extension sainnhe.everforest \
       --install-extension mangeshrex.everblush \
       --install-extension sjsepan.sjsepan-matrixish \
       --install-extension PKief.material-icon-theme 
     echo "-------------------------- Done installing extensions ---------------------------" >&2
+
+    chmod +x $out/share/code/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*}
 
     runHook postInstall
   '';
