@@ -10,39 +10,37 @@ let
   perplexity = import ./perplexity.nix;
 
   # Helper function to convert terminal colors to JSON
-  terminalToJson = theme: pkgs.writeText "terminal-theme.json" (builtins.toJSON theme.terminal);
+  terminalToJson = theme:
+    pkgs.writeText "terminal-theme.json" (builtins.toJSON theme.terminal);
 
   # Helper function to convert VS Code colors to JSON with proper theme selection
-  vscodeToJson = themeName: theme: pkgs.writeText "vscode-theme.json" (builtins.toJSON (
-    let
+  vscodeToJson = themeName: theme:
+    pkgs.writeText "vscode-theme.json" (builtins.toJSON (let
       baseSettings = {
         "window.autoDetectColorScheme" = false;
         "window.commandCenter" = false;
         "workbench.layoutControl.enabled" = false;
-        "editor.fontFamily" = "JetBrainsMono Nerd Font, DejaVu Sans Mono, Consolas, Monaco, Menlo, Courier New, monospace";
+        "editor.fontFamily" =
+          "JetBrainsMono Nerd Font, DejaVu Sans Mono, Consolas, Monaco, Menlo, Courier New, monospace";
         "editor.fontSize" = 14;
         "editor.fontLigatures" = true;
-        "terminal.integrated.fontFamily" = "JetBrainsMono Nerd Font, DejaVu Sans Mono, Consolas, Monaco, Menlo, Courier New, monospace";
+        "terminal.integrated.fontFamily" =
+          "JetBrainsMono Nerd Font, DejaVu Sans Mono, Consolas, Monaco, Menlo, Courier New, monospace";
         "terminal.integrated.fontSize" = 14;
-         "editor.minimap.enabled" = false;
+        "editor.minimap.enabled" = false;
+        "workbench.iconTheme" = "material-icon-theme";
+
       };
-    in
-    if themeName == "gruvbox" then
+    in if themeName == "gruvbox" then
       baseSettings // {
         "workbench.colorTheme" = "Gruvbox Crisp (High Contrast, with TeX)";
       }
     else if themeName == "everforest" then
-      baseSettings // {
-        "workbench.colorTheme" = "Everforest Dark";
-      }
+      baseSettings // { "workbench.colorTheme" = "Everforest Dark"; }
     else if themeName == "matrix" then
-      baseSettings // {
-        "workbench.colorTheme" = "Matrixish";
-      }
+      baseSettings // { "workbench.colorTheme" = "Matrixish"; }
     else if themeName == "solarized" then
-      baseSettings // {
-        "workbench.colorTheme" = "Solarized Dark";
-      }
+      baseSettings // { "workbench.colorTheme" = "Solarized Dark"; }
     else if themeName == "perplexity" then
       baseSettings // {
         "workbench.colorTheme" = "Everblush";
@@ -242,15 +240,10 @@ let
         };
       }
     else # other themes use default
-      baseSettings // {
-        "workbench.colorTheme" = "Default Dark+";
-      }
-  ));
+      baseSettings // { "workbench.colorTheme" = "Default Dark+"; }));
 
   # Available themes
-  themes = {
-    inherit matrix everforest gruvbox amethyst solarized perplexity;
-  };
+  themes = { inherit matrix everforest gruvbox amethyst solarized perplexity; };
 
   # Function to get theme by name with fallback
   getTheme = name: themes.${name} or themes.matrix;

@@ -146,7 +146,8 @@ in pkgs.stdenv.mkDerivation {
       --install-extension vatsalsy.gruvbox-crisp-tex \
       --install-extension sainnhe.everforest \
       --install-extension mangeshrex.everblush \
-      --install-extension sjsepan.sjsepan-matrixish
+      --install-extension sjsepan.sjsepan-matrixish \
+      --install-extension PKief.material-icon-theme 
     echo "-------------------------- Done installing extensions ---------------------------" >&2
 
     runHook postInstall
