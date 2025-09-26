@@ -376,32 +376,47 @@ export function SmartFlagInput({
       const response = await workspaceService.getNextChallenge()
 
       if (response.success && response.dojo && response.module && response.challenge) {
-        // Set active challenge with loading state FIRST
-        setActiveChallenge({
-          dojoId: response.dojo,
-          moduleId: response.module,
-          challengeId: response.challenge,
-          challengeName: 'Next Challenge',
-          dojoName: '',
-          moduleName: '',
-          isStarting: true
-        })
-
-        // Start the next challenge
-        await startChallenge.mutateAsync({
-          dojoId: response.dojo,
-          moduleId: response.module,
-          challengeId: response.challenge
-        })
-
-        // Update URL without triggering full navigation
         const nextUrl = `/dojo/${response.dojo}/module/${response.module}/workspace/challenge/${response.challenge}`
-        window.history.replaceState(null, '', nextUrl)
 
-        // Hide popup AFTER navigation starts
-        hidePopup()
-        setClipboardFlag('')
-        setClipboardSubmissionResult(null)
+        // Get current active challenge from store
+        const currentChallenge = useWorkspaceStore.getState().activeChallenge
+
+        // Check if we're switching to a different module
+        if (currentChallenge && currentChallenge.moduleId !== response.module) {
+          // Different module - need full navigation to load new module data
+          router.push(nextUrl)
+
+          // Hide popup before navigation
+          hidePopup()
+          setClipboardFlag('')
+          setClipboardSubmissionResult(null)
+        } else {
+          // Same module - can do client-side transition
+          setActiveChallenge({
+            dojoId: response.dojo,
+            moduleId: response.module,
+            challengeId: response.challenge,
+            challengeName: 'Next Challenge',
+            dojoName: '',
+            moduleName: '',
+            isStarting: true
+          })
+
+          // Start the next challenge
+          await startChallenge.mutateAsync({
+            dojoId: response.dojo,
+            moduleId: response.module,
+            challengeId: response.challenge
+          })
+
+          // Update URL without triggering full navigation
+          window.history.replaceState(null, '', nextUrl)
+
+          // Hide popup AFTER navigation starts
+          hidePopup()
+          setClipboardFlag('')
+          setClipboardSubmissionResult(null)
+        }
       } else {
         // No next challenge available - hide the popup
         hidePopup()

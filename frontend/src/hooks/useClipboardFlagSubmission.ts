@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 
 interface ClipboardFlagSubmissionOptions {
   enabled: boolean
@@ -24,6 +24,24 @@ export function useClipboardFlagSubmission({
   const intervalRef = useRef<NodeJS.Timeout>()
   const permissionGranted = useRef(false)
   const lastClipboardContentRef = useRef<string>('')
+
+  // Store callbacks in refs to always have latest version
+  const onFlagDetectedRef = useRef(onFlagDetected)
+  const onFlagSubmitRef = useRef(onFlagSubmit)
+  const shouldProcessFlagRef = useRef(shouldProcessFlag)
+
+  // Update refs when callbacks change
+  useEffect(() => {
+    onFlagDetectedRef.current = onFlagDetected
+  }, [onFlagDetected])
+
+  useEffect(() => {
+    onFlagSubmitRef.current = onFlagSubmit
+  }, [onFlagSubmit])
+
+  useEffect(() => {
+    shouldProcessFlagRef.current = shouldProcessFlag
+  }, [shouldProcessFlag])
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -57,8 +75,8 @@ export function useClipboardFlagSubmission({
       if (trimmedText && trimmedText !== currentLastContent) {
         if (isFlag(trimmedText)) {
 
-          // Check if parent wants to process this flag
-          if (shouldProcessFlag && !shouldProcessFlag(trimmedText)) {
+          // Check if parent wants to process this flag (use ref for latest function)
+          if (shouldProcessFlagRef.current && !shouldProcessFlagRef.current(trimmedText)) {
             setLastClipboardContent(trimmedText)
             return
           }
@@ -66,11 +84,13 @@ export function useClipboardFlagSubmission({
           // Update both state and ref BEFORE calling onFlagDetected
           setLastClipboardContent(trimmedText)
           lastClipboardContentRef.current = trimmedText
-          onFlagDetected?.(trimmedText)
 
-          if (onFlagSubmit) {
+          // Use ref for latest callback
+          onFlagDetectedRef.current?.(trimmedText)
+
+          if (onFlagSubmitRef.current) {
             try {
-              await onFlagSubmit(trimmedText)
+              await onFlagSubmitRef.current(trimmedText)
             } catch (error) {
               console.error('[Clipboard Monitor] Flag submission failed:', error)
             }
