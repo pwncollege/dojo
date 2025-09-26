@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, ChevronRight, PanelTop, PanelLeft } from 'lucide-react'
 
@@ -14,19 +14,78 @@ export function FullscreenHoverHandles({ children }: FullscreenHoverHandlesProps
   const [showSidebar, setShowSidebar] = useState(false)
   const [headerHovered, setHeaderHovered] = useState(false)
   const [sidebarHovered, setSidebarHovered] = useState(false)
+  const headerTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const sidebarTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Auto-hide after timeout if not hovering over the actual content
+  // Helper function to check if any dropdown/popover is open
+  const isDropdownOpen = () => {
+    // Check for common dropdown/popover selectors that indicate UI elements are open
+    const selectors = [
+      '[data-state="open"]', // Radix UI dropdowns/popovers
+      '[data-radix-popper-content-wrapper]', // Radix popper content
+      '[role="menu"]', // ARIA menu
+      '[role="dialog"]', // Modal dialogs
+    ]
+
+    // Only check DOM selectors, remove mouseOverDropdown to avoid interference
+    return selectors.some(selector => document.querySelector(selector))
+  }
+
+
+  // Improved auto-hide logic with dropdown detection
   useEffect(() => {
     if (showHeader && !headerHovered) {
-      const timeout = setTimeout(() => setShowHeader(false), 300)
-      return () => clearTimeout(timeout)
+      if (headerTimeoutRef.current) {
+        clearTimeout(headerTimeoutRef.current)
+      }
+
+      headerTimeoutRef.current = setTimeout(() => {
+        // Don't hide if a dropdown/popover is open
+        if (!isDropdownOpen()) {
+          setShowHeader(false)
+        } else {
+          // Check again shortly if dropdown is still open
+          headerTimeoutRef.current = setTimeout(() => {
+            if (!isDropdownOpen()) {
+              setShowHeader(false)
+            }
+          }, 300)
+        }
+      }, 400) // Balanced timeout
+
+      return () => {
+        if (headerTimeoutRef.current) {
+          clearTimeout(headerTimeoutRef.current)
+        }
+      }
     }
   }, [showHeader, headerHovered])
 
   useEffect(() => {
     if (showSidebar && !sidebarHovered) {
-      const timeout = setTimeout(() => setShowSidebar(false), 300)
-      return () => clearTimeout(timeout)
+      if (sidebarTimeoutRef.current) {
+        clearTimeout(sidebarTimeoutRef.current)
+      }
+
+      sidebarTimeoutRef.current = setTimeout(() => {
+        // Don't hide if a dropdown/popover is open
+        if (!isDropdownOpen()) {
+          setShowSidebar(false)
+        } else {
+          // Check again shortly if dropdown is still open
+          sidebarTimeoutRef.current = setTimeout(() => {
+            if (!isDropdownOpen()) {
+              setShowSidebar(false)
+            }
+          }, 300)
+        }
+      }, 400) // Balanced timeout
+
+      return () => {
+        if (sidebarTimeoutRef.current) {
+          clearTimeout(sidebarTimeoutRef.current)
+        }
+      }
     }
   }, [showSidebar, sidebarHovered])
 
@@ -79,9 +138,24 @@ export function FullscreenHoverHandles({ children }: FullscreenHoverHandlesProps
       >
         {/* Header Panel - minimal wrapper to preserve original styling */}
         <div
-          className="shadow-2xl overflow-hidden"
+          className="shadow-2xl overflow-visible" // Changed to overflow-visible for dropdowns
           onMouseEnter={() => setHeaderHovered(true)}
-          onMouseLeave={() => setHeaderHovered(false)}
+          onMouseLeave={(e) => {
+            // More sophisticated mouse leave detection
+            const rect = e.currentTarget.getBoundingClientRect()
+            const buffer = 50 // 50px buffer for mouse tolerance
+            const { clientX, clientY } = e
+
+            // Only set hovered to false if mouse is truly outside with buffer
+            if (
+              clientY < rect.top - buffer ||
+              clientY > rect.bottom + buffer ||
+              clientX < rect.left - buffer ||
+              clientX > rect.right + buffer
+            ) {
+              setHeaderHovered(false)
+            }
+          }}
         >
           {children.header}
         </div>
@@ -90,7 +164,11 @@ export function FullscreenHoverHandles({ children }: FullscreenHoverHandlesProps
         <div className="flex justify-center">
           <div
             className="bg-primary/20 backdrop-blur-sm rounded-b-lg px-3 py-1 border border-primary/20 border-t-0"
-            onMouseEnter={() => setShowHeader(true)}
+            onMouseEnter={() => {
+              setShowHeader(true)
+              setHeaderHovered(true)
+            }}
+            onMouseLeave={() => setHeaderHovered(false)}
           >
             <PanelTop className="h-3 w-3 text-primary/70" />
           </div>
@@ -145,9 +223,24 @@ export function FullscreenHoverHandles({ children }: FullscreenHoverHandlesProps
         <div className="flex h-full">
           {/* Sidebar Panel */}
           <div
-            className="w-[380px] shadow-2xl overflow-hidden border-r border-border"
+            className="w-[380px] shadow-2xl overflow-visible border-r border-border" // Changed to overflow-visible
             onMouseEnter={() => setSidebarHovered(true)}
-            onMouseLeave={() => setSidebarHovered(false)}
+            onMouseLeave={(e) => {
+              // More sophisticated mouse leave detection
+              const rect = e.currentTarget.getBoundingClientRect()
+              const buffer = 50 // 50px buffer for mouse tolerance
+              const { clientX, clientY } = e
+
+              // Only set hovered to false if mouse is truly outside with buffer
+              if (
+                clientX < rect.left - buffer ||
+                clientX > rect.right + buffer ||
+                clientY < rect.top - buffer ||
+                clientY > rect.bottom + buffer
+              ) {
+                setSidebarHovered(false)
+              }
+            }}
           >
             {children.sidebar}
           </div>
@@ -156,7 +249,11 @@ export function FullscreenHoverHandles({ children }: FullscreenHoverHandlesProps
           <div className="flex items-center">
             <div
               className="bg-primary/20 backdrop-blur-sm rounded-r-lg px-1 py-3 border border-primary/20 border-l-0"
-              onMouseEnter={() => setShowSidebar(true)}
+              onMouseEnter={() => {
+                setShowSidebar(true)
+                setSidebarHovered(true)
+              }}
+              onMouseLeave={() => setSidebarHovered(false)}
             >
               <PanelLeft className="h-3 w-3 text-primary/70" />
             </div>

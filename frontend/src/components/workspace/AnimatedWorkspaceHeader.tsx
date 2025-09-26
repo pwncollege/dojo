@@ -1,26 +1,36 @@
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { SmartFlagInput } from '@/components/challenge/SmartFlagInput'
 import { NextChallengeButton } from '@/components/challenge/NextChallengeButton'
 import { useAnimations, useWorkspaceStore } from '@/stores'
+import { useStartChallenge } from '@/hooks/useDojo'
+import { workspaceService } from '@/services/workspace'
 import {
   Terminal,
   Code,
   Monitor,
   Maximize2,
   Minimize2,
-  ChevronLeft,
   Video,
   FileText,
   Play,
   Presentation,
   FileVideo,
   X,
-  ChevronRight
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Shield,
+  Info,
+  MoreVertical
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Resource } from '@/types/api'
 import { useResourceTab } from '@/components/layout/DojoWorkspaceLayout'
 
@@ -57,11 +67,79 @@ export function AnimatedWorkspaceHeader({
   // Get actions from workspace store
   const setActiveService = useWorkspaceStore(state => state.setActiveService)
   const setFullScreen = useWorkspaceStore(state => state.setFullScreen)
+  const setActiveChallenge = useWorkspaceStore(state => state.setActiveChallenge)
 
   // Get resource tab state from context
   const resourceTabContext = useResourceTab()
   const activeResourceTab = resourceTabContext?.activeResourceTab || "video"
   const setActiveResourceTab = resourceTabContext?.setActiveResourceTab
+
+  // Restart functionality
+  const [practiceMode, setPracticeMode] = useState(false)
+  const [nextLoading, setNextLoading] = useState(false)
+  const startChallenge = useStartChallenge()
+  const router = useRouter()
+
+  const handleRestartChallenge = async () => {
+    if (!activeChallenge) return
+
+    try {
+      await startChallenge.mutateAsync({
+        dojoId: activeChallenge.dojoId,
+        moduleId: activeChallenge.moduleId,
+        challengeId: activeChallenge.challengeId,
+        practice: practiceMode
+      })
+    } catch (error) {
+      console.error('Failed to restart challenge:', error)
+    }
+  }
+
+  const handleNextChallenge = async () => {
+    try {
+      setNextLoading(true)
+
+      const response = await workspaceService.getNextChallenge()
+
+      if (response.success && response.dojo && response.module && response.challenge) {
+        const nextUrl = `/dojo/${response.dojo}/module/${response.module}/workspace/challenge/${response.challenge}`
+
+        // Check if we're switching to a different module
+        if (activeChallenge && activeChallenge.moduleId !== response.module) {
+          // Different module - need full navigation to load new module data
+          router.push(nextUrl)
+        } else {
+          // Same module - can do client-side transition
+          setActiveChallenge({
+            dojoId: response.dojo,
+            moduleId: response.module,
+            challengeId: response.challenge,
+            challengeName: 'Next Challenge',
+            dojoName: '',
+            moduleName: '',
+            isStarting: true
+          })
+
+          // Update URL without triggering full navigation
+          window.history.replaceState(null, '', nextUrl)
+
+          startChallenge.mutateAsync({
+            dojoId: response.dojo,
+            moduleId: response.module,
+            challengeId: response.challenge
+          }).catch(error => {
+            console.error('Failed to start challenge:', error)
+          })
+        }
+      } else {
+        // No next challenge available
+      }
+    } catch (error) {
+      console.error('Failed to get next challenge:', error)
+    } finally {
+      setNextLoading(false)
+    }
+  }
 
   if (headerHidden) {
     return null
@@ -228,9 +306,6 @@ export function AnimatedWorkspaceHeader({
                     />
                   )}
 
-                  {/* Next Challenge Button */}
-                  <NextChallengeButton />
-
                   {/* Service Tabs */}
                   {persistentWorkspaceActive && (
                     <Tabs value={activeService} onValueChange={setActiveService}>
@@ -293,6 +368,61 @@ export function AnimatedWorkspaceHeader({
               layout
               transition={{ duration: animations.medium, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
+              {/* Challenge Actions Dropdown */}
+              {!isResourceMode && activeChallenge && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="hover:bg-primary/10 hover:text-primary h-8 w-8 transition-colors"
+                    >
+                      <MoreVertical className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    {/* Practice Mode Toggle */}
+                    <div className="px-2 py-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Shield className={`h-4 w-4 ${practiceMode ? 'text-primary' : 'text-muted-foreground'}`} />
+                          <span className="text-sm font-medium">Practice Mode</span>
+                        </div>
+                        <Switch
+                          checked={practiceMode}
+                          onCheckedChange={setPracticeMode}
+                          className="h-4 w-8"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Privileged access, flags don't count
+                      </p>
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleRestartChallenge}
+                      disabled={startChallenge.isPending}
+                      className="cursor-pointer"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Restart challenge
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleNextChallenge}
+                      disabled={nextLoading || startChallenge.isPending}
+                      className="cursor-pointer"
+                    >
+                      {nextLoading ? (
+                        <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 mr-2" />
+                      )}
+                      Next challenge
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
