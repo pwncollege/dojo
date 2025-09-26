@@ -137,12 +137,16 @@ in pkgs.stdenv.mkDerivation {
 
     echo "-------------------------- Installing extensions ---------------------------" >&2
     mkdir -p $out/share/code/extensions
+    ${pkgs.wget}/bin/wget -P $NIX_BUILD_TOP 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
     export HOME=$NIX_BUILD_TOP
 
     ${code-server}/bin/code-server \
       --auth=none \
       --disable-telemetry \
       --extensions-dir=$out/share/code/extensions \
+       --install-extension ms-python.python \
+      --install-extension $NIX_BUILD_TOP/cpptools-linux.vsix
+    chmod +x $out/share/code/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*} \
       --install-extension vatsalsy.gruvbox-crisp-tex \
       --install-extension sainnhe.everforest \
       --install-extension mangeshrex.everblush \
