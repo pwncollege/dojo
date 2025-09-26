@@ -34,8 +34,9 @@ export function NextChallengeButton() {
           isStarting: true
         })
 
+        // Update URL without triggering full navigation
         const nextUrl = `/dojo/${response.dojo}/module/${response.module}/workspace/challenge/${response.challenge}`
-        router.push(nextUrl)
+        window.history.replaceState(null, '', nextUrl)
 
         startChallenge.mutateAsync({
           dojoId: response.dojo,

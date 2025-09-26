@@ -135,11 +135,17 @@ export function DojoWorkspaceLayout({
           }
         : undefined;
 
+  // Get the stored active challenge (this is the source of truth for UI)
+  const storedActiveChallenge = useWorkspaceStore(state => state.activeChallenge);
+
   // Pass theme name for terminal and code services
   const serviceTheme =
     activeService === "terminal" || activeService === "code"
       ? palette
       : undefined;
+
+  // Use stored active challenge for workspace query (prioritize store over URL)
+  const challengeForWorkspace = storedActiveChallenge || activeChallenge;
 
   // Single workspace call that gets status and data in one request
   // Only enable when we have an active challenge AND it's not currently starting
@@ -147,17 +153,19 @@ export function DojoWorkspaceLayout({
   const { data: workspaceData } = useWorkspace(
     {
       service: activeService,
-      challenge: activeChallenge
-        ? `${activeChallenge.dojoId}-${activeChallenge.moduleId}-${activeChallenge.challengeId}`
+      challenge: challengeForWorkspace
+        ? `${challengeForWorkspace.dojoId}-${challengeForWorkspace.moduleId}-${challengeForWorkspace.challengeId}`
         : "",
       theme: serviceTheme,
     },
-    !!activeChallenge,
+    !!challengeForWorkspace && !challengeForWorkspace?.isStarting,
   );
 
-  // Set active challenge in workspace store for widget
+  // Set active challenge in workspace store for widget (only if URL changed)
   useEffect(() => {
-    if (activeChallenge) {
+    // Only update if URL-based challenge is different from stored
+    if (activeChallenge && (!storedActiveChallenge ||
+        storedActiveChallenge.challengeId !== activeChallenge.challengeId)) {
       setActiveChallenge({
         dojoId: activeChallenge.dojoId,
         moduleId: activeChallenge.moduleId,
@@ -165,19 +173,35 @@ export function DojoWorkspaceLayout({
         challengeName: activeChallenge.name,
         dojoName: dojo.name,
         moduleName: currentModule.name,
+        isStarting: false, // URL navigation means it's not a new start
       });
     }
-  }, [activeChallenge, dojo.name, currentModule?.name, setActiveChallenge]);
+  }, [activeChallenge, dojo.name, currentModule?.name, setActiveChallenge, storedActiveChallenge]);
 
   // Handler function for challenge start
   const handleChallengeStart = async (
     moduleId: string,
     challengeId: string,
   ) => {
-    // 1. Navigate immediately for instant UX
+    // Find the challenge details
+    const targetChallenge = currentModule?.challenges?.find(c => c.id === challengeId);
+    if (!targetChallenge) return;
+
+    // 1. Immediately update active challenge in store with isStarting flag
+    setActiveChallenge({
+      dojoId: dojo.id,
+      moduleId: moduleId,
+      challengeId: challengeId,
+      challengeName: targetChallenge.name,
+      dojoName: dojo.name,
+      moduleName: currentModule.name,
+      isStarting: true,
+    });
+
+    // 2. Update URL (shallow routing handled in workspace-client)
     onChallengeStart(dojo.id, moduleId, challengeId);
 
-    // 2. Start challenge on server in background
+    // 3. Start challenge on server in background
     try {
       await startChallengeMutation.mutateAsync({
         dojoId: dojo.id,
@@ -187,6 +211,16 @@ export function DojoWorkspaceLayout({
       });
     } catch (error) {
       console.error("Failed to start challenge:", error);
+      // Reset isStarting on error
+      setActiveChallenge({
+        dojoId: dojo.id,
+        moduleId: moduleId,
+        challengeId: challengeId,
+        challengeName: targetChallenge.name,
+        dojoName: dojo.name,
+        moduleName: currentModule.name,
+        isStarting: false,
+      });
     }
   };
 
@@ -409,7 +443,7 @@ export function DojoWorkspaceLayout({
                 <AnimatedWorkspaceHeader
                   dojoName={dojo.name}
                   moduleName={currentModule?.name || "Module"}
-                  workspaceActive={workspaceData?.active || false}
+                  workspaceActive={workspaceData?.active || storedActiveChallenge?.isStarting}
                   activeResource={resource}
                   onClose={onChallengeClose}
                   onResourceClose={() => {

@@ -394,9 +394,9 @@ export function SmartFlagInput({
           challengeId: response.challenge
         })
 
-        // Navigate to the next challenge
+        // Update URL without triggering full navigation
         const nextUrl = `/dojo/${response.dojo}/module/${response.module}/workspace/challenge/${response.challenge}`
-        router.push(nextUrl)
+        window.history.replaceState(null, '', nextUrl)
 
         // Hide popup AFTER navigation starts
         hidePopup()

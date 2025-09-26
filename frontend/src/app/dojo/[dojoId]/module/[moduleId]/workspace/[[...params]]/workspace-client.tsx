@@ -60,14 +60,18 @@ export function WorkspacePageClient({
   // Memoize event handlers to prevent unnecessary re-renders
   const handleChallengeStart = useMemo(() =>
     (dojoId: string, moduleId: string, challengeId: string) => {
-      router.push(`/dojo/${dojoId}/module/${moduleId}/workspace/challenge/${challengeId}`)
+      // Use window.history to update URL without triggering Next.js navigation
+      const newUrl = `/dojo/${dojoId}/module/${moduleId}/workspace/challenge/${challengeId}`
+      window.history.replaceState(null, '', newUrl)
     }, [router]
   )
 
   const handleResourceSelect = useMemo(() =>
     (resourceId: string | null) => {
       if (resourceId) {
-        router.push(`/dojo/${dojoId}/module/${moduleId}/workspace/resource/${resourceId}`)
+        // Use window.history to update URL without triggering Next.js navigation
+        const newUrl = `/dojo/${dojoId}/module/${moduleId}/workspace/resource/${resourceId}`
+        window.history.replaceState(null, '', newUrl)
       } else {
         router.push(`/dojo/${dojoId}/module/${moduleId}`)
       }
