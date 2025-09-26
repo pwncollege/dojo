@@ -27,6 +27,7 @@ import { useHotkeys, hotkey } from "@/hooks/useHotkeys";
 import { WorkspaceSidebar } from "@/components/workspace/WorkspaceSidebar";
 import { AnimatedWorkspaceHeader } from "@/components/workspace/AnimatedWorkspaceHeader";
 import { WorkspaceContent } from "@/components/workspace/WorkspaceContent";
+import { FullscreenHoverHandles } from "@/components/workspace/FullscreenHoverHandles";
 import type { Dojo, DojoModule } from "@/types/api";
 import { useTheme } from "@/components/theme/ThemeProvider";
 const ResourceTabContext = createContext<{
@@ -379,6 +380,39 @@ export function DojoWorkspaceLayout({
       value={{ activeResourceTab, setActiveResourceTab }}
     >
       <div className="h-screen">
+        {/* Fullscreen hover handles */}
+        {isFullScreen && (
+          <FullscreenHoverHandles>
+            {{
+              header: (
+                <AnimatedWorkspaceHeader
+                  dojoName={dojo.name}
+                  moduleName={currentModule?.name || "Module"}
+                  workspaceActive={workspaceData?.active || storedActiveChallenge?.isStarting}
+                  activeResource={resource}
+                  onClose={onChallengeClose}
+                  onResourceClose={() => {
+                    if (onResourceSelect) {
+                      onResourceSelect(null);
+                    }
+                  }}
+                />
+              ),
+              sidebar: (
+                <WorkspaceSidebar
+                  module={currentModule}
+                  dojoName={dojo.name}
+                  activeResource={resource?.id}
+                  onChallengeStart={handleChallengeStart}
+                  onChallengeClose={onChallengeClose}
+                  onResourceSelect={onResourceSelect}
+                  isPending={startChallengeMutation.isPending}
+                />
+              )
+            }}
+          </FullscreenHoverHandles>
+        )}
+
         <ResizablePanelGroup direction="horizontal" className="h-full">
           {/* Sidebar Panel */}
           <ResizablePanel
