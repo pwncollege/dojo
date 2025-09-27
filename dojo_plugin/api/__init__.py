@@ -2,6 +2,8 @@ from flask import Blueprint, current_app
 from flask_restx import Api
 
 from ..utils.request_logging import log_exception
+from .v1.auth import auth_namespace
+from .v1.user import user_namespace
 from .v1.belts import belts_namespace
 from .v1.discord import discord_namespace
 from .v1.docker import docker_namespace
@@ -25,6 +27,8 @@ def handle_api_exception(error):
     log_exception(error, event_type="api_exception")
     raise
 
+api_v1.add_namespace(auth_namespace, "/auth")
+api_v1.add_namespace(user_namespace, "/user")
 api_v1.add_namespace(belts_namespace, "/belts")
 api_v1.add_namespace(discord_namespace, "/discord")
 api_v1.add_namespace(docker_namespace, "/docker")

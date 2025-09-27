@@ -143,6 +143,17 @@ def load(app):
 
     app.permanent_session_lifetime = datetime.timedelta(days=180)
 
+    cors_origin = os.environ.get('CORS_ORIGINS')
+    if cors_origin:
+        @app.after_request
+        def add_cors_headers(response):
+            if request.path.startswith('/pwncollege_api/') or request.path.startswith('/api/'):
+                response.headers['Access-Control-Allow-Origin'] = cors_origin
+                response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+                response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+            return response
+
     CHALLENGE_CLASSES["dojo"] = DojoChallenge
     FLAG_CLASSES["dojo"] = DojoFlag
 
