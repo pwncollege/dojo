@@ -141,6 +141,7 @@
               sudo
               ssh-entrypoint
               cmatrix
+              glow
               zsh-setup
               service
               code-service
