@@ -33,7 +33,7 @@ let
 
     editors = [ vim neovim emacs nano gedit ];
 
-    terminal = [ tmux screen kitty.terminfo ];
+    terminal = [ tmux screen kitty.terminfo zsh oh-my-zsh ];
 
     network = [ netcat-openbsd tcpdump wireshark termshark nmap burpsuite ];
 

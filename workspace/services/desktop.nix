@@ -26,6 +26,13 @@ let
     export XDG_DATA_DIRS="/run/dojo/share:''${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
     export XDG_CONFIG_DIRS="/run/dojo/etc/xdg:''${XDG_CONFIG_DIRS:-/etc/xdg}"
 
+    # Ensure GTK can find themes and icons
+    export GTK_THEME="Adwaita:dark"
+    export GTK_DATA_PREFIX="/run/dojo"
+
+    # No custom theming - just use default XFCE with Adwaita-dark
+    echo "[DESKTOP] Using default XFCE with Adwaita-dark theme" >&2
+
     auth_token="$(cat /run/dojo/var/auth_token)"
     password_interact="$(printf 'desktop-interact' | ${pkgs.openssl}/bin/openssl dgst -sha256 -hmac "$auth_token" | awk '{print $2}' | head -c 8)"
     password_view="$(printf 'desktop-view' | ${pkgs.openssl}/bin/openssl dgst -sha256 -hmac "$auth_token" | awk '{print $2}' | head -c 8)"
@@ -72,7 +79,12 @@ let
     ] ++ (with pkgs; [
       dbus
       dejavu_fonts
-      blackbird
+      adwaita-icon-theme        # Adwaita icons (moved to top-level)
+      gnome-themes-extra        # Provides Adwaita and Adwaita-dark GTK themes
+      gtk3                      # GTK3 runtime
+      gtk2                      # GTK2 runtime
+      gedit
+      wireshark
     ]);
   };
 
@@ -106,7 +118,15 @@ in pkgs.stdenv.mkDerivation {
     mkdir -p $out/bin
     cp ${serviceScript} $out/bin/dojo-desktop
     ln -s ${pkgs.xfce.xfce4-terminal}/bin/xfce4-terminal $out/bin/x-terminal-emulator
-    rsync -a --ignore-existing $src/. ${xfce}/. ${pkgs.elementary-xfce-icon-theme}/. $out
+
+    # Copy source files first
+    if [ -d $src ]; then
+      cp -r $src/. $out/
+    fi
+
+    # Link to xfce binaries and resources, but handle nix-support carefully
+    ${pkgs.rsync}/bin/rsync -a --exclude='nix-support/propagated-build-inputs' ${xfce}/. $out/ || true
+
     runHook postInstall
   '';
 }
