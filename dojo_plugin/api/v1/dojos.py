@@ -12,6 +12,7 @@ from CTFd.utils.user import get_current_user, is_admin, get_ip
 from ...models import DojoStudents, Dojos, DojoModules, DojoChallenges, DojoUsers, Emojis, SurveyResponses
 from ...utils import render_markdown, is_challenge_locked
 from ...utils.dojo import dojo_route, dojo_admins_only, dojo_create
+from ...utils.stats import get_dojo_stats
 
 
 dojos_namespace = Namespace(
@@ -22,12 +23,23 @@ dojos_namespace = Namespace(
 @dojos_namespace.route("")
 class DojoList(Resource):
     def get(self):
+        # Query dojos with deferred fields for counts
+        dojo_query = (
+            Dojos.viewable(user=get_current_user())
+            .options(db.undefer(Dojos.modules_count),
+                     db.undefer(Dojos.challenges_count),
+                     db.undefer(Dojos.required_challenges_count))
+        )
+
         dojos = [
             dict(id=dojo.reference_id,
                  name=dojo.name,
                  description=dojo.description,
-                 official=dojo.official)
-            for dojo in Dojos.viewable(user=get_current_user())
+                 official=dojo.official,
+                 award=dojo.award,
+                 modules=dojo.modules_count,
+                 challenges=dojo.required_challenges_count)
+            for dojo in dojo_query
         ]
         return {"success": True, "dojos": dojos}
 
@@ -108,6 +120,18 @@ class DojoModuleList(Resource):
             dict(id=module.id,
                  name=module.name,
                  description=module.description,
+                 resources=[
+                    dict(id=f"resource-{resource.resource_index}",
+                         name=resource.name,
+                         type=resource.type,
+                         content=getattr(resource, 'content', None) if resource.type == "markdown" else None,
+                         video=getattr(resource, 'video', None) if resource.type == "lecture" else None,
+                         playlist=getattr(resource, 'playlist', None) if resource.type == "lecture" else None,
+                         slides=getattr(resource, 'slides', None) if resource.type == "lecture" else None,
+                         expandable=getattr(resource, 'expandable', True))
+                    for resource in module.resources
+                    if resource.visible or is_dojo_admin
+                 ],
                  challenges=[
                     dict(id=challenge.id,
                          name=challenge.name,
@@ -119,7 +143,11 @@ class DojoModuleList(Resource):
             for module in dojo.modules
             if module.visible() or is_dojo_admin
         ]
-        return {"success": True, "modules": modules}
+
+        return {
+            "success": True,
+            "modules": modules
+        }
 
 @dojos_namespace.route("/<dojo>/solves")
 class DojoSolveList(Resource):
