@@ -88,3 +88,45 @@ class check_authentication(Resource):
             "success": True,
             "user_id": user.id,
             }, 200)
+
+@integrations_namespace.route("/submit")
+class submit(Resource):
+    def post(self):
+        return ({
+            "success": False,
+            "error": "Not Implemented",
+            }, 405)
+
+@integrations_namespace.route("/start")
+class start(Resource):
+    def post(self):
+        return ({
+            "success": False,
+            "error": "Not Implemented",
+            }, 405)
+
+@integrations_namespace.route("/restart")
+class restart(Resource):
+    def post(self):
+        return ({
+            "success": False,
+            "error": "Not Implemented",
+            }, 405)
+
+@integrations_namespace.route("/list")
+@integrations_namespace.route("/list/<dojo>")
+@integrations_namespace.route("/list/<dojo>/<module>")
+class submit(Resource):
+    def get(self, dojo=None, module=None):
+        return ({
+            "success": False,
+            "error": "Not Implemented",
+            }, 405)
+
+@integrations_namespace.route("/info")
+class info(Resource):
+    def get(self):
+        return ({
+            "success": False,
+            "error": "Not Implemented",
+            }, 405)
