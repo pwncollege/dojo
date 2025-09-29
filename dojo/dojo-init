@@ -162,7 +162,9 @@ for host in $(cat /opt/pwn.college/user_firewall.allowed); do
 done
 iptables -A WORKSPACE-NET -j DROP
 
-iptables -I INPUT -i workspace_net -j WORKSPACE-NET
-iptables -I OUTPUT -o workspace_net -j WORKSPACE-NET
-iptables -I FORWARD -i workspace_net -j WORKSPACE-NET
-iptables -I FORWARD -o workspace_net -j WORKSPACE-NET
+iptables -N DOCKER-USER
+iptables -A DOCKER-USER -i workspace_net -j WORKSPACE-NET
+iptables -A DOCKER-USER -o workspace_net -j WORKSPACE-NET
+
+iptables -A INPUT -i workspace_net -j WORKSPACE-NET
+iptables -A OUTPUT -o workspace_net -j WORKSPACE-NET
