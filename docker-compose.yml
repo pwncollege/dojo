@@ -26,6 +26,7 @@ services:
 
   workspace-builder:
     container_name: workspace-builder
+    hostname: workspace-builder
     profiles:
       - workspace
     build: ./workspace
@@ -37,6 +38,7 @@ services:
 
   dojofs:
     container_name: dojofs
+    hostname: dojofs
     profiles:
       - workspace
     restart: always
@@ -49,6 +51,7 @@ services:
 
   homefs:
     container_name: homefs
+    hostname: homefs
     profiles:
       - main
       - workspace
@@ -79,7 +82,7 @@ services:
       - -c
       - |
         if [ "$DOJO_ENV" != "development" ]; then
-          ./docker-entrypoint.sh;
+          RUN_ID=$(openssl rand -hex 4) ./docker-entrypoint.sh;
         else
           FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
         fi
@@ -151,6 +154,7 @@ services:
 
   db:
     container_name: db
+    hostname: db
     profiles:
       - main
     restart: always
@@ -171,6 +175,7 @@ services:
 
   pgbouncer:
     container_name: pgbouncer
+    hostname: pgbouncer
     profiles:
       - main
     restart: always
@@ -187,6 +192,7 @@ services:
 
   cache:
     container_name: cache
+    hostname: cache
     profiles:
       - main
     restart: always
@@ -196,6 +202,7 @@ services:
 
   sshd:
     container_name: sshd
+    hostname: sshd
     profiles:
       - main
     restart: always
@@ -220,6 +227,7 @@ services:
 
   nginx-proxy:
     container_name: nginx-proxy
+    hostname: nginx-proxy
     profiles:
       - main
     restart: always
@@ -247,6 +255,7 @@ services:
 
   acme-companion:
     container_name: nginx-proxy-acme
+    hostname: nginx-proxy-acme
     profiles:
       - main
     restart: always
@@ -260,6 +269,7 @@ services:
 
   node-exporter:
     container_name: node-exporter
+    hostname: node-exporter
     profiles:
       - main
       - workspace
@@ -274,6 +284,7 @@ services:
 
   cadvisor:
     container_name: cadvisor
+    hostname: cadvisor
     profiles:
       - main
       - workspace
@@ -291,6 +302,7 @@ services:
 
   prometheus:
     container_name: prometheus
+    hostname: prometheus
     profiles:
       - main
     restart: always
@@ -337,6 +349,7 @@ services:
 
   grafana:
     container_name: grafana
+    hostname: grafana
     profiles:
       - main
     restart: always
@@ -357,6 +370,7 @@ services:
 
   watchdog:
     container_name: watchdog
+    hostname: watchdog
     profiles:
       - main
     restart: always
@@ -392,4 +406,3 @@ networks:
         - subnet: 10.0.0.0/8
     driver_opts:
       com.docker.network.bridge.name: "workspace_net"
-      com.docker.network.bridge.enable_icc: "false"

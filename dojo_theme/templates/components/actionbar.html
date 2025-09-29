@@ -74,12 +74,13 @@
     height: 100%;
     padding-left: 0.5em;
     border: 0;
-    background-color: var(--foreground);
+    background-color: transparent;
     color: var(--highlight);
     font-weight: 700;
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
+    z-index: 2;
   }
 
   .workspace-highlight {
@@ -93,6 +94,10 @@
   .workspace-selector-body {
     padding-left: 1em;
     padding-right: 1em;
+    position: relative;
+    display: flex;
+    align-items: center;
+    z-index: 1;
   }
 
   .workspace-control-spacer {
@@ -155,15 +160,20 @@
     overflow: hidden;
     display: none;
   }
+
+  .burger {
+    position: absolute;
+    z-index: 1;
+  }
 </style>
 
 <div class="workspace-controls">
   <div id="workspace-notification-banner"></div>
   <div title="Change workspace" class="workspace-selector-body workspace-control">
-    <i class="fas fa-bars workspace-highlight"></i>
+    <i class="fas fa-bars workspace-highlight burger"></i>
     <select id="workspace-select">
       {% for service in challenge.interfaces %}
-      <option value="{{ service.name | lower }}: {{ service.port }}">{{ service.name }}</option>
+      <option value="{{ service.name | lower }}: {{ service.port }}">&#160;&#160;{{ service.name }}</option><!-- I hate it :( -->
       {% endfor %}
     </select>
   </div>

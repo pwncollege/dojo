@@ -1,5 +1,5 @@
 import hmac
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, timezone
 
 from flask import request, Request
 from flask_restx import Namespace, Resource
@@ -139,15 +139,42 @@ class CourseMemes(Resource):
     @authed_only
     @dojo_route
     def get(self, dojo):
-        user = get_current_user()
-        discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
-        if discord_user is None:
+        def bucket_from_start_then_sundays(ts, course_start):
+            start = course_start.astimezone(timezone.utc)
+            ts_utc = ts.astimezone(timezone.utc)
+
+
+            wd = start.weekday()
+            days_until_next_sunday = (6 - wd) % 7
+            if days_until_next_sunday == 0:
+                days_until_next_sunday = 7  # if start is Sunday, first boundary is a week later
+
+            first_boundary = start + timedelta(days=days_until_next_sunday)  # first Sunday 00:00 after start
+
+            if ts_utc < first_boundary:
+                return 0
+            return 1 + (ts_utc.date() - first_boundary.date()).days // 7
+
+        discord_user = DiscordUsers.query.filter_by(user_id=get_current_user().id).first()
+
+        if not discord_user:
             return {"success": False, "error": "Discord not linked"}
+        course_start = dojo.course.get("start_date", None)
+        if course_start is None:
+            return {"success": False, "error": "No course start"}
+        course_start = datetime.fromisoformat(course_start).astimezone(timezone.utc)
 
-        start = min([m.visibility.start for m in dojo.modules if m.visibility]).isoformat()
-        request = Request.from_values(query_string={"start": start})
+        memes = (
+            discord_user.memes(start=course_start, end=course_start + timedelta(weeks=17))
+            .order_by(DiscordUserActivity.message_timestamp)
+        )
 
-        return get_user_activity(discord_user.discord_id, "memes", request)
+        valid_meme_cnt = len({
+            bucket_from_start_then_sundays(m.message_timestamp, course_start)
+            for m in memes
+        })
+
+        return {"success": True, "memes": valid_meme_cnt}
 
 @discord_namespace.route("/course/<dojo>/thanks", methods=["GET"])
 class CourseMemes(Resource):
@@ -159,8 +186,11 @@ class CourseMemes(Resource):
         if discord_user is None:
             return {"success": False, "error": "Discord not linked"}
 
-        start = min([m.visibility.start for m in dojo.modules if m.visibility]).isoformat()
-        request = Request.from_values(query_string={"start": start})
+        course_start = dojo.course.get("start_date", None)
+        if course_start is None:
+            return {"success": False, "error": "No course start"}
+        course_start = datetime.fromisoformat(course_start)
+        request = Request.from_values(query_string={"start": course_start})
 
         return get_user_activity(discord_user.discord_id, "thanks", request)
 
