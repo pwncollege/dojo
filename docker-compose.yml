@@ -71,7 +71,7 @@ services:
     container_name: ctfd
     profiles:
       - main
-    #restart: always
+    restart: always
     hostname: ctfd
     build: /opt/CTFd
     platform: linux/amd64
