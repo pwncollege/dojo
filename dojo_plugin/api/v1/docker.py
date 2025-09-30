@@ -141,7 +141,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         environment={
             "HOME": "/home/hacker",
             "PATH": env_path,
-            "SHELL": f"{dojo_bin_path}/bash",
+            "SHELL": f"{dojo_bin_path}/fish",
             "DOJO_AUTH_TOKEN": auth_token,
         },
         labels={
@@ -174,7 +174,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         cpu_quota=400000,
         pids_limit=1024,
         mem_limit="4G",
-        runtime="io.containerd.run.kata.v2" if resolved_dojo_challenge.privileged else "runc",
+        runtime="runc",  # Temporarily use runc for all containers due to Kata/KVM issues
         cap_add=["SYS_PTRACE", "SYS_ADMIN"] if resolved_dojo_challenge.privileged else ["SYS_PTRACE"],
         security_opt=[f"seccomp={SECCOMP}"],
         sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
@@ -349,6 +349,108 @@ def docker_locked(func):
     return wrapper
 
 
+@docker_namespace.route("/module-challenges")
+class ModuleChallenges(Resource):
+    @authed_only
+    def get(self):
+        dojo_challenge = get_current_dojo_challenge()
+        if not dojo_challenge:
+            return {"success": False, "error": "No active challenge"}
+
+        user = get_current_user()
+
+        # Get all challenges in the current module
+        module_challenges = DojoChallenges.query.filter_by(
+            dojo_id=dojo_challenge.dojo_id,
+            module_index=dojo_challenge.module_index
+        ).order_by(DojoChallenges.challenge_index).all()
+
+        # Get user's solves for these challenges
+        solved_ids = set()
+        if user:
+            solves = Solves.query.filter_by(user_id=user.id).all()
+            solved_ids = {solve.challenge_id for solve in solves}
+
+        challenges_data = []
+        for challenge in module_challenges:
+            challenges_data.append({
+                "id": challenge.challenge_id,
+                "name": challenge.name,
+                "challenge_index": challenge.challenge_index,
+                "is_current": challenge.challenge_id == dojo_challenge.challenge_id,
+                "is_solved": challenge.challenge_id in solved_ids,
+                "dojo": dojo_challenge.dojo.reference_id,
+                "module": dojo_challenge.module.id,
+                "challenge": challenge.id
+            })
+
+        return {
+            "success": True,
+            "challenges": challenges_data,
+            "current_index": dojo_challenge.challenge_index
+        }
+
+
+@docker_namespace.route("/next")
+class NextChallenge(Resource):
+    @authed_only
+    def get(self):
+        dojo_challenge = get_current_dojo_challenge()
+        if not dojo_challenge:
+            return {"success": False, "error": "No active challenge"}
+
+        user = get_current_user()
+
+        # Get all challenges in the current module
+        module_challenges = DojoChallenges.query.filter_by(
+            dojo_id=dojo_challenge.dojo_id,
+            module_index=dojo_challenge.module_index
+        ).order_by(DojoChallenges.challenge_index).all()
+
+        # Find the current challenge index
+        current_idx = next((i for i, c in enumerate(module_challenges) if c.challenge_index == dojo_challenge.challenge_index), None)
+
+        if current_idx is None:
+            return {"success": False, "error": "Current challenge not found in module"}
+
+        # Check if there's a next challenge in the current module
+        if current_idx + 1 < len(module_challenges):
+            next_challenge = module_challenges[current_idx + 1]
+            return {
+                "success": True,
+                "dojo": dojo_challenge.dojo.reference_id,
+                "module": next_challenge.module.id,
+                "challenge": next_challenge.id,
+                "challenge_index": next_challenge.challenge_index
+            }
+
+        # Check if there's a next module
+        next_module = DojoModules.query.filter_by(
+            dojo_id=dojo_challenge.dojo_id,
+            module_index=dojo_challenge.module_index + 1
+        ).first()
+
+        if next_module:
+            # Get the first challenge of the next module
+            first_challenge = DojoChallenges.query.filter_by(
+                dojo_id=dojo_challenge.dojo_id,
+                module_index=next_module.module_index
+            ).order_by(DojoChallenges.challenge_index).first()
+
+            if first_challenge:
+                return {
+                    "success": True,
+                    "dojo": dojo_challenge.dojo.reference_id,
+                    "module": first_challenge.module.id,
+                    "challenge": first_challenge.id,
+                    "challenge_index": first_challenge.challenge_index,
+                    "new_module": True
+                }
+
+        # No next challenge available
+        return {"success": False, "error": "No next challenge available"}
+
+
 @docker_namespace.route("")
 class RunDocker(Resource):
     @authed_only
@@ -471,3 +573,18 @@ class RunDocker(Resource):
             "challenge": dojo_challenge.id,
             "practice" : practice,
         }
+
+    @authed_only
+    def delete(self):
+        user = get_current_user()
+        container = get_current_container(user)
+
+        if not container:
+            return {"success": False, "error": "No active challenge container"}
+
+        try:
+            remove_container(user)
+            return {"success": True, "message": "Challenge container terminated"}
+        except Exception as e:
+            logger.error(f"Failed to terminate container for user {user.id}: {e}")
+            return {"success": False, "error": "Failed to terminate container"}

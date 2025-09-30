@@ -13,7 +13,7 @@ from utils import file_lock
 
 
 STORAGE_ROOT = Path(os.environ.get("STORAGE_ROOT", "/data"))
-VOLUME_SIZE = os.environ.get("VOLUME_SIZE", "1G")
+VOLUME_SIZE = os.environ.get("VOLUME_SIZE", "5G")
 
 
 def btrfs(*args, **kwargs):

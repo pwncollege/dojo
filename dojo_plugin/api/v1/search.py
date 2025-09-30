@@ -59,7 +59,7 @@ class Search(Resource):
                     {
                         "id": dojo.reference_id,
                         "name": dojo.name,
-                        "link": f"/{dojo.reference_id}",
+                        "link": f"/dojo/{dojo.reference_id}",
                         "match": highlight_snippet(dojo.description, query)
                             if query.lower() in (dojo.description or "").lower()
                             and query.lower() not in dojo.name.lower()
@@ -74,9 +74,9 @@ class Search(Resource):
                         "dojo": {
                             "id": module.dojo.reference_id,
                             "name": module.dojo.name,
-                            "link": f"/{module.dojo.reference_id}"
+                            "link": f"/dojo/{module.dojo.reference_id}"
                         },
-                        "link": f"/{module.dojo.reference_id}/{module.id}",
+                        "link": f"/dojo/{module.dojo.reference_id}/module/{module.id}",
                         "match": highlight_snippet(module.description, query)
                             if query.lower() in (module.description or "").lower()
                             and query.lower() not in module.name.lower()
@@ -91,14 +91,14 @@ class Search(Resource):
                         "module": {
                             "id": challenge.module.id,
                             "name": challenge.module.name,
-                            "link": f"/{challenge.module.dojo.reference_id}/{challenge.module.id}"
+                            "link": f"/dojo/{challenge.module.dojo.reference_id}/module/{challenge.module.id}"
                         },
                         "dojo": {
                             "id": challenge.module.dojo.reference_id,
                             "name": challenge.module.dojo.name,
-                            "link": f"/{challenge.module.dojo.reference_id}"
+                            "link": f"/dojo/{challenge.module.dojo.reference_id}"
                         },
-                        "link": f"/{challenge.module.dojo.reference_id}/{challenge.module.id}/{challenge.id}",
+                        "link": f"/dojo/{challenge.module.dojo.reference_id}/module/{challenge.module.id}/workspace/challenge/{challenge.id}",
                         "match": highlight_snippet(challenge.description, query)
                             if query.lower() in (challenge.description or "").lower()
                             and query.lower() not in challenge.name.lower()
