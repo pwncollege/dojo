@@ -1,3 +1,4 @@
+
 import datetime
 
 from CTFd.cache import cache
@@ -37,8 +38,8 @@ class DojoList(Resource):
                  description=dojo.description,
                  official=dojo.official,
                  award=dojo.award,
-                 modules=dojo.modules_count,
-                 challenges=dojo.required_challenges_count)
+                 modules_count=dojo.modules_count,
+                 challenges_count=dojo.required_challenges_count)
             for dojo in dojo_query
         ]
         return {"success": True, "dojos": dojos}
@@ -120,6 +121,26 @@ class DojoModuleList(Resource):
             dict(id=module.id,
                  name=module.name,
                  description=module.description,
+                 resources=[
+                    dict(id=f"resource-{resource.resource_index}",
+                         name=resource.name,
+                         type=resource.type,
+                         content=getattr(resource, 'content', None) if resource.type == "markdown" else None,
+                         video=getattr(resource, 'video', None) if resource.type == "lecture" else None,
+                         playlist=getattr(resource, 'playlist', None) if resource.type == "lecture" else None,
+                         slides=getattr(resource, 'slides', None) if resource.type == "lecture" else None,
+                         expandable=getattr(resource, 'expandable', True))
+                    for resource in module.resources
+                    if resource.visible or is_dojo_admin
+                 ],
+                 challenges=[
+                    dict(id=challenge.id,
+                         name=challenge.name,
+                         required=challenge.required,
+                         description=challenge.description)
+                    for challenge in (module.visible_challenges() if not is_dojo_admin
+                                      else module.challenges)
+                 ],
                  unified_items=[
                      dict(
                          item_type=item.item_type,
@@ -134,8 +155,8 @@ class DojoModuleList(Resource):
                          description=getattr(item, 'description', None),
                          required=getattr(item, 'required', None) if item.item_type == 'challenge' else None
                      ) for item in module.unified_items
-                 ]
-            )
+                 ])
+
             for module in dojo.modules
             if module.visible() or is_dojo_admin
         ]

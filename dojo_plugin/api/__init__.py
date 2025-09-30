@@ -1,5 +1,6 @@
 import os
 from flask import Blueprint, current_app, make_response, request
+from ...dojo_plugin import config
 from flask_restx import Api
 
 from ..utils.request_logging import log_exception
@@ -21,7 +22,7 @@ from .v1.user import user_namespace
 api = Blueprint("pwncollege_api", __name__)
 
 # Get CORS origin from environment variable
-cors_origin = os.environ.get('CORS_ORIGINS')
+cors_origin = config.CORS_ORIGINS
 
 # Add CORS headers to all responses only if CORS origin is set
 if cors_origin:
