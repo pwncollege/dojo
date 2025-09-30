@@ -78,7 +78,7 @@ function generate_coverage_report {
 	local CONTAINER="$1"
 	{
     	docker exec "$CONTAINER" docker kill -s SIGINT ctfd
-		docker exec dojo docker wait ctfd
+		docker exec "$CONTAINER" docker wait ctfd
     	docker exec "$CONTAINER" docker start ctfd
 	} > /dev/null
     docker exec "$CONTAINER" docker exec ctfd coverage html -d /var/coverage/htmlcov
