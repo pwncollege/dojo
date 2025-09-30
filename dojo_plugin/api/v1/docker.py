@@ -25,6 +25,7 @@ from ...utils import (
     lookup_workspace_token,
     resolved_tar,
     serialize_user_flag,
+    serialize_user_container,
     user_docker_client,
     user_node,
     user_ipv4,
@@ -97,7 +98,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         ]
     )[:64]
 
-    auth_token = os.urandom(32).hex()
+    auth_token = serialize_user_container(user.id, dojo_challenge.challenge_id)
 
     challenge_bin_path = "/run/challenge/bin"
     dojo_bin_path = "/run/dojo/bin"
