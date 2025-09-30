@@ -78,8 +78,7 @@ def test_int_submit_other(random_user):
     assert result.json()["success"], f"Flag submission failed: ({result.status_code}) {str(result.json())}"
     assert result.json()["status"] == "correct", f"Expected flag to be correct: ({result.status_code}) {str(result.json())}"
 
-def starting_test(random_user, privileged):
-    name = random_user
+def starting_test(name, privileged):
     token = container_token(name)
     dojo = "welcome"
     module = "welcome"
@@ -98,11 +97,11 @@ def starting_test(random_user, privileged):
     assert labels["dojo.challenge_id"] == challenge, f"Challenge id mismatch, expected {challenge} but got {labels["dojo.challenge_id"]}"
     assert labels["dojo.mode"] == "privileged" if privileged else "standard", f"Privilege mismatch, expected {"privileged" if privileged else "standard"} but got {labels["dojo.mode"]}"
 
-def test_start(random_user):
-    starting_test(random_user, False)
+def test_start(random_user_name):
+    starting_test(random_user_name, False)
 
-def test_privileged(random_user):
-    starting_test(random_user, True)
+def test_privileged(random_user_name):
+    starting_test(random_user_name, True)
 
 def restarting_test(user, swap):
     token = container_token(user)
@@ -123,18 +122,18 @@ def restarting_test(user, swap):
     assert restart_info["Config"]["Labels"]["dojo.module_id"] == start_info["Config"]["Labels"]["dojo.module_id"], f"Expected dojo to be {start_info["Config"]["Labels"]["dojo.module_id"]} but got {restart_info["Config"]["Labels"]["dojo.module_id"]}"
     assert restart_info["Config"]["Labels"]["dojo.challenge_id"] == start_info["Config"]["Labels"]["dojo.challenge_id"], f"Expected dojo to be {start_info["Config"]["Labels"]["dojo.challenge_id"]} but got {restart_info["Config"]["Labels"]["dojo.challenge_id"]}"
 
-def test_int_restart(random_user):
-    starting_test(random_user, False)
-    restarting_test(random_user, False) # norm -> norm
-    restarting_test(random_user, True)  # norm -> priv
-    restarting_test(random_user, False) # priv -> priv
-    restarting_test(random_user, True)  # priv -> norm
+def test_int_restart(random_user_name):
+    starting_test(random_user_name, False)
+    restarting_test(random_user_name, False) # norm -> norm
+    restarting_test(random_user_name, True)  # norm -> priv
+    restarting_test(random_user_name, False) # priv -> priv
+    restarting_test(random_user_name, True)  # priv -> norm
 
-def test_int_list():
+def test_int_list(random_user_name):
     pass
 
-def test_int_list_priv():
+def test_int_list_priv(random_user_name):
     pass
 
-def test_int_info():
+def test_int_info(random_user_name):
     pass
