@@ -152,13 +152,21 @@ def render_markdown(s):
         "sub", "sup",
     ]
     markdown_attrs = {
-        "*": ["id"],
+        "*": ["id", "class"],
         "img": ["src", "alt", "title"],
         "a": ["href", "alt", "title"],
         "p": ["data-hide"]
     }
     clean_html = bleach.clean(raw_html, tags=markdown_tags, attributes=markdown_attrs)
-    return Markup(clean_html)
+    latex_pattern = r'<latex>(.*?)</latex>'
+    
+    def replace_latex_section(match):
+        latex_content = match.group(1)
+        return f'<div class="mathjax-latex">{latex_content}</div>'
+    
+    processed_html = re.sub(latex_pattern, replace_latex_section, clean_html, flags=re.DOTALL)
+    
+    return Markup(processed_html)
 
 def sanitize_survey(data):
     allowed_tags = [
