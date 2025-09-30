@@ -82,13 +82,7 @@ class view_desktop(Resource):
         else:
             iframe_src = f"/workspace/{service}/"
 
-        # Extract theme data for terminal and code services
-        theme_data = None
-        if service in ["terminal", "code"]:
-            theme_data = request.args.get("theme")
-            print(f"[WORKSPACE] Theme data extracted for {service}: {theme_data}")
-
-        if start_on_demand_service(user, service, theme_data) is False:
+        if start_on_demand_service(user, service) is False:
             return {"success": False, "active": True, "error": f"Failed to start service {service}"}
 
         return {"success": True, "active": True, "iframe_src": iframe_src, "service": service, "current_challenge": challenge_info}
