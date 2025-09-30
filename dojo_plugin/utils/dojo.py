@@ -586,6 +586,12 @@ def _assert_no_symlinks(dojo_dir):
     for path in dojo_dir.rglob("*"):
         assert dojo_dir == path or dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
 
+def _assert_non_external_path(dojo_dir, input_path):
+    if not isinstance(dojo_dir, pathlib.Path):
+        dojo_dir = pathlib.Path(dojo_dir)
+    if not isinstance(input_path, pathlib.Path):
+        input_path = pathlib.Path(input_path)
+    assert dojo_dir in (dojo_dir / input_path).resolve().parents, f"Error: `{input_path}` references path outside of the dojo"
 
 def dojo_clone(repository, private_key):
     tmp_dojos_dir = DOJOS_TMP_DIR
@@ -641,6 +647,7 @@ def dojo_create(user, repository, public_key, private_key, spec, dojo_yml_path=N
                 raise AssertionError("This repository already exists as a dojo")
 
             dojo_dir = dojo_clone(repository, private_key)
+            _assert_non_external_path(dojo_dir.name, dojo_yml_path)
 
         elif spec:
             assert is_admin(), "Must be an admin user to create dojos from spec rather than repositories"
