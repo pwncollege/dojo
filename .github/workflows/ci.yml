@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - master
+      - coverage
   schedule:
     - cron: '42 06 * * *'
 jobs:
@@ -171,7 +172,7 @@ jobs:
           timeout_minutes: 15
           max_attempts: 3
           command: |
-            ./deploy.sh -g -D /mnt/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }}
+            ./deploy.sh -g -D /mnt/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
@@ -180,11 +181,21 @@ jobs:
         run: |
           if [ "${{ matrix.mode }}" = "singlenode" ]
           then
-            ./deploy.sh -N -g -t
+            ./deploy.sh -N -g -t -C
           elif [ "${{ matrix.mode }}" = "multinode" ]
           then
             ./deploy.sh -N -g -t -M
           fi
+
+      - name: What the fuck is going on?
+        run: |
+          docker ps -a
+        
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: data/coverage/htmlcov
 
       - name: Output logs
         if: always()
