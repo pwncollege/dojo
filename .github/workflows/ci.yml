@@ -180,7 +180,7 @@ jobs:
         run: |
           if [ "${{ matrix.mode }}" = "singlenode" ]
           then
-            ./deploy.sh -N -g -t
+            ./deploy.sh -N -g -t -C
           elif [ "${{ matrix.mode }}" = "multinode" ]
           then
             ./deploy.sh -N -g -t -M
