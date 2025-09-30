@@ -98,15 +98,37 @@ def starting_test(random_user, privileged):
     assert labels["dojo.challenge_id"] == challenge, f"Challenge id mismatch, expected {challenge} but got {labels["dojo.challenge_id"]}"
     assert labels["dojo.mode"] == "privileged" if privileged else "standard", f"Privilege mismatch, expected {"privileged" if privileged else "standard"} but got {labels["dojo.mode"]}"
 
-
 def test_start(random_user):
     starting_test(random_user, False)
 
 def test_privileged(random_user):
     starting_test(random_user, True)
 
-def test_int_restart():
-    pass
+def restarting_test(user, swap):
+    token = container_token(user)
+    start_info = container_info(user)
+    practice = start_info["Config"]["Labels"]["dojo.mode"] == "privileged"
+    practice = practice ^ swap
+    modeStr = "privileged" if practice else "standard"
+
+    data = {"type": "container", "token": token, "Practice": practice}
+    result = requests.post(f"{DOJO_API}/integration/restart", json=data)
+    assert result.status_code == 200, f"Restarting challenge failed: ({result.status_code}) {str(result.json())}"
+    assert result.json()["success"], f"Restarting challenge failed: ({result.status_code}) {str(result.json())}"
+
+    restart_info = container_info(user)
+    assert restart_info["State"]["StartedAt"] != start_info["State"]["StartedAt"], "Expected new container start time"
+    assert restart_info["Config"]["Labels"]["dojo.mode"] == modeStr, f"Expected dojo mode to be {modeStr} but got {restart_info["Config"]["Labels"]["dojo.mode"]}"
+    assert restart_info["Config"]["Labels"]["dojo.dojo_id"] == start_info["Config"]["Labels"]["dojo.dojo_id"], f"Expected dojo to be {start_info["Config"]["Labels"]["dojo.dojo_id"]} but got {restart_info["Config"]["Labels"]["dojo.dojo_id"]}"
+    assert restart_info["Config"]["Labels"]["dojo.module_id"] == start_info["Config"]["Labels"]["dojo.module_id"], f"Expected dojo to be {start_info["Config"]["Labels"]["dojo.module_id"]} but got {restart_info["Config"]["Labels"]["dojo.module_id"]}"
+    assert restart_info["Config"]["Labels"]["dojo.challenge_id"] == start_info["Config"]["Labels"]["dojo.challenge_id"], f"Expected dojo to be {start_info["Config"]["Labels"]["dojo.challenge_id"]} but got {restart_info["Config"]["Labels"]["dojo.challenge_id"]}"
+
+def test_int_restart(random_user):
+    starting_test(random_user, False)
+    restarting_test(random_user, False) # norm -> norm
+    restarting_test(random_user, True)  # norm -> priv
+    restarting_test(random_user, False) # priv -> priv
+    restarting_test(random_user, True)  # priv -> norm
 
 def test_int_list():
     pass
