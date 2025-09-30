@@ -186,11 +186,9 @@ jobs:
             ./deploy.sh -N -g -t -M
           fi
 
-      - name: Generate coverage report
+      - name: What the fuck is going on?
         run: |
-          docker exec dojo docker kill -s SIGINT ctfd
-          docker exec dojo docker start ctfd
-          docker exec dojo docker exec ctfd coverage html -d /var/coverage/htmlcov
+          docker ps -a
         
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
