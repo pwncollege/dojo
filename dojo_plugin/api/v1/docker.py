@@ -350,6 +350,80 @@ def docker_locked(func):
     return wrapper
 
 
+def run_challenge_authed(user, as_user, data, dojo_id, module_id, challenge_id, practice):
+    dojo = dojo_accessible(dojo_id)
+    if not dojo:
+        return {"success": False, "error": "Invalid dojo"}
+
+    dojo_challenge = (
+        DojoChallenges.query.filter_by(id=challenge_id)
+        .join(DojoModules.query.filter_by(dojo=dojo, id=module_id).subquery())
+        .first()
+    )
+    if not dojo_challenge:
+        return {"success": False, "error": "Invalid challenge"}
+
+    if not dojo_challenge.visible() and not dojo.is_admin():
+        return {"success": False, "error": "Invalid challenge"}
+
+    if practice and not dojo_challenge.allow_privileged:
+        return {
+            "success": False,
+            "error": "This challenge does not support practice mode.",
+        }
+
+    if is_challenge_locked(dojo_challenge, user):
+        return {
+            "success": False,
+            "error": "This challenge is locked"
+        }
+
+    if dojo.is_admin(user) and "as_user" in data:
+        try:
+            as_user_id = int(data["as_user"])
+        except ValueError:
+            return {"success": False, "error": f"Invalid user ID ({data['as_user']})"}
+        if is_admin():
+            as_user = Users.query.get(as_user_id)
+        else:
+            student = next((student for student in dojo.students if student.user_id == as_user_id), None)
+            if student is None:
+                return {"success": False, "error": f"Not a student in this dojo ({as_user_id})"}
+            if not student.official:
+                return {"success": False, "error": f"Not an official student in this dojo ({as_user_id})"}
+            as_user = student.user
+
+    max_attempts = 3
+    for attempt in range(1, max_attempts+1):
+        try:
+            logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
+            start_challenge(user, dojo_challenge, practice, as_user=as_user)
+
+            if dojo.official or dojo.data.get("type") == "public":
+                challenge_data = {
+                    "challenge_id": dojo_challenge.challenge_id,
+                    "challenge_name": dojo_challenge.name,
+                    "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
+                    "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
+                    "dojo_id": dojo.reference_id,
+                    "dojo_name": dojo.name
+                }
+                mode = "practice" if practice else "assessment"
+                actual_user = as_user or user
+                publish_container_start(actual_user, mode, challenge_data)
+
+            break
+        except Exception as e:
+            logger.warning(f"Attempt {attempt} failed for user {user.id} with error: {e}")
+            if attempt < max_attempts:
+                logger.info(f"Retrying... ({attempt}/{max_attempts})")
+                time.sleep(2)
+    else:
+        logger.error(f"ERROR: Docker failed for {user.id} after {max_attempts} attempts.")
+        return {"success": False, "error": "Docker failed"}
+
+    return {"success": True}
+
 @docker_namespace.route("")
 class RunDocker(Resource):
     @authed_only
@@ -379,78 +453,7 @@ class RunDocker(Resource):
             else:
                 as_user = token_user
 
-        dojo = dojo_accessible(dojo_id)
-        if not dojo:
-            return {"success": False, "error": "Invalid dojo"}
-
-        dojo_challenge = (
-            DojoChallenges.query.filter_by(id=challenge_id)
-            .join(DojoModules.query.filter_by(dojo=dojo, id=module_id).subquery())
-            .first()
-        )
-        if not dojo_challenge:
-            return {"success": False, "error": "Invalid challenge"}
-
-        if not dojo_challenge.visible() and not dojo.is_admin():
-            return {"success": False, "error": "Invalid challenge"}
-
-        if practice and not dojo_challenge.allow_privileged:
-            return {
-                "success": False,
-                "error": "This challenge does not support practice mode.",
-            }
-
-        if is_challenge_locked(dojo_challenge, user):
-            return {
-                "success": False,
-                "error": "This challenge is locked"
-            }
-
-        if dojo.is_admin(user) and "as_user" in data:
-            try:
-                as_user_id = int(data["as_user"])
-            except ValueError:
-                return {"success": False, "error": f"Invalid user ID ({data['as_user']})"}
-            if is_admin():
-                as_user = Users.query.get(as_user_id)
-            else:
-                student = next((student for student in dojo.students if student.user_id == as_user_id), None)
-                if student is None:
-                    return {"success": False, "error": f"Not a student in this dojo ({as_user_id})"}
-                if not student.official:
-                    return {"success": False, "error": f"Not an official student in this dojo ({as_user_id})"}
-                as_user = student.user
-
-        max_attempts = 3
-        for attempt in range(1, max_attempts+1):
-            try:
-                logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
-                start_challenge(user, dojo_challenge, practice, as_user=as_user)
-
-                if dojo.official or dojo.data.get("type") == "public":
-                    challenge_data = {
-                        "challenge_id": dojo_challenge.challenge_id,
-                        "challenge_name": dojo_challenge.name,
-                        "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
-                        "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
-                        "dojo_id": dojo.reference_id,
-                        "dojo_name": dojo.name
-                    }
-                    mode = "practice" if practice else "assessment"
-                    actual_user = as_user or user
-                    publish_container_start(actual_user, mode, challenge_data)
-
-                break
-            except Exception as e:
-                logger.warning(f"Attempt {attempt} failed for user {user.id} with error: {e}")
-                if attempt < max_attempts:
-                    logger.info(f"Retrying... ({attempt}/{max_attempts})")
-                    time.sleep(2)
-        else:
-            logger.error(f"ERROR: Docker failed for {user.id} after {max_attempts} attempts.")
-            return {"success": False, "error": "Docker failed"}
-
-        return {"success": True}
+        run_challenge_authed(user, as_user, data, dojo_id, module_id, challenge_id, practice)
 
     @authed_only
     def get(self):
