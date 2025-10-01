@@ -3,7 +3,6 @@ import shutil
 import json
 import subprocess
 
-from ..dojo_plugin.models import Dojos, DojoModules, DojoChallenges
 from .utils import DOJO_API, workspace_run, get_user_id, start_challenge, get_outer_container_for
 
 def container_info(user):
