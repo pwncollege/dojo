@@ -59,9 +59,9 @@ class Dojos(db.Model):
 
     dojo_id = db.Column(db.Integer, primary_key=True)
 
-    repository = db.Column(db.String(256), unique=True, index=True)
-    public_key = db.Column(db.String(128), unique=True)
-    private_key = db.Column(db.String(512), unique=True)
+    repository = db.Column(db.String(256), index=True)
+    public_key = db.Column(db.String(128))
+    private_key = db.Column(db.String(512))
     update_code = db.Column(db.String(32), unique=True, index=True)
 
     id = db.Column(db.String(32), index=True, nullable=False)
@@ -72,12 +72,13 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(JSONB)
-    data_fields = ["type", "award", "course", "pages", "privileged", "importable", "comparator", "show_scoreboard"]
+    data_fields = ["type", "award", "course", "pages", "privileged", "importable", "comparator", "show_scoreboard", "dojo_yml_path"]
     data_defaults = {
         "pages": [],
         "privileged": False,
         "importable": True,
         "show_scoreboard": True,
+        "dojo_yml_path": "dojo.yml",
     }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
