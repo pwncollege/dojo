@@ -76,6 +76,7 @@ def get_all_containers(dojo=None):
 def validate_user_container(token: str, secret=None) -> int:
     """
     Returns the userID of the signed container token.
+    Raises an exception if validation of signature fails.
     """
     if secret is None:
         secret = current_app.config["SECRET_KEY"]

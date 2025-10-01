@@ -13,15 +13,10 @@ integrations_namespace = Namespace(
     decorators=[bypass_csrf_protection]
 )
 
-# Authentication of external applications.
-def authenticate_application(token):
-    return None, ({
-        "success": False,
-        "error": "Not Implemented",
-        }, 405)
-
-# Authentication of the internal dojo cli application.
 def authenticate_container(token):
+    """
+    Authenticates the user by the containuer authentication token.
+    """
     try:
         user_id = validate_user_container(token)
         user = Users.query.filter_by(id=user_id).one()
@@ -32,42 +27,49 @@ def authenticate_container(token):
             "error": "Invalid container authentication token",
             }, 401)
 
-def authenticate(token, type):
-    if not token:
-        return None, ({
-            "success": False,
-            "error": "Authentication token is required",
+def authenticated(func):
+    """
+    Performs integration authentication. Authentication information
+    is passed in as part of the request headers. Authentication can
+    be performed using a container token.
+    """
+    def wrapper(*args, **kwargs):
+        method = request.headers.get("auth_method", None)
+        token = request.headers.get("auth_token", None)
+        if method is None or token is None:
+            return ({
+                "success": False,
+                "error": "Authentication information not provided",
             }, 400)
 
-    match type:
-        case "container":
-            return authenticate_container(token)
-        
-        case "application":
-            return authenticate_application(token)
-
-        case _:
-            return None, ({
-                "success": False,
-                "error": f"Unrecognized authentication type \"{type}\"",
+        auth_methods = ["container"]
+        match method:
+            case "container":
+                user, message = authenticate_container(token)
+            case _:
+                return ({
+                    "success": False,
+                    "error": f"Invalid authentication method \"{method}\", must be one of {str(auth_methods)}"
                 }, 400)
+
+        if message is not None:
+            return message
+
+        if user is None:
+            return ({
+                "success": False,
+                "error": "Failed to authenticate"
+            }, 401)
+
+        kwargs["user"] = user
+
+        return func(*args, **kwargs)
+    return wrapper
 
 @integrations_namespace.route("/check_auth")
 class check_authentication(Resource):
-    def post(self):
-        data = request.get_json()
-        token = data.get("token")
-        auth_type = data.get("type")
-        user, message = authenticate(token, auth_type)
-        if message:
-            return message
-
-        if not user:
-            return ({
-                "success": False,
-                "error": "Authentication process failed"
-                }, 500)
-
+    @authenticated
+    def post(self, user=None):
         return ({
             "success": True,
             "user_id": user.id,
