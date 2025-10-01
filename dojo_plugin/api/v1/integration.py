@@ -4,7 +4,8 @@ from flask import request, session
 from flask_restx import Namespace, Resource
 from CTFd.plugins import bypass_csrf_protection
 from CTFd.models import Users, Solves
-from ...utils import validate_user_container
+from ...utils import validate_user_container, get_current_container
+from .docker import run_challenge_authed
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,9 @@ def authenticated(func):
 class check_authentication(Resource):
     @authenticated
     def post(self, user=None):
+        """
+        Returns the authenticated user id if authentication succeeds.
+        """
         return ({
             "success": True,
             "user_id": user.id,
@@ -85,19 +89,55 @@ class submit(Resource):
 
 @integrations_namespace.route("/start")
 class start(Resource):
-    def post(self):
-        return ({
-            "success": False,
-            "error": "Not Implemented",
-            }, 405)
+    @authenticated
+    def post(self, user=None):
+        """
+        Starts a challenge in the given debug mode.
+
+        Takes in 4 arguments as json data:
+        - dojo
+        - module
+        - challenge
+        - debug
+        """
+        data = request.json()
+        dojo = data["dojo"]
+        module = data["module"]
+        challenge = data["module"]
+        debug = data["practice"]
+
+        if None in [dojo, module, challenge, debug]:
+            return ({
+                "success": False,
+                "error": "Failed to supply proper arguments",
+            }, 400)
+
+        return run_challenge_authed(user, None, data, dojo, module, challenge, debug)
 
 @integrations_namespace.route("/restart")
 class restart(Resource):
-    def post(self):
-        return ({
-            "success": False,
-            "error": "Not Implemented",
-            }, 405)
+    @authenticated
+    def post(self, user=None):
+        """
+        Restarts the current challenge in the given mode.
+
+        Takes 1 json argument:
+        - practice
+        """
+        container = get_current_container(user)
+
+        if container is None:
+            return ({
+                "success": False,
+                "error": "No active challenge to restart",
+            }, 200)
+
+        dojo = container.labels["dojo.dojo_id"]
+        module = container.labels["dojo.module_id"]
+        challenge = container.labels["dojo.challenge_id"]
+        debug = request.json()["practice"]
+
+        run_challenge_authed(user, None, {}, dojo, module, challenge, debug)
 
 @integrations_namespace.route("/list")
 @integrations_namespace.route("/list/<dojo>")
