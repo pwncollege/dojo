@@ -234,15 +234,15 @@
                 {{ challenge.description | markdown }}
               {% endif %}
             </div>
-            <div class="challenge-init row{% if active %} challenge-hidden{% endif %}">
+            <div class="challenge-init row{% if active and challenge.dojo.allow_iframe %} challenge-hidden{% endif %}">
               <div class="col-md-3 form=group text-center">
-          <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary challenge-init iframe-{{ dojo.allow_iframe|string|lower }}">
-                  <i class="fas fa-play fa-2x pr-3"></i>Start
+                <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary challenge-init iframe-{{ dojo.allow_iframe|string|lower }}">
+                <i class="fas fa-play fa-2x pr-3"></i>Start
                 </button>
               </div>
               {% if challenge.allow_privileged %}
               <div class="col-md-3 form=group text-center">
-                <button id="challenge-priv" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
+                <button id="challenge-priv" type="submit" class="btn btn-md btn-outline-secondary challenge-init iframe-{{ dojo.allow_iframe|string|lower }}">
                   <i class="fas fa-unlock fa-2x pr-3"></i>Privileged
                 </button>
               </div>
@@ -256,15 +256,24 @@
             </div>
             <div class="challenge-workspace {{ "challenge-hidden" if not active }}">
               <div class="iframe-wrapper">
-                {% if active %}
+                {% if active and challenge.dojo.allow_iframe %}
                 <iframe id="workspace-iframe" class="challenge-iframe" src=""></iframe>
                 {% endif %}
               </div>
-              <div class="workspace-ssh">
-                <h3>Connect with SSH</h3>
-                Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@dojo.pwn.college</code>
-              </div>
-              {% include "components/actionbar.html" %}
+              {% if challenge.dojo.allow_iframe %}
+                <div class="workspace-ssh">
+                  <h3>Connect with SSH</h3>
+                  Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@dojo.pwn.college</code>
+                </div>
+              {% else %}
+                <div class="workspace-no-iframe">
+                  <h3>Use Workspace</h3>
+                  Please use the <a href="/workspace" target="_blank">workspace</a> to interact with this challenge.<br>
+                </div>
+              {% endif %}
+              {% if challenge.dojo.allow_iframe %}
+                {% include "components/actionbar.html" %}
+              {% endif %}
             </div>
             <div class="row notification-row">
               <div class="col-md-12">

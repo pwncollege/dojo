@@ -143,6 +143,7 @@ DOJO_SPEC = Schema({
                 Optional("allow_privileged"): bool,
                 Optional("importable"): bool,
                 Optional("progression_locked"): bool,
+                Optional("custom_js"): str,
                 Optional("auxiliary"): dict,
                 Optional("required", default=True): bool,
                 Optional("import"): {
@@ -260,6 +261,7 @@ def load_dojo_subyamls(data, dojo_dir):
                 challenge_dir = module_dir / resource_data["id"]
                 setdefault_subyaml(resource_data, challenge_dir / "challenge.yml")
                 setdefault_file(resource_data, "description", challenge_dir / "DESCRIPTION.md")
+                setdefault_file(resource_data, "custom_js", challenge_dir / "CUSTOM.js")
                 setdefault_name(resource_data)
 
                 if "import" in resource_data and "name" not in resource_data:
@@ -361,7 +363,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
 
     dojo_kwargs = {
         field: dojo_data.get(field, getattr(import_dojo, field, None))
-        for field in ["id", "name", "description", "password", "type", "award", "allow_iframe"]
+        for field in ["id", "name", "description", "password", "type", "award", "custom_js"]
     }
 
     assert dojo_kwargs.get("id") is not None, "Dojo id must be defined"
@@ -462,6 +464,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     importable=shadow("importable", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     interfaces=shadow("interfaces", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
+                    custom_js=shadow("custom_js", dojo_data, module_data, challenge_data, default=None),
                     challenge=challenge(
                         module_data.get("id"), challenge_data.get("id"), transfer=challenge_data.get("transfer", None)
                     ) if "import" not in challenge_data else None,

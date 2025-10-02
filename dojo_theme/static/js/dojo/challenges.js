@@ -275,10 +275,12 @@ function startChallenge(event) {
         $(".challenge-init").removeClass("challenge-hidden");
         $(".challenge-workspace").addClass("challenge-hidden");
         $(".iframe-wrapper").html("");
-        if (result.success && enable_iframe) {
-            item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\"></iframe>");
-            loadWorkspace();
-            item.find(".challenge-init").addClass("challenge-hidden");
+        if (result.success) {
+            if (enable_iframe) {
+              item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\"></iframe>");
+              loadWorkspace();
+              item.find(".challenge-init").addClass("challenge-hidden");
+            }
             item.find(".challenge-workspace").removeClass("challenge-hidden");
             item.find("#workspace-change-privilege")
                 .attr("title", practice ? "Restart unprivileged" : "Restart privileged")

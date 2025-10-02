@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 
-
 {% block stylesheets %}
 {{ super() }}
 
@@ -45,6 +44,9 @@
 
 
 {% block content %}
+{% if challenge.dojo.official and challenge.custom_js %}
+  <script>{{ challenge.custom_js | safe }}</script>
+{% endif %}
 <div class="challenge-workspace">
   <iframe src="" id="workspace-iframe"></iframe>
   {% include "components/actionbar.html" %}
