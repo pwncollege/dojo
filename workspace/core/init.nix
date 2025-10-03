@@ -4,6 +4,8 @@ let
   initScript = pkgs.writeScript "dojo-init" ''
     #!${pkgs.bash}/bin/bash
 
+    set -o pipefail
+
     FULL_PATH="$PATH"
     IMAGE_PATH="$(echo $PATH | cut -d: -f3-)"
     DEFAULT_PROFILE="/nix/var/nix/profiles/dojo-workspace"
@@ -32,7 +34,7 @@ let
     home_mount_options="$(findmnt -nro OPTIONS -- "$home_directory")"
     if [ -n "$home_mount_options" ] && ! printf '%s' "$home_mount_options" | grep -Fqw 'nosuid'; then
       mount -o remount,nosuid "$home_directory" || {
-        echo "Error: Failed to remount home '$home_directory' with nosuid option." >&2
+        echo "DOJO_INIT_FAILED:Failed to remount home '$home_directory' with nosuid option." >&2
         exit 1
       }
     fi
@@ -52,23 +54,36 @@ let
 
     echo $DOJO_AUTH_TOKEN > /run/dojo/var/auth_token
 
-    echo "Initialized."
+    echo "DOJO_INIT_INITIALIZED"
 
-    read DOJO_FLAG
+    if ! read -t 5 DOJO_FLAG; then
+      echo "DOJO_INIT_FAILED:Flag initialization error."
+      exit 1
+    fi
     echo $DOJO_FLAG | install -m 400 /dev/stdin /flag
 
-    exec > /run/dojo/var/root/init.log 2>&1
-    chmod 600 /run/dojo/var/root/init.log
-
     for path in /home/hacker /home/hacker/.config; do
+      test -L "$path" && rm -f "$path"
       mkdir -p "$path" && chown 1000:1000 "$path" && chmod 755 "$path"
     done
 
     if [ -x "/challenge/.init" ]; then
-        PATH="/run/challenge/bin:$IMAGE_PATH" /challenge/.init
+      (
+        touch /run/dojo/var/root/init.log
+        chmod 600 /run/dojo/var/root/init.log
+        PATH="/run/challenge/bin:$IMAGE_PATH" "$DEFAULT_PROFILE"/bin/timeout -k 10 30 /challenge/.init >& /run/dojo/var/root/init.log &
+        INIT_PID=$!
+        tail -f /run/dojo/var/root/init.log --pid "$INIT_PID" | head -n1M
+        if ! wait "$INIT_PID"
+        then
+          echo "DOJO_INIT_FAILED:Challenge initialization error."
+          exit 1
+        fi
+      )
     fi
 
     touch /run/dojo/var/ready
+    echo "DOJO_INIT_READY"
 
     exec "$@"
   '';

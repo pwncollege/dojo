@@ -20,6 +20,10 @@ fi
 case "$ACTION" in
     # HELP: up: bring the dojo up
     "up")
+        if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_TOKEN" ]; then
+            echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
+        fi
+
         dojo sync
         dojo compose up -d --build --remove-orphans "$@"
         ;;
@@ -161,6 +165,9 @@ case "$ACTION" in
                     exit 0
                     ;;
                 *"Failed to start pwn.college.service - pwn.college docker compose service."*)
+                    exit 1
+                    ;;
+                *"Job pwn.college.service/start failed"*)
                     exit 1
                     ;;
             esac

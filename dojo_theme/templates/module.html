@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros/widgets.html" import accordion_item %}
+{% set is_dojo_admin = dojo.is_admin() %}
 
 {% block stylesheets %}
 {{ super() }}
@@ -30,8 +31,6 @@
 .challenge-init {
   height: 100% !important;
   width: 100% !important;
-  padding-right: 15px;
-  padding-left: 15px;
 }
 
 .challenge-hidden {
@@ -40,6 +39,8 @@
 }
 
 .workspace-fullscreen {
+  display: flex;
+  flex-direction: column;
   position: fixed;
   z-index: 1031;/* Navbar z-index + 1 */
   bottom: -16px;
@@ -49,11 +50,20 @@
   height: 100% !important;
 }
 
+.workspace-fullscreen .iframe-wrapper {
+  display: flex;
+}
+
 .workspace-ssh {
   padding: 1em;
   margin-bottom: 1em;
   background-color: var(--foreground);
   border-radius: 0.5em;
+}
+
+
+.challenge-hidden .workspace-ssh {
+  display: none !important;
 }
 </style>
 
@@ -93,16 +103,22 @@
   {% endif %}
 
   {% if module.resources or module.challenges %}
-  {% if dojo.is_admin() and not module.show_challenges %}
+  {% if is_dojo_admin and not module.show_challenges %}
   <p><i>This module's challenges are hidden from view. You can see them as the dojo's administrator.</i></p>
   {% endif %}
+
+  {% set previous_challenge = None %}
 
   <div class="accordion" id="module-content">
     {% set ns = namespace(challenge_count=0) %}
     {% for item in module.unified_items %}
       {% if item.item_type == 'resource' %}
         {% set resource = item %}
-        {% if resource.type == 'header' %}
+        {% if resource.type == 'markdown' and resource.expandable == False %}
+          <div class="description-content my-3">
+            {{ resource.content | markdown }}
+          </div>
+        {% elif resource.type == 'header' %}
           <br>
           <h2>{{ resource.content }}</h2>
         {% else %}
@@ -145,35 +161,31 @@
           {% endif %}
         {% endcall %}
         {% endif %}
-      {% elif item.item_type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
+      {% elif item.item_type == 'challenge' and (module.show_challenges or is_dojo_admin) %}
         {% set challenge = item %}
+        {% set hidden = challenge not in visible_challenges %}
+        {% if not hidden or is_dojo_admin %}
         {% set ns.challenge_count = ns.challenge_count + 1 %}
         {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
         {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
-
-        {% set previous_challenge = None %}
-        {% set visible_challenges = [] %}
-        {% for prev_item in module.unified_items[:loop.index0] %}
-          {% if prev_item.item_type == 'challenge' and (module.show_challenges or dojo.is_admin()) %}
-            {% set _ = visible_challenges.append(prev_item) %}
-          {% endif %}
-        {% endfor %}
-        {% if visible_challenges %}
-          {% set previous_challenge = visible_challenges[-1] %}
-        {% endif %}
 
         {% set progression_locked = challenge.progression_locked and previous_challenge %}
         {% set lock_challenge = progression_locked
           and previous_challenge.challenge_id not in user_solves
           and solved == "challenge-unsolved"
           and not dojo.is_admin() %}
-        {% set hidden = not challenge.visible() %}
-        {% set icon = "fa-lock" if lock_challenge else "fa-flag" %}
+        {% if lock_challenge %}
+          {% set icon = "fas fa-lock" %}
+        {% elif not challenge.required %}
+          {% set icon = "fa fa-flask" %}
+        {% else %}
+          {% set icon = "fas fa-flag" %}
+        {% endif %}
 
         {% call(header) accordion_item("module-content", loop.index, lock_challenge, challenge_index=ns.challenge_count) %}
           {% if header %}
-            <h4 class="accordion-item-name challenge-name {{ active }}" data-challenge-index="{{ ns.challenge_count }}" data-challenge-name="{{ challenge.name or challenge.id }}" id="challenges-header-{{ ns.challenge_count }}">
-                <i class="challenge-icon pr-3 fas {{ icon }} {{ solved }} "></i>
+            <h4 class="accordion-item-name challenge-name {{ active }}" data-challenge-index="{{ ns.challenge_count }}" data-challenge-id="{{ challenge.id }}" data-challenge-name="{{ challenge.name or challenge.id }}" id="challenges-header-{{ ns.challenge_count }}">
+                <i class="challenge-icon pr-3 {{ icon }} {{ solved }} "></i>
                 {% if lock_challenge %}
                 <div class="challenge-text-wrapper">
                   <span class="challenge-name-text">{{ challenge.name or challenge.id }}</span>
@@ -183,7 +195,7 @@
                 {% else %}
                 <span class="pr-2">{{ challenge.name or challenge.id }}</span>
                 {% endif %}
-                {% if dojo.is_admin() and (progression_locked or hidden) %}
+                {% if is_dojo_admin and (progression_locked or hidden) %}
                 <small><small><small>
                       <i>
                         {% if progression_locked %}progression locked{% endif %}
@@ -209,6 +221,7 @@
               {% if lock_challenge %}
                 <p><em>This challenge is locked</em></p>
               {% else %}
+                {% if not challenge.required %}<small>This challenge is optional, it will not count towards dojo completion.</small><br><br>{% endif %}
                 {% if challenge_description_edit_urls.get(challenge.id) %}
                   <a href="{{ challenge_description_edit_urls[challenge.id] }}"
                      target="_blank"
@@ -223,18 +236,18 @@
             <div class="challenge-init row{% if active %} challenge-hidden{% endif %}">
               <div class="col-md-3 form=group text-center">
                 <button id="challenge-start" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
-                  <i class="fas fa-play fa-2x pr-3"></i>Start
+                  <i class="fas fa-play fa-lg"></i>Start
                 </button>
               </div>
               {% if challenge.allow_privileged %}
               <div class="col-md-3 form=group text-center">
                 <button id="challenge-priv" type="submit" class="btn btn-md btn-outline-secondary challenge-init">
-                  <i class="fas fa-unlock fa-2x pr-3"></i>Privileged
+                  <i class="fas fa-unlock fa-lg"></i>Privileged
                 </button>
               </div>
               {% endif %}
               <div class="col-md-{% if challenge.allow_privileged %}6{% else %}9{% endif %}">
-                <input id="module" type="hidden" value="{{ challenge.module.id }}">
+                <input id="module" type="hidden" value="{{ module.id }}">
                 <input id="challenge" type="hidden" value="{{ challenge.id }}">
                 <input id="challenge-id" type="hidden" value="{{ challenge.challenge_id }}">
                 <input id="challenge-input" class="challenge-input form-control" type="text" name="answer" placeholder="Flag">
@@ -248,9 +261,8 @@
               </div>
               <div class="workspace-ssh">
                 <h3>Connect with SSH</h3>
-                Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@pwn.college</code>
+                Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@dojo.pwn.college</code>
               </div>
-              {% set workspace_services = ["Terminal", "Code", "Desktop", "SSH"] %}
               {% include "components/actionbar.html" %}
             </div>
             <div class="row notification-row">
@@ -262,26 +274,21 @@
             </div>
             <div class="row survey-row">
               <div class="col-md-12">
-                <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{challenge.dojo.reference_id}}/surveys/{{challenge.module.id}}/{{challenge.id}}" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
+                <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{dojo.reference_id}}/surveys/{{module.id}}/{{challenge.id}}" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
                   {{ challenge.survey.data | safe }}
                 </form>
               </div>
             </div>
           {% endif %}
         {% endcall %}
+        {% endif %}
+        {% set previous_challenge = challenge %}
       {% endif %}
     {% endfor %}
   </div>
 
   <br>
   {% endif %}
-
-  {% set visible_challenges = [] %}
-  {% for item in module.unified_items %}
-    {% if item.item_type == 'challenge' %}
-      {% set _ = visible_challenges.append(item) %}
-    {% endif %}
-  {% endfor %}
 
   {% if visible_challenges and module.show_scoreboard %}
 
@@ -296,7 +303,34 @@
 {% endblock %}
 
 {% block scripts %}
+<script defer src="{{ url_for('views.themes', path='js/dojo/actionbar.js') }}"></script>
 <script defer src="{{ url_for('views.themes', path='js/dojo/challenges.js') }}"></script>
 <script defer onload="loadScoreboard(30, 1);" src="{{ url_for('views.themes', path='js/dojo/scoreboard.js') }}"></script>
-<script defer src="{{ url_for('views.themes', path='js/dojo/actionbar.js') }}"></script>
+{% if scroll_to_challenge %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(() => {
+    const el = document.querySelector('[data-challenge-id="{{ scroll_to_challenge }}"]');
+    if (!el) return;
+    const idx = el.getAttribute('data-challenge-index');
+    const btn = idx && document.getElementById(`challenges-header-button-${idx}`);
+    
+    const scrollToChallenge = () => {
+      const rect = el.getBoundingClientRect();
+      const offsetTop = window.pageYOffset + rect.top - 60;
+      window.scrollTo({
+        top: offsetTop,
+        behavior: 'smooth'
+      });
+    };
+    if (btn && btn.getAttribute('aria-expanded') !== 'true') {
+      btn.click();
+      setTimeout(scrollToChallenge, 400);
+    } else {
+      scrollToChallenge();
+    }
+  }, 500);
+});
+</script>
+{% endif %}
 {% endblock %}

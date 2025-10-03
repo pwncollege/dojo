@@ -7,7 +7,7 @@ import re
 
 from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context, request, g
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.sql import and_, or_
+from sqlalchemy.sql import or_
 from CTFd.plugins import bypass_csrf_protection
 from CTFd.models import db, Solves, Users
 from CTFd.utils.decorators import authed_only
@@ -17,51 +17,48 @@ from CTFd.utils.helpers import get_infos
 from ..utils import get_current_container, get_all_containers, render_markdown
 from ..utils.stats import get_container_stats, get_dojo_stats
 from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
+from ..utils.query_timer import query_timeout
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 #pylint:disable=redefined-outer-name
 
+def get_dojo_branch(dojo):
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=dojo.path,
+            capture_output=True,
+            text=True,
+            timeout=1
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
 
-def find_description_edit_url(dojo, relative_paths, search_pattern=None):
+    return "main"
+
+def find_description_edit_url(dojo, relative_paths, search_pattern=None, branch="main"):
     if not (dojo.official and dojo.repository):
         return None
-    
-    branch = "main"
-    if dojo.path.exists():
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                cwd=dojo.path,
-                capture_output=True,
-                text=True,
-                timeout=1
-            )
-            if result.returncode == 0:
-                branch = result.stdout.strip()
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
-    
+
     for relative_path in relative_paths:
         full_path = dojo.path / relative_path
-        
+
         if not full_path.exists():
             continue
-            
+
         line_num = 1
         if relative_path.endswith('.yml') and search_pattern:
-            try:
-                pattern = re.compile(search_pattern)
-                with open(full_path, 'r') as f:
-                    for i, line in enumerate(f, 1):
-                        if pattern.search(line):
-                            line_num = i
-                            break
-            except (IOError, re.error):
-                pass
-        
+            with open(full_path, 'r') as f:
+                content = f.read()
+            match = search_pattern.search(content)
+            if match:
+                line_num = content[:match.start()].count('\n') + 1
+
         return f"https://github.com/{dojo.repository}/edit/{branch}/{relative_path}#L{line_num}"
-    
+
     return None
 
 
@@ -80,11 +77,15 @@ def listing(dojo):
         if container["dojo"] == dojo.reference_id
     )
     stats["active"] = sum(module_container_counts.values())
-    
+
     description_edit_url = None
     if dojo.description and dojo.path.exists():
-        description_edit_url = find_description_edit_url(dojo, ["DESCRIPTION.md", "dojo.yml"], r"^description:")
-    
+        description_edit_url = find_description_edit_url(
+            dojo, ["DESCRIPTION.md", "dojo.yml"],
+            search_pattern=re.compile(r"^description:"),
+            branch=get_dojo_branch(dojo)
+        )
+
     return render_template(
         "dojo.html",
         dojo=dojo,
@@ -108,6 +109,7 @@ def view_dojo_path(dojo, path, subpath=None):
     if module:
         if subpath:
             DojoChallenges.query.filter_by(dojo=dojo, module=module, id=subpath).first_or_404()
+            return view_module(dojo, module, scroll_to_challenge=subpath)
         return view_module(dojo, module)
     elif path in dojo.pages and not subpath:
         return view_page(dojo, path)
@@ -195,8 +197,36 @@ def update_dojo(dojo, update_code=None):
     try:
         dojo_update(dojo)
         db.session.commit()
+    except IntegrityError as e:
+        db.session.rollback()
+        error = str(e)
+        match = re.search(r"Key \(dojo_id, module_index, id\)=\(.*?,\s*(\d+),\s*([^\)]+)\)", error)
+
+        if not match:
+            print(f"ERROR: Dojo update failed with unparsed IntegrityError for {dojo}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+            return {"success": False, "error": "Database integrity error: A challenge ID is likely duplicated."}, 400
+
+        module_index_str, challenge_id = match.groups()
+        module_index = int(module_index_str)
+        challenge_id = challenge_id.strip()
+
+        if module_index >= len(dojo.modules):
+            print(f"ERROR: IntegrityError for {dojo} references out-of-bounds module_index {module_index}", file=sys.stderr, flush=True)
+            return {"success": False, "error": "Database integrity error: Inconsistent module data."}, 400
+
+        module = dojo.modules[module_index]
+        challenge = next((c for c in module.challenges if c.id == challenge_id), None)
+
+        module_name = module.name
+        challenge_name = challenge.name if challenge else challenge_id
+        error_message = f"Duplicate ID '{challenge_id}' used in module '{module_name}'."
+
+        return {"success": False, "error": error_message}, 400
+
     except Exception as e:
-        print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
+        db.session.rollback()
+        print(f"ERROR: Dojo update failed for {dojo}", file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
         return {"success": False, "error": str(e)}, 400
     return {"success": True}
@@ -297,16 +327,18 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
         return {"success": False, "error": "Invalid format"}, 400
 
 
-def view_module(dojo, module):
+def view_module(dojo, module, scroll_to_challenge=None):
     user = get_current_user()
     user_solves = set(solve.challenge_id for solve in (
         module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
     ))
-    total_solves = dict(module.solves()
-                        .group_by(Solves.challenge_id)
-                        .with_entities(Solves.challenge_id, db.func.count()))
+    total_solves = dict(query_timeout(
+        module.solves().group_by(Solves.challenge_id).with_entities(Solves.challenge_id, db.func.count()).all,
+        5000,
+        []
+    ))
     current_dojo_challenge = get_current_dojo_challenge()
-    container = get_current_container();
+    container = get_current_container()
     practice = container.labels.get("dojo.mode") == "privileged" if container else False
 
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
@@ -337,42 +369,50 @@ def view_module(dojo, module):
         for container in get_container_stats()
         if container["module"] == module.id and container["dojo"] == dojo.reference_id
     )
-    
+
     module_description_edit_url = None
     challenge_description_edit_urls = {}
     resource_description_edit_urls = {}
-    
+
     if dojo.path.exists():
+        branch = get_dojo_branch(dojo)
+
         if module.description:
             module_description_edit_url = find_description_edit_url(dojo, [
                 f"{module.id}/DESCRIPTION.md",
                 f"{module.id}/module.yml",
                 "dojo.yml"
-            ], r"^description:")
-        
+            ], search_pattern=re.compile(r"^description:"), branch=branch)
+
         for challenge in module.challenges:
             if challenge.description:
                 # Search for "- id: challenge_name" with optional quotes
-                challenge_description_edit_urls[challenge.id] = find_description_edit_url(dojo, [
-                    f"{module.id}/{challenge.id}/DESCRIPTION.md",
-                    f"{module.id}/{challenge.id}/challenge.yml",
-                    f"{module.id}/module.yml",
-                    "dojo.yml"
-                ], rf"^\s*-?\s*id:\s*[\"']?{re.escape(challenge.id)}[\"']?")
-        
+                challenge_description_edit_urls[challenge.id] = find_description_edit_url(
+                    dojo, [
+                        f"{module.id}/{challenge.id}/DESCRIPTION.md",
+                        f"{module.id}/{challenge.id}/challenge.yml",
+                        f"{module.id}/module.yml",
+                        "dojo.yml"
+                    ], search_pattern=re.compile(rf"^\s*-?\s*id:\s*[\"']?{re.escape(challenge.id)}[\"']?"),
+                    branch=branch
+                )
+
         for resource in module.resources:
             if resource.type == "markdown":
                 # Search for "- name: Resource Name" with optional quotes
                 resource_description_edit_urls[resource.resource_index] = find_description_edit_url(
                     dojo, [f"{module.id}/module.yml", "dojo.yml"],
-                    rf"^\s*-?\s*name:\s*[\"']?{re.escape(resource.name)}[\"']?"
+                    search_pattern=re.compile(rf"^\s*-?\s*name:\s*[\"']?{re.escape(resource.name)}[\"']?"),
+                    branch=branch
                 )
+
+    visible_challenges = set(module.visible_challenges())
 
     return render_template(
         "module.html",
         dojo=dojo,
         module=module,
-        challenges=module.visible_challenges(),
+        visible_challenges=visible_challenges,
         user_solves=user_solves,
         total_solves=total_solves,
         user=user,
@@ -383,6 +423,7 @@ def view_module(dojo, module):
         module_description_edit_url=module_description_edit_url,
         challenge_description_edit_urls=challenge_description_edit_urls,
         resource_description_edit_urls=resource_description_edit_urls,
+        scroll_to_challenge=scroll_to_challenge,
     )
 
 

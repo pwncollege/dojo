@@ -9,13 +9,79 @@ function context(event) {
     return $(event.target).closest(".workspace-controls");
 }
 
-function selectService(service) {
+function getServiceHistory() {
+    var raw = localStorage.getItem("service_history");
+    if (raw === null) {
+        return [];
+    }
+
+    return raw.split(", ");
+}
+
+function logService(service) {
+    var services = getServiceHistory();
+    var index = services.indexOf(service);
+    if (index >= 0) {
+        services.splice(index, 1);
+    }
+    services.forEach((element, index, array) => {
+        service += ", ";
+        service += element;
+    })
+    localStorage.setItem("service_history", service);
+}
+
+// Get most recent service which is allowed by the selector within the given root actionbar.
+function getRecentService(root) {
+    var options = [];
+    var allowed = root.find("#workspace-select").find("option");
+    allowed.each((index, value) => {
+        options.push($(value).prop("value"));
+    });
+    var history = getServiceHistory();
+    var match = null;
+    history.forEach((element, index, array) => {
+        if (match == null && options.indexOf(element) != -1) {
+            match = element;
+        }
+    });
+
+    return match;
+}
+
+function specialSelect(serviceName, content) {
+    const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
+    url.searchParams.set("service", serviceName);
+    fetch(url, {
+        method: "GET",
+        credentials: "same-origin"
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            content.src = result["iframe_src"];
+        }
+        else {
+            content.src = "";
+            animateBanner(
+                {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
+                result.error,
+                "error"
+            );
+        }
+    });
+}
+
+function selectService(service, log=true) {
     const content = document.getElementById("workspace-iframe");
     if (!content) {
         console.log("Missing workspace iframe :(")
         return;
     }
-    if (service == "ssh") {
+    if (log) {logService(service);}
+    port = service.split(": ")[1];
+    service = service.split(": ")[0];
+    if (service == "ssh" && port == "") {
         content.src = "";
         $(content).addClass("SSH");
         $(".workspace-ssh").show();
@@ -25,22 +91,14 @@ function selectService(service) {
         $(content).removeClass("SSH");
         $(".workspace-ssh").hide();
     }
-    const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
-    url.searchParams.set("service", service);
-    fetch(url, {
-        method: "GET",
-        credentials: "same-origin"
-    })
-    .then(response => response.json())
-    .then(result => {
-        const url = new URL(result["iframe_src"]);
-        // Set the port if in dev environment (may be forwarded via a server)
-        if (result["setPort"]) {
-            url.port = window.location.port;
-        }
-
-        content.src = url.toString();
-    });
+    const specialServices = ["terminal", "code", "desktop"];
+    const specialPorts = ["7681", "8080", "6080"];
+    if (specialServices.indexOf(service) > -1 && specialServices.indexOf(service) == specialPorts.indexOf(port)) {
+        specialSelect(service, content);
+    }
+    else {
+        content.src = "/workspace/" + port + "/";
+    }
 }
 
 function animateBanner(event, message, type) {
@@ -60,6 +118,8 @@ function animateBanner(event, message, type) {
 }
 
 function actionSubmitFlag(event) {
+    context(event).find("input").prop("disabled", true).addClass("disabled");
+    context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     var body = {
         'challenge_id': parseInt(context(event).find("#current-challenge-id").val()),
         'submission': $(event.target).val(),
@@ -75,8 +135,12 @@ function actionSubmitFlag(event) {
         else if (response.data.status == "correct") {
             animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
             if ($(".challenge-active").length) {
-                $(".challenge-active")
-                    .find("i.challenge-unsolved")
+                const unsolved_flag = $(".challenge-active").find("i.challenge-unsolved")
+                if(unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
+                    unsolved_flag.removeClass("far")
+                    unsolved_flag.addClass("fas")
+                }
+                unsolved_flag
                     .removeClass("challenge-unsolved")
                     .addClass("challenge-solved");
             }
@@ -87,7 +151,36 @@ function actionSubmitFlag(event) {
         else {
             animateBanner(event, "Submission Failed.", "warn");
         }
+        context(event).find("input").prop("disabled", false).removeClass("disabled");
+        context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     });
+}
+
+function sendChallengeInfo(root, channel) {
+    options = []
+    root.find("#workspace-select option").each((index, element) => {
+        options.push({
+            "value": $(element).prop("value"),
+            "text": $(element).text(),
+        });
+    })
+
+    challenge = root.find("#current-challenge-id");
+    privilege = root.find("#workspace-change-privilege");
+
+    challengeData = {
+        "options": options,
+        "challenge-id": challenge.prop("value"),
+        "challenge-name": challenge.attr("data-challenge-name"),
+        "challenge-privilege": privilege.length > 0 ? privilege.attr("data-privileged") : "false",
+    };
+
+    channel.postMessage(challengeData);
+}
+
+function postStartChallenge(event, channel) {
+    root = context(event);
+    sendChallengeInfo(root, channel);
 }
 
 function actionStartChallenge(event) {
@@ -134,7 +227,8 @@ function actionStartChallenge(event) {
                 return;
             }
 
-            selectService(context(event).find("#workspace-select").val());
+            selectService(context(event).find("#workspace-select").prop("value"));
+            postStartChallenge(event, channel);
 
             context(event).find(".btn-challenge-start")
             .removeClass("disabled")
@@ -183,31 +277,33 @@ function displayPrivileged(event, invert) {
                                     : "Restart privileged");
 }
 
-function loadWorkspace() {
+function loadWorkspace(log=true) {
     if ($("#workspace-iframe").length == 0 ) {
         return;
     }
-    var previousWorkspace = localStorage.getItem("previousWorkspace");
-    var workspaceSelect = $("#workspace-iframe").closest(".challenge-workspace").find("#workspace-select")[0];
-    var option = workspaceSelect.options[0];
-    if (previousWorkspace && workspaceSelect) {
-        for (var i = 0; i < workspaceSelect.options.length; i++) {
-            if (workspaceSelect.options[i].text === previousWorkspace) {
-                option = workspaceSelect.options[i];
-                option.selected = true;
-                break;
-            }
-        }
+    var workspaceRoot = $("#workspace-iframe").closest(".challenge-workspace");
+    var recent = getRecentService(workspaceRoot);
+    if (recent == null) {
+        recent = workspaceRoot.find("#workspace-select").prop("value");
     }
-    selectService(option.value);
+    else {
+        workspaceRoot.find("#workspace-select").prop("value", recent);
+    }
+    selectService(recent, log=log);
 }
 
+const channel = new BroadcastChannel("Challenge-Sync-Channel");
 $(() => {
     loadWorkspace();
     $(".workspace-controls").each(function () {
+        if ($(this).find("option").length < 2) {
+            $(this).find("#workspace-select")
+                .prop("disabled", true)
+                .prop("title", "");
+        }
+
         $(this).find("#workspace-select").change((event) => {
             event.preventDefault();
-            localStorage.setItem("previousWorkspace", event.target.options[event.target.selectedIndex].text);
             selectService(event.target.value);
         });
 

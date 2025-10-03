@@ -19,6 +19,8 @@ location @forward {
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_set_header X-Forwarded-Prefix /sensai;
+    proxy_set_header PWN-Trace_ID $request_id;
+
 
     proxy_set_header Authorization $redirect_auth;
 

@@ -35,6 +35,7 @@ NAME_REGEX = Regex(r"^[\S ]{1,128}$")
 IMAGE_REGEX = Regex(r"^[\S]{1,256}$")
 FILE_PATH_REGEX = Regex(r"^[A-Za-z0-9_][A-Za-z0-9-_./]*$")
 FILE_URL_REGEX = Regex(r"^https://www.dropbox.com/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9.-_]*?rlkey=[a-zA-Z0-9]*&dl=1")
+INTERFACES_LIST = [Or({"name": Regex(r"[a-zA-Z]{1,32}"),"port": int},{"name": "SSH"})]
 DATE = Use(datetime.datetime.fromisoformat)
 
 ID_NAME_DESCRIPTION = {
@@ -67,6 +68,7 @@ DOJO_SPEC = Schema({
     Optional("allow_privileged"): bool,
     Optional("show_scoreboard"): bool,
     Optional("importable"): bool,
+    Optional("interfaces"): INTERFACES_LIST,
 
     Optional("import"): {
         "dojo": UNIQUE_ID_REGEX,
@@ -92,6 +94,7 @@ DOJO_SPEC = Schema({
         Optional("show_challenges"): bool,
         Optional("show_scoreboard"): bool,
         Optional("importable"): bool,
+        Optional("interfaces"): INTERFACES_LIST,
 
         Optional("import"): {
             Optional("dojo"): UNIQUE_ID_REGEX,
@@ -110,7 +113,9 @@ DOJO_SPEC = Schema({
             {
                 "type": "markdown",
                 "name": NAME_REGEX,
-                "content": str,
+                Optional("content"): str,
+                Optional("file"): FILE_PATH_REGEX,
+                Optional("expandable", default=True): bool,
                 **VISIBILITY,
             },
             {
@@ -138,6 +143,7 @@ DOJO_SPEC = Schema({
                 Optional("importable"): bool,
                 Optional("progression_locked"): bool,
                 Optional("auxiliary"): dict,
+                Optional("required", default=True): bool,
                 Optional("import"): {
                     Optional("dojo"): UNIQUE_ID_REGEX,
                     Optional("module"): ID_REGEX,
@@ -153,6 +159,7 @@ DOJO_SPEC = Schema({
                     "prompt": str,
                     "data": str
                 },
+                Optional("interfaces"): INTERFACES_LIST,
             },
         )],
 
@@ -229,11 +236,6 @@ def load_dojo_subyamls(data, dojo_dir):
 
         if "resources" not in module_data:
             module_data["resources"] = []
-        if module_data["resources"]:
-            module_data["resources"].insert(0, {
-                "type": "header",
-                "content": "Resources"
-            })
 
         challenges = module_data.pop("challenges", [])
         if challenges:
@@ -430,6 +432,22 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 resource_data["unified_index"] = resource_index
                 challenge_resources.append((module_data, resource_data))
             else:
+                # Handle markdown file loading
+                if resource_data.get("type") == "markdown" and resource_data.get("file") and dojo_dir:
+                    module_dir = dojo_dir / module_data["id"]
+                    file_path = module_dir / resource_data["file"]
+                    # Validate file is within dojo directory
+                    try:
+                        file_path = file_path.resolve()
+                        dojo_dir_resolved = dojo_dir.resolve()
+                        if dojo_dir_resolved not in file_path.parents and file_path != dojo_dir_resolved:
+                            raise AssertionError(f"Markdown file {resource_data['file']} is outside dojo directory")
+                        if file_path.exists():
+                            resource_data["content"] = file_path.read_text()
+                        else:
+                            raise AssertionError(f"Markdown file {resource_data['file']} not found")
+                    except (OSError, ValueError) as e:
+                        raise AssertionError(f"Invalid markdown file path: {resource_data['file']}")
                 regular_resources.append((module_data, resource_data))
 
     dojo.modules = [
@@ -442,10 +460,12 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                     privileged=shadow("privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     importable=shadow("importable", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
+                    interfaces=shadow("interfaces", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     challenge=challenge(
                         module_data.get("id"), challenge_data.get("id"), transfer=challenge_data.get("transfer", None)
                     ) if "import" not in challenge_data else None,
                     progression_locked=challenge_data.get("progression_locked"),
+                    required=challenge_data.get("required"),
                     visibility=visibility(DojoChallengeVisibilities, dojo_data, module_data, challenge_data),
                     survey=survey(dojo_data, module_data, challenge_data),
                     default=(assert_import_one(DojoChallenges.from_id(*import_ids(["dojo", "module", "challenge"], dojo_data, module_data, challenge_data)),
@@ -457,7 +477,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             ],
             resources = [
                 DojoResources(
-                    **{kwarg: resource_data.get(kwarg) for kwarg in ["name", "type", "content", "video", "playlist", "slides"]},
+                    **{kwarg: resource_data.get(kwarg) for kwarg in ["name", "type", "content", "video", "playlist", "slides", "expandable"]},
                     visibility=visibility(DojoResourceVisibilities, dojo_data, module_data, resource_data),
                     resource_index=resource_index,
                 )
@@ -486,7 +506,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 challenge
                 for module in dojo.modules
                 for challenge in module.challenges
-                if not challenge.path.exists()
+                if not (challenge.data.get("image") or challenge.path.exists())
             ]
             assert not missing_challenge_paths, "".join(
                 f"Missing challenge path: {challenge.module.id}/{challenge.id}\n"
@@ -501,7 +521,10 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
 
             students_yml_path = dojo_dir / "students.yml"
             if "students" not in course and students_yml_path.exists():
-                course["students"] = yaml.safe_load(students_yml_path.read_text())
+                students = yaml.safe_load(students_yml_path.read_text())
+                if isinstance(students, list):
+                    students = {student_token: {} for student_token in students}
+                course["students"] = students
 
             syllabus_path = dojo_dir / "SYLLABUS.md"
             if "syllabus" not in course and syllabus_path.exists():

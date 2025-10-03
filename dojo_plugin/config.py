@@ -11,7 +11,6 @@ from CTFd.models import db, Admins, Pages
 from CTFd.utils import config, set_config
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 DOJOS_DIR = pathlib.Path("/var/dojos")
 
@@ -81,6 +80,7 @@ MAIL_PORT = os.getenv("MAIL_PORT")
 MAIL_USERNAME = os.getenv("MAIL_USERNAME")
 MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
 MAIL_ADDRESS = os.getenv("MAIL_ADDRESS")
+CORS_ORIGINS = os.getenv("CORS_ORIGINS")
 DOCKER_USERNAME = os.getenv("DOCKER_USERNAME")
 DOCKER_TOKEN = os.getenv("DOCKER_TOKEN")
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")

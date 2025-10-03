@@ -27,16 +27,25 @@ class view_desktop(Resource):
         password = request.args.get("password")
         service = request.args.get("service")
 
-        if not service:
-            return {"active": False}
-
         if user_id and not password and not is_admin():
             abort(403)
 
         user = get_current_user() if not user_id else Users.query.filter_by(id=int(user_id)).first_or_404()
         container = get_current_container(user)
         if not container:
-            return {"active": False}
+            return {"success": False, "active": False}
+
+        # Get current challenge information from container labels
+        challenge_info = None
+        if container.labels.get("dojo.challenge_id"):
+            challenge_info = {
+                "dojo_id": container.labels.get("dojo.dojo_id"),
+                "module_id": container.labels.get("dojo.module_id"),
+                "challenge_id": container.labels.get("dojo.challenge_id")
+            }
+
+        if not service:
+            return {"success": False, "active": True, "current_challenge": challenge_info}
 
         if not WORKSPACE_SECRET:
             abort(500)
@@ -94,9 +103,9 @@ class view_desktop(Resource):
             iframe_src = forward_workspace(service=service, service_path="", signature=signature, container_id=container_id)
 
         if start_on_demand_service(user, service) is False:
-            return {"active": False}
+            return {"success": False, "active": True, "error": f"Failed to start service {service}"}
 
-        return {"active": True, "iframe_src": iframe_src, "service": service, "setPort": os.getenv("DOJO_ENV") == "development"}
+        return {"success": True, "active": True, "iframe_src": iframe_src, "service": service, "setPort": os.getenv("DOJO_ENV") == "development", "current_challenge": challenge_info}
 
 
 @workspace_namespace.route("/reset_home")

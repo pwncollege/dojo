@@ -183,6 +183,15 @@ class Dojos(db.Model):
             .scalar_subquery(),
             deferred=True)
 
+    @deferred_definition
+    def required_challenges_count():
+        return db.column_property(
+            db.select([db.func.count()])
+            .where(Dojos.dojo_id == DojoChallenges.dojo_id)
+            .where(DojoChallenges.required)
+            .scalar_subquery(),
+            deferred=True)
+
     @property
     def solves_code(self):
         return hashlib.md5(self.private_key.encode() + b"SOLVES").hexdigest()
@@ -245,7 +254,7 @@ class Dojos(db.Model):
                            db.func.count().label("solve_count"),
                            db.func.max(Solves.date).label("last_solve"))
             .group_by(Solves.user_id)
-            .having(db.func.count() == len(self.challenges))
+            .having(db.func.count() == len([challenge for challenge in self.challenges if challenge.required]))
             .subquery()
         )
         return (
@@ -263,16 +272,14 @@ class Dojos(db.Model):
         if "belt" in self.award:
             result = result.where(Awards.type == "belt", Awards.name == self.award["belt"])
         elif "emoji" in self.award:
-            result = result.where(Awards.type == "emoji", Awards.name == self.award["emoji"], Awards.category == self.hex_dojo_id)
+            result = result.where(Awards.type == "emoji", Awards.name != "STALE", Awards.category == self.hex_dojo_id)
 
         awards = result.order_by(Awards.date.desc()).all()
-        if "emoji" in self.award:
-            awards = [ a for a in awards if a.name == self.award["emoji"] ]
 
         return awards
 
     def completed(self, user):
-        return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len(self.challenges)
+        return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len([challenge for challenge in self.challenges if challenge.required])
 
     def is_admin(self, user=None):
         if user is None:
@@ -378,10 +385,14 @@ class DojoModules(db.Model):
             for field in ["id", "name", "description"]:
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
 
+        def set_module_import(challenge):
+            challenge.data["module_import"] = True
+            return challenge
+
         kwargs["challenges"] = (
             kwargs.pop("challenges", None) or
             ([DojoChallenges(
-                default=challenge,
+                default=set_module_import(challenge),
                 visibility=(DojoChallengeVisibilities(start=visibility.start) if visibility else None),
             ) for challenge in default.challenges] if default else [])
         )
@@ -452,8 +463,26 @@ class DojoModules(db.Model):
         items.sort(key=lambda x: x[0])
         return [item for _, item in items]
 
-    def visible_challenges(self, user=None):
-        return [challenge for challenge in self.challenges if challenge.visible() or self.dojo.is_admin(user=user)]
+    def visible_challenges(self, when=None, required_only=False):
+        when = when or datetime.datetime.utcnow()
+        return list(
+            DojoChallenges.query
+            .filter(DojoChallenges.dojo_id == self.dojo_id,
+                    DojoChallenges.module_index == self.module_index)
+            .outerjoin(DojoChallengeVisibilities, and_(
+                DojoChallengeVisibilities.dojo_id == DojoChallenges.dojo_id,
+                DojoChallengeVisibilities.module_index == DojoChallenges.module_index,
+                DojoChallengeVisibilities.challenge_index == DojoChallenges.challenge_index
+                ))
+            .filter(
+                or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start),
+                or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop),
+            )
+            .filter(
+                not required_only or DojoChallenges.required
+            )
+            .order_by(DojoChallenges.challenge_index)
+        )
 
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
@@ -496,14 +525,21 @@ class DojoChallenges(db.Model):
     id = db.Column(db.String(32), index=True, nullable=False)
     name = db.Column(db.String(128))
     description = db.Column(db.Text)
+    required = db.Column(db.Boolean, default=True, nullable=False)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index"]
+    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interfaces"]
     data_defaults = {
         "privileged": False,
         "importable": True,
         "allow_privileged": True,
         "progression_locked": False,
+        "interfaces": [
+            dict(name="Terminal", port=7681),
+            dict(name="Code",     port=8080),
+            dict(name="Desktop",  port=6080),
+            dict(name="SSH"),
+        ],
     }
 
     dojo = db.relationship("Dojos",
@@ -536,6 +572,9 @@ class DojoChallenges(db.Model):
             # TODO: maybe we should track the entire import
             kwargs["data"]["image"] = default.data.get("image")
             kwargs["data"]["path_override"] = str(default.path)
+            # only update the unified_index for module and dojo imports, not challenge specific ones
+            if default.data.get("module_import", False):
+                kwargs["data"]["unified_index"] = default.data.get("unified_index")
 
         super().__init__(*args, **kwargs)
 
@@ -578,9 +617,10 @@ class DojoChallenges(db.Model):
         return result
 
     @hybrid_method
-    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True):
+    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True, required_only=True):
         result = (
             Solves.query
+            .filter_by(type=Solves.__mapper__.polymorphic_identity)
             .join(DojoChallenges, and_(
                 DojoChallenges.challenge_id==Solves.challenge_id,
                 ))
@@ -609,7 +649,7 @@ class DojoChallenges(db.Model):
                     or_(DojoChallengeVisibilities.start == None, Solves.date >= DojoChallengeVisibilities.start),
                     or_(DojoChallengeVisibilities.stop == None, Solves.date <= DojoChallengeVisibilities.stop),
                 )
-                .filter(Users.hidden == False)
+                .filter(~Users.hidden)
             )
 
         if ignore_admins:
@@ -621,6 +661,9 @@ class DojoChallenges(db.Model):
             result = result.filter(DojoChallenges.dojo == dojo)
         if module:
             result = result.filter(DojoChallenges.module == module)
+
+        if required_only:
+            result = result.filter(DojoChallenges.required)
 
         return result
 
@@ -682,7 +725,8 @@ class DojoResources(db.Model):
     name = db.Column(db.String(128))
 
     data = db.Column(JSONB)
-    data_fields = ["content", "video", "playlist", "slides"]
+    data_fields = ["content", "video", "playlist", "slides", "expandable"]
+    data_defaults = {"expandable": True}
 
     dojo = db.relationship("Dojos", back_populates="resources", viewonly=True)
     module = db.relationship("DojoModules", back_populates="_resources")
@@ -705,7 +749,7 @@ class DojoResources(db.Model):
             if kwargs.get("data"):
                 raise AttributeError("Import requires data to be empty")
 
-            for field in ["type", "name"]:
+            for field in ["type", "name", "resource_index"]:
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
 
             for field in self.data_fields:
@@ -719,7 +763,7 @@ class DojoResources(db.Model):
 
     def __getattr__(self, name):
         if name in self.data_fields:
-            return self.data.get(name)
+            return (self.data or {}).get(name, self.data_defaults.get(name))
         raise AttributeError(f"No attribute '{name}'")
 
     @hybrid_property

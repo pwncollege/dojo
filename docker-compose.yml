@@ -17,7 +17,6 @@ services:
     volumes:
       - /data/splunk/etc:/opt/splunk/etc
       - /data/splunk/var:/opt/splunk/var
-      - /opt/pwn.college/Splunk.License:/tmp/Splunk.License:ro
       - /opt/pwn.college/splunk/default.yml:/tmp/defaults/default.yml:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000"]
@@ -27,6 +26,7 @@ services:
 
   workspace-builder:
     container_name: workspace-builder
+    hostname: workspace-builder
     profiles:
       - workspace
     build: ./workspace
@@ -38,6 +38,7 @@ services:
 
   dojofs:
     container_name: dojofs
+    hostname: dojofs
     profiles:
       - workspace
     restart: always
@@ -50,6 +51,7 @@ services:
 
   homefs:
     container_name: homefs
+    hostname: homefs
     profiles:
       - main
       - workspace
@@ -80,7 +82,7 @@ services:
       - -c
       - |
         if [ "$DOJO_ENV" != "development" ]; then
-          ./docker-entrypoint.sh;
+          RUN_ID=$(openssl rand -hex 4) ./docker-entrypoint.sh;
         else
           FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
         fi
@@ -109,6 +111,7 @@ services:
       - MAIL_USERNAME=${MAIL_USERNAME}
       - MAIL_PASSWORD=${MAIL_PASSWORD}
       - MAIL_ADDRESS=${MAIL_ADDRESS}
+      - CORS_ORIGINS=${CORS_ORIGINS}
       - DOCKER_USERNAME=${DOCKER_USERNAME}
       - DOCKER_TOKEN=${DOCKER_TOKEN}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
@@ -155,6 +158,7 @@ services:
 
   db:
     container_name: db
+    hostname: db
     profiles:
       - main
     restart: always
@@ -175,6 +179,7 @@ services:
 
   pgbouncer:
     container_name: pgbouncer
+    hostname: pgbouncer
     profiles:
       - main
     restart: always
@@ -191,6 +196,7 @@ services:
 
   cache:
     container_name: cache
+    hostname: cache
     profiles:
       - main
     restart: always
@@ -200,6 +206,7 @@ services:
 
   sshd:
     container_name: sshd
+    hostname: sshd
     profiles:
       - main
     restart: always
@@ -224,6 +231,7 @@ services:
 
   nginx-proxy:
     container_name: nginx-proxy
+    hostname: nginx-proxy
     profiles:
       - main
     restart: always
@@ -243,6 +251,7 @@ services:
       - certs:/etc/nginx/certs:ro
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
       - ./nginx-proxy/etc/nginx/templates/workspace.template:/etc/nginx/templates/workspace.template:ro
+      - ./nginx-proxy/etc/nginx/conf.d/pwn-trace-id.conf:/etc/nginx/conf.d/pwn-trace-id.conf:ro
       - /var/run/docker.sock:/tmp/docker.sock:ro
     networks:
       default:
@@ -253,6 +262,7 @@ services:
 
   acme-companion:
     container_name: nginx-proxy-acme
+    hostname: nginx-proxy-acme
     profiles:
       - main
     restart: always
@@ -266,6 +276,7 @@ services:
 
   node-exporter:
     container_name: node-exporter
+    hostname: node-exporter
     profiles:
       - main
       - workspace
@@ -280,6 +291,7 @@ services:
 
   cadvisor:
     container_name: cadvisor
+    hostname: cadvisor
     profiles:
       - main
       - workspace
@@ -297,6 +309,7 @@ services:
 
   prometheus:
     container_name: prometheus
+    hostname: prometheus
     profiles:
       - main
     restart: always
@@ -343,6 +356,7 @@ services:
 
   grafana:
     container_name: grafana
+    hostname: grafana
     profiles:
       - main
     restart: always
@@ -363,6 +377,7 @@ services:
 
   watchdog:
     container_name: watchdog
+    hostname: watchdog
     profiles:
       - main
     restart: always
@@ -398,4 +413,3 @@ networks:
         - subnet: 10.0.0.0/8
     driver_opts:
       com.docker.network.bridge.name: "workspace_net"
-      com.docker.network.bridge.enable_icc: "false"

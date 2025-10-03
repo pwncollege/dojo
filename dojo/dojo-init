@@ -49,6 +49,7 @@ define MAIL_PORT
 define MAIL_USERNAME
 define MAIL_PASSWORD
 define MAIL_ADDRESS
+define CORS_ORIGINS
 define DOCKER_USERNAME
 define DOCKER_TOKEN
 define DISCORD_CLIENT_ID
@@ -74,6 +75,11 @@ mv /data/.config.env /data/config.env
 # Configure Docker daemon for Splunk logging if enabled
 if [ "${ENABLE_SPLUNK}" = "true" ]; then
     echo "[+] Configuring Docker daemon for Splunk logging..."
+    if [ "$WORKSPACE_NODE" -eq 0 ]; then
+        echo "127.0.0.1 splunk" >> /etc/hosts
+    else
+        echo "192.168.42.1 splunk" >> /etc/hosts
+    fi
     if [ -f /tmp/daemon-splunk.json ]; then
         cp /tmp/daemon-splunk.json /etc/docker/daemon.json
         echo "[+] Docker daemon configured for Splunk logging"
@@ -90,6 +96,12 @@ fi
 mkdir -p /data/workspace/nix
 mkdir -p /data/workspacefs/bin
 mkdir -p /data/ctfd-ipython
+
+# Enable systemd journal forwarding to Splunk if configured
+if [ "${ENABLE_SPLUNK}" = "true" ]; then
+    echo "[+] Enabling systemd journal forwarding to Splunk..."
+    systemctl enable journal-to-splunk.service 2>/dev/null || true
+fi
 
 mkdir -p /data/homes
 if [ "$(findmnt -nro FSTYPE -- /data/homes)" != "btrfs" ] && [ "$(findmnt -nro FSTYPE -- /data)" != "btrfs" ]; then
@@ -142,12 +154,18 @@ fi
 
 dojo-node refresh
 
-iptables -N DOCKER-USER
-iptables -I DOCKER-USER -i workspace_net -j DROP
+iptables -F WORKSPACE-NET 2>/dev/null || iptables -N WORKSPACE-NET
+iptables -A WORKSPACE-NET -s 10.0.0.0/24 -m conntrack --ctstate NEW -j RETURN
+iptables -A WORKSPACE-NET -s 192.168.42.0/24 -m conntrack --ctstate NEW -j RETURN
+iptables -A WORKSPACE-NET -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
 for host in $(cat /opt/pwn.college/user_firewall.allowed); do
-    iptables -I DOCKER-USER -i workspace_net -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
+    iptables -A WORKSPACE-NET -d $(host $host | awk '{print $NF; exit}') -j RETURN
 done
-iptables -I DOCKER-USER -i workspace_net -s 10.0.0.0/24 -m conntrack --ctstate NEW -j ACCEPT
-iptables -I DOCKER-USER -i workspace_net -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-iptables -I DOCKER-USER -i workspace_net -s 192.168.42.0/24 -m conntrack --ctstate NEW -j ACCEPT
-iptables -I DOCKER-USER -i workspace_net -d 192.168.42.0/24 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A WORKSPACE-NET -j DROP
+
+iptables -N DOCKER-USER
+iptables -A DOCKER-USER -i workspace_net -j WORKSPACE-NET
+iptables -A DOCKER-USER -o workspace_net -j WORKSPACE-NET
+
+iptables -A INPUT -i workspace_net -j WORKSPACE-NET
+iptables -A OUTPUT -o workspace_net -j WORKSPACE-NET

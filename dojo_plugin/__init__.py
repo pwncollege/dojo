@@ -1,6 +1,7 @@
+import datetime
+import logging
 import sys
 import os
-import datetime
 
 from email.message import EmailMessage
 from email.utils import formatdate
@@ -20,7 +21,8 @@ from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
 from .utils.awards import update_awards
 from .utils.feed import publish_challenge_solve
-from .utils.error_logging import log_exception
+from .utils.query_timer import init_query_timer
+from .utils.request_logging import setup_logging, setup_trace_id_tracking, setup_uncaught_error_logging
 from .pages.dojos import dojos, dojos_override
 from .pages.dojo import dojo
 from .pages.workspace import workspace
@@ -128,18 +130,16 @@ def handle_authorization(default_handler):
     default_handler()
 
 
-def flask_error_handler(app):
-    @app.errorhandler(Exception)
-    def handle_page_exception(error):
-        if hasattr(error, 'code') and error.code == 404:
-            raise
-
-        log_exception(error, event_type="page_exception")
-        raise
-
-
 def load(app):
     db.create_all()
+
+    init_query_timer()
+
+    logging.getLogger(__name__).setLevel(logging.INFO)
+
+    setup_logging(app)
+    setup_trace_id_tracking(app)
+    setup_uncaught_error_logging(app)
 
     app.permanent_session_lifetime = datetime.timedelta(days=180)
 
@@ -169,8 +169,6 @@ def load(app):
     app.register_blueprint(feed)
     app.register_blueprint(test_error_pages)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
-
-    flask_error_handler(app)
 
     app.jinja_env.filters["markdown"] = render_markdown
 

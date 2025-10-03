@@ -47,7 +47,7 @@ You can check on your container (and the progress of the initial build) with:
 docker exec dojo dojo logs
 ```
 
-Once things are setup, you should be able to access the dojo and login with username `admin` and password `admin`.
+Once things are set up, you should be able to access the dojo and login with username `admin` and password `admin`.
 You can change these admin credentials in the admin panel.
 
 ## Production Deployment
@@ -232,4 +232,4 @@ Error response from daemon: path /run/homefs is mounted on /run/homefs but it is
 
   `-v /host/path:/data:shared`
 
-- If problem persists: rebuild the outer docker container
+- If the problem persists: rebuild the outer docker container
