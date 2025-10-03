@@ -209,8 +209,8 @@ log_endgroup
 if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	log_newgroup "Setting up multi-node cluster"
 
-	# Disconnect nginx-proxy from workspace_net for multinode routing to work
-	docker exec "$DOJO_CONTAINER" docker network disconnect workspace_net nginx-proxy 2>/dev/null || true
+	# Disconnect nginx from workspace_net for multinode routing to work
+	docker exec "$DOJO_CONTAINER" docker network disconnect workspace_net nginx 2>/dev/null || true
 
 	docker exec "$DOJO_CONTAINER" dojo-node refresh
 	MAIN_KEY=$(docker exec "$DOJO_CONTAINER" cat /data/wireguard/publickey)
@@ -294,12 +294,12 @@ if [ "$VIBECHECK" == "yes" ]; then
 		echo "::warning title=openai key not set::skipping vibe check"
 		exit 0
 	fi
-	
+
 	git diff $(git merge-base --fork-point origin/master HEAD) > test/git_diff.txt
 	test_container npx --yes @openai/codex exec \
 		--full-auto --skip-git-repo-check \
 		'Summarize the following git diff in a concise way, focusing on what functionality has changed and what areas of the application might be affected. The + lines are things added in this PR, the - lines are things deleted by this PR. Be specific about files and components modified. The raw diff is saved in git_diff.txt. Save your analysis in the file `diff_summary`.'
 	log_endgroup
-	
+
 	test_container python3 vibe_check.py
 fi

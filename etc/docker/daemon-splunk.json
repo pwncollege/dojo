@@ -17,6 +17,6 @@
         "splunk-format": "json",
         "tag": "{{.Name}}/{{.ID}}",
         "labels": "container_name,container_id,service",
-        "env": "DOJO_HOST,VIRTUAL_HOST,DOJO_ENV,WORKSPACE_NODE"
+        "env": "DOJO_HOST,DOJO_ENV,WORKSPACE_NODE"
     }
 }
