@@ -87,6 +87,17 @@ def forward_workspace(service, signature, container_id, service_path="", include
     else:
         abort(404)
 
+    return forward_port(
+        port,
+        signature,
+        container_id,
+        user,
+        service_path=service_path,
+        include_host=include_host,
+        **(kwargs or {})
+    )
+
+def forward_port(port, signature, container_id, user, service_path="", include_host=True, **kwargs):
     current_user = get_current_user()
     if user != current_user:
         print(f"User {current_user.id} is accessing User {user.id}'s workspace (port {port})", flush=True)
