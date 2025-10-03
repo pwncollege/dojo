@@ -367,10 +367,6 @@ services:
       - workspace_net
 
 volumes:
-  conf:
-  html:
-  certs:
-  acme:
   prometheus_targets:
 
 networks:
