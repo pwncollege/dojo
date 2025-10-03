@@ -63,14 +63,20 @@ function log_endgroup {
 	fi
 }
 
+TEST_CONTAINER_EXTRA_ARGS=()
+
 function test_container {
-	docker run --rm \
-		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v "$PWD:/opt/pwn.college" \
-		--name "${DOJO_CONTAINER}-test" \
-		-e "OPENAI_API_KEY=${OPENAI_API_KEY:-}" \
-		"${DOJO_CONTAINER}-test" \
-		"$@"
+        local args=(
+                --rm
+                -v /var/run/docker.sock:/var/run/docker.sock
+                -v "$PWD:/opt/pwn.college"
+                --name "${DOJO_CONTAINER}-test"
+                -e "OPENAI_API_KEY=${OPENAI_API_KEY:-}"
+        )
+
+        args+=("${TEST_CONTAINER_EXTRA_ARGS[@]}")
+
+        docker run "${args[@]}" "${DOJO_CONTAINER}-test" "$@"
 }
 
 ENV_ARGS=( )
@@ -205,6 +211,25 @@ if [ "$START" == "yes" ]; then
 fi
 
 log_endgroup
+
+DOJO_HOST_CONFIG=$(docker exec "$DOJO_CONTAINER" sh -c 'echo -n "${DOJO_HOST-}"')
+WORKSPACE_HOST_CONFIG=$(docker exec "$DOJO_CONTAINER" sh -c 'echo -n "${WORKSPACE_HOST-}"')
+
+if [ -z "$DOJO_HOST_CONFIG" ]; then
+        DOJO_HOST_CONFIG="localhost.pwn.college"
+fi
+
+if [ -z "$WORKSPACE_HOST_CONFIG" ]; then
+        WORKSPACE_HOST_CONFIG="workspace.${DOJO_HOST_CONFIG}"
+fi
+
+if [[ "$DOJO_HOST_CONFIG" != "$CONTAINER_IP" && "$DOJO_HOST_CONFIG" =~ [A-Za-z] ]]; then
+        TEST_CONTAINER_EXTRA_ARGS+=("--add-host" "${DOJO_HOST_CONFIG}:${CONTAINER_IP}")
+fi
+
+if [[ "$WORKSPACE_HOST_CONFIG" != "$CONTAINER_IP" && "$WORKSPACE_HOST_CONFIG" != "$DOJO_HOST_CONFIG" && "$WORKSPACE_HOST_CONFIG" =~ [A-Za-z] ]]; then
+        TEST_CONTAINER_EXTRA_ARGS+=("--add-host" "${WORKSPACE_HOST_CONFIG}:${CONTAINER_IP}")
+fi
 
 if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	log_newgroup "Setting up multi-node cluster"
