@@ -114,8 +114,10 @@ def forward_port(port, signature, container_id, user, service_path="", include_h
 
     url = f"/workspace/{container_id}/{signature}/{port}/{service_path}"
 
+    scheme = request.scheme if request else "http"
+
     if include_host:
-        url = f"http://{workspace_host}{url}"
+        url = f"{scheme}://{workspace_host}{url}"
 
     if not len(kwargs) == 0:
         args = urlencode(kwargs)
