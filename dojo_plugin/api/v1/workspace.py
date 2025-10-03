@@ -11,7 +11,7 @@ from CTFd.utils.decorators import authed_only
 
 from ...utils import get_current_container, container_password
 from ...utils.workspace import start_on_demand_service, reset_home
-from ...pages.workspace import forward_workspace
+from ...pages.workspace import forward_workspace, forward_port
 from ...config import WORKSPACE_SECRET
 
 
@@ -25,7 +25,8 @@ class view_desktop(Resource):
     def get(self):
         user_id = request.args.get("user")
         password = request.args.get("password")
-        service = request.args.get("service")
+        service = request.args.get("service", None)
+        port = request.args.get("port", None)
 
         if user_id and not password and not is_admin():
             abort(403)
@@ -44,7 +45,8 @@ class view_desktop(Resource):
                 "challenge_id": container.labels.get("dojo.challenge_id")
             }
 
-        if not service:
+
+        elif not service or not port:
             return {"success": False, "active": True, "current_challenge": challenge_info}
 
         if not WORKSPACE_SECRET:
@@ -63,49 +65,52 @@ class view_desktop(Resource):
 
         signature = base64.urlsafe_b64encode(digest).decode()
 
-        if service == "desktop":
-            interact_password = container_password(container, "desktop", "interact")
-            view_password = container_password(container, "desktop", "view")
+        if service:
+            if service == "desktop":
+                interact_password = container_password(container, "desktop", "interact")
+                view_password = container_password(container, "desktop", "view")
 
-            if user_id and password:
-                if not hmac.compare_digest(password, interact_password) and not hmac.compare_digest(password, view_password):
-                    abort(403)
-                password = password[:8]
+                if user_id and password:
+                    if not hmac.compare_digest(password, interact_password) and not hmac.compare_digest(password, view_password):
+                        abort(403)
+                    password = password[:8]
+                else:
+                    password = interact_password[:8]
+
+                view_only = user_id is not None
+                service_param = "~".join(("desktop", str(user.id), container_password(container, "desktop")))
+
+                vnc_params = {
+                    "autoconnect": 1,
+                    "reconnect": 1,
+                    "reconnect_delay": 200,
+                    "resize": "remote",
+                    "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, container_id=container_id, include_host=False),
+                    "view_only": int(view_only),
+                    "password": password,
+                }
+                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, container_id=container_id, **vnc_params)
+
+            elif service == "desktop-windows":
+                service_param = "~".join(("desktop-windows", str(user.id), container_password(container, "desktop-windows")))
+                vnc_params = {
+                    "autoconnect": 1,
+                    "reconnect": 1,
+                    "reconnect_delay": 200,
+                    "resize": "local",
+                    "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, container_id=container_id, include_host=False),
+                    "password": "password",
+                }
+                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, container_id=container_id, **vnc_params)
             else:
-                password = interact_password[:8]
+                iframe_src = forward_workspace(service=service, service_path="", signature=signature, container_id=container_id)
 
-            view_only = user_id is not None
-            service_param = "~".join(("desktop", str(user.id), container_password(container, "desktop")))
+            if start_on_demand_service(user, service) is False:
+                return {"success": False, "active": True, "error": f"Failed to start service {service}"}
+        elif port:
+            iframe_src = forward_port(port=port, service_path="", user=user, signature=signature, container_id=container_id)
 
-            vnc_params = {
-                "autoconnect": 1,
-                "reconnect": 1,
-                "reconnect_delay": 200,
-                "resize": "remote",
-                "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, container_id=container_id, include_host=False),
-                "view_only": int(view_only),
-                "password": password,
-            }
-            iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, container_id=container_id, **vnc_params)
-
-        elif service == "desktop-windows":
-            service_param = "~".join(("desktop-windows", str(user.id), container_password(container, "desktop-windows")))
-            vnc_params = {
-                "autoconnect": 1,
-                "reconnect": 1,
-                "reconnect_delay": 200,
-                "resize": "local",
-                "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, container_id=container_id, include_host=False),
-                "password": "password",
-            }
-            iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, container_id=container_id, **vnc_params)
-        else:
-            iframe_src = forward_workspace(service=service, service_path="", signature=signature, container_id=container_id)
-
-        if start_on_demand_service(user, service) is False:
-            return {"success": False, "active": True, "error": f"Failed to start service {service}"}
-
-        return {"success": True, "active": True, "iframe_src": iframe_src, "service": service, "setPort": os.getenv("DOJO_ENV") == "development", "current_challenge": challenge_info}
+        return {"success": True, "active": True, "iframe_src": iframe_src, "service": service, "port": port, "setPort": os.getenv("DOJO_ENV") == "development", "current_challenge": challenge_info}
 
 
 @workspace_namespace.route("/reset_home")

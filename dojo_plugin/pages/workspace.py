@@ -39,8 +39,12 @@ def view_workspace():
         challenge=current_challenge,
     )
 
+@workspace.route("/workspace/<int:port>", strict_slashes=False)
+@authed_only
+def view_workspace_port(port):
+    return render_template("workspace_port.html", iframe_name="workspace", port=port)
 
-@workspace.route("/workspace/<service>")
+@workspace.route("/workspace/<string:service>", strict_slashes=False)
 @authed_only
 def view_workspace_service(service):
     return render_template("workspace_service.html", iframe_name="workspace", service=service)
@@ -87,6 +91,17 @@ def forward_workspace(service, signature, container_id, service_path="", include
     else:
         abort(404)
 
+    return forward_port(
+        port,
+        signature,
+        container_id,
+        user,
+        service_path=service_path,
+        include_host=include_host,
+        **(kwargs or {})
+    )
+
+def forward_port(port, signature, container_id, user, service_path="", include_host=True, **kwargs):
     current_user = get_current_user()
     if user != current_user:
         print(f"User {current_user.id} is accessing User {user.id}'s workspace (port {port})", flush=True)
