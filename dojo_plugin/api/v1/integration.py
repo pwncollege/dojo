@@ -142,7 +142,7 @@ class restart(Resource):
 @integrations_namespace.route("/list")
 @integrations_namespace.route("/list/<dojo>")
 @integrations_namespace.route("/list/<dojo>/<module>")
-class submit(Resource):
+class list(Resource):
     def get(self, dojo=None, module=None):
         return ({
             "success": False,
