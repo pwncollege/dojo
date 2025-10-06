@@ -8,9 +8,10 @@ from utils import DOJO_API, workspace_run, get_user_id, start_challenge, get_out
 def container_running(func):
     """
     Starts the user's container with the practice welcome challenge.
+    First argument must be the random user.
     """
     def wrapper(*args, **kwargs):
-        _, session = kwargs["random_user"]
+        _, session = args[0]
         start_challenge("welcome", "welcome", "practice", practice=False, session=session)
 
         return func(*args, **kwargs)
