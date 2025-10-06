@@ -120,22 +120,6 @@ def user_ipv4(user):
     ])
 
 
-def redirect_internal(redirect_uri, auth=None):
-    response = Response()
-    if auth:
-        response.headers["X-Accel-Redirect"] = "@forward"
-        response.headers["redirect_auth"] = auth
-    else:
-        response.headers["X-Accel-Redirect"] = "/internal/"
-    response.headers["redirect_uri"] = redirect_uri
-    return response
-
-
-def redirect_user_socket(user, port, url_path):
-    assert user is not None
-    return redirect_internal(f"http://{user_ipv4(user)}:{port}/{url_path}")
-
-
 def render_markdown(s):
     raw_html = build_markdown(s or "")
     if "dojo" in g and (g.dojo.official or g.dojo.privileged):
@@ -182,7 +166,7 @@ def sanitize_survey(data):
         "transition", "transform"
     ])
 
-    return bleach.clean(data, tags=allowed_tags, attributes=allowed_attrs, css_sanitizer=CSSSanitizer(allowed_css_properties=allowed_css)) 
+    return bleach.clean(data, tags=allowed_tags, attributes=allowed_attrs, css_sanitizer=CSSSanitizer(allowed_css_properties=allowed_css))
 
 def unserialize_user_flag(user_flag, *, secret=None):
     if secret is None:

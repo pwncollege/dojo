@@ -119,9 +119,6 @@ services:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
       - INTERNET_FOR_ALL=${INTERNET_FOR_ALL}
-      - VIRTUAL_HOST=${DOJO_HOST}
-      - VIRTUAL_PORT=8000
-      - LETSENCRYPT_HOST=${DOJO_HOST},${WORKSPACE_HOST}
       - MAC_HOSTNAME=${MAC_HOSTNAME}
       - MAC_USERNAME=${MAC_USERNAME}
     volumes:
@@ -229,50 +226,29 @@ services:
       cache:
         condition: service_started
 
-  nginx-proxy:
-    container_name: nginx-proxy
-    hostname: nginx-proxy
+  nginx:
+    container_name: nginx
+    hostname: nginx
     profiles:
       - main
     restart: always
-    build: ./nginx-proxy
+    build: ./nginx
     ports:
       - "80:80"
       - "443:443"
     environment:
-      - DEFAULT_HOST=${DOJO_HOST}
+      - DOJO_HOST=${DOJO_HOST}
+      - DOJO_ENV=${DOJO_ENV}
       - WORKSPACE_HOST=${WORKSPACE_HOST}
       - WORKSPACE_SECRET=${WORKSPACE_SECRET}
-      - TRUST_DOWNSTREAM_PROXY=false
-      - LOG_JSON=true
     volumes:
-      - conf:/etc/nginx/conf.d
-      - html:/usr/share/nginx/html
-      - certs:/etc/nginx/certs:ro
-      - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
-      - ./nginx-proxy/etc/nginx/templates/workspace.template:/etc/nginx/templates/workspace.template:ro
-      - ./nginx-proxy/etc/nginx/conf.d/pwn-trace-id.conf:/etc/nginx/conf.d/pwn-trace-id.conf:ro
-      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - /data/acme:/var/cache/nginx/acme-letsencrypt
     networks:
       default:
       workspace_net:
         aliases:
           - nginx
         ipv4_address: 10.0.0.3
-
-  acme-companion:
-    container_name: nginx-proxy-acme
-    hostname: nginx-proxy-acme
-    profiles:
-      - main
-    restart: always
-    image: nginxproxy/acme-companion:2.3
-    volumes_from:
-      - nginx-proxy
-    volumes:
-      - certs:/etc/nginx/certs:rw
-      - acme:/etc/acme.sh
-      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   node-exporter:
     container_name: node-exporter
@@ -396,10 +372,6 @@ services:
       - workspace_net
 
 volumes:
-  conf:
-  html:
-  certs:
-  acme:
   prometheus_targets:
 
 networks:
