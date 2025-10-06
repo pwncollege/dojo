@@ -3,7 +3,7 @@ import shutil
 import json
 import subprocess
 
-from .utils import DOJO_API, workspace_run, get_user_id, start_challenge, get_outer_container_for
+from utils import DOJO_API, workspace_run, get_user_id, start_challenge, get_outer_container_for
 
 def container_info(user):
     container_name = f"user_{get_user_id(user)}"
