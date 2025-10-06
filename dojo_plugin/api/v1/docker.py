@@ -514,7 +514,7 @@ class RunDocker(Resource):
             else:
                 as_user = token_user
 
-        run_challenge_authed(user, as_user, data, dojo_id, module_id, challenge_id, practice)
+        return run_challenge_authed(user, as_user, data, dojo_id, module_id, challenge_id, practice)
 
     @authed_only
     def get(self):
