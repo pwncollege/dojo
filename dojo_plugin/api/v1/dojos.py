@@ -1,18 +1,20 @@
+
 import datetime
 
+from CTFd.cache import cache
+from CTFd.models import Solves, Users, db
+from CTFd.plugins.challenges import get_chal_class
+from CTFd.utils.decorators import admins_only, authed_only, ratelimit
+from CTFd.utils.user import get_current_user, get_ip, is_admin
 from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.sql import and_
-from CTFd.models import db, Solves, Users
-from CTFd.cache import cache
-from CTFd.plugins.challenges import get_chal_class
-from CTFd.utils.decorators import authed_only, admins_only, ratelimit
-from CTFd.utils.user import get_current_user, is_admin, get_ip
 
-from ...models import DojoStudents, Dojos, DojoModules, DojoChallenges, DojoUsers, Emojis, SurveyResponses
-from ...utils import render_markdown, is_challenge_locked
-from ...utils.dojo import dojo_route, dojo_admins_only, dojo_create
-
+from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
+                       DojoUsers, Emojis, SurveyResponses)
+from ...utils import is_challenge_locked, render_markdown
+from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route
+from ...utils.stats import get_dojo_stats
 
 dojos_namespace = Namespace(
     "dojos", description="Endpoint to retrieve Dojos"
@@ -22,12 +24,23 @@ dojos_namespace = Namespace(
 @dojos_namespace.route("")
 class DojoList(Resource):
     def get(self):
+        # Query dojos with deferred fields for counts
+        dojo_query = (
+            Dojos.viewable(user=get_current_user())
+            .options(db.undefer(Dojos.modules_count),
+                     db.undefer(Dojos.challenges_count),
+                     db.undefer(Dojos.required_challenges_count))
+        )
+
         dojos = [
             dict(id=dojo.reference_id,
                  name=dojo.name,
                  description=dojo.description,
-                 official=dojo.official)
-            for dojo in Dojos.viewable(user=get_current_user())
+                 official=dojo.official,
+                 award=dojo.award,
+                 modules_count=dojo.modules_count,
+                 challenges_count=dojo.required_challenges_count)
+            for dojo in dojo_query
         ]
         return {"success": True, "dojos": dojos}
 
@@ -108,6 +121,18 @@ class DojoModuleList(Resource):
             dict(id=module.id,
                  name=module.name,
                  description=module.description,
+                 resources=[
+                    dict(id=f"resource-{resource.resource_index}",
+                         name=resource.name,
+                         type=resource.type,
+                         content=getattr(resource, 'content', None) if resource.type == "markdown" else None,
+                         video=getattr(resource, 'video', None) if resource.type == "lecture" else None,
+                         playlist=getattr(resource, 'playlist', None) if resource.type == "lecture" else None,
+                         slides=getattr(resource, 'slides', None) if resource.type == "lecture" else None,
+                         expandable=getattr(resource, 'expandable', True))
+                    for resource in module.resources
+                    if resource.visible or is_dojo_admin
+                 ],
                  challenges=[
                     dict(id=challenge.id,
                          name=challenge.name,
@@ -115,11 +140,31 @@ class DojoModuleList(Resource):
                          description=challenge.description)
                     for challenge in (module.visible_challenges() if not is_dojo_admin
                                       else module.challenges)
+                 ],
+                 unified_items=[
+                     dict(
+                         item_type=item.item_type,
+                         id=f"resource-{item.resource_index}" if item.item_type == 'resource' else getattr(item, 'id', None),
+                         name=item.name,
+                         type=getattr(item, 'type', None),
+                         content=getattr(item, 'content', None) if hasattr(item, 'type') and item.type in ["markdown", "header"] else None,
+                         video=getattr(item, 'video', None) if hasattr(item, 'type') and item.type == "lecture" else None,
+                         playlist=getattr(item, 'playlist', None) if hasattr(item, 'type') and item.type == "lecture" else None,
+                         slides=getattr(item, 'slides', None) if hasattr(item, 'type') and item.type == "lecture" else None,
+                         expandable=getattr(item, 'expandable', True) if hasattr(item, 'type') else None,
+                         description=getattr(item, 'description', None),
+                         required=getattr(item, 'required', None) if item.item_type == 'challenge' else None
+                     ) for item in module.unified_items
                  ])
+
             for module in dojo.modules
             if module.visible() or is_dojo_admin
         ]
-        return {"success": True, "modules": modules}
+
+        return {
+            "success": True,
+            "modules": modules
+        }
 
 @dojos_namespace.route("/<dojo>/solves")
 class DojoSolveList(Resource):
