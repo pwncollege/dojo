@@ -11,9 +11,7 @@ def container_running(func):
     First argument must be the random user.
     """
     def wrapper(*args, **kwargs):
-        print(args)
-        print(kwargs)
-        _, session = args[0]
+        _, session = random_user
         start_challenge("welcome", "welcome", "practice", practice=False, session=session)
 
         return func(*args, **kwargs)
