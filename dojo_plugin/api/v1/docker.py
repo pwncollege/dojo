@@ -127,6 +127,12 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     available_devices = set(get_available_devices(docker_client))
     devices = [f"{device}:{device}:rwm" for device in allowed_devices if device in available_devices]
 
+    capabilities = ["SYS_PTRACE"]
+    if resolved_dojo_challenge.privileged:
+        capabilities.append("SYS_ADMIN")
+        if "workspace_net_admin" in resolved_dojo_challenge.dojo.permissions:
+            capabilities.append("NET_ADMIN")
+
     container_create_attributes = dict(
         image=resolved_dojo_challenge.image,
         entrypoint=[
@@ -175,7 +181,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         pids_limit=1024,
         mem_limit="4G",
         runtime="io.containerd.run.kata.v2" if resolved_dojo_challenge.privileged else "runc",
-        cap_add=["SYS_PTRACE", "SYS_ADMIN"] if resolved_dojo_challenge.privileged else ["SYS_PTRACE"],
+        cap_add=capabilities,
         security_opt=[f"seccomp={SECCOMP}"],
         sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
     )
