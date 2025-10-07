@@ -314,8 +314,15 @@ def dojo_initialize_files(data, dojo_dir):
                 o.write(dojo_file["content"])
 
 
-def dojo_from_dir(dojo_dir, *, dojo=None):
-    dojo_yml_path = dojo_dir / "dojo.yml"
+def dojo_from_dir(dojo_dir, *, dojo=None, dojo_yml_path=None):
+    raw_dojo_yml_path = dojo_yml_path
+    if dojo_yml_path is None or dojo_yml_path == "":
+        if dojo is None:
+            dojo_yml_path = dojo_dir / "dojo.yml"
+        else:
+            dojo_yml_path = dojo_dir / dojo.dojo_yml_path
+    else:
+        dojo_yml_path = dojo_dir / dojo_yml_path
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
 
     for path in dojo_dir.rglob("**"):
@@ -325,10 +332,10 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
     data = load_dojo_subyamls(data_raw, dojo_dir)
     data = load_surveys(data, dojo_dir)
     dojo_initialize_files(data, dojo_dir)
-    return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
+    return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo, dojo_yml_path=raw_dojo_yml_path)
 
 
-def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
+def dojo_from_spec(data, *, dojo_dir=None, dojo=None, dojo_yml_path=None):
     try:
         dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
@@ -370,6 +377,9 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     else:
         for name, value in dojo_kwargs.items():
             setattr(dojo, name, value)
+    
+    if dojo_yml_path is not None:
+        dojo.dojo_yml_path = dojo_yml_path
 
     existing_challenges = {(challenge.module.id, challenge.id): challenge.challenge for challenge in dojo.challenges}
     def challenge(module_id, challenge_id, transfer=None):
@@ -576,6 +586,12 @@ def _assert_no_symlinks(dojo_dir):
     for path in dojo_dir.rglob("*"):
         assert dojo_dir == path or dojo_dir in path.resolve().parents, f"Error: symlink `{path}` references path outside of the dojo"
 
+def _assert_non_external_path(dojo_dir, input_path):
+    if not isinstance(dojo_dir, pathlib.Path):
+        dojo_dir = pathlib.Path(dojo_dir)
+    if not isinstance(input_path, pathlib.Path):
+        input_path = pathlib.Path(input_path)
+    assert dojo_dir in (dojo_dir / input_path).resolve().parents, f"Error: `{input_path}` references path outside of the dojo"
 
 def dojo_clone(repository, private_key):
     tmp_dojos_dir = DOJOS_TMP_DIR
@@ -619,17 +635,19 @@ def dojo_git_command(dojo, *args, repo_path=None):
                           capture_output=True)
 
 
-def dojo_create(user, repository, public_key, private_key, spec):
+def dojo_create(user, repository, public_key, private_key, spec, dojo_yml_path=None):
     try:
         if repository:
             repository_re = r"[\w\-]+/[\w\-]+"
             repository = repository.replace("https://github.com/", "")
             assert re.match(repository_re, repository), f"Invalid repository, expected format: <code>{repository_re}</code>"
 
-            if Dojos.query.filter_by(repository=repository).first():
+            existing_dojo = Dojos.query.filter_by(repository=repository).first()
+            if existing_dojo and dojo_yml_path is not None and existing_dojo.dojo_yml_path == dojo_yml_path:
                 raise AssertionError("This repository already exists as a dojo")
 
             dojo_dir = dojo_clone(repository, private_key)
+            _assert_non_external_path(dojo_dir.name, dojo_yml_path)
 
         elif spec:
             assert is_admin(), "Must be an admin user to create dojos from spec rather than repositories"
@@ -641,7 +659,7 @@ def dojo_create(user, repository, public_key, private_key, spec):
 
         dojo_path = pathlib.Path(dojo_dir.name)
 
-        dojo = dojo_from_dir(dojo_path)
+        dojo = dojo_from_dir(dojo_path, dojo_yml_path=dojo_yml_path)
         dojo.repository = repository
         dojo.public_key = public_key
         dojo.private_key = private_key

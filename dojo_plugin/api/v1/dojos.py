@@ -96,6 +96,7 @@ class CreateDojo(Resource):
         spec = data.get("spec", "")
         public_key = data.get("public_key", "")
         private_key = data.get("private_key", "").replace("\r\n", "\n")
+        dojo_yml = data.get("dojo_yml", "./dojo.yml")
 
         key = f"rl:{get_ip()}:{request.endpoint}"
         timeout = int(datetime.timedelta(days=1).total_seconds())
@@ -104,7 +105,7 @@ class CreateDojo(Resource):
             return {"success": False, "error": "You can only create 1 dojo per day."}, 429
 
         try:
-            dojo = dojo_create(user, repository, public_key, private_key, spec)
+            dojo = dojo_create(user, repository, public_key, private_key, spec, dojo_yml_path=dojo_yml)
         except RuntimeError as e:
             return {"success": False, "error": str(e)}, 400
 
