@@ -117,8 +117,7 @@ def main():
             runtime = (container.attrs or {}).get("HostConfig",{}).get("Runtime")
             is_kata = runtime == "io.containerd.run.kata.v2"
             if is_kata:
-                monitor_pid = os.fork()
-                if monitor_pid == 0:
+                if not os.fork():
                     try:
                         container.wait(condition="not-running")
                         try:
@@ -130,10 +129,7 @@ def main():
                         pass
                     finally:
                         os._exit(0)  
-            runtime = (container.attrs or {}).get("HostConfig",{}).get("Runtime")
             _, status = os.waitpid(child_pid,0)
-            
-
             if simple or status == 0:
                 break
             print()
