@@ -117,12 +117,23 @@ def main():
             runtime = (container.attrs or {}).get("HostConfig",{}).get("Runtime")
             is_kata = runtime == "io.containerd.run.kata.v2"
             if is_kata:
-                try:
-                    container.wait(condition="not-running")
-                    os.kill(child_pid, signal.SIGKILL)
-                except:
-                    pass
-            _, status = os.wait()
+                monitor_pid = os.fork()
+                if monitor_pid == 0:
+                    try:
+                        container.wait(condition="not-running")
+                        try:
+                            os.kill(child_pid, signal.SIGTERM)
+                            time.sleep(0.5)
+                        except ProcessLockupError:
+                            pass
+                    except:
+                        pass
+                    finally:
+                        os._exit(0)  
+            runtime = (container.attrs or {}).get("HostConfig",{}).get("Runtime")
+            _, status = os.waitpid(child_pid,0)
+            
+
             if simple or status == 0:
                 break
             print()
