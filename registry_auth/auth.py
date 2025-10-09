@@ -16,19 +16,12 @@ app = Flask(__name__)
 app.logger.setLevel(logging.DEBUG)
 
 
-# @app.before_request
-# def log_request():
-#     app.logger.debug(
-#         "%s %s from %s args=%s headers=%s",
-#         request.method, request.path, request.remote_addr,
-#         request.args, dict(request.headers)
-#     )
 
 
 PRIVATE_KEY_PATH = os.getenv("PRIVATE_KEY_PATH", "/keys/private.key")
 PUBLIC_KEY_PATH  = os.getenv("PUBLIC_KEY_PATH",  "/keys/public.key")
-ISSUER           = os.getenv("TOKEN_ISSUER",    "auth.localhost.pwn.college")
-SERVICE          = os.getenv("TOKEN_SERVICE",   "registry.localhost.pwn.college")
+ISSUER           = os.getenv("TOKEN_ISSUER")
+SERVICE          = os.getenv("TOKEN_SERVICE")
 # DATABASE_URL     = os.getenv("DATABASE_URL")
 TTL              = int(os.getenv("TOKEN_TTL_SECONDS", "3600"))
 
@@ -60,16 +53,16 @@ def verify_dojo_access_api(username, password, repository=None, actions=None):
         payload["actions"] = actions
     try:
         r = requests.post(url, json=payload, headers=headers, timeout=5)
+        try:
+            data = r.json()
+        except Exception:
+            data = {"error": r.text}
         if r.status_code != 200:
-            app.logger.warning(f"ctfd verify failed status={r.status_code} body={r.text}")
-            return None
-        data = r.json()
-        if not data.get("success"):
-            return None
-        return data
+            app.logger.warning(f"ctfd verify failed status={r.status_code} body={data}")
+        return r.status_code, data
     except Exception as e:
         app.logger.error(f"error contacting ctfd verify endpoint: {e}")
-        return None
+        return 502, {"error": "Upstream verify endpoint unreachable"}
 
 
 def create_kid(pem_bytes: bytes) -> str:
@@ -109,9 +102,12 @@ def token():
             return abort(400, "invalid scope format")
 
     access.append({"type": "registry", "name": "catalog", "actions": ["*"]})
-    verify_res = verify_dojo_access_api(auth.username, auth.password, repo_name, requested_actions)
-    if not verify_res:
-        return abort(401)
+    status, verify_res = verify_dojo_access_api(auth.username, auth.password, repo_name, requested_actions)
+    if status != 200:
+        msg = ""
+        if isinstance(verify_res, dict):
+            msg = verify_res.get("error") or verify_res.get("message") or ""
+        return jsonify(success=False, error=msg), status
 
     if repo_name is not None:
         allowed = verify_res.get("allowed", requested_actions) if verify_res.get("allowed") is not None else requested_actions
