@@ -41,6 +41,9 @@ DEFAULT_DOJO_HOST=localhost.pwn.college
 
 define DOJO_HOST "${DEFAULT_DOJO_HOST}"
 define WORKSPACE_HOST workspace."${DEFAULT_DOJO_HOST}"
+define REGISTRY_HOST "registry.${DEFAULT_DOJO_HOST}"
+define REGISTRY_AUTH_HOST "auth.${DEFAULT_DOJO_HOST}"
+define REGISTRY_API_SECRET $(openssl rand -hex 32)
 define DOJO_ENV development
 define DOJO_OFFLINE false
 define DOJO_WORKSPACE core

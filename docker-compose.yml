@@ -316,6 +316,8 @@ services:
       - DOJO_ENV=${DOJO_ENV}
       - WORKSPACE_HOST=${WORKSPACE_HOST}
       - WORKSPACE_SECRET=${WORKSPACE_SECRET}
+      - REGISTRY_HOST=${REGISTRY_HOST}
+      - REGISTRY_AUTH_HOST=${REGISTRY_AUTH_HOST}
     volumes:
       - /data/acme:/var/cache/nginx/acme-letsencrypt
     networks:
@@ -331,17 +333,16 @@ services:
     image: registry:2
     container_name: registry
     environment:
-      - VIRTUAL_HOST=registry.localhost.pwn.college
+      - VIRTUAL_HOST=${REGISTRY_HOST}
       - VIRTUAL_PORT=5000
       - HTTPS_METHOD=noredirect
       - REGISTRY_AUTH=token
-      - REGISTRY_AUTH_TOKEN_REALM=https://registry.pwn.college/auth/token                     #https://registry.localhost.pwn.college/auth/token
-      - REGISTRY_AUTH_TOKEN_SERVICE=registry.pwn.college                                      #registry.localhost.pwn.college
-      - REGISTRY_AUTH_TOKEN_ISSUER=auth.localhost.pwn.college                                 # If we change things, remember to change the auth service token issuer variable.
+      - REGISTRY_AUTH_TOKEN_REALM=https://${REGISTRY_HOST}/auth/token              #https://registry.pwn.college/auth/token
+      - REGISTRY_AUTH_TOKEN_SERVICE=${REGISTRY_HOST}                              # registry.pwn.college
+      - REGISTRY_AUTH_TOKEN_ISSUER=${REGISTRY_AUTH_HOST}                                    # If we change things, remember to change the auth service token issuer variable.
       - REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE=/auth/jwt.crt
     volumes:
       - /data/registry:/var/lib/registry
-      # - ./auth-keys/jwt:/auth
     networks:
       - default
       - workspace_net
@@ -349,19 +350,19 @@ services:
   registry-auth:
     build: ./registry_auth
     container_name: registry-auth
-    command: gunicorn -b 0.0.0.0:8080 auth:app --log-level warning --access-logfile /dev/null
+    command: gunicorn -b 0.0.0.0:8080 auth:app --log-level debug --access-logfile - #/dev/null
     environment:
-      - VIRTUAL_HOST=registry.localhost.pwn.college
+      - VIRTUAL_HOST=${REGISTRY_HOST}
       - VIRTUAL_PORT=8080
       - PRIVATE_KEY_PATH=/keys/private.key
       - PUBLIC_KEY_PATH=/keys/public.key
-      - TOKEN_ISSUER=auth.localhost.pwn.college
-      - TOKEN_SERVICE=registry.pwn.college                                                      #registry.localhost.pwn.college
+      - TOKEN_ISSUER=${REGISTRY_AUTH_HOST}
+      - TOKEN_SERVICE=${REGISTRY_HOST}                                                      
       - TOKEN_TTL_SECONDS=300
       - CTFD_URL=http://ctfd:8000
       - REGISTRY_API_SECRET=${REGISTRY_API_SECRET}                                              #Random API SECRET 
     volumes:
-      # - ./auth-keys/jwt:/keys:ro
+      - ./auth-keys/wtf:/keys:ro
     networks:
       - default
       - workspace_net
@@ -370,18 +371,6 @@ services:
         condition: service_healthy
 
 
-  acme-companion:
-    container_name: nginx-proxy-acme
-    profiles:
-      - main
-    restart: always
-    image: nginxproxy/acme-companion:2.3
-    volumes_from:
-      - nginx-proxy
-    volumes:
-      - certs:/etc/nginx/certs:rw
-      - acme:/etc/acme.sh
-      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   node-exporter:
     container_name: node-exporter
