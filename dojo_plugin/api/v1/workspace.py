@@ -31,8 +31,17 @@ class view_desktop(Resource):
         if not container:
             return {"success": False, "active": False}
 
+        # Get current challenge information from container labels
+        challenge_info = None
+        if container.labels.get("dojo.challenge_id"):
+            challenge_info = {
+                "dojo_id": container.labels.get("dojo.dojo_id"),
+                "module_id": container.labels.get("dojo.module_id"),
+                "challenge_id": container.labels.get("dojo.challenge_id")
+            }
+
         if not service:
-            return {"success": False, "active": True}
+            return {"success": False, "active": True, "current_challenge": challenge_info}
 
         if service == "desktop":
             interact_password = container_password(container, "desktop", "interact")
@@ -76,7 +85,7 @@ class view_desktop(Resource):
         if start_on_demand_service(user, service) is False:
             return {"success": False, "active": True, "error": f"Failed to start service {service}"}
 
-        return {"success": True, "active": True, "iframe_src": iframe_src, "service": service}
+        return {"success": True, "active": True, "iframe_src": iframe_src, "service": service, "current_challenge": challenge_info}
 
 
 @workspace_namespace.route("/reset_home")

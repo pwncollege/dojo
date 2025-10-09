@@ -1,4 +1,4 @@
-name: DOJO Tests
+name: DOJO CI
 on:
   workflow_dispatch:
   pull_request:
@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 40
     strategy:
       matrix:
-        mode: [singlenode, multinode, vibecheck]
+        mode: [singlenode, multinode]
       fail-fast: false
     steps:
       - name: enable cache saving
@@ -28,9 +28,6 @@ jobs:
           echo "LOAD_CACHE=yes" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # needed for the vibe check to find the fork point
-          ref: ${{ github.ref }}
 
       - name: Host information
         run: |
@@ -105,14 +102,14 @@ jobs:
             sudo mount -o loop,compress=zstd:6 /tmp/dojo-cache.img /mnt/
             sudo btrfs filesystem resize max /mnt
           fi
-          
+
           sudo chown $USER:$USER /mnt/
 
           if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
             sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
             sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
           fi
-          
+
           mkdir -p /mnt/outer-cache
           mkdir -p /mnt/test-cache
 
@@ -169,7 +166,6 @@ jobs:
           fi
 
       - name: Start the dojo in ${{ matrix.mode }} mode
-        if: matrix.mode != 'vibecheck' || github.event_name == 'pull_request'
         uses: nick-fields/retry@master
         with:
           timeout_minutes: 15
@@ -179,7 +175,6 @@ jobs:
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
-        if: matrix.mode != 'vibecheck' || github.event_name == 'pull_request'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
@@ -189,14 +184,6 @@ jobs:
           elif [ "${{ matrix.mode }}" = "multinode" ]
           then
             ./deploy.sh -N -g -t -M
-          else #vibecheck
-            echo "::group::Loading some dojos for vibing"
-            docker exec dojo dojo load-dojo --official pwncollege/welcome-dojo
-            docker exec dojo dojo load-dojo --official pwncollege/intro-to-cybersecurity-dojo
-            docker exec dojo dojo load-dojo --official pwncollege/program-security-dojo
-            echo "::endgroup::"
-            git fetch origin master
-            ./deploy.sh -N -g -v
           fi
 
       - name: Output logs
@@ -251,3 +238,24 @@ jobs:
           echo "::group::Filesystem"
           df -h
           echo "::endgroup::"
+
+  upload:
+    name: Upload Artifacts
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: pwncollege/dojo:latest

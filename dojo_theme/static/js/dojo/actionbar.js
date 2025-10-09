@@ -49,16 +49,39 @@ function getRecentService(root) {
     return match;
 }
 
-function selectService(service) {
+function specialSelect(serviceName, content) {
+    const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
+    url.searchParams.set("service", serviceName);
+    fetch(url, {
+        method: "GET",
+        credentials: "same-origin"
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            content.src = result["iframe_src"];
+        }
+        else {
+            content.src = "";
+            animateBanner(
+                {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
+                result.error,
+                "error"
+            );
+        }
+    });
+}
+
+function selectService(service, log=true) {
     const content = document.getElementById("workspace-iframe");
     if (!content) {
         console.log("Missing workspace iframe :(")
         return;
     }
-    logService(service);
+    if (log) {logService(service);}
     port = service.split(": ")[1];
     service = service.split(": ")[0];
-    if (port == "ssh") {
+    if (service == "ssh" && port == "") {
         content.src = "";
         $(content).addClass("SSH");
         $(".workspace-ssh").show();
@@ -71,28 +94,7 @@ function selectService(service) {
     const specialServices = ["terminal", "code", "desktop"];
     const specialPorts = ["7681", "8080", "6080"];
     if (specialServices.indexOf(service) > -1 && specialServices.indexOf(service) == specialPorts.indexOf(port)) {
-        console.log("Special Case");
-        const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
-        url.searchParams.set("service", service);
-        fetch(url, {
-            method: "GET",
-            credentials: "same-origin"
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                content.src = result["iframe_src"];
-            }
-            else {
-                content.src = "";
-                console.log
-                animateBanner(
-                    {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
-                    result.error,
-                    "error"
-                );
-            }
-        });
+        specialSelect(service, content);
     }
     else {
         content.src = "/workspace/" + port + "/";
@@ -116,6 +118,8 @@ function animateBanner(event, message, type) {
 }
 
 function actionSubmitFlag(event) {
+    context(event).find("input").prop("disabled", true).addClass("disabled");
+    context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     var body = {
         'challenge_id': parseInt(context(event).find("#current-challenge-id").val()),
         'submission': $(event.target).val(),
@@ -136,8 +140,12 @@ function actionSubmitFlag(event) {
         else if (response.data.status == "correct") {
             animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
             if ($(".challenge-active").length) {
-                $(".challenge-active")
-                    .find("i.challenge-unsolved")
+                const unsolved_flag = $(".challenge-active").find("i.challenge-unsolved")
+                if(unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
+                    unsolved_flag.removeClass("far")
+                    unsolved_flag.addClass("fas")
+                }
+                unsolved_flag
                     .removeClass("challenge-unsolved")
                     .addClass("challenge-solved");
             }
@@ -148,7 +156,36 @@ function actionSubmitFlag(event) {
         else {
             animateBanner(event, "Submission Failed.", "warn");
         }
+        context(event).find("input").prop("disabled", false).removeClass("disabled");
+        context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     });
+}
+
+function sendChallengeInfo(root, channel) {
+    options = []
+    root.find("#workspace-select option").each((index, element) => {
+        options.push({
+            "value": $(element).prop("value"),
+            "text": $(element).text(),
+        });
+    })
+
+    challenge = root.find("#current-challenge-id");
+    privilege = root.find("#workspace-change-privilege");
+
+    challengeData = {
+        "options": options,
+        "challenge-id": challenge.prop("value"),
+        "challenge-name": challenge.attr("data-challenge-name"),
+        "challenge-privilege": privilege.length > 0 ? privilege.attr("data-privileged") : "false",
+    };
+
+    channel.postMessage(challengeData);
+}
+
+function postStartChallenge(event, channel) {
+    root = context(event);
+    sendChallengeInfo(root, channel);
 }
 
 function actionStartChallenge(event) {
@@ -196,6 +233,7 @@ function actionStartChallenge(event) {
             }
 
             selectService(context(event).find("#workspace-select").prop("value"));
+            postStartChallenge(event, channel);
 
             context(event).find(".btn-challenge-start")
             .removeClass("disabled")
@@ -244,7 +282,7 @@ function displayPrivileged(event, invert) {
                                     : "Restart privileged");
 }
 
-function loadWorkspace() {
+function loadWorkspace(log=true) {
     if ($("#workspace-iframe").length == 0 ) {
         return;
     }
@@ -256,9 +294,10 @@ function loadWorkspace() {
     else {
         workspaceRoot.find("#workspace-select").prop("value", recent);
     }
-    selectService(recent);
+    selectService(recent, log=log);
 }
 
+const channel = new BroadcastChannel("Challenge-Sync-Channel");
 $(() => {
     loadWorkspace();
     $(".workspace-controls").each(function () {

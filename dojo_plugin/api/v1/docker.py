@@ -82,6 +82,8 @@ def get_available_devices(docker_client):
     return devices
 
 def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, practice):
+    resolved_dojo_challenge = dojo_challenge.resolve()
+
     start_time = time.time()
     hostname = "~".join(
         (["practice"] if practice else [])
@@ -99,7 +101,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
 
     challenge_bin_path = "/run/challenge/bin"
     dojo_bin_path = "/run/dojo/bin"
-    image = docker_client.images.get(dojo_challenge.image)
+    image = docker_client.images.get(resolved_dojo_challenge.image)
     image_env = image.attrs["Config"].get("Env") or []
     image_path = next((env_var[len("PATH="):].split(":") for env_var in image_env if env_var.startswith("PATH=")), [])
     env_path = ":".join([challenge_bin_path, dojo_bin_path, *image_path])
@@ -125,8 +127,14 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     available_devices = set(get_available_devices(docker_client))
     devices = [f"{device}:{device}:rwm" for device in allowed_devices if device in available_devices]
 
+    capabilities = ["SYS_PTRACE"]
+    if resolved_dojo_challenge.privileged:
+        capabilities.append("SYS_ADMIN")
+        if "workspace_net_admin" in resolved_dojo_challenge.dojo.permissions:
+            capabilities.append("NET_ADMIN")
+
     container_create_attributes = dict(
-        image=dojo_challenge.image,
+        image=resolved_dojo_challenge.image,
         entrypoint=[
             "/nix/var/nix/profiles/dojo-workspace/bin/dojo-init",
             f"{dojo_bin_path}/sleep",
@@ -165,17 +173,17 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             **USER_FIREWALL_ALLOWED,
         },
         init=True,
-        cap_add=["SYS_PTRACE", "SYS_ADMIN"] if dojo_challenge.privileged else ["SYS_PTRACE"],
-        security_opt=[f"seccomp={SECCOMP}"],
-        sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
+        detach=True,
+        stdin_open=True,
+        auto_remove=True,
         cpu_period=100000,
         cpu_quota=400000,
         pids_limit=1024,
         mem_limit="4G",
-        detach=True,
-        stdin_open=True,
-        auto_remove=True,
-        runtime="io.containerd.run.kata.v2" if dojo_challenge.privileged else "runc",
+        runtime="io.containerd.run.kata.v2" if resolved_dojo_challenge.privileged else "runc",
+        cap_add=capabilities,
+        security_opt=[f"seccomp={SECCOMP}"],
+        sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
     )
 
     container = docker_client.containers.create(**container_create_attributes)
@@ -203,7 +211,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     else:
         raise RuntimeError(f"Workspace failed to initialize after {time.time()-start_time:.1f} seconds.")
 
-    cache.set(f"user_{user.id}-running-image", dojo_challenge.image, timeout=0)
+    cache.set(f"user_{user.id}-running-image", resolved_dojo_challenge.image, timeout=0)
     return container
 
 
@@ -304,7 +312,8 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         practice=practice,
     )
 
-    insert_challenge(container, as_user, dojo_challenge)
+    if dojo_challenge.path.exists():
+        insert_challenge(container, as_user, dojo_challenge)
 
     if practice:
         flag = "practice"
@@ -331,11 +340,81 @@ def docker_locked(func):
         user = get_current_user()
         redis_client = redis.from_url(current_app.config["REDIS_URL"])
         try:
+            # Super annoying that this will throw a LockNotOwned
+            # exception if the func takes longer than the timeout The
+            # real fix is raise_on_release_error=False to .lock (added
+            # https://github.com/redis/redis-py/issues/3532), however
+            # we're using an old version of the redis client. So for
+            # now we just catch LockNotOwnedError
             with redis_client.lock(f"user.{user.id}.docker.lock", blocking_timeout=0, timeout=20):
                 return func(*args, **kwargs)
+        except redis.exceptions.LockNotOwnedError:
+            pass
         except redis.exceptions.LockError:
             return {"success": False, "error": "Already starting a challenge; try again in 20 seconds."}
     return wrapper
+
+
+
+
+@docker_namespace.route("/next")
+class NextChallenge(Resource):
+    @authed_only
+    def get(self):
+        dojo_challenge = get_current_dojo_challenge()
+        if not dojo_challenge:
+            return {"success": False, "error": "No active challenge"}
+
+        user = get_current_user()
+
+        # Get all challenges in the current module
+        module_challenges = DojoChallenges.query.filter_by(
+            dojo_id=dojo_challenge.dojo_id,
+            module_index=dojo_challenge.module_index
+        ).order_by(DojoChallenges.challenge_index).all()
+
+        # Find the current challenge index
+        current_idx = next((i for i, c in enumerate(module_challenges) if c.challenge_index == dojo_challenge.challenge_index), None)
+
+        if current_idx is None:
+            return {"success": False, "error": "Current challenge not found in module"}
+
+        # Check if there's a next challenge in the current module
+        if current_idx + 1 < len(module_challenges):
+            next_challenge = module_challenges[current_idx + 1]
+            return {
+                "success": True,
+                "dojo": dojo_challenge.dojo.reference_id,
+                "module": next_challenge.module.id,
+                "challenge": next_challenge.id,
+                "challenge_index": next_challenge.challenge_index
+            }
+
+        # Check if there's a next module
+        next_module = DojoModules.query.filter_by(
+            dojo_id=dojo_challenge.dojo_id,
+            module_index=dojo_challenge.module_index + 1
+        ).first()
+
+        if next_module:
+            # Get the first challenge of the next module
+            first_challenge = DojoChallenges.query.filter_by(
+                dojo_id=dojo_challenge.dojo_id,
+                module_index=next_module.module_index
+            ).order_by(DojoChallenges.challenge_index).first()
+
+            if first_challenge:
+                return {
+                    "success": True,
+                    "dojo": dojo_challenge.dojo.reference_id,
+                    "module": first_challenge.module.id,
+                    "challenge": first_challenge.id,
+                    "challenge_index": first_challenge.challenge_index,
+                    "new_module": True
+                }
+
+        # No next challenge available
+        return {"success": False, "error": "No next challenge available"}
 
 
 @docker_namespace.route("")
@@ -460,3 +539,18 @@ class RunDocker(Resource):
             "challenge": dojo_challenge.id,
             "practice" : practice,
         }
+
+    @authed_only
+    def delete(self):
+        user = get_current_user()
+        container = get_current_container(user)
+
+        if not container:
+            return {"success": False, "error": "No active challenge container"}
+
+        try:
+            remove_container(user)
+            return {"success": True, "message": "Challenge container terminated"}
+        except Exception as e:
+            logger.error(f"Failed to terminate container for user {user.id}: {e}")
+            return {"success": False, "error": "Failed to terminate container"}

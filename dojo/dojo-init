@@ -36,8 +36,6 @@ define () {
 DEFAULT_DOJO_HOST=localhost.pwn.college
 
 define DOJO_HOST "${DEFAULT_DOJO_HOST}"
-define VIRTUAL_HOST "${DEFAULT_DOJO_HOST}"
-define LETSENCRYPT_HOST "${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
 define DOJO_WORKSPACE core
 define WORKSPACE_KEY
@@ -49,6 +47,7 @@ define MAIL_PORT
 define MAIL_USERNAME
 define MAIL_PASSWORD
 define MAIL_ADDRESS
+define CORS_ORIGINS
 define DOCKER_USERNAME
 define DOCKER_TOKEN
 define DISCORD_CLIENT_ID
@@ -153,12 +152,18 @@ fi
 
 dojo-node refresh
 
-iptables -N DOCKER-USER
-iptables -I DOCKER-USER -i workspace_net -j DROP
+iptables -F WORKSPACE-NET 2>/dev/null || iptables -N WORKSPACE-NET
+iptables -A WORKSPACE-NET -s 10.0.0.0/24 -m conntrack --ctstate NEW -j RETURN
+iptables -A WORKSPACE-NET -s 192.168.42.0/24 -m conntrack --ctstate NEW -j RETURN
+iptables -A WORKSPACE-NET -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
 for host in $(cat /opt/pwn.college/user_firewall.allowed); do
-    iptables -I DOCKER-USER -i workspace_net -d $(host $host | awk '{print $NF; exit}') -j ACCEPT
+    iptables -A WORKSPACE-NET -d $(host $host | awk '{print $NF; exit}') -j RETURN
 done
-iptables -I DOCKER-USER -i workspace_net -s 10.0.0.0/24 -m conntrack --ctstate NEW -j ACCEPT
-iptables -I DOCKER-USER -i workspace_net -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-iptables -I DOCKER-USER -i workspace_net -s 192.168.42.0/24 -m conntrack --ctstate NEW -j ACCEPT
-iptables -I DOCKER-USER -i workspace_net -d 192.168.42.0/24 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A WORKSPACE-NET -j DROP
+
+iptables -N DOCKER-USER
+iptables -A DOCKER-USER -i workspace_net -j WORKSPACE-NET
+iptables -A DOCKER-USER -o workspace_net -j WORKSPACE-NET
+
+iptables -A INPUT -i workspace_net -j WORKSPACE-NET
+iptables -A OUTPUT -o workspace_net -j WORKSPACE-NET

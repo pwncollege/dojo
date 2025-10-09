@@ -31,7 +31,7 @@ def main():
     else:
         error(f"{program}: unknown user: {args.user}")
 
-    groups = [group.gr_id for group in grp.getgrall() if user.pw_name in group.gr_mem]
+    groups = [group.gr_gid for group in grp.getgrall() if user.pw_name in group.gr_mem]
     if user.pw_gid not in groups:
         groups.append(user.pw_gid)
 

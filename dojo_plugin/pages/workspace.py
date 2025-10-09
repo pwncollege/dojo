@@ -1,13 +1,13 @@
 import hmac
 
-from flask import request, Blueprint, render_template, abort
+from flask import request, Blueprint, Response, render_template, abort
 from CTFd.models import Users
 from CTFd.utils.user import get_current_user
 from CTFd.utils.decorators import authed_only
 from CTFd.plugins import bypass_csrf_protection
 
 from ..models import Dojos
-from ..utils import redirect_user_socket, get_current_container, container_password
+from ..utils import user_ipv4, get_current_container, container_password
 from ..utils.dojo import get_current_dojo_challenge
 
 
@@ -99,4 +99,7 @@ def forward_workspace(service, service_path=""):
     if user != current_user:
         print(f"User {current_user.id} is accessing User {user.id}'s workspace (port {port})", flush=True)
 
-    return redirect_user_socket(user, port, service_path)
+    return Response(headers={
+        "X-Accel-Redirect": "@workspace",
+        "redirect_uri": f"http://{user_ipv4(user)}:{port}/{service_path}",
+    })

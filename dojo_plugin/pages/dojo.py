@@ -109,6 +109,7 @@ def view_dojo_path(dojo, path, subpath=None):
     if module:
         if subpath:
             DojoChallenges.query.filter_by(dojo=dojo, module=module, id=subpath).first_or_404()
+            return view_module(dojo, module, scroll_to_challenge=subpath)
         return view_module(dojo, module)
     elif path in dojo.pages and not subpath:
         return view_page(dojo, path)
@@ -196,8 +197,36 @@ def update_dojo(dojo, update_code=None):
     try:
         dojo_update(dojo)
         db.session.commit()
+    except IntegrityError as e:
+        db.session.rollback()
+        error = str(e)
+        match = re.search(r"Key \(dojo_id, module_index, id\)=\(.*?,\s*(\d+),\s*([^\)]+)\)", error)
+
+        if not match:
+            print(f"ERROR: Dojo update failed with unparsed IntegrityError for {dojo}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+            return {"success": False, "error": "Database integrity error: A challenge ID is likely duplicated."}, 400
+
+        module_index_str, challenge_id = match.groups()
+        module_index = int(module_index_str)
+        challenge_id = challenge_id.strip()
+
+        if module_index >= len(dojo.modules):
+            print(f"ERROR: IntegrityError for {dojo} references out-of-bounds module_index {module_index}", file=sys.stderr, flush=True)
+            return {"success": False, "error": "Database integrity error: Inconsistent module data."}, 400
+
+        module = dojo.modules[module_index]
+        challenge = next((c for c in module.challenges if c.id == challenge_id), None)
+
+        module_name = module.name
+        challenge_name = challenge.name if challenge else challenge_id
+        error_message = f"Duplicate ID '{challenge_id}' used in module '{module_name}'."
+
+        return {"success": False, "error": error_message}, 400
+
     except Exception as e:
-        print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
+        db.session.rollback()
+        print(f"ERROR: Dojo update failed for {dojo}", file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
         return {"success": False, "error": str(e)}, 400
     return {"success": True}
@@ -298,7 +327,7 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
         return {"success": False, "error": "Invalid format"}, 400
 
 
-def view_module(dojo, module):
+def view_module(dojo, module, scroll_to_challenge=None):
     user = get_current_user()
     user_solves = set(solve.challenge_id for solve in (
         module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
@@ -394,6 +423,7 @@ def view_module(dojo, module):
         module_description_edit_url=module_description_edit_url,
         challenge_description_edit_urls=challenge_description_edit_urls,
         resource_description_edit_urls=resource_description_edit_urls,
+        scroll_to_challenge=scroll_to_challenge,
     )
 
 
