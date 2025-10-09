@@ -4,7 +4,7 @@ import docker
 
 
 from ..utils import all_docker_clients
-from ..config import DOCKER_USERNAME, DOCKER_TOKEN
+from ..config import DOCKER_USERNAME, DOCKER_TOKEN, REGISTRY_HOST
 
 
 logger = logging.getLogger(__name__)
@@ -16,15 +16,15 @@ for image, in DojoChallenges.query.with_entities(db.distinct(DojoChallenges.data
         continue
 
     for client in all_docker_clients():
-        image_name = f"registry.localhost.pwn.college/{image}"
+        image_name = f"{REGISTRY_HOST}/{image}"
 
         if DOCKER_USERNAME and DOCKER_TOKEN:
-            client.login(DOCKER_USERNAME, DOCKER_TOKEN, registry="registry.localhost.pwn.college")
+            client.login(DOCKER_USERNAME, DOCKER_TOKEN, registry=REGISTRY_HOST)
 
         logger.info(f"Pulling image {image_name} on {client.api.base_url}...")
         try:
             client.images.pull(image_name)
         except docker.errors.ImageNotFound:
-            logger.error(f"... image not found: {imange_name} on {client.api.base_url}...")
+            logger.error(f"... image not found what are you doing: {image_name} on {client.api.base_url}...")
         except Exception as e:
             logger.error(f"... error: {image_name} on {client.api.base_url}...", exc_info=e)

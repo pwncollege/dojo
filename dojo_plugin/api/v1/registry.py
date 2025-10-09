@@ -1,10 +1,7 @@
 from flask import request
 from flask_restx import Namespace, Resource
 
-import re
-
 from ...config import REGISTRY_API_SECRET
-from ...models import Dojos, DojoAdmins
 from CTFd.models import Users, Admins
 from CTFd.utils.crypto import verify_password
 
@@ -46,36 +43,30 @@ class RegistryVerify(Resource):
         if not user or not verify_password(password, user.password):
             return {"success": False, "error": "Invalid credentials"}, 401
 
-
-        is_global_admin = Admins.query.filter_by(id=user.id).first() is not None
-
         if not repository:
             return {"success": True}
 
 
-        m = re.match(r"^(?P<dojo_id>[a-z0-9][a-z0-9-]*)-(?P<dojo_hex>[0-9a-f]{8})(?:/.*)?$", repository)
-        if not m:
-            return {
-                "success": False,
-                "error": "Invalid repository format. Reference ID looks like '<dojo_name>~<dojoid>' Check the admin page; use this format '<dojo_name>-<dojoid>/yourimage' as the repo name"
-            }, 403
-
-        dojo_name = m.group("dojo_id")
-        dojo_hex = m.group("dojo_hex")
-
-        dojo = Dojos.from_id(f"{dojo_name}~{dojo_hex}").first()
-        if not dojo:
-            return {"success": False, "error": "Dojo not found for provided reference id"}, 403
+        repo_namespace = repository.split("/", 1)[0]
 
         requested = set(a.strip() for a in actions if a)
         allowed = set()
 
+        if "push" in requested:
+            if repo_namespace == user.name:
+                allowed.add("push")
+            else:
+                return {
+                    "success": False,
+                    "error": (
+                        f"Push denied: repository namespace '{repo_namespace}' does not match your username '{user.name}'. "
+                        f"Tag the image as '{user.name}/<repo>' to push."
+                    ),
+                }, 403
+
+        # Pull allowed for any authenticated user
         if "pull" in requested:
             allowed.add("pull")
-
-        if "push" in requested:
-            if is_global_admin or DojoAdmins.query.filter_by(dojo=dojo, user_id=user.id).first() is not None:
-                allowed.add("push")
 
         if not allowed and requested:
             return {"success": False, "error": "Not authorized for requested actions"}, 403
