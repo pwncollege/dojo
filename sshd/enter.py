@@ -126,13 +126,8 @@ def main():
             runtime = (container.attrs or {}).get("HostConfig",{}).get("Runtime")
             is_kata = runtime == "io.containerd.run.kata.v2"
             if is_kata:
-                monitor_thread = threading.Thread(
-                        target=kill_exec_on_container_death,
-                        args=(container,child_pid),
-                        daemon=True
-                )
+                monitor_thread = threading.Thread(target=kill_exec_on_container_death,args=(container,child_pid),daemon=True)
                 monitor_thread.start()
-
             _, status = os.wait()
             if simple or status == 0:
                 break
