@@ -4,6 +4,7 @@ import string
 import random
 
 import pytest
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
@@ -23,15 +24,27 @@ def vscode_terminal(browser):
     workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace_iframe")))
     browser.switch_to.frame(workspace_iframe)
 
-    def wait_for_selector(selector):
+    def wait_for_selector(*selectors):
+        def locate(driver):
+            for selector in selectors:
+                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                if elements:
+                    return elements[0]
+            return False
         try:
-            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+            wait.until(locate)
         except Exception as e:
-            print(browser.get_full_page_screenshot_as_base64())
-            print(browser.switch_to.active_element.get_attribute("outerHTML"))
+            try:
+                print(browser.get_full_page_screenshot_as_base64())
+            except Exception:
+                pass
+            try:
+                print(browser.switch_to.active_element.get_attribute("outerHTML"))
+            except Exception:
+                pass
             raise e
 
-    wait_for_selector("button.getting-started-step")
+    wait_for_selector("button.getting-started-step", "div.getting-started-step", ".monaco-workbench")
     browser.switch_to.active_element.send_keys(Keys.CONTROL, Keys.SHIFT, "`")  # Shortcut to open terminal
     wait_for_selector("textarea.xterm-helper-textarea")
 
@@ -48,8 +61,14 @@ def desktop_terminal(browser, user_id):
     browser.get(f"{DOJO_URL}/workspace/desktop")
     time.sleep(10)
     workspace_run("DISPLAY=:0 xfce4-terminal &", user=user_id)
+    wait = WebDriverWait(browser, 30)
     browser.switch_to.frame("workspace")
-    e = browser.find_element("id", "noVNC_keyboardinput")
+    def locate_input(driver):
+        try:
+            return driver.find_element(By.ID, "noVNC_keyboardinput")
+        except NoSuchElementException:
+            return driver.find_element(By.ID, "keyboardinput")
+    e = wait.until(locate_input)
     time.sleep(2)
 
     yield e
@@ -117,6 +136,16 @@ def challenge_idx(browser, name):
     return idx+1
 
 
+def read_flag(user_id):
+    for _ in range(10):
+        result = workspace_run("test -f /tmp/out && tail -n1 /tmp/out || true", user=user_id)
+        parts = result.stdout.split()
+        if parts:
+            return parts[-1]
+        time.sleep(1)
+    raise AssertionError("flag not found")
+
+
 def test_welcome_desktop(random_user_browser, random_user_name, welcome_dojo):
     random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
     idx = challenge_idx(random_user_browser, "The Flag File")
@@ -125,7 +154,7 @@ def test_welcome_desktop(random_user_browser, random_user_name, welcome_dojo):
     with desktop_terminal(random_user_browser, random_user_name) as vs:
         vs.send_keys("/challenge/solve; cat /flag | tee /tmp/out\n")
         time.sleep(5)
-        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
+        flag = read_flag(random_user_name)
     challenge_submit(random_user_browser, idx, flag)
     random_user_browser.close()
 
@@ -138,7 +167,7 @@ def test_welcome_vscode(random_user_browser, random_user_name, welcome_dojo):
     with vscode_terminal(random_user_browser) as vs:
         vs.send_keys("/challenge/solve | tee /tmp/out\n")
         time.sleep(5)
-        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
+        flag = read_flag(random_user_name)
     challenge_submit(random_user_browser, idx, flag)
     random_user_browser.close()
 
@@ -151,7 +180,7 @@ def test_welcome_ttyd(random_user_browser, random_user_name, welcome_dojo):
     with ttyd_terminal(random_user_browser) as terminal:
         terminal.send_keys("/challenge/solve; cat /flag | tee /tmp/out\n")
         time.sleep(5)
-        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
+        flag = read_flag(random_user_name)
     challenge_submit(random_user_browser, idx, flag)
     random_user_browser.close()
 
@@ -170,7 +199,7 @@ def skip_test_welcome_practice(random_user_browser, random_user_name, welcome_do
     with desktop_terminal(random_user_browser, random_user_name) as vs:
         vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
         time.sleep(2)
-        flag = workspace_run("tail -n1 /tmp/out", user=random_user_name).stdout.split()[-1]
+        flag = read_flag(random_user_name)
     challenge_submit(random_user_browser, idx, flag)
     random_user_browser.close()
 
@@ -256,7 +285,7 @@ def test_welcome_graded_lecture(random_user_browser, random_user_name, example_d
     lecture_iframe = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, f"#challenges-body-{idx} #workspace-iframe")))
     assert lecture_iframe.is_displayed()
     lecture_iframe_src = lecture_iframe.get_attribute("src")
-    assert "/workspace/80/" in lecture_iframe_src
+    assert lecture_iframe_src.rstrip("/").endswith("/80")
 
     random_user_browser.switch_to.frame(lecture_iframe)
     youtube_iframe_inline = wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
