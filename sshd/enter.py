@@ -7,6 +7,7 @@ import shlex
 import sys
 import time
 import signal
+import threading
 import docker
 import redis
 
@@ -35,6 +36,14 @@ def get_docker_client(user_id):
     else:
         docker_client = docker.DockerClient(base_url=docker_host, tls=False)
     return docker_host, docker_client, is_mac
+
+def kill_exec_on_container_death(container, exec_pid):
+    container.wait(condition="not-running")
+    try:
+        os.kill(exec_pid, signal.SIGTERM)
+        time.sleep(0.5)
+    except ProcessLookupError:
+        pass
 
 
 def main():
@@ -117,19 +126,14 @@ def main():
             runtime = (container.attrs or {}).get("HostConfig",{}).get("Runtime")
             is_kata = runtime == "io.containerd.run.kata.v2"
             if is_kata:
-                if not os.fork():
-                    try:
-                        container.wait(condition="not-running")
-                        try:
-                            os.kill(child_pid, signal.SIGTERM)
-                            time.sleep(0.5)
-                        except ProcessLockupError:
-                            pass
-                    except:
-                        pass
-                    finally:
-                        os._exit(0)  
-            _, status = os.waitpid(child_pid,0)
+                monitor_thread = threading.Thread(
+                        target=kill_exec_on_container_death,
+                        args=(container,child_pid),
+                        daemon=True
+                )
+                monitor_thread.start()
+
+            _, status = os.wait()
             if simple or status == 0:
                 break
             print()
