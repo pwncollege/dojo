@@ -4,7 +4,7 @@ import docker
 
 
 from ..utils import all_docker_clients
-from ..config import DOCKER_USERNAME, DOCKER_TOKEN, REGISTRY_HOST
+from ..config import REGISTRY_USERNAME, REGISTRY_PASSWORD, REGISTRY_HOST
 
 
 logger = logging.getLogger(__name__)
@@ -18,8 +18,8 @@ for image, in DojoChallenges.query.with_entities(db.distinct(DojoChallenges.data
     for client in all_docker_clients():
         image_name = f"{REGISTRY_HOST}/{image}"
 
-        if DOCKER_USERNAME and DOCKER_TOKEN:
-            client.login(DOCKER_USERNAME, DOCKER_TOKEN, registry=REGISTRY_HOST)
+        if REGISTRY_USERNAME and REGISTRY_PASSWORD:
+            client.login(REGISTRY_USERNAME, REGISTRY_PASSWORD, registry=REGISTRY_HOST)
 
         logger.info(f"Pulling image {image_name} on {client.api.base_url}...")
         try:
