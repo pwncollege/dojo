@@ -10,4 +10,4 @@ Please report vulnerabilities via github's security reporting process: https://g
 
 ## Emoji Rewards!
 
-Significant vulnerabilities in the dojo will be rewarded with a 🐞 emoji award on pwn.college!
+Significant vulnerabilities in the dojo will be rewarded with the 🐞 emoji award on pwn.college and in the pwn.college discord server!
