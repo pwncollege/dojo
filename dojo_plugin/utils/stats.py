@@ -18,7 +18,7 @@ def get_dojo_stats(dojo):
     solves_query = dojo.solves()
 
     total_challenges = len(dojo.challenges)
-    visible_challenges = len([c for c in dojo.challenges if c.visible()])
+    visible_challenges = sum(1 for c in dojo.challenges if c.visible())
 
     total_stats = solves_query.with_entities(
         func.count(Solves.id).label('total_solves'),
