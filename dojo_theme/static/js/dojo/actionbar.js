@@ -126,6 +126,13 @@ function actionSubmitFlag(event) {
     };
     var params = {};
 
+    if (body.submission === "pwn.college{practice}"){
+        animateBanner(event, "You submitted the practice flag!", "error");
+        context(event).find("input").prop("disabled", false).removeClass("disabled");
+        context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
+        return;
+    }
+    
     CTFd.api.post_challenge_attempt(params, body)
     .then(function (response) {
         const challengeName = context(event).find("#current-challenge-id").attr("data-challenge-name");
