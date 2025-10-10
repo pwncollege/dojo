@@ -456,8 +456,8 @@ $(() => {
     var submits = $(".accordion-item").find("#challenge-input");
     for (var i = 0; i < submits.length; i++) {
         submits[i].oninput = submitChallenge;
-        submits[i].onkeydown = function (event) {
-            if (event.keyCode == 13) {
+        submits[i].onkeyup = function (event) {
+            if (event.key === "Enter") {
                 submitChallenge(event);
             }
         };
