@@ -13,11 +13,11 @@ function submitChallenge(event) {
     answer_input.prop("disabled", true);
 
     if (submission == "pwn.college{practice}") {
-        const practice_message = 'You have submitted the "practice" flag from launching the challenge in Practice mode! ' +
-            'This flag is not valid for scoring. ' +
-            'Run the challenge in non-practice mode by pressing Start above, ' +
-            'then use your solution to get the "real" flag and submit it!';
-        return renderSubmissionResponse({"data": {"status": "practice", "message": practice_message}}, item);
+        var message = 'You have submitted the "practice" flag from launching the challenge in privileged mode! ';
+        message += 'This flag is not valid for scoring. ';
+        message += 'Run the challenge in unprivileged mode by pressing the Start button above. ';
+        message += 'Then use your solution to get the "real" flag and submit it!';
+        return renderSubmissionResponse({"data": {"status": "practice", "message": message}}, item);
     }
 
     return CTFd.api.post_challenge_attempt({}, {"challenge_id": challenge_id, "submission": submission})
@@ -244,7 +244,7 @@ function startChallenge(event) {
         result_notification.removeClass();
 
         if (result.success) {
-            var message = `Challenge successfully started!`;
+            var message = "Challenge successfully started!";
             result_message.html(message);
             result_notification.addClass('alert alert-info alert-dismissable text-center');
 
@@ -252,11 +252,7 @@ function startChallenge(event) {
             item.find(".challenge-name").addClass("challenge-active");
         }
         else {
-            var message = "";
-            message += "Error:";
-            message += "<br>";
-            message += "<code>" + result.error + "</code>";
-            message += "<br>";
+            var message = "Error:<br><code>" + result.error + "</code><br>"
             result_message.html(message);
             result_notification.addClass('alert alert-warning alert-dismissable text-center');
         }
@@ -344,7 +340,6 @@ function surveySubmit(data, item) {
         body: data
     })
 }
-
 
 function markChallengeAsSolved(item) {
     const unsolved_flag = item.find(".challenge-unsolved");
@@ -461,6 +456,11 @@ $(() => {
     var submits = $(".accordion-item").find("#challenge-input");
     for (var i = 0; i < submits.length; i++) {
         submits[i].oninput = submitChallenge;
+        submits[i].onkeydown = function (event) {
+            if (event.keyCode == 13) {
+                submitChallenge(event);
+            }
+        };
     }
     $(".accordion-item").find("#challenge-start").click(startChallenge);
     $(".challenge-init").find("#challenge-priv").click(startChallenge);
