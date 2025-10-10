@@ -118,19 +118,22 @@ function animateBanner(event, message, type) {
 }
 
 function actionSubmitFlag(event) {
+    const submission = $(event.target).val();
+
+    if (submission == "pwn.college{practice}") {
+        animateBanner(event, "This is the practice flag! Find the real flag by restarting the challenge in unprivileged mode.", "warn");
+        return;
+    }
+
     context(event).find("input").prop("disabled", true).addClass("disabled");
     context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     const challenge_id = parseInt(context(event).find("#current-challenge-id").val());
-    const submission = $(event.target).val();
 
     CTFd.api.post_challenge_attempt({}, {"challenge_id": challenge_id, "submission": submission})
     .then(function (response) {
         const challengeName = context(event).find("#current-challenge-id").attr("data-challenge-name");
 
-        if (submission == "pwn.college{practice}") {
-            animateBanner(event, "This is the practice flag! Find the real flag by restarting the challenge in unprivileged mode.", "warn");
-        }
-        else if (response.data.status == "incorrect") {
+        if (response.data.status == "incorrect") {
             animateBanner(event, "Incorrect!", "error");
         }
         else if (response.data.status == "correct") {
