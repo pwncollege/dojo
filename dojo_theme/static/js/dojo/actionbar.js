@@ -128,6 +128,8 @@ function actionSubmitFlag(event) {
 
     if (body.submission === "pwn.college{practice}"){
         animateBanner(event, "You submitted the practice flag!", "error");
+        context(event).find("input").prop("disabled", false).removeClass("disabled");
+        context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
         return;
     }
     
