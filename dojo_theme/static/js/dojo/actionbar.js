@@ -314,8 +314,8 @@ $(() => {
                 actionSubmitFlag(event);
             }
         });
-        $(this).find("#flag-input").on("keypress", function(event) {
-            if (event.key === "Enter" || event.keyCode === 13) {
+        $(this).find("#flag-input").on("keyup", function(event) {
+            if (event.key === "Enter") {
                 actionSubmitFlag(event);
             }
         });
