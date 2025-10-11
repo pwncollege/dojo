@@ -1,7 +1,7 @@
 from flask import request
 from flask_restx import Namespace, Resource
 
-from ...config import REGISTRY_API_SECRET
+from ...config import REGISTRY_API_SECRET, REGISTRY_USERNAME, REGISTRY_PASSWORD
 from CTFd.models import Users, Admins
 from CTFd.utils.crypto import verify_password
 
@@ -39,6 +39,18 @@ class RegistryVerify(Resource):
         if not username or not password:
             return {"success": False, "error": "Missing credentials"}, 400
 
+        # Dedicated puller account: allow pulling any repository
+        requested = set(a.strip() for a in actions if a)
+        if (
+            repository
+            and "pull" in requested
+            and REGISTRY_USERNAME
+            and REGISTRY_PASSWORD
+            and username == REGISTRY_USERNAME
+            and password == REGISTRY_PASSWORD
+        ):
+            return {"success": True, "allowed": ["pull"]}
+
         user = Users.query.filter((Users.name == username) | (Users.email == username)).first()
         if not user or not verify_password(password, user.password):
             return {"success": False, "error": "Invalid credentials"}, 401
@@ -49,7 +61,6 @@ class RegistryVerify(Resource):
 
         repo_namespace = repository.split("/", 1)[0]
 
-        requested = set(a.strip() for a in actions if a)
         allowed = set()
 
         if "push" in requested:
@@ -64,9 +75,18 @@ class RegistryVerify(Resource):
                     ),
                 }, 403
 
-        # Pull allowed for any authenticated user
         if "pull" in requested:
-            allowed.add("pull")
+            if repo_namespace == user.name:
+                allowed.add("pull")
+            else:
+                return {
+                    "success": False,
+                    "error": (
+                        f"Pull denied: repository namespace '{repo_namespace}' does not match your username '{user.name}'. "
+                        f"Pull images tagged as '{user.name}/<repo>'."
+                    ),
+                }, 403
+
 
         if not allowed and requested:
             return {"success": False, "error": "Not authorized for requested actions"}, 403
