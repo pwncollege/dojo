@@ -9,7 +9,7 @@ from CTFd.models import Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
-from ...utils import get_current_container, container_password
+from ...utils import get_current_container, container_password, user_node
 from ...utils.workspace import start_on_demand_service, reset_home
 from ...pages.workspace import forward_workspace, forward_port
 from ...config import WORKSPACE_SECRET
@@ -53,13 +53,18 @@ class view_desktop(Resource):
             abort(500)
             return
 
-        container_id = container.id
+        container_id = container.id[:12]
 
-        container_id = container_id[:12]
+        target_host = ""
 
+        node = user_node(user)
+        if not node == None and not node == 0:
+            target_host = f"192.168.42.{node + 1}"
+
+        message = f"{container_id}:{target_host}".encode()
         digest = hmac.new(
             WORKSPACE_SECRET.encode(),
-            container_id.encode(),
+            message,
             hashlib.sha256
         ).digest()
 

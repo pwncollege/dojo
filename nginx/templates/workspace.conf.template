@@ -8,19 +8,14 @@ server {
   resolver 127.0.0.11 valid=30s ipv6=off;
   resolver_timeout 1s;
 
-  location ^~ /.well-known/acme-challenge/ {
-    auth_basic off;
-    auth_request off;
-    allow all;
-    root /usr/share/nginx/html;
-    try_files $uri =404;
-    break;
-  }
+
 
   location ~ ^/workspace/(?P<container>[^/]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
+        set $target_host "";
+
         secure_link_hmac "$sig";
         secure_link_hmac_secret "$WORKSPACE_SECRET";
-        secure_link_hmac_message "$container";
+        secure_link_hmac_message "$container:$target_host";
         secure_link_hmac_algorithm sha256;
 
         if ($secure_link_hmac != "1") {
@@ -36,10 +31,24 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
 
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
         proxy_intercept_errors on;
         error_page 502 = @workspace_not_found;
 
-        proxy_pass http://$container:$port/$path$is_args$args;
+        set $upstream_host $container:$port;
+        set $upstream_uri  /$path$is_args$args;
+
+        if ($target_host != "") {
+            # route via the workspace nginx/gateway
+            set $upstream_host $target_host:8888;
+            set $upstream_uri  /$container/$sig/$port/$path$is_args$args;
+        }
+
+        proxy_pass http://$upstream_host$upstream_uri;
     }
 
     location @workspace_not_found {
