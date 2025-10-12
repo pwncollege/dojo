@@ -49,7 +49,7 @@ def view_workspace_port(port):
 def view_workspace_service(service):
     return render_template("workspace_service.html", iframe_name="workspace", service=service)
 
-def forward_workspace(service, signature, container_id, service_path="", include_host=True, **kwargs):
+def forward_workspace(service, signature, message, service_path="", include_host=True, **kwargs):
     if service.count("~") == 0:
         service_name = service
         try:
@@ -94,14 +94,14 @@ def forward_workspace(service, signature, container_id, service_path="", include
     return forward_port(
         port,
         signature,
-        container_id,
+        message,
         user,
         service_path=service_path,
         include_host=include_host,
         **(kwargs or {})
     )
 
-def forward_port(port, signature, container_id, user, service_path="", include_host=True, **kwargs):
+def forward_port(port, signature, message, user, service_path="", include_host=True, **kwargs):
     current_user = get_current_user()
     if user != current_user:
         print(f"User {current_user.id} is accessing User {user.id}'s workspace (port {port})", flush=True)
@@ -112,15 +112,17 @@ def forward_port(port, signature, container_id, user, service_path="", include_h
         abort(500)
         return
 
-    url = f"/workspace/{container_id}/{signature}/{port}/{service_path}"
+    url = f"/workspace/{message}/{signature}/{port}/{service_path}"
 
     scheme = request.scheme if request else "http"
 
     if include_host:
         url = f"{scheme}://{workspace_host}{url}"
 
-    if not len(kwargs) == 0:
-        args = urlencode(kwargs)
+    params = dict(kwargs or {})
+
+    if params:
+        args = urlencode(params)
         url = f"{url}?{args}"
 
     return url

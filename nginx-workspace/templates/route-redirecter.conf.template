@@ -1,0 +1,8 @@
+server {
+    server_name _;
+    listen 8888;
+
+    location ~ ^/workspace/(?P<container_id>[^/]+):(?P<target_host>[^/]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
+        return 307 $http_x_forwarded_proto://$WORKSPACE_HOST/workspace/$container_id:$target_host/$sig/$port/$path$is_args$args;
+    }
+}
