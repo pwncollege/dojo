@@ -9,7 +9,7 @@ from CTFd.models import Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
-from ...utils import get_current_container, container_password
+from ...utils import get_current_container, container_password, user_node
 from ...utils.workspace import start_on_demand_service, reset_home
 from ...pages.workspace import forward_workspace, forward_port
 from ...config import WORKSPACE_SECRET
@@ -53,13 +53,16 @@ class view_desktop(Resource):
             abort(500)
             return
 
-        container_id = container.id
+        container_id = container.id[:12]
+        message = container_id
 
-        container_id = container_id[:12]
+        node = user_node(user)
+        if not node == None and not node == 0:
+            message = f"{container_id}:192.168.42.{node + 1}"
 
         digest = hmac.new(
             WORKSPACE_SECRET.encode(),
-            container_id.encode(),
+            message.encode(),
             hashlib.sha256
         ).digest()
 
@@ -85,11 +88,11 @@ class view_desktop(Resource):
                     "reconnect": 1,
                     "reconnect_delay": 200,
                     "resize": "remote",
-                    "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, container_id=container_id, include_host=False),
+                    "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, message=message, include_host=False),
                     "view_only": int(view_only),
                     "password": password,
                 }
-                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, container_id=container_id, **vnc_params)
+                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, message=message, **vnc_params)
 
             elif service == "desktop-windows":
                 service_param = "~".join(("desktop-windows", str(user.id), container_password(container, "desktop-windows")))
@@ -98,17 +101,17 @@ class view_desktop(Resource):
                     "reconnect": 1,
                     "reconnect_delay": 200,
                     "resize": "local",
-                    "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, container_id=container_id, include_host=False),
+                    "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, message=message, include_host=False),
                     "password": "password",
                 }
-                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, container_id=container_id, **vnc_params)
+                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, message=message, **vnc_params)
             else:
-                iframe_src = forward_workspace(service=service, service_path="", signature=signature, container_id=container_id)
+                iframe_src = forward_workspace(service=service, service_path="", signature=signature, message=message)
 
             if start_on_demand_service(user, service) is False:
                 return {"success": False, "active": True, "error": f"Failed to start service {service}"}
         elif port:
-            iframe_src = forward_port(port=port, service_path="", user=user, signature=signature, container_id=container_id)
+            iframe_src = forward_port(port=port, service_path="", user=user, signature=signature, message=message)
 
         return {"success": True, "active": True, "iframe_src": iframe_src, "service": service, "port": port, "setPort": os.getenv("DOJO_ENV") == "development", "current_challenge": challenge_info}
 
