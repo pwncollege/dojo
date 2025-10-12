@@ -19,7 +19,7 @@ server {
 
   location ~ ^/workspace/(?P<container>[^/]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
         secure_link_hmac "$sig";
-        secure_link_hmac_secret "$workspace_secret";
+        secure_link_hmac_secret "$WORKSPACE_SECRET";
         secure_link_hmac_message "$container";
         secure_link_hmac_algorithm sha256;
 

@@ -10,6 +10,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
 
 from utils import DOJO_URL, workspace_run
 
@@ -32,7 +33,7 @@ def vscode_terminal(browser):
                     return elements[0]
             return False
         try:
-            wait.until(locate)
+            return wait.until(locate)
         except Exception as e:
             try:
                 print(browser.get_full_page_screenshot_as_base64())
@@ -44,8 +45,9 @@ def vscode_terminal(browser):
                 pass
             raise e
 
-    wait_for_selector("button.getting-started-step", "div.getting-started-step", ".monaco-workbench")
-    browser.switch_to.active_element.send_keys(Keys.CONTROL, Keys.SHIFT, "`")  # Shortcut to open terminal
+    surface = wait_for_selector(".monaco-workbench", "div.getting-started-step", "button.getting-started-step")
+    surface.click()
+    ActionChains(browser).key_down(Keys.CONTROL).key_down(Keys.SHIFT).send_keys("`").key_up(Keys.SHIFT).key_up(Keys.CONTROL).perform()
     wait_for_selector("textarea.xterm-helper-textarea")
 
     yield browser.switch_to.active_element
@@ -304,8 +306,18 @@ def test_welcome_graded_lecture(random_user_browser, random_user_name, example_d
     youtube_iframe = wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
     assert youtube_iframe.is_displayed()
     iframe_src = youtube_iframe.get_attribute("src")
-    assert "youtube.com" in iframe_src or "youtube-nocookie.com" in iframe_src
-    assert "hh4XAU6XYP0" in iframe_src
+    if "workspace.localhost" in iframe_src:
+        assert iframe_src.rstrip("/").endswith("/80")
+        random_user_browser.switch_to.frame(youtube_iframe)
+        nested_iframe = wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
+        assert nested_iframe.is_displayed()
+        nested_src = nested_iframe.get_attribute("src")
+        assert "youtube.com" in nested_src or "youtube-nocookie.com" in nested_src
+        assert "hh4XAU6XYP0" in nested_src
+        random_user_browser.switch_to.default_content()
+    else:
+        assert "youtube.com" in iframe_src or "youtube-nocookie.com" in iframe_src
+        assert "hh4XAU6XYP0" in iframe_src
 
     random_user_browser.close()
     random_user_browser.switch_to.window(challenge_window)
