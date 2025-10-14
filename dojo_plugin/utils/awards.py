@@ -70,7 +70,7 @@ def get_viewable_emojis(user):
     emojis = (
         Emojis.query
         .join(Users)
-        .filter(~Users.hidden, db.or_(Emojis.category.in_(viewable_dojos.keys()), Emojis.category == None))
+        .filter(db.or_(~Users.hidden, Users.id == (user.id if user else None)), db.or_(Emojis.category.in_(viewable_dojos.keys()), Emojis.category == None))
         .order_by(Emojis.date, Emojis.name.desc())  # Order by date, then name DESC (STALE < CURRENT < legacy emojis)
         .with_entities(
             Emojis.name,

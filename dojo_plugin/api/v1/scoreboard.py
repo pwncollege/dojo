@@ -63,6 +63,34 @@ def get_scoreboard_for(model, duration):
 def invalidate_scoreboard_cache():
     cache.delete_memoized(get_scoreboard_for)
 
+def get_hidden_user_scoreboard(model, duration, user):
+    """Get scoreboard data for a specific hidden user."""
+    duration_filter = (
+        Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
+        if duration else True
+    )
+    required_filter = DojoChallenges.required == True
+    solves = db.func.count().label("solves")
+    rank = (
+        db.func.row_number()
+        .over(order_by=(solves.desc(), db.func.max(Solves.id)))
+        .label("rank")
+    )
+    user_entities = [Solves.user_id, Users.name, Users.email]
+    query = (
+        model.solves(ignore_visibility=True, user=user)
+        .filter(duration_filter)
+        .filter(required_filter)
+        .group_by(*user_entities)
+        .order_by(rank)
+        .with_entities(rank, solves, *user_entities)
+    )
+
+    row_results = query.all()
+    if row_results:
+        return {key: getattr(row_results[0], key) for key in row_results[0].keys()}
+    return None
+
 # handle cache invalidation for new solves, dojo creation, dojo challenge creation
 @event.listens_for(Dojos, 'after_insert', propagate=True)
 @event.listens_for(Dojos, 'after_delete', propagate=True)
@@ -124,12 +152,17 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
 
     pages = set(page for page in pagination.iter_pages() if page)
 
-    if user and not user.hidden:
+    if user:
         me = None
         for r in results:
             if r["user_id"] == user.id:
                 me = standing(r)
                 break
+        # If hidden user not found in results, query separately
+        if not me and user.hidden:
+            hidden_result = get_hidden_user_scoreboard(model, duration, user)
+            if hidden_result:
+                me = standing(hidden_result)
         if me:
             pages.add((me["rank"] - 1) // per_page + 1)
             result["me"] = me
