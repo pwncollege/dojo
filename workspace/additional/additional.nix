@@ -32,7 +32,7 @@ let
 
     system = [ htop rsync openssh nftables landrun firejail ];
 
-    editors = [ vim neovim emacs nano gedit zed-editor ];
+    editors = [ vim neovim emacs nano gedit zed-editor.remote_server ];
 
     terminal = [ tmux screen kitty.terminfo ];
 
