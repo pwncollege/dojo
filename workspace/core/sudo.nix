@@ -18,7 +18,7 @@ in pkgs.stdenv.mkDerivation {
   installPhase = ''
     runHook preInstall
     mkdir -p $out/bin
-    echo "#!${exec-suid}/bin/exec-suid -- ${pkgs.python3}/bin/python3" > $out/bin/sudo
+    echo "#!${exec-suid}/bin/exec-suid -- ${pkgs.python3}/bin/python3 -I" > $out/bin/sudo
     cat ${./sudo.py} >> $out/bin/sudo
     chmod +x $out/bin/sudo
     runHook postInstall
