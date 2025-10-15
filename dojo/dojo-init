@@ -159,7 +159,7 @@ iptables -A WORKSPACE-NET -s 10.0.0.0/24 -m conntrack --ctstate NEW -j RETURN
 iptables -A WORKSPACE-NET -s 192.168.42.0/24 -m conntrack --ctstate NEW -j RETURN
 iptables -A WORKSPACE-NET -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
 for host in $(cat /opt/pwn.college/user_firewall.allowed); do
-    iptables -A WORKSPACE-NET -d $(host $host | awk '{print $NF; exit}') -j RETURN
+    iptables -A WORKSPACE-NET -d $(host $host | awk '/has address/ {print $NF}' | sort | head -n1) -j RETURN
 done
 iptables -A WORKSPACE-NET -j DROP
 

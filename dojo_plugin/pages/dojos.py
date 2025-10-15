@@ -71,15 +71,15 @@ def listing(template="dojos.html"):
         categorized_dojos["next"] = []
 
         for i, (dojo, solves) in enumerate(curriculum):
-            if 0 < solves < len(dojo.challenges):
+            if 0 < solves < dojo.required_challenges_count:
                 categorized_dojos["next"].append((dojo, solves))
-            elif solves < len(dojo.challenges) and i and curriculum[i-1][1] > 0:
+            elif solves < dojo.required_challenges_count and i and curriculum[i-1][1] > 0:
                 categorized_dojos["next"].append((dojo, solves))
 
         if not categorized_dojos["next"]:
             if getting_started and getting_started[1] == 0:
                 categorized_dojos["next"].append(getting_started)
-            elif all(solves >= len(dojo.challenges) for dojo, solves in curriculum):
+            elif all(solves >= dojo.required_challenges_count for dojo, solves in curriculum):
                 categorized_dojos["next"] = categorized_dojos["public"][:]
 
     dojo_container_counts = collections.Counter(stats["dojo"] for stats in get_container_stats())
