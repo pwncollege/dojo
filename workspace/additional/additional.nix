@@ -3,6 +3,7 @@
 let
   ghidra = import ./ghidra.nix { inherit pkgs; };
   burpsuite = import ./burpsuite.nix { inherit pkgs; };
+  wireshark = import ./wireshark.nix { inherit pkgs; };
   bata24-gef = import ./bata24-gef.nix { inherit pkgs; };
 
   pythonPackages = ps: with ps; [
@@ -31,7 +32,7 @@ let
 
     system = [ htop rsync openssh nftables landrun firejail ];
 
-    editors = [ vim neovim emacs nano gedit ];
+    editors = [ vim neovim emacs nano gedit zed-editor.remote_server ];
 
     terminal = [ tmux screen kitty.terminfo ];
 

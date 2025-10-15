@@ -20,4 +20,6 @@ We love Pull Requests! 🌟
 Have a small update?
 Send a PR so everyone can benefit.
 For more substantial changes, open an issue to ensure we're on the same page.
-Together, we make this project better for all! ✨
+Together, we can make this project better for all! ✨
+
+Make sure to take a look at our [contributing guide](/CONTRIBUTING.md) for information about contributing to this repository.
