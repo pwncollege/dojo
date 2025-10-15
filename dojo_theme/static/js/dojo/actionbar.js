@@ -118,6 +118,10 @@ function animateBanner(event, message, type) {
 }
 
 function actionSubmitFlag(event) {
+    if (body.submission === "pwn.college{practice}"){
+        animateBanner(event, "You submitted the practice flag! Solve the challenge without privileged mode to get the real flag.", "error");
+        return;
+    }
     context(event).find("input").prop("disabled", true).addClass("disabled");
     context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     var body = {
@@ -125,14 +129,6 @@ function actionSubmitFlag(event) {
         'submission': $(event.target).val(),
     };
     var params = {};
-
-    if (body.submission === "pwn.college{practice}"){
-        animateBanner(event, "You submitted the practice flag! Solve the challenge without privileged mode to get the real flag.", "error");
-        context(event).find("input").prop("disabled", false).removeClass("disabled");
-        context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
-        return;
-    }
-    
     CTFd.api.post_challenge_attempt(params, body)
     .then(function (response) {
         const challengeName = context(event).find("#current-challenge-id").attr("data-challenge-name");
