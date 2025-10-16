@@ -13,10 +13,7 @@ function submitChallenge(event) {
     answer_input.prop("disabled", true);
 
     if (submission == "pwn.college{practice}") {
-        var message = 'You have submitted the "practice" flag from launching the challenge in privileged mode! ';
-        message += 'This flag is not valid for scoring. ';
-        message += 'Run the challenge in unprivileged mode by pressing the Start button above. ';
-        message += 'Then use your solution to get the "real" flag and submit it!';
+        var message = "This is the practice flag! Find the real flag by pressing the Start button above to launch the challenge in unprivileged mode."
         return renderSubmissionResponse({"data": {"status": "practice", "message": message}}, item);
     }
 
