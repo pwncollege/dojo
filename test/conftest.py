@@ -35,7 +35,7 @@ def random_user_session(random_user):
 
 
 @pytest.fixture
-def completionist_user(simple_award_dojo):
+def completionist_user(simple_award_dojo, advanced_award_dojo):
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))
     session = login(random_id, random_id, register=True)
 
@@ -44,7 +44,13 @@ def completionist_user(simple_award_dojo):
     for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
         start_challenge(simple_award_dojo, module, challenge, session=session)
         solve_challenge(simple_award_dojo, module, challenge, session=session, user=random_id)
-
+        
+    response = session.get(f"{DOJO_URL}/dojo/{advanced_award_dojo}/join/")
+    assert response.status_code == 200
+    for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
+        start_challenge(advanced_award_dojo, module, challenge, session=session)
+        solve_challenge(advanced_award_dojo, module, challenge, session=session, user=random_id)
+        
     yield random_id, session
 
 
