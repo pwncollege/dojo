@@ -147,7 +147,7 @@ function actionSubmitFlag(event) {
             }
         }
         else if (response.data.status == "already_solved") {
-            animateBanner(event, `&#127881 Already solved <b>${challengeName}</b>! &#127881`, "success");
+            animateBanner(event, `&#127881 You've already solved <b>${challengeName}</b>! &#127881`, "success");
         }
         else {
             animateBanner(event, "Submission failed.", "warn");
