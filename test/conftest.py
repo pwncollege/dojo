@@ -88,6 +88,10 @@ def example_import_dojo(admin_session, example_dojo):
 def simple_award_dojo(admin_session):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "simple_award_dojo.yml").read(), session=admin_session)
 
+@pytest.fixture
+def advanced_award_dojo(admin_session):
+    return create_dojo_yml(open(TEST_DOJOS_LOCATION / "advanced_award_dojo.yml").read(), session=admin_session)
+    
 @pytest.fixture(scope="session")
 def no_practice_challenge_dojo(admin_session, example_dojo):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "no_practice_challenge.yml").read(), session=admin_session)
