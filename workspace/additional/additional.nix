@@ -36,7 +36,7 @@ let
 
     terminal = [ tmux screen kitty.terminfo ];
 
-    network = [ netcat-openbsd tcpdump wireshark termshark nmap burpsuite ];
+    network = [ netcat-openbsd tcpdump wireshark tshark termshark nmap burpsuite ];
 
     debugging = [ strace ltrace gdb pwndbg gef bata24-gef ];
 
