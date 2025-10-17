@@ -142,6 +142,7 @@ def render_markdown(s):
         "p": ["data-hide"]
     }
     clean_html = bleach.clean(raw_html, tags=markdown_tags, attributes=markdown_attrs)
+    clean_html = re.sub(r"<a", "<a target='_blank'", clean_html)
     return Markup(clean_html)
 
 def sanitize_survey(data):
