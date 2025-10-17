@@ -239,7 +239,7 @@ def delete_dojo(dojo):
         return {"success": False, "error": "Not Found"}, 404
 
     # Check if the current user is an admin of the dojo
-    if not is_admin():
+    if not dojo.is_admin():
         abort(403)
 
     try:
