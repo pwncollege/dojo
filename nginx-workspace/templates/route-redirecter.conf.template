@@ -1,0 +1,8 @@
+server {
+    server_name _;
+    listen 8888;
+
+    location ~ ^/workspace/(?P<container>[^/]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
+        return 307 https://$WORKSPACE_HOST/workspace/$container/$sig/$port/$path$is_args$args;
+    }
+}
