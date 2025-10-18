@@ -87,6 +87,31 @@ def ssh_command(private_key_file, command="echo 'SSH test successful'"):
     )
     return result
 
+def continuous_ssh(private_key_file):
+    ssh_port = int(os.getenv('DOJO_SSH_PORT', '22'))
+    
+    ssh_cmd = [
+        'ssh',
+        '-o', 'StrictHostKeyChecking=no',
+        '-o', 'UserKnownHostsFile=/dev/null',
+        '-o', 'PasswordAuthentication=no',
+        '-o', 'ConnectTimeout=10',
+        '-i', private_key_file,
+        '-p', str(ssh_port),
+        f'hacker@{DOJO_SSH_HOST}'
+    ]
+    
+    process = subprocess.Popen(
+        ssh_cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=0
+    )
+    
+    return process
+
 def test_add_single_ssh_key(random_user_session, temp_ssh_keys, example_dojo):
     
     response = add_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
@@ -206,3 +231,33 @@ def test_ssh_key_with_comment(random_user_session, temp_ssh_keys):
     
     response = add_ssh_key(random_user_session, key_with_comment)
     assert response.status_code == 200
+
+def test_ssh_challenge_switching(random_user_session, temp_ssh_keys, example_dojo):
+    response = add_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
+    assert response.status_code == 200
+    
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session, wait=5)
+    ssh_process = continuous_ssh(temp_ssh_keys['rsa']['private_file'])
+    
+    ssh_process.stdin.write("echo Hello  Hackers\n")
+    ssh_process.stdin.flush()
+    time.sleep(1)
+    assert "Hello Hackers" in ssh_process.stdout.read(1024)
+
+    ssh_process.stdin.write("ls /challenge/ap* 2>/dev/null\n")
+    ssh_process.stdin.flush()
+    time.sleep(1)
+    
+    start_challenge(example_dojo, "hello", "banana", session=random_user_session, wait=5)
+    time.sleep(1)
+    ssh_process.stdin.write("ls /challenge/ba* 2>/dev/null\n")
+    ssh_process.stdin.flush()
+    time.sleep(1)
+
+    ssh_process.stdin.write("exit\n")
+    time.sleep(1)
+    
+    ssh_process.wait()
+    output = ssh_process.stdin.read()
+    assert "apple" in output
+    assert "banana" in output
