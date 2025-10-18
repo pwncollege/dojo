@@ -94,6 +94,7 @@ fi
 mkdir -p /data/workspace/nix
 mkdir -p /data/workspacefs/bin
 mkdir -p /data/ctfd-ipython
+mkdir -p /data/coverage
 
 # Enable systemd journal forwarding to Splunk if configured
 if [ "${ENABLE_SPLUNK}" = "true" ]; then
