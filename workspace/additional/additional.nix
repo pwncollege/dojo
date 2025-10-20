@@ -28,7 +28,7 @@ let
   tools = with pkgs; {
     build = [ clang clang-tools cmake gcc gnumake qemu ];
 
-    compress = [ gnutar gzip zip unzip ];
+    compress = [ gnutar gzip unzip zip ];
 
     debug = [ bata24-gef gdb gef ltrace pwndbg strace ];
 
