@@ -73,16 +73,16 @@ def get_all_containers(dojo=None):
     ]
 
 
-def validate_user_container(token: str, secret=None) -> int:
+def validate_user_container(token: str, secret=None) -> tuple[int, int]:
     """
-    Returns the userID of the signed container token.
+    Returns the userID and challenge id of the signed container token.
     Raises an exception if validation of signature fails.
     """
     if secret is None:
         secret = current_app.config["SECRET_KEY"]
     serializer = URLSafeSerializer(secret)
     data = serializer.loads(token)
-    return data[0]
+    return tuple(data[0], data[1])
 
 
 def serialize_user_container(account_id: int, challenge_id: int, secret=None) -> str:
