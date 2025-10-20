@@ -2,7 +2,7 @@
   description = "DOJO Workspace Flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     nixpkgs-24-11.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-pr-angr-management.url = "github:NixOS/nixpkgs/pull/360310/head";
     pwndbg.url = "github:pwndbg/pwndbg";
@@ -30,13 +30,13 @@
               angr-management = (import nixpkgs-pr-angr-management { inherit system config; }).angr-management;
             };
 
-	    ida-free-overlay = self: super: {
-		ida-free = (import nixpkgs-24-11 { inherit system config; }).ida-free;
-	    };
+            ida-free-overlay = self: super: {
+              ida-free = (import nixpkgs-24-11 { inherit system config; }).ida-free;
+            };
 
-	    pwndbg-overlay = self: super: {
-		pwndbg = pwndbg.packages.${system}.pwndbg;
-	    };
+            pwndbg-overlay = self: super: {
+              pwndbg = pwndbg.packages.${system}.pwndbg;
+            };
 
             sage-overlay = final: prev: {
               sage = prev.sage.override {
@@ -52,20 +52,11 @@
               inherit system config;
               overlays = [
                 angr-management-overlay
-		ida-free-overlay
+                ida-free-overlay
                 sage-overlay
-		pwndbg-overlay
+                pwndbg-overlay
               ];
             };
-
-            init = import ./core/init.nix { inherit pkgs; };
-            exec-suid = import ./core/exec-suid.nix { inherit pkgs; };
-            sudo = import ./core/sudo.nix { inherit pkgs; };
-            ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
-            service = import ./services/service.nix { inherit pkgs; };
-            code-service = import ./services/code.nix { inherit pkgs; };
-            desktop-service = import ./services/desktop.nix { inherit pkgs; };
-            terminal-service = import ./services/terminal.nix { inherit pkgs; };
 
             ldd = pkgs.writeShellScriptBin "ldd" ''
               ldd=/usr/bin/ldd
@@ -81,6 +72,16 @@
               done
               exec "$ldd" "$@"
             '';
+
+            exec-suid = import ./core/exec-suid.nix { inherit pkgs; };
+            init = import ./core/init.nix { inherit pkgs; };
+            ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
+            sudo = import ./core/sudo.nix { inherit pkgs; };
+
+            service = import ./services/service.nix { inherit pkgs; };
+            code-service = import ./services/code.nix { inherit pkgs; };
+            desktop-service = import ./services/desktop.nix { inherit pkgs; };
+            terminal-service = import ./services/terminal.nix { inherit pkgs; };
 
             additional = import ./additional/additional.nix { inherit pkgs; };
 
@@ -110,10 +111,11 @@
 
               (lib.hiPrio ldd)
 
-              init
               exec-suid
-              sudo
+              init
               ssh-entrypoint
+              sudo
+
               service
               code-service
               desktop-service
