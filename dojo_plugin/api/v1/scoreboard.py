@@ -24,13 +24,30 @@ from ...utils.awards import get_belts, get_viewable_emojis
 SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
 scoreboard_namespace = Namespace("scoreboard")
 
-def email_symbol_asset(email):
+def get_group(email):
     if email.endswith("@asu.edu"):
-        group = "fork.png"
+        return "asu"
     elif ".edu" in email.split("@")[1]:
-        group = "student.png"
+        return "student"
     else:
-        group = "hacker.png"
+        return "hacker"
+
+def group_filter(group):
+    current_filter = "all" # Intergrate with future frontend
+    # Current filter:
+    # all: every group
+    # {GROUP}: filters to only that group
+    if current_filter == "all":
+        return True
+    else:
+        if group == current_filter:
+            return True
+    return False
+
+def email_symbol_asset(email):
+    email_to_image = {"asu": "fork.png", "student": "student.png", "hacker": "hacker.png"}
+    result = get_group(email)
+    group = email_to_image[result]
     return url_for("views.themes", path=f"img/dojo/{group}")
 
 @cache.memoize(timeout=SCOREBOARD_CACHE_TIMEOUT_SECONDS)
@@ -104,10 +121,9 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     user = get_current_user()
     emojis = get_viewable_emojis(user)
 
-    def standing(item):
+    def standing(item, user_id):
         if not item:
             return
-        user_id = item["user_id"]
         belt_color = belt_data["users"].get(user_id, {"color": "white"})["color"]
         result = {key: item[key] for key in item.keys()}
         result.update({
@@ -118,9 +134,14 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
         })
         return result
 
-    result = {
-        "standings": [standing(item) for item in pagination.items],
-    }
+    result = {"standings": []}
+    for item in pagination.items:
+      user_id = item["user_id"]
+      user = Users.query.filter_by(id=user_id).first()
+      user_group = get_group(user.email)
+      is_in_filter = group_filter(user_group)
+      if is_in_filter:
+        result["standings"].append(standing(item))
 
     pages = set(page for page in pagination.iter_pages() if page)
 
