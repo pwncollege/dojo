@@ -85,8 +85,10 @@ services:
           FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
         elif [ "$DOJO_ENV" = "coverage" ]; then
           FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off exec coverage run --source=CTFd/plugins/dojo_plugin -m flask run --no-reload --host 0.0.0.0 --port 8000;
-        else
+        elif [ "$DOJO_ENV" = "production" ]; then
           RUN_ID=$(openssl rand -hex 4) ./docker-entrypoint.sh;
+        else
+          echo "Failed to start ctfd - environment variable DOJO_ENV has invalid value \"$DOJO_ENV\""
         fi
     ulimits:
         nofile:

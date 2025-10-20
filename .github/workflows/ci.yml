@@ -7,7 +7,7 @@ on:
       - master
       - coverage
   schedule:
-    - cron: '42 06 * * *'
+    - cron: "42 06 * * *"
 jobs:
   test:
     name: "${{ matrix.mode }} DOJO Test"
@@ -190,12 +190,18 @@ jobs:
       - name: What the fuck is going on?
         run: |
           docker ps -a
-        
+
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: data/coverage/htmlcov
+
+      - name: Publish Coverage Webpage
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: data/coverage/htmlcov
 
       - name: Output logs
         if: always()
