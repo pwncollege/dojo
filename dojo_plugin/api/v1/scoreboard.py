@@ -141,7 +141,7 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
       user_group = get_group(user.email)
       is_in_filter = group_filter(user_group)
       if is_in_filter:
-        result["standings"].append(standing(item))
+        result["standings"].append(standing(item, user_id))
 
     pages = set(page for page in pagination.iter_pages() if page)
 
@@ -149,7 +149,7 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
         me = None
         for r in results:
             if r["user_id"] == user.id:
-                me = standing(r)
+                me = standing(r, r["user_id"])
                 break
         if me:
             pages.add((me["rank"] - 1) // per_page + 1)
