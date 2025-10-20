@@ -2,29 +2,23 @@ function submitChallenge(event) {
     event.preventDefault();
     const item = $(event.currentTarget).closest(".accordion-item");
     const challenge_id = parseInt(item.find('#challenge-id').val())
-    const submission = item.find('#challenge-input').val()
+    const answer_input = item.find("#challenge-input");
+    const submission = answer_input.val()
 
     const flag_regex = /pwn.college{.*}/;
     if (submission.match(flag_regex) == null) {
         return;
     }
-    item.find("#challenge-input").val("");
 
-    item.find("#challenge-submit").addClass("disabled-button");
-    item.find("#challenge-submit").prop("disabled", true);
-
-    var body = {
-        'challenge_id': challenge_id,
-        'submission': submission,
-    }
-    var params = {}
+    answer_input.prop("disabled", true);
 
     if (submission == "pwn.college{practice}") {
-        return renderSubmissionResponse({ "data": { "status": "practice", "message": "You have submitted the \"practice\" flag from launching the challenge in Practice mode! This flag is not valid for scoring. Run the challenge in non-practice mode by pressing Start above, then use your solution to get the \"real\" flag and submit it!" } }, item);
+        var message = "This is the practice flag! Find the real flag by pressing the Start button above to launch the challenge in unprivileged mode."
+        return renderSubmissionResponse({"data": {"status": "practice", "message": message}}, item);
     }
-    return CTFd.api.post_challenge_attempt(params, body).then(function (response) {
-        return renderSubmissionResponse(response, item);
-    })
+
+    return CTFd.api.post_challenge_attempt({}, {"challenge_id": challenge_id, "submission": submission})
+        .then(response => renderSubmissionResponse(response, item));
 };
 
 function renderSubmissionResponse(response, item) {
@@ -39,7 +33,6 @@ function renderSubmissionResponse(response, item) {
     const header = item.find('[id^="challenges-header-"]');
     const current_challenge_id = parseInt(header.attr('id').match(/(\d+)$/)[1]);
     const next_challenge_button = $(`#challenges-header-button-${current_challenge_id + 1}`);
-
 
     result_notification.removeClass();
     result_message.text(result.message);
@@ -153,8 +146,7 @@ function renderSubmissionResponse(response, item) {
     }
     setTimeout(function() {
         item.find(".alert").slideUp();
-        item.find("#challenge-submit").removeClass("disabled-button");
-        item.find("#challenge-submit").prop("disabled", false);
+        answer_input.prop("disabled", false);
     }, 10000);
 }
 
@@ -249,7 +241,7 @@ function startChallenge(event) {
         result_notification.removeClass();
 
         if (result.success) {
-            var message = `Challenge successfully started!`;
+            var message = "Challenge successfully started!";
             result_message.html(message);
             result_notification.addClass('alert alert-info alert-dismissable text-center');
 
@@ -257,11 +249,7 @@ function startChallenge(event) {
             item.find(".challenge-name").addClass("challenge-active");
         }
         else {
-            var message = "";
-            message += "Error:";
-            message += "<br>";
-            message += "<code>" + result.error + "</code>";
-            message += "<br>";
+            var message = "Error:<br><code>" + result.error + "</code><br>"
             result_message.html(message);
             result_notification.addClass('alert alert-warning alert-dismissable text-center');
         }
@@ -291,8 +279,6 @@ function startChallenge(event) {
 
         setTimeout(function() {
             item.find(".alert").slideUp();
-            item.find("#challenge-submit").removeClass("disabled-button");
-            item.find("#challenge-submit").prop("disabled", false);
         }, 60000);
     }).catch(function (error) {
         console.error(error);
@@ -351,7 +337,6 @@ function surveySubmit(data, item) {
         body: data
     })
 }
-
 
 function markChallengeAsSolved(item) {
     const unsolved_flag = item.find(".challenge-unsolved");
@@ -465,17 +450,14 @@ $(() => {
         }
     };
 
-    $(".challenge-input").keyup(function (event) {
-        if (event.keyCode == 13) {
-            const submit = $(event.currentTarget).closest(".accordion-item").find("#challenge-submit");
-            submit.click();
-        }
-    });
-
-
     var submits = $(".accordion-item").find("#challenge-input");
     for (var i = 0; i < submits.length; i++) {
         submits[i].oninput = submitChallenge;
+        submits[i].onkeyup = function (event) {
+            if (event.key === "Enter") {
+                submitChallenge(event);
+            }
+        };
     }
     $(".accordion-item").find("#challenge-start").click(startChallenge);
     $(".challenge-init").find("#challenge-priv").click(startChallenge);
