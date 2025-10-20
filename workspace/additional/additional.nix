@@ -36,6 +36,8 @@ let
 
     exploit = [ aflplusplus rappel ropgadget sage ];
 
+    lsp = [ ruff ty ];
+
     network = [ burpsuite netcat-openbsd nmap tcpdump termshark tshark wireshark ];
 
     reverse = [ angr-management binaryninja-free cutter file ghidra ida-free radare2 ];
@@ -60,6 +62,7 @@ in
     ++ tools.debug
     ++ tools.editor
     ++ tools.exploit
+    ++ tools.lsp
     ++ tools.network
     ++ tools.reverse
     ++ tools.shells
