@@ -73,6 +73,30 @@ def get_all_containers(dojo=None):
     ]
 
 
+def validate_user_container(token: str, secret=None) -> int:
+    """
+    Returns the userID of the signed container token.
+    Raises an exception if validation of signature fails.
+    """
+    if secret is None:
+        secret = current_app.config["SECRET_KEY"]
+    serializer = URLSafeSerializer(secret)
+    data = serializer.loads(token)
+    return data[0]
+
+
+def serialize_user_container(account_id: int, challenge_id: int, secret=None) -> str:
+    """
+    Gives a unique token for a container based on the user and current challenge.
+    """
+    if secret is None:
+        secret = current_app.config["SECRET_KEY"]
+    serializer = URLSafeSerializer(secret)
+    data = [account_id, challenge_id, "cli-container-token"]
+    token = serializer.dumps(data)
+    return token
+
+
 def serialize_user_flag(account_id, challenge_id, *, secret=None):
     if secret is None:
         secret = current_app.config["SECRET_KEY"]
