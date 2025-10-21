@@ -183,7 +183,3 @@ def load(app):
         bootstrap()
 
     app.shell_context_processor(shell_context_processor)
-
-
-def unused_code():
-    print("This code will never be reached")
