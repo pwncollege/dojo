@@ -15,6 +15,7 @@
       nixpkgs,
       nixpkgs-24-11,
       nixpkgs-pr-angr-management,
+      nixpkgs-unstable,
       pwndbg,
     }:
     {
