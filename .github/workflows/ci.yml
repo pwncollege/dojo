@@ -187,20 +187,9 @@ jobs:
             ./deploy.sh -N -g -t -M
           fi
 
-      - name: Upload coverage report
-        if: matrix.mode == 'singlenode'
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: ./data/coverage/htmlcov
-
       - name: Delete .gitignore in coverage report
         if: matrix.mode == 'singlenode'
-        run: |
-          ls -la /home/runner/work/pwn-college-dojo/pwn-college-dojo/data/coverage/htmlcov
-          echo -e "\n\nRemoving .gitignore\n\n"
-          sudo rm ./data/coverage/htmlcov/.gitignore
-          ls -la /home/runner/work/pwn-college-dojo/pwn-college-dojo/data/coverage/htmlcov
+        run: sudo rm ./data/coverage/htmlcov/.gitignore
 
       - name: Publish Coverage Webpage
         if: matrix.mode == 'singlenode'
