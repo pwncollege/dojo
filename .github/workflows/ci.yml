@@ -199,7 +199,7 @@ jobs:
         run: |
           ls -la /home/runner/work/pwn-college-dojo/pwn-college-dojo/data/coverage/htmlcov
           echo -e "\n\nRemoving .gitignore\n\n"
-          rm ./data/coverage/htmlcov/.gitignore
+          sudo rm ./data/coverage/htmlcov/.gitignore
           ls -la /home/runner/work/pwn-college-dojo/pwn-college-dojo/data/coverage/htmlcov
 
       - name: Publish Coverage Webpage
