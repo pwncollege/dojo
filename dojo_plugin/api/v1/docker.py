@@ -171,6 +171,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             "challenge.localhost": "127.0.0.1",
             "hacker.localhost": "127.0.0.1",
             "dojo-user": user_ipv4(user),
+            "ctfd": "10.0.0.117",
             **USER_FIREWALL_ALLOWED,
         },
         init=True,
