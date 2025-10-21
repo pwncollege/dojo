@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - master
-      - coverage
   schedule:
     - cron: "42 06 * * *"
 jobs:
