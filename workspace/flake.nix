@@ -2,9 +2,10 @@
   description = "DOJO Workspace Flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
     nixpkgs-24-11.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-pr-angr-management.url = "github:NixOS/nixpkgs/pull/360310/head";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     pwndbg.url = "github:pwndbg/pwndbg";
   };
 
@@ -48,6 +49,10 @@
               };
             };
 
+            zed-editor-overlay = self: super: {
+              zed-editor = (import nixpkgs-unstable { inherit system config; }).zed-editor;
+            };
+
             pkgs = import nixpkgs {
               inherit system config;
               overlays = [
@@ -55,6 +60,7 @@
                 ida-free-overlay
                 sage-overlay
                 pwndbg-overlay
+                zed-editor-overlay
               ];
             };
 
