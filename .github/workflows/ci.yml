@@ -187,33 +187,27 @@ jobs:
             ./deploy.sh -N -g -t -M
           fi
 
-      - name: What the fuck is going on?
-        run: |
-          docker ps -a
-
-      - name: List coverage directory 1
-        run: |
-          echo "Current dir: $(pwd)"
-          ls -la data/coverage/htmlcov || echo "Directory does not exist"
-          echo -e "\n\nAgain but with ./ prefix\n\n"
-          ls -la ./data/coverage/htmlcov || echo "Directory does not exist"
-
       - name: Upload coverage report
+        if: matrix.mode == 'singlenode'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: data/coverage/htmlcov
+          path: ./data/coverage/htmlcov
 
-      - name: List coverage directory 2
+      - name: Delete .gitignore in coverage report
+        if: matrix.mode == 'singlenode'
         run: |
-          echo "Current dir: $(pwd)"
+          ls -la /home/runner/work/pwn-college-dojo/pwn-college-dojo/data/coverage/htmlcov
+          echo -e "\n\nRemoving .gitignore\n\n"
+          rm ./data/coverage/htmlcov/.gitignore
           ls -la /home/runner/work/pwn-college-dojo/pwn-college-dojo/data/coverage/htmlcov
 
       - name: Publish Coverage Webpage
+        if: matrix.mode == 'singlenode'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: data/coverage/htmlcov
+          publish_dir: ./data/coverage/htmlcov
 
       - name: Output logs
         if: always()
