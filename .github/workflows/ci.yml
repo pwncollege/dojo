@@ -207,7 +207,7 @@ jobs:
       - name: List coverage directory 2
         run: |
           echo "Current dir: $(pwd)"
-          ls -la data/coverage/htmlcov || echo "Directory does not exist"
+          ls -la /home/runner/work/pwn-college-dojo/pwn-college-dojo/data/coverage/htmlcov
 
       - name: Publish Coverage Webpage
         uses: peaceiris/actions-gh-pages@v4
