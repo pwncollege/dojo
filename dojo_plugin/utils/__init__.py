@@ -123,6 +123,7 @@ def user_ipv4(user):
 def render_markdown(s):
     raw_html = build_markdown(s or "")
     if "dojo" in g and (g.dojo.official or g.dojo.privileged):
+        raw_html = re.sub("<a", '<a target="_blank"', raw_html)
         return Markup(raw_html)
 
     markdown_tags = [
