@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - master
+      - coverage
   schedule:
     - cron: "42 06 * * *"
 jobs:
@@ -186,16 +187,10 @@ jobs:
             ./deploy.sh -N -g -t -M
           fi
 
-      - name: Delete .gitignore in coverage report
-        if: matrix.mode == 'singlenode'
-        run: sudo rm ./data/coverage/htmlcov/.gitignore
-
-      - name: Publish coverage to github pages
-        if: matrix.mode == 'singlenode'
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./data/coverage/htmlcov
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Output logs
         if: always()

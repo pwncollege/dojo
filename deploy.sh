@@ -22,7 +22,7 @@ function usage {
 	echo "	-b	build the Docker image locally (tag: same as container name)"
 	echo "	-M	run in multi-node mode (3 containers: 1 main + 2 workspace nodes)"
 	echo "	-g	use GitHub Actions group output formatting"
-	echo "	-C	run the ctfd container with code coverage. Generates an html coverage report when paired with the -t flag"
+	echo "	-C	run the ctfd container with code coverage. Generates an xml coverage report when paired with the -t flag"
 	exit
 }
 
@@ -79,7 +79,7 @@ function generate_coverage_report {
     docker exec "$CONTAINER" docker kill -s SIGINT ctfd
 	docker exec "$CONTAINER" docker wait ctfd
     docker exec "$CONTAINER" docker start ctfd
-    docker exec "$CONTAINER" docker exec ctfd coverage html -d /var/coverage/htmlcov
+    docker exec "$CONTAINER" docker exec ctfd coverage xml -o /var/coverage/coverage.xml
 }
 
 ENV_ARGS=( )
