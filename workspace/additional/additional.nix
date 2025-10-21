@@ -26,7 +26,7 @@ let
   pythonEnv = pkgs.python3.withPackages pythonPackages;
 
   tools = with pkgs; {
-    build = [ clang clang-tools cmake gcc gnumake qemu ];
+    build = [ clang clang-tools cmake gcc gnumake qemu rustup ];
 
     compress = [ gnutar gzip unzip zip ];
 
