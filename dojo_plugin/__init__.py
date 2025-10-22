@@ -19,6 +19,7 @@ from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 from .models import Dojos, DojoChallenges, Belts, Emojis
 from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
+from .utils.dojo import get_current_dojo_challenge
 from .utils.awards import update_awards
 from .utils.feed import publish_challenge_solve
 from .utils.query_timer import init_query_timer
@@ -183,3 +184,18 @@ def load(app):
         bootstrap()
 
     app.shell_context_processor(shell_context_processor)
+
+    @app.context_processor
+    def inject_dojo_context():
+        challenge = get_current_dojo_challenge()
+        if not challenge:
+            return dict(current_dojo_challenge=None, current_dojo_custom_js=None)
+        return dict(
+            current_dojo_challenge=dict(
+                dojo_id=challenge.dojo.reference_id,
+                module_id=challenge.module.id,
+                challenge_id=challenge.id,
+            ),
+            current_dojo_custom_js=challenge.dojo.custom_js,
+        )
+
