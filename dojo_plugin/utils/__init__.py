@@ -13,7 +13,7 @@ import bleach
 import docker
 import docker.errors
 from flask import current_app, Response, Markup, abort, g
-from itsdangerous.url_safe import URLSafeSerializer
+from itsdangerous.url_safe import URLSafeSerializer, URLSafeTimedSerializer
 from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
 from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.encoding import hexencode
@@ -80,8 +80,8 @@ def validate_user_container(token: str, secret=None) -> tuple[int, str]:
     """
     if secret is None:
         secret = current_app.config["SECRET_KEY"]
-    serializer = URLSafeSerializer(secret)
-    data = serializer.loads(token)
+    serializer = URLSafeTimedSerializer(secret)
+    data = serializer.loads(token, max_age=(21600))
     return data[0], data[1]
 
 
@@ -91,7 +91,7 @@ def serialize_user_container(account_id: int, challenge_id: str, secret=None) ->
     """
     if secret is None:
         secret = current_app.config["SECRET_KEY"]
-    serializer = URLSafeSerializer(secret)
+    serializer = URLSafeTimedSerializer(secret)
     data = [account_id, challenge_id, "cli-container-token"]
     token = serializer.dumps(data)
     return token
