@@ -66,7 +66,7 @@
             code-service = import ./services/code.nix { inherit pkgs; };
             desktop-service = import ./services/desktop.nix { inherit pkgs; };
             terminal-service = import ./services/terminal.nix { inherit pkgs; };
-            dojo-cli = import ./code/dojo-cli.nix { inherit pkgs; };
+            dojo-cli = import ./core/dojo-cli.nix { inherit pkgs; };
 
             ldd = pkgs.writeShellScriptBin "ldd" ''
               ldd=/usr/bin/ldd
