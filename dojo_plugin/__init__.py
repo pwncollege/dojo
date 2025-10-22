@@ -82,6 +82,20 @@ class DojoFlag(BaseFlag):
         return True
 
 
+def context_processor():
+    challenge = get_current_dojo_challenge()
+    if not challenge:
+        return dict(current_dojo_challenge=None, current_dojo_custom_js=None)
+    return dict(
+        current_dojo_challenge=dict(
+            dojo_id=challenge.dojo.reference_id,
+            module_id=challenge.module.id,
+            challenge_id=challenge.id,
+        ),
+        current_dojo_custom_js=challenge.dojo.custom_js,
+    )
+
+
 def shell_context_processor():
     import CTFd.models as ctfd_models
     import CTFd.plugins.dojo_plugin.models as dojo_models
@@ -183,19 +197,5 @@ def load(app):
     if os.path.basename(sys.argv[0]) != "manage.py":
         bootstrap()
 
+    app.context_processor(context_processor)
     app.shell_context_processor(shell_context_processor)
-
-    @app.context_processor
-    def inject_dojo_context():
-        challenge = get_current_dojo_challenge()
-        if not challenge:
-            return dict(current_dojo_challenge=None, current_dojo_custom_js=None)
-        return dict(
-            current_dojo_challenge=dict(
-                dojo_id=challenge.dojo.reference_id,
-                module_id=challenge.module.id,
-                challenge_id=challenge.id,
-            ),
-            current_dojo_custom_js=challenge.dojo.custom_js,
-        )
-
