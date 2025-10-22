@@ -545,6 +545,10 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
 
             dojo.course = course
 
+        custom_js_path = dojo_dir / "custom.js"
+        if "custom_js" in dojo.permissions and custom_js_path.exists():
+            dojo.custom_js = custom_js_path.read_text()
+
         if dojo_data.get("pages"):
             dojo.pages = dojo_data["pages"]
 

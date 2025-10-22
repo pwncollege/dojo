@@ -337,7 +337,6 @@ def view_module(dojo, module, scroll_to_challenge=None):
         5000,
         []
     ))
-    current_dojo_challenge = get_current_dojo_challenge()
     container = get_current_container()
     practice = container.labels.get("dojo.mode") == "privileged" if container else False
 
@@ -416,7 +415,6 @@ def view_module(dojo, module, scroll_to_challenge=None):
         user_solves=user_solves,
         total_solves=total_solves,
         user=user,
-        current_dojo_challenge=current_dojo_challenge,
         practice=practice,
         assessments=assessments,
         challenge_container_counts=challenge_container_counts,
