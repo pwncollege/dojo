@@ -64,14 +64,20 @@ function log_endgroup {
 	fi
 }
 
+TEST_CONTAINER_EXTRA_ARGS=()
+
 function test_container {
-	docker run --rm \
-		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v "$PWD:/opt/pwn.college" \
-		--name "${DOJO_CONTAINER}-test" \
-		-e "OPENAI_API_KEY=${OPENAI_API_KEY:-}" \
-		"${DOJO_CONTAINER}-test" \
-		"$@"
+        local args=(
+                --rm
+                -v /var/run/docker.sock:/var/run/docker.sock
+                -v "$PWD:/opt/pwn.college"
+                --name "${DOJO_CONTAINER}-test"
+                -e "OPENAI_API_KEY=${OPENAI_API_KEY:-}"
+        )
+
+        args+=("${TEST_CONTAINER_EXTRA_ARGS[@]}")
+
+        docker run "${args[@]}" "${DOJO_CONTAINER}-test" "$@"
 }
 
 function generate_coverage_report {
@@ -187,7 +193,13 @@ if [ "$EXPORT_PORTS" == "yes" ]; then
 fi
 
 MULTINODE_ARGS=()
-[ "$MULTINODE" == "yes" ] && MULTINODE_ARGS+=("-e" "WORKSPACE_NODE=0")
+if [ "$MULTINODE" == "yes" ]; then
+	if [ -z "${WORKSPACE_SECRET:-}" ]; then
+		WORKSPACE_SECRET=$(openssl rand -hex 16)
+	fi
+	MULTINODE_ARGS+=("-e" "WORKSPACE_NODE=0")
+	ENV_ARGS+=("-e" "WORKSPACE_SECRET=$WORKSPACE_SECRET")
+fi
 
 if [ "$COVERAGE" == "yes" ]; then
 	ENV_ARGS+=("-e" "DOJO_ENV=coverage")
@@ -221,6 +233,25 @@ fi
 
 log_endgroup
 
+DOJO_HOST_CONFIG=$(docker exec "$DOJO_CONTAINER" sh -c 'echo -n "${DOJO_HOST-}"')
+WORKSPACE_HOST_CONFIG=$(docker exec "$DOJO_CONTAINER" sh -c 'echo -n "${WORKSPACE_HOST-}"')
+
+if [ -z "$DOJO_HOST_CONFIG" ]; then
+        DOJO_HOST_CONFIG="localhost.pwn.college"
+fi
+
+if [ -z "$WORKSPACE_HOST_CONFIG" ]; then
+        WORKSPACE_HOST_CONFIG="workspace.${DOJO_HOST_CONFIG}"
+fi
+
+if [[ "$DOJO_HOST_CONFIG" != "$CONTAINER_IP" && "$DOJO_HOST_CONFIG" =~ [A-Za-z] ]]; then
+        TEST_CONTAINER_EXTRA_ARGS+=("--add-host" "${DOJO_HOST_CONFIG}:${CONTAINER_IP}")
+fi
+
+if [[ "$WORKSPACE_HOST_CONFIG" != "$CONTAINER_IP" && "$WORKSPACE_HOST_CONFIG" != "$DOJO_HOST_CONFIG" && "$WORKSPACE_HOST_CONFIG" =~ [A-Za-z] ]]; then
+        TEST_CONTAINER_EXTRA_ARGS+=("--add-host" "${WORKSPACE_HOST_CONFIG}:${CONTAINER_IP}")
+fi
+
 if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	log_newgroup "Setting up multi-node cluster"
 
@@ -237,6 +268,7 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 		-e WORKSPACE_KEY="$MAIN_KEY" \
 		-e DOJO_HOST="$CONTAINER_IP" \
 		-e STORAGE_HOST="$CONTAINER_IP" \
+		-e "WORKSPACE_HOST=node-1.workspace.${DOJO_HOST_CONFIG}" \
 		--name "$DOJO_CONTAINER-node1" \
 		"$IMAGE_NAME"
 	fix_insane_routing "$DOJO_CONTAINER-node1"
@@ -248,6 +280,7 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 		-e WORKSPACE_KEY="$MAIN_KEY" \
 		-e DOJO_HOST="$CONTAINER_IP" \
 		-e STORAGE_HOST="$CONTAINER_IP" \
+		-e "WORKSPACE_HOST=node-2.workspace.${DOJO_HOST_CONFIG}" \
 		--name "$DOJO_CONTAINER-node2" \
 		"$IMAGE_NAME"
 	fix_insane_routing "$DOJO_CONTAINER-node2"
@@ -255,6 +288,11 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	# Wait for workspace containers and set up WireGuard
 	docker exec "$DOJO_CONTAINER-node1" dojo wait
 	docker exec "$DOJO_CONTAINER-node2" dojo wait
+
+	NODE1_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER-node1")
+	NODE2_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER-node2")
+	TEST_CONTAINER_EXTRA_ARGS+=("--add-host" "node-1.workspace.${DOJO_HOST_CONFIG}:${NODE1_IP}")
+	TEST_CONTAINER_EXTRA_ARGS+=("--add-host" "node-2.workspace.${DOJO_HOST_CONFIG}:${NODE2_IP}")
 
 	docker exec "$DOJO_CONTAINER-node1" dojo-node refresh
 	docker exec "$DOJO_CONTAINER-node2" dojo-node refresh
