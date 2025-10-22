@@ -114,6 +114,7 @@ function animateBanner(event, message, type) {
     context(event).find("#workspace-notification-banner")
       .html(message)
       .css("border-color", color)
+      .css("text-wrap-mode", "wrap")
       .addClass(animation);
 }
 
