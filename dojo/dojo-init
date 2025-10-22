@@ -34,8 +34,10 @@ define () {
     echo "${name}=${value}" >> /data/.config.env
 }
 DEFAULT_DOJO_HOST=localhost.pwn.college
+DEFAULT_FRONTEND_HOST=app.localhost.pwn.college
 
 define DOJO_HOST "${DEFAULT_DOJO_HOST}"
+define FRONTEND_HOST "${DEFAULT_FRONTEND_HOST}"
 define DOJO_ENV development
 define DOJO_WORKSPACE core
 define WORKSPACE_KEY

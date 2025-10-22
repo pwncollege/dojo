@@ -236,10 +236,13 @@ services:
     environment:
       - DOJO_HOST=${DOJO_HOST}
       - DOJO_ENV=${DOJO_ENV}
+      - FRONTEND_HOST=${FRONTEND_HOST}
     volumes:
       - /data/acme:/var/cache/nginx/acme-letsencrypt
     networks:
       default:
+        aliases:
+          - ${DOJO_HOST}
       workspace_net:
         aliases:
           - nginx
@@ -324,6 +327,29 @@ services:
     volumes:
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - prometheus_targets:/etc/prometheus/targets
+
+  frontend:
+    container_name: frontend
+    profiles:
+      - main
+    restart: always
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_CTFD_API_URL=http://${DOJO_HOST}/api/v1
+        - NEXT_PUBLIC_DOJO_API_URL=http://${DOJO_HOST}/pwncollege_api/v1
+        - NEXT_PUBLIC_DOJO_BASE_URL=http://${DOJO_HOST}
+    ports:
+      - "3003:3000"
+    environment:
+      - VIRTUAL_PORT=3000
+      - NEXT_PUBLIC_CTFD_API_URL=http://${DOJO_HOST}/api/v1
+      - NEXT_PUBLIC_DOJO_API_URL=http://${DOJO_HOST}/pwncollege_api/v1
+      - NEXT_PUBLIC_DOJO_BASE_URL=http://${DOJO_HOST}
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
 
   grafana:
     container_name: grafana
