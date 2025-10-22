@@ -339,19 +339,29 @@ def docker_locked(func):
     def wrapper(*args, **kwargs):
         user = get_current_user()
         redis_client = redis.from_url(current_app.config["REDIS_URL"])
+        lock = redis_client.lock(
+            f"user.{user.id}.docker.lock", blocking_timeout=0, timeout=20
+        )
         try:
-            # Super annoying that this will throw a LockNotOwned
-            # exception if the func takes longer than the timeout The
-            # real fix is raise_on_release_error=False to .lock (added
-            # https://github.com/redis/redis-py/issues/3532), however
-            # we're using an old version of the redis client. So for
-            # now we just catch LockNotOwnedError
-            with redis_client.lock(f"user.{user.id}.docker.lock", blocking_timeout=0, timeout=20):
-                return func(*args, **kwargs)
-        except redis.exceptions.LockNotOwnedError:
-            pass
+            acquired = lock.acquire(blocking=False)
         except redis.exceptions.LockError:
-            return {"success": False, "error": "Already starting a challenge; try again in 20 seconds."}
+            acquired = False
+
+        if not acquired:
+            return {
+                "success": False,
+                "error": "Already starting a challenge; try again in 20 seconds.",
+            }
+
+        try:
+            return func(*args, **kwargs)
+        finally:
+            try:
+                lock.release()
+            except redis.exceptions.LockNotOwnedError:
+                pass
+            except redis.exceptions.LockError:
+                pass
     return wrapper
 
 
