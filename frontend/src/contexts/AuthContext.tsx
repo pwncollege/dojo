@@ -64,8 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Check for existing auth on mount
   useEffect(() => {
-    const token = authService.getToken()
-    if (token) {
+    if (authService.isAuthenticated()) {
       const currentUser = authService.getCurrentUser()
       if (currentUser) {
         setUser(currentUser)

@@ -112,11 +112,11 @@ class AuthService {
     try {
       const response = await dojoApiClient.get<{ success: boolean; data?: any }>('/users/me')
 
-      // Check if response has user data (direct response from /users/me)
-      if (response && response.id) {
+      // Check if response has user data (API returns { success, data })
+      if (response && response.success && response.data) {
         // Update localStorage with fresh user data
-        localStorage.setItem('ctfd_user', JSON.stringify(response))
-        return { success: true, data: response }
+        localStorage.setItem('ctfd_user', JSON.stringify(response.data))
+        return { success: true, data: response.data }
       } else {
         // Clear invalid localStorage data
         localStorage.removeItem('ctfd_user')
