@@ -37,6 +37,10 @@ def authenticate_container(token : str) -> tuple[Any, str | None, int | None]:
 	
 	return user, None, None
 
+# Idealy we would want to use before_request and teardown_request,
+# however this is only supported at the application level. It is
+# currently not possible to define this at the route or namespace
+# level.
 def authenticated(func):
 	"""
 	Function decorator.
