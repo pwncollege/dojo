@@ -236,7 +236,6 @@ services:
     environment:
       - DOJO_HOST=${DOJO_HOST}
       - DOJO_ENV=${DOJO_ENV}
-      - FRONTEND_HOST=${FRONTEND_HOST}
     volumes:
       - /data/acme:/var/cache/nginx/acme-letsencrypt
     networks:

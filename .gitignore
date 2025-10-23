@@ -4,6 +4,3 @@ opt/
 sensai/
 data/
 cache/
-frontend/.env
-frontend/.env.local
-frontend/.env.*.local
