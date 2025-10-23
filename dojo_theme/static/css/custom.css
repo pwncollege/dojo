@@ -881,77 +881,83 @@ code {
     display: grid;
     grid-template-columns: repeat(4, 265px);
     gap: 12px;
-    margin: 6px auto;
+    margin: 6px 0;
     font-family: 'Space Grotesk';
-    text-transform: none;
     font-size: 16px;
     line-height: 1.2;
-    padding: 6px;
     width: fit-content;
+    padding-bottom: 12px;
     max-width: 100%;
     box-sizing: border-box;
     overflow-x: auto;
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
+    scrollbar-color: rgba(120, 190, 32, 0.2) transparent;
 }
 
 .stat-card {
     background: rgba(255, 255, 255, 0.05);
     padding: 16px;
     border-radius: 8px;
-    height: 185px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s ease;
+    height: 195px;
+    box-shadow: 0 4px 4px rgba(0, 0, 0, 0.6);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     flex-shrink: 0;
     box-sizing: border-box;
+    overflow: hidden;
 }
 
 .stat-card-header {
     font-size: 16px;
     color: var(--brand-green);
-    text-transform: none;
     text-align: left;
     padding: 0;
-    margin-bottom: 8px;
-    font-weight: 500;
+    margin-bottom: 10px;
+    font-weight: 600;
 }
 
 .stat-container {
     display: grid;
-    grid-template-columns: 2fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    gap: 12px;
+    grid-template-columns: 1fr;
+    gap: 10px;
     height: calc(100% - 32px);
+    overflow-x: hidden;
 }
 
-.stat-box:nth-child(1) { /* Total Solves */
-    grid-column: 1;
-    grid-row: 1;
+.stat-container.layout-split {
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: auto auto;
 }
 
-.stat-box:nth-child(2) { /* Hacking Now */
-    grid-column: 2;
-    grid-row: 1;
-}
-
-.stat-box:nth-child(3) { /* Unique Hackers */
+.stat-container.layout-split .stat-box:nth-child(2) {
     grid-column: 1;
     grid-row: 2;
 }
 
-.stat-box:nth-child(4) { /* Challenges */
+.stat-container.layout-split .stat-box:nth-child(3) {
     grid-column: 2;
-    grid-row: 2;
+    grid-row: 1 / -1;
 }
 
 .stat-box {
-    padding: 8px;
+    padding: 8px 12px;
     border-left: 2px solid var(--brand-green);
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 4px 0 0 4px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.3), transparent);
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
     transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+}
+
+.stat-box.award {
+    border-top: 1px solid var(--brand-green);
+    border-bottom: 1px solid var(--brand-green);
+    border-left: none;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.3), transparent);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
 }
 
 .stat-label {
@@ -963,8 +969,13 @@ code {
     text-overflow: ellipsis;
 }
 
+.stat-label.award {
+    font-size: 13px;
+    text-align: center;
+}
+
 .stat-value {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
     color: var(--brand-white);
     display: flex;
@@ -973,45 +984,36 @@ code {
     line-height: 1.1;
 }
 
-.stat-trend {
-    margin-left: 6px;
-    font-size: 10px;
-    white-space: nowrap;
-    padding: 2px 2px;
+.stat-value.award {
+    font-size: 52px;
+    text-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
 }
 
-.trend-up {
-    color: var(--brand-green);
+.award-icon {
+    width: 58px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
 }
 
-.trend-down {
-    color: #ff4444;
-}
-
-.trend-neutral {
-    color: var(--brand-light-gray);
-}
-
-.chart-container {
-    height: calc(100% - 32px);
-    margin: 4px 0;
-    padding: 2px;
-    max-height: 170px;
-    overflow: hidden;
+.stat-value:hover {
+    color: var(--brand-blue);
+    cursor: default;
 }
 
 .recent-activity, .recent-awards {
-    height: calc(100% - 32px);
-    max-height: 160px;
+    height: calc(100% - 38px);
+    max-height: 145px;
     overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 6px;
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.3) transparent;
-    padding: 4px;
+    scrollbar-color: rgba(120, 190, 32, 0.3) transparent;
 }
-/* scrollbar styles for stats */
+
 .recent-activity::-webkit-scrollbar,
 .recent-awards::-webkit-scrollbar {
-    width: 4px;
+    width: 2px;
 }
 
 .recent-activity::-webkit-scrollbar-track,
@@ -1021,26 +1023,27 @@ code {
 
 .recent-activity::-webkit-scrollbar-thumb,
 .recent-awards::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(120, 190, 32, 0.3);
     border-radius: 2px;
 }
 
 .recent-activity::-webkit-scrollbar-thumb:hover,
 .recent-awards::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(120, 190, 32, 0.5);
 }
 
 .recent-item {
     padding: 8px 6px;
-    border-bottom: 1px solid #1a1a1a;
+    border-bottom: 1px dashed var(--brand-dark-gray);
     font-size: 12px;
-    color: var(--brand-white);
-    transition: background 0.2s ease;
-    margin-bottom: 2px;
+    color: var(--brand-blue);
+    transition: all 0.2s ease;
+    margin-bottom: 4px;
 }
 
 .recent-item:hover {
-    background: rgba(255, 255, 255, 0.04);
+    color: var(--brand-white);
+    cursor: default;
 }
 
 .recent-item:last-child {
@@ -1049,8 +1052,8 @@ code {
 
 .recent-time {
     color: var(--brand-light-gray);
-    font-size: 10px;
-    margin-top: 2px;
+    font-size: 11px;
+    margin-top: 4px;
 }
 
 @keyframes navbar-slide-out {
