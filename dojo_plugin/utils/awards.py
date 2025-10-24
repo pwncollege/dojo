@@ -82,19 +82,33 @@ def get_viewable_emojis(user):
     
     seen = set()
     for emoji in emojis:
-        key = (emoji.user_id, emoji.category)
-        if key in seen:
-            continue
-            
-        if emoji.category is None:
-            emoji_symbol = emoji.name
-            url = "#"
-        else:
-            dojo = viewable_dojos.get(emoji.category)
-            if not dojo or not dojo.award or not dojo.award.get('emoji'):
-                continue
-            emoji_symbol = dojo.award.get('emoji')
-            url = url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
+        # Event emojis
+        match emoji.name:
+            case "EVENT_1":
+                url = "#"
+                emoji_symbol = "🥇"
+            case "EVENT_2":
+                url = "#"
+                emoji_symbol = "🥈"
+            case "EVENT_3":
+                url = "#"
+                emoji_symbol = "🥉"
+            case _:
+                # Don't add repeat emojis
+                key = (emoji.user_id, emoji.category)
+                if key in seen:
+                    continue
+                seen.add(key)
+                    
+                if emoji.category is None:
+                    emoji_symbol = emoji.name
+                    url = "#"
+                else:
+                    dojo = viewable_dojos.get(emoji.category)
+                    if not dojo or not dojo.award or not dojo.award.get('emoji'):
+                        continue
+                    emoji_symbol = dojo.award.get('emoji')
+                    url = url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
         
         is_stale = emoji.name == "STALE"
         
@@ -105,7 +119,6 @@ def get_viewable_emojis(user):
             "url": url,
             "stale": is_stale,
         })
-        seen.add(key)
     
     return result
 
@@ -168,6 +181,6 @@ def grant_event_award(user, event: str, place: int) -> bool:
     placeStr = "first" if place == 1 else "second" if place == 2 else "third" if place == 3 else None
     if placeStr is None:
         return False
-    db.session.add(Emojis(user=user, name=f"EVENT_{place}", description=f"Awarded for ranking {placeStr} in {event}.", category=event))
+    db.session.add(Emojis(user=user, name=f"EVENT_{place}", description=f"Awarded for ranking {placeStr} in {event}.", category=None))
     db.session.commit()
     return True
