@@ -5,7 +5,7 @@ from CTFd.models import db, Users
 from flask import url_for
 
 from .discord import get_discord_roles, get_discord_member, add_role, send_message
-from ..models import Dojos, Belts, Emojis, DiscordUsers
+from ..models import Dojos, Belts, Emojis, DiscordUsers, Medals
 from .feed import publish_belt_earned, publish_emoji_earned
 
 
@@ -79,36 +79,36 @@ def get_viewable_emojis(user):
             Users.id.label("user_id"),
         )
     )
+
+    medals = (
+        Medals.query
+        .join(Users)
+        .filter(~Users.hidden)
+        .order_by(Medals.date)
+        .with_entities(
+            Medals.name,
+            Medals.description,
+            Medals.category,
+            Users.id.label("user_id"),
+        )
+    )
     
     seen = set()
     for emoji in emojis:
-        # Event emojis
-        match emoji.name:
-            case "EVENT_1":
-                url = "#"
-                emoji_symbol = "🥇"
-            case "EVENT_2":
-                url = "#"
-                emoji_symbol = "🥈"
-            case "EVENT_3":
-                url = "#"
-                emoji_symbol = "🥉"
-            case _:
-                # Don't add repeat emojis
-                key = (emoji.user_id, emoji.category)
-                if key in seen:
-                    continue
-                seen.add(key)
-                    
-                if emoji.category is None:
-                    emoji_symbol = emoji.name
-                    url = "#"
-                else:
-                    dojo = viewable_dojos.get(emoji.category)
-                    if not dojo or not dojo.award or not dojo.award.get('emoji'):
-                        continue
-                    emoji_symbol = dojo.award.get('emoji')
-                    url = url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
+        key = (emoji.user_id, emoji.category)
+        if key in seen:
+            continue
+        seen.add(key)
+            
+        if emoji.category is None:
+            emoji_symbol = emoji.name
+            url = "#"
+        else:
+            dojo = viewable_dojos.get(emoji.category)
+            if not dojo or not dojo.award or not dojo.award.get('emoji'):
+                continue
+            emoji_symbol = dojo.award.get('emoji')
+            url = url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
         
         is_stale = emoji.name == "STALE"
         
@@ -118,6 +118,31 @@ def get_viewable_emojis(user):
             "count": 1,
             "url": url,
             "stale": is_stale,
+        })
+
+    seen = set()
+    for medal in medals:
+        key = (medal.user_id, medal.category)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        match medal.name:
+            case "EVENT_1":
+                emoji = "🥇"
+            case "EVENT_2":
+                emoji = "🥈"
+            case "EVENT_3":
+                emoji = "🥉"
+            case _:
+                continue
+
+        result.setdefault(medal.user_id, []).append({
+            "text": medal.description,
+            "emoji": emoji,
+            "count": 1,
+            "url": "#",
+            "stale": False
         })
     
     return result
@@ -181,6 +206,6 @@ def grant_event_award(user, event: str, place: int) -> bool:
     placeStr = "first" if place == 1 else "second" if place == 2 else "third" if place == 3 else None
     if placeStr is None:
         return False
-    db.session.add(Emojis(user=user, name=f"EVENT_{place}", description=f"Awarded for ranking {placeStr} in {event}.", category=None))
+    db.session.add(Medals(user=user, name=f"EVENT_{place}", description=f"Awarded for ranking {placeStr} in {event}.", category=event))
     db.session.commit()
     return True

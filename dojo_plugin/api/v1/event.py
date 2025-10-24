@@ -17,7 +17,7 @@ class GrantAward(Resource):
         user = get_current_user()
         data = request.get_json()
         event = data.get("event")
-        place = data.get("place")
+        place = int(data.get("place"))
         result = grant_event_award(user, event, place)
         return ({"success": result}, 200)
 
