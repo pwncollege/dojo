@@ -6,7 +6,7 @@ from CTFd.models import Users
 from ...utils import validate_user_container, get_current_container
 
 integration_namespace = Namespace(
-    "integrations",
+    "integration",
     description="Endpoints for internal container integration",
     decorators=[bypass_csrf_protection]
 )
@@ -55,7 +55,7 @@ def authenticated(func):
         # Authenticate.
         token = request.headers.get("auth_token", None)
         if token is None:
-            return ({"success": False, "error": "Authentication token not provided."}, 400)
+            return ({"success": False, "error": f"Authentication token not provided. Headers: {str(request.headers)}"}, 400)
         user, error, code = authenticate_container(token)
         if user is None:
             return ({"success": False, "error": error}, code)

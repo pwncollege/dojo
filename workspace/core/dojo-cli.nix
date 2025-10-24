@@ -3,7 +3,8 @@
 pkgs.writeScriptBin "dojo" ''
 #!${pkgs.python3}/bin/python3
 
-from urllib import request
+import urllib.request
+import urllib.error
 import argparse
 import json
 import sys
@@ -25,26 +26,29 @@ def whoami() -> int:
     token = get_token()
     if not token:
         print("Failed to find authentication token (DOJO_AUTH_TOKEN). Did you change environment variables?")
-        return 4
-    
-    httpRequest = request.Request(
-        f"{DOJO_API}/integrations/whoami",
-        method="GET",
-        headers = {
-            "auth_token": token
-        },
-    )
-    response = request.urlopen(httpRequest, timeout=5.0)
+        return 2
 
     # Check for errors in response.
     try:
-        response_json = json.loads(response.read().decode())
+        httpRequest = urllib.request.Request(
+            f"{DOJO_API}/integration/whoami",
+            method="GET",
+            headers = {
+                "auth_token": token
+            },
+        )
+        response = urllib.request.urlopen(httpRequest, timeout=5.0)
+        response_raw = response.read()
+        response_json = json.loads(response_raw.decode())
+    except urllib.error.HTTPError as exception:
+        print(f"WHOAMI request failed ({exception.code}): {exception.reason}")
+        return 3
     except:
-        print(f"WHOAMI request failed ({response.status}): malformed response from server")
-        return 2
+        print(f"WHOAMI request failed ({response.status}): {response_raw}")
+        return 4
     if response.status != 200 or not response_json["success"]:
         print(f"WHOAMI request failed ({response.status}): {response_json["error"]}")
-        return 3
+        return 5
 
     # Print who's hacking.
     print(response_json["message"])
@@ -65,7 +69,7 @@ def main():
         name="whoami",
         help="Prints information about the current user (you!)."
     )
-    
+
     args = parser.parse_args()
 
     if args.command.lower() == "whoami":
