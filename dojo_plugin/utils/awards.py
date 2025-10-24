@@ -156,3 +156,18 @@ def update_awards(user):
         if dojo.official or dojo.data.get("type") == "public":
             publish_emoji_earned(user, emoji, display_name, description, 
                                dojo_id=dojo.reference_id, dojo_name=display_name)
+            
+def grant_event_award(user, event: str, place: int) -> bool:
+    """
+    Grants an event award to a user.
+
+    `place` must be one of `{1, 2, 3}`.
+
+    Returns if the operation succeeded.
+    """
+    placeStr = "first" if place == 1 else "second" if place == 2 else "third" if place == 3 else None
+    if placeStr is None:
+        return False
+    db.session.add(Emojis(user=user, name=f"EVENT_{place}", description=f"Awarded for ranking {placeStr} in {event}.", category=event))
+    db.session.commit()
+    return True
