@@ -343,9 +343,9 @@ services:
       args:
         - NEXT_PUBLIC_DOJO_HOST=${DOJO_HOST}
         - NEXT_PUBLIC_DOJO_ENV=${DOJO_ENV}
+    user: root
     ports:
       - "3000"
-    user: "1002:1005"
     environment:
       - NEXT_PUBLIC_DOJO_HOST=${DOJO_HOST}
       - NEXT_PUBLIC_DOJO_ENV=${DOJO_ENV}
