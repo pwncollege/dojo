@@ -1,4 +1,4 @@
-export const PROTOCOL = process.env.NEXT_PUBLIC_DOJO_ENV === 'development' ? 'http' : 'https'
+export const PROTOCOL = process.env.NEXT_PUBLIC_DOJO_ENV === 'production' ? 'https' : 'http'
 const  CTFD_API_BASE_URL = `${PROTOCOL}://${process.env.NEXT_PUBLIC_DOJO_HOST}/api/v1`
 const  DOJO_API_BASE_URL = `${PROTOCOL}://${process.env.NEXT_PUBLIC_DOJO_HOST}/pwncollege_api/v1`
 
