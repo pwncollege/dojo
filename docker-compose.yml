@@ -360,7 +360,7 @@ services:
         if [ "$DOJO_ENV" = "production" ]; then
           exec bun ./server.js;
         else
-          cd /opt/pwn.college/frontend && exec bun dev;
+          cd /opt/pwn.college/frontend && exec bun dev --turbo;
         fi
     volumes:
       - /opt/pwn.college/frontend:/opt/pwn.college/frontend
