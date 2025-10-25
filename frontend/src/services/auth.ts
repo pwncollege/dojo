@@ -107,24 +107,21 @@ class AuthService {
     }
   }
 
-  // Fetch current user from server to verify authentication
   async fetchCurrentUser(): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-      const response = await dojoApiClient.get<{ success: boolean; data?: any }>('/users/me')
+      const response = await dojoApiClient.get<any>('/users/me')
 
-      // Check if response has user data (API returns { success, data })
-      if (response && response.success && response.data) {
-        // Update localStorage with fresh user data
-        localStorage.setItem('ctfd_user', JSON.stringify(response.data))
-        return { success: true, data: response.data }
+      if (response && response.id) {
+        localStorage.setItem('ctfd_user', JSON.stringify(response))
+        return { success: true, data: response }
       } else {
-        // Clear invalid localStorage data
         localStorage.removeItem('ctfd_user')
         return { success: false, error: 'User not authenticated' }
       }
     } catch (error) {
-      // Clear localStorage on error (likely not authenticated)
-      localStorage.removeItem('ctfd_user')
+      if (error instanceof Error && 'status' in error && (error as any).status === 401) {
+        localStorage.removeItem('ctfd_user')
+      }
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to fetch user'
