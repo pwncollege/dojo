@@ -120,6 +120,8 @@ def get_viewable_emojis(user):
             "stale": is_stale,
         })
 
+    # combine descriptions for medals.
+    awarded_medals = {}
     seen = set()
     for medal in medals:
         key = (medal.user_id, medal.category)
@@ -129,22 +131,29 @@ def get_viewable_emojis(user):
 
         match medal.name:
             case "EVENT_1":
-                emoji = "🥇"
+                index = 0
             case "EVENT_2":
-                emoji = "🥈"
+                index = 1
             case "EVENT_3":
-                emoji = "🥉"
+                index = 2
             case _:
                 continue
 
-        result.setdefault(medal.user_id, []).append({
-            "text": medal.description,
-            "emoji": emoji,
-            "count": 1,
-            "url": "#",
-            "stale": False
-        })
-    
+        awarded_medals.setdefault(medal.user_id, ["", "", ""])
+        awarded_medals[medal.user_id][index] += (("\n" if awarded_medals[medal.user_id][index] != "" else "") + medal.description)
+
+    for id, medal in awarded_medals.items():
+        for description, emoji in zip(medal, ["🥇", "🥈", "🥉"]):
+            if description == "":
+                continue
+            result.setdefault(id, []).append({
+                "text": description,
+                "emoji": emoji,
+                "count": 1,
+                "url": "#",
+                "stale": False,
+            })
+
     return result
 
 def update_awards(user):
