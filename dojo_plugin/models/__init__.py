@@ -72,13 +72,14 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(JSONB)
-    data_fields = ["type", "award", "course", "permissions", "pages", "privileged", "importable", "comparator", "show_scoreboard"]
+    data_fields = ["type", "award", "course", "permissions", "pages", "privileged", "importable", "comparator", "show_scoreboard", "custom_js"]
     data_defaults = {
         "permissions": [],
         "pages": [],
         "privileged": False,
         "importable": True,
         "show_scoreboard": True,
+        "custom_js": None,
     }
 
     users = db.relationship("DojoUsers", back_populates="dojo")

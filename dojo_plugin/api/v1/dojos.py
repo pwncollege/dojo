@@ -333,7 +333,7 @@ class DojoChallengeDescription(Resource):
 
         dojo_challenge = DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id).first()
 
-        if dojo_challenge is None or not (dojo_challenge.visible() or dojo.is_admin(user=user)):
+        if dojo_challenge is None or not (dojo_challenge.visible() or dojo.is_admin()):
             return {"success": False, "error": "Invalid challenge id"}, 404
 
         if is_challenge_locked(dojo_challenge, user):
