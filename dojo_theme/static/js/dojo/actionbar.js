@@ -49,7 +49,7 @@ function getRecentService(root) {
     return match;
 }
 
-function showWorkspaceLoadError(content) {
+function showWorkspaceLoadError(content, result) {
     content.src = "";
     animateBanner(
         {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
@@ -77,7 +77,7 @@ function specialSelect(serviceName, content) {
             content.src = url.toString();
         }
         else {
-            showWorkspaceLoadError(content);
+            showWorkspaceLoadError(content, result);
         }
     });
 }
@@ -101,7 +101,7 @@ function portSelect(port, content) {
             content.src = url.toString();
         }
         else {
-            showWorkspaceLoadError(content);
+            showWorkspaceLoadError(content, result);
         }
     });
 }
