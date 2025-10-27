@@ -95,6 +95,9 @@ class view_desktop(Resource):
                 iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, message=message, **vnc_params)
 
             elif service == "desktop-windows":
+                if user_id and not is_admin():
+                    abort(403)
+
                 service_param = "~".join(("desktop-windows", str(user.id), container_password(container, "desktop-windows")))
                 vnc_params = {
                     "autoconnect": 1,
