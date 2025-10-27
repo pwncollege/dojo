@@ -304,6 +304,8 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	sleep 5
 	docker exec "$DOJO_CONTAINER" dojo compose restart ctfd sshd
 	sleep 5
+	docker exec "$DOJO_CONTAINER" dojo compose restart nginx
+	sleep 5
 	docker exec "$DOJO_CONTAINER" dojo wait
 
 	docker exec "$DOJO_CONTAINER-node1" docker wait workspace-builder
