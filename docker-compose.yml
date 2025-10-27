@@ -275,7 +275,7 @@ services:
     networks:
       default:
         aliases:
-          - ${DOJO_HOST}
+          - ${WORKSPACE_HOST}
       workspace_net:
         aliases:
           - nginx
