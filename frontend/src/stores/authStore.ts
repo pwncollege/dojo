@@ -18,6 +18,7 @@ interface AuthStore {
   isLoading: boolean
   loginLoading: boolean
   registerLoading: boolean
+  hasHydrated: boolean
 
   // Error states
   authError: string | null
@@ -40,9 +41,10 @@ export const useAuthStore = create<AuthStore>()(
       // Initial state
       user: null,
       isAuthenticated: false,
-      isLoading: false,
+      isLoading: true,
       loginLoading: false,
       registerLoading: false,
+      hasHydrated: false,
       authError: null,
 
       // Actions
@@ -76,8 +78,14 @@ export const useAuthStore = create<AuthStore>()(
         try {
           const response = await authService.register(data)
           if (response.success && response.data) {
+            const user = {
+              id: response.data.user_id?.toString() || response.data.id?.toString(),
+              username: response.data.username || response.data.name,
+              email: response.data.email,
+              type: response.data.type || 'user'
+            }
             set({
-              user: response.data,
+              user,
               isAuthenticated: true,
               registerLoading: false
             })
@@ -123,23 +131,20 @@ export const useAuthStore = create<AuthStore>()(
             set({
               user,
               isAuthenticated: true,
-              isLoading: false,
-              authError: null
+              isLoading: false
             })
           } else {
             set({
               user: null,
               isAuthenticated: false,
-              isLoading: false,
-              authError: response.error || 'Not authenticated'
+              isLoading: false
             })
           }
         } catch (error) {
           set({
             user: null,
             isAuthenticated: false,
-            isLoading: false,
-            authError: error instanceof Error ? error.message : 'Failed to fetch user'
+            isLoading: false
           })
         }
       },
@@ -164,7 +169,15 @@ export const useAuthStore = create<AuthStore>()(
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated
-      })
+      }),
+      onRehydrateStorage: () => {
+        return (state, error) => {
+          if (!error && state) {
+            state.hasHydrated = true
+            state.isLoading = false
+          }
+        }
+      }
     }
   )
 )

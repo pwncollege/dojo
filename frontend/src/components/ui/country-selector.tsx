@@ -1,221 +1,167 @@
+"use client"
+
+import React, { useCallback, useState, forwardRef, useEffect } from "react"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { ChevronDown, CheckIcon } from "lucide-react"
+import { CircleFlag } from "react-circle-flags"
+import { countries } from "country-data-list"
 
-const COUNTRIES = [
-  { code: "US", name: "United States" },
-  { code: "GB", name: "United Kingdom" },
-  { code: "CA", name: "Canada" },
-  { code: "AU", name: "Australia" },
-  { code: "DE", name: "Germany" },
-  { code: "FR", name: "France" },
-  { code: "IT", name: "Italy" },
-  { code: "ES", name: "Spain" },
-  { code: "NL", name: "Netherlands" },
-  { code: "SE", name: "Sweden" },
-  { code: "NO", name: "Norway" },
-  { code: "DK", name: "Denmark" },
-  { code: "FI", name: "Finland" },
-  { code: "CH", name: "Switzerland" },
-  { code: "AT", name: "Austria" },
-  { code: "BE", name: "Belgium" },
-  { code: "IE", name: "Ireland" },
-  { code: "PT", name: "Portugal" },
-  { code: "PL", name: "Poland" },
-  { code: "CZ", name: "Czech Republic" },
-  { code: "HU", name: "Hungary" },
-  { code: "SK", name: "Slovakia" },
-  { code: "SI", name: "Slovenia" },
-  { code: "EE", name: "Estonia" },
-  { code: "LV", name: "Latvia" },
-  { code: "LT", name: "Lithuania" },
-  { code: "RO", name: "Romania" },
-  { code: "BG", name: "Bulgaria" },
-  { code: "HR", name: "Croatia" },
-  { code: "GR", name: "Greece" },
-  { code: "CY", name: "Cyprus" },
-  { code: "MT", name: "Malta" },
-  { code: "LU", name: "Luxembourg" },
-  { code: "IS", name: "Iceland" },
-  { code: "LI", name: "Liechtenstein" },
-  { code: "MC", name: "Monaco" },
-  { code: "SM", name: "San Marino" },
-  { code: "VA", name: "Vatican City" },
-  { code: "AD", name: "Andorra" },
-  { code: "RU", name: "Russia" },
-  { code: "UA", name: "Ukraine" },
-  { code: "BY", name: "Belarus" },
-  { code: "MD", name: "Moldova" },
-  { code: "RS", name: "Serbia" },
-  { code: "BA", name: "Bosnia and Herzegovina" },
-  { code: "ME", name: "Montenegro" },
-  { code: "MK", name: "North Macedonia" },
-  { code: "AL", name: "Albania" },
-  { code: "XK", name: "Kosovo" },
-  { code: "JP", name: "Japan" },
-  { code: "KR", name: "South Korea" },
-  { code: "CN", name: "China" },
-  { code: "IN", name: "India" },
-  { code: "SG", name: "Singapore" },
-  { code: "HK", name: "Hong Kong" },
-  { code: "TW", name: "Taiwan" },
-  { code: "MY", name: "Malaysia" },
-  { code: "TH", name: "Thailand" },
-  { code: "VN", name: "Vietnam" },
-  { code: "PH", name: "Philippines" },
-  { code: "ID", name: "Indonesia" },
-  { code: "BD", name: "Bangladesh" },
-  { code: "PK", name: "Pakistan" },
-  { code: "LK", name: "Sri Lanka" },
-  { code: "NP", name: "Nepal" },
-  { code: "BT", name: "Bhutan" },
-  { code: "MV", name: "Maldives" },
-  { code: "AF", name: "Afghanistan" },
-  { code: "MN", name: "Mongolia" },
-  { code: "KZ", name: "Kazakhstan" },
-  { code: "UZ", name: "Uzbekistan" },
-  { code: "TM", name: "Turkmenistan" },
-  { code: "KG", name: "Kyrgyzstan" },
-  { code: "TJ", name: "Tajikistan" },
-  { code: "IL", name: "Israel" },
-  { code: "TR", name: "Turkey" },
-  { code: "AE", name: "United Arab Emirates" },
-  { code: "SA", name: "Saudi Arabia" },
-  { code: "QA", name: "Qatar" },
-  { code: "KW", name: "Kuwait" },
-  { code: "BH", name: "Bahrain" },
-  { code: "OM", name: "Oman" },
-  { code: "JO", name: "Jordan" },
-  { code: "LB", name: "Lebanon" },
-  { code: "SY", name: "Syria" },
-  { code: "IQ", name: "Iraq" },
-  { code: "IR", name: "Iran" },
-  { code: "EG", name: "Egypt" },
-  { code: "LY", name: "Libya" },
-  { code: "TN", name: "Tunisia" },
-  { code: "DZ", name: "Algeria" },
-  { code: "MA", name: "Morocco" },
-  { code: "EH", name: "Western Sahara" },
-  { code: "MR", name: "Mauritania" },
-  { code: "ML", name: "Mali" },
-  { code: "BF", name: "Burkina Faso" },
-  { code: "NE", name: "Niger" },
-  { code: "TD", name: "Chad" },
-  { code: "SD", name: "Sudan" },
-  { code: "SS", name: "South Sudan" },
-  { code: "ET", name: "Ethiopia" },
-  { code: "ER", name: "Eritrea" },
-  { code: "DJ", name: "Djibouti" },
-  { code: "SO", name: "Somalia" },
-  { code: "KE", name: "Kenya" },
-  { code: "UG", name: "Uganda" },
-  { code: "TZ", name: "Tanzania" },
-  { code: "RW", name: "Rwanda" },
-  { code: "BI", name: "Burundi" },
-  { code: "MZ", name: "Mozambique" },
-  { code: "MW", name: "Malawi" },
-  { code: "ZM", name: "Zambia" },
-  { code: "ZW", name: "Zimbabwe" },
-  { code: "BW", name: "Botswana" },
-  { code: "NA", name: "Namibia" },
-  { code: "ZA", name: "South Africa" },
-  { code: "LS", name: "Lesotho" },
-  { code: "SZ", name: "Eswatini" },
-  { code: "MG", name: "Madagascar" },
-  { code: "MU", name: "Mauritius" },
-  { code: "SC", name: "Seychelles" },
-  { code: "KM", name: "Comoros" },
-  { code: "YT", name: "Mayotte" },
-  { code: "RE", name: "Réunion" },
-  { code: "MX", name: "Mexico" },
-  { code: "GT", name: "Guatemala" },
-  { code: "BZ", name: "Belize" },
-  { code: "SV", name: "El Salvador" },
-  { code: "HN", name: "Honduras" },
-  { code: "NI", name: "Nicaragua" },
-  { code: "CR", name: "Costa Rica" },
-  { code: "PA", name: "Panama" },
-  { code: "CU", name: "Cuba" },
-  { code: "JM", name: "Jamaica" },
-  { code: "HT", name: "Haiti" },
-  { code: "DO", name: "Dominican Republic" },
-  { code: "PR", name: "Puerto Rico" },
-  { code: "TT", name: "Trinidad and Tobago" },
-  { code: "BB", name: "Barbados" },
-  { code: "LC", name: "Saint Lucia" },
-  { code: "GD", name: "Grenada" },
-  { code: "VC", name: "Saint Vincent and the Grenadines" },
-  { code: "AG", name: "Antigua and Barbuda" },
-  { code: "DM", name: "Dominica" },
-  { code: "KN", name: "Saint Kitts and Nevis" },
-  { code: "BS", name: "Bahamas" },
-  { code: "CO", name: "Colombia" },
-  { code: "VE", name: "Venezuela" },
-  { code: "GY", name: "Guyana" },
-  { code: "SR", name: "Suriname" },
-  { code: "GF", name: "French Guiana" },
-  { code: "BR", name: "Brazil" },
-  { code: "PE", name: "Peru" },
-  { code: "EC", name: "Ecuador" },
-  { code: "BO", name: "Bolivia" },
-  { code: "PY", name: "Paraguay" },
-  { code: "UY", name: "Uruguay" },
-  { code: "AR", name: "Argentina" },
-  { code: "CL", name: "Chile" },
-  { code: "FK", name: "Falkland Islands" },
-  { code: "NZ", name: "New Zealand" },
-  { code: "FJ", name: "Fiji" },
-  { code: "PG", name: "Papua New Guinea" },
-  { code: "SB", name: "Solomon Islands" },
-  { code: "VU", name: "Vanuatu" },
-  { code: "NC", name: "New Caledonia" },
-  { code: "PF", name: "French Polynesia" },
-  { code: "WS", name: "Samoa" },
-  { code: "TO", name: "Tonga" },
-  { code: "TV", name: "Tuvalu" },
-  { code: "KI", name: "Kiribati" },
-  { code: "NR", name: "Nauru" },
-  { code: "PW", name: "Palau" },
-  { code: "FM", name: "Micronesia" },
-  { code: "MH", name: "Marshall Islands" },
-  { code: "NU", name: "Niue" },
-  { code: "CK", name: "Cook Islands" },
-  { code: "AS", name: "American Samoa" },
-  { code: "GU", name: "Guam" },
-  { code: "MP", name: "Northern Mariana Islands" },
-].sort((a, b) => a.name.localeCompare(b.name))
+export type Country = {
+  alpha2: string
+  alpha3: string
+  countryCallingCodes: string[]
+  currencies: string[]
+  emoji?: string
+  ioc: string
+  languages: string[]
+  name: string
+  status: string
+}
 
-interface CountrySelectorProps {
+type CountrySelectorProps = {
   value?: string
   onValueChange?: (value: string) => void
-  placeholder?: string
   disabled?: boolean
+  placeholder?: string
   className?: string
 }
 
-export function CountrySelector({
-  value,
-  onValueChange,
-  placeholder = "Select country",
-  disabled,
-  className,
-}: CountrySelectorProps) {
+const CountrySelectorComponent = (
+  {
+    value,
+    onValueChange,
+    disabled = false,
+    placeholder = "Select a country",
+    className,
+    ...props
+  }: CountrySelectorProps,
+  ref: React.ForwardedRef<HTMLButtonElement>
+) => {
+  const [open, setOpen] = useState(false)
+  const [selectedCountry, setSelectedCountry] = useState<Country | null>(null)
+
+  const options = countries.all.filter(
+    (country: Country) =>
+      country.emoji && country.status !== "deleted" && country.ioc !== "PRK"
+  )
+
+  useEffect(() => {
+    if (!value) {
+      if (selectedCountry) setSelectedCountry(null)
+      return
+    }
+
+    const country = options.find((c) => c.alpha2 === value)
+    if (country && country.alpha2 !== selectedCountry?.alpha2) {
+      setSelectedCountry(country)
+    }
+  }, [value, options])
+
+  const handleSelect = useCallback(
+    (country: Country) => {
+      setSelectedCountry(country)
+      onValueChange?.(country.alpha2)
+      setOpen(false)
+    },
+    [onValueChange]
+  )
+
+  const triggerClasses = cn(
+    "flex h-11 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 cursor-pointer hover:brightness-105 transition-all",
+    className
+  )
+
   return (
-    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-      <SelectTrigger className={className}>
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        {COUNTRIES.map((country) => (
-          <SelectItem key={country.code} value={country.code}>
-            {country.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        ref={ref}
+        className={triggerClasses}
+        disabled={disabled}
+        {...props}
+      >
+        {selectedCountry ? (
+          <div className="flex items-center flex-grow gap-2 overflow-hidden">
+            <div className="inline-flex items-center justify-center w-5 h-5 shrink-0 overflow-hidden rounded-full">
+              <CircleFlag
+                countryCode={selectedCountry.alpha2.toLowerCase()}
+                height={20}
+              />
+            </div>
+            <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+              {selectedCountry.name}
+            </span>
+          </div>
+        ) : (
+          <span className="text-muted-foreground">
+            {placeholder}
+          </span>
+        )}
+
+        <ChevronDown size={16} className="text-muted-foreground" />
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="start"
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        sideOffset={4}
+      >
+        <Command className="max-h-[300px]">
+          <CommandList>
+            <div className="sticky top-0 z-10 bg-popover">
+              <CommandInput placeholder="Search country..." />
+            </div>
+            <CommandEmpty>No country found.</CommandEmpty>
+            <CommandGroup>
+              {options
+                .filter((x) => x.name)
+                .map((option, key: number) => (
+                  <CommandItem
+                    className="flex items-center w-full gap-2"
+                    key={key}
+                    onSelect={() => handleSelect(option)}
+                  >
+                    <div className="flex flex-grow space-x-2 overflow-hidden">
+                      <div className="inline-flex items-center justify-center w-5 h-5 shrink-0 overflow-hidden rounded-full">
+                        <CircleFlag
+                          countryCode={option.alpha2.toLowerCase()}
+                          height={20}
+                        />
+                      </div>
+                      <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                        {option.name}
+                      </span>
+                    </div>
+                    <CheckIcon
+                      className={cn(
+                        "ml-auto h-4 w-4 shrink-0",
+                        selectedCountry?.name === option.name
+                          ? "opacity-100"
+                          : "opacity-0"
+                      )}
+                    />
+                  </CommandItem>
+                ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
+
+CountrySelectorComponent.displayName = "CountrySelector"
+
+export const CountrySelector = forwardRef(CountrySelectorComponent)

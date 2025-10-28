@@ -1,5 +1,6 @@
-export const CTFD_API_BASE_URL = process.env.NEXT_PUBLIC_CTFD_API_URL
-export const DOJO_API_BASE_URL = process.env.NEXT_PUBLIC_DOJO_API_URL
+export const PROTOCOL = process.env.NEXT_PUBLIC_DOJO_ENV === 'production' ? 'https' : 'http'
+const  CTFD_API_BASE_URL = `${PROTOCOL}://${process.env.NEXT_PUBLIC_DOJO_HOST}/api/v1`
+const  DOJO_API_BASE_URL = `${PROTOCOL}://${process.env.NEXT_PUBLIC_DOJO_HOST}/pwncollege_api/v1`
 
 export interface ApiResponse<T> {
   data?: T

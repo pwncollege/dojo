@@ -112,7 +112,7 @@ services:
       - MAIL_USERNAME=${MAIL_USERNAME}
       - MAIL_PASSWORD=${MAIL_PASSWORD}
       - MAIL_ADDRESS=${MAIL_ADDRESS}
-      - CORS_ORIGINS=${CORS_ORIGINS}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://future.${DOJO_HOST}}
       - DOCKER_USERNAME=${DOCKER_USERNAME}
       - DOCKER_TOKEN=${DOCKER_TOKEN}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
@@ -341,19 +341,28 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_CTFD_API_URL=http://${DOJO_HOST}/api/v1
-        - NEXT_PUBLIC_DOJO_API_URL=http://${DOJO_HOST}/pwncollege_api/v1
-        - NEXT_PUBLIC_DOJO_BASE_URL=http://${DOJO_HOST}
+        - NEXT_PUBLIC_DOJO_HOST=${DOJO_HOST}
+        - NEXT_PUBLIC_DOJO_ENV=${DOJO_ENV}
+    user: root
     ports:
-      - "3003:3000"
+      - "3000"
     environment:
-      - VIRTUAL_PORT=3000
-      - NEXT_PUBLIC_CTFD_API_URL=http://${DOJO_HOST}/api/v1
-      - NEXT_PUBLIC_DOJO_API_URL=http://${DOJO_HOST}/pwncollege_api/v1
-      - NEXT_PUBLIC_DOJO_BASE_URL=http://${DOJO_HOST}
-      - NODE_ENV=production
+      - NEXT_PUBLIC_DOJO_HOST=${DOJO_HOST}
+      - NEXT_PUBLIC_DOJO_ENV=${DOJO_ENV}
+      - NODE_ENV=${DOJO_ENV}
       - PORT=3000
       - HOSTNAME=0.0.0.0
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ "$DOJO_ENV" = "production" ]; then
+          exec bun ./server.js;
+        else
+          cd /opt/pwn.college/frontend && exec bun dev --turbo;
+        fi
+    volumes:
+      - /opt/pwn.college/frontend:/opt/pwn.college/frontend
 
   grafana:
     container_name: grafana
