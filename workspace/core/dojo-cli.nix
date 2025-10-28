@@ -34,7 +34,7 @@ def whoami() -> int:
             f"{DOJO_API}/integration/whoami",
             method="GET",
             headers = {
-                "auth_token": token
+                "AuthToken": token
             },
         )
         response = urllib.request.urlopen(httpRequest, timeout=5.0)

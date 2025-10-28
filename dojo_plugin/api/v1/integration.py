@@ -53,9 +53,9 @@ def authenticated(func):
     """
     def wrapper(*args, **kwargs):
         # Authenticate.
-        token = request.headers.get("auth_token", None)
+        token = request.headers.get("AuthToken", None)
         if token is None:
-            return ({"success": False, "error": f"Authentication token not provided. Headers: {str(request.headers)}"}, 400)
+            return ({"success": False, "error": "Authentication token not provided."}, 400)
         user, error, code = authenticate_container(token)
         if user is None:
             return ({"success": False, "error": error}, code)

@@ -98,7 +98,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         ]
     )[:64]
 
-    auth_token = serialize_user_container(user.id, dojo_challenge.challenge_id)
+    auth_token = serialize_user_container(user.id, dojo_challenge.id)
 
     challenge_bin_path = "/run/challenge/bin"
     dojo_bin_path = "/run/dojo/bin"

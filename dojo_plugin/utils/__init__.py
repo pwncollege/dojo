@@ -82,7 +82,7 @@ def validate_user_container(token: str, secret=None) -> tuple[int, str]:
         secret = current_app.config["SECRET_KEY"]
     serializer = URLSafeTimedSerializer(secret)
     data = serializer.loads(token, max_age=(21600))
-    return data[0], data[1]
+    return (data[0], data[1])
 
 
 def serialize_user_container(account_id: int, challenge_id: str, secret=None) -> str:
