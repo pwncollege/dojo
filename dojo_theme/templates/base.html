@@ -101,5 +101,16 @@
     {{ Plugins.scripts }}
 
     {{ Configs.theme_footer }}
+
+    {% if current_dojo_challenge %}
+    <script>
+      window.challenge = {{ current_dojo_challenge | tojson }}
+    </script>
+    {% endif %}
+    {% if current_dojo_custom_js %}
+    <script>
+    {{ current_dojo_custom_js | safe }}
+    </script>
+    {% endif %}
   </body>
 </html>
