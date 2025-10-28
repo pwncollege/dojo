@@ -73,6 +73,8 @@ def apiRequest(endpoint: str, method: str = "GET", args: dict[str, str] = {}) ->
             return exception.code, json.loads(exception.read().decode())["error"], {}
         except:
             return exception.code, exception.reason, {}
+    except urllib.error.URLError as exception:
+        return 0, exception.reason, {}
 
     # Parse response.
     try:
