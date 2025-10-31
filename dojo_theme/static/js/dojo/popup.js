@@ -32,15 +32,16 @@ function handleAwardPopup(response) {
 }
 
 function showAwardPopup(award) {
-    const isBelt = Array.from(award.name).length > 1;
+    const isBelt = Array.from(award.name).length > 1 && !award.icon;
 
     const image = isBelt
         ? `<img src="/belt/${award.name}.svg" class="belt-image">`
-        : `<div class="emoji-display">${award.name}</div>`;
+        : `<div class="emoji-display">${award.icon || award.name}</div>`;
 
+    const displayName = award.icon ? award.description.replace("Awarded for completing the ", "").replace(" dojo.", "") : award.name;
     const message = isBelt
         ? `You have officially been awarded your ${award.name} belt!`
-        : `You have officially been awarded the ${award.name} badge!`;
+        : `You have officially been awarded the ${displayName} badge!`;
 
     const popupContent = {
         header: "Congratulations!",
