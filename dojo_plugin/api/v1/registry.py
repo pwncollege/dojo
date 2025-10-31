@@ -2,7 +2,8 @@ from flask import request
 from flask_restx import Namespace, Resource
 
 from ...config import REGISTRY_API_SECRET, REGISTRY_USERNAME, REGISTRY_PASSWORD
-from CTFd.models import Users, Admins
+from ...models import Dojos
+from CTFd.models import Users
 from CTFd.utils.crypto import verify_password
 
 
@@ -63,29 +64,26 @@ class RegistryVerify(Resource):
 
         allowed = set()
 
-        if "push" in requested:
-            if repo_namespace == user.name:
-                allowed.add("push")
-            else:
-                return {
-                    "success": False,
-                    "error": (
-                        f"Push denied: repository namespace '{repo_namespace}' does not match your username '{user.name}'. "
-                        f"Tag the image as '{user.name}/<repo>' to push."
-                    ),
-                }, 403
+        dojo = Dojos.from_id(repo_namespace).first()
+        if not dojo:
+            return {
+                "success": False,
+                "error": (
+                    f"Repository namespace '{repo_namespace}' does not match a dojo reference id. "
+                    f"Tag the image with a valid dojo reference id."
+                ),
+            }, 403
 
-        if "pull" in requested:
-            if repo_namespace == user.name:
-                allowed.add("pull")
-            else:
-                return {
-                    "success": False,
-                    "error": (
-                        f"Pull denied: repository namespace '{repo_namespace}' does not match your username '{user.name}'. "
-                        f"Pull images tagged as '{user.name}/<repo>'."
-                    ),
-                }, 403
+        if not dojo.is_admin(user=user):
+            return {
+                "success": False,
+                "error": (
+                    f"Access denied: you must be an admin of dojo '{repo_namespace}' "
+                    f"to push or pull images tagged with its reference id."
+                ),
+            }, 403
+
+        allowed.update(a for a in requested if a in {"push", "pull"})
 
 
         if not allowed and requested:
