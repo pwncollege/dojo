@@ -150,7 +150,7 @@ class Dojos(db.Model):
 
     @property
     def unique_id(self):
-        return self.id + "~" + self.hex_dojo_id
+        return self.id + "-" + self.hex_dojo_id
 
     @property
     def reference_id(self):
