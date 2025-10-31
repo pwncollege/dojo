@@ -146,6 +146,10 @@ services:
       DOCKER_USERNAME: ${DOCKER_USERNAME}
       DOCKER_TOKEN: ${DOCKER_TOKEN}
       REGISTRY_API_SECRET=${REGISTRY_API_SECRET}         #Random API SECRET
+      REGISTRY_API_SECRET=${REGISTRY_API_SECRET}         #Random API SECRET
+      REGISTRY_HOST=${REGISTRY_HOST}
+      REGISTRY_USERNAME=${REGISTRY_USERNAME}
+      REGISTRY_PASSWORD=${REGISTRY_PASSWORD}
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
@@ -319,7 +323,13 @@ services:
       - REGISTRY_HOST=${REGISTRY_HOST}
       - REGISTRY_AUTH_HOST=${REGISTRY_AUTH_HOST}
     volumes:
-      - /data/acme:/var/cache/nginx/acme-letsencrypt
+      #- /data/acme:/var/cache/nginx/acme-letsencrypt
+      # - ./static-certs:/etc/nginx/certs:ro
+    depends_on:
+      registry:
+        condition: service_started
+      registry-auth:
+        condition: service_started
     networks:
       default:
         aliases:
@@ -366,9 +376,6 @@ services:
     networks:
       - default
       - workspace_net
-    depends_on:
-      db:
-        condition: service_healthy
 
 
 
