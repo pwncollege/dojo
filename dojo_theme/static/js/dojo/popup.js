@@ -38,7 +38,13 @@ function showAwardPopup(award) {
         ? `<img src="/belt/${award.name}.svg" class="belt-image">`
         : `<div class="emoji-display">${award.icon || award.name}</div>`;
 
-    const displayName = award.icon ? award.description.replace("Awarded for completing the ", "").replace(" dojo.", "") : award.name;
+    // For emoji awards with icon, extract dojo name from description
+    let displayName = award.name;
+    if (award.icon && award.description) {
+        const match = award.description.match(/Awarded for completing the (.+?) dojo\./);
+        displayName = match ? match[1] : award.name;
+    }
+    
     const message = isBelt
         ? `You have officially been awarded your ${award.name} belt!`
         : `You have officially been awarded the ${displayName} badge!`;
