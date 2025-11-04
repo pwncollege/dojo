@@ -26,7 +26,7 @@ let
   pythonEnv = pkgs.python3.withPackages pythonPackages;
 
   tools = with pkgs; {
-    build = [ clang clang-tools cmake gcc gnumake qemu rustup ];
+    build = [ (lib.lowPrio clang) clang-tools cmake (lib.hiPrio gcc) gnumake qemu rustup ];
 
     compress = [ gnutar gzip unzip zip ];
 
@@ -44,7 +44,7 @@ let
 
     shells = [ fish nushell zsh ];
 
-    shell-tools = [ atuin bat fd fzf oh-my-zsh starship zoxide ];
+    shell-tools = [ atuin bat fd fzf oh-my-zsh starship zoxide ripgrep ];
 
     system = [ firejail htop landrun nftables openssh rsync ];
 
