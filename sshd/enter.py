@@ -126,6 +126,7 @@ def main():
             runtime = (container.attrs or {}).get("HostConfig",{}).get("Runtime")
             is_kata = runtime == "io.containerd.run.kata.v2"
             if is_kata:
+                # `docker exec` can hang due to a bug in kata, see https://github.com/pwncollege/dojo/issues/810
                 monitor_thread = threading.Thread(target=kill_exec_on_container_death,
                                                   args=(container,child_pid),
                                                   daemon=True)
