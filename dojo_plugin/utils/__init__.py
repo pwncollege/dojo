@@ -150,13 +150,15 @@ def render_markdown(s):
         "img",
         "a",
         "sub", "sup",
-        "latex",
+        "math", "annotation", "semantics",
     ]
     markdown_attrs = {
         "*": ["id", "class"],
         "img": ["src", "alt", "title"],
         "a": ["href", "alt", "title"],
-        "p": ["data-hide"]
+        "p": ["data-hide"],
+        "span": ["class", "aria-hidden"],
+        "div": ["class"],
     }
     clean_html = bleach.clean(raw_html, tags=markdown_tags, attributes=markdown_attrs)
     
