@@ -121,17 +121,5 @@
     {{ Plugins.scripts }}
 
     {{ Configs.theme_footer }}
-
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx" crossorigin="anonymous"></script>
-    <script>
-      document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.latex-content').forEach(el => {
-          el.innerHTML = el.innerHTML
-            .replace(/\$\$([^$]+)\$\$/g, (_, latex) => katex.renderToString(latex, { displayMode: true }))
-            .replace(/\$([^$]+)\$/g, (_, latex) => katex.renderToString(latex, { displayMode: false }));
-        });
-      });
-    </script>
   </body>
 </html>
