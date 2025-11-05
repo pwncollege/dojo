@@ -13,8 +13,9 @@ from sqlalchemy.sql import and_
 from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
                        DojoUsers, Emojis, SurveyResponses)
 from ...utils import is_challenge_locked, render_markdown
-from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route
+from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_gives_awards
 from ...utils.stats import get_dojo_stats
+from ...utils.awards import grant_event_award
 
 dojos_namespace = Namespace(
     "dojos", description="Endpoint to retrieve Dojos"
@@ -43,6 +44,47 @@ class DojoList(Resource):
             for dojo in dojo_query
         ]
         return {"success": True, "dojos": dojos}
+
+@dojos_namespace.route("/<dojo>/event/grant")
+class GrantEventAward(Resource):
+    """
+    Supported methods:
+
+    ### `POST: [user_id, event_name, place]`
+
+    Grants an award to the specified user.
+    The award consists of the issuing event,
+    and the place the user achieved in the event.
+
+    Arguments should be passed in as part of the request's JSON data.
+
+    Only some dojos support this operation,
+    and the issuing user must be an administrator of the dojo.
+    """
+    @dojo_route
+    @dojo_admins_only
+    @dojo_gives_awards
+    def post(self, dojo):
+        data = request.get_json()
+        user = data.get("user_id")
+        event = data.get("event_name")
+        place = data.get("place")
+
+        # Validate input
+        if None in [user, event, place]:
+            return ({"success": False, "error": "failed to supply user_id, event_name, or place"}, 400)
+        try:
+            user = int(user)
+            place = int(place)
+        except:
+            return ({"success": False, "error": "user_id and place must be integers"})
+        
+        user = Users.query.filter_by(id=user, hidden=False).first()
+        if not user:
+            return ({"success": False, "error": "user not found"}, 400)
+
+        result = grant_event_award(user, event, place)
+        return ({"success": result}, 200)
 
 
 @dojos_namespace.route("/<dojo>/awards/prune")

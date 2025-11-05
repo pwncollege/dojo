@@ -728,6 +728,23 @@ def dojo_admins_only(func):
     return wrapper
 
 
+def dojo_gives_awards(func):
+    """
+    Requires the dojo to support `grant_awards` as part of its permissions.
+    """
+    signature = inspect.signature(func)
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        bound_args = signature.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+
+        dojo = bound_args.arguments["dojo"]
+        if "grant_awards" not in dojo.permissions:
+            abort(403)
+        return func(*bound_args.args, **bound_args.kwargs)
+    return wrapper
+
+
 def dojo_route(func):
     signature = inspect.signature(func)
     @functools.wraps(func)
