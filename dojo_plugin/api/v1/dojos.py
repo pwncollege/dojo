@@ -15,7 +15,7 @@ from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
 from ...utils import is_challenge_locked, render_markdown
 from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_gives_awards
 from ...utils.stats import get_dojo_stats
-from ...utils.awards import revoke_event_award, grant_event_award
+from ...utils.awards import revoke_event_award, grant_event_award, prune_event_awards
 
 dojos_namespace = Namespace(
     "dojos", description="Endpoint to retrieve Dojos"
@@ -122,6 +122,36 @@ class RevokeEventAward(Resource):
 
         result = revoke_event_award(user, event)
         return ({"success": result}, 200)
+
+
+@dojos_namespace.route("/<dojo>/event/prune")
+class PruneEventAwards(Resource):
+    """
+    Supported methods:
+
+    ### `POST: [event_name]`
+
+    Prunes all medals for the given event, converting them to *STALE* medals.
+
+    Arguments should be passed in as part of the request's JSON data.
+
+    Only some dojos support this operation,
+    and the issuing user must be an administrator of the dojo.
+    """
+    @dojo_route
+    @dojo_admins_only
+    @dojo_gives_awards
+    def post(self, dojo):
+        data = request.get_json()
+        event = data.get("event_name")
+
+        # Validate input.
+        if event is None:
+            return ({"success": False, "error": "missing required arugment event_name"}, 400)
+
+        # Prune medals which match the given event.
+        num_pruned = prune_event_awards(event)
+        return {"success": True, "pruned_awards": num_pruned}
 
 
 @dojos_namespace.route("/<dojo>/awards/prune")

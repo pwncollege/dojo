@@ -231,3 +231,13 @@ def revoke_event_award(user, event: str) -> bool:
         return False
     db.session.delete(award)
     return True
+
+
+def prune_event_awards(event: str) -> int:
+    num_pruned = 0
+    for medal in Medals.query.where(Medals.category == event):
+        if medal.name != "EVENT_STALE":
+            num_pruned += 1
+            medal.name = "EVENT_STALE"
+    db.session.commit()
+    return num_pruned
