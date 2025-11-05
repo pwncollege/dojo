@@ -230,6 +230,7 @@ def revoke_event_award(user, event: str) -> bool:
     if not award:
         return False
     db.session.delete(award)
+    db.session.commit()
     return True
 
 
