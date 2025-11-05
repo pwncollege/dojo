@@ -218,3 +218,16 @@ def grant_event_award(user, event: str, place: int) -> bool:
     db.session.add(Medals(user=user, name=f"EVENT_{place}", description=f"Awarded for ranking {placeStr} in {event}.", category=event))
     db.session.commit()
     return True
+
+
+def revoke_event_award(user, event: str) -> bool:
+    """
+    Revokes an event award from a user.
+
+    Returns if the operation succeeded.
+    """
+    award = Medals.query.filter_by(user=user, category=event).first()
+    if not award:
+        return False
+    db.session.delete(award)
+    return True
