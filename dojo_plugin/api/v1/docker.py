@@ -452,7 +452,7 @@ class RunDocker(Resource):
             return {"success": False, "error": "Invalid challenge"}
 
         dojo_challenge = dojo_challenge.resolve()
-        dojo = dojo_accessible(dojo_challenge.dojo_id) if dojo_challenge else None
+        dojo = dojo_accessible(dojo_challenge.reference_id) if dojo_challenge else None
 
         if not (dojo and dojo_challenge and (dojo_challenge.visible() or dojo.is_admin())):
             return {"success": False, "error": "Invalid challenge"}
