@@ -4,6 +4,7 @@ pyyaml==6.0.2
 schema==0.7.5
 bleach==6.1.0
 bleach[css]==6.1.0
+emoji==2.15.0
 ipython==8.16.1
 flask-shell-ipython==0.5.1
 sshpubkeys==3.3.1
