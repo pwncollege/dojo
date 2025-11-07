@@ -1,4 +1,4 @@
-FROM alpine
+FROM alpine:latest
 
 RUN apk add --no-cache nix
 RUN apk add --no-cache git

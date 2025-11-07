@@ -20,14 +20,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Accept build arguments for environment variables
-ARG NEXT_PUBLIC_CTFD_API_URL
-ARG NEXT_PUBLIC_DOJO_API_URL
-ARG NEXT_PUBLIC_DOJO_BASE_URL
+ARG NEXT_PUBLIC_DOJO_HOST
+ARG NEXT_PUBLIC_DOJO_ENV
 
 # Set environment variables from build args
-ENV NEXT_PUBLIC_CTFD_API_URL=${NEXT_PUBLIC_CTFD_API_URL}
-ENV NEXT_PUBLIC_DOJO_API_URL=${NEXT_PUBLIC_DOJO_API_URL}
-ENV NEXT_PUBLIC_DOJO_BASE_URL=${NEXT_PUBLIC_DOJO_BASE_URL}
+ENV NEXT_PUBLIC_DOJO_HOST=${NEXT_PUBLIC_DOJO_HOST}
+ENV NEXT_PUBLIC_DOJO_ENV=${NEXT_PUBLIC_DOJO_ENV}
 
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry

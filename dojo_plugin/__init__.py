@@ -92,6 +92,7 @@ def context_processor():
             module_id=challenge.module.id,
             challenge_id=challenge.id,
         ),
+        current_challenge_id=challenge.challenge_id,
         current_dojo_custom_js=challenge.dojo.custom_js,
     )
 

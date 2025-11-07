@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useWorkspaceStore } from "@/stores";
 import { ArrowDownToDot } from "lucide-react";
+import { PROTOCOL } from "@/services/api";
 
 interface WorkspaceServiceProps {
   iframeSrc: string;
@@ -54,11 +55,7 @@ export function WorkspaceService({
   }, []);
 
   useEffect(() => {
-    // Construct full URL
-    const baseUrl = process.env.NEXT_PUBLIC_DOJO_BASE_URL;
-    const fullUrl = iframeSrc.startsWith("/")
-      ? `${baseUrl}${iframeSrc}`
-      : iframeSrc;
+    const fullUrl = `${PROTOCOL}://${process.env.NEXT_PUBLIC_DOJO_HOST}${iframeSrc}`
 
     // Check if iframe already has the correct URL - if so, don't reload
     if (iframeRef.current && iframeRef.current.src === fullUrl && isReady) {
