@@ -119,7 +119,7 @@ def test_dojo_removes_emoji(simple_award_dojo, advanced_award_dojo, admin_sessio
     user_name, _ = completionist_user
 
     award_dojos = [simple_award_dojo, advanced_award_dojo]
-    for award_dojo in awards_dojos:
+    for award_dojo in award_dojos:
         scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{award_dojo}/_/0/1").json()
         us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
         assert us["solves"] == 2
