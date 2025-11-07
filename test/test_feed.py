@@ -92,6 +92,8 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, advanced_award_d
         solve_challenge(simple_award_dojo, "hello", "apple", session=random_user_session, user=random_user_name)
         start_challenge(simple_award_dojo, "hello", "banana", session=random_user_session)
         solve_challenge(simple_award_dojo, "hello", "banana", session=random_user_session, user=random_user_name)
+        
+        random_user_session.get(f"{DOJO_URL}/dojo/{advanced_award_dojo}/join/")
         start_challenge(advanced_award_dojo, "hello", "apple", session=random_user_session)
         solve_challenge(advanced_award_dojo, "hello", "apple", session=random_user_session, user=random_user_name)
         start_challenge(advanced_award_dojo, "hello", "banana", session=random_user_session)
