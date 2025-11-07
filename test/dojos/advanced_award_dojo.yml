@@ -3,7 +3,6 @@ type: public
 award:
   emoji: 🐻‍❄️
 modules:
-modules:
   - id: hello
     challenges:
       - id: apple
