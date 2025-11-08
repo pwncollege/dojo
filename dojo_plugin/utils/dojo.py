@@ -11,10 +11,10 @@ import pathlib
 import urllib.request
 import base64
 import logging
+import emoji
 
 import yaml
 import requests
-from emoji import is_emoji
 from schema import Schema, Optional, Regex, Or, Use, SchemaError
 from flask import abort, g
 from sqlalchemy.exc import IntegrityError
@@ -60,7 +60,7 @@ DOJO_SPEC = Schema({
 
     Optional("type"): ID_REGEX,
     Optional("award"): {
-        Optional("emoji"): is_emoji,
+        Optional("emoji"): emoji.is_emoji,
         Optional("belt"): IMAGE_REGEX
     },
 
