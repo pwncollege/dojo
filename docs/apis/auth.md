@@ -39,7 +39,7 @@ if num_users_limit and num_users >= num_users_limit:
 
 This gets the maximum amount of users allowed from the configuration and assigns it to `num_users_limit`.
 It then gets the current amount of users with a database query and assigns it to `num_users`.
-Then, it check whether we passed that limit and throws an error if so.
+Then, it checks whether we passed that limit and throws an error if so.
 
 ****3. Validation****
 
@@ -112,8 +112,8 @@ for field in UserFields.query.all():
     fields[field.id] = field_value
 ```
 
-This part runs through every field in `UserFields`, and checks whether it is was providedbu the user.
-If it wasn't, and that field is required, we throw an error. otherwise, we assign `fields[field.id]` to it.
+This part runs through every field in `UserFields`, and checks whether it is was provided by the user.
+If it wasn't, and that field is required, we throw an error. Otherwise, `fields[field.id]` is assigned to it.
 
 ****6. Raise errors****
 
@@ -177,7 +177,7 @@ else:
 
 This part checks whether "verify_emails" is enabled in the configuration and whether we can send the email.
 If both are True, we send the email and set `verified` to False. Otherwise, we set `verified` to True,
-and if we can an email, we send a successful registration notification.
+and if we can send an email, we send a successful registration notification.
 
 ****10. Set session****
 
@@ -206,7 +206,7 @@ return {
 }
 ```
 
-Finally, we return the `user.id`, `user.name`, `user.email`, and `verfied` that we got earlier in the
+Finally, we return the `user.id`, `user.name`, `user.email`, and `verified` that we got earlier in the
 function.
 
 ***/login***
@@ -296,7 +296,7 @@ This part checks whether the password is correct, and if so, it sets the session
 return {"success": False, "errors": ["Invalid credentials"]}, 401
 ```
 
-This part happens when the part before it don't return, meaning the account is not registered via
+This part happens when the parts before it don't return, meaning the account is not registered via
 OAuth and the password is incorrect.
 
 ***/logout***
@@ -482,7 +482,7 @@ req = request.get_json()
 password = req.get("password", "").strip()
 ```
 
-This parts assigns the `password` variable to the user supplied `password`.
+This part assigns the `password` variable to the user supplied `password`.
 
 ****3. Password validation****
 
@@ -507,10 +507,10 @@ if not user:
     return {"success": False, "errors": ["User not found"]}, 404
 ```
 
-This part queries the database to find a user with `email_address`. If it didn't a user with that email
+This part queries the database to find a user with `email_address`. If it didn't find a user with that email
 address, it returns an error.
 
-****5. Check if account is registered via OAuth
+****5. Check if account is registered via OAuth****
 
 ```
 if user.oauth_id:
@@ -522,7 +522,7 @@ if user.oauth_id:
 
 This part checks whether the account is registered via OAuth. If it is, we return an error.
 
-****6. Change passowrd****
+****6. Change password****
 
 ```
 user.password = password
