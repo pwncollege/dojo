@@ -407,7 +407,19 @@ Required Parameters: `email`.
 Optional Parameters: None.
 Description: This endpoint is responsible for sending a reset password link to some email.
 
-****1. Get email****
+****1. Check whether we can send email****
+
+```
+if not can_send_mail():
+    return {
+        "success": False,
+        "errors": ["Email functionality is not configured"]
+    }, 400
+```
+
+This part checks whether we can send emails via the `can_send_mail` function. If we can't, we return an error.
+
+****2. Get email****
 
 ```
 req = request.get_json()
@@ -416,7 +428,7 @@ email_address = req.get("email", "").strip()
 
 This part assigns `email_address` to the user supplied `email`.
 
-****2. Get user****
+****3. Get user****
 
 ```
 user = Users.query.filter_by(email=email_address).first()
@@ -424,7 +436,7 @@ user = Users.query.filter_by(email=email_address).first()
 
 This part queries the database to find a user with this email address.
 
-****3. Send reset link****
+****4. Send reset link****
 
 ```
 if user and not user.oauth_id:
@@ -434,7 +446,7 @@ if user and not user.oauth_id:
 This part checks whether the user exists and whether he's not registered via OAuth. If both are True, we
 send a forgot password link to the provided email from step 1.
 
-****4. Return****
+****5. Return****
 
 ```
 # Always return success to avoid user enumeration
