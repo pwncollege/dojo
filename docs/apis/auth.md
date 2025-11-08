@@ -1,6 +1,6 @@
-*auth*
+# Auth
 
-This namespace is responsible for handling authentication based requests.
+The `auth` is responsible for handling authentication based requests.
 
 ***/register***
 

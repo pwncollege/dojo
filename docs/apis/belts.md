@@ -1,6 +1,6 @@
-*belts*
+# Belts
 
-This namespace is responsible for returning all users with belts (not including white belts).
+The `belts` is responsible for returning all users with belts (not including white belts).
 
 ***/***
 
