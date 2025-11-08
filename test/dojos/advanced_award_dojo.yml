@@ -1,7 +1,8 @@
 id: advanced-award
 type: public
 award:
-  emoji: 🐻‍❄️
+  emoji: 🧪
+modules:
 modules:
   - id: hello
     challenges:
