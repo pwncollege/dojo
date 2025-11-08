@@ -11,6 +11,7 @@ import pathlib
 import urllib.request
 import base64
 import logging
+import emoji
 
 import yaml
 import requests
@@ -59,7 +60,7 @@ DOJO_SPEC = Schema({
 
     Optional("type"): ID_REGEX,
     Optional("award"): {
-        Optional("emoji"): Regex(r"^\S$"),
+        Optional("emoji"): emoji.is_emoji,
         Optional("belt"): IMAGE_REGEX
     },
 
