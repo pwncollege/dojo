@@ -8,6 +8,8 @@ Definitions
 
 **auth**
 
+This namespace is responsible for handling authentication based requests.
+
 ***/register***
 
 Location: https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/auth.py#L17
