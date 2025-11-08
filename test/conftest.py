@@ -39,17 +39,14 @@ def completionist_user(simple_award_dojo, advanced_award_dojo):
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))
     session = login(random_id, random_id, register=True)
 
-    response = session.get(f"{DOJO_URL}/dojo/{simple_award_dojo}/join/")
-    assert response.status_code == 200
-    for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
-        start_challenge(simple_award_dojo, module, challenge, session=session)
-        solve_challenge(simple_award_dojo, module, challenge, session=session, user=random_id)
-        
-    response = session.get(f"{DOJO_URL}/dojo/{advanced_award_dojo}/join/")
-    assert response.status_code == 200
-    for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
-        start_challenge(advanced_award_dojo, module, challenge, session=session)
-        solve_challenge(advanced_award_dojo, module, challenge, session=session, user=random_id)
+    award_dojos = [simple_award_dojo, advanced_award_dojo]
+
+    for award_dojo in award_dojos:
+        response = session.get(f"{DOJO_URL}/dojo/{award_dojo}/join/")
+        assert response.status_code == 200
+        for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
+            start_challenge(award_dojo, module, challenge, session=session)
+            solve_challenge(award_dojo, module, challenge, session=session, user=random_id)
         
     yield random_id, session
 
