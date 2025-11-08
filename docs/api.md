@@ -403,7 +403,7 @@ This part returns a success message saying: "Email successfully verified".
 
 Location: https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/auth.py#L251
 Accepted Methods: `POST`.
-Required Parameters: None.
+Required Parameters: `email`.
 Optional Parameters: None.
 Description: This endpoint is responsible for sending a reset password link to some email.
 
