@@ -1,6 +1,6 @@
 // To use the actionbar, the following parameters should be met:
-// 1. There is an iframe for controled workspace content with the id "workspace-iframe"
-// 2. The actionbar and iframe are decendents of a common ancestor with the class "challenge-workspace"
+// 1. There is an iframe for controlled workspace content with the id "workspace-iframe"
+// 2. The actionbar and iframe are descendants of a common ancestor with the class "challenge-workspace"
 // 3. The page implements a function, doFullscreen(event) to handle a fullscreen event
 // 4. Optionally, the page can have a div with the class "workspace-ssh" which will be displayed when the SSH option is selected.
 
@@ -118,17 +118,21 @@ function animateBanner(event, message, type) {
 }
 
 function actionSubmitFlag(event) {
+    const submission = $(event.target).val();
+
+    if (submission == "pwn.college{practice}") {
+        animateBanner(event, "This is the practice flag! Find the real flag by restarting the challenge in unprivileged mode.", "warn");
+        return;
+    }
+
     context(event).find("input").prop("disabled", true).addClass("disabled");
     context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
-    var body = {
-        'challenge_id': parseInt(context(event).find("#current-challenge-id").val()),
-        'submission': $(event.target).val(),
-    };
-    var params = {};
+    const challenge_id = parseInt(context(event).find("#current-challenge-id").val());
 
-    CTFd.api.post_challenge_attempt(params, body)
+    CTFd.api.post_challenge_attempt({}, {"challenge_id": challenge_id, "submission": submission})
     .then(function (response) {
         const challengeName = context(event).find("#current-challenge-id").attr("data-challenge-name");
+
         if (response.data.status == "incorrect") {
             animateBanner(event, "Incorrect!", "error");
         }
@@ -136,20 +140,17 @@ function actionSubmitFlag(event) {
             animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
             if ($(".challenge-active").length) {
                 const unsolved_flag = $(".challenge-active").find("i.challenge-unsolved")
-                if(unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
-                    unsolved_flag.removeClass("far")
-                    unsolved_flag.addClass("fas")
+                if (unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
+                    unsolved_flag.removeClass("far").addClass("fas");
                 }
-                unsolved_flag
-                    .removeClass("challenge-unsolved")
-                    .addClass("challenge-solved");
+                unsolved_flag.removeClass("challenge-unsolved").addClass("challenge-solved");
             }
         }
         else if (response.data.status == "already_solved") {
-            animateBanner(event, `&#127881 Solved <b>${challengeName}</b>! &#127881`, "success");
+            animateBanner(event, `&#127881 You've already solved <b>${challengeName}</b>! &#127881`, "success");
         }
         else {
-            animateBanner(event, "Submission Failed.", "warn");
+            animateBanner(event, "Submission failed.", "warn");
         }
         context(event).find("input").prop("disabled", false).removeClass("disabled");
         context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
@@ -313,8 +314,8 @@ $(() => {
                 actionSubmitFlag(event);
             }
         });
-        $(this).find("#flag-input").on("keypress", function(event) {
-            if (event.key === "Enter" || event.keyCode === 13) {
+        $(this).find("#flag-input").on("keyup", function(event) {
+            if (event.key === "Enter") {
                 actionSubmitFlag(event);
             }
         });

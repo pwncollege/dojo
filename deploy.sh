@@ -7,7 +7,7 @@ DEFAULT_CONTAINER_NAME="${REPO_DIR}"
 
 function usage {
 	set +x
-	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -t ] [ -v ] [ -N ] [ -p ] [ -e ENV_VAR=value ] [ -b ] [ -M ] [ -g ]"
+	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -t ] [ -v ] [ -N ] [ -p ] [ -e ENV_VAR=value ] [ -b ] [ -M ] [ -g ] [ -C ]"
 	echo ""
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: <dirname>)"
@@ -22,6 +22,7 @@ function usage {
 	echo "	-b	build the Docker image locally (tag: same as container name)"
 	echo "	-M	run in multi-node mode (3 containers: 1 main + 2 workspace nodes)"
 	echo "	-g	use GitHub Actions group output formatting"
+	echo "	-C	run the ctfd container with code coverage. Generates an xml coverage report when paired with the -t flag"
 	exit
 }
 
@@ -73,6 +74,14 @@ function test_container {
 		"$@"
 }
 
+function generate_coverage_report {
+	local CONTAINER="$1"
+    docker exec "$CONTAINER" docker kill -s SIGINT ctfd
+	docker exec "$CONTAINER" docker wait ctfd
+    docker exec "$CONTAINER" docker start ctfd
+    docker exec "$CONTAINER" docker exec ctfd coverage xml -o /var/coverage/coverage.xml
+}
+
 ENV_ARGS=( )
 DB_RESTORE=""
 DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
@@ -86,7 +95,8 @@ MULTINODE=no
 GITHUB_ACTIONS=no
 CLEAN_ONLY=no
 START=yes
-while getopts "r:c:he:tvD:W:PbMgNK" OPT
+COVERAGE=no
+while getopts "r:c:he:tvD:W:PbMgNKC" OPT
 do
 	case $OPT in
 		r) DB_RESTORE="$OPTARG" ;;
@@ -102,6 +112,7 @@ do
 		g) GITHUB_ACTIONS=yes ;;
 		N) START=no ;;
 		K) CLEAN_ONLY=yes ;;
+		C) COVERAGE=yes ;;
 		h) usage ;;
 		?)
 			OPTIND=$(($OPTIND-1))
@@ -177,6 +188,10 @@ fi
 
 MULTINODE_ARGS=()
 [ "$MULTINODE" == "yes" ] && MULTINODE_ARGS+=("-e" "WORKSPACE_NODE=0")
+
+if [ "$COVERAGE" == "yes" ]; then
+	ENV_ARGS+=("-e" "DOJO_ENV=coverage")
+fi
 
 log_newgroup "Starting main dojo container"
 if [ "$START" == "yes" ]; then
@@ -284,6 +299,9 @@ if [ "$TEST" == "yes" ]; then
 	log_newgroup "Running tests in container"
 	cleanup_container $DOJO_CONTAINER-test
 	test_container pytest --order-dependencies --timeout=60 -v . "$@"
+	if [ "$COVERAGE" == "yes" ]; then
+		generate_coverage_report "$DOJO_CONTAINER"
+	fi
 	log_endgroup
 fi
 

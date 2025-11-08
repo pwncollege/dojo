@@ -277,21 +277,28 @@ def load_surveys(data, dojo_dir):
     """
 
     survey_data = data.get("survey-sources", None)
-    if survey_data and type(survey_data) == str:
+    if survey_data and isinstance(survey_data, str):
         survey_dir = dojo_dir / survey_data
-        if "survey" in data and "src" in data["survey"]:
-            setdefault_file(data["survey"], "data", survey_dir / data["survey"]["src"])
+        if data.get("survey", {}).get("src"):
+            survey_path = survey_dir / data["survey"]["src"]
+            assert dojo_dir in survey_path.resolve().parents, f"Error: `{survey_path}` references path outside of the dojo"
+            setdefault_file(data["survey"], "data", survey_path)
             del data["survey"]["src"]
 
         for module_data in data.get("modules", []):
-            if "survey" in module_data and "src" in module_data["survey"]:
-                setdefault_file(module_data["survey"], "data", survey_dir / module_data["survey"]["src"])
+            if module_data.get("survey", {}).get("src"):
+                survey_path = survey_dir / module_data["survey"]["src"]
+                assert dojo_dir in survey_path.resolve().parents, f"Error: `{survey_path}` references path outside of the dojo"
+                setdefault_file(module_data["survey"], "data", survey_path)
                 del module_data["survey"]["src"]
 
             for challenge_data in module_data.get("resources", []):
-                if challenge_data["type"] != "challenge": continue
-                if "survey" in challenge_data and "src" in challenge_data["survey"]:
-                    setdefault_file(challenge_data["survey"], "data", survey_dir / challenge_data["survey"]["src"])
+                if challenge_data["type"] != "challenge":
+                    continue
+                if challenge_data.get("survey", {}).get("src"):
+                    survey_path = survey_dir / challenge_data["survey"]["src"]
+                    assert dojo_dir in survey_path.resolve().parents, f"Error: `{survey_path}` references path outside of the dojo"
+                    setdefault_file(challenge_data["survey"], "data", survey_path)
                     del challenge_data["survey"]["src"]
 
     return data
@@ -538,6 +545,10 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 course_scripts["grade"] = grade_path.read_text()
 
             dojo.course = course
+
+        custom_js_path = dojo_dir / "custom.js"
+        if "custom_js" in dojo.permissions and custom_js_path.exists():
+            dojo.custom_js = custom_js_path.read_text()
 
         if dojo_data.get("pages"):
             dojo.pages = dojo_data["pages"]

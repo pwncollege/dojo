@@ -77,6 +77,7 @@ rm -rf aws.zip aws
 EOF
 
 ADD https://github.com/CTFd/CTFd.git#3.6.0 /opt/CTFd
+COPY ./ctfd/.coveragerc /opt/CTFd
 
 COPY <<EOF /etc/fstab
 shm /dev/shm tmpfs defaults,nosuid,nodev,noexec,size=50% 0 0

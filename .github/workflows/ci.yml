@@ -6,7 +6,7 @@ on:
     branches:
       - master
   schedule:
-    - cron: '42 06 * * *'
+    - cron: "42 06 * * *"
 jobs:
   test:
     name: "${{ matrix.mode }} DOJO Test"
@@ -171,7 +171,7 @@ jobs:
           timeout_minutes: 15
           max_attempts: 3
           command: |
-            ./deploy.sh -g -D /mnt/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }}
+            ./deploy.sh -g -D /mnt/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
@@ -180,11 +180,17 @@ jobs:
         run: |
           if [ "${{ matrix.mode }}" = "singlenode" ]
           then
-            ./deploy.sh -N -g -t
+            ./deploy.sh -N -g -t -C
           elif [ "${{ matrix.mode }}" = "multinode" ]
           then
             ./deploy.sh -N -g -t -M
           fi
+
+      - name: Upload coverage reports to Codecov
+        if: matrix.mode == 'singlenode'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Output logs
         if: always()

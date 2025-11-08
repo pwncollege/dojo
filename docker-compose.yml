@@ -81,10 +81,14 @@ services:
       - /bin/sh
       - -c
       - |
-        if [ "$DOJO_ENV" != "development" ]; then
+        if [ "$DOJO_ENV" = "development" ]; then
+          FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
+        elif [ "$DOJO_ENV" = "coverage" ]; then
+          FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off exec coverage run --source=CTFd/plugins/dojo_plugin -m flask run --no-reload --host 0.0.0.0 --port 8000;
+        elif [ "$DOJO_ENV" = "production" ]; then
           RUN_ID=$(openssl rand -hex 4) ./docker-entrypoint.sh;
         else
-          FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
+          echo "Failed to start ctfd - environment variable DOJO_ENV has invalid value \"$DOJO_ENV\""
         fi
     ulimits:
         nofile:
@@ -108,7 +112,7 @@ services:
       - MAIL_USERNAME=${MAIL_USERNAME}
       - MAIL_PASSWORD=${MAIL_PASSWORD}
       - MAIL_ADDRESS=${MAIL_ADDRESS}
-      - CORS_ORIGINS=${CORS_ORIGINS}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://future.${DOJO_HOST}}
       - DOCKER_USERNAME=${DOCKER_USERNAME}
       - DOCKER_TOKEN=${DOCKER_TOKEN}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
@@ -125,6 +129,7 @@ services:
       - /data/homes:/var/homes:shared
       - /data/dojos:/var/dojos
       - /data/ctfd-ipython:/root/.ipython
+      - ./data/coverage:/var/coverage
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
@@ -240,6 +245,8 @@ services:
       - /data/acme:/var/cache/nginx/acme-letsencrypt
     networks:
       default:
+        aliases:
+          - ${DOJO_HOST}
       workspace_net:
         aliases:
           - nginx
@@ -324,6 +331,38 @@ services:
     volumes:
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - prometheus_targets:/etc/prometheus/targets
+
+  frontend:
+    container_name: frontend
+    profiles:
+      - main
+    restart: always
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_DOJO_HOST=${DOJO_HOST}
+        - NEXT_PUBLIC_DOJO_ENV=${DOJO_ENV}
+    user: root
+    ports:
+      - "3000"
+    environment:
+      - NEXT_PUBLIC_DOJO_HOST=${DOJO_HOST}
+      - NEXT_PUBLIC_DOJO_ENV=${DOJO_ENV}
+      - NODE_ENV=${DOJO_ENV}
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ "$DOJO_ENV" = "production" ]; then
+          exec bun ./server.js;
+        else
+          cd /opt/pwn.college/frontend && exec bun dev --turbo;
+        fi
+    volumes:
+      - /opt/pwn.college/frontend:/opt/pwn.college/frontend
 
   grafana:
     container_name: grafana

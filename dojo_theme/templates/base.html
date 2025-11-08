@@ -45,6 +45,7 @@
       }
     </style>
     <link rel="stylesheet" href="{{ url_for('views.themes', path='css/custom.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
     {% block stylesheets %}
     {% endblock %}
 
@@ -95,11 +96,41 @@
     <script defer src="{{ url_for('views.themes', path='js/dojo/navbar.js') }}"></script>
     <script defer src="{{ url_for('views.themes', path='js/dojo/popup.js') }}"></script>
 
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
+
     {% block scripts %}
     {% endblock %}
+
+    <script>
+      window.addEventListener('load', function() {
+        if (typeof renderMathInElement !== 'undefined') {
+          renderMathInElement(document.body, {
+            delimiters: [
+              {left: '\\[', right: '\\]', display: true},
+              {left: '\\(', right: '\\)', display: false}
+            ],
+            throwOnError: false,
+            strict: false,
+            ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+          });
+        }
+      });
+    </script>
 
     {{ Plugins.scripts }}
 
     {{ Configs.theme_footer }}
+
+    {% if current_dojo_challenge %}
+    <script>
+      window.challenge = {{ current_dojo_challenge | tojson }}
+    </script>
+    {% endif %}
+    {% if current_dojo_custom_js %}
+    <script>
+    {{ current_dojo_custom_js | safe }}
+    </script>
+    {% endif %}
   </body>
 </html>
