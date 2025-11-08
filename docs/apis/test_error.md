@@ -10,7 +10,9 @@ Required Parameters: None.
 Optional Parameters: None.
 Description: This endpoint is responsible for testing the error handler.
 
-****1. Raise Exception (GET)****
+****Method: GET****
+
+****1. Raise Exception****
 
 ```
 raise Exception("Test error: This is a deliberate test of the error handler!")
@@ -18,7 +20,9 @@ raise Exception("Test error: This is a deliberate test of the error handler!")
 
 This part raises an Exception with the following message: "Test error: This is a deliberate test of the error handler!".
 
-****2. Raise Exception (POST)****
+****Method: POST****
+
+****2. Raise Exception****
 
 ```
 raise Exception("Test error: This is a deliberate test of the error handler!")
