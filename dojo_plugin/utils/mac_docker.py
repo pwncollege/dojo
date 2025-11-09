@@ -72,7 +72,14 @@ class MacDockerClient:
             stdout_loc = None
             stderr_loc = None
 
-        result = subprocess.run(ssh_command, stdout=stdout_loc, stderr=stderr_loc, input=input, timeout=timeout_seconds)
+        try:
+            result = subprocess.run(ssh_command, stdout=stdout_loc, stderr=stderr_loc, input=input, timeout=timeout_seconds)
+        except subprocess.TimeoutExpired as e:
+            if exception_on_fail:
+                raise e
+            else:
+                return -1, b""
+
         if result.returncode != 0:
             if exception_on_fail:
                 error_msg = result.stdout.strip()
@@ -99,6 +106,8 @@ class MacContainerCollection:
     def get(self, name):
         # Run 'guest-control.py list-vms' and parse the output
         exitcode, output = self.client._ssh_exec(f'{MAC_GUEST_CONTROL_FILE} list-vms', input=b"", exception_on_fail=False, timeout_seconds=10)
+        if exitcode != 0:
+            raise docker.errors.NotFound(f'Container {name} not found')
         output = output.decode('latin-1')
         vms = self.parse_list_vms(output)
         for vm in vms:
