@@ -186,7 +186,7 @@ class MacContainer:
 
         if force or timeout_hit:
             command = f'{MAC_GUEST_CONTROL_FILE} kill-vm {self.id}'
-            exitcode, output = self.client._ssh_exec(command, exception_on_fail=False, input=b"")
+            exitcode, output = self.client._ssh_exec(command, exception_on_fail=False, input=b"", timeout_seconds=10)
 
     def wait(self, condition='removed'):
         # Wait until the VM is removed
