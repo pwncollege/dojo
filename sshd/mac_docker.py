@@ -98,7 +98,7 @@ class MacContainerCollection:
 
     def get(self, name):
         # Run 'guest-control.py list-vms' and parse the output
-        exitcode, output = self.client._ssh_exec(f'{MAC_GUEST_CONTROL_FILE} list-vms', input=b"", timeout_seconds=10)
+        exitcode, output = self.client._ssh_exec(f'{MAC_GUEST_CONTROL_FILE} list-vms', input=b"", exception_on_fail=False, timeout_seconds=10)
         output = output.decode('latin-1')
         vms = self.parse_list_vms(output)
         for vm in vms:
