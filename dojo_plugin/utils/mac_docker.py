@@ -98,7 +98,7 @@ class MacContainerCollection:
 
     def get(self, name):
         # Run 'guest-control.py list-vms' and parse the output
-        exitcode, output = self.client._ssh_exec(f'{MAC_GUEST_CONTROL_FILE} list-vms', input=b"")
+        exitcode, output = self.client._ssh_exec(f'{MAC_GUEST_CONTROL_FILE} list-vms', input=b"", timeout_seconds=10)
         output = output.decode('latin-1')
         vms = self.parse_list_vms(output)
         for vm in vms:
@@ -288,7 +288,7 @@ class MacImageCollection:
         image_name = image_name.split("mac:", maxsplit=1)[-1]
         command = f"{MAC_GUEST_CONTROL_FILE} images {image_name}"
         try:
-            exitcode, output = self.client._ssh_exec(command, input=b"")
+            exitcode, output = self.client._ssh_exec(command, input=b"", timeout_seconds=10)
         except Exception as e:
             raise docker.errors.NotFound(f'Image {image_name} not found: {e}')
 
