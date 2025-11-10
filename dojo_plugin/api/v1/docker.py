@@ -172,6 +172,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             "hacker.localhost": "127.0.0.1",
             "dojo-user": user_ipv4(user),
             "pwn.college": "10.0.0.3",
+            "pwn.node": "192.168.42.1",
             **USER_FIREWALL_ALLOWED,
         },
         init=True,
