@@ -49,6 +49,15 @@ function getRecentService(root) {
     return match;
 }
 
+function sourceFailed(content, message) {
+  content.src = "";
+  animateBanner(
+      $(content).closest(".challenge-workspace").find("#workspace-select")[0],
+      message,
+      "error"
+  );
+}
+
 function specialSelect(serviceName, content) {
     const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
     url.searchParams.set("service", serviceName);
@@ -62,12 +71,7 @@ function specialSelect(serviceName, content) {
             content.src = result["iframe_src"];
         }
         else {
-            content.src = "";
-            animateBanner(
-                {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
-                result.error,
-                "error"
-            );
+            sourceFailed(content, result.error);
         }
     });
 }
@@ -97,7 +101,16 @@ function selectService(service, log=true) {
         specialSelect(service, content);
     }
     else {
-        content.src = "/workspace/" + port + "/";
+      url = "/workspace/" + port + "/";
+      fetch(url, {
+          method: "GET",
+          credentials: "same-origin"
+      }).then((response) => {
+          if (!response.ok) {
+              return sourceFailed(content, "Failed to connect to service, try restarting or contact dojo admin");
+          }
+          content.src = url;
+      });
     }
 }
 
