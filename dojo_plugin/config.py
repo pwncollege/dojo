@@ -80,6 +80,7 @@ USER_FIREWALL_ALLOWED = {
 }
 
 DOJO_HOST = os.getenv("DOJO_HOST")
+WORKSPACE_SECRET = os.environ.get("WORKSPACE_SECRET")
 HOST_DATA_PATH = os.getenv("HOST_DATA_PATH")
 MAIL_SERVER = os.getenv("MAIL_SERVER")
 MAIL_PORT = os.getenv("MAIL_PORT")

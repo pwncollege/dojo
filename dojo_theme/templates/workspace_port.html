@@ -45,7 +45,7 @@
 {% endblock %} {% block scripts %} {{ super() }}
 
 <script>
-    let response = fetch("/pwncollege_api/v1/workspace?service={{ service }}")
+    let response = fetch("/pwncollege_api/v1/workspace?port={{ port }}")
         .then((response) => response.json())
         .then((data) => {
             if (data.active) {
