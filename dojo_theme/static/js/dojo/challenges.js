@@ -271,8 +271,8 @@ function startChallenge(event) {
                 .attr("title", practice ? "Restart unprivileged" : "Restart privileged")
                 .attr("data-privileged", practice)
                 .find(".fas")
-                    .toggleClass("fa-lock", !practice)
-                    .toggleClass("fa-unlock", practice);
+                    .toggleClass("fa-times", !practice)
+                    .toggleClass("fa-check", practice);
             windowResizeCallback("");
             moduleStartChallenge(event, channel);
         }
