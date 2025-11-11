@@ -1,53 +1,70 @@
-{%- macro render_stat_value(stats, field, show_neutral=True) -%}
-  {% set trend = stats.trends.get(field, 0) %}
+{%- macro render_stat_value(stats, field) -%}
   <div class="stat-value">
     {{ "{:,}".format(stats.get(field, 0)) }}
-    {% if trend != 0 or show_neutral %}
-      <span class="stat-trend {% if trend > 0 %}trend-up{% elif trend < 0 %}trend-down{% else %}trend-neutral{% endif %}">
-        {% if trend > 0 %}▲{% elif trend < 0 %}▼{% else %}-{% endif %}{{ trend|abs }}%
-      </span>
-    {% else %}
-      <span class="stat-trend trend-neutral"></span>
-    {% endif %}
   </div>
 {%- endmacro -%}
 
 <div id="stats-dashboard" class="stats-dashboard">
+  {% set icon = url_for("pwncollege_belts.view_belt", color=dojo.award.belt) if (dojo.award.belt and dojo.official) else None %}
   <div class="stat-card">
-    <div class="stat-card-header">Dojo Stats</div>
+    <div class="stat-card-header">Dojo Info</div>
+    {% if icon or dojo.award and dojo.award.get("emoji") %}
+    <div class="stat-container layout-split">
+    {% else %}
     <div class="stat-container">
+    {% endif %}
       <div class="stat-box">
         <div class="stat-label">Total Solves</div>
-        <div class="stat-value">{{ render_stat_value(stats, "solves", show_neutral=False) }}</div>
+        <div class="stat-value">{{ render_stat_value(stats, "solves") }}</div>
       </div>
-
       <div class="stat-box">
-        <div class="stat-label">Hacking Now</div>
-        <div class="stat-value">{{ render_stat_value(stats, "active", show_neutral=False) }}</div>
+        <div class="stat-label">Total Challenges</div>
+        <div class="stat-value">{{ render_stat_value(stats, "challenges") }}</div>
       </div>
-
-      <div class="stat-box">
-        <div class="stat-label">Unique Hackers</div>
-        <div class="stat-value">{{ render_stat_value(stats, "users", show_neutral=False) }}</div>
+    {% if dojo.award and dojo.award.get("emoji") %}
+      <div class="stat-box award">
+        <div class="stat-label award">Award</div>
+        <div class="stat-value award"><b>{{ dojo.award["emoji"] }}</b></div>
       </div>
-
-      <div class="stat-box">
-        <div class="stat-label">Challenges</div>
-        <div class="stat-value">{{ render_stat_value(stats, "challenges", show_neutral=False) }}</div>
+    {% endif %}
+    {% if icon %}
+      <div class="stat-box award">
+        <div class="stat-label award">Award</div>
+        <div class="stat-value award"><img class="award-icon" src="{{ icon }}"></div>
       </div>
+    {% endif %}
     </div>
   </div>
 
-  <!-- <div class="stat-card">
-    <div class="stat-card-header">Activity History</div>
-    <div class="chart-container">
-      <canvas id="activity-chart"
-              data-labels='{{ stats.chart_data.labels|tojson|safe if stats and stats.chart_data and stats.chart_data.labels else "[]" }}'
-              data-solves='{{ stats.chart_data.solves|tojson if stats and stats.chart_data and stats.chart_data.solves else "[]" }}'
-              data-users='{{ stats.chart_data.users|tojson if stats and stats.chart_data and stats.chart_data.users else "[]" }}'>
-      </canvas>
+  <div class="stat-card">
+    <div class="stat-card-header">Recent Solves</div>
+    <div class="recent-activity">
+      {% if stats and stats.recent_solves and stats.recent_solves|length > 0 %}
+        {% for solve in stats.recent_solves %}
+        <div class="recent-item">
+          {{ solve.challenge_name if solve.challenge_name else 'Unknown Challenge' }}
+          <div class="recent-time">{{ solve.date_display if solve.date_display else 'Unknown time' }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="recent-item">No recent solves</div>
+      {% endif %}
     </div>
-  </div> -->
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-card-header">Dojo Hackers</div>
+    <div class="stat-container">
+      <div class="stat-box">
+        <div class="stat-label">Unique Hackers</div>
+        <div class="stat-value">{{ render_stat_value(stats, "users") }}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Hacking Now</div>
+        <div class="stat-value">{{ render_stat_value(stats, "active") }}</div>
+      </div>
+    </div>
+  </div>
 
   <div class="stat-card">
     <div class="stat-card-header">Recent Awardees</div>
@@ -68,130 +85,4 @@
       {% endif %}
     </div>
   </div>
-
-  <!-- <div class="stat-card">
-    <div class="stat-card-header">Recent Solves</div>
-    <div class="recent-activity">
-      {% if stats and stats.recent_solves and stats.recent_solves|length > 0 %}
-        {% for solve in stats.recent_solves %}
-        <div class="recent-item">
-          {{ solve.challenge_name if solve.challenge_name else 'Unknown Challenge' }}
-          <div class="recent-time">{{ solve.date_display if solve.date_display else 'Unknown time' }}</div>
-        </div>
-        {% endfor %}
-      {% else %}
-        <div class="recent-item">No recent solves</div>
-      {% endif %}
-    </div>
-  </div> -->
 </div>
-
-<script>
-function initializeChart() {
-  const chartCanvas = document.getElementById('activity-chart');
-  if (!chartCanvas || typeof Chart === 'undefined') {
-    setTimeout(initializeChart, 100);
-    return;
-  }
-
-  const parseData = (attr, fallback) => {
-    try {
-      const value = chartCanvas.dataset[attr];
-      return value ? JSON.parse(value) : fallback;
-    } catch (e) {
-      console.error(`Error parsing ${attr}:`, e);
-      return fallback;
-    }
-  };
-
-  const labels = parseData('labels', ['Today', '1w ago', '1mo ago', '2mo ago']);
-  const solvesData = parseData('solves', [0, 0, 0, 0]);
-  const usersData = parseData('users', [0, 0, 0, 0]);
-
-  // Chart.js config
-  Chart.defaults.color = '#ffffff';
-  Chart.defaults.font.family = "'Space Mono', 'JetBrains Mono', 'Consolas', monospace";
-  Chart.defaults.font.size = 9;
-
-  new Chart(chartCanvas.getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: 'Daily Solves',
-          data: solvesData,
-          backgroundColor: 'rgba(120, 190, 32, 0.7)',
-          borderColor: '#78be20',
-          borderWidth: 1
-        },
-        {
-          label: 'Daily Users',
-          data: usersData,
-          backgroundColor: 'rgba(0, 163, 224, 0.7)',
-          borderColor: '#00a3e0',
-          borderWidth: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        intersect: false,
-        mode: 'index'
-      },
-      scales: {
-        x: {
-          grid: {
-            display: false
-          },
-          ticks: {
-            color: '#747474',
-            maxRotation: 25,
-            minRotation: 15
-          }
-        },
-        y: {
-          beginAtZero: true,
-          grid: {
-            color: 'rgba(72, 72, 72, 0.3)'
-          },
-          ticks: {
-            color: '#747474'
-          }
-        }
-      },
-      plugins: {
-        legend: {
-          display: false
-        },
-        tooltip: {
-          backgroundColor: 'rgba(0, 0, 0, 0.9)',
-          titleColor: '#ffffff',
-          bodyColor: '#ffffff',
-          borderColor: '#484848',
-          borderWidth: 1,
-          cornerRadius: 4,
-          padding: 8,
-          displayColors: true,
-          callbacks: {
-            title: function(context) {
-              return `${context[0].label}`;
-            }
-          }
-        }
-      }
-    }
-  });
-}
-
-if (document.readyState === 'loading') {
-  if (!window.chartInitialized) {
-    window.chartInitialized = true;
-    document.addEventListener('DOMContentLoaded', initializeChart);
-  }
-} else {
-  initializeChart();
-}
-</script>
