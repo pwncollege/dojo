@@ -163,9 +163,18 @@ for host in $(cat /opt/pwn.college/user_firewall.allowed); do
 done
 iptables -A WORKSPACE-NET -j DROP
 
+iptables -F NODE-NET 2>/dev/null || iptables -N NODE-NET
+iptables -A NODE-NET -d 192.168.42.1 -m conntract --ctstate NEW -j ACCEPT
+iptables -A NODE-NET -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+iptables -A NODE-NET -j DROP
+
 iptables -N DOCKER-USER
 iptables -A DOCKER-USER -i workspace_net -j WORKSPACE-NET
 iptables -A DOCKER-USER -o workspace_net -j WORKSPACE-NET
+iptables -A DOCKER-USER -i node_net -j NODE-NET
+iptables -A DOCKER-USER -o node_net -j NODE-NET
 
 iptables -A INPUT -i workspace_net -j WORKSPACE-NET
 iptables -A OUTPUT -o workspace_net -j WORKSPACE-NET
+iptables -A INPUT -i node_net -j NODE-NET
+iptables -A OUTPUT -o node_net -j NODE-NET

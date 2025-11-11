@@ -419,3 +419,8 @@ networks:
         - subnet: 10.0.0.0/8
     driver_opts:
       com.docker.network.bridge.name: "workspace_net"
+  node_net:
+    name: node_net
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: "node_net"

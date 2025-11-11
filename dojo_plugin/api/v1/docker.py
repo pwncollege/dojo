@@ -171,8 +171,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             "challenge.localhost": "127.0.0.1",
             "hacker.localhost": "127.0.0.1",
             "dojo-user": user_ipv4(user),
-            "pwn.college": "10.0.0.3",
-            "pwn.node": "192.168.42.1",
+            "pwn.college": "192.168.42.1",
             **USER_FIREWALL_ALLOWED,
         },
         init=True,
@@ -193,6 +192,10 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
 
     workspace_net = docker_client.networks.get("workspace_net")
     workspace_net.connect(
+        container, ipv4_address=user_ipv4(user), aliases=[container_name(user)]
+    )
+    node_net = docker_client.networks.get("node_net")
+    node_net.connect(
         container, ipv4_address=user_ipv4(user), aliases=[container_name(user)]
     )
 
