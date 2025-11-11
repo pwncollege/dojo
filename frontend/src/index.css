@@ -1,0 +1,829 @@
+
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+
+:root {
+  --background: oklch(0.9777 0.0041 301.4256);
+  --foreground: oklch(0.3651 0.0325 287.0807);
+  --card: oklch(1.0000 0 0);
+  --card-foreground: oklch(0.3651 0.0325 287.0807);
+  --popover: oklch(1.0000 0 0);
+  --popover-foreground: oklch(0.3651 0.0325 287.0807);
+  --primary: oklch(0.6104 0.0767 299.7335);
+  --primary-foreground: oklch(0.9777 0.0041 301.4256);
+  --secondary: oklch(0.8957 0.0265 300.2416);
+  --secondary-foreground: oklch(0.3651 0.0325 287.0807);
+  --muted: oklch(0.8906 0.0139 299.7754);
+  --muted-foreground: oklch(0.5288 0.0375 290.7895);
+  --accent: oklch(0.7889 0.0802 359.9375);
+  --accent-foreground: oklch(0.3394 0.0441 1.7583);
+  --destructive: oklch(0.6332 0.1578 22.6734);
+  --destructive-foreground: oklch(0.9777 0.0041 301.4256);
+  --border: oklch(0.8447 0.0226 300.1421);
+  --input: oklch(0.9329 0.0124 301.2783);
+  --ring: oklch(0.6104 0.0767 299.7335);
+  --chart-1: oklch(0.6104 0.0767 299.7335);
+  --chart-2: oklch(0.7889 0.0802 359.9375);
+  --chart-3: oklch(0.7321 0.0749 169.8670);
+  --chart-4: oklch(0.8540 0.0882 76.8292);
+  --chart-5: oklch(0.7857 0.0645 258.0839);
+  --sidebar: oklch(0.9554 0.0082 301.3541);
+  --sidebar-foreground: oklch(0.3651 0.0325 287.0807);
+  --sidebar-primary: oklch(0.6104 0.0767 299.7335);
+  --sidebar-primary-foreground: oklch(0.9777 0.0041 301.4256);
+  --sidebar-accent: oklch(0.7889 0.0802 359.9375);
+  --sidebar-accent-foreground: oklch(0.3394 0.0441 1.7583);
+  --sidebar-border: oklch(0.8719 0.0198 302.1690);
+  --sidebar-ring: oklch(0.6104 0.0767 299.7335);
+  --font-sans: Geist, sans-serif;
+  --font-serif: "Lora", Georgia, serif;
+  --font-mono: "Fira Code", "Courier New", monospace;
+  --radius: 0.5rem;
+  --shadow-2xs: 1px 2px 5px 1px hsl(0 0% 0% / 0.03);
+  --shadow-xs: 1px 2px 5px 1px hsl(0 0% 0% / 0.03);
+  --shadow-sm: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 1px 2px 0px hsl(0 0% 0% / 0.06);
+  --shadow: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 1px 2px 0px hsl(0 0% 0% / 0.06);
+  --shadow-md: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 2px 4px 0px hsl(0 0% 0% / 0.06);
+  --shadow-lg: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 4px 6px 0px hsl(0 0% 0% / 0.06);
+  --shadow-xl: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 8px 10px 0px hsl(0 0% 0% / 0.06);
+  --shadow-2xl: 1px 2px 5px 1px hsl(0 0% 0% / 0.15);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: oklch(0.2166 0.0215 292.8474);
+  --foreground: oklch(0.9053 0.0245 293.5570);
+  --card: oklch(0.2544 0.0301 292.7315);
+  --card-foreground: oklch(0.9053 0.0245 293.5570);
+  --popover: oklch(0.2544 0.0301 292.7315);
+  --popover-foreground: oklch(0.9053 0.0245 293.5570);
+  --primary: oklch(0.7058 0.0777 302.0489);
+  --primary-foreground: oklch(0.2166 0.0215 292.8474);
+  --secondary: oklch(0.4604 0.0472 295.5578);
+  --secondary-foreground: oklch(0.9053 0.0245 293.5570);
+  --muted: oklch(0.2560 0.0320 294.8380);
+  --muted-foreground: oklch(0.6974 0.0282 300.0614);
+  --accent: oklch(0.3181 0.0321 308.6149);
+  --accent-foreground: oklch(0.8391 0.0692 2.6681);
+  --destructive: oklch(0.6875 0.1420 21.4566);
+  --destructive-foreground: oklch(0.2166 0.0215 292.8474);
+  --border: oklch(0.3063 0.0359 293.3367);
+  --input: oklch(0.2847 0.0346 291.2726);
+  --ring: oklch(0.7058 0.0777 302.0489);
+  --chart-1: oklch(0.7058 0.0777 302.0489);
+  --chart-2: oklch(0.8391 0.0692 2.6681);
+  --chart-3: oklch(0.7321 0.0749 169.8670);
+  --chart-4: oklch(0.8540 0.0882 76.8292);
+  --chart-5: oklch(0.7857 0.0645 258.0839);
+  --sidebar: oklch(0.1985 0.0200 293.6639);
+  --sidebar-foreground: oklch(0.9053 0.0245 293.5570);
+  --sidebar-primary: oklch(0.7058 0.0777 302.0489);
+  --sidebar-primary-foreground: oklch(0.2166 0.0215 292.8474);
+  --sidebar-accent: oklch(0.3181 0.0321 308.6149);
+  --sidebar-accent-foreground: oklch(0.8391 0.0692 2.6681);
+  --sidebar-border: oklch(0.2847 0.0346 291.2726);
+  --sidebar-ring: oklch(0.7058 0.0777 302.0489);
+  --font-sans: Geist, sans-serif;
+  --font-serif: "Lora", Georgia, serif;
+  --font-mono: "Fira Code", "Courier New", monospace;
+  --radius: 0.5rem;
+  --shadow-2xs: 1px 2px 5px 1px hsl(0 0% 0% / 0.03);
+  --shadow-xs: 1px 2px 5px 1px hsl(0 0% 0% / 0.03);
+  --shadow-sm: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 1px 2px 0px hsl(0 0% 0% / 0.06);
+  --shadow: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 1px 2px 0px hsl(0 0% 0% / 0.06);
+  --shadow-md: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 2px 4px 0px hsl(0 0% 0% / 0.06);
+  --shadow-lg: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 4px 6px 0px hsl(0 0% 0% / 0.06);
+  --shadow-xl: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 8px 10px 0px hsl(0 0% 0% / 0.06);
+  --shadow-2xl: 1px 2px 5px 1px hsl(0 0% 0% / 0.15);
+}
+
+/* Everforest Light Theme - Official colors from sainnhe/everforest medium background */
+.theme-everforest {
+  --background: #fdf6e3;  /* bg0 */
+  --foreground: #5c6a72;  /* fg */
+  --card: #f4f0d9;        /* bg1 */
+  --card-foreground: #5c6a72;
+  --popover: #f4f0d9;     /* bg1 */
+  --popover-foreground: #5c6a72;
+  --primary: #8da101;     /* green */
+  --primary-foreground: #fdf6e3;
+  --secondary: #bdc3af;   /* bg5 */
+  --secondary-foreground: #5c6a72;
+  --muted: #efebd4;       /* bg2 */
+  --muted-foreground: #829181;  /* grey2 */
+  --accent: #3a94c5;      /* blue */
+  --accent-foreground: #fdf6e3;
+  --destructive: #f85552; /* red */
+  --destructive-foreground: #fdf6e3;
+  --border: #e6e2cc;      /* bg3 */
+  --input: #efebd4;       /* bg2 */
+  --ring: #8da101;        /* green */
+  --chart-1: #8da101;     /* green */
+  --chart-2: #f57d26;     /* orange */
+  --chart-3: #35a77c;     /* aqua */
+  --chart-4: #df69ba;     /* purple */
+  --chart-5: #3a94c5;     /* blue */
+  --sidebar: #f4f0d9;     /* bg1 */
+  --sidebar-foreground: #5c6a72;
+  --sidebar-primary: #8da101;
+  --sidebar-primary-foreground: #fdf6e3;
+  --sidebar-accent: #3a94c5;
+  --sidebar-accent-foreground: #fdf6e3;
+  --sidebar-border: #e0dcc7;  /* bg4 */
+  --sidebar-ring: #8da101;
+}
+
+/* Everforest Dark Theme - Official colors from sainnhe/everforest medium background */
+.theme-everforest.dark {
+  --background: #2d353b;  /* bg0 */
+  --foreground: #d3c6aa;  /* fg */
+  --card: #343f44;        /* bg1 */
+  --card-foreground: #d3c6aa;
+  --popover: #343f44;     /* bg1 */
+  --popover-foreground: #d3c6aa;
+  --primary: #a7c080;     /* green */
+  --primary-foreground: #2d353b;
+  --secondary: #56635f;   /* bg5 */
+  --secondary-foreground: #d3c6aa;
+  --muted: #3d484d;       /* bg2 */
+  --muted-foreground: #9da9a0;  /* grey2 */
+  --accent: #7fbbb3;      /* blue */
+  --accent-foreground: #2d353b;
+  --destructive: #e67e80; /* red */
+  --destructive-foreground: #d3c6aa;
+  --border: #475258;      /* bg3 */
+  --input: #3d484d;       /* bg2 */
+  --ring: #a7c080;        /* green */
+  --chart-1: #a7c080;     /* green */
+  --chart-2: #e69875;     /* orange */
+  --chart-3: #83c092;     /* aqua */
+  --chart-4: #d699b6;     /* purple */
+  --chart-5: #7fbbb3;     /* blue */
+  --sidebar: #232a2e;     /* bg_dim */
+  --sidebar-foreground: #d3c6aa;
+  --sidebar-primary: #a7c080;
+  --sidebar-primary-foreground: #2d353b;
+  --sidebar-accent: #7fbbb3;
+  --sidebar-accent-foreground: #2d353b;
+  --sidebar-border: #4f585e;  /* bg4 */
+  --sidebar-ring: #a7c080;
+}
+
+/* Professional themed scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: all 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Dark theme scrollbar adjustments */
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Custom scrollbar class for specific elements */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--border) / 0.6) !important;
+  border-radius: 3px !important;
+  transition: background-color 0.15s ease !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.8) !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--border) / 0.8) !important;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.9) !important;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom prose styles to work with our theme */
+@layer components {
+  .prose {
+    @apply text-foreground max-w-none;
+  }
+
+  /* Headings */
+  .prose h1,
+  .prose h2,
+  .prose h3,
+  .prose h4,
+  .prose h5,
+  .prose h6 {
+    @apply text-foreground font-semibold;
+  }
+
+  .prose h1 {
+    @apply text-3xl mb-4 mt-8 first:mt-0;
+  }
+
+  .prose h2 {
+    @apply text-2xl mb-3 mt-6 first:mt-0;
+  }
+
+  .prose h3 {
+    @apply text-xl mb-2 mt-5 first:mt-0;
+  }
+
+  .prose h4 {
+    @apply text-lg mb-2 mt-4 first:mt-0;
+  }
+
+  .prose h5,
+  .prose h6 {
+    @apply text-base mb-2 mt-3 first:mt-0;
+  }
+
+  /* Text elements */
+  .prose p {
+    @apply text-foreground mb-4 leading-relaxed;
+  }
+
+  .prose strong,
+  .prose b, .prose a {
+    @apply text-foreground font-semibold;
+  }
+
+
+  .prose em,
+  .prose i {
+    @apply text-foreground italic;
+  }
+
+  .prose small {
+    @apply text-muted-foreground text-sm;
+  }
+
+  .prose mark {
+    @apply bg-primary/20 text-foreground px-1 rounded;
+  }
+
+  .prose del,
+  .prose s {
+    @apply text-muted-foreground line-through;
+  }
+
+  .prose ins,
+  .prose u {
+    @apply text-foreground underline decoration-primary/50;
+  }
+
+  .prose sub,
+  .prose sup {
+    @apply text-muted-foreground text-xs;
+  }
+
+  /* Code elements */
+  .prose code {
+    @apply bg-muted text-foreground px-1.5 py-0.5 rounded text-sm font-mono;
+  }
+
+  .prose pre {
+    @apply bg-card text-foreground border border-border rounded-lg p-3 overflow-x-auto;
+  }
+
+  .prose pre code {
+    @apply bg-transparent p-0 text-sm font-mono;
+  }
+
+  .prose kbd {
+    @apply bg-muted text-foreground border border-border rounded px-1.5 py-0.5 text-xs font-mono shadow-sm;
+  }
+
+  /* Quotes */
+  .prose blockquote {
+    @apply border-l-4 border-primary text-foreground bg-muted/30 pl-4 py-2 my-4 italic;
+  }
+
+  .prose blockquote p {
+    @apply mb-0;
+  }
+
+  .prose q {
+    @apply text-foreground;
+  }
+
+  .prose cite {
+    @apply text-muted-foreground italic text-sm;
+  }
+
+  /* Lists */
+  .prose ul,
+  .prose ol {
+    @apply text-foreground mb-4 pl-6;
+  }
+
+  .prose li {
+    @apply text-foreground mb-1;
+  }
+
+  .prose ul > li {
+    @apply list-disc;
+  }
+
+  .prose ol > li {
+    @apply list-decimal;
+  }
+
+  .prose li > ul,
+  .prose li > ol {
+    @apply mt-1 mb-0;
+  }
+
+  .prose dt {
+    @apply text-foreground font-semibold mt-4;
+  }
+
+  .prose dd {
+    @apply text-foreground ml-4 mb-2;
+  }
+
+  /* Links */
+  .prose a {
+    @apply text-primary hover:text-primary/80 underline decoration-primary/30 hover:decoration-primary/60 transition-all duration-200 font-medium;
+  }
+
+  .prose a:visited {
+    @apply text-accent;
+  }
+
+  .prose a:focus {
+    @apply outline-none ring-2 ring-primary/50 rounded-sm;
+  }
+
+  /* Tables */
+  .prose table {
+    @apply border-collapse border border-border w-full my-4;
+  }
+
+  .prose th {
+    @apply bg-muted text-foreground border border-border px-3 py-2 font-semibold text-left;
+  }
+
+  .prose td {
+    @apply text-foreground border border-border px-3 py-2;
+  }
+
+  .prose thead {
+    @apply bg-muted/50;
+  }
+
+  .prose tbody tr:nth-child(even) {
+    @apply bg-muted/20;
+  }
+
+  .prose caption {
+    @apply text-muted-foreground text-sm mt-2;
+  }
+
+  /* Horizontal rule */
+  .prose hr {
+    @apply border-0 border-t border-border my-6;
+  }
+
+  /* Images and media */
+  .prose img {
+    @apply rounded-lg border border-border max-w-full h-auto;
+  }
+
+  .prose figure {
+    @apply my-6;
+  }
+
+  .prose figcaption {
+    @apply text-muted-foreground text-sm text-center mt-2;
+  }
+
+  /* Form elements */
+  .prose input,
+  .prose textarea,
+  .prose select {
+    @apply bg-input text-foreground border border-border rounded px-3 py-2;
+  }
+
+  .prose input:focus,
+  .prose textarea:focus,
+  .prose select:focus {
+    @apply outline-none ring-2 ring-primary/50;
+  }
+
+  /* Details and summary */
+  .prose details {
+    @apply bg-muted/30 border border-border rounded p-3 my-4;
+  }
+
+  .prose summary {
+    @apply text-foreground font-semibold cursor-pointer hover:text-primary transition-colors;
+  }
+
+  .prose details[open] summary {
+    @apply mb-2 pb-2 border-b border-border;
+  }
+
+  /* Line breaks */
+  .prose br {
+    @apply leading-relaxed;
+  }
+
+  /* Address */
+  .prose address {
+    @apply text-foreground italic not-italic;
+  }
+
+  /* Abbreviations */
+  .prose abbr {
+    @apply text-foreground border-b border-dotted border-muted-foreground cursor-help;
+  }
+}
+
+/* Theme-aware syntax highlighting with highlight.js */
+@layer components {
+  /* Ensure our syntax highlighting has higher specificity than prose */
+  /* Base code block styling */
+  .prose .hljs,
+  .prose pre {
+    background-color: var(--muted) !important;
+    color: var(--foreground) !important;
+    border-radius: 0.5rem;
+    font-family: var(--font-mono);
+    border: 1px solid var(--border);
+  }
+
+  /* Keywords, control flow, operators */
+  .prose .hljs-keyword,
+  .prose .hljs-operator,
+  .prose .hljs-selector-tag,
+  .prose .hljs-literal {
+    color: var(--primary) !important;
+    font-weight: 600;
+  }
+
+  /* Built-in functions, types, classes */
+  .prose .hljs-built_in,
+  .prose .hljs-builtin-name,
+  .prose .hljs-type,
+  .prose .hljs-class,
+  .prose .hljs-title.class_,
+  .prose .hljs-title.class,
+  .prose .hljs-selector-class {
+    color: var(--chart-5) !important;
+    font-weight: 500;
+  }
+
+  /* Strings, template literals, regular expressions */
+  .prose .hljs-string,
+  .prose .hljs-regexp,
+  .prose .hljs-char,
+  .prose .hljs-template-literal {
+    color: var(--chart-3) !important;
+  }
+
+  /* Numbers, constants, booleans */
+  .prose .hljs-number,
+  .prose .hljs-boolean {
+    color: var(--chart-4) !important;
+  }
+
+  /* Comments */
+  .prose .hljs-comment,
+  .prose .hljs-quote {
+    color: var(--muted-foreground) !important;
+    font-style: italic;
+    opacity: 0.8;
+  }
+
+  /* Functions and methods */
+  .prose .hljs-function,
+  .prose .hljs-title.function_,
+  .prose .hljs-title.function,
+  .prose .hljs-method {
+    color: var(--chart-5) !important;
+    font-weight: 500;
+  }
+
+  /* Variables, parameters, properties */
+  .hljs-variable,
+  .hljs-params,
+  .hljs-property,
+  .hljs-symbol {
+    color: var(--foreground);
+  }
+
+  /* Attributes, selectors */
+  .hljs-attribute,
+  .hljs-selector-attr,
+  .hljs-selector-pseudo,
+  .hljs-attr {
+    color: var(--accent);
+  }
+
+  /* HTML/XML tags */
+  .hljs-tag,
+  .hljs-name {
+    color: var(--primary);
+  }
+
+  /* Meta information, preprocessor directives */
+  .hljs-meta,
+  .hljs-meta-keyword,
+  .hljs-doctag {
+    color: var(--chart-4);
+  }
+
+  /* Assembly language specific classes */
+  .hljs-title {
+    color: var(--chart-2);
+    font-weight: 600;
+  }
+
+  /* Diff additions */
+  .hljs-addition {
+    color: var(--chart-3);
+    background-color: color-mix(in srgb, var(--chart-3) 10%, transparent);
+  }
+
+  /* Diff deletions */
+  .hljs-deletion {
+    color: var(--destructive);
+    background-color: color-mix(in srgb, var(--destructive) 10%, transparent);
+  }
+
+  /* Language-specific enhancements */
+
+  /* JavaScript/TypeScript */
+  .hljs-subst {
+    color: var(--foreground);
+  }
+
+  /* CSS */
+  .hljs-selector-id {
+    color: var(--chart-1);
+    font-weight: 600;
+  }
+
+  /* Shell/Bash */
+  .hljs-variable.hljs-language_ {
+    color: var(--accent);
+  }
+
+  /* Python */
+  .hljs-decorator {
+    color: var(--chart-4);
+  }
+
+  /* Important, emphasis */
+  .hljs-strong {
+    font-weight: 700;
+    color: var(--foreground);
+  }
+
+  .hljs-emphasis {
+    font-style: italic;
+    color: var(--foreground);
+  }
+
+}
+
+@layer utilities {
+  /* Inline code */
+  .prose code::before,
+  .prose code::after {
+    content: none !important; /* remove the fake backticks */
+  }
+
+  /* Inline code styling (not in pre blocks) */
+  .prose code:not(pre code) {
+    background-color: var(--muted) !important;
+    color: var(--foreground) !important;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    border: 1px solid var(--border);
+  }
+
+  /* Strong/bold text styling */
+  .prose strong {
+    color: var(--foreground) !important;
+  }
+
+  /* Horizontal rule styling */
+  .prose hr,
+  .prose-sm hr {
+    border-color: var(--border) !important;
+    margin-top: 1.4rem !important;
+    margin-bottom: 1.4rem !important;
+  }
+
+  .prose td { padding-left: 8px;}
+  .prose th { padding-left: 8px;}
+  .prose table {
+    border-radius: 8px;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    overflow: hidden;
+  }
+
+  /* First row of entire table */
+  .prose table > :first-child > tr:first-child > :first-child {
+    border-top-left-radius: 8px !important;
+  }
+  .prose table > :first-child > tr:first-child > :last-child {
+    border-top-right-radius: 8px !important;
+  }
+
+  /* Last row of entire table */
+  .prose table > :last-child > tr:last-child > :first-child {
+    border-bottom-left-radius: 8px !important;
+  }
+  .prose table > :last-child > tr:last-child > :last-child {
+    border-bottom-right-radius: 8px !important;
+  }
+
+  .prose a {
+    @apply text-foreground underline;
+
+  }
+}
+
+/* Animated background animations */
+@keyframes blob-slow {
+  0%, 100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  25% {
+    transform: translate(40px, -60px) scale(1.15) rotate(5deg);
+  }
+  50% {
+    transform: translate(-30px, 40px) scale(0.95) rotate(-3deg);
+  }
+  75% {
+    transform: translate(20px, 30px) scale(1.05) rotate(3deg);
+  }
+}
+
+@keyframes blob-slower {
+  0%, 100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate(-50px, 30px) scale(1.1) rotate(-4deg);
+  }
+  66% {
+    transform: translate(40px, -40px) scale(0.9) rotate(4deg);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-20px) scale(1.05);
+  }
+}
+
+@keyframes gradient-sweep {
+  0%, 100% {
+    opacity: 0.3;
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: rotate(2deg) scale(1.02);
+  }
+}
+
+.animate-blob-slow {
+  animation: blob-slow 12s ease-in-out infinite;
+}
+
+.animate-blob-slower {
+  animation: blob-slower 16s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 8s ease-in-out infinite;
+}
+
+.animate-gradient-sweep {
+  animation: gradient-sweep 10s ease-in-out infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}

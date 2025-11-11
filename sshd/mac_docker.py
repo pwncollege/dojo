@@ -72,7 +72,14 @@ class MacDockerClient:
             stdout_loc = None
             stderr_loc = None
 
-        result = subprocess.run(ssh_command, stdout=stdout_loc, stderr=stderr_loc, input=input, timeout=timeout_seconds)
+        try:
+            result = subprocess.run(ssh_command, stdout=stdout_loc, stderr=stderr_loc, input=input, timeout=timeout_seconds)
+        except subprocess.TimeoutExpired as e:
+            if exception_on_fail:
+                raise e
+            else:
+                return -1, b""
+
         if result.returncode != 0:
             if exception_on_fail:
                 error_msg = result.stdout.strip()
@@ -81,13 +88,26 @@ class MacDockerClient:
 
 
 
+class MockDetachedContainer:
+    """Mock container for detach=True mode compatibility"""
+    def wait(self):
+        pass
+
+    def logs(self):
+        return b""
+
+    def remove(self):
+        pass
+
 class MacContainerCollection:
     def __init__(self, client):
         self.client = client
 
     def get(self, name):
         # Run 'guest-control.py list-vms' and parse the output
-        exitcode, output = self.client._ssh_exec(f'{MAC_GUEST_CONTROL_FILE} list-vms', input=b"")
+        exitcode, output = self.client._ssh_exec(f'{MAC_GUEST_CONTROL_FILE} list-vms', input=b"", exception_on_fail=False, timeout_seconds=10)
+        if exitcode != 0:
+            raise docker.errors.NotFound(f'Container {name} not found')
         output = output.decode('latin-1')
         vms = self.parse_list_vms(output)
         for vm in vms:
@@ -143,6 +163,8 @@ class MacContainerCollection:
     # For our mac-backed shim we only need interface compatibility, so we
     # accept the same parameters and immediately return an empty byte string. :contentReference[oaicite:2]{index=2}
     def run(self, image, command=None, **kwargs):
+        if kwargs.get('detach', False):
+            return MockDetachedContainer()
         return b""
 
 class MacContainer:
@@ -152,9 +174,13 @@ class MacContainer:
         self.vm_info = vm_info
         self.status = vm_info.get("status", "creating")
 
+    def logs(self, stream, follow):
+        # Very hacky thing, just return the other hacky thing that we did
+        return self.attach(stream)
+
     def attach(self, stream):
         # Super hacky thing, this just needs to return [b"Initialized.\n"]
-        return [b"Initialized.\n"]
+        return [b"Initialized.\n", b"Ready.\n"]
 
     def remove(self, force=True):
         # Kill the VM
@@ -162,14 +188,14 @@ class MacContainer:
         # first try to shutdown the VM
         timeout_hit = False
         try:
-            self.exec_run("/sbin/shutdown -h now", "0", timeout_seconds=10, input=b"")
+            self.exec_run("/sbin/shutdown -h now", "0", timeout_seconds=8, input=b"")
         except subprocess.TimeoutExpired:
             # if that didn't work, kill it
             timeout_hit = True
 
         if force or timeout_hit:
             command = f'{MAC_GUEST_CONTROL_FILE} kill-vm {self.id}'
-            exitcode, output = self.client._ssh_exec(command, exception_on_fail=False, input=b"")
+            exitcode, output = self.client._ssh_exec(command, exception_on_fail=False, input=b"", timeout_seconds=5)
 
     def wait(self, condition='removed'):
         # Wait until the VM is removed
@@ -271,7 +297,7 @@ class MacImageCollection:
         image_name = image_name.split("mac:", maxsplit=1)[-1]
         command = f"{MAC_GUEST_CONTROL_FILE} images {image_name}"
         try:
-            exitcode, output = self.client._ssh_exec(command, input=b"")
+            exitcode, output = self.client._ssh_exec(command, input=b"", timeout_seconds=10)
         except Exception as e:
             raise docker.errors.NotFound(f'Image {image_name} not found: {e}')
 

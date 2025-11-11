@@ -187,6 +187,7 @@ jobs:
           fi
 
       - name: Upload coverage reports to Codecov
+        if: matrix.mode == 'singlenode'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

@@ -19,6 +19,7 @@ from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 from .models import Dojos, DojoChallenges, Belts, Emojis
 from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
+from .utils.dojo import get_current_dojo_challenge
 from .utils.awards import update_awards
 from .utils.feed import publish_challenge_solve
 from .utils.query_timer import init_query_timer
@@ -79,6 +80,21 @@ class DojoFlag(BaseFlag):
             raise FlagException("This flag is not for this challenge!")
 
         return True
+
+
+def context_processor():
+    challenge = get_current_dojo_challenge()
+    if not challenge:
+        return dict(current_dojo_challenge=None, current_dojo_custom_js=None)
+    return dict(
+        current_dojo_challenge=dict(
+            dojo_id=challenge.dojo.reference_id,
+            module_id=challenge.module.id,
+            challenge_id=challenge.id,
+        ),
+        current_challenge_id=challenge.challenge_id,
+        current_dojo_custom_js=challenge.dojo.custom_js,
+    )
 
 
 def shell_context_processor():
@@ -182,4 +198,5 @@ def load(app):
     if os.path.basename(sys.argv[0]) != "manage.py":
         bootstrap()
 
+    app.context_processor(context_processor)
     app.shell_context_processor(shell_context_processor)
