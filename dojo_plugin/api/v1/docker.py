@@ -194,10 +194,6 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
     workspace_net.connect(
         container, ipv4_address=user_ipv4(user), aliases=[container_name(user)]
     )
-    node_net = docker_client.networks.get("node_net")
-    node_net.connect(
-        container, ipv4_address=user_ipv4(user), aliases=[container_name(user)]
-    )
 
     default_network = docker_client.networks.get("bridge")
     internet_access = INTERNET_FOR_ALL or any(

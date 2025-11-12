@@ -156,6 +156,7 @@ dojo-node refresh
 iptables -F WORKSPACE-NET 2>/dev/null || iptables -N WORKSPACE-NET
 iptables -A WORKSPACE-NET -s 10.0.0.0/24 -m conntrack --ctstate NEW -j RETURN
 iptables -A WORKSPACE-NET -s 10.0.0.0/8 -d 10.0.0.3 -m conntrack --ctstate NEW -j ACCEPT
+iptables -A WORKSPACE-NET -s 10.0.0.0/8 -d 192.168.42.1 -m conntrack --ctstate NEW -j ACCEPT
 iptables -A WORKSPACE-NET -s 192.168.42.0/24 -m conntrack --ctstate NEW -j RETURN
 iptables -A WORKSPACE-NET -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
 for host in $(cat /opt/pwn.college/user_firewall.allowed); do
@@ -163,18 +164,9 @@ for host in $(cat /opt/pwn.college/user_firewall.allowed); do
 done
 iptables -A WORKSPACE-NET -j DROP
 
-iptables -F NODE-NET 2>/dev/null || iptables -N NODE-NET
-iptables -A NODE-NET -d 192.168.42.1 -m conntract --ctstate NEW -j ACCEPT
-iptables -A NODE-NET -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
-iptables -A NODE-NET -j DROP
-
 iptables -N DOCKER-USER
 iptables -A DOCKER-USER -i workspace_net -j WORKSPACE-NET
 iptables -A DOCKER-USER -o workspace_net -j WORKSPACE-NET
-iptables -A DOCKER-USER -i node_net -j NODE-NET
-iptables -A DOCKER-USER -o node_net -j NODE-NET
 
 iptables -A INPUT -i workspace_net -j WORKSPACE-NET
 iptables -A OUTPUT -o workspace_net -j WORKSPACE-NET
-iptables -A INPUT -i node_net -j NODE-NET
-iptables -A OUTPUT -o node_net -j NODE-NET
