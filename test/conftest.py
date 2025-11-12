@@ -4,7 +4,7 @@ import pytest
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, db_sql
 from selenium.webdriver import Firefox, FirefoxOptions
 
 @pytest.fixture(scope="session")
@@ -83,6 +83,17 @@ def example_import_dojo(admin_session, example_dojo):
         rid = "example-import"
     make_dojo_official(rid, admin_session)
     return rid
+
+@pytest.fixture
+def medal_dojo(admin_session):
+    id = create_dojo_yml(open(TEST_DOJOS_LOCATION / "medal_dojo.yml").read(), session=admin_session)
+    dojo_id = id.split("~")[1]
+    db_sql(f"UPDATE dojos SET permissions = '{{grant_awards}}' WHERE dojo_id = x'{dojo_id}'::int'")
+    return id
+
+@pytest.fixture
+def random_event():
+    return "".join(random.choices(string.ascii_lowercase, k=12))
 
 @pytest.fixture
 def simple_award_dojo(admin_session):
