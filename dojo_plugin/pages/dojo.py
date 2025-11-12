@@ -1,9 +1,11 @@
 import collections
+import os
 import subprocess
 import traceback
 import datetime
 import sys
 import re
+from pathlib import Path
 
 from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context, request, g
 from sqlalchemy.exc import IntegrityError
@@ -62,6 +64,129 @@ def find_description_edit_url(dojo, relative_paths, search_pattern=None, branch=
     return None
 
 
+_IGNORED_FILE_DIRS = {".git", ".github", "__pycache__", "node_modules"}
+
+
+def _segment_is_safe(segment):
+    if segment in {"", ".", ".."}:
+        return False
+    if os.sep in segment:
+        return False
+    altsep = os.altsep
+    if altsep and altsep in segment:
+        return False
+    return True
+
+
+def _iter_matching_files(root: Path, filename: str):
+    if not root or not root.exists():
+        return []
+    matches = []
+    for candidate in root.rglob(filename):
+        if not candidate.is_file():
+            continue
+        if any(part in _IGNORED_FILE_DIRS for part in candidate.parts):
+            continue
+        matches.append(candidate)
+    return matches
+
+
+def _resolve_unique_file(dojo: Dojos, search_roots, filename: str):
+    seen = []
+    for root in search_roots:
+        seen.extend(_iter_matching_files(root, filename))
+
+    unique = []
+    seen_resolved = set()
+    dojo_root = dojo.path.resolve()
+    for candidate in seen:
+        resolved = candidate.resolve()
+        try:
+            resolved.relative_to(dojo_root)
+        except ValueError:
+            continue
+        if resolved in seen_resolved:
+            continue
+        seen_resolved.add(resolved)
+        unique.append(resolved)
+
+    if not unique:
+        return None
+    if len(unique) > 1:
+        return None
+    return unique[0]
+
+
+def _serve_dojo_file(dojo, filename, module=None, challenge=None, challenge_id=None):
+    suffix = filename.suffix.lower()
+    if suffix in {".md", ".markdown"}:
+        content = render_markdown(filename.read_text())
+        return render_template("markdown.html", dojo=dojo, module=module, challenge=challenge, challenge_id=challenge_id, content=content)
+    if suffix == ".pdf":
+        return send_file(filename)
+    if suffix in {".tex", ".latex"}:
+        return render_template(
+            "text_file.html",
+            dojo=dojo,
+            module=module,
+            challenge=challenge,
+            challenge_id=challenge_id,
+            file_name=filename.name,
+            content=filename.read_text(),
+        )
+    return send_file(filename)
+
+
+def _build_file_response(dojo, segments):
+    if not segments:
+        return None
+    if not _segment_is_safe(segments[-1]):
+        abort(404)
+
+    filename = segments[-1]
+    module = challenge = None
+    challenge_id = None
+    search_roots = []
+
+    if len(segments) == 1:
+        search_roots.append(dojo.path)
+    elif len(segments) == 2:
+        module_id = segments[0]
+        if not _segment_is_safe(module_id):
+            abort(404)
+        module = DojoModules.query.filter_by(dojo=dojo, id=module_id).first()
+        if module:
+            search_roots.append(module.path)
+        else:
+            candidate_root = dojo.path / module_id
+            search_roots.append(candidate_root)
+    else:
+        module_id = segments[0]
+        challenge_id = segments[1]
+        if not all(_segment_is_safe(seg) for seg in (module_id, challenge_id)):
+            abort(404)
+        module = DojoModules.query.filter_by(dojo=dojo, id=module_id).first()
+        if module:
+            challenge = DojoChallenges.query.filter_by(dojo=dojo, module=module, id=challenge_id).first()
+            if challenge:
+                search_roots.append(module.path / challenge.id)
+            else:
+                search_roots.append(module.path / challenge_id)
+        else:
+            candidate_root = dojo.path / module_id / challenge_id
+            search_roots.append(candidate_root)
+
+    dojo_root = dojo.path
+    if dojo_root not in search_roots:
+        search_roots.append(dojo_root)
+
+    resolved = _resolve_unique_file(dojo, search_roots, filename)
+    if not resolved:
+        abort(404)
+
+    return _serve_dojo_file(dojo, Path(resolved), module=module, challenge=challenge, challenge_id=challenge_id)
+
+
 @dojo.route("/<dojo>")
 @dojo.route("/<dojo>/")
 @dojo_route
@@ -103,18 +228,28 @@ def listing(dojo):
 @dojo.route("/<dojo>/<path>/")
 @dojo.route("/<dojo>/<path>/<subpath>")
 @dojo.route("/<dojo>/<path>/<subpath>/")
+@dojo.route("/<dojo>/<path>/<subpath>/<filename>")
+@dojo.route("/<dojo>/<path>/<subpath>/<filename>/")
 @dojo_route
-def view_dojo_path(dojo, path, subpath=None):
-    module = DojoModules.query.filter_by(dojo=dojo, id=path).first()
+def view_dojo_path(dojo, path, subpath=None, filename=None):
+    segments = [segment for segment in (path, subpath, filename) if segment]
+
+    if segments and "." in segments[-1]:
+        return _build_file_response(dojo, segments)
+
+    primary = segments[0] if segments else path
+    module = DojoModules.query.filter_by(dojo=dojo, id=primary).first()
     if module:
-        if subpath:
-            DojoChallenges.query.filter_by(dojo=dojo, module=module, id=subpath).first_or_404()
-            return view_module(dojo, module, scroll_to_challenge=subpath)
+        if len(segments) >= 2:
+            challenge_id = segments[1]
+            DojoChallenges.query.filter_by(dojo=dojo, module=module, id=challenge_id).first_or_404()
+            return view_module(dojo, module, scroll_to_challenge=challenge_id)
         return view_module(dojo, module)
-    elif path in dojo.pages and not subpath:
-        return view_page(dojo, path)
-    else:
-        abort(404)
+
+    if len(segments) == 1 and primary in dojo.pages:
+        return view_page(dojo, primary)
+
+    abort(404)
 
 
 @dojo.route("/active-module")
