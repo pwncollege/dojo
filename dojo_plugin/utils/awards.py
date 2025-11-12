@@ -5,7 +5,7 @@ from CTFd.models import db, Users
 from flask import url_for
 
 from .discord import get_discord_roles, get_discord_member, add_role, send_message
-from ..models import Dojos, Belts, Emojis, DiscordUsers
+from ..models import Dojos, Belts, Emojis, DiscordUsers, Medals
 from .feed import publish_belt_earned, publish_emoji_earned
 
 
@@ -79,12 +79,26 @@ def get_viewable_emojis(user):
             Users.id.label("user_id"),
         )
     )
+
+    medals = (
+        Medals.query
+        .join(Users)
+        .filter(~Users.hidden)
+        .order_by(Medals.date)
+        .with_entities(
+            Medals.name,
+            Medals.description,
+            Medals.category,
+            Users.id.label("user_id"),
+        )
+    )
     
     seen = set()
     for emoji in emojis:
         key = (emoji.user_id, emoji.category)
         if key in seen:
             continue
+        seen.add(key)
             
         if emoji.category is None:
             emoji_symbol = emoji.name
@@ -105,8 +119,43 @@ def get_viewable_emojis(user):
             "url": url,
             "stale": is_stale,
         })
+
+    # combine descriptions for medals.
+    awarded_medals = {}
+    seen = set()
+    for medal in medals:
+        key = (medal.user_id, medal.category)
+        if key in seen:
+            continue
         seen.add(key)
-    
+
+        match medal.name:
+            case "EVENT_1":
+                index = 0
+            case "EVENT_2":
+                index = 1
+            case "EVENT_3":
+                index = 2
+            case "EVENT_STALE":
+                index = 3
+            case _:
+                continue
+
+        awarded_medals.setdefault(medal.user_id, ["", "", "", ""])
+        awarded_medals[medal.user_id][index] += (("\n" if awarded_medals[medal.user_id][index] != "" else "") + medal.description)
+
+    for id, medal in awarded_medals.items():
+        for description, emoji in zip(medal, ["🥇", "🥈", "🥉", "🏅"]):
+            if description == "":
+                continue
+            result.setdefault(id, []).append({
+                "text": description,
+                "emoji": emoji,
+                "count": 1,
+                "url": "#",
+                "stale": emoji == "🏅",
+            })
+
     return result
 
 def update_awards(user):
@@ -156,3 +205,42 @@ def update_awards(user):
         if dojo.official or dojo.data.get("type") == "public":
             publish_emoji_earned(user, emoji, display_name, description, 
                                dojo_id=dojo.reference_id, dojo_name=display_name)
+            
+def grant_event_award(user, event: str, place: int) -> bool:
+    """
+    Grants an event award to a user.
+
+    `place` must be one of `{1, 2, 3}`.
+
+    Returns if the operation succeeded.
+    """
+    placeStr = "first" if place == 1 else "second" if place == 2 else "third" if place == 3 else None
+    if placeStr is None:
+        return False
+    db.session.add(Medals(user=user, name=f"EVENT_{place}", description=f"Awarded for ranking {placeStr} in {event}.", category=event))
+    db.session.commit()
+    return True
+
+
+def revoke_event_award(user, event: str) -> bool:
+    """
+    Revokes an event award from a user.
+
+    Returns if the operation succeeded.
+    """
+    award = Medals.query.filter_by(user=user, category=event).first()
+    if not award:
+        return False
+    db.session.delete(award)
+    db.session.commit()
+    return True
+
+
+def prune_event_awards(event: str) -> int:
+    num_pruned = 0
+    for medal in Medals.query.where(Medals.category == event):
+        if medal.name != "EVENT_STALE":
+            num_pruned += 1
+            medal.name = "EVENT_STALE"
+    db.session.commit()
+    return num_pruned

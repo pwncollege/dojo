@@ -912,6 +912,10 @@ class Emojis(Awards):
     __mapper_args__ = {"polymorphic_identity": "emoji"}
 
 
+class Medals(Awards):
+    __mapper_args__ = {"polymorphic_identity": "medal"}
+
+
 class WorkspaceTokens(db.Model):
     __tablename__ = "workspace_tokens"
     id = db.Column(db.Integer, primary_key=True)
