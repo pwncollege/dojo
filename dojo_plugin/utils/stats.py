@@ -17,17 +17,23 @@ def get_dojo_stats(dojo):
     stats = db.session.execute(
         text("""
             SELECT 
-                COUNT(DISTINCT s.user_id) as total_users,
-                COUNT(*) as total_solves
+            COUNT(*) AS total_users,
+            SUM(total_user_solves) AS total_solves
+        FROM (
+            SELECT 
+                s.user_id,
+                COUNT(*) AS total_user_solves
             FROM submissions s
             INNER JOIN dojo_challenges dc ON dc.challenge_id = s.challenge_id
             INNER JOIN challenges c ON c.id = s.challenge_id
             INNER JOIN users u ON u.id = s.user_id
             WHERE s.type = 'correct'
-                AND dc.dojo_id = :dojo_id
-                AND c.state = 'visible'
-                AND u.type != 'admin'
-                AND u.hidden = false
+            AND dc.dojo_id = :dojo_id
+            AND c.state = 'visible'
+            AND u.type != 'admin'
+            AND u.hidden = false
+            GROUP BY s.user_id
+        ) t
         """),
         {"dojo_id": dojo.dojo_id}
     ).fetchone()
