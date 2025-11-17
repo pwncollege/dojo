@@ -1,3 +1,4 @@
+from datetime import datetime
 from CTFd.cache import cache
 from CTFd.models import db
 from sqlalchemy import text
@@ -13,28 +14,42 @@ def get_container_stats():
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def get_dojo_stats(dojo):
-    
-    challenge_ids = [c.challenge_id for c in dojo.challenges]
-
     stats = db.session.execute(
         text("""
             SELECT 
-                COUNT(DISTINCT user_id) as total_users,
+                COUNT(DISTINCT s.user_id) as total_users,
                 COUNT(*) as total_solves
-            FROM submissions
-            WHERE type = 'correct'
-                AND challenge_id = ANY(:challenge_ids)
+            FROM submissions s
+            INNER JOIN dojo_challenges dc ON dc.challenge_id = s.challenge_id
+            INNER JOIN challenges c ON c.id = s.challenge_id
+            INNER JOIN users u ON u.id = s.user_id
+            WHERE s.type = 'correct'
+                AND dc.dojo_id = :dojo_id
+                AND c.state = 'visible'
+                AND u.type != 'admin'
+                AND u.hidden = false
         """),
-        {"challenge_ids": challenge_ids}
+        {"dojo_id": dojo.dojo_id}
     ).fetchone()
 
     recent = db.session.execute(
         text("""
-            SELECT s.date, dc.name
+            WITH valid_challenges AS (
+                SELECT dc.challenge_id, dc.name
+                FROM dojo_challenges dc
+                INNER JOIN challenges c ON c.id = dc.challenge_id
+                WHERE dc.dojo_id = :dojo_id
+                    AND c.state = 'visible'
+            )
+            SELECT s.date, vc.name
             FROM submissions s
-            INNER JOIN dojo_challenges dc ON dc.challenge_id = s.challenge_id
+            INNER JOIN valid_challenges vc ON vc.challenge_id = s.challenge_id
             WHERE s.type = 'correct'
-                AND dc.dojo_id = :dojo_id
+                AND s.user_id IN (
+                    SELECT id FROM users 
+                    WHERE type != 'admin' AND hidden = false
+                )
+                AND s.date >= NOW() - INTERVAL '10 days'
             ORDER BY s.date DESC
             LIMIT 7
         """),
@@ -55,5 +70,5 @@ def get_dojo_stats(dojo):
         'challenges': dojo.challenges_count,
         'solves': stats.total_solves or 0,
         'recent_solves': recent_solves,
-        'active': 0,
+        'active': 0
     }
