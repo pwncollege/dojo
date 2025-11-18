@@ -124,12 +124,19 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
 
     pages = set(page for page in pagination.iter_pages() if page)
 
-    if user and not user.hidden:
+    if user:
         me = None
         for r in results:
             if r["user_id"] == user.id:
                 me = standing(r)
                 break
+        if not me and user.hidden:
+            solves_count = model.solves(ignore_visibility=True, user=user).filter(DojoChallenges.required).filter(
+                Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration) if duration else True
+            ).count()
+            if solves_count:
+                rank = sum(1 for r in results if r["solves"] > solves_count) + 1
+                me = standing({"user_id": user.id, "name": user.name, "email": user.email, "solves": solves_count, "rank": rank})
         if me:
             pages.add((me["rank"] - 1) // per_page + 1)
             result["me"] = me
