@@ -134,6 +134,7 @@ def render_markdown(s):
         "img",
         "a",
         "sub", "sup",
+        "details", "summary",
     ]
     markdown_attrs = {
         "*": ["id"],
