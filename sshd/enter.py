@@ -112,6 +112,7 @@ def main():
                         "-it" if tty else "-i",
                         "--user=1000",
                         "--workdir=/home/hacker",
+                        "--detach-keys=ctrl-q,ctrl-q",
                         *environ,
                         container_name,
                         *command,

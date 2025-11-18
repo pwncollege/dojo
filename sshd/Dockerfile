@@ -19,7 +19,6 @@ RUN adduser -D hacker && \
     addgroup -g 995 docker && \
     addgroup hacker docker && \
     mkdir -p /home/hacker/.docker /home/hacker/.ssh && \
-    echo '{ "detachKeys": "ctrl-q,ctrl-q" }' > /home/hacker/.docker/config.json && \
     chown -R hacker:hacker /home/hacker
 
 RUN mkdir -p /run/sshd
