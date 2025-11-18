@@ -32,7 +32,7 @@ let
 
     debug = [ bata24-gef gdb gef ltrace pwndbg strace ];
 
-    editor = [ emacs gedit nano neovim vim zed-editor.remote_server ];
+    editor = [ emacs gedit nano neovim vim ];
 
     exploit = [ aflplusplus rappel ropgadget sage ];
 
