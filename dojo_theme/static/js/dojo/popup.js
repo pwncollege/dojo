@@ -33,13 +33,27 @@ function handleAwardPopup(response) {
 
 function showAwardPopup(award) {
     const isBelt = Array.from(award.name).length > 1;
+    const medals = new Set([`EVENT_1`, `EVENT_2`, `EVENT_3`]);
+    const isMedal = medals.has(award.name)
+    var eventMedal = ""
+    if (isMedal) {
+        eventMedal = (award.name == `EVENT_1`)
+        ? "🥇"
+        : ((award.name == `EVENT_2`)
+        ? "🥈"
+        : "🥉")
+    }
 
     const image = isBelt
-        ? `<img src="/belt/${award.name}.svg" class="belt-image">`
+        ? (isMedal
+        ? `<div class="emoji-display">${eventMedal}</div>`
+        : `<img src="/belt/${award.name}.svg" class="belt-image">`)
         : `<div class="emoji-display">${award.name}</div>`;
 
     const message = isBelt
-        ? `You have officially been awarded your ${award.name} belt!`
+        ? (isMedal
+        ? `You have officially been awarded a ${eventMedal} medal!`
+        : `You have officially been awarded your ${award.name} belt!`)
         : `You have officially been awarded the ${award.name} badge!`;
 
     const popupContent = {

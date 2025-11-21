@@ -13,8 +13,9 @@ from sqlalchemy.sql import and_
 from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
                        DojoUsers, Emojis, SurveyResponses)
 from ...utils import is_challenge_locked, render_markdown
-from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route
+from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_gives_awards
 from ...utils.stats import get_dojo_stats
+from ...utils.awards import revoke_event_award, grant_event_award, prune_event_awards
 
 dojos_namespace = Namespace(
     "dojos", description="Endpoint to retrieve Dojos"
@@ -43,6 +44,114 @@ class DojoList(Resource):
             for dojo in dojo_query
         ]
         return {"success": True, "dojos": dojos}
+
+@dojos_namespace.route("/<dojo>/event/grant")
+class GrantEventAward(Resource):
+    """
+    Supported methods:
+
+    ### `POST: [user_id, event_name, place]`
+
+    Grants an award to the specified user.
+    The award consists of the issuing event,
+    and the place the user achieved in the event.
+
+    Arguments should be passed in as part of the request's JSON data.
+
+    Only some dojos support this operation,
+    and the issuing user must be an administrator of the dojo.
+    """
+    @dojo_route
+    @dojo_admins_only
+    @dojo_gives_awards
+    def post(self, dojo):
+        data = request.get_json()
+        user = data.get("user_id")
+        event = data.get("event_name")
+        place = data.get("place")
+
+        # Validate input
+        if None in [user, event, place]:
+            return ({"success": False, "error": "failed to supply user_id, event_name, or place"}, 400)
+        try:
+            user = int(user)
+            place = int(place)
+        except:
+            return ({"success": False, "error": "user_id and place must be integers"})
+        
+        user = Users.query.filter_by(id=user, hidden=False).first()
+        if not user:
+            return ({"success": False, "error": "user not found"}, 400)
+
+        result = grant_event_award(user, event, place)
+        return ({"success": result}, 200)
+
+
+@dojos_namespace.route("/<dojo>/event/revoke")
+class RevokeEventAward(Resource):
+    """
+    Supported methods:
+
+    ### `POST: [user_id, event_name]`
+
+    Revokes an award from the specified user.
+    This will revoke any awards granted to the user for the event,
+    regardless of place in the event.
+
+    Arguments should be passed in as part of the request's JSON data.
+
+    Only some dojos support this operation,
+    and the issuing user must be an administrator of the dojo.
+    """
+    def post(self, dojo):
+        data = request.get_json()
+        user = data.get("user_id")
+        event = data.get("event_name")
+
+        # Validate input
+        if None in [user, event]:
+            return ({"success": False, "error": "failed to supply user_id or event_name"}, 400)
+        try:
+            user = int(user)
+        except:
+            return ({"success": False, "error": "user_id must be an integer"})
+        
+        user = Users.query.filter_by(id=user, hidden=False).first()
+        if not user:
+            return ({"success": False, "error": "user not found"}, 400)
+
+        result = revoke_event_award(user, event)
+        return ({"success": result}, 200)
+
+
+@dojos_namespace.route("/<dojo>/event/prune")
+class PruneEventAwards(Resource):
+    """
+    Supported methods:
+
+    ### `POST: [event_name]`
+
+    Prunes all medals for the given event, converting them to *STALE* medals.
+
+    Arguments should be passed in as part of the request's JSON data.
+
+    Only some dojos support this operation,
+    and the issuing user must be an administrator of the dojo.
+    """
+    @dojo_route
+    @dojo_admins_only
+    @dojo_gives_awards
+    def post(self, dojo):
+        data = request.get_json()
+        event = data.get("event_name")
+
+        # Validate input.
+        if event is None:
+            return ({"success": False, "error": "missing required arugment event_name"}, 400)
+
+        # Prune medals which match the given event.
+        num_pruned = prune_event_awards(event)
+        return {"success": True, "pruned_awards": num_pruned}
 
 
 @dojos_namespace.route("/<dojo>/awards/prune")
