@@ -9,6 +9,7 @@ flask-shell-ipython==0.5.1
 sshpubkeys==3.3.1
 psycopg2-binary==2.9.10
 coverage==7.10.6
+setuptools==80.9.0
 
 # CTFd
 Flask==2.2.5
