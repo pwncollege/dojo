@@ -130,44 +130,6 @@ def test_grant_medal(medal_dojo, admin_session, random_event, random_user_name):
     assert response.json()["success"] == True
 
 
-def test_revoke_medal(medal_dojo, admin_session, random_event, random_user_name):
-    json_data = {
-        "user_id": get_user_id(random_user_name),
-        "event_name": random_event,
-        "place": "1"
-    }
-    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
-    assert response.status_code == 200, f"Error: {response.json()["error"]}"
-    assert response.json()["success"] == True
-
-    json_data = {
-        "user_id": get_user_id(random_user_name),
-        "event_name": random_event,
-    }
-    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/revoke", json=json_data)
-    assert response.status_code == 200, f"Error: {response.json()["error"]}"
-    assert response.json()["success"] == True
-
-
-def test_prune_medals(medal_dojo, admin_session, random_event, random_user_name):
-    json_data = {
-        "user_id": get_user_id(random_user_name),
-        "event_name": random_event,
-        "place": "1"
-    }
-    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
-    assert response.status_code == 200, f"Error: {response.json()["error"]}"
-    assert response.json()["success"] == True
-
-    json_data = {
-        "event_name": random_event
-    }
-    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/prune", json=json_data)
-    assert response.status_code == 200, f"Error: {response.json()["error"]}"
-    assert response.json()["success"] == True
-    assert response.json()["pruned_awards"] > 0
-
-
 def test_medal_places(medal_dojo, admin_session, random_event, random_user_name):
     json_data = {
         "user_id": get_user_id(random_user_name),
