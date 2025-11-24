@@ -35,16 +35,19 @@ def random_user_session(random_user):
 
 
 @pytest.fixture
-def completionist_user(simple_award_dojo):
+def completionist_user(simple_award_dojo, advanced_award_dojo):
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))
     session = login(random_id, random_id, register=True)
 
-    response = session.get(f"{DOJO_URL}/dojo/{simple_award_dojo}/join/")
-    assert response.status_code == 200
-    for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
-        start_challenge(simple_award_dojo, module, challenge, session=session)
-        solve_challenge(simple_award_dojo, module, challenge, session=session, user=random_id)
+    award_dojos = [simple_award_dojo, advanced_award_dojo]
 
+    for award_dojo in award_dojos:
+        response = session.get(f"{DOJO_URL}/dojo/{award_dojo}/join/")
+        assert response.status_code == 200
+        for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
+            start_challenge(award_dojo, module, challenge, session=session)
+            solve_challenge(award_dojo, module, challenge, session=session, user=random_id)
+        
     yield random_id, session
 
 
@@ -88,6 +91,10 @@ def example_import_dojo(admin_session, example_dojo):
 def simple_award_dojo(admin_session):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "simple_award_dojo.yml").read(), session=admin_session)
 
+@pytest.fixture
+def advanced_award_dojo(admin_session):
+    return create_dojo_yml(open(TEST_DOJOS_LOCATION / "advanced_award_dojo.yml").read(), session=admin_session)
+    
 @pytest.fixture(scope="session")
 def no_practice_challenge_dojo(admin_session, example_dojo):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "no_practice_challenge.yml").read(), session=admin_session)
