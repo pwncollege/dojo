@@ -179,7 +179,7 @@ def update_awards(user):
             publish_emoji_earned(user, emoji, display_name, description, 
                                dojo_id=dojo.reference_id, dojo_name=display_name)
             
-def grant_event_award(user, event: str, place: int) -> bool:
+def grant_event_medal(user, event: str, place: int, expiration: datetime.datetime) -> bool:
     """
     Grants an event award to a user.
 
@@ -187,9 +187,18 @@ def grant_event_award(user, event: str, place: int) -> bool:
 
     Returns if the operation succeeded.
     """
-    placeStr = "first" if place == 1 else "second" if place == 2 else "third" if place == 3 else None
-    if placeStr is None:
+    # guard inputs.
+    if place not in [1, 2, 3]:
         return False
-    db.session.add(Medals(user=user, name=f"EVENT_{place}", description=f"Awarded for ranking {placeStr} in {event}.", category=event))
+    if expiration < datetime.datetime.now():
+        return False
+
+    # grant emoji with given expiration.
+    db.session.add(Emojis(
+        user=user,
+        name=["🥇", "🥈", "🥉"][place - 1],
+        description=f"Awarded for ranking {["first", "second", "third"][place - 1]} in {event}.",
+        category=None,
+        expiration=expiration))
     db.session.commit()
     return True
