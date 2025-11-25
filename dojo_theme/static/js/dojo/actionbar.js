@@ -49,6 +49,15 @@ function getRecentService(root) {
     return match;
 }
 
+function showWorkspaceLoadError(content, result) {
+    content.src = "";
+    animateBanner(
+        {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
+        result.error,
+        "error"
+    );
+}
+
 function specialSelect(serviceName, content) {
     const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
     url.searchParams.set("service", serviceName);
@@ -59,15 +68,40 @@ function specialSelect(serviceName, content) {
     .then(response => response.json())
     .then(result => {
         if (result.success) {
-            content.src = result["iframe_src"];
+            const url = new URL(result["iframe_src"]);
+            // Set the port if in dev environment (may be forwarded via a server)
+            if (result["setPort"]) {
+                url.port = window.location.port;
+            }
+
+            content.src = url.toString();
         }
         else {
-            content.src = "";
-            animateBanner(
-                {target: $(content).closest(".challenge-workspace").find("#workspace-select")[0]},
-                result.error,
-                "error"
-            );
+            showWorkspaceLoadError(content, result);
+        }
+    });
+}
+
+function portSelect(port, content) {
+    const url = new URL("/pwncollege_api/v1/workspace", window.location.origin);
+    url.searchParams.set("port", port);
+    fetch(url, {
+        method: "GET",
+        credentials: "same-origin"
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            const url = new URL(result["iframe_src"]);
+            // Set the port if in dev environment (may be forwarded via a server)
+            if (result["setPort"]) {
+                url.port = window.location.port;
+            }
+
+            content.src = url.toString();
+        }
+        else {
+            showWorkspaceLoadError(content, result);
         }
     });
 }
@@ -97,7 +131,7 @@ function selectService(service, log=true) {
         specialSelect(service, content);
     }
     else {
-        content.src = "/workspace/" + port + "/";
+        portSelect(port, content);
     }
 }
 

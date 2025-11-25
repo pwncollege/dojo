@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils'
 export function Header() {
   const isAuthenticated = useAuthStore(state => state.isAuthenticated)
   const isLoading = useAuthStore(state => state.isLoading)
+  const hasHydrated = useAuthStore(state => state.hasHydrated)
   const user = useAuthStore(state => state.user)
   const logout = useAuthStore(state => state.logout)
   const isHeaderHidden = useUIStore(state => state.isHeaderHidden)
@@ -154,7 +155,7 @@ export function Header() {
             <Button variant="ghost" size="icon" asChild className="hover:bg-primary/10 hover:text-primary">
               <ThemeSelector />
             </Button>
-            {isLoading ? (
+            {!hasHydrated ? (
               <div className="h-9 w-9 bg-muted animate-pulse rounded-full" />
             ) : isAuthenticated && user ? (
               <DropdownMenu>
@@ -312,7 +313,7 @@ export function Header() {
 
             {/* Mobile Auth Section */}
             <div className="pt-4 border-t border-border">
-              {isLoading ? (
+              {!hasHydrated ? (
                 <div className="h-8 bg-muted animate-pulse rounded" />
               ) : isAuthenticated && user ? (
                 <div className="space-y-3">

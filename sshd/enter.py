@@ -6,7 +6,8 @@ import pathlib
 import shlex
 import sys
 import time
-
+import signal
+import threading
 import docker
 import redis
 
@@ -35,6 +36,14 @@ def get_docker_client(user_id):
     else:
         docker_client = docker.DockerClient(base_url=docker_host, tls=False)
     return docker_host, docker_client, is_mac
+
+def kill_exec_on_container_death(container, exec_pid):
+    container.wait(condition="not-running")
+    try:
+        os.kill(exec_pid, signal.SIGTERM)
+        time.sleep(0.5)
+    except ProcessLookupError:
+        pass
 
 
 def main():
@@ -86,8 +95,8 @@ def main():
 
         attempts = 0
         print("\r", " " * 80, "\rConnected!")
-
-        if not os.fork():
+        child_pid = os.fork();
+        if not child_pid:
             ssh_entrypoint = "/run/dojo/bin/ssh-entrypoint"
             if is_mac:
                 cmd = f"/bin/bash -c {shlex.quote(original_command)}" if original_command  else "zsh -i"
@@ -103,6 +112,7 @@ def main():
                         "-it" if tty else "-i",
                         "--user=1000",
                         "--workdir=/home/hacker",
+                        "--detach-keys=ctrl-q,ctrl-q",
                         *environ,
                         container_name,
                         *command,
@@ -114,6 +124,14 @@ def main():
                 )
 
         else:
+            runtime = (container.attrs or {}).get("HostConfig",{}).get("Runtime")
+            is_kata = runtime == "io.containerd.run.kata.v2"
+            if is_kata:
+                # `docker exec` can hang due to a bug in kata, see https://github.com/pwncollege/dojo/issues/810
+                monitor_thread = threading.Thread(target=kill_exec_on_container_death,
+                                                  args=(container,child_pid),
+                                                  daemon=True)
+                monitor_thread.start()
             _, status = os.wait()
             if simple or status == 0:
                 break
