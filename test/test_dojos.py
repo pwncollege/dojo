@@ -3,6 +3,7 @@ import requests
 import pytest
 import random
 import string
+import datetime
 
 from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id
 
@@ -103,7 +104,8 @@ def test_medal_no_admin(medal_dojo, random_user, random_event):
     json_data = {
         "user_id": get_user_id(name),
         "event_name": random_event,
-        "place": "1"
+        "place": "1",
+        "expiration": (datetime.datetime.now() + datetime.timedelta(days=1)).isoformat()
     }
     response = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
     assert response.status_code == 403
@@ -113,7 +115,8 @@ def test_admin_no_medal(simple_award_dojo, admin_session, random_event, random_u
     json_data = {
         "user_id": get_user_id(random_user_name),
         "event_name": random_event,
-        "place": "1"
+        "place": "1",
+        "expiration": (datetime.datetime.now() + datetime.timedelta(days=1)).isoformat()
     }
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{simple_award_dojo}/event/grant", json=json_data)
     assert response.status_code == 403
@@ -123,40 +126,42 @@ def test_grant_medal(medal_dojo, admin_session, random_event, random_user_name):
     json_data = {
         "user_id": get_user_id(random_user_name),
         "event_name": random_event,
-        "place": "1"
+        "place": "1",
+        "expiration": (datetime.datetime.now() + datetime.timedelta(days=1)).isoformat()
     }
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
-    assert response.status_code == 200, f"Error: {response.json()["error"]}"
+    assert response.status_code == 200, f"Error: {response.text}"
     assert response.json()["success"] == True
 
 
 def test_medal_places(medal_dojo, admin_session, random_event, random_user_name):
     json_data = {
         "user_id": get_user_id(random_user_name),
-        "event_name": random_event
+        "event_name": random_event,
+        "expiration": (datetime.datetime.now() + datetime.timedelta(days=1)).isoformat()
     }
     # Allowed places
     json_data["place"] = "1"
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
-    assert response.status_code == 200, f"Error: {response.json()["error"]}"
+    assert response.status_code == 200, f"Error: {response.text}"
     assert response.json()["success"] == True
     json_data["place"] = "2"
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
-    assert response.status_code == 200, f"Error: {response.json()["error"]}"
+    assert response.status_code == 200, f"Error: {response.text}"
     assert response.json()["success"] == True
     json_data["place"] = "3"
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
-    assert response.status_code == 200, f"Error: {response.json()["error"]}"
+    assert response.status_code == 200, f"Error: {response.text}"
     assert response.json()["success"] == True
 
     # Disallowed places
     json_data["place"] = "0"
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
-    assert response.status_code == 200, f"Error: {response.json()["error"]}"
+    assert response.status_code == 200, f"Error: {response.text}"
     assert response.json()["success"] == False
     json_data["place"] = "4"
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
-    assert response.status_code == 200, f"Error: {response.json()["error"]}"
+    assert response.status_code == 200, f"Error: {response.text}"
     assert response.json()["success"] == False
 
 
@@ -164,27 +169,29 @@ def test_medal_errors(medal_dojo, admin_session, random_event):
     json_data = {
         "user_id": 12345678, # surely this won't be a valid user id, right?
         "event_name": random_event,
-        "place": "1"
+        "place": "1",
+        "expiration": (datetime.datetime.now() + datetime.timedelta(days=1)).isoformat()
     }
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
-    assert response.status_code == 400, f"Error: {response.json()["error"]}"
+    assert response.status_code == 400, f"Error: {response.text}"
     assert response.json()["success"] == False
     assert response.json()["error"] == "user not found"
 
     json_data = {
         "user_id": "not_an_integer",
         "event_name": random_event,
-        "place": "1"
+        "place": "1",
+        "expiration": (datetime.datetime.now() + datetime.timedelta(days=1)).isoformat()
     }
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
-    assert response.status_code == 400, f"Error: {response.json()["error"]}"
+    assert response.status_code == 400, f"Error: {response.text}"
     assert response.json()["success"] == False
     assert "must be integers" in response.json()["error"]
 
     json_data = {
     }
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{medal_dojo}/event/grant", json=json_data)
-    assert response.status_code == 400, f"Error: {response.json()["error"]}"
+    assert response.status_code == 400, f"Error: {response.text}"
     assert response.json()["success"] == False
     assert "failed to supply" in response.json()["error"]
 
