@@ -388,7 +388,11 @@ services:
         if [ "$DOJO_ENV" = "production" ]; then
           exec bun ./server.js;
         else
-          cd /opt/pwn.college/frontend && exec bun dev --turbo;
+          cd /opt/pwn.college/frontend
+          if [ ! -x node_modules/.bin/next ]; then
+            bun install;
+          fi
+          exec bun dev --turbo;
         fi
     volumes:
       - /opt/pwn.college/frontend:/opt/pwn.college/frontend
