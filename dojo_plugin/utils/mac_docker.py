@@ -173,6 +173,7 @@ class MacContainer:
         self.id = vm_info['id']
         self.vm_info = vm_info
         self.status = vm_info.get("status", "creating")
+        self.attrs = {}
 
     def logs(self, stream, follow):
         # Very hacky thing, just return the other hacky thing that we did
