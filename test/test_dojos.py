@@ -71,7 +71,7 @@ def test_dojo_completion_emoji(simple_award_dojo, advanced_award_dojo, completio
         scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{award_dojo}/_/0/1").json()
         us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
         assert us["solves"] == 2
-        assert len(us["badges"]) == 1
+        assert len(us["badges"]) == 2
 
 def test_no_practice(no_practice_challenge_dojo, no_practice_dojo, random_user_session):
     for dojo in [ no_practice_challenge_dojo, no_practice_dojo ]:
