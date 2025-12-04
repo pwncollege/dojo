@@ -24,9 +24,9 @@
 
 {% macro render_dojo_module_challenge(data) %}
     {% if data.dojo_name %}
-        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_name }}</a> /
+        <a href="/{{ data.dojo_id }}">{{ data.dojo_name }}</a> /
     {% elif data.dojo_id %}
-        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_id }}</a> /
+        <a href="/{{ data.dojo_id }}">{{ data.dojo_id }}</a> /
     {% endif %}
     {% if data.module_name %}
         {% if data.dojo_id %}
@@ -44,9 +44,9 @@
 
 {% macro render_dojo_link(data) %}
     {% if data.dojo_name %}
-        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_name }}</a>
+        <a href="/{{ data.dojo_id }}">{{ data.dojo_name }}</a>
     {% elif data.dojo_id %}
-        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_id }}</a>
+        <a href="/{{ data.dojo_id }}">{{ data.dojo_id }}</a>
     {% endif %}
 {% endmacro %}
 
