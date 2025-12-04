@@ -11,9 +11,9 @@ services:
       - SPLUNK_PASSWORD=DojoSplunk2024!
       - SPLUNK_HEC_TOKEN=11111111-1111-1111-1111-111111111111
     ports:
-      - "8001:8000"  # Splunk Web (changed from 8000 to avoid conflict with CTFd)
-      - "8088:8088"  # HEC
-      - "8089:8089"  # Splunk management
+      - "8001:8000" # Splunk Web (changed from 8000 to avoid conflict with CTFd)
+      - "8088:8088" # HEC
+      - "8089:8089" # Splunk management
     volumes:
       - /data/splunk/etc:/opt/splunk/etc
       - /data/splunk/var:/opt/splunk/var
@@ -91,9 +91,9 @@ services:
           echo "Failed to start ctfd - environment variable DOJO_ENV has invalid value \"$DOJO_ENV\""
         fi
     ulimits:
-        nofile:
-            soft: 32768
-            hard: 1048576
+      nofile:
+        soft: 32768
+        hard: 1048576
     environment:
       - UPLOAD_FOLDER=/var/uploads
       - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
@@ -106,6 +106,9 @@ services:
       - SERVER_SENT_EVENTS=false
       - SECRET_KEY=${SECRET_KEY}
       - DOJO_HOST=${DOJO_HOST}
+      - DOJO_ENV=${DOJO_ENV}
+      - WORKSPACE_HOST=${WORKSPACE_HOST}
+      - WORKSPACE_SECRET=${WORKSPACE_SECRET}
       - HOST_DATA_PATH=/data
       - MAIL_SERVER=${MAIL_SERVER}
       - MAIL_PORT=${MAIL_PORT}
@@ -241,12 +244,38 @@ services:
     environment:
       - DOJO_HOST=${DOJO_HOST}
       - DOJO_ENV=${DOJO_ENV}
+      - WORKSPACE_HOST=${WORKSPACE_HOST}
+      - WORKSPACE_SECRET=${WORKSPACE_SECRET}
+    volumes:
+      - /data/acme:/var/cache/nginx/acme-letsencrypt
+    networks:
+      default:
+      workspace_net:
+        aliases:
+          - nginx
+        ipv4_address: 10.0.0.3
+
+  nginx-workspace:
+    container_name: nginx-workspace
+    hostname: nginx-workspace
+    profiles:
+      - workspace_exclusive
+    restart: always
+    build: ./nginx-workspace
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8888:8888"
+    environment:
+      - DOJO_ENV=${DOJO_ENV}
+      - WORKSPACE_HOST=${WORKSPACE_HOST}
+      - WORKSPACE_SECRET=${WORKSPACE_SECRET}
     volumes:
       - /data/acme:/var/cache/nginx/acme-letsencrypt
     networks:
       default:
         aliases:
-          - ${DOJO_HOST}
+          - ${WORKSPACE_HOST}
       workspace_net:
         aliases:
           - nginx
@@ -359,7 +388,11 @@ services:
         if [ "$DOJO_ENV" = "production" ]; then
           exec bun ./server.js;
         else
-          cd /opt/pwn.college/frontend && exec bun dev --turbo;
+          cd /opt/pwn.college/frontend
+          if [ ! -x node_modules/.bin/next ]; then
+            bun install;
+          fi
+          exec bun dev --turbo;
         fi
     volumes:
       - /opt/pwn.college/frontend:/opt/pwn.college/frontend
