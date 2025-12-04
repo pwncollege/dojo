@@ -166,12 +166,9 @@ jobs:
           fi
 
       - name: Start the dojo in ${{ matrix.mode }} mode
-        uses: nick-fields/retry@master
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          command: |
-            ./deploy.sh -g -D /mnt/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
+        timeout-minutes: 15
+        run: |
+          ./deploy.sh -g -D /mnt/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
