@@ -15,9 +15,24 @@ ADD https://github.com/kata-containers/kata-containers.git#${KATA_VERSION} /src/
 
 WORKDIR /src/kata-containers/tools/packaging/kernel
 
+COPY <<EOF configs/fragments/x86_64/dojo.conf
+CONFIG_SECURITY_LANDLOCK=y
+
+CONFIG_BPF_JIT=y
+CONFIG_BPF_SYSCALL=y
+CONFIG_BPF=y
+CONFIG_DEBUG_INFO_BTF=y
+CONFIG_DYNAMIC_FTRACE=y
+CONFIG_FTRACE=y
+CONFIG_FUNCTION_TRACER=y
+CONFIG_KPROBE_EVENTS=y
+CONFIG_KPROBES=y
+CONFIG_PERF_EVENTS=y
+CONFIG_PROFILING=y
+EOF
+
 RUN <<EOF
   KERNEL_VERSION=$(yq -r '.assets.kernel.version' ../../../versions.yaml)
-  echo 'CONFIG_SECURITY_LANDLOCK=y' >> configs/fragments/x86_64/base.conf
   ./build-kernel.sh -v "$KERNEL_VERSION" setup
   ./build-kernel.sh -v "$KERNEL_VERSION" build
   ./build-kernel.sh -v "$KERNEL_VERSION" install
