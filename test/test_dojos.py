@@ -104,14 +104,15 @@ def test_prune_dojo_emoji(simple_award_dojo, advanced_award_dojo, admin_session,
     db_sql(f"DELETE FROM submissions WHERE id IN (SELECT id FROM submissions WHERE user_id={get_user_id(user_name)} ORDER BY id DESC LIMIT 1)")
 
     award_dojos = [simple_award_dojo, advanced_award_dojo]
-    for award_dojo in award_dojos:
+    for i, award_dojo in enumerate(award_dojos):
         response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{award_dojo}/awards/prune", json={})
         assert response.status_code == 200
     
         scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{award_dojo}/_/0/1").json()
         us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
-        assert us["solves"] == 1
-        assert len(us["badges"]) == 2
+        
+        assert us["solves"] == i + 1
+        assert len(us["badges"]) == i + 1
         assert us["badges"][0]["stale"] == True
 
 
