@@ -111,7 +111,7 @@ def test_prune_dojo_emoji(simple_award_dojo, advanced_award_dojo, admin_session,
         scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{award_dojo}/_/0/1").json()
         us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
         assert us["solves"] == 1
-        assert len(us["badges"]) == 1
+        assert len(us["badges"]) == 2
         assert us["badges"][0]["stale"] == True
 
 
@@ -123,7 +123,7 @@ def test_dojo_removes_emoji(simple_award_dojo, advanced_award_dojo, admin_sessio
         scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{award_dojo}/_/0/1").json()
         us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
         assert us["solves"] == 2
-        assert len(us["badges"]) == 1
+        assert len(us["badges"]) == 2
         assert us["badges"][0]["stale"] == False
     
         dojo_id = award_dojo.split("~")[1]
