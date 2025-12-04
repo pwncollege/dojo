@@ -44,3 +44,4 @@ pybluemonday==0.0.14
 freezegun==1.5.3
 Flask-Babel==2.0.0
 legacy-cgi==2.6.3
+setuptools==80.9.0
