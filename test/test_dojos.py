@@ -101,10 +101,10 @@ def test_no_import(no_import_challenge_dojo, admin_session):
 
 def test_prune_dojo_emoji(simple_award_dojo, advanced_award_dojo, admin_session, completionist_user):
     user_name, _ = completionist_user
-    db_sql(f"DELETE FROM submissions WHERE id IN (SELECT id FROM submissions WHERE user_id={get_user_id(user_name)} ORDER BY id DESC LIMIT 1)")
-
+    
     award_dojos = [simple_award_dojo, advanced_award_dojo]
     for award_dojo in award_dojos:
+        db_sql(f"DELETE FROM submissions WHERE id IN (SELECT id FROM submissions WHERE user_id={get_user_id(user_name)} ORDER BY id DESC LIMIT 1)")
         response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{award_dojo}/awards/prune", json={})
         assert response.status_code == 200
     
