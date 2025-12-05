@@ -909,6 +909,7 @@ class Belts(Awards):
 
 
 class Emojis(Awards):
+    expiration = db.Column(db.Datetime, default=datetime.datetime.max)
     __mapper_args__ = {"polymorphic_identity": "emoji"}
 
 
