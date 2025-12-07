@@ -1,264 +1,373 @@
-name: DOJO CI
-on:
-  workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - master
-  schedule:
-    - cron: "42 06 * * *"
-jobs:
-  test:
-    name: "${{ matrix.mode }} DOJO Test"
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    strategy:
-      matrix:
-        mode: [singlenode, multinode]
-      fail-fast: false
-    steps:
-      - name: enable cache saving
-        if: matrix.mode == 'singlenode' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        run: |
-          echo "SAVE_CACHE=yes" >> "$GITHUB_ENV"
+#!/bin/bash -eu
 
-      - name: enable cache loading
-        if: env.SAVE_CACHE != 'yes' && !(github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        run: |
-          echo "LOAD_CACHE=yes" >> "$GITHUB_ENV"
+cd $(dirname "${BASH_SOURCE[0]}")
 
-      - uses: actions/checkout@v4
+REPO_DIR=$(basename "$PWD")
+DEFAULT_CONTAINER_NAME="${REPO_DIR}"
 
-      - name: Host information
-        run: |
-          echo "::group::Host information"
-          echo "Hostname: $(hostname)"
-          echo "OS: $(lsb_release -d | cut -f2)"
-          echo "Kernel: $(uname -r)"
-          echo "Architecture: $(uname -m)"
-          echo "IP: $(hostname -I)"
-          echo "::endgroup::"
-          echo "::group::Repo"
-          pwd
-          git log </dev/null | head -n20
-          echo "::endgroup::"
-          echo "::group::df -h"
-          df -h
-          echo "::endgroup::"
-          echo "::group::free -h"
-          free -h
-          echo "::endgroup::"
-          echo "::group::lscpu"
-          lscpu
-          echo "::endgroup::"
-          echo "::group::docker images"
-          docker images
-          echo "::endgroup::"
+function usage {
+	set +x
+	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -t ] [ -v ] [ -N ] [ -p ] [ -e ENV_VAR=value ] [ -b ] [ -M ] [ -g ] [ -C ]"
+	echo ""
+	echo "	-r	full path to db backup to restore"
+	echo "	-c	the name of the dojo container (default: <dirname>)"
+	echo "	-D	specify a directory for /data/docker to avoid rebuilds (default: ./cache/docker; specify as blank to disable)"
+	echo "	-W	specify a directory for /data/workspace to avoid rebuilds (default: ./cache/workspace; specify as blank to disable)"
+	echo "	-t	run dojo testcases (this will create a lot of test data)"
+	echo "	-v	run vibecheck mode (summarize git diff and test with AI)"
+	echo "	-N	don't (re)start the dojo"
+	echo "	-K	clean up and exit"
+	echo "	-P	export ports (80->80, 443->443, 22->2222)"
+	echo "	-e	set environment variable (can be used multiple times)"
+	echo "	-b	build the Docker image locally (tag: same as container name)"
+	echo "	-M	run in multi-node mode (3 containers: 1 main + 2 workspace nodes)"
+	echo "	-g	use GitHub Actions group output formatting"
+	echo "	-C	run the ctfd container with code coverage. Generates an xml coverage report when paired with the -t flag"
+	exit
+}
 
-      - uses: docker/setup-buildx-action@v3
 
-      - name: Free up more disk space
-        if: ${{ !env.ACT }}
-        run: |
-          echo "::group::Initial disk usage"
-          df -h
-          echo "::endgroup::"
+function cleanup_container {
+	local CONTAINER=$1
+	docker kill "$CONTAINER" 2>/dev/null || echo "No $CONTAINER container to kill."
+	docker rm "$CONTAINER" 2>/dev/null || echo "No $CONTAINER container to remove."
+	while docker ps -a | grep "$CONTAINER$"; do sleep 1; done
 
-          echo "::group::Cleaning up disk space"
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /opt/hostedtoolcache /usr/local/lib/azure-cli
-          sudo apt-get clean
-          docker system prune -a -f
+	# freaking bad unmount
+	mount | grep /tmp/data-${CONTAINER}-....../ && sleep 4
+	mount | grep /tmp/data-${CONTAINER}-....../ | sed -e "s/.* on //" | sed -e "s/ .*//" | tac | while read ENTRY
+	do
+		sudo umount "$ENTRY" || echo "Failed ^"
+	done
+}
 
-          echo "::endgroup::"
-          echo "::group::Final disk usage"
-          df -h
-          echo "::endgroup::"
+function fix_insane_routing {
+	local CONTAINER="$1"
+	read -a GW <<<$(ip route show default)
+	read -a NS <<<$(docker exec "$CONTAINER" cat /etc/resolv.conf | grep nameserver)
+	docker exec "$CONTAINER" ip route add "${GW[2]}" via 172.17.0.1
+	[ "${GW[2]}" == "${NS[1]}" ] || docker exec "$CONTAINER" ip route add "${NS[1]}" via 172.17.0.1
+}
 
-      - name: Restore docker and workspace cache
-        if: env.LOAD_CACHE == 'yes'
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            /tmp/dojo-cache.img
-          key: dojo-cache2-${{ matrix.mode }}-${{ github.run_id }}
-          restore-keys: |
-            dojo-cache2-
+function log_newgroup {
+	local title="$1"
+	if [ "$GITHUB_ACTIONS" == "yes" ]; then
+		echo "::group::$title"
+	else
+		echo "=== $title ==="
+	fi
+}
 
-      - name: Setup cache filesystem
-        run: |
-          set -x
-          df -h
-          if [ "${{ env.ACT }}" == "true" ]; then
-            echo "Not using a loopback mount for local CI..."
-            sudo apt-get update && sudo apt-get install -y iproute2
-          elif [ "$SAVE_CACHE" == "yes" -o ! -e /tmp/dojo-cache.img ]; then
-            echo "Creating fresh loopback filesystem image..."
-            sudo fallocate -l 9.8G /tmp/dojo-cache.img
-            sudo mkfs.btrfs -L cache /tmp/dojo-cache.img
-            sudo mount -o loop,compress=zstd:9 /tmp/dojo-cache.img /mnt/
-          else
-            echo "Using cached loopback filesystem image"
-            truncate -s +20G /tmp/dojo-cache.img
-            sudo mount -o loop,compress=zstd:6 /tmp/dojo-cache.img /mnt/
-            sudo btrfs filesystem resize max /mnt
-          fi
+function log_endgroup {
+	if [ "$GITHUB_ACTIONS" == "yes" ]; then
+		echo "::endgroup::"
+	fi
+}
 
-          sudo chown $USER:$USER /mnt/
+TEST_CONTAINER_EXTRA_ARGS=()
 
-          if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
-            sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
-            sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
-          fi
+function test_container {
+        local args=(
+                --rm
+                -v /var/run/docker.sock:/var/run/docker.sock
+                -v "$PWD:/opt/pwn.college"
+                --name "${DOJO_CONTAINER}-test"
+                -e "OPENAI_API_KEY=${OPENAI_API_KEY:-}"
+        )
 
-          mkdir -p /mnt/outer-cache
-          mkdir -p /mnt/test-cache
+        args+=("${TEST_CONTAINER_EXTRA_ARGS[@]}")
 
-      - name: Build (and cache) outer docker image
-        if: env.SAVE_CACHE == 'yes' && !env.ACT
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          tags: pwncollege/dojo
-          load: true
-          cache-from: type=local,src=/mnt/outer-cache
-          cache-to: type=local,dest=/tmp/outer-cache-new,mode=max
+        docker run "${args[@]}" "${DOJO_CONTAINER}-test" "$@"
+}
 
-      - name: Build (and cache) test docker image
-        if: env.SAVE_CACHE == 'yes' && !env.ACT
-        uses: docker/build-push-action@v5
-        with:
-          context: test
-          tags: dojo-test
-          load: true
-          cache-from: type=local,src=/mnt/test-cache
-          cache-to: type=local,dest=/tmp/test-cache-new,mode=max
+function generate_coverage_report {
+	local CONTAINER="$1"
+    docker exec "$CONTAINER" docker kill -s SIGINT ctfd
+	docker exec "$CONTAINER" docker wait ctfd
+    docker exec "$CONTAINER" docker start ctfd
+    docker exec "$CONTAINER" docker exec ctfd coverage xml -o /var/coverage/coverage.xml
+}
 
-      - name: Build outer docker image
-        if: env.SAVE_CACHE != 'yes' && !env.ACT
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          tags: pwncollege/dojo
-          load: true
-          cache-from: type=local,src=/mnt/outer-cache
+ENV_ARGS=( )
+DB_RESTORE=""
+DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
+TEST=no
+VIBECHECK=no
+DOCKER_DIR="./cache/docker"
+WORKSPACE_DIR="./cache/workspace"
+EXPORT_PORTS=no
+BUILD_IMAGE=no
+MULTINODE=no
+GITHUB_ACTIONS=no
+CLEAN_ONLY=no
+START=yes
+COVERAGE=no
+while getopts "r:c:he:tvD:W:PbMgNKC" OPT
+do
+	case $OPT in
+		r) DB_RESTORE="$OPTARG" ;;
+		c) DOJO_CONTAINER="$OPTARG" ;;
+		t) TEST=yes ;;
+		v) VIBECHECK=yes ;;
+		D) DOCKER_DIR="$OPTARG" ;;
+		W) WORKSPACE_DIR="$OPTARG" ;;
+		e) ENV_ARGS+=("-e" "$OPTARG") ;;
+		p) EXPORT_PORTS=yes ;;
+		b) BUILD_IMAGE=yes ;;
+		M) MULTINODE=yes ;;
+		g) GITHUB_ACTIONS=yes ;;
+		N) START=no ;;
+		K) CLEAN_ONLY=yes ;;
+		C) COVERAGE=yes ;;
+		h) usage ;;
+		?)
+			OPTIND=$(($OPTIND-1))
+			break
+			;;
+	esac
+done
+shift $((OPTIND-1))
 
-      - name: Build test docker image
-        if: env.SAVE_CACHE != 'yes' && !env.ACT
-        uses: docker/build-push-action@v5
-        with:
-          context: test
-          tags: dojo-test
-          load: true
-          cache-from: type=local,src=/mnt/test-cache
+if [ "$START" == "yes" -o "$CLEAN_ONLY" == "yes" ]; then
+	cleanup_container $DOJO_CONTAINER
+	cleanup_container $DOJO_CONTAINER-test
 
-      - name: Clean up after docker build
-        run: |
-          if [ "$SAVE_CACHE" == "yes" ]; then
-            sudo rm -rf /mnt/outer-cache /mnt/test-cache
-            sudo mv /tmp/outer-cache-new /mnt/outer-cache
-            sudo mv /tmp/test-cache-new /mnt/test-cache
-          fi
-          docker images
-          df -h
-          if [ "${{ env.ACT }}" != "true" ]; then
-            docker images | grep "^pwncollege/dojo "
-            docker images | grep "^dojo-test "
-          fi
+	# just in case a previous run was multinode...
+	cleanup_container $DOJO_CONTAINER-node1
+	cleanup_container $DOJO_CONTAINER-node2
+fi
 
-      - name: Start the dojo in ${{ matrix.mode }} mode
-        timeout-minutes: 15
-        run: |
-          ./deploy.sh -g -D /mnt/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
+if [ "$CLEAN_ONLY" == "yes" ]; then
+	exit
+fi
 
-      - name: Run ${{ matrix.mode }} dojo tests
-        timeout-minutes: 15
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          if [ "${{ matrix.mode }}" = "singlenode" ]
-          then
-            ./deploy.sh -N -g -t -C
-          elif [ "${{ matrix.mode }}" = "multinode" ]
-          then
-            ./deploy.sh -N -g -t -M
-          fi
+WORKDIR=$(mktemp -d /tmp/data-${DOJO_CONTAINER}-XXXXXX)
+if [ "$MULTINODE" == "yes" ]; then
+	WORKDIR_NODE1=$(mktemp -d /tmp/data-${DOJO_CONTAINER}-node1-XXXXXX)
+	WORKDIR_NODE2=$(mktemp -d /tmp/data-${DOJO_CONTAINER}-node2-XXXXXX)
+fi
 
-      - name: Upload coverage reports to Codecov
-        if: matrix.mode == 'singlenode'
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+MAIN_NODE_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared")
+[ -n "$WORKSPACE_DIR" ] && MAIN_NODE_VOLUME_ARGS+=( "-v" "$WORKSPACE_DIR:/data/workspace:shared" )
+if [ -n "$DOCKER_DIR" ]; then
+	MAIN_NODE_VOLUME_ARGS+=( "-v" "$DOCKER_DIR:/data/docker" )
+	if [ "$START" == "yes" ]; then
+		sudo rm -rf $DOCKER_DIR/{containers,volumes}
+	fi
+fi
 
-      - name: Output logs
-        if: always()
-        run: |
-          echo "::group::Host docker ps"
-          docker ps
-          echo "::endgroup::"
-          echo "::group::Host logs"
-          journalctl -u '*' -b
-          echo "::endgroup::"
-          echo "::group::Main node systemd logs"
-          docker exec dojo journalctl -u '*' -b || echo "No main outer container..."
-          echo "::endgroup::"
-          echo "::group::Main node compose logs"
-          docker exec dojo dojo compose logs || echo "No main outer container..."
-          echo "::endgroup::"
-          if [ "${{ matrix.mode }}" = "multinode" ]; then
-            echo "::group::Workspace node 1 systemd logs"
-            docker exec dojo-node1 journalctl -u '*' -b || echo "No node1 outer container..."
-            echo "::endgroup::"
-            echo "::group::Workspace node 1 compose logs"
-            docker exec dojo-node1 dojo compose logs || echo "No node1 outer container..."
-            echo "::endgroup::"
-            echo "::group::Workspace node 2 systemd logs"
-            docker exec dojo-node2 journalctl -u '*' -b || echo "No node2 outer container..."
-            echo "::endgroup::"
-            echo "::group::Workspace node 2 compose logs"
-            docker exec dojo-node2 dojo compose logs || echo "No node2 outer container..."
-            echo "::endgroup::"
-          fi
+if [ "$MULTINODE" == "yes" ]; then
+	NODE1_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR_NODE1:/data:shared")
+	NODE2_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR_NODE2:/data:shared")
+	[ -n "$WORKSPACE_DIR" ] && NODE1_VOLUME_ARGS+=("-v" "$WORKSPACE_DIR:/data/workspace:shared")
+	[ -n "$WORKSPACE_DIR" ] && NODE2_VOLUME_ARGS+=("-v" "$WORKSPACE_DIR:/data/workspace:shared")
+	if [ -n "$DOCKER_DIR" ]; then
+		NODE1_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node1:/data/docker")
+		NODE2_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node2:/data/docker")
+		if [ "$START" == "yes" ]; then
+			sudo rm -rf $DOCKER_DIR-node1/{containers,volumes}
+			sudo rm -rf $DOCKER_DIR-node2/{containers,volumes}
+		fi
+	fi
+fi
 
-      - name: Prepare the cache
-        if: env.SAVE_CACHE == 'yes'
-        run: |
-          ./deploy.sh -K -g
-          df -h
-          sudo umount /mnt/
-          du -sm /tmp/dojo-cache.img
+IMAGE_NAME="pwncollege/dojo"
+if [ "$BUILD_IMAGE" == "yes" ]; then
+	log_newgroup "Building Docker image with tag: $DOJO_CONTAINER"
+	docker build -t "$DOJO_CONTAINER" . || exit 1
+	IMAGE_NAME="$DOJO_CONTAINER"
+	log_endgroup
+	log_newgroup "Building test container $DOJO_CONTAINER-test"
+	docker build -t "${DOJO_CONTAINER}-test" test/
+	log_endgroup
+elif ! docker image inspect "${DOJO_CONTAINER}-test" >&/dev/null
+then
+	log_newgroup "Building test container $DOJO_CONTAINER-test (it doesn't exist)"
+	docker build -t "${DOJO_CONTAINER}-test" test/
+	log_endgroup
+fi
 
-      - name: Save docker and workspace cache
-        if: env.SAVE_CACHE == 'yes'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            /tmp/dojo-cache.img
-          key: dojo-cache2-${{ matrix.mode }}-${{ github.run_id }}
+PORT_ARGS=()
+if [ "$EXPORT_PORTS" == "yes" ]; then
+	PORT_ARGS+=("-p" "80:80" "-p" "443:443" "-p" "2222:22")
+fi
 
-      - name: Final filesystem information
-        if: always()
-        run: |
-          echo "::group::Filesystem"
-          df -h
-          echo "::endgroup::"
+MULTINODE_ARGS=()
+if [ "$MULTINODE" == "yes" ]; then
+	if [ -z "${WORKSPACE_SECRET:-}" ]; then
+		WORKSPACE_SECRET=$(openssl rand -hex 16)
+	fi
+	MULTINODE_ARGS+=("-e" "WORKSPACE_NODE=0")
+	ENV_ARGS+=("-e" "WORKSPACE_SECRET=$WORKSPACE_SECRET")
+fi
 
-  upload:
-    name: Upload Artifacts
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.ref == 'refs/heads/master'
-    steps:
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+if [ "$COVERAGE" == "yes" ]; then
+	ENV_ARGS+=("-e" "DOJO_ENV=coverage")
+fi
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+log_newgroup "Starting main dojo container"
+if [ "$START" == "yes" ]; then
+	docker run --rm --privileged -d \
+		"${MAIN_NODE_VOLUME_ARGS[@]}" "${ENV_ARGS[@]}" "${PORT_ARGS[@]}" "${MULTINODE_ARGS[@]}" \
+		--name "$DOJO_CONTAINER" "$IMAGE_NAME" \
+		|| exit 1
+fi
+CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER")
+if [ "$START" == "yes" ]; then
+	fix_insane_routing "$DOJO_CONTAINER"
+	docker exec "$DOJO_CONTAINER" dojo wait
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          push: true
-          tags: pwncollege/dojo:latest
+	if [ "$MULTINODE" == "no" ]; then
+		docker exec "$DOJO_CONTAINER" docker wait workspace-builder
+		if ! docker exec "$DOJO_CONTAINER" docker ps -a | grep workspace-builder | grep "Exited (0)"
+		then
+			docker exec "$DOJO_CONTAINER" docker logs workspace-builder | tail -n100
+			echo "WORKSPACE BUILDER FAILED"
+			exit 1
+		fi
+		docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
+		docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-lecture
+		docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
+	fi
+fi
+
+log_endgroup
+
+DOJO_HOST_CONFIG=$(docker exec "$DOJO_CONTAINER" sh -c 'echo -n "${DOJO_HOST-}"')
+WORKSPACE_HOST_CONFIG=$(docker exec "$DOJO_CONTAINER" sh -c 'echo -n "${WORKSPACE_HOST-}"')
+
+if [ -z "$DOJO_HOST_CONFIG" ]; then
+        DOJO_HOST_CONFIG="localhost.pwn.college"
+fi
+
+if [ -z "$WORKSPACE_HOST_CONFIG" ]; then
+        WORKSPACE_HOST_CONFIG="workspace.${DOJO_HOST_CONFIG}"
+fi
+
+if [[ "$DOJO_HOST_CONFIG" != "$CONTAINER_IP" && "$DOJO_HOST_CONFIG" =~ [A-Za-z] ]]; then
+        TEST_CONTAINER_EXTRA_ARGS+=("--add-host" "${DOJO_HOST_CONFIG}:${CONTAINER_IP}")
+fi
+
+if [[ "$WORKSPACE_HOST_CONFIG" != "$CONTAINER_IP" && "$WORKSPACE_HOST_CONFIG" != "$DOJO_HOST_CONFIG" && "$WORKSPACE_HOST_CONFIG" =~ [A-Za-z] ]]; then
+        TEST_CONTAINER_EXTRA_ARGS+=("--add-host" "${WORKSPACE_HOST_CONFIG}:${CONTAINER_IP}")
+fi
+
+if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
+	log_newgroup "Setting up multi-node cluster"
+
+	# Disconnect nginx from workspace_net for multinode routing to work
+	docker exec "$DOJO_CONTAINER" docker network disconnect workspace_net nginx 2>/dev/null || true
+
+	docker exec "$DOJO_CONTAINER" dojo-node refresh
+	MAIN_KEY=$(docker exec "$DOJO_CONTAINER" cat /data/wireguard/publickey)
+
+	docker run --rm --privileged -d \
+		"${NODE1_VOLUME_ARGS[@]}" \
+		"${ENV_ARGS[@]}" \
+		-e WORKSPACE_NODE=1 \
+		-e WORKSPACE_KEY="$MAIN_KEY" \
+		-e DOJO_HOST="$CONTAINER_IP" \
+		-e STORAGE_HOST="$CONTAINER_IP" \
+		-e "WORKSPACE_HOST=node-1.workspace.${DOJO_HOST_CONFIG}" \
+		--name "$DOJO_CONTAINER-node1" \
+		"$IMAGE_NAME"
+	fix_insane_routing "$DOJO_CONTAINER-node1"
+
+	docker run --rm --privileged -d \
+		"${NODE2_VOLUME_ARGS[@]}" \
+		"${ENV_ARGS[@]}" \
+		-e WORKSPACE_NODE=2 \
+		-e WORKSPACE_KEY="$MAIN_KEY" \
+		-e DOJO_HOST="$CONTAINER_IP" \
+		-e STORAGE_HOST="$CONTAINER_IP" \
+		-e "WORKSPACE_HOST=node-2.workspace.${DOJO_HOST_CONFIG}" \
+		--name "$DOJO_CONTAINER-node2" \
+		"$IMAGE_NAME"
+	fix_insane_routing "$DOJO_CONTAINER-node2"
+
+	# Wait for workspace containers and set up WireGuard
+	docker exec "$DOJO_CONTAINER-node1" dojo wait
+	docker exec "$DOJO_CONTAINER-node2" dojo wait
+
+	NODE1_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER-node1")
+	NODE2_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER-node2")
+
+	docker exec "$DOJO_CONTAINER-node1" dojo-node refresh
+	docker exec "$DOJO_CONTAINER-node2" dojo-node refresh
+
+	# Register workspace nodes with main node
+	NODE1_KEY=$(docker exec "$DOJO_CONTAINER-node1" cat /data/wireguard/publickey)
+	NODE2_KEY=$(docker exec "$DOJO_CONTAINER-node2" cat /data/wireguard/publickey)
+
+	docker exec "$DOJO_CONTAINER" dojo-node add 1 "$NODE1_KEY"
+	docker exec "$DOJO_CONTAINER" dojo-node add 2 "$NODE2_KEY"
+	sleep 5
+	docker exec "$DOJO_CONTAINER" dojo compose restart ctfd sshd
+	sleep 5
+	docker exec "$DOJO_CONTAINER" dojo compose restart nginx
+	sleep 5
+	docker exec "$DOJO_CONTAINER" dojo wait
+
+	docker exec "$DOJO_CONTAINER-node1" docker wait workspace-builder
+	docker exec "$DOJO_CONTAINER-node1" docker pull pwncollege/challenge-simple
+	docker exec "$DOJO_CONTAINER-node1" docker pull pwncollege/challenge-lecture
+	docker exec "$DOJO_CONTAINER-node1" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
+	docker exec "$DOJO_CONTAINER-node2" docker wait workspace-builder
+	docker exec "$DOJO_CONTAINER-node2" docker pull pwncollege/challenge-simple
+	docker exec "$DOJO_CONTAINER-node2" docker pull pwncollege/challenge-lecture
+	docker exec "$DOJO_CONTAINER-node2" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
+
+	log_endgroup
+fi
+
+if [ "$MULTINODE" == "yes" ]; then
+        for NODE in 1 2; do
+                NODE_CONTAINER="$DOJO_CONTAINER-node${NODE}"
+                if docker inspect "$NODE_CONTAINER" >/dev/null 2>&1; then
+                        NODE_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$NODE_CONTAINER")
+                        if [ -n "$NODE_IP" ]; then
+                                TEST_CONTAINER_EXTRA_ARGS+=("--add-host" "node-${NODE}.workspace.${DOJO_HOST_CONFIG}:${NODE_IP}")
+                        fi
+                fi
+        done
+fi
+
+if [ -n "$DB_RESTORE" ]; then
+	log_newgroup "Restoring database backup"
+	BASENAME=$(basename $DB_RESTORE)
+	docker exec "$DOJO_CONTAINER" mkdir -p /data/backups/
+	[ -f "$DB_RESTORE" ] && docker cp "$DB_RESTORE" "$DOJO_CONTAINER":/data/backups/"$BASENAME"
+	docker exec "$DOJO_CONTAINER" dojo restore "$BASENAME"
+	log_endgroup
+fi
+
+log_newgroup "Waiting for dojo to be ready"
+until curl -Ls "http://${CONTAINER_IP}" | grep -q pwn; do sleep 1; done
+log_endgroup
+
+if [ "$TEST" == "yes" ]; then
+	log_newgroup "Running tests in container"
+	cleanup_container $DOJO_CONTAINER-test
+	test_container pytest --order-dependencies --timeout=60 -v . "$@"
+	if [ "$COVERAGE" == "yes" ]; then
+		generate_coverage_report "$DOJO_CONTAINER"
+	fi
+	log_endgroup
+fi
+
+if [ "$VIBECHECK" == "yes" ]; then
+	log_newgroup "Preparing vibe check"
+
+	if [ -z "${OPENAI_API_KEY:-}" ]; then
+		echo "::warning title=openai key not set::skipping vibe check"
+		exit 0
+	fi
+
+	git diff $(git merge-base --fork-point origin/master HEAD) > test/git_diff.txt
+	test_container npx --yes @openai/codex exec \
+		--full-auto --skip-git-repo-check \
+		'Summarize the following git diff in a concise way, focusing on what functionality has changed and what areas of the application might be affected. The + lines are things added in this PR, the - lines are things deleted by this PR. Be specific about files and components modified. The raw diff is saved in git_diff.txt. Save your analysis in the file `diff_summary`.'
+	log_endgroup
+
+	test_container python3 vibe_check.py
+fi
