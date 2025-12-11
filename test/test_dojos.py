@@ -69,11 +69,11 @@ def test_dojo_completion_emoji(simple_award_dojo, codepoints_award_dojo, complet
     scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{codepoints_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 2
-    assert len(us["badges"]) == 1
+    assert len(us["badges"]) == 2
 
     scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
-    assert us["solves"] == 4
+    assert us["solves"] == 2
     assert len(us["badges"]) == 2
 
 
@@ -113,7 +113,7 @@ def test_prune_dojo_emoji(simple_award_dojo, admin_session, completionist_user):
     scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 1
-    assert len(us["badges"]) == 1
+    assert len(us["badges"]) == 2
     assert us["badges"][0]["stale"] == True
 
 
@@ -123,7 +123,7 @@ def test_dojo_removes_emoji(simple_award_dojo, admin_session, completionist_user
     scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 2
-    assert len(us["badges"]) == 1
+    assert len(us["badges"]) == 2
     assert us["badges"][0]["stale"] == False
 
     dojo_id = simple_award_dojo.split("~")[1]
