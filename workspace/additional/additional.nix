@@ -48,7 +48,7 @@ let
 
     system = [ firejail htop landrun nftables openssh rsync ];
 
-    terminal = [ kitty.terminfo screen tmux ];
+    terminal = [ ghostty.terminfo kitty.terminfo screen tmux ];
 
     web = [ firefox geckodriver ];
   };
