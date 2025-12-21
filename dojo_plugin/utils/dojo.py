@@ -15,7 +15,7 @@ import emoji
 
 import yaml
 import requests
-from schema import Schema, Optional, Regex, Or, Use, SchemaError
+from schema import Schema, Optional, Regex, Or, Use, SchemaError, And
 from flask import abort, g
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
@@ -39,15 +39,6 @@ FILE_URL_REGEX = Regex(r"^https://www.dropbox.com/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-z
 INTERFACES_LIST = [Or({"name": Regex(r"[a-zA-Z]{1,32}"),"port": int},{"name": "SSH"})]
 DATE = Use(datetime.datetime.fromisoformat)
 
-def validate_emoji(value):
-    if not isinstance(value, str):
-        raise SchemaError("Award must be a string")
-    if not emoji.purely_emoji(value):   # extra extra check (is_emoji already does 1 emoji only)
-        raise SchemaError("Award must be emoji only")
-    if not emoji.is_emoji(value):   # https://carpedm20.github.io/emoji/docs/api.html#emoji.is_emoji
-        raise SchemaError("Award must be a single emoji")
-    return value
-
 ID_NAME_DESCRIPTION = {
     Optional("id"): ID_REGEX,
     Optional("name"): NAME_REGEX,
@@ -69,7 +60,7 @@ DOJO_SPEC = Schema({
 
     Optional("type"): ID_REGEX,
     Optional("award"): {
-        Optional("emoji"): Use(validate_emoji),
+        Optional("emoji"): And(str, emoji.is_emoji),
         Optional("belt"): IMAGE_REGEX
     },
 
