@@ -263,7 +263,7 @@ function startChallenge(event) {
         $(".challenge-workspace").addClass("challenge-hidden");
         $(".iframe-wrapper").html("");
         if (result.success) {
-            item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\"></iframe>");
+            item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\" allow=\"clipboard-read *; clipboard-write *\"></iframe>");
             loadWorkspace();
             item.find(".challenge-init").addClass("challenge-hidden");
             item.find(".challenge-workspace").removeClass("challenge-hidden");

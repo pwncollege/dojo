@@ -167,7 +167,7 @@
         {% if not hidden or is_dojo_admin %}
         {% set ns.challenge_count = ns.challenge_count + 1 %}
         {% set solved = "challenge-solved" if challenge.challenge_id in user_solves else "challenge-unsolved" %}
-        {% set active = "challenge-active" if challenge.challenge_id == current_dojo_challenge.challenge_id else "" %}
+        {% set active = "challenge-active" if challenge.challenge_id == current_challenge_id else "" %}
 
         {% set progression_locked = challenge.progression_locked and previous_challenge %}
         {% set lock_challenge = progression_locked
@@ -256,7 +256,7 @@
             <div class="challenge-workspace {{ "challenge-hidden" if not active }}">
               <div class="iframe-wrapper">
                 {% if active %}
-                <iframe id="workspace-iframe" class="challenge-iframe" src=""></iframe>
+                <iframe id="workspace-iframe" class="challenge-iframe" src="" allow="clipboard-read *; clipboard-write *"></iframe>
                 {% endif %}
               </div>
               <div class="workspace-ssh">
@@ -314,7 +314,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!el) return;
     const idx = el.getAttribute('data-challenge-index');
     const btn = idx && document.getElementById(`challenges-header-button-${idx}`);
-    
+
     const scrollToChallenge = () => {
       const rect = el.getBoundingClientRect();
       const offsetTop = window.pageYOffset + rect.top - 60;

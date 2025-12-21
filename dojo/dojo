@@ -73,6 +73,7 @@ case "$ACTION" in
         multi_node=$(jq 'length > 0' /data/workspace_nodes.json 2>/dev/null || echo "unknown")
         if [ "$WORKSPACE_NODE" -gt 0 ]; then
             profiles+=("workspace")
+            profiles+=("workspace_exclusive")
         elif [ "$multi_node" == "true" ]; then
             profiles+=("main")
         else
