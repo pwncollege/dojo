@@ -7,7 +7,7 @@ import pytest
 import json
 import time
 
-from utils import DOJO_URL
+from utils import DOJO_HOST
 
 class MockMCPClient:
     def __init__(self, process):
@@ -61,10 +61,11 @@ def mcp():
     process.terminate()
     process.wait(timeout=5)
 
+@pytest.mark.skip(reason="Playwright MCP environment not available")
 def test_login_flow(mcp, random_user_name):
     """Test the login flow on pwn.college"""
 
-    result = mcp.tool("browser_navigate", url=f"{DOJO_URL}/login")
+    result = mcp.tool("browser_navigate", url=f"http://{DOJO_HOST}/login")
     assert 'content' in result
     time.sleep(2)
 

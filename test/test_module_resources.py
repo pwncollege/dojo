@@ -1,7 +1,7 @@
 import pytest
 import requests
 
-from utils import DOJO_URL, create_dojo_yml, TEST_DOJOS_LOCATION
+from utils import DOJO_HOST, create_dojo_yml, TEST_DOJOS_LOCATION
 
 
 @pytest.fixture(scope="session")
@@ -12,7 +12,7 @@ def module_resources_dojo(admin_session, example_dojo):
 def test_module_resources(module_resources_dojo, admin_session, example_dojo):
     dojo_id = module_resources_dojo
     
-    response = admin_session.get(f"{DOJO_URL}/{dojo_id}/test/")
+    response = admin_session.get(f"http://{DOJO_HOST}/{dojo_id}/test/")
     assert response.status_code == 200
     page_content = response.text
     
@@ -36,7 +36,7 @@ def test_module_resources(module_resources_dojo, admin_session, example_dojo):
 def test_module_resources_order(module_resources_dojo, admin_session, example_dojo):
     dojo_id = module_resources_dojo
     
-    response = admin_session.get(f"{DOJO_URL}/{dojo_id}/test/")
+    response = admin_session.get(f"http://{DOJO_HOST}/{dojo_id}/test/")
     assert response.status_code == 200
     page_content = response.text
     
@@ -53,7 +53,7 @@ def test_module_resources_order(module_resources_dojo, admin_session, example_do
 def test_module_resources_with_challenges(module_resources_dojo, admin_session, example_dojo):
     dojo_id = module_resources_dojo
     
-    response = admin_session.get(f"{DOJO_URL}/{dojo_id}/test/")
+    response = admin_session.get(f"http://{DOJO_HOST}/{dojo_id}/test/")
     assert response.status_code == 200
     page_content = response.text
     
@@ -77,7 +77,7 @@ def test_unified_ordering(module_resources_dojo, admin_session, example_dojo):
     """Test that resources and challenges appear in YAML order"""
     dojo_id = module_resources_dojo
     
-    response = admin_session.get(f"{DOJO_URL}/{dojo_id}/test/")
+    response = admin_session.get(f"http://{DOJO_HOST}/{dojo_id}/test/")
     assert response.status_code == 200
     page_content = response.text
     
@@ -108,7 +108,7 @@ def test_header_resources(module_resources_dojo, admin_session, example_dojo):
     """Test that header resources render correctly"""
     dojo_id = module_resources_dojo
     
-    response = admin_session.get(f"{DOJO_URL}/{dojo_id}/test/")
+    response = admin_session.get(f"http://{DOJO_HOST}/{dojo_id}/test/")
     assert response.status_code == 200
     page_content = response.text
     
@@ -126,7 +126,7 @@ def test_non_expandable_markdown_resources(module_resources_dojo, admin_session,
     """Test that markdown resources with expandable=false render inline at their specified positions"""
     dojo_id = module_resources_dojo
     
-    response = admin_session.get(f"{DOJO_URL}/{dojo_id}/test/")
+    response = admin_session.get(f"http://{DOJO_HOST}/{dojo_id}/test/")
     assert response.status_code == 200
     page_content = response.text
     
@@ -162,7 +162,7 @@ def test_markdown_file_loading(module_resources_dojo, admin_session, example_doj
     """Test that markdown resources can load content from files"""
     dojo_id = module_resources_dojo
     
-    response = admin_session.get(f"{DOJO_URL}/{dojo_id}/test/")
+    response = admin_session.get(f"http://{DOJO_HOST}/{dojo_id}/test/")
     assert response.status_code == 200
     page_content = response.text
     

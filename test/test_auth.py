@@ -4,12 +4,12 @@ import string
 import pytest
 import requests
 
-from utils import DOJO_URL, login
+from utils import DOJO_HOST, login
 
 
 @pytest.mark.parametrize("endpoint", ["/", "/dojos", "/login", "/register"])
 def test_unauthenticated_return_200(endpoint):
-    response = requests.get(f"{DOJO_URL}{endpoint}")
+    response = requests.get(f"http://{DOJO_HOST}{endpoint}")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
 
 

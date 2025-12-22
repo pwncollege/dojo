@@ -12,14 +12,14 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 
-from utils import DOJO_URL, workspace_run
+from utils import DOJO_HOST, workspace_run
 
 @contextlib.contextmanager
 def vscode_terminal(browser):
     module_window = browser.current_window_handle
 
     browser.switch_to.new_window("tab")
-    browser.get(f"{DOJO_URL}/workspace/code")
+    browser.get(f"http://{DOJO_HOST}/workspace/code")
 
     wait = WebDriverWait(browser, 30)
     workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace_iframe")))
@@ -60,7 +60,7 @@ def desktop_terminal(browser, user_id):
     module_window = browser.current_window_handle
 
     browser.switch_to.new_window("tab")
-    browser.get(f"{DOJO_URL}/workspace/desktop")
+    browser.get(f"http://{DOJO_HOST}/workspace/desktop")
     time.sleep(10)
     workspace_run("DISPLAY=:0 xfce4-terminal &", user=user_id)
     wait = WebDriverWait(browser, 30)
@@ -84,7 +84,7 @@ def ttyd_terminal(browser):
     module_window = browser.current_window_handle
 
     browser.switch_to.new_window("tab")
-    browser.get(f"{DOJO_URL}/workspace/terminal")
+    browser.get(f"http://{DOJO_HOST}/workspace/terminal")
 
     wait = WebDriverWait(browser, 30)
     workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace_iframe")))
@@ -149,7 +149,7 @@ def read_flag(user_id):
 
 
 def test_welcome_desktop(random_user_browser, random_user_name, welcome_dojo):
-    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    random_user_browser.get(f"http://{DOJO_HOST}/welcome/welcome")
     idx = challenge_idx(random_user_browser, "The Flag File")
 
     challenge_start(random_user_browser, idx)
@@ -162,7 +162,7 @@ def test_welcome_desktop(random_user_browser, random_user_name, welcome_dojo):
 
 
 def test_welcome_vscode(random_user_browser, random_user_name, welcome_dojo):
-    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    random_user_browser.get(f"http://{DOJO_HOST}/welcome/welcome")
     idx = challenge_idx(random_user_browser, "Challenge Programs")
 
     challenge_start(random_user_browser, idx)
@@ -175,7 +175,7 @@ def test_welcome_vscode(random_user_browser, random_user_name, welcome_dojo):
 
 
 def test_welcome_ttyd(random_user_browser, random_user_name, welcome_dojo):
-    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    random_user_browser.get(f"http://{DOJO_HOST}/welcome/welcome")
     idx = challenge_idx(random_user_browser, "The Flag File")
 
     challenge_start(random_user_browser, idx)
@@ -188,7 +188,7 @@ def test_welcome_ttyd(random_user_browser, random_user_name, welcome_dojo):
 
 
 def skip_test_welcome_practice(random_user_browser, random_user_name, welcome_dojo):
-    random_user_browser.get(f"{DOJO_URL}/welcome/welcome")
+    random_user_browser.get(f"http://{DOJO_HOST}/welcome/welcome")
     idx = challenge_idx(random_user_browser, "Using Practice Mode")
 
     challenge_start(random_user_browser, idx, practice=True)
@@ -217,7 +217,7 @@ def match_interfaces(interfaces, expected):
         assert interface.get_attribute("value") == value
 
 def test_interface_inherit(random_user_browser, random_user_name, interfaces_dojo):
-    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    random_user_browser.get(f"http://{DOJO_HOST}/testing-interfaces/test")
     idx = challenge_idx(random_user_browser, "test1")
     interfaces = get_interfaces(random_user_browser, idx)
 
@@ -225,7 +225,7 @@ def test_interface_inherit(random_user_browser, random_user_name, interfaces_doj
     match_interfaces(interfaces, values)
 
 def test_interface_chal_override(random_user_browser, random_user_name, interfaces_dojo):
-    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    random_user_browser.get(f"http://{DOJO_HOST}/testing-interfaces/test")
     idx = challenge_idx(random_user_browser, "test2")
     interfaces = get_interfaces(random_user_browser, idx)
 
@@ -233,7 +233,7 @@ def test_interface_chal_override(random_user_browser, random_user_name, interfac
     match_interfaces(interfaces, values)
 
 def test_interface_chal_narrow(random_user_browser, random_user_name, interfaces_dojo):
-    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    random_user_browser.get(f"http://{DOJO_HOST}/testing-interfaces/test")
     idx = challenge_idx(random_user_browser, "test3")
     interfaces = get_interfaces(random_user_browser, idx)
 
@@ -242,7 +242,7 @@ def test_interface_chal_narrow(random_user_browser, random_user_name, interfaces
 
 
 def test_registration_commitment(browser_fixture):
-    browser_fixture.get(f"{DOJO_URL}/register")
+    browser_fixture.get(f"http://{DOJO_HOST}/register")
     wait = WebDriverWait(browser_fixture, 10)
 
     test_username = "test" + "".join(random.choices(string.ascii_lowercase, k=8))
@@ -272,7 +272,7 @@ def test_registration_commitment(browser_fixture):
 
 
 def test_welcome_graded_lecture(random_user_browser, random_user_name, example_dojo):
-    random_user_browser.get(f"{DOJO_URL}/{example_dojo}/lectures")
+    random_user_browser.get(f"http://{DOJO_HOST}/{example_dojo}/lectures")
     idx = challenge_idx(random_user_browser, "Graded Lecture")
 
     challenge_expand(random_user_browser, idx)
@@ -299,7 +299,7 @@ def test_welcome_graded_lecture(random_user_browser, random_user_name, example_d
 
     challenge_window = random_user_browser.current_window_handle
     random_user_browser.switch_to.new_window("tab")
-    random_user_browser.get(f"{DOJO_URL}/workspace/80/")
+    random_user_browser.get(f"http://{DOJO_HOST}/workspace/80/")
 
     time.sleep(2)
 

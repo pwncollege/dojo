@@ -4,18 +4,18 @@ import pytest
 import random
 import string
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id
+from utils import DOJO_HOST, TEST_DOJOS_LOCATION, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, get_user_id, delete_last_submission, clear_dojo_award
 
 
 def get_dojo_modules(dojo):
-    response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/modules")
+    response = requests.get(f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{dojo}/modules")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     return response.json()["modules"]
 
 
 def test_create_dojo(example_dojo, admin_session):
-    assert admin_session.get(f"{DOJO_URL}/{example_dojo}/").status_code == 200
-    assert admin_session.get(f"{DOJO_URL}/{example_dojo}/").status_code == 200
+    assert admin_session.get(f"http://{DOJO_HOST}/{example_dojo}/").status_code == 200
+    assert admin_session.get(f"http://{DOJO_HOST}/{example_dojo}/").status_code == 200
 
 
 def test_get_dojo_modules(example_dojo):
@@ -32,24 +32,24 @@ def test_get_dojo_modules(example_dojo):
 
 def test_delete_dojo(admin_session):
     reference_id = create_dojo_yml("""id: delete-test""", session=admin_session)
-    assert admin_session.get(f"{DOJO_URL}/{reference_id}/").status_code == 200
-    assert admin_session.post(f"{DOJO_URL}/dojo/{reference_id}/delete/", json={"dojo": reference_id}).status_code == 200
-    assert admin_session.get(f"{DOJO_URL}/{reference_id}/").status_code == 404
+    assert admin_session.get(f"http://{DOJO_HOST}/{reference_id}/").status_code == 200
+    assert admin_session.post(f"http://{DOJO_HOST}/dojo/{reference_id}/delete/", json={"dojo": reference_id}).status_code == 200
+    assert admin_session.get(f"http://{DOJO_HOST}/{reference_id}/").status_code == 404
 
 
 def test_import(import_dojo, admin_session):
-    assert admin_session.get(f"{DOJO_URL}/{import_dojo}/hello").status_code == 200
+    assert admin_session.get(f"http://{DOJO_HOST}/{import_dojo}/hello").status_code == 200
 
 # this exists despite test_import because it doesn't re-run on re-test, but we still want to make sure our public example-import dojo passes
 def test_create_import_dojo(example_import_dojo, admin_session):
-    assert admin_session.get(f"{DOJO_URL}/{example_import_dojo}/").status_code == 200
-    assert admin_session.get(f"{DOJO_URL}/{example_import_dojo}/").status_code == 200
+    assert admin_session.get(f"http://{DOJO_HOST}/{example_import_dojo}/").status_code == 200
+    assert admin_session.get(f"http://{DOJO_HOST}/{example_import_dojo}/").status_code == 200
 
 def test_join_dojo(admin_session, guest_dojo_admin, example_dojo):
     random_user_name, random_session = guest_dojo_admin
-    response = random_session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/")
+    response = random_session.get(f"http://{DOJO_HOST}/dojo/{example_dojo}/join/")
     assert response.status_code == 200
-    response = admin_session.get(f"{DOJO_URL}/dojo/{example_dojo}/admin/")
+    response = admin_session.get(f"http://{DOJO_HOST}/dojo/{example_dojo}/admin/")
     assert response.status_code == 200
     assert random_user_name in response.text and response.text.index("Members") < response.text.index(random_user_name)
 
@@ -57,16 +57,16 @@ def test_join_dojo(admin_session, guest_dojo_admin, example_dojo):
 def test_promote_dojo_member(admin_session, guest_dojo_admin, example_dojo):
     random_user_name, _ = guest_dojo_admin
     random_user_id = get_user_id(random_user_name)
-    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{example_dojo}/admins/promote", json={"user_id": random_user_id})
+    response = admin_session.post(f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{example_dojo}/admins/promote", json={"user_id": random_user_id})
     assert response.status_code == 200
-    response = admin_session.get(f"{DOJO_URL}/dojo/{example_dojo}/admin/")
+    response = admin_session.get(f"http://{DOJO_HOST}/dojo/{example_dojo}/admin/")
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
 
 
 def test_dojo_completion_emoji(simple_award_dojo, completionist_user):
     user_name, session = completionist_user
 
-    scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
+    scoreboard = session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 2
     assert len(us["badges"]) == 1
@@ -74,9 +74,9 @@ def test_dojo_completion_emoji(simple_award_dojo, completionist_user):
 
 def test_no_practice(no_practice_challenge_dojo, no_practice_dojo, random_user_session):
     for dojo in [ no_practice_challenge_dojo, no_practice_dojo ]:
-        response = random_user_session.get(f"{DOJO_URL}/dojo/{dojo}/join/")
+        response = random_user_session.get(f"http://{DOJO_HOST}/dojo/{dojo}/join/")
         assert response.status_code == 200
-        response = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json={
+        response = random_user_session.post(f"http://{DOJO_HOST}/pwncollege_api/v1/docker", json={
             "dojo": dojo,
             "module": "test",
             "challenge": "test",
@@ -100,12 +100,12 @@ def test_no_import(no_import_challenge_dojo, admin_session):
 
 def test_prune_dojo_emoji(simple_award_dojo, admin_session, completionist_user):
     user_name, _ = completionist_user
-    db_sql(f"DELETE FROM submissions WHERE id IN (SELECT id FROM submissions WHERE user_id={get_user_id(user_name)} ORDER BY id DESC LIMIT 1)")
+    delete_last_submission(user_name, session=admin_session)
 
-    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{simple_award_dojo}/awards/prune", json={})
+    response = admin_session.post(f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{simple_award_dojo}/awards/prune", json={})
     assert response.status_code == 200
 
-    scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
+    scoreboard = admin_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 1
     assert len(us["badges"]) == 1
@@ -115,23 +115,22 @@ def test_prune_dojo_emoji(simple_award_dojo, admin_session, completionist_user):
 def test_dojo_removes_emoji(simple_award_dojo, admin_session, completionist_user):
     user_name, _ = completionist_user
 
-    scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
+    scoreboard = admin_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 2
     assert len(us["badges"]) == 1
     assert us["badges"][0]["stale"] == False
 
-    dojo_id = simple_award_dojo.split("~")[1]
-    db_sql(f"UPDATE dojos SET data = data - 'award' || jsonb_build_object('award', jsonb_build_object('belt', 'orange')) WHERE dojo_id = x'{dojo_id}'::int")
+    clear_dojo_award(simple_award_dojo, session=admin_session)
 
-    scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
+    scoreboard = admin_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 2
     assert len(us["badges"]) == 0
 
 
 def test_lfs(lfs_dojo, random_user_name, random_user_session):
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{lfs_dojo}/join/").status_code == 200
+    assert random_user_session.get(f"http://{DOJO_HOST}/dojo/{lfs_dojo}/join/").status_code == 200
     start_challenge(lfs_dojo, "test", "test", session=random_user_session)
     try:
         workspace_run("[ -f '/challenge/dojo.txt' ]", user=random_user_name)
@@ -140,7 +139,7 @@ def test_lfs(lfs_dojo, random_user_name, random_user_session):
 
 
 def test_import_override(import_override_dojo, random_user_name, random_user_session):
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{import_override_dojo}/join/").status_code == 200
+    assert random_user_session.get(f"http://{DOJO_HOST}/dojo/{import_override_dojo}/join/").status_code == 200
     start_challenge(import_override_dojo, "test", "test", session=random_user_session)
     try:
         workspace_run("[ -f '/challenge/boom' ]", user=random_user_name)
@@ -150,20 +149,20 @@ def test_import_override(import_override_dojo, random_user_name, random_user_ses
 
 
 def test_challenge_transfer(transfer_src_dojo, transfer_dst_dojo, random_user_name, random_user_session):
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{transfer_src_dojo}/join/").status_code == 200
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{transfer_dst_dojo}/join/").status_code == 200
+    assert random_user_session.get(f"http://{DOJO_HOST}/dojo/{transfer_src_dojo}/join/").status_code == 200
+    assert random_user_session.get(f"http://{DOJO_HOST}/dojo/{transfer_dst_dojo}/join/").status_code == 200
     start_challenge(transfer_dst_dojo, "dst-module", "dst-challenge", session=random_user_session)
     solve_challenge(transfer_dst_dojo, "dst-module", "dst-challenge", session=random_user_session, user=random_user_name)
-    scoreboard = random_user_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{transfer_src_dojo}/_/0/1").json()
+    scoreboard = random_user_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/scoreboard/{transfer_src_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == random_user_name)
     assert us["solves"] == 1
 
 
 def test_hidden_challenges(admin_session, random_user_session, hidden_challenges_dojo):
-    assert "CHALLENGE" in admin_session.get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").text
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{hidden_challenges_dojo}/join/").status_code == 200
-    assert random_user_session.get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").status_code == 200
-    assert "CHALLENGE" not in random_user_session.get(f"{DOJO_URL}/{hidden_challenges_dojo}/module/").text
+    assert "CHALLENGE" in admin_session.get(f"http://{DOJO_HOST}/{hidden_challenges_dojo}/module/").text
+    assert random_user_session.get(f"http://{DOJO_HOST}/dojo/{hidden_challenges_dojo}/join/").status_code == 200
+    assert random_user_session.get(f"http://{DOJO_HOST}/{hidden_challenges_dojo}/module/").status_code == 200
+    assert "CHALLENGE" not in random_user_session.get(f"http://{DOJO_HOST}/{hidden_challenges_dojo}/module/").text
 
 
 def test_dojo_solves_api(example_dojo, random_user_name, random_user_session):
@@ -173,14 +172,14 @@ def test_dojo_solves_api(example_dojo, random_user_name, random_user_session):
     start_challenge(example_dojo, "hello", "apple", session=random_user_session)
     solve_challenge(example_dojo, "hello", "apple", session=random_user_session, user=random_user_name)
 
-    response = random_user_session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{example_dojo}/solves")
+    response = random_user_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{example_dojo}/solves")
     assert response.status_code == 200
     data = response.json()
     assert data["success"]
     assert len(data["solves"]) == 1
     assert data["solves"][0]["challenge_id"] == "apple"
 
-    response = other_session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{example_dojo}/solves", params={"username": random_user_name})
+    response = other_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{example_dojo}/solves", params={"username": random_user_name})
     assert response.status_code == 200
     data = response.json()
     assert data["success"]

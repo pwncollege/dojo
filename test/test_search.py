@@ -1,10 +1,10 @@
 import pytest
 
-from utils import DOJO_URL
+from utils import DOJO_HOST
 
 
 def test_searchable_content(searchable_dojo, admin_session):
-    search_url = f"{DOJO_URL}/pwncollege_api/v1/search"
+    search_url = f"http://{DOJO_HOST}/pwncollege_api/v1/search"
 
     cases = [
         # Matches in name only — verify name field
@@ -27,7 +27,7 @@ def test_searchable_content(searchable_dojo, admin_session):
 
 
 def test_search_no_results(admin_session):
-    search_url = f"{DOJO_URL}/pwncollege_api/v1/search"
+    search_url = f"http://{DOJO_HOST}/pwncollege_api/v1/search"
     query = "qwertyuiopasdfgh"  # something unlikely to match anything
 
     response = admin_session.get(search_url, params={"q": query})
