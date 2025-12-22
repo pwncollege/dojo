@@ -20,3 +20,30 @@ def test_whoami(random_user, welcome_dojo):
         assert name in result.stdout, f"Expected hacker to be {name}, got: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
         assert False, f"Exception in when running command \"dojo whoami\": {(error.stdout, error.stderr)}"
+
+def test_solve_correct(random_user, welcome_dojo):
+    """
+    Tests the dojo application with the "solve" command.
+    
+    This test case covers submitting a correct flag,
+    and submitting a flag for a challenge that has already
+    been solved.
+    """
+    # Start challenge.
+    name, session = random_user
+    start_challenge(welcome_dojo, "welcome", "flag", session=session)
+
+    # Submit.
+    try:
+        result = workspace_run("/challenge/solve; dojo submit $(< /flag)", user=name)
+        assert "Successfully solved" in result.stdout, f"Expected to solve challenge, got: {(result.stdout, result.stderr)}"
+    except subprocess.CalledProcessError as error:
+        assert False, f"Exception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
+
+    # Submit again.
+    try:
+        result = workspace_run("dojo submit $(< /flag)", user=name)
+        assert "already been solved" in result.stdout, f"Expected to solve challenge, got: {(result.stdout, result.stderr)}"
+    except subprocess.CalledProcessError as error:
+        assert False, f"Exxception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
+
