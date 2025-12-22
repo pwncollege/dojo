@@ -108,6 +108,9 @@ def whoami() -> int:
     print(jsonData["message"])
     return 0
 
+def solve(args : argparse.Namespace) -> int:
+    return 0
+
 def main():
     parser = argparse.ArgumentParser(
         prog="dojo",
@@ -124,6 +127,15 @@ def main():
         help="Prints information about the current user (you!)."
     )
 
+    submit_parser = subparsers.add_parser(
+        name="submit",
+        help="Makes a submission attempt for the current running challenge."
+    )
+    submit_parser.add_argument(
+        "flag",
+        type=str
+    )
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -132,6 +144,9 @@ def main():
 
     if args.command.lower() == "whoami":
         return whoami()
+    
+    if args.command.lower() == "submit":
+        return solve(args)
 
     parser.print_help()
     return INCORRECT_USAGE
