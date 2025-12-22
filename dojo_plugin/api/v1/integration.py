@@ -96,7 +96,7 @@ class whoami(Resource):
 @integration_namespace.route("/solve")
 class solve(Resource):
     @authenticated
-    def post(self, dojo, module, challenge_id):
+    def post(self):
         user = get_current_user()
         dojo_challenge = get_current_dojo_challenge(user)
 
