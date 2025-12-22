@@ -4,7 +4,7 @@ from CTFd.models import db, Users, Submissions
 from CTFd.plugins import bypass_csrf_protection
 
 from ...utils import get_current_container, all_docker_clients
-from ...models import Dojos
+from ...models import Dojos, DojoChallenges
 
 
 test_utils_namespace = Namespace(
@@ -28,14 +28,17 @@ class DeleteLastSubmission(Resource):
     def post(self):
         data = request.get_json() or {}
         username = data.get("username")
+        dojo_reference_id = data.get("dojo")
         if not username:
             abort(400)
         user = Users.query.filter_by(name=username).first_or_404()
-        submission = (
-            Submissions.query.filter_by(user_id=user.id)
-            .order_by(Submissions.id.desc())
-            .first()
-        )
+        submission_query = Submissions.query.filter_by(user_id=user.id)
+        if dojo_reference_id:
+            dojo = Dojos.from_id(dojo_reference_id).first_or_404()
+            submission_query = submission_query.join(
+                DojoChallenges, DojoChallenges.challenge_id == Submissions.challenge_id
+            ).filter(DojoChallenges.dojo_id == dojo.dojo_id)
+        submission = submission_query.order_by(Submissions.id.desc()).first()
         if submission:
             db.session.delete(submission)
             db.session.commit()

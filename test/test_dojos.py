@@ -105,7 +105,7 @@ def test_no_import(no_import_challenge_dojo, admin_session):
 
 def test_prune_dojo_emoji(simple_award_dojo, admin_session, completionist_user):
     user_name, _ = completionist_user
-    delete_last_submission(user_name, session=admin_session)
+    delete_last_submission(user_name, session=admin_session, dojo=simple_award_dojo)
 
     response = admin_session.post(f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{simple_award_dojo}/awards/prune", json={})
     assert response.status_code == 200

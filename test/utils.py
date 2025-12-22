@@ -95,10 +95,13 @@ def workspace_run(cmd, *, user, root=False, session=None, **kwargs):
     return completed
 
 
-def delete_last_submission(username, *, session):
+def delete_last_submission(username, *, session, dojo=None):
+    payload = {"username": username}
+    if dojo:
+        payload["dojo"] = dojo
     response = session.post(
         f"http://{DOJO_HOST}/pwncollege_api/v1/test_utils/delete_last_submission",
-        json={"username": username},
+        json=payload,
     )
     assert response.status_code == 200, f"Test API request failed: {response.status_code} {response.text}"
 
