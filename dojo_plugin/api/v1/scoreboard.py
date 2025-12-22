@@ -24,11 +24,19 @@ from ...utils.awards import get_belts, get_viewable_emojis
 SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
 scoreboard_namespace = Namespace("scoreboard")
 
+def get_schools():
+    return ["arizona", "asu", "baylor", "byu", "ucf", "uc", 
+            "colorado", "uh", "iastate", "ku", "ksu", "okstate", "tcu", "ttu", "utah", "wvu"]
+
 def email_symbol_asset(email):
-    if email.endswith("@asu.edu"):
-        group = "fork.png"
-    elif ".edu" in email.split("@")[1]:
-        group = "student.png"
+    domain = email.split("@")[1]
+    if domain.endswith(".edu"):
+        school = domain[:-len(".edu")]
+        schools = get_schools()
+        if school in schools:
+            group = f"schools/{school}.png"
+        else:
+            group = "student.png"
     else:
         group = "hacker.png"
     return url_for("views.themes", path=f"img/dojo/{group}")
