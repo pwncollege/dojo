@@ -189,7 +189,7 @@ export function WorkspaceService({
             transform: "translateZ(0)", // Force GPU layer
           }}
           title={`Workspace ${activeService}`}
-          allow="clipboard-write"
+          allow="clipboard-read *; clipboard-write *"
         />
       </div>
 

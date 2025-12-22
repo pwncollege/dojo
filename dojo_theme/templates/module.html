@@ -256,7 +256,7 @@
             <div class="challenge-workspace {{ "challenge-hidden" if not active }}">
               <div class="iframe-wrapper">
                 {% if active %}
-                <iframe id="workspace-iframe" class="challenge-iframe" src=""></iframe>
+                <iframe id="workspace-iframe" class="challenge-iframe" src="" allow="clipboard-read *; clipboard-write *"></iframe>
                 {% endif %}
               </div>
               <div class="workspace-ssh">
