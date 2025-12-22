@@ -47,3 +47,19 @@ def test_solve_correct(random_user, welcome_dojo):
     except subprocess.CalledProcessError as error:
         assert False, f"Exxception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
 
+def test_solve_incorrect(random_user, welcome_dojo):
+    """
+    Tests the dojo application with the "solve" command.
+    
+    This test case covers submitting an incorrect flag.
+    """
+    # Start challenge.
+    name, session = random_user
+    start_challenge(welcome_dojo, "welcome", "flag", session=session)
+
+    # Submit.
+    try:
+        result = workspace_run("dojo submit pwn.college{veryrealflag}", user=name)
+        assert "solve" not in result.stdout, f"Expected flag to be incorrect, got: {(result.stdout, result.stderr)}"
+    except subprocess.CalledProcessError as error:
+        assert False, f"Exception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
