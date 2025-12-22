@@ -2,6 +2,7 @@
 docker==6.1.2
 pyyaml==6.0.2
 schema==0.7.5
+emoji==2.15.0
 bleach==6.1.0
 bleach[css]==6.1.0
 ipython==8.16.1
