@@ -17,6 +17,7 @@ DOJO_API = f"{DOJO_URL}/pwncollege_api/v1"
 INCORRECT_USAGE = 1
 TOKEN_NOT_FOUND = 2
 API_ERROR = 3
+INCORRECT = 4
 
 def get_token() -> str | None:
     return os.environ.get("DOJO_AUTH_TOKEN")
@@ -109,6 +110,41 @@ def whoami() -> int:
     return 0
 
 def solve(args : argparse.Namespace) -> int:
+    """
+    Calls the SOLVE integration api, printing information
+    about the submission attempt.
+    """
+
+    # Check for practice flag.
+    if args.flag in ["pwn.college{practice}", "practice"]:
+        print("This is the practice flag!\n\nStart the challenge again in normal mode to get the real flag.\n(You can do this here with \"dojo restart -N\")")
+        return INCORRECT
+
+    # Make request.
+    print(f"Submitting the flag: {args.flag}")
+    status, error, jsonData = apiRequest(
+        "/integration/solve",
+        method="POST",
+        args={
+            "submission" : args.flag
+        }
+    )
+    if error is not None:
+        print(f"SOLVE request failed ({status}): {error}")
+        return API_ERROR
+
+    # Print if the flag was correct.
+    if jsonData["success"]:
+        print("Successfully solved the challenge!"
+              if jsonData["status"] == "solved" else
+              "Challenge has already been solved!")
+    else:
+        error = jsonData.get("status", None) # flag is incorrect
+        if error is None:
+            error = jsonData.get("error")    # challenge does not exist (rare)
+        print(f"Flag submission failed: {error}")
+        return INCORRECT
+
     return 0
 
 def main():
@@ -133,6 +169,7 @@ def main():
     )
     submit_parser.add_argument(
         "flag",
+        help="Flag to submit.",
         type=str
     )
 
