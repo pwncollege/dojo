@@ -2,8 +2,11 @@ from typing import Any
 from flask import request, session
 from flask_restx import Namespace, Resource
 from CTFd.plugins import bypass_csrf_protection
-from CTFd.models import Users
+from CTFd.models import Users, Solves
+from CTFd.utils.user import get_current_user
+from CTFd.plugins.challenges import get_chal_class
 from ...utils import validate_user_container, get_current_container
+from ...utils.dojo import get_current_dojo_challenge
 
 integration_namespace = Namespace(
     "integration",
@@ -89,3 +92,26 @@ class whoami(Resource):
             "message": f"You are the epic hacker {session["name"]} ({session["id"]}).",
             "user_id": session["id"]
             }, 200)
+
+@integration_namespace.route("/solve")
+class solve(Resource):
+    @authenticated
+    def post(self, dojo, module, challenge_id):
+        user = get_current_user()
+        dojo_challenge = get_current_dojo_challenge(user)
+
+        if not dojo_challenge:
+            return {"success": False, "error": "Challenge not found"}, 404
+
+        solve = Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first()
+        if solve:
+            return {"success": True, "status": "already_solved"}
+
+        chal_class = get_chal_class(dojo_challenge.challenge.type)
+        status, _ = chal_class.attempt(dojo_challenge.challenge, request)
+        if status:
+            chal_class.solve(user, None, dojo_challenge.challenge, request)
+            return {"success": True, "status": "solved"}
+        else:
+            chal_class.fail(user, None, dojo_challenge.challenge, request)
+            return {"success": False, "status": "incorrect"}, 400
