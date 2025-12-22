@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>{{ dojo.name or dojo.id }}</h1>
+    <p class="lead">
+      {% if challenge %}
+        {{ module.name or module.id }} &raquo; {{ challenge.name or challenge.id }}
+      {% elif module %}
+        {{ module.name or module.id }}
+      {% endif %}
+    </p>
+    <p class="text-muted">{{ file_name }}</p>
+  </div>
+</div>
+<div class="container">
+  <pre class="bg-light p-3 border rounded" style="white-space: pre-wrap;">{{ content }}</pre>
+</div>
+{% endblock %}
