@@ -1,3 +1,5 @@
+import time
+import logging
 from typing import Any
 from flask import request, session
 from flask_restx import Namespace, Resource
@@ -5,8 +7,13 @@ from CTFd.plugins import bypass_csrf_protection
 from CTFd.models import Users, Solves
 from CTFd.utils.user import get_current_user
 from CTFd.plugins.challenges import get_chal_class
-from ...utils import validate_user_container, get_current_container
-from ...utils.dojo import get_current_dojo_challenge
+from dojo_plugin.api.v1.docker import start_challenge
+from dojo_plugin.models import DojoChallenges, DojoModules
+from dojo_plugin.utils.feed import publish_container_start
+from ...utils import is_challenge_locked, validate_user_container, get_current_container
+from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
+
+logger = logging.getLogger(__name__)
 
 integration_namespace = Namespace(
     "integration",
@@ -115,3 +122,95 @@ class solve(Resource):
         else:
             chal_class.fail(user, None, dojo_challenge.challenge, request)
             return {"success": False, "status": "incorrect"}, 400
+
+@integration_namespace.route("/start")
+class start(Resource):
+    @authenticated
+    def post(self):
+        data = request.get_json()
+        user = get_current_user()
+
+        # Determine what challenge we are trying to start.
+        if data.get("use_current_module", False):
+            dojo_challenge = get_current_dojo_challenge(user)
+            dojo_id = dojo_challenge.dojo.reference_id
+            module_id = dojo_challenge.module.id
+            challenge_id = data["challenge"]
+        else:
+            dojo_id = data.get("dojo")
+            module_id = data.get("module")
+            challenge_id = data.get("challenge")
+
+        if None in [dojo_id, module_id, challenge_id]:
+            return 400, {"success": False, "error": "Must supply dojo, module, and challenge (or supply a challenge and use_current_module as True)."}
+
+        # Determine what mode we are trying to start in.
+        mode = data.get("mode")
+        if mode not in ["normal", "privileged", "current"]:
+            return 400, {"success": False, "error": "Must specify mode as one of [normal, privileged, current]"}
+
+        if mode == "normal":
+            privileged = False
+        elif mode == "privileged":
+            privileged = True
+        else:
+            container = get_current_container(user)
+            privileged = container.labels.get("dojo.mode") == "privileged"
+
+        # Start the docker container! (modified from docker.py, with as_user removed)
+        dojo = dojo_accessible(dojo_id)
+        if not dojo:
+            return 404, {"success": False, "error": "Invalid dojo"}
+
+        dojo_challenge = (
+            DojoChallenges.query.filter_by(id=challenge_id)
+            .join(DojoModules.query.filter_by(dojo=dojo, id=module_id).subquery())
+            .first()
+        )
+        if not dojo_challenge:
+            return 404, {"success": False, "error": "Invalid challenge"}
+
+        if not dojo_challenge.visible() and not dojo.is_admin():
+            return 404, {"success": False, "error": "Invalid challenge"}
+
+        if privileged and not dojo_challenge.allow_privileged:
+            return 400, {
+                "success": False,
+                "error": "This challenge does not support practice mode.",
+            }
+
+        if is_challenge_locked(dojo_challenge, user):
+            return 400, {
+                "success": False,
+                "error": "This challenge is locked"
+            }
+
+        max_attempts = 3
+        for attempt in range(1, max_attempts+1):
+            try:
+                logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
+                start_challenge(user, dojo_challenge, privileged)
+
+                if dojo.official or dojo.data.get("type") == "public":
+                    challenge_data = {
+                        "challenge_id": dojo_challenge.challenge_id,
+                        "challenge_name": dojo_challenge.name,
+                        "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
+                        "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
+                        "dojo_id": dojo.reference_id,
+                        "dojo_name": dojo.name
+                    }
+                    mode = "practice" if privileged else "assessment"
+                    publish_container_start(user, mode, challenge_data)
+
+                break
+            except Exception as e:
+                logger.warning(f"Attempt {attempt} failed for user {user.id} with error: {e}")
+                if attempt < max_attempts:
+                    logger.info(f"Retrying... ({attempt}/{max_attempts})")
+                    time.sleep(2)
+        else:
+            logger.error(f"ERROR: Docker failed for {user.id} after {max_attempts} attempts.")
+            return 508, {"success": False, "error": "Docker failed"}
+
+        return {"success": True}
