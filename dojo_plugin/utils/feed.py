@@ -16,12 +16,19 @@ def create_event(event_type: str, user: Users, data: Dict[str, Any]) -> Optional
     if user.hidden:
         return None
     
-    from ..models import Belts, Emojis
-    from ..utils.awards import BELT_ORDER
+    from ..models import Belts, Emojis, Dojos
+    from ..utils.awards import BELT_ORDER, EMOJI_CURRENT, EMOJI_STALE
     
     user_belts = [b.name for b in Belts.query.filter_by(user=user)]
     highest_belt = next((b for b in reversed(BELT_ORDER) if b in user_belts), None)
-    user_emojis = [e.name for e in Emojis.query.filter_by(user=user)]
+    
+    # Get user emojis, using icon field if available (for CURRENT-style awards), otherwise use name
+    user_emojis = []
+    for e in Emojis.query.filter_by(user=user):
+        if e.icon:
+            user_emojis.append(e.icon)
+        elif e.name not in [EMOJI_CURRENT, EMOJI_STALE]:  # Skip CURRENT/STALE without icon (shouldn't happen)
+            user_emojis.append(e.name)
     
     event = {
         "id": str(uuid.uuid4()),

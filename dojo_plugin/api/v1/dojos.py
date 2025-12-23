@@ -13,6 +13,7 @@ from sqlalchemy.sql import and_
 from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
                        DojoUsers, Emojis, SurveyResponses)
 from ...utils import is_challenge_locked, render_markdown
+from ...utils.awards import EMOJI_STALE
 from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route
 from ...utils.stats import get_dojo_stats
 
@@ -52,10 +53,10 @@ class PruneAwards(Resource):
     def post(self, dojo):
         all_completions = set(user for user,_ in dojo.completions())
         num_pruned = 0
-        for award in Emojis.query.where(Emojis.category==dojo.hex_dojo_id, Emojis.name != "STALE"):
+        for award in Emojis.query.where(Emojis.category==dojo.hex_dojo_id, Emojis.name != EMOJI_STALE):
             if award.user not in all_completions:
                 num_pruned += 1
-                award.name = "STALE"
+                award.name = EMOJI_STALE
         db.session.commit()
         return {"success": True, "pruned_awards": num_pruned}
 

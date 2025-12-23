@@ -17,6 +17,10 @@ BELT_REQUIREMENTS = {
     "blue": "software-exploitation",
 }
 
+# Emoji award name constants
+EMOJI_CURRENT = "CURRENT"  # Current valid emoji award
+EMOJI_STALE = "STALE"      # Stale/invalid emoji award
+
 def get_user_emojis(user):
     emojis = [ ]
     for dojo in Dojos.query.all():
@@ -96,7 +100,7 @@ def get_viewable_emojis(user):
             emoji_symbol = dojo.award.get('emoji')
             url = url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
         
-        is_stale = emoji.name == "STALE"
+        is_stale = emoji.name == EMOJI_STALE
         
         result.setdefault(emoji.user_id, []).append({
             "text": emoji.description,
@@ -140,7 +144,7 @@ def update_awards(user):
 
     current_emojis = get_user_emojis(user)
     for emoji,dojo_display_name,hex_dojo_id in current_emojis:
-        emoji_award = Emojis.query.filter(Emojis.user==user, Emojis.category==hex_dojo_id, Emojis.name != "STALE").first()
+        emoji_award = Emojis.query.filter(Emojis.user==user, Emojis.category==hex_dojo_id, Emojis.name != EMOJI_STALE).first()
         if emoji_award:
             continue
         
@@ -150,7 +154,7 @@ def update_awards(user):
             
         display_name = dojo.name or dojo.reference_id
         description = f"Awarded for completing the {display_name} dojo."
-        db.session.add(Emojis(user=user, name="CURRENT", description=description, category=hex_dojo_id))
+        db.session.add(Emojis(user=user, name=EMOJI_CURRENT, description=description, category=hex_dojo_id, icon=emoji))
         db.session.commit()
         
         if dojo.official or dojo.data.get("type") == "public":
