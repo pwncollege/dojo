@@ -2,6 +2,11 @@ import subprocess
 
 from utils import workspace_run, start_challenge
 
+CLI_INCORRECT_USAGE = 1
+CLI_TOKEN_NOT_FOUND = 2
+CLI_API_ERROR = 3
+CLI_INCORRECT = 4
+
 def test_whoami(random_user, welcome_dojo):
     """
     Tests the dojo application with the "whoami" command.
@@ -60,9 +65,10 @@ def test_solve_incorrect(random_user, welcome_dojo):
     # Submit.
     try:
         result = workspace_run("dojo submit pwn.college{veryrealflag}", user=name)
-        assert "solve" not in result.stdout, f"Expected flag to be incorrect, got: {(result.stdout, result.stderr)}"
+        assert False, f"Expected submission of incorrect flag to fail, got: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        assert False, f"Exception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
+        assert error.returncode == CLI_INCORRECT, f"Exception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
+        assert "incorrect" in error.stdout, f"Expected flag to be incorrect, got: {(error.stdout, error.stderr)}"
 
 def test_solve_practice(random_user, welcome_dojo):
     """
@@ -77,6 +83,7 @@ def test_solve_practice(random_user, welcome_dojo):
     # Submit.
     try:
         result = workspace_run("dojo submit pwn.college{practice}", user=name)
-        assert "This is the practice flag" in result.stdout, f"Expected flag to be the practice flag, got: {(result.stdout, result.stderr)}"
+        assert False, f"Expected submission of practice flag to fail, got: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        assert False, f"Exception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
+        assert error.returncode == CLI_INCORRECT, f"Exception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
+        assert "This is the practice flag" in error.stdout, f"Expected flag to be the practice flag, got: {(error.stdout, error.stderr)}"
