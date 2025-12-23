@@ -77,6 +77,6 @@ def test_solve_practice(random_user, welcome_dojo):
     # Submit.
     try:
         result = workspace_run("dojo submit pwn.college{practice}", user=name)
-        assert "This is the practice flag" not in result.stdout, f"Expected flag to be the practice flag, got: {(result.stdout, result.stderr)}"
+        assert "This is the practice flag" in result.stdout, f"Expected flag to be the practice flag, got: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
         assert False, f"Exception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
