@@ -207,7 +207,57 @@ const handleInput = () => {
             return;
         }
 
-        const renderItem = (text, url, match = null) => {
+        const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+        const buildSnippet = (text, query, context = 40) => {
+            if (!text) {
+                return null;
+            }
+
+            const lowerText = text.toLowerCase();
+            const lowerQuery = query.toLowerCase();
+            const index = lowerText.indexOf(lowerQuery);
+            if (index === -1) {
+                return null;
+            }
+
+            const start = Math.max(index - context, 0);
+            const end = Math.min(index + query.length + context, text.length);
+            const snippetText = text.slice(start, end);
+            const snippet = document.createElement("div");
+            snippet.className = "text-muted small";
+
+            if (start > 0) {
+                snippet.appendChild(document.createTextNode("…"));
+            }
+
+            const pattern = new RegExp(escapeRegExp(query), "gi");
+            let lastIndex = 0;
+            snippetText.replace(pattern, (match, offset) => {
+                if (offset > lastIndex) {
+                    snippet.appendChild(document.createTextNode(snippetText.slice(lastIndex, offset)));
+                }
+                const highlight = document.createElement("b");
+                highlight.style.fontWeight = "600";
+                highlight.style.color = "#f1c40f";
+                highlight.textContent = match;
+                snippet.appendChild(highlight);
+                lastIndex = offset + match.length;
+                return match;
+            });
+
+            if (lastIndex < snippetText.length) {
+                snippet.appendChild(document.createTextNode(snippetText.slice(lastIndex)));
+            }
+
+            if (end < text.length) {
+                snippet.appendChild(document.createTextNode("…"));
+            }
+
+            return snippet;
+        };
+
+        const renderItem = (text, url, description = null) => {
             const container = document.createElement("div");
             container.className = "d-block py-1";
         
@@ -217,10 +267,8 @@ const handleInput = () => {
             link.textContent = text;
             container.appendChild(link);
         
-            if (match) {
-                const snippet = document.createElement("div");
-                snippet.className = "text-muted small";
-                snippet.innerHTML = match;
+            const snippet = buildSnippet(description, query);
+            if (snippet && !text.toLowerCase().includes(query.toLowerCase())) {
                 container.appendChild(snippet);
             }
         
@@ -248,12 +296,12 @@ const handleInput = () => {
             });
         };
 
-        const dojoItems = data.results.dojos.map(d => renderItem(d.name, d.link, d.match));
+        const dojoItems = data.results.dojos.map(d => renderItem(d.name, d.link, d.description));
         const moduleItems = data.results.modules.map(m =>
-            renderItem(`${m.dojo.name} / ${m.name}`, m.link, m.match)
+            renderItem(`${m.dojo.name} / ${m.name}`, m.link, m.description)
         );
         const challengeItems = data.results.challenges.map(c =>
-            renderItem(`${c.dojo.name} / ${c.module.name} / ${c.name}`, c.link, c.match)
+            renderItem(`${c.dojo.name} / ${c.module.name} / ${c.name}`, c.link, c.description)
         );
 
         if (dojoItems.length) renderSection("Dojos", dojoItems);
