@@ -1,6 +1,6 @@
 import pytest
 
-from utils import DOJO_URL, workspace_run, start_challenge, solve_challenge
+from utils import DOJO_HOST, workspace_run, start_challenge, solve_challenge
 
 
 def get_all_standings(session, dojo, module=None):
@@ -16,7 +16,7 @@ def get_all_standings(session, dojo, module=None):
         module = "_"
 
     while not done:
-        response = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{dojo}/{module}/0/{page_number}")
+        response = session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/scoreboard/{dojo}/{module}/0/{page_number}")
         assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
         response = response.json()
 
