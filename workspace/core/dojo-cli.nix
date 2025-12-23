@@ -67,31 +67,34 @@ def apiRequest(endpoint: str, method: str = "GET", args: dict[str, str] = {}) ->
             return 0, f"Unsupported method \"{method}\".", {}
 
     # Make request, handle errors.
+    response_code = -1
     try:
+        # Normal response.
         response = urllib.request.urlopen(request, timeout=5.0)
-    except urllib.error.HTTPError as exception:
-        try:
-            return exception.code, json.loads(exception.read().decode())["error"], {}
-        except:
-            return exception.code, exception.reason, {}
-    except urllib.error.URLError as exception:
-        return 0, exception.reason, {}
-
-    # Parse response.
-    try:
+        response_code = response.status
         response_json = json.loads(response.read().decode())
+        return response_code, None, response_json
+
+    except urllib.error.HTTPError as error_response:
+        # Error response (ie, 400), should still be OK.
+        response_json = json.loads(error_response.read().decode())
+        return error_response.code, None, response_json
+
+    except urllib.error.URLError as exception:
+        # Request error.
+        return response_code, str(exception.reason), {}
+
     except json.JSONDecodeError as exception:
-        return response.status, exception.msg, {}
+        # Response did not contain valid JSON.
+        return response_code, exception.msg, {}
+
     except UnicodeDecodeError as exception:
-        return response.status, exception.reason, {}
+        # Improper response encoding.
+        return response_code, exception.reason, {}
+
     except Exception as exception:
-        return response.status, "Exception while parsing reponse.", {}
-
-    if not response_json.get("success", False):
-        error = response_json.get("error", "No message provided.")
-        return response.status, error, response_json
-
-    return response.status, None, response_json
+        # Generally FUBAR
+        return response_code, str(exception), {}
 
 def whoami() -> int:
     """
