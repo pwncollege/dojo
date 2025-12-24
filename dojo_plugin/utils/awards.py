@@ -62,10 +62,12 @@ def get_belts():
 
 def get_viewable_emojis(user):
     result = { }
+    stale = { }
     viewable_dojos = {
         dojo.hex_dojo_id: dojo
         for dojo in Dojos.viewable(user=user).where(Dojos.data["type"].astext != "example")
     }
+    current_time = datetime.datetime.now
     
     emojis = (
         Emojis.query
@@ -76,16 +78,18 @@ def get_viewable_emojis(user):
             Emojis.name,
             Emojis.description,
             Emojis.category,
+            Emojis.expiration,
             Users.id.label("user_id"),
         )
     )
-    
+
     seen = set()
     for emoji in emojis:
-        key = (emoji.user_id, emoji.category)
+        key = (emoji.user_id, emoji.category, emoji.description) # allow duplicate "none" category emojis for foldering.
         if key in seen:
             continue
-            
+        seen.add(key)
+
         if emoji.category is None:
             emoji_symbol = emoji.name
             url = "#"
@@ -95,18 +99,36 @@ def get_viewable_emojis(user):
                 continue
             emoji_symbol = dojo.award.get('emoji')
             url = url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
-        
-        is_stale = emoji.name == "STALE"
-        
-        result.setdefault(emoji.user_id, []).append({
-            "text": emoji.description,
-            "emoji": emoji_symbol,
-            "count": 1,
-            "url": url,
-            "stale": is_stale,
-        })
-        seen.add(key)
-    
+
+        is_stale = emoji.name == "STALE" or current_time > emoji.expiration
+
+        user_emojis = (stale if is_stale else result).setdefault(emoji.user_id, [])
+
+        foldered = False
+        for user_emoji in user_emojis:
+            # emoji can be foldered.
+            if user_emoji["emoji"] == emoji_symbol:
+                user_emoji["text"] += f"\n{emoji.description}"
+                user_emoji["count"] += 1
+                user_emoji["url"] = user_emoji["url"] if len(user_emoji["url"]) > len(url) else url # if there is an emoji with an actual url, pick that (not sure how we would do multiple urls on one emoji)
+                foldered = True
+                break
+        if not foldered:
+            # create a new entry.
+            user_emojis.append({
+                "text": emoji.description,
+                "emoji": emoji_symbol,
+                "count": 1,
+                "url": url,
+                "stale": is_stale,
+            })
+
+    # add stale emojis to result.
+    for stale_user, stale_emojis in stale.items():
+        emoji_list = result.setdefault(stale_user, [])
+        for stale_emoji in stale_emojis:
+            emoji_list.append(stale_emoji)
+
     return result
 
 def update_awards(user):
@@ -156,3 +178,27 @@ def update_awards(user):
         if dojo.official or dojo.data.get("type") == "public":
             publish_emoji_earned(user, emoji, display_name, description, 
                                dojo_id=dojo.reference_id, dojo_name=display_name)
+            
+def grant_event_medal(user, event: str, place: int, expiration: datetime.datetime) -> bool:
+    """
+    Grants an event award to a user.
+
+    `place` must be one of `{1, 2, 3}`.
+
+    Returns if the operation succeeded.
+    """
+    # guard inputs.
+    if place not in [1, 2, 3]:
+        return False
+    if expiration < datetime.datetime.now():
+        return False
+
+    # grant emoji with given expiration.
+    db.session.add(Emojis(
+        user=user,
+        name=["🥇", "🥈", "🥉"][place - 1],
+        description=f"Awarded for ranking {["first", "second", "third"][place - 1]} in {event}.",
+        category=None,
+        expiration=expiration))
+    db.session.commit()
+    return True
