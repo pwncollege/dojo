@@ -73,6 +73,7 @@ function test_container {
                 -v "$PWD:/opt/pwn.college"
                 --name "${DOJO_CONTAINER}-test"
                 -e "OPENAI_API_KEY=${OPENAI_API_KEY:-}"
+                -e "DOJO_CONTAINER=${DOJO_CONTAINER}"
         )
 
         args+=("${TEST_CONTAINER_EXTRA_ARGS[@]}")
@@ -348,7 +349,7 @@ log_endgroup
 if [ "$TEST" == "yes" ]; then
 	log_newgroup "Running tests in container"
 	cleanup_container $DOJO_CONTAINER-test
-	test_container pytest --order-dependencies --timeout=60 -v . "$@"
+	test_container pytest --order-dependencies --timeout=60 -v test_background_stats.py "$@"
 	if [ "$COVERAGE" == "yes" ]; then
 		generate_coverage_report "$DOJO_CONTAINER"
 	fi

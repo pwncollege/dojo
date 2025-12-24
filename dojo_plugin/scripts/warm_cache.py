@@ -6,6 +6,7 @@ os.environ["CACHE_WARMER"] = "1"
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+from ..models import Dojos
 from ..utils import scores
 scores.dojo_scores()
 logger.info("Dojo scores cache warmed.")

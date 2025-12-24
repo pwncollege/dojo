@@ -98,6 +98,8 @@ services:
       - UPLOAD_FOLDER=/var/uploads
       - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
       - REDIS_URL=redis://cache:6379
+      - BACKGROUND_STATS_ENABLED=1
+      - BACKGROUND_STATS_FALLBACK=1
       - WORKERS=8
       - LOG_FOLDER=/var/log/CTFd
       - ACCESS_LOG=-
@@ -202,9 +204,55 @@ services:
     profiles:
       - main
     restart: always
-    image: redis:4
+    image: redis:7
     volumes:
       - /data/redis:/data
+
+  stats-worker:
+    container_name: stats-worker
+    hostname: stats-worker
+    profiles:
+      - main
+    restart: always
+    build: /opt/CTFd
+    platform: linux/amd64
+    user: root
+    entrypoint: ""
+    command: ["flask", "shell", "/opt/CTFd/CTFd/plugins/dojo_plugin/worker/__main__.py"]
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
+      - REDIS_URL=redis://cache:6379
+      - BACKGROUND_STATS_ENABLED=1
+      - BACKGROUND_STATS_FALLBACK=1
+      - DOJO_HOST=${DOJO_HOST}
+      - WORKSPACE_HOST=${WORKSPACE_HOST}
+      - WORKSPACE_SECRET=${WORKSPACE_SECRET}
+      - HOST_DATA_PATH=/data
+      - MAIL_SERVER=${MAIL_SERVER}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_ADDRESS=${MAIL_ADDRESS}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      - INTERNET_FOR_ALL=${INTERNET_FOR_ALL}
+      - MAC_HOSTNAME=${MAC_HOSTNAME}
+      - MAC_USERNAME=${MAC_USERNAME}
+    volumes:
+      - /data/dojos:/var/dojos
+      - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
+      - ./user_firewall.allowed:/var/user_firewall.allowed:ro
+      - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
+      - /opt/pwn.college/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro
+    depends_on:
+      pgbouncer:
+        condition: service_started
+      cache:
+        condition: service_started
+      ctfd:
+        condition: service_healthy
 
   sshd:
     container_name: sshd

@@ -1,17 +1,13 @@
-from CTFd.cache import cache
-from CTFd.models import Solves
+import logging
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 
-from . import force_cache_updates, get_all_containers, DojoChallenges
-from .background_stats import get_cached_stat, BACKGROUND_STATS_ENABLED, BACKGROUND_STATS_FALLBACK
+from CTFd.models import Solves
+from ...models import Dojos, DojoChallenges
+from ...utils.background_stats import set_cached_stat
+from . import register_handler
 
-@cache.memoize(timeout=1200, forced_update=force_cache_updates)
-def get_container_stats():
-    containers = get_all_containers()
-    return [{attr: container.labels[f"dojo.{attr}_id"]
-            for attr in ["dojo", "module", "challenge"]}
-            for container in containers]
+logger = logging.getLogger(__name__)
 
 def calculate_dojo_stats(dojo):
     now = datetime.now()
@@ -64,7 +60,7 @@ def calculate_dojo_stats(dojo):
     recent_solves = [
         {
             'challenge_name': f'{solve.challenge_name}',
-            'date': solve.date,
+            'date': solve.date.isoformat() if solve.date else None,
             'date_display': solve.date.strftime('%m/%d/%y %I:%M %p') if solve.date else 'Unknown time'
         }
         for solve in basic_query
@@ -97,26 +93,48 @@ def calculate_dojo_stats(dojo):
         }
     }
 
-@cache.memoize(timeout=1200, forced_update=force_cache_updates)
-def get_dojo_stats(dojo):
-    if BACKGROUND_STATS_ENABLED:
+@register_handler("dojo_stats_update")
+def handle_dojo_stats_update(payload):
+    from CTFd.models import db
+
+    dojo_id = payload.get("dojo_id")
+    if not dojo_id:
+        logger.warning("dojo_stats_update event missing dojo_id")
+        return
+
+    logger.info(f"Handling dojo_stats_update for dojo_id {dojo_id}")
+
+    db.session.expire_all()
+    db.session.commit()
+
+    dojo = Dojos.query.get(dojo_id)
+    if not dojo:
+        logger.info(f"Dojo not found for dojo_id {dojo_id} (may have been deleted)")
+        return
+
+    try:
+        logger.info(f"Calculating stats for dojo {dojo.reference_id} (dojo_id={dojo_id})...")
+        stats = calculate_dojo_stats(dojo)
         cache_key = f"stats:dojo:{dojo.reference_id}"
-        cached = get_cached_stat(cache_key)
-        if cached:
-            for solve in cached.get('recent_solves', []):
-                if solve.get('date') and isinstance(solve['date'], str):
-                    solve['date'] = datetime.fromisoformat(solve['date'])
-            return cached
+        set_cached_stat(cache_key, stats)
+        logger.info(f"Successfully updated and cached stats for dojo {dojo.reference_id} (solves: {stats['solves']}, users: {stats['users']})")
+    except Exception as e:
+        logger.error(f"Error calculating stats for dojo_id {dojo_id}: {e}", exc_info=True)
 
-        if not BACKGROUND_STATS_FALLBACK:
-            return {
-                'users': 0,
-                'challenges': 0,
-                'visible_challenges': 0,
-                'solves': 0,
-                'recent_solves': [],
-                'trends': {'solves': 0, 'users': 0, 'active': 0, 'challenges': 0},
-                'chart_data': {'labels': [], 'solves': [], 'users': []}
-            }
+def initialize_all_dojo_stats():
+    from CTFd.models import db
 
-    return calculate_dojo_stats(dojo)
+    db.session.expire_all()
+    db.session.commit()
+
+    dojos = Dojos.query.all()
+    logger.info(f"Initializing stats for {len(dojos)} dojos...")
+
+    for dojo in dojos:
+        try:
+            stats = calculate_dojo_stats(dojo)
+            cache_key = f"stats:dojo:{dojo.reference_id}"
+            set_cached_stat(cache_key, stats)
+            logger.info(f"Initialized stats for dojo {dojo.reference_id}")
+        except Exception as e:
+            logger.error(f"Error initializing stats for dojo {dojo.reference_id}: {e}", exc_info=True)

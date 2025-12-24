@@ -63,6 +63,11 @@ def get_scoreboard_for(model, duration):
 def invalidate_scoreboard_cache():
     cache.delete_memoized(get_scoreboard_for)
 
+def publish_dojo_stats_event(dojo_id_int):
+    from ...utils.background_stats import publish_stat_event, BACKGROUND_STATS_ENABLED
+    if BACKGROUND_STATS_ENABLED:
+        publish_stat_event("dojo_stats_update", {"dojo_id": dojo_id_int})
+
 # handle cache invalidation for new solves, dojo creation, dojo challenge creation
 @event.listens_for(Dojos, 'after_insert', propagate=True)
 @event.listens_for(Dojos, 'after_delete', propagate=True)
@@ -77,6 +82,13 @@ def invalidate_scoreboard_cache():
 def hook_object_creation(mapper, connection, target):
     invalidate_scoreboard_cache()
 
+    if isinstance(target, Solves):
+        dojo_challenge = DojoChallenges.query.filter_by(challenge_id=target.challenge_id).first()
+        if dojo_challenge:
+            publish_dojo_stats_event(dojo_challenge.dojo.dojo_id)
+    elif isinstance(target, Dojos):
+        publish_dojo_stats_event(target.dojo_id)
+
 @event.listens_for(Users, 'after_update', propagate=True)
 @event.listens_for(Dojos, 'after_update', propagate=True)
 @event.listens_for(DojoUsers, 'after_update', propagate=True)
@@ -89,10 +101,15 @@ def hook_object_creation(mapper, connection, target):
 @event.listens_for(Belts, 'after_update', propagate=True)
 @event.listens_for(Emojis, 'after_update', propagate=True)
 def hook_object_update(mapper, connection, target):
-    # according to the docs, this is a necessary check to see if the
-    # target actually was modified (and thus an update was made)
     if Session.object_session(target).is_modified(target, include_collections=False):
         invalidate_scoreboard_cache()
+
+        if isinstance(target, Dojos):
+            publish_dojo_stats_event(target.dojo_id)
+        elif isinstance(target, DojoChallenges):
+            publish_dojo_stats_event(target.dojo.dojo_id)
+        elif isinstance(target, DojoModules):
+            publish_dojo_stats_event(target.dojo.dojo_id)
 
 def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     belt_data = get_belts()
