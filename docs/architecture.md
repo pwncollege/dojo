@@ -77,7 +77,7 @@ Conceptually, this looks like:
 The dojo has a few scripts to help manage things:
 
 - [dojo-init](https://github.com/pwncollege/dojo/blob/master/dojo/dojo-init) initializes the host and prepares it to run the dojo.
-- [dojo](https://github.com/pwncollege/dojo/tree/master/dojo) provides functionality for admins to interact with the database (both in Python and via the DB client directly), user containers, and the dojo containers themselves.
+- [dojo](https://github.com/pwncollege/dojo/tree/master/dojo/dojo) provides functionality for admins to interact with the database (both in Python and via the DB client directly), user containers, and the dojo containers themselves.
 - [dojo-node](https://github.com/pwncollege/dojo/blob/master/dojo/dojo-node) manages the dojo host's connection to its user hosting nodes. This is likely only used in the main https://pwn.college deployment.
 
 ## DOJO Startup
