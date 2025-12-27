@@ -1,5 +1,8 @@
 import json
+import time
+import datetime
 import subprocess
+from typing import Any
 
 from utils import dojo_run, get_outer_container_for, get_user_id, workspace_run, start_challenge
 
@@ -8,12 +11,41 @@ CLI_TOKEN_NOT_FOUND = 2
 CLI_API_ERROR = 3
 CLI_INCORRECT = 4
 
-def inspect_container(username):
+def inspect_container(username) -> dict[str, Any]:
     container_name = f"user_{get_user_id(username)}"
     outer_container = get_outer_container_for(container_name)
     args = [ "docker", "inspect", container_name ]
-    result = dojo_run(*args, stdin=subprocess.DEVNULL, check=True, container=outer_container).stdout
-    return json.loads(result)
+    try:
+        result = dojo_run(*args, stdin=subprocess.DEVNULL, check=True, container=outer_container).stdout
+        return json.loads(result)
+    except:
+        return {}
+
+def validate_current_container(username, dojo, module, challenge, attempts=5, mode:str=None, before:datetime.datetime=None, after:datetime.datetime=None) -> bool:
+    """
+    Validates that the current container for the given user
+    matches the given challenge. Can also check that the
+    container was started before or after a given point in
+    time, and that it is in a certain mode.
+    """
+    for _ in range(attempts):
+        container = inspect_container(username)
+        try:
+            labels = container["Config"]["Labels"]
+            assert labels["dojo.dojo_id"] == dojo
+            assert labels["dojo.module_id"] == module
+            assert labels["dojo.challenge_id"] == challenge
+            if mode is not None:
+                assert labels["dojo.mode"] == mode
+            if before is not None:
+                assert before > datetime.datetime.fromisoformat(container["Created"])
+            if after is not None:
+                assert after < datetime.datetime.fromisoformat(container["Created"])
+            return True
+        except:
+            time.sleep(1)
+    return False
+
 
 def test_whoami(random_user, welcome_dojo):
     """
@@ -108,7 +140,7 @@ def test_restart(random_user, welcome_dojo):
 
     try:
         result = workspace_run("dojo restart", user=name)
-        assert False, f"Result of running command \"dojo restart\": {(result.stdout, result.stderr)}"
+        assert False, f"\"dojo restart\" should not have result: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
         assert False, f"Exception when running command \"dojo restart\": {(error.stdout, error.stderr)}"
 
