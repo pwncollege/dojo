@@ -224,13 +224,13 @@ def main():
         "--privileged",
         "--practice",
         "-P",
-        action="store_false", # By default, do not switch to privileged.
+        action="store_true", # By default, do not switch to privileged.
         help="Restart in privileged mode."
     )
     restart_parser.add_argument(
         "--normal",
         "-N",
-        action="store_false", # By default, do not switch to normal.
+        action="store_true", # By default, do not switch to normal.
         help="Restart in normal mode."
     )
 
