@@ -7,9 +7,9 @@ from CTFd.plugins import bypass_csrf_protection
 from CTFd.models import Users, Solves
 from CTFd.utils.user import get_current_user
 from CTFd.plugins.challenges import get_chal_class
-from dojo_plugin.api.v1.docker import start_challenge
-from dojo_plugin.models import DojoChallenges, DojoModules
-from dojo_plugin.utils.feed import publish_container_start
+from .docker import start_challenge
+from ...models import DojoChallenges, DojoModules
+from ...utils.feed import publish_container_start
 from ...utils import is_challenge_locked, validate_user_container, get_current_container
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 
