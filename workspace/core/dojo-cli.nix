@@ -3,6 +3,7 @@
 pkgs.writeScriptBin "dojo" ''
 #!${pkgs.python3}/bin/python3
 
+from typing import Any
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -18,11 +19,12 @@ INCORRECT_USAGE = 1
 TOKEN_NOT_FOUND = 2
 API_ERROR = 3
 INCORRECT = 4
+START_FAILED = 5
 
 def get_token() -> str | None:
     return os.environ.get("DOJO_AUTH_TOKEN")
 
-def apiRequest(endpoint: str, method: str = "GET", args: dict[str, str] = {}) -> tuple[int, str | None, dict[str, str]]:
+def apiRequest(endpoint: str, method: str = "GET", args: dict[str, Any] = {}) -> tuple[int, str | None, dict[str, str]]:
     """
     Make a request to the given integration endpoint.
     Will call `sys.exit` if the auth token is not specified in the environment.
@@ -150,6 +152,44 @@ def solve(args : argparse.Namespace) -> int:
 
     return 0
 
+def restart(args : argparse.Namespace) -> int:
+    """
+    Calls the START integration api configured to
+    use the current challenge.
+    """
+
+    # Check what mode to restart in.
+    if args.privileged:
+        mode = "privileged"
+    elif args.normal:
+        mode = "normal"
+    else:
+        mode = "current"
+
+    # Make request.
+    print(f"Restarting current challenge in {mode} mode.")
+    status, error, jsonData = apiRequest(
+        "/integration/start",
+        method="POST",
+        args={
+            "use_current_challenge": True,
+            "mode": mode
+        }
+    )
+    if error is not None:
+        print(f"START request failed ({status}): {error}")
+        return API_ERROR
+    
+    # Check for success.
+    if not jsonData.get("success", False):
+        print(f"Failed to restart challenge:\n{jsonData.get("error", "Unspecified error.")}")
+        return START_FAILED
+
+    # The impossible restart message.
+    print("Restarted? (not sure how you're seeing this)")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="dojo",
@@ -176,6 +216,24 @@ def main():
         type=str
     )
 
+    restart_parser = subparsers.add_parser(
+        name="restart",
+        help="Restart the current challenge. Restarts in the current mode by default."
+    )
+    restart_parser.add_argument(
+        "--privileged",
+        "--practice",
+        "-P",
+        action="store_false", # By default, do not switch to privileged.
+        help="Restart in privileged mode."
+    )
+    restart_parser.add_argument(
+        "--normal",
+        "-N",
+        action="store_false", # By default, do not switch to normal.
+        help="Restart in normal mode."
+    )
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -187,6 +245,9 @@ def main():
     
     if args.command.lower() == "submit":
         return solve(args)
+    
+    if args.command.lower() == "restart":
+        return restart(args)
 
     parser.print_help()
     return INCORRECT_USAGE
