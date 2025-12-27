@@ -131,7 +131,12 @@ class start(Resource):
         user = get_current_user()
 
         # Determine what challenge we are trying to start.
-        if data.get("use_current_module", False):
+        if data.get("use_current_challenge", False):
+            dojo_challenge = get_current_dojo_challenge(user)
+            dojo_id = dojo_challenge.dojo.reference_id
+            module_id = dojo_challenge.module.id
+            challenge_id = dojo_challenge.id
+        elif data.get("use_current_module", False):
             dojo_challenge = get_current_dojo_challenge(user)
             dojo_id = dojo_challenge.dojo.reference_id
             module_id = dojo_challenge.module.id
