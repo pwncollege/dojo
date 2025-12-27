@@ -157,6 +157,13 @@ def load(app):
     setup_trace_id_tracking(app)
     setup_uncaught_error_logging(app)
 
+    from .api.v1.scoreboard import _publish_queued_events
+
+    @app.after_request
+    def publish_stat_events_after_request(response):
+        _publish_queued_events()
+        return response
+
     app.permanent_session_lifetime = datetime.timedelta(days=180)
 
     CHALLENGE_CLASSES["dojo"] = DojoChallenge

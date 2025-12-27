@@ -33,8 +33,7 @@ def email_symbol_asset(email):
         group = "hacker.png"
     return url_for("views.themes", path=f"img/dojo/{group}")
 
-@cache.memoize(timeout=SCOREBOARD_CACHE_TIMEOUT_SECONDS)
-def get_scoreboard_for(model, duration):
+def calculate_scoreboard_sync(model, duration):
     duration_filter = (
         Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
         if duration else True
@@ -60,6 +59,27 @@ def get_scoreboard_for(model, duration):
     results = [{key: getattr(item, key) for key in item.keys()} for item in row_results]
     return results
 
+@cache.memoize(timeout=SCOREBOARD_CACHE_TIMEOUT_SECONDS)
+def get_scoreboard_for(model, duration):
+    from ...utils.background_stats import get_cached_stat, BACKGROUND_STATS_ENABLED, BACKGROUND_STATS_FALLBACK
+
+    if BACKGROUND_STATS_ENABLED:
+        if isinstance(model, Dojos):
+            cache_key = f"stats:scoreboard:dojo:{model.reference_id}:{duration}"
+        elif isinstance(model, DojoModules):
+            cache_key = f"stats:scoreboard:module:{model.dojo.reference_id}:{model.id}:{duration}"
+        else:
+            return calculate_scoreboard_sync(model, duration)
+
+        cached = get_cached_stat(cache_key)
+        if cached:
+            return cached
+
+        if not BACKGROUND_STATS_FALLBACK:
+            return []
+
+    return calculate_scoreboard_sync(model, duration)
+
 def invalidate_scoreboard_cache():
     cache.delete_memoized(get_scoreboard_for)
 
@@ -68,7 +88,25 @@ def publish_dojo_stats_event(dojo_id_int):
     if BACKGROUND_STATS_ENABLED:
         publish_stat_event("dojo_stats_update", {"dojo_id": dojo_id_int})
 
+def publish_scoreboard_event(model_type, model_id):
+    from ...utils.background_stats import publish_stat_event, BACKGROUND_STATS_ENABLED
+    if BACKGROUND_STATS_ENABLED:
+        publish_stat_event("scoreboard_update", {"model_type": model_type, "model_id": model_id})
+
 # handle cache invalidation for new solves, dojo creation, dojo challenge creation
+def _queue_stat_events_for_publish():
+    from flask import g
+    if not hasattr(g, '_pending_stat_events'):
+        g._pending_stat_events = []
+    return g._pending_stat_events
+
+def _publish_queued_events():
+    from flask import g
+    if hasattr(g, '_pending_stat_events'):
+        for event_func in g._pending_stat_events:
+            event_func()
+        g._pending_stat_events = []
+
 @event.listens_for(Dojos, 'after_insert', propagate=True)
 @event.listens_for(Dojos, 'after_delete', propagate=True)
 @event.listens_for(Solves, 'after_insert', propagate=True)
@@ -85,9 +123,15 @@ def hook_object_creation(mapper, connection, target):
     if isinstance(target, Solves):
         dojo_challenge = DojoChallenges.query.filter_by(challenge_id=target.challenge_id).first()
         if dojo_challenge:
-            publish_dojo_stats_event(dojo_challenge.dojo.dojo_id)
+            dojo_id = dojo_challenge.dojo.dojo_id
+            module_id = {"dojo_id": dojo_challenge.dojo.dojo_id, "module_index": dojo_challenge.module.module_index}
+            _queue_stat_events_for_publish().append(lambda: publish_dojo_stats_event(dojo_id))
+            _queue_stat_events_for_publish().append(lambda: publish_scoreboard_event("dojo", dojo_id))
+            _queue_stat_events_for_publish().append(lambda: publish_scoreboard_event("module", module_id))
     elif isinstance(target, Dojos):
-        publish_dojo_stats_event(target.dojo_id)
+        dojo_id = target.dojo_id
+        _queue_stat_events_for_publish().append(lambda: publish_dojo_stats_event(dojo_id))
+        _queue_stat_events_for_publish().append(lambda: publish_scoreboard_event("dojo", dojo_id))
 
 @event.listens_for(Users, 'after_update', propagate=True)
 @event.listens_for(Dojos, 'after_update', propagate=True)
@@ -106,10 +150,14 @@ def hook_object_update(mapper, connection, target):
 
         if isinstance(target, Dojos):
             publish_dojo_stats_event(target.dojo_id)
+            publish_scoreboard_event("dojo", target.dojo_id)
         elif isinstance(target, DojoChallenges):
             publish_dojo_stats_event(target.dojo.dojo_id)
+            publish_scoreboard_event("dojo", target.dojo.dojo_id)
+            publish_scoreboard_event("module", {"dojo_id": target.dojo.dojo_id, "module_index": target.module.module_index})
         elif isinstance(target, DojoModules):
             publish_dojo_stats_event(target.dojo.dojo_id)
+            publish_scoreboard_event("module", {"dojo_id": target.dojo.dojo_id, "module_index": target.module_index})
 
 def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     belt_data = get_belts()

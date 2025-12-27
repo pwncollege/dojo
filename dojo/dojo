@@ -178,7 +178,7 @@ case "$ACTION" in
         timeout=60
         elapsed=0
         while [ $elapsed -lt $timeout ]; do
-            if docker logs stats-worker 2>&1 | grep -q "Cold start complete - all dojo stats initialized"; then
+            if docker logs stats-worker 2>&1 | grep -q "Cold start complete - all stats initialized"; then
                 echo "Stats-worker initialization complete"
                 exit 0
             fi

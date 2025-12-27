@@ -20,11 +20,18 @@ signal.signal(signal.SIGINT, signal_handler)
 logger.info("Starting stats background worker...")
 
 from ..worker.handlers.dojo_stats import initialize_all_dojo_stats
+from ..worker.handlers.scoreboard import initialize_all_scoreboards
+
 logger.info("Performing cold start cache initialization...")
 
 try:
     initialize_all_dojo_stats()
-    logger.info("Cold start complete - all dojo stats initialized")
+    logger.info("Dojo stats initialization complete")
+
+    initialize_all_scoreboards()
+    logger.info("Scoreboard initialization complete")
+
+    logger.info("Cold start complete - all stats initialized")
 except Exception as e:
     logger.error(f"Error during cold start: {e}", exc_info=True)
 
