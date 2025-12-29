@@ -17,7 +17,7 @@ def inspect_container(username) -> dict[str, Any]:
     args = [ "docker", "inspect", container_name ]
     try:
         result = dojo_run(*args, stdin=subprocess.DEVNULL, check=True, container=outer_container).stdout
-        return json.loads(result)
+        return json.loads(result)[0]
     except:
         return {}
 
