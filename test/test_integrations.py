@@ -198,11 +198,13 @@ def test_start_relative(random_user, welcome_dojo):
         result = workspace_run("dojo start practice", user=name)
         assert False, f"\"dojo start\" should not have succeeded: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        if not validate_current_container(name, welcome_dojo, "welcome", "practice"):
+        if not validate_current_container(name, "welcome", "welcome", "practice"):
             container = inspect_container(name)
             labels = container.get("Config", {}).get("Labels", {})
-            assert labels != {}, f"Expected /{welcome_dojo}/welcome/practice, got no container."
-            assert False, f"Expected /{welcome_dojo}/welcome/practice, got /{labels["dojo.dojo_id"]}/{labels["dojo.module_id"]}/{labels["dojo.challenge_id"]}."
+            expected = f"/welcome/welcome/practice"
+            result = f"/{labels["dojo.dojo_id"]}/{labels["dojo.module_id"]}/{labels["dojo.challenge_id"]}"
+            assert labels != {}, f"Expected {expected}, got no container."
+            assert False, f"Expected {expected}, got {result}."
 
 
 def test_start_absolute(random_user, welcome_dojo, example_dojo):
@@ -218,11 +220,13 @@ def test_start_absolute(random_user, welcome_dojo, example_dojo):
         result = workspace_run(f"dojo start /{welcome_dojo}/welcome/flag", user=name)
         assert False, f"\"dojo start\" should not have succeeded: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        if not validate_current_container(name, welcome_dojo, "welcome", "flag"):
+        if not validate_current_container(name, "welcome", "welcome", "flag"):
             container = inspect_container(name)
             labels = container.get("Config", {}).get("Labels", {})
-            assert labels != {}, f"Expected /{welcome_dojo}/welcome/flag, got no container."
-            assert False, f"Expected /{welcome_dojo}/welcome/flag, got /{labels["dojo.dojo_id"]}/{labels["dojo.module_id"]}/{labels["dojo.challenge_id"]}."
+            expected = f"/welcome/welcome/flag"
+            result = f"/{labels["dojo.dojo_id"]}/{labels["dojo.module_id"]}/{labels["dojo.challenge_id"]}"
+            assert labels != {}, f"Expected {expected}, got no container."
+            assert False, f"Expected {expected}, got {result}."
 
 def test_start_privileged(random_user, welcome_dojo):
     """
@@ -236,12 +240,13 @@ def test_start_privileged(random_user, welcome_dojo):
         result = workspace_run("dojo start practice -P", user=name)
         assert False, f"\"dojo start\" should not have succeeded: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        if not validate_current_container(name, welcome_dojo, "welcome", "practice", mode="privileged"):
+        if not validate_current_container(name, "welcome", "welcome", "practice", mode="privileged"):
             container = inspect_container(name)
             labels = container.get("Config", {}).get("Labels", {})
-            expected = f"/{welcome_dojo}/welcome/practice [privileged]"
+            expected = f"/welcome/welcome/practice [privileged]"
+            result = f"/{labels["dojo.dojo_id"]}/{labels["dojo.module_id"]}/{labels["dojo.challenge_id"]} [{labels["dojo.mode"]}]"
             assert labels != {}, f"Expected {expected}, got no container."
-            assert False, f"Expected {expected}, got /{labels["dojo.dojo_id"]}/{labels["dojo.module_id"]}/{labels["dojo.challenge_id"]} [{labels["dojo.mode"]}]."
+            assert False, f"Expected {expected}, got {result}."
 
 def test_start_no_privileged(random_user, welcome_dojo):
     """
