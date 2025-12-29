@@ -1,4 +1,5 @@
 import pytest
+import time
 
 from utils import DOJO_URL, workspace_run, start_challenge, solve_challenge
 
@@ -43,6 +44,8 @@ def test_scoreboard(random_user_name, random_user_session, example_dojo):
     result = workspace_run("/challenge/apple", user=random_user_name)
     flag = result.stdout.strip()
     solve_challenge(dojo, module, challenge, session=random_user_session, flag=flag)
+
+    time.sleep(2)
 
     new_standings = get_all_standings(random_user_session, dojo, module)
     assert len(prior_standings) != len(new_standings), "Expected to have a new entry in the standings"

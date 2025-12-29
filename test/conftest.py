@@ -51,6 +51,9 @@ def completionist_user(simple_award_dojo, codepoints_award_dojo):
         start_challenge(codepoints_award_dojo, module, challenge, session=session)
         solve_challenge(codepoints_award_dojo, module, challenge, session=session, user=random_id)
 
+    import time
+    time.sleep(2)
+
     yield random_id, session
 
 

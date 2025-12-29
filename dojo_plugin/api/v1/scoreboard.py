@@ -59,23 +59,32 @@ def calculate_scoreboard_sync(model, duration):
     results = [{key: getattr(item, key) for key in item.keys()} for item in row_results]
     return results
 
-@cache.memoize(timeout=SCOREBOARD_CACHE_TIMEOUT_SECONDS)
 def get_scoreboard_for(model, duration):
     from ...utils.background_stats import get_cached_stat, BACKGROUND_STATS_ENABLED, BACKGROUND_STATS_FALLBACK
+    import logging
+    logger = logging.getLogger(__name__)
 
     if BACKGROUND_STATS_ENABLED:
         if isinstance(model, Dojos):
-            cache_key = f"stats:scoreboard:dojo:{model.reference_id}:{duration}"
+            cache_key = f"stats:scoreboard:dojo:{model.dojo_id}:{duration}"
         elif isinstance(model, DojoModules):
-            cache_key = f"stats:scoreboard:module:{model.dojo.reference_id}:{model.id}:{duration}"
+            cache_key = f"stats:scoreboard:module:{model.dojo_id}:{model.module_index}:{duration}"
         else:
             return calculate_scoreboard_sync(model, duration)
 
+        logger.info(f"get_scoreboard_for: checking cache key {cache_key}")
         cached = get_cached_stat(cache_key)
+        logger.info(f"get_scoreboard_for: cached={cached is not None}, len={len(cached) if cached else 0}, fallback={BACKGROUND_STATS_FALLBACK}")
+
         if cached:
+            logger.info(f"Returning cached scoreboard with {len(cached)} entries")
             return cached
 
-        if not BACKGROUND_STATS_FALLBACK:
+        if BACKGROUND_STATS_FALLBACK:
+            logger.info(f"Cache miss/empty, falling back to sync calculation")
+            return calculate_scoreboard_sync(model, duration)
+        else:
+            logger.info(f"Cache miss/empty, no fallback, returning []")
             return []
 
     return calculate_scoreboard_sync(model, duration)
@@ -102,7 +111,13 @@ def _queue_stat_events_for_publish():
 
 def _publish_queued_events():
     from flask import g
+    import logging
+    logger = logging.getLogger(__name__)
+
     if hasattr(g, '_pending_stat_events'):
+        count = len(g._pending_stat_events)
+        if count > 0:
+            logger.info(f"Publishing {count} queued stat events after request")
         for event_func in g._pending_stat_events:
             event_func()
         g._pending_stat_events = []
@@ -121,17 +136,23 @@ def hook_object_creation(mapper, connection, target):
     invalidate_scoreboard_cache()
 
     if isinstance(target, Solves):
-        dojo_challenge = DojoChallenges.query.filter_by(challenge_id=target.challenge_id).first()
-        if dojo_challenge:
+        import logging
+        logger = logging.getLogger(__name__)
+
+        dojo_challenges = DojoChallenges.query.filter_by(challenge_id=target.challenge_id).all()
+        logger.info(f"Solve listener fired: challenge_id={target.challenge_id}, found {len(dojo_challenges)} dojo(s)")
+
+        for dojo_challenge in dojo_challenges:
             dojo_id = dojo_challenge.dojo.dojo_id
             module_id = {"dojo_id": dojo_challenge.dojo.dojo_id, "module_index": dojo_challenge.module.module_index}
-            _queue_stat_events_for_publish().append(lambda: publish_dojo_stats_event(dojo_id))
-            _queue_stat_events_for_publish().append(lambda: publish_scoreboard_event("dojo", dojo_id))
-            _queue_stat_events_for_publish().append(lambda: publish_scoreboard_event("module", module_id))
+            logger.info(f"Queueing events for dojo {dojo_challenge.dojo.reference_id} (dojo_id={dojo_id})")
+            _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
+            _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))
+            _queue_stat_events_for_publish().append(lambda m_id=module_id: publish_scoreboard_event("module", m_id))
     elif isinstance(target, Dojos):
         dojo_id = target.dojo_id
-        _queue_stat_events_for_publish().append(lambda: publish_dojo_stats_event(dojo_id))
-        _queue_stat_events_for_publish().append(lambda: publish_scoreboard_event("dojo", dojo_id))
+        _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
+        _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))
 
 @event.listens_for(Users, 'after_update', propagate=True)
 @event.listens_for(Dojos, 'after_update', propagate=True)
@@ -149,15 +170,20 @@ def hook_object_update(mapper, connection, target):
         invalidate_scoreboard_cache()
 
         if isinstance(target, Dojos):
-            publish_dojo_stats_event(target.dojo_id)
-            publish_scoreboard_event("dojo", target.dojo_id)
+            dojo_id = target.dojo_id
+            _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
+            _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))
         elif isinstance(target, DojoChallenges):
-            publish_dojo_stats_event(target.dojo.dojo_id)
-            publish_scoreboard_event("dojo", target.dojo.dojo_id)
-            publish_scoreboard_event("module", {"dojo_id": target.dojo.dojo_id, "module_index": target.module.module_index})
+            dojo_id = target.dojo.dojo_id
+            module_id = {"dojo_id": target.dojo.dojo_id, "module_index": target.module.module_index}
+            _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
+            _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))
+            _queue_stat_events_for_publish().append(lambda m_id=module_id: publish_scoreboard_event("module", m_id))
         elif isinstance(target, DojoModules):
-            publish_dojo_stats_event(target.dojo.dojo_id)
-            publish_scoreboard_event("module", {"dojo_id": target.dojo.dojo_id, "module_index": target.module_index})
+            dojo_id = target.dojo.dojo_id
+            module_id = {"dojo_id": target.dojo.dojo_id, "module_index": target.module_index}
+            _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
+            _queue_stat_events_for_publish().append(lambda m_id=module_id: publish_scoreboard_event("module", m_id))
 
 def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     belt_data = get_belts()
@@ -183,8 +209,14 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
         })
         return result
 
+    standings_list = []
+    for item in pagination.items:
+        s = standing(item)
+        if s is not None:
+            standings_list.append(s)
+
     result = {
-        "standings": [standing(item) for item in pagination.items],
+        "standings": standings_list,
     }
 
     pages = set(page for page in pagination.iter_pages() if page)

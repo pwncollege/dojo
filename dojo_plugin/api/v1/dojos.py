@@ -57,6 +57,11 @@ class PruneAwards(Resource):
                 num_pruned += 1
                 award.name = "STALE"
         db.session.commit()
+
+        from ..v1.scoreboard import publish_dojo_stats_event, publish_scoreboard_event
+        publish_dojo_stats_event(dojo.dojo_id)
+        publish_scoreboard_event("dojo", dojo.dojo_id)
+
         return {"success": True, "pruned_awards": num_pruned}
 
 @dojos_namespace.route("/<dojo>/promote")

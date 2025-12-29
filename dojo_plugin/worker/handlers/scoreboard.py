@@ -56,7 +56,7 @@ def handle_scoreboard_update(payload):
         if not model:
             logger.info(f"Dojo not found for dojo_id {model_id} (may have been deleted)")
             return
-        cache_prefix = f"stats:scoreboard:dojo:{model.reference_id}"
+        cache_prefix = f"stats:scoreboard:dojo:{model_id}"
     elif model_type == "module":
         if isinstance(model_id, dict):
             dojo_id = model_id.get("dojo_id")
@@ -68,7 +68,7 @@ def handle_scoreboard_update(payload):
         if not model:
             logger.info(f"Module not found for id {model_id} (may have been deleted)")
             return
-        cache_prefix = f"stats:scoreboard:module:{model.dojo.reference_id}:{model.id}"
+        cache_prefix = f"stats:scoreboard:module:{model.dojo_id}:{model.module_index}"
     else:
         logger.warning(f"Unknown model_type: {model_type}")
         return
@@ -94,9 +94,9 @@ def initialize_all_scoreboards():
         for duration in COMMON_DURATIONS:
             try:
                 scoreboard = calculate_scoreboard(dojo, duration)
-                cache_key = f"stats:scoreboard:dojo:{dojo.reference_id}:{duration}"
+                cache_key = f"stats:scoreboard:dojo:{dojo.dojo_id}:{duration}"
                 set_cached_stat(cache_key, scoreboard)
-                logger.info(f"Initialized scoreboard for dojo {dojo.reference_id}, duration={duration}")
+                logger.info(f"Initialized scoreboard for dojo {dojo.reference_id} (id={dojo.dojo_id}), duration={duration}")
             except Exception as e:
                 logger.error(f"Error initializing scoreboard for dojo {dojo.reference_id}, duration={duration}: {e}", exc_info=True)
 
@@ -107,8 +107,8 @@ def initialize_all_scoreboards():
         for duration in COMMON_DURATIONS:
             try:
                 scoreboard = calculate_scoreboard(module, duration)
-                cache_key = f"stats:scoreboard:module:{module.dojo.reference_id}:{module.id}:{duration}"
+                cache_key = f"stats:scoreboard:module:{module.dojo_id}:{module.module_index}:{duration}"
                 set_cached_stat(cache_key, scoreboard)
-                logger.info(f"Initialized scoreboard for module {module.dojo.reference_id}/{module.id}, duration={duration}")
+                logger.info(f"Initialized scoreboard for module {module.dojo.reference_id}/{module.id} (dojo_id={module.dojo_id}, module_index={module.module_index}), duration={duration}")
             except Exception as e:
                 logger.error(f"Error initializing scoreboard for module {module.dojo.reference_id}/{module.id}, duration={duration}: {e}", exc_info=True)

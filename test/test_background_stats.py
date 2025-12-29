@@ -55,6 +55,46 @@ def wait_for_cache_update(dojo_id, timeout=10):
         time.sleep(0.1)
     return False
 
+def wait_for_cache_timestamp_updated(cache_key_prefix, after_time=None, timeout=10):
+    if after_time is None:
+        after_time = time.time()
+
+    start_time = time.time()
+    timestamp_key = f"{cache_key_prefix}:updated"
+
+    while time.time() - start_time < timeout:
+        timestamp_str = redis_get(timestamp_key)
+        if timestamp_str:
+            try:
+                timestamp = float(timestamp_str)
+                if timestamp >= after_time:
+                    return True
+            except ValueError:
+                pass
+        time.sleep(0.1)
+    return False
+
+def wait_for_background_update(dojo_reference_id=None, dojo_id=None, timeout=10):
+    before_time = time.time()
+
+    if dojo_id is not None:
+        cache_patterns = [
+            f"stats:scoreboard:dojo:{dojo_id}:0",
+            f"stats:dojo:{dojo_reference_id}" if dojo_reference_id else None
+        ]
+    elif dojo_reference_id is not None:
+        cache_patterns = [f"stats:dojo:{dojo_reference_id}"]
+    else:
+        raise ValueError("Must provide either dojo_reference_id or dojo_id")
+
+    cache_patterns = [p for p in cache_patterns if p]
+
+    for pattern in cache_patterns:
+        if wait_for_cache_timestamp_updated(pattern, after_time=before_time, timeout=timeout):
+            return True
+
+    return False
+
 def get_stream_length():
     return redis_xlen("stat:events")
 
@@ -406,23 +446,17 @@ def test_scoreboard_cold_start_initialization(example_dojo, random_user):
     start_challenge(example_dojo, "hello", "apple", session=user_session)
     solve_challenge(example_dojo, "hello", "apple", session=user_session, user=user_name)
 
-    scoreboard_key = f"stats:scoreboard:dojo:example:0"
+    time.sleep(2)
 
-    start_time = time.time()
-    while time.time() - start_time < 10:
-        cached_data = redis_get(scoreboard_key)
-        if cached_data:
-            scoreboard = json.loads(cached_data)
-            if len(scoreboard) >= 1:
-                break
-        time.sleep(0.5)
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{example_dojo}/_/0/1")
+    assert response.status_code == 200
 
-    cached_data = redis_get(scoreboard_key)
-    assert cached_data is not None, f"Scoreboard should be initialized after solve for example"
+    data = response.json()
+    assert 'standings' in data
+    assert len(data['standings']) >= 1, f"Scoreboard should have at least one entry after solve"
 
-    scoreboard = json.loads(cached_data)
-    assert isinstance(scoreboard, list), "Scoreboard should be a list"
-    assert len(scoreboard) >= 1, f"Scoreboard should have at least one entry, got {len(scoreboard)}"
+    user_found = any(s['name'] == user_name for s in data['standings'])
+    assert user_found, f"User {user_name} should be in scoreboard"
 
 def test_scoreboard_updates_on_solve(stats_test_dojo, stats_test_user):
     user_name, user_session = stats_test_user
@@ -430,25 +464,19 @@ def test_scoreboard_updates_on_solve(stats_test_dojo, stats_test_user):
     response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
     assert response.status_code == 200
 
-    scoreboard_key = f"stats:scoreboard:dojo:{stats_test_dojo}:0"
-
     start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
     solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
 
-    start_time = time.time()
-    while time.time() - start_time < 10:
-        cached_data = redis_get(scoreboard_key)
-        if cached_data:
-            break
-        time.sleep(0.5)
+    time.sleep(2)
 
-    assert cached_data is not None, f"Scoreboard cache should be updated after solve"
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{stats_test_dojo}/_/0/1")
+    assert response.status_code == 200
 
-    scoreboard = json.loads(cached_data)
-    assert isinstance(scoreboard, list), "Scoreboard should be a list"
-    assert len(scoreboard) >= 1, "Scoreboard should have at least one entry"
+    data = response.json()
+    assert 'standings' in data
+    assert len(data['standings']) >= 1, "Scoreboard should have at least one entry"
 
-    user_entry = next((e for e in scoreboard if e['name'] == user_name), None)
+    user_entry = next((e for e in data['standings'] if e['name'] == user_name), None)
     assert user_entry is not None, f"User {user_name} should be in scoreboard"
     assert user_entry['solves'] >= 1, "User should have at least 1 solve"
 
@@ -479,17 +507,14 @@ def test_module_scoreboard_updates(stats_test_dojo, stats_test_user):
     start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
     solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
 
-    module_scoreboard_key_pattern = f"stats:scoreboard:module:{stats_test_dojo}:hello:0"
+    time.sleep(2)
 
-    start_time = time.time()
-    while time.time() - start_time < 10:
-        cached_data = redis_get(module_scoreboard_key_pattern)
-        if cached_data:
-            break
-        time.sleep(0.5)
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{stats_test_dojo}/hello/0/1")
+    assert response.status_code == 200
 
-    assert cached_data is not None, "Module scoreboard should be updated"
+    data = response.json()
+    assert 'standings' in data
+    assert len(data['standings']) >= 1, "Module scoreboard should have at least one entry"
 
-    scoreboard = json.loads(cached_data)
-    assert isinstance(scoreboard, list)
-    assert len(scoreboard) >= 1
+    user_entry = next((e for e in data['standings'] if e['name'] == user_name), None)
+    assert user_entry is not None, f"User {user_name} should be in module scoreboard"
