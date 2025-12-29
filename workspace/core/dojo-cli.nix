@@ -198,7 +198,7 @@ def start(args : argparse.Namespace) -> int:
     # Determine what challenge to start.
     mode = "privileged" if args.privileged else "normal"
     if len(args.challenge) == 0:
-        print("Must supply a valid challenge. See \"dojo restart -h\" for more information.")
+        print("Must supply a valid challenge. See \"dojo start -h\" for more information.")
         return INCORRECT_USAGE
 
     if args.challenge[0] == "/": # parse as a /<dojo>/<module>/<challenge> path.
@@ -232,7 +232,7 @@ def start(args : argparse.Namespace) -> int:
 
     # Check for success.
     if not jsonData.get("success", False):
-        print(f"Failed to restart challenge:\n{jsonData.get("error", "Unspecified error.")}")
+        print(f"Failed to start challenge:\n{jsonData.get("error", "Unspecified error.")}")
         return START_FAILED
 
     # Impossible?
