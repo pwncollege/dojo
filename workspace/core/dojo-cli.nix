@@ -189,6 +189,55 @@ def restart(args : argparse.Namespace) -> int:
     print("Restarted? (not sure how you're seeing this)")
     return 0
 
+def start(args : argparse.Namespace) -> int:
+    """
+    Calls the START integration api configured to
+    start a new challenge.
+    """
+
+    # Determine what challenge to start.
+    mode = "privileged" if args.privileged else "normal"
+    if len(args.challenge) == 0:
+        print("Must supply a valid challenge. See \"dojo restart -h\" for more information.")
+        return INCORRECT_USAGE
+
+    if args.challenge[0] == "/": # parse as a /<dojo>/<module>/<challenge> path.
+        path = args.challenge.split("/")
+        if len(path) != 4:
+            print("Challenge paths beginning with \"/\" must follow the form /<dojo>/<module>/<challenge>.")
+            return INCORRECT_USAGE
+        jsonargs = {
+            "dojo": path[1],
+            "module": path[2],
+            "challenge": path[3],
+            "mode": mode
+        }
+    else: # parse as a challenge in the current module.
+        jsonargs = {
+            "use_current_module": True,
+            "challenge": args.challenge,
+            "mode": mode
+        }
+
+    # Make request.
+    print(f"Starting {jsonargs["challenge"]} in {mode} mode.")
+    status, error, jsonData = apiRequest(
+        "/integration/start",
+        method="POST",
+        args=jsonargs
+    )
+    if error is not None:
+        print(f"START request failed ({status}): {error}")
+        return API_ERROR
+
+    # Check for success.
+    if not jsonData.get("success", False):
+        print(f"Failed to restart challenge:\n{jsonData.get("error", "Unspecified error.")}")
+        return START_FAILED
+
+    # Impossible?
+    print("Started challenge. (How did we get here?)")
+    return 0
 
 def main():
     parser = argparse.ArgumentParser(
@@ -265,6 +314,9 @@ def main():
     
     if args.command.lower() == "restart":
         return restart(args)
+    
+    if args.command.lower() == "start":
+        return start(args)
 
     parser.print_help()
     return INCORRECT_USAGE
