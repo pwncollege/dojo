@@ -147,12 +147,12 @@ class start(Resource):
             challenge_id = data.get("challenge")
 
         if None in [dojo_id, module_id, challenge_id]:
-            return 400, {"success": False, "error": "Must supply dojo, module, and challenge (or supply a challenge and use_current_module as True)."}
+            return {"success": False, "error": "Must supply dojo, module, and challenge (or supply a challenge and use_current_module as True)."}, 400
 
         # Determine what mode we are trying to start in.
         mode = data.get("mode")
         if mode not in ["normal", "privileged", "current"]:
-            return 400, {"success": False, "error": "Must specify mode as one of [normal, privileged, current]"}
+            return {"success": False, "error": "Must specify mode as one of [normal, privileged, current]"}, 400
 
         if mode == "normal":
             privileged = False
@@ -173,22 +173,22 @@ class start(Resource):
             .first()
         )
         if not dojo_challenge:
-            return 404, {"success": False, "error": "Invalid challenge"}
+            return {"success": False, "error": "Invalid challenge"}, 404
 
         if not dojo_challenge.visible() and not dojo.is_admin():
-            return 404, {"success": False, "error": "Invalid challenge"}
+            return {"success": False, "error": "Invalid challenge"}, 404
 
         if privileged and not dojo_challenge.allow_privileged:
-            return 400, {
+            return {
                 "success": False,
                 "error": "This challenge does not support practice mode.",
-            }
+            }, 400
 
         if is_challenge_locked(dojo_challenge, user):
-            return 400, {
+            return {
                 "success": False,
                 "error": "This challenge is locked"
-            }
+            }, 400
 
         max_attempts = 3
         for attempt in range(1, max_attempts+1):
