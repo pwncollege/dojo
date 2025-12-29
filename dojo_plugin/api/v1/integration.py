@@ -165,7 +165,7 @@ class start(Resource):
         # Start the docker container! (modified from docker.py, with as_user removed)
         dojo = dojo_accessible(dojo_id)
         if not dojo:
-            return 404, {"success": False, "error": "Invalid dojo"}
+            return {"success": False, "error": "Invalid dojo"}, 404
 
         dojo_challenge = (
             DojoChallenges.query.filter_by(id=challenge_id)
