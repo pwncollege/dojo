@@ -181,6 +181,79 @@ def test_restart_no_practice(random_user, welcome_dojo):
     start_challenge(welcome_dojo, "welcome", "flag", session=session)
     try:
         result = workspace_run("dojo restart -P", user=name)
-        assert False, f"\"dojo restart\" should not have succeed: {(result.stdout, result.stderr)}"
+        assert False, f"\"dojo restart\" should not have succeeded: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        assert "does not support practice mode" in error.stdout, "Should not be able to restart in practice mode, got: {(error.stdout, error.stderr)}"
+        assert "does not support practice mode" in error.stdout, f"Should not be able to restart in practice mode, got: {(error.stdout, error.stderr)}"
+
+def test_start_relative(random_user, welcome_dojo):
+    """
+    Tests the dojo application with the start command.
+
+    This test case starts a challenge in the same dojo
+    using a "relative path".
+    """
+    name, session = random_user
+    start_challenge(welcome_dojo, "welcome", "flag", session=session)
+    try:
+        result = workspace_run("dojo start practice", user=name)
+        assert False, f"\"dojo start\" should not have succeeded: {(result.stdout, result.stderr)}"
+    except subprocess.CalledProcessError as error:
+        if not validate_current_container(name, welcome_dojo, "welcome", "practice"):
+            container = inspect_container(name)
+            labels = container.get("Config", {}).get("Labels", {})
+            assert labels != {}, f"Expected /{welcome_dojo}/welcome/practice, got no container."
+            assert False, f"Expected /{welcome_dojo}/welcome/practice, got /{labels["dojo.dojo_id"]}/{labels["dojo.module_id"]}/{labels["dojo.challenge_id"]}."
+
+
+def test_start_absolute(random_user, welcome_dojo, example_dojo):
+    """
+    Tests the dojo application with the start command.
+
+    This test case starts a challenge in a different
+    dojo using an "absolute path".
+    """
+    name, session = random_user
+    start_challenge(example_dojo, "hello", "apple", session=session)
+    try:
+        result = workspace_run(f"dojo start /{welcome_dojo}/welcome/flag", user=name)
+        assert False, f"\"dojo start\" should not have succeeded: {(result.stdout, result.stderr)}"
+    except subprocess.CalledProcessError as error:
+        if not validate_current_container(name, welcome_dojo, "welcome", "flag"):
+            container = inspect_container(name)
+            labels = container.get("Config", {}).get("Labels", {})
+            assert labels != {}, f"Expected /{welcome_dojo}/welcome/flag, got no container."
+            assert False, f"Expected /{welcome_dojo}/welcome/flag, got /{labels["dojo.dojo_id"]}/{labels["dojo.module_id"]}/{labels["dojo.challenge_id"]}."
+
+def test_start_privileged(random_user, welcome_dojo):
+    """
+    Tests the dojo application with the start command.
+
+    This test case starts a challenge in privileged mode.
+    """
+    name, session = random_user
+    start_challenge(welcome_dojo, "welcome", "flag", session=session)
+    try:
+        result = workspace_run("dojo start practice -P", user=name)
+        assert False, f"\"dojo start\" should not have succeeded: {(result.stdout, result.stderr)}"
+    except subprocess.CalledProcessError as error:
+        if not validate_current_container(name, welcome_dojo, "welcome", "practice", mode="privileged"):
+            container = inspect_container(name)
+            labels = container.get("Config", {}).get("Labels", {})
+            expected = f"/{welcome_dojo}/welcome/practice [privileged]"
+            assert labels != {}, f"Expected {expected}, got no container."
+            assert False, f"Expected {expected}, got /{labels["dojo.dojo_id"]}/{labels["dojo.module_id"]}/{labels["dojo.challenge_id"]} [{labels["dojo.mode"]}]."
+
+def test_start_no_privileged(random_user, welcome_dojo):
+    """
+    Tests the dojo application with the start command.
+
+    This test case attempts to start a challenge which does
+    not support privileged mode in privileged mode.
+    """
+    name, session = random_user
+    start_challenge(welcome_dojo, "welcome", "flag", session=session)
+    try:
+        result = workspace_run("dojo start challenge -P", user=name)
+        assert False, f"\"dojo start\" should not have succeeded: {(result.stdout, result.stderr)}"
+    except subprocess.CalledProcessError as error:
+        assert "does not support practice mode" in error.stdout, f"Should not be able to start in privileged mode, got: {(error.stdout, error.stderr)}"
