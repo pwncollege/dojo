@@ -102,6 +102,11 @@ def publish_scoreboard_event(model_type, model_id):
     if BACKGROUND_STATS_ENABLED:
         publish_stat_event("scoreboard_update", {"model_type": model_type, "model_id": model_id})
 
+def publish_scores_event():
+    from ...utils.background_stats import publish_stat_event, BACKGROUND_STATS_ENABLED
+    if BACKGROUND_STATS_ENABLED:
+        publish_stat_event("scores_update", {})
+
 # handle cache invalidation for new solves, dojo creation, dojo challenge creation
 def _queue_stat_events_for_publish():
     from flask import g
@@ -149,10 +154,12 @@ def hook_object_creation(mapper, connection, target):
             _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
             _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))
             _queue_stat_events_for_publish().append(lambda m_id=module_id: publish_scoreboard_event("module", m_id))
+        _queue_stat_events_for_publish().append(publish_scores_event)
     elif isinstance(target, Dojos):
         dojo_id = target.dojo_id
         _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
         _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))
+        _queue_stat_events_for_publish().append(publish_scores_event)
 
 @event.listens_for(Users, 'after_update', propagate=True)
 @event.listens_for(Dojos, 'after_update', propagate=True)
@@ -173,6 +180,7 @@ def hook_object_update(mapper, connection, target):
             dojo_id = target.dojo_id
             _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
             _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))
+            _queue_stat_events_for_publish().append(publish_scores_event)
         elif isinstance(target, DojoChallenges):
             dojo_id = target.dojo.dojo_id
             module_id = {"dojo_id": target.dojo.dojo_id, "module_index": target.module.module_index}

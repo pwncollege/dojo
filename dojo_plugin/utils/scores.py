@@ -4,6 +4,9 @@ from CTFd.cache import cache
 from ..models import Dojos, DojoChallenges
 from . import force_cache_updates
 
+CACHE_KEY_DOJO_SCORES = "stats:scores:dojos"
+CACHE_KEY_MODULE_SCORES = "stats:scores:modules"
+
 def scores_query(granularity, dojo_filter):
     solve_count = db.func.count(Solves.id).label("solve_count")
     last_solve_date = db.func.max(Solves.date).label("last_solve_date")
@@ -15,11 +18,9 @@ def scores_query(granularity, dojo_filter):
         dojo_filter
     ).group_by(*grouping).order_by(Dojos.id, solve_count.desc(), last_solve_date)
 
-    return []
     return dsc_query
 
-@cache.memoize(timeout=1200, forced_update=force_cache_updates)
-def dojo_scores():
+def _calculate_dojo_scores():
     dsc_query = scores_query([Dojos.id], or_(Dojos.data["type"].astext == "public", Dojos.official))
 
     user_ranks = { }
@@ -36,8 +37,7 @@ def dojo_scores():
         "dojo_ranks": dojo_ranks
     }
 
-@cache.memoize(timeout=1200, forced_update=force_cache_updates)
-def module_scores():
+def _calculate_module_scores():
     dsc_query = scores_query([Dojos.id, DojoChallenges.module_index], or_(Dojos.data["type"].astext == "public", Dojos.official))
 
     user_ranks = { }
@@ -53,3 +53,31 @@ def module_scores():
         "user_solves": user_solves,
         "module_ranks": module_ranks
     }
+
+@cache.memoize(timeout=1200, forced_update=force_cache_updates)
+def dojo_scores():
+    from .background_stats import get_cached_stat, BACKGROUND_STATS_ENABLED, BACKGROUND_STATS_FALLBACK
+
+    if BACKGROUND_STATS_ENABLED:
+        cached = get_cached_stat(CACHE_KEY_DOJO_SCORES)
+        if cached:
+            return cached
+        if BACKGROUND_STATS_FALLBACK:
+            return _calculate_dojo_scores()
+        return {"user_ranks": {}, "user_solves": {}, "dojo_ranks": {}}
+
+    return _calculate_dojo_scores()
+
+@cache.memoize(timeout=1200, forced_update=force_cache_updates)
+def module_scores():
+    from .background_stats import get_cached_stat, BACKGROUND_STATS_ENABLED, BACKGROUND_STATS_FALLBACK
+
+    if BACKGROUND_STATS_ENABLED:
+        cached = get_cached_stat(CACHE_KEY_MODULE_SCORES)
+        if cached:
+            return cached
+        if BACKGROUND_STATS_FALLBACK:
+            return _calculate_module_scores()
+        return {"user_ranks": {}, "user_solves": {}, "module_ranks": {}}
+
+    return _calculate_module_scores()

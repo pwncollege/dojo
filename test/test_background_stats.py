@@ -518,3 +518,75 @@ def test_module_scoreboard_updates(stats_test_dojo, stats_test_user):
 
     user_entry = next((e for e in data['standings'] if e['name'] == user_name), None)
     assert user_entry is not None, f"User {user_name} should be in module scoreboard"
+
+def test_scores_cold_start_initialization():
+    dojo_scores_key = "stats:scores:dojos"
+    module_scores_key = "stats:scores:modules"
+
+    dojo_scores_data = redis_get(dojo_scores_key)
+    module_scores_data = redis_get(module_scores_key)
+
+    if dojo_scores_data is None or module_scores_data is None:
+        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
+        pytest.fail(f"Cold start should have initialized scores cache. Worker logs:\n{result.stdout}")
+
+    dojo_scores = json.loads(dojo_scores_data)
+    assert 'user_ranks' in dojo_scores, "dojo_scores should have user_ranks"
+    assert 'user_solves' in dojo_scores, "dojo_scores should have user_solves"
+    assert 'dojo_ranks' in dojo_scores, "dojo_scores should have dojo_ranks"
+
+    module_scores = json.loads(module_scores_data)
+    assert 'user_ranks' in module_scores, "module_scores should have user_ranks"
+    assert 'user_solves' in module_scores, "module_scores should have user_solves"
+    assert 'module_ranks' in module_scores, "module_scores should have module_ranks"
+
+    dojo_timestamp = redis_get(f"{dojo_scores_key}:updated")
+    module_timestamp = redis_get(f"{module_scores_key}:updated")
+    assert dojo_timestamp is not None, "dojo_scores timestamp should exist"
+    assert module_timestamp is not None, "module_scores timestamp should exist"
+
+def test_scores_update_on_solve(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    dojo_scores_key = "stats:scores:dojos"
+    before_timestamp = redis_get(f"{dojo_scores_key}:updated")
+    before_time = float(before_timestamp) if before_timestamp else 0
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    start_time = time.time()
+    updated = False
+    while time.time() - start_time < 10:
+        after_timestamp = redis_get(f"{dojo_scores_key}:updated")
+        if after_timestamp and float(after_timestamp) > before_time:
+            updated = True
+            break
+        time.sleep(0.5)
+
+    assert updated, "scores cache should be updated after solve"
+
+    dojo_scores_data = redis_get(dojo_scores_key)
+    assert dojo_scores_data is not None, "dojo_scores cache should exist"
+
+    dojo_scores = json.loads(dojo_scores_data)
+    assert 'user_ranks' in dojo_scores
+    assert 'user_solves' in dojo_scores
+    assert 'dojo_ranks' in dojo_scores
+
+def test_hacker_page_uses_scores(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    time.sleep(3)
+
+    response = user_session.get(f"{DOJO_URL}/hacker/")
+    assert response.status_code == 200, "Hacker page should load successfully"
