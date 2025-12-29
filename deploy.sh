@@ -349,7 +349,7 @@ log_endgroup
 if [ "$TEST" == "yes" ]; then
 	log_newgroup "Running tests in container"
 	cleanup_container $DOJO_CONTAINER-test
-	test_container pytest --order-dependencies --timeout=60 -v test_background_stats.py "$@"
+	test_container pytest --order-dependencies --timeout=60 -v . "$@"
 	if [ "$COVERAGE" == "yes" ]; then
 		generate_coverage_report "$DOJO_CONTAINER"
 	fi
