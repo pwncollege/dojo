@@ -13,9 +13,9 @@ CLI_INCORRECT = 4
 
 def inspect_container(username) -> dict[str, Any]:
     container_name = f"user_{get_user_id(username)}"
-    outer_container = get_outer_container_for(container_name)
     args = [ "docker", "inspect", container_name ]
     try:
+        outer_container = get_outer_container_for(container_name)
         result = dojo_run(*args, stdin=subprocess.DEVNULL, check=True, container=outer_container).stdout
         return json.loads(result)[0]
     except:
