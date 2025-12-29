@@ -234,6 +234,23 @@ def main():
         help="Restart in normal mode."
     )
 
+    start_parser = subparsers.add_parser(
+        name="start",
+        help="Start a new challenge. Restarts in normal mode by default."
+    )
+    start_parser.add_argument(
+        "--privileged",
+        "--practice",
+        "-P",
+        action="store_true", # By default, do not start in privileged mode.
+        help="Start challenge in privileged mode."
+    )
+    start_parser.add_argument(
+        "challenge",
+        help="Challenge to start. Can be <challenge> or /<dojo>/<module>/<challenge>.",
+        type=str
+    )
+
     args = parser.parse_args()
 
     if args.command is None:
