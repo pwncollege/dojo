@@ -163,9 +163,24 @@ def test_restart(random_user, welcome_dojo):
     both privileged and normal modes.
     """
     name, session = random_user
-    start_challenge(welcome_dojo, "welcome", "flag", session=session)
+    start_challenge(welcome_dojo, "welcome", "practice", session=session)
     validate_restart(name, "current")
     validate_restart(name, "privileged")
     validate_restart(name, "current")
     validate_restart(name, "standard")
 
+def test_restart_no_practice(random_user, welcome_dojo):
+    """
+    Tests the dojo application with the "restart" command.
+
+    This test case starts a challenge which does not allow
+    privileged mode, and attempts to restart in privileged
+    mode.
+    """
+    name, session = random_user
+    start_challenge(welcome_dojo, "welcome", "flag", session=session)
+    try:
+        result = workspace_run("dojo restart -P", user=name)
+        assert False, f"\"dojo restart\" should not have succeed: {(result.stdout, result.stderr)}"
+    except subprocess.CalledProcessError as error:
+        assert "does not support practice mode" in error.stdout, "Should not be able to restart in practice mode, got: {(error.stdout, error.stderr)}"
