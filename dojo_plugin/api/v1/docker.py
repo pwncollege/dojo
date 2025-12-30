@@ -34,6 +34,7 @@ from ...utils import (
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
 from ...utils.feed import publish_container_start
+from ...utils.background_stats import publish_stat_event, BACKGROUND_STATS_ENABLED
 from ...utils.request_logging import get_trace_id, log_generator_output
 
 logger = logging.getLogger(__name__)
@@ -502,6 +503,9 @@ class RunDocker(Resource):
                     actual_user = as_user or user
                     publish_container_start(actual_user, mode, challenge_data)
 
+                if BACKGROUND_STATS_ENABLED:
+                    publish_stat_event("container_stats_update", {})
+
                 break
             except Exception as e:
                 logger.warning(f"Attempt {attempt} failed for user {user.id} with error: {e}")
@@ -545,6 +549,8 @@ class RunDocker(Resource):
 
         try:
             remove_container(user)
+            if BACKGROUND_STATS_ENABLED:
+                publish_stat_event("container_stats_update", {})
             return {"success": True, "message": "Challenge container terminated"}
         except Exception as e:
             logger.error(f"Failed to terminate container for user {user.id}: {e}")

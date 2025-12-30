@@ -245,6 +245,7 @@ services:
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
       - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /opt/pwn.college/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro
     depends_on:
       pgbouncer:

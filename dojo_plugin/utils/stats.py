@@ -6,12 +6,24 @@ from sqlalchemy import func, desc
 from . import force_cache_updates, get_all_containers, DojoChallenges
 from .background_stats import get_cached_stat, BACKGROUND_STATS_ENABLED, BACKGROUND_STATS_FALLBACK
 
-@cache.memoize(timeout=1200, forced_update=force_cache_updates)
-def get_container_stats():
+CACHE_KEY_CONTAINERS = "stats:containers"
+
+def calculate_container_stats():
     containers = get_all_containers()
-    return [{attr: container.labels[f"dojo.{attr}_id"]
+    return [{attr: container.labels.get(f"dojo.{attr}_id")
             for attr in ["dojo", "module", "challenge"]}
             for container in containers]
+
+@cache.memoize(timeout=1200, forced_update=force_cache_updates)
+def get_container_stats():
+    if BACKGROUND_STATS_ENABLED:
+        cached = get_cached_stat(CACHE_KEY_CONTAINERS)
+        if cached:
+            return cached
+        if not BACKGROUND_STATS_FALLBACK:
+            return []
+
+    return calculate_container_stats()
 
 def calculate_dojo_stats(dojo):
     now = datetime.now()

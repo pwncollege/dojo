@@ -2,7 +2,7 @@ import time
 import json
 import pytest
 
-from utils import DOJO_URL, login, create_dojo_yml, start_challenge, solve_challenge, dojo_run, TEST_DOJOS_LOCATION
+from utils import DOJO_URL, DOJO_CONTAINER, login, create_dojo_yml, start_challenge, solve_challenge, dojo_run, TEST_DOJOS_LOCATION
 
 def redis_cli(*args):
     result = dojo_run("docker", "exec", "cache", "redis-cli", *args, check=False)
@@ -856,3 +856,116 @@ def test_module_scores_update_on_solve(stats_test_dojo, stats_test_user):
     assert 'user_ranks' in module_scores
     assert 'user_solves' in module_scores
     assert 'module_ranks' in module_scores
+
+def test_container_stats_cold_start_initialization():
+    cache_key = "stats:containers"
+    cached_data = redis_get(cache_key)
+
+    if cached_data is None:
+        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
+        pytest.fail(f"Cold start should have initialized container stats cache. Worker logs:\n{result.stdout}")
+
+    containers = json.loads(cached_data)
+    assert isinstance(containers, list), "container stats should be a list"
+
+    timestamp = redis_get(f"{cache_key}:updated")
+    assert timestamp is not None, "Container stats timestamp should exist from cold start"
+
+def test_container_stats_update_on_challenge_start(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    cache_key = "stats:containers"
+    before_timestamp = redis_get(f"{cache_key}:updated")
+    before_time = float(before_timestamp) if before_timestamp else 0
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+
+    start_time = time.time()
+    updated = False
+    while time.time() - start_time < 10:
+        after_timestamp = redis_get(f"{cache_key}:updated")
+        if after_timestamp and float(after_timestamp) > before_time:
+            updated = True
+            break
+        time.sleep(0.5)
+
+    assert updated, "Container stats cache should be updated after starting a challenge"
+
+    cached_data = redis_get(cache_key)
+    assert cached_data is not None, "Container stats cache should exist"
+
+    containers = json.loads(cached_data)
+    assert isinstance(containers, list), "Container stats should be a list"
+    assert len(containers) >= 1, "Should have at least one container after starting a challenge"
+
+def test_container_stats_update_on_challenge_stop(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+
+    time.sleep(2)
+
+    cache_key = "stats:containers"
+    before_timestamp = redis_get(f"{cache_key}:updated")
+    before_time = float(before_timestamp) if before_timestamp else 0
+
+    response = user_session.delete(f"{DOJO_URL}/pwncollege_api/v1/docker", json={})
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+    start_time = time.time()
+    updated = False
+    while time.time() - start_time < 10:
+        after_timestamp = redis_get(f"{cache_key}:updated")
+        if after_timestamp and float(after_timestamp) > before_time:
+            updated = True
+            break
+        time.sleep(0.5)
+
+    assert updated, "Container stats cache should be updated after stopping a challenge"
+
+def test_container_stats_cache_structure(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+
+    cache_key = "stats:containers"
+
+    start_time = time.time()
+    found_container = False
+    while time.time() - start_time < 10:
+        cached_data = redis_get(cache_key)
+        if cached_data:
+            containers = json.loads(cached_data)
+            if len(containers) >= 1:
+                found_container = True
+                break
+        time.sleep(0.5)
+
+    assert found_container, "Should have container in cache after starting challenge"
+
+    containers = json.loads(redis_get(cache_key))
+
+    for container in containers:
+        assert 'dojo' in container, "Container should have dojo field"
+        assert 'module' in container, "Container should have module field"
+        assert 'challenge' in container, "Container should have challenge field"
+
+def test_container_stats_fallback_on_cache_miss(admin_session):
+    clear_redis_stats()
+
+    cache_key = "stats:containers"
+    redis_delete(cache_key, f"{cache_key}:updated")
+
+    assert redis_get(cache_key) is None, "Cache should be empty after deletion"
+
+    response = admin_session.get(f"{DOJO_URL}/dojos")
+    assert response.status_code == 200, "Dojos page should load even without container cache"
