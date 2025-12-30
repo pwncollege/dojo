@@ -174,19 +174,24 @@ case "$ACTION" in
             esac
         done
 
-        echo "Waiting for stats-worker cold start to complete..."
-        timeout=300
-        elapsed=0
-        while [ $elapsed -lt $timeout ]; do
-            if docker logs stats-worker 2>&1 | grep -q "Cold start complete - all stats initialized"; then
-                echo "Stats-worker initialization complete"
-                exit 0
-            fi
-            sleep 1
-            elapsed=$((elapsed + 1))
-        done
-        echo "Error: stats-worker did not complete initialization within ${timeout}s"
-        exit 1
+        if docker ps --format '{{.Names}}' | grep -q '^stats-worker$'; then
+            echo "Waiting for stats-worker cold start to complete..."
+            timeout=300
+            elapsed=0
+            while [ $elapsed -lt $timeout ]; do
+                if docker logs stats-worker 2>&1 | grep -q "Cold start complete - all stats initialized"; then
+                    echo "Stats-worker initialization complete"
+                    exit 0
+                fi
+                sleep 1
+                elapsed=$((elapsed + 1))
+            done
+            echo "Error: stats-worker did not complete initialization within ${timeout}s"
+            exit 1
+        else
+            echo "No stats-worker container found (workspace node), skipping stats initialization check"
+            exit 0
+        fi
         ;;
 
     # HELP: init: main entry point for the docker image
