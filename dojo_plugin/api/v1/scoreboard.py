@@ -1,13 +1,14 @@
 import collections
 import contextlib
 import datetime
+import logging
 import math
 import pytz
 import json
 
 import redis
 
-from flask import url_for, abort, current_app
+from flask import g, url_for, abort, current_app
 from flask_restx import Namespace, Resource
 from flask_sqlalchemy import Pagination
 from CTFd.cache import cache
@@ -20,6 +21,9 @@ from sqlalchemy.orm.session import Session
 from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities, Belts, Emojis
 from ...utils.dojo import dojo_route, dojo_accessible
 from ...utils.awards import get_belts, get_viewable_emojis
+from ...utils.background_stats import get_cached_stat, publish_stat_event
+
+logger = logging.getLogger(__name__)
 
 SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
 scoreboard_namespace = Namespace("scoreboard")
@@ -60,10 +64,6 @@ def calculate_scoreboard_sync(model, duration):
     return results
 
 def get_scoreboard_for(model, duration):
-    from ...utils.background_stats import get_cached_stat
-    import logging
-    logger = logging.getLogger(__name__)
-
     if isinstance(model, Dojos):
         cache_key = f"stats:scoreboard:dojo:{model.dojo_id}:{duration}"
     elif isinstance(model, DojoModules):
@@ -86,37 +86,27 @@ def invalidate_scoreboard_cache():
     cache.delete_memoized(get_scoreboard_for)
 
 def publish_dojo_stats_event(dojo_id_int):
-    from ...utils.background_stats import publish_stat_event
     publish_stat_event("dojo_stats_update", {"dojo_id": dojo_id_int})
 
 def publish_scoreboard_event(model_type, model_id):
-    from ...utils.background_stats import publish_stat_event
     publish_stat_event("scoreboard_update", {"model_type": model_type, "model_id": model_id})
 
 def publish_scores_event():
-    from ...utils.background_stats import publish_stat_event
     publish_stat_event("scores_update", {})
 
 def publish_belts_event():
-    from ...utils.background_stats import publish_stat_event
     publish_stat_event("belts_update", {})
 
 def publish_emojis_event():
-    from ...utils.background_stats import publish_stat_event
     publish_stat_event("emojis_update", {})
 
 # handle cache invalidation for new solves, dojo creation, dojo challenge creation
 def _queue_stat_events_for_publish():
-    from flask import g
     if not hasattr(g, '_pending_stat_events'):
         g._pending_stat_events = []
     return g._pending_stat_events
 
 def _publish_queued_events():
-    from flask import g
-    import logging
-    logger = logging.getLogger(__name__)
-
     if hasattr(g, '_pending_stat_events'):
         count = len(g._pending_stat_events)
         if count > 0:
@@ -139,9 +129,6 @@ def hook_object_creation(mapper, connection, target):
     invalidate_scoreboard_cache()
 
     if isinstance(target, Solves):
-        import logging
-        logger = logging.getLogger(__name__)
-
         dojo_challenges = DojoChallenges.query.filter_by(challenge_id=target.challenge_id).all()
         logger.info(f"Solve listener fired: challenge_id={target.challenge_id}, found {len(dojo_challenges)} dojo(s)")
 

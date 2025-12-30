@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 
-from CTFd.models import Solves
+from CTFd.models import db, Solves
 from ...models import Dojos, DojoChallenges
 from ...utils.background_stats import set_cached_stat
 from . import register_handler
@@ -95,8 +95,6 @@ def calculate_dojo_stats(dojo):
 
 @register_handler("dojo_stats_update")
 def handle_dojo_stats_update(payload):
-    from CTFd.models import db
-
     dojo_id = payload.get("dojo_id")
     if not dojo_id:
         logger.warning("dojo_stats_update event missing dojo_id")
@@ -122,8 +120,6 @@ def handle_dojo_stats_update(payload):
         logger.error(f"Error calculating stats for dojo_id {dojo_id}: {e}", exc_info=True)
 
 def initialize_all_dojo_stats():
-    from CTFd.models import db
-
     db.session.expire_all()
     db.session.commit()
 

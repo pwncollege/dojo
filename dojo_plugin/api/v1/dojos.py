@@ -15,6 +15,7 @@ from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
 from ...utils import is_challenge_locked, render_markdown
 from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route
 from ...utils.stats import get_dojo_stats
+from ..v1.scoreboard import publish_dojo_stats_event, publish_scoreboard_event
 
 dojos_namespace = Namespace(
     "dojos", description="Endpoint to retrieve Dojos"
@@ -58,7 +59,6 @@ class PruneAwards(Resource):
                 award.name = "STALE"
         db.session.commit()
 
-        from ..v1.scoreboard import publish_dojo_stats_event, publish_scoreboard_event
         publish_dojo_stats_event(dojo.dojo_id)
         publish_scoreboard_event("dojo", dojo.dojo_id)
 

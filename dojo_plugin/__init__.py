@@ -38,6 +38,7 @@ from .pages.feed import feed
 from .pages.index import static_html_override
 from .pages.test_error import test_error_pages
 from .api import api
+from .api.v1.scoreboard import _publish_queued_events
 
 
 class DojoChallenge(BaseChallenge):
@@ -156,8 +157,6 @@ def load(app):
     setup_logging(app)
     setup_trace_id_tracking(app)
     setup_uncaught_error_logging(app)
-
-    from .api.v1.scoreboard import _publish_queued_events
 
     @app.after_request
     def publish_stat_events_after_request(response):

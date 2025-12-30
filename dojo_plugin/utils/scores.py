@@ -3,6 +3,7 @@ from CTFd.models import Solves, db
 from CTFd.cache import cache
 from ..models import Dojos, DojoChallenges
 from . import force_cache_updates
+from .background_stats import get_cached_stat
 
 CACHE_KEY_DOJO_SCORES = "stats:scores:dojos"
 CACHE_KEY_MODULE_SCORES = "stats:scores:modules"
@@ -56,8 +57,6 @@ def _calculate_module_scores():
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def dojo_scores():
-    from .background_stats import get_cached_stat
-
     cached = get_cached_stat(CACHE_KEY_DOJO_SCORES)
     if cached:
         return cached
@@ -65,8 +64,6 @@ def dojo_scores():
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def module_scores():
-    from .background_stats import get_cached_stat
-
     cached = get_cached_stat(CACHE_KEY_MODULE_SCORES)
     if cached:
         return cached
