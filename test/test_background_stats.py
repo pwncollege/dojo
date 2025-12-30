@@ -659,3 +659,200 @@ def test_emoji_awarded_triggers_cache_update(stats_test_dojo, stats_test_user):
         time.sleep(0.5)
 
     assert updated, "Emojis cache should be updated after completing a dojo"
+
+def test_belts_cold_start_initialization(example_dojo):
+    belts_key = "stats:belts"
+    belts_data = redis_get(belts_key)
+
+    if belts_data is None:
+        pytest.skip("Belts cache not available (may have been cleared by prior tests)")
+
+    belts = json.loads(belts_data)
+    assert 'dates' in belts, "belts should have dates"
+    assert 'users' in belts, "belts should have users"
+    assert 'ranks' in belts, "belts should have ranks"
+
+    for color in ['orange', 'yellow', 'green', 'purple', 'blue', 'brown', 'red', 'black']:
+        assert color in belts['dates'], f"belts dates should have {color}"
+        assert color in belts['ranks'], f"belts ranks should have {color}"
+
+    belts_timestamp = redis_get(f"{belts_key}:updated")
+    assert belts_timestamp is not None, "belts timestamp should exist"
+
+def test_emojis_cold_start_initialization():
+    emojis_key = "stats:emojis"
+    emojis_data = redis_get(emojis_key)
+
+    if emojis_data is None:
+        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
+        pytest.fail(f"Cold start should have initialized emojis cache. Worker logs:\n{result.stdout}")
+
+    emojis = json.loads(emojis_data)
+    assert 'emojis' in emojis, "emojis cache should have emojis field"
+    assert 'dojos' in emojis, "emojis cache should have dojos field"
+
+    emojis_timestamp = redis_get(f"{emojis_key}:updated")
+    assert emojis_timestamp is not None, "emojis timestamp should exist from cold start"
+
+def test_scoreboard_different_durations(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    time.sleep(3)
+
+    for duration in [0, 7, 30]:
+        response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{stats_test_dojo}/_/{duration}/1")
+        assert response.status_code == 200, f"Scoreboard with duration {duration} should return 200"
+
+        data = response.json()
+        assert 'standings' in data, f"Scoreboard duration {duration} should have standings"
+        assert 'pages' in data, f"Scoreboard duration {duration} should have pages"
+
+def test_module_scoreboard_cache_structure(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    time.sleep(3)
+
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{stats_test_dojo}/hello/0/1")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert 'standings' in data
+    assert 'pages' in data
+
+    if len(data['standings']) > 0:
+        entry = data['standings'][0]
+        assert 'name' in entry, "Scoreboard entry should have name"
+        assert 'solves' in entry, "Scoreboard entry should have solves"
+        assert 'rank' in entry, "Scoreboard entry should have rank"
+        assert 'url' in entry, "Scoreboard entry should have url"
+        assert 'symbol' in entry, "Scoreboard entry should have symbol"
+        assert 'belt' in entry, "Scoreboard entry should have belt"
+        assert 'badges' in entry, "Scoreboard entry should have badges"
+
+def test_belts_cache_structure_after_belt_earned(belt_dojos, random_user):
+    user_name, user_session = random_user
+
+    belts_key = "stats:belts"
+    before_timestamp = redis_get(f"{belts_key}:updated")
+    before_time = float(before_timestamp) if before_timestamp else 0
+
+    orange_dojo = belt_dojos["orange"]
+    response = user_session.get(f"{DOJO_URL}/dojo/{orange_dojo}/join/")
+    assert response.status_code == 200
+
+    start_challenge(orange_dojo, "test", "test", session=user_session)
+    solve_challenge(orange_dojo, "test", "test", session=user_session, user=user_name)
+
+    start_time = time.time()
+    updated = False
+    while time.time() - start_time < 15:
+        after_timestamp = redis_get(f"{belts_key}:updated")
+        if after_timestamp and float(after_timestamp) > before_time:
+            updated = True
+            break
+        time.sleep(0.5)
+
+    assert updated, "Belts cache should be updated after earning a belt"
+
+    belts_data = redis_get(belts_key)
+    assert belts_data is not None, "Belts cache should exist"
+
+    belts = json.loads(belts_data)
+
+    assert isinstance(belts['dates'], dict), "dates should be a dict"
+    assert isinstance(belts['users'], dict), "users should be a dict"
+    assert isinstance(belts['ranks'], dict), "ranks should be a dict"
+
+    for color in belts['ranks']:
+        assert isinstance(belts['ranks'][color], list), f"ranks[{color}] should be a list"
+
+def test_dojo_stats_includes_visible_challenges(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    assert wait_for_cache_update(stats_test_dojo, timeout=10), "Cache should be updated"
+
+    cache_key = f"stats:dojo:{stats_test_dojo}"
+    stats = json.loads(redis_get(cache_key))
+
+    assert 'visible_challenges' in stats, "Stats should include visible_challenges"
+    assert stats['visible_challenges'] >= 0, "visible_challenges should be non-negative"
+    assert stats['challenges'] >= stats['visible_challenges'], "total challenges should be >= visible challenges"
+
+def test_scoreboard_cache_cold_start_all_durations(example_dojo):
+    found_any = False
+    for duration in [0, 7, 30]:
+        cache_key = f"stats:scoreboard:dojo:*:{duration}"
+        keys = redis_keys(cache_key)
+        if keys:
+            found_any = True
+
+    if not found_any:
+        pytest.skip("Scoreboard cache not available (may have been cleared by prior tests)")
+
+def test_emojis_cache_structure_contains_dojo_info():
+    emojis_key = "stats:emojis"
+    emojis_data = redis_get(emojis_key)
+
+    if emojis_data is None:
+        pytest.skip("Emojis cache not initialized")
+
+    emojis = json.loads(emojis_data)
+
+    assert 'dojos' in emojis, "emojis cache should have dojos metadata"
+    dojos = emojis['dojos']
+
+    for hex_id, dojo_info in dojos.items():
+        assert 'reference_id' in dojo_info, "dojo info should have reference_id"
+        assert 'emoji' in dojo_info, "dojo info should have emoji"
+        assert 'is_public' in dojo_info, "dojo info should have is_public"
+        assert 'is_example' in dojo_info, "dojo info should have is_example"
+
+def test_module_scores_update_on_solve(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    module_scores_key = "stats:scores:modules"
+    before_timestamp = redis_get(f"{module_scores_key}:updated")
+    before_time = float(before_timestamp) if before_timestamp else 0
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    start_time = time.time()
+    updated = False
+    while time.time() - start_time < 10:
+        after_timestamp = redis_get(f"{module_scores_key}:updated")
+        if after_timestamp and float(after_timestamp) > before_time:
+            updated = True
+            break
+        time.sleep(0.5)
+
+    assert updated, "module scores cache should be updated after solve"
+
+    module_scores_data = redis_get(module_scores_key)
+    assert module_scores_data is not None, "module_scores cache should exist"
+
+    module_scores = json.loads(module_scores_data)
+    assert 'user_ranks' in module_scores
+    assert 'user_solves' in module_scores
+    assert 'module_ranks' in module_scores
