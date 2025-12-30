@@ -175,7 +175,7 @@ case "$ACTION" in
         done
 
         echo "Waiting for stats-worker cold start to complete..."
-        timeout=60
+        timeout=300
         elapsed=0
         while [ $elapsed -lt $timeout ]; do
             if docker logs stats-worker 2>&1 | grep -q "Cold start complete - all stats initialized"; then
