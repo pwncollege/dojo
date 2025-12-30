@@ -60,62 +60,50 @@ def calculate_scoreboard_sync(model, duration):
     return results
 
 def get_scoreboard_for(model, duration):
-    from ...utils.background_stats import get_cached_stat, BACKGROUND_STATS_ENABLED, BACKGROUND_STATS_FALLBACK
+    from ...utils.background_stats import get_cached_stat
     import logging
     logger = logging.getLogger(__name__)
 
-    if BACKGROUND_STATS_ENABLED:
-        if isinstance(model, Dojos):
-            cache_key = f"stats:scoreboard:dojo:{model.dojo_id}:{duration}"
-        elif isinstance(model, DojoModules):
-            cache_key = f"stats:scoreboard:module:{model.dojo_id}:{model.module_index}:{duration}"
-        else:
-            return calculate_scoreboard_sync(model, duration)
+    if isinstance(model, Dojos):
+        cache_key = f"stats:scoreboard:dojo:{model.dojo_id}:{duration}"
+    elif isinstance(model, DojoModules):
+        cache_key = f"stats:scoreboard:module:{model.dojo_id}:{model.module_index}:{duration}"
+    else:
+        return []
 
-        logger.info(f"get_scoreboard_for: checking cache key {cache_key}")
-        cached = get_cached_stat(cache_key)
-        logger.info(f"get_scoreboard_for: cached={cached is not None}, len={len(cached) if cached else 0}, fallback={BACKGROUND_STATS_FALLBACK}")
+    logger.info(f"get_scoreboard_for: checking cache key {cache_key}")
+    cached = get_cached_stat(cache_key)
+    logger.info(f"get_scoreboard_for: cached={cached is not None}, len={len(cached) if cached else 0}")
 
-        if cached:
-            logger.info(f"Returning cached scoreboard with {len(cached)} entries")
-            return cached
+    if cached:
+        logger.info(f"Returning cached scoreboard with {len(cached)} entries")
+        return cached
 
-        if BACKGROUND_STATS_FALLBACK:
-            logger.info(f"Cache miss/empty, falling back to sync calculation")
-            return calculate_scoreboard_sync(model, duration)
-        else:
-            logger.info(f"Cache miss/empty, no fallback, returning []")
-            return []
-
-    return calculate_scoreboard_sync(model, duration)
+    logger.info(f"Cache miss/empty, returning []")
+    return []
 
 def invalidate_scoreboard_cache():
     cache.delete_memoized(get_scoreboard_for)
 
 def publish_dojo_stats_event(dojo_id_int):
-    from ...utils.background_stats import publish_stat_event, BACKGROUND_STATS_ENABLED
-    if BACKGROUND_STATS_ENABLED:
-        publish_stat_event("dojo_stats_update", {"dojo_id": dojo_id_int})
+    from ...utils.background_stats import publish_stat_event
+    publish_stat_event("dojo_stats_update", {"dojo_id": dojo_id_int})
 
 def publish_scoreboard_event(model_type, model_id):
-    from ...utils.background_stats import publish_stat_event, BACKGROUND_STATS_ENABLED
-    if BACKGROUND_STATS_ENABLED:
-        publish_stat_event("scoreboard_update", {"model_type": model_type, "model_id": model_id})
+    from ...utils.background_stats import publish_stat_event
+    publish_stat_event("scoreboard_update", {"model_type": model_type, "model_id": model_id})
 
 def publish_scores_event():
-    from ...utils.background_stats import publish_stat_event, BACKGROUND_STATS_ENABLED
-    if BACKGROUND_STATS_ENABLED:
-        publish_stat_event("scores_update", {})
+    from ...utils.background_stats import publish_stat_event
+    publish_stat_event("scores_update", {})
 
 def publish_belts_event():
-    from ...utils.background_stats import publish_stat_event, BACKGROUND_STATS_ENABLED
-    if BACKGROUND_STATS_ENABLED:
-        publish_stat_event("belts_update", {})
+    from ...utils.background_stats import publish_stat_event
+    publish_stat_event("belts_update", {})
 
 def publish_emojis_event():
-    from ...utils.background_stats import publish_stat_event, BACKGROUND_STATS_ENABLED
-    if BACKGROUND_STATS_ENABLED:
-        publish_stat_event("emojis_update", {})
+    from ...utils.background_stats import publish_stat_event
+    publish_stat_event("emojis_update", {})
 
 # handle cache invalidation for new solves, dojo creation, dojo challenge creation
 def _queue_stat_events_for_publish():

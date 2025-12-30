@@ -56,28 +56,18 @@ def _calculate_module_scores():
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def dojo_scores():
-    from .background_stats import get_cached_stat, BACKGROUND_STATS_ENABLED, BACKGROUND_STATS_FALLBACK
+    from .background_stats import get_cached_stat
 
-    if BACKGROUND_STATS_ENABLED:
-        cached = get_cached_stat(CACHE_KEY_DOJO_SCORES)
-        if cached:
-            return cached
-        if BACKGROUND_STATS_FALLBACK:
-            return _calculate_dojo_scores()
-        return {"user_ranks": {}, "user_solves": {}, "dojo_ranks": {}}
-
-    return _calculate_dojo_scores()
+    cached = get_cached_stat(CACHE_KEY_DOJO_SCORES)
+    if cached:
+        return cached
+    return {"user_ranks": {}, "user_solves": {}, "dojo_ranks": {}}
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def module_scores():
-    from .background_stats import get_cached_stat, BACKGROUND_STATS_ENABLED, BACKGROUND_STATS_FALLBACK
+    from .background_stats import get_cached_stat
 
-    if BACKGROUND_STATS_ENABLED:
-        cached = get_cached_stat(CACHE_KEY_MODULE_SCORES)
-        if cached:
-            return cached
-        if BACKGROUND_STATS_FALLBACK:
-            return _calculate_module_scores()
-        return {"user_ranks": {}, "user_solves": {}, "module_ranks": {}}
-
-    return _calculate_module_scores()
+    cached = get_cached_stat(CACHE_KEY_MODULE_SCORES)
+    if cached:
+        return cached
+    return {"user_ranks": {}, "user_solves": {}, "module_ranks": {}}

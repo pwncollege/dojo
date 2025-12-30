@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 
 from . import force_cache_updates, get_all_containers, DojoChallenges
-from .background_stats import get_cached_stat, BACKGROUND_STATS_ENABLED, BACKGROUND_STATS_FALLBACK
+from .background_stats import get_cached_stat
 
 CACHE_KEY_CONTAINERS = "stats:containers"
 
@@ -16,14 +16,10 @@ def calculate_container_stats():
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def get_container_stats():
-    if BACKGROUND_STATS_ENABLED:
-        cached = get_cached_stat(CACHE_KEY_CONTAINERS)
-        if cached:
-            return cached
-        if not BACKGROUND_STATS_FALLBACK:
-            return []
-
-    return calculate_container_stats()
+    cached = get_cached_stat(CACHE_KEY_CONTAINERS)
+    if cached:
+        return cached
+    return []
 
 def calculate_dojo_stats(dojo):
     now = datetime.now()
@@ -111,24 +107,20 @@ def calculate_dojo_stats(dojo):
 
 @cache.memoize(timeout=1200, forced_update=force_cache_updates)
 def get_dojo_stats(dojo):
-    if BACKGROUND_STATS_ENABLED:
-        cache_key = f"stats:dojo:{dojo.reference_id}"
-        cached = get_cached_stat(cache_key)
-        if cached:
-            for solve in cached.get('recent_solves', []):
-                if solve.get('date') and isinstance(solve['date'], str):
-                    solve['date'] = datetime.fromisoformat(solve['date'])
-            return cached
+    cache_key = f"stats:dojo:{dojo.reference_id}"
+    cached = get_cached_stat(cache_key)
+    if cached:
+        for solve in cached.get('recent_solves', []):
+            if solve.get('date') and isinstance(solve['date'], str):
+                solve['date'] = datetime.fromisoformat(solve['date'])
+        return cached
 
-        if not BACKGROUND_STATS_FALLBACK:
-            return {
-                'users': 0,
-                'challenges': 0,
-                'visible_challenges': 0,
-                'solves': 0,
-                'recent_solves': [],
-                'trends': {'solves': 0, 'users': 0, 'active': 0, 'challenges': 0},
-                'chart_data': {'labels': [], 'solves': [], 'users': []}
-            }
-
-    return calculate_dojo_stats(dojo)
+    return {
+        'users': 0,
+        'challenges': 0,
+        'visible_challenges': 0,
+        'solves': 0,
+        'recent_solves': [],
+        'trends': {'solves': 0, 'users': 0, 'active': 0, 'challenges': 0},
+        'chart_data': {'labels': [], 'solves': [], 'users': []}
+    }

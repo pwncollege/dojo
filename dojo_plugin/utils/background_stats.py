@@ -10,9 +10,6 @@ from flask import current_app
 
 logger = logging.getLogger(__name__)
 
-BACKGROUND_STATS_ENABLED = os.environ.get("BACKGROUND_STATS_ENABLED", "0") == "1"
-BACKGROUND_STATS_FALLBACK = os.environ.get("BACKGROUND_STATS_FALLBACK", "1") == "1"
-
 REDIS_STREAM_NAME = "stat:events"
 CONSUMER_GROUP = "stats-workers"
 CONSUMER_NAME = f"worker-{os.getpid()}"
@@ -22,9 +19,6 @@ def get_redis_client() -> redis.Redis:
     return redis.from_url(redis_url, decode_responses=True)
 
 def publish_stat_event(event_type: str, payload: Dict[str, Any]) -> Optional[str]:
-    if not BACKGROUND_STATS_ENABLED:
-        return None
-
     try:
         r = get_redis_client()
         event = {

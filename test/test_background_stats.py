@@ -305,7 +305,6 @@ def test_worker_env_variables():
         pytest.skip("stats-worker container not found")
 
     env_vars = result.stdout
-    assert "BACKGROUND_STATS_ENABLED=1" in env_vars, "BACKGROUND_STATS_ENABLED should be set to 1"
     assert "REDIS_URL" in env_vars, "REDIS_URL should be configured"
     assert "DATABASE_URL" in env_vars, "DATABASE_URL should be configured"
 
