@@ -22,6 +22,7 @@ logger.info("Starting stats background worker...")
 from ..worker.handlers.dojo_stats import initialize_all_dojo_stats
 from ..worker.handlers.scoreboard import initialize_all_scoreboards
 from ..worker.handlers.scores import initialize_all_scores
+from ..worker.handlers.awards import initialize_all_belts, initialize_all_emojis
 
 logger.info("Performing cold start cache initialization...")
 
@@ -34,6 +35,12 @@ try:
 
     initialize_all_scores()
     logger.info("Scores initialization complete")
+
+    initialize_all_belts()
+    logger.info("Belts initialization complete")
+
+    initialize_all_emojis()
+    logger.info("Emojis initialization complete")
 
     logger.info("Cold start complete - all stats initialized")
 except Exception as e:

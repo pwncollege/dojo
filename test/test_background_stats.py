@@ -590,3 +590,72 @@ def test_hacker_page_uses_scores(stats_test_dojo, stats_test_user):
 
     response = user_session.get(f"{DOJO_URL}/hacker/")
     assert response.status_code == 200, "Hacker page should load successfully"
+
+def test_scoreboard_page_uses_belts_cache(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    time.sleep(3)
+
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{stats_test_dojo}/_/0/1")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert 'standings' in data
+    if len(data['standings']) > 0:
+        first_entry = data['standings'][0]
+        assert 'belt' in first_entry, "Scoreboard entries should have belt info"
+        assert 'badges' in first_entry, "Scoreboard entries should have badges info"
+
+def test_belts_page_loads_from_cache(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    time.sleep(3)
+
+    import requests
+    response = requests.get(f"{DOJO_URL}/belts")
+    assert response.status_code == 200, "Belts page should load successfully"
+
+def test_users_page_loads_with_awards_cache(stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/hacker/")
+    assert response.status_code == 200, "Users page should load successfully with awards cache"
+
+def test_emoji_awarded_triggers_cache_update(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    emojis_key = "stats:emojis"
+    before_timestamp = redis_get(f"{emojis_key}:updated")
+    before_time = float(before_timestamp) if before_timestamp else 0
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    start_challenge(stats_test_dojo, "hello", "banana", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "banana", session=user_session, user=user_name)
+
+    start_time = time.time()
+    updated = False
+    while time.time() - start_time < 15:
+        after_timestamp = redis_get(f"{emojis_key}:updated")
+        if after_timestamp and float(after_timestamp) > before_time:
+            updated = True
+            break
+        time.sleep(0.5)
+
+    assert updated, "Emojis cache should be updated after completing a dojo"

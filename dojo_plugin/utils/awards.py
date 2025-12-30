@@ -5,11 +5,14 @@ from CTFd.models import db, Users
 from flask import url_for
 
 from .discord import get_discord_roles, get_discord_member, add_role, send_message
+from .background_stats import get_cached_stat, BACKGROUND_STATS_ENABLED, BACKGROUND_STATS_FALLBACK
 from ..models import Dojos, Belts, Emojis, DiscordUsers
 from .feed import publish_belt_earned, publish_emoji_earned
 
 
 BELT_ORDER = [ "orange", "yellow", "green", "purple", "blue", "brown", "red", "black" ]
+CACHE_KEY_BELTS = "stats:belts"
+CACHE_KEY_EMOJIS = "stats:emojis"
 BELT_REQUIREMENTS = {
     "orange": "intro-to-cybersecurity",
     "yellow": "program-security",
@@ -27,7 +30,7 @@ def get_user_emojis(user):
             emojis.append((emoji, dojo.name or dojo.reference_id, dojo.hex_dojo_id))
     return emojis
 
-def get_belts():
+def calculate_belts():
     result = dict(dates={}, users={}, ranks={})
     for color in reversed(BELT_ORDER):
         result["dates"][color] = {}
@@ -60,18 +63,38 @@ def get_belts():
 
     return result
 
-def get_viewable_emojis(user):
+def get_belts():
+    if BACKGROUND_STATS_ENABLED:
+        cached = get_cached_stat(CACHE_KEY_BELTS)
+        if cached:
+            result = dict(dates={}, users={}, ranks={})
+            for color in BELT_ORDER:
+                result["dates"][color] = {int(k): v for k, v in cached.get("dates", {}).get(color, {}).items()}
+                result["ranks"][color] = cached.get("ranks", {}).get(color, [])
+            result["users"] = {int(k): v for k, v in cached.get("users", {}).items()}
+            return result
+
+        if not BACKGROUND_STATS_FALLBACK:
+            result = dict(dates={}, users={}, ranks={})
+            for color in reversed(BELT_ORDER):
+                result["dates"][color] = {}
+                result["ranks"][color] = []
+            return result
+
+    return calculate_belts()
+
+def calculate_viewable_emojis(user):
     result = { }
     viewable_dojos = {
         dojo.hex_dojo_id: dojo
         for dojo in Dojos.viewable(user=user).where(Dojos.data["type"].astext != "example")
     }
-    
+
     emojis = (
         Emojis.query
         .join(Users)
         .filter(~Users.hidden, db.or_(Emojis.category.in_(viewable_dojos.keys()), Emojis.category == None))
-        .order_by(Emojis.date, Emojis.name.desc())  # Order by date, then name DESC (STALE < CURRENT < legacy emojis)
+        .order_by(Emojis.date, Emojis.name.desc())
         .with_entities(
             Emojis.name,
             Emojis.description,
@@ -79,13 +102,13 @@ def get_viewable_emojis(user):
             Users.id.label("user_id"),
         )
     )
-    
+
     seen = set()
     for emoji in emojis:
         key = (emoji.user_id, emoji.category)
         if key in seen:
             continue
-            
+
         if emoji.category is None:
             emoji_symbol = emoji.name
             url = "#"
@@ -95,9 +118,9 @@ def get_viewable_emojis(user):
                 continue
             emoji_symbol = dojo.award.get('emoji')
             url = url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
-        
+
         is_stale = emoji.name == "STALE"
-        
+
         result.setdefault(emoji.user_id, []).append({
             "text": emoji.description,
             "emoji": emoji_symbol,
@@ -106,8 +129,50 @@ def get_viewable_emojis(user):
             "stale": is_stale,
         })
         seen.add(key)
-    
+
     return result
+
+def get_viewable_emojis(user):
+    if BACKGROUND_STATS_ENABLED:
+        cached = get_cached_stat(CACHE_KEY_EMOJIS)
+        if cached:
+            viewable_dojos = {
+                dojo.hex_dojo_id: dojo
+                for dojo in Dojos.viewable(user=user).where(Dojos.data["type"].astext != "example")
+            }
+
+            result = {}
+            for user_id_str, emoji_list in cached.get("emojis", {}).items():
+                filtered = []
+                for emoji_entry in emoji_list:
+                    category = emoji_entry.get("category")
+                    if category is None:
+                        filtered.append({
+                            "text": emoji_entry["text"],
+                            "emoji": emoji_entry["emoji"],
+                            "count": 1,
+                            "url": "#",
+                            "stale": False,
+                        })
+                    elif category in viewable_dojos:
+                        dojo = viewable_dojos[category]
+                        if not dojo.award or not dojo.award.get('emoji'):
+                            continue
+                        filtered.append({
+                            "text": emoji_entry["text"],
+                            "emoji": dojo.award.get('emoji'),
+                            "count": 1,
+                            "url": url_for("pwncollege_dojo.listing", dojo=dojo.reference_id),
+                            "stale": emoji_entry.get("stale", False),
+                        })
+                if filtered:
+                    result[int(user_id_str)] = filtered
+            return result
+
+        if not BACKGROUND_STATS_FALLBACK:
+            return {}
+
+    return calculate_viewable_emojis(user)
 
 def update_awards(user):
     current_belts = [belt.name for belt in Belts.query.filter_by(user=user)]
