@@ -1,5 +1,6 @@
 import logging
 import signal
+import time
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -29,28 +30,37 @@ from ..worker.handlers.activity import initialize_all_activity
 logger.info("Performing cold start cache initialization...")
 
 try:
+    cold_start_begin = time.time()
+
+    step_start = time.time()
     initialize_all_dojo_stats()
-    logger.info("Dojo stats initialization complete")
+    logger.info(f"Dojo stats initialization complete ({time.time() - step_start:.2f}s)")
 
+    step_start = time.time()
     initialize_all_scoreboards()
-    logger.info("Scoreboard initialization complete")
+    logger.info(f"Scoreboard initialization complete ({time.time() - step_start:.2f}s)")
 
+    step_start = time.time()
     initialize_all_scores()
-    logger.info("Scores initialization complete")
+    logger.info(f"Scores initialization complete ({time.time() - step_start:.2f}s)")
 
+    step_start = time.time()
     initialize_all_belts()
-    logger.info("Belts initialization complete")
+    logger.info(f"Belts initialization complete ({time.time() - step_start:.2f}s)")
 
+    step_start = time.time()
     initialize_all_emojis()
-    logger.info("Emojis initialization complete")
+    logger.info(f"Emojis initialization complete ({time.time() - step_start:.2f}s)")
 
+    step_start = time.time()
     initialize_all_container_stats()
-    logger.info("Container stats initialization complete")
+    logger.info(f"Container stats initialization complete ({time.time() - step_start:.2f}s)")
 
+    step_start = time.time()
     initialize_all_activity()
-    logger.info("Activity initialization complete")
+    logger.info(f"Activity initialization complete ({time.time() - step_start:.2f}s)")
 
-    logger.info("Cold start complete - all stats initialized")
+    logger.info(f"Cold start complete - all stats initialized ({time.time() - cold_start_begin:.2f}s total)")
 except Exception as e:
     logger.error(f"Error during cold start: {e}", exc_info=True)
 
