@@ -4,6 +4,7 @@ from ...dojo_plugin import config
 from flask_restx import Api
 
 from ..utils.request_logging import log_exception
+from .v1.activity import activity_namespace
 from .v1.auth import auth_namespace
 from .v1.belts import belts_namespace
 from .v1.discord import discord_namespace
@@ -55,6 +56,7 @@ def handle_api_exception(error):
     raise
 
 
+api_v1.add_namespace(activity_namespace, "/activity")
 api_v1.add_namespace(auth_namespace, "/auth")
 api_v1.add_namespace(user_namespace, "/users")
 api_v1.add_namespace(belts_namespace, "/belts")

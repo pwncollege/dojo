@@ -24,6 +24,7 @@ from ..worker.handlers.scoreboard import initialize_all_scoreboards
 from ..worker.handlers.scores import initialize_all_scores
 from ..worker.handlers.awards import initialize_all_belts, initialize_all_emojis
 from ..worker.handlers.containers import initialize_all_container_stats
+from ..worker.handlers.activity import initialize_all_activity
 
 logger.info("Performing cold start cache initialization...")
 
@@ -45,6 +46,9 @@ try:
 
     initialize_all_container_stats()
     logger.info("Container stats initialization complete")
+
+    initialize_all_activity()
+    logger.info("Activity initialization complete")
 
     logger.info("Cold start complete - all stats initialized")
 except Exception as e:

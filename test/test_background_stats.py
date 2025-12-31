@@ -968,3 +968,184 @@ def test_container_stats_fallback_on_cache_miss(admin_session):
 
     response = admin_session.get(f"{DOJO_URL}/dojos")
     assert response.status_code == 200, "Dojos page should load even without container cache"
+
+def test_activity_update_on_solve(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me")
+    assert response.status_code == 200
+    user_id = response.json()["id"]
+
+    cache_key = f"stats:activity:{user_id}"
+    redis_delete(cache_key, f"{cache_key}:updated")
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    start_time = time.time()
+    updated = False
+    while time.time() - start_time < 10:
+        cached_data = redis_get(cache_key)
+        if cached_data:
+            updated = True
+            break
+        time.sleep(0.5)
+
+    assert updated, "Activity cache should be updated after solve"
+
+    activity = json.loads(cached_data)
+    assert 'daily_solves' in activity, "Activity should have daily_solves"
+    assert 'total_solves' in activity, "Activity should have total_solves"
+    assert activity['total_solves'] >= 1, f"Expected at least 1 solve, got {activity['total_solves']}"
+
+def test_activity_api_returns_cached_data(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me")
+    assert response.status_code == 200
+    user_id = response.json()["id"]
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    cache_key = f"stats:activity:{user_id}"
+
+    start_time = time.time()
+    while time.time() - start_time < 10:
+        cached_data = redis_get(cache_key)
+        if cached_data:
+            break
+        time.sleep(0.5)
+
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/activity/{user_id}")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data['success'] is True, "API should return success"
+    assert 'data' in data, "API should return data"
+    assert 'daily_solves' in data['data'], "API data should have daily_solves"
+    assert 'total_solves' in data['data'], "API data should have total_solves"
+
+def test_activity_cache_structure(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me")
+    assert response.status_code == 200
+    user_id = response.json()["id"]
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    cache_key = f"stats:activity:{user_id}"
+
+    start_time = time.time()
+    while time.time() - start_time < 10:
+        cached_data = redis_get(cache_key)
+        if cached_data:
+            break
+        time.sleep(0.5)
+
+    assert cached_data is not None, "Activity cache should exist"
+
+    activity = json.loads(cached_data)
+
+    assert isinstance(activity['daily_solves'], dict), "daily_solves should be a dict"
+    assert isinstance(activity['total_solves'], int), "total_solves should be an int"
+
+    today = time.strftime('%Y-%m-%d')
+    assert today in activity['daily_solves'], f"Today's date ({today}) should be in daily_solves"
+    assert activity['daily_solves'][today] >= 1, "Today should have at least 1 solve"
+
+def test_activity_multiple_solves_same_day(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me")
+    assert response.status_code == 200
+    user_id = response.json()["id"]
+
+    cache_key = f"stats:activity:{user_id}"
+    redis_delete(cache_key, f"{cache_key}:updated")
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    time.sleep(2)
+
+    start_challenge(stats_test_dojo, "hello", "banana", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "banana", session=user_session, user=user_name)
+
+    start_time = time.time()
+    while time.time() - start_time < 10:
+        cached_data = redis_get(cache_key)
+        if cached_data:
+            activity = json.loads(cached_data)
+            if activity.get('total_solves', 0) >= 2:
+                break
+        time.sleep(0.5)
+
+    activity = json.loads(redis_get(cache_key))
+    today = time.strftime('%Y-%m-%d')
+
+    assert activity['total_solves'] >= 2, f"Expected at least 2 total solves, got {activity['total_solves']}"
+    assert activity['daily_solves'].get(today, 0) >= 2, f"Expected at least 2 solves today, got {activity['daily_solves'].get(today, 0)}"
+
+def test_activity_fallback_on_cache_miss(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me")
+    assert response.status_code == 200
+    user_id = response.json()["id"]
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    time.sleep(2)
+
+    cache_key = f"stats:activity:{user_id}"
+    redis_delete(cache_key, f"{cache_key}:updated")
+
+    assert redis_get(cache_key) is None, "Cache should be empty after deletion"
+
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/activity/{user_id}")
+    assert response.status_code == 200, "API should return 200 even without cache"
+
+    data = response.json()
+    assert data['success'] is True, "API should return success on fallback"
+    assert 'daily_solves' in data['data'], "Fallback should compute daily_solves"
+    assert data['data']['total_solves'] >= 1, "Fallback should find existing solves"
+
+def test_activity_api_user_not_found(stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/activity/999999")
+    assert response.status_code == 404, "API should return 404 for non-existent user"
+
+def test_hacker_page_loads_with_activity(stats_test_dojo, stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
+    assert response.status_code == 200
+
+    start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
+    solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
+
+    time.sleep(2)
+
+    response = user_session.get(f"{DOJO_URL}/hacker/")
+    assert response.status_code == 200, "Hacker page should load successfully with activity"
+    assert 'activity-tracker' in response.text, "Hacker page should contain activity tracker"

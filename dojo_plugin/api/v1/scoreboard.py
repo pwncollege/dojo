@@ -100,6 +100,9 @@ def publish_belts_event():
 def publish_emojis_event():
     publish_stat_event("emojis_update", {})
 
+def publish_activity_event(user_id):
+    publish_stat_event("activity_update", {"user_id": user_id})
+
 # handle cache invalidation for new solves, dojo creation, dojo challenge creation
 def _queue_stat_events_for_publish():
     if not hasattr(g, '_pending_stat_events'):
@@ -140,6 +143,8 @@ def hook_object_creation(mapper, connection, target):
             _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))
             _queue_stat_events_for_publish().append(lambda m_id=module_id: publish_scoreboard_event("module", m_id))
         _queue_stat_events_for_publish().append(publish_scores_event)
+        user_id = target.user_id
+        _queue_stat_events_for_publish().append(lambda u_id=user_id: publish_activity_event(u_id))
     elif isinstance(target, Dojos):
         dojo_id = target.dojo_id
         _queue_stat_events_for_publish().append(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
