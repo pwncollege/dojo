@@ -55,7 +55,7 @@ export function WorkspaceService({
   }, []);
 
   useEffect(() => {
-    const fullUrl = `${PROTOCOL}://${process.env.NEXT_PUBLIC_DOJO_HOST}${iframeSrc}`
+    const fullUrl = `${iframeSrc}`
 
     // Check if iframe already has the correct URL - if so, don't reload
     if (iframeRef.current && iframeRef.current.src === fullUrl && isReady) {
@@ -189,7 +189,7 @@ export function WorkspaceService({
             transform: "translateZ(0)", // Force GPU layer
           }}
           title={`Workspace ${activeService}`}
-          allow="clipboard-write"
+          allow="clipboard-read *; clipboard-write *"
         />
       </div>
 

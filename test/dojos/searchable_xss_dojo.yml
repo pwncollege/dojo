@@ -1,0 +1,15 @@
+id: search-xss-dojo
+name: Search XSS Dojo
+description: Search test <img src=x onerror=alert(1)> content.
+modules:
+  - id: xss-module
+    name: XSS Module
+    description: Module with <script>alert(1)</script> search content.
+    challenges:
+      - id: xss-challenge
+        name: XSS Challenge
+        description: Challenge about <svg onload=alert(1)></svg> search content.
+        import:
+          dojo: example
+          module: hello
+          challenge: apple
