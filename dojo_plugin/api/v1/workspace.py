@@ -68,6 +68,7 @@ class view_desktop(Resource):
 
         signature = base64.urlsafe_b64encode(digest).decode()
 
+        iframe_src = None
         if service:
             if service == "desktop":
                 interact_password = container_password(container, "desktop", "interact")
