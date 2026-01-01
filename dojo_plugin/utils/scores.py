@@ -2,7 +2,6 @@ from sqlalchemy.sql import or_
 from CTFd.models import Solves, db
 from CTFd.cache import cache
 from ..models import Dojos, DojoChallenges
-from . import force_cache_updates
 from .background_stats import get_cached_stat
 
 CACHE_KEY_DOJO_SCORES = "stats:scores:dojos"
@@ -55,14 +54,14 @@ def _calculate_module_scores():
         "module_ranks": module_ranks
     }
 
-@cache.memoize(timeout=1200, forced_update=force_cache_updates)
+@cache.memoize(timeout=1200)
 def dojo_scores():
     cached = get_cached_stat(CACHE_KEY_DOJO_SCORES)
     if cached:
         return cached
     return {"user_ranks": {}, "user_solves": {}, "dojo_ranks": {}}
 
-@cache.memoize(timeout=1200, forced_update=force_cache_updates)
+@cache.memoize(timeout=1200)
 def module_scores():
     cached = get_cached_stat(CACHE_KEY_MODULE_SCORES)
     if cached:
