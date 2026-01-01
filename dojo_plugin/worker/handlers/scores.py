@@ -82,9 +82,6 @@ def handle_scores_update(payload):
         logger.error(f"Error calculating module scores: {e}", exc_info=True)
 
 def initialize_all_scores():
-    db.session.expire_all()
-    db.session.commit()
-
     logger.info("Initializing dojo scores...")
     try:
         dojo_data = calculate_dojo_scores()

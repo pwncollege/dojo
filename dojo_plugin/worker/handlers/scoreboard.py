@@ -84,9 +84,6 @@ def handle_scoreboard_update(payload):
             logger.error(f"Error calculating scoreboard for {model_type} {model_id}, duration={duration}: {e}", exc_info=True)
 
 def initialize_all_scoreboards():
-    db.session.expire_all()
-    db.session.commit()
-
     dojos = Dojos.query.all()
     logger.info(f"Initializing scoreboards for {len(dojos)} dojos...")
 

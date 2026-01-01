@@ -132,9 +132,6 @@ def handle_emojis_update(payload):
         logger.error(f"Error calculating emojis: {e}", exc_info=True)
 
 def initialize_all_belts():
-    db.session.expire_all()
-    db.session.commit()
-
     logger.info("Initializing belts...")
     try:
         belt_data = calculate_belts()
@@ -145,9 +142,6 @@ def initialize_all_belts():
         logger.error(f"Error initializing belts: {e}", exc_info=True)
 
 def initialize_all_emojis():
-    db.session.expire_all()
-    db.session.commit()
-
     logger.info("Initializing emojis...")
     try:
         emoji_data = calculate_emojis()

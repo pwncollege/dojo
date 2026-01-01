@@ -120,9 +120,6 @@ def handle_dojo_stats_update(payload):
         logger.error(f"Error calculating stats for dojo_id {dojo_id}: {e}", exc_info=True)
 
 def initialize_all_dojo_stats():
-    db.session.expire_all()
-    db.session.commit()
-
     dojos = Dojos.query.all()
     logger.info(f"Initializing stats for {len(dojos)} dojos...")
 

@@ -69,21 +69,29 @@ def initialize_activity_for_user(user_id):
         return False
 
 def initialize_all_activity():
-    db.session.expire_all()
-    db.session.commit()
-
     one_year_ago = datetime.now() - timedelta(days=365)
-    active_user_ids = (
+
+    all_solves = (
         Solves.query
         .filter(Solves.date >= one_year_ago)
-        .with_entities(func.distinct(Solves.user_id))
+        .with_entities(Solves.user_id, Solves.date)
         .all()
     )
-    user_ids = [uid[0] for uid in active_user_ids]
 
-    logger.info(f"Initializing activity for {len(user_ids)} active users...")
+    user_activity = defaultdict(lambda: defaultdict(int))
+    for user_id, date in all_solves:
+        if date:
+            date_str = date.strftime('%Y-%m-%d')
+            user_activity[user_id][date_str] += 1
 
-    for user_id in user_ids:
-        initialize_activity_for_user(user_id)
+    logger.info(f"Initializing activity for {len(user_activity)} active users (batch mode)...")
 
-    logger.info(f"Activity initialization complete for {len(user_ids)} users")
+    for user_id, daily_counts in user_activity.items():
+        activity = {
+            'daily_solves': dict(daily_counts),
+            'total_solves': sum(daily_counts.values()),
+        }
+        cache_key = f"stats:activity:{user_id}"
+        set_cached_stat(cache_key, activity)
+
+    logger.info(f"Activity initialization complete for {len(user_activity)} users")
