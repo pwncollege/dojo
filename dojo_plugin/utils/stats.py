@@ -1,4 +1,3 @@
-from CTFd.cache import cache
 from CTFd.models import Solves
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc
@@ -14,7 +13,6 @@ def calculate_container_stats():
             for attr in ["dojo", "module", "challenge"]}
             for container in containers]
 
-@cache.memoize(timeout=1200)
 def get_container_stats():
     cached = get_cached_stat(CACHE_KEY_CONTAINERS)
     if cached:
@@ -105,7 +103,6 @@ def calculate_dojo_stats(dojo):
         }
     }
 
-@cache.memoize(timeout=1200)
 def get_dojo_stats(dojo):
     cache_key = f"stats:dojo:{dojo.reference_id}"
     cached = get_cached_stat(cache_key)
