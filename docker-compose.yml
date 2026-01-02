@@ -219,7 +219,7 @@ services:
     profiles:
       - main
     restart: always
-    image: redis:7
+    image: redis:8
     volumes:
       - /data/redis:/data
 

@@ -113,18 +113,26 @@ def stats_test_user():
 def test_redis_stream_event_published(stats_test_dojo, stats_test_user, admin_session):
     user_name, user_session = stats_test_user
 
-    initial_length = get_stream_length()
-
     response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
     assert response.status_code == 200
 
     start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
     solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
 
-    time.sleep(0.5)
+    cache_key = f"stats:dojo:{stats_test_dojo}"
+    start_time = time.time()
+    while time.time() - start_time < 10:
+        cached_data = redis_get(cache_key)
+        if cached_data:
+            stats = json.loads(cached_data)
+            if stats.get('solves', 0) >= 1:
+                break
+        time.sleep(0.5)
 
-    new_length = get_stream_length()
-    assert new_length > initial_length, f"Expected events to be published to Redis Stream. Initial: {initial_length}, New: {new_length}"
+    cached_data = redis_get(cache_key)
+    assert cached_data is not None, "Event should have been published and processed (cache updated)"
+    stats = json.loads(cached_data)
+    assert stats.get('solves', 0) >= 1, "Event should have been processed and stats updated"
 
 def test_background_worker_processes_events(stats_test_dojo, stats_test_user):
     user_name, user_session = stats_test_user
@@ -397,14 +405,14 @@ def test_chart_data_structure(stats_test_dojo, stats_test_user):
     assert chart_data['labels'] == ['Today', '1w ago', '1mo ago', '2mo ago']
 
 def test_redis_stream_cleanup():
-    initial_length = get_stream_length()
-
     for i in range(5):
         event_data = json.dumps({"type": "test", "payload": {}, "timestamp": "2024-01-01"})
         redis_xadd("stat:events", "*", "data", event_data)
 
-    new_length = get_stream_length()
-    assert new_length >= initial_length + 5, "Events should be added to stream"
+    time.sleep(3)
+
+    final_length = get_stream_length()
+    assert final_length < 10, f"Stream should be cleaned up after processing (xackdel). Length: {final_length}"
 
 def test_stats_consistency_after_multiple_updates(stats_test_dojo, stats_test_user):
     user_name, user_session = stats_test_user

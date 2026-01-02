@@ -150,6 +150,7 @@ fi
 
 MAIN_NODE_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared")
 [ -n "$WORKSPACE_DIR" ] && MAIN_NODE_VOLUME_ARGS+=( "-v" "$WORKSPACE_DIR:/data/workspace:shared" )
+[ -f "$HOME/.docker/config.json" ] && MAIN_NODE_VOLUME_ARGS+=( "-v" "$HOME/.docker/config.json:/root/.docker/config.json:ro" )
 if [ -n "$DOCKER_DIR" ]; then
 	MAIN_NODE_VOLUME_ARGS+=( "-v" "$DOCKER_DIR:/data/docker" )
 	if [ "$START" == "yes" ]; then
@@ -162,6 +163,8 @@ if [ "$MULTINODE" == "yes" ]; then
 	NODE2_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR_NODE2:/data:shared")
 	[ -n "$WORKSPACE_DIR" ] && NODE1_VOLUME_ARGS+=("-v" "$WORKSPACE_DIR:/data/workspace:shared")
 	[ -n "$WORKSPACE_DIR" ] && NODE2_VOLUME_ARGS+=("-v" "$WORKSPACE_DIR:/data/workspace:shared")
+	[ -f "$HOME/.docker/config.json" ] && NODE1_VOLUME_ARGS+=("-v" "$HOME/.docker/config.json:/root/.docker/config.json:ro")
+	[ -f "$HOME/.docker/config.json" ] && NODE2_VOLUME_ARGS+=("-v" "$HOME/.docker/config.json:/root/.docker/config.json:ro")
 	if [ -n "$DOCKER_DIR" ]; then
 		NODE1_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node1:/data/docker")
 		NODE2_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node2:/data/docker")

@@ -72,8 +72,8 @@ def consume_stat_events(handler: Callable[[str, Dict[str, Any]], None], batch_si
                         logger.info(f"Processing event: {event_type} with payload: {payload}")
                         handler(event_type, payload)
 
-                        r.xack(REDIS_STREAM_NAME, CONSUMER_GROUP, message_id)
-                        logger.info(f"Successfully processed and acknowledged event {message_id}")
+                        r.xackdel(REDIS_STREAM_NAME, CONSUMER_GROUP, message_id)
+                        logger.info(f"Successfully processed, acknowledged, and deleted event {message_id}")
                     except Exception as e:
                         logger.error(f"Error processing event {message_id}: {e}", exc_info=True)
         except redis.ResponseError as e:
