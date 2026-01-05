@@ -1,5 +1,7 @@
 
 import datetime
+import sys
+import traceback
 
 from CTFd.cache import cache
 from CTFd.models import Solves, Users, db
@@ -13,7 +15,7 @@ from sqlalchemy.sql import and_
 from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
                        DojoUsers, Emojis, SurveyResponses)
 from ...utils import is_challenge_locked, render_markdown
-from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route
+from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_from_spec
 from ...utils.stats import get_dojo_stats
 
 dojos_namespace = Namespace(
@@ -110,6 +112,27 @@ class CreateDojo(Resource):
 
         cache.set(key, 1, timeout=timeout)
         return {"success": True, "dojo": dojo.reference_id}
+
+
+@dojos_namespace.route("/<dojo>/update")
+class UpdateDojo(Resource):
+    @dojo_route
+    @dojo_admins_only
+    def post(self, dojo):
+        data = request.get_json()
+        if not data:
+            return {"success": False, "error": "Missing dojo spec."}, 400
+
+        try:
+            dojo_from_spec(data, dojo=dojo)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print(f"ERROR: Dojo update failed for {dojo}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+            return {"success": False, "error": str(e)}, 400
+
+        return {"success": True}
 
 
 @dojos_namespace.route("/<dojo>/modules")
