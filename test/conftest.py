@@ -4,7 +4,7 @@ import pytest
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, wait_for_background_worker
 from selenium.webdriver import Firefox, FirefoxOptions
 
 @pytest.fixture(scope="session")
@@ -51,8 +51,7 @@ def completionist_user(simple_award_dojo, codepoints_award_dojo):
         start_challenge(codepoints_award_dojo, module, challenge, session=session)
         solve_challenge(codepoints_award_dojo, module, challenge, session=session, user=random_id)
 
-    import time
-    time.sleep(2)
+    wait_for_background_worker(timeout=2)
 
     yield random_id, session
 
