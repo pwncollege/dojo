@@ -134,9 +134,6 @@ if [ "$CLEAN_ONLY" == "yes" ]; then
 	exit
 fi
 
-if [ "$MULTINODE" == "yes" ]; then
-fi
-
 MAIN_NODE_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college")
 [ -n "$WORKSPACE_DIR" ] && MAIN_NODE_VOLUME_ARGS+=( "-v" "$WORKSPACE_DIR:/data/workspace:shared" )
 if [ -n "$DOCKER_DIR" ]; then
