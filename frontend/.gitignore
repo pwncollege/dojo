@@ -9,8 +9,6 @@ lerna-debug.log*
 bun.lock
 
 node_modules
-dist
-dist-ssr
 *.local
 
 # Next.js
