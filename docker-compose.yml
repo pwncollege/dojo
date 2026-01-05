@@ -386,13 +386,13 @@ services:
       - -c
       - |
         if [ "$DOJO_ENV" = "production" ]; then
-          exec bun ./server.js;
+          exec bun ./server.js
         else
           cd /opt/pwn.college/frontend
           if [ ! -x node_modules/.bin/next ]; then
-            bun install;
+            bun install
           fi
-          exec bun dev --turbo;
+          exec bun dev --turbo
         fi
     volumes:
       - /opt/pwn.college/frontend:/opt/pwn.college/frontend
