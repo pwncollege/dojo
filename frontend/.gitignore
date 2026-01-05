@@ -7,18 +7,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules/*
-!node_modules/.gitkeep
+node_modules
 dist
 dist-ssr
 *.local
 
 # Next.js
-.next/*
-!.next/.gitkeep
+.next/
 out/
-.turbo/*
-!.turbo/.gitkeep
+.turbo/
 
 # Vite
 .vite

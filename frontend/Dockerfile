@@ -47,7 +47,15 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME="0.0.0.0"
 
+COPY --from=builder /opt/frontend/package.json ./package.json
+COPY --from=builder /opt/frontend/components.json ./components.json
+COPY --from=builder /opt/frontend/next-env.d.ts ./next-env.d.ts
+COPY --from=builder /opt/frontend/next.config.js ./next.config.js
+COPY --from=builder /opt/frontend/postcss.config.js ./postcss.config.js
+COPY --from=builder /opt/frontend/tailwind.config.js ./tailwind.config.js
+COPY --from=builder /opt/frontend/tsconfig.json ./tsconfig.json
 COPY --from=builder /opt/frontend/public ./public
+COPY --from=builder /opt/frontend/src ./src
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing

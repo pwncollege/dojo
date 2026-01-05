@@ -392,11 +392,8 @@ services:
           exec bun dev --turbo
         fi
     volumes:
-      - /opt/pwn.college/frontend:/opt/frontend:ro
-    tmpfs:
-      - /opt/frontend/node_modules:exec
-      - /opt/frontend/.next:exec
-      - /opt/frontend/.turbo:exec
+      - /opt/pwn.college/frontend/src:/opt/frontend/src:ro
+      - /opt/pwn.college/frontend/public:/opt/frontend/public:ro
 
   grafana:
     container_name: grafana
