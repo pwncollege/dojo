@@ -386,14 +386,16 @@ services:
       - -c
       - |
         if [ "$DOJO_ENV" = "production" ]; then
-          exec bun ./server.js
+          exec bun ./server.js;
         else
-          bun install --no-save --offline
-          exec bun dev --turbo
+          cd /opt/pwn.college/frontend
+          if [ ! -x node_modules/.bin/next ]; then
+            bun install;
+          fi
+          exec bun dev --turbo;
         fi
     volumes:
-      - /opt/pwn.college/frontend/src:/opt/frontend/src:ro
-      - /opt/pwn.college/frontend/public:/opt/frontend/public:ro
+      - /opt/pwn.college/frontend:/opt/pwn.college/frontend
 
   grafana:
     container_name: grafana
