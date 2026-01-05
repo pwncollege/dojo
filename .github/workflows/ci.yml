@@ -83,8 +83,15 @@ jobs:
           fi
 
           sudo chown $USER:$USER /mnt/cache
+          mkdir -p /mnt/cache/dojo-image
+          mkdir -p /mnt/cache/test-image
           mkdir -p /mnt/cache/data/docker
           mkdir -p /mnt/cache/data/workspace
+          if [ -e /mnt/cache/data/docker -a "${{ matrix.mode }}" = "multinode" ]; then
+            sudo rm -rf /mnt/cache/data/docker-node1 /mnt/cache/data/docker-node2
+            sudo cp -a /mnt/cache/data/docker /mnt/cache/data/docker-node1
+            sudo cp -a /mnt/cache/data/docker /mnt/cache/data/docker-node2
+          fi
 
       - name: Set up Docker storage
         run: |
@@ -93,8 +100,8 @@ jobs:
           echo "::endgroup::"
           sudo systemctl stop docker
           sudo rm -rf /var/lib/docker
-          sudo mkdir -p /mnt/cache/docker
-          sudo ln -s /mnt/cache/docker /var/lib/docker
+          sudo mkdir -p /mnt/docker
+          sudo ln -s /mnt/docker /var/lib/docker
           sudo systemctl start docker
 
       - uses: docker/setup-buildx-action@v3
@@ -106,6 +113,8 @@ jobs:
           context: .
           tags: pwncollege/dojo
           load: true
+          cache-from: type=local,src=/mnt/cache/dojo-image
+          cache-to: type=local,dest=/tmp/outer-cache-new,mode=max
 
       - name: Build (and cache) test docker image
         if: env.SAVE_CACHE == 'yes'
@@ -114,6 +123,8 @@ jobs:
           context: test
           tags: dojo-test
           load: true
+          cache-from: type=local,src=/mnt/cache/test-image
+          cache-to: type=local,dest=/tmp/test-cache-new,mode=max
 
       - name: Build outer docker image
         if: env.SAVE_CACHE != 'yes'
@@ -122,6 +133,7 @@ jobs:
           context: .
           tags: pwncollege/dojo
           load: true
+          cache-from: type=local,src=/mnt/cache/dojo-image
 
       - name: Build test docker image
         if: env.SAVE_CACHE != 'yes'
@@ -130,9 +142,15 @@ jobs:
           context: test
           tags: dojo-test
           load: true
+          cache-from: type=local,src=/mnt/cache/test-image
 
       - name: Clean up after docker build
         run: |
+          if [ "$SAVE_CACHE" == "yes" ]; then
+            sudo rm -rf /mnt/cache/dojo-image /mnt/cache/test-image
+            sudo mv /tmp/outer-cache-new /mnt/cache/dojo-image
+            sudo mv /tmp/test-cache-new /mnt/cache/test-image
+          fi
           docker images
           df -h
           docker images | grep "^pwncollege/dojo "
