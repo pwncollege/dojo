@@ -55,19 +55,6 @@ jobs:
           docker images
           echo "::endgroup::"
 
-      - name: Set up Docker storage
-        run: |
-          echo "::group::Current disk usage"
-          df -h
-          echo "::endgroup::"
-          sudo systemctl stop docker
-          sudo rm -rf /var/lib/docker
-          sudo mkdir -p /mnt/docker
-          sudo ln -s /mnt/docker /var/lib/docker
-          sudo systemctl start docker
-
-      - uses: docker/setup-buildx-action@v3
-
       - name: Restore docker and workspace cache
         if: env.LOAD_CACHE == 'yes'
         uses: actions/cache/restore@v4
@@ -106,6 +93,19 @@ jobs:
 
           mkdir -p /mnt/outer-cache
           mkdir -p /mnt/test-cache
+      
+      - name: Set up Docker storage
+        run: |
+          echo "::group::Current disk usage"
+          df -h
+          echo "::endgroup::"
+          sudo systemctl stop docker
+          sudo rm -rf /var/lib/docker
+          sudo mkdir -p /mnt/docker
+          sudo ln -s /mnt/docker /var/lib/docker
+          sudo systemctl start docker
+
+      - uses: docker/setup-buildx-action@v3
 
       - name: Build (and cache) outer docker image
         if: env.SAVE_CACHE == 'yes' && !env.ACT
