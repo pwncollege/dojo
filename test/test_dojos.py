@@ -3,6 +3,7 @@ import requests
 import pytest
 import random
 import string
+import yaml
 
 from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id
 
@@ -35,6 +36,33 @@ def test_delete_dojo(admin_session):
     assert admin_session.get(f"{DOJO_URL}/{reference_id}/").status_code == 200
     assert admin_session.post(f"{DOJO_URL}/dojo/{reference_id}/delete/", json={"dojo": reference_id}).status_code == 200
     assert admin_session.get(f"{DOJO_URL}/{reference_id}/").status_code == 404
+
+
+def test_update_dojo(admin_session):
+    random_id = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"update-dojo-{random_id}"
+    original_name = "Update Test"
+    updated_name = "Update Test Updated"
+    spec = yaml.safe_load(open(TEST_DOJOS_LOCATION / "simple_award_dojo.yml").read())
+    spec["id"] = dojo_id
+    spec["name"] = original_name
+    dojo_reference_id = create_dojo_yml(
+        yaml.safe_dump(spec, sort_keys=False),
+        session=admin_session,
+    )
+
+    spec["name"] = updated_name
+    response = admin_session.post(
+        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo_reference_id}/update",
+        json=spec,
+    )
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
+    assert response.json()["success"]
+
+    list_response = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos")
+    assert list_response.status_code == 200, f"Expected status code 200, but got {list_response.status_code}"
+    updated = next(dojo for dojo in list_response.json()["dojos"] if dojo["id"] == dojo_reference_id)
+    assert updated["name"] == updated_name
 
 
 def test_import(import_dojo, admin_session):
