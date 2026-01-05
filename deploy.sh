@@ -32,13 +32,6 @@ function cleanup_container {
 	docker kill "$CONTAINER" 2>/dev/null || echo "No $CONTAINER container to kill."
 	docker rm "$CONTAINER" 2>/dev/null || echo "No $CONTAINER container to remove."
 	while docker ps -a | grep "$CONTAINER$"; do sleep 1; done
-
-	# freaking bad unmount
-	mount | grep /tmp/data-${CONTAINER}-....../ && sleep 4
-	mount | grep /tmp/data-${CONTAINER}-....../ | sed -e "s/.* on //" | sed -e "s/ .*//" | tac | while read ENTRY
-	do
-		sudo umount "$ENTRY" || echo "Failed ^"
-	done
 }
 
 function fix_insane_routing {
@@ -141,13 +134,10 @@ if [ "$CLEAN_ONLY" == "yes" ]; then
 	exit
 fi
 
-WORKDIR=$(mktemp -d /tmp/data-${DOJO_CONTAINER}-XXXXXX)
 if [ "$MULTINODE" == "yes" ]; then
-	WORKDIR_NODE1=$(mktemp -d /tmp/data-${DOJO_CONTAINER}-node1-XXXXXX)
-	WORKDIR_NODE2=$(mktemp -d /tmp/data-${DOJO_CONTAINER}-node2-XXXXXX)
 fi
 
-MAIN_NODE_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared")
+MAIN_NODE_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college")
 [ -n "$WORKSPACE_DIR" ] && MAIN_NODE_VOLUME_ARGS+=( "-v" "$WORKSPACE_DIR:/data/workspace:shared" )
 if [ -n "$DOCKER_DIR" ]; then
 	MAIN_NODE_VOLUME_ARGS+=( "-v" "$DOCKER_DIR:/data/docker" )
@@ -157,8 +147,8 @@ if [ -n "$DOCKER_DIR" ]; then
 fi
 
 if [ "$MULTINODE" == "yes" ]; then
-	NODE1_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR_NODE1:/data:shared")
-	NODE2_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR_NODE2:/data:shared")
+	NODE1_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college")
+	NODE2_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college")
 	[ -n "$WORKSPACE_DIR" ] && NODE1_VOLUME_ARGS+=("-v" "$WORKSPACE_DIR:/data/workspace:shared")
 	[ -n "$WORKSPACE_DIR" ] && NODE2_VOLUME_ARGS+=("-v" "$WORKSPACE_DIR:/data/workspace:shared")
 	if [ -n "$DOCKER_DIR" ]; then
