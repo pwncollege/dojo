@@ -60,7 +60,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            /tmp/dojo-cache.img
+            /mnt/cache.img
           key: dojo-cache2-${{ matrix.mode }}-${{ github.run_id }}
           restore-keys: |
             dojo-cache2-
@@ -69,32 +69,23 @@ jobs:
         run: |
           set -x
           df -h
-          sudo mkdir -p /mnt/dojo-cache
-          if [ "${{ env.ACT }}" == "true" ]; then
-            echo "Not using a loopback mount for local CI..."
-            sudo apt-get update && sudo apt-get install -y iproute2
-          elif [ "$SAVE_CACHE" == "yes" -o ! -e /tmp/dojo-cache.img ]; then
+          sudo mkdir -p /mnt/cache
+          if [ "$SAVE_CACHE" == "yes" -o ! -e /mnt/cache.img ]; then
             echo "Creating fresh loopback filesystem image..."
-            sudo fallocate -l 9.8G /tmp/dojo-cache.img
-            sudo mkfs.btrfs -L cache /tmp/dojo-cache.img
-            sudo mount -o loop,compress=zstd:9 /tmp/dojo-cache.img /mnt/dojo-cache
+            sudo fallocate -l 9.8G /mnt/cache.img
+            sudo mkfs.btrfs -L cache /mnt/cache.img
+            sudo mount -o loop,compress=zstd:9 /mnt/cache.img /mnt/cache
           else
             echo "Using cached loopback filesystem image"
-            truncate -s +20G /tmp/dojo-cache.img
-            sudo mount -o loop,compress=zstd:6 /tmp/dojo-cache.img /mnt/dojo-cache
-            sudo btrfs filesystem resize max /mnt/dojo-cache
+            truncate -s +20G /mnt/cache.img
+            sudo mount -o loop,compress=zstd:6 /mnt/cache.img /mnt/cache
+            sudo btrfs filesystem resize max /mnt/cache
           fi
 
-          sudo chown $USER:$USER /mnt/dojo-cache
+          sudo chown $USER:$USER /mnt/cache
+          mkdir -p /mnt/cache/data/docker
+          mkdir -p /mnt/cache/data/workspace
 
-          if [ -e /mnt/dojo-cache/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
-            sudo cp -a /mnt/dojo-cache/dojo-docker /mnt/dojo-cache/dojo-docker-node1
-            sudo cp -a /mnt/dojo-cache/dojo-docker /mnt/dojo-cache/dojo-docker-node2
-          fi
-
-          mkdir -p /mnt/dojo-cache/outer-cache
-          mkdir -p /mnt/dojo-cache/test-cache
-      
       - name: Set up Docker storage
         run: |
           echo "::group::Current disk usage"
@@ -102,68 +93,55 @@ jobs:
           echo "::endgroup::"
           sudo systemctl stop docker
           sudo rm -rf /var/lib/docker
-          sudo mkdir -p /mnt/docker
-          sudo ln -s /mnt/docker /var/lib/docker
+          sudo mkdir -p /mnt/cache/docker
+          sudo ln -s /mnt/cache/docker /var/lib/docker
           sudo systemctl start docker
 
       - uses: docker/setup-buildx-action@v3
 
       - name: Build (and cache) outer docker image
-        if: env.SAVE_CACHE == 'yes' && !env.ACT
+        if: env.SAVE_CACHE == 'yes'
         uses: docker/build-push-action@v5
         with:
           context: .
           tags: pwncollege/dojo
           load: true
-          cache-from: type=local,src=/mnt/dojo-cache/outer-cache
-          cache-to: type=local,dest=/tmp/outer-cache-new,mode=max
 
       - name: Build (and cache) test docker image
-        if: env.SAVE_CACHE == 'yes' && !env.ACT
+        if: env.SAVE_CACHE == 'yes'
         uses: docker/build-push-action@v5
         with:
           context: test
           tags: dojo-test
           load: true
-          cache-from: type=local,src=/mnt/dojo-cache/test-cache
-          cache-to: type=local,dest=/tmp/test-cache-new,mode=max
 
       - name: Build outer docker image
-        if: env.SAVE_CACHE != 'yes' && !env.ACT
+        if: env.SAVE_CACHE != 'yes'
         uses: docker/build-push-action@v5
         with:
           context: .
           tags: pwncollege/dojo
           load: true
-          cache-from: type=local,src=/mnt/dojo-cache/outer-cache
 
       - name: Build test docker image
-        if: env.SAVE_CACHE != 'yes' && !env.ACT
+        if: env.SAVE_CACHE != 'yes'
         uses: docker/build-push-action@v5
         with:
           context: test
           tags: dojo-test
           load: true
-          cache-from: type=local,src=/mnt/dojo-cache/test-cache
 
       - name: Clean up after docker build
         run: |
-          if [ "$SAVE_CACHE" == "yes" ]; then
-            sudo rm -rf /mnt/dojo-cache/outer-cache /mnt/dojo-cache/test-cache
-            sudo mv /tmp/outer-cache-new /mnt/dojo-cache/outer-cache
-            sudo mv /tmp/test-cache-new /mnt/dojo-cache/test-cache
-          fi
           docker images
           df -h
-          if [ "${{ env.ACT }}" != "true" ]; then
-            docker images | grep "^pwncollege/dojo "
-            docker images | grep "^dojo-test "
-          fi
+          docker images | grep "^pwncollege/dojo "
+          docker images | grep "^dojo-test "
 
       - name: Start the dojo in ${{ matrix.mode }} mode
         timeout-minutes: 15
         run: |
-          ./deploy.sh -g -D /mnt/dojo-cache/dojo-docker -W /mnt/dojo-cache/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
+          ./deploy.sh -g -D /mnt/cache/data/docker -W /mnt/cache/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
@@ -172,7 +150,7 @@ jobs:
           if [ "${{ matrix.mode }}" = "multinode" ]; then
             DEPLOY_ARGS+=("-M")
           fi
-          ./deploy.sh -N -g -t -C "${DEPLOY_ARGS[@]}"
+          ./deploy.sh -N -g -t -C -D /mnt/cache/data/docker -W /mnt/cache/data/workspace "${DEPLOY_ARGS[@]}"
 
       - name: Upload coverage reports to Codecov
         if: matrix.mode == 'singlenode'
@@ -215,15 +193,15 @@ jobs:
         run: |
           ./deploy.sh -K -g
           df -h
-          sudo umount /mnt/dojo-cache
-          du -sm /tmp/dojo-cache.img
+          sudo umount /mnt/cache
+          du -sm /mnt/cache.img
 
       - name: Save docker and workspace cache
         if: env.SAVE_CACHE == 'yes'
         uses: actions/cache/save@v4
         with:
           path: |
-            /tmp/dojo-cache.img
+            /mnt/cache.img
           key: dojo-cache2-${{ matrix.mode }}-${{ github.run_id }}
 
       - name: Final filesystem information
