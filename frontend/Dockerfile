@@ -6,7 +6,8 @@
 # Use Bun's official image
 FROM oven/bun:1 AS base
 
-WORKDIR /app
+WORKDIR /opt/frontend
+ENV BUN_INSTALL_CACHE_DIR=/opt/bun-cache
 
 # Install dependencies with bun
 FROM base AS deps
@@ -15,8 +16,8 @@ RUN bun install --no-save --frozen-lockfile
 
 # Rebuild the source code only when needed
 FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+WORKDIR /opt/frontend
+COPY --from=deps /opt/frontend/node_modules ./node_modules
 COPY . .
 
 # Accept build arguments for environment variables
@@ -36,7 +37,8 @@ RUN bun run build
 
 # Production image, copy all the files and run next
 FROM base AS runner
-WORKDIR /app
+WORKDIR /opt/frontend
+COPY --from=deps /opt/bun-cache /opt/bun-cache
 
 # Uncomment the following line in case you want to disable telemetry during runtime.
 # ENV NEXT_TELEMETRY_DISABLED=1
@@ -45,12 +47,12 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME="0.0.0.0"
 
-COPY --from=builder /app/public ./public
+COPY --from=builder /opt/frontend/public ./public
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=builder --chown=bun:bun /app/.next/standalone ./
-COPY --from=builder --chown=bun:bun /app/.next/static ./.next/static
+COPY --from=builder --chown=bun:bun /opt/frontend/.next/standalone ./
+COPY --from=builder --chown=bun:bun /opt/frontend/.next/static ./.next/static
 
 USER bun
 

@@ -15,6 +15,7 @@ dist-ssr
 # Next.js
 .next/
 out/
+.turbo/
 
 # Vite
 .vite
