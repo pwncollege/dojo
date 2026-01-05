@@ -55,24 +55,18 @@ jobs:
           docker images
           echo "::endgroup::"
 
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Free up more disk space
-        if: ${{ !env.ACT }}
+      - name: Set up Docker storage
         run: |
-          echo "::group::Initial disk usage"
+          echo "::group::Current disk usage"
           df -h
           echo "::endgroup::"
+          sudo systemctl stop docker
+          sudo rm -rf /var/lib/docker
+          sudo mkdir -p /mnt/docker
+          sudo ln -s /mnt/docker /var/lib/docker
+          sudo systemctl start docker
 
-          echo "::group::Cleaning up disk space"
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /opt/hostedtoolcache /usr/local/lib/azure-cli
-          sudo apt-get clean
-          docker system prune -a -f
-
-          echo "::endgroup::"
-          echo "::group::Final disk usage"
-          df -h
-          echo "::endgroup::"
+      - uses: docker/setup-buildx-action@v3
 
       - name: Restore docker and workspace cache
         if: env.LOAD_CACHE == 'yes'
@@ -172,16 +166,12 @@ jobs:
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          if [ "${{ matrix.mode }}" = "singlenode" ]
-          then
-            ./deploy.sh -N -g -t -C
-          elif [ "${{ matrix.mode }}" = "multinode" ]
-          then
-            ./deploy.sh -N -g -t -M
+          DEPLOY_ARGS=()
+          if [ "${{ matrix.mode }}" = "multinode" ]; then
+            DEPLOY_ARGS+=("-M")
           fi
+          ./deploy.sh -N -g -t -C "${DEPLOY_ARGS[@]}"
 
       - name: Upload coverage reports to Codecov
         if: matrix.mode == 'singlenode'
