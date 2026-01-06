@@ -66,6 +66,7 @@ def authenticated(func):
             session["name"] = user.name
             session["type"] = user.type
             session["verified"] = user.verified
+            session["cli"] = True
             return func(*args, **kwargs)
 
         except:
