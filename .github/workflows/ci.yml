@@ -75,7 +75,7 @@ jobs:
           fi
 
           if [ "$SAVE_CACHE" != "yes" ]; then
-            truncate -s +20G /mnt/cache.img
+            sudo truncate -s +20G /mnt/cache.img
           fi
 
           sudo mount -o loop,compress=zstd:9 /mnt/cache.img /mnt/cache
