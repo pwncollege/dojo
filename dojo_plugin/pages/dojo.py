@@ -1,5 +1,6 @@
 import collections
 import subprocess
+from pathlib import Path
 import traceback
 import datetime
 import sys
@@ -60,6 +61,14 @@ def find_description_edit_url(dojo, relative_paths, search_pattern=None, branch=
         return f"https://github.com/{dojo.repository}/edit/{branch}/{relative_path}#L{line_num}"
 
     return None
+
+
+def resolve_dojo_path(dojo, *parts):
+    base = dojo.path.resolve()
+    candidate = (dojo.path / Path(*parts)).resolve()
+    if not candidate.is_relative_to(base):
+        abort(404)
+    return candidate
 
 
 @dojo.route("/<dojo>")
@@ -426,26 +435,29 @@ def view_module(dojo, module, scroll_to_challenge=None):
 
 
 def view_page(dojo, page):
-    if (dojo.path / page).is_file():
+    file_path = resolve_dojo_path(dojo, page)
+    if file_path.is_file():
         assert dojo.privileged or dojo.official
-        path = (dojo.path / page).resolve()
-        return send_file(path)
+        return send_file(file_path)
 
-    elif (dojo.path / f"{page}.md").is_file():
-        content = render_markdown((dojo.path / f"{page}.md").read_text())
+    markdown_path = resolve_dojo_path(dojo, f"{page}.md")
+    if markdown_path.is_file():
+        content = render_markdown(markdown_path.read_text())
         return render_template("markdown.html", dojo=dojo, content=content)
 
-    elif (dojo.path / page).is_dir():
+    if file_path.is_dir():
         user = get_current_user()
-        if user and (dojo.path / page / f"{user.id}").is_file():
+        user_path = resolve_dojo_path(dojo, page, f"{user.id}")
+        if user and user_path.is_file():
             assert dojo.privileged or dojo.official
-            path = (dojo.path / page / f"{user.id}").resolve()
-            return send_file(path)
-        elif user and (dojo.path / page / f"{user.id}.md").is_file():
-            content = render_markdown((dojo.path / page / f"{user.id}.md").read_text())
+            return send_file(user_path)
+        user_markdown_path = resolve_dojo_path(dojo, page, f"{user.id}.md")
+        if user and user_markdown_path.is_file():
+            content = render_markdown(user_markdown_path.read_text())
             return render_template("markdown.html", dojo=dojo, content=content)
-        elif (dojo.path / page / "default.md").is_file():
-            content = render_markdown((dojo.path / page / "default.md").read_text())
+        default_markdown_path = resolve_dojo_path(dojo, page, "default.md")
+        if default_markdown_path.is_file():
+            content = render_markdown(default_markdown_path.read_text())
             return render_template("markdown.html", dojo=dojo, content=content)
 
     abort(404)
