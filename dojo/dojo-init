@@ -38,7 +38,7 @@ DEFAULT_DOJO_HOST=localhost.pwn.college
 define DOJO_HOST "${DEFAULT_DOJO_HOST}"
 define WORKSPACE_HOST workspace."${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
-define DOJO_WORKSPACE core
+define DOJO_WORKSPACE full
 define WORKSPACE_KEY
 define WORKSPACE_SECRET $(openssl rand -hex 16)
 define WORKSPACE_NODE 0
