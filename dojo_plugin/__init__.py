@@ -36,7 +36,6 @@ from .pages.belts import belts
 from .pages.research import research
 from .pages.feed import feed
 from .pages.index import static_html_override
-from .pages.test_error import test_error_pages
 from .api import api
 
 
@@ -183,7 +182,6 @@ def load(app):
     app.register_blueprint(belts)
     app.register_blueprint(research)
     app.register_blueprint(feed)
-    app.register_blueprint(test_error_pages)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
 
     app.jinja_env.filters["markdown"] = render_markdown

@@ -1,10 +1,10 @@
 import pytest
 
-from utils import DOJO_URL
+from utils import DOJO_HOST
 
 
 def get_challenge_survey(dojo, module, challenge, session):
-    response = session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/{module}/{challenge}/surveys")
+    response = session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{dojo}/{module}/{challenge}/surveys")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], "Expected to recieve valid survey"
     return response.json()
@@ -12,7 +12,7 @@ def get_challenge_survey(dojo, module, challenge, session):
 
 def post_survey_response(dojo, module, challenge, survey_response, session):
     response = session.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/{module}/{challenge}/surveys",
+        f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{dojo}/{module}/{challenge}/surveys",
         json={"response": survey_response}
     )
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
@@ -20,7 +20,7 @@ def post_survey_response(dojo, module, challenge, survey_response, session):
 
 
 def test_surveys(surveys_dojo, random_user_session):
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{surveys_dojo}/join/").status_code == 200
+    assert random_user_session.get(f"http://{DOJO_HOST}/dojo/{surveys_dojo}/join/").status_code == 200
 
     challenge_level_survey = get_challenge_survey(surveys_dojo, "surveys-module-1", "challenge-level", session=random_user_session)
     module_level_survey = get_challenge_survey(surveys_dojo, "surveys-module-1", "module-level", session=random_user_session)

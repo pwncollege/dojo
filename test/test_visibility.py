@@ -1,15 +1,15 @@
 import pytest
 import requests
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, create_dojo_yml
+from utils import DOJO_HOST, TEST_DOJOS_LOCATION, create_dojo_yml
 
 
 def test_module_and_challenge_visibility(visibility_test_dojo, random_user_session, admin_session):
     # Random user needs to join the dojo first
-    join_response = random_user_session.get(f"{DOJO_URL}/dojo/{visibility_test_dojo}/join/")
+    join_response = random_user_session.get(f"http://{DOJO_HOST}/dojo/{visibility_test_dojo}/join/")
     assert join_response.status_code == 200
     
-    random_response = random_user_session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{visibility_test_dojo}/modules")
+    random_response = random_user_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{visibility_test_dojo}/modules")
     assert random_response.status_code == 200
     random_modules = random_response.json()["modules"]
     
@@ -22,7 +22,7 @@ def test_module_and_challenge_visibility(visibility_test_dojo, random_user_sessi
     assert len(module2_challenges) == 1, f"Random user should see only 1 challenge in module2, but got {len(module2_challenges)}"
     assert module2_challenges[0]["id"] == "challenge-c", f"Random user should see challenge-c, but got {module2_challenges[0]['id']}"
     
-    admin_response = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{visibility_test_dojo}/modules")
+    admin_response = admin_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{visibility_test_dojo}/modules")
     assert admin_response.status_code == 200
     admin_modules = admin_response.json()["modules"]
     
@@ -44,12 +44,12 @@ def test_module_and_challenge_visibility(visibility_test_dojo, random_user_sessi
 
 def test_module_and_challenge_visibility_rendered_page(visibility_test_dojo, random_user_session, admin_session):
     # Test the actual rendered module pages for visibility
-    join_response = random_user_session.get(f"{DOJO_URL}/dojo/{visibility_test_dojo}/join/")
+    join_response = random_user_session.get(f"http://{DOJO_HOST}/dojo/{visibility_test_dojo}/join/")
     assert join_response.status_code == 200
     
     # Try to access module1 directly as random user - module has future visibility
     # The page should still be accessible (URL works) but might show limited content
-    module1_page = random_user_session.get(f"{DOJO_URL}/{visibility_test_dojo}/module1")
+    module1_page = random_user_session.get(f"http://{DOJO_HOST}/{visibility_test_dojo}/module1")
     assert module1_page.status_code == 200
     module1_text = module1_page.text
     
@@ -60,7 +60,7 @@ def test_module_and_challenge_visibility_rendered_page(visibility_test_dojo, ran
     assert 'Challenge A' not in module1_text, "Challenge A should not be shown to random user due to module's future visibility"
     
     # Check module2 page for challenge visibility  
-    module2_page = random_user_session.get(f"{DOJO_URL}/{visibility_test_dojo}/module2")
+    module2_page = random_user_session.get(f"http://{DOJO_HOST}/{visibility_test_dojo}/module2")
     assert module2_page.status_code == 200
     module2_text = module2_page.text
     
@@ -73,7 +73,7 @@ def test_module_and_challenge_visibility_rendered_page(visibility_test_dojo, ran
     
     # The key difference is in the API - test that trying to start challenge-b fails for random user
     # but challenge-c can be started
-    start_challenge_c = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json={
+    start_challenge_c = random_user_session.post(f"http://{DOJO_HOST}/pwncollege_api/v1/docker", json={
         "dojo": visibility_test_dojo,
         "module": "module2",
         "challenge": "challenge-c",
@@ -82,7 +82,7 @@ def test_module_and_challenge_visibility_rendered_page(visibility_test_dojo, ran
     # Challenge C should be startable
     assert start_challenge_c.status_code == 200, "Random user should be able to start challenge-c"
     
-    start_challenge_b = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json={
+    start_challenge_b = random_user_session.post(f"http://{DOJO_HOST}/pwncollege_api/v1/docker", json={
         "dojo": visibility_test_dojo,
         "module": "module2", 
         "challenge": "challenge-b",
@@ -95,12 +95,12 @@ def test_module_and_challenge_visibility_rendered_page(visibility_test_dojo, ran
     
     # Test admin view - everything should be fully accessible
     # Check module1 page for admin
-    admin_module1_page = admin_session.get(f"{DOJO_URL}/{visibility_test_dojo}/module1")
+    admin_module1_page = admin_session.get(f"http://{DOJO_HOST}/{visibility_test_dojo}/module1")
     assert admin_module1_page.status_code == 200
     assert 'Challenge A' in admin_module1_page.text, "Admin should see Challenge A in module1"
     
     # Admin should be able to start any challenge
-    admin_start_challenge_a = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json={
+    admin_start_challenge_a = admin_session.post(f"http://{DOJO_HOST}/pwncollege_api/v1/docker", json={
         "dojo": visibility_test_dojo,
         "module": "module1",
         "challenge": "challenge-a",
@@ -110,7 +110,7 @@ def test_module_and_challenge_visibility_rendered_page(visibility_test_dojo, ran
     assert admin_start_challenge_a.json().get("success", False), "Admin should be able to start challenge-a"
     
     # Check module2 page for admin  
-    admin_module2_page = admin_session.get(f"{DOJO_URL}/{visibility_test_dojo}/module2")
+    admin_module2_page = admin_session.get(f"http://{DOJO_HOST}/{visibility_test_dojo}/module2")
     assert admin_module2_page.status_code == 200
     admin_module2_text = admin_module2_page.text
     assert 'Challenge B' in admin_module2_text, "Admin should see Challenge B in module2"

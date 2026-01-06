@@ -16,7 +16,7 @@ from .v1.ssh_key import ssh_key_namespace
 from .v1.workspace_tokens import workspace_tokens_namespace
 from .v1.workspace import workspace_namespace
 from .v1.search import search_namespace
-from .v1.test_error import test_error_namespace
+from .v1.test_utils import test_utils_namespace
 from .v1.user import user_namespace
 
 api = Blueprint("pwncollege_api", __name__)
@@ -49,6 +49,8 @@ if cors_origin:
 
 api_v1 = Api(api, version="v1", doc=current_app.config.get("SWAGGER_UI"))
 
+
+
 @api_v1.errorhandler(Exception)
 def handle_api_exception(error):
     log_exception(error, event_type="api_exception")
@@ -68,4 +70,5 @@ api_v1.add_namespace(ssh_key_namespace, "/ssh_key")
 api_v1.add_namespace(workspace_tokens_namespace, "/workspace_tokens")
 api_v1.add_namespace(workspace_namespace, "/workspace")
 api_v1.add_namespace(search_namespace, "/search")
-api_v1.add_namespace(test_error_namespace, "/test_error")
+if current_app.debug:
+    api_v1.add_namespace(test_utils_namespace, "/test_utils")
