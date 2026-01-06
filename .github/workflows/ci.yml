@@ -17,16 +17,6 @@ jobs:
         mode: [singlenode, multinode]
       fail-fast: false
     steps:
-      - name: enable cache saving
-        if: matrix.mode == 'singlenode' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        run: |
-          echo "SAVE_CACHE=yes" >> "$GITHUB_ENV"
-
-      - name: enable cache loading
-        if: env.SAVE_CACHE != 'yes' && !(github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        run: |
-          echo "LOAD_CACHE=yes" >> "$GITHUB_ENV"
-
       - uses: actions/checkout@v4
 
       - name: Host information
@@ -55,133 +45,93 @@ jobs:
           docker images
           echo "::endgroup::"
 
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Free up more disk space
-        if: ${{ !env.ACT }}
+      - name: Set cache mode
         run: |
-          echo "::group::Initial disk usage"
-          df -h
-          echo "::endgroup::"
-
-          echo "::group::Cleaning up disk space"
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /opt/hostedtoolcache /usr/local/lib/azure-cli
-          sudo apt-get clean
-          docker system prune -a -f
-
-          echo "::endgroup::"
-          echo "::group::Final disk usage"
-          df -h
-          echo "::endgroup::"
+          if [ "${{ matrix.mode }}" = "singlenode" ] && \
+             { [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; }; then
+            echo "SAVE_CACHE=yes" >> "$GITHUB_ENV"
+          else
+            echo "LOAD_CACHE=yes" >> "$GITHUB_ENV"
+          fi
 
       - name: Restore docker and workspace cache
         if: env.LOAD_CACHE == 'yes'
         uses: actions/cache/restore@v4
         with:
           path: |
-            /tmp/dojo-cache.img
-          key: dojo-cache2-${{ matrix.mode }}-${{ github.run_id }}
+            /mnt/cache.img
+          key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
           restore-keys: |
-            dojo-cache2-
+            dojo-cache-
 
       - name: Setup cache filesystem
         run: |
           set -x
           df -h
-          if [ "${{ env.ACT }}" == "true" ]; then
-            echo "Not using a loopback mount for local CI..."
-            sudo apt-get update && sudo apt-get install -y iproute2
-          elif [ "$SAVE_CACHE" == "yes" -o ! -e /tmp/dojo-cache.img ]; then
-            echo "Creating fresh loopback filesystem image..."
-            sudo fallocate -l 9.8G /tmp/dojo-cache.img
-            sudo mkfs.btrfs -L cache /tmp/dojo-cache.img
-            sudo mount -o loop,compress=zstd:9 /tmp/dojo-cache.img /mnt/
-          else
-            echo "Using cached loopback filesystem image"
-            truncate -s +20G /tmp/dojo-cache.img
-            sudo mount -o loop,compress=zstd:6 /tmp/dojo-cache.img /mnt/
-            sudo btrfs filesystem resize max /mnt
+          sudo mkdir -p /mnt/cache
+          if [ ! -e /mnt/cache.img ]; then
+            sudo fallocate -l 9.8G /mnt/cache.img
+            sudo mkfs.btrfs -L cache /mnt/cache.img
           fi
 
-          sudo chown $USER:$USER /mnt/
-
-          if [ -e /mnt/dojo-docker -a "${{ matrix.mode }}" = "multinode" ]; then
-            sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node1
-            sudo cp -a /mnt/dojo-docker /mnt/dojo-docker-node2
+          if [ "$SAVE_CACHE" != "yes" ]; then
+            sudo truncate -s +20G /mnt/cache.img
           fi
 
-          mkdir -p /mnt/outer-cache
-          mkdir -p /mnt/test-cache
+          sudo mount -o loop,compress=zstd:9 /mnt/cache.img /mnt/cache
+          sudo btrfs filesystem resize max /mnt/cache
 
-      - name: Build (and cache) outer docker image
-        if: env.SAVE_CACHE == 'yes' && !env.ACT
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          tags: pwncollege/dojo
-          load: true
-          cache-from: type=local,src=/mnt/outer-cache
-          cache-to: type=local,dest=/tmp/outer-cache-new,mode=max
+          sudo chown $USER:$USER /mnt/cache
+          mkdir -p /mnt/cache/dojo-image
+          mkdir -p /mnt/cache/test-image
+          mkdir -p /mnt/cache/data/docker
+          mkdir -p /mnt/cache/data/workspace
+          if [ "${{ matrix.mode }}" = "multinode" ]; then
+            sudo rm -rf /mnt/cache/data/docker-node1 /mnt/cache/data/docker-node2
+            sudo cp -a /mnt/cache/data/docker /mnt/cache/data/docker-node1
+            sudo cp -a /mnt/cache/data/docker /mnt/cache/data/docker-node2
+          fi
 
-      - name: Build (and cache) test docker image
-        if: env.SAVE_CACHE == 'yes' && !env.ACT
-        uses: docker/build-push-action@v5
-        with:
-          context: test
-          tags: dojo-test
-          load: true
-          cache-from: type=local,src=/mnt/test-cache
-          cache-to: type=local,dest=/tmp/test-cache-new,mode=max
+      - name: Set up Docker storage
+        run: |
+          echo "::group::Current disk usage"
+          df -h
+          echo "::endgroup::"
+          sudo systemctl stop docker
+          sudo rm -rf /var/lib/docker
+          sudo mkdir -p /mnt/docker
+          sudo ln -s /mnt/docker /var/lib/docker
+          sudo systemctl start docker
+
+      - uses: docker/setup-buildx-action@v3
 
       - name: Build outer docker image
-        if: env.SAVE_CACHE != 'yes' && !env.ACT
         uses: docker/build-push-action@v5
         with:
           context: .
           tags: pwncollege/dojo
           load: true
-          cache-from: type=local,src=/mnt/outer-cache
+          cache-from: type=local,src=/mnt/cache/dojo-image
+          cache-to: type=local,dest=/mnt/cache/dojo-image,mode=max
 
       - name: Build test docker image
-        if: env.SAVE_CACHE != 'yes' && !env.ACT
         uses: docker/build-push-action@v5
         with:
           context: test
           tags: dojo-test
           load: true
-          cache-from: type=local,src=/mnt/test-cache
-
-      - name: Clean up after docker build
-        run: |
-          if [ "$SAVE_CACHE" == "yes" ]; then
-            sudo rm -rf /mnt/outer-cache /mnt/test-cache
-            sudo mv /tmp/outer-cache-new /mnt/outer-cache
-            sudo mv /tmp/test-cache-new /mnt/test-cache
-          fi
-          docker images
-          df -h
-          if [ "${{ env.ACT }}" != "true" ]; then
-            docker images | grep "^pwncollege/dojo "
-            docker images | grep "^dojo-test "
-          fi
+          cache-from: type=local,src=/mnt/cache/test-image
+          cache-to: type=local,dest=/mnt/cache/test-image,mode=max
 
       - name: Start the dojo in ${{ matrix.mode }} mode
         timeout-minutes: 15
         run: |
-          ./deploy.sh -g -D /mnt/dojo-docker -W /mnt/dojo-workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
+          ./deploy.sh -g -D /mnt/cache/data/docker -W /mnt/cache/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          if [ "${{ matrix.mode }}" = "singlenode" ]
-          then
-            ./deploy.sh -N -g -t -C
-          elif [ "${{ matrix.mode }}" = "multinode" ]
-          then
-            ./deploy.sh -N -g -t -M
-          fi
+          ./deploy.sh -g -D /mnt/cache/data/docker -W /mnt/cache/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C -N -t
 
       - name: Upload coverage reports to Codecov
         if: matrix.mode == 'singlenode'
@@ -224,16 +174,16 @@ jobs:
         run: |
           ./deploy.sh -K -g
           df -h
-          sudo umount /mnt/
-          du -sm /tmp/dojo-cache.img
+          sudo umount /mnt/cache
+          du -sm /mnt/cache.img
 
       - name: Save docker and workspace cache
         if: env.SAVE_CACHE == 'yes'
         uses: actions/cache/save@v4
         with:
           path: |
-            /tmp/dojo-cache.img
-          key: dojo-cache2-${{ matrix.mode }}-${{ github.run_id }}
+            /mnt/cache.img
+          key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
 
       - name: Final filesystem information
         if: always()
