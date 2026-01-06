@@ -1,6 +1,6 @@
 { pkgs }:
 
-in pkgs.stdenv.mkDerivation {
+let in pkgs.stdenv.mkDerivation {
   name = "dojo";
   src = ./dojo-cli.py;
 
