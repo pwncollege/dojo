@@ -94,13 +94,13 @@ def whoami() -> int:
     """
 
     # Make request.
-    status, error, jsonData = apiRequest("/integration/whoami")
+    status, error, jsonData = apiRequest("/user/me")
     if error is not None:
         print(f"WHOAMI request failed ({status}): {error}")
         sys.exit(API_ERROR)
 
     # Print who's hacking.
-    print(jsonData["message"])
+    print(f"You are the epic hacker {jsonData["name"]} ({jsonData["id"]}).")
     return 0
 
 def main():
