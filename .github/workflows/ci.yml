@@ -17,16 +17,6 @@ jobs:
         mode: [singlenode, multinode]
       fail-fast: false
     steps:
-      - name: enable cache saving
-        if: matrix.mode == 'singlenode' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        run: |
-          echo "SAVE_CACHE=yes" >> "$GITHUB_ENV"
-
-      - name: enable cache loading
-        if: env.SAVE_CACHE != 'yes' && !(github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        run: |
-          echo "LOAD_CACHE=yes" >> "$GITHUB_ENV"
-
       - uses: actions/checkout@v4
 
       - name: Host information
@@ -55,6 +45,15 @@ jobs:
           docker images
           echo "::endgroup::"
 
+      - name: Set cache mode
+        run: |
+          if [ "${{ matrix.mode }}" = "singlenode" ] && \
+             { [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; }; then
+            echo "SAVE_CACHE=yes" >> "$GITHUB_ENV"
+          else
+            echo "LOAD_CACHE=yes" >> "$GITHUB_ENV"
+          fi
+
       - name: Restore docker and workspace cache
         if: env.LOAD_CACHE == 'yes'
         uses: actions/cache/restore@v4
@@ -70,24 +69,24 @@ jobs:
           set -x
           df -h
           sudo mkdir -p /mnt/cache
-          if [ "$SAVE_CACHE" == "yes" -o ! -e /mnt/cache.img ]; then
-            echo "Creating fresh loopback filesystem image..."
+          if [ ! -e /mnt/cache.img ]; then
             sudo fallocate -l 9.8G /mnt/cache.img
             sudo mkfs.btrfs -L cache /mnt/cache.img
-            sudo mount -o loop,compress=zstd:9 /mnt/cache.img /mnt/cache
-          else
-            echo "Using cached loopback filesystem image"
-            truncate -s +20G /mnt/cache.img
-            sudo mount -o loop,compress=zstd:6 /mnt/cache.img /mnt/cache
-            sudo btrfs filesystem resize max /mnt/cache
           fi
+
+          if [ "$SAVE_CACHE" != "yes" ]; then
+            truncate -s +20G /mnt/cache.img
+          fi
+
+          sudo mount -o loop,compress=zstd:9 /mnt/cache.img /mnt/cache
+          sudo btrfs filesystem resize max /mnt/cache
 
           sudo chown $USER:$USER /mnt/cache
           mkdir -p /mnt/cache/dojo-image
           mkdir -p /mnt/cache/test-image
           mkdir -p /mnt/cache/data/docker
           mkdir -p /mnt/cache/data/workspace
-          if [ -e /mnt/cache/data/docker -a "${{ matrix.mode }}" = "multinode" ]; then
+          if [ "${{ matrix.mode }}" = "multinode" ]; then
             sudo rm -rf /mnt/cache/data/docker-node1 /mnt/cache/data/docker-node2
             sudo cp -a /mnt/cache/data/docker /mnt/cache/data/docker-node1
             sudo cp -a /mnt/cache/data/docker /mnt/cache/data/docker-node2
@@ -106,55 +105,23 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build (and cache) outer docker image
-        if: env.SAVE_CACHE == 'yes'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          tags: pwncollege/dojo
-          load: true
-          cache-from: type=local,src=/mnt/cache/dojo-image
-          cache-to: type=local,dest=/tmp/outer-cache-new,mode=max
-
-      - name: Build (and cache) test docker image
-        if: env.SAVE_CACHE == 'yes'
-        uses: docker/build-push-action@v5
-        with:
-          context: test
-          tags: dojo-test
-          load: true
-          cache-from: type=local,src=/mnt/cache/test-image
-          cache-to: type=local,dest=/tmp/test-cache-new,mode=max
-
       - name: Build outer docker image
-        if: env.SAVE_CACHE != 'yes'
         uses: docker/build-push-action@v5
         with:
           context: .
           tags: pwncollege/dojo
           load: true
           cache-from: type=local,src=/mnt/cache/dojo-image
+          cache-to: type=local,dest=/mnt/cache/dojo-image,mode=max
 
       - name: Build test docker image
-        if: env.SAVE_CACHE != 'yes'
         uses: docker/build-push-action@v5
         with:
           context: test
           tags: dojo-test
           load: true
           cache-from: type=local,src=/mnt/cache/test-image
-
-      - name: Clean up after docker build
-        run: |
-          if [ "$SAVE_CACHE" == "yes" ]; then
-            sudo rm -rf /mnt/cache/dojo-image /mnt/cache/test-image
-            sudo mv /tmp/outer-cache-new /mnt/cache/dojo-image
-            sudo mv /tmp/test-cache-new /mnt/cache/test-image
-          fi
-          docker images
-          df -h
-          docker images | grep "^pwncollege/dojo "
-          docker images | grep "^dojo-test "
+          cache-to: type=local,dest=/mnt/cache/test-image,mode=max
 
       - name: Start the dojo in ${{ matrix.mode }} mode
         timeout-minutes: 15
@@ -164,11 +131,7 @@ jobs:
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
         run: |
-          DEPLOY_ARGS=()
-          if [ "${{ matrix.mode }}" = "multinode" ]; then
-            DEPLOY_ARGS+=("-M")
-          fi
-          ./deploy.sh -N -g -t -C -D /mnt/cache/data/docker -W /mnt/cache/data/workspace "${DEPLOY_ARGS[@]}"
+          ./deploy.sh -g -D /mnt/cache/data/docker -W /mnt/cache/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C -N -t
 
       - name: Upload coverage reports to Codecov
         if: matrix.mode == 'singlenode'
