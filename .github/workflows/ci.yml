@@ -60,9 +60,9 @@ jobs:
         with:
           path: |
             /mnt/cache.img
-          key: dojo-cache2-${{ matrix.mode }}-${{ github.run_id }}
+          key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
           restore-keys: |
-            dojo-cache2-
+            dojo-cache-
 
       - name: Setup cache filesystem
         run: |
@@ -183,7 +183,7 @@ jobs:
         with:
           path: |
             /mnt/cache.img
-          key: dojo-cache2-${{ matrix.mode }}-${{ github.run_id }}
+          key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
 
       - name: Final filesystem information
         if: always()
