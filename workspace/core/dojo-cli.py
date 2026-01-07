@@ -81,10 +81,6 @@ def apiRequest(endpoint: str, method: str = "GET", args: dict[str, str] = {}) ->
     except Exception as exception:
         return response.status, "Exception while parsing reponse.", {}
 
-    if not response_json.get("success", False):
-        error = response_json.get("error", "No message provided.")
-        return response.status, error, response_json
-
     return response.status, None, response_json
 
 def whoami() -> int:
