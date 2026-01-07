@@ -94,7 +94,7 @@ def whoami() -> int:
     """
 
     # Make request.
-    status, error, jsonData = apiRequest("/user/me")
+    status, error, jsonData = apiRequest("/users/me")
     if error is not None:
         print(f"WHOAMI request failed ({status}): {error}")
         sys.exit(API_ERROR)
