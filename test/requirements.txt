@@ -5,6 +5,5 @@ pytest-order
 pytest-timeout
 pytest-github-actions-annotate-failures
 pyyaml
-yaml
 requests
 selenium
