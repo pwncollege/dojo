@@ -18,7 +18,6 @@ from .v1.workspace import workspace_namespace
 from .v1.search import search_namespace
 from .v1.test_error import test_error_namespace
 from .v1.user import user_namespace
-from .v1.integration import integration_namespace
 
 api = Blueprint("pwncollege_api", __name__)
 
@@ -56,7 +55,6 @@ def handle_api_exception(error):
     raise
 
 
-api_v1.add_namespace(integration_namespace, "/integration")
 api_v1.add_namespace(auth_namespace, "/auth")
 api_v1.add_namespace(user_namespace, "/users")
 api_v1.add_namespace(belts_namespace, "/belts")
