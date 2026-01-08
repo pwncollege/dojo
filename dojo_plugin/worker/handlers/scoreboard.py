@@ -97,15 +97,12 @@ def initialize_all_scoreboards():
             except Exception as e:
                 logger.error(f"Error initializing scoreboard for dojo {dojo.reference_id}, duration={duration}: {e}", exc_info=True)
 
-    modules = DojoModules.query.all()
-    logger.info(f"Initializing scoreboards for {len(modules)} modules...")
-
-    for module in modules:
-        for duration in COMMON_DURATIONS:
-            try:
-                scoreboard = calculate_scoreboard(module, duration)
-                cache_key = f"stats:scoreboard:module:{module.dojo_id}:{module.module_index}:{duration}"
-                set_cached_stat(cache_key, scoreboard)
-                logger.info(f"Initialized scoreboard for module {module.dojo.reference_id}/{module.id} (dojo_id={module.dojo_id}, module_index={module.module_index}), duration={duration}")
-            except Exception as e:
-                logger.error(f"Error initializing scoreboard for module {module.dojo.reference_id}/{module.id}, duration={duration}: {e}", exc_info=True)
+        for module in dojo.modules:
+            for duration in COMMON_DURATIONS:
+                try:
+                    scoreboard = calculate_scoreboard(module, duration)
+                    cache_key = f"stats:scoreboard:module:{module.dojo_id}:{module.module_index}:{duration}"
+                    set_cached_stat(cache_key, scoreboard)
+                    logger.info(f"Initialized scoreboard for module {dojo.reference_id}/{module.id} (dojo_id={module.dojo_id}, module_index={module.module_index}), duration={duration}")
+                except Exception as e:
+                    logger.error(f"Error initializing scoreboard for module {dojo.reference_id}/{module.id}, duration={duration}: {e}", exc_info=True)
