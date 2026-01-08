@@ -15,6 +15,10 @@ def publish_scoreboard_event(model_type, model_id):
     publish_stat_event("scoreboard_update", {"model_type": model_type, "model_id": model_id})
 
 
+def publish_scoreboard_solve_event(model_type, model_id, user_id):
+    publish_stat_event("scoreboard_update_solve", {"model_type": model_type, "model_id": model_id, "user_id": user_id})
+
+
 def publish_scores_event():
     publish_stat_event("scores_update", {})
 

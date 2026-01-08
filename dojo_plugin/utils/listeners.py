@@ -13,6 +13,7 @@ from .events import (
     queue_stat_event,
     publish_dojo_stats_event,
     publish_scoreboard_event,
+    publish_scoreboard_solve_event,
     publish_scores_event,
     publish_belts_event,
     publish_emojis_event,
@@ -48,15 +49,15 @@ def hook_object_creation(mapper, connection, target):
         dojo_challenges = DojoChallenges.query.filter_by(challenge_id=target.challenge_id).all()
         logger.info(f"Solve listener fired: challenge_id={target.challenge_id}, found {len(dojo_challenges)} dojo(s)")
 
+        user_id = target.user_id
         for dojo_challenge in dojo_challenges:
             dojo_id = dojo_challenge.dojo.dojo_id
             module_id = {"dojo_id": dojo_challenge.dojo.dojo_id, "module_index": dojo_challenge.module.module_index}
             logger.info(f"Queueing events for dojo {dojo_challenge.dojo.reference_id} (dojo_id={dojo_id})")
             queue_stat_event(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
-            queue_stat_event(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))
-            queue_stat_event(lambda m_id=module_id: publish_scoreboard_event("module", m_id))
+            queue_stat_event(lambda d_id=dojo_id, u_id=user_id: publish_scoreboard_solve_event("dojo", d_id, u_id))
+            queue_stat_event(lambda m_id=module_id, u_id=user_id: publish_scoreboard_solve_event("module", m_id, u_id))
         queue_stat_event(publish_scores_event)
-        user_id = target.user_id
         queue_stat_event(lambda u_id=user_id: publish_activity_event(u_id))
     elif isinstance(target, Dojos):
         dojo_id = target.dojo_id
