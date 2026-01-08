@@ -1,28 +1,19 @@
-import collections
-import contextlib
-import datetime
-import math
-import pytz
-import json
+import logging
 
-import redis
-
-from flask import url_for, abort, current_app
+from flask import url_for
 from flask_restx import Namespace, Resource
 from flask_sqlalchemy import Pagination
-from CTFd.cache import cache
-from CTFd.models import db, Solves, Challenges, Users, Submissions, Awards
 from CTFd.utils.user import get_current_user
-from CTFd.utils.modes import get_model, generate_account_url
-from sqlalchemy import event
-from sqlalchemy.orm.session import Session
 
-from ...models import Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins, DojoStudents, DojoModules, DojoChallengeVisibilities, Belts, Emojis
-from ...utils.dojo import dojo_route, dojo_accessible
+from ...models import Dojos, DojoModules
+from ...utils.dojo import dojo_route
 from ...utils.awards import get_belts, get_viewable_emojis
+from ...utils.background_stats import get_cached_stat
 
-SCOREBOARD_CACHE_TIMEOUT_SECONDS = 60 * 60 * 2 # two hours make to cache all scoreboards
+logger = logging.getLogger(__name__)
+
 scoreboard_namespace = Namespace("scoreboard")
+
 
 def email_symbol_asset(email):
     if email.endswith("@asu.edu"):
@@ -33,66 +24,26 @@ def email_symbol_asset(email):
         group = "hacker.png"
     return url_for("views.themes", path=f"img/dojo/{group}")
 
-@cache.memoize(timeout=SCOREBOARD_CACHE_TIMEOUT_SECONDS)
+
 def get_scoreboard_for(model, duration):
-    duration_filter = (
-        Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
-        if duration else True
-    )
-    required_filter = DojoChallenges.required == True
-    solves = db.func.count().label("solves")
-    rank = (
-        db.func.row_number()
-        .over(order_by=(solves.desc(), db.func.max(Solves.id)))
-        .label("rank")
-    )
-    user_entities = [Solves.user_id, Users.name, Users.email]
-    query = (
-        model.solves()
-        .filter(duration_filter)
-        .filter(required_filter)
-        .group_by(*user_entities)
-        .order_by(rank)
-        .with_entities(rank, solves, *user_entities)
-    )
+    if isinstance(model, Dojos):
+        cache_key = f"stats:scoreboard:dojo:{model.dojo_id}:{duration}"
+    elif isinstance(model, DojoModules):
+        cache_key = f"stats:scoreboard:module:{model.dojo_id}:{model.module_index}:{duration}"
+    else:
+        return []
 
-    row_results = query.all()
-    results = [{key: getattr(item, key) for key in item.keys()} for item in row_results]
-    return results
+    logger.info(f"get_scoreboard_for: checking cache key {cache_key}")
+    cached = get_cached_stat(cache_key)
+    logger.info(f"get_scoreboard_for: cached={cached is not None}, len={len(cached) if cached else 0}")
 
-def invalidate_scoreboard_cache():
-    cache.delete_memoized(get_scoreboard_for)
+    if cached:
+        logger.info(f"Returning cached scoreboard with {len(cached)} entries")
+        return cached
 
-# handle cache invalidation for new solves, dojo creation, dojo challenge creation
-@event.listens_for(Dojos, 'after_insert', propagate=True)
-@event.listens_for(Dojos, 'after_delete', propagate=True)
-@event.listens_for(Solves, 'after_insert', propagate=True)
-@event.listens_for(Solves, 'after_delete', propagate=True)
-@event.listens_for(Awards, 'after_insert', propagate=True)
-@event.listens_for(Awards, 'after_delete', propagate=True)
-@event.listens_for(Belts, 'after_insert', propagate=True)
-@event.listens_for(Belts, 'after_delete', propagate=True)
-@event.listens_for(Emojis, 'after_insert', propagate=True)
-@event.listens_for(Emojis, 'after_delete', propagate=True)
-def hook_object_creation(mapper, connection, target):
-    invalidate_scoreboard_cache()
+    logger.info(f"Cache miss/empty, returning []")
+    return []
 
-@event.listens_for(Users, 'after_update', propagate=True)
-@event.listens_for(Dojos, 'after_update', propagate=True)
-@event.listens_for(DojoUsers, 'after_update', propagate=True)
-@event.listens_for(DojoMembers, 'after_update', propagate=True)
-@event.listens_for(DojoAdmins, 'after_update', propagate=True)
-@event.listens_for(DojoStudents, 'after_update', propagate=True)
-@event.listens_for(DojoModules, 'after_update', propagate=True)
-@event.listens_for(DojoChallenges, 'after_update', propagate=True)
-@event.listens_for(DojoChallengeVisibilities, 'after_update', propagate=True)
-@event.listens_for(Belts, 'after_update', propagate=True)
-@event.listens_for(Emojis, 'after_update', propagate=True)
-def hook_object_update(mapper, connection, target):
-    # according to the docs, this is a necessary check to see if the
-    # target actually was modified (and thus an update was made)
-    if Session.object_session(target).is_modified(target, include_collections=False):
-        invalidate_scoreboard_cache()
 
 def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     belt_data = get_belts()
@@ -118,8 +69,14 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
         })
         return result
 
+    standings_list = []
+    for item in pagination.items:
+        s = standing(item)
+        if s is not None:
+            standings_list.append(s)
+
     result = {
-        "standings": [standing(item) for item in pagination.items],
+        "standings": standings_list,
     }
 
     pages = set(page for page in pagination.iter_pages() if page)
@@ -144,6 +101,7 @@ class ScoreboardDojo(Resource):
     @dojo_route
     def get(self, dojo, duration, page):
         return get_scoreboard_page(dojo, duration=duration, page=page)
+
 
 @scoreboard_namespace.route("/<dojo>/<module>/<int:duration>/<int:page>")
 class ScoreboardModule(Resource):

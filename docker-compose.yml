@@ -1,3 +1,43 @@
+x-ctfd-base: &ctfd-base
+  build: /opt/CTFd
+  platform: linux/amd64
+  user: root
+  entrypoint: ""
+
+x-ctfd-env: &ctfd-env
+  DATABASE_URL: postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
+  REDIS_URL: redis://cache:6379
+  DOJO_HOST: ${DOJO_HOST}
+  WORKSPACE_HOST: ${WORKSPACE_HOST}
+  WORKSPACE_SECRET: ${WORKSPACE_SECRET}
+  HOST_DATA_PATH: /data
+  MAIL_SERVER: ${MAIL_SERVER}
+  MAIL_PORT: ${MAIL_PORT}
+  MAIL_USERNAME: ${MAIL_USERNAME}
+  MAIL_PASSWORD: ${MAIL_PASSWORD}
+  MAIL_ADDRESS: ${MAIL_ADDRESS}
+  DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+  DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+  DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+  DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+  INTERNET_FOR_ALL: ${INTERNET_FOR_ALL}
+  MAC_HOSTNAME: ${MAC_HOSTNAME}
+  MAC_USERNAME: ${MAC_USERNAME}
+
+x-ctfd-volumes: &ctfd-volumes
+  - /data/dojos:/var/dojos
+  - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
+  - ./user_firewall.allowed:/var/user_firewall.allowed:ro
+  - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
+  - /var/run/docker.sock:/var/run/docker.sock:ro
+  - /opt/pwn.college/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro
+
+x-ctfd-depends: &ctfd-depends
+  pgbouncer:
+    condition: service_started
+  cache:
+    condition: service_started
+
 services:
   splunk:
     container_name: splunk
@@ -68,15 +108,12 @@ services:
       - "4201:4201"
 
   ctfd:
+    <<: *ctfd-base
     container_name: ctfd
     profiles:
       - main
     restart: always
     hostname: ctfd
-    build: /opt/CTFd
-    platform: linux/amd64
-    user: root
-    entrypoint: ""
     command:
       - /bin/sh
       - -c
@@ -95,36 +132,19 @@ services:
         soft: 32768
         hard: 1048576
     environment:
-      - UPLOAD_FOLDER=/var/uploads
-      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
-      - REDIS_URL=redis://cache:6379
-      - WORKERS=8
-      - LOG_FOLDER=/var/log/CTFd
-      - ACCESS_LOG=-
-      - ERROR_LOG=-
-      - REVERSE_PROXY=true
-      - SERVER_SENT_EVENTS=false
-      - SECRET_KEY=${SECRET_KEY}
-      - DOJO_HOST=${DOJO_HOST}
-      - DOJO_ENV=${DOJO_ENV}
-      - WORKSPACE_HOST=${WORKSPACE_HOST}
-      - WORKSPACE_SECRET=${WORKSPACE_SECRET}
-      - HOST_DATA_PATH=/data
-      - MAIL_SERVER=${MAIL_SERVER}
-      - MAIL_PORT=${MAIL_PORT}
-      - MAIL_USERNAME=${MAIL_USERNAME}
-      - MAIL_PASSWORD=${MAIL_PASSWORD}
-      - MAIL_ADDRESS=${MAIL_ADDRESS}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://future.${DOJO_HOST}}
-      - DOCKER_USERNAME=${DOCKER_USERNAME}
-      - DOCKER_TOKEN=${DOCKER_TOKEN}
-      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
-      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
-      - INTERNET_FOR_ALL=${INTERNET_FOR_ALL}
-      - MAC_HOSTNAME=${MAC_HOSTNAME}
-      - MAC_USERNAME=${MAC_USERNAME}
+      <<: *ctfd-env
+      UPLOAD_FOLDER: /var/uploads
+      WORKERS: 8
+      LOG_FOLDER: /var/log/CTFd
+      ACCESS_LOG: "-"
+      ERROR_LOG: "-"
+      REVERSE_PROXY: "true"
+      SERVER_SENT_EVENTS: "false"
+      SECRET_KEY: ${SECRET_KEY}
+      DOJO_ENV: ${DOJO_ENV}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://future.${DOJO_HOST}}
+      DOCKER_USERNAME: ${DOCKER_USERNAME}
+      DOCKER_TOKEN: ${DOCKER_TOKEN}
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
@@ -153,10 +173,7 @@ services:
       timeout: 10s
       retries: 3
     depends_on:
-      pgbouncer:
-        condition: service_started
-      cache:
-        condition: service_started
+      <<: *ctfd-depends
 
   db:
     container_name: db
@@ -202,9 +219,25 @@ services:
     profiles:
       - main
     restart: always
-    image: redis:4
+    image: redis:8
     volumes:
       - /data/redis:/data
+
+  stats-worker:
+    <<: *ctfd-base
+    container_name: stats-worker
+    hostname: stats-worker
+    profiles:
+      - main
+    restart: always
+    command: ["flask", "shell", "/opt/CTFd/CTFd/plugins/dojo_plugin/worker/__main__.py"]
+    environment:
+      <<: *ctfd-env
+    volumes: *ctfd-volumes
+    depends_on:
+      <<: *ctfd-depends
+      ctfd:
+        condition: service_healthy
 
   sshd:
     container_name: sshd
