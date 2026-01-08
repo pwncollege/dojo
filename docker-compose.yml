@@ -236,8 +236,6 @@ services:
     volumes: *ctfd-volumes
     depends_on:
       <<: *ctfd-depends
-      ctfd:
-        condition: service_healthy
 
   sshd:
     container_name: sshd
