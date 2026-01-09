@@ -11,6 +11,10 @@ def publish_dojo_stats_event(dojo_id_int):
     publish_stat_event("dojo_stats_update", {"dojo_id": dojo_id_int})
 
 
+def publish_dojo_stats_solve_event(dojo_reference_id, challenge_name):
+    publish_stat_event("dojo_stats_update_solve", {"dojo_reference_id": dojo_reference_id, "challenge_name": challenge_name})
+
+
 def publish_scoreboard_event(model_type, model_id):
     publish_stat_event("scoreboard_update", {"model_type": model_type, "model_id": model_id})
 

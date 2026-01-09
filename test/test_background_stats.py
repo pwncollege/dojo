@@ -55,6 +55,7 @@ def wait_for_cache_update(dojo_id, timeout=10):
         time.sleep(0.1)
     return False
 
+
 def wait_for_cache_timestamp_updated(cache_key_prefix, after_time=None, timeout=10):
     if after_time is None:
         after_time = time.time()
@@ -159,7 +160,8 @@ def test_background_worker_processes_events(stats_test_dojo, stats_test_user):
 
     stats = json.loads(cached_data)
     assert stats['solves'] >= 1, f"Expected at least 1 solve, got {stats['solves']}"
-    assert stats['users'] >= 1, f"Expected at least 1 user, got {stats['users']}"
+    assert len(stats['recent_solves']) >= 1, "Should have recent solves after incremental update"
+    assert stats['recent_solves'][0]['challenge_name'] == 'Apple', "Most recent solve should be Apple"
 
 def test_stats_api_reads_from_cache(stats_test_dojo, stats_test_user):
     user_name, user_session = stats_test_user
@@ -360,9 +362,8 @@ def test_concurrent_solves(stats_test_dojo):
         time.sleep(0.5)
 
     stats = json.loads(redis_get(cache_key))
-
     assert stats['solves'] >= 3, f"Expected at least 3 solves, got {stats['solves']}"
-    assert stats['users'] >= 3, f"Expected at least 3 users, got {stats['users']}"
+    assert len(stats['recent_solves']) >= 3, "Should have at least 3 recent solves"
 
 def test_recent_solves_appear_in_stats(stats_test_dojo, stats_test_user):
     user_name, user_session = stats_test_user
@@ -440,9 +441,9 @@ def test_stats_consistency_after_multiple_updates(stats_test_dojo, stats_test_us
     assert cached_data is not None, "Cache should exist"
 
     stats = json.loads(cached_data)
-
     assert stats['solves'] >= 2, f"Expected at least 2 solves, got {stats['solves']}"
-    assert stats['users'] >= 1, f"Expected at least 1 user, got {stats['users']}"
+    assert len(stats['recent_solves']) >= 2, "Should have at least 2 recent solves"
+    assert stats['recent_solves'][0]['challenge_name'] == 'Banana', "Most recent solve should be Banana"
 
 def test_scoreboard_cold_start_initialization(example_dojo, random_user):
     user_name, user_session = random_user

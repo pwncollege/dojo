@@ -4,7 +4,7 @@ from sqlalchemy import func, desc
 
 from CTFd.models import db, Solves
 from ...models import Dojos, DojoChallenges
-from ...utils.background_stats import set_cached_stat
+from ...utils.background_stats import get_cached_stat, set_cached_stat
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -96,18 +96,20 @@ def calculate_dojo_stats(dojo):
 @register_handler("dojo_stats_update")
 def handle_dojo_stats_update(payload):
     dojo_id = payload.get("dojo_id")
+
     if not dojo_id:
         logger.warning("dojo_stats_update event missing dojo_id")
         return
 
-    logger.info(f"Handling dojo_stats_update for dojo_id {dojo_id}")
+    logger.info(f"Handling dojo_stats_update for dojo_id={dojo_id}")
 
     db.session.expire_all()
     db.session.commit()
 
     dojo = Dojos.query.get(dojo_id)
+
     if not dojo:
-        logger.info(f"Dojo not found for dojo_id {dojo_id} (may have been deleted)")
+        logger.info(f"Dojo not found for dojo_id={dojo_id} (may have been deleted)")
         return
 
     try:
@@ -118,6 +120,63 @@ def handle_dojo_stats_update(payload):
         logger.info(f"Successfully updated and cached stats for dojo {dojo.reference_id} (solves: {stats['solves']}, users: {stats['users']})")
     except Exception as e:
         logger.error(f"Error calculating stats for dojo_id {dojo_id}: {e}", exc_info=True)
+
+
+def update_dojo_stats(stats, challenge_name):
+    now = datetime.now()
+    result = {
+        'users': stats.get('users', 0),
+        'challenges': stats.get('challenges', 0),
+        'visible_challenges': stats.get('visible_challenges', 0),
+        'solves': stats.get('solves', 0) + 1,
+        'recent_solves': list(stats.get('recent_solves', [])),
+        'trends': dict(stats.get('trends', {})),
+        'chart_data': {
+            'labels': stats.get('chart_data', {}).get('labels', []),
+            'solves': list(stats.get('chart_data', {}).get('solves', [])),
+            'users': list(stats.get('chart_data', {}).get('users', []))
+        }
+    }
+
+    new_solve = {
+        'challenge_name': challenge_name,
+        'date': now.isoformat(),
+        'date_display': now.strftime('%m/%d/%y %I:%M %p')
+    }
+    result['recent_solves'].insert(0, new_solve)
+    result['recent_solves'] = result['recent_solves'][:5]
+
+    if result['chart_data']['solves']:
+        result['chart_data']['solves'][0] += 1
+
+    return result
+
+
+@register_handler("dojo_stats_update_solve")
+def handle_dojo_stats_update_solve(payload):
+    dojo_reference_id = payload.get("dojo_reference_id")
+    challenge_name = payload.get("challenge_name")
+
+    if not dojo_reference_id or not challenge_name:
+        logger.warning(f"dojo_stats_update_solve event missing required fields: {payload}")
+        return
+
+    logger.info(f"Handling dojo_stats_update_solve for dojo {dojo_reference_id}, challenge {challenge_name}")
+
+    cache_key = f"stats:dojo:{dojo_reference_id}"
+    current_stats = get_cached_stat(cache_key)
+
+    if not current_stats:
+        logger.warning(f"No cached stats for dojo {dojo_reference_id}, skipping incremental update")
+        return
+
+    try:
+        updated_stats = update_dojo_stats(current_stats, challenge_name)
+        set_cached_stat(cache_key, updated_stats)
+        logger.info(f"Updated dojo stats for {dojo_reference_id} (solves: {updated_stats['solves']})")
+    except Exception as e:
+        logger.error(f"Error updating dojo stats for {dojo_reference_id}: {e}", exc_info=True)
+
 
 def initialize_all_dojo_stats():
     dojos = Dojos.query.all()
