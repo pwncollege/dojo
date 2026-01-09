@@ -11,24 +11,12 @@ def publish_dojo_stats_event(dojo_id_int):
     publish_stat_event("dojo_stats_update", {"dojo_id": dojo_id_int})
 
 
-def publish_dojo_stats_solve_event(dojo_reference_id, challenge_name):
-    publish_stat_event("dojo_stats_update_solve", {"dojo_reference_id": dojo_reference_id, "challenge_name": challenge_name})
-
-
 def publish_scoreboard_event(model_type, model_id):
     publish_stat_event("scoreboard_update", {"model_type": model_type, "model_id": model_id})
 
 
-def publish_scoreboard_solve_event(model_type, model_id, user_id):
-    publish_stat_event("scoreboard_update_solve", {"model_type": model_type, "model_id": model_id, "user_id": user_id})
-
-
 def publish_scores_event():
     publish_stat_event("scores_update", {})
-
-
-def publish_scores_solve_event(user_id, dojo_id, module_index):
-    publish_stat_event("scores_update_solve", {"user_id": user_id, "dojo_id": dojo_id, "module_index": module_index})
 
 
 def publish_belts_event():
@@ -43,8 +31,8 @@ def publish_activity_event(user_id):
     publish_stat_event("activity_update", {"user_id": user_id})
 
 
-def publish_activity_solve_event(user_id):
-    publish_stat_event("activity_update_solve", {"user_id": user_id})
+def publish_challenge_solve_event(user_id, challenge_id):
+    publish_stat_event("challenge_solve", {"user_id": user_id, "challenge_id": challenge_id})
 
 
 def queue_stat_event(event_func):

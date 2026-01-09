@@ -15,7 +15,7 @@ def register_handler(event_type: str):
 def _load_handlers():
     global _handlers_loaded
     if not _handlers_loaded:
-        from . import dojo_stats, scoreboard, scores, awards, containers, activity
+        from . import dojo_stats, scoreboard, scores, awards, containers, activity, solve
         _handlers_loaded = True
 
 def handle_stat_event(event_type: str, payload: Dict[str, Any]):

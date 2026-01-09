@@ -126,42 +126,6 @@ def handle_scoreboard_update(payload):
             logger.error(f"Error calculating scoreboard for {model_type} {model_id}, duration={duration}: {e}", exc_info=True)
 
 
-@register_handler("scoreboard_update_solve")
-def handle_scoreboard_update_solve(payload):
-    model_type = payload.get("model_type")
-    model_id = payload.get("model_id")
-    user_id = payload.get("user_id")
-
-    if not model_type or model_id is None or user_id is None:
-        logger.warning(f"scoreboard_update_solve event missing required fields: {payload}")
-        return
-
-    logger.info(f"Handling scoreboard_update_solve for {model_type} id={model_id}, user_id={user_id}")
-
-    if model_type == "dojo":
-        cache_prefix = f"stats:scoreboard:dojo:{model_id}"
-    elif model_type == "module":
-        if isinstance(model_id, dict):
-            dojo_id = model_id.get("dojo_id")
-            module_index = model_id.get("module_index")
-        else:
-            dojo_id, module_index = model_id
-        cache_prefix = f"stats:scoreboard:module:{dojo_id}:{module_index}"
-    else:
-        logger.warning(f"Unknown model_type: {model_type}")
-        return
-
-    for duration in COMMON_DURATIONS:
-        try:
-            cache_key = f"{cache_prefix}:{duration}"
-            current_scoreboard = get_cached_stat(cache_key) or []
-            updated_scoreboard = update_scoreboard(current_scoreboard, user_id)
-            set_cached_stat(cache_key, updated_scoreboard)
-            logger.info(f"Updated scoreboard cache {cache_key} for user {user_id} ({len(updated_scoreboard)} entries)")
-        except Exception as e:
-            logger.error(f"Error updating scoreboard for {model_type} {model_id}, user {user_id}, duration={duration}: {e}", exc_info=True)
-
-
 def initialize_all_scoreboards():
     dojos = Dojos.query.all()
     logger.info(f"Initializing scoreboards for {len(dojos)} dojos...")

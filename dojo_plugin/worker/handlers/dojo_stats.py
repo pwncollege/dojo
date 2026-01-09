@@ -152,32 +152,6 @@ def update_dojo_stats(stats, challenge_name):
     return result
 
 
-@register_handler("dojo_stats_update_solve")
-def handle_dojo_stats_update_solve(payload):
-    dojo_reference_id = payload.get("dojo_reference_id")
-    challenge_name = payload.get("challenge_name")
-
-    if not dojo_reference_id or not challenge_name:
-        logger.warning(f"dojo_stats_update_solve event missing required fields: {payload}")
-        return
-
-    logger.info(f"Handling dojo_stats_update_solve for dojo {dojo_reference_id}, challenge {challenge_name}")
-
-    cache_key = f"stats:dojo:{dojo_reference_id}"
-    current_stats = get_cached_stat(cache_key)
-
-    if not current_stats:
-        logger.warning(f"No cached stats for dojo {dojo_reference_id}, skipping incremental update")
-        return
-
-    try:
-        updated_stats = update_dojo_stats(current_stats, challenge_name)
-        set_cached_stat(cache_key, updated_stats)
-        logger.info(f"Updated dojo stats for {dojo_reference_id} (solves: {updated_stats['solves']})")
-    except Exception as e:
-        logger.error(f"Error updating dojo stats for {dojo_reference_id}: {e}", exc_info=True)
-
-
 def initialize_all_dojo_stats():
     dojos = Dojos.query.all()
     logger.info(f"Initializing stats for {len(dojos)} dojos...")

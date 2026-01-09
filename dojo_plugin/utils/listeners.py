@@ -12,15 +12,12 @@ from ..models import (
 from .events import (
     queue_stat_event,
     publish_dojo_stats_event,
-    publish_dojo_stats_solve_event,
     publish_scoreboard_event,
-    publish_scoreboard_solve_event,
     publish_scores_event,
-    publish_scores_solve_event,
     publish_belts_event,
     publish_emojis_event,
     publish_activity_event,
-    publish_activity_solve_event,
+    publish_challenge_solve_event,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,22 +46,8 @@ def hook_object_creation(mapper, connection, target):
     invalidate_scoreboard_cache()
 
     if isinstance(target, Solves):
-        dojo_challenges = DojoChallenges.query.filter_by(challenge_id=target.challenge_id).all()
-        logger.info(f"Solve listener fired: challenge_id={target.challenge_id}, found {len(dojo_challenges)} dojo(s)")
-
-        user_id = target.user_id
-        for dojo_challenge in dojo_challenges:
-            dojo_id = dojo_challenge.dojo.dojo_id
-            dojo_ref_id = dojo_challenge.dojo.reference_id
-            challenge_name = dojo_challenge.name
-            module_index = dojo_challenge.module.module_index
-            module_id = {"dojo_id": dojo_id, "module_index": module_index}
-            logger.info(f"Queueing events for dojo {dojo_ref_id} (dojo_id={dojo_id})")
-            queue_stat_event(lambda ref_id=dojo_ref_id, chal_name=challenge_name: publish_dojo_stats_solve_event(ref_id, chal_name))
-            queue_stat_event(lambda d_id=dojo_id, u_id=user_id: publish_scoreboard_solve_event("dojo", d_id, u_id))
-            queue_stat_event(lambda m_id=module_id, u_id=user_id: publish_scoreboard_solve_event("module", m_id, u_id))
-            queue_stat_event(lambda u_id=user_id, d_id=dojo_id, m_idx=module_index: publish_scores_solve_event(u_id, d_id, m_idx))
-        queue_stat_event(lambda u_id=user_id: publish_activity_solve_event(u_id))
+        logger.info(f"Solve listener fired: challenge_id={target.challenge_id}, user_id={target.user_id}")
+        queue_stat_event(lambda u_id=target.user_id, c_id=target.challenge_id: publish_challenge_solve_event(u_id, c_id))
     elif isinstance(target, Dojos):
         dojo_id = target.dojo_id
         queue_stat_event(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))

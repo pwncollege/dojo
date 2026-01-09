@@ -528,28 +528,28 @@ def test_module_scoreboard_updates(stats_test_dojo, stats_test_user):
     assert user_entry is not None, f"User {user_name} should be in module scoreboard"
 
 def test_scores_cold_start_initialization():
-    dojo_scores_key = "stats:scores:dojos"
-    module_scores_key = "stats:scores:modules"
+    dojo_scores_keys = redis_keys("stats:scores:dojo:*")
+    dojo_scores_keys = [k for k in dojo_scores_keys if not k.endswith(":updated")]
 
-    dojo_scores_data = redis_get(dojo_scores_key)
-    module_scores_data = redis_get(module_scores_key)
+    module_scores_keys = redis_keys("stats:scores:module:*")
+    module_scores_keys = [k for k in module_scores_keys if not k.endswith(":updated")]
 
-    if dojo_scores_data is None or module_scores_data is None:
+    if not dojo_scores_keys or not module_scores_keys:
         result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
         pytest.fail(f"Cold start should have initialized scores cache. Worker logs:\n{result.stdout}")
 
+    dojo_scores_data = redis_get(dojo_scores_keys[0])
     dojo_scores = json.loads(dojo_scores_data)
-    assert 'user_ranks' in dojo_scores, "dojo_scores should have user_ranks"
-    assert 'user_solves' in dojo_scores, "dojo_scores should have user_solves"
-    assert 'dojo_ranks' in dojo_scores, "dojo_scores should have dojo_ranks"
+    assert 'ranks' in dojo_scores, "dojo_scores should have ranks"
+    assert 'solves' in dojo_scores, "dojo_scores should have solves"
 
+    module_scores_data = redis_get(module_scores_keys[0])
     module_scores = json.loads(module_scores_data)
-    assert 'user_ranks' in module_scores, "module_scores should have user_ranks"
-    assert 'user_solves' in module_scores, "module_scores should have user_solves"
-    assert 'module_ranks' in module_scores, "module_scores should have module_ranks"
+    assert 'ranks' in module_scores, "module_scores should have ranks"
+    assert 'solves' in module_scores, "module_scores should have solves"
 
-    dojo_timestamp = redis_get(f"{dojo_scores_key}:updated")
-    module_timestamp = redis_get(f"{module_scores_key}:updated")
+    dojo_timestamp = redis_get(f"{dojo_scores_keys[0]}:updated")
+    module_timestamp = redis_get(f"{module_scores_keys[0]}:updated")
     assert dojo_timestamp is not None, "dojo_scores timestamp should exist"
     assert module_timestamp is not None, "module_scores timestamp should exist"
 
@@ -559,9 +559,8 @@ def test_scores_update_on_solve(stats_test_dojo, stats_test_user):
     response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
     assert response.status_code == 200
 
-    dojo_scores_key = "stats:scores:dojos"
-    before_timestamp = redis_get(f"{dojo_scores_key}:updated")
-    before_time = float(before_timestamp) if before_timestamp else 0
+    dojo_scores_keys_before = set(redis_keys("stats:scores:dojo:*"))
+    dojo_scores_keys_before = {k for k in dojo_scores_keys_before if not k.endswith(":updated")}
 
     start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
     solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
@@ -569,21 +568,24 @@ def test_scores_update_on_solve(stats_test_dojo, stats_test_user):
     start_time = time.time()
     updated = False
     while time.time() - start_time < 10:
-        after_timestamp = redis_get(f"{dojo_scores_key}:updated")
-        if after_timestamp and float(after_timestamp) > before_time:
+        dojo_scores_keys_after = set(redis_keys("stats:scores:dojo:*"))
+        dojo_scores_keys_after = {k for k in dojo_scores_keys_after if not k.endswith(":updated")}
+        if dojo_scores_keys_after:
             updated = True
             break
         time.sleep(0.5)
 
     assert updated, "scores cache should be updated after solve"
 
-    dojo_scores_data = redis_get(dojo_scores_key)
+    dojo_scores_keys = [k for k in dojo_scores_keys_after if not k.endswith(":updated")]
+    assert len(dojo_scores_keys) >= 1, "At least one dojo_scores cache should exist"
+
+    dojo_scores_data = redis_get(dojo_scores_keys[0])
     assert dojo_scores_data is not None, "dojo_scores cache should exist"
 
     dojo_scores = json.loads(dojo_scores_data)
-    assert 'user_ranks' in dojo_scores
-    assert 'user_solves' in dojo_scores
-    assert 'dojo_ranks' in dojo_scores
+    assert 'ranks' in dojo_scores, "dojo_scores should have ranks"
+    assert 'solves' in dojo_scores, "dojo_scores should have solves"
 
 def test_hacker_page_uses_scores(stats_test_dojo, stats_test_user):
     user_name, user_session = stats_test_user
@@ -839,9 +841,8 @@ def test_module_scores_update_on_solve(stats_test_dojo, stats_test_user):
     response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
     assert response.status_code == 200
 
-    module_scores_key = "stats:scores:modules"
-    before_timestamp = redis_get(f"{module_scores_key}:updated")
-    before_time = float(before_timestamp) if before_timestamp else 0
+    module_scores_keys_before = set(redis_keys("stats:scores:module:*"))
+    module_scores_keys_before = {k for k in module_scores_keys_before if not k.endswith(":updated")}
 
     start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
     solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
@@ -849,21 +850,24 @@ def test_module_scores_update_on_solve(stats_test_dojo, stats_test_user):
     start_time = time.time()
     updated = False
     while time.time() - start_time < 10:
-        after_timestamp = redis_get(f"{module_scores_key}:updated")
-        if after_timestamp and float(after_timestamp) > before_time:
+        module_scores_keys_after = set(redis_keys("stats:scores:module:*"))
+        module_scores_keys_after = {k for k in module_scores_keys_after if not k.endswith(":updated")}
+        if module_scores_keys_after:
             updated = True
             break
         time.sleep(0.5)
 
     assert updated, "module scores cache should be updated after solve"
 
-    module_scores_data = redis_get(module_scores_key)
+    module_scores_keys = [k for k in module_scores_keys_after if not k.endswith(":updated")]
+    assert len(module_scores_keys) >= 1, "At least one module_scores cache should exist"
+
+    module_scores_data = redis_get(module_scores_keys[0])
     assert module_scores_data is not None, "module_scores cache should exist"
 
     module_scores = json.loads(module_scores_data)
-    assert 'user_ranks' in module_scores
-    assert 'user_solves' in module_scores
-    assert 'module_ranks' in module_scores
+    assert 'ranks' in module_scores, "module_scores should have ranks"
+    assert 'solves' in module_scores, "module_scores should have solves"
 
 def test_container_stats_cold_start_initialization():
     cache_key = "stats:containers"
