@@ -2,7 +2,7 @@ import logging
 from sqlalchemy.sql import or_
 from CTFd.models import Solves, db
 from ...models import Dojos, DojoChallenges
-from ...utils.background_stats import set_cached_stat
+from ...utils.background_stats import get_cached_stat, set_cached_stat
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -20,12 +20,12 @@ def _scores_query(granularity, dojo_filter):
         Dojos.dojo_id == DojoChallenges.dojo_id,
         DojoChallenges.challenge_id == Solves.challenge_id,
         dojo_filter
-    ).group_by(*grouping).order_by(Dojos.id, solve_count.desc(), last_solve_date)
+    ).group_by(*grouping).order_by(Dojos.dojo_id, solve_count.desc(), last_solve_date)
 
     return dsc_query
 
 def calculate_dojo_scores():
-    dsc_query = _scores_query([Dojos.id], or_(Dojos.data["type"].astext == "public", Dojos.official))
+    dsc_query = _scores_query([Dojos.dojo_id], or_(Dojos.data["type"].astext == "public", Dojos.official))
 
     user_ranks = {}
     user_solves = {}
@@ -42,7 +42,7 @@ def calculate_dojo_scores():
     }
 
 def calculate_module_scores():
-    dsc_query = _scores_query([Dojos.id, DojoChallenges.module_index], or_(Dojos.data["type"].astext == "public", Dojos.official))
+    dsc_query = _scores_query([Dojos.dojo_id, DojoChallenges.module_index], or_(Dojos.data["type"].astext == "public", Dojos.official))
 
     user_ranks = {}
     user_solves = {}
@@ -57,6 +57,115 @@ def calculate_module_scores():
         "user_solves": user_solves,
         "module_ranks": module_ranks
     }
+
+def update_dojo_scores(scores, user_id, dojo_id):
+    user_ranks = {int(k): v for k, v in scores.get("user_ranks", {}).items()}
+    user_solves = {int(k): v for k, v in scores.get("user_solves", {}).items()}
+    dojo_ranks = {int(k): list(v) for k, v in scores.get("dojo_ranks", {}).items()}
+
+    if dojo_id not in dojo_ranks:
+        dojo_ranks[dojo_id] = []
+
+    user_solves.setdefault(user_id, {})
+    user_ranks.setdefault(user_id, {})
+
+    old_solve_count = user_solves[user_id].get(dojo_id, 0)
+    new_solve_count = old_solve_count + 1
+    user_solves[user_id][dojo_id] = new_solve_count
+
+    ranking = dojo_ranks[dojo_id]
+    if user_id in ranking:
+        ranking.remove(user_id)
+
+    insert_pos = 0
+    for i, other_user_id in enumerate(ranking):
+        other_solves = user_solves.get(other_user_id, {}).get(dojo_id, 0)
+        if other_solves >= new_solve_count:
+            insert_pos = i + 1
+        else:
+            break
+
+    ranking.insert(insert_pos, user_id)
+
+    for i, uid in enumerate(ranking):
+        user_ranks.setdefault(uid, {})[dojo_id] = i + 1
+
+    return {
+        "user_ranks": user_ranks,
+        "user_solves": user_solves,
+        "dojo_ranks": dojo_ranks
+    }
+
+
+def update_module_scores(scores, user_id, dojo_id, module_index):
+    user_ranks = {int(k): v for k, v in scores.get("user_ranks", {}).items()}
+    user_solves = {int(k): v for k, v in scores.get("user_solves", {}).items()}
+    module_ranks = {int(k): v for k, v in scores.get("module_ranks", {}).items()}
+
+    if dojo_id not in module_ranks:
+        module_ranks[dojo_id] = {}
+    if module_index not in module_ranks[dojo_id]:
+        module_ranks[dojo_id][module_index] = []
+
+    user_solves.setdefault(user_id, {}).setdefault(dojo_id, {})
+    user_ranks.setdefault(user_id, {}).setdefault(dojo_id, {})
+
+    old_solve_count = user_solves[user_id][dojo_id].get(module_index, 0)
+    new_solve_count = old_solve_count + 1
+    user_solves[user_id][dojo_id][module_index] = new_solve_count
+
+    ranking = module_ranks[dojo_id][module_index]
+    if user_id in ranking:
+        ranking.remove(user_id)
+
+    insert_pos = 0
+    for i, other_user_id in enumerate(ranking):
+        other_solves = user_solves.get(other_user_id, {}).get(dojo_id, {}).get(module_index, 0)
+        if other_solves >= new_solve_count:
+            insert_pos = i + 1
+        else:
+            break
+
+    ranking.insert(insert_pos, user_id)
+
+    for i, uid in enumerate(ranking):
+        user_ranks.setdefault(uid, {}).setdefault(dojo_id, {})[module_index] = i + 1
+
+    return {
+        "user_ranks": user_ranks,
+        "user_solves": user_solves,
+        "module_ranks": module_ranks
+    }
+
+
+@register_handler("scores_update_solve")
+def handle_scores_update_solve(payload):
+    user_id = payload.get("user_id")
+    dojo_id = payload.get("dojo_id")
+    module_index = payload.get("module_index")
+
+    if user_id is None or dojo_id is None or module_index is None:
+        logger.warning(f"scores_update_solve event missing required fields: {payload}")
+        return
+
+    logger.info(f"Handling scores_update_solve for user_id={user_id}, dojo_id={dojo_id}, module_index={module_index}")
+
+    try:
+        dojo_scores = get_cached_stat(CACHE_KEY_DOJO_SCORES) or {"user_ranks": {}, "user_solves": {}, "dojo_ranks": {}}
+        updated_dojo_scores = update_dojo_scores(dojo_scores, user_id, dojo_id)
+        set_cached_stat(CACHE_KEY_DOJO_SCORES, updated_dojo_scores)
+        logger.info(f"Updated dojo scores for user {user_id} in dojo {dojo_id}")
+    except Exception as e:
+        logger.error(f"Error updating dojo scores: {e}", exc_info=True)
+
+    try:
+        module_scores = get_cached_stat(CACHE_KEY_MODULE_SCORES) or {"user_ranks": {}, "user_solves": {}, "module_ranks": {}}
+        updated_module_scores = update_module_scores(module_scores, user_id, dojo_id, module_index)
+        set_cached_stat(CACHE_KEY_MODULE_SCORES, updated_module_scores)
+        logger.info(f"Updated module scores for user {user_id} in dojo {dojo_id} module {module_index}")
+    except Exception as e:
+        logger.error(f"Error updating module scores: {e}", exc_info=True)
+
 
 @register_handler("scores_update")
 def handle_scores_update(payload):

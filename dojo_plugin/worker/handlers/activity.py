@@ -4,7 +4,7 @@ from collections import defaultdict
 from sqlalchemy import func
 
 from CTFd.models import db, Solves, Users
-from ...utils.background_stats import set_cached_stat
+from ...utils.background_stats import get_cached_stat, set_cached_stat
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -57,6 +57,38 @@ def handle_activity_update(payload):
         logger.info(f"Successfully updated and cached activity for user {user_id} (total_solves: {activity['total_solves']})")
     except Exception as e:
         logger.error(f"Error calculating activity for user_id {user_id}: {e}", exc_info=True)
+
+
+def update_activity(activity, solve_date=None):
+    result = {
+        'daily_solves': dict(activity.get('daily_solves', {})),
+        'total_solves': activity.get('total_solves', 0)
+    }
+    date_str = (solve_date or datetime.now()).strftime('%Y-%m-%d')
+    result['daily_solves'][date_str] = result['daily_solves'].get(date_str, 0) + 1
+    result['total_solves'] += 1
+    return result
+
+
+@register_handler("activity_update_solve")
+def handle_activity_update_solve(payload):
+    user_id = payload.get("user_id")
+    if not user_id:
+        logger.warning("activity_update_solve event missing user_id")
+        return
+
+    logger.info(f"Handling activity_update_solve for user_id {user_id}")
+
+    cache_key = f"stats:activity:{user_id}"
+    current_activity = get_cached_stat(cache_key) or {'daily_solves': {}, 'total_solves': 0}
+
+    try:
+        updated_activity = update_activity(current_activity)
+        set_cached_stat(cache_key, updated_activity)
+        logger.info(f"Updated activity cache for user {user_id} (total_solves: {updated_activity['total_solves']})")
+    except Exception as e:
+        logger.error(f"Error updating activity for user_id {user_id}: {e}", exc_info=True)
+
 
 def initialize_activity_for_user(user_id):
     try:

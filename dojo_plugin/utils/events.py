@@ -23,6 +23,10 @@ def publish_scores_event():
     publish_stat_event("scores_update", {})
 
 
+def publish_scores_solve_event(user_id, dojo_id, module_index):
+    publish_stat_event("scores_update_solve", {"user_id": user_id, "dojo_id": dojo_id, "module_index": module_index})
+
+
 def publish_belts_event():
     publish_stat_event("belts_update", {})
 
@@ -33,6 +37,10 @@ def publish_emojis_event():
 
 def publish_activity_event(user_id):
     publish_stat_event("activity_update", {"user_id": user_id})
+
+
+def publish_activity_solve_event(user_id):
+    publish_stat_event("activity_update_solve", {"user_id": user_id})
 
 
 def queue_stat_event(event_func):
