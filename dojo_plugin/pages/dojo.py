@@ -16,7 +16,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.helpers import get_infos
 
 from ..utils import get_current_container, get_all_containers, render_markdown
-from ..utils.stats import get_container_stats, get_dojo_stats
+from ..utils.stats import get_container_stats, get_dojo_stats, get_challenge_solves
 from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
 from ..utils.query_timer import query_timeout
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
@@ -341,11 +341,13 @@ def view_module(dojo, module, scroll_to_challenge=None):
     user_solves = set(solve.challenge_id for solve in (
         module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
     ))
-    total_solves = dict(query_timeout(
-        module.solves().group_by(Solves.challenge_id).with_entities(Solves.challenge_id, db.func.count()).all,
-        5000,
-        []
-    ))
+    total_solves = get_challenge_solves(module)
+    if total_solves is None:
+        total_solves = dict(query_timeout(
+            module.solves().group_by(Solves.challenge_id).with_entities(Solves.challenge_id, db.func.count()).all,
+            5000,
+            []
+        ))
     container = get_current_container()
     practice = container.labels.get("dojo.mode") == "privileged" if container else False
 

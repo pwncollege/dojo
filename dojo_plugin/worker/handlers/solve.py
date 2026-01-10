@@ -5,7 +5,7 @@ from CTFd.models import db
 from ...models import DojoChallenges
 from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
-from .scoreboard import update_scoreboard, COMMON_DURATIONS
+from .scoreboard import update_scoreboard, update_challenge_solves, challenge_solves_cache_key, COMMON_DURATIONS
 from .dojo_stats import update_dojo_stats
 from .scores import update_dojo_scores, update_module_scores, dojo_scores_cache_key, module_scores_cache_key
 from .activity import update_activity
@@ -52,6 +52,8 @@ def handle_challenge_solve(payload, event_timestamp):
             _update_module_scoreboard(dojo_id, module_index, user_id, event_timestamp)
             logger.info(f"Updating dojo stats for dojo {dojo_ref_id}")
             _update_dojo_stats(dojo_ref_id, challenge_name, event_timestamp)
+            logger.info(f"Updating challenge solves for dojo {dojo_ref_id} module {module_index}")
+            _update_challenge_solves(dojo_id, module_index, challenge_id, event_timestamp)
         else:
             logger.info(f"User {user_id} is not a member of dojo {dojo_ref_id}, skipping scoreboard/stats updates")
 
@@ -107,6 +109,21 @@ def _update_dojo_stats(dojo_ref_id, challenge_name, event_timestamp):
         set_cached_stat(cache_key, updated_stats)
     except Exception as e:
         logger.error(f"Error updating dojo stats for {dojo_ref_id}: {e}", exc_info=True)
+
+
+def _update_challenge_solves(dojo_id, module_index, challenge_id, event_timestamp):
+    cache_key = challenge_solves_cache_key(dojo_id, module_index)
+    if is_event_stale(cache_key, event_timestamp):
+        return
+    current = get_cached_stat(cache_key)
+    if not current:
+        logger.info(f"No cached challenge_solves for dojo {dojo_id} module {module_index}, skipping incremental update")
+        return
+    try:
+        updated = update_challenge_solves(current, challenge_id)
+        set_cached_stat(cache_key, updated)
+    except Exception as e:
+        logger.error(f"Error updating challenge_solves for dojo {dojo_id} module {module_index}: {e}", exc_info=True)
 
 
 def _update_scores(dojo_id, module_index, user_id, event_timestamp):
