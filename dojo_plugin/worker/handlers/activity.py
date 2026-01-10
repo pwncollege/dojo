@@ -10,7 +10,7 @@ from . import register_handler
 logger = logging.getLogger(__name__)
 
 def calculate_activity(user_id):
-    now = datetime.now()
+    now = datetime.utcnow()
     one_year_ago = now - timedelta(days=365)
 
     solves = (
@@ -21,15 +21,11 @@ def calculate_activity(user_id):
         .all()
     )
 
-    daily_counts = defaultdict(int)
-    for solve in solves:
-        if solve.date:
-            date_str = solve.date.strftime('%Y-%m-%d')
-            daily_counts[date_str] += 1
+    timestamps = [solve.date.isoformat() + 'Z' for solve in solves if solve.date]
 
     return {
-        'daily_solves': dict(daily_counts),
-        'total_solves': len(solves),
+        'solve_timestamps': timestamps,
+        'total_solves': len(timestamps),
     }
 
 @register_handler("activity_update")
@@ -60,14 +56,13 @@ def handle_activity_update(payload):
 
 
 def update_activity(activity, solve_date=None):
-    result = {
-        'daily_solves': dict(activity.get('daily_solves', {})),
-        'total_solves': activity.get('total_solves', 0)
+    timestamps = list(activity.get('solve_timestamps', []))
+    timestamp = (solve_date or datetime.utcnow()).isoformat() + 'Z'
+    timestamps.append(timestamp)
+    return {
+        'solve_timestamps': timestamps,
+        'total_solves': len(timestamps),
     }
-    date_str = (solve_date or datetime.now()).strftime('%Y-%m-%d')
-    result['daily_solves'][date_str] = result['daily_solves'].get(date_str, 0) + 1
-    result['total_solves'] += 1
-    return result
 
 
 def initialize_activity_for_user(user_id):
@@ -81,7 +76,7 @@ def initialize_activity_for_user(user_id):
         return False
 
 def initialize_all_activity():
-    one_year_ago = datetime.now() - timedelta(days=365)
+    one_year_ago = datetime.utcnow() - timedelta(days=365)
 
     all_solves = (
         Solves.query
@@ -90,20 +85,19 @@ def initialize_all_activity():
         .all()
     )
 
-    user_activity = defaultdict(lambda: defaultdict(int))
+    user_timestamps = defaultdict(list)
     for user_id, date in all_solves:
         if date:
-            date_str = date.strftime('%Y-%m-%d')
-            user_activity[user_id][date_str] += 1
+            user_timestamps[user_id].append(date.isoformat() + 'Z')
 
-    logger.info(f"Initializing activity for {len(user_activity)} active users (batch mode)...")
+    logger.info(f"Initializing activity for {len(user_timestamps)} active users (batch mode)...")
 
-    for user_id, daily_counts in user_activity.items():
+    for user_id, timestamps in user_timestamps.items():
         activity = {
-            'daily_solves': dict(daily_counts),
-            'total_solves': sum(daily_counts.values()),
+            'solve_timestamps': timestamps,
+            'total_solves': len(timestamps),
         }
         cache_key = f"stats:activity:{user_id}"
         set_cached_stat(cache_key, activity)
 
-    logger.info(f"Activity initialization complete for {len(user_activity)} users")
+    logger.info(f"Activity initialization complete for {len(user_timestamps)} users")

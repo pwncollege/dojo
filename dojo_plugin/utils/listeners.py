@@ -47,7 +47,7 @@ def hook_object_creation(mapper, connection, target):
 
     if isinstance(target, Solves):
         logger.info(f"Solve listener fired: challenge_id={target.challenge_id}, user_id={target.user_id}")
-        queue_stat_event(lambda u_id=target.user_id, c_id=target.challenge_id: publish_challenge_solve_event(u_id, c_id))
+        queue_stat_event(lambda u_id=target.user_id, c_id=target.challenge_id, s_date=target.date: publish_challenge_solve_event(u_id, c_id, s_date))
     elif isinstance(target, Dojos):
         dojo_id = target.dojo_id
         queue_stat_event(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))

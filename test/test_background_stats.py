@@ -1010,7 +1010,7 @@ def test_activity_update_on_solve(stats_test_dojo, stats_test_user):
     assert updated, "Activity cache should be updated after solve"
 
     activity = json.loads(cached_data)
-    assert 'daily_solves' in activity, "Activity should have daily_solves"
+    assert 'solve_timestamps' in activity, "Activity should have solve_timestamps"
     assert 'total_solves' in activity, "Activity should have total_solves"
     assert activity['total_solves'] >= 1, f"Expected at least 1 solve, got {activity['total_solves']}"
 
@@ -1042,7 +1042,7 @@ def test_activity_api_returns_cached_data(stats_test_dojo, stats_test_user):
     data = response.json()
     assert data['success'] is True, "API should return success"
     assert 'data' in data, "API should return data"
-    assert 'daily_solves' in data['data'], "API data should have daily_solves"
+    assert 'solve_timestamps' in data['data'], "API data should have solve_timestamps"
     assert 'total_solves' in data['data'], "API data should have total_solves"
 
 def test_activity_cache_structure(stats_test_dojo, stats_test_user):
@@ -1071,12 +1071,13 @@ def test_activity_cache_structure(stats_test_dojo, stats_test_user):
 
     activity = json.loads(cached_data)
 
-    assert isinstance(activity['daily_solves'], dict), "daily_solves should be a dict"
+    assert isinstance(activity['solve_timestamps'], list), "solve_timestamps should be a list"
     assert isinstance(activity['total_solves'], int), "total_solves should be an int"
 
+    assert len(activity['solve_timestamps']) >= 1, "There should be at least 1 solve timestamp"
     today = time.strftime('%Y-%m-%d')
-    assert today in activity['daily_solves'], f"Today's date ({today}) should be in daily_solves"
-    assert activity['daily_solves'][today] >= 1, "Today should have at least 1 solve"
+    has_today = any(ts.startswith(today) for ts in activity['solve_timestamps'])
+    assert has_today, f"Today's date ({today}) should be in solve_timestamps"
 
 def test_activity_multiple_solves_same_day(stats_test_dojo, stats_test_user):
     user_name, user_session = stats_test_user
@@ -1112,7 +1113,8 @@ def test_activity_multiple_solves_same_day(stats_test_dojo, stats_test_user):
     today = time.strftime('%Y-%m-%d')
 
     assert activity['total_solves'] >= 2, f"Expected at least 2 total solves, got {activity['total_solves']}"
-    assert activity['daily_solves'].get(today, 0) >= 2, f"Expected at least 2 solves today, got {activity['daily_solves'].get(today, 0)}"
+    today_count = sum(1 for ts in activity['solve_timestamps'] if ts.startswith(today))
+    assert today_count >= 2, f"Expected at least 2 solves today, got {today_count}"
 
 def test_activity_fallback_on_cache_miss(stats_test_dojo, stats_test_user):
     user_name, user_session = stats_test_user
@@ -1139,7 +1141,7 @@ def test_activity_fallback_on_cache_miss(stats_test_dojo, stats_test_user):
 
     data = response.json()
     assert data['success'] is True, "API should return success on fallback"
-    assert 'daily_solves' in data['data'], "Fallback should compute daily_solves"
+    assert 'solve_timestamps' in data['data'], "Fallback should compute solve_timestamps"
     assert data['data']['total_solves'] >= 1, "Fallback should find existing solves"
 
 def test_activity_api_user_not_found(stats_test_user):
