@@ -83,12 +83,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                     else if(ratio > 0.5) level = 3;
                     else if(ratio > 0.25) level = 2;
                     else if(ratio > 0 ) level = 1;
-                }    
+                }
                 cell.className = `activity-cell level-${level}`;
             }
         }
     }
-    
+
+    function countDailySolves(timestamps) {
+        const counts = {};
+        timestamps.forEach(ts => {
+            const dateStr = getLocalISODate(new Date(ts));
+            counts[dateStr] = (counts[dateStr] || 0) + 1;
+        });
+        return counts;
+    }
+
     function getStreak(dailyActivityData) {
         let streak = 0;
         for (let offset = 0; offset < 364; offset++) {
@@ -112,7 +121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     .then(response => response.json())
     .then(result => {
         if(result.success) {
-            const dailySolveCount = result.data.daily_solves;
+            const dailySolveCount = countDailySolves(result.data.solve_timestamps || []);
             const max = Math.max(...Object.values(dailySolveCount), 1);
             updateGrid(dailySolveCount, max);
             const streakText = getStreak(dailySolveCount);

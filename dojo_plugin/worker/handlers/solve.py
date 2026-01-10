@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from CTFd.models import db
 from ...models import DojoChallenges
@@ -16,10 +17,15 @@ logger = logging.getLogger(__name__)
 def handle_challenge_solve(payload):
     user_id = payload.get("user_id")
     challenge_id = payload.get("challenge_id")
+    solve_date_str = payload.get("solve_date")
 
     if user_id is None or challenge_id is None:
         logger.warning(f"challenge_solve event missing required fields: {payload}")
         return
+
+    solve_date = None
+    if solve_date_str:
+        solve_date = datetime.fromisoformat(solve_date_str.rstrip('Z'))
 
     logger.info(f"Handling challenge_solve for user_id={user_id}, challenge_id={challenge_id}")
 
@@ -56,7 +62,7 @@ def handle_challenge_solve(payload):
             logger.info(f"Dojo {dojo_ref_id} is not public or official, skipping scores update")
 
     logger.info(f"Updating activity for user {user_id}")
-    _update_user_activity(user_id)
+    _update_user_activity(user_id, solve_date)
     logger.info(f"Completed challenge_solve for user_id={user_id}, challenge_id={challenge_id}")
 
 
@@ -117,11 +123,11 @@ def _update_scores(dojo_id, module_index, user_id):
         logger.error(f"Error updating module scores: {e}", exc_info=True)
 
 
-def _update_user_activity(user_id):
+def _update_user_activity(user_id, solve_date=None):
     cache_key = f"stats:activity:{user_id}"
-    current_activity = get_cached_stat(cache_key) or {'daily_solves': {}, 'total_solves': 0}
+    current_activity = get_cached_stat(cache_key) or {'solve_timestamps': [], 'total_solves': 0}
     try:
-        updated_activity = update_activity(current_activity)
+        updated_activity = update_activity(current_activity, solve_date)
         set_cached_stat(cache_key, updated_activity)
     except Exception as e:
         logger.error(f"Error updating activity for user_id {user_id}: {e}", exc_info=True)
