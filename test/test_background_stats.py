@@ -1183,3 +1183,27 @@ def test_should_daily_restart():
     assert should_daily_restart(one_hour_ago, DAILY_RESTART_HOUR_UTC) is True, "Should restart when at target hour and running >= 1 hour"
     assert should_daily_restart(ten_minutes_ago, DAILY_RESTART_HOUR_UTC) is False, "Should NOT restart when running < 1 hour"
     assert should_daily_restart(one_hour_ago, 10) is False, "Should NOT restart when not at target hour"
+
+def test_get_message_timestamp():
+    def get_message_timestamp(message_id):
+        timestamp_ms = int(message_id.split('-')[0])
+        return timestamp_ms / 1000.0
+
+    message_id = "1704067200000-0"
+    timestamp = get_message_timestamp(message_id)
+    assert timestamp == 1704067200.0, "Should extract timestamp in seconds from message ID"
+
+    message_id_with_seq = "1704067200123-5"
+    timestamp = get_message_timestamp(message_id_with_seq)
+    assert timestamp == 1704067200.123, "Should handle milliseconds correctly"
+
+def test_is_event_stale_logic():
+    def is_event_stale(cache_updated_at, event_timestamp):
+        if cache_updated_at and event_timestamp < cache_updated_at:
+            return True
+        return False
+
+    assert is_event_stale(1000.0, 900.0) is True, "Event before cache update should be stale"
+    assert is_event_stale(1000.0, 1100.0) is False, "Event after cache update should not be stale"
+    assert is_event_stale(None, 900.0) is False, "No cache update time means event is not stale"
+    assert is_event_stale(1000.0, 1000.0) is False, "Event at same time as cache should not be stale"

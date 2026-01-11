@@ -4,7 +4,7 @@ from collections import defaultdict
 from sqlalchemy import func
 
 from CTFd.models import db, Solves, Users
-from ...utils.background_stats import get_cached_stat, set_cached_stat
+from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -29,13 +29,17 @@ def calculate_activity(user_id):
     }
 
 @register_handler("activity_update")
-def handle_activity_update(payload):
+def handle_activity_update(payload, event_timestamp=None):
     user_id = payload.get("user_id")
     if not user_id:
         logger.warning("activity_update event missing user_id")
         return
 
     logger.info(f"Handling activity_update for user_id {user_id}")
+
+    cache_key = f"stats:activity:{user_id}"
+    if event_timestamp and is_event_stale(cache_key, event_timestamp):
+        return
 
     db.session.expire_all()
     db.session.commit()
@@ -48,7 +52,6 @@ def handle_activity_update(payload):
     try:
         logger.info(f"Calculating activity for user {user_id}...")
         activity = calculate_activity(user_id)
-        cache_key = f"stats:activity:{user_id}"
         set_cached_stat(cache_key, activity)
         logger.info(f"Successfully updated and cached activity for user {user_id} (total_solves: {activity['total_solves']})")
     except Exception as e:

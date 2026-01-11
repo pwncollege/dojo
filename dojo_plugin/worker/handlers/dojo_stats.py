@@ -4,7 +4,7 @@ from sqlalchemy import func, desc
 
 from CTFd.models import db, Solves
 from ...models import Dojos, DojoChallenges
-from ...utils.background_stats import get_cached_stat, set_cached_stat
+from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ def calculate_dojo_stats(dojo):
     }
 
 @register_handler("dojo_stats_update")
-def handle_dojo_stats_update(payload):
+def handle_dojo_stats_update(payload, event_timestamp=None):
     dojo_id = payload.get("dojo_id")
 
     if not dojo_id:
@@ -112,10 +112,13 @@ def handle_dojo_stats_update(payload):
         logger.info(f"Dojo not found for dojo_id={dojo_id} (may have been deleted)")
         return
 
+    cache_key = f"stats:dojo:{dojo.reference_id}"
+    if event_timestamp and is_event_stale(cache_key, event_timestamp):
+        return
+
     try:
         logger.info(f"Calculating stats for dojo {dojo.reference_id} (dojo_id={dojo_id})...")
         stats = calculate_dojo_stats(dojo)
-        cache_key = f"stats:dojo:{dojo.reference_id}"
         set_cached_stat(cache_key, stats)
         logger.info(f"Successfully updated and cached stats for dojo {dojo.reference_id} (solves: {stats['solves']}, users: {stats['users']})")
     except Exception as e:
