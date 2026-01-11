@@ -14,7 +14,7 @@ REDIS_STREAM_NAME = "stat:events"
 CONSUMER_GROUP = "stats-workers"
 CONSUMER_NAME = f"worker-{os.getpid()}"
 
-DAILY_RESTART_HOUR_UTC = 13
+DAILY_RESTART_HOUR_UTC = 12
 
 
 class DailyRestartException(Exception):
