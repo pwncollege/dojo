@@ -134,6 +134,11 @@ def get_cached_stat(key: str) -> Optional[Dict[str, Any]]:
     except (redis.RedisError, redis.ConnectionError, json.JSONDecodeError):
         return None
 
+def get_redis_time(r: redis.Redis) -> float:
+    redis_time = r.time()
+    return float(redis_time[0]) + float(redis_time[1]) / 1_000_000
+
+
 def set_cached_stat(key: str, data: Dict[str, Any], updated_at: Optional[float] = None):
     try:
         r = get_redis_client()
@@ -142,7 +147,7 @@ def set_cached_stat(key: str, data: Dict[str, Any], updated_at: Optional[float] 
         if updated_at:
             r.set(f"{key}:updated", str(updated_at))
         else:
-            r.set(f"{key}:updated", str(time.time()))
+            r.set(f"{key}:updated", str(get_redis_time(r)))
     except (redis.RedisError, redis.ConnectionError):
         pass
 
