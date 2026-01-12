@@ -95,6 +95,9 @@ def calculate_dojo_stats(dojo):
 
 @register_handler("dojo_stats_update")
 def handle_dojo_stats_update(payload):
+    from ..calculators import calculate_all_stats
+    from ...utils.background_stats import bulk_set_cached_stats
+
     dojo_id = payload.get("dojo_id")
 
     if not dojo_id:
@@ -113,11 +116,10 @@ def handle_dojo_stats_update(payload):
         return
 
     try:
-        logger.info(f"Calculating stats for dojo {dojo.reference_id} (dojo_id={dojo_id})...")
-        stats = calculate_dojo_stats(dojo)
-        cache_key = f"stats:dojo:{dojo.reference_id}"
-        set_cached_stat(cache_key, stats)
-        logger.info(f"Successfully updated and cached stats for dojo {dojo.reference_id} (solves: {stats['solves']}, users: {stats['users']})")
+        logger.info(f"Calculating stats for dojo {dojo.reference_id} (dojo_id={dojo_id}) using bulk mode...")
+        stats_data = calculate_all_stats(filter_dojo_id=dojo_id)
+        bulk_set_cached_stats(stats_data)
+        logger.info(f"Successfully updated {len(stats_data)} cache entries for dojo {dojo.reference_id}")
     except Exception as e:
         logger.error(f"Error calculating stats for dojo_id {dojo_id}: {e}", exc_info=True)
 

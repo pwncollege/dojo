@@ -91,32 +91,22 @@ def update_module_scores(scores, user_id):
 
 @register_handler("scores_update")
 def handle_scores_update(payload):
+    from ..calculators import calculate_scores_from_indexes
+    from ..bulk_loader import build_indexes
+    from ...utils.background_stats import bulk_set_cached_stats
+
     db.session.expire_all()
     db.session.commit()
 
-    dojos = Dojos.query.filter(
-        or_(Dojos.data["type"].astext == "public", Dojos.official)
-    ).all()
+    logger.info("Calculating scores for all public/official dojos using bulk mode...")
 
-    logger.info(f"Calculating scores for {len(dojos)} public/official dojos...")
-
-    for dojo in dojos:
-        dojo_id = dojo.dojo_id
-        try:
-            dojo_data = calculate_dojo_scores(dojo_id)
-            set_cached_stat(dojo_scores_cache_key(dojo_id), dojo_data)
-        except Exception as e:
-            logger.error(f"Error calculating dojo scores for dojo_id {dojo_id}: {e}", exc_info=True)
-
-        for module in dojo.modules:
-            module_index = module.module_index
-            try:
-                module_data = calculate_module_scores(dojo_id, module_index)
-                set_cached_stat(module_scores_cache_key(dojo_id, module_index), module_data)
-            except Exception as e:
-                logger.error(f"Error calculating module scores for dojo_id {dojo_id} module {module_index}: {e}", exc_info=True)
-
-    logger.info(f"Successfully updated scores cache for {len(dojos)} dojos")
+    try:
+        indexes = build_indexes()
+        scores_data = calculate_scores_from_indexes(indexes)
+        bulk_set_cached_stats(scores_data)
+        logger.info(f"Successfully updated {len(scores_data)} scores cache entries")
+    except Exception as e:
+        logger.error(f"Error calculating scores: {e}", exc_info=True)
 
 
 def initialize_all_scores():

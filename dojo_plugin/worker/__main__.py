@@ -24,29 +24,23 @@ logger.info("Starting stats background worker...")
 if os.environ.get("SKIP_COLD_START"):
     logger.info("SKIP_COLD_START set, skipping cache initialization")
 else:
-    from ..worker.handlers.dojo_stats import initialize_all_dojo_stats
-    from ..worker.handlers.scoreboard import initialize_all_scoreboards
-    from ..worker.handlers.scores import initialize_all_scores
+    from ..worker.calculators import calculate_all_stats
     from ..worker.handlers.awards import initialize_all_belts, initialize_all_emojis
     from ..worker.handlers.containers import initialize_all_container_stats
-    from ..worker.handlers.activity import initialize_all_activity
+    from ..utils.background_stats import bulk_set_cached_stats
 
-    logger.info("Performing cold start cache initialization...")
+    logger.info("Performing cold start cache initialization (bulk mode)...")
 
     try:
         cold_start_begin = time.time()
 
         step_start = time.time()
-        initialize_all_dojo_stats()
-        logger.info(f"Dojo stats initialization complete ({time.time() - step_start:.2f}s)")
+        stats_data = calculate_all_stats()
+        logger.info(f"Stats calculation complete ({time.time() - step_start:.2f}s, {len(stats_data)} entries)")
 
         step_start = time.time()
-        initialize_all_scoreboards()
-        logger.info(f"Scoreboard initialization complete ({time.time() - step_start:.2f}s)")
-
-        step_start = time.time()
-        initialize_all_scores()
-        logger.info(f"Scores initialization complete ({time.time() - step_start:.2f}s)")
+        bulk_set_cached_stats(stats_data)
+        logger.info(f"Cache write complete ({time.time() - step_start:.2f}s)")
 
         step_start = time.time()
         initialize_all_belts()
@@ -59,10 +53,6 @@ else:
         step_start = time.time()
         initialize_all_container_stats()
         logger.info(f"Container stats initialization complete ({time.time() - step_start:.2f}s)")
-
-        step_start = time.time()
-        initialize_all_activity()
-        logger.info(f"Activity initialization complete ({time.time() - step_start:.2f}s)")
 
         logger.info(f"Cold start complete - all stats initialized ({time.time() - cold_start_begin:.2f}s total)")
     except Exception as e:
