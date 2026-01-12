@@ -16,6 +16,8 @@ CONSUMER_NAME = f"worker-{os.getpid()}"
 
 DAILY_RESTART_HOUR_UTC = 12
 
+_redis_client: Optional[redis.Redis] = None
+
 
 class DailyRestartException(Exception):
     pass
@@ -43,8 +45,11 @@ def is_event_stale(cache_key: str, event_timestamp: float) -> bool:
 
 
 def get_redis_client() -> redis.Redis:
-    redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
-    return redis.from_url(redis_url, decode_responses=True)
+    global _redis_client
+    if _redis_client is None:
+        redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
+        _redis_client = redis.from_url(redis_url, decode_responses=True)
+    return _redis_client
 
 def publish_stat_event(event_type: str, payload: Dict[str, Any]) -> Optional[str]:
     try:
