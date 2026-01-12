@@ -296,6 +296,21 @@ def load_visibility_rules(
     return visibility
 
 
+def _is_challenge_visible(
+    challenge_key: Tuple[int, int, int],
+    visibility: Dict[Tuple[int, int, int], VisibilityRule],
+    when: datetime
+) -> bool:
+    rule = visibility.get(challenge_key)
+    if rule is None:
+        return True
+    if rule.start and when < rule.start:
+        return False
+    if rule.stop and when > rule.stop:
+        return False
+    return True
+
+
 def build_indexes(
     filter_dojo_id: Optional[int] = None,
     filter_module_index: Optional[int] = None
@@ -309,12 +324,16 @@ def build_indexes(
     indexes.challenges = load_challenge_metadata(filter_dojo_id)
     indexes.visibility = load_visibility_rules(filter_dojo_id)
 
+    now = datetime.now()
     for dojo_id, dojo in indexes.dojos.items():
         dojo.challenge_count = sum(
             1 for key in indexes.challenges
             if key[0] == dojo_id
         )
-        dojo.visible_challenge_count = dojo.challenge_count
+        dojo.visible_challenge_count = sum(
+            1 for key in indexes.challenges
+            if key[0] == dojo_id and _is_challenge_visible(key, indexes.visibility, now)
+        )
 
     solves = load_bulk_solves(filter_dojo_id, filter_module_index)
     indexes.all_solves = solves

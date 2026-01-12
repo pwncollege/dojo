@@ -112,11 +112,12 @@ def calculate_scoreboards_from_indexes(
         if not dojo:
             continue
 
-        for duration in COMMON_DURATIONS:
-            solves = indexes.by_dojo.get(dojo_id, [])
-            scoreboard = _build_scoreboard(solves, indexes.visibility, duration, now)
-            cache_key = f"stats:scoreboard:dojo:{dojo_id}:{duration}"
-            results[cache_key] = scoreboard
+        if filter_module_index is None:
+            for duration in COMMON_DURATIONS:
+                solves = indexes.by_dojo.get(dojo_id, [])
+                scoreboard = _build_scoreboard(solves, indexes.visibility, duration, now)
+                cache_key = f"stats:scoreboard:dojo:{dojo_id}:{duration}"
+                results[cache_key] = scoreboard
 
         if filter_module_index is not None:
             module_indexes = [filter_module_index]
@@ -195,10 +196,11 @@ def calculate_scores_from_indexes(
         if not dojo or not dojo.is_public_or_official:
             continue
 
-        solves = indexes.by_dojo.get(dojo_id, [])
-        scores = _build_scores(solves)
-        cache_key = f"stats:scores:dojo:{dojo_id}"
-        results[cache_key] = scores
+        if filter_module_index is None:
+            solves = indexes.by_dojo.get(dojo_id, [])
+            scores = _build_scores(solves)
+            cache_key = f"stats:scores:dojo:{dojo_id}"
+            results[cache_key] = scores
 
         if filter_module_index is not None:
             module_indexes = [filter_module_index]
@@ -270,10 +272,11 @@ def calculate_all_stats(
 
     results = {}
 
-    logger.info("Calculating dojo stats...")
-    dojo_stats = calculate_dojo_stats_from_indexes(indexes, filter_dojo_id)
-    results.update(dojo_stats)
-    logger.info(f"Calculated {len(dojo_stats)} dojo stats")
+    if filter_module_index is None:
+        logger.info("Calculating dojo stats...")
+        dojo_stats = calculate_dojo_stats_from_indexes(indexes, filter_dojo_id)
+        results.update(dojo_stats)
+        logger.info(f"Calculated {len(dojo_stats)} dojo stats")
 
     logger.info("Calculating scoreboards...")
     scoreboards = calculate_scoreboards_from_indexes(indexes, filter_dojo_id, filter_module_index)
