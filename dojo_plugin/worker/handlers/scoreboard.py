@@ -81,6 +81,9 @@ def calculate_scoreboard(model, duration):
 
 @register_handler("scoreboard_update")
 def handle_scoreboard_update(payload):
+    from ..calculators import calculate_all_stats
+    from ...utils.background_stats import bulk_set_cached_stats
+
     model_type = payload.get("model_type")
     model_id = payload.get("model_id")
 
@@ -94,36 +97,40 @@ def handle_scoreboard_update(payload):
     db.session.commit()
 
     if model_type == "dojo":
-        model = Dojos.query.get(model_id)
-        if not model:
+        dojo = Dojos.query.get(model_id)
+        if not dojo:
             logger.info(f"Dojo not found for dojo_id {model_id} (may have been deleted)")
             return
-        cache_prefix = f"stats:scoreboard:dojo:{model_id}"
+        try:
+            logger.info(f"Calculating stats for dojo {model_id} using bulk mode...")
+            stats_data = calculate_all_stats(filter_dojo_id=model_id)
+            bulk_set_cached_stats(stats_data)
+            logger.info(f"Successfully updated {len(stats_data)} cache entries for dojo {model_id}")
+        except Exception as e:
+            logger.error(f"Error calculating stats for dojo {model_id}: {e}", exc_info=True)
+
     elif model_type == "module":
         if isinstance(model_id, dict):
             dojo_id = model_id.get("dojo_id")
             module_index = model_id.get("module_index")
-            model = DojoModules.query.get((dojo_id, module_index))
         else:
-            model = DojoModules.query.get(model_id)
+            logger.warning(f"Module model_id should be a dict: {model_id}")
+            return
 
+        model = DojoModules.query.get((dojo_id, module_index))
         if not model:
             logger.info(f"Module not found for id {model_id} (may have been deleted)")
             return
-        cache_prefix = f"stats:scoreboard:module:{model.dojo_id}:{model.module_index}"
+
+        try:
+            logger.info(f"Calculating stats for module dojo_id={dojo_id}, module_index={module_index} using bulk mode...")
+            stats_data = calculate_all_stats(filter_dojo_id=dojo_id, filter_module_index=module_index)
+            bulk_set_cached_stats(stats_data)
+            logger.info(f"Successfully updated {len(stats_data)} cache entries for module")
+        except Exception as e:
+            logger.error(f"Error calculating stats for module {model_id}: {e}", exc_info=True)
     else:
         logger.warning(f"Unknown model_type: {model_type}")
-        return
-
-    for duration in COMMON_DURATIONS:
-        try:
-            logger.info(f"Calculating scoreboard for {model_type} {model_id}, duration={duration}...")
-            scoreboard = calculate_scoreboard(model, duration)
-            cache_key = f"{cache_prefix}:{duration}"
-            set_cached_stat(cache_key, scoreboard)
-            logger.info(f"Successfully updated scoreboard cache {cache_key} ({len(scoreboard)} entries)")
-        except Exception as e:
-            logger.error(f"Error calculating scoreboard for {model_type} {model_id}, duration={duration}: {e}", exc_info=True)
 
 
 def initialize_all_scoreboards():

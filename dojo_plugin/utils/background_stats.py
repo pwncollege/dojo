@@ -2,7 +2,7 @@ import json
 import time
 import os
 import logging
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Dict, Any, Callable, List
 from datetime import datetime, timezone
 
 import redis
@@ -148,3 +148,28 @@ def invalidate_cached_stat(key: str):
         r.delete(f"{key}:updated")
     except (redis.RedisError, redis.ConnectionError):
         pass
+
+
+def bulk_set_cached_stats(data: Dict[str, Any], batch_size: int = 1000):
+    try:
+        r = get_redis_client()
+        updated_at = str(time.time())
+
+        items = list(data.items())
+        total = len(items)
+        written = 0
+
+        for i in range(0, total, batch_size):
+            batch = items[i:i + batch_size]
+            pipe = r.pipeline()
+            for key, value in batch:
+                pipe.set(key, json.dumps(value))
+                pipe.set(f"{key}:updated", updated_at)
+            pipe.execute()
+            written += len(batch)
+            if written % 5000 == 0 or written == total:
+                logger.info(f"Bulk cache write progress: {written}/{total}")
+
+        logger.info(f"Bulk cache write complete: {total} entries")
+    except (redis.RedisError, redis.ConnectionError) as e:
+        logger.error(f"Bulk cache write failed: {e}")
