@@ -1166,44 +1166,54 @@ def test_hacker_page_loads_with_activity(stats_test_dojo, stats_test_user):
     assert 'activity-tracker' in response.text, "Hacker page should contain activity tracker"
 
 def test_should_daily_restart():
-    from datetime import datetime, timezone
-    from unittest.mock import patch, MagicMock
+    result = dojo_run("dojo", "flask", input="""
+import time
+from datetime import datetime, timezone
+from unittest.mock import patch
 
-    DAILY_RESTART_HOUR_UTC = 13
+from dojo_plugin.utils.background_stats import should_daily_restart, DAILY_RESTART_HOUR_UTC
 
-    def should_daily_restart(start_time, now_hour):
-        if now_hour != DAILY_RESTART_HOUR_UTC:
-            return False
-        hours_running = (time.time() - start_time) / 3600
-        return hours_running >= 1
+one_hour_ago = time.time() - 3600
+ten_minutes_ago = time.time() - 600
 
-    one_hour_ago = time.time() - 3600
-    ten_minutes_ago = time.time() - 600
+with patch('dojo_plugin.utils.background_stats.datetime') as mock_dt:
+    mock_now = mock_dt.now.return_value
+    mock_now.hour = DAILY_RESTART_HOUR_UTC
+    assert should_daily_restart(one_hour_ago) is True, "Should restart at target hour after 1+ hours"
+    assert should_daily_restart(ten_minutes_ago) is False, "Should NOT restart if running < 1 hour"
 
-    assert should_daily_restart(one_hour_ago, DAILY_RESTART_HOUR_UTC) is True, "Should restart when at target hour and running >= 1 hour"
-    assert should_daily_restart(ten_minutes_ago, DAILY_RESTART_HOUR_UTC) is False, "Should NOT restart when running < 1 hour"
-    assert should_daily_restart(one_hour_ago, 10) is False, "Should NOT restart when not at target hour"
+    mock_now.hour = 10
+    assert should_daily_restart(one_hour_ago) is False, "Should NOT restart outside target hour"
+
+print("OK")
+""", check=True)
+    assert "OK" in result.stdout, f"should_daily_restart test failed: {result.stdout}"
 
 def test_get_message_timestamp():
-    def get_message_timestamp(message_id):
-        timestamp_ms = int(message_id.split('-')[0])
-        return timestamp_ms / 1000.0
+    result = dojo_run("dojo", "flask", input="""
+from dojo_plugin.utils.background_stats import get_message_timestamp
 
-    message_id = "1704067200000-0"
-    timestamp = get_message_timestamp(message_id)
-    assert timestamp == 1704067200.0, "Should extract timestamp in seconds from message ID"
-
-    message_id_with_seq = "1704067200123-5"
-    timestamp = get_message_timestamp(message_id_with_seq)
-    assert timestamp == 1704067200.123, "Should handle milliseconds correctly"
+assert get_message_timestamp("1704067200000-0") == 1704067200.0
+assert get_message_timestamp("1704067200123-5") == 1704067200.123
+print("OK")
+""", check=True)
+    assert "OK" in result.stdout, f"get_message_timestamp test failed: {result.stdout}"
 
 def test_is_event_stale_logic():
-    def is_event_stale(cache_updated_at, event_timestamp):
-        if cache_updated_at and event_timestamp < cache_updated_at:
-            return True
-        return False
+    result = dojo_run("dojo", "flask", input="""
+from unittest.mock import patch
 
-    assert is_event_stale(1000.0, 900.0) is True, "Event before cache update should be stale"
-    assert is_event_stale(1000.0, 1100.0) is False, "Event after cache update should not be stale"
-    assert is_event_stale(None, 900.0) is False, "No cache update time means event is not stale"
-    assert is_event_stale(1000.0, 1000.0) is False, "Event at same time as cache should not be stale"
+with patch('dojo_plugin.utils.background_stats.get_cache_updated_at') as mock_get_cache:
+    from dojo_plugin.utils.background_stats import is_event_stale
+
+    mock_get_cache.return_value = 1000.0
+    assert is_event_stale("test:key", 900.0) is True, "Event before cache should be stale"
+    assert is_event_stale("test:key", 1100.0) is False, "Event after cache should not be stale"
+    assert is_event_stale("test:key", 1000.0) is False, "Event at same time should not be stale"
+
+    mock_get_cache.return_value = None
+    assert is_event_stale("test:key", 900.0) is False, "No cache time means not stale"
+
+print("OK")
+""", check=True)
+    assert "OK" in result.stdout, f"is_event_stale test failed: {result.stdout}"
