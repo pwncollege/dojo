@@ -70,7 +70,7 @@ else:
 
 logger.info("Starting event consumption loop...")
 
-from ..utils.background_stats import consume_stat_events
+from ..utils.background_stats import consume_stat_events, DailyRestartException
 from ..worker.handlers import handle_stat_event
 
 try:
@@ -81,6 +81,8 @@ try:
     )
 except KeyboardInterrupt:
     logger.info("Worker interrupted by user")
+except DailyRestartException:
+    logger.info("Daily restart - exiting for cold start refresh")
 except Exception as e:
     logger.error(f"Worker crashed: {e}", exc_info=True)
     raise

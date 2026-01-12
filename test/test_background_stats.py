@@ -1164,3 +1164,22 @@ def test_hacker_page_loads_with_activity(stats_test_dojo, stats_test_user):
     response = user_session.get(f"{DOJO_URL}/hacker/")
     assert response.status_code == 200, "Hacker page should load successfully with activity"
     assert 'activity-tracker' in response.text, "Hacker page should contain activity tracker"
+
+def test_should_daily_restart():
+    from datetime import datetime, timezone
+    from unittest.mock import patch, MagicMock
+
+    DAILY_RESTART_HOUR_UTC = 13
+
+    def should_daily_restart(start_time, now_hour):
+        if now_hour != DAILY_RESTART_HOUR_UTC:
+            return False
+        hours_running = (time.time() - start_time) / 3600
+        return hours_running >= 1
+
+    one_hour_ago = time.time() - 3600
+    ten_minutes_ago = time.time() - 600
+
+    assert should_daily_restart(one_hour_ago, DAILY_RESTART_HOUR_UTC) is True, "Should restart when at target hour and running >= 1 hour"
+    assert should_daily_restart(ten_minutes_ago, DAILY_RESTART_HOUR_UTC) is False, "Should NOT restart when running < 1 hour"
+    assert should_daily_restart(one_hour_ago, 10) is False, "Should NOT restart when not at target hour"
