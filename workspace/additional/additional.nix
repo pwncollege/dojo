@@ -12,6 +12,7 @@ let
     flask
     ipython
     jupyter
+    pillow
     psutil
     pwntools
     pycryptodome
