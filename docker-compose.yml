@@ -230,10 +230,27 @@ services:
     profiles:
       - main
     restart: always
-    command: ["flask", "shell", "/opt/CTFd/CTFd/plugins/dojo_plugin/worker/__main__.py"]
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ "$DOJO_ENV" = "coverage" ]; then
+          exec coverage run --source=CTFd/plugins/dojo_plugin -m flask shell /opt/CTFd/CTFd/plugins/dojo_plugin/worker/__main__.py;
+        else
+          exec flask shell /opt/CTFd/CTFd/plugins/dojo_plugin/worker/__main__.py;
+        fi
     environment:
       <<: *ctfd-env
-    volumes: *ctfd-volumes
+      DOJO_ENV: ${DOJO_ENV}
+      COVERAGE_FILE: /var/coverage/.coverage.worker
+    volumes:
+      - /data/dojos:/var/dojos
+      - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
+      - ./user_firewall.allowed:/var/user_firewall.allowed:ro
+      - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/pwn.college/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro
+      - ./data/coverage:/var/coverage
     depends_on:
       <<: *ctfd-depends
 
