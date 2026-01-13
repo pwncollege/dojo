@@ -28,7 +28,7 @@ let
   tools = with pkgs; {
     build = [ (lib.lowPrio clang) clang-tools cmake (lib.hiPrio gcc) gnumake qemu rustup ];
 
-    cli-tools = [ atuin bat delta du-dust eza hexyl hyperfine sd starship tlrc zoxide ];
+    cli-tools = [ atuin bat delta du-dust eza hexyl hyperfine navi sd starship tlrc zoxide ];
 
     compress = [ gnutar gzip unzip zip ];
 
