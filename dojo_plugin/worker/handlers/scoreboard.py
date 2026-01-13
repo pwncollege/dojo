@@ -65,12 +65,13 @@ def calculate_challenge_solves(module):
         .group_by(Solves.challenge_id)
         .with_entities(Solves.challenge_id, func.count().label("count"))
     )
-    return {row.challenge_id: row.count for row in query.all()}
+    return {str(row.challenge_id): row.count for row in query.all()}
 
 
 def update_challenge_solves(challenge_solves, challenge_id):
     result = dict(challenge_solves)
-    result[challenge_id] = result.get(challenge_id, 0) + 1
+    key = str(challenge_id)
+    result[key] = result.get(key, 0) + 1
     return result
 
 
