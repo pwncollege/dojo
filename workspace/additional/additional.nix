@@ -29,7 +29,7 @@ let
   tools = with pkgs; {
     build = [ (lib.lowPrio clang) clang-tools cmake (lib.hiPrio gcc) gnumake qemu rustup ];
 
-    cli-tools = [ atuin bat delta du-dust eza hexyl hyperfine navi sd starship tlrc zoxide ];
+    cli-tools = [ atuin bat carapace delta du-dust eza hexyl hyperfine navi sd starship tlrc zoxide ];
 
     compress = [ gnutar gzip unzip zip ];
 
@@ -38,6 +38,8 @@ let
     editor = [ emacs gedit nano neovim vim zed-editor.remote_server ];
 
     exploit = [ aflplusplus rappel ropgadget sage ];
+
+    fetch = [ fastfetch freshfetch hayabusa hyfetch macchina neofetch zigfetch ];
 
     finder = [ fd fzf ripgrep ripgrep-all skim television ];
 
@@ -66,6 +68,7 @@ in
     ++ tools.debug
     ++ tools.editor
     ++ tools.exploit
+    ++ tools.fetch
     ++ tools.finder
     ++ tools.lsp
     ++ tools.network
