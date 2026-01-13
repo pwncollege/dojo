@@ -28,6 +28,8 @@ let
   tools = with pkgs; {
     build = [ (lib.lowPrio clang) clang-tools cmake (lib.hiPrio gcc) gnumake qemu rustup ];
 
+    cli-tools = [ atuin bat delta du-dust eza hexyl hyperfine sd starship tlrc zoxide ];
+
     compress = [ gnutar gzip unzip zip ];
 
     debug = [ bata24-gef gdb gef ltrace pwndbg strace ];
@@ -36,19 +38,19 @@ let
 
     exploit = [ aflplusplus rappel ropgadget sage ];
 
+    finder = [ fd fzf ripgrep ripgrep-all skim television ];
+
     lsp = [ ruff ty ];
 
     network = [ burpsuite netcat-openbsd nmap tcpdump termshark tshark wireshark ];
 
     reverse = [ angr-management binaryninja-free cutter file ghidra ida-free radare2 ];
 
-    shells = [ fish nushell zsh ];
+    shells = [ fish nushell oh-my-zsh zsh ];
 
-    shell-tools = [ atuin bat fd fzf oh-my-zsh starship zoxide ripgrep ];
+    system = [ bottom firejail htop landrun nftables openssh rsync ];
 
-    system = [ firejail htop landrun nftables openssh rsync ];
-
-    terminal = [ ghostty.terminfo kitty.terminfo screen tmux ];
+    terminal = [ ghostty.terminfo kitty.terminfo screen tmux zellij ];
 
     web = [ firefox geckodriver ];
   };
@@ -58,15 +60,16 @@ in
   packages = with pkgs;
     [ (lib.hiPrio pythonEnv) ]
     ++ tools.build
+    ++ tools.cli-tools
     ++ tools.compress
     ++ tools.debug
     ++ tools.editor
     ++ tools.exploit
+    ++ tools.finder
     ++ tools.lsp
     ++ tools.network
     ++ tools.reverse
     ++ tools.shells
-    ++ tools.shell-tools
     ++ tools.system
     ++ tools.terminal
     ++ tools.web;
