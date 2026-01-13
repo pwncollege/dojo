@@ -3,7 +3,7 @@ from flask import url_for
 from CTFd.models import db, Users
 from ...models import Dojos, Belts, Emojis
 from ...utils.awards import BELT_ORDER
-from ...utils.background_stats import set_cached_stat
+from ...utils.background_stats import set_cached_stat, is_event_stale
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -104,7 +104,10 @@ def calculate_emojis():
     return {"emojis": result, "dojos": dojos_by_hex}
 
 @register_handler("belts_update")
-def handle_belts_update(payload):
+def handle_belts_update(payload, event_timestamp=None):
+    if event_timestamp and is_event_stale(CACHE_KEY_BELTS, event_timestamp):
+        return
+
     db.session.expire_all()
     db.session.commit()
 
@@ -118,7 +121,10 @@ def handle_belts_update(payload):
         logger.error(f"Error calculating belts: {e}", exc_info=True)
 
 @register_handler("emojis_update")
-def handle_emojis_update(payload):
+def handle_emojis_update(payload, event_timestamp=None):
+    if event_timestamp and is_event_stale(CACHE_KEY_EMOJIS, event_timestamp):
+        return
+
     db.session.expire_all()
     db.session.commit()
 

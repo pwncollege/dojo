@@ -4,7 +4,7 @@ from sqlalchemy import func
 
 from CTFd.models import db, Solves, Users
 from ...models import Dojos, DojoModules, DojoChallenges
-from ...utils.background_stats import get_cached_stat, set_cached_stat
+from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ def calculate_scoreboard(model, duration):
     return results
 
 @register_handler("scoreboard_update")
-def handle_scoreboard_update(payload):
+def handle_scoreboard_update(payload, event_timestamp=None):
     model_type = payload.get("model_type")
     model_id = payload.get("model_id")
 
@@ -117,9 +117,11 @@ def handle_scoreboard_update(payload):
 
     for duration in COMMON_DURATIONS:
         try:
+            cache_key = f"{cache_prefix}:{duration}"
+            if event_timestamp and is_event_stale(cache_key, event_timestamp):
+                continue
             logger.info(f"Calculating scoreboard for {model_type} {model_id}, duration={duration}...")
             scoreboard = calculate_scoreboard(model, duration)
-            cache_key = f"{cache_prefix}:{duration}"
             set_cached_stat(cache_key, scoreboard)
             logger.info(f"Successfully updated scoreboard cache {cache_key} ({len(scoreboard)} entries)")
         except Exception as e:

@@ -1,6 +1,6 @@
 import logging
 from ...utils import get_all_containers
-from ...utils.background_stats import set_cached_stat
+from ...utils.background_stats import set_cached_stat, is_event_stale
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,10 @@ def calculate_container_stats():
             for container in containers]
 
 @register_handler("container_stats_update")
-def handle_container_stats_update(payload):
+def handle_container_stats_update(payload, event_timestamp=None):
+    if event_timestamp and is_event_stale(CACHE_KEY_CONTAINERS, event_timestamp):
+        return
+
     try:
         logger.info("Calculating container stats...")
         container_data = calculate_container_stats()

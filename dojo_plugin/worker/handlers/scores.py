@@ -2,7 +2,7 @@ import logging
 from sqlalchemy.sql import or_
 from CTFd.models import Solves, db
 from ...models import Dojos, DojoChallenges
-from ...utils.background_stats import get_cached_stat, set_cached_stat
+from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -90,7 +90,7 @@ def update_module_scores(scores, user_id):
 
 
 @register_handler("scores_update")
-def handle_scores_update(payload):
+def handle_scores_update(payload, event_timestamp=None):
     db.session.expire_all()
     db.session.commit()
 
@@ -103,16 +103,20 @@ def handle_scores_update(payload):
     for dojo in dojos:
         dojo_id = dojo.dojo_id
         try:
-            dojo_data = calculate_dojo_scores(dojo_id)
-            set_cached_stat(dojo_scores_cache_key(dojo_id), dojo_data)
+            cache_key = dojo_scores_cache_key(dojo_id)
+            if not (event_timestamp and is_event_stale(cache_key, event_timestamp)):
+                dojo_data = calculate_dojo_scores(dojo_id)
+                set_cached_stat(cache_key, dojo_data)
         except Exception as e:
             logger.error(f"Error calculating dojo scores for dojo_id {dojo_id}: {e}", exc_info=True)
 
         for module in dojo.modules:
             module_index = module.module_index
             try:
-                module_data = calculate_module_scores(dojo_id, module_index)
-                set_cached_stat(module_scores_cache_key(dojo_id, module_index), module_data)
+                cache_key = module_scores_cache_key(dojo_id, module_index)
+                if not (event_timestamp and is_event_stale(cache_key, event_timestamp)):
+                    module_data = calculate_module_scores(dojo_id, module_index)
+                    set_cached_stat(cache_key, module_data)
             except Exception as e:
                 logger.error(f"Error calculating module scores for dojo_id {dojo_id} module {module_index}: {e}", exc_info=True)
 

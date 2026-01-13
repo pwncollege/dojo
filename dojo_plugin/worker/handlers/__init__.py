@@ -18,12 +18,12 @@ def _load_handlers():
         from . import dojo_stats, scoreboard, scores, awards, containers, activity, solve
         _handlers_loaded = True
 
-def handle_stat_event(event_type: str, payload: Dict[str, Any]):
+def handle_stat_event(event_type: str, payload: Dict[str, Any], event_timestamp: float):
     _load_handlers()
     handler = EVENT_HANDLERS.get(event_type)
     if handler:
         try:
-            handler(payload)
+            handler(payload, event_timestamp)
         except Exception as e:
             logger.error(f"Error handling event {event_type}: {e}", exc_info=True)
     else:

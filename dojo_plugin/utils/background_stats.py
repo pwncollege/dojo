@@ -16,6 +16,8 @@ CONSUMER_NAME = f"worker-{os.getpid()}"
 
 DAILY_RESTART_HOUR_UTC = 12
 
+_redis_client: Optional[redis.Redis] = None
+
 
 class DailyRestartException(Exception):
     pass
@@ -28,9 +30,26 @@ def should_daily_restart(start_time: float) -> bool:
     hours_running = (time.time() - start_time) / 3600
     return hours_running >= 1
 
+
+def get_message_timestamp(message_id: str) -> float:
+    timestamp_ms = int(message_id.split('-')[0])
+    return timestamp_ms / 1000.0
+
+
+def is_event_stale(cache_key: str, event_timestamp: float) -> bool:
+    cache_updated = get_cache_updated_at(cache_key)
+    if cache_updated and event_timestamp < cache_updated:
+        logger.info(f"Skipping stale event for {cache_key} (event: {event_timestamp}, cache: {cache_updated})")
+        return True
+    return False
+
+
 def get_redis_client() -> redis.Redis:
-    redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
-    return redis.from_url(redis_url, decode_responses=True)
+    global _redis_client
+    if _redis_client is None:
+        redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
+        _redis_client = redis.from_url(redis_url, decode_responses=True)
+    return _redis_client
 
 def publish_stat_event(event_type: str, payload: Dict[str, Any]) -> Optional[str]:
     try:
@@ -47,7 +66,7 @@ def publish_stat_event(event_type: str, payload: Dict[str, Any]) -> Optional[str
         logger.error(f"Failed to publish event {event_type}: {e}")
         return None
 
-def consume_stat_events(handler: Callable[[str, Dict[str, Any]], None], batch_size: int = 10, block_ms: int = 5000, start_time: Optional[float] = None):
+def consume_stat_events(handler: Callable[[str, Dict[str, Any], float], None], batch_size: int = 10, block_ms: int = 5000, start_time: Optional[float] = None):
     r = get_redis_client()
     if start_time is None:
         start_time = time.time()
@@ -87,9 +106,10 @@ def consume_stat_events(handler: Callable[[str, Dict[str, Any]], None], batch_si
                         event_data = json.loads(message_data["data"])
                         event_type = event_data["type"]
                         payload = event_data["payload"]
+                        event_timestamp = get_message_timestamp(message_id)
 
                         logger.info(f"Processing event: {event_type} with payload: {payload}")
-                        handler(event_type, payload)
+                        handler(event_type, payload, event_timestamp)
 
                         r.xackdel(REDIS_STREAM_NAME, CONSUMER_GROUP, message_id)
                         logger.info(f"Successfully processed, acknowledged, and deleted event {message_id}")
@@ -119,6 +139,11 @@ def get_cached_stat(key: str) -> Optional[Dict[str, Any]]:
     except (redis.RedisError, redis.ConnectionError, json.JSONDecodeError):
         return None
 
+def get_redis_time(r: redis.Redis) -> float:
+    redis_time = r.time()
+    return float(redis_time[0]) + float(redis_time[1]) / 1_000_000
+
+
 def set_cached_stat(key: str, data: Dict[str, Any], updated_at: Optional[float] = None):
     try:
         r = get_redis_client()
@@ -127,7 +152,7 @@ def set_cached_stat(key: str, data: Dict[str, Any], updated_at: Optional[float] 
         if updated_at:
             r.set(f"{key}:updated", str(updated_at))
         else:
-            r.set(f"{key}:updated", str(time.time()))
+            r.set(f"{key}:updated", str(get_redis_time(r)))
     except (redis.RedisError, redis.ConnectionError):
         pass
 
