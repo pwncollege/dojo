@@ -29,7 +29,7 @@ let
   tools = with pkgs; {
     build = [ (lib.lowPrio clang) clang-tools cmake (lib.hiPrio gcc) gnumake qemu rustup ];
 
-    cli-tools = [ atuin bat carapace delta hexyl hyperfine navi sd starship tlrc zoxide ];
+    cli-tools = [ atuin bat delta hexyl hyperfine navi sd zoxide ];
 
     compress = [ gnutar gzip unzip zip ];
 
@@ -39,9 +39,9 @@ let
 
     exploit = [ aflplusplus rappel ropgadget sage ];
 
-    fetch = [ fastfetch freshfetch hayabusa hyfetch macchina neofetch zigfetch ];
+    fetch = [ fastfetch neofetch ];
 
-    finder = [ broot du-dust eza fd fzf ripgrep ripgrep-all skim television ];
+    finder = [ broot du-dust eza fd fzf ripgrep ripgrep-all ];
 
     lsp = [ ruff ty ];
 
@@ -49,7 +49,7 @@ let
 
     reverse = [ angr-management binaryninja-free cutter file ghidra ida-free radare2 ];
 
-    shells = [ fish nushell oh-my-zsh zsh ];
+    shells = [ fish nushell oh-my-zsh starship zsh ];
 
     system = [ bottom firejail htop landrun nftables openssh rsync ];
 
