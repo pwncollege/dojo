@@ -77,6 +77,7 @@
             init = import ./core/init.nix { inherit pkgs; };
             ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
             sudo = import ./core/sudo.nix { inherit pkgs; };
+            dojo-cli = import ./core/dojo-cli.nix { inherit pkgs; };
 
             service = import ./services/service.nix { inherit pkgs; };
             code-service = import ./services/code.nix { inherit pkgs; };
@@ -120,6 +121,7 @@
               code-service
               desktop-service
               terminal-service
+              dojo-cli
             ];
 
             fullPackages = corePackages ++ additional.packages;
