@@ -238,7 +238,7 @@ class DojoCourseStudentList(Resource):
     @dojo_route
     @dojo_admins_only
     def get(self, dojo):
-        dojo_students = {student.token: student.user_id for student in DojoStudents.query.filter_by(dojo=dojo)}
+        dojo_students = {student.token: student.user_id for student in DojoStudents.query.filter_by(dojo=dojo).order_by(DojoStudents.user_id)}
         course_students = dojo.course.get("students", {})
         students = {
             token: course_data | dict(token=(token if token in dojo_students else None), user_id=dojo_students.get(token))
