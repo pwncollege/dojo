@@ -11,6 +11,7 @@ import docker.errors
 import docker.types
 import redis
 from flask import abort, request, current_app
+from itsdangerous.url_safe import URLSafeTimedSerializer
 from flask_restx import Namespace, Resource
 from CTFd.cache import cache
 from CTFd.models import Users, Solves
@@ -24,7 +25,6 @@ from ...utils import (
     container_name,
     lookup_workspace_token,
     resolved_tar,
-    serialize_user_container,
     serialize_user_flag,
     user_docker_client,
     user_node,
@@ -99,7 +99,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         ]
     )[:64]
 
-    auth_token = serialize_user_container(user.id, dojo_challenge.id)
+    auth_token = URLSafeTimedSerializer(current_app.config["SECRET_KEY"]).dumps([user.id, dojo_challenge.id, "cli-auth-token"])
 
     challenge_bin_path = "/run/challenge/bin"
     dojo_bin_path = "/run/dojo/bin"

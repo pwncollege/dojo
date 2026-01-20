@@ -1,18 +1,16 @@
-import requests
-import logging
-import docker
 import time
-from typing import Any
+import logging
+
+import docker
+import requests
 from CTFd.models import Users
-from flask import request, session
-from .request_logging import log_generator_output
-from ..utils import validate_user_container, get_current_container
 
 from . import user_docker_client
+from .request_logging import log_generator_output
 
 logger = logging.getLogger(__name__)
 
-on_demand_services = { "terminal", "code", "desktop"}
+on_demand_services = {"terminal", "code", "desktop"}
 
 def start_on_demand_service(user, service_name):
     if service_name not in on_demand_services:
@@ -67,75 +65,3 @@ def reset_home(user_id):
     exec_run("find /home/hacker -mindepth 1 -delete", user_id=user_id, shell=True, workspace_user="root")
     exec_run("chown hacker:hacker /home/hacker", user_id=user_id, shell=True, workspace_user="root")
     exec_run("cp /tmp/home-backup.tar.gz /home/hacker/", user_id=user_id, shell=True, workspace_user="hacker")
-
-def authenticate_container(token : str) -> tuple[Any, str | None, int | None]:
-    """
-    Takes in a container token and returns the user if authentication succeeds.
-    Otherwise it will return `None`, an error message, and an error code.
-    """
-
-    try:
-        userID, challengeID = validate_user_container(token)
-    except:
-        # validate user container (probably) raised BadSignature.
-        return None, "Failed to authenticate container token.", 401
-    
-    # Validate user.
-    user = Users.query.filter_by(id=userID).one()
-    if user is None:
-        return None, "Failed to authenticate container token", 401
-    
-    # Validate challenge matches.
-    container = get_current_container(user)
-    if container is None:
-        return None, "No active challenge container.", 403
-    if container.labels["dojo.challenge_id"] != challengeID:
-        return None, "Token failed to authenticate active challenge container.", 403
-    
-    return user, None, None
-
-def authed_only_cli(func):
-    """
-    Function decorator, should be placed before
-    authed_only. This opens the API to also be used
-    by challenge containers.
-
-    This checks if the request has a container API
-    token, and authenticates using this token if it
-    is present. In this case, sessions are destroyed
-    after the request.
-
-    Otherwise, normal authentication will happen.
-    """
-    def wrapper(*args, **kwargs):
-        # Check for a container token.
-        token = request.headers.get("AuthToken", None)
-
-        # No token, do normal auth.
-        if token is None:
-            return func(*args, **kwargs)
-
-        # Auth using token.
-        user, error, code = authenticate_container(token)
-        if user is None:
-            return ({"success": False, "error": error}, code)
-
-        try:
-            # Configure session and perform operation.
-            session["id"] = user.id
-            session["name"] = user.name
-            session["type"] = user.type
-            session["verified"] = user.verified
-            return func(*args, **kwargs)
-
-        except:
-            # FUBAR
-            return ({"success": False, "error": "An internal exception occured."}, 500)
-
-        finally:
-            # Make sure we destroy the session, no matter what.
-            session["id"] = None
-            session["name"] = None
-            session["type"] = None
-            session["verified"] = None
-    return wrapper

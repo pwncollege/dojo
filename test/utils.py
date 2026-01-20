@@ -53,7 +53,6 @@ def _get_container_ip(container_name):
 
 DOJO_IP = _get_container_ip(DOJO_CONTAINER) or os.getenv("DOJO_IP", "localhost")
 DOJO_URL = os.getenv("DOJO_URL", f"http://{DOJO_IP}:80/")
-DOJO_API = f"{DOJO_URL}pwncollege_api/v1"
 DOJO_SSH_HOST = os.getenv("DOJO_SSH_HOST", DOJO_IP)
 TEST_DOJOS_LOCATION = pathlib.Path(__file__).parent / "dojos"
 
