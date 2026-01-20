@@ -11,6 +11,7 @@ import docker.errors
 import docker.types
 import redis
 from flask import abort, request, current_app
+from itsdangerous.url_safe import URLSafeTimedSerializer
 from flask_restx import Namespace, Resource
 from CTFd.cache import cache
 from CTFd.models import Users, Solves
@@ -98,7 +99,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         ]
     )[:64]
 
-    auth_token = os.urandom(32).hex()
+    auth_token = URLSafeTimedSerializer(current_app.config["SECRET_KEY"]).dumps([user.id, dojo_challenge.id, "cli-auth-token"])
 
     challenge_bin_path = "/run/challenge/bin"
     dojo_bin_path = "/run/dojo/bin"
@@ -171,6 +172,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             "challenge.localhost": "127.0.0.1",
             "hacker.localhost": "127.0.0.1",
             "dojo-user": user_ipv4(user),
+            "pwn.college": "192.168.42.1",
             **USER_FIREWALL_ALLOWED,
         },
         init=True,
