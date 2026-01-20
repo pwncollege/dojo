@@ -112,7 +112,9 @@
               (lib.hiPrio ldd)
 
               exec-suid
+              eternal-terminal
               init
+              mosh
               ssh-entrypoint
               sudo
 
