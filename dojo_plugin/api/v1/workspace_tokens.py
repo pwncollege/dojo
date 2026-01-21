@@ -8,7 +8,7 @@ from ...models import WorkspaceTokens
 from ...utils import generate_workspace_token
 
 workspace_tokens_namespace = Namespace(
-    "workspace_tokens", description="Endpoint to manage belts"
+    "workspace_tokens", description="Endpoint to manage workspace tokens"
 )
 
 
