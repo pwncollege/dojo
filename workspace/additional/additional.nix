@@ -41,7 +41,7 @@ let
 
     fetch = [ fastfetch neofetch ];
 
-    finder = [ broot du-dust eza fd fzf ripgrep ripgrep-all ];
+    finder = [ broot dust eza fd fzf ripgrep ripgrep-all ];
 
     lsp = [ ruff ty ];
 
