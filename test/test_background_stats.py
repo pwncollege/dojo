@@ -1,26 +1,14 @@
 import time
 import json
-import pathlib
-import sys
 import pytest
-import requests
 
-from utils import DOJO_URL, login, create_dojo_yml, start_challenge, solve_challenge, TEST_DOJOS_LOCATION
-
-sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
+from utils import DOJO_URL, DOJO_CONTAINER, login, create_dojo_yml, start_challenge, solve_challenge, dojo_run, TEST_DOJOS_LOCATION
 
 def redis_cli(*args):
-    response = requests.post(
-        f"{DOJO_URL}/pwncollege_api/v1/test_utils/redis",
-        json={"command": args[0], "args": [str(arg) for arg in args[1:]]},
-    )
-    assert response.status_code == 200, f"Redis test utils request failed: {response.status_code} {response.text}"
-    result = response.json().get("result")
-    if result is None:
-        return None
-    if isinstance(result, list):
-        return "(empty array)" if not result else "\n".join(result)
-    return str(result)
+    result = dojo_run("docker", "exec", "cache", "redis-cli", *args, check=False)
+    if result.returncode == 0:
+        return result.stdout.strip()
+    return None
 
 def redis_get(key):
     result = redis_cli("GET", key)
@@ -258,7 +246,8 @@ def test_cold_start_initializes_cache(example_dojo):
     cached_data = redis_get(cache_key)
 
     if cached_data is None:
-        pytest.fail(f"Cold start should have initialized cache for {example_dojo}.")
+        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
+        pytest.fail(f"Cold start should have initialized cache for {example_dojo}. Worker logs:\n{result.stdout}")
 
     stats = json.loads(cached_data)
     assert 'solves' in stats
@@ -297,15 +286,37 @@ def test_cache_structure(stats_test_dojo, stats_test_user):
     assert isinstance(stats['recent_solves'], list)
 
 def test_stats_worker_running():
-    start_time = time.time()
-    while time.time() - start_time < 10:
-        if get_stream_length() == 0:
-            return
-        time.sleep(0.5)
-    pytest.fail("stat:events stream not draining; background worker may be down")
+    result = dojo_run("docker", "ps", "--filter", "name=stats-worker", "--format", "{{.Names}}", check=False)
+
+    if result.returncode != 0 or "stats-worker" not in result.stdout:
+        pytest.skip("stats-worker container not running")
+
+    assert "stats-worker" in result.stdout, "stats-worker container should be running"
+
+    time.sleep(2)
+
+    result = dojo_run("docker", "inspect", "stats-worker", "--format", "{{.State.Status}}", check=True)
+    status = result.stdout.strip().lower()
+
+    if status == "restarting":
+        result = dojo_run("docker", "logs", "stats-worker", "--tail", "50", check=False)
+        pytest.fail(f"stats-worker is crash-looping. Last 50 log lines:\n{result.stdout}")
+
+    assert status == "running", f"stats-worker should be in running state, got: {status}"
 
 def test_worker_env_variables():
-    pytest.skip("Container env validation requires docker access")
+    result = dojo_run(
+        "docker", "inspect", "stats-worker",
+        "--format", "{{range .Config.Env}}{{println .}}{{end}}",
+        check=False
+    )
+
+    if result.returncode != 0:
+        pytest.skip("stats-worker container not found")
+
+    env_vars = result.stdout
+    assert "REDIS_URL" in env_vars, "REDIS_URL should be configured"
+    assert "DATABASE_URL" in env_vars, "DATABASE_URL should be configured"
 
 def test_fallback_calculation_when_cache_miss(admin_session):
     clear_redis_stats()
@@ -524,7 +535,8 @@ def test_scores_cold_start_initialization():
     module_scores_keys = [k for k in module_scores_keys if not k.endswith(":updated")]
 
     if not dojo_scores_keys or not module_scores_keys:
-        pytest.fail("Cold start should have initialized scores cache.")
+        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
+        pytest.fail(f"Cold start should have initialized scores cache. Worker logs:\n{result.stdout}")
 
     dojo_scores_data = redis_get(dojo_scores_keys[0])
     dojo_scores = json.loads(dojo_scores_data)
@@ -682,7 +694,8 @@ def test_emojis_cold_start_initialization():
     emojis_data = redis_get(emojis_key)
 
     if emojis_data is None:
-        pytest.fail("Cold start should have initialized emojis cache.")
+        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
+        pytest.fail(f"Cold start should have initialized emojis cache. Worker logs:\n{result.stdout}")
 
     emojis = json.loads(emojis_data)
     assert 'emojis' in emojis, "emojis cache should have emojis field"
@@ -861,7 +874,8 @@ def test_container_stats_cold_start_initialization():
     cached_data = redis_get(cache_key)
 
     if cached_data is None:
-        pytest.fail("Cold start should have initialized container stats cache.")
+        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
+        pytest.fail(f"Cold start should have initialized container stats cache. Worker logs:\n{result.stdout}")
 
     containers = json.loads(cached_data)
     assert isinstance(containers, list), "container stats should be a list"
@@ -1152,37 +1166,54 @@ def test_hacker_page_loads_with_activity(stats_test_dojo, stats_test_user):
     assert 'activity-tracker' in response.text, "Hacker page should contain activity tracker"
 
 def test_should_daily_restart():
-    from unittest.mock import patch
-    from dojo_plugin.utils.background_stats import should_daily_restart, DAILY_RESTART_HOUR_UTC
+    result = dojo_run("dojo", "flask", input="""
+import time
+from datetime import datetime, timezone
+from unittest.mock import patch
 
-    one_hour_ago = time.time() - 3600
-    ten_minutes_ago = time.time() - 600
+from dojo_plugin.utils.background_stats import should_daily_restart, DAILY_RESTART_HOUR_UTC
 
-    with patch('dojo_plugin.utils.background_stats.datetime') as mock_dt:
-        mock_now = mock_dt.now.return_value
-        mock_now.hour = DAILY_RESTART_HOUR_UTC
-        assert should_daily_restart(one_hour_ago) is True, "Should restart at target hour after 1+ hours"
-        assert should_daily_restart(ten_minutes_ago) is False, "Should NOT restart if running < 1 hour"
+one_hour_ago = time.time() - 3600
+ten_minutes_ago = time.time() - 600
 
-        mock_now.hour = 10
-        assert should_daily_restart(one_hour_ago) is False, "Should NOT restart outside target hour"
+with patch('dojo_plugin.utils.background_stats.datetime') as mock_dt:
+    mock_now = mock_dt.now.return_value
+    mock_now.hour = DAILY_RESTART_HOUR_UTC
+    assert should_daily_restart(one_hour_ago) is True, "Should restart at target hour after 1+ hours"
+    assert should_daily_restart(ten_minutes_ago) is False, "Should NOT restart if running < 1 hour"
+
+    mock_now.hour = 10
+    assert should_daily_restart(one_hour_ago) is False, "Should NOT restart outside target hour"
+
+print("OK")
+""", check=True)
+    assert "OK" in result.stdout, f"should_daily_restart test failed: {result.stdout}"
 
 def test_get_message_timestamp():
-    from dojo_plugin.utils.background_stats import get_message_timestamp
+    result = dojo_run("dojo", "flask", input="""
+from dojo_plugin.utils.background_stats import get_message_timestamp
 
-    assert get_message_timestamp("1704067200000-0") == 1704067200.0
-    assert get_message_timestamp("1704067200123-5") == 1704067200.123
+assert get_message_timestamp("1704067200000-0") == 1704067200.0
+assert get_message_timestamp("1704067200123-5") == 1704067200.123
+print("OK")
+""", check=True)
+    assert "OK" in result.stdout, f"get_message_timestamp test failed: {result.stdout}"
 
 def test_is_event_stale_logic():
-    from unittest.mock import patch
+    result = dojo_run("dojo", "flask", input="""
+from unittest.mock import patch
 
-    with patch('dojo_plugin.utils.background_stats.get_cache_updated_at') as mock_get_cache:
-        from dojo_plugin.utils.background_stats import is_event_stale
+with patch('dojo_plugin.utils.background_stats.get_cache_updated_at') as mock_get_cache:
+    from dojo_plugin.utils.background_stats import is_event_stale
 
-        mock_get_cache.return_value = 1000.0
-        assert is_event_stale("test:key", 900.0) is True, "Event before cache should be stale"
-        assert is_event_stale("test:key", 1100.0) is False, "Event after cache should not be stale"
-        assert is_event_stale("test:key", 1000.0) is False, "Event at same time should not be stale"
+    mock_get_cache.return_value = 1000.0
+    assert is_event_stale("test:key", 900.0) is True, "Event before cache should be stale"
+    assert is_event_stale("test:key", 1100.0) is False, "Event after cache should not be stale"
+    assert is_event_stale("test:key", 1000.0) is False, "Event at same time should not be stale"
 
-        mock_get_cache.return_value = None
-        assert is_event_stale("test:key", 900.0) is False, "No cache time means not stale"
+    mock_get_cache.return_value = None
+    assert is_event_stale("test:key", 900.0) is False, "No cache time means not stale"
+
+print("OK")
+""", check=True)
+    assert "OK" in result.stdout, f"is_event_stale test failed: {result.stdout}"

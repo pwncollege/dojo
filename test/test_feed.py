@@ -1,7 +1,7 @@
 import time
 import logging
 import requests
-from utils import DOJO_HOST, start_challenge, solve_challenge, wait_for_background_worker
+from utils import DOJO_URL, start_challenge, solve_challenge, wait_for_background_worker
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
 
@@ -38,7 +38,7 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
         wait_for_background_worker(timeout=1)
 
         # make sure past events show up at load timej
-        watcher.get(f"http://{DOJO_HOST}/feed")
+        watcher.get(f"{DOJO_URL}/feed")
         events_after_start = watcher.find_element(By.ID, "events-list").find_elements(By.CLASS_NAME, "event-card")
 
         found_start_event = False
@@ -87,7 +87,7 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
         assert container_events > 0, f"No container start events found for {random_user_name}"
         assert found_solve_event, f"Challenge solve event for {random_user_name} not found"
 
-        random_user_session.get(f"http://{DOJO_HOST}/dojo/{simple_award_dojo}/join/")
+        random_user_session.get(f"{DOJO_URL}/dojo/{simple_award_dojo}/join/")
         start_challenge(simple_award_dojo, "hello", "apple", session=random_user_session)
         solve_challenge(simple_award_dojo, "hello", "apple", session=random_user_session, user=random_user_name)
         start_challenge(simple_award_dojo, "hello", "banana", session=random_user_session)
@@ -109,7 +109,7 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
 
 
 def test_private_dojo_events_not_shown(random_private_dojo, random_user_name, random_user_session):
-    response = requests.get(f"http://{DOJO_HOST}/pwncollege_api/v1/feed/events")
+    response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/feed/events")
     assert response.status_code == 200
     initial_events = response.json()["data"]
     initial_count = len(initial_events)
@@ -119,11 +119,11 @@ def test_private_dojo_events_not_shown(random_private_dojo, random_user_name, ra
         "module": "test-module",
         "challenge": "test-challenge"
     }
-    response = random_user_session.post(f"http://{DOJO_HOST}/pwncollege_api/v1/docker", json=start_data)
+    response = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=start_data)
     assert response.status_code == 200
     wait_for_background_worker(timeout=1)
 
-    response = requests.get(f"http://{DOJO_HOST}/pwncollege_api/v1/feed/events")
+    response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/feed/events")
     assert response.status_code == 200
     events_after = response.json()["data"]
 

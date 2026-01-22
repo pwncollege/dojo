@@ -4,32 +4,13 @@ import pytest
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
-from utils import DOJO_HOST, TEST_DOJOS_LOCATION, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, wait_for_background_worker
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, wait_for_background_worker
 from selenium.webdriver import Firefox, FirefoxOptions
 
 @pytest.fixture(scope="session")
 def admin_session():
     session = login("admin", "admin")
     yield session
-
-
-@pytest.fixture(scope="session", autouse=True)
-def test_image_setup(admin_session):
-    response = admin_session.post(
-        f"http://{DOJO_HOST}/pwncollege_api/v1/test_utils/docker_images",
-        json={
-            "pulls": [
-                "pwncollege/challenge-simple",
-                "pwncollege/challenge-lecture",
-            ],
-            "tags": [
-                {"source": "pwncollege/challenge-simple", "target": "pwncollege/challenge-legacy"},
-            ],
-        },
-    )
-    assert response.status_code == 200, f"Image setup failed: {response.status_code} {response.text}"
-    assert response.json().get("success") is True, f"Image setup failed: {response.text}"
-    yield
 
 @pytest.fixture(scope="session")
 def admin_user():
@@ -58,13 +39,13 @@ def completionist_user(simple_award_dojo, codepoints_award_dojo):
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))
     session = login(random_id, random_id, register=True)
 
-    response = session.get(f"http://{DOJO_HOST}/dojo/{simple_award_dojo}/join/")
+    response = session.get(f"{DOJO_URL}/dojo/{simple_award_dojo}/join/")
     assert response.status_code == 200
     for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
         start_challenge(simple_award_dojo, module, challenge, session=session)
         solve_challenge(simple_award_dojo, module, challenge, session=session, user=random_id)
 
-    response = session.get(f"http://{DOJO_HOST}/dojo/{codepoints_award_dojo}/join/")
+    response = session.get(f"{DOJO_URL}/dojo/{codepoints_award_dojo}/join/")
     assert response.status_code == 200
     for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
         start_challenge(codepoints_award_dojo, module, challenge, session=session)
@@ -234,7 +215,7 @@ def browser_fixture():
 
 @pytest.fixture
 def random_user_browser(browser_fixture, random_user_name):
-    browser_fixture.get(f"http://{DOJO_HOST}/login")
+    browser_fixture.get(f"{DOJO_URL}/login")
     browser_fixture.find_element("id", "name").send_keys(random_user_name)
     browser_fixture.find_element("id", "password").send_keys(random_user_name)
     browser_fixture.find_element("id", "_submit").click()

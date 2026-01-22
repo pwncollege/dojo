@@ -3,7 +3,7 @@ import pytest
 import json
 import re
 
-from utils import DOJO_HOST, workspace_run, start_challenge, solve_challenge, get_user_id
+from utils import DOJO_URL, dojo_run, workspace_run, start_challenge, solve_challenge, db_sql, get_user_id
 
 def check_mount(path, *, user, fstype=None, check_nosuid=True):
     try:
@@ -30,7 +30,7 @@ def test_start_challenge(admin_session, example_dojo):
 
 def test_active_module_endpoint(random_user_session, example_dojo):
     start_challenge(example_dojo, "hello", "banana", session=random_user_session)
-    response = random_user_session.get(f"http://{DOJO_HOST}/active-module")
+    response = random_user_session.get(f"{DOJO_URL}/active-module")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
 
     current = response.json()["c_current"]
@@ -53,7 +53,7 @@ def test_active_module_endpoint(random_user_session, example_dojo):
     assert next_chal == {}
 
     start_challenge(example_dojo, "hello", "apple", session=random_user_session)
-    response = random_user_session.get(f"http://{DOJO_HOST}/active-module")
+    response = random_user_session.get(f"{DOJO_URL}/active-module")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
 
     current = response.json()["c_current"]
@@ -70,7 +70,7 @@ def test_active_module_endpoint(random_user_session, example_dojo):
 
 
 def test_progression_locked(progression_locked_dojo, random_user_name, random_user_session):
-    assert random_user_session.get(f"http://{DOJO_HOST}/dojo/{progression_locked_dojo}/join/").status_code == 200
+    assert random_user_session.get(f"{DOJO_URL}/dojo/{progression_locked_dojo}/join/").status_code == 200
     start_challenge(progression_locked_dojo, "progression-locked-module", "unlocked-challenge", session=random_user_session)
 
     with pytest.raises(AssertionError, match="Failed to start challenge: This challenge is locked"):
@@ -171,7 +171,7 @@ def test_reset_home_directory(random_user_name, random_user_session, example_doj
     workspace_run("touch /home/hacker/testfile", user=random_user_name)
 
     # Reset the home directory
-    response = random_user_session.post(f"http://{DOJO_HOST}/pwncollege_api/v1/workspace/reset_home", json={})
+    response = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/workspace/reset_home", json={})
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to reset home directory: {response.json()['error']}"
 

@@ -4,7 +4,7 @@ import json
 import sys
 import os
 
-from utils import DOJO_HOST
+from utils import DOJO_URL, DOJO_CONTAINER
 
 api_key = os.environ.get('OPENAI_API_KEY')
 
@@ -19,7 +19,7 @@ You have spent your life finding problems in testcases, spotting bugs, and keepi
 Nothing escapes your gaze, and you find all issues.
 
 You also have access to a Playwright MCP server.
-Explore the pwn.college website starting at http://{DOJO_HOST} and check for functionality that has been broken by this PR.
+Explore the pwn.college website starting at {DOJO_URL} and check for functionality that has been broken by this PR.
 The summary of the PR's changes:
 
 {open("diff_summary").read()}
@@ -31,6 +31,9 @@ Make sure nothing breaks along the way.
 Throw in some normal functionality for good measure.
 
 TRICKS:
+- keep in mind that the dojo is a multi-docker infra running inside the {DOJO_CONTAINER} docker-in-docker container.
+- feel free to "cheat": you can `docker exec {DOJO_CONTAINER} docker exec $WHATEVER` directly into containers to look around
+- `docker exec -i {DOJO_CONTAINER} dojo enter -s $USER <<< "cat /flag"` is especially useful for getting flags without having to solve the actual tricky challenges, to test that part of the dojo's functionality. You will almost certainly have to do this to solve challenges to test functionality!
 - this environment is disposable for your use; don't worry about breaking things
 
 IMPORTANT: 

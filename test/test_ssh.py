@@ -4,12 +4,12 @@ import time
 import tempfile
 import os
 
-from utils import DOJO_HOST, login, workspace_run, start_challenge
+from utils import DOJO_URL, DOJO_SSH_HOST, login, dojo_run, workspace_run, start_challenge
 
 
 def add_ssh_key(session, ssh_key):
     response = session.post(
-        f"http://{DOJO_HOST}/pwncollege_api/v1/ssh_key",
+        f"{DOJO_URL}/pwncollege_api/v1/ssh_key",
         json={"ssh_key": ssh_key}
     )
     return response
@@ -19,7 +19,7 @@ def delete_ssh_key(session, ssh_key):
     key_parts = ssh_key.split()
     normalized_key = f"{key_parts[0]} {key_parts[1]}"
     response = session.delete(
-        f"http://{DOJO_HOST}/pwncollege_api/v1/ssh_key",
+        f"{DOJO_URL}/pwncollege_api/v1/ssh_key",
         json={"ssh_key": normalized_key}
     )
     return response
@@ -75,7 +75,7 @@ def ssh_command(private_key_file, command="echo 'SSH test successful'"):
         '-o', 'ConnectTimeout=10',
         '-i', private_key_file,
         '-p', str(ssh_port),
-        f'hacker@{DOJO_HOST}',
+        f'hacker@{DOJO_SSH_HOST}',
         command
     ]
     
