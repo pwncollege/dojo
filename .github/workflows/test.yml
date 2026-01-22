@@ -58,6 +58,20 @@ jobs:
           done
           docker exec "$CONTAINER" test -L /data/workspace/nix/var/nix/profiles/dojo-workspace || { echo "Timed out waiting for workspace profile"; exit 1; }
 
+      - name: Finalize dojo setup
+        run: |
+          docker exec "$CONTAINER" dojo wait
+          docker exec "$CONTAINER" docker wait workspace-builder
+          if ! docker exec "$CONTAINER" docker ps -a | grep workspace-builder | grep "Exited (0)"
+          then
+            docker exec "$CONTAINER" docker logs workspace-builder | tail -n100
+            echo "WORKSPACE BUILDER FAILED"
+            exit 1
+          fi
+          docker exec "$CONTAINER" docker pull pwncollege/challenge-simple
+          docker exec "$CONTAINER" docker pull pwncollege/challenge-lecture
+          docker exec "$CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
+
       - name: Run tests
         run: |
           docker run --rm \
