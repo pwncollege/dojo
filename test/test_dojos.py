@@ -76,8 +76,8 @@ def test_update_dojo_pulls_image(admin_session, random_user):
         "modules": [
             {
                 "id": "hello",
-                "challenges": [
-                    {"id": "starter"},
+                "resources": [
+                    {"type": "challenge", "id": "starter", "name": "Starter"},
                 ],
             },
         ],
@@ -94,7 +94,12 @@ def test_update_dojo_pulls_image(admin_session, random_user):
         session=admin_session,
     )
 
-    spec["modules"][0]["challenges"].append({"id": "hello-world", "image": "hello-world"})
+    spec["modules"][0]["resources"].append({
+        "type": "challenge",
+        "id": "hello-world",
+        "name": "Hello World",
+        "image": "hello-world",
+    })
     response = admin_session.post(
         f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo_reference_id}/update",
         json=spec,
