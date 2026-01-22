@@ -51,7 +51,7 @@ let
 
     shells = [ fish nushell oh-my-zsh starship zsh ];
 
-    system = [ bottom firejail htop landrun nftables openssh rsync ];
+    system = [ bottom firejail htop landrun ncdu nftables openssh rsync ];
 
     terminal = [ ghostty.terminfo kitty.terminfo screen tmux zellij ];
 
