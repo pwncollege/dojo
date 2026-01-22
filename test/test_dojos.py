@@ -66,6 +66,7 @@ def test_update_dojo(admin_session):
     assert updated["name"] == updated_name
 
 
+@pytest.mark.timeout(240)
 def test_update_dojo_pulls_image(admin_session, random_user):
     random_id = "".join(random.choices(string.ascii_lowercase, k=8))
     dojo_id = f"update-dojo-image-{random_id}"
