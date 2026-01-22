@@ -49,7 +49,7 @@ jobs:
             -e "DOJO_CONTAINER=$DOJO_CONTAINER" \
             --add-host localhost.pwn.college:$DOJO_CONTAINER_IP \
             --add-host workspace.localhost.pwn.college:$DOJO_CONTAINER_IP \
-            $TEST_IMAGE
+            $TEST_IMAGE -v
 
       - name: Output logs
         if: always()
