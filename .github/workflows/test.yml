@@ -33,10 +33,12 @@ jobs:
 
       - name: Start container
         run: |
-          CONTAINER=$(docker run --privileged --rm -d -v "$PWD:/opt/pwn.college:ro" --tmpfs /opt/pwn.college/data "$IMAGE")
+          WORKDIR=$(mktemp -d /tmp/data-dojo-XXXXXX)
+          CONTAINER=$(docker run --privileged --rm -d -v "$PWD:/opt/pwn.college" -v "$WORKDIR:/data:shared" "$IMAGE")
           CONTAINER_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$CONTAINER")
           echo "CONTAINER=$CONTAINER" >> "$GITHUB_ENV"
           echo "CONTAINER_IP=$CONTAINER_IP" >> "$GITHUB_ENV"
+          echo "WORKDIR=$WORKDIR" >> "$GITHUB_ENV"
 
       - name: Wait for web readiness
         run: |
@@ -59,6 +61,9 @@ jobs:
       - name: Run tests
         run: |
           docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/opt/pwn.college:ro" \
+            -e "DOJO_CONTAINER=$CONTAINER" \
             --add-host localhost.pwn.college:$CONTAINER_IP \
             --add-host workspace.localhost.pwn.college:$CONTAINER_IP \
             $TEST_IMAGE
@@ -66,6 +71,10 @@ jobs:
       - name: Dojo logs
         if: always()
         run: |
+          if [ -z "${CONTAINER:-}" ]; then
+            echo "CONTAINER not set; skipping log collection"
+            exit 0
+          fi
           echo "::group::Dojo logs"
           docker exec "$CONTAINER" dojo logs || true
           echo "::endgroup::"
