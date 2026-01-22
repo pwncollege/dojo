@@ -111,9 +111,18 @@ def test_update_dojo_pulls_image(admin_session, random_user):
     response = random_user_session.get(f"{DOJO_URL}/dojo/{dojo_reference_id}/join/")
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
 
-    time.sleep(120)
+    last_error = None
+    for _ in range(10):
+        try:
+            start_challenge(dojo_reference_id, "hello", "hello-world", session=random_user_session)
+            last_error = None
+            break
+        except AssertionError as e:
+            last_error = e
+            time.sleep(6)
 
-    start_challenge(dojo_reference_id, "hello", "hello-world", session=random_user_session)
+    if last_error:
+        raise AssertionError(f"Failed to start challenge after waiting for image pulls: {last_error}")
     result = workspace_run("/hello", user=random_user_name)
     assert "Hello from Docker!" in result.stdout
 

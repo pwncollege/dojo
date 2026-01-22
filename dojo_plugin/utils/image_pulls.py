@@ -1,0 +1,102 @@
+import json
+import logging
+import os
+import time
+from typing import Any, Callable, Dict, Iterable, Optional
+
+import redis
+
+from .background_stats import get_redis_client
+
+logger = logging.getLogger(__name__)
+
+IMAGE_PULL_STREAM_NAME = "image:pull:events"
+CONSUMER_GROUP = "image-pull-workers"
+CONSUMER_NAME = f"image-pull-worker-{os.getpid()}"
+
+
+def _filtered_images(images: Iterable[Optional[str]]) -> set[str]:
+    filtered = set()
+    for image in images:
+        if not image:
+            continue
+        if image.startswith("mac:") or image.startswith("pwncollege-"):
+            continue
+        filtered.add(image)
+    return filtered
+
+
+def publish_image_pull(image: str, dojo_reference_id: Optional[str] = None) -> Optional[str]:
+    try:
+        r = get_redis_client()
+        event = {"image": image, "dojo_reference_id": dojo_reference_id}
+        message_id = r.xadd(IMAGE_PULL_STREAM_NAME, {"data": json.dumps(event)})
+        logger.info(f"Published image pull for {image}: {message_id}")
+        return message_id
+    except (redis.RedisError, redis.ConnectionError) as e:
+        logger.error(f"Failed to publish image pull for {image}: {e}")
+        return None
+
+
+def publish_image_pulls(images: Iterable[Optional[str]], dojo_reference_id: Optional[str] = None) -> None:
+    for image in _filtered_images(images):
+        publish_image_pull(image, dojo_reference_id=dojo_reference_id)
+
+
+def enqueue_dojo_image_pulls(dojo) -> None:
+    images = set()
+    for module in dojo.modules or []:
+        for challenge in module.challenges or []:
+            image = (challenge.data or {}).get("image")
+            if image:
+                images.add(image)
+    publish_image_pulls(images, dojo_reference_id=dojo.reference_id)
+
+
+def consume_image_pull_events(handler: Callable[[Dict[str, Any]], None], batch_size: int = 10, block_ms: int = 5000) -> None:
+    r = get_redis_client()
+
+    def ensure_consumer_group():
+        try:
+            r.xgroup_create(IMAGE_PULL_STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True)
+            logger.info(f"Created consumer group {CONSUMER_GROUP} for stream {IMAGE_PULL_STREAM_NAME}")
+        except redis.ResponseError as e:
+            if "BUSYGROUP" not in str(e):
+                raise
+            logger.info(f"Consumer group {CONSUMER_GROUP} already exists")
+
+    ensure_consumer_group()
+    logger.info(f"Image pull worker {CONSUMER_NAME} waiting for events...")
+
+    while True:
+        try:
+            messages = r.xreadgroup(
+                CONSUMER_GROUP,
+                CONSUMER_NAME,
+                {IMAGE_PULL_STREAM_NAME: ">"},
+                count=batch_size,
+                block=block_ms
+            )
+
+            if not messages:
+                continue
+
+            for _, stream_messages in messages:
+                for message_id, message_data in stream_messages:
+                    try:
+                        event_data = json.loads(message_data["data"])
+                        handler(event_data)
+                        r.xackdel(IMAGE_PULL_STREAM_NAME, CONSUMER_GROUP, message_id)
+                        logger.info(f"Processed image pull event {message_id}")
+                    except Exception as e:
+                        logger.error(f"Error processing image pull event {message_id}: {e}", exc_info=True)
+        except redis.ResponseError as e:
+            if "NOGROUP" in str(e):
+                logger.warning("Image pull consumer group missing, recreating...")
+                ensure_consumer_group()
+            else:
+                logger.error(f"Redis error in image pull worker: {e}")
+                time.sleep(1)
+        except redis.ConnectionError as e:
+            logger.error(f"Redis connection error in image pull worker: {e}")
+            time.sleep(1)

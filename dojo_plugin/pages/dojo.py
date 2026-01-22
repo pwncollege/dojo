@@ -1,6 +1,7 @@
 import collections
 import subprocess
 from pathlib import Path
+import logging
 import traceback
 import datetime
 import sys
@@ -18,11 +19,13 @@ from CTFd.utils.helpers import get_infos
 from ..utils import get_current_container, get_all_containers, render_markdown
 from ..utils.stats import get_container_stats, get_dojo_stats
 from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
+from ..utils.image_pulls import enqueue_dojo_image_pulls
 from ..utils.query_timer import query_timeout
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 #pylint:disable=redefined-outer-name
+logger = logging.getLogger(__name__)
 
 def get_dojo_branch(dojo):
     try:
@@ -238,6 +241,11 @@ def update_dojo(dojo, update_code=None):
         print(f"ERROR: Dojo update failed for {dojo}", file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
         return {"success": False, "error": str(e)}, 400
+
+    try:
+        enqueue_dojo_image_pulls(dojo)
+    except Exception as e:
+        logger.error(f"Failed to enqueue image pulls for {dojo.reference_id}: {e}", exc_info=True)
     return {"success": True}
 
 @dojo.route("/dojo/<dojo>/delete/", methods=["POST"])
