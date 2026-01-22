@@ -3,6 +3,7 @@ import requests
 import pytest
 import random
 import string
+import time
 import yaml
 
 from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id, wait_for_background_worker
@@ -63,6 +64,52 @@ def test_update_dojo(admin_session):
     assert list_response.status_code == 200, f"Expected status code 200, but got {list_response.status_code}"
     updated = next(dojo for dojo in list_response.json()["dojos"] if dojo["id"] == dojo_reference_id)
     assert updated["name"] == updated_name
+
+
+def test_update_dojo_pulls_image(admin_session, random_user):
+    random_id = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"update-dojo-image-{random_id}"
+    spec = {
+        "id": dojo_id,
+        "type": "public",
+        "modules": [
+            {
+                "id": "hello",
+                "challenges": [
+                    {"id": "starter"},
+                ],
+            },
+        ],
+        "files": [
+            {
+                "type": "text",
+                "path": "hello/starter/src",
+                "content": "#!/opt/pwn.college/bash\ncat /flag\n",
+            },
+        ],
+    }
+    dojo_reference_id = create_dojo_yml(
+        yaml.safe_dump(spec, sort_keys=False),
+        session=admin_session,
+    )
+
+    spec["modules"][0]["challenges"].append({"id": "hello-world", "image": "hello-world"})
+    response = admin_session.post(
+        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo_reference_id}/update",
+        json=spec,
+    )
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
+    assert response.json()["success"]
+
+    random_user_name, random_user_session = random_user
+    response = random_user_session.get(f"{DOJO_URL}/dojo/{dojo_reference_id}/join/")
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
+
+    time.sleep(120)
+
+    start_challenge(dojo_reference_id, "hello", "hello-world", session=random_user_session)
+    result = workspace_run("/hello", user=random_user_name)
+    assert "Hello from Docker!" in result.stdout
 
 
 def test_import(import_dojo, admin_session):
