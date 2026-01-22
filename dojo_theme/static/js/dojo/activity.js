@@ -83,16 +83,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     else if(ratio > 0.5) level = 3;
                     else if(ratio > 0.25) level = 2;
                     else if(ratio > 0 ) level = 1;
-                }    
+                }
                 cell.className = `activity-cell level-${level}`;
             }
         }
     }
-    
-    function countDailySolves(solves) {
+
+    function countDailySolves(timestamps) {
         const counts = {};
-        solves.forEach(solve => {
-            const dateStr = getLocalISODate(new Date(solve.date));
+        timestamps.forEach(ts => {
+            const dateStr = getLocalISODate(new Date(ts));
             counts[dateStr] = (counts[dateStr] || 0) + 1;
         });
         return counts;
@@ -111,9 +111,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         return streak;
     }
-    
-    const oneYearAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 1));
-    const endpoint = `/api/v1/users/${userID}/solves?after=${oneYearAgo.toISOString()}`;
+
+    const endpoint = `/pwncollege_api/v1/activity/${userID}`;
     CTFd.fetch(endpoint, {
         method: "GET",
         credentials: "same-origin",
@@ -122,7 +121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     .then(response => response.json())
     .then(result => {
         if(result.success) {
-            const dailySolveCount = countDailySolves(result.data);
+            const dailySolveCount = countDailySolves(result.data.solve_timestamps || []);
             const max = Math.max(...Object.values(dailySolveCount), 1);
             updateGrid(dailySolveCount, max);
             const streakText = getStreak(dailySolveCount);
@@ -130,6 +129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     })
     .catch(err => {
-        console.error('Error fetching solves data', err);
+        console.error('Error fetching activity data', err);
     });
 });

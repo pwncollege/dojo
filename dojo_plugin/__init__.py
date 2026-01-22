@@ -37,6 +37,8 @@ from .pages.research import research
 from .pages.feed import feed
 from .pages.index import static_html_override
 from .api import api
+from .utils.events import publish_queued_events
+from .utils import listeners
 
 
 class DojoChallenge(BaseChallenge):
@@ -155,6 +157,11 @@ def load(app):
     setup_logging(app)
     setup_trace_id_tracking(app)
     setup_uncaught_error_logging(app)
+
+    @app.after_request
+    def publish_stat_events_after_request(response):
+        publish_queued_events()
+        return response
 
     app.permanent_session_lifetime = datetime.timedelta(days=180)
 

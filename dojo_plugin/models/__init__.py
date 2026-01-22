@@ -289,6 +289,15 @@ class Dojos(db.Model):
         dojo_admin = DojoAdmins.query.filter_by(dojo=self, user=user).first()
         return dojo_admin is not None or is_admin()
 
+    @property
+    def is_public_or_official(self):
+        return self.official or self.type == "public"
+
+    def is_member(self, user_id):
+        if self.is_public_or_official:
+            return True
+        return DojoUsers.query.filter_by(dojo_id=self.dojo_id, user_id=user_id).first() is not None
+
     __repr__ = columns_repr(["name", "reference_id"])
 
 

@@ -11,6 +11,7 @@ import docker.errors
 import docker.types
 import redis
 from flask import abort, request, current_app
+from itsdangerous.url_safe import URLSafeTimedSerializer
 from flask_restx import Namespace, Resource
 from CTFd.cache import cache
 from CTFd.models import Users, Solves
@@ -34,6 +35,7 @@ from ...utils import (
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run
 from ...utils.feed import publish_container_start
+from ...utils.background_stats import publish_stat_event
 from ...utils.request_logging import get_trace_id, log_generator_output
 
 logger = logging.getLogger(__name__)
@@ -97,7 +99,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         ]
     )[:64]
 
-    auth_token = os.urandom(32).hex()
+    auth_token = URLSafeTimedSerializer(current_app.config["SECRET_KEY"]).dumps([user.id, dojo_challenge.id, "cli-auth-token"])
 
     challenge_bin_path = "/run/challenge/bin"
     dojo_bin_path = "/run/dojo/bin"
@@ -170,6 +172,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             "challenge.localhost": "127.0.0.1",
             "hacker.localhost": "127.0.0.1",
             "dojo-user": user_ipv4(user),
+            "pwn.college": "192.168.42.1",
             **USER_FIREWALL_ALLOWED,
         },
         init=True,
@@ -502,6 +505,8 @@ class RunDocker(Resource):
                     actual_user = as_user or user
                     publish_container_start(actual_user, mode, challenge_data)
 
+                publish_stat_event("container_stats_update", {})
+
                 break
             except Exception as e:
                 logger.warning(f"Attempt {attempt} failed for user {user.id} with error: {e}")
@@ -545,6 +550,7 @@ class RunDocker(Resource):
 
         try:
             remove_container(user)
+            publish_stat_event("container_stats_update", {})
             return {"success": True, "message": "Challenge container terminated"}
         except Exception as e:
             logger.error(f"Failed to terminate container for user {user.id}: {e}")

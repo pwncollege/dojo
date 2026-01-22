@@ -100,6 +100,97 @@ function createAssignmentGradesTable(gradesData) {
     return table;
 }
 
+function csvEscape(value) {
+    const text = String(value ?? "");
+    if (/[",\n]/.test(text)) {
+        return `"${text.replace(/"/g, "\"\"")}"`;
+    }
+    return text;
+}
+
+function buildGradesCsv(gradesTable) {
+    const rows = [];
+    rows.push([
+        "student_id",
+        "overall_grade",
+        "overall_percent",
+        "assignment_name",
+        "deadline",
+        "weight",
+        "progress",
+        "credit"
+    ].map(csvEscape).join(","));
+
+    if (!gradesTable || !gradesTable.tBodies.length) {
+        return rows.join("\n");
+    }
+
+    const studentRows = gradesTable.tBodies[0].rows;
+    for (const tr of studentRows) {
+        const studentIdCell = tr.cells[0];
+        const gradeCell = tr.cells[1];
+        if (!studentIdCell || !gradeCell) {
+            continue;
+        }
+
+        const studentId = studentIdCell.textContent.trim();
+        const details = gradeCell.querySelector("details");
+        if (!details) {
+            continue;
+        }
+
+        const summaryText = details.querySelector("summary")?.textContent.trim() || "";
+        const gradeMatch = summaryText.match(/^(.+?) \(([\d.]+)%\)$/);
+        const overallGrade = gradeMatch ? gradeMatch[1] : "";
+        const overallPercent = gradeMatch ? gradeMatch[2] : "";
+
+        const innerTable = details.querySelector("table");
+        if (!innerTable || !innerTable.tBodies.length) {
+            continue;
+        }
+
+        const assignmentBody = innerTable.tBodies[0];
+        for (const ar of assignmentBody.rows) {
+            const cells = ar.cells;
+            if (cells.length < 5) {
+                continue;
+            }
+
+            const assignmentName = cells[0].textContent.trim();
+            const deadline = cells[1].textContent.trim();
+            const weight = cells[2].textContent.trim();
+            const progress = cells[3].textContent.trim();
+            const credit = cells[4].textContent.trim();
+
+            rows.push([
+                studentId,
+                overallGrade,
+                overallPercent,
+                assignmentName,
+                deadline,
+                weight,
+                progress,
+                credit
+            ].map(csvEscape).join(","));
+        }
+    }
+
+    return rows.join("\n");
+}
+
+function downloadGradesCsv(gradesTable) {
+    const csv = buildGradesCsv(gradesTable);
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "grades.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
 
 async function loadGrades(selector) {
     const gradeWorker = createWorker(gradeWorkerModule);
@@ -171,6 +262,13 @@ async function loadAllGrades(selector) {
 
     const table = document.createElement("table");
     table.classList.add("table", "table-striped");
+
+    const downloadButton = document.createElement("button");
+    downloadButton.type = "button";
+    downloadButton.classList.add("btn", "btn-primary", "mb-3");
+    downloadButton.textContent = "Download CSV";
+    downloadButton.addEventListener("click", () => downloadGradesCsv(table));
+    gradesElement.appendChild(downloadButton);
     gradesElement.appendChild(table);
 
     const thead = document.createElement("thead");

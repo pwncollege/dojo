@@ -163,7 +163,7 @@ case "$ACTION" in
             echo "$line"
             case "$line" in
                 *"Finished pwn.college.service - pwn.college docker compose service"*)
-                    exit 0
+                    break
                     ;;
                 *"Failed to start pwn.college.service - pwn.college docker compose service."*)
                     exit 1
@@ -173,6 +173,25 @@ case "$ACTION" in
                     ;;
             esac
         done
+
+        if docker ps --format '{{.Names}}' | grep -q '^stats-worker$'; then
+            echo "Waiting for stats-worker cold start to complete..."
+            timeout=300
+            elapsed=0
+            while [ $elapsed -lt $timeout ]; do
+                if docker logs stats-worker 2>&1 | grep -q "Cold start complete - all stats initialized"; then
+                    echo "Stats-worker initialization complete"
+                    exit 0
+                fi
+                sleep 1
+                elapsed=$((elapsed + 1))
+            done
+            echo "Error: stats-worker did not complete initialization within ${timeout}s"
+            exit 1
+        else
+            echo "No stats-worker container found (workspace node), skipping stats initialization check"
+            exit 0
+        fi
         ;;
 
     # HELP: init: main entry point for the docker image

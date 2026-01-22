@@ -1,12 +1,13 @@
 import pytest
 
-from utils import DOJO_HOST, start_challenge, solve_challenge
+from utils import DOJO_HOST, start_challenge, solve_challenge, wait_for_background_worker
 
 
 def test_belts(belt_dojos, random_user_name, random_user_session):
     for color,dojo in belt_dojos.items():
         start_challenge(dojo, "test", "test", session=random_user_session)
         solve_challenge(dojo, "test", "test", session=random_user_session, user=random_user_name)
+        wait_for_background_worker(timeout=5)
         for page in range(1, 1000):
             scoreboard = random_user_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/scoreboard/{dojo}/_/0/{page}").json()
             assert scoreboard["standings"], f"exhausted {page-1} pages of scoreboard for dojo {dojo} without finding user {random_user_name}"
@@ -22,6 +23,7 @@ def test_cumulative_belts(belt_dojos, random_user_name, random_user_session):
     for color,dojo in reversed(belt_dojos.items()):
         start_challenge(dojo, "test", "test", session=random_user_session)
         solve_challenge(dojo, "test", "test", session=random_user_session, user=random_user_name)
+        wait_for_background_worker(timeout=2)
         for page in range(1, 1000):
             scoreboard = random_user_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/scoreboard/{dojo}/_/0/{page}").json()
             assert scoreboard["standings"], f"exhausted {page-1} pages of scoreboard for dojo {dojo} without finding user {random_user_name}"

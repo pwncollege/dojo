@@ -73,6 +73,7 @@ case "$ACTION" in
         printf "DOJO_HOST: %s\n" "$DOJO_HOST"
         printf "WORKSPACE_NODE: %d\n" "$WORKSPACE_NODE"
         printf "WORKSPACE_HOST: %s\n" "$WORKSPACE_HOST"
+        printf "WORKSPACE_SECRET: %s\n" "$WORKSPACE_SECRET"
         printf "WORKSPACE_KEY: %s\n\n" "${WORKSPACE_KEY:-$(cat /data/wireguard/publickey)}"
         wg show wg0
         ;;

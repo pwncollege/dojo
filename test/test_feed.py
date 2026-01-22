@@ -1,7 +1,7 @@
 import time
 import logging
 import requests
-from utils import DOJO_HOST, start_challenge, solve_challenge
+from utils import DOJO_HOST, start_challenge, solve_challenge, wait_for_background_worker
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
 
@@ -35,7 +35,7 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
 
     try:
         start_challenge(welcome_dojo, "welcome", "flag", session=random_user_session)
-        time.sleep(1)
+        wait_for_background_worker(timeout=1)
 
         # make sure past events show up at load timej
         watcher.get(f"http://{DOJO_HOST}/feed")
@@ -59,7 +59,7 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
         assert found_start_event, f"Container start event for {random_user_name} not found"
 
         solve_challenge(welcome_dojo, "welcome", "flag", session=random_user_session, user=random_user_name)
-        time.sleep(1)
+        wait_for_background_worker(timeout=1)
         # we purposefully don't refresh here, to make sure streaming works
         events_after_solve = watcher.find_element(By.ID, "events-list").find_elements(By.CLASS_NAME, "event-card")
 
@@ -92,7 +92,7 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
         solve_challenge(simple_award_dojo, "hello", "apple", session=random_user_session, user=random_user_name)
         start_challenge(simple_award_dojo, "hello", "banana", session=random_user_session)
         solve_challenge(simple_award_dojo, "hello", "banana", session=random_user_session, user=random_user_name)
-        time.sleep(1)
+        wait_for_background_worker(timeout=1)
         events_with_emoji = watcher.find_element(By.ID, "events-list").find_elements(By.CLASS_NAME, "event-card")
         
         found_emoji_event = False
@@ -121,7 +121,7 @@ def test_private_dojo_events_not_shown(random_private_dojo, random_user_name, ra
     }
     response = random_user_session.post(f"http://{DOJO_HOST}/pwncollege_api/v1/docker", json=start_data)
     assert response.status_code == 200
-    time.sleep(1)
+    wait_for_background_worker(timeout=1)
 
     response = requests.get(f"http://{DOJO_HOST}/pwncollege_api/v1/feed/events")
     assert response.status_code == 200

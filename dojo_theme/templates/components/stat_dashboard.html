@@ -38,7 +38,7 @@
     </div>
   </div>
 
-  <!-- <div class="stat-card">
+  <div class="stat-card">
     <div class="stat-card-header">Activity History</div>
     <div class="chart-container">
       <canvas id="activity-chart"
@@ -47,7 +47,7 @@
               data-users='{{ stats.chart_data.users|tojson if stats and stats.chart_data and stats.chart_data.users else "[]" }}'>
       </canvas>
     </div>
-  </div> -->
+  </div>
 
   <div class="stat-card">
     <div class="stat-card-header">Recent Awardees</div>
@@ -69,7 +69,7 @@
     </div>
   </div>
 
-  <!-- <div class="stat-card">
+  <div class="stat-card">
     <div class="stat-card-header">Recent Solves</div>
     <div class="recent-activity">
       {% if stats and stats.recent_solves and stats.recent_solves|length > 0 %}
@@ -83,7 +83,7 @@
         <div class="recent-item">No recent solves</div>
       {% endif %}
     </div>
-  </div> -->
+  </div>
 </div>
 
 <script>

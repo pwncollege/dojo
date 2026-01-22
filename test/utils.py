@@ -6,6 +6,7 @@ import re
 import os
 
 DOJO_HOST = os.getenv("DOJO_HOST", "localhost.pwn.college")
+DOJO_URL = os.getenv("DOJO_URL", f"http://{DOJO_HOST}").rstrip("/")
 TEST_DOJOS_LOCATION = pathlib.Path(__file__).parent / "dojos"
 
 
@@ -134,3 +135,25 @@ def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):
     )
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], "Expected to successfully submit flag"
+
+
+def _redis_command(command, *args):
+    response = requests.post(
+        f"{DOJO_URL}/pwncollege_api/v1/test_utils/redis",
+        json={"command": command, "args": list(args)},
+    )
+    assert response.status_code == 200, f"Redis test utils request failed: {response.status_code} {response.text}"
+    return response.json().get("result")
+
+
+def wait_for_background_worker(timeout=5):
+    """Wait for the background stats worker to finish processing all pending events.
+
+    Polls Redis stream length until it's 0 or timeout is reached.
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        stream_length = _redis_command("XLEN", "stat:events")
+        if stream_length is not None and int(stream_length) == 0:
+            return
+        time.sleep(0.1)

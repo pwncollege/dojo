@@ -3,8 +3,9 @@ import requests
 import pytest
 import random
 import string
+import yaml
 
-from utils import DOJO_HOST, TEST_DOJOS_LOCATION, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, get_user_id, delete_last_submission, clear_dojo_award
+from utils import DOJO_HOST, TEST_DOJOS_LOCATION, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, get_user_id, delete_last_submission, clear_dojo_award, wait_for_background_worker
 
 
 def get_dojo_modules(dojo):
@@ -37,6 +38,33 @@ def test_delete_dojo(admin_session):
     assert admin_session.get(f"http://{DOJO_HOST}/{reference_id}/").status_code == 404
 
 
+def test_update_dojo(admin_session):
+    random_id = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"update-dojo-{random_id}"
+    original_name = "Update Test"
+    updated_name = "Update Test Updated"
+    spec = yaml.safe_load(open(TEST_DOJOS_LOCATION / "simple_award_dojo.yml").read())
+    spec["id"] = dojo_id
+    spec["name"] = original_name
+    dojo_reference_id = create_dojo_yml(
+        yaml.safe_dump(spec, sort_keys=False),
+        session=admin_session,
+    )
+
+    spec["name"] = updated_name
+    response = admin_session.post(
+        f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{dojo_reference_id}/update",
+        json=spec,
+    )
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
+    assert response.json()["success"]
+
+    list_response = admin_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/dojos")
+    assert list_response.status_code == 200, f"Expected status code 200, but got {list_response.status_code}"
+    updated = next(dojo for dojo in list_response.json()["dojos"] if dojo["id"] == dojo_reference_id)
+    assert updated["name"] == updated_name
+
+
 def test_import(import_dojo, admin_session):
     assert admin_session.get(f"http://{DOJO_HOST}/{import_dojo}/hello").status_code == 200
 
@@ -65,6 +93,8 @@ def test_promote_dojo_member(admin_session, guest_dojo_admin, example_dojo):
 
 def test_dojo_completion_emoji(simple_award_dojo, codepoints_award_dojo, completionist_user):
     user_name, session = completionist_user
+
+    wait_for_background_worker(timeout=1)
 
     scoreboard = session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/scoreboard/{codepoints_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
@@ -109,6 +139,8 @@ def test_prune_dojo_emoji(simple_award_dojo, admin_session, completionist_user):
 
     response = admin_session.post(f"http://{DOJO_HOST}/pwncollege_api/v1/dojos/{simple_award_dojo}/awards/prune", json={})
     assert response.status_code == 200
+
+    wait_for_background_worker(timeout=2)
 
     scoreboard = admin_session.get(f"http://{DOJO_HOST}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)

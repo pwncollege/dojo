@@ -4,6 +4,7 @@ from CTFd.models import db, Users, Submissions
 from CTFd.plugins import bypass_csrf_protection
 
 from ...utils import get_current_container, all_docker_clients
+from ...utils.background_stats import get_redis_client
 from ...models import Dojos, DojoChallenges
 
 
@@ -110,3 +111,50 @@ class DockerImages(Resource):
         if errors:
             return {"success": False, "errors": errors}, 500
         return {"success": True}
+
+
+@test_utils_namespace.route("/redis")
+class RedisCommand(Resource):
+    @bypass_csrf_protection
+    def post(self):
+        data = request.get_json() or {}
+        command = (data.get("command") or "").strip().lower()
+        args = data.get("args") or []
+        if not command:
+            abort(400, description="Missing redis command")
+
+        r = get_redis_client()
+        if command == "get":
+            if len(args) != 1:
+                abort(400, description="GET requires 1 argument")
+            result = r.get(args[0])
+        elif command == "exists":
+            if len(args) != 1:
+                abort(400, description="EXISTS requires 1 argument")
+            result = r.exists(args[0])
+        elif command == "del":
+            if not args:
+                abort(400, description="DEL requires at least 1 argument")
+            result = r.delete(*args)
+        elif command == "keys":
+            if len(args) != 1:
+                abort(400, description="KEYS requires 1 argument")
+            result = r.keys(args[0])
+        elif command == "xadd":
+            if len(args) < 3:
+                abort(400, description="XADD requires stream, id, and field/value pairs")
+            stream = args[0]
+            message_id = args[1]
+            field_args = args[2:]
+            if len(field_args) % 2 != 0:
+                abort(400, description="XADD field/value pairs are incomplete")
+            fields = dict(zip(field_args[0::2], field_args[1::2]))
+            result = r.xadd(stream, fields, id=message_id)
+        elif command == "xlen":
+            if len(args) != 1:
+                abort(400, description="XLEN requires 1 argument")
+            result = r.xlen(args[0])
+        else:
+            abort(400, description=f"Unsupported redis command '{command}'")
+
+        return {"result": result}

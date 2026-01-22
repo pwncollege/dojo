@@ -1,5 +1,7 @@
 
 import datetime
+import sys
+import traceback
 
 from CTFd.cache import cache
 from CTFd.models import Solves, Users, db
@@ -13,8 +15,9 @@ from sqlalchemy.sql import and_
 from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
                        DojoUsers, Emojis, SurveyResponses)
 from ...utils import is_challenge_locked, render_markdown
-from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route
+from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_from_spec
 from ...utils.stats import get_dojo_stats
+from ...utils.events import publish_dojo_stats_event, publish_scoreboard_event
 
 dojos_namespace = Namespace(
     "dojos", description="Endpoint to retrieve Dojos"
@@ -57,6 +60,10 @@ class PruneAwards(Resource):
                 num_pruned += 1
                 award.name = "STALE"
         db.session.commit()
+
+        publish_dojo_stats_event(dojo.dojo_id)
+        publish_scoreboard_event("dojo", dojo.dojo_id)
+
         return {"success": True, "pruned_awards": num_pruned}
 
 @dojos_namespace.route("/<dojo>/promote")
@@ -110,6 +117,27 @@ class CreateDojo(Resource):
 
         cache.set(key, 1, timeout=timeout)
         return {"success": True, "dojo": dojo.reference_id}
+
+
+@dojos_namespace.route("/<dojo>/update")
+class UpdateDojo(Resource):
+    @dojo_route
+    @dojo_admins_only
+    def post(self, dojo):
+        data = request.get_json()
+        if not data:
+            return {"success": False, "error": "Missing dojo spec."}, 400
+
+        try:
+            dojo_from_spec(data, dojo=dojo)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print(f"ERROR: Dojo update failed for {dojo}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+            return {"success": False, "error": str(e)}, 400
+
+        return {"success": True}
 
 
 @dojos_namespace.route("/<dojo>/modules")
@@ -210,7 +238,7 @@ class DojoCourseStudentList(Resource):
     @dojo_route
     @dojo_admins_only
     def get(self, dojo):
-        dojo_students = {student.token: student.user_id for student in DojoStudents.query.filter_by(dojo=dojo)}
+        dojo_students = {student.token: student.user_id for student in DojoStudents.query.filter_by(dojo=dojo).order_by(DojoStudents.user_id)}
         course_students = dojo.course.get("students", {})
         students = {
             token: course_data | dict(token=(token if token in dojo_students else None), user_id=dojo_students.get(token))

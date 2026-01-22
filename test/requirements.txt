@@ -4,5 +4,8 @@ pytest-dependency
 pytest-order
 pytest-timeout
 pytest-github-actions-annotate-failures
+pyyaml
 requests
+redis
+flask
 selenium
