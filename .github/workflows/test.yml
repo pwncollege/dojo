@@ -24,6 +24,7 @@ jobs:
           sudo mkdir -p /mnt/docker
           sudo ln -s /mnt/docker /var/lib/docker
           sudo systemctl start docker
+
       - name: Build images
         run: |
           IMAGE=$(docker build -q .)
@@ -31,73 +32,40 @@ jobs:
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           echo "TEST_IMAGE=$TEST_IMAGE" >> "$GITHUB_ENV"
 
-      - name: Start container
+      - name: Start dojo
         run: |
-          WORKDIR=$(mktemp -d /tmp/data-dojo-XXXXXX)
-          CONTAINER=$(docker run --privileged --rm -d -v "$PWD:/opt/pwn.college" -v "$WORKDIR:/data:shared" "$IMAGE")
-          CONTAINER_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$CONTAINER")
-          echo "CONTAINER=$CONTAINER" >> "$GITHUB_ENV"
-          echo "CONTAINER_IP=$CONTAINER_IP" >> "$GITHUB_ENV"
-          echo "WORKDIR=$WORKDIR" >> "$GITHUB_ENV"
-
-      - name: Wait for web readiness
-        run: |
-          echo "Waiting for container ($CONTAINER) to be ready at $CONTAINER_IP..."
-          for i in {1..60}; do
-            curl -fsI "http://$CONTAINER_IP:80/" >/dev/null && { echo "Container is ready."; break; }
-            sleep 10
-          done
-          curl -fsI "http://$CONTAINER_IP:80/" >/dev/null || { echo "Timed out waiting for container"; exit 1; }
-
-      - name: Wait for workspace profile
-        run: |
-          echo "Waiting for workspace profile to be ready..."
-          for i in {1..60}; do
-            docker exec "$CONTAINER" test -L /data/workspace/nix/var/nix/profiles/dojo-workspace && { echo "Workspace profile is ready."; break; }
-            sleep 10
-          done
-          docker exec "$CONTAINER" test -L /data/workspace/nix/var/nix/profiles/dojo-workspace || { echo "Timed out waiting for workspace profile"; exit 1; }
-
-      - name: Finalize dojo setup
-        run: |
-          docker exec "$CONTAINER" dojo wait
-          docker exec "$CONTAINER" docker wait workspace-builder
-          if ! docker exec "$CONTAINER" docker ps -a | grep workspace-builder | grep "Exited (0)"
-          then
-            docker exec "$CONTAINER" docker logs workspace-builder | tail -n100
-            echo "WORKSPACE BUILDER FAILED"
-            exit 1
-          fi
-          docker exec "$CONTAINER" docker pull pwncollege/challenge-simple
-          docker exec "$CONTAINER" docker pull pwncollege/challenge-lecture
-          docker exec "$CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
+          DOJO_CONTAINER=$(docker run --privileged --rm -d "$IMAGE")
+          docker exec "$DOJO_CONTAINER" dojo wait
+          docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
+          docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-lecture
+          docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
+          echo "DOJO_CONTAINER=$DOJO_CONTAINER" >> "$GITHUB_ENV"
 
       - name: Run tests
         run: |
+          DOJO_CONTAINER_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER")
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$PWD:/opt/pwn.college:ro" \
-            -e "DOJO_CONTAINER=$CONTAINER" \
-            --add-host localhost.pwn.college:$CONTAINER_IP \
-            --add-host workspace.localhost.pwn.college:$CONTAINER_IP \
+            -e "DOJO_CONTAINER=$DOJO_CONTAINER" \
+            --add-host localhost.pwn.college:$DOJO_CONTAINER_IP \
+            --add-host workspace.localhost.pwn.college:$DOJO_CONTAINER_IP \
             $TEST_IMAGE
 
-      - name: Dojo logs
+      - name: Output logs
         if: always()
         run: |
-          if [ -z "${CONTAINER:-}" ]; then
-            echo "CONTAINER not set; skipping log collection"
-            exit 0
-          fi
-          echo "::group::Dojo logs"
-          docker exec "$CONTAINER" dojo logs || true
+          echo "::group::dojo logs"
+          docker exec "$DOJO_CONTAINER" dojo logs || true
           echo "::endgroup::"
           echo "::group::ctfd logs"
-          docker exec "$CONTAINER" docker logs ctfd || true
+          docker exec "$DOJO_CONTAINER" docker logs ctfd || true
           echo "::endgroup::"
           echo "::group::nginx logs"
-          docker exec "$CONTAINER" docker logs nginx || true
+          docker exec "$DOJO_CONTAINER" docker logs nginx || true
           echo "::endgroup::"
           echo "::group::workspace-builder logs"
-          docker exec "$CONTAINER" docker logs workspace-builder || true
+          docker exec "$DOJO_CONTAINER" docker logs workspace-builder || true
+          echo "::endgroup::"
+          echo "::group::Filesystem"
+          df -h
           echo "::endgroup::"
