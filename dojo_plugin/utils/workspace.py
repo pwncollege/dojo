@@ -1,15 +1,16 @@
-import requests
-import logging
-import docker
 import time
-from .request_logging import log_generator_output
+import logging
+
+import docker
+import requests
 from CTFd.models import Users
 
 from . import user_docker_client
+from .request_logging import log_generator_output
 
 logger = logging.getLogger(__name__)
 
-on_demand_services = { "terminal", "code", "desktop"}
+on_demand_services = {"terminal", "code", "desktop"}
 
 def start_on_demand_service(user, service_name):
     if service_name not in on_demand_services:

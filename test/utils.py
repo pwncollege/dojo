@@ -182,3 +182,16 @@ def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):
     )
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], "Expected to successfully submit flag"
+
+
+def wait_for_background_worker(timeout=5):
+    """Wait for the background stats worker to finish processing all pending events.
+
+    Polls Redis stream length until it's 0 or timeout is reached.
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        result = dojo_run("docker", "exec", "cache", "redis-cli", "XLEN", "stat:events", check=False)
+        if result.returncode == 0 and int(result.stdout.strip()) == 0:
+            return
+        time.sleep(0.1)

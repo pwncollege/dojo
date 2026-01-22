@@ -61,6 +61,9 @@ This will switch from the default development settings to production settings, w
 In order to change where the host is serving from, you can modify `DOJO_HOST`; for example: `-e DOJO_HOST=example.com`.
 In order for this to work correctly, you must correctly point the domain at the server's IP via DNS.
 
+By default, the `WORKSPACE_HOST` where all workspace content is served from is set to `workspace.$DOJO_HOST`.
+If you would like to change where workspaces are served from you can modify `WORKSPACE_HOST`; for example: `-e WORSKPACE_HOST=helloworskpace.example.com`.
+
 More of these configuration options (and defaults) can be found in [./dojo/dojo-init](./dojo/dojo-init).
 
 ## Updating
@@ -130,24 +133,29 @@ Retrieve configuration data from the main node:
 ```sh
 docker exec -it dojo-main bash
 dojo node show | grep -oP 'WORKSPACE_KEY: \K[A-Za-z0-9+/]+={0,2}'  # This is the WORKSPACE_KEY
+dojo node show | grep -oP 'WORKSPACE_SECRET:\s*\K[0-9a-fA-F]+'     # This is the WORKSPACE_SECRET
 ip -4 addr show eth0 | grep -oP 'inet \K[0-9\.]+'                  # This may be the DOJO_HOST
 ```
 
 The `WORKSPACE_KEY` will be necessary to authenticate workspace nodes with the main node.
-If you already have a `DOJO_HOST` (for example, a publicly accessible IP address), you can use that; otherwise, if you're running multiple nodes on the same host, this IP address (assigned by Docker) will be the `DOJO_HOST`.
+The `WORKSPACE_SECRET` will be used to sign workspace urls for accessing a container.
+If you already have a `DOJO_HOST` (for example, a publicly accessible IP address), you can use that; otherwise, if you're running multiple nodes on the same host, this IP address (assigned by Docker) will be the `DOJO_HOST`. However, in all cases the `WORKSPACE_HOST` **must be on a separate IP or domain/subdomain** due to NGINX routing.
 The important detail is that the `DOJO_HOST` must be reachable by the workspace node.
 
 ### Set Up a Workspace Node
 
-You may run a workspace node on the same host as the main node, or on a different host; all that matters is that the workspace node can reach the main node.
+You may run a workspace node on the same host as the main node, or on a different host.
+If you choose to run multiple nodes on the same host you will need a reverse proxy to route the domains (ex `example.com` `1.workspace.example.com`) to the correct containers.
 If you do decide to run the workspace node on a different host, make sure to refer to the standard deployment instructions above for how to build the dojo image and configure the host environment.
 
-In order to run a workspace node container, use the `WORKSPACE_KEY` and `DOJO_HOST` obtained from the main node (and `WORKSPACE_NODE` id if you have multiple workspace nodes):
+In order to run a workspace node container, use the `WORKSPACE_KEY`, `WORKSPACE_SECRET`, and `DOJO_HOST` obtained from the main node; set a new unique `WORKSPACE_HOST`; and `WORKSPACE_NODE` id if you have multiple workspace nodes:
 
 ```sh
-WORKSPACE_NODE=1    # The node id for this workspace node
-WORKSPACE_KEY=...   # Replace with the WORKSPACE_KEY
-DOJO_HOST=...       # Replace with the DOJO_HOST
+WORKSPACE_NODE=1     # The node id for this workspace node
+WORKSPACE_KEY=...    # Replace with the WORKSPACE_KEY
+WORKSPACE_SECRET=... # Replace with the WORKSPACE_SECRET
+DOJO_HOST=...        # Replace with the DOJO_HOST
+WORKSPACE_HOST=...   # Replace with a unique WORKSPACE_HOST
 
 DOJO_PATH="./dojo"
 DATA_PATH="/tmp/dojo-data-workspace"
@@ -156,7 +164,9 @@ docker run \
     --name dojo-workspace \
     --privileged \
     -e DOJO_HOST=$DOJO_HOST \
+    -e WORKSPACE_HOST=$WORKSPACE_HOST \
     -e WORKSPACE_KEY=$WORKSPACE_KEY \
+    -e WORKSPACE_SECRET=$WORKSPACE_SECRET \
     -e WORKSPACE_NODE=$WORKSPACE_NODE \
     -v "${DOJO_PATH}:/opt/pwn.college" \
     -v "${DATA_PATH}:/data" \

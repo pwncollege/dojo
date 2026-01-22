@@ -3,8 +3,9 @@ import requests
 import pytest
 import random
 import string
+import yaml
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id, wait_for_background_worker
 
 
 def get_dojo_modules(dojo):
@@ -37,6 +38,33 @@ def test_delete_dojo(admin_session):
     assert admin_session.get(f"{DOJO_URL}/{reference_id}/").status_code == 404
 
 
+def test_update_dojo(admin_session):
+    random_id = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"update-dojo-{random_id}"
+    original_name = "Update Test"
+    updated_name = "Update Test Updated"
+    spec = yaml.safe_load(open(TEST_DOJOS_LOCATION / "simple_award_dojo.yml").read())
+    spec["id"] = dojo_id
+    spec["name"] = original_name
+    dojo_reference_id = create_dojo_yml(
+        yaml.safe_dump(spec, sort_keys=False),
+        session=admin_session,
+    )
+
+    spec["name"] = updated_name
+    response = admin_session.post(
+        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo_reference_id}/update",
+        json=spec,
+    )
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
+    assert response.json()["success"]
+
+    list_response = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos")
+    assert list_response.status_code == 200, f"Expected status code 200, but got {list_response.status_code}"
+    updated = next(dojo for dojo in list_response.json()["dojos"] if dojo["id"] == dojo_reference_id)
+    assert updated["name"] == updated_name
+
+
 def test_import(import_dojo, admin_session):
     assert admin_session.get(f"{DOJO_URL}/{import_dojo}/hello").status_code == 200
 
@@ -63,13 +91,20 @@ def test_promote_dojo_member(admin_session, guest_dojo_admin, example_dojo):
     assert random_user_name in response.text and response.text.index("Members") > response.text.index(random_user_name)
 
 
-def test_dojo_completion_emoji(simple_award_dojo, completionist_user):
+def test_dojo_completion_emoji(simple_award_dojo, codepoints_award_dojo, completionist_user):
     user_name, session = completionist_user
+
+    wait_for_background_worker(timeout=1)
+
+    scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{codepoints_award_dojo}/_/0/1").json()
+    us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
+    assert us["solves"] == 2
+    assert len(us["badges"]) == 2
 
     scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 2
-    assert len(us["badges"]) == 1
+    assert len(us["badges"]) == 2
 
 
 def test_no_practice(no_practice_challenge_dojo, no_practice_dojo, random_user_session):
@@ -100,15 +135,17 @@ def test_no_import(no_import_challenge_dojo, admin_session):
 
 def test_prune_dojo_emoji(simple_award_dojo, admin_session, completionist_user):
     user_name, _ = completionist_user
-    db_sql(f"DELETE FROM submissions WHERE id IN (SELECT id FROM submissions WHERE user_id={get_user_id(user_name)} ORDER BY id DESC LIMIT 1)")
+    db_sql(f"DELETE FROM submissions WHERE id IN (SELECT id FROM submissions WHERE user_id={get_user_id(user_name)} ORDER BY id LIMIT 1)")
 
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{simple_award_dojo}/awards/prune", json={})
     assert response.status_code == 200
 
+    wait_for_background_worker(timeout=2)
+
     scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 1
-    assert len(us["badges"]) == 1
+    assert len(us["badges"]) == 2
     assert us["badges"][0]["stale"] == True
 
 
@@ -118,7 +155,7 @@ def test_dojo_removes_emoji(simple_award_dojo, admin_session, completionist_user
     scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 2
-    assert len(us["badges"]) == 1
+    assert len(us["badges"]) == 2
     assert us["badges"][0]["stale"] == False
 
     dojo_id = simple_award_dojo.split("~")[1]
@@ -127,7 +164,7 @@ def test_dojo_removes_emoji(simple_award_dojo, admin_session, completionist_user
     scoreboard = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{simple_award_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == user_name)
     assert us["solves"] == 2
-    assert len(us["badges"]) == 0
+    assert len(us["badges"]) == 1
 
 
 def test_lfs(lfs_dojo, random_user_name, random_user_session):

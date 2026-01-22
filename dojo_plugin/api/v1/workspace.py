@@ -68,6 +68,7 @@ class view_desktop(Resource):
 
         signature = base64.urlsafe_b64encode(digest).decode()
 
+        iframe_src = None
         if not service == "desktop":
             if user_id and not is_admin():
                 abort(403)

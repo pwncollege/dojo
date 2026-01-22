@@ -2,6 +2,7 @@
 docker==6.1.2
 pyyaml==6.0.2
 schema==0.7.5
+emoji==2.15.0
 bleach==6.1.0
 bleach[css]==6.1.0
 ipython==8.16.1
@@ -27,7 +28,7 @@ PyMySQL[rsa]==1.0.2
 gunicorn==22.0.0
 dataset==1.5.2
 cmarkgfm==2022.10.27
-redis==7.0.0
+redis==7.1.0
 gevent==25.5.1
 python-dotenv==0.13.0
 flask-restx==1.1.0

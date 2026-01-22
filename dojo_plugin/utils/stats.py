@@ -1,19 +1,25 @@
-from CTFd.cache import cache
 from CTFd.models import Solves
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 
-from . import force_cache_updates, get_all_containers, DojoChallenges
+from . import get_all_containers, DojoChallenges
+from .background_stats import get_cached_stat
 
-@cache.memoize(timeout=1200, forced_update=force_cache_updates)
-def get_container_stats():
+CACHE_KEY_CONTAINERS = "stats:containers"
+
+def calculate_container_stats():
     containers = get_all_containers()
-    return [{attr: container.labels[f"dojo.{attr}_id"]
+    return [{attr: container.labels.get(f"dojo.{attr}_id")
             for attr in ["dojo", "module", "challenge"]}
             for container in containers]
 
-@cache.memoize(timeout=1200, forced_update=force_cache_updates)
-def get_dojo_stats(dojo):
+def get_container_stats():
+    cached = get_cached_stat(CACHE_KEY_CONTAINERS)
+    if cached:
+        return cached
+    return []
+
+def calculate_dojo_stats(dojo):
     now = datetime.now()
     solves_query = dojo.solves()
 
@@ -28,38 +34,16 @@ def get_dojo_stats(dojo):
     total_solves = total_stats.total_solves or 0
     total_users = total_stats.total_users or 0
 
-    # chart data
     snapshot_days = [1, 7, 30, 60]
     chart_labels = ['Today', '1w ago', '1mo ago', '2mo ago']
     chart_solves = []
     chart_users = []
 
-    return {
-        'users': total_users,
-        'challenges': total_challenges,
-        'visible_challenges': visible_challenges,
-        'solves': total_solves,
-        'recent_solves': [],
-        'trends': {
-            'solves': 0,
-            'users': 0,
-            'active': 0,
-            'challenges': 0,
-        },
-        'chart_data': {
-            'labels': chart_labels,
-            'solves': chart_solves,
-            'users': chart_users
-        }
-    }
-
     for days_ago in snapshot_days:
-        # get day given how many days ago
         snapshot_date = now - timedelta(days=days_ago)
         day_start = snapshot_date.replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = day_start + timedelta(days=1)
 
-        # get day info
         day_stats = solves_query.filter(
             Solves.date >= day_start,
             Solves.date < day_end
@@ -71,7 +55,6 @@ def get_dojo_stats(dojo):
         chart_solves.append(day_stats.day_solves or 0)
         chart_users.append(day_stats.day_users or 0)
 
-    # recent solves data
     basic_query = (
         solves_query
         .with_entities(
@@ -118,4 +101,23 @@ def get_dojo_stats(dojo):
             'solves': chart_solves,
             'users': chart_users
         }
+    }
+
+def get_dojo_stats(dojo):
+    cache_key = f"stats:dojo:{dojo.reference_id}"
+    cached = get_cached_stat(cache_key)
+    if cached:
+        for solve in cached.get('recent_solves', []):
+            if solve.get('date') and isinstance(solve['date'], str):
+                solve['date'] = datetime.fromisoformat(solve['date'])
+        return cached
+
+    return {
+        'users': 0,
+        'challenges': 0,
+        'visible_challenges': 0,
+        'solves': 0,
+        'recent_solves': [],
+        'trends': {'solves': 0, 'users': 0, 'active': 0, 'challenges': 0},
+        'chart_data': {'labels': [], 'solves': [], 'users': []}
     }

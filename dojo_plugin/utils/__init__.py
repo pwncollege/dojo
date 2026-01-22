@@ -34,10 +34,6 @@ def id_regex(s):
     return re.match(ID_REGEX, s) and ".." not in s
 
 
-def force_cache_updates():
-    return bool(os.environ.get("CACHE_WARMER"))
-
-
 def container_name(user):
     return f"user_{user.id}"
 
@@ -158,6 +154,7 @@ def render_markdown(s):
         "img",
         "a",
         "sub", "sup",
+        "details", "summary",
     ]
     markdown_attrs = {
         "*": ["id"],
