@@ -2,7 +2,6 @@ import logging
 import os
 import signal
 import time
-import threading
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -71,23 +70,8 @@ else:
 
 logger.info("Starting event consumption loop...")
 
-from ..utils.image_pulls import consume_image_pull_events
-from ..worker.handlers.image_pulls import handle_image_pull_event
 from ..utils.background_stats import consume_stat_events, DailyRestartException
 from ..worker.handlers import handle_stat_event
-
-def image_pull_worker():
-    try:
-        consume_image_pull_events(
-            handler=handle_image_pull_event,
-            batch_size=5,
-            block_ms=5000
-        )
-    except Exception as e:
-        logger.error(f"Image pull worker crashed: {e}", exc_info=True)
-
-image_pull_thread = threading.Thread(target=image_pull_worker, name="image-pull-worker", daemon=True)
-image_pull_thread.start()
 
 try:
     consume_stat_events(

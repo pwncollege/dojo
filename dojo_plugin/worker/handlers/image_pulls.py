@@ -13,17 +13,25 @@ def handle_image_pull_event(event):
     dojo_reference_id = event.get("dojo_reference_id")
 
     if not image:
-        return
+        return True, False
     if image.startswith("mac:") or image.startswith("pwncollege-"):
-        return
+        return True, False
 
     for client in all_docker_clients():
         if DOCKER_USERNAME and DOCKER_TOKEN:
-            client.login(DOCKER_USERNAME, DOCKER_TOKEN)
+            try:
+                client.login(DOCKER_USERNAME, DOCKER_TOKEN)
+            except Exception as e:
+                logger.error(f"Login failed for {client.api.base_url}: {e}", exc_info=e)
+                return False, True
         logger.info(f"Pulling image {image} for {dojo_reference_id or 'unknown dojo'} on {client.api.base_url}...")
         try:
             client.images.pull(image)
         except docker.errors.ImageNotFound:
             logger.error(f"... image not found: {image} on {client.api.base_url}...")
+            return False, False
         except Exception as e:
             logger.error(f"... error: {image} on {client.api.base_url}...", exc_info=e)
+            return False, True
+
+    return True, False
