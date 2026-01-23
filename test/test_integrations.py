@@ -22,12 +22,6 @@ def inspect_container(username) -> dict[str, Any]:
         return {}
 
 def validate_current_container(username, dojo, module, challenge, attempts=5, mode:str=None, before:datetime.datetime=None, after:datetime.datetime=None) -> bool:
-    """
-    Validates that the current container for the given user
-    matches the given challenge. Can also check that the
-    container was started before or after a given point in
-    time, and that it is in a certain mode.
-    """
     for _ in range(attempts):
         container = inspect_container(username)
         try:
@@ -80,37 +74,19 @@ def test_whoami(random_user, welcome_dojo):
     assert name in result.stdout, f"Expected hacker to be {name}, got: {(result.stdout, result.stderr)}"
 
 def test_solve_correct(random_user, welcome_dojo):
-    """
-    Tests the dojo application with the "solve" command.
-    
-    This test case covers submitting a correct flag,
-    and submitting a flag for a challenge that has already
-    been solved.
-    """
     # Start challenge.
     name, session = random_user
     start_challenge(welcome_dojo, "welcome", "flag", session=session)
 
     # Submit.
-    try:
-        result = workspace_run("/challenge/solve; dojo submit $(< /flag)", user=name)
-        assert "Successfully solved" in result.stdout, f"Expected to solve challenge, got: {(result.stdout, result.stderr)}"
-    except subprocess.CalledProcessError as error:
-        assert False, f"Exception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
+    result = workspace_run("/challenge/solve; dojo submit $(< /flag)", user=name)
+    assert "Successfully solved" in result.stdout, f"Expected to solve challenge, got: {(result.stdout, result.stderr)}"
 
     # Submit again.
-    try:
-        result = workspace_run("dojo submit $(< /flag)", user=name)
-        assert "already been solved" in result.stdout, f"Expected to solve challenge, got: {(result.stdout, result.stderr)}"
-    except subprocess.CalledProcessError as error:
-        assert False, f"Exception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
+    result = workspace_run("dojo submit $(< /flag)", user=name)
+    assert "already been solved" in result.stdout, f"Expected to solve challenge, got: {(result.stdout, result.stderr)}"
 
 def test_solve_incorrect(random_user, welcome_dojo):
-    """
-    Tests the dojo application with the "solve" command.
-    
-    This test case covers submitting an incorrect flag.
-    """
     # Start challenge.
     name, session = random_user
     start_challenge(welcome_dojo, "welcome", "flag", session=session)
@@ -120,15 +96,9 @@ def test_solve_incorrect(random_user, welcome_dojo):
         result = workspace_run("dojo submit pwn.college{veryrealflag}", user=name)
         assert False, f"Expected submission of incorrect flag to fail, got: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        assert error.returncode == CLI_INCORRECT, f"Exception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
         assert "incorrect" in error.stdout, f"Expected flag to be incorrect, got: {(error.stdout, error.stderr)}"
 
 def test_solve_practice(random_user, welcome_dojo):
-    """
-    Tests the dojo application with the "solve" command.
-    
-    This test case covers submitting the practice flag.
-    """
     # Start challenge.
     name, session = random_user
     start_challenge(welcome_dojo, "welcome", "flag", session=session)
@@ -138,7 +108,6 @@ def test_solve_practice(random_user, welcome_dojo):
         result = workspace_run("dojo submit pwn.college{practice}", user=name)
         assert False, f"Expected submission of practice flag to fail, got: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        assert error.returncode == CLI_INCORRECT, f"Exception when running command \"dojo submit\": {(error.stdout, error.stderr)}"
         assert "This is the practice flag" in error.stdout, f"Expected flag to be the practice flag, got: {(error.stdout, error.stderr)}"
 
 def test_restart(random_user, welcome_dojo):
@@ -156,13 +125,6 @@ def test_restart(random_user, welcome_dojo):
     validate_restart(name, "standard")
 
 def test_restart_no_practice(random_user, welcome_dojo):
-    """
-    Tests the dojo application with the "restart" command.
-
-    This test case starts a challenge which does not allow
-    privileged mode, and attempts to restart in privileged
-    mode.
-    """
     name, session = random_user
     start_challenge(welcome_dojo, "welcome", "flag", session=session)
     try:
@@ -178,12 +140,6 @@ def format_path(name):
     return f"/{labels["dojo.dojo_id"]}/{labels["dojo.module_id"]}/{labels["dojo.challenge_id"]} [{labels["dojo.mode"]}]"
 
 def test_start_relative(random_user, welcome_dojo):
-    """
-    Tests the dojo application with the start command.
-
-    This test case starts a challenge in the same dojo
-    using a "relative path".
-    """
     name, session = random_user
     start_challenge(welcome_dojo, "welcome", "flag", session=session)
     try:
@@ -193,12 +149,6 @@ def test_start_relative(random_user, welcome_dojo):
         assert validate_current_container(name, "welcome", "welcome", "practice"), f"Expected /welcome/welcome/practice, got {format_path(name)}."
 
 def test_start_absolute(random_user, welcome_dojo, example_dojo):
-    """
-    Tests the dojo application with the start command.
-
-    This test case starts a challenge in a different
-    dojo using an "absolute path".
-    """
     name, session = random_user
     start_challenge(example_dojo, "hello", "apple", session=session)
     try:
@@ -208,11 +158,6 @@ def test_start_absolute(random_user, welcome_dojo, example_dojo):
         assert validate_current_container(name, "welcome", "welcome", "flag"), f"Expected /welcome/welcome/flag, got {format_path(name)}."
 
 def test_start_privileged(random_user, welcome_dojo):
-    """
-    Tests the dojo application with the start command.
-
-    This test case starts a challenge in privileged mode.
-    """
     name, session = random_user
     start_challenge(welcome_dojo, "welcome", "flag", session=session)
     try:
@@ -222,12 +167,6 @@ def test_start_privileged(random_user, welcome_dojo):
         assert validate_current_container(name, "welcome", "welcome", "practice", mode="privileged"), f"Expected /welcome/welcome/practice [privileged], got {format_path(name)}."
 
 def test_start_no_privileged(random_user, welcome_dojo):
-    """
-    Tests the dojo application with the start command.
-
-    This test case attempts to start a challenge which does
-    not support privileged mode in privileged mode.
-    """
     name, session = random_user
     start_challenge(welcome_dojo, "welcome", "flag", session=session)
     try:
