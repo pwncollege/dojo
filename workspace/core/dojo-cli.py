@@ -37,7 +37,7 @@ def solve(args : argparse.Namespace):
     print(f"Submitting the flag: {args.flag}")
     challenge = get_current_challenge()
     response = requests.get(
-        f"{DOJO_API}/{challenge["dojo"]}/{challenge["module"]}/{challenge["challenge"]}/solve",
+        f"{DOJO_API}/dojos/{challenge["dojo"]}/{challenge["module"]}/{challenge["challenge"]}/solve",
         headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
         json={
             "submission": args.flag
