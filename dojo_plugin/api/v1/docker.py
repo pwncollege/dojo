@@ -419,6 +419,7 @@ class NextChallenge(Resource):
 
 @docker_namespace.route("")
 class RunDocker(Resource):
+    @authed_only_cli
     @authed_only
     @docker_locked
     def post(self):

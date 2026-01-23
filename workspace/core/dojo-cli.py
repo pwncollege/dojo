@@ -17,76 +17,76 @@ def whoami():
         sys.exit(data.get("error", "Unknown error"))
     print(f"You are the epic hacker {data['name']} ({data['id']}).")
 
-def solve(args : argparse.Namespace) -> int:
-    # Check for practice flag.
-    if args.flag in ["pwn.college{practice}", "practice"]:
-        sys.exit("This is the practice flag!\n\nStart the challenge again in normal mode to get the real flag.\n(You can do this here with \"dojo restart -N\")")
-
-    # Get current challenge.
-    print(f"Submitting the flag: {args.flag}")
-    challenge_response = requests.get(
+def get_current_challenge() -> dict[str, str]:
+    response = requests.get(
         f"{DOJO_API}/docker",
         headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
         timeout = 5.0
     )
-    if not challenge_response.ok:
+    if not response.ok:
         sys.exit("Failed to get the current challenge.")
-    challenge_json = challenge_response.json()
-    submission_response = requests.get(
-        f"{DOJO_API}/{challenge_json["dojo"]}/{challenge_json["module"]}/{challenge_json["challenge"]}/solve",
+    return response.json()
+
+def solve(args : argparse.Namespace):
+    # Check for practice flag.
+    if args.flag in ["pwn.college{practice}", "practice"]:
+        sys.exit("This is the practice flag!\n\nStart the challenge again in normal mode to get the real flag.\n(You can do this here with \"dojo restart -N\")")
+
+    # Submit the flag to the current challenge.
+    print(f"Submitting the flag: {args.flag}")
+    challenge = get_current_challenge()
+    response = requests.get(
+        f"{DOJO_API}/{challenge["dojo"]}/{challenge["module"]}/{challenge["challenge"]}/solve",
         headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
         json={
             "submission": args.flag
         },
         timeout = 5.0
     )
-    submission_json = submission_response.json()
+    result = response.json()
 
     # Print if the flag was correct.
-    if submission_json["success"]:
+    if result["success"]:
         print("Successfully solved the challenge!"
-              if submission_json["status"] == "solved" else
+              if result["status"] == "solved" else
               "Challenge has already been solved!")
         sys.exit(0)
     else:
         sys.exit("Incorrect flag.")
 
-def restart(args : argparse.Namespace) -> int:
+def start_challenge(dojo:str, module:str, challenge:str, privileged:bool):
+    response = requests.post(
+        f"{DOJO_API}/docker",
+        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        json={
+            "dojo": dojo,
+            "module": module,
+            "challenge": challenge,
+            "practice": privileged
+        },
+        timeout=5.0
+    )
+
+    # How did we get here?
+    result = response.json()
+    if not (result["success"]):
+        sys.exit(result["error"])
+    print("Started challenge.")
+    sys.exit(0)
+
+def restart(args : argparse.Namespace):
     """
     Calls the START integration api configured to
     use the current challenge.
     """
-
-    # Check what mode to restart in.
+    challenge = get_current_challenge()
     if args.privileged:
-        mode = "privileged"
+        privileged = True
     elif args.normal:
-        mode = "normal"
+        privileged = False
     else:
-        mode = "current"
-
-    # Make request.
-    print(f"Restarting current challenge in {mode} mode.")
-    status, error, jsonData = apiRequest(
-        "/integration/start",
-        method="POST",
-        args={
-            "use_current_challenge": True,
-            "mode": mode
-        }
-    )
-    if error is not None:
-        print(f"START request failed ({status}): {error}")
-        return API_ERROR
-    
-    # Check for success.
-    if not jsonData.get("success", False):
-        print(f"Failed to restart challenge:\n{jsonData.get("error", "Unspecified error.")}")
-        return START_FAILED
-
-    # The impossible restart message.
-    print("Restarted? (not sure how you're seeing this)")
-    return 0
+        privileged = bool(challenge["practice"])
+    start_challenge(challenge["dojo"], challenge["module"], challenge["challenge"], privileged)
 
 def start(args : argparse.Namespace) -> int:
     """
