@@ -26,7 +26,6 @@ from ...utils import (
     container_name,
     lookup_workspace_token,
     resolved_tar,
-    serialize_user_container,
     serialize_user_flag,
     user_docker_client,
     user_node,
