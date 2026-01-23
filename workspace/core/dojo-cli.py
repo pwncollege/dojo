@@ -6,7 +6,6 @@ import requests
 DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
 DOJO_AUTH_TOKEN = os.environ.get("DOJO_AUTH_TOKEN")
 
-
 def whoami():
     response = requests.get(
         f"{DOJO_API}/users/me",
@@ -19,42 +18,38 @@ def whoami():
     print(f"You are the epic hacker {data['name']} ({data['id']}).")
 
 def solve(args : argparse.Namespace) -> int:
-    """
-    Calls the SOLVE integration api, printing information
-    about the submission attempt.
-    """
-
     # Check for practice flag.
     if args.flag in ["pwn.college{practice}", "practice"]:
-        print("This is the practice flag!\n\nStart the challenge again in normal mode to get the real flag.\n(You can do this here with \"dojo restart -N\")")
-        return INCORRECT
+        sys.exit("This is the practice flag!\n\nStart the challenge again in normal mode to get the real flag.\n(You can do this here with \"dojo restart -N\")")
 
-    # Make request.
+    # Get current challenge.
     print(f"Submitting the flag: {args.flag}")
-    status, error, jsonData = apiRequest(
-        "/integration/solve",
-        method="POST",
-        args={
-            "submission" : args.flag
-        }
+    challenge_response = requests.get(
+        f"{DOJO_API}/docker",
+        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        timeout = 5.0
     )
-    if error is not None:
-        print(f"SOLVE request failed ({status}): {error}")
-        return API_ERROR
+    if not challenge_response.ok:
+        sys.exit("Failed to get the current challenge.")
+    challenge_json = challenge_response.json()
+    submission_response = requests.get(
+        f"{DOJO_API}/{challenge_json["dojo"]}/{challenge_json["module"]}/{challenge_json["challenge"]}/solve",
+        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        json={
+            "submission": args.flag
+        },
+        timeout = 5.0
+    )
+    submission_json = submission_response.json()
 
     # Print if the flag was correct.
-    if jsonData["success"]:
+    if submission_json["success"]:
         print("Successfully solved the challenge!"
-              if jsonData["status"] == "solved" else
+              if submission_json["status"] == "solved" else
               "Challenge has already been solved!")
+        sys.exit(0)
     else:
-        error = jsonData.get("status", None) # flag is incorrect
-        if error is None:
-            error = jsonData.get("error")    # challenge does not exist (rare)
-        print(f"Flag submission failed: {error}")
-        return INCORRECT
-
-    return 0
+        sys.exit("Incorrect flag.")
 
 def restart(args : argparse.Namespace) -> int:
     """
