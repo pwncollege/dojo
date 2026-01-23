@@ -19,7 +19,6 @@ from .v1.workspace import workspace_namespace
 from .v1.search import search_namespace
 from .v1.test_error import test_error_namespace
 from .v1.user import user_namespace
-from .v1.integration import integration_namespace
 
 api = Blueprint("pwncollege_api", __name__)
 

@@ -13,7 +13,7 @@ import bleach
 import docker
 import docker.errors
 from flask import current_app, Response, Markup, abort, g
-from itsdangerous.url_safe import URLSafeSerializer, URLSafeTimedSerializer
+from itsdangerous.url_safe import URLSafeSerializer
 from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
 from CTFd.models import db, Solves, Challenges, Users
 from CTFd.utils.encoding import hexencode
@@ -67,30 +67,6 @@ def get_all_containers(dojo=None):
         for docker_client in all_docker_clients()
         for container in docker_client.containers.list(filters=filters, ignore_removed=True)
     ]
-
-
-def validate_user_container(token: str, secret=None) -> tuple[int, str]:
-    """
-    Returns the userID and challenge id of the signed container token.
-    Raises an exception if validation of signature fails.
-    """
-    if secret is None:
-        secret = current_app.config["SECRET_KEY"]
-    serializer = URLSafeTimedSerializer(secret)
-    data = serializer.loads(token, max_age=(21600))
-    return (data[0], data[1])
-
-
-def serialize_user_container(account_id: int, challenge_id: str, secret=None) -> str:
-    """
-    Gives a unique token for a container based on the user and current challenge.
-    """
-    if secret is None:
-        secret = current_app.config["SECRET_KEY"]
-    serializer = URLSafeTimedSerializer(secret)
-    data = [account_id, challenge_id, "cli-container-token"]
-    token = serializer.dumps(data)
-    return token
 
 
 def serialize_user_flag(account_id, challenge_id, *, secret=None):

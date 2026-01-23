@@ -30,10 +30,6 @@ let
       mkdir -p /bin && ln -sfT /run/dojo/bin/sh /bin/sh
     fi
 
-    if [ -x /nix/store/*/bin/dojo ]; then
-      mkdir -p /run/dojo/bin && ln -sf /nix/store/*/bin/dojo /run/dojo/bin/dojo
-    fi
-
     home_directory="/home/hacker"
     home_mount_options="$(findmnt -nro OPTIONS -- "$home_directory")"
     if [ -n "$home_mount_options" ] && ! printf '%s' "$home_mount_options" | grep -Fqw 'nosuid'; then
