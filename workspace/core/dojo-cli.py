@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import requests
+from typing import Any
 
 DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
 DOJO_AUTH_TOKEN = os.environ.get("DOJO_AUTH_TOKEN")
@@ -88,55 +89,54 @@ def restart(args : argparse.Namespace):
         privileged = bool(challenge["practice"])
     start_challenge(challenge["dojo"], challenge["module"], challenge["challenge"], privileged)
 
-def start(args : argparse.Namespace) -> int:
+def parse_dojo_path(path:str) -> dict[Any, Any]:
+    """
+    Parses a dojo path.
+    """
+    if len(path) == 0:
+        raise Exception("Dojo path cannot be empty.")
+
+    # Parse as an absolute path.
+    if path[0] == "/":
+        path = path.removesuffix("/")
+        components = path.split("/")
+        match len(components):
+            case 2:
+                return {"dojo": components[1], "module": None, "challenge": None}
+            case 3:
+                return {"dojo": components[1], "module": components[2], "challenge": None}
+            case 4:
+                return {"dojo": components[1], "module": components[2], "challenge": components[3]}
+            case _:
+                raise Exception("An absolute dojo path can have between one and three levels.")
+    # Parse as relative path (to current challenge).
+    else:
+        challenge = get_current_challenge()
+        components = path.split("/")
+        match len(components):
+            case 1:
+                return {"dojo": challenge["dojo"], "module": challenge["module"], "challenge": components[0]}
+            case 2:
+                return {"dojo": challenge["dojo"], "module": components[0], "challenge": components[1]}
+            case 3:
+                return {"dojo": components[0], "module": components[1], "challenge": components[2]}
+            case _:
+                raise Exception("A relative dojo path can have between one and three levels.")
+
+def start(args : argparse.Namespace):
     """
     Calls the START integration api configured to
     start a new challenge.
     """
 
     # Determine what challenge to start.
-    mode = "privileged" if args.privileged else "normal"
-    if len(args.challenge) == 0:
-        print("Must supply a valid challenge. See \"dojo start -h\" for more information.")
-        return INCORRECT_USAGE
-
-    if args.challenge[0] == "/": # parse as a /<dojo>/<module>/<challenge> path.
-        path = args.challenge.split("/")
-        if len(path) != 4:
-            print("Challenge paths beginning with \"/\" must follow the form /<dojo>/<module>/<challenge>.")
-            return INCORRECT_USAGE
-        jsonargs = {
-            "dojo": path[1],
-            "module": path[2],
-            "challenge": path[3],
-            "mode": mode
-        }
-    else: # parse as a challenge in the current module.
-        jsonargs = {
-            "use_current_module": True,
-            "challenge": args.challenge,
-            "mode": mode
-        }
-
-    # Make request.
-    print(f"Starting {jsonargs["challenge"]} in {mode} mode.")
-    status, error, jsonData = apiRequest(
-        "/integration/start",
-        method="POST",
-        args=jsonargs
-    )
-    if error is not None:
-        print(f"START request failed ({status}): {error}")
-        return API_ERROR
-
-    # Check for success.
-    if not jsonData.get("success", False):
-        print(f"Failed to start challenge:\n{jsonData.get("error", "Unspecified error.")}")
-        return START_FAILED
-
-    # Impossible?
-    print("Started challenge. (How did we get here?)")
-    return 0
+    try:
+        path = parse_dojo_path(args.challenge)
+        if (None in path.values()):
+            raise Exception("Absolute paths must be complete for starting challenges.")
+        start_challenge(path["dojo"], path["module"], path["challenge"], bool(args.privileged))
+    except Exception as e:
+        sys.exit(f"Incorrect path format, see \"dojo start -h\" for more information.\n{str(e)}")
 
 
 def main():
