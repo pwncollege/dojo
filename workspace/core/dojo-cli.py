@@ -36,7 +36,7 @@ def solve(args : argparse.Namespace):
     # Submit the flag to the current challenge.
     print(f"Submitting the flag: {args.flag}")
     challenge = get_current_challenge()
-    response = requests.get(
+    response = requests.post(
         f"{DOJO_API}/dojos/{challenge["dojo"]}/{challenge["module"]}/{challenge["challenge"]}/solve",
         headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
         json={
@@ -44,7 +44,6 @@ def solve(args : argparse.Namespace):
         },
         timeout = 5.0
     )
-    print(response)
     if not response.ok:
         sys.exit(f"Failed to submit the flag ({response.status_code}).")
     result = response.json()
