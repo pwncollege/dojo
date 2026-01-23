@@ -124,7 +124,7 @@ jobs:
           cache-to: type=local,dest=/mnt/cache/test-image,mode=max
 
       - name: Start the dojo in ${{ matrix.mode }} mode
-        timeout-minutes: 30
+        timeout-minutes: 15
         run: |
           ./deploy.sh -g -D /mnt/cache/data/docker -W /mnt/cache/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
 
