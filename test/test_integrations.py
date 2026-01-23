@@ -96,7 +96,7 @@ def test_solve_incorrect(random_user, welcome_dojo):
         result = workspace_run("dojo submit pwn.college{veryrealflag}", user=name)
         assert False, f"Expected submission of incorrect flag to fail, got: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        assert "incorrect" in error.stdout, f"Expected flag to be incorrect, got: {(error.stdout, error.stderr)}"
+        assert "incorrect" in error.stderr, f"Expected flag to be incorrect, got: {(error.stdout, error.stderr)}"
 
 def test_solve_practice(random_user, welcome_dojo):
     # Start challenge.
@@ -108,7 +108,7 @@ def test_solve_practice(random_user, welcome_dojo):
         result = workspace_run("dojo submit pwn.college{practice}", user=name)
         assert False, f"Expected submission of practice flag to fail, got: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        assert "This is the practice flag" in error.stdout, f"Expected flag to be the practice flag, got: {(error.stdout, error.stderr)}"
+        assert "This is the practice flag" in error.stderr, f"Expected flag to be the practice flag, got: {(error.stdout, error.stderr)}"
 
 def test_restart(random_user, welcome_dojo):
     """
@@ -131,7 +131,7 @@ def test_restart_no_practice(random_user, welcome_dojo):
         result = workspace_run("dojo restart -P", user=name)
         assert False, f"\"dojo restart\" should not have succeeded: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        assert "does not support practice mode" in error.stdout, f"Should not be able to restart in practice mode, got: {(error.stdout, error.stderr)}"
+        assert "does not support practice mode" in error.stderr, f"Should not be able to restart in privileged mode, got: {(error.stdout, error.stderr)}"
 
 def format_path(name):
     container = inspect_container(name)
@@ -173,4 +173,4 @@ def test_start_no_privileged(random_user, welcome_dojo):
         result = workspace_run("dojo start challenge -P", user=name)
         assert False, f"\"dojo start\" should not have succeeded: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        assert "does not support practice mode" in error.stdout, f"Should not be able to start in privileged mode, got: {(error.stdout, error.stderr)}"
+        assert "does not support practice mode" in error.stderr, f"Should not be able to start in privileged mode, got: {(error.stdout, error.stderr)}"
