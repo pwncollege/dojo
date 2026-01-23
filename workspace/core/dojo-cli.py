@@ -44,7 +44,7 @@ def solve(args : argparse.Namespace):
         },
         timeout = 5.0
     )
-    if not response.ok:
+    if not response.ok and response.status_code != 400:
         sys.exit(f"Failed to submit the flag ({response.status_code}).")
     result = response.json()
 
