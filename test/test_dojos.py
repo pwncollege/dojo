@@ -91,14 +91,14 @@ def test_update_dojo_pulls_image(admin_session):
     )
 
     last_error = None
-    for _ in range(10):
+    for _ in range(20):
         try:
             start_challenge(dojo_reference_id, "hello", "hello-world", session=admin_session)
             last_error = None
             break
         except AssertionError as e:
             last_error = e
-            time.sleep(6)
+            time.sleep(10)
 
     if last_error:
         raise AssertionError(f"Failed to start challenge after waiting for image pulls: {last_error}")
