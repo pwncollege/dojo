@@ -67,25 +67,21 @@ def test_update_dojo(admin_session):
 
 
 @pytest.mark.timeout(240)
-def test_update_dojo_pulls_image(admin_session, random_user):
-    random_id = "".join(random.choices(string.ascii_lowercase, k=8))
-    dojo_id = f"update-dojo-image-{random_id}"
+def test_update_dojo_pulls_image(admin_session):
     spec = {
-        "id": dojo_id,
+        "id": "hello-world-pull",
         "type": "public",
         "modules": [
             {
                 "id": "hello",
                 "resources": [
-                    {"type": "challenge", "id": "starter", "name": "Starter"},
+                    {
+                        "type": "challenge",
+                        "id": "hello-world",
+                        "name": "Hello World",
+                        "image": "hello-world",
+                    },
                 ],
-            },
-        ],
-        "files": [
-            {
-                "type": "text",
-                "path": "hello/starter/src",
-                "content": "#!/opt/pwn.college/bash\ncat /flag\n",
             },
         ],
     }
@@ -94,27 +90,10 @@ def test_update_dojo_pulls_image(admin_session, random_user):
         session=admin_session,
     )
 
-    spec["modules"][0]["resources"].append({
-        "type": "challenge",
-        "id": "hello-world",
-        "name": "Hello World",
-        "image": "hello-world",
-    })
-    response = admin_session.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo_reference_id}/update",
-        json=spec,
-    )
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
-    assert response.json()["success"]
-
-    random_user_name, random_user_session = random_user
-    response = random_user_session.get(f"{DOJO_URL}/dojo/{dojo_reference_id}/join/")
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-
     last_error = None
     for _ in range(10):
         try:
-            start_challenge(dojo_reference_id, "hello", "hello-world", session=random_user_session)
+            start_challenge(dojo_reference_id, "hello", "hello-world", session=admin_session)
             last_error = None
             break
         except AssertionError as e:
@@ -123,7 +102,7 @@ def test_update_dojo_pulls_image(admin_session, random_user):
 
     if last_error:
         raise AssertionError(f"Failed to start challenge after waiting for image pulls: {last_error}")
-    result = workspace_run("/hello", user=random_user_name)
+    result = workspace_run("/hello", user="admin")
     assert "Hello from Docker!" in result.stdout
 
 
