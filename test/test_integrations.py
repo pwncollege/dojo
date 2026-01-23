@@ -96,7 +96,7 @@ def test_solve_incorrect(random_user, welcome_dojo):
         result = workspace_run("dojo submit pwn.college{veryrealflag}", user=name)
         assert False, f"Expected submission of incorrect flag to fail, got: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        assert "incorrect" in error.stderr, f"Expected flag to be incorrect, got: {(error.stdout, error.stderr)}"
+        assert "Incorrect" in error.stderr, f"Expected flag to be incorrect, got: {(error.stdout, error.stderr)}"
 
 def test_solve_practice(random_user, welcome_dojo):
     # Start challenge.
