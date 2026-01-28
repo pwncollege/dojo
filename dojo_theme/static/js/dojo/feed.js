@@ -373,16 +373,24 @@
         }
     }
     
-    function connectSSE() {
+    function parseUserFilter() {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get('users');
+        if (!raw) return null;
+        const ids = raw.split(',').map(value => value.trim()).filter(Boolean);
+        return ids.length ? new Set(ids) : null;
+    }
+    
+    function shouldIncludeEvent(event, allowedUserIds) {
+        if (!allowedUserIds) return true;
+        return allowedUserIds.has(String(event.user_id));
+    }
+    
+    function connectSSE(allowedUserIds) {
         if (eventSource) eventSource.close();
         
         updateConnectionStatus('connecting', 'Connecting to live feed...');
-        const dojoId = new URLSearchParams(window.location.search).get('dojo')
-            || document.getElementById('feed-container')?.dataset.dojoId;
-        const streamUrl = dojoId
-            ? `/pwncollege_api/v1/feed/stream?dojo=${encodeURIComponent(dojoId)}`
-            : '/pwncollege_api/v1/feed/stream';
-        eventSource = new EventSource(streamUrl);
+        eventSource = new EventSource('/pwncollege_api/v1/feed/stream');
         
         eventSource.onopen = () => {
             reconnectAttempts = 0;
@@ -394,7 +402,7 @@
                 const data = JSON.parse(event.data);
                 if (data.type === 'connected') {
                     updateConnectionStatus('connected', '');
-                } else if (data.type !== 'heartbeat') {
+                } else if (data.type !== 'heartbeat' && shouldIncludeEvent(data, allowedUserIds)) {
                     addEvent(data);
                 }
             } catch (e) {
@@ -421,15 +429,24 @@
     }
     
     document.addEventListener('DOMContentLoaded', () => {
+        const allowedUserIds = parseUserFilter();
+        if (allowedUserIds) {
+            document.querySelectorAll('.event-card').forEach(card => {
+                const userId = card.dataset.userId;
+                if (!userId || !allowedUserIds.has(userId)) {
+                    card.remove();
+                }
+            });
+        }
         updateTimestamps();
         setInterval(updateTimestamps, 60000);
-        connectSSE();
+        connectSSE(allowedUserIds);
         
         document.addEventListener('visibilitychange', () => {
             if (document.hidden && eventSource) {
                 eventSource.close();
             } else if (!document.hidden && (!eventSource || eventSource.readyState === EventSource.CLOSED)) {
-                connectSSE();
+                connectSSE(allowedUserIds);
             }
         });
     });

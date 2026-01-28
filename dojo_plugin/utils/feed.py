@@ -48,19 +48,13 @@ def create_event(event_type: str, user: Users, data: Dict[str, Any]) -> Optional
     except (redis.RedisError, redis.ConnectionError):
         return None
 
-def get_recent_events(limit: int = 50, offset: int = 0, dojo_id: str | None = None):
+def get_recent_events(limit: int = 50, offset: int = 0):
     try:
         r = get_redis_client()
         from ..config import FEED_EVENT_TTL
         r.zremrangebyscore("activity_feed:events", "-inf", time.time() - FEED_EVENT_TTL)
         events = r.zrevrange("activity_feed:events", offset, offset + limit - 1)
-        parsed_events = [json.loads(e) for e in events]
-        if dojo_id:
-            return [
-                event for event in parsed_events
-                if event.get("data", {}).get("dojo_id") == dojo_id
-            ]
-        return parsed_events
+        return [json.loads(e) for e in events]
     except (redis.RedisError, redis.ConnectionError, json.JSONDecodeError):
         return []
 

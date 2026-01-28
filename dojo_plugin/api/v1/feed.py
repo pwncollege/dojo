@@ -16,8 +16,7 @@ class FeedEvents(Resource):
             offset = max(int(request.args.get("offset", 0)), 0)
         except (ValueError, TypeError):
             limit, offset = 50, 0
-        dojo_id = request.args.get("dojo")
-        events = get_recent_events(limit=limit, offset=offset, dojo_id=dojo_id)
+        events = get_recent_events(limit=limit, offset=offset)
         return {"success": True, "data": events, "meta": {"limit": limit, "offset": offset, "count": len(events)}}
 
 
@@ -25,7 +24,6 @@ class FeedEvents(Resource):
 class FeedStream(Resource):
     def get(self):
         redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
-        dojo_id = request.args.get("dojo")
         
         def generate():
             r = redis.from_url(redis_url, decode_responses=True)
@@ -39,10 +37,6 @@ class FeedStream(Resource):
                     message = pubsub.get_message(timeout=1)
                     if message and message['type'] == 'message':
                         try:
-                            if dojo_id:
-                                event = json.loads(message["data"])
-                                if event.get("data", {}).get("dojo_id") != dojo_id:
-                                    continue
                             yield f"data: {message['data']}\n\n"
                         except (TypeError, ValueError):
                             continue
