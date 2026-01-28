@@ -62,7 +62,7 @@
 <div class="container mt-4">
     <h1 class="text-center mb-4">Live Activity Feed</h1>
     
-    <div id="feed-container" class="mx-auto" style="max-width: 800px;">
+    <div id="feed-container" class="mx-auto" style="max-width: 800px;"{% if dojo_id %} data-dojo-id="{{ dojo_id }}"{% endif %}>
         <div id="connection-status" class="alert alert-info mb-3" style="display: none;">
             <span id="connection-message">Connecting to live feed...</span>
         </div>

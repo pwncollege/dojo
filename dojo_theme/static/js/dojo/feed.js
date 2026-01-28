@@ -377,7 +377,12 @@
         if (eventSource) eventSource.close();
         
         updateConnectionStatus('connecting', 'Connecting to live feed...');
-        eventSource = new EventSource('/pwncollege_api/v1/feed/stream');
+        const dojoId = new URLSearchParams(window.location.search).get('dojo')
+            || document.getElementById('feed-container')?.dataset.dojoId;
+        const streamUrl = dojoId
+            ? `/pwncollege_api/v1/feed/stream?dojo=${encodeURIComponent(dojoId)}`
+            : '/pwncollege_api/v1/feed/stream';
+        eventSource = new EventSource(streamUrl);
         
         eventSource.onopen = () => {
             reconnectAttempts = 0;
