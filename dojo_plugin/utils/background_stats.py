@@ -107,7 +107,7 @@ def consume_stat_events(handler: Callable[[str, Dict[str, Any], float], None], b
                         event_type = event_data["type"]
                         payload = event_data["payload"]
                         event_timestamp = get_message_timestamp(message_id)
-                        queue_time_ms = (time.time() - event_timestamp) * 1000
+                        queue_time_ms = (get_redis_time(r) - event_timestamp) * 1000
 
                         logger.info(f"Processing event: {event_type} {queue_time_ms=:.0f} payload={payload}")
                         handler(event_type, payload, event_timestamp)
