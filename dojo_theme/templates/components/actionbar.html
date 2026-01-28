@@ -7,6 +7,14 @@
     --warn: #d0c000;
   }
 
+  .fa-check {
+    color: var(--brand-green)
+  }
+
+  .fa-times {
+    color: var(--error)
+  }
+
   .SSH {
     height: 0 !important;
     min-height: 0 !important;
@@ -29,7 +37,6 @@
   }
 
   button.workspace-control {
-    width: 2.5em;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -184,7 +191,7 @@
       title="Restart {{'unprivileged' if practice else 'privileged'}}"
       class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start"
       data-privileged="{{'true' if practice else 'false'}}">
-    <i class="fas fa-{{'unlock' if practice else 'lock'}}"></i>
+    Debug[<i class="fas fa-{{'check' if practice else 'times'}}"></i>]
   </button>
   {% endif %}
   <button id="fullscreen" title="Toggle fullscreen" class="workspace-control btn btn-md btn-outline-secondary">
