@@ -10,6 +10,7 @@ user_namespace = Namespace("user", description="User management endpoints")
 
 
 def authed_only_cli(func):
+    """Allows an endpoint to be used by the dojo cli application."""
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get("Authorization")
         if not auth_header:
