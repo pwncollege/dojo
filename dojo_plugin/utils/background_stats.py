@@ -110,10 +110,12 @@ def consume_stat_events(handler: Callable[[str, Dict[str, Any], float], None], b
                         queue_time_ms = (get_redis_time(r) - event_timestamp) * 1000
 
                         logger.info(f"Processing event: {event_type} {queue_time_ms=:.0f} payload={payload}")
+                        start = time.time()
                         handler(event_type, payload, event_timestamp)
+                        processing_time_ms = (time.time() - start) * 1000
 
                         r.xackdel(REDIS_STREAM_NAME, CONSUMER_GROUP, message_id)
-                        logger.info(f"Successfully processed, acknowledged, and deleted event {message_id}")
+                        logger.info(f"Processed event {message_id}: {event_type} {queue_time_ms=:.0f} {processing_time_ms=:.0f}")
                     except Exception as e:
                         logger.error(f"Error processing event {message_id}: {e}", exc_info=True)
         except redis.ResponseError as e:
