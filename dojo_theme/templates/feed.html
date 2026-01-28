@@ -69,7 +69,7 @@
         
         <div id="events-list">
             {% for event in initial_events %}
-            <div class="event-card card mb-3 bg-dark text-white border-secondary" data-event-id="{{ event.id }}">
+            <div class="event-card card mb-3 bg-dark text-white border-secondary" data-event-id="{{ event.id }}" data-user-id="{{ event.user_id }}">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
                         <div class="event-icon me-4" style="min-width: 50px;">
