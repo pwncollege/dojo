@@ -116,6 +116,14 @@ def user_ipv4(user):
     ])
 
 
+def _filter_code_class(tag, name, value):
+    if name == "class":
+        classes = value.split()
+        allowed = [c for c in classes if c.startswith("language-")]
+        return " ".join(allowed) if allowed else None
+    return None
+
+
 def render_markdown(s):
     raw_html = build_markdown(s or "")
     if "dojo" in g and (g.dojo.official or g.dojo.privileged):
@@ -136,7 +144,8 @@ def render_markdown(s):
         "*": ["id"],
         "img": ["src", "alt", "title"],
         "a": ["href", "alt", "title"],
-        "p": ["data-hide"]
+        "p": ["data-hide"],
+        "code": _filter_code_class,
     }
     clean_html = bleach.clean(raw_html, tags=markdown_tags, attributes=markdown_attrs)
     return Markup(clean_html)
