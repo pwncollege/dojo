@@ -3,6 +3,7 @@ import requests
 import pytest
 import random
 import string
+import time
 import yaml
 
 from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id, wait_for_background_worker
@@ -63,6 +64,46 @@ def test_update_dojo(admin_session):
     assert list_response.status_code == 200, f"Expected status code 200, but got {list_response.status_code}"
     updated = next(dojo for dojo in list_response.json()["dojos"] if dojo["id"] == dojo_reference_id)
     assert updated["name"] == updated_name
+
+
+@pytest.mark.timeout(240)
+def test_update_dojo_pulls_image(admin_session):
+    spec = {
+        "id": "hello-world-pull",
+        "type": "public",
+        "modules": [
+            {
+                "id": "hello",
+                "resources": [
+                    {
+                        "type": "challenge",
+                        "id": "hello-world",
+                        "name": "Hello World",
+                        "image": "hello-world",
+                    },
+                ],
+            },
+        ],
+    }
+    dojo_reference_id = create_dojo_yml(
+        yaml.safe_dump(spec, sort_keys=False),
+        session=admin_session,
+    )
+
+    last_error = None
+    for _ in range(20):
+        try:
+            start_challenge(dojo_reference_id, "hello", "hello-world", session=admin_session)
+            last_error = None
+            break
+        except AssertionError as e:
+            last_error = e
+            time.sleep(10)
+
+    if last_error:
+        raise AssertionError(f"Failed to start challenge after waiting for image pulls: {last_error}")
+    result = workspace_run("/hello", user="admin")
+    assert "Hello from Docker!" in result.stdout
 
 
 def test_import(import_dojo, admin_session):
