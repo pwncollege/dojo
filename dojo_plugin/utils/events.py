@@ -16,7 +16,7 @@ def publish_scoreboard_event(model_type, model_id):
 
 
 def publish_scores_event(dojo_id=None):
-    payload = {"dojo_id": dojo_id} if dojo_id else {}
+    payload = {"dojo_id": dojo_id} if dojo_id is not None else {}
     publish_stat_event("scores_update", payload)
 
 

@@ -96,7 +96,7 @@ def handle_scores_update(payload, event_timestamp=None):
 
     dojo_id = payload.get("dojo_id")
 
-    if dojo_id:
+    if dojo_id is not None:
         dojo = Dojos.query.filter_by(dojo_id=dojo_id).first()
         if not dojo:
             logger.info(f"Dojo {dojo_id} not found, skipping scores update")
