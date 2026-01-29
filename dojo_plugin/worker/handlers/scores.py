@@ -94,11 +94,20 @@ def handle_scores_update(payload, event_timestamp=None):
     db.session.expire_all()
     db.session.commit()
 
-    dojos = Dojos.query.filter(
-        or_(Dojos.data["type"].astext == "public", Dojos.official)
-    ).all()
+    dojo_id = payload.get("dojo_id")
 
-    logger.info(f"Calculating scores for {len(dojos)} public/official dojos...")
+    if dojo_id:
+        dojo = Dojos.query.filter_by(dojo_id=dojo_id).first()
+        if not dojo:
+            logger.info(f"Dojo {dojo_id} not found, skipping scores update")
+            return
+        dojos = [dojo]
+        logger.info(f"Calculating scores for single dojo: {dojo_id}")
+    else:
+        dojos = Dojos.query.filter(
+            or_(Dojos.data["type"].astext == "public", Dojos.official)
+        ).all()
+        logger.info(f"Calculating scores for {len(dojos)} public/official dojos...")
 
     for dojo in dojos:
         dojo_id = dojo.dojo_id

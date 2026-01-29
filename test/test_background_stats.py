@@ -1217,3 +1217,110 @@ with patch('dojo_plugin.utils.background_stats.get_cache_updated_at') as mock_ge
 print("OK")
 """, check=True)
     assert "OK" in result.stdout, f"is_event_stale test failed: {result.stdout}"
+
+def test_dojo_specific_scores_update_only_updates_target_dojo():
+    result = dojo_run("dojo", "flask", input="""
+from unittest.mock import patch, MagicMock
+from dojo_plugin.worker.handlers.scores import handle_scores_update
+
+calculated_dojo_ids = []
+
+def mock_calculate(dojo_id):
+    calculated_dojo_ids.append(dojo_id)
+    return {"ranks": [], "solves": {}}
+
+mock_dojo1 = MagicMock()
+mock_dojo1.dojo_id = 'target-dojo-123'
+mock_dojo1.modules = []
+
+with patch('dojo_plugin.worker.handlers.scores.Dojos') as MockDojos:
+    with patch('dojo_plugin.worker.handlers.scores.calculate_dojo_scores', side_effect=mock_calculate):
+        with patch('dojo_plugin.worker.handlers.scores.set_cached_stat'):
+            MockDojos.query.filter_by.return_value.first.return_value = mock_dojo1
+
+            handle_scores_update({"dojo_id": "target-dojo-123"})
+
+            assert len(calculated_dojo_ids) == 1, f"Expected 1 calculation, got {len(calculated_dojo_ids)}"
+            assert calculated_dojo_ids[0] == 'target-dojo-123', f"Expected target-dojo-123, got {calculated_dojo_ids[0]}"
+
+print("OK")
+""", check=True)
+    assert "OK" in result.stdout, f"Dojo-specific scores update test failed: {result.stdout}"
+
+def test_scores_update_deleted_dojo_skips_gracefully():
+    result = dojo_run("dojo", "flask", input="""
+from dojo_plugin.worker.handlers.scores import handle_scores_update
+
+result = handle_scores_update({"dojo_id": "nonexistent-dojo-id-12345"})
+print("OK" if result is None else f"FAIL: returned {result}")
+""", check=True)
+    assert "OK" in result.stdout, f"Deleted dojo should be skipped gracefully: {result.stdout}"
+
+def test_scores_update_empty_payload_updates_all_dojos():
+    result = dojo_run("dojo", "flask", input="""
+from unittest.mock import patch, MagicMock
+from sqlalchemy.sql import or_
+
+calls = []
+
+with patch('dojo_plugin.worker.handlers.scores.Dojos') as MockDojos:
+    from dojo_plugin.worker.handlers.scores import handle_scores_update
+
+    mock_dojo1 = MagicMock()
+    mock_dojo1.dojo_id = 'test-dojo-1'
+    mock_dojo1.modules = []
+
+    mock_dojo2 = MagicMock()
+    mock_dojo2.dojo_id = 'test-dojo-2'
+    mock_dojo2.modules = []
+
+    MockDojos.query.filter.return_value.all.return_value = [mock_dojo1, mock_dojo2]
+
+    with patch('dojo_plugin.worker.handlers.scores.calculate_dojo_scores') as mock_calc:
+        with patch('dojo_plugin.worker.handlers.scores.set_cached_stat'):
+            mock_calc.return_value = {"ranks": [], "solves": {}}
+
+            handle_scores_update({})
+
+            called_dojo_ids = [call[0][0] for call in mock_calc.call_args_list]
+            assert 'test-dojo-1' in called_dojo_ids, "Should calculate scores for dojo 1"
+            assert 'test-dojo-2' in called_dojo_ids, "Should calculate scores for dojo 2"
+            assert len(called_dojo_ids) == 2, f"Should calculate scores for exactly 2 dojos, got {len(called_dojo_ids)}"
+
+print("OK")
+""", check=True)
+    assert "OK" in result.stdout, f"Empty payload should update all dojos: {result.stdout}"
+
+def test_publish_scores_event_with_dojo_id():
+    result = dojo_run("dojo", "flask", input="""
+from unittest.mock import patch
+
+with patch('dojo_plugin.utils.events.publish_stat_event') as mock_publish:
+    from dojo_plugin.utils.events import publish_scores_event
+
+    publish_scores_event('my-dojo-id')
+    mock_publish.assert_called_once()
+    call_args = mock_publish.call_args[0]
+    assert call_args[0] == 'scores_update', f"Expected event type 'scores_update', got {call_args[0]}"
+    assert call_args[1] == {'dojo_id': 'my-dojo-id'}, f"Expected payload with dojo_id, got {call_args[1]}"
+
+print("OK")
+""", check=True)
+    assert "OK" in result.stdout, f"publish_scores_event with dojo_id failed: {result.stdout}"
+
+def test_publish_scores_event_without_dojo_id():
+    result = dojo_run("dojo", "flask", input="""
+from unittest.mock import patch
+
+with patch('dojo_plugin.utils.events.publish_stat_event') as mock_publish:
+    from dojo_plugin.utils.events import publish_scores_event
+
+    publish_scores_event()
+    mock_publish.assert_called_once()
+    call_args = mock_publish.call_args[0]
+    assert call_args[0] == 'scores_update', f"Expected event type 'scores_update', got {call_args[0]}"
+    assert call_args[1] == {}, f"Expected empty payload, got {call_args[1]}"
+
+print("OK")
+""", check=True)
+    assert "OK" in result.stdout, f"publish_scores_event without dojo_id failed: {result.stdout}"

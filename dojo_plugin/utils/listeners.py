@@ -52,7 +52,7 @@ def hook_object_creation(mapper, connection, target):
         dojo_id = target.dojo_id
         queue_stat_event(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
         queue_stat_event(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))
-        queue_stat_event(publish_scores_event)
+        queue_stat_event(lambda d_id=dojo_id: publish_scores_event(d_id))
     elif isinstance(target, Belts):
         queue_stat_event(publish_belts_event)
     elif isinstance(target, Emojis):
@@ -78,7 +78,7 @@ def hook_object_update(mapper, connection, target):
             dojo_id = target.dojo_id
             queue_stat_event(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
             queue_stat_event(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))
-            queue_stat_event(publish_scores_event)
+            queue_stat_event(lambda d_id=dojo_id: publish_scores_event(d_id))
         elif isinstance(target, DojoChallenges):
             dojo_id = target.dojo.dojo_id
             module_id = {"dojo_id": target.dojo.dojo_id, "module_index": target.module.module_index}
