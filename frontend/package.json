@@ -32,7 +32,6 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tailwindcss/typography": "^0.5.0-alpha.3",
     "@tanstack/react-query": "^5.89.0",
-    "@types/three": "^0.180.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -54,7 +53,6 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
-    "three": "^0.180.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
