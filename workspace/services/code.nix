@@ -30,7 +30,11 @@ let
       runHook postInstall
     '';
   };
-  pythonVsix = pkgs.vscode-extensions.ms-python.python.src;
+  pythonVsix = pkgs.fetchurl {
+    name = "ms-python.python.vsix";
+    url = "https://ms-python.gallery.vsassets.io/_apis/public/gallery/publisher/ms-python/extension/python/2024.9.11721010/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage";
+    hash = "sha256-10wn9mi63hjbzl5h803bhh0bjg2m4df6s7lfcjj7lwfwfs7cax46";
+  };
   cpptoolsVsix = pkgs.vscode-extensions.ms-vscode.cpptools.src;
 
   serviceScript = pkgs.writeScript "dojo-code" ''
