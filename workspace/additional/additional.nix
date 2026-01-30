@@ -24,7 +24,25 @@ let
     selenium
   ];
 
-  pythonEnv = pkgs.angrPkgs.python3.withPackages pythonPackages;
+  python = pkgs.angrPkgs.python3.override {
+    packageOverrides = final: prev: {
+      pycparser = prev.pycparser.overridePythonAttrs (old: {
+        version = "3.0";
+        src = pkgs.fetchFromGitHub {
+          owner = "eliben";
+          repo = "pycparser";
+          tag = "release_v3.0";
+          hash = "sha256-6eKc+p3xLyRPo3oCWP/dbMpHlkBXLy8XiGR0gTEHI2E=";
+        };
+      });
+      cffi = prev.cffi.overridePythonAttrs (old: {
+        dependencies = [ final.pycparser ];
+        doCheck = false;
+      });
+    };
+  };
+
+  pythonEnv = python.withPackages pythonPackages;
 
   tools = with pkgs; {
     build = [ (lib.lowPrio clang) clang-tools cmake (lib.hiPrio gcc) gnumake qemu rustup ];
