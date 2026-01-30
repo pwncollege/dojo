@@ -33,7 +33,11 @@
             };
 
             angr-overlay = self: super: {
-              angr = (import angr { inherit system config; }).angr;
+              python3Packages = super.python3Packages.overrideScope (
+                final: prev: {
+                  angr = (import angr { inherit system config; }).python3Packages.angr;
+                }
+              );
             };
 
             ida-free-overlay = self: super: {
