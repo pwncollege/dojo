@@ -1324,3 +1324,20 @@ with patch('dojo_plugin.utils.events.publish_stat_event') as mock_publish:
 print("OK")
 """, check=True)
     assert "OK" in result.stdout, f"publish_scores_event without dojo_id failed: {result.stdout}"
+
+def test_challenge_solves_uses_string_keys():
+    result = dojo_run("dojo", "flask", input="""
+from dojo_plugin.worker.handlers.scoreboard import update_challenge_solves
+
+existing_cache = {"123": 5, "456": 10}
+updated = update_challenge_solves(existing_cache, 123)
+assert updated["123"] == 6, f"Should increment existing count, got {updated.get('123')}"
+assert "456" in updated, "Should preserve other keys"
+assert 123 not in updated, "Should not have integer key"
+
+updated2 = update_challenge_solves(existing_cache, 789)
+assert updated2["789"] == 1, "Should add new challenge with count 1"
+
+print("OK")
+""", check=True)
+    assert "OK" in result.stdout, f"challenge_solves string keys test failed: {result.stdout}"
