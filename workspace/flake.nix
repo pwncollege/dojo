@@ -32,14 +32,18 @@
               angr-management = (import nixpkgs-pr-angr-management { inherit system config; }).angr-management;
             };
 
-            angr-overlay = self: super: {
-              python3 = super.python3.override {
-                packageOverrides = final: prev: {
-                  angr = (import angr { inherit system config; }).python3Packages.angr;
-                };
+            angr-overlay = self: super:
+              let
+                angrPkgs = import angr { inherit system config; };
+              in
+              {
+                angrPkgs = angrPkgs;
+                python3Packages = super.python3Packages.overrideScope (
+                  final: prev: {
+                    angr = angrPkgs.python3Packages.angr;
+                  }
+                );
               };
-              python3Packages = self.python3.pkgs;
-            };
 
             ida-free-overlay = self: super: {
               ida-free = (import nixpkgs-24-11 { inherit system config; }).ida-free;
