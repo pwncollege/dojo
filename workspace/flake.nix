@@ -117,7 +117,7 @@
               ncurses
               nettools
               procps
-              python3
+              (lib.lowPrio python3)
               util-linux
               wget
               which
