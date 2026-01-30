@@ -24,7 +24,7 @@ let
     selenium
   ];
 
-  pythonEnv = pkgs.python3.withPackages pythonPackages;
+  pythonEnv = pkgs.angrPkgs.python3.withPackages pythonPackages;
 
   tools = with pkgs; {
     build = [ (lib.lowPrio clang) clang-tools cmake (lib.hiPrio gcc) gnumake qemu rustup ];
