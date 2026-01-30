@@ -30,6 +30,8 @@ let
       runHook postInstall
     '';
   };
+  pythonVsix = pkgs.vscode-extensions.ms-python.python.src;
+  cpptoolsVsix = pkgs.vscode-extensions.ms-vscode.cpptools.src;
 
   serviceScript = pkgs.writeScript "dojo-code" ''
     #!${pkgs.bash}/bin/bash
@@ -60,7 +62,6 @@ in pkgs.stdenv.mkDerivation {
     code-server
     bash
     python3
-    wget
     curl
     cacert
   ];
@@ -77,13 +78,14 @@ in pkgs.stdenv.mkDerivation {
     ln -s ${code-server}/bin/code-server $out/bin/code
 
     mkdir -p $out/share/code/extensions
-    ${pkgs.wget}/bin/wget -P $NIX_BUILD_TOP 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
+    cp ${pythonVsix} $NIX_BUILD_TOP/ms-python.python.vsix
+    cp ${cpptoolsVsix} $NIX_BUILD_TOP/cpptools-linux.vsix
     export HOME=$NIX_BUILD_TOP
     ${code-server}/bin/code-server \
       --auth=none \
       --disable-telemetry \
       --extensions-dir=$out/share/code/extensions \
-      --install-extension ms-python.python \
+      --install-extension $NIX_BUILD_TOP/ms-python.python.vsix \
       --install-extension $NIX_BUILD_TOP/cpptools-linux.vsix
     chmod +x $out/share/code/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*}
 
