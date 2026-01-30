@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-24-11.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-pr-angr-management.url = "github:NixOS/nixpkgs/pull/360310/head";
-    angr.url = "github:pwncollege/nixpkgs/update/angr";
+    nixpkgs-angr.url = "github:pwncollege/nixpkgs/update/angr";
     pwndbg.url = "github:pwndbg/pwndbg";
   };
 
@@ -16,7 +16,7 @@
       nixpkgs-24-11,
       nixpkgs-pr-angr-management,
       pwndbg,
-      angr,
+      nixpkgs-angr,
     }:
     {
       packages = {
@@ -35,7 +35,7 @@
             angr-overlay = self: super: {
               python3 = super.python3.override {
                 packageOverrides = final: prev: {
-                  angr = (import angr { inherit system config; }).python3Packages.angr;
+                  angr = (import nixpkgs-angr { inherit system config; }).python3Packages.angr;
                 };
               };
               python3Packages = self.python3.pkgs;
