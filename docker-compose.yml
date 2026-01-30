@@ -237,6 +237,20 @@ services:
     depends_on:
       <<: *ctfd-depends
 
+  image-pull-worker:
+    <<: *ctfd-base
+    container_name: image-pull-worker
+    hostname: image-pull-worker
+    profiles:
+      - main
+    restart: always
+    command: ["flask", "shell", "/opt/CTFd/CTFd/plugins/dojo_plugin/worker/image_pulls_main.py"]
+    environment:
+      <<: *ctfd-env
+    volumes: *ctfd-volumes
+    depends_on:
+      <<: *ctfd-depends
+
   sshd:
     container_name: sshd
     hostname: sshd
