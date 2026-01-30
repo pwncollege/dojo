@@ -5,7 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-24-11.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-pr-angr-management.url = "github:NixOS/nixpkgs/pull/360310/head";
-    angr.url = "github:pwncollege/nixpkgs/angr-update";
+    angr.url = "github:pwncollege/nixpkgs/update/angr";
     pwndbg.url = "github:pwndbg/pwndbg";
   };
 
@@ -33,7 +33,11 @@
             };
 
             angr-overlay = self: super: {
-              angr = (import angr { inherit system config; }).angr;
+              python3Packages = super.python3Packages.overrideScope (
+                final: prev: {
+                  angr = (import angr { inherit system config; }).python3Packages.angr;
+                }
+              );
             };
 
             ida-free-overlay = self: super: {
