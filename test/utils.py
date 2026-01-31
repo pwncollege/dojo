@@ -161,16 +161,35 @@ def workspace_run(cmd, *, user, root=False, **kwargs):
     return dojo_run(*args, stdin=subprocess.DEVNULL, check=True, container=outer_container, **kwargs)
 
 
-def start_challenge(dojo, module, challenge, practice=False, *, session, as_user=None, wait=0):
+def start_challenge(dojo, module, challenge, practice=False, *, session, as_user=None, wait=0, poll_timeout=120):
     start_challenge_json = dict(dojo=dojo, module=module, challenge=challenge, practice=practice)
     if as_user:
         start_challenge_json["as_user"] = as_user
     response = session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=start_challenge_json)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-    assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"
+    result = response.json()
+    assert result["success"], f"Failed to start challenge: {result.get('error')}"
 
-    if wait > 0:
-        time.sleep(wait)
+    start_id = result.get("start_id")
+    assert start_id, "Expected start_id in response"
+
+    start_time = time.time()
+    while time.time() - start_time < poll_timeout:
+        status_response = session.get(f"{DOJO_URL}/pwncollege_api/v1/docker/status?id={start_id}")
+        assert status_response.status_code == 200, f"Status check failed: {status_response.status_code}"
+        status = status_response.json()
+        assert status["success"], f"Status check error: {status.get('error')}"
+
+        if status["status"] == "ready":
+            if wait > 0:
+                time.sleep(wait)
+            return
+        if status["status"] == "failed":
+            raise AssertionError(f"Container start failed: {status.get('error')}")
+
+        time.sleep(2)
+
+    raise AssertionError(f"Container start timed out after {poll_timeout}s (last status: {status.get('status')})")
 
 
 def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):

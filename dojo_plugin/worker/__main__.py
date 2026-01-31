@@ -1,13 +1,10 @@
-import logging
 import os
 import signal
 import time
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logger.addHandler(handler)
+from . import setup_worker_logging
+
+logger = setup_worker_logging(__name__)
 
 shutdown_requested = False
 

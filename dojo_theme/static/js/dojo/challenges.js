@@ -169,6 +169,114 @@ function unlockChallenge(challenge_button) {
 }
 
 
+function pollStartStatus(startId, item, practice, event) {
+    var result_notification = item.find('#result-notification');
+    var result_message = item.find('#result-message');
+    var pollCount = 0;
+    var maxPolls = 150;
+
+    function poll() {
+        pollCount++;
+        if (pollCount > maxPolls) {
+            onStartError("Timed out waiting for challenge to start");
+            return;
+        }
+
+        CTFd.fetch('/pwncollege_api/v1/docker/status?id=' + encodeURIComponent(startId), {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        }).then(function (response) {
+            if (response.status === 404) {
+                onStartError("Start ID not found");
+                return null;
+            }
+            return response.json();
+        }).then(function (result) {
+            if (!result) return;
+            if (!result.success) {
+                onStartError(result.error || "Failed to check status");
+                return;
+            }
+
+            if (result.status === "queued") {
+                result_message.html("Waiting to start...");
+                setTimeout(poll, 2000);
+            } else if (result.status === "starting") {
+                var msg = "Starting challenge...";
+                if (result.attempt > 1) {
+                    msg = "Starting challenge (attempt " + result.attempt + "/" + result.max_attempts + ")...";
+                }
+                result_message.html(msg);
+                setTimeout(poll, 2000);
+            } else if (result.status === "ready") {
+                onStartSuccess();
+            } else if (result.status === "failed") {
+                onStartError(result.error || "Docker failed");
+            } else {
+                setTimeout(poll, 2000);
+            }
+        }).catch(function (error) {
+            console.error("Status poll error:", error);
+            setTimeout(poll, 2000);
+        });
+    }
+
+    function onStartSuccess() {
+        result_notification.removeClass();
+        result_message.html("Challenge successfully started!");
+        result_notification.addClass('alert alert-info alert-dismissable text-center');
+
+        $(".challenge-active").removeClass("challenge-active");
+        item.find(".challenge-name").addClass("challenge-active");
+
+        result_notification.slideDown();
+        item.find(".challenge-init")
+            .removeClass("disabled-button")
+            .prop("disabled", false);
+
+        $(".challenge-init").removeClass("challenge-hidden");
+        $(".challenge-workspace").addClass("challenge-hidden");
+        $(".iframe-wrapper").html("");
+        item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\" allow=\"clipboard-read *; clipboard-write *\"></iframe>");
+        loadWorkspace();
+        item.find(".challenge-init").addClass("challenge-hidden");
+        item.find(".challenge-workspace").removeClass("challenge-hidden");
+        item.find("#workspace-change-privilege")
+            .attr("title", practice ? "Restart unprivileged" : "Restart privileged")
+            .attr("data-privileged", practice)
+            .find(".fas")
+                .toggleClass("fa-lock", !practice)
+                .toggleClass("fa-unlock", practice);
+        windowResizeCallback("");
+        moduleStartChallenge(event, channel);
+
+        setTimeout(function() {
+            item.find(".alert").slideUp();
+        }, 60000);
+    }
+
+    function onStartError(errorMsg) {
+        result_notification.removeClass();
+        result_message.html("Error:<br><code>" + errorMsg + "</code><br>");
+        result_notification.addClass('alert alert-warning alert-dismissable text-center');
+        result_notification.slideDown();
+        item.find(".challenge-init")
+            .removeClass("disabled-button")
+            .prop("disabled", false);
+
+        $(".challenge-init").removeClass("challenge-hidden");
+        $(".challenge-workspace").addClass("challenge-hidden");
+        $(".iframe-wrapper").html("");
+
+        setTimeout(function() {
+            item.find(".alert").slideUp();
+        }, 60000);
+    }
+
+    poll();
+}
+
 function startChallenge(event) {
     event.preventDefault();
     const item = $(event.currentTarget).closest(".accordion-item");
@@ -197,23 +305,8 @@ function startChallenge(event) {
     var result_message = item.find('#result-message');
     result_notification.removeClass('alert-danger');
     result_notification.addClass('alert alert-warning alert-dismissable text-center');
-    result_message.html("Loading.");
+    result_message.html("Waiting to start...");
     result_notification.slideDown();
-    var dot_max = 5;
-    var dot_counter = 0;
-    setTimeout(function loadmsg() {
-        if (result_message.html().startsWith("Loading")) {
-            if (dot_counter < dot_max - 1){
-                result_message.append(".");
-                dot_counter++;
-            }
-            else {
-                result_message.html("Loading.");
-                dot_counter = 0;
-            }
-            setTimeout(loadmsg, 500);
-        }
-    }, 500);
 
     CTFd.fetch('/pwncollege_api/v1/docker', {
         method: 'POST',
@@ -225,7 +318,6 @@ function startChallenge(event) {
         body: JSON.stringify(params)
     }).then(function (response) {
         if (response.status === 403) {
-            // User is not logged in or CTF is paused.
             window.location =
                 CTFd.config.urlRoot +
                 "/login?next=" +
@@ -235,56 +327,28 @@ function startChallenge(event) {
         }
         return response.json();
     }).then(function (result) {
-        var result_notification = item.find('#result-notification');
-        var result_message = item.find('#result-message');
-
-        result_notification.removeClass();
-
-        if (result.success) {
-            var message = "Challenge successfully started!";
-            result_message.html(message);
-            result_notification.addClass('alert alert-info alert-dismissable text-center');
-
-            $(".challenge-active").removeClass("challenge-active");
-            item.find(".challenge-name").addClass("challenge-active");
-        }
-        else {
-            var message = "Error:<br><code>" + result.error + "</code><br>"
-            result_message.html(message);
+        if (result.success && result.start_id) {
+            pollStartStatus(result.start_id, item, practice, event);
+        } else {
+            result_notification.removeClass();
+            result_message.html("Error:<br><code>" + (result.error || "Unknown error") + "</code><br>");
             result_notification.addClass('alert alert-warning alert-dismissable text-center');
-        }
+            result_notification.slideDown();
+            item.find(".challenge-init")
+                .removeClass("disabled-button")
+                .prop("disabled", false);
 
-        result_notification.slideDown();
+            setTimeout(function() {
+                item.find(".alert").slideUp();
+            }, 60000);
+        }
+    }).catch(function (error) {
+        console.error(error);
+        result_message.html("Submission request failed: " + ((error || {}).message || error));
+        result_notification.addClass('alert alert-warning alert-dismissable text-center');
         item.find(".challenge-init")
             .removeClass("disabled-button")
             .prop("disabled", false);
-
-        $(".challenge-init").removeClass("challenge-hidden");
-        $(".challenge-workspace").addClass("challenge-hidden");
-        $(".iframe-wrapper").html("");
-        if (result.success) {
-            item.find(".iframe-wrapper").html("<iframe id=\"workspace-iframe\" class=\"challenge-iframe\" src=\"\" allow=\"clipboard-read *; clipboard-write *\"></iframe>");
-            loadWorkspace();
-            item.find(".challenge-init").addClass("challenge-hidden");
-            item.find(".challenge-workspace").removeClass("challenge-hidden");
-            item.find("#workspace-change-privilege")
-                .attr("title", practice ? "Restart unprivileged" : "Restart privileged")
-                .attr("data-privileged", practice)
-                .find(".fas")
-                    .toggleClass("fa-lock", !practice)
-                    .toggleClass("fa-unlock", practice);
-            windowResizeCallback("");
-            moduleStartChallenge(event, channel);
-        }
-
-        setTimeout(function() {
-            item.find(".alert").slideUp();
-        }, 60000);
-    }).catch(function (error) {
-        console.error(error);
-        var result_message = item.find('#result-message');
-        result_message.html("Submission request failed: " + ((error || {}).message || error));
-        result_notification.addClass('alert alert-warning alert-dismissable text-center');
     })
 }
 
