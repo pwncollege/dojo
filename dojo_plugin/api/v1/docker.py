@@ -1,8 +1,10 @@
 import datetime
 import hashlib
+import json
 import pathlib
 import logging
 import time
+import uuid
 import os
 import re
 
@@ -44,13 +46,16 @@ docker_namespace = Namespace(
     "docker", description="Endpoint to manage docker containers"
 )
 
+CONTAINER_STARTS_STREAM = "container:starts"
+CONTAINER_START_STATUS_PREFIX = "container_start:"
+CONTAINER_START_STATUS_TTL = 3600
+
 HOST_HOMES = pathlib.Path(HOST_DATA_PATH) / "workspace" / "homes"
 HOST_HOMES_MOUNTS = HOST_HOMES / "mounts"
 HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
 
 
 def remove_container(user):
-    # Just in case our container is still running on the other docker container, let's make sure we try to kill both
     known_image_name = cache.get(f"user_{user.id}-running-image")
     images = [None, known_image_name]
     for image_name in images:
@@ -72,8 +77,6 @@ def get_available_devices(docker_client):
     if (cached := cache.get(key)) is not None:
         return cached
     find_command = ["/bin/find", "/dev", "-type", "c"]
-    # When using certain logging drivers (like Splunk), docker.containers.run() returns None
-    # Use detach=True and logs() to capture output instead
     container = docker_client.containers.run("busybox:uclibc", find_command, privileged=True, detach=True)
     container.wait()
     output = container.logs()
@@ -338,21 +341,20 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     else:
         raise RuntimeError(f"Workspace failed to become ready.")
 
-def docker_locked(func):
-    def wrapper(*args, **kwargs):
-        user = get_current_user()
-        redis_client = redis.from_url(current_app.config["REDIS_URL"])
-        try:
-            with redis_client.lock(f"user.{user.id}.docker.lock",
-                                   blocking_timeout=0,
-                                   timeout=20,
-                                   raise_on_release_error=False):
-                return func(*args, **kwargs)
-        except redis.exceptions.LockError:
-            return {"success": False, "error": "Already starting a challenge; try again in 20 seconds."}
-    return wrapper
+
+def get_start_status(redis_client, start_id):
+    data = redis_client.get(f"{CONTAINER_START_STATUS_PREFIX}{start_id}")
+    if data is None:
+        return None
+    return json.loads(data)
 
 
+def set_start_status(redis_client, start_id, status_dict):
+    redis_client.setex(
+        f"{CONTAINER_START_STATUS_PREFIX}{start_id}",
+        CONTAINER_START_STATUS_TTL,
+        json.dumps(status_dict),
+    )
 
 
 @docker_namespace.route("/next")
@@ -365,19 +367,16 @@ class NextChallenge(Resource):
 
         user = get_current_user()
 
-        # Get all challenges in the current module
         module_challenges = DojoChallenges.query.filter_by(
             dojo_id=dojo_challenge.dojo_id,
             module_index=dojo_challenge.module_index
         ).order_by(DojoChallenges.challenge_index).all()
 
-        # Find the current challenge index
         current_idx = next((i for i, c in enumerate(module_challenges) if c.challenge_index == dojo_challenge.challenge_index), None)
 
         if current_idx is None:
             return {"success": False, "error": "Current challenge not found in module"}
 
-        # Check if there's a next challenge in the current module
         if current_idx + 1 < len(module_challenges):
             next_challenge = module_challenges[current_idx + 1]
             return {
@@ -388,14 +387,12 @@ class NextChallenge(Resource):
                 "challenge_index": next_challenge.challenge_index
             }
 
-        # Check if there's a next module
         next_module = DojoModules.query.filter_by(
             dojo_id=dojo_challenge.dojo_id,
             module_index=dojo_challenge.module_index + 1
         ).first()
 
         if next_module:
-            # Get the first challenge of the next module
             first_challenge = DojoChallenges.query.filter_by(
                 dojo_id=dojo_challenge.dojo_id,
                 module_index=next_module.module_index
@@ -411,14 +408,39 @@ class NextChallenge(Resource):
                     "new_module": True
                 }
 
-        # No next challenge available
         return {"success": False, "error": "No next challenge available"}
+
+
+@docker_namespace.route("/status")
+class DockerStatus(Resource):
+    @authed_only
+    def get(self):
+        start_id = request.args.get("id")
+        if not start_id:
+            return {"success": False, "error": "Missing start ID"}
+
+        redis_client = redis.from_url(current_app.config["REDIS_URL"])
+        status = get_start_status(redis_client, start_id)
+
+        if status is None:
+            return {"success": False, "error": "Unknown start ID"}
+
+        user = get_current_user()
+        if status.get("user_id") != user.id:
+            return {"success": False, "error": "Unknown start ID"}
+
+        return {
+            "success": True,
+            "status": status["status"],
+            "attempt": status.get("attempt", 0),
+            "max_attempts": status.get("max_attempts", 3),
+            "error": status.get("error"),
+        }
 
 
 @docker_namespace.route("")
 class RunDocker(Resource):
     @authed_only
-    @docker_locked
     def post(self):
         data = request.get_json()
         dojo_id = data.get("dojo")
@@ -429,7 +451,6 @@ class RunDocker(Resource):
         user = get_current_user()
         as_user = None
 
-        # https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/initialization/__init__.py#L286-L296
         workspace_token = request.headers.get("X-Workspace-Token")
         if workspace_token:
             try:
@@ -471,6 +492,7 @@ class RunDocker(Resource):
                 "error": "This challenge is locked"
             }
 
+        as_user_id = None
         if dojo.is_admin(user) and "as_user" in data:
             try:
                 as_user_id = int(data["as_user"])
@@ -485,39 +507,47 @@ class RunDocker(Resource):
                 if not student.official:
                     return {"success": False, "error": f"Not an official student in this dojo ({as_user_id})"}
                 as_user = student.user
+            as_user_id = as_user.id
 
-        max_attempts = 3
-        for attempt in range(1, max_attempts+1):
-            try:
-                logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
-                start_challenge(user, dojo_challenge, practice, as_user=as_user)
+        redis_client = redis.from_url(current_app.config["REDIS_URL"])
 
-                if dojo.official or dojo.data.get("type") == "public":
-                    challenge_data = {
-                        "challenge_id": dojo_challenge.challenge_id,
-                        "challenge_name": dojo_challenge.name,
-                        "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
-                        "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
-                        "dojo_id": dojo.reference_id,
-                        "dojo_name": dojo.name
-                    }
-                    mode = "practice" if practice else "assessment"
-                    actual_user = as_user or user
-                    publish_container_start(actual_user, mode, challenge_data)
+        lock = redis_client.lock(
+            f"user.{user.id}.docker.lock",
+            blocking_timeout=0,
+            timeout=120,
+        )
+        try:
+            acquired = lock.acquire()
+        except redis.exceptions.LockError:
+            acquired = False
+        if not acquired:
+            return {"success": False, "error": "Already starting a challenge; please wait."}
 
-                publish_stat_event("container_stats_update", {})
+        start_id = str(uuid.uuid4())
 
-                break
-            except Exception as e:
-                logger.warning(f"Attempt {attempt} failed for user {user.id} with error: {e}")
-                if attempt < max_attempts:
-                    logger.info(f"Retrying... ({attempt}/{max_attempts})")
-                    time.sleep(2)
-        else:
-            logger.error(f"ERROR: Docker failed for {user.id} after {max_attempts} attempts.")
-            return {"success": False, "error": "Docker failed"}
+        set_start_status(redis_client, start_id, {
+            "status": "queued",
+            "attempt": 0,
+            "max_attempts": 3,
+            "error": None,
+            "user_id": user.id,
+        })
 
-        return {"success": True}
+        redis_client.xadd(CONTAINER_STARTS_STREAM, {
+            "start_id": start_id,
+            "user_id": str(user.id),
+            "dojo_id": str(dojo_challenge.dojo_id),
+            "module_index": str(dojo_challenge.module_index),
+            "challenge_index": str(dojo_challenge.challenge_index),
+            "practice": str(int(bool(practice))),
+            "as_user_id": str(as_user_id) if as_user_id is not None else "",
+            "dojo_ref_id": dojo.reference_id,
+            "dojo_official": str(int(dojo.official or dojo.data.get("type") == "public")),
+            "lock_token": lock.local.token.decode() if isinstance(lock.local.token, bytes) else str(lock.local.token),
+        })
+
+        logger.info(f"Enqueued container start {start_id} for user {user.id}")
+        return {"success": True, "start_id": start_id}
 
     @authed_only
     def get(self):
