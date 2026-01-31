@@ -10,7 +10,7 @@ from urllib.parse import urlparse, urlunparse
 from flask import Response, request, redirect, current_app
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
-from CTFd.models import db, Challenges, Users, Solves
+from CTFd.models import db, Challenges, Users
 from CTFd.utils.user import get_current_user
 from CTFd.plugins import register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
@@ -21,7 +21,6 @@ from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
 from .utils.dojo import get_current_dojo_challenge
 from .utils.awards import update_awards
-from .utils.feed import publish_challenge_solve
 from .utils.query_timer import init_query_timer
 from .utils.request_logging import setup_logging, setup_trace_id_tracking, setup_uncaught_error_logging
 from .pages.dojos import dojos, dojos_override
@@ -51,15 +50,6 @@ class DojoChallenge(BaseChallenge):
     def solve(cls, user, team, challenge, request):
         super().solve(user, team, challenge, request)
         update_awards(user)
-
-        dojo_challenge = DojoChallenges.query.filter_by(challenge_id=challenge.id).first()
-        if dojo_challenge:
-            dojo = dojo_challenge.module.dojo
-            if dojo.official or dojo.data.get("type") == "public":
-                module = dojo_challenge.module
-                points = challenge.value
-                first_blood = Solves.query.filter_by(challenge_id=challenge.id).count() == 1
-                publish_challenge_solve(user, dojo_challenge, dojo, module, points, first_blood)
 
 
 class DojoFlag(BaseFlag):
