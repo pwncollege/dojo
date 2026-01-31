@@ -56,6 +56,7 @@ HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
 
 
 def remove_container(user):
+    # Just in case our container is still running on the other docker container, let's make sure we try to kill both
     known_image_name = cache.get(f"user_{user.id}-running-image")
     images = [None, known_image_name]
     for image_name in images:
@@ -77,6 +78,8 @@ def get_available_devices(docker_client):
     if (cached := cache.get(key)) is not None:
         return cached
     find_command = ["/bin/find", "/dev", "-type", "c"]
+    # When using certain logging drivers (like Splunk), docker.containers.run() returns None
+    # Use detach=True and logs() to capture output instead
     container = docker_client.containers.run("busybox:uclibc", find_command, privileged=True, detach=True)
     container.wait()
     output = container.logs()
@@ -423,11 +426,12 @@ class DockerStatus(Resource):
         status = get_start_status(redis_client, start_id)
 
         if status is None:
-            return {"success": False, "error": "Unknown start ID"}
+            abort(404, description="Unknown start ID")
 
         user = get_current_user()
         if status.get("user_id") != user.id:
-            return {"success": False, "error": "Unknown start ID"}
+            # Same error as above to prevent enumerating valid start_ids belonging to other users
+            abort(404, description="Unknown start ID")
 
         return {
             "success": True,
@@ -492,7 +496,7 @@ class RunDocker(Resource):
                 "error": "This challenge is locked"
             }
 
-        as_user_id = None
+        as_user_id = as_user.id if as_user is not None else None
         if dojo.is_admin(user) and "as_user" in data:
             try:
                 as_user_id = int(data["as_user"])
@@ -546,7 +550,7 @@ class RunDocker(Resource):
             "lock_token": lock.local.token.decode() if isinstance(lock.local.token, bytes) else str(lock.local.token),
         })
 
-        logger.info(f"Enqueued container start {start_id} for user {user.id}")
+        logger.info(f"Enqueued container start {start_id=} user_id={user.id}")
         return {"success": True, "start_id": start_id}
 
     @authed_only

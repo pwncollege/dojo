@@ -91,7 +91,4 @@ def test_status_unknown_id(admin_session):
     session = login(user_name, "password", register=True)
 
     response = session.get(f"{DOJO_URL}/pwncollege_api/v1/docker/status?id=nonexistent-id")
-    assert response.status_code == 200
-    result = response.json()
-    assert not result["success"]
-    assert "unknown" in result["error"].lower() or "missing" in result["error"].lower()
+    assert response.status_code == 404

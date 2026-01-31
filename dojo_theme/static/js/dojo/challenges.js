@@ -187,8 +187,13 @@ function pollStartStatus(startId, item, practice, event) {
             credentials: 'same-origin',
             headers: { 'Accept': 'application/json' }
         }).then(function (response) {
+            if (response.status === 404) {
+                onStartError("Start ID not found");
+                return null;
+            }
             return response.json();
         }).then(function (result) {
+            if (!result) return;
             if (!result.success) {
                 onStartError(result.error || "Failed to check status");
                 return;
