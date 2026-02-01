@@ -20,12 +20,17 @@ fi
 case "$ACTION" in
     # HELP: up: bring the dojo up
     "up")
-        if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_TOKEN" ]; then
-            echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
+        # Login to the registry if creds are provided
+        if [ -n "$REGISTRY_USERNAME" ] && [ -n "$REGISTRY_PASSWORD" ] && [ -n "$REGISTRY_HOST" ]; then
+            echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" -u "$REGISTRY_USERNAME" --password-stdin || true
         fi
 
         dojo sync
-        dojo compose up -d --build --remove-orphans "$@"
+
+        # Ensure the workspace network exists prior to bringing services up
+        dojo compose run --rm create-workspace-net || true
+
+        dojo compose up -d --build --remove-orphans --force-recreate "$@"
         ;;
 
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
@@ -82,7 +87,20 @@ case "$ACTION" in
 
         [ "${ENABLE_SPLUNK}" = "true" ] && profiles+=("splunk")
 
-        args=(--env-file=/data/config.env)
+        # Select compose file path depending on layout:
+        # - Repo root layout: /opt/pwn.college/dojo/docker-compose.yml
+        # - Dojo-only layout: /opt/pwn.college/docker-compose.yml
+        COMPOSE_FILE_PATH=""
+        if [ -f "dojo/docker-compose.yml" ]; then
+            COMPOSE_FILE_PATH="dojo/docker-compose.yml"
+        elif [ -f "docker-compose.yml" ]; then
+            COMPOSE_FILE_PATH="docker-compose.yml"
+        else
+            echo "Error: cannot find docker-compose.yml (checked dojo/docker-compose.yml and ./docker-compose.yml)" >&2
+            exit 1
+        fi
+
+        args=(--env-file=/data/config.env -f "$COMPOSE_FILE_PATH")
         for p in "${profiles[@]}"; do
             args+=(--profile "$p")
         done

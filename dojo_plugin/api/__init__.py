@@ -19,6 +19,7 @@ from .v1.workspace import workspace_namespace
 from .v1.search import search_namespace
 from .v1.test_error import test_error_namespace
 from .v1.user import user_namespace
+from .v1.registry import registry_namespace
 
 api = Blueprint("pwncollege_api", __name__)
 
@@ -71,3 +72,4 @@ api_v1.add_namespace(workspace_tokens_namespace, "/workspace_tokens")
 api_v1.add_namespace(workspace_namespace, "/workspace")
 api_v1.add_namespace(search_namespace, "/search")
 api_v1.add_namespace(test_error_namespace, "/test_error")
+api_v1.add_namespace(registry_namespace, "/registry")
