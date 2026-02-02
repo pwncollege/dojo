@@ -30,12 +30,6 @@ let
       runHook postInstall
     '';
   };
-  pythonVsix = pkgs.fetchurl {
-    name = "ms-python.python.vsix";
-    url = "https://ms-python.gallery.vsassets.io/_apis/public/gallery/publisher/ms-python/extension/python/2024.9.11721010/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage";
-    sha256 = "10wn9mi63hjbzl5h803bhh0bjg2m4df6s7lfcjj7lwfwfs7cax46";
-  };
-  cpptoolsVsix = pkgs.vscode-extensions.ms-vscode.cpptools.src;
 
   serviceScript = pkgs.writeScript "dojo-code" ''
     #!${pkgs.bash}/bin/bash
@@ -66,6 +60,7 @@ in pkgs.stdenv.mkDerivation {
     code-server
     bash
     python3
+    wget
     curl
     cacert
   ];
@@ -82,14 +77,13 @@ in pkgs.stdenv.mkDerivation {
     ln -s ${code-server}/bin/code-server $out/bin/code
 
     mkdir -p $out/share/code/extensions
-    cp ${pythonVsix} $NIX_BUILD_TOP/ms-python.python.vsix
-    cp ${cpptoolsVsix} $NIX_BUILD_TOP/cpptools-linux.vsix
+    ${pkgs.wget}/bin/wget -P $NIX_BUILD_TOP 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
     export HOME=$NIX_BUILD_TOP
     ${code-server}/bin/code-server \
       --auth=none \
       --disable-telemetry \
       --extensions-dir=$out/share/code/extensions \
-      --install-extension $NIX_BUILD_TOP/ms-python.python.vsix \
+      --install-extension ms-python.python \
       --install-extension $NIX_BUILD_TOP/cpptools-linux.vsix
     chmod +x $out/share/code/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*}
 

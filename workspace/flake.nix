@@ -5,7 +5,6 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-24-11.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-pr-angr-management.url = "github:NixOS/nixpkgs/pull/360310/head";
-    nixpkgs-angr.url = "github:pwncollege/nixpkgs/update/angr";
     pwndbg.url = "github:pwndbg/pwndbg";
   };
 
@@ -16,7 +15,6 @@
       nixpkgs-24-11,
       nixpkgs-pr-angr-management,
       pwndbg,
-      nixpkgs-angr,
     }:
     {
       packages = {
@@ -30,15 +28,6 @@
 
             angr-management-overlay = self: super: {
               angr-management = (import nixpkgs-pr-angr-management { inherit system config; }).angr-management;
-            };
-
-            angr-overlay = self: super: {
-              python3 = super.python3.override {
-                packageOverrides = final: prev: {
-                  angr = (import nixpkgs-angr { inherit system config; }).python3Packages.angr;
-                };
-              };
-              python3Packages = self.python3.pkgs;
             };
 
             ida-free-overlay = self: super: {
@@ -63,7 +52,6 @@
               inherit system config;
               overlays = [
                 angr-management-overlay
-                angr-overlay
                 ida-free-overlay
                 sage-overlay
                 pwndbg-overlay
@@ -117,7 +105,7 @@
               ncurses
               nettools
               procps
-              (lib.lowPrio python3)
+              python3
               util-linux
               wget
               which
