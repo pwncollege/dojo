@@ -69,6 +69,7 @@ jobs:
           set -x
           df -h
           sudo mkdir -p /mnt/cache
+          sudo mkdir -p /mnt/data
           if [ ! -e /mnt/cache.img ]; then
             sudo fallocate -l 9.8G /mnt/cache.img
             sudo mkfs.btrfs -L cache /mnt/cache.img
@@ -82,6 +83,7 @@ jobs:
           sudo btrfs filesystem resize max /mnt/cache
 
           sudo chown $USER:$USER /mnt/cache
+          sudo chown $USER:$USER /mnt/data
           mkdir -p /mnt/cache/dojo-image
           mkdir -p /mnt/cache/test-image
           mkdir -p /mnt/data/docker
