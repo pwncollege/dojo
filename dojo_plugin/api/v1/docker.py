@@ -10,6 +10,7 @@ import docker
 import docker.errors
 import docker.types
 import redis
+from .user import authed_only_cli
 from flask import abort, request, current_app
 from itsdangerous.url_safe import URLSafeTimedSerializer
 from flask_restx import Namespace, Resource
@@ -417,6 +418,7 @@ class NextChallenge(Resource):
 
 @docker_namespace.route("")
 class RunDocker(Resource):
+    @authed_only_cli
     @authed_only
     @docker_locked
     def post(self):
@@ -519,6 +521,7 @@ class RunDocker(Resource):
 
         return {"success": True}
 
+    @authed_only_cli
     @authed_only
     def get(self):
         dojo_challenge = get_current_dojo_challenge()
