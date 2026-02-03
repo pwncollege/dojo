@@ -197,8 +197,10 @@ jobs:
           sudo du -hs /mnt/cache/*
           sudo du -hs /mnt/cache/dojo-image/*
           sudo du -hs /mnt/cache/test-image/*
-          sudo du -hs /mnt/cache/data/docker/*
-          sudo du -hs /mnt/cache/data/workspace/*
+          sudo du -hs /mnt/cache/data/*
+          echo "::endgroup::"
+          echo "::group::Dumping the cache"
+          sudo du -h /mnt/cache
           echo "::endgroup::"
           echo "::group::Peeping at the cache again"
           ./deploy.sh -K -g
@@ -206,8 +208,10 @@ jobs:
           sudo du -hs /mnt/cache/*
           sudo du -hs /mnt/cache/dojo-image/*
           sudo du -hs /mnt/cache/test-image/*
-          sudo du -hs /mnt/cache/data/docker/*
-          sudo du -hs /mnt/cache/data/workspace/*
+          sudo du -hs /mnt/cache/data/*
+          echo "::endgroup::"
+          echo "::group::Dumping the cache again"
+          sudo du -h /mnt/cache
           echo "::endgroup::"
 
   upload:
