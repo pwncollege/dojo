@@ -9,7 +9,6 @@ import { Loader2, AlertCircle, Star, Users, Trophy, BookOpen, Zap } from 'lucide
 import { Markdown } from '@/components/ui/markdown'
 import { Belt } from '@/components/ui/belt'
 import { DojoNinja } from '@/components/ui/dojo-ninja'
-import { AnimatedBackground } from '@/components/ui/animated-background'
 import { motion } from 'framer-motion'
 import { useMemo } from 'react'
 
@@ -218,7 +217,6 @@ export function HomePageClient({ dojos }: HomePageClientProps) {
     >
         {/* Hero Section with Full Width Background */}
         <div className="relative">
-          <AnimatedBackground />
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 lg:py-24">
             <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               <div className="max-w-4xl relative z-10">
