@@ -69,6 +69,7 @@ jobs:
           set -x
           df -h
           sudo mkdir -p /mnt/cache
+          sudo mkdir -p /mnt/data
           if [ ! -e /mnt/cache.img ]; then
             sudo fallocate -l 9.8G /mnt/cache.img
             sudo mkfs.btrfs -L cache /mnt/cache.img
@@ -82,14 +83,15 @@ jobs:
           sudo btrfs filesystem resize max /mnt/cache
 
           sudo chown $USER:$USER /mnt/cache
+          sudo chown $USER:$USER /mnt/data
           mkdir -p /mnt/cache/dojo-image
           mkdir -p /mnt/cache/test-image
-          mkdir -p /mnt/cache/data/docker
-          mkdir -p /mnt/cache/data/workspace
+          mkdir -p /mnt/data/docker
+          mkdir -p /mnt/data/workspace
           if [ "${{ matrix.mode }}" = "multinode" ]; then
-            sudo rm -rf /mnt/cache/data/docker-node1 /mnt/cache/data/docker-node2
-            sudo cp -a /mnt/cache/data/docker /mnt/cache/data/docker-node1
-            sudo cp -a /mnt/cache/data/docker /mnt/cache/data/docker-node2
+            sudo rm -rf /mnt/data/docker-node1 /mnt/data/docker-node2
+            sudo cp -a /mnt/data/docker /mnt/data/docker-node1
+            sudo cp -a /mnt/data/docker /mnt/data/docker-node2
           fi
 
       - name: Set up Docker storage
@@ -126,12 +128,12 @@ jobs:
       - name: Start the dojo in ${{ matrix.mode }} mode
         timeout-minutes: 15
         run: |
-          ./deploy.sh -g -D /mnt/cache/data/docker -W /mnt/cache/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
+          ./deploy.sh -g -D /mnt/data/docker -W /mnt/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
 
       - name: Run ${{ matrix.mode }} dojo tests
         timeout-minutes: 15
         run: |
-          ./deploy.sh -g -D /mnt/cache/data/docker -W /mnt/cache/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C -N -t
+          ./deploy.sh -g -D /mnt/data/docker -W /mnt/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C -N -t
 
       - name: Upload coverage reports to Codecov
         if: matrix.mode == 'singlenode'
