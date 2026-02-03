@@ -10,7 +10,7 @@ import docker
 import docker.errors
 import docker.types
 import redis
-from .user import authed_only_cli
+from .user import authed_only_cli, CLI_AUTH_PREFIX
 from flask import abort, request, current_app
 from itsdangerous.url_safe import URLSafeTimedSerializer
 from flask_restx import Namespace, Resource
@@ -100,7 +100,10 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         ]
     )[:64]
 
-    auth_token = URLSafeTimedSerializer(current_app.config["SECRET_KEY"]).dumps([user.id, dojo_challenge.id, "cli-auth-token"])
+    auth_token = URLSafeTimedSerializer(current_app.config["SECRET_KEY"]).dumps(
+        [user.id, dojo_challenge.id, "cli-auth-token"]
+    )
+    auth_token = f"{CLI_AUTH_PREFIX}{auth_token}"
 
     challenge_bin_path = "/run/challenge/bin"
     dojo_bin_path = "/run/dojo/bin"

@@ -7,6 +7,7 @@ from CTFd.models import Users
 from ...utils import get_current_container
 
 user_namespace = Namespace("user", description="User management endpoints")
+CLI_AUTH_PREFIX = "sk-workspace-local-"
 
 
 def authed_only_cli(func):
@@ -15,9 +16,13 @@ def authed_only_cli(func):
         auth_header = request.headers.get("Authorization")
         if not auth_header:
             return func(*args, **kwargs)
+        if not auth_header.startswith("Bearer "):
+            return func(*args, **kwargs)
+        token = auth_header[len("Bearer "):].strip()
+        if not token.startswith(CLI_AUTH_PREFIX):
+            return func(*args, **kwargs)
+        token = token[len(CLI_AUTH_PREFIX):].strip()
         try:
-            assert auth_header.startswith("Bearer ")
-            token = auth_header[len("Bearer "):].strip()
             user_id, challenge_id, token_tag = URLSafeTimedSerializer(
                 current_app.config["SECRET_KEY"]
             ).loads(token, max_age=21600)
