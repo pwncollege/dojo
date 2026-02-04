@@ -174,14 +174,12 @@ case "$ACTION" in
             esac
         done
 
-        if docker inspect workspace-builder >/dev/null 2>&1; then
-            docker wait workspace-builder >/dev/null
-            workspace_builder_exit=$(docker inspect -f '{{.State.ExitCode}}' workspace-builder)
-            if [ "$workspace_builder_exit" != "0" ]; then
-                docker logs --tail 100 workspace-builder
-                echo "Error: workspace-builder failed"
-                exit 1
-            fi
+        if docker inspect workspace-builder >/dev/null 2>&1 \
+            && ! docker wait workspace-builder
+        then
+            docker logs --tail 100 workspace-builder
+            echo "Error: workspace-builder failed"
+            exit 1
         fi
 
         if docker ps --format '{{.Names}}' | grep -q '^stats-worker$'; then
