@@ -52,6 +52,7 @@ jobs:
             echo "SAVE_CACHE=yes" >> "$GITHUB_ENV"
           else
             echo "LOAD_CACHE=yes" >> "$GITHUB_ENV"
+            sudo chown $USER:$USER /mnt
           fi
 
       - name: Restore docker and workspace cache
@@ -66,6 +67,7 @@ jobs:
 
       - name: Setup cache filesystem
         run: |
+          sudo chown root:root /mnt
           set -x
           df -h
           sudo mkdir -p /mnt/cache
