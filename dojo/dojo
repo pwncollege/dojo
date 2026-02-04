@@ -25,7 +25,11 @@ case "$ACTION" in
         fi
 
         dojo sync
-        dojo compose up -d --build --remove-orphans "$@"
+        build_args=(--build)
+        if [ "${DOJO_OFFLINE}" = "true" ]; then
+            build_args=(--no-build)
+        fi
+        dojo compose up -d "${build_args[@]}" --remove-orphans "$@"
         ;;
 
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
