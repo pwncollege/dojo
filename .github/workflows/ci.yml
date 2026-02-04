@@ -59,7 +59,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            /tmp/cache.img
+            /mnt/cache.img
           key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
           restore-keys: |
             dojo-cache-
@@ -70,16 +70,16 @@ jobs:
           df -h
           sudo mkdir -p /mnt/cache
           sudo mkdir -p /mnt/data
-          if [ ! -e /tmp/cache.img ]; then
-            sudo fallocate -l 9.8G /tmp/cache.img
-            sudo mkfs.btrfs -L cache /tmp/cache.img
+          if [ ! -e /mnt/cache.img ]; then
+            sudo fallocate -l 9.8G /mnt/cache.img
+            sudo mkfs.btrfs -L cache /mnt/cache.img
           fi
 
           if [ "$SAVE_CACHE" != "yes" ]; then
-            sudo truncate -s +20G /tmp/cache.img
+            sudo truncate -s +20G /mnt/cache.img
           fi
 
-          sudo mount -o loop,compress=zstd:9 /tmp/cache.img /mnt/cache
+          sudo mount -o loop,compress=zstd:9 /mnt/cache.img /mnt/cache
           sudo btrfs filesystem resize max /mnt/cache
 
           sudo chown $USER:$USER /mnt/cache
@@ -177,14 +177,14 @@ jobs:
           ./deploy.sh -K -g
           df -h
           sudo umount /mnt/cache
-          du -sm /tmp/cache.img
+          du -sm /mnt/cache.img
 
       - name: Save docker and workspace cache
         if: env.SAVE_CACHE == 'yes'
         uses: actions/cache/save@v4
         with:
           path: |
-            /tmp/cache.img
+            /mnt/cache.img
           key: dojo-cache-${{ matrix.mode }}-${{ github.run_id }}
 
       - name: Final filesystem information
