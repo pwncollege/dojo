@@ -53,6 +53,28 @@ def update_scoreboard(scoreboard, user_id, solve_delta=1):
 
     return result
 
+def challenge_solves_cache_key(dojo_id, module_index):
+    return f"stats:challenge_solves:module:{dojo_id}:{module_index}"
+
+
+def calculate_challenge_solves(module):
+    required_filter = DojoChallenges.required == True
+    query = (
+        module.solves()
+        .filter(required_filter)
+        .group_by(Solves.challenge_id)
+        .with_entities(Solves.challenge_id, func.count().label("count"))
+    )
+    return {str(row.challenge_id): row.count for row in query.all()}
+
+
+def update_challenge_solves(challenge_solves, challenge_id):
+    result = dict(challenge_solves)
+    key = str(challenge_id)
+    result[key] = result.get(key, 0) + 1
+    return result
+
+
 def calculate_scoreboard(model, duration):
     duration_filter = (
         Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
@@ -127,6 +149,16 @@ def handle_scoreboard_update(payload, event_timestamp=None):
         except Exception as e:
             logger.error(f"Error calculating scoreboard for {model_type} {model_id}, duration={duration}: {e}", exc_info=True)
 
+    if model_type == "module":
+        try:
+            logger.info(f"Calculating challenge_solves for module {model_id}...")
+            challenge_solves = calculate_challenge_solves(model)
+            cache_key = challenge_solves_cache_key(model.dojo_id, model.module_index)
+            set_cached_stat(cache_key, challenge_solves)
+            logger.info(f"Successfully updated challenge_solves cache {cache_key} ({len(challenge_solves)} challenges)")
+        except Exception as e:
+            logger.error(f"Error calculating challenge_solves for module {model_id}: {e}", exc_info=True)
+
 
 def initialize_all_scoreboards():
     dojos = Dojos.query.all()
@@ -151,3 +183,11 @@ def initialize_all_scoreboards():
                     logger.info(f"Initialized scoreboard for module {dojo.reference_id}/{module.id} (dojo_id={module.dojo_id}, module_index={module.module_index}), duration={duration}")
                 except Exception as e:
                     logger.error(f"Error initializing scoreboard for module {dojo.reference_id}/{module.id}, duration={duration}: {e}", exc_info=True)
+
+            try:
+                challenge_solves = calculate_challenge_solves(module)
+                cache_key = challenge_solves_cache_key(module.dojo_id, module.module_index)
+                set_cached_stat(cache_key, challenge_solves)
+                logger.info(f"Initialized challenge_solves for module {dojo.reference_id}/{module.id} ({len(challenge_solves)} challenges)")
+            except Exception as e:
+                logger.error(f"Error initializing challenge_solves for module {dojo.reference_id}/{module.id}: {e}", exc_info=True)

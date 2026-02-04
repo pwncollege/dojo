@@ -121,3 +121,11 @@ def get_dojo_stats(dojo):
         'trends': {'solves': 0, 'users': 0, 'active': 0, 'challenges': 0},
         'chart_data': {'labels': [], 'solves': [], 'users': []}
     }
+
+
+def get_challenge_solves(module):
+    cache_key = f"stats:challenge_solves:module:{module.dojo_id}:{module.module_index}"
+    cached = get_cached_stat(cache_key)
+    if cached:
+        return {int(k): v for k, v in cached.items()}
+    return None
