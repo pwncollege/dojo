@@ -148,7 +148,7 @@ case "$ACTION" in
 
     # HELP: logs: display dojo logs
     "logs")
-        journalctl -u pwn.college -f --no-tail
+        journalctl --no-pager -u pwn.college "$@"
         ;;
 
     # HELP: load-dojo: load a dojo from a git repository
@@ -159,7 +159,7 @@ case "$ACTION" in
 
     # HELP: wait: wait for the dojo to finish starting
     "wait")
-        dojo logs | while IFS= read -r line; do
+        dojo logs -f --no-tail | while IFS= read -r line; do
             echo "$line"
             case "$line" in
                 *"Finished pwn.college.service - pwn.college docker compose service"*)
