@@ -96,7 +96,7 @@ def get_viewable_emojis(user):
                     filtered.append({
                         "text": emoji_entry["text"],
                         "emoji": emoji_entry["emoji"],
-                        "count": 1,
+                        "count": emoji_entry["count"],
                         "url": "#",
                         "stale": False,
                     })
@@ -107,7 +107,7 @@ def get_viewable_emojis(user):
                     filtered.append({
                         "text": emoji_entry["text"],
                         "emoji": dojo.award.get('emoji'),
-                        "count": 1,
+                        "count": emoji_entry["count"],
                         "url": url_for("pwncollege_dojo.listing", dojo=dojo.reference_id),
                         "stale": emoji_entry.get("stale", False),
                     })

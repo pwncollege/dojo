@@ -80,6 +80,7 @@ def calculate_emojis():
             emoji_entry = {
                 "text": emoji.description,
                 "emoji": emoji.name,
+                "count": 1,
                 "url": "#",
                 "stale": False,
                 "category": None,
@@ -91,6 +92,7 @@ def calculate_emojis():
             emoji_entry = {
                 "text": emoji.description,
                 "emoji": dojo_info["emoji"],
+                "count": 1,
                 "url": f"/dojo/{dojo_info['reference_id']}",
                 "stale": emoji.name == "STALE",
                 "category": emoji.category,
