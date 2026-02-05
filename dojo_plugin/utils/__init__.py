@@ -54,7 +54,23 @@ def get_current_container(user=None):
     try:
         return docker_client.containers.get(container_name(user))
     except docker.errors.NotFound:
-        return None
+        pass
+    except docker.errors.DockerException:
+        pass
+
+    for candidate in [docker.from_env(), *all_docker_clients()]:
+        try:
+            if candidate.api.base_url == docker_client.api.base_url:
+                continue
+        except Exception:
+            pass
+        try:
+            return candidate.containers.get(container_name(user))
+        except docker.errors.NotFound:
+            continue
+        except docker.errors.DockerException:
+            continue
+    return None
 
 
 def get_all_containers(dojo=None):
