@@ -1,3 +1,4 @@
+import json
 import subprocess
 import requests
 import pytest
@@ -6,7 +7,7 @@ import string
 import time
 import yaml
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id, wait_for_background_worker
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, DOJO_CONTAINER, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id, wait_for_background_worker
 
 
 def get_dojo_modules(dojo):
@@ -90,10 +91,21 @@ def test_update_dojo_pulls_image(admin_session):
         session=admin_session,
     )
 
-    for _ in range(60):
-        result = dojo_run("docker", "image", "inspect", "hello-world:latest", check=False)
-        if result.returncode == 0:
-            return
+    containers = [DOJO_CONTAINER]
+    nodes_result = dojo_run("cat", "/data/workspace_nodes.json", check=False)
+    if nodes_result.returncode == 0 and nodes_result.stdout.strip():
+        try:
+            nodes = json.loads(nodes_result.stdout)
+        except json.JSONDecodeError:
+            nodes = {}
+        containers.extend(f"{DOJO_CONTAINER}-node{node_id}" for node_id in nodes.keys())
+
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline:
+        for container in containers:
+            result = dojo_run("docker", "image", "inspect", "hello-world:latest", check=False, container=container)
+            if result.returncode == 0:
+                return
         time.sleep(5)
     raise AssertionError("hello-world image was not pulled")
 
