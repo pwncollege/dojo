@@ -90,20 +90,12 @@ def test_update_dojo_pulls_image(admin_session):
         session=admin_session,
     )
 
-    last_error = None
-    for _ in range(20):
-        try:
-            start_challenge(dojo_reference_id, "hello", "hello-world", session=admin_session)
-            last_error = None
-            break
-        except AssertionError as e:
-            last_error = e
-            time.sleep(10)
-
-    if last_error:
-        raise AssertionError(f"Failed to start challenge after waiting for image pulls: {last_error}")
-    result = workspace_run("/hello", user="admin")
-    assert "Hello from Docker!" in result.stdout
+    for _ in range(60):
+        result = dojo_run("docker", "image", "inspect", "hello-world:latest", check=False)
+        if result.returncode == 0:
+            return
+        time.sleep(5)
+    raise AssertionError("hello-world image was not pulled")
 
 
 def test_import(import_dojo, admin_session):

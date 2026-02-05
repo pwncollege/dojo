@@ -119,6 +119,11 @@ class CreateDojo(Resource):
         except RuntimeError as e:
             return {"success": False, "error": str(e)}, 400
 
+        try:
+            enqueue_dojo_image_pulls(dojo)
+        except Exception as e:
+            logger.error(f"Failed to enqueue image pulls for {dojo.reference_id}: {e}", exc_info=True)
+
         cache.set(key, 1, timeout=timeout)
         return {"success": True, "dojo": dojo.reference_id}
 
