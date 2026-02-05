@@ -82,7 +82,8 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
 
 def user_node(user):
     workspace_nodes = get_workspace_nodes()
-    return list(workspace_nodes.keys())[user.id % len(workspace_nodes)] if workspace_nodes else None
+    node_ids = sorted(workspace_nodes.keys())
+    return node_ids[user.id % len(node_ids)] if node_ids else None
 
 
 def user_docker_client(user, image_name=None):
@@ -107,8 +108,9 @@ def get_workspace_nodes():
 
 def all_docker_clients():
     workspace_nodes = get_workspace_nodes()
+    node_ids = sorted(workspace_nodes.keys())
     return [docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
-            for node_id in workspace_nodes] if workspace_nodes else [docker.from_env()]
+            for node_id in node_ids] if node_ids else [docker.from_env()]
 
 
 def user_ipv4(user):
