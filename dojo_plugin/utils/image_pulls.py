@@ -15,6 +15,7 @@ IMAGE_PULL_STREAM_NAME = "image:pull:events"
 CONSUMER_GROUP = "image-pull-workers"
 CONSUMER_NAME = f"image-pull-worker-{os.getpid()}"
 MAX_PULL_ATTEMPTS = 5
+PENDING_IDLE_MS = 60_000
 
 
 def _filtered_images(images: Iterable[Optional[str]]) -> set[str]:
@@ -84,8 +85,56 @@ def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult]
     ensure_consumer_group()
     logger.info(f"Image pull worker {CONSUMER_NAME} waiting for events...")
 
+    def process_message(message_id, message_data):
+        try:
+            event_data = json.loads(message_data["data"])
+            success, retry = _parse_handler_result(handler(event_data))
+            if success:
+                r.xackdel(IMAGE_PULL_STREAM_NAME, CONSUMER_GROUP, message_id)
+                logger.info(f"Processed image pull event {message_id}")
+                return
+
+            attempt = int(event_data.get("attempt", 0))
+            max_attempts = int(event_data.get("max_attempts", MAX_PULL_ATTEMPTS))
+            if retry and attempt < max_attempts:
+                delay = min(60.0, (2 ** attempt) + random.random())
+                logger.warning(f"Retrying image pull for {event_data.get('image')} in {delay:.1f}s (attempt {attempt + 1}/{max_attempts})")
+                time.sleep(delay)
+                publish_image_pull(
+                    event_data.get("image"),
+                    dojo_reference_id=event_data.get("dojo_reference_id"),
+                    attempt=attempt + 1,
+                    max_attempts=max_attempts,
+                )
+            else:
+                logger.error(f"Dropping image pull for {event_data.get('image')} after {attempt} attempts")
+
+            r.xackdel(IMAGE_PULL_STREAM_NAME, CONSUMER_GROUP, message_id)
+        except Exception as e:
+            logger.error(f"Error processing image pull event {message_id}: {e}", exc_info=True)
+            try:
+                r.xackdel(IMAGE_PULL_STREAM_NAME, CONSUMER_GROUP, message_id)
+            except Exception:
+                pass
+
     while True:
         try:
+            try:
+                autoclaim = getattr(r, "xautoclaim", None)
+                if autoclaim:
+                    _, claimed = autoclaim(
+                        IMAGE_PULL_STREAM_NAME,
+                        CONSUMER_GROUP,
+                        CONSUMER_NAME,
+                        min_idle_time=PENDING_IDLE_MS,
+                        start_id="0-0",
+                        count=batch_size,
+                    )
+                    for message_id, message_data in claimed:
+                        process_message(message_id, message_data)
+            except Exception:
+                pass
+
             messages = r.xreadgroup(
                 CONSUMER_GROUP,
                 CONSUMER_NAME,
@@ -99,31 +148,7 @@ def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult]
 
             for _, stream_messages in messages:
                 for message_id, message_data in stream_messages:
-                    try:
-                        event_data = json.loads(message_data["data"])
-                        success, retry = _parse_handler_result(handler(event_data))
-                        if success:
-                            r.xackdel(IMAGE_PULL_STREAM_NAME, CONSUMER_GROUP, message_id)
-                            logger.info(f"Processed image pull event {message_id}")
-                            continue
-
-                        attempt = int(event_data.get("attempt", 0))
-                        max_attempts = int(event_data.get("max_attempts", MAX_PULL_ATTEMPTS))
-                        if retry and attempt < max_attempts:
-                            delay = min(60.0, (2 ** attempt) + random.random())
-                            logger.warning(f"Retrying image pull for {event_data.get('image')} in {delay:.1f}s (attempt {attempt + 1}/{max_attempts})")
-                            time.sleep(delay)
-                            publish_image_pull(
-                                event_data.get("image"),
-                                dojo_reference_id=event_data.get("dojo_reference_id"),
-                                attempt=attempt + 1,
-                                max_attempts=max_attempts,
-                            )
-                        else:
-                            logger.error(f"Dropping image pull for {event_data.get('image')} after {attempt} attempts")
-                        r.xackdel(IMAGE_PULL_STREAM_NAME, CONSUMER_GROUP, message_id)
-                    except Exception as e:
-                        logger.error(f"Error processing image pull event {message_id}: {e}", exc_info=True)
+                    process_message(message_id, message_data)
         except redis.ResponseError as e:
             if "NOGROUP" in str(e):
                 logger.warning("Image pull consumer group missing, recreating...")
