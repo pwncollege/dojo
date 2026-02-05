@@ -86,8 +86,7 @@ case "$ACTION" in
         fi
         if [ -n "$1" ] && [ -n "$2" ]; then
             jq ".[\"$1\"] = \"$2\"" /data/workspace_nodes.json > /data/workspace_nodes.json.tmp
-            cat /data/workspace_nodes.json.tmp > /data/workspace_nodes.json
-            rm /data/workspace_nodes.json.tmp
+            mv /data/workspace_nodes.json.tmp /data/workspace_nodes.json
             dojo-node refresh
         else
             echo "Usage: $0 add NODE_ID NODE_KEY"
@@ -102,8 +101,7 @@ case "$ACTION" in
         fi
         if [ -n "$1" ]; then
             jq "del(.\"$1\")" /data/workspace_nodes.json > /data/workspace_nodes.json.tmp
-            cat /data/workspace_nodes.json.tmp > /data/workspace_nodes.json
-            rm /data/workspace_nodes.json.tmp
+            mv /data/workspace_nodes.json.tmp /data/workspace_nodes.json
             dojo-node refresh
         else
             echo "Usage: $0 del NODE_ID"

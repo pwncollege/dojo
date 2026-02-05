@@ -2,10 +2,8 @@ import datetime
 import hashlib
 import hmac
 import io
-import json
 import logging
 import os
-import pathlib
 import pytz
 import re
 import tarfile
@@ -81,8 +79,7 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
 
 
 def user_node(user):
-    workspace_nodes = get_workspace_nodes()
-    node_ids = sorted(workspace_nodes.keys())
+    node_ids = sorted(WORKSPACE_NODES.keys())
     return node_ids[user.id % len(node_ids)] if node_ids else None
 
 
@@ -96,19 +93,8 @@ def user_docker_client(user, image_name=None):
     return (docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
             if node_id is not None else docker.from_env())
 
-def get_workspace_nodes():
-    try:
-        data = json.loads(pathlib.Path("/var/workspace_nodes.json").read_text())
-        if isinstance(data, dict):
-            return {int(node_id): node_key for node_id, node_key in data.items()}
-    except Exception:
-        pass
-    return WORKSPACE_NODES
-
-
 def all_docker_clients():
-    workspace_nodes = get_workspace_nodes()
-    node_ids = sorted(workspace_nodes.keys())
+    node_ids = sorted(WORKSPACE_NODES.keys())
     return [docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
             for node_id in node_ids] if node_ids else [docker.from_env()]
 
