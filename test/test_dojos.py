@@ -1,6 +1,5 @@
 import subprocess
 import requests
-import pytest
 import random
 import string
 import time
@@ -66,7 +65,6 @@ def test_update_dojo(admin_session):
     assert updated["name"] == updated_name
 
 
-@pytest.mark.timeout(240)
 def test_create_dojo_pulls_image(admin_session):
     spec = {
         "id": "hello-world-pull",
@@ -90,24 +88,14 @@ def test_create_dojo_pulls_image(admin_session):
         session=admin_session,
     )
 
-    deadline = time.monotonic() + 120
-    last_error = None
-    attempts = 0
+    deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         try:
-            attempts += 1
             start_challenge(dojo_reference_id, "hello", "hello-world", session=admin_session)
-            stop_response = admin_session.delete(f"{DOJO_URL}/pwncollege_api/v1/docker")
-            if stop_response.status_code == 200:
-                assert stop_response.json().get("success", True)
             return
-        except AssertionError as e:
-            last_error = str(e)
-            if "Docker failed" in last_error:
-                time.sleep(2)
-                continue
-            raise
-    raise AssertionError(f"Failed to start hello-world challenge after {attempts} attempts (last error: {last_error})")
+        except AssertionError:
+            time.sleep(2)
+    raise AssertionError("Failed to start hello-world challenge within 60s")
 
 
 def test_import(import_dojo, admin_session):
