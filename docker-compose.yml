@@ -237,6 +237,22 @@ services:
     depends_on:
       <<: *ctfd-depends
 
+  container-worker:
+    <<: *ctfd-base
+    container_name: container-worker
+    hostname: container-worker
+    profiles:
+      - main
+    restart: always
+    command: ["flask", "shell", "/opt/CTFd/CTFd/plugins/dojo_plugin/worker/container_worker.py"]
+    environment:
+      <<: *ctfd-env
+      CONTAINER_WORKERS: ${CONTAINER_WORKERS:-8}
+      SECRET_KEY: ${SECRET_KEY}
+    volumes: *ctfd-volumes
+    depends_on:
+      <<: *ctfd-depends
+
   sshd:
     container_name: sshd
     hostname: sshd
