@@ -79,55 +79,6 @@ def get_belts():
         result["ranks"][color] = []
     return result
 
-def calculate_viewable_emojis(user):
-    result = { }
-    viewable_dojos = {
-        dojo.hex_dojo_id: dojo
-        for dojo in Dojos.viewable(user=user).where(Dojos.data["type"].astext != "example")
-    }
-
-    emojis = (
-        Emojis.query
-        .join(Users)
-        .filter(~Users.hidden, db.or_(Emojis.category.in_(viewable_dojos.keys()), Emojis.category == None))
-        .order_by(Emojis.date, Emojis.name.desc())
-        .with_entities(
-            Emojis.name,
-            Emojis.description,
-            Emojis.category,
-            Users.id.label("user_id"),
-        )
-    )
-
-    seen = set()
-    for emoji in emojis:
-        key = (emoji.user_id, emoji.category)
-        if key in seen:
-            continue
-
-        if emoji.category is None:
-            emoji_symbol = emoji.name
-            url = "#"
-        else:
-            dojo = viewable_dojos.get(emoji.category)
-            if not dojo or not dojo.award or not dojo.award.get('emoji'):
-                continue
-            emoji_symbol = dojo.award.get('emoji')
-            url = url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
-
-        is_stale = emoji.name == "STALE"
-
-        result.setdefault(emoji.user_id, []).append({
-            "text": emoji.description,
-            "emoji": emoji_symbol,
-            "count": 1,
-            "url": url,
-            "stale": is_stale,
-        })
-        seen.add(key)
-
-    return result
-
 def get_viewable_emojis(user):
     cached = get_cached_stat(CACHE_KEY_EMOJIS)
     if cached:
