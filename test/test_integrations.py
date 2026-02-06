@@ -63,7 +63,6 @@ def validate_restart(username, mode):
         labels["dojo.dojo_id"],
         labels["dojo.module_id"],
         labels["dojo.challenge_id"],
-        attempts=30,
         mode = labels["dojo.mode"] if mode == "current" else mode,
         after = datetime.datetime.fromisoformat(container["Created"]) # Should be created after the old container.
     ), f"Failed to restart:\nOriginal Container:\n{container}\nNewest Container:\n{inspect_container(username)}"
