@@ -95,8 +95,7 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
 
 
 def user_node(user):
-    node_ids = sorted(WORKSPACE_NODES.keys())
-    return node_ids[user.id % len(node_ids)] if node_ids else None
+    return list(WORKSPACE_NODES.keys())[user.id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
 
 
 def user_docker_client(user, image_name=None):
