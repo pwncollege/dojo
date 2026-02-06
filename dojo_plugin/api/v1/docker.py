@@ -27,7 +27,6 @@ from ...utils import (
     lookup_workspace_token,
     resolved_tar,
     serialize_user_flag,
-    all_docker_clients,
     user_docker_client,
     user_node,
     user_ipv4,
@@ -52,35 +51,21 @@ HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
 
 
 def remove_container(user):
-    # Just in case our container is still running on the other docker container, let's make sure we try to kill both
     known_image_name = cache.get(f"user_{user.id}-running-image")
     images = [None, known_image_name]
     for image_name in images:
         docker_client = user_docker_client(user, image_name)
-        candidates = [docker_client, docker.from_env(), *all_docker_clients()]
-        seen = set()
-        for candidate in candidates:
+        try:
+            container = docker_client.containers.get(container_name(user))
+            container.remove(force=True)
+            container.wait(condition="removed")
+        except (docker.errors.NotFound, docker.errors.APIError):
+            pass
+        for volume in [f"{user.id}", f"{user.id}-overlay"]:
             try:
-                key = candidate.api.base_url
-            except Exception:
-                key = id(candidate)
-            if key in seen:
-                continue
-            seen.add(key)
-            try:
-                container = candidate.containers.get(container_name(user))
-                container.remove(force=True)
-                try:
-                    container.wait(condition="removed")
-                except Exception:
-                    pass
+                docker_client.volumes.get(volume).remove()
             except (docker.errors.NotFound, docker.errors.APIError):
                 pass
-            for volume in [f"{user.id}", f"{user.id}-overlay"]:
-                try:
-                    candidate.volumes.get(volume).remove()
-                except (docker.errors.NotFound, docker.errors.APIError):
-                    pass
 
 def get_available_devices(docker_client):
     key = f"devices-{docker_client.api.base_url}"
