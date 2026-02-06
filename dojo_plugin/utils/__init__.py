@@ -54,23 +54,7 @@ def get_current_container(user=None):
     try:
         return docker_client.containers.get(container_name(user))
     except docker.errors.NotFound:
-        pass
-    except docker.errors.DockerException:
-        pass
-
-    for candidate in [docker.from_env(), *all_docker_clients()]:
-        try:
-            if candidate.api.base_url == docker_client.api.base_url:
-                continue
-        except Exception:
-            pass
-        try:
-            return candidate.containers.get(container_name(user))
-        except docker.errors.NotFound:
-            continue
-        except docker.errors.DockerException:
-            continue
-    return None
+        return None
 
 
 def get_all_containers(dojo=None):
@@ -95,7 +79,7 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
 
 
 def user_node(user):
-    return list(WORKSPACE_NODES.keys())[user.id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
+    return list(WORKSPACE_NODES)[user.id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
 
 
 def user_docker_client(user, image_name=None):
@@ -110,7 +94,7 @@ def user_docker_client(user, image_name=None):
 
 def all_docker_clients():
     return [docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
-            for node_id in WORKSPACE_NODES.keys()] if WORKSPACE_NODES else [docker.from_env()]
+            for node_id in WORKSPACE_NODES] if WORKSPACE_NODES else [docker.from_env()]
 
 
 def user_ipv4(user):

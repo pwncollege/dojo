@@ -51,6 +51,7 @@ HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
 
 
 def remove_container(user):
+    # Just in case our container is still running on the other docker container, let's make sure we try to kill both
     known_image_name = cache.get(f"user_{user.id}-running-image")
     images = [None, known_image_name]
     for image_name in images:
