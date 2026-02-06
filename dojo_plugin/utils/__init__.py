@@ -109,9 +109,8 @@ def user_docker_client(user, image_name=None):
             if node_id is not None else docker.from_env())
 
 def all_docker_clients():
-    node_ids = sorted(WORKSPACE_NODES.keys())
     return [docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
-            for node_id in node_ids] if node_ids else [docker.from_env()]
+            for node_id in WORKSPACE_NODES.keys()] if WORKSPACE_NODES else [docker.from_env()]
 
 
 def user_ipv4(user):
