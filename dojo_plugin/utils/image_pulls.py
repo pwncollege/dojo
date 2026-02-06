@@ -18,17 +18,6 @@ MAX_PULL_ATTEMPTS = 5
 PENDING_IDLE_MS = 60_000
 
 
-def _filtered_images(images: Iterable[Optional[str]]) -> set[str]:
-    filtered = set()
-    for image in images:
-        if not image:
-            continue
-        if image.startswith("mac:") or image.startswith("pwncollege-"):
-            continue
-        filtered.add(image)
-    return filtered
-
-
 def publish_image_pull(image: str, dojo_reference_id: Optional[str] = None, attempt: int = 0, max_attempts: int = MAX_PULL_ATTEMPTS) -> Optional[str]:
     try:
         r = get_redis_client()
@@ -46,11 +35,6 @@ def publish_image_pull(image: str, dojo_reference_id: Optional[str] = None, atte
         return None
 
 
-def publish_image_pulls(images: Iterable[Optional[str]], dojo_reference_id: Optional[str] = None) -> None:
-    for image in _filtered_images(images):
-        publish_image_pull(image, dojo_reference_id=dojo_reference_id)
-
-
 def enqueue_dojo_image_pulls(dojo) -> None:
     images = set()
     for module in dojo.modules or []:
@@ -58,7 +42,11 @@ def enqueue_dojo_image_pulls(dojo) -> None:
             image = (challenge.data or {}).get("image")
             if image:
                 images.add(image)
-    publish_image_pulls(images, dojo_reference_id=dojo.reference_id)
+
+    for image in images:
+        if image.startswith("mac:") or image.startswith("pwncollege-"):
+            continue
+        publish_image_pull(image, dojo_reference_id=dojo.reference_id)
 
 
 HandlerResult = Union[bool, Tuple[bool, bool]]
