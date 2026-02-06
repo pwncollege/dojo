@@ -25,7 +25,11 @@ case "$ACTION" in
         fi
 
         dojo sync
-        dojo compose up -d --build --remove-orphans "$@"
+        build_args=(--build)
+        if [ "${DOJO_OFFLINE}" = "true" ]; then
+            build_args=(--no-build)
+        fi
+        dojo compose up -d "${build_args[@]}" --remove-orphans "$@"
         ;;
 
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
@@ -148,7 +152,7 @@ case "$ACTION" in
 
     # HELP: logs: display dojo logs
     "logs")
-        journalctl -u pwn.college -f --no-tail
+        journalctl --no-pager -u pwn.college "$@"
         ;;
 
     # HELP: load-dojo: load a dojo from a git repository
@@ -159,7 +163,7 @@ case "$ACTION" in
 
     # HELP: wait: wait for the dojo to finish starting
     "wait")
-        dojo logs | while IFS= read -r line; do
+        dojo logs -f --no-tail | while IFS= read -r line; do
             echo "$line"
             case "$line" in
                 *"Finished pwn.college.service - pwn.college docker compose service"*)
@@ -173,6 +177,14 @@ case "$ACTION" in
                     ;;
             esac
         done
+
+        if docker inspect workspace-builder >/dev/null 2>&1 \
+            && ! docker wait workspace-builder
+        then
+            docker logs --tail 100 workspace-builder
+            echo "Error: workspace-builder failed"
+            exit 1
+        fi
 
         if docker ps --format '{{.Names}}' | grep -q '^stats-worker$'; then
             echo "Waiting for stats-worker cold start to complete..."

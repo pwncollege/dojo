@@ -13,6 +13,7 @@ from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.sql import and_
 
+from .user import authed_only_cli
 from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
                        DojoUsers, Emojis, SurveyResponses)
 from ...utils import is_challenge_locked, render_markdown
@@ -295,6 +296,7 @@ class DojoCourseSolveList(Resource):
 
 @dojos_namespace.route("/<dojo>/<module>/<challenge_id>/solve")
 class DojoChallengeSolve(Resource):
+    @authed_only_cli
     @authed_only
     @dojo_route
     def post(self, dojo, module, challenge_id):
