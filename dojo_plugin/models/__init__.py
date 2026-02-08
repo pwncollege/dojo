@@ -150,11 +150,15 @@ class Dojos(db.Model):
 
     @property
     def unique_id(self):
-        return self.id + "-" + self.hex_dojo_id
+        return self.id + "~" + self.hex_dojo_id
 
     @property
     def reference_id(self):
         return self.id if self.official else self.unique_id
+
+    @property
+    def docker_reference_id(self):
+        return self.id if self.official else self.unique_id.replace('~','-') 
 
     @hybrid_property
     def modules(self):

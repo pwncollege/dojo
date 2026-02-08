@@ -43,14 +43,22 @@ class RegistryVerify(Resource):
         # Dedicated puller account: allow pulling any repository
         requested = set(a.strip() for a in actions if a)
         if (
-            repository
-            and "pull" in requested
-            and REGISTRY_USERNAME
+            #repository
+            #and "pull" in requested
+            #"pull" in requested
+            REGISTRY_USERNAME
+            #and REGISTRY_USERNAME
             and REGISTRY_PASSWORD
             and username == REGISTRY_USERNAME
             and password == REGISTRY_PASSWORD
         ):
-            return {"success": True, "allowed": ["pull"]}
+            if not requested:
+                return {"succes":True}
+            if requested.issubset({"pull"}):
+                return {"success":True,"allowed":["pull"]}
+            return {"success": False, "error": "Not authorized for requested actions"}, 403
+
+        #    return {"success": True, "allowed": ["pull"]}
 
         user = Users.query.filter((Users.name == username) | (Users.email == username)).first()
         if not user or not verify_password(password, user.password):
@@ -59,8 +67,11 @@ class RegistryVerify(Resource):
         if not repository:
             return {"success": True}
 
-
         repo_namespace = repository.split("/", 1)[0]
+        if repo_namespace.count("-") >= 1 and "~" not in repo_namespace:
+            left, right = repo_namespace.rsplit("-", 1)
+            repo_namespace = f"{left}~{right}"
+
 
         allowed = set()
 

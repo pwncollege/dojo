@@ -145,11 +145,10 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://future.${DOJO_HOST}}
       DOCKER_USERNAME: ${DOCKER_USERNAME}
       DOCKER_TOKEN: ${DOCKER_TOKEN}
-      REGISTRY_API_SECRET=${REGISTRY_API_SECRET}         #Random API SECRET
-      REGISTRY_API_SECRET=${REGISTRY_API_SECRET}         #Random API SECRET
-      REGISTRY_HOST=${REGISTRY_HOST}
-      REGISTRY_USERNAME=${REGISTRY_USERNAME}
-      REGISTRY_PASSWORD=${REGISTRY_PASSWORD}
+      REGISTRY_API_SECRET: ${REGISTRY_API_SECRET}         #Random API SECRET
+      REGISTRY_HOST: ${REGISTRY_HOST}
+      REGISTRY_USERNAME: ${REGISTRY_USERNAME}
+      REGISTRY_PASSWORD: ${REGISTRY_PASSWORD}
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
@@ -296,6 +295,7 @@ services:
       - DOJO_ENV=${DOJO_ENV}
       - WORKSPACE_HOST=${WORKSPACE_HOST}
       - WORKSPACE_SECRET=${WORKSPACE_SECRET}
+      - REGISTRY_HOST=${REGISTRY_HOST}
     volumes:
       - /data/acme:/var/cache/nginx/acme-letsencrypt
     networks:
@@ -324,7 +324,7 @@ services:
       - REGISTRY_AUTH_HOST=${REGISTRY_AUTH_HOST}
     volumes:
       #- /data/acme:/var/cache/nginx/acme-letsencrypt
-      # - ./static-certs:/etc/nginx/certs:ro
+      - ./static-certs:/etc/nginx/certs:ro
     depends_on:
       registry:
         condition: service_started
@@ -354,8 +354,9 @@ services:
     volumes:
       - /data/registry:/var/lib/registry
     networks:
-      - default
-      - workspace_net
+      default: {}
+      workspace_net:
+        ipv4_address: 10.0.0.4
 
   registry-auth:
     build: ./registry_auth
@@ -367,15 +368,16 @@ services:
       - PRIVATE_KEY_PATH=/keys/private.key
       - PUBLIC_KEY_PATH=/keys/public.key
       - TOKEN_ISSUER=${REGISTRY_AUTH_HOST}
-      - TOKEN_SERVICE=${REGISTRY_HOST}                                                      
+      - TOKEN_SERVICE=${REGISTRY_HOST} 
       - TOKEN_TTL_SECONDS=300
       - CTFD_URL=http://ctfd:8000
       - REGISTRY_API_SECRET=${REGISTRY_API_SECRET}                                              #Random API SECRET 
     volumes:
       - ./auth-keys/wtf:/keys:ro
     networks:
-      - default
-      - workspace_net
+      default: {}
+      workspace_net:
+        ipv4_address: 10.0.0.5
 
 
 
