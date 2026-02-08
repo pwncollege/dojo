@@ -108,6 +108,29 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
         watcher.quit()
 
 
+def test_feed_solve_shows_correct_dojo(simple_award_dojo, random_user_name, random_user_session):
+    random_user_session.get(f"{DOJO_URL}/dojo/{simple_award_dojo}/join/")
+    start_challenge(simple_award_dojo, "hello", "apple", session=random_user_session)
+    solve_challenge(simple_award_dojo, "hello", "apple", session=random_user_session, user=random_user_name)
+    wait_for_background_worker(timeout=1)
+
+    response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/feed/events")
+    assert response.status_code == 200
+    events = response.json()["data"]
+
+    solve_event = None
+    for event in events:
+        if event["type"] == "challenge_solve" and event["user_name"] == random_user_name:
+            solve_event = event
+            break
+
+    assert solve_event is not None, f"No solve event found for {random_user_name}"
+    assert solve_event["data"]["dojo_id"] == simple_award_dojo, \
+        f"Feed shows dojo '{solve_event['data']['dojo_id']}' but challenge was solved in '{simple_award_dojo}'"
+    assert solve_event["data"]["module_id"] == "hello", \
+        f"Feed shows module '{solve_event['data']['module_id']}' but expected 'hello'"
+
+
 def test_private_dojo_events_not_shown(random_private_dojo, random_user_name, random_user_session):
     response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/feed/events")
     assert response.status_code == 200

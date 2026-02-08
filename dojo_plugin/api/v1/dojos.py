@@ -21,6 +21,7 @@ from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_from_s
 from ...utils.image_pulls import enqueue_dojo_image_pulls
 from ...utils.stats import get_dojo_stats
 from ...utils.events import publish_dojo_stats_event, publish_scoreboard_event
+from ...utils.feed import publish_challenge_solve
 
 logger = logging.getLogger(__name__)
 
@@ -314,6 +315,9 @@ class DojoChallengeSolve(Resource):
         status, _ = chal_class.attempt(dojo_challenge.challenge, request)
         if status:
             chal_class.solve(user, None, dojo_challenge.challenge, request)
+            if dojo.official or dojo.data.get("type") == "public":
+                first_blood = Solves.query.filter_by(challenge_id=dojo_challenge.challenge_id).count() == 1
+                publish_challenge_solve(user, dojo_challenge, dojo, module, dojo_challenge.challenge.value, first_blood)
             return {"success": True, "status": "solved"}
         else:
             chal_class.fail(user, None, dojo_challenge.challenge, request)
