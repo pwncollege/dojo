@@ -85,6 +85,15 @@ def calculate_emojis():
                 "stale": False,
                 "category": None,
             }
+            duplicate = False
+            for entry in result.setdefault(emoji.user_id, []):
+                if entry.get("emoji") == emoji.name:
+                    duplicate = True
+                    entry["count"] += 1
+                    entry["text"] += f"\n{emoji.description}"
+                    break
+            if not duplicate:
+                result.setdefault(emoji.user_id, []).append(emoji_entry)
         else:
             dojo_info = dojos_by_hex.get(emoji.category)
             if not dojo_info or not dojo_info["emoji"]:
@@ -99,9 +108,10 @@ def calculate_emojis():
                 "is_public": dojo_info["is_public"],
                 "is_example": dojo_info["is_example"],
             }
+            result.setdefault(emoji.user_id, []).append(emoji_entry)
 
-        result.setdefault(emoji.user_id, []).append(emoji_entry)
-        seen.add(key)
+        if emoji.category:
+            seen.add(key)
 
     return {"emojis": result, "dojos": dojos_by_hex}
 
