@@ -1,8 +1,10 @@
 import datetime
+import functools
+import inspect
 
 from CTFd.cache import cache
 from CTFd.models import db, Users
-from flask import url_for
+from flask import url_for, abort
 
 from .discord import get_discord_roles, get_discord_member, add_role, send_message
 from .background_stats import get_cached_stat
@@ -168,3 +170,17 @@ def update_awards(user):
 def grant_award(user, emoji, description):
     db.session.add(Emojis(user=user, name=emoji, description=description, category=None))
     db.session.commit()
+
+
+def dojo_gives_awards(func):
+    signature = inspect.signature(func)
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        bound_args = signature.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+
+        dojo = bound_args.arguments["dojo"]
+        if "grant_awards" not in dojo.permissions:
+            abort(403)
+        return func(*bound_args.args, **bound_args.kwargs)
+    return wrapper
