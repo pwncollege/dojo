@@ -298,6 +298,11 @@ services:
       - REGISTRY_HOST=${REGISTRY_HOST}
     volumes:
       - /data/acme:/var/cache/nginx/acme-letsencrypt
+    depends_on:
+      registry:
+        condition: service_started
+      registry-auth:
+        condition: service_started
     networks:
       default:
       workspace_net:
@@ -323,8 +328,7 @@ services:
       - REGISTRY_HOST=${REGISTRY_HOST}
       - REGISTRY_AUTH_HOST=${REGISTRY_AUTH_HOST}
     volumes:
-      #- /data/acme:/var/cache/nginx/acme-letsencrypt
-      - ./static-certs:/etc/nginx/certs:ro
+      - /data/acme:/var/cache/nginx/acme-letsencrypt
     depends_on:
       registry:
         condition: service_started
@@ -353,6 +357,7 @@ services:
       - REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE=/auth/jwt.crt
     volumes:
       - /data/registry:/var/lib/registry
+      - ./auth-keys/jwt/:/auth:ro
     networks:
       default: {}
       workspace_net:
@@ -373,7 +378,7 @@ services:
       - CTFD_URL=http://ctfd:8000
       - REGISTRY_API_SECRET=${REGISTRY_API_SECRET}                                              #Random API SECRET 
     volumes:
-      - ./auth-keys/wtf:/keys:ro
+      - ./auth-keys/jwt:/keys:ro
     networks:
       default: {}
       workspace_net:
