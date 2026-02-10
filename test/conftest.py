@@ -1,10 +1,11 @@
 import random
 import string
 import pytest
+import json
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, wait_for_background_worker
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, wait_for_background_worker, db_sql
 from selenium.webdriver import Firefox, FirefoxOptions
 
 @pytest.fixture(scope="session")
@@ -147,6 +148,14 @@ def no_practice_dojo(admin_session, example_dojo):
 @pytest.fixture(scope="session")
 def lfs_dojo(admin_session):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "lfs_dojo.yml").read(), session=admin_session)
+
+@pytest.fixture(scope="session")
+def event_dojo(admin_session):
+    rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "event_dojo.yml").read(), session=admin_session)
+    data = json.loads(db_sql(f"SELECT data FROM dojos WHERE id='{rid}';"))
+    data["permissions"] = ["grant_awards"]
+    db_sql(f"UPDATE dojos SET data='{json.dumps(data)}' WHERE id='{rid}'")
+    return rid
 
 @pytest.fixture(scope="session")
 def welcome_dojo(admin_session):
