@@ -154,7 +154,7 @@ def event_dojo(admin_session):
     rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "event_dojo.yml").read(), session=admin_session)
     data = json.loads(db_sql(f"SELECT data FROM dojos WHERE id='{rid}';"))
     data["permissions"] = ["grant_awards"]
-    db_sql(f"UPDATE dojos SET data='{json.dumps(data)}' WHERE id='{rid}'")
+    db_sql(f"UPDATE dojos SET data='{json.dumps(data)}' WHERE id='{rid}';")
     return rid
 
 @pytest.fixture(scope="session")
