@@ -152,7 +152,10 @@ def lfs_dojo(admin_session):
 @pytest.fixture(scope="session")
 def event_dojo(admin_session):
     rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "event_dojo.yml").read(), session=admin_session)
-    data = json.loads(db_sql(f"SELECT data FROM dojos WHERE id='{rid}';"))
+    data_raw = db_sql(f"SELECT data FROM dojos WHERE id='{rid}';")
+    print(data_raw)
+    data = json.loads(data_raw)
+    print(data)
     data["permissions"] = ["grant_awards"]
     db_sql(f"UPDATE dojos SET data='{json.dumps(data)}' WHERE id='{rid}';")
     return rid
