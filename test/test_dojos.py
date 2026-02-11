@@ -1,11 +1,11 @@
 import subprocess
 import requests
-import pytest
 import random
 import string
+import time
 import yaml
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, dojo_run, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id, wait_for_background_worker
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id, wait_for_background_worker
 
 
 def get_dojo_modules(dojo):
@@ -63,6 +63,39 @@ def test_update_dojo(admin_session):
     assert list_response.status_code == 200, f"Expected status code 200, but got {list_response.status_code}"
     updated = next(dojo for dojo in list_response.json()["dojos"] if dojo["id"] == dojo_reference_id)
     assert updated["name"] == updated_name
+
+
+def test_create_dojo_pulls_image(admin_session):
+    spec = {
+        "id": "hello-world-pull",
+        "type": "public",
+        "modules": [
+            {
+                "id": "hello",
+                "resources": [
+                    {
+                        "type": "challenge",
+                        "id": "hello-world",
+                        "name": "Hello World",
+                        "image": "hello-world",
+                    },
+                ],
+            },
+        ],
+    }
+    dojo_reference_id = create_dojo_yml(
+        yaml.safe_dump(spec, sort_keys=False),
+        session=admin_session,
+    )
+
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        try:
+            start_challenge(dojo_reference_id, "hello", "hello-world", session=admin_session)
+            return
+        except AssertionError:
+            time.sleep(2)
+    raise AssertionError("Failed to start hello-world challenge within 60s")
 
 
 def test_import(import_dojo, admin_session):

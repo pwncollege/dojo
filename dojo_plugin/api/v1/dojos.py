@@ -1,5 +1,6 @@
 
 import datetime
+import logging
 import sys
 import traceback
 
@@ -17,9 +18,12 @@ from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
                        DojoUsers, Emojis, SurveyResponses)
 from ...utils import is_challenge_locked, render_markdown
 from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_from_spec
+from ...utils.image_pulls import enqueue_dojo_image_pulls
 from ...utils.stats import get_dojo_stats
 from ...utils.events import publish_dojo_stats_event, publish_scoreboard_event
 from ...utils.awards import dojo_gives_awards, grant_award
+
+logger = logging.getLogger(__name__)
 
 dojos_namespace = Namespace(
     "dojos", description="Endpoint to retrieve Dojos"
@@ -117,6 +121,11 @@ class CreateDojo(Resource):
         except RuntimeError as e:
             return {"success": False, "error": str(e)}, 400
 
+        try:
+            enqueue_dojo_image_pulls(dojo)
+        except Exception as e:
+            logger.error(f"Failed to enqueue image pulls for {dojo.reference_id}: {e}", exc_info=True)
+
         cache.set(key, 1, timeout=timeout)
         return {"success": True, "dojo": dojo.reference_id}
 
@@ -138,6 +147,11 @@ class UpdateDojo(Resource):
             print(f"ERROR: Dojo update failed for {dojo}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": str(e)}, 400
+
+        try:
+            enqueue_dojo_image_pulls(dojo)
+        except Exception as e:
+            logger.error(f"Failed to enqueue image pulls for {dojo.reference_id}: {e}", exc_info=True)
 
         return {"success": True}
 

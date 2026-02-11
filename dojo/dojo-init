@@ -2,11 +2,15 @@
 
 mount --make-shared /
 
-data_mount_options="$(findmnt -nro OPTIONS -- /data)"
+data_mount_options="$(findmnt -nro OPTIONS -- /data 2>/dev/null)"
 if [ "$?" -ne 0 ]; then
-    echo "[+] Creating data storage"
-    truncate -s 32G /data.img
-    mkfs.ext4 /data.img
+    if [ -f /data.img ]; then
+        echo "[+] Using existing data image"
+    else
+        echo "[+] Creating data storage"
+        truncate -s 256G /data.img
+        mkfs.ext4 /data.img
+    fi
     loop_device=$(losetup -f)
     if [ ! -e "$loop_device" ]; then
         mknod $loop_device b 7 $(echo $loop_device | tr -cd '0-9')
@@ -38,6 +42,7 @@ DEFAULT_DOJO_HOST=localhost.pwn.college
 define DOJO_HOST "${DEFAULT_DOJO_HOST}"
 define WORKSPACE_HOST workspace."${DEFAULT_DOJO_HOST}"
 define DOJO_ENV development
+define DOJO_OFFLINE false
 define DOJO_WORKSPACE core
 define WORKSPACE_KEY
 define WORKSPACE_SECRET $(openssl rand -hex 16)
@@ -130,7 +135,9 @@ if [ ! -d /data/ssh_host_keys ]; then
         cp -a $key /data/ssh_host_keys
     done
 fi
-ssh-keyscan github.com > /data/ssh_host_keys/ssh_known_hosts
+if [ "${DOJO_OFFLINE}" != "true" ]; then
+    ssh-keyscan github.com > /data/ssh_host_keys/ssh_known_hosts
+fi
 for file in $(ls /data/ssh_host_keys/*); do
     cp -a $file /etc/ssh
 done
@@ -161,9 +168,11 @@ iptables -A WORKSPACE-NET -s 192.168.42.0/24 -m conntrack --ctstate NEW -j RETUR
 iptables -A WORKSPACE-NET -s 10.0.0.0/8 -d 192.168.42.1 -p tcp --dport 80 -m conntrack --ctstate NEW -j ACCEPT
 iptables -A WORKSPACE-NET -s 10.0.0.0/8 -d 192.168.42.1 -p tcp --dport 443 -m conntrack --ctstate NEW -j ACCEPT
 iptables -A WORKSPACE-NET -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
-for host in $(cat /opt/pwn.college/user_firewall.allowed); do
-    iptables -A WORKSPACE-NET -d $(host $host | awk '/has address/ {print $NF}' | sort | head -n1) -j RETURN
-done
+if [ "${DOJO_OFFLINE}" != "true" ]; then
+    for host in $(cat /opt/pwn.college/user_firewall.allowed); do
+        iptables -A WORKSPACE-NET -d $(host $host | awk '/has address/ {print $NF}' | sort | head -n1) -j RETURN
+    done
+fi
 iptables -A WORKSPACE-NET -j DROP
 
 iptables -N DOCKER-USER
