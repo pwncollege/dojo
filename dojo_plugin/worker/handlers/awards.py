@@ -87,7 +87,7 @@ def calculate_emojis():
             }
             duplicate = False
             for entry in result.setdefault(emoji.user_id, []):
-                if entry.get("emoji") == emoji.name:
+                if entry.get("emoji") == emoji.name and entry.get("category") is not None:
                     duplicate = True
                     entry["count"] += 1
                     entry["text"] += f"\n{emoji.description}"
