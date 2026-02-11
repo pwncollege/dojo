@@ -55,7 +55,7 @@ def validate_restart(username, mode):
         result = workspace_run(command, user=username)
         assert False, f"\"dojo restart\" should not have result: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        pass
+        print(f"{error.cmd} -> {error.returncode}\nstdout:\n{error.stdout}\n\nstderr:\n{error.stderr}")
 
     # Validate that the container is the same, and it is not the same container.
     assert validate_current_container(
