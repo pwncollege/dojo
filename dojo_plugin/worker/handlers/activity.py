@@ -52,7 +52,7 @@ def handle_activity_update(payload, event_timestamp=None):
     try:
         logger.info(f"Calculating activity for user {user_id}...")
         activity = calculate_activity(user_id)
-        set_cached_stat(cache_key, activity)
+        set_cached_stat(cache_key, activity, updated_at=event_timestamp)
         logger.info(f"Successfully updated and cached activity for user {user_id} (total_solves: {activity['total_solves']})")
     except Exception as e:
         logger.error(f"Error calculating activity for user_id {user_id}: {e}", exc_info=True)

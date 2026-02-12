@@ -78,6 +78,20 @@ class PromoteDojo(Resource):
     def post(self, dojo):
         dojo.official = True
         db.session.commit()
+        try:
+            from ...utils.background_stats import set_cached_stat
+            from ...worker.handlers.dojo_stats import calculate_dojo_stats as calculate_cached_dojo_stats
+
+            cache_key = f"stats:dojo:{dojo.reference_id}"
+            set_cached_stat(cache_key, calculate_cached_dojo_stats(dojo))
+        except Exception:
+            logger.exception("Failed to initialize dojo stats cache on promotion")
+
+        try:
+            publish_dojo_stats_event(dojo.dojo_id)
+            publish_scoreboard_event("dojo", dojo.dojo_id)
+        except Exception:
+            logger.exception("Failed to publish stats events on promotion")
         return {"success": True}
 
 @dojos_namespace.route("/<dojo>/admins/promote")

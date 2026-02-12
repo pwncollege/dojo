@@ -112,10 +112,10 @@ def handle_scores_update(payload, event_timestamp=None):
     for dojo in dojos:
         dojo_id = dojo.dojo_id
         try:
-            cache_key = dojo_scores_cache_key(dojo_id)
-            if not (event_timestamp and is_event_stale(cache_key, event_timestamp)):
-                dojo_data = calculate_dojo_scores(dojo_id)
-                set_cached_stat(cache_key, dojo_data)
+                cache_key = dojo_scores_cache_key(dojo_id)
+                if not (event_timestamp and is_event_stale(cache_key, event_timestamp)):
+                    dojo_data = calculate_dojo_scores(dojo_id)
+                    set_cached_stat(cache_key, dojo_data, updated_at=event_timestamp)
         except Exception as e:
             logger.error(f"Error calculating dojo scores for dojo_id {dojo_id}: {e}", exc_info=True)
 
@@ -125,7 +125,7 @@ def handle_scores_update(payload, event_timestamp=None):
                 cache_key = module_scores_cache_key(dojo_id, module_index)
                 if not (event_timestamp and is_event_stale(cache_key, event_timestamp)):
                     module_data = calculate_module_scores(dojo_id, module_index)
-                    set_cached_stat(cache_key, module_data)
+                    set_cached_stat(cache_key, module_data, updated_at=event_timestamp)
             except Exception as e:
                 logger.error(f"Error calculating module scores for dojo_id {dojo_id} module {module_index}: {e}", exc_info=True)
 

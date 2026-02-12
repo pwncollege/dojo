@@ -42,12 +42,27 @@ let
       EXTENSIONS_DIR="@out@/share/code/extensions"
     fi
 
+    mkdir -p /home/hacker/.local/share/code-server/User
+    cat > /home/hacker/.local/share/code-server/User/settings.json <<'JSON'
+    {
+      "workbench.startupEditor": "none"
+    }
+JSON
+    cat > /home/hacker/.local/share/code-server/User/keybindings.json <<'JSON'
+    [
+      { "key": "ctrl+shift+`", "command": "workbench.action.terminal.toggleTerminal" }
+    ]
+JSON
+
     ${service}/bin/dojo-service start code-service/code-server \
       ${code-server}/bin/code-server \
         --auth=none \
         --bind-addr=0.0.0.0:8080 \
         --trusted-origins='*' \
         --disable-telemetry \
+        --disable-update-check \
+        --disable-getting-started-override \
+        --disable-workspace-trust \
         --extensions-dir=$EXTENSIONS_DIR \
         --config=/dev/null
 

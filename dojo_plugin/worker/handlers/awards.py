@@ -114,7 +114,7 @@ def handle_belts_update(payload, event_timestamp=None):
     try:
         logger.info("Calculating belts...")
         belt_data = calculate_belts()
-        set_cached_stat(CACHE_KEY_BELTS, belt_data)
+        set_cached_stat(CACHE_KEY_BELTS, belt_data, updated_at=event_timestamp)
         user_count = len(belt_data["users"])
         logger.info(f"Successfully updated belts cache ({user_count} users with belts)")
     except Exception as e:
@@ -131,7 +131,7 @@ def handle_emojis_update(payload, event_timestamp=None):
     try:
         logger.info("Calculating emojis...")
         emoji_data = calculate_emojis()
-        set_cached_stat(CACHE_KEY_EMOJIS, emoji_data)
+        set_cached_stat(CACHE_KEY_EMOJIS, emoji_data, updated_at=event_timestamp)
         user_count = len(emoji_data["emojis"])
         logger.info(f"Successfully updated emojis cache ({user_count} users with emojis)")
     except Exception as e:

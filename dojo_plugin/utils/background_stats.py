@@ -32,8 +32,10 @@ def should_daily_restart(start_time: float) -> bool:
 
 
 def get_message_timestamp(message_id: str) -> float:
-    timestamp_ms = int(message_id.split('-')[0])
-    return timestamp_ms / 1000.0
+    ms_str, seq_str = message_id.split("-", 1)
+    timestamp_ms = int(ms_str)
+    seq = int(seq_str)
+    return (timestamp_ms / 1000.0) + (seq / 1_000_000.0)
 
 
 def is_event_stale(cache_key: str, event_timestamp: float) -> bool:

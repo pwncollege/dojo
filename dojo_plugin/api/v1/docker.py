@@ -59,7 +59,6 @@ def remove_container(user):
         try:
             container = docker_client.containers.get(container_name(user))
             container.remove(force=True)
-            container.wait(condition="removed")
         except (docker.errors.NotFound, docker.errors.APIError):
             pass
         for volume in [f"{user.id}", f"{user.id}-overlay"]:
@@ -139,6 +138,16 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         if "workspace_net_admin" in resolved_dojo_challenge.dojo.permissions:
             capabilities.append("NET_ADMIN")
 
+    preferred_runtime = "runc"
+    if resolved_dojo_challenge.privileged:
+        kata_runtime = "io.containerd.run.kata.v2"
+        try:
+            runtimes = docker_client.api.info().get("Runtimes") or {}
+        except docker.errors.DockerException:
+            runtimes = {}
+        if kata_runtime in runtimes:
+            preferred_runtime = kata_runtime
+
     container_create_attributes = dict(
         image=resolved_dojo_challenge.image,
         entrypoint=[
@@ -183,43 +192,72 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
         detach=True,
         stdin_open=True,
         auto_remove=True,
-        cpu_period=100000,
-        cpu_quota=400000,
-        pids_limit=1024,
-        mem_limit="4G",
-        runtime="io.containerd.run.kata.v2" if resolved_dojo_challenge.privileged else "runc",
+        runtime=preferred_runtime,
         cap_add=capabilities,
         security_opt=[f"seccomp={SECCOMP}"],
         sysctls={"net.ipv4.ip_unprivileged_port_start": 1024},
     )
 
-    container = docker_client.containers.create(**container_create_attributes)
+    try:
+        threaded_cgroup = pathlib.Path("/sys/fs/cgroup/cgroup.type").read_text().strip() == "threaded"
+    except OSError:
+        threaded_cgroup = False
 
-    workspace_net = docker_client.networks.get("workspace_net")
-    workspace_net.connect(
-        container, ipv4_address=user_ipv4(user), aliases=[container_name(user)]
-    )
+    if not threaded_cgroup:
+        container_create_attributes.update(
+            cpu_period=100000,
+            cpu_quota=400000,
+            pids_limit=1024,
+            mem_limit="4G",
+        )
 
-    default_network = docker_client.networks.get("bridge")
     internet_access = INTERNET_FOR_ALL or any(
         award.name == "INTERNET" for award in user.awards
     )
-    if not internet_access:
-        default_network.disconnect(container)
+    workspace_net = docker_client.networks.get("workspace_net")
+    default_network = docker_client.networks.get("bridge")
 
-    container.start()
-    logger.info(f"container started after {time.time()-start_time:.1f} seconds")
-    for message in log_generator_output(
-        "workspace initialization ", container.logs(stream=True, follow=True), start_time=start_time
-    ):
-        if b"DOJO_INIT_INITIALIZED" in message or message == b"Initialized.\n":
-            logger.info(f"workspace initialized after {time.time()-start_time:.1f} seconds")
-            break
-    else:
+    def create_container(runtime):
+        attrs = dict(container_create_attributes)
+        attrs["runtime"] = runtime
+        container = docker_client.containers.create(**attrs)
+        workspace_net.connect(
+            container, ipv4_address=user_ipv4(user), aliases=[container_name(user)]
+        )
+        if not internet_access:
+            default_network.disconnect(container)
+        return container
+
+    attempted_runtimes = []
+    for runtime in [preferred_runtime, "runc"]:
+        if runtime in attempted_runtimes:
+            continue
+        attempted_runtimes.append(runtime)
+
+        container = create_container(runtime)
+        try:
+            container.start()
+        except docker.errors.APIError:
+            try:
+                container.remove(force=True)
+            except docker.errors.DockerException:
+                pass
+            if runtime == "runc":
+                raise
+            continue
+
+        logger.info(f"container started after {time.time()-start_time:.1f} seconds")
+        for message in log_generator_output(
+            "workspace initialization ", container.logs(stream=True, follow=True), start_time=start_time
+        ):
+            if b"DOJO_INIT_INITIALIZED" in message or message == b"Initialized.\n":
+                logger.info(f"workspace initialized after {time.time()-start_time:.1f} seconds")
+                cache.set(f"user_{user.id}-running-image", resolved_dojo_challenge.image, timeout=0)
+                return container
+
         raise RuntimeError(f"Workspace failed to initialize after {time.time()-start_time:.1f} seconds.")
 
-    cache.set(f"user_{user.id}-running-image", resolved_dojo_challenge.image, timeout=0)
-    return container
+    raise RuntimeError("Failed to start workspace container")
 
 
 def insert_challenge(container, as_user, dojo_challenge):
@@ -348,8 +386,8 @@ def docker_locked(func):
         redis_client = redis.from_url(current_app.config["REDIS_URL"])
         try:
             with redis_client.lock(f"user.{user.id}.docker.lock",
-                                   blocking_timeout=0,
-                                   timeout=20,
+                                   blocking_timeout=90,
+                                   timeout=180,
                                    raise_on_release_error=False):
                 return func(*args, **kwargs)
         except redis.exceptions.LockError:

@@ -43,10 +43,15 @@ function cleanup_container {
 
 function fix_insane_routing {
 	local CONTAINER="$1"
-	read -a GW <<<$(ip route show default)
-	read -a NS <<<$(docker exec "$CONTAINER" cat /etc/resolv.conf | grep nameserver)
-	docker exec "$CONTAINER" ip route add "${GW[2]}" via 172.17.0.1
-	[ "${GW[2]}" == "${NS[1]}" ] || docker exec "$CONTAINER" ip route add "${NS[1]}" via 172.17.0.1
+	local HOST_GW
+	HOST_GW=$(ip route show default | awk '{print $3; exit}')
+	local DOCKER_GW
+	DOCKER_GW=$(docker exec "$CONTAINER" sh -c "ip route show default | awk '{print \$3; exit}'")
+	local NS
+	NS=$(docker exec "$CONTAINER" sh -c "awk '/^nameserver/{print \$2; exit}' /etc/resolv.conf")
+
+	[ -z "$HOST_GW" ] || [ -z "$DOCKER_GW" ] || docker exec "$CONTAINER" ip route replace "$HOST_GW" via "$DOCKER_GW"
+	[ -z "$NS" ] || [ -z "$DOCKER_GW" ] || [ "$HOST_GW" == "$NS" ] || docker exec "$CONTAINER" ip route replace "$NS" via "$DOCKER_GW"
 }
 
 function log_newgroup {

@@ -119,7 +119,7 @@ def handle_dojo_stats_update(payload, event_timestamp=None):
     try:
         logger.info(f"Calculating stats for dojo {dojo.reference_id} (dojo_id={dojo_id})...")
         stats = calculate_dojo_stats(dojo)
-        set_cached_stat(cache_key, stats)
+        set_cached_stat(cache_key, stats, updated_at=event_timestamp)
         logger.info(f"Successfully updated and cached stats for dojo {dojo.reference_id} (solves: {stats['solves']}, users: {stats['users']})")
     except Exception as e:
         logger.error(f"Error calculating stats for dojo_id {dojo_id}: {e}", exc_info=True)

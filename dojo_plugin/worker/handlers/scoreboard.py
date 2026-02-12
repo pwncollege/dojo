@@ -144,7 +144,7 @@ def handle_scoreboard_update(payload, event_timestamp=None):
                 continue
             logger.info(f"Calculating scoreboard for {model_type} {model_id}, duration={duration}...")
             scoreboard = calculate_scoreboard(model, duration)
-            set_cached_stat(cache_key, scoreboard)
+            set_cached_stat(cache_key, scoreboard, updated_at=event_timestamp)
             logger.info(f"Successfully updated scoreboard cache {cache_key} ({len(scoreboard)} entries)")
         except Exception as e:
             logger.error(f"Error calculating scoreboard for {model_type} {model_id}, duration={duration}: {e}", exc_info=True)
@@ -154,7 +154,7 @@ def handle_scoreboard_update(payload, event_timestamp=None):
             logger.info(f"Calculating challenge_solves for module {model_id}...")
             challenge_solves = calculate_challenge_solves(model)
             cache_key = challenge_solves_cache_key(model.dojo_id, model.module_index)
-            set_cached_stat(cache_key, challenge_solves)
+            set_cached_stat(cache_key, challenge_solves, updated_at=event_timestamp)
             logger.info(f"Successfully updated challenge_solves cache {cache_key} ({len(challenge_solves)} challenges)")
         except Exception as e:
             logger.error(f"Error calculating challenge_solves for module {model_id}: {e}", exc_info=True)

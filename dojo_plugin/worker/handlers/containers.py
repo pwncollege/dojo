@@ -21,7 +21,7 @@ def handle_container_stats_update(payload, event_timestamp=None):
     try:
         logger.info("Calculating container stats...")
         container_data = calculate_container_stats()
-        set_cached_stat(CACHE_KEY_CONTAINERS, container_data)
+        set_cached_stat(CACHE_KEY_CONTAINERS, container_data, updated_at=event_timestamp)
         container_count = len(container_data)
         logger.info(f"Successfully updated container stats cache ({container_count} containers)")
     except Exception as e:

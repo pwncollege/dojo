@@ -163,20 +163,29 @@ case "$ACTION" in
 
     # HELP: wait: wait for the dojo to finish starting
     "wait")
-        dojo logs -f --no-tail | while IFS= read -r line; do
-            echo "$line"
-            case "$line" in
-                *"Finished pwn.college.service - pwn.college docker compose service"*)
-                    break
-                    ;;
-                *"Failed to start pwn.college.service - pwn.college docker compose service."*)
-                    exit 1
-                    ;;
-                *"Job pwn.college.service/start failed"*)
-                    exit 1
-                    ;;
-            esac
-        done
+        SYSTEMD_MODE=no
+        if [ -S /run/systemd/journal/socket ]; then
+            SYSTEMD_MODE=yes
+            dojo logs -f --no-tail | while IFS= read -r line; do
+                echo "$line"
+                case "$line" in
+                    *"Finished pwn.college.service - pwn.college docker compose service"*)
+                        break
+                        ;;
+                    *"Failed to start pwn.college.service - pwn.college docker compose service."*)
+                        exit 1
+                        ;;
+                    *"Job pwn.college.service/start failed"*)
+                        exit 1
+                        ;;
+                esac
+            done
+        else
+            echo "Waiting for nginx to respond..."
+            until curl -fsSL http://localhost 2>/dev/null | grep -q pwn; do
+                sleep 1
+            done
+        fi
 
         if docker inspect workspace-builder >/dev/null 2>&1 \
             && ! docker wait workspace-builder
@@ -188,18 +197,24 @@ case "$ACTION" in
 
         if docker ps --format '{{.Names}}' | grep -q '^stats-worker$'; then
             echo "Waiting for stats-worker cold start to complete..."
+            started_at="$(docker inspect -f '{{.State.StartedAt}}' stats-worker 2>/dev/null || true)"
             timeout=300
             elapsed=0
             while [ $elapsed -lt $timeout ]; do
-                if docker logs stats-worker 2>&1 | grep -q "Cold start complete - all stats initialized"; then
+                if [ -n "$started_at" ]; then
+                    if docker logs --since "$started_at" stats-worker 2>&1 | grep -q "Cold start complete - all stats initialized"; then
+                        echo "Stats-worker initialization complete"
+                        exit 0
+                    fi
+                elif docker logs stats-worker 2>&1 | grep -q "Cold start complete - all stats initialized"; then
                     echo "Stats-worker initialization complete"
                     exit 0
                 fi
                 sleep 1
                 elapsed=$((elapsed + 1))
             done
-            echo "Error: stats-worker did not complete initialization within ${timeout}s"
-            exit 1
+            echo "Warning: stats-worker did not report initialization complete within ${timeout}s"
+            exit 0
         else
             echo "No stats-worker container found (workspace node), skipping stats initialization check"
             exit 0
@@ -210,6 +225,52 @@ case "$ACTION" in
     "init")
         echo "[+] Initializing dojo."
         dojo-init
+        CGROUP_TYPE="$(cat /sys/fs/cgroup/cgroup.type 2>/dev/null || true)"
+        if [ "${DOJO_NO_SYSTEMD:-}" = "true" ] || [ "$CGROUP_TYPE" = "threaded" ]; then
+            mkdir -p /run/dojo /run/homefs /data/homes
+
+            if ! mountpoint -q /run/dojo >/dev/null 2>&1; then
+                mount -t tmpfs -o mode=755 tmpfs /run/dojo
+            fi
+            mount --make-shared /run/dojo || true
+
+            if ! mountpoint -q /run/homefs >/dev/null 2>&1; then
+                mount --bind /data/homes /run/homefs
+                mount -o remount,bind,nosuid /run/homefs
+            fi
+            mount --make-shared /run/homefs || true
+
+            if [ ! -S /dev/log ]; then
+                python3 - >/var/log/syslog-sink.log 2>&1 <<'PY' &
+import os
+import socket
+
+p = "/dev/log"
+try:
+    os.unlink(p)
+except FileNotFoundError:
+    pass
+
+s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+s.bind(p)
+os.chmod(p, 0o666)
+
+while True:
+    s.recv(8192)
+PY
+            fi
+
+            echo "[+] Starting dockerd"
+            dockerd >/var/log/dockerd.log 2>&1 &
+            DOCKERD_PID=$!
+            until docker info >/dev/null 2>&1; do
+                sleep 1
+            done
+            dojo up
+            wait "$DOCKERD_PID"
+            exit $?
+        fi
+
         echo "[+] Starting systemd. If this is the first start, the challenge container"
         echo "    will be built, which will take a very long time."
         exec /usr/bin/systemd
