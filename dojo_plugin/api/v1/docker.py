@@ -543,6 +543,7 @@ class RunDocker(Resource):
             "dojo": dojo_challenge.dojo.reference_id,
             "module": dojo_challenge.module.id,
             "challenge": dojo_challenge.id,
+            "challenge_id": dojo_challenge.challenge_id,
             "practice" : practice,
         }
 
