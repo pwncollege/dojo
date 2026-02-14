@@ -35,7 +35,8 @@ define () {
     current="$(env | grep -oP ${re})"
     defined="$(grep -oP ${re} /data/config.env)"
     value="${current:-${defined:-$default}}"
-    echo "${name}=${value}" >> /data/.config.env
+    escaped="$(printf "%s" "$value" | sed "s/'/'\\\\''/g")"
+    printf "%s='%s'\n" "$name" "$escaped" >> /data/.config.env
 }
 DEFAULT_DOJO_HOST=localhost.pwn.college
 
@@ -73,6 +74,13 @@ define AWS_SECRET_ACCESS_KEY
 define MAC_HOSTNAME
 define MAC_USERNAME
 define ENABLE_SPLUNK false
+define SSH_PIPER_ENABLED false
+define SSH_PIPER_API_TOKEN $(openssl rand -hex 24)
+define SSH_PIPER_BOOTSTRAP_DOJO welcome
+define SSH_PIPER_BOOTSTRAP_DOJO_NAME "Welcome"
+define SSH_PIPER_UPSTREAM_HOST 127.0.0.1
+define SSH_PIPER_UPSTREAM_PORT 2222
+define SSH_PIPER_UPSTREAM_USER hacker
 
 mv /data/.config.env /data/config.env
 . /data/config.env
