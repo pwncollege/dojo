@@ -6,6 +6,7 @@ import sys
 from urllib.parse import urlparse
 
 import psycopg2
+import psycopg2.errors
 
 
 def error(msg):
@@ -30,7 +31,17 @@ def main():
 
     connection = create_db_connection()
     with connection.cursor() as cursor:
-        cursor.execute("SELECT user_id, value FROM ssh_keys")
+        try:
+            cursor.execute(
+                """
+                SELECT user_id, value FROM ssh_keys
+                UNION
+                SELECT user_id, public_key AS value FROM ssh_piper_keys
+                """
+            )
+        except psycopg2.errors.UndefinedTable:
+            connection.rollback()
+            cursor.execute("SELECT user_id, value FROM ssh_keys")
         for user_id, key in cursor.fetchall():
             print(f'command="{enter_path} user_{user_id}" {key}')
 
