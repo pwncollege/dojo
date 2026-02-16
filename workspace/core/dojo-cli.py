@@ -180,6 +180,29 @@ def list_dojos(types: list[str], use_expanded_format: bool):
             print(f"{dojo.get("modules_count"):<10}{dojo.get("challenges_count"):<15}{dojo.get("id")} ({dojo.get("name")})")
         print("")
 
+def list_modules(dojo: str, use_expanded_format: bool):
+    response = requests.get(
+        f"{DOJO_API}/dojos/{dojo}/modules",
+        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        timeout=5.0,
+    )
+    if not response.ok or not response.json().get("success", False):
+        sys.exit(f"Unable to get module data for dojo {dojo}.")
+    modules = response.json().get("modules")
+
+    if not use_expanded_format:
+        for module in modules:
+            print(module.get("id"), end=" ")
+        print("")
+        sys.exit(0)
+
+    print(f"Dojo: {dojo}")
+    print("")
+    print(f"Total: {len(modules)}")
+    print(f"{"Challenges":<15}id (name)")
+    for module in modules:
+        print(f"{len(module.get("challenges")):<15}{module.get("id")} ({module.get("name")})")
+
 def list(args: argparse.Namespace):
     """
     Lists out dojos, modules, or challenges depending on path.
@@ -200,7 +223,8 @@ def list(args: argparse.Namespace):
             types = ["welcome", "topic"] # default types
         list_dojos(types, args.l)
     elif re.match(r"^/[a-z0-9-~]{1,128}$", args.path):
-        list_modules(args)
+        dojo = args.path[1:]
+        list_modules(dojo, args.l)
     elif re.match(r"^/[a-z0-9-~]{1,128}/[a-z0-9-]{1,32}$", args.path):
         list_challenges(args)
     else:
