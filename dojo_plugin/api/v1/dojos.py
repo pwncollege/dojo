@@ -48,7 +48,8 @@ class DojoList(Resource):
                  official=dojo.official,
                  award=dojo.award,
                  modules_count=dojo.modules_count,
-                 challenges_count=dojo.required_challenges_count)
+                 challenges_count=dojo.required_challenges_count,
+                 type=dojo.type)
             for dojo in dojo_query
         ]
         return {"success": True, "dojos": dojos}
