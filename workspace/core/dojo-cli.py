@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import requests
+import re
 from typing import Any
 
 DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
@@ -144,7 +145,16 @@ def list(args: argparse.Namespace):
     """
     Lists out dojos, modules, or challenges depending on path.
     """
-    pass
+    if not args.path:
+        list_challenges(default)
+    elif re.match(r"^/$", args.path):
+        list_dojos(args)
+    elif re.match(r"^/[a-z0-9-~]{1,128}$", args.path):
+        list_modules(args)
+    elif re.match(r"^/[a-z0-9-~]{1,128}/[a-z0-9-]{1,32}$", args.path):
+        list_challenges(args)
+    else:
+        sys.exit("Dojo path must match one of \"/\", \"/<dojo>\", or \"/<dojo>/<module>\".")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -203,7 +213,7 @@ def main():
         "--official",
         "-O",
         action="store_true",
-        help="Show official (non-course) dojos."
+        help="Show official (non-course) dojos." # Internally, topic dojos
     )
     list_parser.add_argument(
         "--welcome",
@@ -238,6 +248,7 @@ def main():
     list_parser.add_argument(
         name="path",
         help="Dojo path. Can be /, /<dojo>, or /<dojo>/<module>.",
+        required=False,
         type=str
     )
     args = parser.parse_args()
