@@ -141,6 +141,45 @@ def start(args : argparse.Namespace):
     except Exception as e:
         sys.exit(f"Incorrect path format, see \"dojo start -h\" for more information.\n{str(e)}")
 
+def list_dojos(types: list[str], use_expanded_format: bool):
+    response = requests.get(
+        f"{DOJO_API}/dojos",
+        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        timeout=5.0,
+    )
+    if not response.ok or not response.json().get("success", False):
+        sys.exit("Unable to get dojo data.")
+    dojos = response.json().get("dojos")
+    dojos_categorized = {}
+    for dojo in dojos:
+        if not dojo.get("type", "") in types:
+            continue
+        dojos_categorized.setdefault(dojo.get("type"), []).append(dojo)
+
+    if not use_expanded_format:
+        for dojo_list in dojos_categorized:
+            for dojo in dojo_list:
+                print(dojo.get("id"), end=" ")
+        print("")
+        sys.exit(0)
+
+    type_names = {
+        "welcome": "Welcome",
+        "topic": "Official",
+        "public": "Community",
+        "course": "Course"
+    }
+    for type in types:
+        dojo_list = dojos_categorized.get(type, [])
+        print(f"{type_names.get(type, type)}: {len(dojo_list)}")
+        if (len(dojo_list) == 0):
+            print("")
+            continue
+        print(f"{"Modules":<10}{"Challenges":<15}id (name)")
+        for dojo in dojo_list:
+            print(f"{dojo.get("modules_count"):<10}{dojo.get("challenges_count"):<15}{dojo.get("id")} ({dojo.get("name")})")
+        print("")
+
 def list(args: argparse.Namespace):
     """
     Lists out dojos, modules, or challenges depending on path.
@@ -148,7 +187,18 @@ def list(args: argparse.Namespace):
     if not args.path:
         list_challenges(default)
     elif re.match(r"^/$", args.path):
-        list_dojos(args)
+        types = []
+        if args.welcome or args.all:
+            types.append("welcome")
+        if args.official or args.all:
+            types.append("topic")
+        if args.community or args.all:
+            types.append("public")
+        if args.course or args.all:
+            types.append("course")
+        if len(types) == 0:
+            types = ["welcome", "topic"] # default types
+        list_dojos(types, args.l)
     elif re.match(r"^/[a-z0-9-~]{1,128}$", args.path):
         list_modules(args)
     elif re.match(r"^/[a-z0-9-~]{1,128}/[a-z0-9-]{1,32}$", args.path):
