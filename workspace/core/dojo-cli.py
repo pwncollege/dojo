@@ -140,6 +140,11 @@ def start(args : argparse.Namespace):
     except Exception as e:
         sys.exit(f"Incorrect path format, see \"dojo start -h\" for more information.\n{str(e)}")
 
+def list(args: argparse.Namespace):
+    """
+    Lists out dojos, modules, or challenges depending on path.
+    """
+    pass
 
 def main():
     parser = argparse.ArgumentParser(
@@ -190,6 +195,51 @@ def main():
         help="Challenge to start. Can be <challenge> or /<dojo>/<module>/<challenge>.",
         type=str
     )
+    list_parser = subparsers.add_parser(
+        name="list",
+        help="List dojos, modules, or challenges using a dojo path."
+    )
+    list_parser.add_argument(
+        "--official",
+        "-O",
+        action="store_true",
+        help="Show official (non-course) dojos."
+    )
+    list_parser.add_argument(
+        "--welcome",
+        "-W",
+        action="store_true",
+        help="Show welcome dojos."
+    )
+    list_parser.add_argument(
+        "--course",
+        "-E",#education
+        action="store_true",
+        help="Show course dojos."
+    )
+    list_parser.add_argument(
+        "--community",
+        "-C",
+        action="store_true",
+        help="Show community dojos."
+    )
+    list_parser.add_argument(
+        "--all",
+        "-a",
+        "-A",
+        action="store_true",
+        help="Show all dojos (shorthand for -OWEC)"
+    )
+    list_parser.add_argument(
+        "-l",
+        action="store_true",
+        help="Show extended list information."
+    )
+    list_parser.add_argument(
+        name="path",
+        help="Dojo path. Can be /, /<dojo>, or /<dojo>/<module>.",
+        type=str
+    )
     args = parser.parse_args()
     if not DOJO_AUTH_TOKEN:
         sys.exit("Missing DOJO_AUTH_TOKEN.")
@@ -204,6 +254,8 @@ def main():
         return restart(args)
     if args.command.lower() == "start":
         return start(args)
+    if args.command.lower() == "list":
+        return list(args)
     else:
         parser.print_help()
         sys.exit(1)
