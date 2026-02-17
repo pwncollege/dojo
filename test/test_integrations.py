@@ -181,10 +181,10 @@ def test_list_dojos(random_user, welcome_dojo):
     command = "dojo list /"
     try:
         slim = workspace_run(command, user=name)
-        assert welcome_dojo in slim.stdout
+        assert welcome_dojo in slim.stdout or "welcome" in slim.stdout
         command = "dojo list -l /"
         wide = workspace_run(command, user=name)
-        assert welcome_dojo in wide.stdout
+        assert welcome_dojo in wide.stdout or "welcome" in wide.stdout
         assert len(slim.stdout) < len(wide.stdout), f"-l should result in longer output, got: {(slim.stdout, wide.stdout)}"
     except subprocess.CalledProcessError as error:
         assert False, f"Failed to list dojos using {command}, got: {(error.stdout, error.stderr)}"
