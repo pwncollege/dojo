@@ -10,7 +10,7 @@ import docker
 import docker.errors
 import docker.types
 import redis
-from .user import authed_only_cli, CLI_AUTH_PREFIX
+from .user import authed_only_cli, authed_only_ssh, CLI_AUTH_PREFIX
 from flask import abort, request, current_app
 from itsdangerous.url_safe import URLSafeTimedSerializer
 from flask_restx import Namespace, Resource
@@ -19,6 +19,7 @@ from CTFd.models import Users, Solves
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
+from CTFd.plugins import bypass_csrf_protection
 
 from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL, SECCOMP, USER_FIREWALL_ALLOWED
 from ...models import DojoModules, DojoChallenges
@@ -421,6 +422,8 @@ class NextChallenge(Resource):
 
 @docker_namespace.route("")
 class RunDocker(Resource):
+    @bypass_csrf_protection
+    @authed_only_ssh
     @authed_only_cli
     @authed_only
     @docker_locked

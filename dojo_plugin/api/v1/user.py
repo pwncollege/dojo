@@ -4,10 +4,38 @@ from itsdangerous.url_safe import URLSafeTimedSerializer
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 from CTFd.models import Users
+from ...config import DOJO_SSH_SERVICE_KEY
 from ...utils import get_current_container
 
 user_namespace = Namespace("user", description="User management endpoints")
 CLI_AUTH_PREFIX = "sk-workspace-local-"
+
+
+def authed_only_ssh(func):
+    def wrapper(*args, **kwargs):
+        key = request.headers.get("X-SSH-Service-Key")
+        user_id_header = request.headers.get("X-Dojo-User-Id")
+        if DOJO_SSH_SERVICE_KEY and key == DOJO_SSH_SERVICE_KEY and user_id_header:
+            try:
+                user_id = int(user_id_header)
+            except ValueError:
+                return {"success": False, "error": "Invalid user ID."}, 401
+            user = Users.query.filter_by(id=user_id).first()
+            if not user:
+                return {"success": False, "error": "User not found."}, 404
+            try:
+                session.update({
+                    "id": user.id,
+                    "name": user.name,
+                    "type": user.type,
+                    "verified": user.verified,
+                })
+                return func(*args, **kwargs)
+            finally:
+                for k in ("id", "name", "type", "verified"):
+                    session.pop(k, None)
+        return func(*args, **kwargs)
+    return wrapper
 
 
 def authed_only_cli(func):
