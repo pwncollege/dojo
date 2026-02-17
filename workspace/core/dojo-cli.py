@@ -350,7 +350,7 @@ def main():
         help="Show extended list information."
     )
     list_parser.add_argument(
-        name="path",
+        "path",
         help="Dojo path. Can be /, /<dojo>, or /<dojo>/<module>.",
         nargs="?",
         type=str
