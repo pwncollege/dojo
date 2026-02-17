@@ -229,8 +229,9 @@ def list_challenges(dojo:str, t_module:str, use_expanded_format: bool):
     print(f"Dojo: {dojo}")
     print(f"Module: {t_module}")
     print("")
+    print(f"id (name)")
     for challenge in module.get("challenges"):
-        print(challenge.get("id"))
+        print(f"{challenge.get("id")} ({challenge.get("name")})")
 
 def list(args: argparse.Namespace):
     """
