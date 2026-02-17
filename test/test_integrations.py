@@ -210,10 +210,12 @@ def test_list_challenges(random_user, welcome_dojo):
     challenges = ["terminal", "vscode", "desktop", "desktop-paste", "ssh", "restart", "sensai", "challenge", "flag", "practice", "persist-1", "persist-2"]
     try:
         slim = workspace_run(command, user=name)
-        assert "welcome" in slim.stdout
+        for challenge in challenges:
+            assert challenge in slim.stdout
         command = f"dojo list -l /{welcome_dojo}/welcome"
         wide = workspace_run(command, user=name)
-        assert "welcome" in wide.stdout
+        for challenge in challenges:
+            assert challenge in wide.stdout
         assert len(slim.stdout) < len(wide.stdout), f"-l should result in longer output, got: {(slim.stdout, wide.stdout)}"
     except subprocess.CalledProcessError as error:
         assert False, f"Failed to list dojos using {command}, got: {(error.stdout, error.stderr)}"
