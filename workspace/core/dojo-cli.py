@@ -203,12 +203,42 @@ def list_modules(dojo: str, use_expanded_format: bool):
     for module in modules:
         print(f"{len(module.get("challenges")):<15}{module.get("id")} ({module.get("name")})")
 
+def list_challenges(dojo:str, t_module:str, use_expanded_format: bool):
+    response = requests.get(
+        f"{DOJO_API}/dojos/{dojo}/modules",
+        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        timeout=5.0,
+    )
+    if not response.ok or not response.json().get("success", False):
+        sys.exit(f"Unable to get module data for dojo {dojo}.")
+    modules = response.json().get("modules")
+    module = None
+    for candidate in modules:
+        if candidate.get("id") == t_module:
+            module = candidate
+            break
+    if not module:
+        sys.exit(f"Dojo {dojo} does not have a module {t_module}.")
+
+    if not use_expanded_format:
+        for challenge in module.get("challenges"):
+            print(challenge.get("id"), end=" ")
+        print("")
+        sys.exit(0)
+
+    print(f"Dojo: {dojo}")
+    print(f"Module: {t_module}")
+    print("")
+    for challenge in module.get("challenges"):
+        print(challenge.get("id"))
+
 def list(args: argparse.Namespace):
     """
     Lists out dojos, modules, or challenges depending on path.
     """
     if not args.path:
-        list_challenges(default)
+        current = get_current_challenge()
+        list_challenges(current.get("dojo"), current.get("module"), args.l)
     elif re.match(r"^/$", args.path):
         types = []
         if args.welcome or args.all:
@@ -226,7 +256,7 @@ def list(args: argparse.Namespace):
         dojo = args.path[1:]
         list_modules(dojo, args.l)
     elif re.match(r"^/[a-z0-9-~]{1,128}/[a-z0-9-]{1,32}$", args.path):
-        list_challenges(args)
+        list_challenges(args.path.split("/")[1], args.path.split("/")[2], args.l)
     else:
         sys.exit("Dojo path must match one of \"/\", \"/<dojo>\", or \"/<dojo>/<module>\".")
 
