@@ -352,7 +352,7 @@ def main():
     list_parser.add_argument(
         name="path",
         help="Dojo path. Can be /, /<dojo>, or /<dojo>/<module>.",
-        required=False,
+        nargs="?",
         type=str
     )
     args = parser.parse_args()
