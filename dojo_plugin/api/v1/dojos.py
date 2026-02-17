@@ -401,14 +401,14 @@ class GrantAward(Resource):
     def post(self, dojo):
         data = request.get_json()
         user_id = data.get("user_id", None)
-        event_name = data.get("event_name", None)
-        event_place = data.get("event_place", None)
-        if None in [user_id, event_name, event_place]:
-            return {"success": False, "error": "Must supply user_id, event_name, and event_place."}, 400
-        if str(event_place) not in ["1", "2", "3"]:
-            return {"success": False, "error": "Place must be one of [1, 2, 3]."}, 400
+        emoji = data.get("emoji", None)
+        description = data.get("description", None)
+        if None in [user_id, emoji, description]:
+            return {"success": False, "error": "Must supply user_id, emoji, and description."}, 400
+        if len(emoji) != 1:
+            return {"success": False, "error": "emoji must be emoji."}, 400
         user = Users.query.filter_by(id=user_id).first()
         if not user:
             return {"success": False, "error": "User not found."}, 404
-        grant_award(user, ["🥇", "🥈", "🥉"][int(event_place) - 1], f"Awarded for placing {["first", "second", "third"][int(event_place) - 1]} in {event_name}.")
+        grant_award(user, emoji, description)
         return {"success": True}
