@@ -174,3 +174,46 @@ def test_start_no_privileged(random_user, welcome_dojo):
         assert False, f"\"dojo start\" should not have succeeded: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
         assert "does not support practice mode" in error.stderr, f"Should not be able to start in privileged mode, got: {(error.stdout, error.stderr)}"
+
+def test_list_dojos(random_user, welcome_dojo):
+    name, session = random_user
+    start_challenge(welcome_dojo, "welcome", "flag", session=session)
+    command = "dojo list /"
+    try:
+        slim = workspace_run(command, user=name)
+        assert welcome_dojo in slim.stdout
+        command = "dojo list -l /"
+        wide = workspace_run(command, user=name)
+        assert welcome_dojo in wide.stdout
+        assert len(slim.stdout) < len(wide.stdout), f"-l should result in longer output, got: {(slim.stdout, wide.stdout)}"
+    except subprocess.CalledProcessError as error:
+        assert False, f"Failed to list dojos using {command}, got: {(error.stdout, error.stderr)}"
+
+def test_list_modules(random_user, welcome_dojo):
+    name, session = random_user
+    start_challenge(welcome_dojo, "welcome", "flag", session=session)
+    command = f"dojo list /{welcome_dojo}"
+    try:
+        slim = workspace_run(command, user=name)
+        assert "welcome" in slim.stdout
+        command = f"dojo list -l /{welcome_dojo}"
+        wide = workspace_run(command, user=name)
+        assert "welcome" in wide.stdout
+        assert len(slim.stdout) < len(wide.stdout), f"-l should result in longer output, got: {(slim.stdout, wide.stdout)}"
+    except subprocess.CalledProcessError as error:
+        assert False, f"Failed to list dojos using {command}, got: {(error.stdout, error.stderr)}"
+
+def test_list_challenges(random_user, welcome_dojo):
+    name, session = random_user
+    start_challenge(welcome_dojo, "welcome", "flag", session=session)
+    command = f"dojo list /{welcome_dojo}/welcome"
+    challenges = ["terminal", "vscode", "desktop", "desktop-paste", "ssh", "restart", "sensai", "challenge", "flag", "practice", "persist-1", "persist-2"]
+    try:
+        slim = workspace_run(command, user=name)
+        assert "welcome" in slim.stdout
+        command = f"dojo list -l /{welcome_dojo}/welcome"
+        wide = workspace_run(command, user=name)
+        assert "welcome" in wide.stdout
+        assert len(slim.stdout) < len(wide.stdout), f"-l should result in longer output, got: {(slim.stdout, wide.stdout)}"
+    except subprocess.CalledProcessError as error:
+        assert False, f"Failed to list dojos using {command}, got: {(error.stdout, error.stderr)}"
