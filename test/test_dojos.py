@@ -260,9 +260,9 @@ def test_dojo_solves_api(example_dojo, random_user_name, random_user_session):
 
 def test_grant_award(admin_user, event_dojo):
     admin_name, admin_session = admin_user
-    assert admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{event_dojo}/award/grant", json={"user_id": get_user_id(admin_name), "event_name": "Test Event", "event_place": 1}).status_code == 200
+    assert admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{event_dojo}/award/grant", json={"user_id": get_user_id(admin_name), "emoji": "🥈", "description": "This is a test emoji"}).status_code == 200
 
 
 def test_no_award(admin_user, example_dojo):
     admin_name, admin_session = admin_user
-    assert admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{example_dojo}/award/grant", json={"user_id": get_user_id(admin_name), "event_name": "Test Event", "event_place": 1}).status_code == 403
+    assert admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{example_dojo}/award/grant", json={"user_id": get_user_id(admin_name), "emoji": "🥈", "description": "This is a test emoji"}).status_code == 403

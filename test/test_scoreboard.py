@@ -61,8 +61,8 @@ def test_folder_awards(admin_session, event_dojo, random_user, example_dojo):
     grant_award = f"{DOJO_URL}/pwncollege_api/v1/dojos/{event_dojo}/award/grant"
     random_user_name, random_user_session = random_user
     uid = get_user_id(random_user_name)
-    assert admin_session.post(grant_award, json={"user_id": uid, "event_name": "Test Event 1", "event_place": 2}).status_code == 200
-    assert admin_session.post(grant_award, json={"user_id": uid, "event_name": "Test Event 2", "event_place": 2}).status_code == 200
+    assert admin_session.post(grant_award, json={"user_id": uid, "emoji": "🥈", "description": "Test emoji 1"}).status_code == 200
+    assert admin_session.post(grant_award, json={"user_id": uid, "emoji": "🥈", "description": "Test emoji 2"}).status_code == 200
 
     start_challenge(example_dojo, "hello", "apple", session=random_user_session)
     result = workspace_run("/challenge/apple", user=random_user_name)
