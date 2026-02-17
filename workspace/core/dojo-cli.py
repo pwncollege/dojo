@@ -157,7 +157,7 @@ def list_dojos(types: list[str], use_expanded_format: bool):
         dojos_categorized.setdefault(dojo.get("type"), []).append(dojo)
 
     if not use_expanded_format:
-        for dojo_list in dojos_categorized:
+        for dojo_list in dojos_categorized.values():
             for dojo in dojo_list:
                 print(dojo.get("id"), end=" ")
         print("")
