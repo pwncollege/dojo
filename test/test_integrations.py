@@ -21,7 +21,7 @@ def inspect_container(username) -> dict[str, Any]:
     except:
         return {}
 
-def validate_current_container(username, dojo, module, challenge, attempts=5, mode:str=None, before:datetime.datetime=None, after:datetime.datetime=None) -> bool:
+def validate_current_container(username, dojo, module, challenge, attempts=10, mode:str=None, before:datetime.datetime=None, after:datetime.datetime=None) -> bool:
     for _ in range(attempts):
         container = inspect_container(username)
         try:

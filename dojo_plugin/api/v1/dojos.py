@@ -21,6 +21,7 @@ from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_from_s
 from ...utils.image_pulls import enqueue_dojo_image_pulls
 from ...utils.stats import get_dojo_stats
 from ...utils.events import publish_dojo_stats_event, publish_scoreboard_event
+from ...utils.awards import dojo_gives_awards, grant_award
 
 logger = logging.getLogger(__name__)
 
@@ -390,3 +391,24 @@ class DojoChallengeDescription(Resource):
             "success": True,
             "description": render_markdown(dojo_challenge.description)
         }
+
+
+@dojos_namespace.route("/<dojo>/award/grant")
+class GrantAward(Resource):
+    @dojo_route
+    @dojo_gives_awards
+    @dojo_admins_only
+    def post(self, dojo):
+        data = request.get_json()
+        user_id = data.get("user_id", None)
+        emoji = data.get("emoji", None)
+        description = data.get("description", None)
+        if None in [user_id, emoji, description]:
+            return {"success": False, "error": "Must supply user_id, emoji, and description."}, 400
+        if len(emoji) != 1:
+            return {"success": False, "error": "emoji must be emoji."}, 400
+        user = Users.query.filter_by(id=user_id).first()
+        if not user:
+            return {"success": False, "error": "User not found."}, 404
+        grant_award(user, emoji, description)
+        return {"success": True}

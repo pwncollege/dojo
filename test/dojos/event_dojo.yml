@@ -1,0 +1,12 @@
+id: event-award
+type: public
+modules:
+  - id: award
+    challenges:
+      - id: award
+files:
+  - type: text
+    path: award/award/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
