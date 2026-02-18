@@ -31,6 +31,9 @@ def discord_request(endpoint, method="GET", **kwargs):
 def guild_request(endpoint, method="GET", **kwargs):
     return discord_request(f"/guilds/{DISCORD_GUILD_ID}{endpoint}", method=method, **kwargs)
 
+def bot_request(endpoint, method="GET", **json):
+    return discord_request(f"/users/@me{endpoint}", method=method, **json)
+
 
 def get_bot_join_server_url():
     # "Server Members Intent" also required
@@ -96,6 +99,11 @@ def send_message(message, channel_name):
     channel_id = channel_ids[0]
     json = dict(content=message)
     discord_request(f"/channels/{channel_id}/messages", method="POST", json=json)
+
+
+def send_dm(message, recipient_id):
+    channel_id = bot_request("/channels", method="POST", recipient_id=recipient_id)["id"]
+    discord_request(f"/channels/{channel_id}/messages", method="POST", content=message)
 
 
 def add_role(discord_id, role_name):

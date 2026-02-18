@@ -72,4 +72,12 @@ def discord_redirect():
         db.session.rollback()
         return {"success": False, "error": "Discord user already in use"}, 400
 
+    # DM the user the flag for white belt
+    discord_dojo = Dojos.from_id("discord-dojo").first()
+    if discord_dojo:
+        discord_challenge == discord_dojo.modules[0].challenges[0]
+        flag = serialize_user_flag(user_id, discord_challenge.challenge_id)
+        send_dm("""You have linked your pwn.college account with this discord account! You may now submit the flag: {flag}.""", discord_id)
+        send_dm("""**NOTE:** This is the ONLY communication from pwn.college that you will receive over discord DMs. Assume any other communication is a phishing attempt!""", discord_id)
+
     return redirect("/settings#discord")
