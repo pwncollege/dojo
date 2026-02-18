@@ -319,7 +319,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
         practice=practice,
     )
 
-    if dojo_challenge.path.exists():
+    if dojo_challenge.path.exists() and not dojo_challenge.resolve().image.startswith("challenges.pwn.college/"):
         insert_challenge(container, as_user, dojo_challenge)
 
     if practice:
