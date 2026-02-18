@@ -75,13 +75,13 @@ RUN cp /tmp/daemon.json /etc/docker/daemon.json
 
 ADD https://raw.githubusercontent.com/moby/profiles/master/seccomp/default.json /etc/docker/seccomp.json
 
+COPY --from=kata-builder /usr/share/kata-containers/vmlinux.container /tmp/vmlinux.container
 RUN <<EOF
 KATA_VERSION=3.19.1
 curl -L https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.xz | tar -xJ --strip-components=2 -C /opt
 ln -s /opt/kata/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2
+mv /tmp/vmlinux.container /opt/kata/share/kata-containers/vmlinux.container
 EOF
-
-COPY --from=kata-builder /usr/share/kata-containers/vmlinux.container /opt/kata/share/kata-containers/vmlinux.container
 
 RUN <<EOF
 cd /tmp
