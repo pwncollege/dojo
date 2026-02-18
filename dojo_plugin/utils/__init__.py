@@ -126,6 +126,7 @@ def _filter_code_class(tag, name, value):
 def render_markdown(s):
     raw_html = build_markdown(s or "")
     if "dojo" in g and (g.dojo.official or g.dojo.privileged):
+        raw_html = re.sub("<a", '<a target="_blank"', raw_html)
         return Markup(raw_html)
 
     markdown_tags = [
@@ -147,6 +148,7 @@ def render_markdown(s):
         "code": _filter_code_class,
     }
     clean_html = bleach.clean(raw_html, tags=markdown_tags, attributes=markdown_attrs)
+    clean_html = re.sub("<a", '<a target="_blank"', clean_html)
     return Markup(clean_html)
 
 def sanitize_survey(data):
