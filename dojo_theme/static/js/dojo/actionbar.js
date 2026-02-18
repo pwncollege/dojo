@@ -305,8 +305,8 @@ function displayPrivileged(event, invert) {
     const lockStatus = privileged === invert;
 
     button.find(".fas")
-        .toggleClass("fa-lock", lockStatus)
-        .toggleClass("fa-unlock", !lockStatus);
+        .toggleClass("fa-times", lockStatus)
+        .toggleClass("fa-check", !lockStatus);
 
     button.attr("title", privileged ? "Restart unprivileged"
                                     : "Restart privileged");
