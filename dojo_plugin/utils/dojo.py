@@ -19,7 +19,7 @@ from schema import Schema, Optional, Regex, Or, Use, SchemaError, And
 from flask import abort, g
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
-from CTFd.models import db, Challenges, Flags
+from CTFd.models import db, Challenges, Flags, Solves
 from CTFd.utils.user import get_current_user, is_admin
 
 from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
@@ -381,19 +381,23 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
 
     existing_challenges = {(challenge.module.id, challenge.id): challenge.challenge for challenge in dojo.challenges}
     def challenge(module_id, challenge_id, transfer=None):
-        if (module_id, challenge_id) in existing_challenges:
-            return existing_challenges[(module_id, challenge_id)]
-        if chal := Challenges.query.filter_by(category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}").first():
-            return chal
+        existing_challenge = (existing_challenges.get((module_id, challenge_id)) or
+                              Challenges.query.filter_by(category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}").first())
         if transfer:
-            assert dojo.official or (is_admin() and not Dojos.from_id(dojo.id).first())
-            old_dojo_id, old_module_id, old_challenge_id = transfer["dojo"], transfer["module"], transfer["challenge"]
-            old_dojo = Dojos.from_id(old_dojo_id).first()
-            old_challenge = Challenges.query.filter_by(category=old_dojo.hex_dojo_id, name=f"{old_module_id}:{old_challenge_id}").first()
-            assert old_dojo and old_challenge, f"unable to find source dojo/module/challenge in database for {old_dojo_id}:{old_module_id}:{old_challenge_id}"
-            old_challenge.category = dojo.hex_dojo_id
-            old_challenge.name = f"{module_id}:{challenge_id}"
-            return old_challenge
+            if not (dojo.official or (is_admin() and not Dojos.from_id(dojo.id).first())):
+                raise RuntimeError("Permission denied: only official dojos and admins can transfer challenges")
+            if existing_challenge:
+                raise RuntimeError("Cannot transfer when existing challenge already exists")
+            transfer_challenge = (Challenges.query.filter_by(category=transfer_dojo.hex_dojo_id, name=f"{transfer['module']}:{transfer['challenge']}").first()
+                                  if (transfer_dojo := Dojos.from_id(transfer["dojo"]).first()) else None)
+            if transfer_challenge:
+                transfer_challenge.category = dojo.hex_dojo_id
+                transfer_challenge.name = f"{module_id}:{challenge_id}"
+                return transfer_challenge
+        if existing_challenge:
+            return existing_challenge
+        if transfer:
+            raise RuntimeError("Failed to find transfer challenge, or existing challenge.")
         return Challenges(type="dojo", category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}", flags=[Flags(type="dojo")])
 
     def visibility(cls, *args):
