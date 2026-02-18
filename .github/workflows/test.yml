@@ -1,0 +1,71 @@
+name: Test
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - master
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker storage
+        run: |
+          echo "::group::Current disk usage"
+          df -h
+          echo "::endgroup::"
+          sudo systemctl stop docker
+          sudo rm -rf /var/lib/docker
+          sudo mkdir -p /mnt/docker
+          sudo ln -s /mnt/docker /var/lib/docker
+          sudo systemctl start docker
+
+      - name: Build images
+        run: |
+          IMAGE=$(docker build -q .)
+          TEST_IMAGE=$(docker build -q test)
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "TEST_IMAGE=$TEST_IMAGE" >> "$GITHUB_ENV"
+
+      - name: Start dojo
+        run: |
+          DOJO_CONTAINER=$(docker run --privileged --rm -d "$IMAGE")
+          docker exec "$DOJO_CONTAINER" dojo wait
+          docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-simple
+          docker exec "$DOJO_CONTAINER" docker pull pwncollege/challenge-lecture
+          docker exec "$DOJO_CONTAINER" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
+          echo "DOJO_CONTAINER=$DOJO_CONTAINER" >> "$GITHUB_ENV"
+
+      - name: Run tests
+        run: |
+          DOJO_CONTAINER_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER")
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -e "DOJO_CONTAINER=$DOJO_CONTAINER" \
+            --add-host localhost.pwn.college:$DOJO_CONTAINER_IP \
+            --add-host workspace.localhost.pwn.college:$DOJO_CONTAINER_IP \
+            $TEST_IMAGE pytest -v
+
+      - name: Output logs
+        if: always()
+        run: |
+          echo "::group::dojo logs"
+          docker exec "$DOJO_CONTAINER" dojo logs || true
+          echo "::endgroup::"
+          echo "::group::ctfd logs"
+          docker exec "$DOJO_CONTAINER" docker logs ctfd || true
+          echo "::endgroup::"
+          echo "::group::nginx logs"
+          docker exec "$DOJO_CONTAINER" docker logs nginx || true
+          echo "::endgroup::"
+          echo "::group::workspace-builder logs"
+          docker exec "$DOJO_CONTAINER" docker logs workspace-builder || true
+          echo "::endgroup::"
+          echo "::group::Filesystem"
+          df -h
+          echo "::endgroup::"
