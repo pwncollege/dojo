@@ -12,10 +12,11 @@ import { DojoNinja } from '@/components/ui/dojo-ninja'
 import { motion } from 'framer-motion'
 import { useMemo } from 'react'
 
-interface Dojo {
+export interface Dojo {
   id: string
   name: string
   description?: string
+  type: string
   official: boolean
   award?: {
     belt?: string

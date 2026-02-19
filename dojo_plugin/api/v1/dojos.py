@@ -44,6 +44,7 @@ class DojoList(Resource):
             dict(id=dojo.reference_id,
                  name=dojo.name,
                  description=dojo.description,
+                 type=dojo.type,
                  official=dojo.official,
                  award=dojo.award,
                  modules_count=dojo.modules_count,
