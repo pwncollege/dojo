@@ -7,7 +7,7 @@ from email.message import EmailMessage
 from email.utils import formatdate
 from urllib.parse import urlparse, urlunparse
 
-from flask import Response, request, redirect, current_app
+from flask import Response, request, redirect, current_app, g
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
 from CTFd.models import db, Challenges, Users, Solves
@@ -17,7 +17,7 @@ from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 
 from .models import Dojos, DojoChallenges, Belts, Emojis
-from .config import DOJO_HOST, bootstrap
+from .config import DOJO_HOST, DOJO_SSH_SERVICE_KEY, bootstrap
 from .utils import unserialize_user_flag, render_markdown
 from .utils.dojo import get_current_dojo_challenge
 from .utils.awards import update_awards
@@ -145,6 +145,8 @@ def handle_authorization(default_handler):
     authorization = request.headers.get("Authorization")
     if authorization and authorization.startswith("Bearer "):
         return
+    if DOJO_SSH_SERVICE_KEY and request.headers.get("X-SSH-Service-Key") == DOJO_SSH_SERVICE_KEY and request.headers.get("X-Dojo-User-Id"):
+        return
     default_handler()
 
 
@@ -198,9 +200,31 @@ def load(app):
     register_admin_plugin_menu_bar("Dojos", "/admin/dojos")
     register_admin_plugin_menu_bar("Desktops", "/admin/desktops")
 
+    def dojo_ssh_csrf_exempt():
+        if DOJO_SSH_SERVICE_KEY and request.headers.get("X-SSH-Service-Key") == DOJO_SSH_SERVICE_KEY and request.headers.get("X-Dojo-User-Id"):
+            g.csrf_valid = True
+
+    app.before_request_funcs.setdefault(None, []).insert(0, dojo_ssh_csrf_exempt)
+
+    csrf = app.extensions.get("csrf")
+    if csrf is not None:
+        csrf.exempt(api)
+
     before_request_funcs = app.before_request_funcs[None]
     tokens_handler = next(func for func in before_request_funcs if func.__name__ == "tokens")
     before_request_funcs[before_request_funcs.index(tokens_handler)] = lambda: handle_authorization(tokens_handler)
+
+    def handle_csrf(csrf_handler):
+        def wrapper():
+            if DOJO_SSH_SERVICE_KEY and request.headers.get("X-SSH-Service-Key") == DOJO_SSH_SERVICE_KEY and request.headers.get("X-Dojo-User-Id"):
+                return
+            return csrf_handler()
+        wrapper.__name__ = csrf_handler.__name__
+        return wrapper
+
+    csrf_handler = next((f for f in before_request_funcs if getattr(f, "__name__", None) == "csrf"), None)
+    if csrf_handler is not None:
+        before_request_funcs[before_request_funcs.index(csrf_handler)] = handle_csrf(csrf_handler)
 
     if os.path.basename(sys.argv[0]) != "manage.py":
         bootstrap()
