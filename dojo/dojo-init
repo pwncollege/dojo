@@ -41,6 +41,9 @@ DEFAULT_DOJO_HOST=localhost.pwn.college
 
 define DOJO_HOST "${DEFAULT_DOJO_HOST}"
 define WORKSPACE_HOST workspace."${DEFAULT_DOJO_HOST}"
+define REGISTRY_HOST "registry.${DEFAULT_DOJO_HOST}"
+define REGISTRY_AUTH_HOST "auth.${DEFAULT_DOJO_HOST}"
+define REGISTRY_API_SECRET $(openssl rand -hex 32)
 define DOJO_ENV development
 define DOJO_OFFLINE false
 define DOJO_WORKSPACE core
@@ -55,8 +58,8 @@ define MAIL_USERNAME
 define MAIL_PASSWORD
 define MAIL_ADDRESS
 define CORS_ORIGINS
-define DOCKER_USERNAME
-define DOCKER_TOKEN
+define REGISTRY_USERNAME 
+define REGISTRY_PASSWORD 
 define DISCORD_CLIENT_ID
 define DISCORD_CLIENT_SECRET
 define DISCORD_BOT_TOKEN

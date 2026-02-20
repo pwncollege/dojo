@@ -156,6 +156,10 @@ class Dojos(db.Model):
     def reference_id(self):
         return self.id if self.official else self.unique_id
 
+    @property
+    def docker_reference_id(self):
+        return self.id if self.official else self.unique_id.replace('~','-') 
+
     @hybrid_property
     def modules(self):
         return self._modules
