@@ -1,0 +1,13 @@
+Port 2222
+ListenAddress 127.0.0.1
+ChallengeResponseAuthentication no
+PasswordAuthentication no
+UsePAM yes
+
+Subsystem sftp    /run/dojo/libexec/sftp-server
+
+Match User hacker
+      AuthorizedKeysCommand /opt/sshd/auth.py
+      AuthorizedKeysCommandUser root
+      X11Forwarding no
+      AllowTcpForwarding no

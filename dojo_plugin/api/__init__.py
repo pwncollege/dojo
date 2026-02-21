@@ -14,6 +14,7 @@ from .v1.feed import feed_namespace
 from .v1.score import score_namespace
 from .v1.scoreboard import scoreboard_namespace
 from .v1.ssh_key import ssh_key_namespace
+from .v1.ssh_auto_account import ssh_auto_account_namespace
 from .v1.workspace_tokens import workspace_tokens_namespace
 from .v1.workspace import workspace_namespace
 from .v1.search import search_namespace
@@ -67,6 +68,7 @@ api_v1.add_namespace(feed_namespace, "/feed")
 api_v1.add_namespace(score_namespace, "/score")
 api_v1.add_namespace(scoreboard_namespace, "/scoreboard")
 api_v1.add_namespace(ssh_key_namespace, "/ssh_key")
+api_v1.add_namespace(ssh_auto_account_namespace, "/ssh_auto_account")
 api_v1.add_namespace(workspace_tokens_namespace, "/workspace_tokens")
 api_v1.add_namespace(workspace_namespace, "/workspace")
 api_v1.add_namespace(search_namespace, "/search")
