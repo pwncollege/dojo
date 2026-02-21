@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 import time
 
 import redis
@@ -7,6 +8,7 @@ from flask import current_app
 
 from ..api.v1.docker import (
     CONTAINER_STARTS_STREAM,
+    DOCKER_START_LOCK_TIMEOUT,
     start_challenge,
     set_start_status,
 )
@@ -22,6 +24,13 @@ AUTOCLAIM_MIN_IDLE_MS = 60_000
 AUTOCLAIM_INTERVAL_TICKS = 12
 MAX_ATTEMPTS = 3
 RETRY_DELAY = 2
+LOCK_REFRESH_INTERVAL = max(1, DOCKER_START_LOCK_TIMEOUT // 3)
+RENEW_LOCK_SCRIPT = """
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("PEXPIRE", KEYS[1], ARGV[2])
+end
+return 0
+"""
 
 
 def ensure_consumer_group(r):
@@ -47,6 +56,53 @@ def release_user_lock(user_id, lock_token):
         logger.warning(f"Failed to release lock for {user_id=}")
 
 
+def renew_user_lock(r, user_id, lock_token, timeout_seconds):
+    lock_key = f"user.{user_id}.docker.lock"
+    try:
+        result = r.eval(
+            RENEW_LOCK_SCRIPT,
+            1,
+            lock_key,
+            str(lock_token),
+            int(timeout_seconds * 1000),
+        )
+        return bool(result)
+    except redis.RedisError as e:
+        logger.warning(f"Failed to renew lock for {user_id=}: {e}")
+        return None
+
+
+class UserLockHeartbeat:
+    def __init__(self, r, user_id, lock_token, timeout_seconds):
+        self.r = r
+        self.user_id = user_id
+        self.lock_token = lock_token
+        self.timeout_seconds = timeout_seconds
+        self.refresh_interval = LOCK_REFRESH_INTERVAL
+        self.stop_event = threading.Event()
+        self.thread = None
+        self.lock_lost = False
+
+    def _run(self):
+        while not self.stop_event.wait(self.refresh_interval):
+            renewed = renew_user_lock(self.r, self.user_id, self.lock_token, self.timeout_seconds)
+            if renewed is True:
+                continue
+            if renewed is False:
+                self.lock_lost = True
+                logger.error(f"Lost docker lock for {self.user_id=}")
+                break
+
+    def start(self):
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def stop(self):
+        self.stop_event.set()
+        if self.thread is not None:
+            self.thread.join(timeout=2)
+
+
 def process_start(r, consumer_name, message_id, message_data):
     start_id = message_data["start_id"]
     user_id = int(message_data["user_id"])
@@ -61,6 +117,8 @@ def process_start(r, consumer_name, message_id, message_data):
     lock_token = message_data["lock_token"]
 
     logger.info(f"Processing {start_id=} {user_id=}")
+    lock_heartbeat = UserLockHeartbeat(r, user_id, lock_token, DOCKER_START_LOCK_TIMEOUT)
+    lock_heartbeat.start()
 
     try:
         user = Users.query.get(user_id)
@@ -87,6 +145,9 @@ def process_start(r, consumer_name, message_id, message_data):
 
         last_error = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            if lock_heartbeat.lock_lost:
+                last_error = "Lost start lock while starting challenge"
+                break
             try:
                 set_start_status(r, start_id, {
                     "status": "starting", "attempt": attempt, "max_attempts": MAX_ATTEMPTS,
@@ -95,6 +156,8 @@ def process_start(r, consumer_name, message_id, message_data):
 
                 logger.info(f"Starting challenge {start_id=} {user_id=} {attempt=}/{MAX_ATTEMPTS}")
                 start_challenge(user, dojo_challenge, practice, as_user=as_user)
+                if lock_heartbeat.lock_lost:
+                    raise RuntimeError("Lost start lock while starting challenge")
 
                 if dojo_official:
                     challenge_data = {
@@ -120,7 +183,7 @@ def process_start(r, consumer_name, message_id, message_data):
             except Exception as e:
                 last_error = str(e)
                 logger.warning(f"Attempt failed {start_id=} {user_id=} {attempt=}: {e}")
-                if attempt < MAX_ATTEMPTS:
+                if attempt < MAX_ATTEMPTS and not lock_heartbeat.lock_lost:
                     time.sleep(RETRY_DELAY)
 
         set_start_status(r, start_id, {
@@ -129,6 +192,7 @@ def process_start(r, consumer_name, message_id, message_data):
         })
         logger.error(f"Container start failed {start_id=} {user_id=} attempts={MAX_ATTEMPTS}")
     finally:
+        lock_heartbeat.stop()
         release_user_lock(user_id, lock_token)
 
 
@@ -158,7 +222,7 @@ def consume_container_starts(shutdown_event=None):
                         for msg_id, msg_data in claimed_messages:
                             logger.info(f"Autoclaimed message {msg_id=}")
                             process_start(r, consumer_name, msg_id, msg_data)
-                            r.xack(CONTAINER_STARTS_STREAM, CONSUMER_GROUP, msg_id)
+                            r.xackdel(CONTAINER_STARTS_STREAM, CONSUMER_GROUP, msg_id)
                 except redis.ResponseError:
                     pass
 
@@ -177,7 +241,7 @@ def consume_container_starts(shutdown_event=None):
                 for message_id, message_data in stream_messages:
                     try:
                         process_start(r, consumer_name, message_id, message_data)
-                        r.xack(CONTAINER_STARTS_STREAM, CONSUMER_GROUP, message_id)
+                        r.xackdel(CONTAINER_STARTS_STREAM, CONSUMER_GROUP, message_id)
                     except Exception as e:
                         logger.error(f"Unexpected error processing {message_id=}: {e}", exc_info=True)
 

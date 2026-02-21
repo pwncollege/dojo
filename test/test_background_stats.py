@@ -246,8 +246,26 @@ def test_cold_start_initializes_cache(example_dojo):
     cached_data = redis_get(cache_key)
 
     if cached_data is None:
-        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
-        pytest.fail(f"Cold start should have initialized cache for {example_dojo}. Worker logs:\n{result.stdout}")
+        restart = dojo_run("docker", "restart", "stats-worker", check=False)
+        assert restart.returncode == 0, f"Failed to restart stats-worker: {restart.stderr}"
+
+        start_time = time.time()
+        while time.time() - start_time < 30:
+            status = dojo_run("docker", "inspect", "stats-worker", "--format", "{{.State.Status}}", check=False)
+            if status.returncode == 0 and status.stdout.strip() == "running":
+                break
+            time.sleep(0.5)
+
+        start_time = time.time()
+        while time.time() - start_time < 30:
+            cached_data = redis_get(cache_key)
+            if cached_data is not None:
+                break
+            time.sleep(0.5)
+
+        if cached_data is None:
+            result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
+            pytest.fail(f"Cold start should have initialized cache for {example_dojo}. Worker logs:\n{result.stdout}")
 
     stats = json.loads(cached_data)
     assert 'solves' in stats

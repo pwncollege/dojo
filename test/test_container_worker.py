@@ -24,7 +24,7 @@ def test_container_worker_running():
 def test_async_start_challenge(admin_session, example_dojo):
     user_name = f"async_test_{int(time.time())}"
     session = login(user_name, "password", register=True)
-    start_challenge(example_dojo, "hello", "hello", session=session)
+    start_challenge(example_dojo, "hello", "apple", session=session)
 
 
 def test_async_start_status_progression(admin_session, example_dojo):
@@ -34,7 +34,7 @@ def test_async_start_status_progression(admin_session, example_dojo):
     response = session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json={
         "dojo": example_dojo,
         "module": "hello",
-        "challenge": "hello",
+        "challenge": "apple",
         "practice": False,
     })
     assert response.status_code == 200
@@ -67,7 +67,7 @@ def test_concurrent_start_same_user(admin_session, example_dojo):
     response1 = session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json={
         "dojo": example_dojo,
         "module": "hello",
-        "challenge": "hello",
+        "challenge": "apple",
         "practice": False,
     })
     assert response1.status_code == 200
@@ -77,7 +77,7 @@ def test_concurrent_start_same_user(admin_session, example_dojo):
     response2 = session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json={
         "dojo": example_dojo,
         "module": "hello",
-        "challenge": "hello",
+        "challenge": "apple",
         "practice": False,
     })
     assert response2.status_code == 200
@@ -92,3 +92,17 @@ def test_status_unknown_id(admin_session):
 
     response = session.get(f"{DOJO_URL}/pwncollege_api/v1/docker/status?id=nonexistent-id")
     assert response.status_code == 404
+
+
+def test_admin_invalid_as_user_returns_error(admin_session, example_dojo):
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json={
+        "dojo": example_dojo,
+        "module": "hello",
+        "challenge": "apple",
+        "practice": False,
+        "as_user": -1,
+    })
+    assert response.status_code == 200
+    result = response.json()
+    assert not result["success"]
+    assert "invalid user id" in result["error"].lower()

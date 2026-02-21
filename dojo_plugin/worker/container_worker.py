@@ -2,7 +2,7 @@ import multiprocessing
 import os
 import signal
 
-from . import setup_worker_logging
+from CTFd.plugins.dojo_plugin.worker import setup_worker_logging
 
 logger = setup_worker_logging(__name__)
 
@@ -22,7 +22,7 @@ def worker_process(app, shutdown_event):
     with app.app_context():
         from CTFd.models import db
         db.engine.dispose()
-        from ..worker.container_start import consume_container_starts
+        from CTFd.plugins.dojo_plugin.worker.container_start import consume_container_starts
         try:
             consume_container_starts(shutdown_event=shutdown_event)
         except Exception as e:
@@ -32,7 +32,7 @@ def worker_process(app, shutdown_event):
 from flask import current_app
 app = current_app._get_current_object()
 
-from ..config import CONTAINER_WORKERS
+from CTFd.plugins.dojo_plugin.config import CONTAINER_WORKERS
 num_workers = CONTAINER_WORKERS
 logger.info(f"Starting container worker with {num_workers} processes...")
 

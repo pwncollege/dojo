@@ -49,6 +49,7 @@ docker_namespace = Namespace(
 CONTAINER_STARTS_STREAM = "container:starts"
 CONTAINER_START_STATUS_PREFIX = "container_start:"
 CONTAINER_START_STATUS_TTL = 3600
+DOCKER_START_LOCK_TIMEOUT = 120
 
 HOST_HOMES = pathlib.Path(HOST_DATA_PATH) / "workspace" / "homes"
 HOST_HOMES_MOUNTS = HOST_HOMES / "mounts"
@@ -504,6 +505,8 @@ class RunDocker(Resource):
                 return {"success": False, "error": f"Invalid user ID ({data['as_user']})"}
             if is_admin():
                 as_user = Users.query.get(as_user_id)
+                if as_user is None:
+                    return {"success": False, "error": f"Invalid user ID ({as_user_id})"}
             else:
                 student = next((student for student in dojo.students if student.user_id == as_user_id), None)
                 if student is None:
@@ -518,7 +521,7 @@ class RunDocker(Resource):
         lock = redis_client.lock(
             f"user.{user.id}.docker.lock",
             blocking_timeout=0,
-            timeout=120,
+            timeout=DOCKER_START_LOCK_TIMEOUT,
         )
         try:
             acquired = lock.acquire()

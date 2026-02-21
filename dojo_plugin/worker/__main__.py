@@ -2,7 +2,7 @@ import os
 import signal
 import time
 
-from . import setup_worker_logging
+from CTFd.plugins.dojo_plugin.worker import setup_worker_logging
 
 logger = setup_worker_logging(__name__)
 
@@ -21,12 +21,12 @@ logger.info("Starting stats background worker...")
 if os.environ.get("SKIP_COLD_START"):
     logger.info("SKIP_COLD_START set, skipping cache initialization")
 else:
-    from ..worker.handlers.dojo_stats import initialize_all_dojo_stats
-    from ..worker.handlers.scoreboard import initialize_all_scoreboards
-    from ..worker.handlers.scores import initialize_all_scores
-    from ..worker.handlers.awards import initialize_all_belts, initialize_all_emojis
-    from ..worker.handlers.containers import initialize_all_container_stats
-    from ..worker.handlers.activity import initialize_all_activity
+    from CTFd.plugins.dojo_plugin.worker.handlers.dojo_stats import initialize_all_dojo_stats
+    from CTFd.plugins.dojo_plugin.worker.handlers.scoreboard import initialize_all_scoreboards
+    from CTFd.plugins.dojo_plugin.worker.handlers.scores import initialize_all_scores
+    from CTFd.plugins.dojo_plugin.worker.handlers.awards import initialize_all_belts, initialize_all_emojis
+    from CTFd.plugins.dojo_plugin.worker.handlers.containers import initialize_all_container_stats
+    from CTFd.plugins.dojo_plugin.worker.handlers.activity import initialize_all_activity
 
     logger.info("Performing cold start cache initialization...")
 
@@ -67,8 +67,8 @@ else:
 
 logger.info("Starting event consumption loop...")
 
-from ..utils.background_stats import consume_stat_events, DailyRestartException
-from ..worker.handlers import handle_stat_event
+from CTFd.plugins.dojo_plugin.utils.background_stats import consume_stat_events, DailyRestartException
+from CTFd.plugins.dojo_plugin.worker.handlers import handle_stat_event
 
 try:
     consume_stat_events(
