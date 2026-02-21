@@ -1,11 +1,15 @@
 import argparse
 import os
 import sys
+import time
 import requests
 from typing import Any
 
 DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
 DOJO_AUTH_TOKEN = os.environ.get("DOJO_AUTH_TOKEN")
+START_RETRY_MESSAGE = "Already starting a challenge"
+START_RETRY_ATTEMPTS = 10
+START_RETRY_DELAY_SECONDS = 0.5
 
 def whoami():
     response = requests.get(
@@ -58,24 +62,29 @@ def solve(args : argparse.Namespace):
         sys.exit("Incorrect flag.")
 
 def start_challenge(dojo:str, module:str, challenge:str, privileged:bool):
-    response = requests.post(
-        f"{DOJO_API}/docker",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
-        json={
-            "dojo": dojo,
-            "module": module,
-            "challenge": challenge,
-            "practice": privileged
-        },
-        timeout=5.0
-    )
+    for attempt in range(START_RETRY_ATTEMPTS):
+        response = requests.post(
+            f"{DOJO_API}/docker",
+            headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+            json={
+                "dojo": dojo,
+                "module": module,
+                "challenge": challenge,
+                "practice": privileged
+            },
+            timeout=5.0
+        )
 
-    # How did we get here?
-    result = response.json()
-    if not (result["success"]):
+        result = response.json()
+        if result["success"]:
+            print("Started challenge.")
+            sys.exit(0)
+
+        if START_RETRY_MESSAGE in result.get("error", "") and attempt + 1 < START_RETRY_ATTEMPTS:
+            time.sleep(START_RETRY_DELAY_SECONDS)
+            continue
+
         sys.exit(result["error"])
-    print("Started challenge.")
-    sys.exit(0)
 
 def restart(args : argparse.Namespace):
     """
