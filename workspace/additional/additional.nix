@@ -27,7 +27,7 @@ let
   pythonEnv = pkgs.python3.withPackages pythonPackages;
 
   tools = with pkgs; {
-    build = [ (lib.lowPrio clang) clang-tools cmake (lib.hiPrio gcc) gnumake qemu rustup ];
+    build = [ (lib.hiPrio gcc) (lib.lowPrio clang) clang-tools cmake gnumake nasm qemu rustup ];
 
     cli-tools = [ atuin bat delta hexyl hyperfine navi sd zoxide ];
 

@@ -17,7 +17,7 @@ function usage {
 	echo "	-v	run vibecheck mode (summarize git diff and test with AI)"
 	echo "	-N	don't (re)start the dojo"
 	echo "	-K	clean up and exit"
-	echo "	-P	export ports (80->80, 443->443, 22->2222)"
+	echo "	-p	export ports (80->80, 443->443, 22->2222)"
 	echo "	-e	set environment variable (can be used multiple times)"
 	echo "	-b	build the Docker image locally (tag: same as container name)"
 	echo "	-M	run in multi-node mode (3 containers: 1 main + 2 workspace nodes)"
@@ -103,7 +103,7 @@ GITHUB_ACTIONS=no
 CLEAN_ONLY=no
 START=yes
 COVERAGE=no
-while getopts "r:c:he:tvD:W:PbMgNKC" OPT
+while getopts "r:c:he:tvD:W:pbMgNKC" OPT
 do
 	case $OPT in
 		r) DB_RESTORE="$OPTARG" ;;
