@@ -4,7 +4,7 @@ import logging
 import sys
 import traceback
 
-import emoji
+import emoji as emojilib
 from CTFd.cache import cache
 from CTFd.models import Solves, Users, db
 from CTFd.plugins.challenges import get_chal_class
@@ -406,7 +406,7 @@ class GrantAward(Resource):
         description = dojo.hex_dojo_id + ":CUSTOM_AWARD:" + data.get("description", None)
         if None in [user_id, emoji, description]:
             return {"success": False, "error": "Must supply user_id, emoji, and description."}, 400
-        if not emoji.is_emoji(emoji):
+        if not emojilib.is_emoji(emoji):
             return {"success": False, "error": "emoji must be emoji."}, 400
         user = Users.query.filter_by(id=user_id).first()
         if not user:
