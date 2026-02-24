@@ -125,7 +125,7 @@ def test_admin_page_shows_deploy_key(admin_session, example_dojo):
 
     response = admin_session.get(f"{DOJO_URL}/dojo/{example_dojo}/admin/")
     assert response.status_code == 200
-    assert "Deploy Key for GitHub" in response.text
+    assert "GitHub Deploy Key (Public)" in response.text
     assert public_key in response.text
 
 
