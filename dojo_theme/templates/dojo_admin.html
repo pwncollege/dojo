@@ -57,6 +57,21 @@
     </div>
     {% endif %}
   </div>
+  {% if dojo.public_key %}
+  <div class="row justify-content-center mt-2">
+    <div class="col-lg-10">
+      <p class="mb-1">Deploy Key for GitHub</p>
+      <div class="input-group mb-2">
+        <input type="text" id="dojo-deploy-key-result" class="form-control" value="{{ dojo.public_key }}" readonly>
+        <div class="input-group-append copy-button">
+          <button class="btn btn-outline-secondary" type="button">
+            <i class="fas fa-clipboard"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
   <div>
     <form method="post" id="dojo-award-prune-form" autocomplete="off">
       <div class="form-group">
