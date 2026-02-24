@@ -58,8 +58,8 @@
     {% endif %}
   </div>
   {% if dojo.public_key %}
-  <label class="mb-1 ml-3 font-weight-bold" for="dojo-deploy-key-result">GitHub Deploy Key (Public)</label>
-  <small class="form-text text-muted mb-2 ml-3">Only needed for private GitHub repositories. Add it in your repository's Deploy Keys.</small>
+  <label class="mb-1 ml-3 font-weight-bold" for="dojo-deploy-key-result">Deploy Key</label>
+  <small class="form-text text-muted mb-2 ml-3">For private GitHub repositories, add this key in your repository's Deploy Keys.</small>
   <div class="input-group mx-3 mb-3">
     <input type="text" id="dojo-deploy-key-result" class="form-control text-monospace" value="{{ dojo.public_key }}" readonly>
     <div class="input-group-append copy-button">
