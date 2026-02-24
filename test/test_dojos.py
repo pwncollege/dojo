@@ -115,6 +115,20 @@ def test_join_dojo(admin_session, guest_dojo_admin, example_dojo):
     assert random_user_name in response.text and response.text.index("Members") < response.text.index(random_user_name)
 
 
+def test_admin_page_shows_deploy_key(admin_session, example_dojo):
+    if "~" in example_dojo:
+        dojo_id_hex = example_dojo.split("~", 1)[1]
+        public_key = db_sql(f"SELECT public_key FROM dojos WHERE dojo_id = x'{dojo_id_hex}'::int")
+    else:
+        public_key = db_sql(f"SELECT public_key FROM dojos WHERE id = '{example_dojo}' ORDER BY dojo_id DESC LIMIT 1")
+    public_key = public_key.strip()
+
+    response = admin_session.get(f"{DOJO_URL}/dojo/{example_dojo}/admin/")
+    assert response.status_code == 200
+    assert "Deploy Key" in response.text
+    assert public_key in response.text
+
+
 def test_promote_dojo_member(admin_session, guest_dojo_admin, example_dojo):
     random_user_name, _ = guest_dojo_admin
     random_user_id = get_user_id(random_user_name)
