@@ -78,7 +78,7 @@ def calculate_emojis():
 
         if emoji.category is None:
             emoji_entry = {
-                "text": emoji.description,
+                "text": emoji.description if ":CUSTOM_AWARD:" not in emoji.description else emoji.description.split(":CUSTOM_AWARD:")[1],
                 "emoji": emoji.name,
                 "count": 1,
                 "url": "#",
