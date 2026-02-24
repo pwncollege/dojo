@@ -1,8 +1,10 @@
 import datetime
+import functools
+import inspect
 
 from CTFd.cache import cache
 from CTFd.models import db, Users
-from flask import url_for
+from flask import url_for, abort
 
 from .discord import get_discord_roles, get_discord_member, add_role, send_message
 from .background_stats import get_cached_stat
@@ -79,55 +81,6 @@ def get_belts():
         result["ranks"][color] = []
     return result
 
-def calculate_viewable_emojis(user):
-    result = { }
-    viewable_dojos = {
-        dojo.hex_dojo_id: dojo
-        for dojo in Dojos.viewable(user=user).where(Dojos.data["type"].astext != "example")
-    }
-
-    emojis = (
-        Emojis.query
-        .join(Users)
-        .filter(~Users.hidden, db.or_(Emojis.category.in_(viewable_dojos.keys()), Emojis.category == None))
-        .order_by(Emojis.date, Emojis.name.desc())
-        .with_entities(
-            Emojis.name,
-            Emojis.description,
-            Emojis.category,
-            Users.id.label("user_id"),
-        )
-    )
-
-    seen = set()
-    for emoji in emojis:
-        key = (emoji.user_id, emoji.category)
-        if key in seen:
-            continue
-
-        if emoji.category is None:
-            emoji_symbol = emoji.name
-            url = "#"
-        else:
-            dojo = viewable_dojos.get(emoji.category)
-            if not dojo or not dojo.award or not dojo.award.get('emoji'):
-                continue
-            emoji_symbol = dojo.award.get('emoji')
-            url = url_for("pwncollege_dojo.listing", dojo=dojo.reference_id)
-
-        is_stale = emoji.name == "STALE"
-
-        result.setdefault(emoji.user_id, []).append({
-            "text": emoji.description,
-            "emoji": emoji_symbol,
-            "count": 1,
-            "url": url,
-            "stale": is_stale,
-        })
-        seen.add(key)
-
-    return result
-
 def get_viewable_emojis(user):
     cached = get_cached_stat(CACHE_KEY_EMOJIS)
     if cached:
@@ -145,7 +98,7 @@ def get_viewable_emojis(user):
                     filtered.append({
                         "text": emoji_entry["text"],
                         "emoji": emoji_entry["emoji"],
-                        "count": 1,
+                        "count": emoji_entry["count"],
                         "url": "#",
                         "stale": False,
                     })
@@ -156,7 +109,7 @@ def get_viewable_emojis(user):
                     filtered.append({
                         "text": emoji_entry["text"],
                         "emoji": dojo.award.get('emoji'),
-                        "count": 1,
+                        "count": emoji_entry["count"],
                         "url": url_for("pwncollege_dojo.listing", dojo=dojo.reference_id),
                         "stale": emoji_entry.get("stale", False),
                     })
@@ -213,3 +166,21 @@ def update_awards(user):
         if dojo.official or dojo.data.get("type") == "public":
             publish_emoji_earned(user, emoji, display_name, description, 
                                dojo_id=dojo.reference_id, dojo_name=display_name)
+
+def grant_award(user, emoji, description):
+    db.session.add(Emojis(user=user, name=emoji, description=description, category=None))
+    db.session.commit()
+
+
+def dojo_gives_awards(func):
+    signature = inspect.signature(func)
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        bound_args = signature.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+
+        dojo = bound_args.arguments["dojo"]
+        if "grant_awards" not in dojo.permissions:
+            abort(403)
+        return func(*bound_args.args, **bound_args.kwargs)
+    return wrapper
