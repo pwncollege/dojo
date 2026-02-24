@@ -403,7 +403,7 @@ class GrantAward(Resource):
         data = request.get_json()
         user_id = data.get("user_id", None)
         emoji = data.get("emoji", None)
-        description = dojo.hex_dojo_id + ":CUSTOM_AWARD:" + data.get("description", None)
+        description = data.get("description", None)
         if None in [user_id, emoji, description]:
             return {"success": False, "error": "Must supply user_id, emoji, and description."}, 400
         if not emojilib.is_emoji(emoji):
@@ -411,5 +411,5 @@ class GrantAward(Resource):
         user = Users.query.filter_by(id=user_id).first()
         if not user:
             return {"success": False, "error": "User not found."}, 404
-        grant_award(user, emoji, description)
+        grant_award(user, emoji, dojo.hex_dojo_id + ":CUSTOM_AWARD:" + description)
         return {"success": True}
