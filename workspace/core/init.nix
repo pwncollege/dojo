@@ -62,7 +62,7 @@ let
     fi
     echo $DOJO_FLAG | install -m 400 /dev/stdin /flag
 
-    for path in /home/hacker /home/hacker/.config; do
+    for path in /home/hacker /home/hacker/.config /run/user/1000; do
       test -L "$path" && rm -f "$path"
       mkdir -p "$path" && chown 1000:1000 "$path" && chmod 755 "$path"
     done
