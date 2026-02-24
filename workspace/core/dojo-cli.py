@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import requests
+import re
 from typing import Any
 
 DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
@@ -140,6 +141,125 @@ def start(args : argparse.Namespace):
     except Exception as e:
         sys.exit(f"Incorrect path format, see \"dojo start -h\" for more information.\n{str(e)}")
 
+def list_dojos(types: list[str], use_expanded_format: bool):
+    response = requests.get(
+        f"{DOJO_API}/dojos",
+        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        timeout=5.0,
+    )
+    if not response.ok or not response.json().get("success", False):
+        sys.exit("Unable to get dojo data.")
+    dojos = response.json().get("dojos")
+    dojos_categorized = {}
+    for dojo in dojos:
+        if not dojo.get("type", "") in types:
+            continue
+        dojos_categorized.setdefault(dojo.get("type"), []).append(dojo)
+
+    if not use_expanded_format:
+        for dojo_list in dojos_categorized.values():
+            for dojo in dojo_list:
+                print(dojo.get("id"), end=" ")
+        print("")
+        sys.exit(0)
+
+    type_names = {
+        "welcome": "Welcome",
+        "topic": "Official",
+        "public": "Community",
+        "course": "Course"
+    }
+    for type in types:
+        dojo_list = dojos_categorized.get(type, [])
+        print(f"{type_names.get(type, type)}: {len(dojo_list)}")
+        if (len(dojo_list) == 0):
+            print("")
+            continue
+        print(f"{"Modules":<10}{"Challenges":<15}id (name)")
+        for dojo in dojo_list:
+            print(f"{dojo.get("modules_count"):<10}{dojo.get("challenges_count"):<15}{dojo.get("id")} ({dojo.get("name")})")
+        print("")
+
+def list_modules(dojo: str, use_expanded_format: bool):
+    response = requests.get(
+        f"{DOJO_API}/dojos/{dojo}/modules",
+        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        timeout=5.0,
+    )
+    if not response.ok or not response.json().get("success", False):
+        sys.exit(f"Unable to get module data for dojo {dojo}.")
+    modules = response.json().get("modules")
+
+    if not use_expanded_format:
+        for module in modules:
+            print(module.get("id"), end=" ")
+        print("")
+        sys.exit(0)
+
+    print(f"Dojo: {dojo}")
+    print("")
+    print(f"Total: {len(modules)}")
+    print(f"{"Challenges":<15}id (name)")
+    for module in modules:
+        print(f"{len(module.get("challenges")):<15}{module.get("id")} ({module.get("name")})")
+
+def list_challenges(dojo:str, t_module:str, use_expanded_format: bool):
+    response = requests.get(
+        f"{DOJO_API}/dojos/{dojo}/modules",
+        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        timeout=5.0,
+    )
+    if not response.ok or not response.json().get("success", False):
+        sys.exit(f"Unable to get module data for dojo {dojo}.")
+    modules = response.json().get("modules")
+    module = None
+    for candidate in modules:
+        if candidate.get("id") == t_module:
+            module = candidate
+            break
+    if not module:
+        sys.exit(f"Dojo {dojo} does not have a module {t_module}.")
+
+    if not use_expanded_format:
+        for challenge in module.get("challenges"):
+            print(challenge.get("id"), end=" ")
+        print("")
+        sys.exit(0)
+
+    print(f"Dojo: {dojo}")
+    print(f"Module: {t_module}")
+    print("")
+    print(f"id (name)")
+    for challenge in module.get("challenges"):
+        print(f"{challenge.get("id")} ({challenge.get("name")})")
+
+def list(args: argparse.Namespace):
+    """
+    Lists out dojos, modules, or challenges depending on path.
+    """
+    if not args.path:
+        current = get_current_challenge()
+        list_challenges(current.get("dojo"), current.get("module"), args.l)
+    elif re.match(r"^/$", args.path):
+        types = []
+        if args.welcome or args.all:
+            types.append("welcome")
+        if args.official or args.all:
+            types.append("topic")
+        if args.community or args.all:
+            types.append("public")
+        if args.course or args.all:
+            types.append("course")
+        if len(types) == 0:
+            types = ["welcome", "topic"] # default types
+        list_dojos(types, args.l)
+    elif re.match(r"^/[a-z0-9-~]{1,128}$", args.path):
+        dojo = args.path[1:]
+        list_modules(dojo, args.l)
+    elif re.match(r"^/[a-z0-9-~]{1,128}/[a-z0-9-]{1,32}$", args.path):
+        list_challenges(args.path.split("/")[1], args.path.split("/")[2], args.l)
+    else:
+        sys.exit("Dojo path must match one of \"/\", \"/<dojo>\", or \"/<dojo>/<module>\".")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -190,6 +310,52 @@ def main():
         help="Challenge to start. Can be <challenge> or /<dojo>/<module>/<challenge>.",
         type=str
     )
+    list_parser = subparsers.add_parser(
+        name="list",
+        help="List dojos, modules, or challenges using a dojo path."
+    )
+    list_parser.add_argument(
+        "--official",
+        "-O",
+        action="store_true",
+        help="Show official (non-course) dojos." # Internally, topic dojos
+    )
+    list_parser.add_argument(
+        "--welcome",
+        "-W",
+        action="store_true",
+        help="Show welcome dojos."
+    )
+    list_parser.add_argument(
+        "--course",
+        "-E",#education
+        action="store_true",
+        help="Show course dojos."
+    )
+    list_parser.add_argument(
+        "--community",
+        "-C",
+        action="store_true",
+        help="Show community dojos."
+    )
+    list_parser.add_argument(
+        "--all",
+        "-a",
+        "-A",
+        action="store_true",
+        help="Show all dojos (shorthand for -OWEC)"
+    )
+    list_parser.add_argument(
+        "-l",
+        action="store_true",
+        help="Show extended list information."
+    )
+    list_parser.add_argument(
+        "path",
+        help="Dojo path. Can be /, /<dojo>, or /<dojo>/<module>.",
+        nargs="?",
+        type=str
+    )
     args = parser.parse_args()
     if not DOJO_AUTH_TOKEN:
         sys.exit("Missing DOJO_AUTH_TOKEN.")
@@ -204,6 +370,8 @@ def main():
         return restart(args)
     if args.command.lower() == "start":
         return start(args)
+    if args.command.lower() == "list":
+        return list(args)
     else:
         parser.print_help()
         sys.exit(1)
