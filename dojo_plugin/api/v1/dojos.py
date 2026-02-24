@@ -33,6 +33,7 @@ dojos_namespace = Namespace(
 
 @dojos_namespace.route("")
 class DojoList(Resource):
+    @authed_only_cli
     def get(self):
         # Query dojos with deferred fields for counts
         dojo_query = (
@@ -46,6 +47,7 @@ class DojoList(Resource):
             dict(id=dojo.reference_id,
                  name=dojo.name,
                  description=dojo.description,
+                 type=dojo.type,
                  official=dojo.official,
                  award=dojo.award,
                  modules_count=dojo.modules_count,
@@ -159,6 +161,7 @@ class UpdateDojo(Resource):
 
 @dojos_namespace.route("/<dojo>/modules")
 class DojoModuleList(Resource):
+    @authed_only_cli
     @dojo_route
     def get(self, dojo):
         is_dojo_admin = dojo.is_admin()

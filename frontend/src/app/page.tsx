@@ -9,21 +9,7 @@ import { Markdown } from '@/components/ui/markdown'
 import { motion } from 'framer-motion'
 import { dojoService } from '@/services/dojo'
 import ninjaImage from '@/assets/ninja.png'
-import { HomePageClient } from './home-client'
-
-interface Dojo {
-  id: string
-  name: string
-  description?: string
-  official: boolean
-  award?: {
-    belt?: string
-    emoji?: string
-  }
-  modules: number
-  challenges: number
-  active_hackers: number
-}
+import { HomePageClient, Dojo } from './home-client'
 
 async function getDojos(): Promise<Dojo[]> {
   try {
