@@ -91,14 +91,25 @@ def get_viewable_emojis(user):
 
         result = {}
         for user_id_str, emoji_list in cached.get("emojis", {}).items():
+            if not isinstance(emoji_list, list):
+                continue
             filtered = []
             for emoji_entry in emoji_list:
+                if not isinstance(emoji_entry, dict):
+                    continue
+
+                count = emoji_entry.get("count", 1)
+                try:
+                    count = int(count)
+                except (TypeError, ValueError):
+                    count = 1
+
                 category = emoji_entry.get("category")
                 if category is None:
                     filtered.append({
-                        "text": emoji_entry["text"],
-                        "emoji": emoji_entry["emoji"],
-                        "count": emoji_entry["count"],
+                        "text": emoji_entry.get("text"),
+                        "emoji": emoji_entry.get("emoji"),
+                        "count": count,
                         "url": "#",
                         "stale": False,
                     })
@@ -107,14 +118,17 @@ def get_viewable_emojis(user):
                     if not dojo.award or not dojo.award.get('emoji'):
                         continue
                     filtered.append({
-                        "text": emoji_entry["text"],
+                        "text": emoji_entry.get("text"),
                         "emoji": dojo.award.get('emoji'),
-                        "count": emoji_entry["count"],
+                        "count": count,
                         "url": url_for("pwncollege_dojo.listing", dojo=dojo.reference_id),
                         "stale": emoji_entry.get("stale", False),
                     })
             if filtered:
-                result[int(user_id_str)] = filtered
+                try:
+                    result[int(user_id_str)] = filtered
+                except (TypeError, ValueError):
+                    continue
         return result
 
     return {}

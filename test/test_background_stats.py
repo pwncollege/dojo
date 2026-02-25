@@ -643,6 +643,30 @@ def test_users_page_loads_with_awards_cache(stats_test_user):
     response = user_session.get(f"{DOJO_URL}/hacker/")
     assert response.status_code == 200, "Users page should load successfully with awards cache"
 
+def test_users_page_loads_with_legacy_emoji_cache(stats_test_user):
+    user_name, user_session = stats_test_user
+
+    response = user_session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me")
+    assert response.status_code == 200
+    user_id = response.json()["id"]
+
+    legacy_emoji_cache = {
+        "emojis": {
+            str(user_id): [
+                {
+                    "text": "Legacy test award",
+                    "emoji": "🥈",
+                    "category": None
+                }
+            ]
+        },
+        "dojos": {}
+    }
+    redis_cli("SET", "stats:emojis", json.dumps(legacy_emoji_cache))
+
+    response = user_session.get(f"{DOJO_URL}/hacker/")
+    assert response.status_code == 200, "Users page should load successfully with legacy emoji cache data"
+
 def test_emoji_awarded_triggers_cache_update(stats_test_dojo, stats_test_user):
     user_name, user_session = stats_test_user
 
