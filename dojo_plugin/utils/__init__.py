@@ -130,13 +130,12 @@ def render_markdown(s):
 
     markdown_tags = [
         "h1", "h2", "h3", "h4", "h5", "h6",
-        "b", "i", "strong", "em", "tt",
-        "p", "br",
-        "span", "div", "blockquote", "code", "pre", "hr",
-        "ul", "ol", "li", "dd", "dt",
-        "img",
-        "a",
-        "sub", "sup",
+        "p", "br", "hr", "blockquote",
+        "b", "strong", "i", "em", "tt", "del", "code", "pre", "sub", "sup",
+        "a", "img",
+        "span", "div",
+        "ul", "ol", "li", "dt", "dd",
+        "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "colgroup", "col",
         "details", "summary",
     ]
     markdown_attrs = {
