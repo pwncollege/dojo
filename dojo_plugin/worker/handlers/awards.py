@@ -65,6 +65,7 @@ def calculate_emojis():
             Emojis.name,
             Emojis.description,
             Emojis.category,
+            Emojis.icon,
             Users.id.label("user_id"),
         )
     ).all()
@@ -72,46 +73,29 @@ def calculate_emojis():
     result = {}
     seen = set()
     for emoji in emojis:
-        key = (emoji.user_id, emoji.category)
+        key = (emoji.user_id, emoji.category, emoji.icon)
         if key in seen:
-            continue
-
-        if emoji.category is None:
-            emoji_entry = {
-                "text": emoji.description if ":CUSTOM_AWARD:" not in emoji.description else emoji.description.split(":CUSTOM_AWARD:")[1],
-                "emoji": emoji.name,
-                "count": 1,
-                "url": "#",
-                "stale": False,
-                "category": None,
-            }
-            duplicate = False
-            for entry in result.setdefault(emoji.user_id, []):
-                if entry.get("emoji") == emoji.name and entry.get("category") is None:
-                    duplicate = True
+            if emoji.name != "CUSTOM":
+                continue
+            for entry in result[emoji.user_id]:
+                if entry["emoji"] == emoji.icon:
                     entry["count"] += 1
                     entry["text"] += f"\n{emoji.description}"
                     break
-            if not duplicate:
-                result.setdefault(emoji.user_id, []).append(emoji_entry)
         else:
+            seen.add(key)
             dojo_info = dojos_by_hex.get(emoji.category)
-            if not dojo_info or not dojo_info["emoji"]:
-                continue
             emoji_entry = {
                 "text": emoji.description,
-                "emoji": dojo_info["emoji"],
+                "emoji": emoji.icon if emoji.icon != "#" or not dojo_info else dojo_info["emoji"],
                 "count": 1,
-                "url": f"/dojo/{dojo_info['reference_id']}",
-                "stale": emoji.name == "STALE",
-                "category": emoji.category,
-                "is_public": dojo_info["is_public"],
-                "is_example": dojo_info["is_example"],
+                "url": "#" if not dojo_info else f"/dojo/{dojo_info['reference_id']}",
+                "stale": "STALE" in emoji.name,
+                "category": emoji.category
             }
-            result.setdefault(emoji.user_id, []).append(emoji_entry)
-
-        if emoji.category:
-            seen.add(key)
+            if dojo_info:
+                emoji_entry["is_public"] = dojo_info["is_public"]
+                emoji_entry["is_example"] = dojo_info["is_example"]
 
     return {"emojis": result, "dojos": dojos_by_hex}
 
