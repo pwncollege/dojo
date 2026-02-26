@@ -96,6 +96,7 @@ def calculate_emojis():
             if dojo_info:
                 emoji_entry["is_public"] = dojo_info["is_public"]
                 emoji_entry["is_example"] = dojo_info["is_example"]
+            result.setdefault(emoji.user_id, []).append(emoji_entry)
 
     return {"emojis": result, "dojos": dojos_by_hex}
 
