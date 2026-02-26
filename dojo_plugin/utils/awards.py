@@ -32,39 +32,6 @@ def get_user_emojis(user):
             emojis.append((emoji, dojo.name or dojo.reference_id, dojo.hex_dojo_id))
     return emojis
 
-def calculate_belts():
-    result = dict(dates={}, users={}, ranks={})
-    for color in reversed(BELT_ORDER):
-        result["dates"][color] = {}
-        result["ranks"][color] = []
-
-    belts = (
-        Belts.query
-        .join(Users)
-        .filter(Belts.name.in_(BELT_ORDER), ~Users.hidden)
-        .with_entities(
-            Belts.date,
-            Belts.name.label("color"),
-            Users.id.label("user_id"),
-            Users.name.label("handle"),
-            Users.website.label("site"),
-        )
-    ).all()
-    belts.sort(key=lambda belt: (-BELT_ORDER.index(belt.color), belt.date))
-
-    for belt in belts:
-        result["dates"][belt.color][belt.user_id] = str(belt.date)
-        if belt.user_id not in result["users"]:
-            result["users"][belt.user_id] = dict(
-                handle=belt.handle,
-                site=belt.site,
-                color=belt.color,
-                date=str(belt.date)
-            )
-            result["ranks"][belt.color].append(belt.user_id)
-
-    return result
-
 def get_belts():
     cached = get_cached_stat(CACHE_KEY_BELTS)
     if cached:
