@@ -137,7 +137,7 @@ const DOJO_SECTIONS = {
     ),
     footer: (
       <>
-        Want to add your dojo to the fray?{' '}
+        Want to add your dojo to the fray?
         <a href="/dojos/create">
           <b>Create it here</b>
         </a>
