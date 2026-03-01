@@ -97,6 +97,9 @@ DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
 INTERNET_FOR_ALL = bool(ast.literal_eval(os.getenv("INTERNET_FOR_ALL") or "False"))
 MAC_HOSTNAME = os.getenv("MAC_HOSTNAME")
 MAC_USERNAME = os.getenv("MAC_USERNAME")
+SSH_PIPER_API_TOKEN = os.getenv("SSH_PIPER_API_TOKEN")
+SSH_PIPER_BOOTSTRAP_DOJO = os.getenv("SSH_PIPER_BOOTSTRAP_DOJO", "welcome")
+SSH_PIPER_BOOTSTRAP_DOJO_NAME = os.getenv("SSH_PIPER_BOOTSTRAP_DOJO_NAME", "Welcome")
 
 missing_errors = ["DOJO_HOST", "HOST_DATA_PATH"]
 for config_option in missing_errors:
