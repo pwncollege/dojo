@@ -32,6 +32,26 @@ EXPOSE 22
 COPY --chmod=755 <<EOF /docker-entrypoint.sh
 #!/bin/sh
 env > /etc/environment
+if command -v docker >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        python3 -c "
+import json, subprocess, sys
+try:
+    sshd = json.loads(subprocess.check_output(['docker', 'inspect', 'sshd'], timeout=5))
+    sshd_nets = set(sshd[0]['NetworkSettings']['Networks'].keys())
+    for name, port in [('ctfd', 8000), ('nginx', 80)]:
+        ctfd = json.loads(subprocess.check_output(['docker', 'inspect', name], timeout=5))
+        ctfd_nets = ctfd[0]['NetworkSettings']['Networks']
+        for net in sshd_nets:
+            if net in ctfd_nets and ctfd_nets[net].get('IPAddress'):
+                print('http://' + ctfd_nets[net]['IPAddress'] + ':' + str(port) + '/pwncollege_api/v1')
+                sys.exit(0)
+except Exception:
+    sys.exit(1)
+" > /run/dojo_ctfd_url 2>/dev/null && [ -s /run/dojo_ctfd_url ] && break
+        sleep 1
+    done
+fi
 if [ -f /var/mac/key ]; then
     cp /var/mac/key /home/hacker/.ssh
     chown hacker:hacker /home/hacker/.ssh/key
