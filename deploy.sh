@@ -83,10 +83,16 @@ function test_container {
 
 function generate_coverage_report {
 	local CONTAINER="$1"
-    docker exec "$CONTAINER" docker kill -s SIGINT ctfd
+
+	docker exec "$CONTAINER" docker kill -s SIGINT stats-worker
+	docker exec "$CONTAINER" docker wait stats-worker
+
+	docker exec "$CONTAINER" docker kill -s SIGINT ctfd
 	docker exec "$CONTAINER" docker wait ctfd
-    docker exec "$CONTAINER" docker start ctfd
-    docker exec "$CONTAINER" docker exec ctfd coverage xml -o /var/coverage/coverage.xml
+	docker exec "$CONTAINER" docker start ctfd
+	docker exec "$CONTAINER" docker start stats-worker
+
+	docker exec "$CONTAINER" docker exec ctfd sh -c 'cd /var/coverage && coverage combine .coverage .coverage.worker && coverage xml -o coverage.xml'
 }
 
 ENV_ARGS=( )
