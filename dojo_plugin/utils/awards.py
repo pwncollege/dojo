@@ -60,11 +60,19 @@ def get_viewable_emojis(user):
         for user_id_str, emoji_list in cached.get("emojis", {}).items():
             filtered = []
             for emoji_entry in emoji_list:
-                if emoji_entry["category"] and emoji_entry["category"] not in viewable_dojos:
+                category = emoji_entry["category"]
+                emoji = emoji_entry["emoji"]
+                if category and category not in viewable_dojos:
                     continue
+                if emoji == "#":
+                    if not category:
+                        continue
+                    if not viewable_dojos[category].award or viewable_dojos[category].award.get("emoji"):
+                        continue
+                    emoji = viewable_dojos[category].award["emoji"]
                 filtered.append({
                     "text": emoji_entry["text"],
-                    "emoji": emoji_entry["emoji"],
+                    "emoji": emoji,
                     "count": emoji_entry["count"],
                     "url": emoji_entry["url"],
                     "stale": emoji_entry["stale"],

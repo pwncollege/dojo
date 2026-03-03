@@ -87,7 +87,7 @@ def calculate_emojis():
             dojo_info = dojos_by_hex.get(emoji.category)
             emoji_entry = {
                 "text": emoji.description,
-                "emoji": emoji.icon if emoji.icon != "#" or not dojo_info else dojo_info["emoji"],
+                "emoji": emoji.icon,
                 "count": 1,
                 "url": "#" if not dojo_info else f"/dojo/{dojo_info['reference_id']}",
                 "stale": "STALE" in emoji.name,
