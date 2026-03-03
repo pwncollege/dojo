@@ -60,26 +60,16 @@ def get_viewable_emojis(user):
         for user_id_str, emoji_list in cached.get("emojis", {}).items():
             filtered = []
             for emoji_entry in emoji_list:
-                category = emoji_entry.get("category")
-                if category is None:
-                    filtered.append({
-                        "text": emoji_entry["text"],
-                        "emoji": emoji_entry["emoji"],
-                        "count": emoji_entry["count"],
-                        "url": "#",
-                        "stale": False,
-                    })
-                elif category in viewable_dojos:
-                    dojo = viewable_dojos[category]
-                    if not dojo.award or not dojo.award.get('emoji'):
-                        continue
-                    filtered.append({
-                        "text": emoji_entry["text"],
-                        "emoji": dojo.award.get('emoji'),
-                        "count": emoji_entry["count"],
-                        "url": url_for("pwncollege_dojo.listing", dojo=dojo.reference_id),
-                        "stale": emoji_entry.get("stale", False),
-                    })
+                if emoji_entry["category"] and emoji_entry["category"] not in viewable_dojos:
+                    continue
+                filtered.append({
+                    "text": emoji_entry["text"],
+                    "emoji": emoji_entry["emoji"],
+                    "count": emoji_entry["count"],
+                    "url": emoji_entry["url"],
+                    "stale": emoji_entry["stale"],
+                    "category": emoji_entry["category"]
+                })
             if filtered:
                 result[int(user_id_str)] = filtered
         return result
