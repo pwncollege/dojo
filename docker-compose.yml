@@ -145,6 +145,10 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://future.${DOJO_HOST}}
       DOCKER_USERNAME: ${DOCKER_USERNAME}
       DOCKER_TOKEN: ${DOCKER_TOKEN}
+      REGISTRY_API_SECRET: ${REGISTRY_API_SECRET}         #Random API SECRET
+      REGISTRY_HOST: ${REGISTRY_HOST}
+      REGISTRY_USERNAME: ${REGISTRY_USERNAME}
+      REGISTRY_PASSWORD: ${REGISTRY_PASSWORD}
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
@@ -291,8 +295,14 @@ services:
       - DOJO_ENV=${DOJO_ENV}
       - WORKSPACE_HOST=${WORKSPACE_HOST}
       - WORKSPACE_SECRET=${WORKSPACE_SECRET}
+      - REGISTRY_HOST=${REGISTRY_HOST}
     volumes:
       - /data/acme:/var/cache/nginx/acme-letsencrypt
+    depends_on:
+      registry:
+        condition: service_started
+      registry-auth:
+        condition: service_started
     networks:
       default:
       workspace_net:
@@ -315,8 +325,15 @@ services:
       - DOJO_ENV=${DOJO_ENV}
       - WORKSPACE_HOST=${WORKSPACE_HOST}
       - WORKSPACE_SECRET=${WORKSPACE_SECRET}
+      - REGISTRY_HOST=${REGISTRY_HOST}
+      - REGISTRY_AUTH_HOST=${REGISTRY_AUTH_HOST}
     volumes:
       - /data/acme:/var/cache/nginx/acme-letsencrypt
+    depends_on:
+      registry:
+        condition: service_started
+      registry-auth:
+        condition: service_started
     networks:
       default:
         aliases:
@@ -325,6 +342,49 @@ services:
         aliases:
           - nginx
         ipv4_address: 10.0.0.3
+
+  registry:
+    image: registry:2
+    container_name: registry
+    environment:
+      - VIRTUAL_HOST=${REGISTRY_HOST}
+      - VIRTUAL_PORT=5000
+      - HTTPS_METHOD=noredirect
+      - REGISTRY_AUTH=token
+      - REGISTRY_AUTH_TOKEN_REALM=https://${REGISTRY_HOST}/auth/token              #https://registry.pwn.college/auth/token
+      - REGISTRY_AUTH_TOKEN_SERVICE=${REGISTRY_HOST}                              # registry.pwn.college
+      - REGISTRY_AUTH_TOKEN_ISSUER=${REGISTRY_AUTH_HOST}                                    # If we change things, remember to change the auth service token issuer variable.
+      - REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE=/auth/jwt.crt
+    volumes:
+      - /data/registry:/var/lib/registry
+      - ./auth-keys/jwt/:/auth:ro
+    networks:
+      default: {}
+      workspace_net:
+        ipv4_address: 10.0.0.4
+
+  registry-auth:
+    build: ./registry_auth
+    container_name: registry-auth
+    command: gunicorn -b 0.0.0.0:8080 auth:app --log-level debug --access-logfile - #/dev/null
+    environment:
+      - VIRTUAL_HOST=${REGISTRY_HOST}
+      - VIRTUAL_PORT=8080
+      - PRIVATE_KEY_PATH=/keys/private.key
+      - PUBLIC_KEY_PATH=/keys/public.key
+      - TOKEN_ISSUER=${REGISTRY_AUTH_HOST}
+      - TOKEN_SERVICE=${REGISTRY_HOST} 
+      - TOKEN_TTL_SECONDS=300
+      - CTFD_URL=http://ctfd:8000
+      - REGISTRY_API_SECRET=${REGISTRY_API_SECRET}                                              #Random API SECRET 
+    volumes:
+      - ./auth-keys/jwt:/keys:ro
+    networks:
+      default: {}
+      workspace_net:
+        ipv4_address: 10.0.0.5
+
+
 
   node-exporter:
     container_name: node-exporter
