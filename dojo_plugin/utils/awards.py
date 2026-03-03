@@ -64,10 +64,10 @@ def get_viewable_emojis(user):
                 emoji = emoji_entry["emoji"]
                 if category and category not in viewable_dojos:
                     continue
-                if emoji == "#":
+                if not emoji:
                     if not category:
                         continue
-                    if not viewable_dojos[category].award or viewable_dojos[category].award.get("emoji"):
+                    if not viewable_dojos[category].award or not viewable_dojos[category].award.get("emoji"):
                         continue
                     emoji = viewable_dojos[category].award["emoji"]
                 filtered.append({
@@ -125,7 +125,7 @@ def update_awards(user):
             
         display_name = dojo.name or dojo.reference_id
         description = f"Awarded for completing the {display_name} dojo."
-        db.session.add(Emojis(user=user, name="CURRENT", description=description, category=hex_dojo_id, icon="#"))
+        db.session.add(Emojis(user=user, name="CURRENT", description=description, category=hex_dojo_id, icon=""))
         db.session.commit()
         
         if dojo.official or dojo.data.get("type") == "public":
