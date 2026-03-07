@@ -28,7 +28,7 @@ jobs:
           working-dir: ./frontend
 
       - name: Run Biome CI
-        run: biome ci
+        run: biome ci --reporter=github
 
       - name: Type check
         run: bunx tsc --noEmit
