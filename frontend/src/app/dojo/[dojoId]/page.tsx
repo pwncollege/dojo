@@ -1,35 +1,35 @@
-import { dojoService } from '@/services/dojo'
-import { DojoPageClient } from './dojo-client'
-import { notFound } from 'next/navigation'
+import { notFound } from "next/navigation";
+import { dojoService } from "@/services/dojo";
+import { DojoPageClient } from "./dojo-client";
 
 interface DojoPageProps {
-  params: Promise<{
-    dojoId: string
-  }>
+	params: Promise<{
+		dojoId: string;
+	}>;
 }
 
 async function getDojoDetail(dojoId: string) {
-  try {
-    const response = await dojoService.getDojoDetail(dojoId)
-    return response.dojo
-  } catch (error) {
-    console.error('Failed to fetch dojo detail:', error)
-  }
+	try {
+		const response = await dojoService.getDojoDetail(dojoId);
+		return response.dojo;
+	} catch (error) {
+		console.error("Failed to fetch dojo detail:", error);
+	}
 }
 
 export default async function DojoPage({ params }: DojoPageProps) {
-  const resolvedParams = await params
-  const { dojoId } = resolvedParams
+	const resolvedParams = await params;
+	const { dojoId } = resolvedParams;
 
-  if (!dojoId) {
-    notFound()
-  }
+	if (!dojoId) {
+		notFound();
+	}
 
-  const dojo = await getDojoDetail(dojoId)
+	const dojo = await getDojoDetail(dojoId);
 
-  if (!dojo) {
-    notFound()
-  }
+	if (!dojo) {
+		notFound();
+	}
 
-  return <DojoPageClient dojo={dojo} dojoId={dojoId} />
+	return <DojoPageClient dojo={dojo} dojoId={dojoId} />;
 }

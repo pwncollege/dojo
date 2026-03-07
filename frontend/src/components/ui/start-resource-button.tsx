@@ -1,82 +1,85 @@
-'use client'
+"use client";
 
-import React, { startTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Play, BookOpen, Video, Loader2 } from 'lucide-react'
-import { useAuthStore } from '@/stores'
-import { cn } from '@/lib/utils'
+import { BookOpen, Loader2, Play, Video } from "lucide-react";
+import { useRouter } from "next/navigation";
+import type React from "react";
+import { startTransition } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores";
 
 interface StartResourceButtonProps {
-  dojoId: string
-  moduleId: string
-  resourceId: string
-  resourceType?: 'lecture' | 'markdown' | 'header'
-  variant?: 'default' | 'outline' | 'ghost' | 'secondary'
-  size?: 'default' | 'sm' | 'lg'
-  className?: string
-  children?: React.ReactNode
-  onClick?: (e: React.MouseEvent) => void
+	dojoId: string;
+	moduleId: string;
+	resourceId: string;
+	resourceType?: "lecture" | "markdown" | "header";
+	variant?: "default" | "outline" | "ghost" | "secondary";
+	size?: "default" | "sm" | "lg";
+	className?: string;
+	children?: React.ReactNode;
+	onClick?: (e: React.MouseEvent) => void;
 }
 
 export function StartResourceButton({
-  dojoId,
-  moduleId,
-  resourceId,
-  resourceType = 'markdown',
-  variant = 'default',
-  size = 'default',
-  className,
-  children,
-  onClick
+	dojoId,
+	moduleId,
+	resourceId,
+	resourceType = "markdown",
+	variant = "default",
+	size = "default",
+	className,
+	children,
+	onClick,
 }: StartResourceButtonProps) {
-  const router = useRouter()
-  const isAuthenticated = useAuthStore(state => state.isAuthenticated)
+	const router = useRouter();
+	const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  const handleStart = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+	const handleStart = async (e: React.MouseEvent) => {
+		e.stopPropagation();
 
-    // Call custom onClick if provided
-    if (onClick) {
-      onClick(e)
-    }
+		// Call custom onClick if provided
+		if (onClick) {
+			onClick(e);
+		}
 
-    // Check authentication first
-    if (!isAuthenticated) {
-      router.push('/login')
-      return
-    }
+		// Check authentication first
+		if (!isAuthenticated) {
+			router.push("/login");
+			return;
+		}
 
-    // Navigate to resource workspace
-    startTransition(() => {
-      router.push(`/dojo/${dojoId}/module/${moduleId}/workspace/resource/${resourceId}`)
-    })
-  }
+		// Navigate to resource workspace
+		startTransition(() => {
+			router.push(
+				`/dojo/${dojoId}/module/${moduleId}/workspace/resource/${resourceId}`,
+			);
+		});
+	};
 
-  // Determine icon based on resource type
-  const getIcon = () => {
-    if (resourceType === 'lecture') {
-      return <Video className="h-3 w-3 mr-1" />
-    }
-    return <BookOpen className="h-3 w-3 mr-1" />
-  }
+	// Determine icon based on resource type
+	const getIcon = () => {
+		if (resourceType === "lecture") {
+			return <Video className="h-3 w-3 mr-1" />;
+		}
+		return <BookOpen className="h-3 w-3 mr-1" />;
+	};
 
-  const isLoading = false // No loading state - navigate immediately
+	const isLoading = false; // No loading state - navigate immediately
 
-  return (
-    <Button
-      onClick={handleStart}
-      size={size}
-      variant={variant}
-      disabled={isLoading}
-      className={cn(className)}
-    >
-      {isLoading ? (
-        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-      ) : (
-        getIcon()
-      )}
-      {children || 'Start Learning'}
-    </Button>
-  )
+	return (
+		<Button
+			onClick={handleStart}
+			size={size}
+			variant={variant}
+			disabled={isLoading}
+			className={cn(className)}
+		>
+			{isLoading ? (
+				<Loader2 className="h-3 w-3 animate-spin mr-1" />
+			) : (
+				getIcon()
+			)}
+			{children || "Start Learning"}
+		</Button>
+	);
 }

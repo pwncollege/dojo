@@ -49,7 +49,7 @@
         "zustand": "^5.0.8",
       },
       "devDependencies": {
-        "@biomejs/biome": "2.4.6",
+        "@biomejs/biome": "^2.4.6",
         "@tailwindcss/line-clamp": "^0.4.4",
         "@tailwindcss/postcss": "^4.1.13",
         "@types/node": "^24.5.2",
