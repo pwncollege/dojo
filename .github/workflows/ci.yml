@@ -8,6 +8,34 @@ on:
   schedule:
     - cron: "42 06 * * *"
 jobs:
+  frontend-ci:
+    name: Frontend CI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v1
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Biome
+        uses: biomejs/setup-biome@v2
+        with:
+          working-dir: ./frontend
+
+      - name: Run Biome CI
+        run: biome ci
+
+      - name: Type check
+        run: bunx tsc --noEmit
+
+      - name: Build
+        run: bunx next build
+
   test:
     name: "${{ matrix.mode }} DOJO Test"
     runs-on: ubuntu-latest
