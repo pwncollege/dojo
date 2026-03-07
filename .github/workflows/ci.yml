@@ -24,6 +24,8 @@ jobs:
 
       - name: Install Biome
         uses: biomejs/setup-biome@v2
+        with:
+          working-dir: ./frontend
 
       - name: Run Biome CI
         run: biome ci
