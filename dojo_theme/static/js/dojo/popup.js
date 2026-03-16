@@ -32,7 +32,9 @@ function handleAwardPopup(response) {
 }
 
 function showAwardPopup(award) {
-    const isBelt = Array.from(award.name).length > 1;
+    const isBelt = ["orange", "yellow", "green", "blue"].contains(award.name);
+    console.log(award.name)
+    console.log(award)
 
     const image = isBelt
         ? `<img src="/belt/${award.name}.svg" class="belt-image">`
