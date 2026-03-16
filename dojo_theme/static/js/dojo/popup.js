@@ -46,7 +46,7 @@ function showAwardPopup(award) {
             const dojos = result["dojos"]
             dojos.forEach(entry => {
                 if (entry["id"] == dojo) {
-                    icon = entry["award"]
+                    icon = entry["award"]["icon"]
                 }
             })
             renderPopup(`You have officially been awarded the ${icon} badge!`, `<div class="emoji-display">${icon}</div>`)
