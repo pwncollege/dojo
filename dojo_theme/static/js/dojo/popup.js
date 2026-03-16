@@ -32,7 +32,7 @@ function handleAwardPopup(response) {
 }
 
 function showAwardPopup(award) {
-    const isBelt = ["orange", "yellow", "green", "blue"].contains(award.name);
+    const isBelt = ["orange", "yellow", "green", "blue"].includes(award.name);
     console.log(award.name)
     console.log(award)
 
