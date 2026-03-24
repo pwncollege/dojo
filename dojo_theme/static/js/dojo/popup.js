@@ -34,7 +34,7 @@ function handleAwardPopup(response) {
 function showAwardPopup(award) {
     const isBelt = ["orange", "yellow", "green", "blue"].includes(award.name);
     if (isBelt) {
-        renderPopup(`You have officially been awarded your ${award.name} belt!`, `<img src="/belt/${award.name}.svg" class="belt-image">`)
+        return renderPopup(`You have officially been awarded your ${award.name} belt!`, `<img src="/belt/${award.name}.svg" class="belt-image">`)
     }
 
     var icon = award.icon
