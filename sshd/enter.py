@@ -47,41 +47,10 @@ def kill_exec_on_container_death(container, exec_pid):
         pass
 
 
-def _container_ip_on_shared_network(sshd_nets, container_name, port, client):
-    try:
-        target = client.containers.get(container_name)
-        target_nets = (target.attrs or {}).get("NetworkSettings", {}).get("Networks") or {}
-        for net_name in sshd_nets:
-            net_info = target_nets.get(net_name)
-            if net_info and net_info.get("IPAddress"):
-                return f"http://{net_info['IPAddress']}:{port}/pwncollege_api/v1"
-    except Exception:
-        pass
-    return None
-
-
 def resolve_ctfd_api_base():
     url = os.environ.get("DOJO_CTFD_URL")
     if url:
         return url.rstrip("/")
-    try:
-        client = docker.DockerClient(base_url="unix:///var/run/docker.sock", tls=False)
-        sshd_container = client.containers.get("sshd")
-        sshd_nets = set((sshd_container.attrs or {}).get("NetworkSettings", {}).get("Networks") or {})
-        base = _container_ip_on_shared_network(sshd_nets, "ctfd", 8000, client)
-        if base:
-            return base
-        base = _container_ip_on_shared_network(sshd_nets, "nginx", 80, client)
-        if base:
-            return base
-    except Exception:
-        pass
-    url_file = pathlib.Path("/run/dojo_ctfd_url")
-    if url_file.exists():
-        try:
-            return url_file.read_text().strip().rstrip("/")
-        except OSError:
-            pass
     return "http://ctfd:8000/pwncollege_api/v1"
 
 
@@ -96,13 +65,13 @@ def run_challenge_tui(user_id, print_fn):
         "Content-Type": "application/json",
     }
 
-    def get(path):
+    def get(path, key):
         r = requests.get(f"{api_base}{path}", headers=headers, timeout=10)
         r.raise_for_status()
         data = r.json()
         if not data.get("success"):
             raise RuntimeError(data.get("error", "Request failed"))
-        return data.get("data", [])
+        return data.get(key, [])
 
     def post(path, json_body):
         r = requests.post(f"{api_base}{path}", headers=headers, json=json_body, timeout=60)
@@ -113,7 +82,7 @@ def run_challenge_tui(user_id, print_fn):
         return data
 
     try:
-        dojos = get("/dojo_query/dojos")
+        dojos = get("/dojos", "dojos")
     except Exception as e:
         print_fn(f"Failed to list dojos: {e}")
         return False
@@ -123,7 +92,7 @@ def run_challenge_tui(user_id, print_fn):
 
     print_fn("Select a dojo:")
     for i, d in enumerate(dojos, 1):
-        print_fn(f"  {i}. {d['name']} ({d['reference_id']})")
+        print_fn(f"  {i}. {d['name']} ({d['id']})")
     try:
         idx = int(input("Dojo number: ").strip())
         dojo = dojos[idx - 1]
@@ -131,7 +100,7 @@ def run_challenge_tui(user_id, print_fn):
         return False
 
     try:
-        modules = get(f"/dojo_query/dojos/{dojo['reference_id']}/modules")
+        modules = get(f"/dojos/{dojo['id']}/modules", "modules")
     except Exception as e:
         print_fn(f"Failed to list modules: {e}")
         return False
@@ -148,11 +117,7 @@ def run_challenge_tui(user_id, print_fn):
     except (ValueError, IndexError, EOFError):
         return False
 
-    try:
-        challenges = get(f"/dojo_query/dojos/{dojo['reference_id']}/modules/{module['id']}/challenges")
-    except Exception as e:
-        print_fn(f"Failed to list challenges: {e}")
-        return False
+    challenges = module.get("challenges", [])
     if not challenges:
         print_fn("No challenges in this module.")
         return False
@@ -169,7 +134,7 @@ def run_challenge_tui(user_id, print_fn):
     print_fn("Starting challenge...")
     try:
         post("/docker", {
-            "dojo": dojo["reference_id"],
+            "dojo": dojo["id"],
             "module": module["id"],
             "challenge": challenge["id"],
             "practice": False,

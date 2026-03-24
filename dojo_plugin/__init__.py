@@ -7,7 +7,7 @@ from email.message import EmailMessage
 from email.utils import formatdate
 from urllib.parse import urlparse, urlunparse
 
-from flask import Response, request, redirect, current_app, g
+from flask import Response, request, redirect, current_app
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
 from CTFd.models import db, Challenges, Users, Solves
@@ -145,8 +145,6 @@ def handle_authorization(default_handler):
     authorization = request.headers.get("Authorization")
     if authorization and authorization.startswith("Bearer "):
         return
-    if DOJO_SSH_SERVICE_KEY and request.headers.get("X-SSH-Service-Key") == DOJO_SSH_SERVICE_KEY and request.headers.get("X-Dojo-User-Id"):
-        return
     default_handler()
 
 
@@ -199,16 +197,6 @@ def load(app):
 
     register_admin_plugin_menu_bar("Dojos", "/admin/dojos")
     register_admin_plugin_menu_bar("Desktops", "/admin/desktops")
-
-    def dojo_ssh_csrf_exempt():
-        if DOJO_SSH_SERVICE_KEY and request.headers.get("X-SSH-Service-Key") == DOJO_SSH_SERVICE_KEY and request.headers.get("X-Dojo-User-Id"):
-            g.csrf_valid = True
-
-    app.before_request_funcs.setdefault(None, []).insert(0, dojo_ssh_csrf_exempt)
-
-    csrf = app.extensions.get("csrf")
-    if csrf is not None:
-        csrf.exempt(api)
 
     before_request_funcs = app.before_request_funcs[None]
     tokens_handler = next(func for func in before_request_funcs if func.__name__ == "tokens")
