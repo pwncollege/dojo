@@ -45,6 +45,7 @@ class DojoList(Resource):
 
         dojos = [
             dict(id=dojo.reference_id,
+                 hex_id=dojo.hex_dojo_id,
                  name=dojo.name,
                  description=dojo.description,
                  type=dojo.type,

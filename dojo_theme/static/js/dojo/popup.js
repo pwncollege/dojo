@@ -42,10 +42,9 @@ function showAwardPopup(award) {
         fetch("/pwncollege_api/v1/dojos")
         .then(response => response.json())
         .then(result => {
-            const dojo = award.description.replace("Awarded for completing the ", "").replace(" dojo.", "")
             const dojos = result["dojos"]
             dojos.forEach(entry => {
-                if (entry["id"] == dojo) {
+                if (entry["hex_id"] == award.category) {
                     icon = entry["award"]["emoji"]
                 }
             })
