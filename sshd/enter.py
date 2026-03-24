@@ -51,7 +51,6 @@ def kill_exec_on_container_death(container, exec_pid):
     except ProcessLookupError:
         pass
 
-
 def main():
     original_command = os.getenv("SSH_ORIGINAL_COMMAND")
     tty = os.getenv("SSH_TTY") is not None
