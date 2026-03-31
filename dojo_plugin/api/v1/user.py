@@ -9,36 +9,38 @@ from ...utils import get_current_container
 
 user_namespace = Namespace("user", description="User management endpoints")
 CLI_AUTH_PREFIX = "sk-workspace-local-"
-
-
-def is_ssh_service_request():
-    key = request.headers.get("X-SSH-Service-Key")
-    user_id_header = request.headers.get("X-Dojo-User-Id")
-    return bool(DOJO_SSH_SERVICE_KEY and key == DOJO_SSH_SERVICE_KEY and user_id_header)
-
+SSH_AUTH_PREFIX = "sk-ssh-service-"
 
 def authed_only_ssh(func):
     def wrapper(*args, **kwargs):
-        if is_ssh_service_request():
-            user_id_header = request.headers.get("X-Dojo-User-Id")
-            try:
-                user_id = int(user_id_header)
-            except ValueError:
-                return {"success": False, "error": "Invalid user ID."}, 401
-            user = Users.query.filter_by(id=user_id).first()
-            if not user:
-                return {"success": False, "error": "User not found."}, 404
-            try:
-                session.update({
-                    "id": user.id,
-                    "name": user.name,
-                    "type": user.type,
-                    "verified": user.verified,
-                })
-                return func(*args, **kwargs)
-            finally:
-                for k in ("id", "name", "type", "verified"):
-                    session.pop(k, None)
+        auth_header = request.headers.get("Authorization")
+        if not auth_header:
+            return func(*args, **kwargs)
+        if not auth_header.startswith("Bearer "):
+            return func(*args, **kwargs)
+        token = auth_header[len("Bearer "):].strip()
+        if not token.startswith(SSH_AUTH_PREFIX):
+            return func(*args, **kwargs)
+        token = token[len(SSH_AUTH_PREFIX):].strip()
+        try:
+            user_id, token_tag = URLSafeTimedSerializer(DOJO_SSH_SERVICE_KEY).loads(token, max_age=300)
+            assert token_tag == "ssh-tui"
+        except Exception:
+            return {"success": False, "error": "Failed to authenticate ssh service token."}, 401
+        user = Users.query.filter_by(id=user_id).first()
+        if not user:
+            return {"success": False, "error": "User not found."}, 404
+        try:
+            session.update({
+                "id": user.id,
+                "name": user.name,
+                "type": user.type,
+                "verified": user.verified,
+            })
+            return func(*args, **kwargs)
+        finally:
+            for k in ("id", "name", "type", "verified"):
+                session.pop(k, None)
         return func(*args, **kwargs)
     return wrapper
 

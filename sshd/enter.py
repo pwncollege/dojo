@@ -11,6 +11,7 @@ import threading
 import docker
 import redis
 import requests
+from itsdangerous.url_safe import URLSafeTimedSerializer
 
 from mac_docker import MacDockerClient
 
@@ -59,9 +60,9 @@ def run_challenge_tui(user_id, print_fn):
     ssh_key = os.environ.get("DOJO_SSH_SERVICE_KEY")
     if not ssh_key:
         return False
+    token = URLSafeTimedSerializer(ssh_key).dumps([user_id, "ssh-tui"])
     headers = {
-        "X-SSH-Service-Key": ssh_key,
-        "X-Dojo-User-Id": str(user_id),
+        "Authorization": f"Bearer sk-ssh-service-{token}",
         "Content-Type": "application/json",
     }
 

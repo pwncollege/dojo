@@ -17,7 +17,7 @@ from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 
 from .models import Dojos, DojoChallenges, Belts, Emojis
-from .config import DOJO_HOST, DOJO_SSH_SERVICE_KEY, bootstrap
+from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
 from .utils.dojo import get_current_dojo_challenge
 from .utils.awards import update_awards
@@ -38,7 +38,6 @@ from .pages.feed import feed
 from .pages.index import static_html_override
 from .pages.test_error import test_error_pages
 from .api import api
-from .api.v1.user import is_ssh_service_request
 from .utils.events import publish_queued_events
 from .utils import listeners
 
@@ -202,18 +201,6 @@ def load(app):
     before_request_funcs = app.before_request_funcs[None]
     tokens_handler = next(func for func in before_request_funcs if func.__name__ == "tokens")
     before_request_funcs[before_request_funcs.index(tokens_handler)] = lambda: handle_authorization(tokens_handler)
-
-    def handle_csrf(csrf_handler):
-        def wrapper():
-            if is_ssh_service_request():
-                return
-            return csrf_handler()
-        wrapper.__name__ = csrf_handler.__name__
-        return wrapper
-
-    csrf_handler = next((f for f in before_request_funcs if getattr(f, "__name__", None) == "csrf"), None)
-    if csrf_handler is not None:
-        before_request_funcs[before_request_funcs.index(csrf_handler)] = handle_csrf(csrf_handler)
 
     if os.path.basename(sys.argv[0]) != "manage.py":
         bootstrap()
