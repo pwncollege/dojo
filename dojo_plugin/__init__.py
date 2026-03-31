@@ -38,6 +38,7 @@ from .pages.feed import feed
 from .pages.index import static_html_override
 from .pages.test_error import test_error_pages
 from .api import api
+from .api.v1.user import is_ssh_service_request
 from .utils.events import publish_queued_events
 from .utils import listeners
 
@@ -204,7 +205,7 @@ def load(app):
 
     def handle_csrf(csrf_handler):
         def wrapper():
-            if DOJO_SSH_SERVICE_KEY and request.headers.get("X-SSH-Service-Key") == DOJO_SSH_SERVICE_KEY and request.headers.get("X-Dojo-User-Id"):
+            if is_ssh_service_request():
                 return
             return csrf_handler()
         wrapper.__name__ = csrf_handler.__name__

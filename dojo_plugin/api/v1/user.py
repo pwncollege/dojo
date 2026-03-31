@@ -11,11 +11,16 @@ user_namespace = Namespace("user", description="User management endpoints")
 CLI_AUTH_PREFIX = "sk-workspace-local-"
 
 
+def is_ssh_service_request():
+    key = request.headers.get("X-SSH-Service-Key")
+    user_id_header = request.headers.get("X-Dojo-User-Id")
+    return bool(DOJO_SSH_SERVICE_KEY and key == DOJO_SSH_SERVICE_KEY and user_id_header)
+
+
 def authed_only_ssh(func):
     def wrapper(*args, **kwargs):
-        key = request.headers.get("X-SSH-Service-Key")
-        user_id_header = request.headers.get("X-Dojo-User-Id")
-        if DOJO_SSH_SERVICE_KEY and key == DOJO_SSH_SERVICE_KEY and user_id_header:
+        if is_ssh_service_request():
+            user_id_header = request.headers.get("X-Dojo-User-Id")
             try:
                 user_id = int(user_id_header)
             except ValueError:
