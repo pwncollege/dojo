@@ -48,6 +48,7 @@ define WORKSPACE_KEY
 define WORKSPACE_SECRET $(openssl rand -hex 16)
 define WORKSPACE_NODE 0
 define SECRET_KEY $(openssl rand -hex 16)
+define DOJO_SSH_SERVICE_KEY $(openssl rand -hex 16)
 define INTERNET_FOR_ALL False
 define MAIL_SERVER
 define MAIL_PORT

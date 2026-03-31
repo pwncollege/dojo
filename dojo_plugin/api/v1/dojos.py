@@ -14,7 +14,7 @@ from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.sql import and_
 
-from .user import authed_only_cli
+from .user import authed_only_cli, authed_only_ssh
 from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
                        DojoUsers, Emojis, SurveyResponses)
 from ...utils import is_challenge_locked, render_markdown
@@ -33,6 +33,7 @@ dojos_namespace = Namespace(
 
 @dojos_namespace.route("")
 class DojoList(Resource):
+    @authed_only_ssh
     @authed_only_cli
     def get(self):
         # Query dojos with deferred fields for counts
@@ -161,6 +162,7 @@ class UpdateDojo(Resource):
 
 @dojos_namespace.route("/<dojo>/modules")
 class DojoModuleList(Resource):
+    @authed_only_ssh
     @authed_only_cli
     @dojo_route
     def get(self, dojo):
