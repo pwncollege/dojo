@@ -48,15 +48,10 @@ def kill_exec_on_container_death(container, exec_pid):
         pass
 
 
-def resolve_ctfd_api_base():
-    url = os.environ.get("DOJO_CTFD_URL")
-    if url:
-        return url.rstrip("/")
-    return "http://ctfd:8000/pwncollege_api/v1"
 
 
-def run_challenge_tui(user_id, print_fn):
-    api_base = resolve_ctfd_api_base()
+def run_challenge_tui(user_id):
+    api_base = "http://pwn.college:80/pwncollege_api/v1"
     ssh_key = os.environ.get("DOJO_SSH_SERVICE_KEY")
     if not ssh_key:
         return False
@@ -85,15 +80,15 @@ def run_challenge_tui(user_id, print_fn):
     try:
         dojos = get("/dojos", "dojos")
     except Exception as e:
-        print_fn(f"Failed to list dojos: {e}")
+        print(f"Failed to list dojos: {e}")
         return False
     if not dojos:
-        print_fn("No dojos available.")
+        print("No dojos available.")
         return False
 
-    print_fn("Select a dojo:")
+    print("Select a dojo:")
     for i, d in enumerate(dojos, 1):
-        print_fn(f"  {i}. {d['name']} ({d['id']})")
+        print(f"  {i}. {d['name']} ({d['id']})")
     try:
         idx = int(input("Dojo number: ").strip())
         dojo = dojos[idx - 1]
@@ -103,15 +98,15 @@ def run_challenge_tui(user_id, print_fn):
     try:
         modules = get(f"/dojos/{dojo['id']}/modules", "modules")
     except Exception as e:
-        print_fn(f"Failed to list modules: {e}")
+        print(f"Failed to list modules: {e}")
         return False
     if not modules:
-        print_fn("No modules in this dojo.")
+        print("No modules in this dojo.")
         return False
 
-    print_fn("Select a module:")
+    print("Select a module:")
     for i, m in enumerate(modules, 1):
-        print_fn(f"  {i}. {m['name']} ({m['id']})")
+        print(f"  {i}. {m['name']} ({m['id']})")
     try:
         idx = int(input("Module number: ").strip())
         module = modules[idx - 1]
@@ -120,19 +115,19 @@ def run_challenge_tui(user_id, print_fn):
 
     challenges = module.get("challenges", [])
     if not challenges:
-        print_fn("No challenges in this module.")
+        print("No challenges in this module.")
         return False
 
-    print_fn("Select a challenge:")
+    print("Select a challenge:")
     for i, c in enumerate(challenges, 1):
-        print_fn(f"  {i}. {c['name']} ({c['id']})")
+        print(f"  {i}. {c['name']} ({c['id']})")
     try:
         idx = int(input("Challenge number: ").strip())
         challenge = challenges[idx - 1]
     except (ValueError, IndexError, EOFError):
         return False
 
-    print_fn("Starting challenge...")
+    print("Starting challenge...")
     try:
         post("/docker", {
             "dojo": dojo["id"],
@@ -141,9 +136,9 @@ def run_challenge_tui(user_id, print_fn):
             "practice": False,
         })
     except Exception as e:
-        print_fn(f"Failed to start challenge: {e}")
+        print(f"Failed to start challenge: {e}")
         return False
-    print_fn("Challenge started. Connecting...")
+    print("Challenge started. Connecting...")
     return True
 
 
@@ -170,8 +165,7 @@ def main():
         container = docker_client.containers.get(container_name)
     except docker.errors.NotFound:
         if not simple and os.environ.get("DOJO_SSH_SERVICE_KEY"):
-            if run_challenge_tui(user_id, print):
-                time.sleep(2)
+            if run_challenge_tui(user_id):
                 os.execv(sys.executable, [sys.executable, __file__, container_name])
         print("No active challenge session; start a challenge!")
         exit(1)

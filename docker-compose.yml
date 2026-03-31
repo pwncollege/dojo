@@ -264,6 +264,8 @@ services:
       - /data/ssh_host_keys:/etc/ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /data/mac:/var/mac:ro
+    extra_hosts:
+      - "pwn.college:192.168.42.1"
     environment:
       - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
       - REDIS_URL=redis://cache:6379
