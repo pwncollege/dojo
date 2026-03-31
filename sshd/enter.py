@@ -47,9 +47,6 @@ def kill_exec_on_container_death(container, exec_pid):
     except ProcessLookupError:
         pass
 
-
-
-
 def run_challenge_tui(user_id):
     api_base = "http://pwn.college:80/pwncollege_api/v1"
     ssh_key = os.environ.get("DOJO_SSH_SERVICE_KEY")
