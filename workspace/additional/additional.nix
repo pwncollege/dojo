@@ -68,6 +68,7 @@ in
     ++ tools.cli-tools
     ++ tools.compress
     ++ tools.debug
+    ++ tools.documentation
     ++ tools.editor
     ++ tools.exploit
     ++ tools.fetch
