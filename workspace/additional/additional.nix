@@ -35,6 +35,8 @@ let
 
     debug = [ bata24-gef gdb gef ltrace pwndbg strace ];
 
+    documentation = [ man-pages man-pages-posix ];
+
     editor = [ emacs gedit nano neovim vim zed-editor.remote_server ];
 
     exploit = [ aflplusplus rappel ropgadget sage ];
