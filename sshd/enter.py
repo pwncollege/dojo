@@ -4,11 +4,10 @@ import json
 import os
 import pathlib
 import shlex
-import signal
 import sys
-import threading
 import time
-
+import signal
+import threading
 import docker
 import redis
 
@@ -24,7 +23,6 @@ WORKSPACE_NODES = {
 
 redis_client = redis.from_url(os.environ.get("REDIS_URL"))
 
-
 def get_docker_client(user_id):
     image_name = redis_client.get(f"flask_cache_user_{user_id}-running-image")
     node_id = list(WORKSPACE_NODES.keys())[user_id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
@@ -32,16 +30,13 @@ def get_docker_client(user_id):
 
     is_mac = False
     if image_name and b"mac:" in image_name:
-        docker_client = MacDockerClient(
-            hostname=os.getenv("MAC_HOSTNAME"),
-            username=os.getenv("MAC_USERNAME"),
-            key_path="/home/hacker/.ssh/key",
-        )
+        docker_client = MacDockerClient(hostname=os.getenv("MAC_HOSTNAME"),
+                                        username=os.getenv("MAC_USERNAME"),
+                                        key_path="/home/hacker/.ssh/key")
         is_mac = True
     else:
         docker_client = docker.DockerClient(base_url=docker_host, tls=False)
     return docker_host, docker_client, is_mac
-
 
 def kill_exec_on_container_death(container, exec_pid):
     container.wait(condition="not-running")
@@ -103,11 +98,11 @@ def main():
 
         attempts = 0
         print("\r", " " * 80, "\rConnected!")
-        child_pid = os.fork()
+        child_pid = os.fork();
         if not child_pid:
             ssh_entrypoint = "/run/dojo/bin/ssh-entrypoint"
             if is_mac:
-                cmd = f"/bin/bash -c {shlex.quote(original_command)}" if original_command else "zsh -i"
+                cmd = f"/bin/bash -c {shlex.quote(original_command)}" if original_command  else "zsh -i"
                 container.execve_shell(cmd, user="1000", use_tty=tty)
             else:
                 command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
@@ -130,14 +125,15 @@ def main():
                         "DOCKER_HOST": docker_host,
                     },
                 )
+
         else:
-            runtime = (container.attrs or {}).get("HostConfig", {}).get("Runtime")
+            runtime = (container.attrs or {}).get("HostConfig",{}).get("Runtime")
             is_kata = runtime == "io.containerd.run.kata.v2"
             if is_kata:
-                monitor_thread = threading.Thread(
-                    target=kill_exec_on_container_death,
-                    args=(container, child_pid),
-                    daemon=True)
+                # `docker exec` can hang due to a bug in kata, see https://github.com/pwncollege/dojo/issues/810
+                monitor_thread = threading.Thread(target=kill_exec_on_container_death,
+                                                  args=(container,child_pid),
+                                                  daemon=True)
                 monitor_thread.start()
             _, status = os.wait()
             if simple or status == 0:
