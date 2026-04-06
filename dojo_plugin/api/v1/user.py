@@ -4,10 +4,45 @@ from itsdangerous.url_safe import URLSafeTimedSerializer
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 from CTFd.models import Users
+from ...config import DOJO_SSH_SERVICE_KEY
 from ...utils import get_current_container
 
 user_namespace = Namespace("user", description="User management endpoints")
 CLI_AUTH_PREFIX = "sk-workspace-local-"
+SSH_AUTH_PREFIX = "sk-ssh-service-"
+
+def authed_only_ssh(func):
+    def wrapper(*args, **kwargs):
+        auth_header = request.headers.get("Authorization")
+        if not auth_header:
+            return func(*args, **kwargs)
+        if not auth_header.startswith("Bearer "):
+            return func(*args, **kwargs)
+        token = auth_header[len("Bearer "):].strip()
+        if not token.startswith(SSH_AUTH_PREFIX):
+            return func(*args, **kwargs)
+        token = token[len(SSH_AUTH_PREFIX):].strip()
+        try:
+            user_id, token_tag = URLSafeTimedSerializer(DOJO_SSH_SERVICE_KEY).loads(token, max_age=300)
+            assert token_tag == "ssh-tui"
+        except Exception:
+            return {"success": False, "error": "Failed to authenticate ssh service token."}, 401
+        user = Users.query.filter_by(id=user_id).first()
+        if not user:
+            return {"success": False, "error": "User not found."}, 404
+        try:
+            session.update({
+                "id": user.id,
+                "name": user.name,
+                "type": user.type,
+                "verified": user.verified,
+            })
+            return func(*args, **kwargs)
+        finally:
+            for k in ("id", "name", "type", "verified"):
+                session.pop(k, None)
+        return func(*args, **kwargs)
+    return wrapper
 
 
 def authed_only_cli(func):

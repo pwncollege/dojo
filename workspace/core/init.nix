@@ -49,6 +49,10 @@ let
     echo "PATH=\"$FULL_PATH\"" > /etc/environment
     ln -sfT /run/dojo/etc/profile.d/99-dojo-workspace.sh /etc/profile.d/99-dojo-workspace.sh
 
+    if [ ! -e /etc/bashrc ] && [ -f /etc/bash.bashrc ]; then
+      ln -sfT /etc/bash.bashrc /etc/bashrc
+    fi
+
     mkdir -p /etc/gdb/gdbinit.d
     echo "set debug-file-directory /lib/debug" > /etc/gdb/gdbinit.d/dojo.gdb
 

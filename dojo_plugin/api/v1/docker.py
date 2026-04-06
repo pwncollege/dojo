@@ -10,7 +10,7 @@ import docker
 import docker.errors
 import docker.types
 import redis
-from .user import authed_only_cli, CLI_AUTH_PREFIX
+from .user import authed_only_cli, authed_only_ssh, CLI_AUTH_PREFIX
 from flask import abort, request, current_app
 from itsdangerous.url_safe import URLSafeTimedSerializer
 from flask_restx import Namespace, Resource
@@ -421,6 +421,7 @@ class NextChallenge(Resource):
 
 @docker_namespace.route("")
 class RunDocker(Resource):
+    @authed_only_ssh
     @authed_only_cli
     @authed_only
     @docker_locked
