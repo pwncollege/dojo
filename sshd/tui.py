@@ -36,18 +36,21 @@ def sort_dojos(dojos):
 
 class ChallengeClient:
     def __init__(self, user_id):
-        ssh_key = os.environ.get("DOJO_SSH_SERVICE_KEY")
-        if not ssh_key:
+        self.user_id = user_id
+        self.ssh_key = os.environ.get("DOJO_SSH_SERVICE_KEY")
+        if not self.ssh_key:
             raise RuntimeError("Missing DOJO_SSH_SERVICE_KEY")
-        token = URLSafeTimedSerializer(ssh_key).dumps([user_id, "ssh-tui"])
         self.api_base = "http://pwn.college:80/pwncollege_api/v1"
-        self.headers = {
+
+    def headers(self):
+        token = URLSafeTimedSerializer(self.ssh_key).dumps([self.user_id, "ssh-tui"])
+        return {
             "Authorization": f"Bearer sk-ssh-service-{token}",
             "Content-Type": "application/json",
         }
 
     def get(self, path, key):
-        response = requests.get(f"{self.api_base}{path}", headers=self.headers, timeout=20)
+        response = requests.get(f"{self.api_base}{path}", headers=self.headers(), timeout=20)
         response.raise_for_status()
         data = response.json()
         if not data.get("success"):
@@ -55,7 +58,7 @@ class ChallengeClient:
         return data.get(key, [])
 
     def post(self, path, payload):
-        response = requests.post(f"{self.api_base}{path}", headers=self.headers, json=payload, timeout=60)
+        response = requests.post(f"{self.api_base}{path}", headers=self.headers(), json=payload, timeout=60)
         response.raise_for_status()
         data = response.json()
         if not data.get("success"):
