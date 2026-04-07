@@ -62,13 +62,11 @@ class ChallengeClient:
             raise RuntimeError(data.get("error", "Request failed"))
         return data
 
-    def load_catalog(self):
-        catalog = []
-        for dojo in sort_dojos(self.get("/dojos", "dojos")):
-            dojo_data = dict(dojo)
-            dojo_data["modules"] = self.get(f"/dojos/{dojo['id']}/modules", "modules")
-            catalog.append(dojo_data)
-        return catalog
+    def load_dojos(self):
+        return sort_dojos(self.get("/dojos", "dojos"))
+
+    def load_dojo_modules(self, dojo_id):
+        return self.get(f"/dojos/{dojo_id}/modules", "modules")
 
     def start_challenge(self, dojo_id, module_id, challenge_id, practice):
         self.post(
@@ -98,10 +96,12 @@ def module_details(module):
     lines = [f"# {module['name']}", ""]
     if module.get("description"):
         lines.extend([module["description"].strip(), ""])
+    challenges = module.get("challenges")
+    resources = module.get("resources")
     lines.extend([
         f"- Module ID: `{module['id']}`",
-        f"- Challenges: `{len(module.get('challenges', []))}`",
-        f"- Resources: `{len(module.get('resources', []))}`",
+        f"- Challenges: `{len(challenges) if challenges is not None else '?'}`",
+        f"- Resources: `{len(resources) if resources is not None else '?'}`",
     ])
     return "\n".join(lines)
 
@@ -112,7 +112,7 @@ def challenge_details(challenge):
         lines.extend([challenge["description"].strip(), ""])
     lines.extend([
         f"- Challenge ID: `{challenge['id']}`",
-        f"- Required: `{'yes' if challenge.get('required') else 'no'}`",
+        f"- Required: `{'yes' if challenge.get('required') else 'no' if challenge.get('required') is not None else '?'}`",
         "",
         "Press `enter` to choose a start mode.",
         "Press `s` to start standard mode.",
@@ -264,6 +264,37 @@ class ChallengeBrowserApp(App):
         self.client = client
         self.selection = None
 
+    def add_loading_node(self, node):
+        node.add_leaf("Loading...", {"kind": "loading"})
+
+    def reset_node(self, node, data=None):
+        node.remove_children()
+        if data is not None:
+            node.data = data
+
+    def populate_dojo_modules(self, dojo_node, modules):
+        dojo = dojo_node.data["dojo"]
+        self.reset_node(dojo_node, {**dojo_node.data, "dojo": {**dojo, "modules": modules, "modules_loaded": True}})
+        for module in modules:
+            module_node = dojo_node.add(
+                module["name"],
+                {
+                    "kind": "module",
+                    "dojo": dojo,
+                    "module": module,
+                },
+            )
+            for challenge in module.get("challenges", []):
+                module_node.add_leaf(
+                    challenge["name"],
+                    {
+                        "kind": "challenge",
+                        "dojo": dojo,
+                        "module": module,
+                        "challenge": challenge,
+                    },
+                )
+
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
         with Horizontal(id="body"):
@@ -288,7 +319,7 @@ class ChallengeBrowserApp(App):
         status.update("Loading dojos...")
         details.update("Loading...")
         try:
-            catalog = self.client.load_catalog()
+            dojos = self.client.load_dojos()
         except Exception as error:
             tree.clear()
             details.update(f"# Failed to load catalog\n\n`{error}`")
@@ -301,22 +332,14 @@ class ChallengeBrowserApp(App):
         tree.root.expand()
         self.selection = None
 
-        for dojo in catalog:
-            dojo_node = tree.root.add(dojo["name"], {"kind": "dojo", "dojo": dojo})
+        for dojo in dojos:
+            dojo_node = tree.root.add(
+                dojo["name"],
+                {"kind": "dojo", "dojo": dojo, "loaded": False},
+                allow_expand=True,
+            )
             dojo_node.collapse()
-            for module in dojo.get("modules", []):
-                module_node = dojo_node.add(module["name"], {
-                    "kind": "module",
-                    "dojo": dojo,
-                    "module": module,
-                })
-                for challenge in module.get("challenges", []):
-                    module_node.add_leaf(challenge["name"], {
-                        "kind": "challenge",
-                        "dojo": dojo,
-                        "module": module,
-                        "challenge": challenge,
-                    })
+            self.add_loading_node(dojo_node)
 
         if tree.root.children:
             first = tree.root.children[0]
@@ -350,6 +373,31 @@ class ChallengeBrowserApp(App):
         self.update_selection(event.node.data)
         if event.node.data["kind"] == "challenge":
             self.open_start_modal()
+
+    def on_tree_node_expanded(self, event):
+        data = event.node.data
+        if not data or data.get("loaded"):
+            return
+
+        status = self.query_one("#status", Static)
+        details = self.query_one("#details", Markdown)
+
+        try:
+            if data["kind"] == "dojo":
+                dojo = data["dojo"]
+                status.update(f"Loading modules for {dojo['name']}...")
+                modules = self.client.load_dojo_modules(dojo["id"])
+                self.populate_dojo_modules(event.node, modules)
+                if self.selection is data:
+                    self.update_selection(event.node.data)
+                status.update("Use arrows to browse and enter to start")
+                return
+
+        except Exception as error:
+            self.reset_node(event.node)
+            event.node.add_leaf(f"Load failed: {error}", {"kind": "error"})
+            details.update(f"# Failed to load\n\n`{error}`")
+            status.update("Load failed")
 
     def action_reload(self):
         self.reload()
