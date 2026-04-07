@@ -32,16 +32,31 @@ function handleAwardPopup(response) {
 }
 
 function showAwardPopup(award) {
-    const isBelt = Array.from(award.name).length > 1;
+    const isBelt = ["orange", "yellow", "green", "blue"].includes(award.name);
+    if (isBelt) {
+        return renderPopup(`You have officially been awarded your ${award.name} belt!`, `<img src="/belt/${award.name}.svg" class="belt-image">`)
+    }
 
-    const image = isBelt
-        ? `<img src="/belt/${award.name}.svg" class="belt-image">`
-        : `<div class="emoji-display">${award.name}</div>`;
+    var icon = award.icon
+    if (!award.icon) {
+        fetch("/pwncollege_api/v1/dojos")
+        .then(response => response.json())
+        .then(result => {
+            const dojos = result["dojos"]
+            dojos.forEach(entry => {
+                if (entry["hex_id"] == award.category) {
+                    icon = entry["award"]["emoji"]
+                }
+            })
+            renderPopup(`You have officially been awarded the ${icon} badge!`, `<div class="emoji-display">${icon}</div>`)
+        })
+    }
+    else {
+        renderPopup(`You have officially been awarded the ${icon} badge!`, `<div class="emoji-display">${icon}</div>`)
+    }
+}
 
-    const message = isBelt
-        ? `You have officially been awarded your ${award.name} belt!`
-        : `You have officially been awarded the ${award.name} badge!`;
-
+function renderPopup(message, image) {
     const popupContent = {
         header: "Congratulations!",
         body: message,

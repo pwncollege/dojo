@@ -46,6 +46,7 @@ class DojoList(Resource):
 
         dojos = [
             dict(id=dojo.reference_id,
+                 hex_id=dojo.hex_dojo_id,
                  name=dojo.name,
                  description=dojo.description,
                  type=dojo.type,
@@ -65,7 +66,7 @@ class PruneAwards(Resource):
     def post(self, dojo):
         all_completions = set(user for user,_ in dojo.completions())
         num_pruned = 0
-        for award in Emojis.query.where(Emojis.category==dojo.hex_dojo_id, Emojis.name != "STALE"):
+        for award in Emojis.query.where(Emojis.category==dojo.hex_dojo_id, Emojis.name=="CURRENT"):
             if award.user not in all_completions:
                 num_pruned += 1
                 award.name = "STALE"
@@ -406,9 +407,9 @@ class GrantAward(Resource):
     @dojo_admins_only
     def post(self, dojo):
         data = request.get_json()
-        user_id = data.get("user_id", None)
-        emoji = data.get("emoji", None)
-        description = data.get("description", None)
+        user_id = data.get("user_id")
+        emoji = data.get("emoji")
+        description = data.get("description")
         if None in [user_id, emoji, description]:
             return {"success": False, "error": "Must supply user_id, emoji, and description."}, 400
         if not emojilib.is_emoji(emoji):
@@ -416,5 +417,5 @@ class GrantAward(Resource):
         user = Users.query.filter_by(id=user_id).first()
         if not user:
             return {"success": False, "error": "User not found."}, 404
-        grant_award(user, emoji, dojo.hex_dojo_id + ":CUSTOM_AWARD:" + description)
+        grant_award(user, emoji, description, dojo.hex_dojo_id)
         return {"success": True}
