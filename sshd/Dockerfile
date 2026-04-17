@@ -14,6 +14,8 @@ RUN pip3 install --break-system-packages \
     itsdangerous \
     docker \
     redis \
+    rich \
+    textual \
     psycopg2-binary
 
 RUN adduser -D hacker && \
