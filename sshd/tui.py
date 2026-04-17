@@ -20,6 +20,10 @@ SECTION_ORDER = {
 }
 
 
+def display_name(item, fallback_prefix):
+    return item.get("name") or item.get("id") or f"Unnamed {fallback_prefix}"
+
+
 def sort_dojos(dojos):
     indexed_dojos = list(enumerate(dojos))
     return [
@@ -84,7 +88,7 @@ class ChallengeClient:
 
 
 def dojo_details(dojo):
-    lines = [f"# {dojo['name']}", ""]
+    lines = [f"# {display_name(dojo, 'dojo')}", ""]
     if dojo.get("description"):
         lines.extend([dojo["description"].strip(), ""])
     lines.extend([
@@ -96,7 +100,7 @@ def dojo_details(dojo):
 
 
 def module_details(module):
-    lines = [f"# {module['name']}", ""]
+    lines = [f"# {display_name(module, 'module')}", ""]
     if module.get("description"):
         lines.extend([module["description"].strip(), ""])
     challenges = module.get("challenges")
@@ -110,7 +114,7 @@ def module_details(module):
 
 
 def challenge_details(challenge):
-    lines = [f"# {challenge['name']}", ""]
+    lines = [f"# {display_name(challenge, 'challenge')}", ""]
     if challenge.get("description"):
         lines.extend([challenge["description"].strip(), ""])
     lines.extend([
@@ -151,10 +155,10 @@ class StartModal(ModalScreen):
         module = self.selection["module"]
         challenge = self.selection["challenge"]
         body = "\n".join([
-            f"# {challenge['name']}",
+            f"# {display_name(challenge, 'challenge')}",
             "",
-            f"- Dojo: `{dojo['name']}`",
-            f"- Module: `{module['name']}`",
+            f"- Dojo: `{display_name(dojo, 'dojo')}`",
+            f"- Module: `{display_name(module, 'module')}`",
             f"- Challenge: `{challenge['id']}`",
             "",
             "Press `s` for standard mode.",
@@ -277,10 +281,10 @@ class ChallengeBrowserApp(App):
 
     def populate_dojo_modules(self, dojo_node, modules):
         dojo = dojo_node.data["dojo"]
-        self.reset_node(dojo_node, {**dojo_node.data, "dojo": {**dojo, "modules": modules, "modules_loaded": True}})
+        self.reset_node(dojo_node, {**dojo_node.data, "dojo": {**dojo, "modules": modules, "modules_loaded": True}, "loaded": True})
         for module in modules:
             module_node = dojo_node.add(
-                module["name"],
+                display_name(module, "module"),
                 {
                     "kind": "module",
                     "dojo": dojo,
@@ -289,7 +293,7 @@ class ChallengeBrowserApp(App):
             )
             for challenge in module.get("challenges", []):
                 module_node.add_leaf(
-                    challenge["name"],
+                    display_name(challenge, "challenge"),
                     {
                         "kind": "challenge",
                         "dojo": dojo,
@@ -337,7 +341,7 @@ class ChallengeBrowserApp(App):
 
         for dojo in dojos:
             dojo_node = tree.root.add(
-                dojo["name"],
+                display_name(dojo, "dojo"),
                 {"kind": "dojo", "dojo": dojo, "loaded": False},
                 allow_expand=True,
             )
@@ -430,10 +434,10 @@ class ChallengeBrowserApp(App):
         mode = "practice" if practice else "standard"
         self.query_one("#details", Markdown).update(
             "\n".join([
-                f"# Starting {challenge['name']}",
+                f"# Starting {display_name(challenge, 'challenge')}",
                 "",
-                f"- Dojo: `{dojo['name']}`",
-                f"- Module: `{module['name']}`",
+                f"- Dojo: `{display_name(dojo, 'dojo')}`",
+                f"- Module: `{display_name(module, 'module')}`",
                 f"- Mode: `{mode}`",
             ])
         )
@@ -443,7 +447,7 @@ class ChallengeBrowserApp(App):
         except Exception as error:
             self.query_one("#details", Markdown).update(
                 "\n".join([
-                    f"# Failed to start {challenge['name']}",
+                    f"# Failed to start {display_name(challenge, 'challenge')}",
                     "",
                     f"`{error}`",
                     "",

@@ -65,12 +65,19 @@ def main():
 
     docker_host, docker_client, is_mac = get_docker_client(user_id)
 
+    container = None
     try:
         container = docker_client.containers.get(container_name)
     except docker.errors.NotFound:
+        pass
+
+    if container is None:
         if not simple and os.environ.get("DOJO_SSH_SERVICE_KEY"):
-            if run_challenge_tui(user_id):
-                os.execv(sys.executable, [sys.executable, __file__, container_name])
+            try:
+                if run_challenge_tui(user_id):
+                    os.execv(sys.executable, [sys.executable, __file__, container_name])
+            except Exception:
+                print("Failed to launch challenge tui")
         print("No active challenge session; start a challenge!")
         exit(1)
 
