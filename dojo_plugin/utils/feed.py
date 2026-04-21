@@ -22,7 +22,7 @@ def create_event(event_type: str, user: Users, data: Dict[str, Any]) -> Optional
     
     user_belts = [b.name for b in Belts.query.filter_by(user=user)]
     highest_belt = next((b for b in reversed(BELT_ORDER) if b in user_belts), None)
-    user_emojis = [complex["emoji"] for complex in get_viewable_emojis(None)[int(user.id)]]
+    user_emojis = [complex["emoji"] for complex in get_viewable_emojis(None).get(int(user.id), [])]
     
     event = {
         "id": str(uuid.uuid4()),
