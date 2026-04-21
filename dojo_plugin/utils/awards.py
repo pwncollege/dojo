@@ -118,12 +118,6 @@ def update_awards(user):
         emoji_award = Emojis.query.filter(Emojis.user==user, Emojis.category==hex_dojo_id, Emojis.name=="CURRENT").first()
         if emoji_award:
             continue
-
-        emoji_award = Emojis.query.filter(Emojis.user==user, Emojis.category==hex_dojo_id, Emojis.name=="STALE").first()
-        if emoji_award:
-            emoji_award.name = "CURRENT"
-            db.session.commit()
-            continue
         
         dojo = Dojos.query.filter_by(dojo_id=Dojos.hex_to_int(hex_dojo_id)).first()
         if not dojo:
@@ -131,7 +125,11 @@ def update_awards(user):
             
         display_name = dojo.name or dojo.reference_id
         description = f"Awarded for completing the {display_name} dojo."
-        db.session.add(Emojis(user=user, name="CURRENT", description=description, category=hex_dojo_id, icon=None))
+        
+        if emoji_award := Emojis.query.filter(Emojis.user==user, Emojis.category==hex_dojo_id, Emojis.name=="STALE").first():
+            emoji_award.name = "CURRENT"
+        else:
+            db.session.add(Emojis(user=user, name="CURRENT", description=description, category=hex_dojo_id, icon=None))
         db.session.commit()
         
         if dojo.official or dojo.data.get("type") == "public":
