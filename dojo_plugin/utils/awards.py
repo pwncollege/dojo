@@ -118,6 +118,12 @@ def update_awards(user):
         emoji_award = Emojis.query.filter(Emojis.user==user, Emojis.category==hex_dojo_id, Emojis.name=="CURRENT").first()
         if emoji_award:
             continue
+
+        emoji_award = Emojis.query.filter(Emojis.user==user, Emojis.category==hex_dojo_id, Emojis.name=="STALE").first()
+        if emoji_award:
+            emoji_award.name = "CURRENT"
+            db.session.commit()
+            continue
         
         dojo = Dojos.query.filter_by(dojo_id=Dojos.hex_to_int(hex_dojo_id)).first()
         if not dojo:
