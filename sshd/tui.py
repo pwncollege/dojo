@@ -301,7 +301,7 @@ class ChallengeBrowserApp(App):
         dojo = self.selection["dojo"]
         module = self.selection["module"]
         challenge = self.selection["challenge"]
-        description = challenge.get("description", "").strip() or "No description available."
+        description = (challenge.get("description") or "").strip() or "No description available."
         self.query_one("#tree", Tree).display = False
         self.query_one("#start-pane", Markdown).display = True
         self.query_one("#nav", Vertical).add_class("start-picker")
@@ -400,7 +400,7 @@ class ChallengeBrowserApp(App):
         try:
             if data["kind"] == "dojo":
                 dojo = data["dojo"]
-                status.update(f"Loading modules for {dojo['name']}...")
+                status.update(f"Loading modules for {display_name(dojo, 'dojo')}...")
                 modules = self.client.load_dojo_modules(dojo["id"])
                 self.populate_dojo_modules(event.node, modules)
                 if self.selection is data:
