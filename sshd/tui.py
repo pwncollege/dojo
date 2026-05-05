@@ -5,8 +5,7 @@ from itsdangerous.url_safe import URLSafeTimedSerializer
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.screen import ModalScreen
-from textual.widgets import Footer, Header, Label, Markdown, Static, Tree
+from textual.widgets import Footer, Header, Markdown, Static, Tree
 
 
 SECTION_ORDER = {
@@ -139,47 +138,10 @@ def render_details(data):
     return "# Challenge Browser"
 
 
-class StartModal(ModalScreen):
-    BINDINGS = [
-        Binding("escape", "cancel", "Cancel"),
-        Binding("s", "standard", "Standard"),
-        Binding("p", "practice", "Practice"),
-    ]
-
-    def __init__(self, selection):
-        super().__init__()
-        self.selection = selection
-
-    def compose(self) -> ComposeResult:
-        dojo = self.selection["dojo"]
-        module = self.selection["module"]
-        challenge = self.selection["challenge"]
-        body = "\n".join([
-            f"# {display_name(challenge, 'challenge')}",
-            "",
-            f"- Dojo: `{display_name(dojo, 'dojo')}`",
-            f"- Module: `{display_name(module, 'module')}`",
-            f"- Challenge: `{challenge['id']}`",
-            "",
-            "Press `s` for standard mode.",
-            "Press `p` for practice mode.",
-            "Press `esc` to cancel.",
-        ])
-        with Vertical(id="modal"):
-            yield Label("Start Challenge", id="modal-title")
-            yield Markdown(body)
-
-    def action_cancel(self):
-        self.dismiss(None)
-
-    def action_standard(self):
-        self.dismiss(False)
-
-    def action_practice(self):
-        self.dismiss(True)
-
-
 class ChallengeBrowserApp(App):
+    TITLE = "pwn.college"
+    SUB_TITLE = "dojos"
+
     CSS = """
     Screen {
         background: #000000;
@@ -206,6 +168,10 @@ class ChallengeBrowserApp(App):
         min-width: 40;
         border: tall #78be20;
         background: #101010;
+    }
+
+    #nav.start-picker {
+        border: tall #ffc627;
     }
 
     #details-pane {
@@ -236,6 +202,11 @@ class ChallengeBrowserApp(App):
         color: #ffffff;
     }
 
+    #start-pane, #details {
+        height: 1fr;
+        overflow-y: auto;
+    }
+
     #status {
         height: 1;
         padding: 0 1;
@@ -243,25 +214,12 @@ class ChallengeBrowserApp(App):
         color: #00a3e0;
     }
 
-    #modal {
-        width: 72;
-        max-width: 90%;
-        padding: 1 2;
-        border: tall #ffc627;
-        background: #101010;
-    }
-
-    #modal-title {
-        padding-bottom: 1;
-        content-align: center middle;
-        text-style: bold;
-        color: #ffc627;
-    }
     """
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "reload", "Reload"),
+        Binding("escape", "cancel_start", "Back"),
         Binding("s", "start_standard", "Standard"),
         Binding("p", "start_practice", "Practice"),
     ]
@@ -270,6 +228,8 @@ class ChallengeBrowserApp(App):
         super().__init__()
         self.client = client
         self.selection = None
+        self.starting = False
+        self.choosing_start = False
 
     def add_loading_node(self, node):
         node.add_leaf("Loading...", {"kind": "loading"})
@@ -308,6 +268,7 @@ class ChallengeBrowserApp(App):
             with Vertical(id="nav"):
                 yield Static("Dojos", id="nav-title")
                 yield Tree("Challenge Browser", id="tree")
+                yield Markdown("", id="start-pane")
             with Vertical(id="details-pane"):
                 yield Static("Details", id="details-title")
                 yield Markdown("Loading...", id="details")
@@ -315,11 +276,56 @@ class ChallengeBrowserApp(App):
         yield Footer()
 
     def on_mount(self):
-        self.sub_title = "SSH challenge picker"
+        self.query_one("#start-pane", Markdown).display = False
         self.reload()
         self.query_one("#tree", Tree).focus()
 
+    def select_tree_node(self, node):
+        tree = self.query_one("#tree", Tree)
+        tree.move_cursor(node)
+        if node.data:
+            self.update_selection(node.data)
+
+    def show_browser_view(self):
+        self.choosing_start = False
+        self.query_one("#tree", Tree).display = True
+        self.query_one("#start-pane", Markdown).display = False
+        self.query_one("#nav", Vertical).remove_class("start-picker")
+        self.query_one("#nav-title", Static).update("Dojos")
+        self.query_one("#details-title", Static).update("Details")
+        if self.selection:
+            self.query_one("#details", Markdown).update(render_details(self.selection))
+
+    def show_start_view(self):
+        self.choosing_start = True
+        dojo = self.selection["dojo"]
+        module = self.selection["module"]
+        challenge = self.selection["challenge"]
+        description = (challenge.get("description") or "").strip() or "No description available."
+        self.query_one("#tree", Tree).display = False
+        self.query_one("#start-pane", Markdown).display = True
+        self.query_one("#nav", Vertical).add_class("start-picker")
+        self.query_one("#nav-title", Static).update("Start Challenge")
+        self.query_one("#details-title", Static).update("Description")
+        self.query_one("#start-pane", Markdown).update(
+            "\n".join([
+                f"# {display_name(challenge, 'challenge')}",
+                "",
+                f"- Dojo: `{display_name(dojo, 'dojo')}`",
+                f"- Module: `{display_name(module, 'module')}`",
+                f"- Challenge: `{challenge['id']}`",
+                "",
+                "Press `s` for standard mode.",
+                "Press `p` for practice mode.",
+                "Press `esc` to go back to the challenge picker.",
+            ])
+        )
+        self.query_one("#details", Markdown).update(description)
+
     def reload(self):
+        self.starting = False
+        self.choosing_start = False
+        self.show_browser_view()
         tree = self.query_one("#tree", Tree)
         details = self.query_one("#details", Markdown)
         status = self.query_one("#status", Static)
@@ -350,7 +356,7 @@ class ChallengeBrowserApp(App):
 
         if tree.root.children:
             first = tree.root.children[0]
-            self.update_selection(first.data)
+            self.call_after_refresh(lambda: self.select_tree_node(first))
             status.update("Use arrows to browse and enter to start")
             return
 
@@ -358,6 +364,8 @@ class ChallengeBrowserApp(App):
         status.update("No dojos available")
 
     def update_selection(self, data):
+        if self.starting:
+            return
         self.selection = data
         self.query_one("#details", Markdown).update(render_details(data))
         status = self.query_one("#status", Static)
@@ -392,7 +400,7 @@ class ChallengeBrowserApp(App):
         try:
             if data["kind"] == "dojo":
                 dojo = data["dojo"]
-                status.update(f"Loading modules for {dojo['name']}...")
+                status.update(f"Loading modules for {display_name(dojo, 'dojo')}...")
                 modules = self.client.load_dojo_modules(dojo["id"])
                 self.populate_dojo_modules(event.node, modules)
                 if self.selection is data:
@@ -409,6 +417,13 @@ class ChallengeBrowserApp(App):
     def action_reload(self):
         self.reload()
 
+    def action_cancel_start(self):
+        if self.choosing_start and not self.starting:
+            self.show_browser_view()
+            if self.selection:
+                self.update_selection(self.selection)
+            self.query_one("#tree", Tree).focus()
+
     def action_start_standard(self):
         self.start_selected(False)
 
@@ -418,36 +433,40 @@ class ChallengeBrowserApp(App):
     def open_start_modal(self):
         if not self.selection or self.selection["kind"] != "challenge":
             return
-        self.push_screen(StartModal(self.selection), self.handle_start_choice)
-
-    def handle_start_choice(self, practice):
-        if practice is None:
-            return
-        self.start_selected(practice)
+        self.show_start_view()
+        self.query_one("#status", Static).update("Choose a mode: s starts standard, p starts practice")
 
     def start_selected(self, practice):
-        if not self.selection or self.selection["kind"] != "challenge":
+        if self.starting or not self.selection or self.selection["kind"] != "challenge":
             return
+        self.starting = True
         dojo = self.selection["dojo"]
         module = self.selection["module"]
         challenge = self.selection["challenge"]
         mode = "practice" if practice else "standard"
-        self.query_one("#details", Markdown).update(
+        self.show_start_view()
+        self.query_one("#start-pane", Markdown).update(
             "\n".join([
                 f"# Starting {display_name(challenge, 'challenge')}",
                 "",
                 f"- Dojo: `{display_name(dojo, 'dojo')}`",
                 f"- Module: `{display_name(module, 'module')}`",
                 f"- Mode: `{mode}`",
+                "",
+                "Start requested. Preparing your workspace...",
             ])
         )
         self.query_one("#status", Static).update(f"Starting {challenge['id']}...")
+        self.set_timer(0.1, lambda: self.finish_start(dojo["id"], module["id"], challenge["id"], practice))
+
+    def finish_start(self, dojo_id, module_id, challenge_id, practice):
         try:
-            self.client.start_challenge(dojo["id"], module["id"], challenge["id"], practice)
+            self.client.start_challenge(dojo_id, module_id, challenge_id, practice)
         except Exception as error:
-            self.query_one("#details", Markdown).update(
+            self.starting = False
+            self.query_one("#start-pane", Markdown).update(
                 "\n".join([
-                    f"# Failed to start {display_name(challenge, 'challenge')}",
+                    "# Failed to start challenge",
                     "",
                     f"`{error}`",
                     "",
