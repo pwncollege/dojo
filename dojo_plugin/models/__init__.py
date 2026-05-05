@@ -872,6 +872,19 @@ class SSHKeys(db.Model):
     __repr__ = columns_repr(["user", "value"])
 
 
+class SSHPiperKeys(db.Model):
+    __tablename__ = "ssh_piper_keys"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    public_key = db.Column(db.Text, nullable=False, unique=True)
+    private_key = db.Column(db.Text, nullable=False)
+
+    user = db.relationship("Users")
+
+    __repr__ = columns_repr(["user", "public_key"])
+
+
 class DiscordUserActivity(db.Model):
     __tablename__ = "discord_user_activity"
     id = db.Column(db.Integer, primary_key=True)
