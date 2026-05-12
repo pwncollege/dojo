@@ -3,6 +3,7 @@
 import os
 import pathlib
 import re
+import shlex
 import sys
 from urllib.parse import urlparse
 
@@ -35,9 +36,38 @@ def create_db_connection():
 
 def main():
     enter_path = pathlib.Path(__file__).parent.resolve() / "enter.py"
+    onboard_path = pathlib.Path(__file__).parent.resolve() / "onboard.py"
+    username = sys.argv[1] if len(sys.argv) > 1 else None
+    key_type = sys.argv[2] if len(sys.argv) > 2 else None
+    key_base64 = sys.argv[3] if len(sys.argv) > 3 else None
+    fingerprint = sys.argv[4] if len(sys.argv) > 4 else None
 
     connection = create_db_connection()
     with connection.cursor() as cursor:
+        if username and username != "hacker":
+            return
+        if key_type and key_base64:
+            key = f"{key_type} {key_base64}"
+            if not AUTHORIZED_KEY_RE.match(key):
+                return
+            cursor.execute(
+                "SELECT ssh_keys.user_id FROM ssh_keys "
+                "JOIN users ON users.id = ssh_keys.user_id "
+                "WHERE NOT users.banned AND ssh_keys.value = %s",
+                (key,),
+            )
+            if user_id := cursor.fetchone():
+                print(f'command="{enter_path} user_{user_id[0]}" {key}')
+                return
+            command = shlex.join([
+                str(onboard_path),
+                "--key-type", key_type,
+                "--key-base64", key_base64,
+                "--fingerprint", fingerprint or "",
+            ]).replace("\\", "\\\\").replace('"', '\\"')
+            print(f'command="{command}" {key}')
+            return
+
         cursor.execute(
             "SELECT ssh_keys.user_id, ssh_keys.value FROM ssh_keys "
             "JOIN users ON users.id = ssh_keys.user_id "
