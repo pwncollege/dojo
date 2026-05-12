@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>SSH Key Link</h1>
+  </div>
+</div>
+<div class="container">
+  <div class="row">
+    <div class="col-md-8 offset-md-2">
+      {% if status == "linked" %}
+      <div class="alert alert-success">
+        Your SSH key has been linked to <strong>{{ user.name }}</strong>.
+      </div>
+      <p>You can return to your terminal and reconnect over SSH.</p>
+      {% else %}
+      <div class="alert alert-danger">
+        {{ error }}
+      </div>
+      <p>Return to your terminal and start a new SSH link request.</p>
+      {% endif %}
+
+      {% if link_request and link_request.fingerprint %}
+      <p><strong>Fingerprint:</strong> <code>{{ link_request.fingerprint }}</code></p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
