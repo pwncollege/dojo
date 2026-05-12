@@ -312,6 +312,9 @@ def main():
     parser.add_argument("--key-base64", required=True)
     parser.add_argument("--fingerprint", default="")
     args = parser.parse_args()
+    if os.environ.get("SSH_ORIGINAL_COMMAND"):
+        print("This SSH key is not linked to a pwn.college account. Connect without a command to set it up.", file=sys.stderr)
+        return 1
     client = OnboardingClient(args.key_type, args.key_base64, args.fingerprint)
     try:
         result = OnboardingApp(client).run()
