@@ -5,7 +5,7 @@ UsePAM yes
 Subsystem sftp    /run/dojo/libexec/sftp-server
 
 Match User hacker
-      AuthorizedKeysCommand /opt/sshd/auth.py
+      AuthorizedKeysCommand /opt/sshd/auth.py %u %t %k %f
       AuthorizedKeysCommandUser root
       X11Forwarding no
       AllowTcpForwarding no

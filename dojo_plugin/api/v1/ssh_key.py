@@ -6,11 +6,10 @@ from sqlalchemy.exc import IntegrityError
 from CTFd.models import db
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
-from sshpubkeys import SSHKey, InvalidKeyError
-import base64
 import markupsafe
 
 from ...models import SSHKeys
+from ...utils.ssh_key import InvalidKeyError, normalize_ssh_key
 
 
 ssh_key_namespace = Namespace(
@@ -27,9 +26,7 @@ class UpdateKey(Resource):
 
         if key_value:
             try:
-                key = SSHKey(key_value, strict=True)
-                key.parse()
-                key_value = f"{key.key_type.decode()} {base64.b64encode(key._decoded_key).decode()}"
+                key_value = normalize_ssh_key(key_value)
             except (InvalidKeyError, NotImplementedError) as e:
                 return (
                     {

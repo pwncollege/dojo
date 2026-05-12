@@ -30,6 +30,7 @@ from .pages.workspace import workspace
 from .pages.sensai import sensai
 from .pages.users import users
 from .pages.settings import settings_override
+from .pages.ssh_key import ssh_key
 from .pages.discord import discord
 from .pages.course import course
 from .pages.belts import belts
@@ -190,6 +191,7 @@ def load(app):
     app.register_blueprint(belts)
     app.register_blueprint(research)
     app.register_blueprint(feed)
+    app.register_blueprint(ssh_key)
     app.register_blueprint(test_error_pages)
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
 

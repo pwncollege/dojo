@@ -3,8 +3,10 @@ import subprocess
 import time
 import tempfile
 import os
+import uuid
+import requests
 
-from utils import DOJO_URL, DOJO_SSH_HOST, login, dojo_run, workspace_run, start_challenge
+from utils import DOJO_URL, DOJO_SSH_HOST, login, dojo_run, workspace_run, start_challenge, db_sql
 
 
 def add_ssh_key(session, ssh_key):
@@ -23,6 +25,29 @@ def delete_ssh_key(session, ssh_key):
         json={"ssh_key": normalized_key}
     )
     return response
+
+
+def ssh_onboarding_headers():
+    result = dojo_run(
+        "docker", "compose", "exec", "-T", "sshd",
+        "python3", "-c",
+        "import os; from itsdangerous.url_safe import URLSafeTimedSerializer; print(URLSafeTimedSerializer(os.environ['DOJO_SSH_SERVICE_KEY']).dumps('ssh-onboarding'))",
+    )
+    return {"Authorization": f"Bearer sk-ssh-service-{result.stdout.strip()}"}
+
+
+def ssh_key_payload(ssh_key):
+    key_type, key_base64, *_ = ssh_key.split()
+    return {
+        "key_type": key_type,
+        "key_base64": key_base64,
+        "fingerprint": "",
+    }
+
+
+def normalized_public_key(ssh_key):
+    key_type, key_base64, *_ = ssh_key.split()
+    return f"{key_type} {key_base64}"
 
 
 def verify_ssh_access(private_key_file, should_work=True):
@@ -206,3 +231,45 @@ def test_ssh_key_with_comment(random_user_session, temp_ssh_keys):
     
     response = add_ssh_key(random_user_session, key_with_comment)
     assert response.status_code == 200
+
+
+def test_ssh_onboarding_registers_account(temp_ssh_keys):
+    random_id = f"ssh{uuid.uuid4().hex[:16]}"
+    response = requests.post(
+        f"{DOJO_URL}/pwncollege_api/v1/ssh_onboarding/register",
+        json={
+            **ssh_key_payload(temp_ssh_keys["rsa"]["public"]),
+            "name": random_id,
+            "email": f"{random_id}@example.com",
+        },
+        headers=ssh_onboarding_headers(),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["success"] is True
+
+    key_count = db_sql(
+        f"select count(*) from users join ssh_keys on users.id = ssh_keys.user_id "
+        f"where users.name = '{random_id}' and ssh_keys.value = '{normalized_public_key(temp_ssh_keys['rsa']['public'])}'"
+    ).strip()
+    assert key_count == "1"
+
+
+def test_ssh_onboarding_link_request(random_user_name, random_user_session, temp_ssh_keys):
+    payload = ssh_key_payload(temp_ssh_keys["ed25519"]["public"])
+    response = requests.post(
+        f"{DOJO_URL}/pwncollege_api/v1/ssh_onboarding/link_requests",
+        json=payload,
+        headers=ssh_onboarding_headers(),
+    )
+    assert response.status_code == 200, response.text
+    token = response.json()["token"]
+
+    response = random_user_session.get(f"{DOJO_URL}/ssh/link/{token}")
+    assert response.status_code == 200
+    assert "has been linked" in response.text
+
+    key_count = db_sql(
+        f"select count(*) from users join ssh_keys on users.id = ssh_keys.user_id "
+        f"where users.name = '{random_user_name}' and ssh_keys.value = '{normalized_public_key(temp_ssh_keys['ed25519']['public'])}'"
+    ).strip()
+    assert key_count == "1"
