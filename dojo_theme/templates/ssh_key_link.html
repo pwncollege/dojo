@@ -11,7 +11,7 @@
     <div class="col-md-8 offset-md-2">
       {% if status == "linked" %}
       <div class="alert alert-success">
-        Your SSH key has been linked to <strong>{{ user.name }}</strong>.
+        Your SSH key has been linked to <strong>{{ link_request.user.name }}</strong>.
       </div>
       <p>You can return to your terminal and reconnect over SSH.</p>
       {% else %}

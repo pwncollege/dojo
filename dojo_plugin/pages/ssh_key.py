@@ -24,7 +24,11 @@ def link_ssh_key(token):
     if not link_request:
         error = "This SSH key link is invalid."
     elif link_request.consumed:
-        status = "linked"
+        if link_request.user_id == user.id:
+            status = "linked"
+        else:
+            status = "duplicate"
+            error = "This SSH key has already been linked to another account."
     elif link_request.expiration < datetime.datetime.utcnow():
         status = "expired"
         error = "This SSH key link has expired."

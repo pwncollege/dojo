@@ -1,9 +1,10 @@
 from flask_restx import Namespace, Resource
-from flask import current_app, request, session
+from flask import current_app, g, request, session
 from itsdangerous.url_safe import URLSafeTimedSerializer
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
 from CTFd.models import Users
+from functools import wraps
 from ...config import DOJO_SSH_SERVICE_KEY
 from ...utils import get_current_container
 
@@ -11,19 +12,48 @@ user_namespace = Namespace("user", description="User management endpoints")
 CLI_AUTH_PREFIX = "sk-workspace-local-"
 SSH_AUTH_PREFIX = "sk-ssh-service-"
 
-def authed_only_ssh(func):
+def ssh_service_token():
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header[len("Bearer "):].strip()
+    if not token.startswith(SSH_AUTH_PREFIX):
+        return None
+    token = token[len(SSH_AUTH_PREFIX):].strip()
+    return URLSafeTimedSerializer(DOJO_SSH_SERVICE_KEY).loads(token, max_age=300)
+
+
+def is_ssh_service_request():
+    auth_header = request.headers.get("Authorization", "")
+    return auth_header.startswith(f"Bearer {SSH_AUTH_PREFIX}")
+
+
+def ssh_service_only(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
-        auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            return func(*args, **kwargs)
-        if not auth_header.startswith("Bearer "):
-            return func(*args, **kwargs)
-        token = auth_header[len("Bearer "):].strip()
-        if not token.startswith(SSH_AUTH_PREFIX):
-            return func(*args, **kwargs)
-        token = token[len(SSH_AUTH_PREFIX):].strip()
+        if not is_ssh_service_request():
+            return {"success": False, "error": "Missing SSH service token."}, 401
         try:
-            user_id, token_tag = URLSafeTimedSerializer(DOJO_SSH_SERVICE_KEY).loads(token, max_age=300)
+            token_tag = ssh_service_token()
+            assert token_tag == "ssh-onboarding"
+        except Exception:
+            return {"success": False, "error": "Failed to authenticate SSH service token."}, 401
+        g.ssh_service = True
+        try:
+            return func(*args, **kwargs)
+        finally:
+            if hasattr(g, "ssh_service"):
+                del g.ssh_service
+    return wrapper
+
+
+def authed_only_ssh(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not is_ssh_service_request():
+            return func(*args, **kwargs)
+        try:
+            user_id, token_tag = ssh_service_token()
             assert token_tag == "ssh-tui"
         except Exception:
             return {"success": False, "error": "Failed to authenticate ssh service token."}, 401
@@ -39,9 +69,8 @@ def authed_only_ssh(func):
             })
             return func(*args, **kwargs)
         finally:
-            for k in ("id", "name", "type", "verified"):
-                session.pop(k, None)
-        return func(*args, **kwargs)
+            for key in ("id", "name", "type", "verified"):
+                session.pop(key, None)
     return wrapper
 
 

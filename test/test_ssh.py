@@ -149,6 +149,19 @@ def test_delete_ssh_key(random_user_session, temp_ssh_keys, example_dojo):
     time.sleep(2)
     verify_ssh_access(temp_ssh_keys['rsa']['private_file'], should_work=False)
 
+def test_delete_ssh_key_with_comment(random_user_session, temp_ssh_keys):
+    key_with_comment = f"{temp_ssh_keys['rsa']['public']} test@example.com"
+
+    response = add_ssh_key(random_user_session, key_with_comment)
+    assert response.status_code == 200
+
+    response = random_user_session.delete(
+        f"{DOJO_URL}/pwncollege_api/v1/ssh_key",
+        json={"ssh_key": key_with_comment},
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
 def test_change_ssh_key(random_user_session, temp_ssh_keys, example_dojo):
     
     response = add_ssh_key(random_user_session, temp_ssh_keys['rsa']['public'])
@@ -236,7 +249,7 @@ def test_ssh_key_with_comment(random_user_session, temp_ssh_keys):
 def test_ssh_onboarding_registers_account(temp_ssh_keys):
     random_id = f"ssh{uuid.uuid4().hex[:16]}"
     response = requests.post(
-        f"{DOJO_URL}/pwncollege_api/v1/ssh_onboarding/register",
+        f"{DOJO_URL}/pwncollege_api/v1/auth/register",
         json={
             **ssh_key_payload(temp_ssh_keys["rsa"]["public"]),
             "name": random_id,
@@ -257,7 +270,7 @@ def test_ssh_onboarding_registers_account(temp_ssh_keys):
 def test_ssh_onboarding_link_request(random_user_name, random_user_session, temp_ssh_keys):
     payload = ssh_key_payload(temp_ssh_keys["ed25519"]["public"])
     response = requests.post(
-        f"{DOJO_URL}/pwncollege_api/v1/ssh_onboarding/link_requests",
+        f"{DOJO_URL}/pwncollege_api/v1/ssh_key/link",
         json=payload,
         headers=ssh_onboarding_headers(),
     )
@@ -273,3 +286,26 @@ def test_ssh_onboarding_link_request(random_user_name, random_user_session, temp
         f"where users.name = '{random_user_name}' and ssh_keys.value = '{normalized_public_key(temp_ssh_keys['ed25519']['public'])}'"
     ).strip()
     assert key_count == "1"
+
+
+def test_ssh_onboarding_consumed_link_is_not_reusable(random_user_name, random_user_session, temp_ssh_keys):
+    other_user = f"ssh{uuid.uuid4().hex[:16]}"
+    other_session = login(other_user, other_user, register=True)
+    payload = ssh_key_payload(temp_ssh_keys["ed25519"]["public"])
+
+    response = requests.post(
+        f"{DOJO_URL}/pwncollege_api/v1/ssh_key/link",
+        json=payload,
+        headers=ssh_onboarding_headers(),
+    )
+    assert response.status_code == 200, response.text
+    token = response.json()["token"]
+
+    response = random_user_session.get(f"{DOJO_URL}/ssh/link/{token}")
+    assert response.status_code == 200
+    assert random_user_name in response.text
+
+    response = other_session.get(f"{DOJO_URL}/ssh/link/{token}")
+    assert response.status_code == 200
+    assert "already been linked to another account" in response.text
+    assert other_user not in response.text

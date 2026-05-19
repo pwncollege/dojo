@@ -10,7 +10,7 @@ from itsdangerous.url_safe import URLSafeTimedSerializer
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
-from textual.widgets import Footer, Header, Input, Markdown, Static
+from textual.widgets import Button, Footer, Header, Input, Markdown, Static
 
 
 class OnboardingClient:
@@ -56,14 +56,13 @@ class OnboardingClient:
         return data
 
     def register(self, name, email):
-        return self.post("/ssh_onboarding/register", self.payload({"name": name, "email": email}))
+        return self.post("/auth/register", self.payload({"name": name, "email": email}))
 
     def create_link_request(self):
-        return self.post("/ssh_onboarding/link_requests", self.payload())
+        return self.post("/ssh_key/link", self.payload())
 
     def link_status(self, token):
-        return self.get(f"/ssh_onboarding/link_requests/{token}/status")
-
+        return self.get(f"/ssh_key/link/{token}")
 
 class OnboardingApp(App):
     TITLE = "pwn.college"
@@ -97,6 +96,26 @@ class OnboardingApp(App):
         padding: 0 1;
     }
 
+    #menu-buttons {
+        padding: 0 1 1 1;
+    }
+
+    Button {
+        width: 1fr;
+        margin: 0 0 1 0;
+        background: #272727;
+        color: #ffffff;
+        border: tall #272727;
+    }
+
+    Button:hover,
+    Button:focus {
+        background: #ffc627;
+        color: #000000;
+        border: tall #ffc627;
+        text-style: bold;
+    }
+
     Input {
         margin: 0 1 1 1;
     }
@@ -113,7 +132,9 @@ class OnboardingApp(App):
         Binding("c", "create", "Create"),
         Binding("l", "link", "Link"),
         Binding("q", "quit", "Quit"),
-        Binding("escape", "menu", "Menu"),
+        Binding("escape", "back", "Back", show=False),
+        Binding("up", "menu_previous", "Previous", show=False),
+        Binding("down", "menu_next", "Next", show=False),
     ]
 
     def __init__(self, client):
@@ -121,12 +142,14 @@ class OnboardingApp(App):
         self.client = client
         self.state = "menu"
         self.account_name = ""
-        self.link_token = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
         with Vertical(id="body"):
             yield Markdown("", id="content")
+            with Vertical(id="menu-buttons"):
+                yield Button("Press l to link this key to an existing account", id="link")
+                yield Button("Press c to create a new account", id="create")
             yield Input("", id="input")
         yield Static("", id="status")
         yield Footer()
@@ -143,6 +166,12 @@ class OnboardingApp(App):
     def input(self):
         return self.query_one("#input", Input)
 
+    def menu_buttons(self):
+        return self.query_one("#menu-buttons", Vertical)
+
+    def menu_button_ids(self):
+        return ("link", "create")
+
     def set_input(self, placeholder="", value="", visible=False):
         input_widget = self.input()
         input_widget.placeholder = placeholder
@@ -151,30 +180,37 @@ class OnboardingApp(App):
         if visible:
             input_widget.focus()
 
+    def set_menu(self, visible=False):
+        menu = self.menu_buttons()
+        menu.display = visible
+        if visible:
+            self.query_one("#link", Button).focus()
+
+    def focused_menu_button(self):
+        for button_id in self.menu_button_ids():
+            button = self.query_one(f"#{button_id}", Button)
+            if button.has_focus:
+                return button
+        return None
+
     def show_menu(self):
         self.state = "menu"
-        self.link_token = None
         self.content(
             "\n".join([
-                "# Set up SSH access",
+                "# Welcome To pwn.college",
                 "",
                 f"Key fingerprint: `{self.client.fingerprint or 'unknown'}`",
-                "",
-                "Press `c` to create a new pwn.college account.",
-                "Press `l` to link this key to an existing account.",
-                "Press `q` to quit.",
             ])
         )
-        self.set_input("c=create, l=link, q=quit", visible=True)
-        self.status("Choose create or link")
-
-    def action_menu(self):
-        self.show_menu()
+        self.set_menu(True)
+        self.set_input()
+        self.status("Press c to create, l to link, or q to quit")
 
     def action_create(self):
         if self.state != "menu":
             return
         self.state = "create-name"
+        self.set_menu(False)
         self.content("# Create account\n\nEnter the username you want to use on pwn.college.")
         self.set_input("username", visible=True)
         self.status("Enter username")
@@ -183,16 +219,42 @@ class OnboardingApp(App):
         if self.state != "menu":
             return
         self.state = "link-starting"
+        self.set_menu(False)
         self.set_input()
         self.content("# Link existing account\n\nCreating a browser link...")
         self.status("Creating link")
         self.set_timer(0.1, self.create_link_request)
 
+    def on_button_pressed(self, event):
+        if event.button.id == "create":
+            self.action_create()
+        elif event.button.id == "link":
+            self.action_link()
+
+    def action_menu_previous(self):
+        if self.state != "menu":
+            return
+        focused = self.focused_menu_button()
+        if not focused or focused.id == "link":
+            self.query_one("#create", Button).focus()
+            return
+        self.query_one("#link", Button).focus()
+
+    def action_menu_next(self):
+        if self.state != "menu":
+            return
+        focused = self.focused_menu_button()
+        if not focused or focused.id == "create":
+            self.query_one("#link", Button).focus()
+            return
+        self.query_one("#create", Button).focus()
+
+    def action_back(self):
+        if self.state in ("create-name", "create-email"):
+            self.show_menu()
+
     def on_input_submitted(self, event):
         value = event.value.strip()
-        if self.state == "menu":
-            self.handle_menu_choice(value)
-            return
         if self.state == "create-name":
             if not value:
                 self.status("Username is required")
@@ -213,27 +275,12 @@ class OnboardingApp(App):
             self.status("Creating account")
             self.set_timer(0.1, lambda: self.finish_registration(self.account_name, value))
 
-    def on_input_changed(self, event):
-        if self.state == "menu" and event.value.strip().lower() in ("c", "l", "q"):
-            self.handle_menu_choice(event.value)
-
-    def handle_menu_choice(self, value):
-        choice = value.strip().lower()
-        self.input().value = ""
-        if choice == "c":
-            self.action_create()
-        elif choice == "l":
-            self.action_link()
-        elif choice == "q":
-            self.exit(False)
-        else:
-            self.status("Type c to create, l to link, or q to quit")
-
     def finish_registration(self, name, email):
         try:
             result = self.client.register(name, email)
         except Exception as error:
             self.state = "menu"
+            self.set_menu(True)
             self.content(
                 "\n".join([
                     "# Account creation failed",
@@ -263,6 +310,7 @@ class OnboardingApp(App):
             result = self.client.create_link_request()
         except Exception as error:
             self.state = "menu"
+            self.set_menu(True)
             self.content(
                 "\n".join([
                     "# Link request failed",
@@ -275,35 +323,6 @@ class OnboardingApp(App):
             self.status("Link request failed")
             return
         self.exit({"action": "link", "token": result["token"], "link_url": result["link_url"]})
-
-    def poll_link_status(self):
-        if self.state != "link-pending" or not self.link_token:
-            return
-        try:
-            result = self.client.link_status(self.link_token)
-        except Exception as error:
-            self.content(f"# Link status failed\n\n```text\n{error}\n```")
-            self.status("Status check failed")
-            return
-        if result["status"] == "pending":
-            return
-        if result["status"] == "linked":
-            user = result.get("user") or {}
-            self.content(
-                "\n".join([
-                    "# SSH key linked",
-                    "",
-                    f"Linked to `{user.get('name') or 'your account'}`.",
-                    "",
-                    "Reconnect over SSH to start a challenge.",
-                ])
-            )
-            self.status("Linked")
-            self.set_timer(3, lambda: self.exit(True))
-            return
-        self.content("# Link expired\n\nPress `l` to create a new link.")
-        self.status("Link expired")
-        self.state = "menu"
 
 
 def main():

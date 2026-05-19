@@ -1,4 +1,5 @@
 import datetime
+import secrets
 from flask import request, session
 from flask_restx import Namespace, Resource
 from CTFd.models import Users, UserFieldEntries, UserFields, db
@@ -9,7 +10,12 @@ from CTFd.utils.validators import ValidationError
 from CTFd.utils.config import can_send_mail
 from CTFd.utils.security.signing import unserialize
 from itsdangerous.exc import BadSignature, BadTimeSignature, SignatureExpired
+from sqlalchemy.exc import IntegrityError
 import base64
+
+from .user import is_ssh_service_request, ssh_service_token
+from ...models import SSHKeys
+from ...utils.ssh_key import InvalidKeyError, normalize_offered_ssh_key
 
 auth_namespace = Namespace("auth", description="Authentication endpoints")
 
@@ -28,8 +34,14 @@ class Register(Resource):
         if not registration_visible():
             return {"success": False, "errors": ["Registration is currently disabled"]}, 403
 
-        req = request.get_json()
+        req = request.get_json() or {}
         errors = []
+        ssh_service_request = is_ssh_service_request()
+        if ssh_service_request:
+            try:
+                assert ssh_service_token() == "ssh-onboarding"
+            except Exception:
+                return {"success": False, "error": "Failed to authenticate SSH service token."}, 401
 
         # Get registration data
         name = req.get("name", "").strip()
@@ -38,6 +50,13 @@ class Register(Resource):
         website = req.get("website")
         affiliation = req.get("affiliation")
         country = req.get("country")
+
+        ssh_key = None
+        if ssh_service_request:
+            try:
+                ssh_key = normalize_offered_ssh_key(req.get("key_type", ""), req.get("key_base64", ""))
+            except (InvalidKeyError, NotImplementedError) as error:
+                errors.append(f"Invalid SSH key: {error}")
 
         # Check user limit
         num_users_limit = int(get_config("num_users", default=0))
@@ -60,10 +79,14 @@ class Register(Resource):
         if not email.check_email_is_whitelisted(email_address):
             errors.append("Email address is not from an allowed domain")
 
-        if len(password) == 0:
-            errors.append("Please provide a password")
-        if len(password) > 128:
-            errors.append("Password is too long")
+        if ssh_service_request:
+            if get_config("registration_code"):
+                errors.append("SSH registration is not available while a registration code is required")
+        else:
+            if len(password) == 0:
+                errors.append("Please provide a password")
+            if len(password) > 128:
+                errors.append("Password is too long")
 
         if website and not validators.validate_url(website):
             errors.append("Website must be a valid URL")
@@ -78,7 +101,7 @@ class Register(Resource):
             errors.append("Affiliation is too long")
 
         # Check registration code if required
-        if get_config("registration_code"):
+        if not ssh_service_request and get_config("registration_code"):
             registration_code = req.get("registration_code", "")
             if registration_code.lower() != str(get_config("registration_code", "")).lower():
                 errors.append("Invalid registration code")
@@ -95,7 +118,11 @@ class Register(Resource):
             return {"success": False, "errors": errors}, 400
 
         # Create user
-        user = Users(name=name, email=email_address, password=password)
+        user = Users(
+            name=name,
+            email=email_address,
+            password=secrets.token_urlsafe(48) if ssh_service_request else password,
+        )
         if website:
             user.website = website
         if affiliation:
@@ -103,18 +130,17 @@ class Register(Resource):
         if country:
             user.country = country
 
-        db.session.add(user)
-        db.session.commit()
-
-        # Add custom field entries
-        for field_id, value in fields.items():
-            entry = UserFieldEntries(
-                field_id=field_id,
-                value=value,
-                user_id=user.id
-            )
-            db.session.add(entry)
-        db.session.commit()
+        try:
+            db.session.add(user)
+            db.session.flush()
+            if ssh_key:
+                db.session.add(SSHKeys(user_id=user.id, value=ssh_key))
+            for field_id, value in fields.items():
+                db.session.add(UserFieldEntries(field_id=field_id, value=value, user_id=user.id))
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            return {"success": False, "errors": ["SSH key, username, or email is already in use"]}, 400
 
         # Send verification email if configured
         if get_config("verify_emails") and can_send_mail():
@@ -127,7 +153,18 @@ class Register(Resource):
             if can_send_mail():
                 email.successful_registration_notification(user.email)
 
-        # Set session
+        if ssh_service_request:
+            session.clear()
+            return {
+                "success": True,
+                "user": {
+                    "id": user.id,
+                    "name": user.name,
+                    "email": user.email,
+                    "verified": verified
+                }
+            }
+
         session["id"] = user.id
         session["name"] = user.name
         session["type"] = user.type
