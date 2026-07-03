@@ -270,6 +270,7 @@ services:
       - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
       - REDIS_URL=redis://cache:6379
       - DOJO_SSH_SERVICE_KEY=${DOJO_SSH_SERVICE_KEY}
+      - DOJO_HOST=${DOJO_HOST}
       - MAC_HOSTNAME=${MAC_HOSTNAME}
       - MAC_USERNAME=${MAC_USERNAME}
     ports:
