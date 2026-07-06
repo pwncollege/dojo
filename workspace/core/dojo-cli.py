@@ -245,143 +245,153 @@ pwn = PwnCollege()
 
 # Dojo CLI
 
-def whoami():
-    response = client.get(f"{DOJO_API}/users/me")
-    data = response.json()
-    if not response.ok:
-        sys.exit(data.get("error", "Unknown error"))
-    print(f"You are the epic hacker {data['name']} ({data['id']}).")
+class CLI:
+    @staticmethod
+    def whoami():
+        response = client.get(f"{DOJO_API}/users/me")
+        data = response.json()
+        if not response.ok:
+            sys.exit(data.get("error", "Unknown error"))
+        print(f"You are the epic hacker {data['name']} ({data['id']}).")
 
-def solve(args : argparse.Namespace):
-    print(f"Submitting the flag: {args.flag}")
-    challenge, _ = client.get_current()
-    result = client.solve(challenge, args.flag)
-    match result:
-        case "correct":
-            print("Successfully solved the challenge!")
-            sys.exit(0)
-        case "incorrect":
-            sys.exit("Incorrect flag.")
-        case "solved":
-            print("Challenge has already been solved!")
-            sys.exit(0)
-        case "practice":
-            sys.exit("This is the practice flag!\n\nStart the challenge again in normal mode to get the real flag.\n(You can do this here with \"dojo restart -N\")")
-
-def restart(args : argparse.Namespace):
-    challenge, mode = client.get_current()
-    if args.privileged:
-        mode = "privileged"
-    elif args.normal:
-        mode = "normal"
-    client.start(challenge, mode)
-
-def parse_dojo_path(path:str) -> Position:
-    if result := re.match(r"^/?([a-z0-9-~]{1,128})/([a-z0-9-~]{1,128})/([a-z0-9-~]{1,128})$", path):
-        return Position(result.group(1), result.group(2), result.group(3))
-    else:
+    @staticmethod
+    def solve(args : argparse.Namespace):
+        print(f"Submitting the flag: {args.flag}")
         challenge, _ = client.get_current()
-    
-    if result := re.match(r"^([a-z0-9-~]{1,128})/([a-z0-9-~]{1,128})", path):
-        return Position(challenge.dojo, result.group(1), result.group(2))
-    elif result := re.match(r"^([a-z0-9-~]{1,128})", path):
-        return Position(challenge.dojo, challenge.module, result.group(1))
+        result = client.solve(challenge, args.flag)
+        match result:
+            case "correct":
+                print("Successfully solved the challenge!")
+                sys.exit(0)
+            case "incorrect":
+                sys.exit("Incorrect flag.")
+            case "solved":
+                print("Challenge has already been solved!")
+                sys.exit(0)
+            case "practice":
+                sys.exit("This is the practice flag!\n\nStart the challenge again in normal mode to get the real flag.\n(You can do this here with \"dojo restart -N\")")
 
-    raise Exception(f"Cannot parse path {path}")
+    @staticmethod
+    def restart(args : argparse.Namespace):
+        challenge, mode = client.get_current()
+        if args.privileged:
+            mode = "privileged"
+        elif args.normal:
+            mode = "normal"
+        client.start(challenge, mode)
 
-def start(args : argparse.Namespace):
-    try:
-        challenge = parse_dojo_path(args.challenge)
-        client.start(challenge, "privileged" if args.privileged else "normal")
-    except Exception as e:
-        sys.exit(f"Incorrect path format, see \"dojo start -h\" for more information.\n{str(e)}")
+    @staticmethod
+    def parse_dojo_path(path:str) -> Position:
+        if result := re.match(r"^/?([a-z0-9-~]{1,128})/([a-z0-9-~]{1,128})/([a-z0-9-~]{1,128})$", path):
+            return Position(result.group(1), result.group(2), result.group(3))
+        else:
+            challenge, _ = client.get_current()
+        
+        if result := re.match(r"^([a-z0-9-~]{1,128})/([a-z0-9-~]{1,128})", path):
+            return Position(challenge.dojo, result.group(1), result.group(2))
+        elif result := re.match(r"^([a-z0-9-~]{1,128})", path):
+            return Position(challenge.dojo, challenge.module, result.group(1))
 
-def list_dojos(types: list[str], use_expanded_format: bool):
-    if not use_expanded_format:
-        print(" ".join(dojo.id for dojo in asyncio.run(pwn.dojos())))
-        sys.exit(0)
+        raise Exception(f"Cannot parse path {path}")
 
-    type_names = {
-        "welcome": "Welcome",
-        "topic": "Official",
-        "public": "Community",
-        "course": "Course"
-    }
-    for type in types:
-        dojo_list = asyncio.run(pwn.dojos(type))
-        print(f"{type_names.get(type, type)}: {len(dojo_list)}")
-        if (len(dojo_list) == 0):
+    @staticmethod
+    def start(args : argparse.Namespace):
+        try:
+            challenge = parse_dojo_path(args.challenge)
+            client.start(challenge, "privileged" if args.privileged else "normal")
+        except Exception as e:
+            sys.exit(f"Incorrect path format, see \"dojo start -h\" for more information.\n{str(e)}")
+
+    @staticmethod
+    def list_dojos(types: list[str], use_expanded_format: bool):
+        if not use_expanded_format:
+            print(" ".join(dojo.id for dojo in asyncio.run(pwn.dojos())))
+            sys.exit(0)
+
+        type_names = {
+            "welcome": "Welcome",
+            "topic": "Official",
+            "public": "Community",
+            "course": "Course"
+        }
+        for type in types:
+            dojo_list = asyncio.run(pwn.dojos(type))
+            print(f"{type_names.get(type, type)}: {len(dojo_list)}")
+            if (len(dojo_list) == 0):
+                print("")
+                continue
+            print(f"{"Modules":<10}{"Challenges":<15}id (name)")
+            for dojo in dojo_list:
+                print(f"{dojo.module_count:<10}{dojo.challenge_count:<15}{dojo.id} ({dojo.name})")
             print("")
-            continue
-        print(f"{"Modules":<10}{"Challenges":<15}id (name)")
-        for dojo in dojo_list:
-            print(f"{dojo.module_count:<10}{dojo.challenge_count:<15}{dojo.id} ({dojo.name})")
+
+    @staticmethod
+    def list_modules(dojo_id: str, use_expanded_format: bool):
+        dojo = asyncio.run(pwn.get(dojo_id))
+        if not dojo:
+            raise DojoNotFound(f"No such dojo {dojo_id}.")
+        modules = asyncio.run(dojo.modules())
+
+        if not use_expanded_format:
+            print(" ".join([module.id for module in modules]))
+            sys.exit(0)
+
+        print(f"Dojo: {dojo_id}")
         print("")
+        print(f"Total: {len(modules)}")
+        print(f"{"Challenges":<15}id (name)")
+        for module in modules:
+            print(f"{len(asyncio.run(module.challenges())):<15}{module.id} ({module.name})")
 
-def list_modules(dojo_id: str, use_expanded_format: bool):
-    dojo = asyncio.run(pwn.get(dojo_id))
-    if not dojo:
-        raise DojoNotFound(f"No such dojo {dojo_id}.")
-    modules = asyncio.run(dojo.modules())
+    @staticmethod
+    def list_challenges(dojo_id: str, module_id: str, use_expanded_format: bool):
+        dojo = asyncio.run(pwn.get(dojo_id))
+        if not dojo:
+            raise DojoNotFound(f"No such dojo {dojo_id}.")
+        module = asyncio.run(dojo.get(module_id))
+        if not module:
+            raise ModuleNotFound(f"No such module {module_id} in dojo {dojo_id}")
+        challenges = asyncio.run(module.challenges())
 
-    if not use_expanded_format:
-        print(" ".join([module.id for module in modules]))
-        sys.exit(0)
+        if not use_expanded_format:
+            print(" ".join(challenge.id for challenge in challenges))
+            sys.exit(0)
 
-    print(f"Dojo: {dojo_id}")
-    print("")
-    print(f"Total: {len(modules)}")
-    print(f"{"Challenges":<15}id (name)")
-    for module in modules:
-        print(f"{len(asyncio.run(module.challenges())):<15}{module.id} ({module.name})")
+        print(f"Dojo: {dojo_id}")
+        print(f"Module: {module_id}")
+        print("")
+        print(f"id (name)")
+        for challenge in challenges:
+            print(f"{"[optional] " if not challenge.required else ""}{challenge.id} ({challenge.name})")
 
-def list_challenges(dojo_id: str, module_id: str, use_expanded_format: bool):
-    dojo = asyncio.run(pwn.get(dojo_id))
-    if not dojo:
-        raise DojoNotFound(f"No such dojo {dojo_id}.")
-    module = asyncio.run(dojo.get(module_id))
-    if not module:
-        raise ModuleNotFound(f"No such module {module_id} in dojo {dojo_id}")
-    challenges = asyncio.run(module.challenges())
-
-    if not use_expanded_format:
-        print(" ".join(challenge.id for challenge in challenges))
-        sys.exit(0)
-
-    print(f"Dojo: {dojo_id}")
-    print(f"Module: {module_id}")
-    print("")
-    print(f"id (name)")
-    for challenge in challenges:
-        print(f"{"[optional] " if not challenge.required else ""}{challenge.id} ({challenge.name})")
-
-def list(args: argparse.Namespace):
-    """
-    Lists out dojos, modules, or challenges depending on path.
-    """
-    if not args.path:
-        challenge, _ = client.get_current()
-        list_challenges(challenge.dojo, challenge.module, args.l)
-    elif re.match(r"^/$", args.path):
-        types = []
-        if args.welcome or args.all:
-            types.append("welcome")
-        if args.official or args.all:
-            types.append("topic")
-        if args.community or args.all:
-            types.append("public")
-        if args.course or args.all:
-            types.append("course")
-        if len(types) == 0:
-            types = ["welcome", "topic"] # default types
-        list_dojos(types, args.l)
-    elif re.match(r"^/[a-z0-9-~]{1,128}$", args.path):
-        dojo = args.path[1:]
-        list_modules(dojo, args.l)
-    elif re.match(r"^/[a-z0-9-~]{1,128}/[a-z0-9-]{1,32}$", args.path):
-        list_challenges(args.path.split("/")[1], args.path.split("/")[2], args.l)
-    else:
-        sys.exit("Dojo path must match one of \"/\", \"/<dojo>\", or \"/<dojo>/<module>\".")
+    @staticmethod
+    def list(args: argparse.Namespace):
+        """
+        Lists out dojos, modules, or challenges depending on path.
+        """
+        if not args.path:
+            challenge, _ = client.get_current()
+            CLI.list_challenges(challenge.dojo, challenge.module, args.l)
+        elif re.match(r"^/$", args.path):
+            types = []
+            if args.welcome or args.all:
+                types.append("welcome")
+            if args.official or args.all:
+                types.append("topic")
+            if args.community or args.all:
+                types.append("public")
+            if args.course or args.all:
+                types.append("course")
+            if len(types) == 0:
+                types = ["welcome", "topic"] # default types
+            CLI.list_dojos(types, args.l)
+        elif re.match(r"^/[a-z0-9-~]{1,128}$", args.path):
+            dojo = args.path[1:]
+            CLI.list_modules(dojo, args.l)
+        elif re.match(r"^/[a-z0-9-~]{1,128}/[a-z0-9-]{1,32}$", args.path):
+            CLI.list_challenges(args.path.split("/")[1], args.path.split("/")[2], args.l)
+        else:
+            sys.exit("Dojo path must match one of \"/\", \"/<dojo>\", or \"/<dojo>/<module>\".")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -489,15 +499,15 @@ def main():
         print("TUI is on the way!")
         sys.exit(0)
     if args.command == "whoami":
-        return whoami()
+        CLI.whoami()
     if args.command == "submit":
-        return solve(args)
+        CLI.solve(args)
     if args.command == "restart":
-        return restart(args)
+        CLI.restart(args)
     if args.command == "start":
-        return start(args)
+        CLI.start(args)
     if args.command == "list":
-        return list(args)
+        CLI.list(args)
     else:
         parser.print_help()
         sys.exit(1)
