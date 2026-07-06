@@ -3,16 +3,20 @@ import os
 import sys
 import requests
 import re
+import asyncio
 from typing import Any, Literal, Optional
 from enum import Enum
 
 DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
 DOJO_AUTH_TOKEN = os.environ.get("DOJO_AUTH_TOKEN")
 
-class Challenge:
+# Dojo Client
+
+class Position:
     dojo: str
     module: str
     challenge: str
+
     def __init__(self, dojo: str, module: str, challenge: str):
         self.dojo = dojo
         self.module = module
@@ -32,7 +36,7 @@ class DockerFailed(Exception):
     pass
 
 class DojoClient:
-    _current_challenge: Optional[Challenge]
+    _current_challenge: Optional[Position]
     _current_mode: Optional[DojoMode]
 
     def __init__(self):
@@ -45,11 +49,11 @@ class DojoClient:
     def post(self, url: str, json: dict = {}) -> requests.Response:
         return requests.post(url, json = json, headers = {"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"}, timeout = 5.0)
 
-    def get_current(self) -> tuple[Challenge, DojoMode]:
+    def get_current(self) -> tuple[Position, DojoMode]:
         # Cache our current challenge if we need to get this info several times.
         if not self._current_challenge or not self._current_mode:
             response = self.get(f"{DOJO_API}/docker").json()
-            self._current_challenge = Challenge(
+            self._current_challenge = Position(
                 response["dojo"],
                 response["module"],
                 response["challenge"]
@@ -57,7 +61,7 @@ class DojoClient:
             self._current_mode = "privileged" if response["privileged"] else "normal"
         return self._current_challenge, self._current_mode
 
-    def start(self, challenge: Challenge, mode: DojoMode):
+    def start(self, challenge: Position, mode: DojoMode):
         response = self.post(
             f"{DOJO_API}/docker",
             json = {
@@ -75,7 +79,7 @@ class DojoClient:
             case "This challenge is locked": raise PrivilegedDisabled(error)
             case "Docker failed": raise DockerFailed(error)
 
-    def solve(self, challenge: Challenge, flag: str) -> Literal["correct", "incorrect", "solved", "practice"]:
+    def solve(self, challenge: Position, flag: str) -> Literal["correct", "incorrect", "solved", "practice"]:
         if flag == "pwn.college{practice}":
             return "practice"
         response = self.post(
@@ -88,136 +92,102 @@ class DojoClient:
             case "incorrect": return "incorrect"
             case _: raise ChallengeNotFound(response.get("error", "unknown"))
 
+client = DojoClient()
+
+# Dojo TUI
+
+class Challenge:
+    id: str
+    name: str
+    description: str
+    solved: bool
+    active: bool
+    locked: bool
+
+    def __init__(self):
+        pass
+
+class Module:
+    id: str
+    name: str
+    description: str
+    challenges: list[Challenge]
+
+    def __init__(self):
+        pass
+
+class Dojo:
+    id: str
+    name: str
+    description: str
+    modules: list[Module]
+
+    def __init__(self):
+        pass
+
+class PwnCollege:
+    _categorized_dojos = {}
+    
+    def __init__(self):
+        pass
+
+    async def dojos(self) -> list[Dojo]:
+        return []
+
+pwn = PwnCollege()
+
+# TODO
+
+# Dojo CLI
+
 def whoami():
-    response = requests.get(
-        f"{DOJO_API}/users/me",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
-        timeout=5.0,
-    )
+    response = client.get(f"{DOJO_API}/users/me")
     data = response.json()
     if not response.ok:
         sys.exit(data.get("error", "Unknown error"))
     print(f"You are the epic hacker {data['name']} ({data['id']}).")
 
-def get_current_challenge() -> dict[str, str]:
-    response = requests.get(
-        f"{DOJO_API}/docker",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
-        timeout = 5.0
-    )
-    if not response.ok:
-        sys.exit("Failed to get the current challenge.")
-    return response.json()
-
 def solve(args : argparse.Namespace):
-    # Check for practice flag.
-    if args.flag in ["pwn.college{practice}", "practice"]:
-        sys.exit("This is the practice flag!\n\nStart the challenge again in normal mode to get the real flag.\n(You can do this here with \"dojo restart -N\")")
-
-    # Submit the flag to the current challenge.
     print(f"Submitting the flag: {args.flag}")
-    challenge = get_current_challenge()
-    response = requests.post(
-        f"{DOJO_API}/dojos/{challenge["dojo"]}/{challenge["module"]}/{challenge["challenge"]}/solve",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
-        json={
-            "submission": args.flag
-        },
-        timeout = 5.0
-    )
-    if not response.ok and response.status_code != 400:
-        sys.exit(f"Failed to submit the flag ({response.status_code}).")
-    result = response.json()
-
-    # Print if the flag was correct.
-    if result["success"]:
-        print("Successfully solved the challenge!"
-              if result["status"] == "solved" else
-              "Challenge has already been solved!")
-        sys.exit(0)
-    else:
-        sys.exit("Incorrect flag.")
-
-def start_challenge(dojo:str, module:str, challenge:str, privileged:bool):
-    response = requests.post(
-        f"{DOJO_API}/docker",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
-        json={
-            "dojo": dojo,
-            "module": module,
-            "challenge": challenge,
-            "practice": privileged
-        },
-        timeout=5.0
-    )
-
-    # How did we get here?
-    result = response.json()
-    if not (result["success"]):
-        sys.exit(result["error"])
-    print("Started challenge.")
-    sys.exit(0)
+    challenge, _ = client.get_current()
+    result = client.solve(challenge, args.flag)
+    match result:
+        case "correct":
+            print("Successfully solved the challenge!")
+            sys.exit(0)
+        case "incorrect":
+            sys.exit("Incorrect flag.")
+        case "solved":
+            print("Challenge has already been solved!")
+            sys.exit(0)
+        case "practice":
+            sys.exit("This is the practice flag!\n\nStart the challenge again in normal mode to get the real flag.\n(You can do this here with \"dojo restart -N\")")
 
 def restart(args : argparse.Namespace):
-    """
-    Calls the START integration api configured to
-    use the current challenge.
-    """
-    challenge = get_current_challenge()
+    challenge, mode = client.get_current()
     if args.privileged:
-        privileged = True
+        mode = "privileged"
     elif args.normal:
-        privileged = False
-    else:
-        privileged = bool(challenge["practice"])
-    start_challenge(challenge["dojo"], challenge["module"], challenge["challenge"], privileged)
+        mode = "normal"
+    client.start(challenge, mode)
 
-def parse_dojo_path(path:str) -> dict[Any, Any]:
-    """
-    Parses a dojo path.
-    """
-    if len(path) == 0:
-        raise Exception("Dojo path cannot be empty.")
-
-    # Parse as an absolute path.
-    if path[0] == "/":
-        path = path.removesuffix("/")
-        components = path.split("/")
-        match len(components):
-            case 2:
-                return {"dojo": components[1], "module": None, "challenge": None}
-            case 3:
-                return {"dojo": components[1], "module": components[2], "challenge": None}
-            case 4:
-                return {"dojo": components[1], "module": components[2], "challenge": components[3]}
-            case _:
-                raise Exception("An absolute dojo path can have between one and three levels.")
-    # Parse as relative path (to current challenge).
+def parse_dojo_path(path:str) -> Position:
+    if result := re.match(r"^/?([a-z0-9-~]{1,128})/([a-z0-9-~]{1,128})/([a-z0-9-~]{1,128})$", path):
+        return Position(result.group(1), result.group(2), result.group(3))
     else:
-        challenge = get_current_challenge()
-        components = path.split("/")
-        match len(components):
-            case 1:
-                return {"dojo": challenge["dojo"], "module": challenge["module"], "challenge": components[0]}
-            case 2:
-                return {"dojo": challenge["dojo"], "module": components[0], "challenge": components[1]}
-            case 3:
-                return {"dojo": components[0], "module": components[1], "challenge": components[2]}
-            case _:
-                raise Exception("A relative dojo path can have between one and three levels.")
+        challenge, _ = client.get_current()
+    
+    if result := re.match(r"^([a-z0-9-~]{1,128})/([a-z0-9-~]{1,128})", path):
+        return Position(challenge.dojo, result.group(1), result.group(2))
+    elif result := re.match(r"^([a-z0-9-~]{1,128})", path):
+        return Position(challenge.dojo, challenge.module, result.group(1))
+
+    raise Exception(f"Cannot parse path {path}")
 
 def start(args : argparse.Namespace):
-    """
-    Calls the START integration api configured to
-    start a new challenge.
-    """
-
-    # Determine what challenge to start.
     try:
-        path = parse_dojo_path(args.challenge)
-        if (None in path.values()):
-            raise Exception("Absolute paths must be complete for starting challenges.")
-        start_challenge(path["dojo"], path["module"], path["challenge"], bool(args.privileged))
+        challenge = parse_dojo_path(args.challenge)
+        client.start(challenge, "privileged" if args.privileged else "normal")
     except Exception as e:
         sys.exit(f"Incorrect path format, see \"dojo start -h\" for more information.\n{str(e)}")
 
@@ -271,9 +241,7 @@ def list_modules(dojo: str, use_expanded_format: bool):
     modules = response.json().get("modules")
 
     if not use_expanded_format:
-        for module in modules:
-            print(module.get("id"), end=" ")
-        print("")
+        print(" ".join(modules))
         sys.exit(0)
 
     print(f"Dojo: {dojo}")
@@ -318,8 +286,8 @@ def list(args: argparse.Namespace):
     Lists out dojos, modules, or challenges depending on path.
     """
     if not args.path:
-        current = get_current_challenge()
-        list_challenges(current.get("dojo"), current.get("module"), args.l)
+        challenge, _ = client.get_current()
+        list_challenges(challenge.dojo, challenge.module, args.l)
     elif re.match(r"^/$", args.path):
         types = []
         if args.welcome or args.all:
@@ -344,9 +312,12 @@ def list(args: argparse.Namespace):
 def main():
     parser = argparse.ArgumentParser(
         prog="dojo",
-        description="Command-line application for interacting with the dojo from inside of the challenge environment.",
+        description="CLI & TUI for interacting with the dojo from inside of the challenge environment.",
     )
-    subparsers = parser.add_subparsers(dest="command", help="Dojo command to execute, not case sensitive.")
+    subparsers = parser.add_subparsers(
+        dest="command",
+        help="Dojo command to execute."
+    )
     subparsers.add_parser(name="whoami", help="Prints information about the current user (you!).")
     submit_parser = subparsers.add_parser(
         name="submit",
@@ -440,17 +411,17 @@ def main():
     if not DOJO_AUTH_TOKEN:
         sys.exit("Missing DOJO_AUTH_TOKEN.")
     if not args.command:
-        parser.print_help()
-        sys.exit(1)
-    if args.command.lower() == "whoami":
+        # TUI goes here
+        sys.exit(0)
+    if args.command == "whoami":
         return whoami()
-    if args.command.lower() == "submit":
+    if args.command == "submit":
         return solve(args)
-    if args.command.lower() == "restart":
+    if args.command == "restart":
         return restart(args)
-    if args.command.lower() == "start":
+    if args.command == "start":
         return start(args)
-    if args.command.lower() == "list":
+    if args.command == "list":
         return list(args)
     else:
         parser.print_help()
