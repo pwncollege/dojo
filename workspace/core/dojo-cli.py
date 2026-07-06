@@ -26,6 +26,8 @@ DojoMode = Literal["normal", "privileged"]
 
 class DojoNotFound(Exception):
     pass
+class ModuleNotFound(Exception):
+    pass
 class ChallengeNotFound(Exception):
     pass
 class PrivilegedDisabled(Exception):
@@ -100,39 +102,142 @@ class Challenge:
     id: str
     name: str
     description: str
-    solved: bool
-    active: bool
-    locked: bool
+    required: bool
 
-    def __init__(self):
-        pass
+    def __init__(
+            self,
+            id: str,
+            name: str,
+            description: str,
+            required: bool):
+        self.id = id
+        self.name = name
+        self.description = description
+        self.required = required
+
+    # TODO extra stats, such as solved, locked, etc.
 
 class Module:
     id: str
     name: str
     description: str
-    challenges: list[Challenge]
+    _challenges: dict[str, Challenge] = {}
 
-    def __init__(self):
-        pass
+    def __init__(
+            self,
+            id: str,
+            name: str,
+            description: str,
+            challenges: list[Challenge]):
+        self.id = id
+        self.name = name
+        self.description = description
+        for challenge in challenges:
+            self._challenges[challenge.id] = challenge
+
+    async def challenges(self) -> list[Challenge]:
+        # async to make usage consistent with other layers.
+        return [challenge for challenge in self._challenges.values()]
+    
+    async def get(self, challenge: str) -> Optional[Challenge]:
+        return self._challenges.get(challenge)
 
 class Dojo:
     id: str
     name: str
     description: str
-    modules: list[Module]
+    type: str
+    module_count: int
+    challenge_count: int
+    _modules: dict[str, Module] = {}
+    _lock = asyncio.Lock()
 
-    def __init__(self):
-        pass
+    def __init__(
+            self,
+            id: str,
+            name: str,
+            description: str,
+            type: str,
+            module_count: int,
+            challenge_count: int):
+        self.id = id
+        self.name = name
+        self.description = description
+        self.type = type
+        self.module_count = module_count
+        self.challenge_count = challenge_count
+
+    async def modules(self) -> list[Module]:
+        async with self._lock:
+            if not self._modules:
+                self._populate()
+            return [module for module in self._modules.values()]
+
+    async def get(self, module: str) -> Optional[Module]:
+        async with self._lock:
+            if not self._modules:
+                self._populate()
+            return self._modules.get(module)
+
+    def _populate(self):
+        response = client.get(f"{DOJO_API}/dojos/{self.id}/modules")
+        modules = response.json()["modules"]
+        for module in modules:
+            self._modules[module["id"]] = Module(
+                module["id"],
+                module["name"],
+                module["description"],
+                [
+                    Challenge(
+                        challenge["id"],
+                        challenge["name"],
+                        challenge["description"],
+                        challenge["required"],
+                    ) for challenge in module["challenges"]
+                ]
+            )
 
 class PwnCollege:
-    _categorized_dojos = {}
-    
+    _categorized_dojos: dict[str, list[Dojo]] = {}
+    _dojos: dict[str, Dojo] = {}
+    _lock = asyncio.Lock()
+
     def __init__(self):
         pass
 
-    async def dojos(self) -> list[Dojo]:
-        return []
+    async def dojos(self, category: Optional[str] = None) -> list[Dojo]:
+        async with self._lock:
+            if not self._categorized_dojos:
+                self._populate()
+            if category:
+                return self._categorized_dojos.get(category, [])
+            result = []
+            return [dojo for dojo in self._dojos.values()]
+
+    async def categories(self) -> list[str]:
+        async with self._lock:
+            if not self._categorized_dojos:
+                self._populate()
+            return [key for key in self._categorized_dojos.keys()]
+
+    async def get(self, dojo: str) -> Optional[Dojo]:
+        async with self._lock:
+            if not self._categorized_dojos:
+                self._populate()
+            return self._dojos.get(dojo)
+
+    def _populate(self):
+        response = client.get(f"{DOJO_API}/dojos")
+        dojos = response.json()["dojos"]
+        for dojo in dojos:
+            self._categorized_dojos.setdefault(dojo["type"], []).append(Dojo(
+                dojo["id"],
+                dojo["name"],
+                dojo["description"],
+                dojo["type"],
+                dojo["modules_count"],
+                dojo["challenges_count"]
+            ))
 
 pwn = PwnCollege()
 
@@ -192,25 +297,8 @@ def start(args : argparse.Namespace):
         sys.exit(f"Incorrect path format, see \"dojo start -h\" for more information.\n{str(e)}")
 
 def list_dojos(types: list[str], use_expanded_format: bool):
-    response = requests.get(
-        f"{DOJO_API}/dojos",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
-        timeout=5.0,
-    )
-    if not response.ok or not response.json().get("success", False):
-        sys.exit("Unable to get dojo data.")
-    dojos = response.json().get("dojos")
-    dojos_categorized = {}
-    for dojo in dojos:
-        if not dojo.get("type", "") in types:
-            continue
-        dojos_categorized.setdefault(dojo.get("type"), []).append(dojo)
-
     if not use_expanded_format:
-        for dojo_list in dojos_categorized.values():
-            for dojo in dojo_list:
-                print(dojo.get("id"), end=" ")
-        print("")
+        print(" ".join(dojo.id for dojo in asyncio.run(pwn.dojos())))
         sys.exit(0)
 
     type_names = {
@@ -220,66 +308,52 @@ def list_dojos(types: list[str], use_expanded_format: bool):
         "course": "Course"
     }
     for type in types:
-        dojo_list = dojos_categorized.get(type, [])
+        dojo_list = asyncio.run(pwn.dojos(type))
         print(f"{type_names.get(type, type)}: {len(dojo_list)}")
         if (len(dojo_list) == 0):
             print("")
             continue
         print(f"{"Modules":<10}{"Challenges":<15}id (name)")
         for dojo in dojo_list:
-            print(f"{dojo.get("modules_count"):<10}{dojo.get("challenges_count"):<15}{dojo.get("id")} ({dojo.get("name")})")
+            print(f"{dojo.module_count:<10}{dojo.challenge_count:<15}{dojo.id} ({dojo.name})")
         print("")
 
-def list_modules(dojo: str, use_expanded_format: bool):
-    response = requests.get(
-        f"{DOJO_API}/dojos/{dojo}/modules",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
-        timeout=5.0,
-    )
-    if not response.ok or not response.json().get("success", False):
-        sys.exit(f"Unable to get module data for dojo {dojo}.")
-    modules = response.json().get("modules")
+def list_modules(dojo_id: str, use_expanded_format: bool):
+    dojo = asyncio.run(pwn.get(dojo_id))
+    if not dojo:
+        raise DojoNotFound(f"No such dojo {dojo_id}.")
+    modules = asyncio.run(dojo.modules())
 
     if not use_expanded_format:
-        print(" ".join(modules))
+        print(" ".join([module.id for module in modules]))
         sys.exit(0)
 
-    print(f"Dojo: {dojo}")
+    print(f"Dojo: {dojo_id}")
     print("")
     print(f"Total: {len(modules)}")
     print(f"{"Challenges":<15}id (name)")
     for module in modules:
-        print(f"{len(module.get("challenges")):<15}{module.get("id")} ({module.get("name")})")
+        print(f"{len(asyncio.run(module.challenges())):<15}{module.id} ({module.name})")
 
-def list_challenges(dojo:str, t_module:str, use_expanded_format: bool):
-    response = requests.get(
-        f"{DOJO_API}/dojos/{dojo}/modules",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
-        timeout=5.0,
-    )
-    if not response.ok or not response.json().get("success", False):
-        sys.exit(f"Unable to get module data for dojo {dojo}.")
-    modules = response.json().get("modules")
-    module = None
-    for candidate in modules:
-        if candidate.get("id") == t_module:
-            module = candidate
-            break
+def list_challenges(dojo_id: str, module_id: str, use_expanded_format: bool):
+    dojo = asyncio.run(pwn.get(dojo_id))
+    if not dojo:
+        raise DojoNotFound(f"No such dojo {dojo_id}.")
+    module = asyncio.run(dojo.get(module_id))
     if not module:
-        sys.exit(f"Dojo {dojo} does not have a module {t_module}.")
+        raise ModuleNotFound(f"No such module {module_id} in dojo {dojo_id}")
+    challenges = asyncio.run(module.challenges())
 
     if not use_expanded_format:
-        for challenge in module.get("challenges"):
-            print(challenge.get("id"), end=" ")
-        print("")
+        print(" ".join(challenge.id for challenge in challenges))
         sys.exit(0)
 
-    print(f"Dojo: {dojo}")
-    print(f"Module: {t_module}")
+    print(f"Dojo: {dojo_id}")
+    print(f"Module: {module_id}")
     print("")
     print(f"id (name)")
-    for challenge in module.get("challenges"):
-        print(f"{challenge.get("id")} ({challenge.get("name")})")
+    for challenge in challenges:
+        print(f"{"[optional] " if not challenge.required else ""}{challenge.id} ({challenge.name})")
 
 def list(args: argparse.Namespace):
     """
@@ -412,6 +486,7 @@ def main():
         sys.exit("Missing DOJO_AUTH_TOKEN.")
     if not args.command:
         # TUI goes here
+        print("TUI is on the way!")
         sys.exit(0)
     if args.command == "whoami":
         return whoami()
@@ -426,7 +501,6 @@ def main():
     else:
         parser.print_help()
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
