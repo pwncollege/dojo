@@ -3,10 +3,90 @@ import os
 import sys
 import requests
 import re
-from typing import Any
+from typing import Any, Literal, Optional
+from enum import Enum
 
 DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
 DOJO_AUTH_TOKEN = os.environ.get("DOJO_AUTH_TOKEN")
+
+class Challenge:
+    dojo: str
+    module: str
+    challenge: str
+    def __init__(self, dojo: str, module: str, challenge: str):
+        self.dojo = dojo
+        self.module = module
+        self.challenge = challenge
+
+DojoMode = Literal["normal", "privileged"]
+
+class DojoNotFound(Exception):
+    pass
+class ChallengeNotFound(Exception):
+    pass
+class PrivilegedDisabled(Exception):
+    pass
+class ChallengeLocked(Exception):
+    pass
+class DockerFailed(Exception):
+    pass
+
+class DojoClient:
+    _current_challenge: Optional[Challenge]
+    _current_mode: Optional[DojoMode]
+
+    def __init__(self):
+        self._current_challenge = None
+        self._current_mode = None
+
+    def get(self, url: str) -> requests.Response:
+        return requests.get(url, headers = {"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"}, timeout = 5.0)
+
+    def post(self, url: str, json: dict = {}) -> requests.Response:
+        return requests.post(url, json = json, headers = {"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"}, timeout = 5.0)
+
+    def get_current(self) -> tuple[Challenge, DojoMode]:
+        # Cache our current challenge if we need to get this info several times.
+        if not self._current_challenge or not self._current_mode:
+            response = self.get(f"{DOJO_API}/docker").json()
+            self._current_challenge = Challenge(
+                response["dojo"],
+                response["module"],
+                response["challenge"]
+            )
+            self._current_mode = "privileged" if response["privileged"] else "normal"
+        return self._current_challenge, self._current_mode
+
+    def start(self, challenge: Challenge, mode: DojoMode):
+        response = self.post(
+            f"{DOJO_API}/docker",
+            json = {
+                "dojo": challenge.dojo,
+                "module": challenge.module,
+                "challenge": challenge.challenge,
+                "practice": mode == "privileged"
+            }
+        ).json()
+        error = response["error"]
+        match error:
+            case "Invalid dojo": raise DojoNotFound(error)
+            case "Invalid challenge": raise ChallengeNotFound(error)
+            case "This challenge does not support practice mode.": raise PrivilegedDisabled(error)
+            case "This challenge is locked": raise PrivilegedDisabled(error)
+            case "Docker failed": raise DockerFailed(error)
+
+    def solve(self, challenge: Challenge, flag: str) -> Literal["correct", "incorrect", "solved", "practice"]:
+        if flag == "pwn.college{practice}":
+            return "practice"
+        response = self.post(
+            f"{DOJO_API}/dojos/{challenge.dojo}/{challenge.module}/{challenge.challenge}/solve",
+            json = {"submission" : flag}
+        ).json()
+        match response.get("status"):
+            case "solved": return "correct"
+            case "already_solved": return "solved"
+            case "incorrect": return "incorrect"
+            case _: raise ChallengeNotFound(response.get("error", "unknown"))
 
 def whoami():
     response = requests.get(
