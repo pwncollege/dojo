@@ -17,10 +17,6 @@ from mac_docker import MacDockerClient
 
 DOJO_CLI = "/nix/var/nix/profiles/dojo-workspace/bin/dojo"
 
-# Undo terminal state left behind when a fullscreen program (vim, the challenge
-# tui, ...) dies with its container: pop the kitty keyboard protocol, leave the
-# alternate screen, show the cursor, re-enable autowrap, and disable mouse
-# tracking, focus reporting, bracketed paste, synchronized output, and SGR.
 TERMINAL_RESTORE = "\x1b[<u\x1b[?1049l\x1b[?25h\x1b[?7h\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l\x1b[?1004l\x1b[?2004l\x1b[?2026l\x1b[0m"
 
 
