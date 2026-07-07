@@ -4,6 +4,7 @@ import json
 import os
 import pathlib
 import shlex
+import subprocess
 import sys
 import time
 import signal
@@ -12,7 +13,17 @@ import docker
 import redis
 
 from mac_docker import MacDockerClient
-from tui import run_challenge_tui
+
+
+DOJO_CLI = "/nix/var/nix/profiles/dojo-workspace/bin/dojo"
+
+
+def run_challenge_tui(user_id):
+    result = subprocess.run(
+        [DOJO_CLI, "tui"],
+        env={**os.environ, "DOJO_USER_ID": str(user_id)},
+    )
+    return result.returncode == 0
 
 
 WORKSPACE_NODES = {

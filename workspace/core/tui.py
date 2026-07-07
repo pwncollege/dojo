@@ -38,18 +38,24 @@ def sort_dojos(dojos):
 
 
 class ChallengeClient:
-    def __init__(self, user_id):
-        self.user_id = user_id
+    def __init__(self):
+        self.auth_token = os.environ.get("DOJO_AUTH_TOKEN")
         self.ssh_key = os.environ.get("DOJO_SSH_SERVICE_KEY")
-        if not self.ssh_key:
-            raise RuntimeError("Missing DOJO_SSH_SERVICE_KEY")
+        self.user_id = os.environ.get("DOJO_USER_ID")
+        if not self.auth_token and not (self.ssh_key and self.user_id):
+            raise RuntimeError("Missing DOJO_AUTH_TOKEN, or DOJO_SSH_SERVICE_KEY and DOJO_USER_ID")
         self.dojo_host = os.environ.get("DOJO_HOST")
         self.api_base = "http://pwn.college:80/pwncollege_api/v1"
 
+    def authorization(self):
+        if self.auth_token:
+            return f"Bearer {self.auth_token}"
+        token = URLSafeTimedSerializer(self.ssh_key).dumps([int(self.user_id), "ssh-tui"])
+        return f"Bearer sk-ssh-service-{token}"
+
     def headers(self):
-        token = URLSafeTimedSerializer(self.ssh_key).dumps([self.user_id, "ssh-tui"])
         headers = {
-            "Authorization": f"Bearer sk-ssh-service-{token}",
+            "Authorization": self.authorization(),
             "Content-Type": "application/json",
         }
         if self.dojo_host:
@@ -557,5 +563,5 @@ class ChallengeBrowserApp(App):
         self.exit(True)
 
 
-def run_challenge_tui(user_id):
-    return bool(ChallengeBrowserApp(ChallengeClient(user_id)).run())
+def run_challenge_tui():
+    return bool(ChallengeBrowserApp(ChallengeClient()).run())

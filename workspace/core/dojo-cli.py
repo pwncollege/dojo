@@ -233,6 +233,20 @@ def list_challenges(dojo:str, t_module:str, use_expanded_format: bool):
     for challenge in module.get("challenges"):
         print(f"{challenge.get("id")} ({challenge.get("name")})")
 
+def tui(args: argparse.Namespace):
+    """
+    Launches the challenge browser TUI. Exits 0 if a challenge was started.
+    """
+    from tui import run_challenge_tui
+    try:
+        started = run_challenge_tui()
+    except RuntimeError as e:
+        sys.exit(str(e))
+    if started:
+        print("Challenge started. Your session will reconnect to the new workspace.")
+        sys.exit(0)
+    sys.exit(1)
+
 def list(args: argparse.Namespace):
     """
     Lists out dojos, modules, or challenges depending on path.
@@ -356,12 +370,18 @@ def main():
         nargs="?",
         type=str
     )
+    subparsers.add_parser(
+        name="tui",
+        help="Browse and start challenges interactively."
+    )
     args = parser.parse_args()
-    if not DOJO_AUTH_TOKEN:
-        sys.exit("Missing DOJO_AUTH_TOKEN.")
     if not args.command:
         parser.print_help()
         sys.exit(1)
+    if args.command.lower() == "tui":
+        return tui(args)
+    if not DOJO_AUTH_TOKEN:
+        sys.exit("Missing DOJO_AUTH_TOKEN.")
     if args.command.lower() == "whoami":
         return whoami()
     if args.command.lower() == "submit":
