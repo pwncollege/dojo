@@ -4,8 +4,15 @@ import sys
 import requests
 import re
 import asyncio
-from typing import Any, Literal, Optional
-from enum import Enum
+from textual.reactive import reactive
+from textual.app import App, ComposeResult
+from textual.screen import Screen
+from textual.binding import Binding
+from textual.containers import Horizontal, Vertical
+from textual.widget import Widget
+from textual.widgets import Footer, Header, Markdown, Static, Tree, OptionList
+from textual.widgets.option_list import Option
+from typing import Literal, Optional
 
 DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
 DOJO_AUTH_TOKEN = os.environ.get("DOJO_AUTH_TOKEN")
@@ -60,7 +67,7 @@ class DojoClient:
                 response["module"],
                 response["challenge"]
             )
-            self._current_mode = "privileged" if response["privileged"] else "normal"
+            self._current_mode = "privileged" if response["practice"] else "normal"
         return self._current_challenge, self._current_mode
 
     def start(self, challenge: Position, mode: DojoMode):
@@ -96,7 +103,9 @@ class DojoClient:
 
 client = DojoClient()
 
-# Dojo TUI
+# Dojo Crawling
+
+# TODO: can(should) we add some cache to not wait for API requests every time we want to crawl the dojo?
 
 class Challenge:
     id: str
@@ -211,7 +220,6 @@ class PwnCollege:
                 self._populate()
             if category:
                 return self._categorized_dojos.get(category, [])
-            result = []
             return [dojo for dojo in self._dojos.values()]
 
     async def categories(self) -> list[str]:
@@ -230,18 +238,141 @@ class PwnCollege:
         response = client.get(f"{DOJO_API}/dojos")
         dojos = response.json()["dojos"]
         for dojo in dojos:
-            self._categorized_dojos.setdefault(dojo["type"], []).append(Dojo(
+            dojo_obj = Dojo(
                 dojo["id"],
                 dojo["name"],
                 dojo["description"],
                 dojo["type"],
                 dojo["modules_count"],
                 dojo["challenges_count"]
-            ))
+            )
+            self._categorized_dojos.setdefault(dojo["type"], []).append(dojo_obj)
+            self._dojos[dojo_obj.id] = dojo_obj
 
 pwn = PwnCollege()
 
-# TODO
+# Dojo TUI
+
+class DojoInfo(Widget):
+    path = reactive("")
+
+    def watch_path(self, new_path: str):
+        self.run_worker(self.update_contents(), exclusive = True)
+
+    async def update_contents(self):
+        title = self.query_one("#title", Static)
+        path = self.query_one("#path", Static)
+        description = self.query_one("#description", Markdown)
+        path.update(self.path)
+        try:
+            # There must be... a better way.
+            if re.match(r"^/$", self.path):
+                title.update("Welcome to pwn.college")
+                # TODO remember to replace this.
+                description.update("Description goes here")
+            elif result := re.match(r"^/([a-z0-9-~]{1,128})$", self.path):
+                dojo = await pwn.get(result.group(1))
+                if not dojo: raise DojoNotFound()
+                title.update(dojo.name)
+                description.update(dojo.description)
+            elif result := re.match(r"^/([a-z0-9-~]{1,128})/([a-z0-9-]{1,32})$", self.path):
+                dojo = await pwn.get(result.group(1))
+                if not dojo: raise DojoNotFound()
+                module = await dojo.get(result.group(2))
+                if not module: raise ModuleNotFound()
+                title.update(module.name)
+                description.update(module.description)
+            elif result := re.match(r"^/([a-z0-9-~]{1,128})/([a-z0-9-]{1,32})/([a-z0-9-]{1,32})$", self.path):
+                dojo = await pwn.get(result.group(1))
+                if not dojo: raise DojoNotFound()
+                module = await dojo.get(result.group(2))
+                if not module: raise ModuleNotFound()
+                challenge = await module.get(result.group(3))
+                if not challenge: raise ChallengeNotFound()
+                title.update(challenge.name)
+                description.update(challenge.description)
+            else:
+                title.update("ERROR - bad path")
+                description.update(f"Unable to parse the path `{self.path}`")
+        except DojoNotFound:
+                title.update("ERROR - bad path")
+                description.update(f"Unable to parse the path `{self.path}`, no such dojo found.")
+        except ModuleNotFound:
+                title.update("ERROR - bad path")
+                description.update(f"Unable to parse the path `{self.path}`, no such module found.")
+        except ChallengeNotFound:
+                title.update("ERROR - bad path")
+                description.update(f"Unable to parse the path `{self.path}`, no such challenge found.")
+
+    def compose(self) -> ComposeResult:
+        # Title & description updated in the background.
+        yield Static("Loading...", id = "title")
+        yield Static("Loading...", id = "path")
+        yield Markdown("Loading...", id = "description")
+
+class Hub(Screen):
+    # Shows information about the current challenge, and allows for navigation to other screens.
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Horizontal():
+            yield OptionList(
+                Option("Start a Challenge", id = "start"),
+                Option("Submit a Flag", id = "submit"),
+                Option("TUI Info", id = "about"),
+                Option("Settings", id = "settings")
+            )
+            yield DojoInfo(id = "info")
+        yield Footer()
+
+    def on_mount(self):
+        challenge, _ = client.get_current()
+        self.query_one("#info", DojoInfo).path = f"/{challenge.dojo}/{challenge.module}/{challenge.challenge}"
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected):
+        self.app.switch_mode(event.option_id if event.option_id else "hub")
+
+class StartMenu(Screen):
+    # Screen for browsing dojos and starting challenges.
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Static("start")
+        yield Footer()
+
+class SubmitMenu(Screen):
+    # Screen for submitting flags, with cool animations!
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Static("submit")
+        yield Footer()
+
+class About(Screen):
+    # Screen that shows some information about the TUI and pwn.college
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Static("about")
+        yield Footer()
+
+class Settings(Screen):
+    # Screen with a few application settings.
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Static("settings")
+        yield Footer()
+
+class TUI(App):
+    MODES = {
+        "hub": Hub,
+        "start": StartMenu,
+        "submit": SubmitMenu,
+        "about": About,
+        "settings": Settings
+    }
+    
+    def on_mount(self) -> None:
+        challenge, mode = client.get_current()
+        self.title = f"/{challenge.dojo}/{challenge.module}/{challenge.challenge}"
+        self.sub_title = mode
+        self.switch_mode("hub")
 
 # Dojo CLI
 
@@ -496,7 +627,8 @@ def main():
         sys.exit("Missing DOJO_AUTH_TOKEN.")
     if not args.command:
         # TUI goes here
-        print("TUI is on the way!")
+        app = TUI()
+        app.run()
         sys.exit(0)
     if args.command == "whoami":
         CLI.whoami()
