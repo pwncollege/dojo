@@ -256,8 +256,19 @@ pwn = PwnCollege()
 class DojoInfo(Widget):
     path = reactive("")
 
+    DEFAULT_CSS = """
+    DojoInfo {
+        margin: 1;
+    }
+
+    #title {
+        text-style: bold;
+    }
+    """
+
     def watch_path(self, new_path: str):
-        self.run_worker(self.update_contents(), exclusive = True)
+        self.run_worker(self.update_contents(), group = "info-worker", exclusive = True)
+        pass
 
     async def update_contents(self):
         title = self.query_one("#title", Static)
@@ -308,25 +319,43 @@ class DojoInfo(Widget):
         # Title & description updated in the background.
         yield Static("Loading...", id = "title")
         yield Static("Loading...", id = "path")
+        yield Static("")
         yield Markdown("Loading...", id = "description")
 
 class Hub(Screen):
+    CSS = """
+    #body {
+        height: 100%;
+    }
+
+    #options {
+        dock: bottom;
+        margin-bottom: 1;
+    }
+    
+    DojoInfo {
+        height: auto;
+    }
+    """
     # Shows information about the current challenge, and allows for navigation to other screens.
     def compose(self) -> ComposeResult:
         yield Header()
-        with Horizontal():
+        with Vertical(id = "body"):
+            yield DojoInfo(id = "info")
             yield OptionList(
                 Option("Start a Challenge", id = "start"),
                 Option("Submit a Flag", id = "submit"),
                 Option("TUI Info", id = "about"),
-                Option("Settings", id = "settings")
+                Option("Settings", id = "settings"),
+                id = "options"
             )
-            yield DojoInfo(id = "info")
         yield Footer()
 
     def on_mount(self):
-        challenge, _ = client.get_current()
-        self.query_one("#info", DojoInfo).path = f"/{challenge.dojo}/{challenge.module}/{challenge.challenge}"
+        async def set_current():
+            challenge, _ = client.get_current()
+            self.query_one("#info", DojoInfo).path = f"/{challenge.dojo}/{challenge.module}/{challenge.challenge}"
+        self.run_worker(set_current())
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected):
         self.app.switch_mode(event.option_id if event.option_id else "hub")
@@ -367,12 +396,15 @@ class TUI(App):
         "about": About,
         "settings": Settings
     }
+
+    DEFAULT_MODE = "hub"
     
     def on_mount(self) -> None:
-        challenge, mode = client.get_current()
-        self.title = f"/{challenge.dojo}/{challenge.module}/{challenge.challenge}"
-        self.sub_title = mode
-        self.switch_mode("hub")
+        async def set_title():
+            challenge, mode = client.get_current()
+            self.title = f"/{challenge.dojo}/{challenge.module}/{challenge.challenge}"
+            self.sub_title = mode
+        self.run_worker(set_title())
 
 # Dojo CLI
 
