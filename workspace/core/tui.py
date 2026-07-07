@@ -309,12 +309,12 @@ class ChallengeBrowserApp(App):
         Binding("p", "start_practice", "Practice"),
     ]
 
-    def __init__(self, client):
+    def __init__(self, client, start_error=None):
         super().__init__()
         self.client = client
         self.selection = None
-        self.starting = False
         self.choosing_start = False
+        self.start_error = start_error
 
     def add_loading_node(self, node):
         node.add_leaf("Loading...", {"kind": "loading"})
@@ -364,6 +364,8 @@ class ChallengeBrowserApp(App):
         self.query_one("#start-pane", Markdown).display = False
         self.reload()
         self.query_one("#tree", Tree).focus()
+        if self.start_error:
+            self.sub_title = f"start failed: {self.start_error}"
 
     def select_tree_node(self, node):
         tree = self.query_one("#tree", Tree)
@@ -408,7 +410,6 @@ class ChallengeBrowserApp(App):
         self.query_one("#details", Markdown).update(description)
 
     def reload(self):
-        self.starting = False
         self.choosing_start = False
         self.show_browser_view()
         tree = self.query_one("#tree", Tree)
@@ -449,8 +450,6 @@ class ChallengeBrowserApp(App):
         status.update("No dojos available")
 
     def update_selection(self, data):
-        if self.starting:
-            return
         self.selection = data
         self.query_one("#details", Markdown).update(render_details(data))
         status = self.query_one("#status", Static)
@@ -503,7 +502,7 @@ class ChallengeBrowserApp(App):
         self.reload()
 
     def action_cancel_start(self):
-        if self.choosing_start and not self.starting:
+        if self.choosing_start:
             self.show_browser_view()
             if self.selection:
                 self.update_selection(self.selection)
@@ -522,46 +521,26 @@ class ChallengeBrowserApp(App):
         self.query_one("#status", Static).update("Choose a mode: s starts standard, p starts practice")
 
     def start_selected(self, practice):
-        if self.starting or not self.selection or self.selection["kind"] != "challenge":
+        if not self.selection or self.selection["kind"] != "challenge":
             return
-        self.starting = True
-        dojo = self.selection["dojo"]
-        module = self.selection["module"]
-        challenge = self.selection["challenge"]
-        mode = "practice" if practice else "standard"
-        self.show_start_view()
-        self.query_one("#start-pane", Markdown).update(
-            "\n".join([
-                f"# Starting {display_name(challenge, 'challenge')}",
-                "",
-                f"- Dojo: `{display_name(dojo, 'dojo')}`",
-                f"- Module: `{display_name(module, 'module')}`",
-                f"- Mode: `{mode}`",
-                "",
-                "Start requested. Preparing your workspace...",
-            ])
-        )
-        self.query_one("#status", Static).update(f"Starting {challenge['id']}...")
-        self.set_timer(0.1, lambda: self.finish_start(dojo["id"], module["id"], challenge["id"], practice))
-
-    def finish_start(self, dojo_id, module_id, challenge_id, practice):
-        try:
-            self.client.start_challenge(dojo_id, module_id, challenge_id, practice)
-        except Exception as error:
-            self.starting = False
-            self.query_one("#start-pane", Markdown).update(
-                "\n".join([
-                    "# Failed to start challenge",
-                    "",
-                    f"`{error}`",
-                    "",
-                    "Press `r` to reload and try again.",
-                ])
-            )
-            self.query_one("#status", Static).update("Start failed")
-            return
-        self.exit(True)
+        self.exit({
+            "dojo": self.selection["dojo"]["id"],
+            "module": self.selection["module"]["id"],
+            "challenge": self.selection["challenge"]["id"],
+            "practice": practice,
+        })
 
 
 def run_challenge_tui():
-    return bool(ChallengeBrowserApp(ChallengeClient()).run())
+    client = ChallengeClient()
+    start_error = None
+    while True:
+        selection = ChallengeBrowserApp(client, start_error=start_error).run()
+        if not selection:
+            return False
+        print(f"Starting {selection['challenge']}...")
+        try:
+            client.start_challenge(selection["dojo"], selection["module"], selection["challenge"], selection["practice"])
+            return True
+        except Exception as error:
+            start_error = str(error)
