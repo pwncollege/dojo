@@ -377,13 +377,14 @@ def main():
     )
     subparsers.add_parser(
         name="tui",
+        aliases=["browse"],
         help="Browse and start challenges interactively."
     )
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
         sys.exit(1)
-    if args.command.lower() == "tui":
+    if args.command.lower() in ("tui", "browse"):
         return tui(args)
     if not DOJO_AUTH_TOKEN:
         sys.exit("Missing DOJO_AUTH_TOKEN.")
