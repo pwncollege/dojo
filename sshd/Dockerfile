@@ -11,8 +11,10 @@ RUN apk add --no-cache \
 
 RUN pip3 install --break-system-packages \
     requests \
+    itsdangerous \
     docker \
     redis \
+    textual \
     psycopg2-binary
 
 RUN adduser -D hacker && \

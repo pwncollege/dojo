@@ -264,7 +264,7 @@ services:
       - /data/ssh_host_keys:/etc/ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /data/mac:/var/mac:ro
-      - /data/workspace/nix:/nix:ro
+      - /opt/pwn.college/workspace/core/tui.py:/opt/sshd/tui.py:ro
     extra_hosts:
       - "pwn.college:192.168.42.1"
     environment:

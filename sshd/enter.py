@@ -4,7 +4,6 @@ import json
 import os
 import pathlib
 import shlex
-import subprocess
 import sys
 import time
 import signal
@@ -15,17 +14,7 @@ import redis
 from mac_docker import MacDockerClient
 
 
-DOJO_CLI = "/nix/var/nix/profiles/dojo-workspace/bin/dojo"
-
 TERMINAL_RESTORE = "\x1b[<u\x1b[?1049l\x1b[?25h\x1b[?7h\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l\x1b[?1004l\x1b[?2004l\x1b[?2026l\x1b[0m"
-
-
-def run_challenge_tui(user_id):
-    result = subprocess.run(
-        [DOJO_CLI, "tui"],
-        env={**os.environ, "DOJO_USER_ID": str(user_id)},
-    )
-    return result.returncode == 0
 
 
 WORKSPACE_NODES = {
@@ -87,7 +76,9 @@ def main():
     if container is None:
         if not simple and os.environ.get("DOJO_SSH_SERVICE_KEY"):
             try:
-                if run_challenge_tui(user_id):
+                from tui import run_challenge_tui
+                os.environ["DOJO_USER_ID"] = str(user_id)
+                if run_challenge_tui():
                     os.execv(sys.executable, [sys.executable, __file__, container_name])
             except Exception:
                 print("Failed to launch challenge tui")
