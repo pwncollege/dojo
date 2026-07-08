@@ -17,6 +17,9 @@ from typing import Literal, Optional
 DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
 DOJO_AUTH_TOKEN = os.environ.get("DOJO_AUTH_TOKEN")
 
+VERSION = "0.1"
+UPDATED = "2026-07-07"
+
 # Dojo Client
 
 class Position:
@@ -347,6 +350,7 @@ class Hub(Screen):
                 Option("Submit a Flag", id = "submit"),
                 Option("TUI Info", id = "about"),
                 Option("Settings", id = "settings"),
+                Option("Quit", id = "quit"),
                 id = "options"
             )
         yield Footer()
@@ -358,6 +362,8 @@ class Hub(Screen):
         self.run_worker(set_current())
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected):
+        if event.option_id == "quit":
+            return self.app.exit()
         self.app.switch_mode(event.option_id if event.option_id else "hub")
 
 class StartMenu(Screen):
@@ -376,9 +382,30 @@ class SubmitMenu(Screen):
 
 class About(Screen):
     # Screen that shows some information about the TUI and pwn.college
+    CSS = """
+    #body {
+        padding: 1 3;
+    }
+
+    #contents {
+        padding: 1;
+    }
+    """
+
+    BINDINGS = [("escape", "app.switch_mode(\"hub\")", "Return")]
+    
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Static("about")
+        with Vertical(id = "body"):
+            yield Static("[bold]DOJO TUI/CLI[bold]")
+            with Vertical(id = "contents"):
+                yield Static("Tool for navigating the pwn.college dojo from within the challenge container.")
+                yield Static("For more info about CLI mode, use [bold]dojo -h[bold]")
+                yield Static("")
+                yield Static(f"Version: [italic]{VERSION}[italic]")
+                yield Static(f"Last Updated: [italic]{UPDATED}[italic]")
+                yield Static("")
+                yield Static("Contributors: Theodor Kitzenmaier")
         yield Footer()
 
 class Settings(Screen):
