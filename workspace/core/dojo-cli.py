@@ -4,6 +4,7 @@ import sys
 import requests
 import re
 import asyncio
+from textual import work
 from textual.reactive import reactive
 from textual.app import App, ComposeResult
 from textual.screen import Screen
@@ -12,6 +13,8 @@ from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
 from textual.widgets import Footer, Header, Markdown, Static, Tree, OptionList
 from textual.widgets.option_list import Option
+from textual.worker import Worker, get_current_worker
+from textual.widgets.tree import TreeNode
 from typing import Literal, Optional
 
 DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
@@ -19,6 +22,12 @@ DOJO_AUTH_TOKEN = os.environ.get("DOJO_AUTH_TOKEN")
 
 VERSION = "0.1"
 UPDATED = "2026-07-07"
+
+DOJO_DESCRIPTION = """You have entered the pwn.college DOJO, an education platform for learners to develop and practice core cybersecurity skills in a hands-on fashion. Entering, you receive your "white belt" , signifying the beginning of your hacker life. From here, you will learn cybersecurity by diving deep into the core of computing, using that journey to absorb cybersecurity concepts. This will involve melding your mind to your terminal, whispering instructions to the CPU, and strumming bits directly onto networks. That terminal cursor blinking above? It will be your stalwart companion through this adventure as you practice, earn your [belts](https://pwn.college/belts) , and, eventually, make perfect.
+
+Every dojo has its sensei. This platform is maintained by an [awesome team](https://pwn.college/sensei) of hackers at Arizona State University. It powers much of ASU's cybersecurity curriculum, and is open, for free, to participation for interested people around the world!
+
+Enjoy your journey! If you have questions, comments, suggestions, and feedback, please join our [Discord](https://discord.gg/pwncollege) server or email us at [pwn@pwn.college](pwn@pwn.college)!"""
 
 # Dojo Client
 
@@ -270,32 +279,35 @@ class DojoInfo(Widget):
     """
 
     def watch_path(self, new_path: str):
-        self.run_worker(self.update_contents(), group = "info-worker", exclusive = True)
-        pass
+        self.update_contents()
 
+    @work(exclusive = True, thread = True)
     async def update_contents(self):
+        if self.path == "":
+            return
+        worker = get_current_worker()
         title = self.query_one("#title", Static)
         path = self.query_one("#path", Static)
         description = self.query_one("#description", Markdown)
-        path.update(self.path)
+        self.app.call_from_thread(path.update, self.path)
         try:
             # There must be... a better way.
             if re.match(r"^/$", self.path):
-                title.update("Welcome to pwn.college")
+                title_text = "Welcome to pwn.college"
                 # TODO remember to replace this.
-                description.update("Description goes here")
+                description_text = DOJO_DESCRIPTION
             elif result := re.match(r"^/([a-z0-9-~]{1,128})$", self.path):
                 dojo = await pwn.get(result.group(1))
                 if not dojo: raise DojoNotFound()
-                title.update(dojo.name)
-                description.update(dojo.description)
+                title_text = dojo.name
+                description_text = dojo.description
             elif result := re.match(r"^/([a-z0-9-~]{1,128})/([a-z0-9-]{1,32})$", self.path):
                 dojo = await pwn.get(result.group(1))
                 if not dojo: raise DojoNotFound()
                 module = await dojo.get(result.group(2))
                 if not module: raise ModuleNotFound()
-                title.update(module.name)
-                description.update(module.description)
+                title_text = module.name
+                description_text = module.description
             elif result := re.match(r"^/([a-z0-9-~]{1,128})/([a-z0-9-]{1,32})/([a-z0-9-]{1,32})$", self.path):
                 dojo = await pwn.get(result.group(1))
                 if not dojo: raise DojoNotFound()
@@ -303,20 +315,24 @@ class DojoInfo(Widget):
                 if not module: raise ModuleNotFound()
                 challenge = await module.get(result.group(3))
                 if not challenge: raise ChallengeNotFound()
-                title.update(challenge.name)
-                description.update(challenge.description)
+                title_text = challenge.name
+                description_text = challenge.description
             else:
-                title.update("ERROR - bad path")
-                description.update(f"Unable to parse the path `{self.path}`")
+                title_text = "ERROR - bad path"
+                description_text = f"Unable to parse the path `{self.path}`"
         except DojoNotFound:
-                title.update("ERROR - bad path")
-                description.update(f"Unable to parse the path `{self.path}`, no such dojo found.")
+                title_text = "ERROR - bad path"
+                description_text = f"Unable to parse the path `{self.path}`, no such dojo found."
         except ModuleNotFound:
-                title.update("ERROR - bad path")
-                description.update(f"Unable to parse the path `{self.path}`, no such module found.")
+                title_text = "ERROR - bad path"
+                description_text = f"Unable to parse the path `{self.path}`, no such module found."
         except ChallengeNotFound:
-                title.update("ERROR - bad path")
-                description.update(f"Unable to parse the path `{self.path}`, no such challenge found.")
+                title_text = "ERROR - bad path"
+                description_text = f"Unable to parse the path `{self.path}`, no such challenge found."
+        if not worker.is_cancelled:
+            self.app.call_from_thread(path.update, self.path)
+            self.app.call_from_thread(title.update, title_text)
+            self.app.call_from_thread(description.update, description_text if description_text else "No description provided :(")
 
     def compose(self) -> ComposeResult:
         # Title & description updated in the background.
@@ -359,18 +375,87 @@ class Hub(Screen):
         async def set_current():
             challenge, _ = client.get_current()
             self.query_one("#info", DojoInfo).path = f"/{challenge.dojo}/{challenge.module}/{challenge.challenge}"
-        self.run_worker(set_current())
+        self.run_worker(set_current(), thread = True)
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected):
         if event.option_id == "quit":
             return self.app.exit()
         self.app.switch_mode(event.option_id if event.option_id else "hub")
 
+class DojoBrowser(Widget):
+    dojos: Tree[str]
+
+    @work() # Don't make this a threaded task, we want to make sure we at least have categories.
+    async def _populate_dojos(self):
+        # TODO make this an option somewhere idk
+        show_hidden = False
+        ordered_named_categories = [
+            ("welcome", "Welcome", True),
+            ("topic", "Official", True),
+            ("course", "Course", True),
+            ("public", "Community", True),
+            ("private", "Private", False),
+            ("example", "Example", False),
+            ("hidden", "Hidden", False)
+        ]
+        categories = await pwn.categories()
+        for id, name, visible in ordered_named_categories:
+            if id not in categories:
+                continue
+            if not visible and not show_hidden:
+                continue
+            folder = self.dojos.root.add(name, f"1{id}")
+            dojos = await pwn.dojos(id)
+            for dojo in dojos:
+                dummy = folder.add(dojo.name, f"2{dojo.id}").add("Loading...", "0")
+                dummy.allow_expand = False
+
+    @work(thread = True, exclusive = True)
+    async def _update_info(self, node: TreeNode):
+        worker = get_current_worker()
+        info = self.screen.query_one("#info", DojoInfo)
+        steps = int(node.data[:1]) # type: ignore - we assume this is correctly set.
+        path = ""
+        if steps == 1:
+            path = "/"
+        elif steps > 1:
+            for _ in range(steps - 1):
+                path += f"/{node.data[1:]}" # type: ignore
+                node = node.parent # type: ignore
+        if not worker.is_cancelled:
+            info.path = path
+
+    @work(thread = True)
+    async def _populate_dojo(self, dojo):
+        pass
+
+    def on_tree_node_highlighted(self, event: Tree.NodeHighlighted):
+        self._update_info(event.node)
+
+    def compose(self) -> ComposeResult:
+        self.dojos = Tree("dojos", "1")
+        self.dojos.show_root = False
+        yield self.dojos
+        self._populate_dojos()
+
 class StartMenu(Screen):
     # Screen for browsing dojos and starting challenges.
+    CSS = """
+    #browser {
+        width: 40%
+    }
+    #info {
+        width: 60%
+    }
+    """
+
+    BINDINGS = [("escape", "app.switch_mode(\"hub\")", "Return")]
+
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Static("start")
+        with Horizontal():
+            yield DojoBrowser(id = "browser")
+            yield DojoInfo(id = "info")
         yield Footer()
 
 class SubmitMenu(Screen):
@@ -431,7 +516,7 @@ class TUI(App):
             challenge, mode = client.get_current()
             self.title = f"/{challenge.dojo}/{challenge.module}/{challenge.challenge}"
             self.sub_title = mode
-        self.run_worker(set_title())
+        self.run_worker(set_title(), thread=True)
 
 # Dojo CLI
 
