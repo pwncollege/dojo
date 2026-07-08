@@ -7,11 +7,11 @@ import asyncio
 from textual import work
 from textual.reactive import reactive
 from textual.app import App, ComposeResult
-from textual.screen import Screen
+from textual.screen import Screen, ModalScreen
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, Grid, Container
 from textual.widget import Widget
-from textual.widgets import Footer, Header, Markdown, Static, Tree, OptionList
+from textual.widgets import Footer, Header, Markdown, Static, Tree, OptionList, Label, Button
 from textual.widgets.option_list import Option
 from textual.worker import Worker, get_current_worker
 from textual.widgets.tree import TreeNode
@@ -92,7 +92,9 @@ class DojoClient:
                 "practice": mode == "privileged"
             }
         ).json()
-        error = response["error"]
+        error = response.get("error")
+        if not error:
+            return
         match error:
             case "Invalid dojo": raise DojoNotFound(error)
             case "Invalid challenge": raise ChallengeNotFound(error)
@@ -220,7 +222,6 @@ class Dojo:
                     ) for challenge in module["challenges"]
                 ]
             )
-            
 
 class PwnCollege:
     _categorized_dojos: dict[str, list[Dojo]]
@@ -388,6 +389,66 @@ class Hub(Screen):
             return self.app.exit()
         self.app.switch_mode(event.option_id if event.option_id else "hub")
 
+class StartModal(ModalScreen):
+    challenge_path: str
+    challenge_name: str
+    allow_privileged: bool
+
+    # hard-coding the sizes because alignment styles don't seem to be working.
+    CSS = """
+    StartModal {
+        width: 100%;
+        height: 100%;
+        align: center middle;
+    }
+
+    #modal {
+        width: 80;
+        height: 7;
+        padding: 1;
+        align: center middle;
+    }
+
+    #challenge {
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+
+    #buttons {
+        width: 100%;
+        height: 5;
+        content-align: center middle;
+        padding: 1;
+    }
+
+    Button {
+        height: 3;
+        width: 1fr;
+    }
+    """
+
+    BINDINGS = [("escape", "app.pop_screen()", "Cancel")]
+
+    def __init__(self, challenge_path: str, challenge_name: str, allow_privileged: bool, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.challenge_path = challenge_path
+        self.challenge_name = challenge_name
+        self.allow_privileged = allow_privileged
+
+    def compose(self) -> ComposeResult:
+        with Container(id = "modal"):
+            yield Label(f"Starting challenge {self.challenge_name}", id = "challenge")
+            with Horizontal(id = "buttons"):
+                yield Button("Normal", id = "normal")
+                if self.allow_privileged:
+                    yield Label("  ")
+                    yield Button("Privileged", id = "privileged")
+
+    def on_button_pressed(self, event: Button.Pressed):
+        result = re.match(r"^/([a-z0-9-~]{1,128})/([a-z0-9-]{1,32})/([a-z0-9-]{1,32})$", self.challenge_path)
+        client.start(Position(result.group(1), result.group(2), result.group(3)), event.button.id) # type: ignore
+
 class DojoBrowser(Widget):
     dojos: Tree[str]
     _worker_lock: asyncio.Lock # not sure this is the correct lock to use here
@@ -427,6 +488,11 @@ class DojoBrowser(Widget):
     async def _update_info(self, node: TreeNode):
         worker = get_current_worker()
         info = self.screen.query_one("#info", DojoInfo)
+        path = self.get_path(node)
+        if not worker.is_cancelled:
+            info.path = path
+
+    def get_path(self, node: TreeNode) -> str:
         steps = int(node.data[:1]) # type: ignore - we assume this is correctly set.
         path = ""
         if steps == 1:
@@ -435,8 +501,7 @@ class DojoBrowser(Widget):
             for _ in range(steps - 1):
                 path = f"/{node.data[1:]}" + path # type: ignore
                 node = node.parent # type: ignore
-        if not worker.is_cancelled:
-            info.path = path
+        return path
 
     @work(thread = True)
     async def _populate_dojo(self, dojo_node: TreeNode):
@@ -459,10 +524,27 @@ class DojoBrowser(Widget):
         # Remove the placeholder loading node.
         child.remove()
 
-    def on_tree_node_expanded(self, event:Tree.NodeExpanded):
+    def on_tree_node_expanded(self, event: Tree.NodeExpanded):
         # Only called if the node is a dojo node.
         if event.node.data[:1] == "2": # type: ignore
             self._populate_dojo(event.node)
+
+    @work()
+    async def pop_modal(self, node: TreeNode):
+        path = self.get_path(node)
+        result = re.match(r"^/([a-z0-9-~]{1,128})/([a-z0-9-]{1,32})/([a-z0-9-]{1,32})$", path)
+        assert result
+        dojo = await pwn.get(result.group(1))
+        assert dojo
+        module = await dojo.get(result.group(2))
+        assert module
+        challenge = await module.get(result.group(3))
+        assert challenge
+        self.app.push_screen(StartModal(path, challenge.name, True)) # dojos API does not show if privileged is allowed. was this removed?
+
+    def on_tree_node_selected(self, event: Tree.NodeSelected):
+        if event.node.data[:1] == "4": # type: ignore
+            self.pop_modal(event.node)
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted):
         self._update_info(event.node)
