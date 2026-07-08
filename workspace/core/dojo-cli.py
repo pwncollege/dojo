@@ -288,7 +288,7 @@ class DojoInfo(Widget):
     def watch_path(self, new_path: str):
         self.update_contents()
 
-    @work(exclusive = True, thread = True)
+    @work(exclusive = True, thread = True, group = "info-update")
     async def update_contents(self):
         if self.path == "":
             return
@@ -447,7 +447,12 @@ class StartModal(ModalScreen):
 
     def on_button_pressed(self, event: Button.Pressed):
         result = re.match(r"^/([a-z0-9-~]{1,128})/([a-z0-9-]{1,32})/([a-z0-9-]{1,32})$", self.challenge_path)
-        client.start(Position(result.group(1), result.group(2), result.group(3)), event.button.id) # type: ignore
+        try:
+            client.start(Position(result.group(1), result.group(2), result.group(3)), event.button.id) # type: ignore
+        except PrivilegedDisabled:
+            self.query_one("#challenge", Label).update("ERROR - privileged mode is disabled.")
+        except ChallengeLocked:
+            self.query_one("#challenge", Label).update("ERROR - this challenge is locked.")
 
 class DojoBrowser(Widget):
     dojos: Tree[str]
@@ -484,7 +489,7 @@ class DojoBrowser(Widget):
                 dummy = folder.add(dojo.name, f"2{dojo.id}").add("Loading...", "0")
                 dummy.allow_expand = False
 
-    @work(thread = True, exclusive = True, group = "info_update")
+    @work(thread = True, exclusive = True, group = "browser-update-info")
     async def _update_info(self, node: TreeNode):
         worker = get_current_worker()
         info = self.screen.query_one("#info", DojoInfo)
@@ -520,7 +525,10 @@ class DojoBrowser(Widget):
         for module in await dojo.modules():
             new_node = dojo_node.add(module.name, f"3{module.id}")
             for challenge in await module.challenges():
-                new_node.add(challenge.name, f"4{challenge.id}", allow_expand = False)
+                name = challenge.name
+                if not challenge.required:
+                    name += "(optional)"
+                new_node.add(name, f"4{challenge.id}", allow_expand = False)
         # Remove the placeholder loading node.
         child.remove()
 
