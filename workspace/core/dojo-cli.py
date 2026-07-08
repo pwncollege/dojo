@@ -5,15 +5,14 @@ import requests
 import re
 import asyncio
 from textual import work
+from textual.worker import get_current_worker
 from textual.reactive import reactive
 from textual.app import App, ComposeResult
 from textual.screen import Screen, ModalScreen
-from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, Grid, Container
+from textual.containers import Horizontal, Vertical, Container
 from textual.widget import Widget
-from textual.widgets import Footer, Header, Markdown, Static, Tree, OptionList, Label, Button
+from textual.widgets import Footer, Header, Markdown, Static, Tree, OptionList, Label, Button, Input
 from textual.widgets.option_list import Option
-from textual.worker import Worker, get_current_worker
 from textual.widgets.tree import TreeNode
 from typing import Literal, Optional
 
@@ -21,7 +20,7 @@ DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
 DOJO_AUTH_TOKEN = os.environ.get("DOJO_AUTH_TOKEN")
 
 VERSION = "0.1"
-UPDATED = "2026-07-07"
+UPDATED = "2026-07-08"
 
 DOJO_DESCRIPTION = """You have entered the pwn.college DOJO, an education platform for learners to develop and practice core cybersecurity skills in a hands-on fashion. Entering, you receive your "white belt" , signifying the beginning of your hacker life. From here, you will learn cybersecurity by diving deep into the core of computing, using that journey to absorb cybersecurity concepts. This will involve melding your mind to your terminal, whispering instructions to the CPU, and strumming bits directly onto networks. That terminal cursor blinking above? It will be your stalwart companion through this adventure as you practice, earn your [belts](https://pwn.college/belts) , and, eventually, make perfect.
 
@@ -301,7 +300,6 @@ class DojoInfo(Widget):
             # There must be... a better way.
             if re.match(r"^/$", self.path):
                 title_text = "Welcome to pwn.college"
-                # TODO remember to replace this.
                 description_text = DOJO_DESCRIPTION
             elif result := re.match(r"^/([a-z0-9-~]{1,128})$", self.path):
                 dojo = await pwn.get(result.group(1))
@@ -372,7 +370,7 @@ class Hub(Screen):
                 Option("Start a Challenge", id = "start"),
                 Option("Submit a Flag", id = "submit"),
                 Option("TUI Info", id = "about"),
-                Option("Settings", id = "settings"),
+                #Option("Settings", id = "settings"),
                 Option("Quit", id = "quit"),
                 id = "options"
             )
@@ -527,7 +525,7 @@ class DojoBrowser(Widget):
             for challenge in await module.challenges():
                 name = challenge.name
                 if not challenge.required:
-                    name += "(optional)"
+                    name += " (optional)"
                 new_node.add(name, f"4{challenge.id}", allow_expand = False)
         # Remove the placeholder loading node.
         child.remove()
@@ -581,11 +579,83 @@ class StartMenu(Screen):
             yield DojoInfo(id = "info")
         yield Footer()
 
+class SubmitControl(Widget):
+    def compose(self) -> ComposeResult:
+        yield Label("Enter your flag:", id = "prompt")
+        yield Label("")
+        yield Input(placeholder = "pwn.college{....}", id = "input")
+
+    @work(thread = True, exclusive = True, group = "submit")
+    async def process_flag(self, flag: str):
+        worker = get_current_worker()
+        challenge, _ = client.get_current()
+        result = client.solve(challenge, flag)
+        status = self.screen.query_one("#status", FlagStatus)
+        prompt = self.screen.query_one("#prompt", Label)
+        if not worker.is_cancelled:
+            match result:
+                case "correct":
+                    status.correct()
+                    prompt.update("Challenge solved!")
+                case "solved":
+                    status.correct()
+                    prompt.update("You have already solved this challenge.")
+                case "practice":
+                    status.practice()
+                    prompt.update("This is the practice flag, restart in normal mode to get the flag!")
+                case "incorrect":
+                    status.incorrect()
+                    prompt.update("Incorrect")
+    
+    def on_input_submitted(self, event: Input.Submitted):
+        self.process_flag(event.input.value)
+
+class FlagStatus(Widget):
+    def compose(self) -> ComposeResult:
+        # Placeholder
+        yield Markdown("")
+
+    def correct(self):
+        # Confetti or something cool.
+        pass
+
+    def incorrect(self):
+        # Flash red, maybe an X.
+        pass
+
+    def practice(self):
+        # ??
+        pass
+
 class SubmitMenu(Screen):
     # Screen for submitting flags, with cool animations!
+    CSS = """
+    #container {
+        height: 100%;
+    }
+
+    FlagStatus {
+        height: auto;
+    }
+
+    #prompt {
+        margin-left: 1;
+    }
+
+    #control {
+        height: 5; /* doesn't dock if not set? */
+        dock: bottom;
+        margin-bottom: 1;
+    }
+    """
+
+    BINDINGS = [("escape", "app.switch_mode(\"hub\")", "Return")]
+
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Static("submit")
+        with Vertical(id = "container"):
+            yield FlagStatus(id = "status")
+            yield SubmitControl(id = "control")
         yield Footer()
 
 class About(Screen):
