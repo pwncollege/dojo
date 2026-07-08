@@ -142,7 +142,7 @@ class Module:
     id: str
     name: str
     description: str
-    _challenges: dict[str, Challenge] = {}
+    _challenges: dict[str, Challenge]
 
     def __init__(
             self,
@@ -153,6 +153,7 @@ class Module:
         self.id = id
         self.name = name
         self.description = description
+        self._challenges = {}
         for challenge in challenges:
             self._challenges[challenge.id] = challenge
 
@@ -170,8 +171,8 @@ class Dojo:
     type: str
     module_count: int
     challenge_count: int
-    _modules: dict[str, Module] = {}
-    _lock = asyncio.Lock()
+    _modules: dict[str, Module]
+    _lock: asyncio.Lock
 
     def __init__(
             self,
@@ -187,6 +188,8 @@ class Dojo:
         self.type = type
         self.module_count = module_count
         self.challenge_count = challenge_count
+        self._modules = {}
+        self._lock = asyncio.Lock()
 
     async def modules(self) -> list[Module]:
         async with self._lock:
@@ -217,14 +220,17 @@ class Dojo:
                     ) for challenge in module["challenges"]
                 ]
             )
+            
 
 class PwnCollege:
-    _categorized_dojos: dict[str, list[Dojo]] = {}
-    _dojos: dict[str, Dojo] = {}
-    _lock = asyncio.Lock()
+    _categorized_dojos: dict[str, list[Dojo]]
+    _dojos: dict[str, Dojo]
+    _lock: asyncio.Lock
 
     def __init__(self):
-        pass
+        self._categorized_dojos = {}
+        self._dojos = {}
+        self._lock = asyncio.Lock()
 
     async def dojos(self, category: Optional[str] = None) -> list[Dojo]:
         async with self._lock:
@@ -384,6 +390,13 @@ class Hub(Screen):
 
 class DojoBrowser(Widget):
     dojos: Tree[str]
+    _worker_lock: asyncio.Lock # not sure this is the correct lock to use here
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._worker_lock = asyncio.Lock()
+        self.dojos = Tree("dojos", "1")
+        self.dojos.show_root = False
 
     @work() # Don't make this a threaded task, we want to make sure we at least have categories.
     async def _populate_dojos(self):
@@ -410,7 +423,7 @@ class DojoBrowser(Widget):
                 dummy = folder.add(dojo.name, f"2{dojo.id}").add("Loading...", "0")
                 dummy.allow_expand = False
 
-    @work(thread = True, exclusive = True)
+    @work(thread = True, exclusive = True, group = "info_update")
     async def _update_info(self, node: TreeNode):
         worker = get_current_worker()
         info = self.screen.query_one("#info", DojoInfo)
@@ -420,21 +433,41 @@ class DojoBrowser(Widget):
             path = "/"
         elif steps > 1:
             for _ in range(steps - 1):
-                path += f"/{node.data[1:]}" # type: ignore
+                path = f"/{node.data[1:]}" + path # type: ignore
                 node = node.parent # type: ignore
         if not worker.is_cancelled:
             info.path = path
 
     @work(thread = True)
-    async def _populate_dojo(self, dojo):
-        pass
+    async def _populate_dojo(self, dojo_node: TreeNode):
+        # Avoid race condition if node is highlighted twice.
+        async with self._worker_lock:
+            child = dojo_node.children[0]
+            if child.data != "0":
+                return
+            else:
+                child.data = "0WORKING"
+        dojo_id = dojo_node.data[1:] # type: ignore
+        dojo = await pwn.get(dojo_id)
+        if not dojo:
+            dojo_node.children[0].label = "Error: unable to fetch dojo data."
+            return
+        for module in await dojo.modules():
+            new_node = dojo_node.add(module.name, f"3{module.id}")
+            for challenge in await module.challenges():
+                new_node.add(challenge.name, f"4{challenge.id}", allow_expand = False)
+        # Remove the placeholder loading node.
+        child.remove()
+
+    def on_tree_node_expanded(self, event:Tree.NodeExpanded):
+        # Only called if the node is a dojo node.
+        if event.node.data[:1] == "2": # type: ignore
+            self._populate_dojo(event.node)
 
     def on_tree_node_highlighted(self, event: Tree.NodeHighlighted):
         self._update_info(event.node)
 
     def compose(self) -> ComposeResult:
-        self.dojos = Tree("dojos", "1")
-        self.dojos.show_root = False
         yield self.dojos
         self._populate_dojos()
 
