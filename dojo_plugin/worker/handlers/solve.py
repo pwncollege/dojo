@@ -5,7 +5,7 @@ from CTFd.models import db
 from ...models import DojoChallenges
 from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
-from .scoreboard import update_scoreboard, update_challenge_solves, challenge_solves_cache_key, COMMON_DURATIONS
+from .scoreboard import update_scoreboard, update_challenge_solves, challenge_solves_cache_key, set_scoreboard_cache, COMMON_DURATIONS
 from .dojo_stats import update_dojo_stats
 from .scores import update_dojo_scores, update_module_scores, dojo_scores_cache_key, module_scores_cache_key
 from .activity import update_activity
@@ -77,7 +77,7 @@ def _update_dojo_scoreboard(dojo_id, user_id, event_timestamp):
                 continue
             current_scoreboard = get_cached_stat(cache_key) or []
             updated_scoreboard = update_scoreboard(current_scoreboard, user_id)
-            set_cached_stat(cache_key, updated_scoreboard)
+            set_scoreboard_cache(cache_key, updated_scoreboard)
         except Exception as e:
             logger.error(f"Error updating dojo scoreboard for dojo {dojo_id}, duration={duration}: {e}", exc_info=True)
 
@@ -91,7 +91,7 @@ def _update_module_scoreboard(dojo_id, module_index, user_id, event_timestamp):
                 continue
             current_scoreboard = get_cached_stat(cache_key) or []
             updated_scoreboard = update_scoreboard(current_scoreboard, user_id)
-            set_cached_stat(cache_key, updated_scoreboard)
+            set_scoreboard_cache(cache_key, updated_scoreboard)
         except Exception as e:
             logger.error(f"Error updating module scoreboard for dojo {dojo_id} module {module_index}, duration={duration}: {e}", exc_info=True)
 

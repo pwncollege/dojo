@@ -5,11 +5,17 @@ from sqlalchemy import func
 from CTFd.models import db, Solves, Users
 from ...models import Dojos, DojoModules, DojoChallenges
 from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
+from ...utils.crews import aggregate_crews
 from . import register_handler
 
 logger = logging.getLogger(__name__)
 
 COMMON_DURATIONS = [0, 7, 30]
+
+
+def set_scoreboard_cache(cache_key, scoreboard):
+    set_cached_stat(cache_key, scoreboard)
+    set_cached_stat(cache_key.replace("stats:scoreboard:", "stats:crews:", 1), aggregate_crews(scoreboard))
 
 
 def update_scoreboard(scoreboard, user_id, solve_delta=1):
@@ -144,7 +150,7 @@ def handle_scoreboard_update(payload, event_timestamp=None):
                 continue
             logger.info(f"Calculating scoreboard for {model_type} {model_id}, duration={duration}...")
             scoreboard = calculate_scoreboard(model, duration)
-            set_cached_stat(cache_key, scoreboard)
+            set_scoreboard_cache(cache_key, scoreboard)
             logger.info(f"Successfully updated scoreboard cache {cache_key} ({len(scoreboard)} entries)")
         except Exception as e:
             logger.error(f"Error calculating scoreboard for {model_type} {model_id}, duration={duration}: {e}", exc_info=True)
@@ -169,7 +175,7 @@ def initialize_all_scoreboards():
             try:
                 scoreboard = calculate_scoreboard(dojo, duration)
                 cache_key = f"stats:scoreboard:dojo:{dojo.dojo_id}:{duration}"
-                set_cached_stat(cache_key, scoreboard)
+                set_scoreboard_cache(cache_key, scoreboard)
                 logger.info(f"Initialized scoreboard for dojo {dojo.reference_id} (id={dojo.dojo_id}), duration={duration}")
             except Exception as e:
                 logger.error(f"Error initializing scoreboard for dojo {dojo.reference_id}, duration={duration}: {e}", exc_info=True)
@@ -179,7 +185,7 @@ def initialize_all_scoreboards():
                 try:
                     scoreboard = calculate_scoreboard(module, duration)
                     cache_key = f"stats:scoreboard:module:{module.dojo_id}:{module.module_index}:{duration}"
-                    set_cached_stat(cache_key, scoreboard)
+                    set_scoreboard_cache(cache_key, scoreboard)
                     logger.info(f"Initialized scoreboard for module {dojo.reference_id}/{module.id} (dojo_id={module.dojo_id}, module_index={module.module_index}), duration={duration}")
                 except Exception as e:
                     logger.error(f"Error initializing scoreboard for module {dojo.reference_id}/{module.id}, duration={duration}: {e}", exc_info=True)

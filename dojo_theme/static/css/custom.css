@@ -715,30 +715,6 @@ p[data-hide="true"] {
     color: #eaeaea;
 }
 
-.crew-loading td {
-    padding: 2em 20%;
-}
-
-.crew-loading-text {
-    color: var(--brand-light-gray);
-    text-align: center;
-    margin-bottom: 0.6em;
-}
-
-.crew-progress-track {
-    height: 6px;
-    background-color: #1e1e1e;
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.crew-progress-fill {
-    height: 100%;
-    width: 0;
-    background-color: var(--brand-green);
-    transition: width 0.2s ease;
-}
-
 .crew-note-row {
     background: none !important;
 }

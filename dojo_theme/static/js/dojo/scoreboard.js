@@ -1,25 +1,8 @@
-const CREW_MAX_PAGES = 50;
-const CREW_FETCH_CONCURRENCY = 4;
-const CREW_CACHE_TTL_MS = 5 * 60 * 1000;
-const CREW_TAG_RE = /^(.*?)\s*\[([^\[\]]{1,24})\]\s*$/;
-const CREW_STRIP_RE = /[\u0000-\u001f\u007f-\u009f\u00ad\u034f\u17b4\u17b5\u180b-\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff\u{e0000}-\u{e007f}]/gu;
-const CREW_KEY_STRIP_RE = /[\ufe00-\ufe0f]/g;
-
 const scoreboardState = {
     generation: 0,
     view: location.hash === "#crews" ? "crews" : "hackers",
     duration: 30,
-    crewCache: new Map(),
 };
-
-function parseCrewTag(name) {
-    const match = CREW_TAG_RE.exec(name);
-    if (!match) return null;
-    const tag = match[2].replace(CREW_STRIP_RE, "").replace(/\s+/g, " ").trim();
-    if (tag.length < 1 || tag.length > 20) return null;
-    return { tag: tag, key: tag.replace(CREW_KEY_STRIP_RE, "").normalize("NFKC").toLowerCase(), baseName: match[1].trim() };
-}
-window.parseCrewTag = parseCrewTag;
 
 function crewColors(key) {
     let hash = 5381;
@@ -32,10 +15,12 @@ function crewColors(key) {
     };
 }
 
-function fetchScoreboardPage(duration, page) {
+function fetchScoreboardPage(duration, page, crews) {
     const dojo = init.dojo;
     const module = init.module || "_";
-    const endpoint = `/pwncollege_api/v1/scoreboard/${dojo}/${module}/${duration}/${page}`;
+    const endpoint = crews
+        ? `/pwncollege_api/v1/scoreboard/${dojo}/${module}/crews/${duration}/${page}`
+        : `/pwncollege_api/v1/scoreboard/${dojo}/${module}/${duration}/${page}`;
     return CTFd.fetch(endpoint, {
         method: "GET",
         credentials: "same-origin",
@@ -47,111 +32,6 @@ function fetchScoreboardPage(duration, page) {
         if (!response.ok) throw new Error(`scoreboard page ${page} returned ${response.status}`);
         return response.json();
     });
-}
-
-async function runCrewFetch(entry, duration) {
-    if (!entry.pagesByNumber.has(1)) {
-        const first = await fetchScoreboardPage(duration, 1);
-        entry.me = first.me || null;
-        entry.pagesByNumber.set(1, first.standings);
-        entry.totalPages = first.pages && first.pages.length ? Math.max.apply(null, first.pages) : 1;
-        entry.capped = entry.totalPages > CREW_MAX_PAGES;
-    }
-    const fetchCount = Math.min(entry.totalPages, CREW_MAX_PAGES);
-    const missing = [];
-    for (let page = 2; page <= fetchCount; page++) {
-        if (!entry.pagesByNumber.has(page)) missing.push(page);
-    }
-    entry.failedPages = [];
-    let done = fetchCount - missing.length;
-    const report = () => { if (entry.onProgress) entry.onProgress(done, fetchCount); };
-    report();
-    let next = 0;
-    const worker = async () => {
-        while (next < missing.length) {
-            const page = missing[next++];
-            try {
-                let result;
-                try {
-                    result = await fetchScoreboardPage(duration, page);
-                } catch (error) {
-                    result = await fetchScoreboardPage(duration, page);
-                }
-                entry.pagesByNumber.set(page, result.standings);
-            } catch (error) {
-                entry.failedPages.push(page);
-            }
-            done++;
-            report();
-        }
-    };
-    await Promise.all(Array.from({ length: CREW_FETCH_CONCURRENCY }, worker));
-    return entry;
-}
-
-function fetchAllStandings(duration, gen) {
-    const key = `${init.dojo}|${init.module || "_"}|${duration}`;
-    let entry = scoreboardState.crewCache.get(key);
-    if (!entry || Date.now() - entry.fetchedAt >= CREW_CACHE_TTL_MS) {
-        entry = {
-            fetchedAt: Date.now(),
-            pagesByNumber: new Map(),
-            totalPages: 1,
-            capped: false,
-            failedPages: [],
-            me: null,
-            promise: null,
-            running: false,
-            onProgress: null,
-        };
-        scoreboardState.crewCache.set(key, entry);
-    }
-    entry.onProgress = (done, total) => {
-        if (gen === scoreboardState.generation) updateCrewProgress(done, total);
-    };
-    if (!entry.promise || (!entry.running && entry.failedPages.length)) {
-        entry.running = true;
-        entry.promise = runCrewFetch(entry, duration)
-            .catch(error => {
-                scoreboardState.crewCache.delete(key);
-                throw error;
-            })
-            .finally(() => { entry.running = false; });
-    }
-    return entry.promise;
-}
-
-function dedupStandings(entry) {
-    const byUser = new Map();
-    const pages = Array.from(entry.pagesByNumber.keys()).sort((a, b) => a - b);
-    pages.forEach(page => {
-        entry.pagesByNumber.get(page).forEach(user => {
-            if (!byUser.has(user.user_id)) byUser.set(user.user_id, user);
-        });
-    });
-    return Array.from(byUser.values()).sort((a, b) => a.rank - b.rank);
-}
-
-function aggregateCrews(standings) {
-    const crews = new Map();
-    standings.forEach(user => {
-        const parsed = parseCrewTag(user.name);
-        if (!parsed) return;
-        if (!crews.has(parsed.key)) {
-            crews.set(parsed.key, { key: parsed.key, tag: parsed.tag, score: 0, bestRank: user.rank, members: [] });
-        }
-        const crew = crews.get(parsed.key);
-        crew.score += user.solves;
-        crew.members.push(user);
-    });
-    const ranked = Array.from(crews.values()).sort((a, b) =>
-        b.score - a.score
-        || a.members.length - b.members.length
-        || a.bestRank - b.bestRank
-        || a.key.localeCompare(b.key)
-    );
-    ranked.forEach((crew, i) => { crew.rank = i + 1; });
-    return ranked;
 }
 
 function buildCrewTagChip(tag, key) {
@@ -187,13 +67,12 @@ function buildHackerRow(user, me, crew) {
     row.find(".scoreboard-belt").attr("src", user.belt);
     row.find(".scoreboard-score").text(user.solves);
     const name = row.find(".scoreboard-name").attr("href", user.url).attr("title", user.name);
-    const parsed = parseCrewTag(user.name);
     if (crew) {
         row.addClass("crew-member-row").css("border-left-color", crewColors(crew.key).text);
-        name.text(((parsed && parsed.baseName) || user.name).slice(0, 50));
-    } else if (parsed) {
-        name.text(parsed.baseName.slice(0, 50));
-        name.append(buildCrewTagChip(parsed.tag, parsed.key));
+        name.text(((user.crew && user.crew.base_name) || user.name).slice(0, 50));
+    } else if (user.crew) {
+        name.text(user.crew.base_name.slice(0, 50));
+        name.append(buildCrewTagChip(user.crew.tag, user.crew.key));
     } else {
         name.text(user.name.slice(0, 50));
     }
@@ -211,7 +90,7 @@ function buildHackerRow(user, me, crew) {
     return row;
 }
 
-function buildCrewRow(crew, me, myCrewKey) {
+function buildCrewRow(crew, myCrewKey) {
     const colors = crewColors(crew.key);
     const row = $(`
     <tr class="crew-row" role="button" tabindex="0" aria-expanded="false">
@@ -256,6 +135,7 @@ function buildCrewRow(crew, me, myCrewKey) {
     let memberRows = null;
     let expanded = false;
     const attachMembers = () => {
+        const me = init.userId ? { user_id: Number(init.userId) } : null;
         const rows = crew.members.map(user => buildHackerRow(user, me, crew));
         const head = rows.slice(0, 10);
         const rest = rows.slice(10);
@@ -334,20 +214,18 @@ function renderNoteRow(text) {
     return row;
 }
 
-function renderCrewLoading() {
-    $("#scoreboard").empty().append($(`
-      <tr class="crew-loading"><td colspan="6">
-        <div class="crew-loading-text brand-mono" aria-live="polite">Assembling crews…</div>
-        <div class="crew-progress-track"><div class="crew-progress-fill"></div></div>
-      </td></tr>
-    `));
+function renderLoadingRow() {
+    $("#scoreboard").empty().append($(`<tr class="scoreboard-loading"><td colspan="6">Loading...</td></tr>`));
     $("#scoreboard-pages").empty();
 }
 
-function updateCrewProgress(done, total) {
-    if (total < 1) total = 1;
-    $("#scoreboard .crew-loading-text").text(`Assembling crews… page ${done} / ${total}`);
-    $("#scoreboard .crew-progress-fill").css("width", `${Math.round(done / total * 100)}%`);
+function renderErrorRow(duration, page, message) {
+    $("#scoreboard").empty();
+    const warning = renderNoteRow(`${message} `);
+    warning.find(".crew-note").addClass("crew-note-warn");
+    const retry = $(`<a role="button" tabindex="0" href="javascript:void(0)">Retry</a>`);
+    retry.on("click", () => loadScoreboard(duration, page));
+    warning.find(".crew-note").append(retry);
 }
 
 function renderCrewEmptyState() {
@@ -362,86 +240,44 @@ function renderCrewEmptyState() {
     $("#scoreboard").append(row);
 }
 
-function renderCrewNotes(entry, duration, page) {
-    if (entry.capped) {
-        renderNoteRow(`Crew standings computed from the top ${(CREW_MAX_PAGES * 20).toLocaleString()} hackers on this board.`);
-    }
-    if (entry.failedPages.length) {
-        const warning = renderNoteRow("Some pages failed to load — standings may be incomplete. ");
-        warning.find(".crew-note").addClass("crew-note-warn");
-        const retry = $(`<a role="button" tabindex="0" href="javascript:void(0)">Retry</a>`);
-        retry.on("click", () => loadScoreboard(duration, page));
-        warning.find(".crew-note").append(retry);
-    }
-}
-
-function renderCrewBoard(entry, duration, page) {
-    const scoreboard = $("#scoreboard");
-    scoreboard.empty();
-    const standings = dedupStandings(entry);
-    const crews = aggregateCrews(standings);
-    const me = entry.me;
-    const myParsed = me ? parseCrewTag(me.name) : null;
-    const myCrewKey = myParsed ? myParsed.key : null;
-
-    if (!standings.length) {
-        renderNoteRow("No solves yet — no crews to show.");
-        renderCrewNotes(entry, duration, page);
-        renderPagination(duration, 1, []);
-        return;
-    }
-    if (!crews.length) {
-        renderCrewEmptyState();
-        renderCrewNotes(entry, duration, page);
-        renderPagination(duration, 1, []);
-        return;
-    }
-
-    const perPage = 20;
-    const pageCount = Math.ceil(crews.length / perPage);
-    if (page < 1 || page > pageCount) page = 1;
-    const pageCrews = crews.slice((page - 1) * perPage, page * perPage);
-    const display = pageCrews.slice();
-    if (myCrewKey) {
-        const myCrew = crews.find(crew => crew.key === myCrewKey);
-        if (myCrew && pageCrews.indexOf(myCrew) === -1) {
-            if (myCrew.rank < pageCrews[0].rank) display.unshift(myCrew);
-            else display.push(myCrew);
-        }
-    }
-    display.forEach((crew, i) => {
-        const row = buildCrewRow(crew, me, myCrewKey);
-        if (i % 2 === 0) row.addClass("crew-row-stripe");
-        scoreboard.append(row);
-    });
-    renderCrewNotes(entry, duration, page);
-    const pages = [];
-    for (let i = 1; i <= pageCount; i++) pages.push(i);
-    renderPagination(duration, page, pages);
-}
-
 function renderCrewView(duration, page, gen) {
-    renderCrewLoading();
-    fetchAllStandings(duration, gen).then(entry => {
+    renderLoadingRow();
+    fetchScoreboardPage(duration, page, true).then(result => {
         if (gen !== scoreboardState.generation) return;
-        renderCrewBoard(entry, duration, page);
+        const scoreboard = $("#scoreboard");
+        scoreboard.empty();
+        const crews = result.standings.slice();
+        const myCrew = result.me_crew || null;
+        const myCrewKey = myCrew ? myCrew.key : null;
+
+        if (!crews.length) {
+            if (result.board_empty) renderNoteRow("No solves yet — no crews to show.");
+            else renderCrewEmptyState();
+            renderPagination(duration, 1, []);
+            return;
+        }
+
+        if (myCrew && !crews.some(crew => crew.key === myCrew.key)) {
+            if (myCrew.rank < crews[0].rank) crews.splice(0, 0, myCrew);
+            else crews.push(myCrew);
+        }
+        crews.forEach((crew, i) => {
+            const row = buildCrewRow(crew, myCrewKey);
+            if (i % 2 === 0) row.addClass("crew-row-stripe");
+            scoreboard.append(row);
+        });
+        renderPagination(duration, page, result.pages);
     }).catch(() => {
         if (gen !== scoreboardState.generation) return;
-        $("#scoreboard").empty();
-        const warning = renderNoteRow("Failed to load the crew scoreboard. ");
-        warning.find(".crew-note").addClass("crew-note-warn");
-        const retry = $(`<a role="button" tabindex="0" href="javascript:void(0)">Retry</a>`);
-        retry.on("click", () => loadScoreboard(duration, page));
-        warning.find(".crew-note").append(retry);
+        renderErrorRow(duration, page, "Failed to load the crew scoreboard.");
     });
 }
 
 function renderHackerView(duration, page, gen) {
-    const scoreboard = $("#scoreboard");
-    scoreboard.empty().append($(`<tr class="scoreboard-loading"><td colspan="6">Loading...</td></tr>`));
-    $("#scoreboard-pages").empty();
-    fetchScoreboardPage(duration, page).then(result => {
+    renderLoadingRow();
+    fetchScoreboardPage(duration, page, false).then(result => {
         if (gen !== scoreboardState.generation) return;
+        const scoreboard = $("#scoreboard");
         scoreboard.empty();
         const standings = result.standings.slice();
         if (result.me && standings.length) {
@@ -459,12 +295,7 @@ function renderHackerView(duration, page, gen) {
         renderPagination(duration, page, result.pages);
     }).catch(() => {
         if (gen !== scoreboardState.generation) return;
-        scoreboard.empty();
-        const warning = renderNoteRow("Failed to load the scoreboard. ");
-        warning.find(".crew-note").addClass("crew-note-warn");
-        const retry = $(`<a role="button" tabindex="0" href="javascript:void(0)">Retry</a>`);
-        retry.on("click", () => loadScoreboard(duration, page));
-        warning.find(".crew-note").append(retry);
+        renderErrorRow(duration, page, "Failed to load the scoreboard.");
     });
 }
 

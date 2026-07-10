@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from utils import DOJO_URL, login, create_dojo_yml, start_challenge, solve_challenge, workspace_run, wait_for_background_worker, remove_workspace_container
+from utils import DOJO_URL, dojo_run, login, create_dojo_yml, start_challenge, solve_challenge, workspace_run, wait_for_background_worker, remove_workspace_container
 
 
 CREW_DOJO_SPEC = """
@@ -77,7 +77,7 @@ def open_crew_view(browser, dojo):
     browser.get(f"{DOJO_URL}/dojo/{dojo}")
     wait_until(lambda: browser.execute_script("return typeof setScoreboardView === 'function' && $('#scoreboard tr').length > 0"))
     browser.execute_script("setScoreboardView('crews')")
-    wait_until(lambda: browser.execute_script("return $('#scoreboard .crew-loading').length === 0"))
+    wait_until(lambda: browser.execute_script("return $('#scoreboard .scoreboard-loading').length === 0 && $('#scoreboard tr').length > 0"))
 
 
 @pytest.mark.timeout(300)
@@ -161,77 +161,112 @@ def test_crew_tag_xss_safe(browser_fixture, crew_dojo):
     assert browser.execute_script("return $('#scoreboard .crew-member-row img:not(.scoreboard-symbol):not(.scoreboard-belt)').length") == 0
 
 
-def test_crew_parse_tag(browser_fixture, example_dojo):
-    browser = browser_fixture
-    browser.get(f"{DOJO_URL}/dojo/{example_dojo}")
-    wait_until(lambda: browser.execute_script("return typeof window.parseCrewTag === 'function'"))
-
-    def parse(name):
-        return browser.execute_script("return window.parseCrewTag(arguments[0])", name)
-
-    assert parse("Zardus [Shellphish]") == {"tag": "Shellphish", "key": "shellphish", "baseName": "Zardus"}
-    assert parse("[Shellphish]") == {"tag": "Shellphish", "key": "shellphish", "baseName": ""}
-    assert parse("[abc] Zardus") is None
-    assert parse("A [x] [y]") == {"tag": "y", "key": "y", "baseName": "A [x]"}
-    assert parse("A [[x]]") is None
-    assert parse("A []") is None
-    assert parse("A [ ]") is None
-    assert parse("A [\u200b]") is None
-    assert parse("plain") is None
-    assert parse("[") is None
-    assert parse("]") is None
-    assert parse("A [" + "x" * 25 + "]") is None
-    assert parse("A [" + "x" * 21 + "]") is None
-    assert parse("x [a\u200bb]")["key"] == parse("x [ab]")["key"]
-    assert parse("x [Shell  phish]")["key"] == parse("x [Shell phish]")["key"]
-    assert parse("x [SHELLPHISH]")["key"] == parse("x [shellphish]")["key"]
-    assert parse("x [Shell\u00adphish]")["key"] == parse("x [Shellphish]")["key"]
-    assert parse("x [ｓｈｅｌｌｐｈｉｓｈ]")["key"] == "shellphish"
-    assert parse("x [Shellphish\ufe0f]")["key"] == "shellphish"
-    assert parse("x [💀🔥]") == {"tag": "💀🔥", "key": "💀🔥", "baseName": "x"}
-    assert parse("x [  padded  ]") == {"tag": "padded", "key": "padded", "baseName": "x"}
+def flask_exec(code):
+    import base64
+    encoded = base64.b64encode(code.encode()).decode()
+    result = dojo_run("dojo", "flask", input=f'import base64; exec(base64.b64decode("{encoded}").decode())\n')
+    return result.stdout
 
 
-def test_crew_aggregation_logic(browser_fixture, example_dojo):
-    browser = browser_fixture
-    browser.get(f"{DOJO_URL}/dojo/{example_dojo}")
-    wait_until(lambda: browser.execute_script("return typeof window.parseCrewTag === 'function'"))
+CREW_PARSE_UNIT = r"""
+from CTFd.plugins.dojo_plugin.utils.crews import parse_crew_tag, aggregate_crews
 
-    result = browser.execute_script("""
-        const pages = new Map();
-        pages.set(1, [
-            {user_id: 1, name: "a [X]", solves: 5, rank: 1},
-            {user_id: 2, name: "b [X]", solves: 4, rank: 2},
-        ]);
-        pages.set(2, [
-            {user_id: 2, name: "b [X]", solves: 4, rank: 2},
-            {user_id: 3, name: "c [Y]", solves: 3, rank: 3},
-            {user_id: 4, name: "d [__proto__]", solves: 2, rank: 4},
-            {user_id: 5, name: "e", solves: 1, rank: 5},
-        ]);
-        const standings = dedupStandings({pagesByNumber: pages});
-        const crews = aggregateCrews(standings);
-        return {
-            standings: standings.length,
-            crews: crews.map(crew => ({tag: crew.tag, score: crew.score, members: crew.members.length, rank: crew.rank})),
-        };
-    """)
-    assert result["standings"] == 5
-    assert result["crews"] == [
-        {"tag": "X", "score": 9, "members": 2, "rank": 1},
-        {"tag": "Y", "score": 3, "members": 1, "rank": 2},
-        {"tag": "__proto__", "score": 2, "members": 1, "rank": 3},
-    ]
+assert parse_crew_tag("Zardus [Shellphish]") == {"tag": "Shellphish", "key": "shellphish", "base_name": "Zardus"}
+assert parse_crew_tag("[Shellphish]") == {"tag": "Shellphish", "key": "shellphish", "base_name": ""}
+assert parse_crew_tag("[abc] Zardus") is None
+assert parse_crew_tag("A [x] [y]") == {"tag": "y", "key": "y", "base_name": "A [x]"}
+assert parse_crew_tag("A [[x]]") is None
+assert parse_crew_tag("A []") is None
+assert parse_crew_tag("A [ ]") is None
+assert parse_crew_tag("A [\u200b]") is None
+assert parse_crew_tag("plain") is None
+assert parse_crew_tag("[") is None
+assert parse_crew_tag("]") is None
+assert parse_crew_tag("A [" + "x" * 25 + "]") is None
+assert parse_crew_tag("A [" + "x" * 21 + "]") is None
+assert parse_crew_tag("x [a\u200bb]")["key"] == parse_crew_tag("x [ab]")["key"]
+assert parse_crew_tag("x [Shell  phish]")["key"] == parse_crew_tag("x [Shell phish]")["key"]
+assert parse_crew_tag("x [SHELLPHISH]")["key"] == parse_crew_tag("x [shellphish]")["key"]
+assert parse_crew_tag("x [Shell\u00adphish]")["key"] == parse_crew_tag("x [Shellphish]")["key"]
+assert parse_crew_tag("x [\uff53\uff48\uff45\uff4c\uff4c]")["key"] == "shell"
+assert parse_crew_tag("x [Shellphish\ufe0f]")["key"] == "shellphish"
+assert parse_crew_tag("x [\U0001f480\U0001f525]") == {"tag": "\U0001f480\U0001f525", "key": "\U0001f480\U0001f525", "base_name": "x"}
+assert parse_crew_tag("x [  padded  ]") == {"tag": "padded", "key": "padded", "base_name": "x"}
 
-    tiebreaks = browser.execute_script("""
-        const standings = [
-            {user_id: 1, name: "a [Big]", solves: 3, rank: 1},
-            {user_id: 2, name: "b [Big]", solves: 3, rank: 2},
-            {user_id: 3, name: "c [Small]", solves: 6, rank: 3},
-        ];
-        return aggregateCrews(standings).map(crew => crew.tag);
-    """)
-    assert tiebreaks == ["Small", "Big"]
+standings = [
+    {"user_id": 1, "name": "a [X]", "solves": 5, "rank": 1},
+    {"user_id": 2, "name": "b [X]", "solves": 4, "rank": 2},
+    {"user_id": 3, "name": "c [Y]", "solves": 3, "rank": 3},
+    {"user_id": 4, "name": "d [__proto__]", "solves": 2, "rank": 4},
+    {"user_id": 5, "name": "e", "solves": 1, "rank": 5},
+]
+crews = aggregate_crews(standings)
+assert [(c["tag"], c["score"], len(c["members"]), c["rank"]) for c in crews] == [("X", 9, 2, 1), ("Y", 3, 1, 2), ("__proto__", 2, 1, 3)]
+
+tie = aggregate_crews([
+    {"user_id": 1, "name": "a [Big]", "solves": 3, "rank": 1},
+    {"user_id": 2, "name": "b [Big]", "solves": 3, "rank": 2},
+    {"user_id": 3, "name": "c [Small]", "solves": 6, "rank": 3},
+])
+assert [c["tag"] for c in tie] == ["Small", "Big"]
+assert aggregate_crews([]) == []
+
+print("CREW-UNIT-OK")
+"""
+
+
+def test_crew_parse_and_aggregation_unit():
+    assert "CREW-UNIT-OK" in flask_exec(CREW_PARSE_UNIT)
+
+
+@pytest.mark.timeout(300)
+def test_crew_scoreboard_api(crew_dojo):
+    tag = "".join(random.choices(string.ascii_uppercase, k=8))
+    name_a, _, session_a = register_user(tag=tag)
+    name_b, _, session_b = register_user(tag=tag.lower())
+    name_c, _, session_c = register_user()
+
+    for name, session in [(name_a, session_a), (name_b, session_b), (name_c, session_c)]:
+        join_dojo(session, crew_dojo)
+
+    solve(crew_dojo, name_a, session_a, "apple")
+    solve(crew_dojo, name_b, session_b, "banana")
+    solve(crew_dojo, name_c, session_c, "apple")
+    for name in [name_a, name_b, name_c]:
+        remove_workspace_container(name)
+    wait_for_background_worker(timeout=30)
+
+    result = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/crews/0/1")
+    assert result.status_code == 404
+
+    result = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1")
+    assert result.status_code == 200
+    board = result.json()
+
+    crew = next(c for c in board["standings"] if c["key"] == tag.lower())
+    assert crew["score"] == 2
+    assert len(crew["members"]) == 2
+    member_names = [member["name"] for member in crew["members"]]
+    assert name_a in member_names and name_b in member_names
+    for member in crew["members"]:
+        assert "email" not in member
+        assert member["crew"]["key"] == tag.lower()
+    assert all(name_c != member["name"] for c in board["standings"] for member in c["members"])
+
+    assert "me_crew" in board
+    assert board["me_crew"]["key"] == tag.lower()
+
+    module_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/hello/crews/0/1").json()
+    module_crew = next(c for c in module_board["standings"] if c["key"] == tag.lower())
+    assert module_crew["score"] == 2
+
+    hacker_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/0/1").json()
+    tagged = next(entry for entry in hacker_board["standings"] if entry["name"] == name_a)
+    assert tagged["crew"]["tag"] == tag
+    assert tagged["crew"]["key"] == tag.lower()
+    untagged = next(entry for entry in hacker_board["standings"] if entry["name"] == name_c)
+    assert untagged["crew"] is None
+
 
 
 def test_crew_view_toggle_race(browser_fixture, example_dojo):
@@ -253,10 +288,10 @@ def test_crew_view_toggle_race(browser_fixture, example_dojo):
     assert browser.execute_script("return $('#scoreboard-th-name').text()") == "Hacker"
 
     browser.execute_script("setScoreboardView('crews')")
-    wait_until(lambda: browser.execute_script("return $('#scoreboard .crew-loading').length === 0 && $('#scoreboard tr').length > 0"))
+    wait_until(lambda: browser.execute_script("return $('#scoreboard .scoreboard-loading').length === 0 && $('#scoreboard tr').length > 0"))
     rows = browser.execute_script("return $('#scoreboard .crew-row').length")
     browser.execute_script("setScoreboardView('hackers'); setScoreboardView('crews');")
-    wait_until(lambda: browser.execute_script("return $('#scoreboard .crew-loading').length === 0 && $('#scoreboard tr').length > 0"))
+    wait_until(lambda: browser.execute_script("return $('#scoreboard .scoreboard-loading').length === 0 && $('#scoreboard tr').length > 0"))
     time.sleep(1)
     assert browser.execute_script("return $('#scoreboard .crew-row').length") == rows
     assert browser.execute_script("return $('#scoreboard-heading').text()") == "All-Time Crew Scoreboard:"
