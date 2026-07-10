@@ -238,6 +238,7 @@ def test_challenge_transfer(transfer_src_dojo, transfer_dst_dojo, random_user_na
     assert random_user_session.get(f"{DOJO_URL}/dojo/{transfer_dst_dojo}/join/").status_code == 200
     start_challenge(transfer_dst_dojo, "dst-module", "dst-challenge", session=random_user_session)
     solve_challenge(transfer_dst_dojo, "dst-module", "dst-challenge", session=random_user_session, user=random_user_name)
+    wait_for_background_worker()
     scoreboard = random_user_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{transfer_src_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == random_user_name)
     assert us["solves"] == 1
