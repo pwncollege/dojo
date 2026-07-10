@@ -89,21 +89,27 @@ def make_dojo_official(dojo_rid, admin_session):
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
 
 
+def _create_dojo_with_retries(create_dojo_json, *, session):
+    # Dojo creation fetches external resources (git clone, file downloads);
+    # transient network failures are retried, permanent errors are not.
+    for _ in range(3):
+        response = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/create", json=create_dojo_json)
+        if response.status_code == 200 or "already exists" in response.text:
+            break
+        time.sleep(5)
+    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
+    return response.json()["dojo"]
+
+
 def create_dojo(repository, *, session):
     test_public_key = f"public/{repository}"
     test_private_key = f"private/{repository}"
     create_dojo_json = { "repository": repository, "public_key": test_public_key, "private_key": test_private_key }
-    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/create", json=create_dojo_json)
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
-    dojo_reference_id = response.json()["dojo"]
-    return dojo_reference_id
+    return _create_dojo_with_retries(create_dojo_json, session=session)
 
 
 def create_dojo_yml(spec, *, session):
-    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/create", json={"spec": spec})
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
-    dojo_reference_id = response.json()["dojo"]
-    return dojo_reference_id
+    return _create_dojo_with_retries({"spec": spec}, session=session)
 
 
 def dojo_run(*args, **kwargs):

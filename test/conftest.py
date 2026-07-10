@@ -1,4 +1,5 @@
 import random
+import shutil
 import string
 import pytest
 import json
@@ -6,6 +7,7 @@ import json
 import requests
 import requests.adapters
 from urllib3.util.retry import Retry
+from selenium.webdriver.firefox.service import Service as FirefoxService
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
@@ -239,7 +241,9 @@ def random_private_dojo(admin_session):
 def browser_fixture():
     options = FirefoxOptions()
     options.add_argument("--headless")
-    return Firefox(options=options)
+    geckodriver = shutil.which("geckodriver")
+    service = FirefoxService(executable_path=geckodriver) if geckodriver else None
+    return Firefox(options=options, service=service)
 
 @pytest.fixture
 def random_user_browser(browser_fixture, random_user_name):
