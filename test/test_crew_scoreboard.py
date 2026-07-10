@@ -139,6 +139,13 @@ def test_crew_scoreboard_happy_path(browser_fixture, crew_dojo):
     chip_tags = browser.execute_script("return $('#scoreboard .scoreboard-name .crew-tag-text').map((i, e) => e.textContent).get()")
     assert chip_tags.count(tag) == 2
 
+    browser.get(f"{DOJO_URL}/login")
+    browser.get(f"{DOJO_URL}/dojo/{crew_dojo}#crews-unique")
+    wait_until(lambda: browser.execute_script("return $('#scoreboard .crew-row').length > 0"))
+    assert browser.execute_script("return $('#scoreboard-th-score').text()") == "Unique"
+    assert browser.execute_script("return $('#scoreboard-crew-mode-unique').hasClass('scoreboard-view-selected')")
+    assert browser.execute_script("return $('#scoreboard-view-crews').hasClass('scoreboard-view-selected')")
+
 
 @pytest.mark.timeout(180)
 def test_crew_tag_xss_safe(browser_fixture, crew_dojo):
@@ -311,6 +318,54 @@ def test_crew_scoreboard_api(crew_dojo):
     module_crew = next(c for c in module_board["standings"] if c["key"] == tag.lower())
     assert module_crew["score"] == 3
     assert module_crew["unique"] == 2
+
+    solo_tag = "".join(random.choices(string.ascii_uppercase, k=8))
+    name_s, _, session_s = register_user(tag=solo_tag)
+    join_dojo(session_s, crew_dojo)
+    solve(crew_dojo, name_s, session_s, "apple")
+    solve(crew_dojo, name_s, session_s, "banana")
+    remove_workspace_container(name_s)
+    wait_for_background_worker(timeout=30)
+
+    def crew_order(mode):
+        board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1?mode={mode}").json()
+        assert [c["rank"] for c in board["standings"]] == list(range(1, len(board["standings"]) + 1))
+        return [c["key"] for c in board["standings"]]
+
+    cumulative_order = crew_order("cumulative")
+    unique_order = crew_order("unique")
+    assert cumulative_order.index(tag.lower()) < cumulative_order.index(solo_tag.lower())
+    assert unique_order.index(solo_tag.lower()) < unique_order.index(tag.lower())
+
+    flask_exec(f"""
+from CTFd.plugins.dojo_plugin.models import Dojos
+from CTFd.plugins.dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update
+dojo = Dojos.from_id({crew_dojo!r}).first()
+handle_scoreboard_update({{"model_type": "dojo", "model_id": dojo.dojo_id}})
+print("RECALC-DONE", dojo.dojo_id)
+""")
+    recalc_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1").json()
+    recalc_crew = next(c for c in recalc_board["standings"] if c["key"] == tag.lower())
+    assert recalc_crew["score"] == 3
+    assert recalc_crew["unique"] == 2
+    recalc_solo = next(c for c in recalc_board["standings"] if c["key"] == solo_tag.lower())
+    assert recalc_solo["score"] == 2
+    assert recalc_solo["unique"] == 2
+
+    dojo_id = flask_exec(f"""
+from CTFd.plugins.dojo_plugin.models import Dojos
+print("DOJO-ID", Dojos.from_id({crew_dojo!r}).first().dojo_id)
+""")
+    dojo_id = re.search(r"DOJO-ID (-?\d+)", dojo_id).group(1)
+    dojo_run("docker", "exec", "cache", "redis-cli", "DEL", f"stats:crews:dojo:{dojo_id}:0")
+    fallback_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1").json()
+    fallback_crew = next(c for c in fallback_board["standings"] if c["key"] == tag.lower())
+    assert fallback_crew["score"] == 3
+    assert fallback_crew["unique"] is None
+    dojo_run("docker", "exec", "cache", "redis-cli", "DEL", f"stats:crews:dojo:{dojo_id}:0")
+    fallback_unique = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1?mode=unique")
+    assert fallback_unique.status_code == 200
+    assert fallback_unique.json()["mode"] == "unique"
 
     hacker_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/0/1").json()
     tagged = next(entry for entry in hacker_board["standings"] if entry["name"] == name_a)

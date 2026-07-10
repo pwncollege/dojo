@@ -45,7 +45,7 @@ def handle_challenge_solve(payload, event_timestamp):
         is_member = dojo.is_member(user_id)
         is_public_or_official = dojo.is_public_or_official
 
-        if is_member:
+        if is_member and dojo_challenge.required:
             logger.info(f"Updating dojo scoreboard for dojo {dojo_ref_id}")
             _update_dojo_scoreboard(dojo, user_id, challenge_id, event_timestamp)
             logger.info(f"Updating module scoreboard for dojo {dojo_ref_id} module {module_index}")
