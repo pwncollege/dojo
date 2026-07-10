@@ -3,7 +3,7 @@ import string
 
 import pytest
 
-from utils import DOJO_URL, login, create_dojo_yml, workspace_run, start_challenge, solve_challenge, wait_for_background_worker, get_user_id
+from utils import DOJO_URL, login, create_dojo_yml, workspace_run, start_challenge, solve_challenge, wait_for_background_worker, get_user_id, remove_workspace_container
 
 
 def get_all_standings(session, dojo, module=None):
@@ -67,7 +67,8 @@ def bracket_name_solver(example_dojo, tag):
     start_challenge(example_dojo, "hello", "apple", session=session)
     result = workspace_run("/challenge/apple", user=name)
     solve_challenge(example_dojo, "hello", "apple", session=session, flag=result.stdout.strip())
-    wait_for_background_worker()
+    remove_workspace_container(name)
+    wait_for_background_worker(timeout=30)
     return name, session
 
 

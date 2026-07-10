@@ -55,7 +55,7 @@ def validate_restart(username, mode):
         result = workspace_run(command, user=username)
         assert False, f"\"dojo restart\" should not have result: {(result.stdout, result.stderr)}"
     except subprocess.CalledProcessError as error:
-        pass
+        restart_error = (error.returncode, error.stdout, error.stderr)
 
     # Validate that the container is the same, and it is not the same container.
     assert validate_current_container(
@@ -65,7 +65,7 @@ def validate_restart(username, mode):
         labels["dojo.challenge_id"],
         mode = labels["dojo.mode"] if mode == "current" else mode,
         after = datetime.datetime.fromisoformat(container["Created"]) # Should be created after the old container.
-    ), f"Failed to restart:\nOriginal Container:\n{container}\nNewest Container:\n{inspect_container(username)}"
+    ), f"Failed to restart (\"dojo restart\" exited {restart_error[0]}, stdout={restart_error[1]!r}, stderr={restart_error[2]!r}):\nOriginal Container:\n{container}\nNewest Container:\n{inspect_container(username)}"
 
 def test_whoami(random_user, welcome_dojo):
     name, session = random_user

@@ -159,6 +159,15 @@ def get_outer_container_for(container_name):
     
     raise RuntimeError(f"container {container_name} not found on any nodes")
 
+def remove_workspace_container(user):
+    container_name = f"user_{get_user_id(user)}"
+    try:
+        outer_container = get_outer_container_for(container_name)
+    except RuntimeError:
+        return
+    dojo_run("docker", "rm", "-f", container_name, check=False, container=outer_container)
+
+
 def workspace_run(cmd, *, user, root=False, **kwargs):
     container_name = f"user_{get_user_id(user)}"
     outer_container = get_outer_container_for(container_name)

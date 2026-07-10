@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from utils import DOJO_URL, login, create_dojo_yml, start_challenge, solve_challenge, workspace_run, wait_for_background_worker
+from utils import DOJO_URL, login, create_dojo_yml, start_challenge, solve_challenge, workspace_run, wait_for_background_worker, remove_workspace_container
 
 
 CREW_DOJO_SPEC = """
@@ -95,6 +95,8 @@ def test_crew_scoreboard_happy_path(browser_fixture, crew_dojo):
     solve(crew_dojo, name_a, session_a, "banana")
     solve(crew_dojo, name_b, session_b, "apple")
     solve(crew_dojo, name_c, session_c, "apple")
+    for name in [name_a, name_b, name_c]:
+        remove_workspace_container(name)
     wait_for_background_worker(timeout=30)
 
     browser_login(browser, name_a, password_a)
@@ -135,6 +137,7 @@ def test_crew_tag_xss_safe(browser_fixture, crew_dojo):
     name, password, session = register_user(tag=tag, name_prefix=prefix)
     join_dojo(session, crew_dojo)
     solve(crew_dojo, name, session, "apple")
+    remove_workspace_container(name)
     wait_for_background_worker(timeout=30)
 
     browser_login(browser, name, password)
@@ -275,6 +278,7 @@ def test_crew_empty_states(browser_fixture, admin_session, example_dojo):
     assert note == "No solves yet — no crews to show."
 
     solve(dojo, name, session, "apple")
+    remove_workspace_container(name)
     wait_for_background_worker(timeout=30)
 
     open_crew_view(browser, dojo)
