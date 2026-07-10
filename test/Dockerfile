@@ -5,12 +5,22 @@ RUN apt-get update && apt-get install -y \
     git \
     wget \
     jq \
-    firefox \
     ca-certificates \
     python3 \
     python3-pip \
     gnupg \
+    xz-utils \
+    libgtk-3-0 \
+    libasound2t64 \
+    libx11-xcb1 \
     && rm -rf /var/lib/apt/lists/*
+
+# Ubuntu 24.04's apt "firefox" is a snap shim that cannot run in a container;
+# install a real Firefox so Selenium Manager never downloads one at runtime.
+RUN wget -q -O /tmp/firefox.tar.xz "https://download.mozilla.org/?product=firefox-esr-latest-ssl&os=linux64&lang=en-US" \
+    && tar -xJf /tmp/firefox.tar.xz -C /opt \
+    && rm /tmp/firefox.tar.xz \
+    && ln -s /opt/firefox/firefox /usr/local/bin/firefox
 
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
