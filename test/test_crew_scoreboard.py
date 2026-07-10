@@ -121,8 +121,19 @@ def test_crew_scoreboard_happy_path(browser_fixture, crew_dojo):
     assert member_titles == [name_a, name_b]
     assert name_c not in browser.execute_script("return $('#scoreboard').text()")
 
+    browser.execute_script("setCrewMode('unique')")
+    wait_until(lambda: browser.execute_script("return $('#scoreboard-th-score').text() === 'Unique' && $('#scoreboard .crew-row').length > 0"))
+    unique_crew_row = wait_until(lambda: next(
+        (row for row in browser.find_elements("css selector", ".crew-row")
+         if row.find_element("css selector", ".crew-tag-text").text == tag), None))
+    assert unique_crew_row.find_element("css selector", ".crew-score").text == "2"
+    assert browser.execute_script("return location.hash") == "#crews-unique"
+    browser.execute_script("setCrewMode('cumulative')")
+    wait_until(lambda: browser.execute_script("return $('#scoreboard-th-score').text() === 'Score' && $('#scoreboard .crew-row').length > 0"))
+
     browser.execute_script("setScoreboardView('hackers')")
     wait_until(lambda: browser.execute_script("return $('#scoreboard .crew-row').length === 0 && $('#scoreboard .scoreboard-name').length > 0"))
+    assert browser.execute_script("return $('#scoreboard-crew-mode-toggle').prop('hidden')")
     hacker_names = browser.execute_script("return $('#scoreboard .scoreboard-name').map((i, e) => e.getAttribute('title')).get()")
     assert name_c in hacker_names
     chip_tags = browser.execute_script("return $('#scoreboard .scoreboard-name .crew-tag-text').map((i, e) => e.textContent).get()")
@@ -202,6 +213,28 @@ standings = [
 ]
 crews = aggregate_crews(standings)
 assert [(c["tag"], c["score"], len(c["members"]), c["rank"]) for c in crews] == [("X", 9, 2, 1), ("Y", 3, 1, 2), ("__proto__", 2, 1, 3)]
+assert all(c["unique"] is None and c["unique_rank"] is None for c in crews)
+
+challenge_map = {1: {10, 11, 12, 13, 14}, 2: {10, 11, 12, 13}, 3: {10, 11, 12}, 4: {20, 21}}
+crews = aggregate_crews(standings, challenge_map)
+x = next(c for c in crews if c["key"] == "x")
+y = next(c for c in crews if c["key"] == "y")
+proto = next(c for c in crews if c["key"] == "__proto__")
+assert (x["score"], x["unique"], x["rank"]) == (9, 5, 1)
+assert (y["score"], y["unique"], y["rank"]) == (3, 3, 2)
+assert x["unique_rank"] == 1 and y["unique_rank"] == 2 and proto["unique_rank"] == 3
+assert x["members"][0]["challenges"] == [10, 11, 12, 13, 14]
+
+overlap = aggregate_crews([
+    {"user_id": 1, "name": "a [Dup]", "solves": 3, "rank": 1},
+    {"user_id": 2, "name": "b [Dup]", "solves": 3, "rank": 2},
+    {"user_id": 3, "name": "c [Wide]", "solves": 4, "rank": 3},
+], {1: {1, 2, 3}, 2: {1, 2, 3}, 3: {1, 2, 3, 4}})
+dup = next(c for c in overlap if c["key"] == "dup")
+wide = next(c for c in overlap if c["key"] == "wide")
+assert (dup["score"], dup["unique"], dup["rank"]) == (6, 3, 1)
+assert (wide["score"], wide["unique"], wide["rank"]) == (4, 4, 2)
+assert wide["unique_rank"] == 1 and dup["unique_rank"] == 2
 
 tie = aggregate_crews([
     {"user_id": 1, "name": "a [Big]", "solves": 3, "rank": 1},
@@ -242,23 +275,42 @@ def test_crew_scoreboard_api(crew_dojo):
     result = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1")
     assert result.status_code == 200
     board = result.json()
+    assert board["mode"] == "cumulative"
 
     crew = next(c for c in board["standings"] if c["key"] == tag.lower())
     assert crew["score"] == 2
+    assert crew["unique"] == 2
     assert len(crew["members"]) == 2
     member_names = [member["name"] for member in crew["members"]]
     assert name_a in member_names and name_b in member_names
     for member in crew["members"]:
         assert "email" not in member
+        assert "challenges" not in member
         assert member["crew"]["key"] == tag.lower()
     assert all(name_c != member["name"] for c in board["standings"] for member in c["members"])
 
     assert "me_crew" in board
     assert board["me_crew"]["key"] == tag.lower()
 
+    unique_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1?mode=unique").json()
+    assert unique_board["mode"] == "unique"
+    unique_crew = next(c for c in unique_board["standings"] if c["key"] == tag.lower())
+    assert unique_crew["unique"] == 2
+    unique_ranks = [c["rank"] for c in unique_board["standings"]]
+    assert unique_ranks == sorted(unique_ranks)
+
+    solve(crew_dojo, name_b, session_b, "apple")
+    remove_workspace_container(name_b)
+    wait_for_background_worker(timeout=30)
+    overlap_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1").json()
+    overlap_crew = next(c for c in overlap_board["standings"] if c["key"] == tag.lower())
+    assert overlap_crew["score"] == 3
+    assert overlap_crew["unique"] == 2
+
     module_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/hello/crews/0/1").json()
     module_crew = next(c for c in module_board["standings"] if c["key"] == tag.lower())
-    assert module_crew["score"] == 2
+    assert module_crew["score"] == 3
+    assert module_crew["unique"] == 2
 
     hacker_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/0/1").json()
     tagged = next(entry for entry in hacker_board["standings"] if entry["name"] == name_a)

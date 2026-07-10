@@ -1,6 +1,6 @@
 import logging
 
-from flask import url_for
+from flask import request, url_for
 from flask_restx import Namespace, Resource
 from flask_sqlalchemy import Pagination
 from CTFd.utils.user import get_current_user
@@ -57,6 +57,7 @@ def standing_entry(item, belt_data, emojis):
     user_id = item["user_id"]
     belt_color = belt_data["users"].get(user_id, {"color": "white"})["color"]
     result = {key: item[key] for key in item.keys()}
+    result.pop("challenges", None)
     parsed = parse_crew_tag(result.get("name"))
     result.update({
         "url": url_for("pwncollege_users.view_other", user_id=user_id),
@@ -109,18 +110,25 @@ def get_scoreboard_page(model, duration=None, page=1, per_page=20):
     return result
 
 
-def get_crew_scoreboard_page(model, duration=None, page=1, per_page=20):
+def get_crew_scoreboard_page(model, duration=None, page=1, per_page=20, mode="cumulative"):
     belt_data = get_belts()
     user = get_current_user()
     emojis = get_viewable_emojis(user)
     crews = get_crews_for(model, duration)
 
+    if mode == "unique" and all(crew.get("unique_rank") is not None for crew in crews):
+        crews = sorted(crews, key=lambda crew: crew["unique_rank"])
+
+    def crew_rank(crew):
+        return crew["unique_rank"] if mode == "unique" and crew.get("unique_rank") is not None else crew["rank"]
+
     def crew_entry(crew):
         return {
-            "rank": crew["rank"],
+            "rank": crew_rank(crew),
             "tag": crew["tag"],
             "key": crew["key"],
             "score": crew["score"],
+            "unique": crew.get("unique"),
             "members": [
                 entry for entry in (standing_entry(member, belt_data, emojis) for member in crew["members"])
                 if entry is not None
@@ -131,6 +139,7 @@ def get_crew_scoreboard_page(model, duration=None, page=1, per_page=20):
     end_idx = start_idx + per_page
     result = {
         "standings": [crew_entry(crew) for crew in crews[start_idx:end_idx]],
+        "mode": mode,
     }
 
     pages = page_numbers(len(crews), page, per_page)
@@ -140,7 +149,7 @@ def get_crew_scoreboard_page(model, duration=None, page=1, per_page=20):
         if parsed:
             my_crew = next((crew for crew in crews if crew["key"] == parsed["key"]), None)
             if my_crew:
-                pages.add((my_crew["rank"] - 1) // per_page + 1)
+                pages.add((crew_rank(my_crew) - 1) // per_page + 1)
                 result["me_crew"] = crew_entry(my_crew)
 
     result["pages"] = sorted(pages)
@@ -149,6 +158,11 @@ def get_crew_scoreboard_page(model, duration=None, page=1, per_page=20):
         result["board_empty"] = not get_scoreboard_for(model, duration)
 
     return result
+
+
+def crew_mode_arg():
+    mode = request.args.get("mode", "cumulative")
+    return mode if mode in ("cumulative", "unique") else "cumulative"
 
 
 @scoreboard_namespace.route("/<dojo>/_/<int:duration>/<int:page>")
@@ -169,11 +183,11 @@ class ScoreboardModule(Resource):
 class ScoreboardDojoCrews(Resource):
     @dojo_route
     def get(self, dojo, duration, page):
-        return get_crew_scoreboard_page(dojo, duration=duration, page=page)
+        return get_crew_scoreboard_page(dojo, duration=duration, page=page, mode=crew_mode_arg())
 
 
 @scoreboard_namespace.route("/<dojo>/<module>/crews/<int:duration>/<int:page>")
 class ScoreboardModuleCrews(Resource):
     @dojo_route
     def get(self, dojo, module, duration, page):
-        return get_crew_scoreboard_page(module, duration=duration, page=page)
+        return get_crew_scoreboard_page(module, duration=duration, page=page, mode=crew_mode_arg())

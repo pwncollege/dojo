@@ -21,7 +21,7 @@ def parse_crew_tag(name):
     return {"tag": tag, "key": key, "base_name": match.group(1).strip()}
 
 
-def aggregate_crews(standings):
+def aggregate_crews(standings, member_challenges=None):
     crews = {}
     for entry in standings or []:
         parsed = parse_crew_tag(entry.get("name"))
@@ -37,11 +37,39 @@ def aggregate_crews(standings):
                 "members": [],
             }
         crew["score"] += entry["solves"]
-        crew["members"].append(entry)
+        member = dict(entry)
+        if member_challenges is not None:
+            member["challenges"] = sorted(member_challenges.get(entry["user_id"], []))
+        crew["members"].append(member)
+
     ranked = sorted(
         crews.values(),
         key=lambda crew: (-crew["score"], len(crew["members"]), crew["best_rank"], crew["key"]),
     )
     for i, crew in enumerate(ranked):
         crew["rank"] = i + 1
+        if member_challenges is not None:
+            crew["unique"] = len(set().union(*(member["challenges"] for member in crew["members"])) if crew["members"] else set())
+        else:
+            crew["unique"] = None
+
+    if member_challenges is not None:
+        by_unique = sorted(
+            ranked,
+            key=lambda crew: (-crew["unique"], len(crew["members"]), crew["best_rank"], crew["key"]),
+        )
+        for i, crew in enumerate(by_unique):
+            crew["unique_rank"] = i + 1
+    else:
+        for crew in ranked:
+            crew["unique_rank"] = None
+
     return ranked
+
+
+def member_challenges_from_crews(crews):
+    return {
+        member["user_id"]: set(member.get("challenges", []))
+        for crew in (crews or [])
+        for member in crew.get("members", [])
+    }

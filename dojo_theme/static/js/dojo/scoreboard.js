@@ -1,6 +1,7 @@
 const scoreboardState = {
     generation: 0,
-    view: location.hash === "#crews" ? "crews" : "hackers",
+    view: location.hash === "#crews" || location.hash === "#crews-unique" ? "crews" : "hackers",
+    crewMode: location.hash === "#crews-unique" ? "unique" : "cumulative",
     duration: 30,
 };
 
@@ -19,7 +20,7 @@ function fetchScoreboardPage(duration, page, crews) {
     const dojo = init.dojo;
     const module = init.module || "_";
     const endpoint = crews
-        ? `/pwncollege_api/v1/scoreboard/${dojo}/${module}/crews/${duration}/${page}`
+        ? `/pwncollege_api/v1/scoreboard/${dojo}/${module}/crews/${duration}/${page}?mode=${scoreboardState.crewMode}`
         : `/pwncollege_api/v1/scoreboard/${dojo}/${module}/${duration}/${page}`;
     return CTFd.fetch(endpoint, {
         method: "GET",
@@ -129,7 +130,11 @@ function buildCrewRow(crew, myCrewKey) {
     facepile.attr("title", crew.members.length > 5 ? `${names}, …` : names);
     const top = crew.members[0];
     row.find(".scoreboard-belt").attr("src", top.belt).attr("title", `Top member: ${top.name}`);
-    row.find(".crew-score").text(crew.score.toLocaleString()).attr("title", `Sum of ${crew.members.length} members' scores`);
+    const unique = crew.unique === null || crew.unique === undefined ? "—" : crew.unique.toLocaleString();
+    const scoreCell = row.find(".crew-score");
+    if (scoreboardState.crewMode === "unique") scoreCell.text(unique);
+    else scoreCell.text(crew.score.toLocaleString());
+    scoreCell.attr("title", `Cumulative: ${crew.score.toLocaleString()} · Unique challenges: ${unique}`);
     if (myCrewKey && crew.key === myCrewKey) row.addClass("scoreboard-row-me");
 
     let memberRows = null;
@@ -186,11 +191,16 @@ function setScoreboardControls(view, duration) {
     const controls = { 7: "#scoreboard-control-week", 30: "#scoreboard-control-month", 0: "#scoreboard-control-all" };
     if (controls[duration]) $(controls[duration]).addClass("scoreboard-page-selected");
     const crews = view === "crews";
+    const unique = scoreboardState.crewMode === "unique";
     $("#scoreboard-heading").text(`${labels[duration] || ""}${crews ? " Crew" : ""} Scoreboard:`);
     $("#scoreboard-th-name").text(crews ? "Crew" : "Hacker");
     $("#scoreboard-th-badges").text(crews ? "Members" : "Badges");
+    $("#scoreboard-th-score").text(crews && unique ? "Unique" : "Score");
     $("#scoreboard-view-hackers").toggleClass("scoreboard-view-selected", !crews).attr("aria-selected", String(!crews));
     $("#scoreboard-view-crews").toggleClass("scoreboard-view-selected", crews).attr("aria-selected", String(crews));
+    $("#scoreboard-crew-mode-toggle").prop("hidden", !crews);
+    $("#scoreboard-crew-mode-cumulative").toggleClass("scoreboard-view-selected", !unique).attr("aria-selected", String(!unique));
+    $("#scoreboard-crew-mode-unique").toggleClass("scoreboard-view-selected", unique).attr("aria-selected", String(unique));
     $(".scoreboard").toggleClass("scoreboard-crew-mode", crews);
 }
 
@@ -309,11 +319,21 @@ function loadScoreboard(duration, page) {
     else renderHackerView(duration, page, gen);
 }
 
+function scoreboardHash() {
+    if (scoreboardState.view !== "crews") return location.pathname + location.search;
+    return scoreboardState.crewMode === "unique" ? "#crews-unique" : "#crews";
+}
+
 function setScoreboardView(view) {
     if (scoreboardState.view === view) return;
     scoreboardState.view = view;
-    if (history.replaceState) {
-        history.replaceState(null, "", view === "crews" ? "#crews" : location.pathname + location.search);
-    }
+    if (history.replaceState) history.replaceState(null, "", scoreboardHash());
+    loadScoreboard(scoreboardState.duration, 1);
+}
+
+function setCrewMode(mode) {
+    if (scoreboardState.crewMode === mode) return;
+    scoreboardState.crewMode = mode;
+    if (history.replaceState) history.replaceState(null, "", scoreboardHash());
     loadScoreboard(scoreboardState.duration, 1);
 }

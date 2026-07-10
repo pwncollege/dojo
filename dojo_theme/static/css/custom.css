@@ -524,6 +524,12 @@ p[data-hide="true"] {
     align-items: baseline;
 }
 
+.scoreboard-view-controls {
+    display: inline-flex;
+    gap: 0.6em;
+    align-items: baseline;
+}
+
 .scoreboard-view-toggle {
     display: inline-flex;
     gap: 0.25em;
