@@ -7,7 +7,7 @@ import pytest
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
@@ -208,20 +208,19 @@ def skip_test_welcome_practice(random_user_browser, random_user_name, welcome_do
 def get_interfaces(browser, idx):
     challenge_expand(browser, idx)
     body = browser.find_element("id", f"challenges-body-{idx}")
-    options = Select(body.find_element("id", "workspace-select"))
-    return options.options
+    return body.find_elements(By.CSS_SELECTOR, ".workspace-service")
 
 def match_interfaces(interfaces, expected):
     assert len(interfaces) == len(expected)
     for interface, value in zip(interfaces, expected) :
-        assert interface.get_attribute("value") == value
+        assert interface.get_attribute("data-service") == value
 
 def test_interface_inherit(random_user_browser, random_user_name, interfaces_dojo):
     random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
     idx = challenge_idx(random_user_browser, "test1")
     interfaces = get_interfaces(random_user_browser, idx)
 
-    values = ["ssh: ", "terminal: 7681"]
+    values = ["terminal: 7681"]
     match_interfaces(interfaces, values)
 
 def test_interface_chal_override(random_user_browser, random_user_name, interfaces_dojo):
@@ -239,6 +238,33 @@ def test_interface_chal_narrow(random_user_browser, random_user_name, interfaces
 
     values = ["terminal: 7681"]
     match_interfaces(interfaces, values)
+
+def test_actionbar_popout_mode(random_user_browser, random_user_name, interfaces_dojo):
+    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    idx = challenge_idx(random_user_browser, "test1")
+    challenge_start(random_user_browser, idx)
+
+    body = random_user_browser.find_element("id", f"challenges-body-{idx}")
+    controls = body.find_element(By.CSS_SELECTOR, ".workspace-controls")
+    assert controls.get_attribute("data-popout") == "true"
+    assert not controls.find_elements(By.ID, "fullscreen")
+    assert not body.find_elements(By.ID, "workspace-select")
+    assert body.find_element(By.CSS_SELECTOR, ".workspace-ssh").is_displayed()
+
+    buttons = controls.find_elements(By.CSS_SELECTOR, ".workspace-service")
+    assert [button.get_attribute("data-service") for button in buttons] == ["terminal: 7681"]
+
+    wait = WebDriverWait(random_user_browser, 30)
+    iframe = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, f"#challenges-body-{idx} #workspace-iframe")))
+    wait.until(lambda driver: "/7681/" in (iframe.get_attribute("src") or ""))
+
+    random_user_browser.get(f"{DOJO_URL}/workspace")
+    controls = random_user_browser.find_element(By.CSS_SELECTOR, ".workspace-controls")
+    assert controls.get_attribute("data-popout") == "false"
+    assert controls.find_elements(By.ID, "fullscreen")
+    services = [button.get_attribute("data-service") for button in controls.find_elements(By.CSS_SELECTOR, ".workspace-service")]
+    assert services == ["ssh: ", "terminal: 7681"]
+    random_user_browser.close()
 
 
 def test_registration_commitment(browser_fixture):
