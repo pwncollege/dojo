@@ -220,7 +220,7 @@ def test_interface_inherit(random_user_browser, random_user_name, interfaces_doj
     idx = challenge_idx(random_user_browser, "test1")
     interfaces = get_interfaces(random_user_browser, idx)
 
-    values = ["terminal: 7681"]
+    values = ["ssh: ", "terminal: 7681"]
     match_interfaces(interfaces, values)
 
 def test_interface_chal_override(random_user_browser, random_user_name, interfaces_dojo):
@@ -304,13 +304,63 @@ def test_actionbar_ssh_only_challenge(random_user_browser, random_user_name, int
     idx = challenge_idx(random_user_browser, "test5")
     challenge_start(random_user_browser, idx)
     body = random_user_browser.find_element("id", f"challenges-body-{idx}")
-    assert not body.find_elements(By.CSS_SELECTOR, ".workspace-service")
-    assert body.find_element(By.CSS_SELECTOR, ".workspace-ssh").is_displayed()
+    buttons = body.find_elements(By.CSS_SELECTOR, ".workspace-service")
+    assert [button.get_attribute("data-service") for button in buttons] == ["ssh: "]
 
     wait = WebDriverWait(random_user_browser, 30)
     iframe = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, f"#challenges-body-{idx} #workspace-iframe")))
     wait.until(lambda driver: "SSH" in (iframe.get_attribute("class") or ""))
     assert iframe.size["height"] == 0
+    assert body.find_element(By.CSS_SELECTOR, ".workspace-ssh").is_displayed()
+    assert "active" in buttons[0].get_attribute("class")
+
+    buttons[0].click()
+    time.sleep(1)
+    assert body.find_element(By.CSS_SELECTOR, ".workspace-ssh").is_displayed()
+    assert "active" in buttons[0].get_attribute("class")
+    assert "SSH" in (iframe.get_attribute("class") or "")
+    random_user_browser.close()
+
+def test_actionbar_ssh_toggle(random_user_browser, random_user_name, interfaces_dojo):
+    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    idx = challenge_idx(random_user_browser, "test1")
+    challenge_start(random_user_browser, idx)
+    body = random_user_browser.find_element("id", f"challenges-body-{idx}")
+    wait = WebDriverWait(random_user_browser, 30)
+    iframe = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, f"#challenges-body-{idx} #workspace-iframe")))
+    wait.until(lambda driver: "/7681/" in (iframe.get_attribute("src") or ""))
+
+    ssh_button = body.find_element(By.CSS_SELECTOR, '.workspace-service[data-service="ssh: "]')
+    terminal_button = body.find_element(By.CSS_SELECTOR, '.workspace-service[data-service="terminal: 7681"]')
+    assert ssh_button.find_elements(By.CSS_SELECTOR, ".hint-icon")
+    assert not ssh_button.find_elements(By.CSS_SELECTOR, ".popout-icon")
+    assert terminal_button.find_elements(By.CSS_SELECTOR, ".popout-icon")
+    assert not terminal_button.find_elements(By.CSS_SELECTOR, ".hint-icon")
+
+    ssh_box = body.find_element(By.CSS_SELECTOR, ".workspace-ssh")
+    assert not ssh_box.is_displayed()
+    handles = len(random_user_browser.window_handles)
+
+    ssh_button.click()
+    wait.until(lambda driver: ssh_box.is_displayed())
+    assert "active" in ssh_button.get_attribute("class")
+    assert "SSH" in (iframe.get_attribute("class") or "")
+    assert iframe.size["height"] == 0
+    assert len(random_user_browser.window_handles) == handles
+
+    restart_button = body.find_element(By.CSS_SELECTOR, "#challenge-restart")
+    restart_button.click()
+    wait.until(lambda driver: restart_button.get_attribute("disabled") is None)
+    time.sleep(1)
+    assert ssh_box.is_displayed()
+    assert "active" in ssh_button.get_attribute("class")
+    assert "SSH" in (iframe.get_attribute("class") or "")
+
+    ssh_button.click()
+    wait.until(lambda driver: not ssh_box.is_displayed())
+    assert "active" not in ssh_button.get_attribute("class")
+    assert "SSH" not in (iframe.get_attribute("class") or "")
+    assert "/7681/" in (iframe.get_attribute("src") or "")
     random_user_browser.close()
 
 def test_actionbar_popout_mode(random_user_browser, random_user_name, interfaces_dojo):
@@ -323,10 +373,10 @@ def test_actionbar_popout_mode(random_user_browser, random_user_name, interfaces
     assert controls.get_attribute("data-popout") == "true"
     assert not controls.find_elements(By.ID, "fullscreen")
     assert not body.find_elements(By.ID, "workspace-select")
-    assert body.find_element(By.CSS_SELECTOR, ".workspace-ssh").is_displayed()
+    assert not body.find_element(By.CSS_SELECTOR, ".workspace-ssh").is_displayed()
 
     buttons = controls.find_elements(By.CSS_SELECTOR, ".workspace-service")
-    assert [button.get_attribute("data-service") for button in buttons] == ["terminal: 7681"]
+    assert [button.get_attribute("data-service") for button in buttons] == ["ssh: ", "terminal: 7681"]
 
     wait = WebDriverWait(random_user_browser, 30)
     iframe = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, f"#challenges-body-{idx} #workspace-iframe")))

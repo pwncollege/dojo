@@ -46,7 +46,8 @@
     margin-left: 0.4em;
   }
 
-  .workspace-service .popout-icon {
+  .workspace-service .popout-icon,
+  .workspace-service .hint-icon {
     margin-left: 0.5em;
     font-size: 0.7em;
     opacity: 0.6;
@@ -171,15 +172,14 @@
   <div id="workspace-notification-banner"></div>
   {% for service in challenge.interfaces %}
   {% set service_key = service.name | lower %}
-  {% if not popout or service.port %}
   <button class="workspace-control workspace-service btn btn-md btn-outline-secondary"
       data-service="{{ service_key }}: {{ service.port }}"
-      title="{% if popout %}Open {{ service.name }} in a new tab{% else %}Switch to {{ service.name }}{% endif %}">
+      title="{% if not popout %}Switch to {{ service.name }}{% elif service.port %}Open {{ service.name }} in a new tab{% else %}Show {{ service.name }} connection info{% endif %}">
     <i class="fas {{ service_icons.get(service_key, 'fa-network-wired') }}"></i>
     <span class="workspace-service-name">{{ service.name }}</span>
-    {% if popout %}<i class="fas fa-external-link-alt popout-icon"></i>{% endif %}
+    {% if popout and service.port %}<i class="fas fa-external-link-alt popout-icon"></i>{% endif %}
+    {% if popout and not service.port %}<i class="fas fa-question-circle hint-icon"></i>{% endif %}
   </button>
-  {% endif %}
   {% endfor %}
   <div title="Enter flag" class="workspace-control workspace-input">
     <i class="fas fa-flag workspace-highlight input-icon"></i>
