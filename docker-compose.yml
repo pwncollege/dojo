@@ -69,6 +69,7 @@ services:
     container_name: workspace-builder
     hostname: workspace-builder
     profiles:
+      - main
       - workspace
     build: ./workspace
     environment:
@@ -264,7 +265,7 @@ services:
       - /data/ssh_host_keys:/etc/ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /data/mac:/var/mac:ro
-      - /opt/pwn.college/workspace/core/tui.py:/opt/sshd/tui.py:ro
+      - /data/workspace/nix:/nix:ro
     extra_hosts:
       - "pwn.college:192.168.42.1"
     environment:
