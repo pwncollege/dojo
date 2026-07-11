@@ -48,9 +48,11 @@ def vscode_terminal(browser):
     surface = wait_for_selector(".monaco-workbench", "div.getting-started-step", "button.getting-started-step")
     surface.click()
     ActionChains(browser).key_down(Keys.CONTROL).key_down(Keys.SHIFT).send_keys("`").key_up(Keys.SHIFT).key_up(Keys.CONTROL).perform()
-    wait_for_selector("textarea.xterm-helper-textarea")
+    terminal = wait_for_selector("textarea.xterm-helper-textarea")
+    time.sleep(2)
+    browser.execute_script("arguments[0].focus();", terminal)
 
-    yield browser.switch_to.active_element
+    yield terminal
 
     browser.close()
     browser.switch_to.window(module_window)
