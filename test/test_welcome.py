@@ -239,6 +239,80 @@ def test_interface_chal_narrow(random_user_browser, random_user_name, interfaces
     values = ["terminal: 7681"]
     match_interfaces(interfaces, values)
 
+    challenge_start(random_user_browser, idx)
+    random_user_browser.get(f"{DOJO_URL}/workspace")
+    controls = random_user_browser.find_element(By.CSS_SELECTOR, ".workspace-controls")
+    services = [button.get_attribute("data-service") for button in controls.find_elements(By.CSS_SELECTOR, ".workspace-service")]
+    assert services == ["terminal: 7681"]
+    random_user_browser.close()
+
+def test_actionbar_service_buttons(random_user_browser, random_user_name, interfaces_dojo):
+    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    idx = challenge_idx(random_user_browser, "test1")
+    challenge_start(random_user_browser, idx)
+    body = random_user_browser.find_element("id", f"challenges-body-{idx}")
+    module_handle = random_user_browser.current_window_handle
+    handles = set(random_user_browser.window_handles)
+    wait = WebDriverWait(random_user_browser, 30)
+
+    body.find_element(By.CSS_SELECTOR, '.workspace-service[data-service="terminal: 7681"]').click()
+    wait.until(lambda driver: len(driver.window_handles) == len(handles) + 1)
+    popout_handle = (set(random_user_browser.window_handles) - handles).pop()
+    random_user_browser.switch_to.window(popout_handle)
+    wait.until(lambda driver: driver.current_url.rstrip("/").endswith("/workspace/terminal"))
+
+    random_user_browser.switch_to.window(module_handle)
+    random_user_browser.find_element("id", f"challenges-body-{idx}") \
+        .find_element(By.CSS_SELECTOR, '.workspace-service[data-service="terminal: 7681"]').click()
+    time.sleep(2)
+    assert len(random_user_browser.window_handles) == len(handles) + 1
+
+    random_user_browser.get(f"{DOJO_URL}/workspace")
+    controls = random_user_browser.find_element(By.CSS_SELECTOR, ".workspace-controls")
+    terminal_button = controls.find_element(By.CSS_SELECTOR, '.workspace-service[data-service="terminal: 7681"]')
+    terminal_button.click()
+    wait.until(lambda driver: "/7681/" in (driver.find_element(By.ID, "workspace-iframe").get_attribute("src") or ""))
+    assert "active" in terminal_button.get_attribute("class")
+    assert not random_user_browser.find_element(By.CSS_SELECTOR, ".workspace-ssh").is_displayed()
+
+    controls.find_element(By.CSS_SELECTOR, '.workspace-service[data-service="ssh: "]').click()
+    wait.until(lambda driver: driver.find_element(By.CSS_SELECTOR, ".workspace-ssh").is_displayed())
+    assert "SSH" in random_user_browser.find_element(By.ID, "workspace-iframe").get_attribute("class")
+
+    random_user_browser.switch_to.window(popout_handle)
+    random_user_browser.close()
+    random_user_browser.switch_to.window(module_handle)
+    random_user_browser.close()
+
+def test_actionbar_port_popout(random_user_browser, random_user_name, interfaces_dojo):
+    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    idx = challenge_idx(random_user_browser, "test4")
+    challenge_start(random_user_browser, idx)
+    body = random_user_browser.find_element("id", f"challenges-body-{idx}")
+    handles = set(random_user_browser.window_handles)
+    wait = WebDriverWait(random_user_browser, 30)
+
+    body.find_element(By.CSS_SELECTOR, '.workspace-service[data-service="web: 80"]').click()
+    wait.until(lambda driver: len(driver.window_handles) == len(handles) + 1)
+    popout_handle = (set(random_user_browser.window_handles) - handles).pop()
+    random_user_browser.switch_to.window(popout_handle)
+    wait.until(lambda driver: driver.current_url.rstrip("/").endswith("/workspace/80"))
+    random_user_browser.close()
+
+def test_actionbar_ssh_only_challenge(random_user_browser, random_user_name, interfaces_dojo):
+    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    idx = challenge_idx(random_user_browser, "test5")
+    challenge_start(random_user_browser, idx)
+    body = random_user_browser.find_element("id", f"challenges-body-{idx}")
+    assert not body.find_elements(By.CSS_SELECTOR, ".workspace-service")
+    assert body.find_element(By.CSS_SELECTOR, ".workspace-ssh").is_displayed()
+
+    wait = WebDriverWait(random_user_browser, 30)
+    iframe = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, f"#challenges-body-{idx} #workspace-iframe")))
+    wait.until(lambda driver: "SSH" in (iframe.get_attribute("class") or ""))
+    assert iframe.size["height"] == 0
+    random_user_browser.close()
+
 def test_actionbar_popout_mode(random_user_browser, random_user_name, interfaces_dojo):
     random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
     idx = challenge_idx(random_user_browser, "test1")

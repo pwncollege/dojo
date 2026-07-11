@@ -169,7 +169,19 @@ function serviceClickCallback(event) {
     const button = $(event.currentTarget);
     const service = button.attr("data-service");
     if (isPopout(context(event))) {
-        window.open(popoutUrl(service), "workspace-" + serviceName(service));
+        const popout = window.open("", "workspace-" + serviceName(service));
+        if (!popout) {
+            animateBanner(event, "Pop-up blocked — please allow pop-ups for this site.", "warn");
+            return;
+        }
+        let needsNavigation = true;
+        try {
+            needsNavigation = popout.location.pathname !== popoutUrl(service);
+        } catch (error) {}
+        if (needsNavigation) {
+            popout.location = popoutUrl(service);
+        }
+        popout.focus();
     }
     else {
         selectService(service);
@@ -353,7 +365,11 @@ function loadWorkspace(log=true) {
     if (isPopout(root)) {
         var service = root.find(".workspace-service").first().attr("data-service");
         if (service) {
+            content.removeClass("SSH");
             loadIframe(service, content[0]);
+        }
+        else {
+            content.attr("src", "").addClass("SSH");
         }
         return;
     }

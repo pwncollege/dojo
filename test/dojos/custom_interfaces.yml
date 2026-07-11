@@ -21,6 +21,15 @@ modules:
         interfaces:
         - name: Terminal
           port: 7681
+      - id: test4
+        name: test4
+        interfaces:
+        - name: Web
+          port: 80
+      - id: test5
+        name: test5
+        interfaces:
+        - name: SSH
 files:
   - type: text
     path: test/test1/test
@@ -34,6 +43,16 @@ files:
       cat /flag
   - type: text
     path: test/test3/test
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: test/test4/test
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: test/test5/test
     content: |
       #!/opt/pwn.college/bash
       cat /flag
