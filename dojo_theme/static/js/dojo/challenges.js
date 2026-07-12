@@ -268,11 +268,9 @@ function startChallenge(event) {
             item.find(".challenge-init").addClass("challenge-hidden");
             item.find(".challenge-workspace").removeClass("challenge-hidden");
             item.find("#workspace-change-privilege")
-                .attr("title", practice ? "Restart unprivileged" : "Restart privileged")
                 .attr("data-privileged", practice)
-                .find(".fas")
-                    .toggleClass("fa-lock", !practice)
-                    .toggleClass("fa-unlock", practice);
+                .find("input")
+                    .prop("checked", practice);
             windowResizeCallback("");
             moduleStartChallenge(event, channel);
         }
@@ -385,7 +383,7 @@ $(() => {
                 var priv = $(item).find("#workspace-change-privilege");
                 if (priv.length > 0) {
                     priv.attr("data-privileged", event.data["challenge-privilege"]);
-                    displayPrivileged({"target": priv[0]}, false);
+                    priv.find("input").prop("checked", event.data["challenge-privilege"] === "true");
                 }
 
                 refreshWorkspace($(item));

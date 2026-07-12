@@ -198,7 +198,8 @@ def skip_test_welcome_practice(random_user_browser, random_user_name, welcome_do
         vs.send_keys("sudo cp /challenge/secret /home/hacker/secret\n")
         time.sleep(1)
 
-    random_user_browser.find_element("id", "workspace-change-privilege").click()
+    random_user_browser.find_element(By.CSS_SELECTOR, "#workspace-change-privilege input").click()
+    random_user_browser.switch_to.alert.accept()
     time.sleep(10)
     with desktop_terminal(random_user_browser, random_user_name) as vs:
         vs.send_keys("/challenge/solve < secret | tee /tmp/out\n")
@@ -363,6 +364,56 @@ def test_actionbar_ssh_toggle(random_user_browser, random_user_name, interfaces_
     assert "active" not in ssh_button.get_attribute("class")
     assert "SSH" not in (iframe.get_attribute("class") or "")
     assert "/7681/" in (iframe.get_attribute("src") or "")
+    random_user_browser.close()
+
+def test_actionbar_sudo_checkbox(random_user_browser, random_user_name, interfaces_dojo):
+    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    idx = challenge_idx(random_user_browser, "test1")
+    challenge_start(random_user_browser, idx)
+    body = random_user_browser.find_element("id", f"challenges-body-{idx}")
+    wait = WebDriverWait(random_user_browser, 30)
+
+    control = body.find_element(By.CSS_SELECTOR, "#workspace-change-privilege")
+    checkbox = control.find_element(By.CSS_SELECTOR, "input")
+    assert not checkbox.is_selected()
+    assert control.get_attribute("data-privileged") == "false"
+
+    checkbox.click()
+    wait.until(EC.alert_is_present())
+    alert = random_user_browser.switch_to.alert
+    assert "sudo" in alert.text
+    alert.dismiss()
+    assert not checkbox.is_selected()
+    assert control.get_attribute("data-privileged") == "false"
+
+    checkbox.click()
+    wait.until(EC.alert_is_present())
+    random_user_browser.switch_to.alert.accept()
+    wait.until(lambda driver: control.get_attribute("data-privileged") == "true")
+    wait.until(lambda driver: checkbox.is_enabled())
+    assert checkbox.is_selected()
+
+    def workspace_output(cmd):
+        for _ in range(30):
+            try:
+                output = workspace_run(cmd, user=random_user_name).stdout
+            except Exception:
+                output = None
+            if output:
+                return output
+            time.sleep(1)
+        raise AssertionError(f"no output from workspace: {cmd}")
+
+    assert workspace_output("sudo id -u || echo nosudo").strip() == "0"
+
+    checkbox.click()
+    wait.until(EC.alert_is_present())
+    random_user_browser.switch_to.alert.accept()
+    wait.until(lambda driver: control.get_attribute("data-privileged") == "false")
+    wait.until(lambda driver: checkbox.is_enabled())
+    assert not checkbox.is_selected()
+
+    assert "nosudo" in workspace_output("sudo id -u || echo nosudo")
     random_user_browser.close()
 
 def test_actionbar_popout_mode(random_user_browser, random_user_name, interfaces_dojo):

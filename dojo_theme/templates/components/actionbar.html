@@ -102,6 +102,35 @@
     flex: 1;
   }
 
+  label#workspace-change-privilege {
+    display: flex;
+    align-items: center;
+    width: auto;
+    margin-bottom: 0;
+    padding-left: 0.75em;
+    padding-right: 0.75em;
+    cursor: pointer;
+  }
+
+  label#workspace-change-privilege input {
+    appearance: none;
+    width: 1.05em;
+    height: 1.05em;
+    margin: 0 0.45em 0 0;
+    border: 1px solid var(--highlight);
+    border-radius: 0.25em;
+    background-color: var(--background);
+    cursor: pointer;
+  }
+
+  label#workspace-change-privilege input:checked {
+    background-color: var(--highlight);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='3' d='M2.5 8.5l4 4 7-8'/%3E%3C/svg%3E");
+    background-size: 0.8em;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
   .workspace-ssh {
     padding: 1em;
     margin-bottom: 1em;
@@ -191,12 +220,13 @@
     <i class="fas fa-redo"></i>
   </button>
   {% if challenge.allow_privileged %}
-  <button id="workspace-change-privilege"
-      title="Restart {{'unprivileged' if practice else 'privileged'}}"
-      class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start"
+  <label id="workspace-change-privilege"
+      title="Restart the challenge with or without sudo access"
+      class="workspace-control btn btn-md btn-outline-secondary"
       data-privileged="{{'true' if practice else 'false'}}">
-    <i class="fas fa-{{'unlock' if practice else 'lock'}}"></i>
-  </button>
+    <input type="checkbox" {{'checked' if practice}}>
+    <span>sudo</span>
+  </label>
   {% endif %}
   {% if not popout %}
   <button id="fullscreen" title="Toggle fullscreen" class="workspace-control btn btn-md btn-outline-secondary">

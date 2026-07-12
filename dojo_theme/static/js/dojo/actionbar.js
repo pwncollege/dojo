@@ -345,6 +345,7 @@ function actionStartChallenge(event) {
             .removeClass("disabled")
             .removeClass("btn-disabled")
             .prop("disabled", false);
+            context(event).find("#workspace-change-privilege input").prop("disabled", false);
         })
     });
 }
@@ -360,11 +361,6 @@ function actionStartCallback(event) {
     if (context(event).find("#challenge-restart")[0].contains(event.target)) {
         actionStartChallenge(event);
     }
-    else if (context(event).find("#workspace-change-privilege").length > 0 && context(event).find("#workspace-change-privilege")[0].contains(event.target)) {
-        context(event).find("#workspace-change-privilege").attr("data-privileged", (_, v) => v !== "true");
-        displayPrivileged(event, false);
-        actionStartChallenge(event);
-    }
     else {
         console.log("Failed to start challenge.");
 
@@ -375,17 +371,21 @@ function actionStartCallback(event) {
     }
 }
 
-function displayPrivileged(event, invert) {
-    const button = context(event).find("#workspace-change-privilege");
-    const privileged = button.attr("data-privileged") === "true";
-    const lockStatus = privileged === invert;
-
-    button.find(".fas")
-        .toggleClass("fa-lock", lockStatus)
-        .toggleClass("fa-unlock", !lockStatus);
-
-    button.attr("title", privileged ? "Restart unprivileged"
-                                    : "Restart privileged");
+function privilegeChangeCallback(event) {
+    const checkbox = event.currentTarget;
+    const mode = checkbox.checked ? "with sudo access" : "without sudo access";
+    if (!window.confirm(`Restart the challenge ${mode}? The running container will be replaced.`)) {
+        checkbox.checked = !checkbox.checked;
+        return;
+    }
+    context(event).find("#workspace-change-privilege")
+        .attr("data-privileged", checkbox.checked ? "true" : "false");
+    context(event).find(".btn-challenge-start")
+        .addClass("disabled")
+        .addClass("btn-disabled")
+        .prop("disabled", true);
+    checkbox.disabled = true;
+    actionStartChallenge(event);
 }
 
 function loadWorkspace(log=true) {
@@ -449,13 +449,7 @@ $(() => {
 
         $(this).find(".btn-challenge-start").click(actionStartCallback);
 
-        if ($(this).find("#workspace-change-privilege").length) {
-            $(this).find("#workspace-change-privilege").on("mouseenter", function(event) {
-                displayPrivileged(event, true);
-            }).on("mouseleave", function(event) {
-                displayPrivileged(event, false);
-            });
-        }
+        $(this).find("#workspace-change-privilege input").on("change", privilegeChangeCallback);
 
         $(this).find("#fullscreen").click((event) => {
             event.preventDefault();
