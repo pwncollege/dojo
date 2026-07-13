@@ -4,7 +4,7 @@ import string
 import random
 
 import pytest
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -47,8 +47,19 @@ def vscode_terminal(browser):
 
     surface = wait_for_selector(".monaco-workbench", "div.getting-started-step", "button.getting-started-step")
     surface.click()
-    ActionChains(browser).key_down(Keys.CONTROL).key_down(Keys.SHIFT).send_keys("`").key_up(Keys.SHIFT).key_up(Keys.CONTROL).perform()
-    terminal = wait_for_selector("textarea.xterm-helper-textarea")
+    terminal = None
+    for _ in range(5):
+        # The Getting Started webview steals focus into a cross-origin iframe, swallowing keybindings.
+        browser.execute_script("if (document.activeElement) document.activeElement.blur();")
+        ActionChains(browser).key_down(Keys.CONTROL).key_down(Keys.SHIFT).send_keys("`").key_up(Keys.SHIFT).key_up(Keys.CONTROL).perform()
+        try:
+            terminal = WebDriverWait(browser, 5).until(
+                lambda driver: (driver.find_elements(By.CSS_SELECTOR, "textarea.xterm-helper-textarea") or [None])[0])
+            break
+        except TimeoutException:
+            continue
+    if terminal is None:
+        terminal = wait_for_selector("textarea.xterm-helper-textarea")
     time.sleep(2)
     browser.execute_script("arguments[0].focus();", terminal)
 
@@ -247,6 +258,8 @@ def test_interface_chal_narrow(random_user_browser, random_user_name, interfaces
     controls = random_user_browser.find_element(By.CSS_SELECTOR, ".workspace-controls")
     services = [button.get_attribute("data-service") for button in controls.find_elements(By.CSS_SELECTOR, ".workspace-service")]
     assert services == ["terminal: 7681"]
+    WebDriverWait(random_user_browser, 30).until(
+        lambda driver: "/7681/" in (driver.find_element(By.ID, "workspace-iframe").get_attribute("src") or ""))
     random_user_browser.close()
 
 def test_actionbar_service_buttons(random_user_browser, random_user_name, interfaces_dojo):
