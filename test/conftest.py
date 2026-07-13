@@ -243,7 +243,9 @@ def browser_fixture():
     options.add_argument("--headless")
     geckodriver = shutil.which("geckodriver")
     service = FirefoxService(executable_path=geckodriver) if geckodriver else None
-    return Firefox(options=options, service=service)
+    browser = Firefox(options=options, service=service)
+    yield browser
+    browser.quit()
 
 @pytest.fixture
 def random_user_browser(browser_fixture, random_user_name):
