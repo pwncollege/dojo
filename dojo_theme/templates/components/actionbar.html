@@ -123,6 +123,11 @@
     cursor: pointer;
   }
 
+  label#workspace-change-privilege input:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.5);
+  }
+
   label#workspace-change-privilege input:checked {
     background-color: var(--brand-green);
     border-color: var(--brand-green);
@@ -204,6 +209,7 @@
   {% set service_key = service.name | lower %}
   <button class="workspace-control workspace-service btn btn-md btn-outline-secondary"
       data-service="{{ service_key }}: {{ service.port }}"
+      aria-pressed="false"
       title="{% if not popout %}Switch to {{ service.name }}{% elif service.port %}Open {{ service.name }} in a new tab{% else %}Show {{ service.name }} connection info{% endif %}">
     <i class="fas {{ service_icons.get(service_key, 'fa-network-wired') }}"></i>
     <span class="workspace-service-name">{{ service.name }}</span>

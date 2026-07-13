@@ -136,9 +136,9 @@ function loadIframe(service, content) {
 
 function popoutUrl(service) {
     if (isSpecialService(service)) {
-        return "/workspace/" + serviceName(service);
+        return "/workspace/" + encodeURIComponent(serviceName(service));
     }
-    return "/workspace/" + servicePort(service);
+    return "/workspace/" + encodeURIComponent(servicePort(service));
 }
 
 function selectService(service, log=true) {
@@ -150,7 +150,9 @@ function selectService(service, log=true) {
     if (log) {logService(service);}
     const root = $(content).closest(".challenge-workspace").find(".workspace-controls");
     root.find(".workspace-service").each(function () {
-        $(this).toggleClass("active", $(this).attr("data-service") === service);
+        const active = $(this).attr("data-service") === service;
+        $(this).toggleClass("active", active);
+        $(this).attr("aria-pressed", active ? "true" : "false");
     });
     if (serviceName(service) == "ssh" && servicePort(service) == "") {
         content.src = "";
@@ -187,6 +189,7 @@ function toggleSshInstructions(root, show=null) {
     const button = portlessButton(root);
     const active = show === null ? !button.hasClass("active") : show;
     button.toggleClass("active", active);
+    button.attr("aria-pressed", active ? "true" : "false");
     workspace.find(".workspace-ssh").toggle(active);
     workspace.find("#workspace-iframe").toggleClass("SSH", active);
 }
@@ -196,6 +199,9 @@ function serviceClickCallback(event) {
     const button = $(event.currentTarget);
     const service = button.attr("data-service");
     if (!isPopout(context(event))) {
+        if (button.hasClass("active")) {
+            return;
+        }
         selectService(service);
         return;
     }
@@ -205,7 +211,7 @@ function serviceClickCallback(event) {
         }
         return;
     }
-    const popout = window.open("", "workspace-" + serviceName(service));
+    const popout = window.open("", "workspace-" + popoutUrl(service).split("/").pop());
     if (!popout) {
         animateBanner(event, "Pop-up blocked — please allow pop-ups for this site.", "warn");
         return;
@@ -244,7 +250,7 @@ function actionSubmitFlag(event) {
         return;
     }
 
-    context(event).find("input").prop("disabled", true).addClass("disabled");
+    context(event).find("#flag-input").prop("disabled", true).addClass("disabled");
     context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     const challenge_id = parseInt(context(event).find("#current-challenge-id").val());
 
@@ -271,7 +277,7 @@ function actionSubmitFlag(event) {
         else {
             animateBanner(event, "Submission failed.", "warn");
         }
-        context(event).find("input").prop("disabled", false).removeClass("disabled");
+        context(event).find("#flag-input").prop("disabled", false).removeClass("disabled");
         context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
     });
 }
@@ -294,8 +300,26 @@ function postStartChallenge(event, channel) {
     sendChallengeInfo(root, channel);
 }
 
-function actionStartChallenge(event) {
-    const privileged = context(event).find("#workspace-change-privilege").attr("data-privileged") === "true";
+function setActionbarBusy(root, busy) {
+    root.find(".btn-challenge-start")
+        .toggleClass("disabled", busy)
+        .toggleClass("btn-disabled", busy)
+        .prop("disabled", busy);
+    root.find("#workspace-change-privilege input").prop("disabled", busy);
+}
+
+function actionStartChallenge(event, privileged) {
+    const root = context(event);
+    const privilegeControl = root.find("#workspace-change-privilege");
+    if (privileged === undefined) {
+        privileged = privilegeControl.attr("data-privileged") === "true";
+    }
+
+    function startFailed(message) {
+        setActionbarBusy(root, false);
+        privilegeControl.find("input").prop("checked", privilegeControl.attr("data-privileged") === "true");
+        animateBanner(event, message || "Failed to start challenge.", "error");
+    }
 
     CTFd.fetch("/pwncollege_api/v1/docker", {
         method: "GET",
@@ -313,6 +337,7 @@ function actionStartChallenge(event) {
         return response.json();
     }).then(function (result) {
         if (result.success == false) {
+            startFailed(result.error);
             return;
         }
 
@@ -323,7 +348,7 @@ function actionStartChallenge(event) {
             "practice": privileged,
         };
 
-        CTFd.fetch('/pwncollege_api/v1/docker', {
+        return CTFd.fetch('/pwncollege_api/v1/docker', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -332,43 +357,30 @@ function actionStartChallenge(event) {
             },
             body: JSON.stringify(params)
         }).then(function (response) {
-            return response.json;
+            return response.json();
         }).then(function (result) {
             if (result.success == false) {
+                startFailed(result.error);
                 return;
             }
 
-            refreshWorkspace(context(event));
+            privilegeControl.attr("data-privileged", privileged ? "true" : "false");
+            privilegeControl.find("input").prop("checked", privileged);
+
+            refreshWorkspace(root);
             postStartChallenge(event, channel);
 
-            context(event).find(".btn-challenge-start")
-            .removeClass("disabled")
-            .removeClass("btn-disabled")
-            .prop("disabled", false);
-            context(event).find("#workspace-change-privilege input").prop("disabled", false);
-        })
+            setActionbarBusy(root, false);
+        });
+    }).catch(function () {
+        startFailed();
     });
 }
 
 function actionStartCallback(event) {
     event.preventDefault();
-
-    context(event).find(".btn-challenge-start")
-    .addClass("disabled")
-    .addClass("btn-disabled")
-    .prop("disabled", true);
-
-    if (context(event).find("#challenge-restart")[0].contains(event.target)) {
-        actionStartChallenge(event);
-    }
-    else {
-        console.log("Failed to start challenge.");
-
-        context(event).find(".btn-challenge-start")
-        .removeClass("disabled")
-        .removeClass("btn-disabled")
-        .prop("disabled", false);
-    }
+    setActionbarBusy(context(event), true);
+    actionStartChallenge(event);
 }
 
 function privilegeChangeCallback(event) {
@@ -378,14 +390,8 @@ function privilegeChangeCallback(event) {
         checkbox.checked = !checkbox.checked;
         return;
     }
-    context(event).find("#workspace-change-privilege")
-        .attr("data-privileged", checkbox.checked ? "true" : "false");
-    context(event).find(".btn-challenge-start")
-        .addClass("disabled")
-        .addClass("btn-disabled")
-        .prop("disabled", true);
-    checkbox.disabled = true;
-    actionStartChallenge(event);
+    setActionbarBusy(context(event), true);
+    actionStartChallenge(event, checkbox.checked);
 }
 
 function loadWorkspace(log=true) {
