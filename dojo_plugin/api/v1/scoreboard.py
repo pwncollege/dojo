@@ -8,8 +8,8 @@ from CTFd.utils.user import get_current_user
 from ...models import Dojos, DojoModules
 from ...utils.dojo import dojo_route
 from ...utils.awards import get_belts, get_viewable_emojis
-from ...utils.background_stats import get_cached_stat
 from ...utils.crews import aggregate_crews, parse_crew_tag
+from ...utils.module_cache import dojo_scoreboard_cache_key, get_dojo_cached_stat, get_module_cached_stat, module_scoreboard_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +28,9 @@ def email_symbol_asset(email):
 
 def model_cache_key(model, kind, duration):
     if isinstance(model, Dojos):
-        return f"stats:{kind}:dojo:{model.dojo_id}:{duration}"
+        return dojo_scoreboard_cache_key(model.dojo_id, duration, kind)
     if isinstance(model, DojoModules):
-        return f"stats:{kind}:module:{model.dojo_id}:{model.module_index}:{duration}"
+        return module_scoreboard_cache_key(model, duration, kind)
     return None
 
 
@@ -38,14 +38,19 @@ def get_scoreboard_for(model, duration):
     cache_key = model_cache_key(model, "scoreboard", duration)
     if cache_key is None:
         return []
-    return get_cached_stat(cache_key) or []
+    if isinstance(model, DojoModules):
+        return get_module_cached_stat(model, cache_key) or []
+    return get_dojo_cached_stat(model.dojo_id, cache_key) or []
 
 
 def get_crews_for(model, duration):
     cache_key = model_cache_key(model, "crews", duration)
     if cache_key is None:
         return []
-    cached = get_cached_stat(cache_key)
+    if isinstance(model, DojoModules):
+        cached = get_module_cached_stat(model, cache_key)
+    else:
+        cached = get_dojo_cached_stat(model.dojo_id, cache_key)
     if cached is not None:
         return cached
     return aggregate_crews(get_scoreboard_for(model, duration))

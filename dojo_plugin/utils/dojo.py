@@ -10,6 +10,7 @@ import inspect
 import pathlib
 import urllib.request
 import base64
+import copy
 import logging
 import emoji
 
@@ -25,6 +26,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
 from ..config import DOJOS_DIR
 from ..utils import get_current_container, sanitize_survey
+from ..utils.module_cache import ModuleCacheTarget, legacy_module_cache_keys, module_cache_content_signature, module_identity_cache_keys, queue_cache_refreshes, queue_dojo_stats_reference_retirement, queue_module_cache_invalidations, retire_module_cache_refreshes
 
 
 DOJOS_TMP_DIR = DOJOS_DIR/"tmp"
@@ -192,6 +194,57 @@ def setdefault_name(entry):
     entry["name"] = entry["id"].replace("-", " ").title()
 
 
+def normalize_challenge_resource(resource_data, *, generate_name=True):
+    if not isinstance(resource_data, dict):
+        return
+    if resource_data.get("type") != "challenge":
+        return
+    import_data = resource_data.get("import")
+    if (
+        isinstance(import_data, dict)
+        and "challenge" in import_data
+        and "id" not in resource_data
+    ):
+        resource_data["id"] = import_data["challenge"]
+    if generate_name and "id" in resource_data and "name" not in resource_data:
+        resource_data["name"] = resource_data["id"].replace("-", " ").title()
+
+
+def normalize_module_challenge_resources(module_data, *, generate_names=True):
+    if not isinstance(module_data, dict):
+        return
+    resources = module_data.setdefault("resources", [])
+    challenges = module_data.get("challenges", [])
+    if (
+        isinstance(resources, list)
+        and isinstance(challenges, list)
+        and all(isinstance(challenge, dict) for challenge in challenges)
+    ):
+        module_data.pop("challenges", None)
+        if challenges:
+            resources.append({
+                "type": "header",
+                "content": "Challenges",
+            })
+            for challenge_data in challenges:
+                challenge_data["type"] = "challenge"
+                resources.append(challenge_data)
+    if isinstance(resources, list):
+        for resource_data in resources:
+            normalize_challenge_resource(
+                resource_data,
+                generate_name=generate_names,
+            )
+
+
+def normalize_dojo_spec(data):
+    modules = data.get("modules", []) if isinstance(data, dict) else []
+    if isinstance(modules, list):
+        for module_data in modules:
+            normalize_module_challenge_resources(module_data)
+    return data
+
+
 def setdefault_file(data, key, file_path):
     if file_path.exists():
         data.setdefault(key, file_path.read_text())
@@ -235,35 +288,20 @@ def load_dojo_subyamls(data, dojo_dir):
         setdefault_file(module_data, "description", module_dir / "DESCRIPTION.md")
         setdefault_name(module_data)
 
-        if "resources" not in module_data:
-            module_data["resources"] = []
-
-        challenges = module_data.pop("challenges", [])
-        if challenges:
-            module_data["resources"].append({
-                "type": "header",
-                "content": "Challenges"
-            })
-
-            for challenge_data in challenges:
-                challenge_data["type"] = "challenge"
-                module_data["resources"].append(challenge_data)
+        normalize_module_challenge_resources(
+            module_data,
+            generate_names=False,
+        )
 
         for resource_data in module_data["resources"]:
             if resource_data.get("type") == "challenge":
-                if "import" in resource_data and "id" not in resource_data:
-                    resource_data["id"] = resource_data["import"]["challenge"]
-
                 if "id" not in resource_data:
                     continue
 
                 challenge_dir = module_dir / resource_data["id"]
                 setdefault_subyaml(resource_data, challenge_dir / "challenge.yml")
                 setdefault_file(resource_data, "description", challenge_dir / "DESCRIPTION.md")
-                setdefault_name(resource_data)
-
-                if "import" in resource_data and "name" not in resource_data:
-                    resource_data["name"] = resource_data.get("id", "Imported Challenge").replace("-", " ").title()
+                normalize_challenge_resource(resource_data)
 
     return data
 
@@ -337,6 +375,8 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
 
 
 def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
+    data = normalize_dojo_spec(copy.deepcopy(data))
+
     try:
         dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
@@ -372,6 +412,45 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     }
 
     assert dojo_kwargs.get("id") is not None, "Dojo id must be defined"
+
+    updating_dojo = dojo is not None
+    existing_dojo_reference_id = None
+    existing_dojo_cache_eligibility = None
+    if updating_dojo:
+        dojo = (
+            Dojos.query
+            .filter_by(dojo_id=dojo.dojo_id)
+            .populate_existing()
+            .with_for_update()
+            .one()
+        )
+        existing_dojo_reference_id = dojo.reference_id
+        existing_dojo_cache_eligibility = dojo.is_public_or_official
+        existing_modules = (
+            DojoModules.query
+            .filter_by(dojo_id=dojo.dojo_id)
+            .order_by(DojoModules.module_index)
+            .populate_existing()
+            .with_for_update()
+            .all()
+        )
+    else:
+        existing_modules = []
+    existing_module_layout = (
+        [(module.module_index, module.id) for module in existing_modules]
+        if updating_dojo else []
+    )
+    existing_module_cache_states = (
+        {
+            module.id: (
+                module.cache_identity,
+                module_cache_content_signature(module),
+                module.cache_launched_at.isoformat(),
+            )
+            for module in existing_modules
+        }
+        if updating_dojo else {}
+    )
 
     if dojo is None:
         dojo = Dojos(**dojo_kwargs)
@@ -432,6 +511,17 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
         datas_import = [data.get("import", {}) for data in datas]
         return tuple(shadow(id, *datas_import) for id in attrs)
 
+    def preserve_module_cache_identity(module):
+        existing_state = existing_module_cache_states.get(module.id)
+        if existing_state:
+            module.data = {
+                **(module.data or {}),
+                "cache_launched_at": existing_state[2],
+            }
+            if existing_state[1] == module_cache_content_signature(module):
+                module.data["cache_identity"] = existing_state[0]
+        return module
+
     challenge_resources = []
     regular_resources = []
     for module_data in dojo_data.get("modules", []):
@@ -459,7 +549,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
                 regular_resources.append((module_data, resource_data))
 
     dojo.modules = [
-        DojoModules(
+        preserve_module_cache_identity(DojoModules(
             **{kwarg: module_data.get(kwarg) for kwarg in ["id", "name", "description"]},
             challenges=[
                 DojoChallenges(
@@ -498,15 +588,77 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             visibility=visibility(DojoModuleVisibilities, dojo_data, module_data),
             show_challenges=shadow("show_challenges", dojo_data, module_data, default_dict=DojoModules.data_defaults),
             show_scoreboard=shadow("show_scoreboard", dojo_data, module_data, default_dict=DojoModules.data_defaults),
-        )
+        ))
         for module_data in dojo_data["modules"]
     ] if "modules" in dojo_data else [
-        DojoModules(
+        preserve_module_cache_identity(DojoModules(
             default=module,
             visibility=visibility(DojoModuleVisibilities, dojo_data, module_data),
-        )
+        ))
         for module in (import_dojo.modules if import_dojo else [])
     ]
+
+    if updating_dojo:
+        cache_eligibility_changed = (
+            existing_dojo_cache_eligibility != dojo.is_public_or_official
+        )
+        new_module_layout = [
+            (module.module_index, module.id) for module in dojo.modules
+        ]
+        new_module_cache_identities = {
+            module.cache_identity for module in dojo.modules
+        }
+        existing_module_cache_identities = {
+            identity
+            for identity, _, _ in existing_module_cache_states.values()
+        }
+        retired_cache_identities = (
+            existing_module_cache_identities
+            - new_module_cache_identities
+        )
+        retired_module_cache_targets = tuple(
+            ModuleCacheTarget(dojo.dojo_id, module_id, identity)
+            for module_id, (identity, _, _) in existing_module_cache_states.items()
+            if identity in retired_cache_identities
+        )
+        module_cache_refreshes = tuple(
+            ModuleCacheTarget(
+                dojo.dojo_id,
+                module.id,
+                module.cache_identity,
+            )
+            for module in dojo.modules
+            if (
+                cache_eligibility_changed
+                or module.id not in existing_module_cache_states
+                or module.cache_identity
+                != existing_module_cache_states[module.id][0]
+            )
+        )
+        invalidation_keys = set()
+        if (
+            new_module_layout != existing_module_layout
+            or retired_cache_identities
+            or module_cache_refreshes
+        ):
+            for module_index, _ in existing_module_layout + new_module_layout:
+                invalidation_keys.update(
+                    legacy_module_cache_keys(dojo.dojo_id, module_index)
+                )
+        for cache_identity in retired_cache_identities:
+            invalidation_keys.update(
+                module_identity_cache_keys(dojo.dojo_id, cache_identity)
+            )
+        retire_module_cache_refreshes(retired_module_cache_targets)
+        queue_module_cache_invalidations(invalidation_keys)
+        queue_cache_refreshes(
+            module_targets=module_cache_refreshes,
+            dojo_ids=(dojo.dojo_id,),
+        )
+        if existing_dojo_reference_id != dojo.reference_id:
+            queue_dojo_stats_reference_retirement(
+                existing_dojo_reference_id
+            )
 
     if dojo_dir:
         with dojo.located_at(dojo_dir):
@@ -660,6 +812,18 @@ def dojo_create(user, repository, public_key, private_key, spec):
         dojo.admins = [DojoAdmins(user=user)]
 
         db.session.add(dojo)
+        db.session.flush()
+        queue_cache_refreshes(
+            module_targets=tuple(
+                ModuleCacheTarget(
+                    dojo.dojo_id,
+                    module.id,
+                    module.cache_identity,
+                )
+                for module in dojo.modules
+            ),
+            dojo_ids=(dojo.dojo_id,),
+        )
         db.session.commit()
 
         dojo.path.parent.mkdir(exist_ok=True)

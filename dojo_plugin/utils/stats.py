@@ -4,6 +4,7 @@ from sqlalchemy import func, desc
 
 from . import get_all_containers, DojoChallenges
 from .background_stats import get_cached_stat
+from .module_cache import dojo_stats_cache_key, get_dojo_cached_stat, get_module_cached_stat, module_challenge_solves_cache_key
 
 CACHE_KEY_CONTAINERS = "stats:containers"
 
@@ -62,7 +63,12 @@ def calculate_dojo_stats(dojo):
             DojoChallenges.name.label('challenge_name')
         )
         .filter(Solves.date >= now - timedelta(days=7))
-        .order_by(desc(Solves.date))
+        .order_by(
+            desc(Solves.date),
+            desc(Solves.id),
+            DojoChallenges.module_index,
+            DojoChallenges.challenge_index,
+        )
         .limit(5)
         .all()
     )
@@ -104,8 +110,8 @@ def calculate_dojo_stats(dojo):
     }
 
 def get_dojo_stats(dojo):
-    cache_key = f"stats:dojo:{dojo.reference_id}"
-    cached = get_cached_stat(cache_key)
+    cache_key = dojo_stats_cache_key(dojo)
+    cached = get_dojo_cached_stat(dojo.dojo_id, cache_key)
     if cached:
         for solve in cached.get('recent_solves', []):
             if solve.get('date') and isinstance(solve['date'], str):
@@ -124,8 +130,8 @@ def get_dojo_stats(dojo):
 
 
 def get_challenge_solves(module):
-    cache_key = f"stats:challenge_solves:module:{module.dojo_id}:{module.module_index}"
-    cached = get_cached_stat(cache_key)
+    cache_key = module_challenge_solves_cache_key(module)
+    cached = get_module_cached_stat(module, cache_key)
     if cached:
         return {int(k): v for k, v in cached.items()}
     return None

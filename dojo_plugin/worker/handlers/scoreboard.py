@@ -4,13 +4,14 @@ from sqlalchemy import func
 
 from CTFd.models import db, Solves, Users
 from ...models import Dojos, DojoModules, DojoChallenges
-from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
+from ...utils.background_stats import calculate_authoritative_stat, get_cached_stat, get_cache_watermark, set_cached_stat, is_event_stale
 from ...utils.crews import aggregate_crews, member_challenges_from_crews, parse_crew_tag
+from ...utils.module_cache import SCOREBOARD_DURATIONS, drain_module_cache_invalidations, lock_dojo_cache_target, lock_module_cache_target, module_cache_target, module_challenge_solves_cache_key, module_scoreboard_cache_key
 from . import register_handler
 
 logger = logging.getLogger(__name__)
 
-COMMON_DURATIONS = [0, 7, 30]
+COMMON_DURATIONS = SCOREBOARD_DURATIONS
 
 
 def duration_solves_filter(duration):
@@ -19,13 +20,19 @@ def duration_solves_filter(duration):
     return Solves.date >= datetime.datetime.utcnow() - datetime.timedelta(days=duration)
 
 
+def cache_solves(model):
+    if isinstance(model, DojoModules):
+        return model.cache_solves()
+    return model.solves()
+
+
 def calculate_member_challenges(model, duration, scoreboard):
     tagged_user_ids = [entry["user_id"] for entry in scoreboard if parse_crew_tag(entry.get("name"))]
     result = {}
     for start in range(0, len(tagged_user_ids), 500):
         chunk = tagged_user_ids[start:start + 500]
         query = (
-            model.solves()
+            cache_solves(model)
             .filter(duration_solves_filter(duration))
             .filter(DojoChallenges.required == True)
             .filter(Solves.user_id.in_(chunk))
@@ -38,7 +45,7 @@ def calculate_member_challenges(model, duration, scoreboard):
 
 def user_challenges(model, duration, user_id):
     query = (
-        model.solves()
+        cache_solves(model)
         .filter(duration_solves_filter(duration))
         .filter(DojoChallenges.required == True)
         .filter(Solves.user_id == user_id)
@@ -47,15 +54,43 @@ def user_challenges(model, duration, user_id):
     return set(challenge_id for (challenge_id,) in query.all())
 
 
-def set_scoreboard_cache(cache_key, scoreboard, member_challenges):
-    set_cached_stat(cache_key, scoreboard)
-    set_cached_stat(cache_key.replace("stats:scoreboard:", "stats:crews:", 1),
-                    aggregate_crews(scoreboard, member_challenges))
+def set_scoreboard_cache(
+    cache_key,
+    scoreboard,
+    member_challenges,
+    updated_at=None,
+    version=None,
+):
+    if updated_at is None:
+        updated_at = get_cache_watermark()
+    scoreboard_cached = set_cached_stat(
+        cache_key,
+        scoreboard,
+        updated_at=updated_at,
+        version=version,
+    )
+    crews_cached = set_cached_stat(
+        cache_key.replace("stats:scoreboard:", "stats:crews:", 1),
+        aggregate_crews(scoreboard, member_challenges),
+        updated_at=updated_at,
+        version=version,
+    )
+    return scoreboard_cached and crews_cached
 
 
-def update_scoreboard_cache(model, cache_key, user_id, challenge_id):
+def update_scoreboard_cache(
+    model,
+    cache_key,
+    user_id,
+    challenge_id,
+    solve_delta=1,
+):
     current_scoreboard = get_cached_stat(cache_key) or []
-    updated_scoreboard = update_scoreboard(current_scoreboard, user_id)
+    updated_scoreboard = update_scoreboard(
+        current_scoreboard,
+        user_id,
+        solve_delta,
+    )
     crews_key = cache_key.replace("stats:scoreboard:", "stats:crews:", 1)
     member_challenges = member_challenges_from_crews(get_cached_stat(crews_key) or [])
     entry = next((item for item in updated_scoreboard if item["user_id"] == user_id), None)
@@ -109,14 +144,10 @@ def update_scoreboard(scoreboard, user_id, solve_delta=1):
 
     return result
 
-def challenge_solves_cache_key(dojo_id, module_index):
-    return f"stats:challenge_solves:module:{dojo_id}:{module_index}"
-
-
 def calculate_challenge_solves(module):
     required_filter = DojoChallenges.required == True
     query = (
-        module.solves()
+        module.cache_solves()
         .filter(required_filter)
         .group_by(Solves.challenge_id)
         .with_entities(Solves.challenge_id, func.count().label("count"))
@@ -124,10 +155,10 @@ def calculate_challenge_solves(module):
     return {str(row.challenge_id): row.count for row in query.all()}
 
 
-def update_challenge_solves(challenge_solves, challenge_id):
+def update_challenge_solves(challenge_solves, challenge_id, solve_delta=1):
     result = dict(challenge_solves)
     key = str(challenge_id)
-    result[key] = result.get(key, 0) + 1
+    result[key] = result.get(key, 0) + solve_delta
     return result
 
 
@@ -142,7 +173,7 @@ def calculate_scoreboard(model, duration):
     )
     user_entities = [Solves.user_id, Users.name, Users.email]
     query = (
-        model.solves()
+        cache_solves(model)
         .filter(duration_filter)
         .filter(required_filter)
         .group_by(*user_entities)
@@ -153,6 +184,70 @@ def calculate_scoreboard(model, duration):
     row_results = query.all()
     results = [{key: getattr(item, key) for key in item.keys()} for item in row_results]
     return results
+
+
+def populate_module_scoreboard_caches(target, event_timestamp=None):
+    if not lock_dojo_cache_target(target.dojo_id):
+        db.session.rollback()
+        return False
+    module = lock_module_cache_target(target)
+    if not module:
+        db.session.rollback()
+        return False
+
+    try:
+        def calculate():
+            scoreboards = []
+            for duration in COMMON_DURATIONS:
+                cache_key = module_scoreboard_cache_key(module, duration)
+                if event_timestamp and is_event_stale(
+                    cache_key,
+                    event_timestamp,
+                ):
+                    continue
+                scoreboard = calculate_scoreboard(module, duration)
+                member_challenges = calculate_member_challenges(
+                    module,
+                    duration,
+                    scoreboard,
+                )
+                scoreboards.append((
+                    cache_key,
+                    scoreboard,
+                    member_challenges,
+                ))
+            return scoreboards, calculate_challenge_solves(module)
+
+        (scoreboards, challenge_solves), version, calculated_at = (
+            calculate_authoritative_stat(calculate)
+        )
+        updated_at = (
+            event_timestamp
+            if event_timestamp is not None
+            else calculated_at
+        )
+        for cache_key, scoreboard, member_challenges in scoreboards:
+            set_scoreboard_cache(
+                cache_key,
+                scoreboard,
+                member_challenges,
+                updated_at=updated_at,
+                version=version,
+            )
+        set_cached_stat(
+            module_challenge_solves_cache_key(module),
+            challenge_solves,
+            updated_at=updated_at,
+            version=version,
+        )
+    except Exception as error:
+        logger.error(
+            f"Error calculating module caches for {target.module_id}: {error}",
+            exc_info=True,
+        )
+    db.session.commit()
+    return True
+
 
 @register_handler("scoreboard_update")
 def handle_scoreboard_update(payload, event_timestamp=None):
@@ -167,11 +262,14 @@ def handle_scoreboard_update(payload, event_timestamp=None):
 
     db.session.expire_all()
     db.session.commit()
+    if not drain_module_cache_invalidations():
+        return False
 
     if model_type == "dojo":
-        model = Dojos.query.get(model_id)
+        model = lock_dojo_cache_target(model_id)
         if not model:
             logger.info(f"Dojo not found for dojo_id {model_id} (may have been deleted)")
+            db.session.rollback()
             return
         cache_prefix = f"stats:scoreboard:dojo:{model_id}"
     elif model_type == "module":
@@ -185,62 +283,112 @@ def handle_scoreboard_update(payload, event_timestamp=None):
         if not model:
             logger.info(f"Module not found for id {model_id} (may have been deleted)")
             return
-        cache_prefix = f"stats:scoreboard:module:{model.dojo_id}:{model.module_index}"
+        target = module_cache_target(model)
+        if not populate_module_scoreboard_caches(target, event_timestamp):
+            logger.info(f"Module changed while handling id {model_id}")
+        return True
     else:
         logger.warning(f"Unknown model_type: {model_type}")
         return
 
-    for duration in COMMON_DURATIONS:
-        try:
-            cache_key = f"{cache_prefix}:{duration}"
-            if event_timestamp and is_event_stale(cache_key, event_timestamp):
-                continue
-            logger.info(f"Calculating scoreboard for {model_type} {model_id}, duration={duration}...")
-            scoreboard = calculate_scoreboard(model, duration)
-            set_scoreboard_cache(cache_key, scoreboard, calculate_member_challenges(model, duration, scoreboard))
-            logger.info(f"Successfully updated scoreboard cache {cache_key} ({len(scoreboard)} entries)")
-        except Exception as e:
-            logger.error(f"Error calculating scoreboard for {model_type} {model_id}, duration={duration}: {e}", exc_info=True)
+    try:
+        def calculate():
+            values = []
+            for duration in COMMON_DURATIONS:
+                cache_key = f"{cache_prefix}:{duration}"
+                if event_timestamp and is_event_stale(
+                    cache_key,
+                    event_timestamp,
+                ):
+                    continue
+                scoreboard = calculate_scoreboard(model, duration)
+                values.append((
+                    cache_key,
+                    scoreboard,
+                    calculate_member_challenges(
+                        model,
+                        duration,
+                        scoreboard,
+                    ),
+                ))
+            return values
 
-    if model_type == "module":
-        try:
-            logger.info(f"Calculating challenge_solves for module {model_id}...")
-            challenge_solves = calculate_challenge_solves(model)
-            cache_key = challenge_solves_cache_key(model.dojo_id, model.module_index)
-            set_cached_stat(cache_key, challenge_solves)
-            logger.info(f"Successfully updated challenge_solves cache {cache_key} ({len(challenge_solves)} challenges)")
-        except Exception as e:
-            logger.error(f"Error calculating challenge_solves for module {model_id}: {e}", exc_info=True)
-
+        scoreboards, version, calculated_at = calculate_authoritative_stat(
+            calculate
+        )
+        updated_at = (
+            event_timestamp
+            if event_timestamp is not None
+            else calculated_at
+        )
+        for cache_key, scoreboard, member_challenges in scoreboards:
+            set_scoreboard_cache(
+                cache_key,
+                scoreboard,
+                member_challenges,
+                updated_at=updated_at,
+                version=version,
+            )
+            logger.info(
+                f"Successfully updated scoreboard cache {cache_key} "
+                f"({len(scoreboard)} entries)"
+            )
+    except Exception as error:
+        logger.error(
+            f"Error calculating scoreboard for {model_type} {model_id}: {error}",
+            exc_info=True,
+        )
+    db.session.commit()
+    return True
 
 def initialize_all_scoreboards():
-    dojos = Dojos.query.all()
-    logger.info(f"Initializing scoreboards for {len(dojos)} dojos...")
+    db.session.expire_all()
+    db.session.commit()
+    if not drain_module_cache_invalidations():
+        return False
+    dojo_ids = [dojo_id for (dojo_id,) in db.session.query(Dojos.dojo_id).all()]
+    db.session.rollback()
+    logger.info(f"Initializing scoreboards for {len(dojo_ids)} dojos...")
 
-    for dojo in dojos:
-        for duration in COMMON_DURATIONS:
-            try:
-                scoreboard = calculate_scoreboard(dojo, duration)
+    for dojo_id in dojo_ids:
+        dojo = lock_dojo_cache_target(dojo_id)
+        if not dojo:
+            db.session.rollback()
+            continue
+        try:
+            def calculate():
+                values = []
+                for duration in COMMON_DURATIONS:
+                    scoreboard = calculate_scoreboard(dojo, duration)
+                    values.append((
+                        duration,
+                        scoreboard,
+                        calculate_member_challenges(
+                            dojo,
+                            duration,
+                            scoreboard,
+                        ),
+                    ))
+                return values
+
+            scoreboards, version, calculated_at = (
+                calculate_authoritative_stat(calculate)
+            )
+            for duration, scoreboard, member_challenges in scoreboards:
                 cache_key = f"stats:scoreboard:dojo:{dojo.dojo_id}:{duration}"
-                set_scoreboard_cache(cache_key, scoreboard, calculate_member_challenges(dojo, duration, scoreboard))
+                set_scoreboard_cache(
+                    cache_key,
+                    scoreboard,
+                    member_challenges,
+                    updated_at=calculated_at,
+                    version=version,
+                )
                 logger.info(f"Initialized scoreboard for dojo {dojo.reference_id} (id={dojo.dojo_id}), duration={duration}")
-            except Exception as e:
-                logger.error(f"Error initializing scoreboard for dojo {dojo.reference_id}, duration={duration}: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Error initializing scoreboard for dojo {dojo.reference_id}: {e}", exc_info=True)
 
-        for module in dojo.modules:
-            for duration in COMMON_DURATIONS:
-                try:
-                    scoreboard = calculate_scoreboard(module, duration)
-                    cache_key = f"stats:scoreboard:module:{module.dojo_id}:{module.module_index}:{duration}"
-                    set_scoreboard_cache(cache_key, scoreboard, calculate_member_challenges(module, duration, scoreboard))
-                    logger.info(f"Initialized scoreboard for module {dojo.reference_id}/{module.id} (dojo_id={module.dojo_id}, module_index={module.module_index}), duration={duration}")
-                except Exception as e:
-                    logger.error(f"Error initializing scoreboard for module {dojo.reference_id}/{module.id}, duration={duration}: {e}", exc_info=True)
-
-            try:
-                challenge_solves = calculate_challenge_solves(module)
-                cache_key = challenge_solves_cache_key(module.dojo_id, module.module_index)
-                set_cached_stat(cache_key, challenge_solves)
-                logger.info(f"Initialized challenge_solves for module {dojo.reference_id}/{module.id} ({len(challenge_solves)} challenges)")
-            except Exception as e:
-                logger.error(f"Error initializing challenge_solves for module {dojo.reference_id}/{module.id}: {e}", exc_info=True)
+        module_targets = [module_cache_target(module) for module in dojo.modules]
+        db.session.commit()
+        for target in module_targets:
+            populate_module_scoreboard_caches(target)
+    return True

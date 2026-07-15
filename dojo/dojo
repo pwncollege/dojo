@@ -24,6 +24,7 @@ case "$ACTION" in
             echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
         fi
 
+        dojo compose stop ctfd stats-worker
         dojo sync
         build_args=(--build)
         if [ "${DOJO_OFFLINE}" = "true" ]; then
@@ -34,6 +35,7 @@ case "$ACTION" in
 
     # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
     "update")
+        dojo compose stop ctfd stats-worker
         git pull
         dojo up "$@"
         ;;

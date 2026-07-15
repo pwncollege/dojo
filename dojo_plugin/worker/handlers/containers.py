@@ -1,6 +1,6 @@
 import logging
 from ...utils import get_all_containers
-from ...utils.background_stats import set_cached_stat, is_event_stale
+from ...utils.background_stats import get_cache_watermark, set_cached_stat, is_event_stale
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -20,8 +20,17 @@ def handle_container_stats_update(payload, event_timestamp=None):
 
     try:
         logger.info("Calculating container stats...")
+        calculated_at = get_cache_watermark()
         container_data = calculate_container_stats()
-        set_cached_stat(CACHE_KEY_CONTAINERS, container_data)
+        set_cached_stat(
+            CACHE_KEY_CONTAINERS,
+            container_data,
+            updated_at=(
+                event_timestamp
+                if event_timestamp is not None
+                else calculated_at
+            ),
+        )
         container_count = len(container_data)
         logger.info(f"Successfully updated container stats cache ({container_count} containers)")
     except Exception as e:
@@ -30,8 +39,13 @@ def handle_container_stats_update(payload, event_timestamp=None):
 def initialize_all_container_stats():
     logger.info("Initializing container stats...")
     try:
+        calculated_at = get_cache_watermark()
         container_data = calculate_container_stats()
-        set_cached_stat(CACHE_KEY_CONTAINERS, container_data)
+        set_cached_stat(
+            CACHE_KEY_CONTAINERS,
+            container_data,
+            updated_at=calculated_at,
+        )
         container_count = len(container_data)
         logger.info(f"Initialized container stats ({container_count} containers)")
     except Exception as e:

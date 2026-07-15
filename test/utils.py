@@ -199,13 +199,67 @@ def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):
 
 
 def wait_for_background_worker(timeout=5):
-    """Wait for the background stats worker to finish processing all pending events.
+    deadline = time.monotonic() + timeout
+    idle_observations = 0
+    stream_result = None
+    outbox_result = None
+    stream_length = None
+    refresh_count = None
+    invalidation_count = None
 
-    Polls Redis stream length until it's 0 or timeout is reached.
-    """
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        result = dojo_run("docker", "exec", "cache", "redis-cli", "XLEN", "stat:events", check=False)
-        if result.returncode == 0 and int(result.stdout.strip()) == 0:
-            return
-        time.sleep(0.1)
+    while time.monotonic() < deadline:
+        stream_result = dojo_run(
+            "docker", "exec", "cache", "redis-cli",
+            "XLEN", "stat:events", check=False,
+        )
+        stream_output = stream_result.stdout.strip()
+        stream_length = (
+            int(stream_output)
+            if stream_result.returncode == 0 and stream_output.isdigit()
+            else None
+        )
+        outbox_result = dojo_run(
+            "dojo", "db", "-qAt",
+            input=(
+                "SELECT (SELECT count(*) FROM dojo_cache_refreshes), "
+                "(SELECT count(*) FROM dojo_module_cache_invalidations);"
+            ),
+            check=False,
+        )
+        outbox_parts = outbox_result.stdout.strip().split("|")
+        if (
+            outbox_result.returncode == 0
+            and len(outbox_parts) == 2
+            and all(part.isdigit() for part in outbox_parts)
+        ):
+            refresh_count, invalidation_count = map(int, outbox_parts)
+        else:
+            refresh_count = invalidation_count = None
+
+        if stream_length == refresh_count == invalidation_count == 0:
+            idle_observations += 1
+            if idle_observations == 2:
+                return True
+        else:
+            idle_observations = 0
+        time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+
+    worker_state = dojo_run(
+        "docker", "inspect", "--format",
+        "{{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}",
+        "stats-worker", check=False,
+    )
+    worker_logs = dojo_run(
+        "docker", "logs", "stats-worker", "--tail", "100", check=False,
+    )
+    raise AssertionError(
+        "Background stats worker did not become idle within "
+        f"{timeout}s: stream_length={stream_length}, "
+        f"refresh_count={refresh_count}, "
+        f"invalidation_count={invalidation_count}\n"
+        f"Redis error: {(stream_result.stderr if stream_result else '').strip()}\n"
+        f"Database error: {(outbox_result.stderr if outbox_result else '').strip()}\n"
+        f"Worker state: {worker_state.stdout.strip()} "
+        f"{worker_state.stderr.strip()}\n"
+        f"Worker logs:\n{worker_logs.stdout}{worker_logs.stderr}"
+    )

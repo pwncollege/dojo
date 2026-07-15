@@ -3,6 +3,8 @@ import os
 import signal
 import time
 
+from ..utils.module_cache import initialize_module_cache_migration
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
@@ -20,6 +22,9 @@ signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
 logger.info("Starting stats background worker...")
+
+if not initialize_module_cache_migration():
+    logger.warning("Module cache migration remains pending")
 
 if os.environ.get("SKIP_COLD_START"):
     logger.info("SKIP_COLD_START set, skipping cache initialization")
@@ -71,13 +76,15 @@ else:
 logger.info("Starting event consumption loop...")
 
 from ..utils.background_stats import consume_stat_events, DailyRestartException
+from ..utils.module_cache import maintain_module_cache_outboxes
 from ..worker.handlers import handle_stat_event
 
 try:
     consume_stat_events(
         handler=handle_stat_event,
         batch_size=10,
-        block_ms=5000
+        block_ms=5000,
+        maintenance_handler=maintain_module_cache_outboxes,
     )
 except KeyboardInterrupt:
     logger.info("Worker interrupted by user")

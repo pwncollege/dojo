@@ -20,6 +20,7 @@ from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
 from ...utils import is_challenge_locked, render_markdown
 from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_from_spec
 from ...utils.image_pulls import enqueue_dojo_image_pulls
+from ...utils.module_cache import maintain_module_cache_outboxes, module_cache_target, queue_cache_refreshes, queue_dojo_stats_reference_retirement
 from ...utils.stats import get_dojo_stats
 from ...utils.events import publish_dojo_stats_event, publish_scoreboard_event
 from ...utils.awards import dojo_gives_awards, grant_award
@@ -82,8 +83,23 @@ class PromoteDojo(Resource):
     @admins_only
     @dojo_route
     def post(self, dojo):
+        cache_eligibility = dojo.is_public_or_official
+        old_reference_id = dojo.reference_id
         dojo.official = True
+        cache_eligibility_changed = (
+            cache_eligibility != dojo.is_public_or_official
+        )
+        if cache_eligibility_changed or old_reference_id != dojo.reference_id:
+            queue_cache_refreshes(
+                module_targets=tuple(
+                    module_cache_target(module) for module in dojo.modules
+                ) if cache_eligibility_changed else (),
+                dojo_ids=(dojo.dojo_id,),
+            )
+        if old_reference_id != dojo.reference_id:
+            queue_dojo_stats_reference_retirement(old_reference_id)
         db.session.commit()
+        maintain_module_cache_outboxes()
         return {"success": True}
 
 @dojos_namespace.route("/<dojo>/admins/promote")
@@ -152,6 +168,8 @@ class UpdateDojo(Resource):
             print(f"ERROR: Dojo update failed for {dojo}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": str(e)}, 400
+
+        maintain_module_cache_outboxes()
 
         try:
             enqueue_dojo_image_pulls(dojo)

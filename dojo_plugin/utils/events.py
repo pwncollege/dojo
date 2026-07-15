@@ -32,10 +32,20 @@ def publish_activity_event(user_id):
     publish_stat_event("activity_update", {"user_id": user_id})
 
 
-def publish_challenge_solve_event(user_id, challenge_id, solve_date=None):
+def publish_challenge_solve_event(
+    user_id,
+    challenge_id,
+    solve_date=None,
+    solve_id=None,
+    version=None,
+):
     payload = {"user_id": user_id, "challenge_id": challenge_id}
     if solve_date:
         payload["solve_date"] = solve_date.isoformat() + 'Z'
+    if solve_id is not None:
+        payload["solve_id"] = solve_id
+    if version is not None:
+        payload["version"] = version
     publish_stat_event("challenge_solve", payload)
 
 

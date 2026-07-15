@@ -385,11 +385,17 @@ class DojoModules(db.Model):
     def __init__(self, *args, **kwargs):
         default = kwargs.pop("default", None)
         visibility = kwargs["visibility"] if "visibility" in kwargs else None
+        cache_identity = kwargs.pop("cache_identity", None)
+        cache_launched_at = kwargs.pop("cache_launched_at", None)
 
         data = kwargs.pop("data", {})
         for field in self.data_fields:
             if field in kwargs:
                 data[field] = kwargs.pop(field)
+        data["cache_identity"] = cache_identity or os.urandom(16).hex()
+        data["cache_launched_at"] = (
+            cache_launched_at or datetime.datetime.utcnow().isoformat()
+        )
         kwargs["data"] = data
 
         if default:
@@ -416,6 +422,30 @@ class DojoModules(db.Model):
         )
 
         super().__init__(*args, **kwargs)
+
+    @property
+    def cache_identity(self):
+        identity = (self.data or {}).get("cache_identity")
+        if (
+            isinstance(identity, str)
+            and len(identity) == 32
+            and all(character in string.hexdigits for character in identity)
+        ):
+            return identity.lower()
+        return hashlib.sha256(f"{self.dojo_id}:{self.id}".encode()).hexdigest()[:32]
+
+    @property
+    def cache_launched_at(self):
+        value = (self.data or {}).get("cache_launched_at")
+        try:
+            launched_at = datetime.datetime.fromisoformat(value)
+        except (TypeError, ValueError):
+            return datetime.datetime(1970, 1, 1)
+        if launched_at.tzinfo is not None:
+            launched_at = launched_at.astimezone(
+                datetime.timezone.utc
+            ).replace(tzinfo=None)
+        return launched_at
 
     def __getattr__(self, name):
         if name in self.data_fields:
@@ -498,6 +528,11 @@ class DojoModules(db.Model):
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
 
+    def cache_solves(self, **kwargs):
+        return self.solves(**kwargs).filter(
+            Solves.date >= self.cache_launched_at
+        )
+
     @hybrid_method
     def visible(self, when=None):
         when = when or datetime.datetime.utcnow()
@@ -515,6 +550,56 @@ class DojoModules(db.Model):
         ))
 
     __repr__ = columns_repr(["dojo", "id"])
+
+
+DOJO_MODULE_CACHE_INVALIDATION_GENERATION = db.Sequence(
+    "dojo_module_cache_invalidation_generation"
+)
+
+
+class DojoModuleCacheInvalidations(db.Model):
+    __tablename__ = "dojo_module_cache_invalidations"
+
+    cache_key = db.Column(db.String(256), primary_key=True)
+    generation = db.Column(
+        db.BigInteger,
+        DOJO_MODULE_CACHE_INVALIDATION_GENERATION,
+        nullable=False,
+    )
+
+
+DOJO_CACHE_REFRESH_GENERATION = db.Sequence(
+    "dojo_cache_refresh_generation"
+)
+
+
+class DojoCacheRefreshes(db.Model):
+    __tablename__ = "dojo_cache_refreshes"
+
+    kind = db.Column(db.String(16), primary_key=True)
+    dojo_id = db.Column(db.Integer, primary_key=True)
+    module_id = db.Column(db.String(32), primary_key=True, default="")
+    cache_identity = db.Column(db.String(32), primary_key=True, default="")
+    generation = db.Column(
+        db.BigInteger,
+        DOJO_CACHE_REFRESH_GENERATION,
+        nullable=False,
+    )
+    published_at = db.Column(db.DateTime, index=True)
+
+
+class DojoCacheMigrations(db.Model):
+    __tablename__ = "dojo_cache_migrations"
+
+    name = db.Column(db.String(64), primary_key=True)
+    completed_at = db.Column(db.DateTime, nullable=False)
+
+
+class DojoStatsRevisions(db.Model):
+    __tablename__ = "dojo_stats_revisions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    version = db.Column(db.BigInteger, nullable=False)
 
 
 class DojoChallenges(db.Model):

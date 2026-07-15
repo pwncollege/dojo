@@ -20,6 +20,7 @@ from ..utils import get_current_container, get_all_containers, render_markdown
 from ..utils.stats import get_container_stats, get_dojo_stats, get_challenge_solves
 from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
 from ..utils.image_pulls import enqueue_dojo_image_pulls
+from ..utils.module_cache import maintain_module_cache_outboxes, queue_dojo_module_cache_retirement
 from ..utils.query_timer import query_timeout
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
 
@@ -242,6 +243,8 @@ def update_dojo(dojo, update_code=None):
         traceback.print_exc(file=sys.stderr)
         return {"success": False, "error": str(e)}, 400
 
+    maintain_module_cache_outboxes()
+
     try:
         enqueue_dojo_image_pulls(dojo)
     except Exception as e:
@@ -260,6 +263,7 @@ def delete_dojo(dojo):
         abort(403)
 
     try:
+        queue_dojo_module_cache_retirement(dojo)
         DojoUsers.query.filter(DojoUsers.dojo_id == dojo.dojo_id).delete()
         Dojos.query.filter(Dojos.dojo_id == dojo.dojo_id).delete()
         db.session.commit()
@@ -268,6 +272,7 @@ def delete_dojo(dojo):
         print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)
         traceback.print_exc(file=sys.stderr)
         return {"success": False, "error": str(e)}, 400
+    maintain_module_cache_outboxes()
     return {"success": True}
 
 @dojo.route("/dojo/<dojo>/admin/")
@@ -352,7 +357,10 @@ def view_module(dojo, module, scroll_to_challenge=None):
     total_solves = get_challenge_solves(module)
     if total_solves is None:
         total_solves = dict(query_timeout(
-            module.solves().group_by(Solves.challenge_id).with_entities(Solves.challenge_id, db.func.count()).all,
+            module.cache_solves()
+            .group_by(Solves.challenge_id)
+            .with_entities(Solves.challenge_id, db.func.count())
+            .all,
             5000,
             []
         ))

@@ -4,7 +4,8 @@ from sqlalchemy import func, desc
 
 from CTFd.models import db, Solves
 from ...models import Dojos, DojoChallenges
-from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
+from ...utils.background_stats import calculate_authoritative_stat, set_cached_stat, is_event_stale
+from ...utils.module_cache import lock_dojo_cache_target
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,12 @@ def calculate_dojo_stats(dojo):
             DojoChallenges.name.label('challenge_name')
         )
         .filter(Solves.date >= now - timedelta(days=7))
-        .order_by(desc(Solves.date))
+        .order_by(
+            desc(Solves.date),
+            desc(Solves.id),
+            DojoChallenges.module_index,
+            DojoChallenges.challenge_index,
+        )
         .limit(5)
         .all()
     )
@@ -106,22 +112,37 @@ def handle_dojo_stats_update(payload, event_timestamp=None):
     db.session.expire_all()
     db.session.commit()
 
-    dojo = Dojos.query.get(dojo_id)
+    dojo = lock_dojo_cache_target(dojo_id)
 
     if not dojo:
         logger.info(f"Dojo not found for dojo_id={dojo_id} (may have been deleted)")
+        db.session.rollback()
         return
 
     cache_key = f"stats:dojo:{dojo.reference_id}"
     if event_timestamp and is_event_stale(cache_key, event_timestamp):
+        db.session.commit()
         return
 
     try:
         logger.info(f"Calculating stats for dojo {dojo.reference_id} (dojo_id={dojo_id})...")
-        stats = calculate_dojo_stats(dojo)
-        set_cached_stat(cache_key, stats)
+        stats, version, calculated_at = calculate_authoritative_stat(
+            lambda: calculate_dojo_stats(dojo)
+        )
+        set_cached_stat(
+            cache_key,
+            stats,
+            updated_at=(
+                event_timestamp
+                if event_timestamp is not None
+                else calculated_at
+            ),
+            version=version,
+        )
+        db.session.commit()
         logger.info(f"Successfully updated and cached stats for dojo {dojo.reference_id} (solves: {stats['solves']}, users: {stats['users']})")
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Error calculating stats for dojo_id {dojo_id}: {e}", exc_info=True)
 
 
@@ -156,14 +177,28 @@ def update_dojo_stats(stats, challenge_name):
 
 
 def initialize_all_dojo_stats():
-    dojos = Dojos.query.all()
-    logger.info(f"Initializing stats for {len(dojos)} dojos...")
+    dojo_ids = [dojo_id for (dojo_id,) in db.session.query(Dojos.dojo_id).all()]
+    db.session.rollback()
+    logger.info(f"Initializing stats for {len(dojo_ids)} dojos...")
 
-    for dojo in dojos:
+    for dojo_id in dojo_ids:
+        dojo = lock_dojo_cache_target(dojo_id)
+        if not dojo:
+            db.session.rollback()
+            continue
         try:
-            stats = calculate_dojo_stats(dojo)
+            stats, version, calculated_at = calculate_authoritative_stat(
+                lambda: calculate_dojo_stats(dojo)
+            )
             cache_key = f"stats:dojo:{dojo.reference_id}"
-            set_cached_stat(cache_key, stats)
+            set_cached_stat(
+                cache_key,
+                stats,
+                updated_at=calculated_at,
+                version=version,
+            )
+            db.session.commit()
             logger.info(f"Initialized stats for dojo {dojo.reference_id}")
         except Exception as e:
+            db.session.rollback()
             logger.error(f"Error initializing stats for dojo {dojo.reference_id}: {e}", exc_info=True)

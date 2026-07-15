@@ -50,5 +50,23 @@ else:
 
 dojo = dojo_create(user, repository, public_key, private_key, spec)
 if args.official:
+    from ..utils.module_cache import maintain_module_cache_outboxes, module_cache_target, queue_cache_refreshes, queue_dojo_stats_reference_retirement
+
+    cache_eligibility = dojo.is_public_or_official
+    old_reference_id = dojo.reference_id
     dojo.official = True
+    cache_eligibility_changed = (
+        cache_eligibility != dojo.is_public_or_official
+    )
+    if cache_eligibility_changed or old_reference_id != dojo.reference_id:
+        queue_cache_refreshes(
+            module_targets=tuple(
+                module_cache_target(module) for module in dojo.modules
+            ) if cache_eligibility_changed else (),
+            dojo_ids=(dojo.dojo_id,),
+        )
+    if old_reference_id != dojo.reference_id:
+        queue_dojo_stats_reference_retirement(old_reference_id)
 db.session.commit()
+if args.official:
+    maintain_module_cache_outboxes()

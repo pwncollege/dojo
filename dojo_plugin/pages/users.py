@@ -54,7 +54,7 @@ def build_user_scores(user, dojos):
 
         for module in dojo.modules:
             module_index = module.module_index
-            m_scores = get_module_scores(dojo.dojo_id, module_index)
+            m_scores = get_module_scores(module)
             m_ranks = m_scores.get("ranks", [])
             m_solves = m_scores.get("solves", {})
 

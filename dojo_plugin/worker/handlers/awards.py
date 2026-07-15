@@ -3,7 +3,7 @@ from flask import url_for
 from CTFd.models import db, Users
 from ...models import Dojos, Belts, Emojis
 from ...utils.awards import BELT_ORDER
-from ...utils.background_stats import set_cached_stat, is_event_stale
+from ...utils.background_stats import get_cache_watermark, set_cached_stat, is_event_stale
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -110,8 +110,17 @@ def handle_belts_update(payload, event_timestamp=None):
 
     try:
         logger.info("Calculating belts...")
+        calculated_at = get_cache_watermark()
         belt_data = calculate_belts()
-        set_cached_stat(CACHE_KEY_BELTS, belt_data)
+        set_cached_stat(
+            CACHE_KEY_BELTS,
+            belt_data,
+            updated_at=(
+                event_timestamp
+                if event_timestamp is not None
+                else calculated_at
+            ),
+        )
         user_count = len(belt_data["users"])
         logger.info(f"Successfully updated belts cache ({user_count} users with belts)")
     except Exception as e:
@@ -127,8 +136,17 @@ def handle_emojis_update(payload, event_timestamp=None):
 
     try:
         logger.info("Calculating emojis...")
+        calculated_at = get_cache_watermark()
         emoji_data = calculate_emojis()
-        set_cached_stat(CACHE_KEY_EMOJIS, emoji_data)
+        set_cached_stat(
+            CACHE_KEY_EMOJIS,
+            emoji_data,
+            updated_at=(
+                event_timestamp
+                if event_timestamp is not None
+                else calculated_at
+            ),
+        )
         user_count = len(emoji_data["emojis"])
         logger.info(f"Successfully updated emojis cache ({user_count} users with emojis)")
     except Exception as e:
@@ -137,8 +155,13 @@ def handle_emojis_update(payload, event_timestamp=None):
 def initialize_all_belts():
     logger.info("Initializing belts...")
     try:
+        calculated_at = get_cache_watermark()
         belt_data = calculate_belts()
-        set_cached_stat(CACHE_KEY_BELTS, belt_data)
+        set_cached_stat(
+            CACHE_KEY_BELTS,
+            belt_data,
+            updated_at=calculated_at,
+        )
         user_count = len(belt_data["users"])
         logger.info(f"Initialized belts ({user_count} users with belts)")
     except Exception as e:
@@ -147,8 +170,13 @@ def initialize_all_belts():
 def initialize_all_emojis():
     logger.info("Initializing emojis...")
     try:
+        calculated_at = get_cache_watermark()
         emoji_data = calculate_emojis()
-        set_cached_stat(CACHE_KEY_EMOJIS, emoji_data)
+        set_cached_stat(
+            CACHE_KEY_EMOJIS,
+            emoji_data,
+            updated_at=calculated_at,
+        )
         user_count = len(emoji_data["emojis"])
         logger.info(f"Initialized emojis ({user_count} users with emojis)")
     except Exception as e:
