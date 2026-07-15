@@ -41,7 +41,6 @@ def ssh_key_payload(ssh_key):
     return {
         "key_type": key_type,
         "key_base64": key_base64,
-        "fingerprint": "",
     }
 
 
@@ -235,12 +234,14 @@ def test_ssh_key_with_comment(random_user_session, temp_ssh_keys):
 
 def test_ssh_onboarding_registers_account(temp_ssh_keys):
     random_id = f"ssh{uuid.uuid4().hex[:16]}"
+    password = uuid.uuid4().hex
     response = requests.post(
         f"{DOJO_URL}/pwncollege_api/v1/ssh_onboarding/register",
         json={
             **ssh_key_payload(temp_ssh_keys["rsa"]["public"]),
             "name": random_id,
             "email": f"{random_id}@example.com",
+            "password": password,
         },
         headers=ssh_onboarding_headers(),
     )
@@ -252,24 +253,4 @@ def test_ssh_onboarding_registers_account(temp_ssh_keys):
         f"where users.name = '{random_id}' and ssh_keys.value = '{normalized_public_key(temp_ssh_keys['rsa']['public'])}'"
     ).strip()
     assert key_count == "1"
-
-
-def test_ssh_onboarding_link_request(random_user_name, random_user_session, temp_ssh_keys):
-    payload = ssh_key_payload(temp_ssh_keys["ed25519"]["public"])
-    response = requests.post(
-        f"{DOJO_URL}/pwncollege_api/v1/ssh_onboarding/link_requests",
-        json=payload,
-        headers=ssh_onboarding_headers(),
-    )
-    assert response.status_code == 200, response.text
-    token = response.json()["token"]
-
-    response = random_user_session.get(f"{DOJO_URL}/ssh/link/{token}")
-    assert response.status_code == 200
-    assert "has been linked" in response.text
-
-    key_count = db_sql(
-        f"select count(*) from users join ssh_keys on users.id = ssh_keys.user_id "
-        f"where users.name = '{random_user_name}' and ssh_keys.value = '{normalized_public_key(temp_ssh_keys['ed25519']['public'])}'"
-    ).strip()
-    assert key_count == "1"
+    login(random_id, password)

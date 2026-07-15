@@ -32,7 +32,6 @@ def main():
     username = sys.argv[1] if len(sys.argv) > 1 else None
     key_type = sys.argv[2] if len(sys.argv) > 2 else None
     key_base64 = sys.argv[3] if len(sys.argv) > 3 else None
-    fingerprint = sys.argv[4] if len(sys.argv) > 4 else None
 
     connection = create_db_connection()
     with connection.cursor() as cursor:
@@ -48,7 +47,6 @@ def main():
                 str(onboard_path),
                 "--key-type", key_type,
                 "--key-base64", key_base64,
-                "--fingerprint", fingerprint or "",
             ]).replace("\\", "\\\\").replace('"', '\\"')
             print(f'command="{command}" {key}')
             return

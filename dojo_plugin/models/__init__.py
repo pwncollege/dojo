@@ -872,23 +872,6 @@ class SSHKeys(db.Model):
     __repr__ = columns_repr(["user", "value"])
 
 
-class SSHKeyLinkRequests(db.Model):
-    __tablename__ = "ssh_key_link_requests"
-
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    token_digest = db.Column(db.String(64), unique=True, nullable=False, index=True)
-    key_value = db.Column(db.Text, nullable=False)
-    fingerprint = db.Column(db.String(128))
-    created = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
-    expiration = db.Column(db.DateTime, nullable=False, index=True)
-    consumed = db.Column(db.DateTime, index=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), index=True)
-
-    user = db.relationship("Users")
-
-    __repr__ = columns_repr(["fingerprint", "expiration", "consumed", "user"])
-
-
 class DiscordUserActivity(db.Model):
     __tablename__ = "discord_user_activity"
     id = db.Column(db.Integer, primary_key=True)
