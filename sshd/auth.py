@@ -29,14 +29,11 @@ def create_db_connection():
 def main():
     enter_path = pathlib.Path(__file__).parent.resolve() / "enter.py"
     onboard_path = pathlib.Path(__file__).parent.resolve() / "onboard.py"
-    username = sys.argv[1] if len(sys.argv) > 1 else None
-    key_type = sys.argv[2] if len(sys.argv) > 2 else None
-    key_base64 = sys.argv[3] if len(sys.argv) > 3 else None
+    key_type = sys.argv[1] if len(sys.argv) > 1 else None
+    key_base64 = sys.argv[2] if len(sys.argv) > 2 else None
 
     connection = create_db_connection()
     with connection.cursor() as cursor:
-        if username and username != "hacker":
-            return
         if key_type and key_base64:
             key = f"{key_type} {key_base64}"
             cursor.execute("SELECT user_id FROM ssh_keys WHERE value = %s", (key,))

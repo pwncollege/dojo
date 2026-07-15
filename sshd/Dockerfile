@@ -28,7 +28,7 @@ RUN mkdir -p /run/sshd
 
 WORKDIR /opt/sshd
 COPY . .
-RUN chmod 700 /opt/sshd/auth.py && chmod 755 /opt/sshd/onboard.py
+RUN chmod 700 /opt/sshd/auth.py
 
 EXPOSE 22
 

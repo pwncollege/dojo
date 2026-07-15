@@ -236,7 +236,7 @@ def test_ssh_onboarding_registers_account(temp_ssh_keys):
     random_id = f"ssh{uuid.uuid4().hex[:16]}"
     password = uuid.uuid4().hex
     response = requests.post(
-        f"{DOJO_URL}/pwncollege_api/v1/ssh_onboarding/register",
+        f"{DOJO_URL}/pwncollege_api/v1/auth/register",
         json={
             **ssh_key_payload(temp_ssh_keys["rsa"]["public"]),
             "name": random_id,

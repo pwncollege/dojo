@@ -27,35 +27,25 @@ class OnboardingClient:
             raise RuntimeError("Missing DOJO_SSH_SERVICE_KEY")
         self.api_base = "http://pwn.college:80/pwncollege_api/v1"
 
-    def headers(self):
+    def register(self, name, email, password):
         token = URLSafeTimedSerializer(self.ssh_key).dumps("ssh-onboarding")
-        return {
-            "Authorization": f"Bearer sk-ssh-service-{token}",
-            "Content-Type": "application/json",
-        }
-
-    def payload(self, extra=None):
-        payload = {
-            "key_type": self.key_type,
-            "key_base64": self.key_base64,
-        }
-        if extra:
-            payload.update(extra)
-        return payload
-
-    def post(self, path, payload):
-        response = requests.post(f"{self.api_base}{path}", headers=self.headers(), json=payload, timeout=20)
+        response = requests.post(
+            f"{self.api_base}/auth/register",
+            headers={"Authorization": f"Bearer sk-ssh-service-{token}"},
+            json={
+                "key_type": self.key_type,
+                "key_base64": self.key_base64,
+                "name": name,
+                "email": email,
+                "password": password,
+            },
+            timeout=20,
+        )
         data = response.json()
         if not data.get("success"):
             errors = data.get("errors") or [data.get("error", "Request failed")]
             raise RuntimeError("\n".join(errors))
         return data
-
-    def register(self, name, email, password):
-        return self.post(
-            "/ssh_onboarding/register",
-            self.payload({"name": name, "email": email, "password": password}),
-        )
 
 
 class OnboardingApp(App):
@@ -222,7 +212,8 @@ class OnboardingApp(App):
         self.status("Choose an option")
 
     def action_menu(self):
-        self.show_menu()
+        if self.state in ("create-name", "create-email", "create-password"):
+            self.show_menu()
 
     def action_create(self):
         if self.state != "menu":
@@ -288,18 +279,18 @@ class OnboardingApp(App):
             self.show_menu()
             self.status(f"Account creation failed: {error}")
             return
-        user = result["user"]
+        user = result["data"]
         self.content(
             "\n".join([
                 "# Account created",
                 "",
-                f"Created `{user['name']}` and linked this SSH key.",
+                f"Created `{user['username']}` and linked this SSH key.",
                 "",
                 "Opening the challenge browser...",
             ])
         )
         self.status("Account created")
-        self.set_timer(2, lambda: self.exit({"action": "create", "user_id": user["id"]}))
+        self.set_timer(2, lambda: self.exit({"action": "create", "user_id": user["user_id"]}))
 
 
 def main():
