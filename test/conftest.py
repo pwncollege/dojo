@@ -1,12 +1,32 @@
 import random
+import shutil
 import string
 import pytest
 import json
+
+import requests
+import requests.adapters
+from urllib3.util.retry import Retry
+from selenium.webdriver.firefox.service import Service as FirefoxService
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
 from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, wait_for_background_worker, db_sql
 from selenium.webdriver import Firefox, FirefoxOptions
+
+# Nested-docker port publishing drops for a few seconds while user containers
+# attach/detach networks; retry connection establishment (never sent requests)
+# so local test runs survive the window.
+_original_session_init = requests.Session.__init__
+
+def _retrying_session_init(self, *args, **kwargs):
+    _original_session_init(self, *args, **kwargs)
+    retry = Retry(total=None, connect=6, read=0, redirect=0, status=0, other=0, backoff_factor=0.5)
+    adapter = requests.adapters.HTTPAdapter(max_retries=retry)
+    self.mount("http://", adapter)
+    self.mount("https://", adapter)
+
+requests.Session.__init__ = _retrying_session_init
 
 @pytest.fixture(scope="session")
 def admin_session():
@@ -221,7 +241,11 @@ def random_private_dojo(admin_session):
 def browser_fixture():
     options = FirefoxOptions()
     options.add_argument("--headless")
-    return Firefox(options=options)
+    geckodriver = shutil.which("geckodriver")
+    service = FirefoxService(executable_path=geckodriver) if geckodriver else None
+    browser = Firefox(options=options, service=service)
+    yield browser
+    browser.quit()
 
 @pytest.fixture
 def random_user_browser(browser_fixture, random_user_name):

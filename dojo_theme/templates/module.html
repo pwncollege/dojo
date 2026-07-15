@@ -6,10 +6,6 @@
 {{ super() }}
 
 <style>
-.scroll-disabled {
-  overflow: hidden;
-}
-
 .challenge-workspace {
   margin-bottom: 16px;
   margin-top: 16px;
@@ -23,11 +19,6 @@
   border: 0;
 }
 
-.challenge-iframe-fs {
-  aspect-ratio: unset !important;
-  height: calc(100vh - 2.5em - 10px);
-}
-
 .challenge-init {
   height: 100% !important;
   width: 100% !important;
@@ -37,30 +28,6 @@
   visibility: hidden;
   max-height: 0 !important;
 }
-
-.workspace-fullscreen {
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  z-index: 1031;/* Navbar z-index + 1 */
-  bottom: -16px;
-  right: 0;
-  background-color: #111;
-  width: 100% !important;
-  height: 100% !important;
-}
-
-.workspace-fullscreen .iframe-wrapper {
-  display: flex;
-}
-
-.workspace-ssh {
-  padding: 1em;
-  margin-bottom: 1em;
-  background-color: var(--foreground);
-  border-radius: 0.5em;
-}
-
 
 .challenge-hidden .workspace-ssh {
   display: none !important;
@@ -259,11 +226,13 @@
                 <iframe id="workspace-iframe" class="challenge-iframe" src="" allow="clipboard-read *; clipboard-write *"></iframe>
                 {% endif %}
               </div>
-              <div class="workspace-ssh">
+              <div class="workspace-ssh" style="display: none;">
                 <h3>Connect with SSH</h3>
                 Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@dojo.pwn.college</code>
               </div>
+              {% with popout=true %}
               {% include "components/actionbar.html" %}
+              {% endwith %}
             </div>
             <div class="row notification-row">
               <div class="col-md-12">

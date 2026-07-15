@@ -5,7 +5,7 @@ from CTFd.models import db
 from ...models import DojoChallenges
 from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
-from .scoreboard import update_scoreboard, update_challenge_solves, challenge_solves_cache_key, COMMON_DURATIONS
+from .scoreboard import update_scoreboard_cache, update_challenge_solves, challenge_solves_cache_key, COMMON_DURATIONS
 from .dojo_stats import update_dojo_stats
 from .scores import update_dojo_scores, update_module_scores, dojo_scores_cache_key, module_scores_cache_key
 from .activity import update_activity
@@ -45,11 +45,11 @@ def handle_challenge_solve(payload, event_timestamp):
         is_member = dojo.is_member(user_id)
         is_public_or_official = dojo.is_public_or_official
 
-        if is_member:
+        if is_member and dojo_challenge.required:
             logger.info(f"Updating dojo scoreboard for dojo {dojo_ref_id}")
-            _update_dojo_scoreboard(dojo_id, user_id, event_timestamp)
+            _update_dojo_scoreboard(dojo, user_id, challenge_id, event_timestamp)
             logger.info(f"Updating module scoreboard for dojo {dojo_ref_id} module {module_index}")
-            _update_module_scoreboard(dojo_id, module_index, user_id, event_timestamp)
+            _update_module_scoreboard(dojo_challenge.module, user_id, challenge_id, event_timestamp)
             logger.info(f"Updating dojo stats for dojo {dojo_ref_id}")
             _update_dojo_stats(dojo_ref_id, challenge_name, event_timestamp)
             logger.info(f"Updating challenge solves for dojo {dojo_ref_id} module {module_index}")
@@ -68,32 +68,28 @@ def handle_challenge_solve(payload, event_timestamp):
     logger.info(f"Completed challenge_solve for user_id={user_id}, challenge_id={challenge_id}")
 
 
-def _update_dojo_scoreboard(dojo_id, user_id, event_timestamp):
-    cache_prefix = f"stats:scoreboard:dojo:{dojo_id}"
+def _update_dojo_scoreboard(dojo, user_id, challenge_id, event_timestamp):
+    cache_prefix = f"stats:scoreboard:dojo:{dojo.dojo_id}"
     for duration in COMMON_DURATIONS:
         try:
             cache_key = f"{cache_prefix}:{duration}"
             if is_event_stale(cache_key, event_timestamp):
                 continue
-            current_scoreboard = get_cached_stat(cache_key) or []
-            updated_scoreboard = update_scoreboard(current_scoreboard, user_id)
-            set_cached_stat(cache_key, updated_scoreboard)
+            update_scoreboard_cache(dojo, cache_key, user_id, challenge_id)
         except Exception as e:
-            logger.error(f"Error updating dojo scoreboard for dojo {dojo_id}, duration={duration}: {e}", exc_info=True)
+            logger.error(f"Error updating dojo scoreboard for dojo {dojo.dojo_id}, duration={duration}: {e}", exc_info=True)
 
 
-def _update_module_scoreboard(dojo_id, module_index, user_id, event_timestamp):
-    cache_prefix = f"stats:scoreboard:module:{dojo_id}:{module_index}"
+def _update_module_scoreboard(module, user_id, challenge_id, event_timestamp):
+    cache_prefix = f"stats:scoreboard:module:{module.dojo_id}:{module.module_index}"
     for duration in COMMON_DURATIONS:
         try:
             cache_key = f"{cache_prefix}:{duration}"
             if is_event_stale(cache_key, event_timestamp):
                 continue
-            current_scoreboard = get_cached_stat(cache_key) or []
-            updated_scoreboard = update_scoreboard(current_scoreboard, user_id)
-            set_cached_stat(cache_key, updated_scoreboard)
+            update_scoreboard_cache(module, cache_key, user_id, challenge_id)
         except Exception as e:
-            logger.error(f"Error updating module scoreboard for dojo {dojo_id} module {module_index}, duration={duration}: {e}", exc_info=True)
+            logger.error(f"Error updating module scoreboard for dojo {module.dojo_id} module {module.module_index}, duration={duration}: {e}", exc_info=True)
 
 
 def _update_dojo_stats(dojo_ref_id, challenge_name, event_timestamp):

@@ -10,6 +10,7 @@
   .SSH {
     height: 0 !important;
     min-height: 0 !important;
+    flex: none !important;
   }
 
   .workspace-controls {
@@ -35,7 +36,34 @@
     justify-content: center;
   }
 
-  .workspace-control input {
+  button.workspace-control.workspace-service {
+    width: auto;
+    padding-left: 0.75em;
+    padding-right: 0.75em;
+  }
+
+  .workspace-service .workspace-service-name {
+    margin-left: 0.4em;
+  }
+
+  .workspace-service .popout-icon,
+  .workspace-service .hint-icon {
+    margin-left: 0.5em;
+    font-size: 0.7em;
+    opacity: 0.6;
+  }
+
+  .workspace-service.active {
+    color: #fff;
+    background-color: var(--foreground) !important;
+    box-shadow: inset 0 0 0 1px var(--highlight) !important;
+  }
+
+  .workspace-service.active:focus {
+    box-shadow: inset 0 0 0 1px var(--highlight), 0 0 0 0.2rem rgba(108, 117, 125, 0.5) !important;
+  }
+
+  .workspace-input input {
     height: 100% !important;
     box-sizing: border-box;
     padding-left: 0.5em;
@@ -48,32 +76,18 @@
     box-shadow: none !important;
   }
 
-  .workspace-control input::placeholder {
+  .workspace-input input::placeholder {
     color: var(--highlight);
     opacity: 1;
   }
 
-  .workspace-control input.disabled {
+  .workspace-input input.disabled {
     color: var(--highlight);
   }
 
-  .workspace-control select,
-  .workspace-control input:focus,
-  .workspace-control input:hover {
+  .workspace-input input:focus,
+  .workspace-input input:hover {
     outline: 0 !important;
-  }
-
-  .workspace-control select {
-    height: 100%;
-    padding-left: 1.5rem;
-    border: 0;
-    background-color: transparent;
-    color: var(--highlight);
-    font-weight: 700;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    z-index: 2;
   }
 
   .workspace-highlight {
@@ -84,17 +98,50 @@
     padding-left: 1em;
   }
 
-  .workspace-selector-body {
-    padding-left: 1em;
-    padding-right: 1em;
-    position: relative;
-    display: flex;
-    align-items: center;
-    z-index: 1;
-  }
-
   .workspace-control-spacer {
     flex: 1;
+  }
+
+  label#workspace-change-privilege {
+    display: flex;
+    align-items: center;
+    width: auto;
+    margin-bottom: 0;
+    padding-left: 0.75em;
+    padding-right: 0.75em;
+    cursor: pointer;
+  }
+
+  label#workspace-change-privilege input {
+    appearance: none;
+    width: 1.2em;
+    height: 1.2em;
+    margin: 0 0.45em 0 0;
+    border: 2px solid #adb5bd;
+    border-radius: 0.25em;
+    background-color: transparent;
+    cursor: pointer;
+  }
+
+  label#workspace-change-privilege input:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.5);
+  }
+
+  label#workspace-change-privilege input:checked {
+    background-color: var(--brand-green);
+    border-color: var(--brand-green);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23111' stroke-width='3' d='M2.5 8.5l4 4 7-8'/%3E%3C/svg%3E");
+    background-size: 0.85em;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .workspace-ssh {
+    padding: 1em;
+    margin-bottom: 1em;
+    background-color: var(--foreground);
+    border-radius: 0.5em;
   }
 
   @keyframes banner-animation {
@@ -153,23 +200,23 @@
     overflow: hidden;
     display: none;
   }
-
-  .burger {
-    position: absolute;
-    z-index: 1;
-  }
 </style>
 
-<div class="workspace-controls">
+{% set service_icons = {"terminal": "fa-terminal", "code": "fa-code", "desktop": "fa-desktop", "ssh": "fa-key", "lecture": "fa-video"} %}
+<div class="workspace-controls" data-popout="{{ 'true' if popout else 'false' }}">
   <div id="workspace-notification-banner"></div>
-  <div title="Change workspace" class="workspace-selector-body workspace-control">
-    <i class="fas fa-bars workspace-highlight burger"></i>
-    <select id="workspace-select">
-      {% for service in challenge.interfaces %}
-      <option value="{{ service.name | lower }}: {{ service.port }}">&#160;&#160;{{ service.name }}</option><!-- I hate it :( -->
-      {% endfor %}
-    </select>
-  </div>
+  {% for service in challenge.interfaces %}
+  {% set service_key = service.name | lower %}
+  <button class="workspace-control workspace-service btn btn-md btn-outline-secondary"
+      data-service="{{ service_key }}: {{ service.port }}"
+      aria-pressed="false"
+      title="{% if not popout %}Switch to {{ service.name }}{% elif service.port %}Open {{ service.name }} in a new tab{% else %}Show {{ service.name }} connection info{% endif %}">
+    <i class="fas {{ service_icons.get(service_key, 'fa-network-wired') }}"></i>
+    <span class="workspace-service-name">{{ service.name }}</span>
+    {% if popout and service.port %}<i class="fas fa-external-link-alt popout-icon"></i>{% endif %}
+    {% if popout and not service.port %}<i class="fas fa-question-circle hint-icon"></i>{% endif %}
+  </button>
+  {% endfor %}
   <div title="Enter flag" class="workspace-control workspace-input">
     <i class="fas fa-flag workspace-highlight input-icon"></i>
     <input id="flag-input" type="text" placeholder="Flag">
@@ -180,14 +227,17 @@
     <i class="fas fa-redo"></i>
   </button>
   {% if challenge.allow_privileged %}
-  <button id="workspace-change-privilege"
-      title="Restart {{'unprivileged' if practice else 'privileged'}}"
-      class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start"
+  <label id="workspace-change-privilege"
+      title="Restart the challenge with or without sudo access"
+      class="workspace-control btn btn-md btn-outline-secondary"
       data-privileged="{{'true' if practice else 'false'}}">
-    <i class="fas fa-{{'unlock' if practice else 'lock'}}"></i>
-  </button>
+    <input type="checkbox" {{'checked' if practice}}>
+    <span>sudo</span>
+  </label>
   {% endif %}
+  {% if not popout %}
   <button id="fullscreen" title="Toggle fullscreen" class="workspace-control btn btn-md btn-outline-secondary">
     <i class="fas fa-expand"></i>
   </button>
+  {% endif %}
 </div>

@@ -40,6 +40,11 @@
         display:flex;
         flex-direction: column;
     }
+
+    .workspace-ssh {
+        flex: none;
+        margin: 1em;
+    }
 </style>
 {% endblock %}
 
@@ -47,6 +52,10 @@
 {% block content %}
 <div class="challenge-workspace">
   <iframe src="" id="workspace-iframe" allow="clipboard-read *; clipboard-write *"></iframe>
+  <div class="workspace-ssh" style="display: none;">
+    <h3>Connect with SSH</h3>
+    Link your <a href="/settings#ssh-key" target="_blank">SSH key</a>, then connect with: <code>ssh hacker@dojo.pwn.college</code>
+  </div>
   {% include "components/actionbar.html" %}
 </div>
 {% endblock %}

@@ -39,12 +39,15 @@
     name="{{ iframe_name }}"
     src=""
     class="d-none"
+    allow="clipboard-read *; clipboard-write *"
 ></iframe>
 <h1 class="inactive">Loading...</h1>
 
 {% endblock %} {% block scripts %} {{ super() }}
 
 <script>
+    const channel = new BroadcastChannel("Challenge-Sync-Channel");
+    channel.addEventListener("message", () => window.location.reload());
     let response = fetch("/pwncollege_api/v1/workspace?port={{ port }}")
         .then((response) => response.json())
         .then((data) => {

@@ -268,11 +268,9 @@ function startChallenge(event) {
             item.find(".challenge-init").addClass("challenge-hidden");
             item.find(".challenge-workspace").removeClass("challenge-hidden");
             item.find("#workspace-change-privilege")
-                .attr("title", practice ? "Restart unprivileged" : "Restart privileged")
                 .attr("data-privileged", practice)
-                .find(".fas")
-                    .toggleClass("fa-lock", !practice)
-                    .toggleClass("fa-unlock", practice);
+                .find("input")
+                    .prop("checked", practice);
             windowResizeCallback("");
             moduleStartChallenge(event, channel);
         }
@@ -367,44 +365,8 @@ function markChallengeAsSolved(item) {
         .catch(error => console.error("Award check failed:", error));
 }
 
-var scroll_pos_x;
-var scroll_pos_y;
-
-function scrollDisable() {
-    scroll_pos_x = window.pageXOffset;
-    scroll_pos_y = window.pageYOffset;
-    document.body.classList.add("scroll-disabled");
-}
-
-function scrollRestore() {
-    document.body.classList.remove("scroll-disabled");
-    window.pageXOffset = scroll_pos_x;
-    window.pageYOffset = scroll_pos_y;
-}
-
-function contentExpand(event) {
-    $(event.target).closest(".challenge-workspace").addClass("workspace-fullscreen");
-    $(".challenge-iframe").addClass("challenge-iframe-fs");
-    scrollDisable();
-}
-
-function contentContract(event) {
-    $(event.target).closest(".challenge-workspace").removeClass("workspace-fullscreen");
-    $(".challenge-iframe").removeClass("challenge-iframe-fs");
-    scrollRestore();
-}
-
-function doFullscreen(event) {
-    if ($(".workspace-fullscreen")[0]) {
-        contentContract(event);
-    }
-    else {
-        contentExpand(event);
-    }
-}
-
 function windowResizeCallback(event) {
-    $(".challenge-iframe").not(".challenge-iframe-fs").css("aspect-ratio", `${window.innerWidth} / ${window.innerHeight}`);
+    $(".challenge-iframe").css("aspect-ratio", `${window.innerWidth} / ${window.innerHeight}`);
 }
 
 function moduleStartChallenge(event, channel) {
@@ -421,10 +383,10 @@ $(() => {
                 var priv = $(item).find("#workspace-change-privilege");
                 if (priv.length > 0) {
                     priv.attr("data-privileged", event.data["challenge-privilege"]);
-                    displayPrivileged({"target": priv[0]}, false);
+                    priv.find("input").prop("checked", event.data["challenge-privilege"] === "true");
                 }
 
-                selectService($(item).find("#workspace-select").prop("value"), log=false);
+                refreshWorkspace($(item));
             }
         })
     });

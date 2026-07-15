@@ -5,6 +5,16 @@
   <span id="scoreboard-control-month"><a href="javascript:loadScoreboard(30, 1)">30-Day</a></span> |
   <span id="scoreboard-control-all"><a href="javascript:loadScoreboard(0, 1)">All-Time</a></span>
   </p>
+  <div class="scoreboard-view-controls">
+    <div id="scoreboard-crew-mode-toggle" class="scoreboard-view-toggle brand-mono" role="tablist" aria-label="Crew scoring" hidden>
+      <a id="scoreboard-crew-mode-cumulative" role="tab" aria-selected="true" href="javascript:setCrewMode('cumulative')">Cumulative</a>
+      <a id="scoreboard-crew-mode-unique" role="tab" aria-selected="false" href="javascript:setCrewMode('unique')">Unique</a>
+    </div>
+    <div class="scoreboard-view-toggle brand-mono" role="tablist" aria-label="Scoreboard view">
+      <a id="scoreboard-view-hackers" role="tab" aria-selected="true" href="javascript:setScoreboardView('hackers')">Hackers</a>
+      <a id="scoreboard-view-crews" role="tab" aria-selected="false" href="javascript:setScoreboardView('crews')">Crews</a>
+    </div>
+  </div>
 </div>
 <div class="scoreboard row">
   <div class="col-md-12 p-0">
@@ -13,10 +23,10 @@
 	      <tr>
 	        <td scope="col" class="col-md-1"><b>Rank</b></td>
           <td scope="col" class="col-md-1"></td>
-	        <td scope="col" class="col-md-4"><b>Hacker</b></td>
-	        <td scope="col" class="col-md-4"><b>Badges</b></td>
+	        <td scope="col" class="col-md-4"><b id="scoreboard-th-name">Hacker</b></td>
+	        <td scope="col" class="col-md-4"><b id="scoreboard-th-badges">Badges</b></td>
 	        <td scope="col" class="col-md-1"></td>
-	        <td scope="col" class="col-md-1"><b>Score</b></td>
+	        <td scope="col" class="col-md-1"><b id="scoreboard-th-score">Score</b></td>
 	      </tr>
 	    </thead>
 	    <tbody id="scoreboard">

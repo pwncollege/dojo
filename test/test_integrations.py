@@ -21,7 +21,7 @@ def inspect_container(username) -> dict[str, Any]:
     except:
         return {}
 
-def validate_current_container(username, dojo, module, challenge, attempts=10, mode:str=None, before:datetime.datetime=None, after:datetime.datetime=None) -> bool:
+def validate_current_container(username, dojo, module, challenge, attempts=30, mode:str=None, before:datetime.datetime=None, after:datetime.datetime=None) -> bool:
     for _ in range(attempts):
         container = inspect_container(username)
         try:
@@ -51,11 +51,17 @@ def validate_restart(username, mode):
         "standard": "dojo restart -N",
         "current": "dojo restart"
     }[mode]
-    try:
-        result = workspace_run(command, user=username)
-        assert False, f"\"dojo restart\" should not have result: {(result.stdout, result.stderr)}"
-    except subprocess.CalledProcessError as error:
-        pass
+    # The previous start's per-user docker lock is held until the workspace is
+    # fully ready, which can outlast container creation on slow machines.
+    for _ in range(15):
+        try:
+            result = workspace_run(command, user=username)
+            assert False, f"\"dojo restart\" should not have result: {(result.stdout, result.stderr)}"
+        except subprocess.CalledProcessError as error:
+            restart_error = (error.returncode, error.stdout, error.stderr)
+            if "Already starting a challenge" not in (error.stderr or ""):
+                break
+            time.sleep(3)
 
     # Validate that the container is the same, and it is not the same container.
     assert validate_current_container(
@@ -65,7 +71,7 @@ def validate_restart(username, mode):
         labels["dojo.challenge_id"],
         mode = labels["dojo.mode"] if mode == "current" else mode,
         after = datetime.datetime.fromisoformat(container["Created"]) # Should be created after the old container.
-    ), f"Failed to restart:\nOriginal Container:\n{container}\nNewest Container:\n{inspect_container(username)}"
+    ), f"Failed to restart (\"dojo restart\" exited {restart_error[0]}, stdout={restart_error[1]!r}, stderr={restart_error[2]!r}):\nOriginal Container:\n{container}\nNewest Container:\n{inspect_container(username)}"
 
 def test_whoami(random_user, welcome_dojo):
     name, session = random_user

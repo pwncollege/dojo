@@ -1,35 +1,3 @@
-const broadcast = new BroadcastChannel('broadcast');
-
-broadcast.onmessage = (event) => {
-    if (event.data.msg === 'New challenge started') {
-        if (window.location.pathname === '/workspace/code') {
-            window.location.reload();
-        }
-        else if (window.location.pathname === '/workspace/desktop') {
-            get_and_set_iframe_url()
-        }
-    }
-};
-function get_and_set_iframe_url() {
-    // check if the window location pathname starts with /workspace/ and set the rest of the path as an variable service
-    const service = window.location.pathname.startsWith('/workspace/') ? window.location.pathname.substring(11) : '';
-    fetch("/pwncollege_api/v1/workspace?service=" + service)
-        .then(response => response.json())
-        .then(data => {
-            if (data.active) {
-                const iframe = $("#workspace_iframe")[0];
-                if (iframe.src !== window.location.origin + data.iframe_src) {
-                    const url = new URL(data.iframe_src);
-                    if (data.setPort) {
-                        url.port = window.location.port;
-                    }
-
-                    iframe.src = url.toString();
-                }
-            }
-        });
-}
-
 $(() => {
     $("#show_description").click((event) =>{
         $("#dropdown-description").toggle();
