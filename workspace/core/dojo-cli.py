@@ -5,7 +5,7 @@ import requests
 import re
 from typing import Any
 
-DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
+DOJO_API = os.environ.get("DOJO_API", "http://pwn.college:80/pwncollege_api/v1")
 DOJO_AUTH_TOKEN = os.environ.get("DOJO_AUTH_TOKEN")
 DOJO_HOST = os.environ.get("DOJO_HOST")
 

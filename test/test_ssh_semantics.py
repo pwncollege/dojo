@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import random
+import socket
 import string
 import struct
 import subprocess
@@ -20,6 +21,7 @@ from utils import (
     get_outer_container_for,
     get_user_id,
     login,
+    parse_csrf_token,
     remove_workspace_container,
     start_challenge,
     workspace_run,
@@ -28,6 +30,7 @@ from utils import (
 SSH_KEY_ENDPOINT = f"{DOJO_URL}/pwncollege_api/v1/ssh_key"
 DOJOS_ENDPOINT = f"{DOJO_URL}/pwncollege_api/v1/dojos"
 DOCKER_ENDPOINT = f"{DOJO_URL}/pwncollege_api/v1/docker"
+REGISTER_ENDPOINT = f"{DOJO_URL}/pwncollege_api/v1/auth/register"
 
 SSH_PORT = int(os.getenv("DOJO_SSH_PORT", "22"))
 SSH_BASE_OPTIONS = [
@@ -69,8 +72,22 @@ def authorized_keys_lines():
     return dojo_run("docker", "exec", "sshd", "/opt/sshd/auth.py").stdout.splitlines()
 
 
+def offered_key_line(public_key):
+    key_type, key_base64 = normalized(public_key).split()
+    return dojo_run(
+        "docker", "exec", "sshd", "/opt/sshd/auth.py", key_type, key_base64
+    ).stdout.strip()
+
+
 def forced_command_line(user_id, public_key):
     return f'command="{ENTER_COMMAND} user_{user_id}" {normalized(public_key)}'
+
+
+def assert_onboarding_rejects_command(result):
+    assert result.returncode != 0, f"an unlinked key ran a command: {result.stdout!r}"
+    combined = result.stdout + result.stderr
+    assert "not linked to a pwn.college account" in combined, combined
+    assert "hacker" not in result.stdout, result.stdout
 
 
 def generate_ssh_keys(directory):
@@ -183,6 +200,16 @@ def mint_ssh_token(payload, *, secret="", backdate=0):
 
 def ssh_token_header(payload, **kwargs):
     return {"Authorization": f"Bearer sk-ssh-service-{mint_ssh_token(payload, **kwargs)}"}
+
+
+def register_request(*, headers, payload, session=None):
+    client = session or requests
+    for _ in range(4):
+        response = client.post(REGISTER_ENDPOINT, headers=headers, json=payload)
+        if response.status_code != 429:
+            return response
+        time.sleep(2)
+    return response
 
 
 def register_user():
@@ -302,8 +329,7 @@ def test_newline_injection_cannot_add_a_second_key(dojo_user, ssh_keys):
         "the smuggled second key reached sshd's authorized_keys stream"
 
     result = ssh_run(ssh_keys["ed25519"]["private_file"], "whoami", timeout=30)
-    assert result.returncode == 255, f"the smuggled key authenticated: rc={result.returncode}"
-    assert "Permission denied" in result.stderr, result.stderr
+    assert_onboarding_rejects_command(result)
 
 
 def test_declared_key_type_cannot_extend_the_authorized_keys_line(dojo_user, ssh_keys):
@@ -358,6 +384,41 @@ def test_auth_py_emits_only_well_formed_authorized_keys_lines(dojo_user, ssh_key
             "the well-formed key was dropped along with the malformed one"
     finally:
         db_sql(f"DELETE FROM ssh_keys WHERE user_id = {user_id} AND value LIKE '%attacker%'")
+
+
+def test_auth_py_routes_unknown_keys_to_onboarding(ssh_keys):
+    public_key = ssh_keys["ed25519"]["public"]
+    key_type, key_base64 = normalized(public_key).split()
+    line = offered_key_line(public_key)
+
+    assert line.startswith('command="/opt/sshd/onboard.py --key-type '), line
+    assert line.endswith(normalized(public_key)), line
+    assert dojo_run(
+        "docker", "exec", "sshd", "/opt/sshd/auth.py", key_type
+    ).stdout == ""
+    assert dojo_run(
+        "docker", "exec", "sshd", "/opt/sshd/auth.py", key_type, key_base64, "extra"
+    ).stdout == ""
+    assert dojo_run(
+        "docker", "exec", "sshd", "/opt/sshd/auth.py", "", ""
+    ).stdout == ""
+
+    result = ssh_run(ssh_keys["ed25519"]["private_file"], "whoami", timeout=30)
+    assert_onboarding_rejects_command(result)
+
+
+def test_unknown_key_can_open_and_quit_onboarding(ssh_keys):
+    started = time.time()
+    result = ssh_run(
+        ssh_keys["ed25519"]["private_file"],
+        options=["-tt"],
+        stdin_data="q\n",
+        term="xterm-256color",
+        timeout=60,
+    )
+    assert time.time() - started < 55, "SSH onboarding hung"
+    assert result.returncode == 0, result.stderr
+    assert "\x1b[" in result.stdout or "Set up SSH access" in result.stdout, result.stdout[-400:]
 
 
 def test_empty_key_value_rejected(dojo_user, second_user):
@@ -587,6 +648,57 @@ def test_x11_and_tcp_forwarding_are_refused(workspace_ssh_user):
         result.stderr
 
 
+def test_unknown_key_cannot_forward_docker_socket(ssh_keys, tmp_path):
+    effective_config = dojo_run(
+        "docker", "exec", "sshd", "/usr/sbin/sshd.pam", "-T", "-f", "/opt/sshd/sshd_config",
+        "-C", "user=hacker,host=localhost,addr=127.0.0.1",
+    ).stdout
+    assert "disableforwarding yes" in effective_config.splitlines()
+
+    forwarded_socket = tmp_path / "docker.sock"
+    process = subprocess.Popen(
+        [
+            "ssh", *SSH_BASE_OPTIONS,
+            "-i", ssh_keys["ed25519"]["private_file"],
+            "-p", str(SSH_PORT),
+            "-N", "-L", f"{forwarded_socket}:/var/run/docker.sock",
+            f"hacker@{DOJO_SSH_HOST}",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    response = b""
+    stderr = ""
+    try:
+        deadline = time.monotonic() + 15
+        while not forwarded_socket.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.1)
+        if not forwarded_socket.exists():
+            if process.poll() is None:
+                process.terminate()
+            _, stderr = process.communicate(timeout=10)
+            pytest.fail(f"SSH did not create the forwarding socket: {stderr}")
+        time.sleep(2)
+        assert process.poll() is None, process.communicate(timeout=10)[1]
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+            client.settimeout(5)
+            try:
+                client.connect(str(forwarded_socket))
+                client.sendall(b"GET /_ping HTTP/1.0\r\n\r\n")
+                while chunk := client.recv(4096):
+                    response += chunk
+            except OSError:
+                pass
+    finally:
+        if process.poll() is None:
+            process.terminate()
+        _, stderr = process.communicate(timeout=10)
+    assert "open failed" in stderr, stderr
+    assert b"200 OK" not in response, "an unknown SSH key forwarded the Docker socket"
+
+
 def test_sftp_transfer_round_trips(workspace_ssh_user, tmp_path):
     payload = b"sftp-payload\x00round-trip\n"
     source = tmp_path / "sftp_payload.txt"
@@ -694,8 +806,7 @@ def test_new_key_authenticates_on_the_next_connection(dojo_user, ssh_keys, examp
     try:
         start_challenge(example_dojo, "hello", "apple", session=session)
         result = ssh_run(private_key, "whoami", timeout=30)
-        assert result.returncode == 255, "an unregistered key authenticated"
-        assert "Permission denied" in result.stderr, result.stderr
+        assert_onboarding_rejects_command(result)
 
         submitted = f'command="/bin/sh -c \'touch /tmp/pwned-{name}\'",no-pty {ssh_keys["rsa"]["public"]}'
         assert add_ssh_key(session, submitted).status_code == 200
@@ -726,9 +837,7 @@ def test_deleting_a_key_revokes_only_that_key_immediately(dojo_user, ssh_keys, e
         assert key_count(name) == 1
 
         result = ssh_run(rsa["private_file"], "whoami", timeout=30)
-        assert result.returncode == 255, \
-            f"the deleted key still authenticated (rc={result.returncode}, expected an auth failure)"
-        assert "Permission denied" in result.stderr, result.stderr
+        assert_onboarding_rejects_command(result)
 
         result = ssh_run(ed25519["private_file"], "whoami")
         assert result.returncode == 0 and "hacker" in result.stdout, \
@@ -824,6 +933,8 @@ def test_banned_user_cannot_ssh(dojo_user, ssh_keys):
     try:
         assert forced_command_line(user_id, ssh_keys["ed25519"]["public"]) not in authorized_keys_lines(), \
             "a banned user's key is still served to sshd"
+        assert offered_key_line(ssh_keys["ed25519"]["public"]) == "", \
+            "a banned user's key was routed into onboarding"
         result = ssh_run(ssh_keys["ed25519"]["private_file"], "whoami", timeout=30)
         assert result.returncode == 255, \
             f"a banned user's key still authenticated (rc={result.returncode})"
@@ -847,6 +958,103 @@ def test_interactive_session_without_a_workspace_offers_the_challenge_tui(dojo_u
     assert "No active challenge session; start a challenge!" in combined, repr(combined[-400:])
     assert "\x1b[" in result.stdout or "Failed to launch challenge tui" in combined, \
         "no full-screen tui was rendered for an interactive session without a workspace"
+
+
+def test_ssh_onboarding_registration_creates_account_and_key(ssh_keys):
+    name = random_name("sshonboard")
+    password = random_name("password")
+    key_type, key_base64 = normalized(ssh_keys["ed25519"]["public"]).split()
+    session = requests.Session()
+
+    response = register_request(
+        session=session,
+        headers=ssh_token_header("ssh-onboarding"),
+        payload={
+            "name": name,
+            "email": f"{name}@example.com",
+            "password": password,
+            "key_type": key_type,
+            "key_base64": key_base64,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["success"] is True, response.json()
+    assert stored_key_values(name) == [normalized(ssh_keys["ed25519"]["public"])]
+    login(name, password)
+
+    settings = session.get(f"{DOJO_URL}/settings", allow_redirects=False)
+    assert settings.status_code in (302, 403), \
+        f"onboarding registration left a usable browser session: {settings.status_code}"
+
+
+def test_ssh_onboarding_registration_is_atomic(dojo_user, ssh_keys):
+    owner_name, owner_session = dojo_user
+    public_key = ssh_keys["rsa"]["public"]
+    key_type, key_base64 = normalized(public_key).split()
+    assert add_ssh_key(owner_session, public_key).status_code == 200
+
+    attempts = [
+        (random_name("sshduplicate"), key_base64),
+        (random_name("sshinvalid"), "not-base64"),
+    ]
+    for name, offered_key in attempts:
+        response = register_request(
+            headers=ssh_token_header("ssh-onboarding"),
+            payload={
+                "name": name,
+                "email": f"{name}@example.com",
+                "password": random_name("password"),
+                "key_type": key_type,
+                "key_base64": offered_key,
+            },
+        )
+        assert response.status_code == 400, response.text
+        assert db_sql(f"SELECT count(*) FROM users WHERE name = '{name}'").strip() == "0"
+
+    assert stored_key_values(owner_name) == [normalized(public_key)]
+
+
+def test_ssh_onboarding_registration_rejects_invalid_tokens(ssh_keys):
+    key_type, key_base64 = normalized(ssh_keys["ed25519"]["public"]).split()
+    headers = {
+        "wrong tag": ssh_token_header("ssh-tui"),
+        "wrong secret": ssh_token_header("ssh-onboarding", secret="not-the-key"),
+        "expired": ssh_token_header("ssh-onboarding", backdate=3600),
+    }
+    for description, header in headers.items():
+        name = random_name("sshbadtoken")
+        response = register_request(
+            headers=header,
+            payload={
+                "name": name,
+                "email": f"{name}@example.com",
+                "password": random_name("password"),
+                "key_type": key_type,
+                "key_base64": key_base64,
+            },
+        )
+        assert response.status_code == 401, f"{description} was accepted: {response.text}"
+        assert db_sql(f"SELECT count(*) FROM users WHERE name = '{name}'").strip() == "0"
+
+
+def test_public_registration_ignores_onboarding_key_fields(ssh_keys):
+    name = random_name("sshpublic")
+    key_type, key_base64 = normalized(ssh_keys["ed25519"]["public"]).split()
+    session = requests.Session()
+    session.headers["CSRF-Token"] = parse_csrf_token(session.get(f"{DOJO_URL}/register").text)
+    response = register_request(
+        session=session,
+        headers={},
+        payload={
+            "name": name,
+            "email": f"{name}@example.com",
+            "password": random_name("password"),
+            "key_type": key_type,
+            "key_base64": key_base64,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert key_count(name) == 0
 
 
 def test_ssh_service_token_authenticates_and_respects_dojo_access(
@@ -930,6 +1138,18 @@ def test_ssh_service_token_rejects_forged_stale_and_unknown_tokens(dojo_user):
         "a freshly minted token for the same user should still work"
 
 
+def test_ssh_service_token_rejects_banned_user(dojo_user):
+    name, _ = dojo_user
+    user_id = get_user_id(name)
+    db_sql(f"UPDATE users SET banned = true WHERE id = {user_id}")
+    try:
+        response = requests.get(DOJOS_ENDPOINT, headers=ssh_token_header([user_id, "ssh-tui"]))
+        assert response.status_code == 404, response.text
+        assert response.json() == {"success": False, "error": "User not found."}
+    finally:
+        db_sql(f"UPDATE users SET banned = false WHERE id = {user_id}")
+
+
 def test_ssh_service_token_leaves_no_reusable_session(dojo_user, ssh_keys):
     name, _ = dojo_user
     user_id = get_user_id(name)
@@ -946,6 +1166,22 @@ def test_ssh_service_token_leaves_no_reusable_session(dojo_user, ssh_keys):
     response = session.post(SSH_KEY_ENDPOINT, json={"ssh_key": normalized(ssh_keys["rsa"]["public"])})
     assert response.status_code == 403, response.status_code
     assert key_count(name) == 0
+
+
+def test_ssh_service_token_preserves_existing_browser_session(dojo_user, second_user, ssh_keys):
+    name, browser_session = dojo_user
+    other_name, _ = second_user
+
+    response = browser_session.get(
+        DOJOS_ENDPOINT,
+        headers=ssh_token_header([get_user_id(other_name), "ssh-tui"]),
+    )
+    assert response.status_code == 200 and response.json()["success"] is True
+
+    response = add_ssh_key(browser_session, ssh_keys["ed25519"]["public"])
+    assert response.status_code == 200, response.text
+    assert key_count(name) == 1
+    assert key_count(other_name) == 0
 
 
 def test_non_ssh_authorization_headers_fall_through_to_session_auth(dojo_user, ssh_keys):

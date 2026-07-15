@@ -1,24 +1,12 @@
-import re
-
 from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.exc import IntegrityError
 from ...utils.decorators import authed_only
 from ...utils.user import get_current_user
-from sshpubkeys import SSHKey, InvalidKeyError
-import base64
 import markupsafe
 
 from ...models import SSHKeys, db
-
-
-# The stored value becomes one line of sshd's authorized_keys stream, so a key type
-# carrying a separator would add fields to that line. RFC 4250 s4.6.1 limits an
-# algorithm name to 1-64 printable US-ASCII characters with no whitespace, comma,
-# control character or DEL. Matched against bytes so that a type which is not even
-# ASCII is rejected rather than raising on decode, and anchored with \Z because $
-# would admit a trailing newline.
-KEY_TYPE_RE = re.compile(rb"[\x21-\x2b\x2d-\x7e]{1,64}\Z")
+from ...utils.ssh_key import InvalidKeyError, normalize_ssh_key
 
 
 ssh_key_namespace = Namespace(
@@ -40,11 +28,7 @@ class UpdateKey(Resource):
             return {"success": False, "error": "Please provide an SSH key"}, 400
 
         try:
-            key = SSHKey(key_value, strict=True)
-            key.parse()
-            if not KEY_TYPE_RE.match(key.key_type):
-                raise InvalidKeyError(f"unsupported key type: {key.key_type[:64]!r}")
-            key_value = f"{key.key_type.decode()} {base64.b64encode(key._decoded_key).decode()}"
+            key_value = normalize_ssh_key(key_value)
         except (InvalidKeyError, NotImplementedError) as e:
             return (
                 {

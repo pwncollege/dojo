@@ -35,28 +35,28 @@ def create_db_connection():
     )
 
 def main():
+    if len(sys.argv) not in (1, 3):
+        return
+
     enter_path = pathlib.Path(__file__).parent.resolve() / "enter.py"
     onboard_path = pathlib.Path(__file__).parent.resolve() / "onboard.py"
-    username = sys.argv[1] if len(sys.argv) > 1 else None
-    key_type = sys.argv[2] if len(sys.argv) > 2 else None
-    key_base64 = sys.argv[3] if len(sys.argv) > 3 else None
-
     connection = create_db_connection()
     with connection.cursor() as cursor:
-        if username and username != "hacker":
-            return
-        if key_type and key_base64:
+        if len(sys.argv) == 3:
+            key_type, key_base64 = sys.argv[1:]
             key = f"{key_type} {key_base64}"
-            if not AUTHORIZED_KEY_RE.match(key):
+            if not AUTHORIZED_KEY_RE.fullmatch(key):
                 return
             cursor.execute(
-                "SELECT ssh_keys.user_id FROM ssh_keys "
+                "SELECT ssh_keys.user_id, users.banned FROM ssh_keys "
                 "JOIN users ON users.id = ssh_keys.user_id "
-                "WHERE NOT users.banned AND ssh_keys.value = %s",
-                (key,),
+                "WHERE digest(ssh_keys.value, 'sha256') = digest(%s, 'sha256') "
+                "AND ssh_keys.value = %s",
+                (key, key),
             )
-            if user_id := cursor.fetchone():
-                print(f'command="{enter_path} user_{user_id[0]}" {key}')
+            if user := cursor.fetchone():
+                if user[1] is False:
+                    print(f'command="{enter_path} user_{user[0]}" {key}')
                 return
             command = shlex.join([
                 str(onboard_path),
@@ -72,7 +72,7 @@ def main():
             "WHERE NOT users.banned AND ssh_keys.value <> ''"
         )
         for user_id, key in cursor.fetchall():
-            if not AUTHORIZED_KEY_RE.match(key):
+            if not AUTHORIZED_KEY_RE.fullmatch(key):
                 print(f"skipping malformed key for user {user_id}", file=sys.stderr)
                 continue
             print(f'command="{enter_path} user_{user_id}" {key}')

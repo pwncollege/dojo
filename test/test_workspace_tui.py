@@ -51,6 +51,21 @@ def test_browser_selects_the_highlighted_challenge_and_start_mode(catalog_client
     }
 
 
+def test_challenge_client_uses_api_override(monkeypatch):
+    monkeypatch.setenv("DOJO_AUTH_TOKEN", "token")
+    monkeypatch.setenv("DOJO_API", "http://site:8000/pwncollege_api/v1")
+    monkeypatch.setenv("DOJO_HOST", "dojo.example")
+
+    client = tui.ChallengeClient()
+
+    assert client.api_base == "http://site:8000/pwncollege_api/v1"
+    assert client.headers() == {
+        "Authorization": "Bearer token",
+        "Content-Type": "application/json",
+        "Host": "dojo.example",
+    }
+
+
 def test_browser_cancel_returns_to_challenges_and_quit_does_not_start(catalog_client):
     app = tui.ChallengeBrowserApp(catalog_client)
 

@@ -35,6 +35,7 @@ TEST_FILE_TIERS = {
     "test_settings_page.py": "semantic",
     "test_side_integrations.py": "semantic",
     "test_solves.py": "semantic",
+    "test_ssh_onboarding.py": "unit",
     "test_ssh_semantics.py": "semantic",
     "test_surveys.py": "semantic",
     "test_theme_assets.py": "integration",

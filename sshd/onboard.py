@@ -3,6 +3,7 @@
 import argparse
 import os
 import pathlib
+import subprocess
 import sys
 
 import requests
@@ -12,10 +13,21 @@ from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import Footer, Header, Input, ListItem, ListView, Markdown, Static
 
-from tui import run_challenge_tui
+DOJO_CLI = "/nix/var/nix/profiles/dojo-workspace/bin/dojo"
 
 
-SSH_KEY_SETTINGS_URL = "https://pwn.college/settings#ssh-key"
+def run_challenge_tui(user_id):
+    result = subprocess.run(
+        [DOJO_CLI, "tui"],
+        env={**os.environ, "DOJO_USER_ID": str(user_id)},
+    )
+    return result.returncode == 0
+
+
+class RegistrationError(RuntimeError):
+    def __init__(self, errors):
+        self.errors = errors
+        super().__init__("\n".join(errors))
 
 
 class OnboardingClient:
@@ -25,37 +37,41 @@ class OnboardingClient:
         self.ssh_key = os.environ.get("DOJO_SSH_SERVICE_KEY")
         if not self.ssh_key:
             raise RuntimeError("Missing DOJO_SSH_SERVICE_KEY")
-        self.api_base = "http://pwn.college:80/pwncollege_api/v1"
+        self.dojo_host = os.environ.get("DOJO_HOST") or "pwn.college"
+        self.client_ip = (os.environ.get("SSH_CONNECTION") or "").split(maxsplit=1)[0]
+        self.api_base = os.environ.get("DOJO_API") or "http://site:8000/pwncollege_api/v1"
+        self.scheme = "https" if os.environ.get("DOJO_ENV") == "production" else "http"
+        self.ssh_key_settings_url = f"{self.scheme}://{self.dojo_host}/settings#ssh-key"
 
-    def headers(self):
+    def register(self, name, email, password, registration_code=""):
         token = URLSafeTimedSerializer(self.ssh_key).dumps("ssh-onboarding")
-        return {
+        headers = {
             "Authorization": f"Bearer sk-ssh-service-{token}",
-            "Content-Type": "application/json",
+            "Host": self.dojo_host,
+            "X-Forwarded-Proto": self.scheme,
         }
-
-    def payload(self, extra=None):
-        payload = {
-            "key_type": self.key_type,
-            "key_base64": self.key_base64,
-        }
-        if extra:
-            payload.update(extra)
-        return payload
-
-    def post(self, path, payload):
-        response = requests.post(f"{self.api_base}{path}", headers=self.headers(), json=payload, timeout=20)
+        if self.client_ip:
+            headers["X-Forwarded-For"] = self.client_ip
+        response = requests.post(
+            f"{self.api_base}/auth/register",
+            headers=headers,
+            json={
+                "key_type": self.key_type,
+                "key_base64": self.key_base64,
+                "name": name,
+                "email": email,
+                "password": password,
+                "registration_code": registration_code,
+            },
+            timeout=20,
+        )
         data = response.json()
         if not data.get("success"):
-            errors = data.get("errors") or [data.get("error", "Request failed")]
-            raise RuntimeError("\n".join(errors))
+            errors = data.get("errors") or [
+                data.get("error") or data.get("message", "Request failed")
+            ]
+            raise RegistrationError(errors)
         return data
-
-    def register(self, name, email, password):
-        return self.post(
-            "/ssh_onboarding/register",
-            self.payload({"name": name, "email": email, "password": password}),
-        )
 
 
 class OnboardingApp(App):
@@ -155,12 +171,14 @@ class OnboardingApp(App):
         Binding("escape", "menu", "Menu"),
     ]
 
-    def __init__(self, client):
+    def __init__(self, client, timeout_seconds=600):
         super().__init__()
         self.client = client
+        self.timeout_seconds = timeout_seconds
         self.state = "menu"
         self.account_name = ""
         self.account_email = ""
+        self.account_password = ""
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -188,6 +206,10 @@ class OnboardingApp(App):
 
     def on_mount(self):
         self.show_menu()
+        self.set_timer(
+            self.timeout_seconds,
+            lambda: self.exit({"action": "timeout"}),
+        )
 
     def content(self, text):
         self.query_one("#content", Markdown).update(text)
@@ -212,6 +234,7 @@ class OnboardingApp(App):
 
     def show_menu(self):
         self.state = "menu"
+        self.account_password = ""
         self.heading("Set up SSH access")
         choices = self.query_one("#choices", ListView)
         choices.display = True
@@ -222,7 +245,8 @@ class OnboardingApp(App):
         self.status("Choose an option")
 
     def action_menu(self):
-        self.show_menu()
+        if self.state in ("create-name", "create-email", "create-password", "create-registration-code"):
+            self.show_menu()
 
     def action_create(self):
         if self.state != "menu":
@@ -272,6 +296,7 @@ class OnboardingApp(App):
             if not value:
                 self.status("Password is required")
                 return
+            self.account_password = value
             self.state = "create-submitting"
             self.set_input()
             self.content("# Creating account\n\nSubmitting registration...")
@@ -280,26 +305,54 @@ class OnboardingApp(App):
                 0.1,
                 lambda: self.finish_registration(self.account_name, self.account_email, value),
             )
+            return
+        if self.state == "create-registration-code":
+            self.state = "create-submitting"
+            self.set_input()
+            self.content("# Creating account\n\nSubmitting registration...")
+            self.status("Creating account")
+            self.set_timer(
+                0.1,
+                lambda: self.finish_registration(
+                    self.account_name,
+                    self.account_email,
+                    self.account_password,
+                    value,
+                ),
+            )
 
-    def finish_registration(self, name, email, password):
+    def finish_registration(self, name, email, password, registration_code=""):
         try:
-            result = self.client.register(name, email, password)
+            result = self.client.register(name, email, password, registration_code)
+        except RegistrationError as error:
+            if error.errors == ["Invalid registration code"] and not registration_code:
+                self.state = "create-registration-code"
+                self.heading("Create a pwn.college account")
+                self.query_one("#content", Markdown).display = True
+                self.content("# Registration code\n\nEnter the registration code for this pwn.college instance.")
+                self.set_input("registration code", visible=True, password=True)
+                self.status("Enter registration code")
+                return
+            self.show_menu()
+            self.status(f"Account creation failed: {error}")
+            return
         except Exception as error:
             self.show_menu()
             self.status(f"Account creation failed: {error}")
             return
-        user = result["user"]
+        self.account_password = ""
+        user = result["data"]
         self.content(
             "\n".join([
                 "# Account created",
                 "",
-                f"Created `{user['name']}` and linked this SSH key.",
+                f"Created `{user['username']}` and linked this SSH key.",
                 "",
                 "Opening the challenge browser...",
             ])
         )
         self.status("Account created")
-        self.set_timer(2, lambda: self.exit({"action": "create", "user_id": user["id"]}))
+        self.set_timer(2, lambda: self.exit({"action": "create", "user_id": user["user_id"]}))
 
 
 def main():
@@ -310,11 +363,14 @@ def main():
     if os.environ.get("SSH_ORIGINAL_COMMAND"):
         print("This SSH key is not linked to a pwn.college account. Connect without a command to set it up.", file=sys.stderr)
         return 1
-    client = OnboardingClient(args.key_type, args.key_base64)
     try:
+        client = OnboardingClient(args.key_type, args.key_base64)
         result = OnboardingApp(client).run()
     except Exception as error:
         print(f"Failed to start SSH onboarding: {error}", file=sys.stderr)
+        return 1
+    if isinstance(result, dict) and result.get("action") == "timeout":
+        print("SSH onboarding timed out.", file=sys.stderr)
         return 1
     if isinstance(result, dict) and result.get("action") == "create":
         user_id = result["user_id"]
@@ -329,7 +385,7 @@ def main():
         print()
         print("Open your pwn.college settings and paste your SSH public key there:")
         print()
-        print(SSH_KEY_SETTINGS_URL)
+        print(client.ssh_key_settings_url)
         print()
         print("After linking the key, reconnect over SSH to continue.")
     return 0

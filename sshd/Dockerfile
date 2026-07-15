@@ -13,7 +13,9 @@ RUN pip3 install --break-system-packages \
     requests \
     docker \
     redis \
-    psycopg2-binary
+    psycopg2-binary \
+    itsdangerous \
+    textual
 
 RUN adduser -D hacker && \
     addgroup -g 995 docker && \
@@ -25,7 +27,8 @@ RUN mkdir -p /run/sshd
 
 WORKDIR /opt/sshd
 COPY . .
-RUN chmod 700 /opt/sshd/auth.py && chmod 755 /opt/sshd/onboard.py
+RUN chmod 700 /opt/sshd/auth.py && \
+    chmod 755 /opt/sshd/onboard.py
 
 EXPOSE 22
 

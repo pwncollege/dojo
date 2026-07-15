@@ -45,7 +45,7 @@ class ChallengeClient:
         if not self.auth_token and not (self.ssh_key and self.user_id):
             raise RuntimeError("Missing DOJO_AUTH_TOKEN, or DOJO_SSH_SERVICE_KEY and DOJO_USER_ID")
         self.dojo_host = os.environ.get("DOJO_HOST")
-        self.api_base = "http://pwn.college:80/pwncollege_api/v1"
+        self.api_base = os.environ.get("DOJO_API", "http://pwn.college:80/pwncollege_api/v1")
 
     def authorization(self):
         if self.auth_token:
