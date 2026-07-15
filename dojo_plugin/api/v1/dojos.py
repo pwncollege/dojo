@@ -15,13 +15,26 @@ from flask_restx import Namespace, Resource
 from sqlalchemy.sql import and_
 
 from .user import authed_only_cli, authed_only_ssh
-from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
+from ...models import (DojoAdmins, DojoChallenges, DojoModules, Dojos, DojoStudents,
                        DojoUsers, Emojis, SurveyResponses)
 from ...utils import is_challenge_locked, render_markdown
-from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_from_spec
+from ...utils.dojo import (
+    DojoCacheRecalculationPlan,
+    DojoUpdateAuthorizationError,
+    dojo_admins_only,
+    dojo_create,
+    dojo_route,
+    dojo_from_spec,
+    lock_dojo_for_official_promotion,
+)
 from ...utils.image_pulls import enqueue_dojo_image_pulls
 from ...utils.stats import get_dojo_stats
-from ...utils.events import publish_dojo_stats_event, publish_scoreboard_event
+from ...utils.events import (
+    publish_dojo_stats_event,
+    publish_scoreboard_event,
+    queued_stat_events_checkpoint,
+    restore_queued_stat_events,
+)
 from ...utils.awards import dojo_gives_awards, grant_award
 
 logger = logging.getLogger(__name__)
@@ -82,6 +95,33 @@ class PromoteDojo(Resource):
     @admins_only
     @dojo_route
     def post(self, dojo):
+        def authorize_promotion():
+            user_id = get_current_user().id
+            locked_user_type = (
+                db.session.query(Users.type)
+                .filter(Users.id == user_id)
+                .with_for_update()
+                .scalar()
+            )
+            return locked_user_type == "admin"
+
+        try:
+            dojo = lock_dojo_for_official_promotion(
+                dojo,
+                authorize_before_lock=authorize_promotion,
+            )
+        except DojoUpdateAuthorizationError:
+            db.session.rollback()
+            return {"success": False, "error": "Forbidden"}, 403
+        except RuntimeError as error:
+            db.session.rollback()
+            return {
+                "success": False,
+                "error": str(error),
+            }, 409
+        if dojo is None:
+            db.session.rollback()
+            return {"success": False, "error": "Not Found"}, 404
         dojo.official = True
         db.session.commit()
         return {"success": True}
@@ -144,11 +184,53 @@ class UpdateDojo(Resource):
         if not data:
             return {"success": False, "error": "Missing dojo spec."}, 400
 
+        authorization = {"global_admin": False}
+        stat_events_checkpoint = queued_stat_events_checkpoint()
+        cache_recalculation_plan = DojoCacheRecalculationPlan()
+
+        def authorize_update(locked_dojo):
+            authorization["global_admin"] = False
+            user_id = get_current_user().id
+            locked_user_type = (
+                db.session.query(Users.type)
+                .filter(Users.id == user_id)
+                .with_for_update()
+                .scalar()
+            )
+            if locked_user_type is None:
+                return False
+            if locked_user_type == "admin":
+                authorization["global_admin"] = True
+                return True
+            return (
+                DojoAdmins.query
+                .filter_by(
+                    dojo_id=locked_dojo.dojo_id,
+                    user_id=user_id,
+                )
+                .with_for_update()
+                .first()
+                is not None
+            )
+
         try:
-            dojo_from_spec(data, dojo=dojo)
+            dojo_from_spec(
+                data,
+                dojo=dojo,
+                authorize=authorize_update,
+                authorize_before_lock=authorize_update,
+                authorize_legacy_replay=lambda: authorization["global_admin"],
+                cache_recalculation_plan=cache_recalculation_plan,
+            )
             db.session.commit()
+            cache_recalculation_plan.queue()
+        except DojoUpdateAuthorizationError:
+            db.session.rollback()
+            restore_queued_stat_events(stat_events_checkpoint)
+            return {"success": False, "error": "Forbidden"}, 403
         except Exception as e:
             db.session.rollback()
+            restore_queued_stat_events(stat_events_checkpoint)
             print(f"ERROR: Dojo update failed for {dojo}", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
             return {"success": False, "error": str(e)}, 400

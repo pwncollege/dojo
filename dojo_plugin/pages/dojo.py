@@ -18,7 +18,7 @@ from CTFd.utils.helpers import get_infos
 
 from ..utils import get_current_container, get_all_containers, render_markdown
 from ..utils.stats import get_container_stats, get_dojo_stats, get_challenge_solves
-from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
+from ..utils.dojo import DojoUpdateAuthorizationError, dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
 from ..utils.image_pulls import enqueue_dojo_image_pulls
 from ..utils.query_timer import query_timeout
 from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
@@ -207,8 +207,13 @@ def update_dojo(dojo, update_code=None):
         return {"success": False, "error": "Forbidden"}, 403
 
     try:
-        dojo_update(dojo)
-        db.session.commit()
+        dojo_update(
+            dojo,
+            authorize=lambda locked_dojo: locked_dojo.update_code == update_code,
+        )
+    except DojoUpdateAuthorizationError:
+        db.session.rollback()
+        return {"success": False, "error": "Forbidden"}, 403
     except IntegrityError as e:
         db.session.rollback()
         error = str(e)
@@ -255,11 +260,31 @@ def delete_dojo(dojo):
     if not dojo:
         return {"success": False, "error": "Not Found"}, 404
 
-    # Check if the current user is an admin of the dojo
+    user_id = get_current_user().id
     if not is_admin():
         abort(403)
 
     try:
+        user_type = (
+            db.session.query(Users.type)
+            .filter(Users.id == user_id)
+            .with_for_update()
+            .scalar()
+        )
+        if user_type != "admin":
+            db.session.rollback()
+            return {"success": False, "error": "Forbidden"}, 403
+        (
+            DojoUsers.query
+            .filter(DojoUsers.dojo_id == dojo.dojo_id)
+            .order_by(DojoUsers.user_id)
+            .with_for_update()
+            .all()
+        )
+        dojo = Dojos.lock_for_update(dojo)
+        if dojo is None:
+            db.session.rollback()
+            return {"success": False, "error": "Not Found"}, 404
         DojoUsers.query.filter(DojoUsers.dojo_id == dojo.dojo_id).delete()
         Dojos.query.filter(Dojos.dojo_id == dojo.dojo_id).delete()
         db.session.commit()

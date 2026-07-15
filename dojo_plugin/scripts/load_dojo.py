@@ -3,7 +3,11 @@ import CTFd.utils.user
 import sys
 import os
 
-from ..utils.dojo import dojo_create, generate_ssh_keypair
+from ..utils.dojo import (
+    dojo_create,
+    generate_ssh_keypair,
+    lock_dojo_for_official_promotion,
+)
 from ..models import Users, db
 
 # operate outside of a session
@@ -50,5 +54,7 @@ else:
 
 dojo = dojo_create(user, repository, public_key, private_key, spec)
 if args.official:
+    dojo = lock_dojo_for_official_promotion(dojo)
+    assert dojo is not None, "Dojo no longer exists"
     dojo.official = True
 db.session.commit()

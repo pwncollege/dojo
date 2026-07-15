@@ -11,24 +11,163 @@ import pathlib
 import urllib.request
 import base64
 import logging
+import json
 import emoji
 
 import yaml
 import requests
 from schema import Schema, Optional, Regex, Or, Use, SchemaError, And
 from flask import abort, g
+from sqlalchemy import MetaData, Table, inspect as inspect_database, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
 from CTFd.models import db, Challenges, Flags
 from CTFd.utils.user import get_current_user, is_admin
 
-from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
+from ..models import (
+    TRANSFER_PROVENANCE_VERSION,
+    DojoAdmins,
+    Dojos,
+    DojoModules,
+    DojoChallenges,
+    DojoChallengeTransferProvenances,
+    DojoResources,
+    DojoChallengeVisibilities,
+    DojoResourceVisibilities,
+    DojoModuleVisibilities,
+)
 from ..config import DOJOS_DIR
 from ..utils import get_current_container, sanitize_survey
+from .events import (
+    publish_activity_event,
+    publish_belts_event,
+    publish_dojo_stats_event,
+    publish_emojis_event,
+    publish_scoreboard_event,
+    publish_scores_event,
+    queue_stat_event,
+    queued_stat_events_checkpoint,
+    restore_queued_stat_events,
+)
 
 
 DOJOS_TMP_DIR = DOJOS_DIR/"tmp"
 DOJOS_TMP_DIR.mkdir(exist_ok=True)
+MAX_TRANSFER_DOJOS = 128
+MAX_TRANSFER_REFERENCES = MAX_TRANSFER_DOJOS
+MAX_TRANSFER_REQUESTS = 4096
+MAX_DOJO_UPDATE_ATTEMPTS = 3
+DOJO_UPDATE_HEAD_TIMEOUT = 15
+DOJO_REFERENCE_ID_LOCK_NAMESPACE = 1146047055
+
+
+class DojoUpdateAuthorizationError(RuntimeError):
+    pass
+
+
+class DojoUpdateStaleCheckout(RuntimeError):
+    pass
+
+
+class DojoCacheRecalculationPlan:
+    def __init__(self):
+        self.dojo_ids = set()
+        self.module_ids = set()
+        self.activity_user_ids = set()
+        self.awards = False
+
+    def add_dojo(self, dojo_id):
+        if dojo_id is not None:
+            self.dojo_ids.add(dojo_id)
+
+    def add_module(self, dojo_id, module_index):
+        self.add_dojo(dojo_id)
+        if dojo_id is not None and module_index is not None:
+            self.module_ids.add((dojo_id, module_index))
+
+    def add_challenges(self, challenge_ids):
+        challenge_ids = set(challenge_ids)
+        if not challenge_ids:
+            return
+        with db.session.no_autoflush:
+            associations = (
+                db.session.query(
+                    DojoChallenges.dojo_id,
+                    DojoChallenges.module_index,
+                )
+                .filter(DojoChallenges.challenge_id.in_(challenge_ids))
+                .all()
+            )
+        for dojo_id, module_index in associations:
+            self.add_module(dojo_id, module_index)
+
+    def add_activity_users(self, user_ids):
+        self.activity_user_ids.update(
+            user_id for user_id in user_ids if user_id is not None
+        )
+
+    def queue(self):
+        for dojo_id in sorted(self.dojo_ids):
+            queue_stat_event(functools.partial(publish_dojo_stats_event, dojo_id))
+            queue_stat_event(
+                functools.partial(publish_scoreboard_event, "dojo", dojo_id)
+            )
+            queue_stat_event(functools.partial(publish_scores_event, dojo_id))
+        for dojo_id, module_index in sorted(self.module_ids):
+            model_id = {
+                "dojo_id": dojo_id,
+                "module_index": module_index,
+            }
+            queue_stat_event(
+                functools.partial(publish_scoreboard_event, "module", model_id)
+            )
+        for user_id in sorted(self.activity_user_ids):
+            queue_stat_event(functools.partial(publish_activity_event, user_id))
+        if self.awards:
+            queue_stat_event(publish_belts_event)
+            queue_stat_event(publish_emojis_event)
+
+
+def lock_dojo_reference_ids_for_update(reference_ids):
+    locked_reference_ids = frozenset(
+        reference_id
+        for reference_id in reference_ids
+        if reference_id is not None
+    )
+    for reference_id in sorted(locked_reference_ids):
+        db.session.execute(
+            select([
+                db.func.pg_advisory_xact_lock(
+                    DOJO_REFERENCE_ID_LOCK_NAMESPACE,
+                    db.func.hashtext(reference_id),
+                )
+            ])
+        ).scalar()
+    return locked_reference_ids
+
+
+def lock_dojo_for_official_promotion(dojo, *, authorize_before_lock=None):
+    dojo_database_id = dojo.dojo_id
+    expected_dojo_id = dojo.id
+    for _ in range(MAX_DOJO_UPDATE_ATTEMPTS):
+        if (
+            authorize_before_lock is not None and
+            not authorize_before_lock()
+        ):
+            raise DojoUpdateAuthorizationError(
+                "Dojo promotion authorization changed"
+            )
+        lock_dojo_reference_ids_for_update({expected_dojo_id})
+        locked_dojo = Dojos.lock_ids_for_update({dojo_database_id}).get(
+            dojo_database_id
+        )
+        if locked_dojo is None:
+            return None
+        if locked_dojo.id == expected_dojo_id:
+            return locked_dojo
+        expected_dojo_id = locked_dojo.id
+        db.session.rollback()
+    raise RuntimeError("Dojo identity changed too frequently")
 
 ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
 UNIQUE_ID_REGEX = Regex(r"^[a-z0-9-~]{1,128}$")
@@ -322,7 +461,14 @@ def dojo_initialize_files(data, dojo_dir):
                 o.write(dojo_file["content"])
 
 
-def dojo_from_dir(dojo_dir, *, dojo=None):
+def dojo_from_dir(
+    dojo_dir,
+    *,
+    dojo=None,
+    authorize=None,
+    authorize_before_lock=None,
+    cache_recalculation_plan=None,
+):
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
 
@@ -333,23 +479,231 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
     data = load_dojo_subyamls(data_raw, dojo_dir)
     data = load_surveys(data, dojo_dir)
     dojo_initialize_files(data, dojo_dir)
-    return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
+    return dojo_from_spec(
+        data,
+        dojo_dir=dojo_dir,
+        dojo=dojo,
+        authorize=authorize,
+        authorize_before_lock=authorize_before_lock,
+        cache_recalculation_plan=cache_recalculation_plan,
+    )
 
 
-def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
+def immutable_reference_dojo_id(reference_id):
+    old_id, separator, hex_dojo_id = (reference_id or "").rpartition("~")
+    if not (
+        separator and
+        re.fullmatch(r"[a-z0-9-]{1,32}", old_id) and
+        re.fullmatch(r"[0-9a-f]{1,8}", hex_dojo_id)
+    ):
+        return None
+    return Dojos.hex_to_int(hex_dojo_id)
+
+
+def challenge_transfer_requests(dojo_data):
+    requests = []
+    for module_data in dojo_data.get("modules", []):
+        for challenge_data in module_data.get("resources", []):
+            transfer = challenge_data.get("transfer")
+            if (
+                challenge_data.get("type") != "challenge" or
+                not transfer or
+                "import" in challenge_data
+            ):
+                continue
+            requests.append({
+                "destination": (module_data["id"], challenge_data["id"]),
+                "reference": transfer.get("dojo"),
+                "source": (
+                    transfer.get("module", module_data["id"]),
+                    transfer["challenge"],
+                ),
+            })
+    return requests
+
+
+def transfer_reference_dojo_ids(reference_ids):
+    dojo_ids = set()
+    official_reference_ids = set()
+    for reference_id in reference_ids:
+        immutable_dojo_id = immutable_reference_dojo_id(reference_id)
+        if immutable_dojo_id is not None:
+            dojo_ids.add(immutable_dojo_id)
+        else:
+            official_reference_ids.add(reference_id)
+
+    if official_reference_ids:
+        with db.session.no_autoflush:
+            dojo_ids.update(
+                dojo_id
+                for dojo_id, in Dojos.query
+                .with_entities(Dojos.dojo_id)
+                .filter(
+                    Dojos.official.is_(True),
+                    Dojos.id.in_(official_reference_ids),
+                )
+                .all()
+            )
+    return dojo_ids
+
+
+def transfer_lock_dojo_ids(
+    dojo_data,
+    destination_dojo_id,
+    *,
+    lock_external_sources=True,
+):
+    transfer_requests = challenge_transfer_requests(dojo_data)
+    if len(transfer_requests) > MAX_TRANSFER_REQUESTS:
+        raise RuntimeError("Too many challenge transfers in one update")
+
+    reference_ids = {
+        request["reference"]
+        for request in transfer_requests
+        if request["reference"] is not None
+    }
+    if len(reference_ids) > MAX_TRANSFER_REFERENCES:
+        raise RuntimeError("Too many dojo references participate in one update")
+
+    dojo_ids = {destination_dojo_id} if destination_dojo_id is not None else set()
+    if lock_external_sources:
+        dojo_ids.update(transfer_reference_dojo_ids(reference_ids))
+    dojo_ids.discard(None)
+    if len(dojo_ids) > MAX_TRANSFER_DOJOS:
+        raise RuntimeError("Too many dojos participate in one update")
+    return dojo_ids
+
+
+def lock_transfer_dojos_for_update(
+    dojo_data,
+    dojo,
+    *,
+    lock_external_sources,
+):
+    destination_dojo_id = dojo.dojo_id if dojo is not None else None
+    requested_dojo_ids = transfer_lock_dojo_ids(
+        dojo_data,
+        destination_dojo_id,
+        lock_external_sources=lock_external_sources,
+    )
+    locked_dojos = Dojos.lock_ids_for_update(requested_dojo_ids)
+    if destination_dojo_id is not None and destination_dojo_id not in locked_dojos:
+        raise RuntimeError("Dojo no longer exists")
+
+    revalidated_dojo_ids = transfer_lock_dojo_ids(
+        dojo_data,
+        destination_dojo_id,
+        lock_external_sources=lock_external_sources,
+    )
+    with db.session.no_autoflush:
+        unlocked_existing_dojo_ids = {
+            dojo_id
+            for dojo_id in revalidated_dojo_ids - set(locked_dojos)
+            if Dojos.query.filter_by(dojo_id=dojo_id).first() is not None
+        }
+    if unlocked_existing_dojo_ids:
+        raise RuntimeError("Challenge transfer sources changed while acquiring update locks")
+    return locked_dojos.get(destination_dojo_id, dojo), locked_dojos
+
+
+def dojo_from_spec(
+    data,
+    *,
+    dojo_dir=None,
+    dojo=None,
+    authorize=None,
+    authorize_before_lock=None,
+    authorize_legacy_replay=None,
+    cache_recalculation_plan=None,
+):
     try:
         dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
         raise AssertionError(e)  # TODO: this probably shouldn't be re-raised as an AssertionError
 
+    existing_dojo = dojo is not None
+    transfer_lock_dojo_ids(
+        dojo_data,
+        dojo.dojo_id if existing_dojo else None,
+        lock_external_sources=False,
+    )
+    if authorize_before_lock is not None and not authorize_before_lock(dojo):
+        raise DojoUpdateAuthorizationError("Dojo update authorization changed")
+    proposed_dojo_id = dojo_data.get("id")
+    if proposed_dojo_id is None and "import" in dojo_data:
+        proposed_dojo_id = dojo_data["import"]["dojo"].split("~", 1)[0]
+    assert proposed_dojo_id is not None, "Dojo id must be defined"
+    global_admin_authorized = bool(
+        authorize_legacy_replay and authorize_legacy_replay()
+    ) if authorize_legacy_replay is not None else bool(is_admin())
+    locked_reference_ids = lock_dojo_reference_ids_for_update({
+        proposed_dojo_id,
+        dojo.id if existing_dojo else None,
+    })
+    if existing_dojo:
+        with db.session.no_autoflush:
+            db.session.refresh(dojo, attribute_names=["id", "official"])
+        if dojo.id not in locked_reference_ids:
+            raise RuntimeError(
+                "Dojo identity changed while acquiring update locks"
+            )
+    with db.session.no_autoflush:
+        official_twin_absent = Dojos.from_id(proposed_dojo_id).first() is None
+    global_admin_destination_allowed = bool(
+        global_admin_authorized and official_twin_absent
+    )
+    lock_external_sources = bool(
+        (existing_dojo and dojo.official) or
+        global_admin_destination_allowed
+    )
+    dojo, locked_transfer_dojos = lock_transfer_dojos_for_update(
+        dojo_data,
+        dojo,
+        lock_external_sources=lock_external_sources,
+    )
+    if existing_dojo:
+        if dojo.id not in locked_reference_ids:
+            raise RuntimeError(
+                "Dojo identity changed while acquiring update locks"
+            )
+        with db.session.no_autoflush:
+            revalidated_official_twin_absent = (
+                Dojos.from_id(proposed_dojo_id).first() is None
+            )
+            revalidated_external_authority = bool(
+                dojo.official or
+                (
+                    global_admin_authorized and
+                    revalidated_official_twin_absent
+                )
+            )
+        if revalidated_external_authority != lock_external_sources:
+            raise RuntimeError(
+                "Dojo transfer authority changed while acquiring update locks"
+            )
+        official_twin_absent = revalidated_official_twin_absent
+    if authorize is not None and not authorize(dojo):
+        raise DojoUpdateAuthorizationError("Dojo update authorization changed")
+
+    def assert_dojo_challenge_type(dojo_challenge):
+        if (
+            dojo_challenge.challenge is None or
+            dojo_challenge.challenge.type != "dojo"
+        ):
+            raise AssertionError(
+                "Dojo challenge association must reference a challenge of type `dojo`"
+            )
+
     def assert_importable(o):
         assert o.importable, f"Import disallowed for {o}."
         if isinstance(o, Dojos):
-            for m in o.module:
+            for m in o.modules:
                 assert_importable(m)
-        if isinstance(o, DojoModules):
+        elif isinstance(o, DojoModules):
             for c in o.challenges:
                 assert_importable(c)
+        elif isinstance(o, DojoChallenges):
+            assert_dojo_challenge_type(o)
 
     def assert_import_one(query, error_message):
         try:
@@ -372,28 +726,650 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     }
 
     assert dojo_kwargs.get("id") is not None, "Dojo id must be defined"
+    if dojo_kwargs["id"] != proposed_dojo_id:
+        raise RuntimeError("Proposed dojo identity changed during update")
 
-    if dojo is None:
+    if not existing_dojo:
         dojo = Dojos(**dojo_kwargs)
     else:
         for name, value in dojo_kwargs.items():
             setattr(dojo, name, value)
 
-    existing_challenges = {(challenge.module.id, challenge.id): challenge.challenge for challenge in dojo.challenges}
+    existing_dojo_challenges = {
+        (challenge.module.id, challenge.id): challenge
+        for challenge in dojo.challenges
+    }
+    existing_challenges = {
+        destination: dojo_challenge.challenge
+        for destination, dojo_challenge in existing_dojo_challenges.items()
+    }
+    if any(
+        challenge is None or challenge.type != "dojo"
+        for challenge in existing_challenges.values()
+    ):
+        raise RuntimeError("Dojo challenge association references a non-dojo challenge")
+    ordinary_destinations = {
+        (module_data["id"], challenge_data["id"])
+        for module_data in dojo_data.get("modules", [])
+        for challenge_data in module_data.get("resources", [])
+        if (
+            challenge_data.get("type") == "challenge" and
+            (not challenge_data.get("transfer") or "import" in challenge_data)
+        )
+    }
+    provenance_records = {}
+
+    def normalize_provenance(value):
+        if not isinstance(value, dict):
+            return None
+        reference = value.get("dojo")
+        dojo_id = value.get("dojo_id")
+        module_id = value.get("module")
+        challenge_id = value.get("challenge")
+        if reference is not None and not isinstance(reference, str):
+            return None
+        if (
+            dojo_id is not None and
+            (not isinstance(dojo_id, int) or isinstance(dojo_id, bool))
+        ):
+            return None
+        if not isinstance(module_id, str) or not isinstance(challenge_id, str):
+            return None
+        return {
+            "dojo": reference,
+            "dojo_id": dojo_id,
+            "module": module_id,
+            "challenge": challenge_id,
+        }
+
+    def provenance_record(challenge):
+        if challenge is not None and challenge.type != "dojo":
+            raise RuntimeError(
+                "Challenge transfer provenance cannot reference a non-dojo challenge"
+            )
+        if challenge is None or challenge.id is None:
+            return None
+        if challenge.id not in provenance_records:
+            provenance_records[challenge.id] = (
+                DojoChallengeTransferProvenances.query
+                .filter_by(challenge_id=challenge.id)
+                .one_or_none()
+            )
+        return provenance_records[challenge.id]
+
+    def challenge_owned_by(challenge, owner, coordinate):
+        return bool(
+            owner and
+            challenge and
+            challenge.type == "dojo" and
+            challenge.category == owner.hex_dojo_id and
+            challenge.name == f"{coordinate[0]}:{coordinate[1]}"
+        )
+
+    def consolidate_challenges(authoritative, duplicates, owner, coordinate):
+        duplicate_ids = {challenge.id for challenge in duplicates}
+        challenge_ids = duplicate_ids | {authoritative.id}
+        if cache_recalculation_plan is not None:
+            cache_recalculation_plan.add_challenges(challenge_ids)
+            if owner.dojo_id == dojo.dojo_id:
+                module_index = next(
+                    (
+                        module_index
+                        for module_index, module_data in enumerate(
+                            dojo_data["modules"]
+                        )
+                        if module_data["id"] == coordinate[0]
+                    ),
+                    None,
+                )
+                if module_index is None:
+                    with db.session.no_autoflush:
+                        module_index = (
+                            db.session.query(DojoModules.module_index)
+                            .filter_by(
+                                dojo_id=owner.dojo_id,
+                                id=coordinate[0],
+                            )
+                            .scalar()
+                        )
+            else:
+                with db.session.no_autoflush:
+                    module_index = (
+                        db.session.query(DojoModules.module_index)
+                        .filter_by(dojo_id=owner.dojo_id, id=coordinate[0])
+                        .scalar()
+                    )
+            cache_recalculation_plan.add_module(owner.dojo_id, module_index)
+            cache_recalculation_plan.awards = True
+        database_inspector = inspect_database(db.engine)
+        legacy_solves = db.metadata.tables.get("solves")
+        if legacy_solves is None and database_inspector.has_table("solves"):
+            legacy_solves = Table(
+                "solves",
+                MetaData(),
+                autoload_with=db.engine,
+            )
+        submissions = db.metadata.tables.get("submissions")
+        if submissions is not None:
+            solve_rows = db.session.execute(
+                select(
+                    submissions.c.id,
+                    submissions.c.user_id,
+                    submissions.c.team_id,
+                )
+                .where(
+                    submissions.c.challenge_id.in_(challenge_ids),
+                    submissions.c.type == "correct",
+                )
+                .order_by(submissions.c.id)
+            ).all()
+            seen_user_ids = set()
+            seen_team_ids = set()
+            duplicate_solve_ids = set()
+            for solve_id, user_id, team_id in solve_rows:
+                duplicate_solve = bool(
+                    (user_id is not None and user_id in seen_user_ids) or
+                    (team_id is not None and team_id in seen_team_ids)
+                )
+                if duplicate_solve:
+                    duplicate_solve_ids.add(solve_id)
+                    continue
+                if user_id is not None:
+                    seen_user_ids.add(user_id)
+                if team_id is not None:
+                    seen_team_ids.add(team_id)
+            if duplicate_solve_ids:
+                if cache_recalculation_plan is not None:
+                    cache_recalculation_plan.add_activity_users(
+                        user_id
+                        for solve_id, user_id, team_id in solve_rows
+                        if solve_id in duplicate_solve_ids
+                    )
+                if legacy_solves is not None:
+                    db.session.execute(
+                        legacy_solves.delete().where(
+                            legacy_solves.c.id.in_(duplicate_solve_ids)
+                        ),
+                        execution_options={"synchronize_session": False},
+                    )
+                db.session.execute(
+                    submissions.update().where(
+                        submissions.c.id.in_(duplicate_solve_ids)
+                    ).values(type="discard"),
+                    execution_options={"synchronize_session": False},
+                )
+
+        provenance_rows = (
+            DojoChallengeTransferProvenances.query
+            .filter(
+                DojoChallengeTransferProvenances.challenge_id.in_(challenge_ids)
+            )
+            .order_by(DojoChallengeTransferProvenances.challenge_id)
+            .with_for_update()
+            .all()
+        )
+        if len(provenance_rows) > 1:
+            provenance_values = {
+                (
+                    record.dojo_id,
+                    record.module_id,
+                    record.dojo_challenge_id,
+                    json.dumps(record.data, sort_keys=True),
+                )
+                for record in provenance_rows
+            }
+            if len(provenance_values) != 1:
+                raise RuntimeError(
+                    "Duplicate challenges have conflicting transfer provenance"
+                )
+        if provenance_rows:
+            authoritative_record = next(
+                (
+                    record
+                    for record in provenance_rows
+                    if record.challenge_id == authoritative.id
+                ),
+                provenance_rows[0],
+            )
+            for record in provenance_rows:
+                if record is not authoritative_record:
+                    db.session.delete(record)
+            db.session.flush()
+            authoritative_record.challenge_id = authoritative.id
+            db.session.flush()
+
+        duplicate_associations = (
+            DojoChallenges.query
+            .filter(DojoChallenges.challenge_id.in_(duplicate_ids))
+            .with_for_update()
+            .all()
+        )
+        for association in duplicate_associations:
+            association.challenge = authoritative
+        db.session.flush()
+
+        handled_tables = {
+            DojoChallenges.__table__.name,
+            DojoChallengeTransferProvenances.__table__.name,
+        }
+        challenge_reference_columns = {}
+        for table in db.metadata.tables.values():
+            if table.name in handled_tables:
+                continue
+            for column in table.columns:
+                if not any(
+                    foreign_key.column.table.name == Challenges.__table__.name and
+                    foreign_key.column.name == Challenges.id.name
+                    for foreign_key in column.foreign_keys
+                ):
+                    continue
+                challenge_reference_columns[(table.name, column.name)] = (
+                    table,
+                    column,
+                )
+        for table_name in database_inspector.get_table_names():
+            if table_name in handled_tables:
+                continue
+            for foreign_key in database_inspector.get_foreign_keys(table_name):
+                if (
+                    foreign_key["referred_table"] != Challenges.__table__.name or
+                    foreign_key["referred_columns"] != [Challenges.id.name] or
+                    len(foreign_key["constrained_columns"]) != 1
+                ):
+                    continue
+                column_name = foreign_key["constrained_columns"][0]
+                key = (table_name, column_name)
+                if key in challenge_reference_columns:
+                    continue
+                table = Table(
+                    table_name,
+                    MetaData(),
+                    autoload_with=db.engine,
+                )
+                challenge_reference_columns[key] = (table, table.c[column_name])
+        for key in sorted(challenge_reference_columns):
+            table, column = challenge_reference_columns[key]
+            db.session.execute(
+                table.update()
+                .where(column.in_(duplicate_ids))
+                .values({column.name: authoritative.id}),
+                execution_options={"synchronize_session": False},
+            )
+
+        survey_responses = db.metadata.tables.get("survey_responses")
+        if (
+            survey_responses is None and
+            database_inspector.has_table("survey_responses")
+        ):
+            survey_responses = Table(
+                "survey_responses",
+                MetaData(),
+                autoload_with=db.engine,
+            )
+        if survey_responses is not None:
+            db.session.execute(
+                survey_responses.update()
+                .where(survey_responses.c.challenge_id.in_(duplicate_ids))
+                .values(challenge_id=authoritative.id),
+                execution_options={"synchronize_session": False},
+            )
+        db.session.execute(
+            Challenges.__table__.delete().where(
+                Challenges.__table__.c.id.in_(duplicate_ids)
+            ),
+            execution_options={"synchronize_session": False},
+        )
+        for duplicate in duplicates:
+            if duplicate in db.session:
+                db.session.expunge(duplicate)
+        provenance_records.pop(authoritative.id, None)
+        for duplicate_id in duplicate_ids:
+            provenance_records.pop(duplicate_id, None)
+
+    def canonical_challenge(owner, coordinate, authoritative=None):
+        if owner is None:
+            return None
+        challenges = (
+            Challenges.query
+            .filter_by(
+                type="dojo",
+                category=owner.hex_dojo_id,
+                name=f"{coordinate[0]}:{coordinate[1]}",
+            )
+            .order_by(Challenges.id)
+            .with_for_update()
+            .all()
+        )
+        if not challenges:
+            return None
+        challenge_ids = {challenge.id for challenge in challenges}
+        if authoritative is None and owner.dojo_id in locked_transfer_dojos:
+            with db.session.no_autoflush:
+                live_challenge_ids = (
+                    db.session.query(DojoChallenges.challenge_id)
+                    .join(DojoChallenges.module)
+                    .filter(
+                        DojoChallenges.dojo_id == owner.dojo_id,
+                        DojoModules.id == coordinate[0],
+                        DojoChallenges.id == coordinate[1],
+                        DojoChallenges.challenge_id.in_(challenge_ids),
+                    )
+                    .all()
+                )
+            if len(live_challenge_ids) > 1:
+                raise RuntimeError(
+                    "Dojo coordinate has multiple live challenge associations"
+                )
+            if live_challenge_ids:
+                live_challenge_id = live_challenge_ids[0][0]
+                authoritative = next(
+                    challenge
+                    for challenge in challenges
+                    if challenge.id == live_challenge_id
+                )
+        if authoritative is None or authoritative.id not in challenge_ids:
+            authoritative = challenges[0]
+        duplicates = [
+            challenge
+            for challenge in challenges
+            if challenge.id != authoritative.id
+        ]
+        if duplicates:
+            consolidate_challenges(
+                authoritative,
+                duplicates,
+                owner,
+                coordinate,
+            )
+        return authoritative
+
+    def challenge_at(challenge, destination):
+        return challenge_owned_by(challenge, dojo, destination)
+
+    def durable_provenance(challenge, destination):
+        record = provenance_record(challenge)
+        if record is None or (
+            record.dojo_id != dojo.dojo_id or
+            record.module_id != destination[0] or
+            record.dojo_challenge_id != destination[1]
+        ):
+            return None
+        if not challenge_at(challenge, destination):
+            raise RuntimeError("Stored challenge transfer provenance conflicts with its destination")
+        data = record.data or {}
+        provenance = normalize_provenance(data.get("transfer"))
+        if data.get("version") != TRANSFER_PROVENANCE_VERSION or provenance is None:
+            raise RuntimeError("Stored challenge transfer provenance is invalid")
+        return provenance
+
+    def save_provenance(challenge, destination, provenance):
+        record = provenance_record(challenge)
+        if record is None:
+            record = DojoChallengeTransferProvenances(challenge_id=challenge.id)
+            db.session.add(record)
+            provenance_records[challenge.id] = record
+        record.dojo = dojo
+        record.dojo_id = dojo.dojo_id
+        record.module_id = destination[0]
+        record.dojo_challenge_id = destination[1]
+        record.data = {
+            "version": TRANSFER_PROVENANCE_VERSION,
+            "transfer": provenance,
+        }
+
+    def clear_provenance(challenge, destination):
+        record = provenance_record(challenge)
+        if record is None or (
+            record.dojo_id != dojo.dojo_id or
+            record.module_id != destination[0] or
+            record.dojo_challenge_id != destination[1]
+        ):
+            return
+        if record in db.session.new:
+            db.session.expunge(record)
+        else:
+            db.session.delete(record)
+        provenance_records[challenge.id] = None
+
+    locked_official_transfer_dojos = {
+        locked_dojo.id: locked_dojo
+        for locked_dojo in locked_transfer_dojos.values()
+        if locked_dojo.official
+    }
+
+    def source_dojo_for(request, stored):
+        reference = request["reference"]
+        if reference is None:
+            return dojo, dojo.dojo_id
+        if existing_dojo and reference == dojo.id:
+            return dojo, dojo.dojo_id
+        immutable_dojo_id = immutable_reference_dojo_id(reference)
+        if immutable_dojo_id is not None:
+            return locked_transfer_dojos.get(immutable_dojo_id), immutable_dojo_id
+        source_dojo = locked_official_transfer_dojos.get(reference)
+        if source_dojo is not None:
+            if source_dojo.dojo_id not in locked_transfer_dojos:
+                raise RuntimeError("Challenge transfer source was not locked for update")
+            return source_dojo, source_dojo.dojo_id
+        if stored and stored["dojo"] == reference:
+            return locked_transfer_dojos.get(stored["dojo_id"]), stored["dojo_id"]
+        return None, None
+
+    global_admin_transfer_allowed = bool(
+        global_admin_authorized and official_twin_absent
+    )
+    legacy_transfer_allowed = dojo.official or global_admin_transfer_allowed
+    legacy_replay_allowed = dojo.official or global_admin_authorized
+    transfer_plans = {}
+    for request in challenge_transfer_requests(dojo_data):
+        destination = request["destination"]
+        if destination in transfer_plans:
+            raise RuntimeError("Cannot transfer more than one challenge to the same destination")
+        destination_association = existing_dojo_challenges.get(destination)
+        destination_challenge = (
+            destination_association.challenge
+            if destination_association else None
+        )
+        if destination_challenge is None or challenge_owned_by(
+            destination_challenge,
+            dojo,
+            destination,
+        ):
+            destination_challenge = canonical_challenge(
+                dojo,
+                destination,
+                authoritative=destination_challenge,
+            )
+        persisted_provenance = durable_provenance(destination_challenge, destination)
+        stored_provenance = persisted_provenance
+        source_dojo, source_dojo_id = source_dojo_for(request, stored_provenance)
+        source_module_id, source_challenge_id = request["source"]
+        internal_transfer = existing_dojo and source_dojo_id == dojo.dojo_id
+        provenance_replay = bool(
+            stored_provenance and
+            stored_provenance["dojo_id"] == source_dojo_id and
+            (
+                source_dojo_id is not None or
+                stored_provenance["dojo"] == request["reference"]
+            ) and
+            stored_provenance["module"] == source_module_id and
+            stored_provenance["challenge"] == source_challenge_id
+        )
+        if persisted_provenance and not provenance_replay:
+            raise RuntimeError("Requested challenge transfer conflicts with durable transfer provenance")
+        provenance = stored_provenance if provenance_replay else {
+            "dojo": request["reference"],
+            "dojo_id": source_dojo_id,
+            "module": source_module_id,
+            "challenge": source_challenge_id,
+        }
+        source_association = (
+            existing_dojo_challenges.get(request["source"])
+            if source_dojo_id == dojo.dojo_id else None
+        )
+        source_is_alias = bool(
+            source_association and
+            (
+                source_association.path_override or
+                not challenge_owned_by(
+                    source_association.challenge,
+                    source_dojo,
+                    request["source"],
+                )
+            )
+        )
+        if source_association:
+            source_challenge = (
+                None if source_is_alias else source_association.challenge
+            )
+            if source_challenge is not None:
+                source_challenge = canonical_challenge(
+                    source_dojo,
+                    request["source"],
+                    authoritative=source_challenge,
+                )
+        else:
+            source_challenge = canonical_challenge(
+                source_dojo,
+                request["source"],
+            )
+        legacy_replay = bool(
+            legacy_replay_allowed and
+            destination_association and
+            not destination_association.path_override and
+            challenge_at(destination_challenge, destination) and
+            stored_provenance is None
+        )
+        if not (
+            legacy_transfer_allowed or
+            internal_transfer or
+            provenance_replay or
+            legacy_replay
+        ):
+            raise RuntimeError("Permission denied: community dojos can only transfer challenges within the same dojo")
+        if provenance_replay or legacy_replay:
+            transfer_plans[destination] = {
+                "challenge": destination_challenge,
+                "destination_challenge": destination_challenge,
+                "moving": False,
+                "provenance": provenance,
+                "source": request["source"],
+                "source_dojo_id": source_dojo_id,
+            }
+            continue
+        if source_is_alias:
+            raise RuntimeError("Cannot transfer a challenge alias that is not canonically owned by its dojo")
+        if source_challenge is None:
+            source_label = request["reference"] or dojo.reference_id
+            raise RuntimeError(
+                f"Unable to find source dojo/module/challenge in database for "
+                f"{source_label}:{source_module_id}:{source_challenge_id}"
+            )
+        transfer_plans[destination] = {
+            "challenge": source_challenge,
+            "destination_challenge": destination_challenge,
+            "moving": True,
+            "provenance": provenance,
+            "source": request["source"],
+            "source_dojo_id": source_dojo_id,
+        }
+
+    moving_plans = [plan for plan in transfer_plans.values() if plan["moving"]]
+    moving_challenge_ids = [plan["challenge"].id for plan in moving_plans]
+    if len(moving_challenge_ids) != len(set(moving_challenge_ids)):
+        raise RuntimeError("Cannot transfer the same source challenge more than once")
+    moving_challenge_ids = set(moving_challenge_ids)
+    if moving_challenge_ids and cache_recalculation_plan is not None:
+        cache_recalculation_plan.add_challenges(moving_challenge_ids)
+        destination_module_indices = {
+            module_data["id"]: module_index
+            for module_index, module_data in enumerate(dojo_data["modules"])
+        }
+        for destination, plan in transfer_plans.items():
+            if plan["moving"]:
+                cache_recalculation_plan.add_module(
+                    dojo.dojo_id,
+                    destination_module_indices[destination[0]],
+                )
+        cache_recalculation_plan.awards = True
+    replay_challenge_ids = {
+        plan["challenge"].id
+        for plan in transfer_plans.values()
+        if not plan["moving"]
+    }
+    if replay_challenge_ids & moving_challenge_ids:
+        raise RuntimeError("Cannot transfer a challenge that is also used by a replayed destination")
+    if len(replay_challenge_ids) != len(transfer_plans) - len(moving_plans):
+        raise RuntimeError("Cannot replay the same challenge at more than one destination")
+    for plan in moving_plans:
+        destination_challenge = plan["destination_challenge"]
+        if (
+            destination_challenge and
+            destination_challenge.id != plan["challenge"].id and
+            destination_challenge.id not in moving_challenge_ids
+        ):
+            raise RuntimeError("Cannot transfer when the destination challenge already exists")
+
+    consumed_local_sources = {
+        plan["source"]
+        for destination, plan in transfer_plans.items()
+        if (
+            plan["moving"] and
+            plan["source_dojo_id"] == dojo.dojo_id and
+            plan["source"] != destination
+        )
+    }
+    if moving_plans:
+        transfer_namespace = os.urandom(8).hex()
+        for plan in moving_plans:
+            plan["challenge"].name = f"__move__{transfer_namespace}:{plan['challenge'].id}"
+        db.session.flush()
+        for destination, plan in transfer_plans.items():
+            if plan["moving"]:
+                plan["challenge"].category = dojo.hex_dojo_id
+                plan["challenge"].name = f"{destination[0]}:{destination[1]}"
+        db.session.flush()
+
+    for destination, plan in transfer_plans.items():
+        if not challenge_at(plan["challenge"], destination):
+            raise RuntimeError("Challenge transfer did not reach its destination")
+        save_provenance(plan["challenge"], destination, plan["provenance"])
+    for destination in ordinary_destinations:
+        destination_challenge = existing_challenges.get(destination)
+        if destination_challenge is None or challenge_at(
+            destination_challenge,
+            destination,
+        ):
+            destination_challenge = canonical_challenge(
+                dojo,
+                destination,
+                authoritative=destination_challenge,
+            )
+        if destination_challenge:
+            clear_provenance(destination_challenge, destination)
+
     def challenge(module_id, challenge_id, transfer=None):
-        if (module_id, challenge_id) in existing_challenges:
-            return existing_challenges[(module_id, challenge_id)]
-        if chal := Challenges.query.filter_by(category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}").first():
-            return chal
+        destination = (module_id, challenge_id)
         if transfer:
-            assert dojo.official or (is_admin() and not Dojos.from_id(dojo.id).first())
-            old_dojo_id, old_module_id, old_challenge_id = transfer["dojo"], transfer["module"], transfer["challenge"]
-            old_dojo = Dojos.from_id(old_dojo_id).first()
-            old_challenge = Challenges.query.filter_by(category=old_dojo.hex_dojo_id, name=f"{old_module_id}:{old_challenge_id}").first()
-            assert old_dojo and old_challenge, f"unable to find source dojo/module/challenge in database for {old_dojo_id}:{old_module_id}:{old_challenge_id}"
-            old_challenge.category = dojo.hex_dojo_id
-            old_challenge.name = f"{module_id}:{challenge_id}"
-            return old_challenge
+            return transfer_plans[destination]["challenge"]
+        if destination in consumed_local_sources:
+            return Challenges(
+                type="dojo",
+                category=dojo.hex_dojo_id,
+                name=f"{module_id}:{challenge_id}",
+                flags=[Flags(type="dojo")],
+            )
+        destination_challenge = existing_challenges.get(destination)
+        if not challenge_at(destination_challenge, destination):
+            destination_challenge = canonical_challenge(dojo, destination)
+        else:
+            destination_challenge = canonical_challenge(
+                dojo,
+                destination,
+                authoritative=destination_challenge,
+            )
+        if destination_challenge:
+            return destination_challenge
         return Challenges(type="dojo", category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}", flags=[Flags(type="dojo")])
 
     def visibility(cls, *args):
@@ -500,13 +1476,17 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             show_scoreboard=shadow("show_scoreboard", dojo_data, module_data, default_dict=DojoModules.data_defaults),
         )
         for module_data in dojo_data["modules"]
-    ] if "modules" in dojo_data else [
+    ] if dojo_data["modules"] or import_dojo is None else [
         DojoModules(
             default=module,
-            visibility=visibility(DojoModuleVisibilities, dojo_data, module_data),
+            visibility=visibility(DojoModuleVisibilities, dojo_data),
         )
         for module in (import_dojo.modules if import_dojo else [])
     ]
+
+    for module in dojo.modules:
+        for dojo_challenge in module.challenges:
+            assert_dojo_challenge_type(dojo_challenge)
 
     if dojo_dir:
         with dojo.located_at(dojo_dir):
@@ -590,17 +1570,18 @@ def _assert_no_symlinks(dojo_dir):
 
 
 def dojo_clone(repository, private_key):
-    tmp_dojos_dir = DOJOS_TMP_DIR
-    tmp_dojos_dir.mkdir(exist_ok=True)
-    clone_dir = tempfile.TemporaryDirectory(dir=tmp_dojos_dir)  # TODO: ignore_cleanup_errors=True
-
-    key_file = tempfile.NamedTemporaryFile("w")
-    key_file.write(private_key)
-    key_file.flush()
-
     url = f"https://github.com/{repository}"
     if requests.head(url).status_code != 200:
         url = f"git@github.com:{repository}"
+    return dojo_clone_url(url, private_key)
+
+
+def dojo_clone_url(url, private_key):
+    DOJOS_TMP_DIR.mkdir(exist_ok=True)
+    clone_dir = tempfile.TemporaryDirectory(dir=DOJOS_TMP_DIR)  # TODO: ignore_cleanup_errors=True
+    key_file = tempfile.NamedTemporaryFile("w")
+    key_file.write(private_key)
+    key_file.flush()
     subprocess.run(["git", "clone", "--depth=1", "--recurse-submodules", url, clone_dir.name],
                    env={
                        "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
@@ -614,7 +1595,7 @@ def dojo_clone(repository, private_key):
     return clone_dir
 
 
-def dojo_git_command(dojo, *args, repo_path=None):
+def dojo_git_command(dojo, *args, repo_path=None, timeout=None):
     key_file = tempfile.NamedTemporaryFile("w")
     key_file.write(dojo.private_key)
     key_file.flush()
@@ -628,10 +1609,36 @@ def dojo_git_command(dojo, *args, repo_path=None):
                               "GIT_TERMINAL_PROMPT": "0",
                           },
                           check=True,
-                          capture_output=True)
+                          capture_output=True,
+                          timeout=timeout)
+
+
+def dojo_checkout_is_current(dojo, repo_path):
+    checkout_head = dojo_git_command(
+        dojo,
+        "rev-parse",
+        "HEAD",
+        repo_path=repo_path,
+        timeout=DOJO_UPDATE_HEAD_TIMEOUT,
+    ).stdout.decode().strip()
+    remote_head_output = dojo_git_command(
+        dojo,
+        "ls-remote",
+        "--exit-code",
+        "origin",
+        "HEAD",
+        repo_path=repo_path,
+        timeout=DOJO_UPDATE_HEAD_TIMEOUT,
+    ).stdout.decode().split()
+    if len(remote_head_output) != 2 or remote_head_output[1] != "HEAD":
+        raise RuntimeError("Unable to determine dojo repository HEAD")
+    return checkout_head == remote_head_output[0]
 
 
 def dojo_create(user, repository, public_key, private_key, spec):
+    stat_events_checkpoint = queued_stat_events_checkpoint()
+    cache_recalculation_plan = DojoCacheRecalculationPlan()
+    committed = False
     try:
         if repository:
             repository_re = r"[\w\-]+/[\w\-]+"
@@ -653,7 +1660,10 @@ def dojo_create(user, repository, public_key, private_key, spec):
 
         dojo_path = pathlib.Path(dojo_dir.name)
 
-        dojo = dojo_from_dir(dojo_path)
+        dojo = dojo_from_dir(
+            dojo_path,
+            cache_recalculation_plan=cache_recalculation_plan,
+        )
         dojo.repository = repository
         dojo.public_key = public_key
         dojo.private_key = private_key
@@ -661,52 +1671,124 @@ def dojo_create(user, repository, public_key, private_key, spec):
 
         db.session.add(dojo)
         db.session.commit()
+        committed = True
+        cache_recalculation_plan.queue()
 
         dojo.path.parent.mkdir(exist_ok=True)
         dojo_path.rename(dojo.path)
         dojo_path.mkdir()  # TODO: ignore_cleanup_errors=True
 
     except subprocess.CalledProcessError as e:
+        if not committed:
+            db.session.rollback()
+            restore_queued_stat_events(stat_events_checkpoint)
         deploy_url = f"https://github.com/{repository}/settings/keys"
         raise RuntimeError(f"Failed to clone: <a href='{deploy_url}' target='_blank'>add deploy key</a>")
 
     except IntegrityError:
+        if not committed:
+            db.session.rollback()
+            restore_queued_stat_events(stat_events_checkpoint)
         raise RuntimeError("This repository already exists as a dojo")
 
     except AssertionError as e:
+        if not committed:
+            db.session.rollback()
+            restore_queued_stat_events(stat_events_checkpoint)
         raise RuntimeError(str(e))
 
     except Exception as e:
+        if not committed:
+            db.session.rollback()
+            restore_queued_stat_events(stat_events_checkpoint)
         traceback.print_exc(file=sys.stderr)
         raise RuntimeError("An error occurred while creating the dojo")
 
     return dojo
 
 
-def dojo_update(dojo):
+def dojo_update(dojo, *, authorize=None):
+    stat_events_checkpoint = queued_stat_events_checkpoint()
+    dojo_id = dojo.dojo_id
     if dojo.path.exists():
-        old_commit = dojo_git_command(dojo, "rev-parse", "HEAD").stdout.decode().strip()
-
-        tmp_dir = tempfile.TemporaryDirectory(dir=DOJOS_TMP_DIR)
-
-        os.rename(str(dojo.path), tmp_dir.name)
-
-        dojo_git_command(dojo, "fetch", "--depth=1", "origin", repo_path=tmp_dir.name)
-        dojo_git_command(dojo, "reset", "--hard", "origin", repo_path=tmp_dir.name)
-        dojo_git_command(dojo, "submodule", "update", "--init", "--recursive", repo_path=tmp_dir.name)
-
-        try:
-            _assert_no_symlinks(tmp_dir.name)
-        except AssertionError:
-            dojo_git_command(dojo, "reset", "--hard", old_commit, repo_path=tmp_dir.name)
-            dojo_git_command(dojo, "submodule", "update", "--init", "--recursive", repo_path=tmp_dir.name)
-            raise
-        finally:
-            os.rename(tmp_dir.name, str(dojo.path))
+        remote_url = dojo_git_command(dojo, "remote", "get-url", "origin").stdout.decode().strip()
     else:
-        tmpdir = dojo_clone(dojo.repository, dojo.private_key)
-        os.rename(tmpdir.name, str(dojo.path))
-    return dojo_from_dir(dojo.path, dojo=dojo)
+        remote_url = None
+
+    repository = dojo.repository
+    private_key = dojo.private_key
+
+    for attempt in range(MAX_DOJO_UPDATE_ATTEMPTS):
+        cache_recalculation_plan = DojoCacheRecalculationPlan()
+        staged_checkout = (
+            dojo_clone_url(remote_url, private_key)
+            if remote_url is not None else
+            dojo_clone(repository, private_key)
+        )
+        staged_path = pathlib.Path(staged_checkout.name)
+        if dojo is None:
+            dojo = Dojos.query.filter_by(dojo_id=dojo_id).one_or_none()
+            if dojo is None:
+                staged_checkout.cleanup()
+                raise RuntimeError("Dojo no longer exists")
+
+        def authorize_staged_update(locked_dojo):
+            if (
+                locked_dojo.repository != repository or
+                locked_dojo.private_key != private_key
+            ):
+                raise RuntimeError("Dojo repository changed during update")
+            if authorize is not None and not authorize(locked_dojo):
+                return False
+            if not dojo_checkout_is_current(locked_dojo, staged_path):
+                raise DojoUpdateStaleCheckout("Dojo repository changed while waiting for update lock")
+            return True
+
+        old_checkout = None
+        installed = False
+        try:
+            dojo = dojo_from_dir(
+                staged_path,
+                dojo=dojo,
+                authorize=authorize_staged_update,
+                authorize_before_lock=authorize_staged_update,
+                cache_recalculation_plan=cache_recalculation_plan,
+            )
+            live_path = dojo.path
+            if live_path.exists():
+                old_checkout = tempfile.TemporaryDirectory(dir=DOJOS_TMP_DIR)
+                os.rename(live_path, old_checkout.name)
+            os.rename(staged_path, live_path)
+            installed = True
+            staged_path.mkdir()
+            db.session.commit()
+            cache_recalculation_plan.queue()
+        except DojoUpdateStaleCheckout as error:
+            db.session.rollback()
+            restore_queued_stat_events(stat_events_checkpoint)
+            staged_checkout.cleanup()
+            if attempt + 1 == MAX_DOJO_UPDATE_ATTEMPTS:
+                raise RuntimeError("Dojo repository changed too frequently during update") from error
+            dojo = None
+            continue
+        except BaseException:
+            db.session.rollback()
+            restore_queued_stat_events(stat_events_checkpoint)
+            if installed:
+                if staged_path.exists():
+                    staged_path.rmdir()
+                os.rename(live_path, staged_path)
+            if old_checkout is not None:
+                os.rename(old_checkout.name, live_path)
+                pathlib.Path(old_checkout.name).mkdir()
+            staged_checkout.cleanup()
+            if old_checkout is not None:
+                old_checkout.cleanup()
+            raise
+        staged_checkout.cleanup()
+        if old_checkout is not None:
+            old_checkout.cleanup()
+        return dojo
 
 
 def dojo_accessible(id):

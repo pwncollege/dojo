@@ -27,6 +27,9 @@ from CTFd.utils.user import get_current_user, is_admin
 from ..config import DOJOS_DIR
 
 
+TRANSFER_PROVENANCE_VERSION = 1
+
+
 def delete_before_insert(column, null=[]):
     # https://github.com/sqlalchemy/sqlalchemy/issues/2501
     def decorator(func):
@@ -111,6 +114,33 @@ class Dojos(db.Model):
         kwargs["data"] = data
 
         super().__init__(*args, **kwargs)
+
+    @classmethod
+    def lock_ids_for_update(cls, dojo_ids, *, session=None):
+        dojo_ids = set(dojo_ids)
+        if not dojo_ids:
+            return {}
+        if session is None:
+            session = db.session()
+        with session.no_autoflush:
+            locked_dojos = (
+                session.query(cls)
+                .filter(cls.dojo_id.in_(dojo_ids))
+                .order_by(cls.dojo_id)
+                .populate_existing()
+                .with_for_update()
+                .all()
+            )
+        for locked_dojo in locked_dojos:
+            session.expire(locked_dojo, ["_modules", "challenges"])
+        return {locked_dojo.dojo_id: locked_dojo for locked_dojo in locked_dojos}
+
+    @classmethod
+    def lock_for_update(cls, dojo):
+        session = object_session(dojo)
+        if session is None:
+            raise RuntimeError("Cannot lock a detached dojo")
+        return cls.lock_ids_for_update({dojo.dojo_id}, session=session).get(dojo.dojo_id)
 
     def __getattr__(self, name):
         if name in self.data_fields:
@@ -702,6 +732,30 @@ class DojoChallenges(db.Model):
                 .first())
 
     __repr__ = columns_repr(["module", "id", "challenge_id"])
+
+
+class DojoChallengeTransferProvenances(db.Model):
+    __tablename__ = "dojo_challenge_transfer_provenances"
+
+    challenge_id = db.Column(
+        db.Integer,
+        db.ForeignKey("challenges.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    dojo_id = db.Column(
+        db.Integer,
+        db.ForeignKey("dojos.dojo_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    module_id = db.Column(db.String(32), nullable=False)
+    dojo_challenge_id = db.Column(db.String(32), nullable=False)
+    data = db.Column(JSONB, nullable=False)
+
+    challenge = db.relationship("Challenges")
+    dojo = db.relationship("Dojos")
+
+    __repr__ = columns_repr(["challenge", "dojo_id", "module_id", "dojo_challenge_id"])
 
 
 class SurveyResponses(db.Model):

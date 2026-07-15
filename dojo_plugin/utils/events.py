@@ -45,6 +45,15 @@ def queue_stat_event(event_func):
     g._pending_stat_events.append(event_func)
 
 
+def queued_stat_events_checkpoint():
+    return len(getattr(g, '_pending_stat_events', ()))
+
+
+def restore_queued_stat_events(checkpoint):
+    if hasattr(g, '_pending_stat_events'):
+        del g._pending_stat_events[checkpoint:]
+
+
 def publish_queued_events():
     if hasattr(g, '_pending_stat_events'):
         count = len(g._pending_stat_events)
