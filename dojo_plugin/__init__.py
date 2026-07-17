@@ -7,7 +7,7 @@ from email.message import EmailMessage
 from email.utils import formatdate
 from urllib.parse import urlparse, urlunparse
 
-from flask import Response, request, redirect, current_app
+from flask import Response, request, redirect, current_app, g, has_request_context
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
 from CTFd.models import db, Challenges, Users, Solves
@@ -19,9 +19,13 @@ from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 from .models import Dojos, DojoChallenges, Belts, Emojis
 from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
-from .utils.dojo import get_current_dojo_challenge
+from .utils.dojo import dojo_accessible, get_current_dojo_challenge
 from .utils.awards import update_awards
-from .utils.feed import publish_challenge_solve
+from .utils.feed import (
+    CONTENT_ID_PATTERN,
+    DOJO_REFERENCE_PATTERN,
+    publish_challenge_solve,
+)
 from .utils.query_timer import init_query_timer
 from .utils.request_logging import setup_logging, setup_trace_id_tracking, setup_uncaught_error_logging
 from .pages.dojos import dojos, dojos_override
@@ -42,6 +46,70 @@ from .utils.events import publish_queued_events
 from .utils import listeners
 
 
+DOJO_CHALLENGE_ROUTE_FIELDS = (
+    "dojo_id",
+    "module_id",
+    "challenge_reference_id",
+)
+DOJO_CHALLENGE_ROUTE_PATTERNS = (
+    DOJO_REFERENCE_PATTERN,
+    CONTENT_ID_PATTERN,
+    CONTENT_ID_PATTERN,
+)
+
+
+def get_request_dojo_challenge(solve_request, challenge):
+    if solve_request is None:
+        return None, False
+
+    request_data = solve_request.get_json(silent=True)
+    if not isinstance(request_data, dict):
+        request_data = solve_request.form
+
+    supplied_fields = [field in request_data for field in DOJO_CHALLENGE_ROUTE_FIELDS]
+    if not any(supplied_fields):
+        return None, False
+    if not all(supplied_fields):
+        return None, True
+
+    dojo_reference_id, module_id, challenge_reference_id = (
+        request_data[field] for field in DOJO_CHALLENGE_ROUTE_FIELDS
+    )
+    if not all(
+        isinstance(value, str) and value
+        for value in (dojo_reference_id, module_id, challenge_reference_id)
+    ):
+        return None, True
+    if not all(
+        pattern.fullmatch(value)
+        for pattern, value in zip(
+            DOJO_CHALLENGE_ROUTE_PATTERNS,
+            (dojo_reference_id, module_id, challenge_reference_id),
+            strict=True,
+        )
+    ):
+        return None, True
+
+    dojo = dojo_accessible(dojo_reference_id)
+    if dojo is None or dojo.reference_id != dojo_reference_id:
+        return None, True
+
+    dojo_challenge = (
+        DojoChallenges.from_id(dojo_reference_id, module_id, challenge_reference_id)
+        .filter(DojoChallenges.visible())
+        .first()
+    )
+    if (
+        dojo_challenge is None
+        or dojo_challenge.dojo.reference_id != dojo_reference_id
+        or dojo_challenge.module.id != module_id
+        or dojo_challenge.id != challenge_reference_id
+        or dojo_challenge.challenge_id != challenge.id
+    ):
+        return None, True
+    return dojo_challenge, True
+
+
 class DojoChallenge(BaseChallenge):
     id = "dojo"
     name = "dojo"
@@ -52,14 +120,39 @@ class DojoChallenge(BaseChallenge):
         super().solve(user, team, challenge, request)
         update_awards(user)
 
-        dojo_challenge = DojoChallenges.query.filter_by(challenge_id=challenge.id).first()
-        if dojo_challenge:
-            dojo = dojo_challenge.module.dojo
-            if dojo.official or dojo.data.get("type") == "public":
+        try:
+            dojo_challenge = (
+                getattr(g, "routed_dojo_challenge", None)
+                if has_request_context()
+                else None
+            )
+            if dojo_challenge is None:
+                dojo_challenge, routed_request = get_request_dojo_challenge(
+                    request, challenge
+                )
+                if not routed_request:
+                    dojo_challenge = get_current_dojo_challenge(user)
+            if dojo_challenge and dojo_challenge.challenge_id != challenge.id:
+                dojo_challenge = None
+            if dojo_challenge:
+                dojo = dojo_challenge.module.dojo
+                if not dojo.globally_visible():
+                    return
                 module = dojo_challenge.module
                 points = challenge.value
-                first_blood = Solves.query.filter_by(challenge_id=challenge.id).count() == 1
-                publish_challenge_solve(user, dojo_challenge, dojo, module, points, first_blood)
+                first_blood = (
+                    Solves.query.filter_by(challenge_id=challenge.id).count() == 1
+                )
+                publish_challenge_solve(
+                    user,
+                    dojo_challenge,
+                    dojo,
+                    module,
+                    points,
+                    first_blood,
+                )
+        except Exception:
+            current_app.logger.exception("Unable to publish solve feed event")
 
 
 class DojoFlag(BaseFlag):

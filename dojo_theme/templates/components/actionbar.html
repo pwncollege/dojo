@@ -220,7 +220,7 @@
   <div title="Enter flag" class="workspace-control workspace-input">
     <i class="fas fa-flag workspace-highlight input-icon"></i>
     <input id="flag-input" type="text" placeholder="Flag">
-    <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}" data-challenge-name="{{ challenge.name }}">
+    <input type="hidden" id="current-challenge-id" value="{{ challenge.challenge_id }}" data-challenge-name="{{ challenge.name }}" data-dojo-id="{{ challenge.dojo.reference_id }}" data-module-id="{{ challenge.module.id }}" data-challenge-reference-id="{{ challenge.id }}">
   </div>
   <div class="workspace-control-spacer"></div>
   <button id="challenge-restart" title="Restart challenge" class="workspace-control btn btn-md btn-outline-secondary btn-challenge-start">

@@ -498,18 +498,22 @@ class RunDocker(Resource):
                 logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
                 start_challenge(user, dojo_challenge, practice, as_user=as_user)
 
-                if dojo.official or dojo.data.get("type") == "public":
-                    challenge_data = {
-                        "challenge_id": dojo_challenge.challenge_id,
-                        "challenge_name": dojo_challenge.name,
-                        "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
-                        "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
-                        "dojo_id": dojo.reference_id,
-                        "dojo_name": dojo.name
-                    }
-                    mode = "practice" if practice else "assessment"
-                    actual_user = as_user or user
-                    publish_container_start(actual_user, mode, challenge_data)
+                try:
+                    if dojo.globally_visible():
+                        challenge_data = {
+                            "challenge_id": dojo_challenge.challenge_id,
+                            "challenge_reference_id": dojo_challenge.id,
+                            "challenge_name": dojo_challenge.name,
+                            "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
+                            "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
+                            "dojo_id": dojo.reference_id,
+                            "dojo_name": dojo.name
+                        }
+                        mode = "practice" if practice else "assessment"
+                        actual_user = as_user or user
+                        publish_container_start(actual_user, mode, dojo, challenge_data)
+                except Exception:
+                    current_app.logger.exception("Unable to publish container feed event")
 
                 publish_stat_event("container_stats_update", {})
 

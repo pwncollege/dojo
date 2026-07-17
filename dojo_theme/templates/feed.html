@@ -2,7 +2,9 @@
 
 {% macro render_user(event) %}
     <strong>
-        <a href="/hacker/{{ event.user_name }}">
+        {% if event.user_profile_id is integer and 1 <= event.user_profile_id <= 9007199254740991 %}
+        <a href="{{ url_for('pwncollege_users.view_other', user_id=event.user_profile_id) }}">
+        {% endif %}
             {% if event.get('user_belt') %}
                 <img src="{{ url_for('pwncollege_belts.view_belt', color=event.user_belt) }}" 
                      class="scoreboard-belt" 
@@ -18,36 +20,52 @@
                     <small class="text-muted">+{{ event.user_emojis|length - 3 }}</small>
                 {% endif %}
             {% endif %}
+        {% if event.user_profile_id is integer and 1 <= event.user_profile_id <= 9007199254740991 %}
         </a>
+        {% endif %}
     </strong>
 {% endmacro %}
 
-{% macro render_dojo_module_challenge(data) %}
-    {% if data.dojo_name %}
-        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_name }}</a> /
-    {% elif data.dojo_id %}
-        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_id }}</a> /
-    {% endif %}
-    {% if data.module_name %}
-        {% if data.dojo_id %}
-            <a href="/{{ data.dojo_id }}/{{ data.module_id }}">{{ data.module_name }}</a> /
+{% macro render_dojo_link(data) %}
+    {% if data.dojo_label is not none %}
+        {% if data.dojo_path_id is string %}
+            <a href="{{ url_for('pwncollege_dojo.listing', dojo=data.dojo_path_id).rstrip('/') }}">{{ data.dojo_label }}</a>
         {% else %}
-            {{ data.module_name }} /
+            {{ data.dojo_label }}
         {% endif %}
-    {% endif %}
-    {% if data.dojo_id and data.module_id and data.challenge_id %}
-        <a href="/{{ data.dojo_id }}/{{ data.module_id }}#{{ data.challenge_id }}"><strong>{{ data.challenge_name }}</strong></a>
-    {% else %}
-        <strong>{{ data.challenge_name }}</strong>
     {% endif %}
 {% endmacro %}
 
-{% macro render_dojo_link(data) %}
-    {% if data.dojo_name %}
-        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_name }}</a>
-    {% elif data.dojo_id %}
-        <a href="/dojos/{{ data.dojo_id }}">{{ data.dojo_id }}</a>
+{% macro render_module_link(data) %}
+    {% if data.module_label is not none %}
+        {% if data.dojo_path_id is string and data.module_path_id is string %}
+            <a href="{{ url_for('pwncollege_dojo.view_dojo_path', dojo=data.dojo_path_id, path=data.module_path_id).rstrip('/') }}">{{ data.module_label }}</a>
+        {% else %}
+            {{ data.module_label }}
+        {% endif %}
     {% endif %}
+{% endmacro %}
+
+{% macro render_challenge_link(data) %}
+    {% if data.challenge_label is not none %}
+        <strong>
+        {% if data.dojo_path_id is string and data.module_path_id is string and data.challenge_path_id is string %}
+            <a href="{{ url_for('pwncollege_dojo.view_dojo_path', dojo=data.dojo_path_id, path=data.module_path_id, subpath=data.challenge_path_id).rstrip('/') }}">{{ data.challenge_label }}</a>
+        {% else %}
+            {{ data.challenge_label }}
+        {% endif %}
+        </strong>
+    {% endif %}
+{% endmacro %}
+
+{% macro render_dojo_module_challenge(data) %}
+    {% if data.dojo_label is not none %}
+        {{ render_dojo_link(data) }} /
+    {% endif %}
+    {% if data.module_label is not none %}
+        {{ render_module_link(data) }} /
+    {% endif %}
+    {{ render_challenge_link(data) }}
 {% endmacro %}
 
 {% block stylesheets %}
@@ -67,9 +85,9 @@
             <span id="connection-message">Connecting to live feed...</span>
         </div>
         
-        <div id="events-list">
+        <div id="events-list" data-feed-cursor="{{ feed_cursor }}" data-legacy-feed-cursor="{{ legacy_feed_cursor }}">
             {% for event in initial_events %}
-            <div class="event-card card mb-3 bg-dark text-white border-secondary" data-event-id="{{ event.id }}" data-user-id="{{ event.user_id }}">
+            <div class="event-card card mb-3 bg-dark text-white border-secondary" data-event-id="{{ event.id }}" data-user-id="{{ event.user_profile_id if event.user_profile_id is not none else '' }}" data-feed-score="{{ event.feed_score }}">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
                         <div class="event-icon me-4" style="min-width: 50px;">
@@ -108,7 +126,7 @@
                                 {% elif event.type == "emoji_earned" %}
                                     {{ render_user(event) }}
                                     earned the <strong>{{ event.data.emoji }}</strong> emoji!
-                                    {% if event.data.dojo_name or event.data.dojo_id %}
+                                    {% if event.data.dojo_label is not none %}
                                         <br><small class="text-muted">Completed {{ render_dojo_link(event.data) }}</small>
                                     {% else %}
                                         <br><small class="text-muted">{{ event.data.reason }}</small>
@@ -117,13 +135,13 @@
                                 {% elif event.type == "belt_earned" %}
                                     {{ render_user(event) }}
                                     earned their <strong>{{ event.data.belt_name }}</strong>!
-                                    {% if event.data.dojo_name or event.data.dojo_id %}
+                                    {% if event.data.dojo_label is not none %}
                                         <br><small class="text-muted">Completed {{ render_dojo_link(event.data) }}</small>
                                     {% endif %}
                                 
                                 {% elif event.type == "dojo_update" %}
                                     {{ render_user(event) }}
-                                    updated {{ render_dojo_link(event.data) or event.data.dojo_id }}
+                                    updated {{ render_dojo_link(event.data) }}
                                     <br><small class="text-muted">{{ event.data.summary }}</small>
                                 {% endif %}
                             </div>

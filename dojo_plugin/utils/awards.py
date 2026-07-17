@@ -132,9 +132,13 @@ def update_awards(user):
             db.session.add(Emojis(user=user, name="CURRENT", description=description, category=hex_dojo_id, icon=None))
         db.session.commit()
         
-        if dojo.official or dojo.data.get("type") == "public":
-            publish_emoji_earned(user, emoji, display_name, description, 
-                               dojo_id=dojo.reference_id, dojo_name=display_name)
+        publish_emoji_earned(
+            user,
+            emoji,
+            display_name,
+            description,
+            dojo=dojo,
+        )
 
 def grant_award(user, emoji, description, category):
     db.session.add(Emojis(user=user, name="CUSTOM", description=description, category=category, icon=emoji))

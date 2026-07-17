@@ -2,6 +2,8 @@ function submitChallenge(event) {
     event.preventDefault();
     const item = $(event.currentTarget).closest(".accordion-item");
     const challenge_id = parseInt(item.find('#challenge-id').val())
+    const module_id = item.find("#module").val();
+    const challenge_reference_id = item.find("#challenge").val();
     const answer_input = item.find("#challenge-input");
     const submission = answer_input.val()
 
@@ -17,7 +19,13 @@ function submitChallenge(event) {
         return renderSubmissionResponse({"data": {"status": "practice", "message": message}}, item);
     }
 
-    return CTFd.api.post_challenge_attempt({}, {"challenge_id": challenge_id, "submission": submission})
+    return CTFd.api.post_challenge_attempt({}, {
+        "challenge_id": challenge_id,
+        "submission": submission,
+        "dojo_id": init.dojo || null,
+        "module_id": module_id || null,
+        "challenge_reference_id": challenge_reference_id || null,
+    })
         .then(response => renderSubmissionResponse(response, item));
 };
 

@@ -1,9 +1,15 @@
 (function() {
     const MAX_EVENTS = 50;
     let eventSource = null;
+    let reconnectTimer = null;
     let reconnectAttempts = 0;
+    let connectionGeneration = 0;
+    let isUnloading = false;
+    let lastEventCursor = '0-0';
+    let lastLegacyFeedCursor = '0.0';
     const MAX_RECONNECT_ATTEMPTS = 10;
     const RECONNECT_DELAY = 3000;
+    const MAX_REDIS_STREAM_ID_COMPONENT = 18446744073709551615n;
     
     const EVENT_TEMPLATES = {
         container_start: `
@@ -100,7 +106,7 @@
                             <div class="event-content">
                                 <span class="event-user"></span>
                                 <span> updated </span>
-                                <a class="event-dojo-link" href="#"></a>
+                                <span class="event-dojo"></span>
                                 <span class="event-update-detail"></span>
                             </div>
                             <small class="text-muted event-time"></small>
@@ -111,7 +117,10 @@
     };
     
     function formatTimestamp(timestamp) {
-        return new Date(timestamp).toISOString().slice(0, 19).replace('T', ' ');
+        const date = new Date(timestamp);
+        return Number.isNaN(date.getTime())
+            ? ''
+            : date.toISOString().slice(0, 19).replace('T', ' ');
     }
     
     function createLink(href, text) {
@@ -120,74 +129,162 @@
         link.textContent = text;
         return link;
     }
-    
-    function createUserElement(userName, belt, emojis) {
+
+    function encodeUrlComponent(value) {
+        return encodeURIComponent(String(value)).replace(/[!'()*]/g, character =>
+            `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+        );
+    }
+
+    function buildInternalUrl(...segments) {
+        const urlRoot = (init.urlRoot || '').replace(/\/+$/, '');
+        return `${urlRoot}/${segments.map(encodeUrlComponent).join('/')}`;
+    }
+
+    function buildDojoUrl(dojoId, moduleId, challengeReferenceId) {
+        const segments = [dojoId];
+        if (moduleId !== undefined && moduleId !== null) segments.push(moduleId);
+        if (challengeReferenceId !== undefined && challengeReferenceId !== null) segments.push(challengeReferenceId);
+        return buildInternalUrl(...segments);
+    }
+
+    function isValidUserId(userId) {
+        return Number.isInteger(userId) && userId >= 1 && userId <= Number.MAX_SAFE_INTEGER;
+    }
+
+    function isCanonicalDojoReference(value) {
+        return typeof value === 'string' && /^[a-z0-9-]{1,32}(?:~[0-9a-f]{8})?$/.test(value);
+    }
+
+    function isCanonicalContentId(value) {
+        return typeof value === 'string' && /^[a-z0-9-]{1,32}$/.test(value);
+    }
+
+    function isFeedCursor(value) {
+        return (
+            typeof value === 'string'
+            && /^[0-9]{1,20}-[0-9]{1,20}$/.test(value)
+            && value.split('-').every(
+                component => BigInt(component) <= MAX_REDIS_STREAM_ID_COMPONENT
+            )
+        );
+    }
+
+    function compareFeedCursors(left, right) {
+        const [leftMilliseconds, leftSequence] = left.split('-').map(BigInt);
+        const [rightMilliseconds, rightSequence] = right.split('-').map(BigInt);
+        if (leftMilliseconds !== rightMilliseconds) {
+            return leftMilliseconds < rightMilliseconds ? -1 : 1;
+        }
+        if (leftSequence === rightSequence) return 0;
+        return leftSequence < rightSequence ? -1 : 1;
+    }
+
+    function updateFeedCursor(value) {
+        if (
+            isFeedCursor(value)
+            && compareFeedCursors(value, lastEventCursor) >= 0
+        ) {
+            lastEventCursor = value;
+        }
+    }
+
+    function updateLegacyFeedCursor(value) {
+        if (typeof value !== 'string' || value.length < 1 || value.length > 64) {
+            return;
+        }
+        const score = Number(value);
+        if (
+            Number.isFinite(score)
+            && score >= 0
+            && score >= Number(lastLegacyFeedCursor)
+        ) {
+            lastLegacyFeedCursor = value;
+        }
+    }
+
+    function createUserElement(userId, userName, belt, emojis) {
         const container = document.createElement('strong');
-        const link = document.createElement('a');
-        link.href = `/hacker/${userName}`;
+        const content = isValidUserId(userId) ? createLink(buildInternalUrl('hacker', userId), '') : container;
         
-        if (belt) {
+        if (typeof belt === 'string' && belt) {
             const img = document.createElement('img');
-            img.src = `/belt/${belt}.svg`;
+            img.src = buildInternalUrl('belt', `${belt}.svg`);
             img.className = 'scoreboard-belt';
             img.style.cssText = 'height: 1.5em; vertical-align: middle; margin-right: 0.25em;';
             img.title = belt.charAt(0).toUpperCase() + belt.slice(1) + ' Belt';
-            link.appendChild(img);
+            content.appendChild(img);
         }
         
         const nameSpan = document.createElement('span');
-        nameSpan.textContent = userName;
-        link.appendChild(nameSpan);
+        nameSpan.textContent = userName || '';
+        content.appendChild(nameSpan);
         
-        if (emojis?.length > 0) {
+        if (Array.isArray(emojis) && emojis.length > 0) {
             emojis.slice(0, 3).forEach(emoji => {
                 const span = document.createElement('span');
                 span.textContent = ' ' + emoji;
                 span.title = emoji;
-                link.appendChild(span);
+                content.appendChild(span);
             });
             
             if (emojis.length > 3) {
                 const more = document.createElement('small');
                 more.className = 'text-muted';
                 more.textContent = ` +${emojis.length - 3}`;
-                link.appendChild(more);
+                content.appendChild(more);
             }
         }
         
-        container.appendChild(link);
+        if (content !== container) container.appendChild(content);
         return container;
+    }
+
+    function createDojoElement(data) {
+        const label = data.dojo_label;
+        if (typeof label !== 'string') return document.createTextNode('');
+        if (!isCanonicalDojoReference(data.dojo_path_id)) return document.createTextNode(label);
+        return createLink(buildDojoUrl(data.dojo_path_id), label);
     }
     
     function createLocationElement(data) {
         const fragment = document.createDocumentFragment();
         
-        if (data.dojo_name || data.dojo_id) {
-            const dojoLink = createLink(`/dojos/${data.dojo_id}`, data.dojo_name || data.dojo_id);
-            fragment.appendChild(dojoLink);
+        if (typeof data.dojo_label === 'string') {
+            fragment.appendChild(createDojoElement(data));
             fragment.appendChild(document.createTextNode(' / '));
         }
         
-        if (data.module_name) {
-            if (data.dojo_id && data.module_id) {
-                const moduleLink = createLink(`/${data.dojo_id}/${data.module_id}`, data.module_name);
+        if (typeof data.module_label === 'string') {
+            if (
+                isCanonicalDojoReference(data.dojo_path_id)
+                && isCanonicalContentId(data.module_path_id)
+            ) {
+                const moduleLink = createLink(
+                    buildDojoUrl(data.dojo_path_id, data.module_path_id),
+                    data.module_label
+                );
                 fragment.appendChild(moduleLink);
             } else {
-                fragment.appendChild(document.createTextNode(data.module_name));
+                fragment.appendChild(document.createTextNode(data.module_label));
             }
             fragment.appendChild(document.createTextNode(' / '));
         }
         
-        if (data.challenge_name) {
+        if (typeof data.challenge_label === 'string') {
             const strong = document.createElement('strong');
-            if (data.dojo_id && data.module_id && data.challenge_id) {
+            if (
+                isCanonicalDojoReference(data.dojo_path_id)
+                && isCanonicalContentId(data.module_path_id)
+                && isCanonicalContentId(data.challenge_path_id)
+            ) {
                 const challengeLink = createLink(
-                    `/${data.dojo_id}/${data.module_id}#${data.challenge_id}`,
-                    data.challenge_name
+                    buildDojoUrl(data.dojo_path_id, data.module_path_id, data.challenge_path_id),
+                    data.challenge_label
                 );
                 strong.appendChild(challengeLink);
             } else {
-                strong.textContent = data.challenge_name;
+                strong.textContent = data.challenge_label;
             }
             fragment.appendChild(strong);
         }
@@ -200,6 +297,10 @@
         temp.innerHTML = templateHtml;
         const card = temp.firstElementChild;
         card.dataset.eventId = event.id;
+        card.dataset.feedScore = event.feed_score;
+        card.dataset.userId = isValidUserId(event.user_profile_id)
+            ? String(event.user_profile_id)
+            : '';
         card.style.opacity = '0';
         
         const timeElem = card.querySelector('.event-time');
@@ -210,7 +311,12 @@
         
         const userElem = card.querySelector('.event-user');
         if (userElem) {
-            userElem.replaceWith(createUserElement(event.user_name, event.user_belt, event.user_emojis));
+            userElem.replaceWith(createUserElement(
+                event.user_profile_id,
+                event.user_name,
+                event.user_belt,
+                event.user_emojis
+            ));
         }
         
         return card;
@@ -253,12 +359,12 @@
             card.querySelector('.event-emoji').textContent = event.data.emoji;
             
             const detailElem = card.querySelector('.event-emoji-detail');
-            if (event.data.dojo_name || event.data.dojo_id) {
+            if (typeof event.data.dojo_label === 'string') {
                 const br = document.createElement('br');
                 const small = document.createElement('small');
                 small.className = 'text-muted';
                 small.appendChild(document.createTextNode('Completed '));
-                small.appendChild(createLink(`/dojos/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
+                small.appendChild(createDojoElement(event.data));
                 
                 detailElem.appendChild(br);
                 detailElem.appendChild(small);
@@ -283,12 +389,12 @@
             card.querySelector('.event-belt-name').textContent = event.data.belt_name;
             
             const detailElem = card.querySelector('.event-belt-detail');
-            if (event.data.dojo_name || event.data.dojo_id) {
+            if (typeof event.data.dojo_label === 'string') {
                 const br = document.createElement('br');
                 const small = document.createElement('small');
                 small.className = 'text-muted';
                 small.appendChild(document.createTextNode('Completed '));
-                small.appendChild(createLink(`/dojos/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
+                small.appendChild(createDojoElement(event.data));
                 
                 detailElem.appendChild(br);
                 detailElem.appendChild(small);
@@ -302,9 +408,8 @@
         dojo_update: (event) => {
             const card = createEventFromTemplate(EVENT_TEMPLATES.dojo_update, event);
             
-            const dojoLink = card.querySelector('.event-dojo-link');
-            dojoLink.href = `/dojos/${event.data.dojo_id}`;
-            dojoLink.textContent = event.data.dojo_name || event.data.dojo_id;
+            const dojoElem = card.querySelector('.event-dojo');
+            dojoElem.replaceWith(createDojoElement(event.data));
             
             const detailElem = card.querySelector('.event-update-detail');
             if (event.data.summary) {
@@ -329,6 +434,7 @@
             const card = document.createElement('div');
             card.className = 'event-card card mb-3 bg-dark text-white border-secondary';
             card.dataset.eventId = event.id;
+            card.dataset.feedScore = event.feed_score;
             return card;
         }
         
@@ -337,13 +443,22 @@
     
     function addEvent(event) {
         const eventsList = document.getElementById('events-list');
-        if (document.querySelector(`[data-event-id="${event.id}"]`)) return;
+        const duplicate = Array.from(document.querySelectorAll('[data-event-id]'))
+            .some(card => card.dataset.eventId === event.id);
+        if (duplicate) return;
         
         const emptyMessage = eventsList.parentElement.querySelector('.text-center.text-muted');
         if (emptyMessage) emptyMessage.remove();
         
         const card = createEventCard(event);
-        eventsList.insertBefore(card, eventsList.firstChild);
+        const feedScore = Number(event.feed_score);
+        const insertionPoint = Array.from(
+            eventsList.querySelectorAll('.event-card')
+        ).find(existingCard => {
+            const existingScore = Number(existingCard.dataset.feedScore);
+            return Number.isFinite(existingScore) && existingScore < feedScore;
+        });
+        eventsList.insertBefore(card, insertionPoint || null);
         
         setTimeout(() => {
             card.style.transition = 'opacity 0.5s ease-in';
@@ -383,23 +498,57 @@
     
     function shouldIncludeEvent(event, allowedUserIds) {
         if (!allowedUserIds) return true;
-        return allowedUserIds.has(String(event.user_id));
+        return isValidUserId(event.user_profile_id)
+            && allowedUserIds.has(String(event.user_profile_id));
+    }
+
+    function cancelReconnect() {
+        if (reconnectTimer === null) return;
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+
+    function disconnectSSE() {
+        cancelReconnect();
+        connectionGeneration += 1;
+        const source = eventSource;
+        eventSource = null;
+        if (source) source.close();
+    }
+
+    function isCurrentSource(source, generation) {
+        return eventSource === source && connectionGeneration === generation;
     }
     
     function connectSSE(allowedUserIds) {
-        if (eventSource) eventSource.close();
+        if (isUnloading || document.hidden) return;
+        cancelReconnect();
+        const previousSource = eventSource;
+        eventSource = null;
+        const generation = ++connectionGeneration;
+        if (previousSource) previousSource.close();
         
         updateConnectionStatus('connecting', 'Connecting to live feed...');
-        eventSource = new EventSource('/pwncollege_api/v1/feed/stream');
+        const streamUrl = buildInternalUrl('pwncollege_api', 'v1', 'feed', 'stream');
+        const source = new EventSource(
+            `${streamUrl}?cursor=${encodeURIComponent(lastEventCursor)}`
+            + `&legacy_cursor=${encodeURIComponent(lastLegacyFeedCursor)}`
+        );
+        eventSource = source;
         
-        eventSource.onopen = () => {
+        source.onopen = () => {
+            if (!isCurrentSource(source, generation) || isUnloading || document.hidden) return;
             reconnectAttempts = 0;
             updateConnectionStatus('connected', '');
         };
         
-        eventSource.onmessage = (event) => {
+        source.onmessage = (event) => {
+            if (!isCurrentSource(source, generation) || isUnloading || document.hidden) return;
+            updateFeedCursor(event.lastEventId);
             try {
                 const data = JSON.parse(event.data);
+                updateFeedCursor(data.cursor);
+                updateLegacyFeedCursor(data.legacy_cursor);
                 if (data.type === 'connected') {
                     updateConnectionStatus('connected', '');
                 } else if (data.type !== 'heartbeat' && shouldIncludeEvent(data, allowedUserIds)) {
@@ -410,13 +559,28 @@
             }
         };
         
-        eventSource.onerror = () => {
-            eventSource.close();
+        source.onerror = () => {
+            if (!isCurrentSource(source, generation)) return;
+            source.close();
+            eventSource = null;
+            const reconnectGeneration = ++connectionGeneration;
+            if (isUnloading || document.hidden) return;
             if (++reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
                 updateConnectionStatus('error', 'Connection lost. Please refresh the page.');
             } else {
                 updateConnectionStatus('error', `Connection lost. Reconnecting in ${RECONNECT_DELAY / 1000} seconds...`);
-                setTimeout(connectSSE, RECONNECT_DELAY);
+                const timer = setTimeout(() => {
+                    if (reconnectTimer !== timer) return;
+                    reconnectTimer = null;
+                    if (
+                        isUnloading
+                        || document.hidden
+                        || connectionGeneration !== reconnectGeneration
+                        || eventSource
+                    ) return;
+                    connectSSE(allowedUserIds);
+                }, RECONNECT_DELAY);
+                reconnectTimer = timer;
             }
         };
     }
@@ -430,6 +594,9 @@
     
     document.addEventListener('DOMContentLoaded', () => {
         const allowedUserIds = parseUserFilter();
+        const eventsList = document.getElementById('events-list');
+        updateFeedCursor(eventsList.dataset.feedCursor);
+        updateLegacyFeedCursor(eventsList.dataset.legacyFeedCursor);
         if (allowedUserIds) {
             document.querySelectorAll('.event-card').forEach(card => {
                 const userId = card.dataset.userId;
@@ -443,15 +610,20 @@
         connectSSE(allowedUserIds);
         
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden && eventSource) {
-                eventSource.close();
-            } else if (!document.hidden && (!eventSource || eventSource.readyState === EventSource.CLOSED)) {
+            if (document.hidden) {
+                disconnectSSE();
+            } else if (
+                !isUnloading
+                && reconnectTimer === null
+                && (!eventSource || eventSource.readyState === EventSource.CLOSED)
+            ) {
                 connectSSE(allowedUserIds);
             }
         });
     });
     
     window.addEventListener('beforeunload', () => {
-        if (eventSource) eventSource.close();
+        isUnloading = true;
+        disconnectSSE();
     });
 })();

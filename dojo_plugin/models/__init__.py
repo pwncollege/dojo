@@ -234,12 +234,25 @@ class Dojos(db.Model):
             cls.name,
         )
 
+    @hybrid_method
+    def globally_visible(self):
+        return self.official or (
+            (self.data or {}).get("type") == "public"
+            and self.password is None
+        )
+
+    @globally_visible.expression
+    def globally_visible(cls):
+        return or_(
+            cls.official,
+            and_(cls.data["type"].astext == "public", cls.password == None),
+        )
+
     @classmethod
     def viewable(cls, id=None, user=None):
         return (
             (cls.from_id(id) if id is not None else cls.query)
-            .filter(or_(cls.official,
-                        and_(cls.data["type"].astext == "public", cls.password == None),
+            .filter(or_(cls.globally_visible(),
                         cls.dojo_id.in_(db.session.query(DojoUsers.dojo_id)
                                         .filter_by(user=user)
                                         .subquery())))

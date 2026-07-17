@@ -10,7 +10,7 @@ from CTFd.models import Solves, Users, db
 from CTFd.plugins.challenges import get_chal_class
 from CTFd.utils.decorators import admins_only, authed_only, ratelimit
 from CTFd.utils.user import get_current_user, get_ip, is_admin
-from flask import request
+from flask import g, request
 from flask_restx import Namespace, Resource
 from sqlalchemy.sql import and_
 
@@ -321,6 +321,7 @@ class DojoChallengeSolve(Resource):
         chal_class = get_chal_class(dojo_challenge.challenge.type)
         status, _ = chal_class.attempt(dojo_challenge.challenge, request)
         if status:
+            g.routed_dojo_challenge = dojo_challenge
             chal_class.solve(user, None, dojo_challenge.challenge, request)
             return {"success": True, "status": "solved"}
         else:

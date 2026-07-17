@@ -252,9 +252,16 @@ function actionSubmitFlag(event) {
 
     context(event).find("#flag-input").prop("disabled", true).addClass("disabled");
     context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
-    const challenge_id = parseInt(context(event).find("#current-challenge-id").val());
+    const challenge = context(event).find("#current-challenge-id");
+    const challenge_id = parseInt(challenge.val());
 
-    CTFd.api.post_challenge_attempt({}, {"challenge_id": challenge_id, "submission": submission})
+    CTFd.api.post_challenge_attempt({}, {
+        "challenge_id": challenge_id,
+        "submission": submission,
+        "dojo_id": challenge.attr("data-dojo-id") || null,
+        "module_id": challenge.attr("data-module-id") || null,
+        "challenge_reference_id": challenge.attr("data-challenge-reference-id") || null,
+    })
     .then(function (response) {
         const challengeName = context(event).find("#current-challenge-id").attr("data-challenge-name");
 
