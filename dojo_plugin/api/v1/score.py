@@ -4,7 +4,8 @@ from CTFd.cache import cache
 from CTFd.models import Users, db, Solves, Challenges
 from CTFd.utils.decorators import ratelimit
 
-from ...models import Dojos, DojoChallenges
+from ...models import Dojos, DojoChallenges, UserVisibilityUpdates
+from ...utils.public_stats import lock_public_stats_visibility
 
 score_namespace = Namespace("score")
 
@@ -17,12 +18,27 @@ class ValidateUser(Resource):
     """
     @ratelimit(method="GET", limit=10, interval=60)
     def get(self):
+        lock_public_stats_visibility()
         username = request.args.get("username")
         email = request.args.get("email")
         if not username or not email:
             return {"error": "`username` and `email` parameters are required"}, 400
 
-        return int(bool(Users.query.filter_by(name=username, email=email, hidden=False).first()))
+        return int(bool(
+            Users.query
+            .outerjoin(
+                UserVisibilityUpdates,
+                UserVisibilityUpdates.user_id == Users.id,
+            )
+            .filter(
+                Users.name == username,
+                Users.email == email,
+                ~Users.hidden,
+                ~Users.banned,
+            )
+            .filter(UserVisibilityUpdates.user_id.is_(None))
+            .first()
+        ))
 
 @score_namespace.route("")
 class ScoreUser(Resource):
@@ -32,11 +48,25 @@ class ScoreUser(Resource):
     Returns formatted data regarding a user's score.
     """
     def get(self):
+        lock_public_stats_visibility()
         username = request.args.get("username")
         if not username:
             return {"error": "`username` parameter is required"}, 400
 
-        user = Users.query.filter_by(name=username, hidden=False).first()
+        user = (
+            Users.query
+            .outerjoin(
+                UserVisibilityUpdates,
+                UserVisibilityUpdates.user_id == Users.id,
+            )
+            .filter(
+                Users.name == username,
+                ~Users.hidden,
+                ~Users.banned,
+                UserVisibilityUpdates.user_id.is_(None),
+            )
+            .first()
+        )
         if not user:
             return {"error": "user does not exist"}, 400
 
@@ -54,6 +84,16 @@ class ScoreUser(Resource):
         scoreboard = (
             db.session.query(rank, Solves.user_id, db.func.count(Solves.id).label("solves"))
             .join(official_challenges.subquery())
+            .join(Users, Users.id == Solves.user_id)
+            .outerjoin(
+                UserVisibilityUpdates,
+                UserVisibilityUpdates.user_id == Users.id,
+            )
+            .filter(
+                ~Users.hidden,
+                ~Users.banned,
+                UserVisibilityUpdates.user_id.is_(None),
+            )
             .group_by(Solves.user_id)
             .order_by(rank)
             .all()

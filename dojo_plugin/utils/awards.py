@@ -1,14 +1,21 @@
-import datetime
 import functools
 import inspect
 
 from CTFd.cache import cache
-from CTFd.models import db, Users
-from flask import url_for, abort
+from CTFd.models import db
+from flask import abort
 
 from .discord import get_discord_roles, get_discord_member, add_role, send_message
-from .background_stats import get_cached_stat
-from ..models import Dojos, Belts, Emojis, DiscordUsers
+from .background_stats import get_public_cached_stat
+from .public_stats import lock_public_stats_visibility
+from .users import can_view_user, refresh_user
+from ..models import (
+    Dojos,
+    Belts,
+    Emojis,
+    DiscordUsers,
+    UserVisibilityUpdates,
+)
 from .feed import publish_belt_earned, publish_emoji_earned
 
 
@@ -32,30 +39,110 @@ def get_user_emojis(user):
             emojis.append((emoji, dojo.name or dojo.reference_id, dojo.hex_dojo_id))
     return emojis
 
-def get_belts():
-    cached = get_cached_stat(CACHE_KEY_BELTS)
+def get_belts(user=None):
+    lock_public_stats_visibility()
+    user = refresh_user(user)
+    visibility_update = (
+        UserVisibilityUpdates.query.filter_by(user_id=user.id).first()
+        if user is not None
+        else None
+    )
+    visibility_pending = visibility_update is not None
+    cached = get_public_cached_stat(CACHE_KEY_BELTS)
     if cached:
         result = dict(dates={}, users={}, ranks={})
         for color in BELT_ORDER:
             result["dates"][color] = {int(k): v for k, v in cached.get("dates", {}).get(color, {}).items()}
             result["ranks"][color] = cached.get("ranks", {}).get(color, [])
         result["users"] = {int(k): v for k, v in cached.get("users", {}).items()}
-        return result
+    else:
+        result = dict(dates={}, users={}, ranks={})
+        for color in reversed(BELT_ORDER):
+            result["dates"][color] = {}
+            result["ranks"][color] = []
 
-    result = dict(dates={}, users={}, ranks={})
-    for color in reversed(BELT_ORDER):
-        result["dates"][color] = {}
-        result["ranks"][color] = []
+    if user and (user.hidden or visibility_pending) and can_view_user(user):
+        user_belts = Belts.query.filter(Belts.user == user, Belts.name.in_(BELT_ORDER)).all()
+        if user_belts:
+            belt = max(user_belts, key=lambda item: BELT_ORDER.index(item.name))
+            result["dates"][belt.name][user.id] = str(belt.date)
+            result["users"][user.id] = {
+                "handle": user.name,
+                "site": user.website,
+                "color": belt.name,
+                "date": str(belt.date),
+            }
+
     return result
 
-def get_viewable_emojis(user):
-    cached = get_cached_stat(CACHE_KEY_EMOJIS)
-    if cached:
-        viewable_dojos = {
-            dojo.hex_dojo_id: dojo
-            for dojo in Dojos.viewable(user=user).where(Dojos.data["type"].astext != "example")
-        }
 
+def get_private_emojis(user, viewable_dojos):
+    result = []
+    seen = {}
+    emojis = (
+        Emojis.query
+        .filter(Emojis.user == user)
+        .order_by(Emojis.date, Emojis.name.desc())
+        .all()
+    )
+
+    for award in emojis:
+        if award.category and award.category not in viewable_dojos:
+            continue
+
+        key = (award.category, award.icon)
+        if key in seen:
+            if award.name == "CUSTOM":
+                entry = seen[key]
+                entry["count"] += 1
+                entry["text"] += f"\n{award.description}"
+            continue
+
+        dojo = viewable_dojos.get(award.category)
+        emoji = award.icon
+        if not emoji:
+            if not dojo or not dojo.award or not dojo.award.get("emoji"):
+                continue
+            emoji = dojo.award["emoji"]
+
+        entry = {
+            "text": award.description,
+            "emoji": emoji,
+            "count": 1,
+            "url": "#" if dojo is None else f"/dojo/{dojo.reference_id}",
+            "stale": "STALE" in award.name,
+            "category": award.category,
+        }
+        result.append(entry)
+        seen[key] = entry
+
+    return result
+
+
+def get_viewable_emojis(user):
+    lock_public_stats_visibility()
+    user = refresh_user(user)
+    cached = get_public_cached_stat(CACHE_KEY_EMOJIS)
+    visibility_update = (
+        UserVisibilityUpdates.query.filter_by(user_id=user.id).first()
+        if user is not None
+        else None
+    )
+    visibility_pending = visibility_update is not None
+    include_private = (
+        user
+        and (user.hidden or visibility_pending)
+        and can_view_user(user)
+    )
+    if not cached and not include_private:
+        return {}
+
+    viewable_dojos = {
+        dojo.hex_dojo_id: dojo
+        for dojo in Dojos.viewable(user=user).where(Dojos.data["type"].astext != "example")
+    }
+
+    if cached:
         result = {}
         for user_id_str, emoji_list in cached.get("emojis", {}).items():
             filtered = []
@@ -80,9 +167,15 @@ def get_viewable_emojis(user):
                 })
             if filtered:
                 result[int(user_id_str)] = filtered
-        return result
+    else:
+        result = {}
 
-    return {}
+    if include_private:
+        private_emojis = get_private_emojis(user, viewable_dojos)
+        if private_emojis:
+            result[user.id] = private_emojis
+
+    return result
 
 def update_awards(user):
     current_belts = [belt.name for belt in Belts.query.filter_by(user=user)]

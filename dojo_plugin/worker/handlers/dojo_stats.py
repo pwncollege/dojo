@@ -4,7 +4,12 @@ from sqlalchemy import func, desc
 
 from CTFd.models import db, Solves
 from ...models import Dojos, DojoChallenges
-from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
+from ...utils.background_stats import (
+    get_public_cached_stat as get_cached_stat,
+    set_public_cached_stat as set_cached_stat,
+    is_event_stale,
+)
+from ...utils.public_stats import capture_public_cache_revisions
 from . import register_handler
 
 logger = logging.getLogger(__name__)
@@ -116,10 +121,11 @@ def handle_dojo_stats_update(payload, event_timestamp=None):
     if event_timestamp and is_event_stale(cache_key, event_timestamp):
         return
 
+    revision = capture_public_cache_revisions([cache_key])[cache_key]
     try:
         logger.info(f"Calculating stats for dojo {dojo.reference_id} (dojo_id={dojo_id})...")
         stats = calculate_dojo_stats(dojo)
-        set_cached_stat(cache_key, stats)
+        set_cached_stat(cache_key, stats, revision=revision)
         logger.info(f"Successfully updated and cached stats for dojo {dojo.reference_id} (solves: {stats['solves']}, users: {stats['users']})")
     except Exception as e:
         logger.error(f"Error calculating stats for dojo_id {dojo_id}: {e}", exc_info=True)
@@ -158,12 +164,18 @@ def update_dojo_stats(stats, challenge_name):
 def initialize_all_dojo_stats():
     dojos = Dojos.query.all()
     logger.info(f"Initializing stats for {len(dojos)} dojos...")
+    cache_keys = [f"stats:dojo:{dojo.reference_id}" for dojo in dojos]
+    revisions = capture_public_cache_revisions(cache_keys)
 
     for dojo in dojos:
         try:
-            stats = calculate_dojo_stats(dojo)
             cache_key = f"stats:dojo:{dojo.reference_id}"
-            set_cached_stat(cache_key, stats)
+            stats = calculate_dojo_stats(dojo)
+            set_cached_stat(
+                cache_key,
+                stats,
+                revision=revisions[cache_key],
+            )
             logger.info(f"Initialized stats for dojo {dojo.reference_id}")
         except Exception as e:
             logger.error(f"Error initializing stats for dojo {dojo.reference_id}: {e}", exc_info=True)

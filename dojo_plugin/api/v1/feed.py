@@ -1,9 +1,9 @@
 import json
 import time
 import redis
-from flask import Response, request, current_app
+from flask import Response, request, current_app, stream_with_context
 from flask_restx import Namespace, Resource
-from ...utils.feed import get_recent_events
+from ...utils.feed import get_recent_events, is_public_feed_event
 
 feed_namespace = Namespace("feed", description="Activity feed endpoints")
 
@@ -37,8 +37,15 @@ class FeedStream(Resource):
                     message = pubsub.get_message(timeout=1)
                     if message and message['type'] == 'message':
                         try:
-                            yield f"data: {message['data']}\n\n"
-                        except (TypeError, ValueError):
+                            event = json.loads(message['data'])
+                            if is_public_feed_event(event):
+                                yield f"data: {message['data']}\n\n"
+                        except (
+                            json.JSONDecodeError,
+                            KeyError,
+                            TypeError,
+                            ValueError,
+                        ):
                             continue
                     if time.time() - last_heartbeat > 30:
                         yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
@@ -49,5 +56,5 @@ class FeedStream(Resource):
             except Exception:
                 pubsub.close()
                 
-        return Response(generate(), mimetype="text/event-stream",
+        return Response(stream_with_context(generate()), mimetype="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"})

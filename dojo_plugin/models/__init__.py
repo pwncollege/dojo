@@ -54,6 +54,35 @@ def columns_repr(column_names):
     return __repr__
 
 
+class PublicStatsVisibilityGuard(db.Model):
+    __tablename__ = "public_stats_visibility_guard"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+
+class PublicStatsCacheVersions(db.Model):
+    __tablename__ = "public_stats_cache_versions"
+
+    cache_key = db.Column(db.String(255), primary_key=True)
+    revision = db.Column(db.BigInteger, nullable=False, default=0)
+    ready_revision = db.Column(db.BigInteger, nullable=False, default=0)
+
+
+class UserVisibilityUpdates(db.Model):
+    __tablename__ = "user_visibility_updates"
+
+    user_id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(32), nullable=False)
+    published_at = db.Column(db.DateTime)
+
+
+class UserVisibilityVersions(db.Model):
+    __tablename__ = "user_visibility_versions"
+
+    user_id = db.Column(db.Integer, primary_key=True)
+    revision = db.Column(db.BigInteger, nullable=False, default=0)
+
+
 class Dojos(db.Model):
     __tablename__ = "dojos"
 
@@ -270,7 +299,19 @@ class Dojos(db.Model):
     def awards(self):
         if not self.award:
             return None
-        result = Awards.query.join(Users).filter(~Users.hidden)
+        result = (
+            Awards.query
+            .join(Users)
+            .outerjoin(
+                UserVisibilityUpdates,
+                UserVisibilityUpdates.user_id == Users.id,
+            )
+            .filter(
+                ~Users.hidden,
+                ~Users.banned,
+                UserVisibilityUpdates.user_id.is_(None),
+            )
+        )
         if "belt" in self.award:
             result = result.where(Awards.type == "belt", Awards.name == self.award["belt"])
         elif "emoji" in self.award:
@@ -660,7 +701,7 @@ class DojoChallenges(db.Model):
                     or_(DojoChallengeVisibilities.start == None, Solves.date >= DojoChallengeVisibilities.start),
                     or_(DojoChallengeVisibilities.stop == None, Solves.date <= DojoChallengeVisibilities.stop),
                 )
-                .filter(~Users.hidden)
+                .filter(~Users.hidden, ~Users.banned)
             )
 
         if ignore_admins:

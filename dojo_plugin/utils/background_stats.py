@@ -142,6 +142,34 @@ def get_cached_stat(key: str) -> Optional[Dict[str, Any]]:
     except (redis.RedisError, redis.ConnectionError, json.JSONDecodeError):
         return None
 
+
+def get_public_cached_stat(key: str) -> Optional[Dict[str, Any]]:
+    from .public_stats import lock_public_stats_visibility, public_cache_revision
+
+    lock_public_stats_visibility()
+    revision = public_cache_revision(key)
+    if revision is None:
+        return None
+
+    try:
+        pipeline = get_redis_client().pipeline()
+        pipeline.get(key)
+        pipeline.get(f"{key}:visibility")
+        data, cached_revision = pipeline.execute()
+        if data is None or cached_revision is None:
+            return None
+        if int(cached_revision) != revision:
+            return None
+        return json.loads(data)
+    except (
+        redis.RedisError,
+        redis.ConnectionError,
+        json.JSONDecodeError,
+        TypeError,
+        ValueError,
+    ):
+        return None
+
 def get_redis_time(r: redis.Redis) -> float:
     redis_time = r.time()
     return float(redis_time[0]) + float(redis_time[1]) / 1_000_000
@@ -156,6 +184,29 @@ def set_cached_stat(key: str, data: Dict[str, Any], updated_at: Optional[float] 
             r.set(f"{key}:updated", str(updated_at))
         else:
             r.set(f"{key}:updated", str(get_redis_time(r)))
+    except (redis.RedisError, redis.ConnectionError):
+        pass
+
+
+def set_public_cached_stat(
+    key: str,
+    data: Dict[str, Any],
+    revision: Optional[int] = None,
+    updated_at: Optional[float] = None,
+):
+    from .public_stats import capture_public_cache_revisions
+
+    if revision is None:
+        revision = capture_public_cache_revisions([key])[key]
+
+    try:
+        redis_client = get_redis_client()
+        cache_time = updated_at or get_redis_time(redis_client)
+        pipeline = redis_client.pipeline(transaction=True)
+        pipeline.set(key, json.dumps(data))
+        pipeline.set(f"{key}:updated", str(cache_time))
+        pipeline.set(f"{key}:visibility", str(revision))
+        pipeline.execute()
     except (redis.RedisError, redis.ConnectionError):
         pass
 
@@ -174,5 +225,19 @@ def invalidate_cached_stat(key: str):
         r = get_redis_client()
         r.delete(key)
         r.delete(f"{key}:updated")
+        r.delete(f"{key}:visibility")
     except (redis.RedisError, redis.ConnectionError):
         pass
+
+
+def invalidate_public_cached_stats(keys):
+    try:
+        pipeline = get_redis_client().pipeline(transaction=True)
+        for key in set(keys):
+            pipeline.delete(key)
+            pipeline.delete(f"{key}:updated")
+            pipeline.delete(f"{key}:visibility")
+        pipeline.execute()
+        return True
+    except (redis.RedisError, redis.ConnectionError):
+        return False

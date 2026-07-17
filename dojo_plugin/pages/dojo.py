@@ -319,7 +319,7 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
     solves_query = (
         dojo
         .solves(ignore_visibility=True)
-        .filter(or_(DojoUsers.user_id != None, ~Users.hidden))
+        .filter(or_(DojoUsers.user_id != None, ~Users.hidden), ~Users.banned)
         .order_by(DojoChallenges.module_index, DojoChallenges.challenge_index, Solves.date)
         .with_entities(Solves.user_id, Users.name, DojoModules.id, DojoChallenges.id, Solves.date)
     )
@@ -351,11 +351,7 @@ def view_module(dojo, module, scroll_to_challenge=None):
     ))
     total_solves = get_challenge_solves(module)
     if total_solves is None:
-        total_solves = dict(query_timeout(
-            module.solves().group_by(Solves.challenge_id).with_entities(Solves.challenge_id, db.func.count()).all,
-            5000,
-            []
-        ))
+        total_solves = {}
     container = get_current_container()
     practice = container.labels.get("dojo.mode") == "privileged" if container else False
 

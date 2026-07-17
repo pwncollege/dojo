@@ -10,6 +10,7 @@ from urllib.parse import urlparse, urlunparse
 from flask import Response, request, redirect, current_app
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
+from sqlalchemy import text
 from CTFd.models import db, Challenges, Users, Solves
 from CTFd.utils.user import get_current_user
 from CTFd.plugins import register_admin_plugin_menu_bar
@@ -38,7 +39,15 @@ from .pages.feed import feed
 from .pages.index import static_html_override
 from .pages.test_error import test_error_pages
 from .api import api
-from .utils.events import publish_queued_events
+from .utils.events import (
+    publish_pending_user_visibility_events,
+    publish_queued_events,
+)
+from .utils.public_stats import (
+    initialize_public_stats_state,
+    lock_public_stats_visibility,
+    release_public_stats_visibility,
+)
 from .utils import listeners
 
 
@@ -49,6 +58,7 @@ class DojoChallenge(BaseChallenge):
 
     @classmethod
     def solve(cls, user, team, challenge, request):
+        lock_public_stats_visibility(persistent=True)
         super().solve(user, team, challenge, request)
         update_awards(user)
 
@@ -148,8 +158,30 @@ def handle_authorization(default_handler):
     default_handler()
 
 
+def initialize_database():
+    if db.engine.dialect.name != "postgresql":
+        db.create_all()
+        initialize_public_stats_state()
+        return
+
+    lock_name = "pwncollege-dojo-schema"
+    with db.engine.connect() as connection:
+        connection.execute(
+            text("SELECT pg_advisory_lock(hashtext(:lock_name))"),
+            {"lock_name": lock_name},
+        )
+        try:
+            db.create_all()
+            initialize_public_stats_state()
+        finally:
+            connection.execute(
+                text("SELECT pg_advisory_unlock(hashtext(:lock_name))"),
+                {"lock_name": lock_name},
+            )
+
+
 def load(app):
-    db.create_all()
+    initialize_database()
 
     init_query_timer()
 
@@ -161,8 +193,13 @@ def load(app):
 
     @app.after_request
     def publish_stat_events_after_request(response):
+        publish_pending_user_visibility_events()
         publish_queued_events()
         return response
+
+    @app.teardown_request
+    def release_public_stats_visibility_after_request(_error):
+        release_public_stats_visibility()
 
     app.permanent_session_lifetime = datetime.timedelta(days=180)
 

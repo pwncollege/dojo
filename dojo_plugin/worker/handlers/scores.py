@@ -1,65 +1,22 @@
 import logging
 from sqlalchemy.sql import or_
-from CTFd.models import Solves, db
-from ...models import Dojos, DojoChallenges
-from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
+from CTFd.models import db
+from ...models import Dojos
+from ...utils.background_stats import (
+    get_public_cached_stat as get_cached_stat,
+    set_public_cached_stat as set_cached_stat,
+    is_event_stale,
+)
+from ...utils.public_stats import capture_public_cache_revisions
+from ...utils.scores import (
+    calculate_dojo_scores,
+    calculate_module_scores,
+    dojo_scores_cache_key,
+    module_scores_cache_key,
+)
 from . import register_handler
 
 logger = logging.getLogger(__name__)
-
-
-def dojo_scores_cache_key(dojo_id):
-    return f"stats:scores:dojo:{dojo_id}"
-
-
-def module_scores_cache_key(dojo_id, module_index):
-    return f"stats:scores:module:{dojo_id}:{module_index}"
-
-
-def _scores_query(granularity, dojo_filter):
-    solve_count = db.func.count(Solves.id).label("solve_count")
-    last_solve_date = db.func.max(Solves.date).label("last_solve_date")
-    fields = granularity + [Solves.user_id, solve_count, last_solve_date]
-    grouping = granularity + [Solves.user_id]
-
-    dsc_query = db.session.query(*fields).where(
-        Dojos.dojo_id == DojoChallenges.dojo_id,
-        DojoChallenges.challenge_id == Solves.challenge_id,
-        dojo_filter
-    ).group_by(*grouping).order_by(Dojos.dojo_id, solve_count.desc(), last_solve_date)
-
-    return dsc_query
-
-
-def calculate_dojo_scores(dojo_id):
-    dsc_query = _scores_query(
-        [Dojos.dojo_id],
-        Dojos.dojo_id == dojo_id
-    )
-
-    ranks = []
-    solves = {}
-    for _, user_id, solve_count, _ in dsc_query:
-        ranks.append(user_id)
-        solves[user_id] = solve_count
-
-    return {"ranks": ranks, "solves": solves}
-
-
-def calculate_module_scores(dojo_id, module_index):
-    dsc_query = _scores_query(
-        [Dojos.dojo_id, DojoChallenges.module_index],
-        db.and_(Dojos.dojo_id == dojo_id, DojoChallenges.module_index == module_index)
-    )
-
-    ranks = []
-    solves = {}
-    for _, _, user_id, solve_count, _ in dsc_query:
-        ranks.append(user_id)
-        solves[user_id] = solve_count
-
-    return {"ranks": ranks, "solves": solves}
-
 
 def update_dojo_scores(scores, user_id):
     ranks = list(scores.get("ranks", []))
@@ -109,13 +66,26 @@ def handle_scores_update(payload, event_timestamp=None):
         ).all()
         logger.info(f"Calculating scores for {len(dojos)} public/official dojos...")
 
+    cache_keys = [
+        cache_key
+        for dojo in dojos
+        for cache_key in (
+            dojo_scores_cache_key(dojo.dojo_id),
+            *(
+                module_scores_cache_key(dojo.dojo_id, module.module_index)
+                for module in dojo.modules
+            ),
+        )
+    ]
+    revisions = capture_public_cache_revisions(cache_keys)
+
     for dojo in dojos:
         dojo_id = dojo.dojo_id
         try:
             cache_key = dojo_scores_cache_key(dojo_id)
             if not (event_timestamp and is_event_stale(cache_key, event_timestamp)):
                 dojo_data = calculate_dojo_scores(dojo_id)
-                set_cached_stat(cache_key, dojo_data)
+                set_cached_stat(cache_key, dojo_data, revision=revisions[cache_key])
         except Exception as e:
             logger.error(f"Error calculating dojo scores for dojo_id {dojo_id}: {e}", exc_info=True)
 
@@ -125,7 +95,11 @@ def handle_scores_update(payload, event_timestamp=None):
                 cache_key = module_scores_cache_key(dojo_id, module_index)
                 if not (event_timestamp and is_event_stale(cache_key, event_timestamp)):
                     module_data = calculate_module_scores(dojo_id, module_index)
-                    set_cached_stat(cache_key, module_data)
+                    set_cached_stat(
+                        cache_key,
+                        module_data,
+                        revision=revisions[cache_key],
+                    )
             except Exception as e:
                 logger.error(f"Error calculating module scores for dojo_id {dojo_id} module {module_index}: {e}", exc_info=True)
 

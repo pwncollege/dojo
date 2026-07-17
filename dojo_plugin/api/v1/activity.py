@@ -1,11 +1,11 @@
 import logging
-from datetime import datetime, timedelta
-from collections import defaultdict
 
 from flask_restx import Namespace, Resource
-from CTFd.models import db, Solves, Users
+from CTFd.models import Users
 
 from ...utils.background_stats import get_cached_stat
+from ...utils.public_stats import lock_public_stats_visibility
+from ...utils.users import can_view_user, refresh_user
 from ...worker.handlers.activity import calculate_activity, initialize_activity_for_user
 
 logger = logging.getLogger(__name__)
@@ -28,11 +28,16 @@ def get_activity_for_user(user_id):
 @activity_namespace.route("/<int:user_id>")
 class UserActivity(Resource):
     def get(self, user_id):
-        user = Users.query.get(user_id)
-        if not user:
+        lock_public_stats_visibility()
+        user = refresh_user(Users.query.get(user_id))
+        if not user or not can_view_user(user, admins=True):
             return {"success": False, "error": "User not found"}, 404
 
-        activity = get_activity_for_user(user_id)
+        activity = (
+            calculate_activity(user_id)
+            if user.hidden
+            else get_activity_for_user(user_id)
+        )
 
         return {
             "success": True,

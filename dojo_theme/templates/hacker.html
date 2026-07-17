@@ -81,10 +81,10 @@
   {% endblock %}
   
   <div class="container">
-    {% for dojo in dojos if dojo_scores.user_ranks[user.id] and dojo_scores.user_ranks[user.id][dojo.id] %}
-      {% set rank = dojo_scores.user_ranks[user.id][dojo.id] %}
-      {% set max_rank = dojo_scores.dojo_ranks[dojo.id] | length %}
-      {% set solves = dojo_scores.user_solves[user.id][dojo.id] %}
+    {% for dojo in dojos if dojo_scores.user_ranks[user.id] and dojo_scores.user_ranks[user.id][dojo.dojo_id] %}
+      {% set rank = dojo_scores.user_ranks[user.id][dojo.dojo_id] %}
+      {% set max_rank = dojo_scores.dojo_populations[dojo.dojo_id] %}
+      {% set solves = dojo_scores.user_solves[user.id][dojo.dojo_id] %}
       <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.listing', dojo=dojo.reference_id) }}">
         <h2>{{ dojo.name }}</h2>
         <h4>
@@ -99,9 +99,9 @@
 
       <div class="accordion" id="modules-{{dojo.hex_dojo_id}}">
         {% for module in dojo.modules %}
-          {% set solves = module_scores.user_solves[user.id][dojo.id][module.module_index] %}
-          {% set rank = module_scores.user_ranks[user.id][dojo.id][module.module_index] %}
-          {% set max_rank = module_scores.module_ranks[dojo.id][module.module_index] | length %}
+          {% set solves = module_scores.user_solves[user.id][dojo.dojo_id][module.module_index] %}
+          {% set rank = module_scores.user_ranks[user.id][dojo.dojo_id][module.module_index] %}
+          {% set max_rank = module_scores.module_populations[dojo.dojo_id][module.module_index] %}
           {% call(header) accordion_item("modules-{}".format(dojo.hex_dojo_id), loop.index) %}
             {% if header %}
               <h4 class="accordion-item-name">{{ module.name }}</h4>
@@ -114,7 +114,7 @@
             {% else %}
               {% if module.challenges %}
                 {% for challenge in module.challenges %}
-                {% set solved = "challenge-solved" if dojo.id in user_solves and module.id in user_solves[dojo.id] and challenge.challenge_id in user_solves[dojo.id][module.id] else "challenge-unsolved" %}
+                {% set solved = "challenge-solved" if dojo.dojo_id in user_solves and module.id in user_solves[dojo.dojo_id] and challenge.id in user_solves[dojo.dojo_id][module.id] else "challenge-unsolved" %}
                     {% if solved == "challenge-solved" %}
                     <div class="challenge-row">
                       <div class="challenge-info">
@@ -128,7 +128,7 @@
                           {% endif %}
                         </span>
                       </h4>
-                      <h6>Time of First Successful Submission: {{user_solves[dojo.id][module.id][challenge.challenge_id]}}</h6>
+                      <h6>Time of First Successful Submission: {{user_solves[dojo.dojo_id][module.id][challenge.id]}}</h6>
                       </div>
                     </div>
                     <br>

@@ -1,8 +1,7 @@
 import logging
 
-from sqlalchemy import event
+from sqlalchemy import event, inspect
 from sqlalchemy.orm.session import Session
-from CTFd.cache import cache
 from CTFd.models import Users, Solves, Awards
 
 from ..models import (
@@ -19,12 +18,9 @@ from .events import (
     publish_activity_event,
     publish_challenge_solve_event,
 )
+from .public_stats import mark_user_visibility_transition
 
 logger = logging.getLogger(__name__)
-
-
-def invalidate_scoreboard_cache():
-    pass
 
 
 # TODO: Consider deduplicating events when a single action triggers
@@ -43,8 +39,6 @@ def invalidate_scoreboard_cache():
 @event.listens_for(Emojis, 'after_insert', propagate=True)
 @event.listens_for(Emojis, 'after_delete', propagate=True)
 def hook_object_creation(mapper, connection, target):
-    invalidate_scoreboard_cache()
-
     if isinstance(target, Solves):
         logger.info(f"Solve listener fired: challenge_id={target.challenge_id}, user_id={target.user_id}")
         queue_stat_event(lambda u_id=target.user_id, c_id=target.challenge_id, s_date=target.date: publish_challenge_solve_event(u_id, c_id, s_date))
@@ -72,9 +66,14 @@ def hook_object_creation(mapper, connection, target):
 @event.listens_for(Emojis, 'after_update', propagate=True)
 def hook_object_update(mapper, connection, target):
     if Session.object_session(target).is_modified(target, include_collections=False):
-        invalidate_scoreboard_cache()
-
-        if isinstance(target, Dojos):
+        if isinstance(target, Users):
+            state = inspect(target)
+            if any(
+                state.attrs[field].history.has_changes()
+                for field in ("hidden", "banned")
+            ):
+                mark_user_visibility_transition(connection, target.id)
+        elif isinstance(target, Dojos):
             dojo_id = target.dojo_id
             queue_stat_event(lambda d_id=dojo_id: publish_dojo_stats_event(d_id))
             queue_stat_event(lambda d_id=dojo_id: publish_scoreboard_event("dojo", d_id))

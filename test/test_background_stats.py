@@ -30,6 +30,13 @@ def redis_keys(pattern):
         return result.split('\n')
     return []
 
+def redis_data_keys(pattern):
+    return [
+        key
+        for key in redis_keys(pattern)
+        if not key.endswith((":updated", ":visibility"))
+    ]
+
 def redis_xadd(stream, *args):
     return redis_cli("XADD", stream, *args)
 
@@ -528,11 +535,8 @@ def test_module_scoreboard_updates(stats_test_dojo, stats_test_user):
     assert user_entry is not None, f"User {user_name} should be in module scoreboard"
 
 def test_scores_cold_start_initialization():
-    dojo_scores_keys = redis_keys("stats:scores:dojo:*")
-    dojo_scores_keys = [k for k in dojo_scores_keys if not k.endswith(":updated")]
-
-    module_scores_keys = redis_keys("stats:scores:module:*")
-    module_scores_keys = [k for k in module_scores_keys if not k.endswith(":updated")]
+    dojo_scores_keys = redis_data_keys("stats:scores:dojo:*")
+    module_scores_keys = redis_data_keys("stats:scores:module:*")
 
     if not dojo_scores_keys or not module_scores_keys:
         result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
@@ -559,8 +563,7 @@ def test_scores_update_on_solve(stats_test_dojo, stats_test_user):
     response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
     assert response.status_code == 200
 
-    dojo_scores_keys_before = set(redis_keys("stats:scores:dojo:*"))
-    dojo_scores_keys_before = {k for k in dojo_scores_keys_before if not k.endswith(":updated")}
+    dojo_scores_keys_before = set(redis_data_keys("stats:scores:dojo:*"))
 
     start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
     solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
@@ -568,8 +571,7 @@ def test_scores_update_on_solve(stats_test_dojo, stats_test_user):
     start_time = time.time()
     updated = False
     while time.time() - start_time < 10:
-        dojo_scores_keys_after = set(redis_keys("stats:scores:dojo:*"))
-        dojo_scores_keys_after = {k for k in dojo_scores_keys_after if not k.endswith(":updated")}
+        dojo_scores_keys_after = set(redis_data_keys("stats:scores:dojo:*"))
         if dojo_scores_keys_after:
             updated = True
             break
@@ -577,7 +579,7 @@ def test_scores_update_on_solve(stats_test_dojo, stats_test_user):
 
     assert updated, "scores cache should be updated after solve"
 
-    dojo_scores_keys = [k for k in dojo_scores_keys_after if not k.endswith(":updated")]
+    dojo_scores_keys = list(dojo_scores_keys_after)
     assert len(dojo_scores_keys) >= 1, "At least one dojo_scores cache should exist"
 
     dojo_scores_data = redis_get(dojo_scores_keys[0])
@@ -841,8 +843,7 @@ def test_module_scores_update_on_solve(stats_test_dojo, stats_test_user):
     response = user_session.get(f"{DOJO_URL}/dojo/{stats_test_dojo}/join/")
     assert response.status_code == 200
 
-    module_scores_keys_before = set(redis_keys("stats:scores:module:*"))
-    module_scores_keys_before = {k for k in module_scores_keys_before if not k.endswith(":updated")}
+    module_scores_keys_before = set(redis_data_keys("stats:scores:module:*"))
 
     start_challenge(stats_test_dojo, "hello", "apple", session=user_session)
     solve_challenge(stats_test_dojo, "hello", "apple", session=user_session, user=user_name)
@@ -850,8 +851,7 @@ def test_module_scores_update_on_solve(stats_test_dojo, stats_test_user):
     start_time = time.time()
     updated = False
     while time.time() - start_time < 10:
-        module_scores_keys_after = set(redis_keys("stats:scores:module:*"))
-        module_scores_keys_after = {k for k in module_scores_keys_after if not k.endswith(":updated")}
+        module_scores_keys_after = set(redis_data_keys("stats:scores:module:*"))
         if module_scores_keys_after:
             updated = True
             break
@@ -859,7 +859,7 @@ def test_module_scores_update_on_solve(stats_test_dojo, stats_test_user):
 
     assert updated, "module scores cache should be updated after solve"
 
-    module_scores_keys = [k for k in module_scores_keys_after if not k.endswith(":updated")]
+    module_scores_keys = list(module_scores_keys_after)
     assert len(module_scores_keys) >= 1, "At least one module_scores cache should exist"
 
     module_scores_data = redis_get(module_scores_keys[0])

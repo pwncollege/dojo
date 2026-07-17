@@ -8,7 +8,7 @@ from CTFd.utils.user import get_current_user
 from ...models import Dojos, DojoModules
 from ...utils.dojo import dojo_route
 from ...utils.awards import get_belts, get_viewable_emojis
-from ...utils.background_stats import get_cached_stat
+from ...utils.background_stats import get_public_cached_stat
 from ...utils.crews import aggregate_crews, parse_crew_tag
 
 logger = logging.getLogger(__name__)
@@ -38,14 +38,14 @@ def get_scoreboard_for(model, duration):
     cache_key = model_cache_key(model, "scoreboard", duration)
     if cache_key is None:
         return []
-    return get_cached_stat(cache_key) or []
+    return get_public_cached_stat(cache_key) or []
 
 
 def get_crews_for(model, duration):
     cache_key = model_cache_key(model, "crews", duration)
     if cache_key is None:
         return []
-    cached = get_cached_stat(cache_key)
+    cached = get_public_cached_stat(cache_key)
     if cached is not None:
         return cached
     return aggregate_crews(get_scoreboard_for(model, duration))

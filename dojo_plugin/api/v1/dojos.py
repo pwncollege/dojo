@@ -16,11 +16,13 @@ from sqlalchemy.sql import and_
 
 from .user import authed_only_cli, authed_only_ssh
 from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
-                       DojoUsers, Emojis, SurveyResponses)
+                       DojoUsers, Emojis, SurveyResponses,
+                       UserVisibilityUpdates)
 from ...utils import is_challenge_locked, render_markdown
 from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_from_spec
 from ...utils.image_pulls import enqueue_dojo_image_pulls
 from ...utils.stats import get_dojo_stats
+from ...utils.public_stats import lock_public_stats_visibility
 from ...utils.events import publish_dojo_stats_event, publish_scoreboard_event
 from ...utils.awards import dojo_gives_awards, grant_award
 
@@ -221,8 +223,24 @@ class DojoModuleList(Resource):
 class DojoSolveList(Resource):
     @dojo_route
     def get(self, dojo):
+        lock_public_stats_visibility()
         username = request.args.get("username")
-        user = Users.query.filter_by(name=username, hidden=False).first() if username else get_current_user()
+        user = (
+            Users.query
+            .outerjoin(
+                UserVisibilityUpdates,
+                UserVisibilityUpdates.user_id == Users.id,
+            )
+            .filter(
+                Users.name == username,
+                ~Users.hidden,
+                ~Users.banned,
+                UserVisibilityUpdates.user_id.is_(None),
+            )
+            .first()
+            if username
+            else get_current_user()
+        )
         if not user:
             return {"error": "User not found"}, 400
 

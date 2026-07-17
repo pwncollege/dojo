@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 
 from . import get_all_containers, DojoChallenges
-from .background_stats import get_cached_stat
+from .background_stats import get_cached_stat, get_public_cached_stat
 
 CACHE_KEY_CONTAINERS = "stats:containers"
 
@@ -105,7 +105,7 @@ def calculate_dojo_stats(dojo):
 
 def get_dojo_stats(dojo):
     cache_key = f"stats:dojo:{dojo.reference_id}"
-    cached = get_cached_stat(cache_key)
+    cached = get_public_cached_stat(cache_key)
     if cached:
         for solve in cached.get('recent_solves', []):
             if solve.get('date') and isinstance(solve['date'], str):
@@ -125,7 +125,7 @@ def get_dojo_stats(dojo):
 
 def get_challenge_solves(module):
     cache_key = f"stats:challenge_solves:module:{module.dojo_id}:{module.module_index}"
-    cached = get_cached_stat(cache_key)
+    cached = get_public_cached_stat(cache_key)
     if cached:
         return {int(k): v for k, v in cached.items()}
     return None

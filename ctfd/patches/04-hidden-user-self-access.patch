@@ -1,0 +1,89 @@
+diff --git a/CTFd/api/v1/users.py b/CTFd/api/v1/users.py
+index 954c8ee..3cbfda6 100644
+--- a/CTFd/api/v1/users.py
++++ b/CTFd/api/v1/users.py
+@@ -40,2 +40,19 @@ users_namespace = Namespace("users", description="Endpoint to retrieve Users")
+-
++
++def lock_user_visibility():
++    from CTFd.plugins.dojo_plugin.utils.public_stats import lock_public_stats_visibility
++
++    lock_public_stats_visibility()
++
++
++def is_current_user(user):
++    current_user = get_current_user()
++    return current_user is not None and current_user.id == user.id
++
++
++def visibility_transition_pending(user):
++    from CTFd.plugins.dojo_plugin.models import UserVisibilityUpdates
++
++    return UserVisibilityUpdates.query.filter_by(user_id=user.id).first() is not None
++
++
+ UserModel = sqlalchemy_to_pydantic(Users)
+@@ -189,5 +206,12 @@ class UserPublic(Resource):
+     def get(self, user_id):
+-        user = Users.query.filter_by(id=user_id).first_or_404()
++        lock_user_visibility()
++        user = Users.query.populate_existing().filter_by(id=user_id).first_or_404()
+-
++
+-        if (user.banned or user.hidden) and is_admin() is False:
++        if (
++            user.banned
++            or (
++                (user.hidden or visibility_transition_pending(user))
++                and not is_current_user(user)
++            )
++        ) and is_admin() is False:
+             abort(404)
+@@ -398,5 +422,12 @@ class UserPublicSolves(Resource):
+     def get(self, user_id):
+-        user = Users.query.filter_by(id=user_id).first_or_404()
++        lock_user_visibility()
++        user = Users.query.populate_existing().filter_by(id=user_id).first_or_404()
+-
++
+-        if (user.banned or user.hidden) and is_admin() is False:
++        if (
++            user.banned
++            or (
++                (user.hidden or visibility_transition_pending(user))
++                and not is_current_user(user)
++            )
++        ) and is_admin() is False:
+             abort(404)
+@@ -421,5 +452,12 @@ class UserPublicFails(Resource):
+     def get(self, user_id):
+-        user = Users.query.filter_by(id=user_id).first_or_404()
++        lock_user_visibility()
++        user = Users.query.populate_existing().filter_by(id=user_id).first_or_404()
+-
++
+-        if (user.banned or user.hidden) and is_admin() is False:
++        if (
++            user.banned
++            or (
++                (user.hidden or visibility_transition_pending(user))
++                and not is_current_user(user)
++            )
++        ) and is_admin() is False:
+             abort(404)
+@@ -451,5 +489,12 @@ class UserPublicAwards(Resource):
+     def get(self, user_id):
+-        user = Users.query.filter_by(id=user_id).first_or_404()
++        lock_user_visibility()
++        user = Users.query.populate_existing().filter_by(id=user_id).first_or_404()
+-
++
+-        if (user.banned or user.hidden) and is_admin() is False:
++        if (
++            user.banned
++            or (
++                (user.hidden or visibility_transition_pending(user))
++                and not is_current_user(user)
++            )
++        ) and is_admin() is False:
+             abort(404)
