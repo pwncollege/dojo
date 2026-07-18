@@ -9,12 +9,27 @@ on:
     - cron: "42 06 * * *"
 jobs:
   test:
-    name: "${{ matrix.mode }} DOJO Test"
+    name: "${{ matrix.name }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: ${{ matrix.job-timeout }}
     strategy:
       matrix:
-        mode: [singlenode, multinode]
+        include:
+          - name: singlenode DOJO Test
+            mode: singlenode
+            suite: standard
+            job-timeout: 60
+            test-timeout: 15
+          - name: multinode DOJO Test
+            mode: multinode
+            suite: standard
+            job-timeout: 60
+            test-timeout: 15
+          - name: singlenode Database Restore Integration
+            mode: singlenode
+            suite: database-restore
+            job-timeout: 90
+            test-timeout: 40
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +63,7 @@ jobs:
       - name: Set cache mode
         run: |
           if [ "${{ matrix.mode }}" = "singlenode" ] && \
+             [ "${{ matrix.suite }}" = "standard" ] && \
              { [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; }; then
             echo "SAVE_CACHE=yes" >> "$GITHUB_ENV"
           else
@@ -132,16 +148,23 @@ jobs:
         run: |
           ./deploy.sh -g -D /mnt/data/docker -W /mnt/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
 
-      - name: Run ${{ matrix.mode }} dojo tests
-        timeout-minutes: 15
+      - name: Run ${{ matrix.name }}
+        timeout-minutes: ${{ matrix.test-timeout }}
         run: |
-          ./deploy.sh -g -D /mnt/data/docker -W /mnt/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C -N -t
+          if [ "${{ matrix.suite }}" = "database-restore" ]; then
+            test_selection=(-m database_restore_integration)
+          else
+            test_selection=(-m "not database_restore_integration")
+          fi
+          ./deploy.sh -g -D /mnt/data/docker -W /mnt/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C -N -t "${test_selection[@]}"
 
       - name: Upload coverage reports to Codecov
         if: matrix.mode == 'singlenode'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          flags: ${{ matrix.suite }}
+          name: ${{ matrix.name }}
 
       - name: Output logs
         if: always()

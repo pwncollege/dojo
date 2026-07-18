@@ -63,10 +63,13 @@ define DISCORD_CLIENT_SECRET
 define DISCORD_BOT_TOKEN
 define DISCORD_GUILD_ID
 define DB_HOST db
+define DB_PORT 5432
 define DB_NAME ctfd
 define DB_USER ctfd
 define DB_PASS ctfd
 define BACKUP_AES_KEY_FILE
+define DOJO_RESTORE_READY_TIMEOUT_SECONDS 300
+define DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS 21600
 define S3_BACKUP_BUCKET
 define AWS_DEFAULT_REGION
 define AWS_ACCESS_KEY_ID
@@ -77,6 +80,9 @@ define ENABLE_SPLUNK false
 
 mv /data/.config.env /data/config.env
 . /data/config.env
+export DOJO_ENV DOJO_HOST
+export DOJO_RESTORE_READY_TIMEOUT_SECONDS
+export DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS
 
 # Configure Docker daemon for Splunk logging if enabled
 if [ "${ENABLE_SPLUNK}" = "true" ]; then

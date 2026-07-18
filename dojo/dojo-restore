@@ -1,0 +1,2736 @@
+#!/usr/bin/python3
+
+import argparse
+import base64
+import contextlib
+import datetime
+import fcntl
+import hashlib
+import hmac
+import http.client
+import json
+import os
+import pathlib
+import secrets
+import signal
+import socket
+import ssl
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.parse
+import uuid
+
+
+STATE_DIRECTORY = pathlib.Path("/data/.dojo-restore")
+BACKUP_DIRECTORY = pathlib.Path("/data/backups")
+STATE_OWNER_UID = 0
+BACKUP_OWNER_UID = 0
+BACKUP_PARTIAL_PREFIX = ".dojo-backup."
+JOURNAL_LIMIT = 64 * 1024
+DATABASE_CLIENTS = (
+    "ctfd",
+    "stats-worker",
+    "image-pull-worker",
+    "sshd",
+    "pgbouncer",
+)
+STOP_ORDER = (
+    "nginx",
+    "sshd",
+    "image-pull-worker",
+    "stats-worker",
+    "ctfd",
+    "pgbouncer",
+)
+START_ORDER = (
+    "cache",
+    "pgbouncer",
+    "stats-worker",
+    "image-pull-worker",
+    "sshd",
+    "ctfd",
+    "nginx",
+)
+SNAPSHOT_SERVICES = DATABASE_CLIENTS + ("cache", "nginx")
+LEGACY_SNAPSHOT_SERVICES = DATABASE_CLIENTS + ("cache",)
+JOURNAL_PHASES = {
+    "snapshotting",
+    "fenced",
+    "ready",
+    "restoring",
+    "restored",
+    "warming",
+    "validating",
+    "committed",
+    "committed_exposed",
+    "rolling_back",
+    "rollback_warming",
+    "rollback_validating",
+    "rolled_back",
+    "rolled_back_exposed",
+}
+FORWARD_TERMINAL_PHASES = {"committed", "committed_exposed"}
+ROLLBACK_TERMINAL_PHASES = {"rolled_back", "rolled_back_exposed"}
+PRE_MUTATION_PHASES = {"snapshotting", "fenced", "ready"}
+RESTORE_APPLICATION_NAME = "dojo-restore"
+SNAPSHOT_APPLICATION_NAME = "dojo-restore-snapshot"
+BACKUP_APPLICATION_NAME = "dojo-backup"
+MAINTENANCE_APPLICATION_NAMES = (
+    RESTORE_APPLICATION_NAME,
+    SNAPSHOT_APPLICATION_NAME,
+    BACKUP_APPLICATION_NAME,
+)
+INSTALLATION_ID_FILE = "installation-id"
+MAINTENANCE_SECRET_FILE = "maintenance-secret"
+INSTALLATION_ID_LENGTH = 32
+MAINTENANCE_SECRET_LENGTH = 64
+APPLICATION_RESPONSE_MARKER = b"'csrfNonce':"
+RESTORE_TRANSACTION_SIZE = 100
+PRIVATE_VALIDATION_CONTAINER = "dojo-restore-validation"
+PRIVATE_VALIDATION_LABEL = "pwn.college.dojo-restore-validation"
+CACHE_VALIDATION_PROGRAM = """
+from CTFd import create_app
+
+app = create_app()
+with app.app_context():
+    from CTFd.plugins.dojo_plugin.worker.handlers.activity import initialize_all_activity
+    from CTFd.plugins.dojo_plugin.worker.handlers.awards import initialize_all_belts, initialize_all_emojis
+    from CTFd.plugins.dojo_plugin.worker.handlers.containers import initialize_all_container_stats
+    from CTFd.plugins.dojo_plugin.worker.handlers.dojo_stats import initialize_all_dojo_stats
+    from CTFd.plugins.dojo_plugin.worker.handlers.scoreboard import initialize_all_scoreboards
+    from CTFd.plugins.dojo_plugin.worker.handlers.scores import initialize_all_scores
+
+    initialize_all_dojo_stats()
+    initialize_all_scoreboards()
+    initialize_all_scores()
+    initialize_all_belts()
+    initialize_all_emojis()
+    initialize_all_container_stats()
+    initialize_all_activity()
+"""
+APPLICATION_VALIDATION_PROGRAM = """
+from CTFd import create_app
+
+app = create_app()
+with app.test_client() as client:
+    response = client.get("/")
+    response.get_data()
+    if response.status_code >= 400:
+        raise RuntimeError(f"application returned HTTP {response.status_code}")
+"""
+DEFAULT_READY_TIMEOUT = 300
+DEFAULT_COLD_START_TIMEOUT = 21_600
+MAXIMUM_TIMEOUT = 604_800
+COMMAND_TIMEOUT_GRACE = 2
+
+
+class RestoreError(RuntimeError):
+    pass
+
+
+class RestoreInterrupted(RestoreError):
+    pass
+
+
+class LoopbackHTTPSConnection(http.client.HTTPSConnection):
+    def connect(self):
+        self.sock = socket.create_connection(
+            ("127.0.0.1", self.port),
+            self.timeout,
+            self.source_address,
+        )
+        try:
+            self.sock = self._context.wrap_socket(
+                self.sock,
+                server_hostname=self.host,
+            )
+        except BaseException:
+            self.sock.close()
+            self.sock = None
+            raise
+
+
+def validate_server_identity(identity):
+    if not isinstance(identity, dict) or set(identity) != {
+        "system_identifier",
+        "server_version_num",
+    }:
+        raise RestoreError("restore journal has an invalid PostgreSQL server identity")
+    system_identifier = identity["system_identifier"]
+    if (
+        not isinstance(system_identifier, str)
+        or not system_identifier.isdecimal()
+        or not 1 <= int(system_identifier) <= 0xFFFFFFFFFFFFFFFF
+    ):
+        raise RestoreError("restore journal has an invalid PostgreSQL system identifier")
+    if (
+        type(identity["server_version_num"]) is not int
+        or not 90_000 <= identity["server_version_num"] <= 9_999_999
+    ):
+        raise RestoreError("restore journal has an invalid PostgreSQL server version")
+
+
+def validate_database_target(target):
+    if not isinstance(target, dict) or set(target) != {
+        "host",
+        "port",
+        "name",
+        "user",
+        "server",
+    }:
+        raise RestoreError("restore journal has an invalid database target")
+    for field in ("host", "name", "user"):
+        validate_text(target[field], f"target {field}", limit=1024)
+    if type(target["port"]) is not int or not 1 <= target["port"] <= 65535:
+        raise RestoreError("restore journal has an invalid database target port")
+    validate_server_identity(target["server"])
+
+
+def validate_application_role(role):
+    if not isinstance(role, dict) or set(role) != {"name", "login"}:
+        raise RestoreError("restore journal has an invalid application role")
+    validate_text(role["name"], "application role", limit=1024)
+    if not isinstance(role["login"], bool):
+        raise RestoreError("restore journal has an invalid application role login state")
+
+
+def validate_text(value, field, *, optional=False, allow_empty=False, limit=8192):
+    if optional and value is None:
+        return
+    if (
+        not isinstance(value, str)
+        or (not value and not allow_empty)
+        or "\x00" in value
+        or len(value.encode()) > limit
+    ):
+        raise RestoreError(f"restore journal has invalid database {field}")
+
+
+def validate_database_metadata(metadata):
+    if not isinstance(metadata, dict) or set(metadata) != {
+        "oid",
+        "owner",
+        "encoding",
+        "locale_provider",
+        "collate",
+        "ctype",
+        "locale",
+        "icu_rules",
+        "collation_version",
+        "tablespace",
+        "allow_connections",
+        "is_template",
+        "connection_limit",
+        "acl_default",
+        "acl",
+        "comment",
+        "security_labels",
+        "settings",
+    }:
+        raise RestoreError("restore journal has invalid database metadata")
+    if type(metadata["oid"]) is not int or not 16_384 <= metadata["oid"] <= 0xFFFFFFFF:
+        raise RestoreError("restore journal has invalid database oid")
+    for field in ("owner", "encoding", "collate", "ctype", "tablespace"):
+        validate_text(metadata[field], field, limit=1024)
+    if metadata["locale_provider"] not in {"builtin", "icu", "libc"}:
+        raise RestoreError("restore journal has invalid database locale provider")
+    validate_text(metadata["locale"], "locale", optional=True, limit=8192)
+    validate_text(
+        metadata["icu_rules"],
+        "icu rules",
+        optional=True,
+        allow_empty=True,
+        limit=32768,
+    )
+    validate_text(
+        metadata["collation_version"],
+        "collation version",
+        optional=True,
+        limit=8192,
+    )
+    if metadata["locale_provider"] in {"builtin", "icu"} and metadata["locale"] is None:
+        raise RestoreError("restore journal is missing the database locale")
+    if metadata["locale_provider"] != "icu" and metadata["icu_rules"] is not None:
+        raise RestoreError("restore journal has unexpected database ICU rules")
+    if not isinstance(metadata["allow_connections"], bool) or not isinstance(
+        metadata["is_template"], bool
+    ):
+        raise RestoreError("restore journal has invalid database lifecycle metadata")
+    if (
+        type(metadata["connection_limit"]) is not int
+        or not -1 <= metadata["connection_limit"] <= 2_147_483_647
+    ):
+        raise RestoreError("restore journal has invalid database connection limit")
+    if not isinstance(metadata["acl_default"], bool):
+        raise RestoreError("restore journal has invalid database ACL state")
+    if not isinstance(metadata["acl"], list) or len(metadata["acl"]) > 4096:
+        raise RestoreError("restore journal has invalid database ACL")
+    for entry in metadata["acl"]:
+        if not isinstance(entry, dict) or set(entry) != {
+            "grantor",
+            "grantee",
+            "privilege",
+            "grantable",
+        }:
+            raise RestoreError("restore journal has invalid database ACL entry")
+        validate_text(entry["grantor"], "ACL grantor", limit=1024)
+        validate_text(entry["grantee"], "ACL grantee", optional=True, limit=1024)
+        if entry["privilege"] not in {"CONNECT", "CREATE", "TEMPORARY"} or not isinstance(
+            entry["grantable"], bool
+        ):
+            raise RestoreError("restore journal has invalid database ACL privilege")
+        if entry["grantor"] != metadata["owner"] or (
+            entry["grantee"] is None and entry["grantable"]
+        ):
+            raise RestoreError("restore journal has unsupported database ACL grantor")
+    if metadata["acl_default"] and metadata["acl"]:
+        raise RestoreError("restore journal has inconsistent database ACL metadata")
+    validate_text(
+        metadata["comment"],
+        "comment",
+        optional=True,
+        allow_empty=True,
+        limit=32768,
+    )
+    if (
+        not isinstance(metadata["security_labels"], list)
+        or len(metadata["security_labels"]) > 128
+    ):
+        raise RestoreError("restore journal has invalid database security labels")
+    for label in metadata["security_labels"]:
+        if not isinstance(label, dict) or set(label) != {"provider", "label"}:
+            raise RestoreError("restore journal has invalid database security label")
+        validate_text(label["provider"], "security label provider", limit=1024)
+        validate_text(label["label"], "security label", allow_empty=True, limit=32768)
+    if not isinstance(metadata["settings"], list) or len(metadata["settings"]) > 4096:
+        raise RestoreError("restore journal has invalid database settings")
+    for setting in metadata["settings"]:
+        if not isinstance(setting, dict) or set(setting) != {"role", "name", "value"}:
+            raise RestoreError("restore journal has invalid database setting")
+        validate_text(setting["role"], "setting role", optional=True, limit=1024)
+        validate_text(setting["name"], "setting name", limit=1024)
+        if not isinstance(setting["value"], str) or "\x00" in setting["value"] or len(
+            setting["value"].encode()
+        ) > 32768:
+            raise RestoreError("restore journal has invalid database setting value")
+
+
+def configured_timeout(name, default):
+    value = os.environ.get(name, str(default))
+    try:
+        timeout = int(value)
+    except ValueError as error:
+        raise RestoreError(f"{name} must be an integer number of seconds") from error
+    if not 1 <= timeout <= MAXIMUM_TIMEOUT:
+        raise RestoreError(f"{name} must be between 1 and {MAXIMUM_TIMEOUT} seconds")
+    return timeout
+
+
+def remaining_before_deadline(deadline, error):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise RestoreError(error)
+    return remaining
+
+
+def wait_for_retry(deadline, error):
+    remaining = remaining_before_deadline(deadline, error)
+    time.sleep(min(1, remaining))
+
+
+def application_name(base, installation_id):
+    return f"{base}:{installation_id}"
+
+
+def validate_installation_id(value):
+    if (
+        not isinstance(value, str)
+        or len(value) != INSTALLATION_ID_LENGTH
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise RestoreError("restore installation identity is invalid")
+
+
+def scram_verifier(password):
+    salt = secrets.token_bytes(16)
+    iterations = 4096
+    salted_password = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode(),
+        salt,
+        iterations,
+    )
+    client_key = hmac.new(salted_password, b"Client Key", hashlib.sha256).digest()
+    stored_key = hashlib.sha256(client_key).digest()
+    server_key = hmac.new(salted_password, b"Server Key", hashlib.sha256).digest()
+    return (
+        f"SCRAM-SHA-256${iterations}:"
+        f"{base64.b64encode(salt).decode()}$"
+        f"{base64.b64encode(stored_key).decode()}:"
+        f"{base64.b64encode(server_key).decode()}"
+    )
+
+
+def open_managed_directory(path, *, create, mode, owner_uid, exact_mode, error):
+    path = pathlib.Path(path)
+    if path.name in {"", ".", ".."}:
+        raise RestoreError(error)
+    parent_descriptor = None
+    directory_descriptor = None
+    created = False
+    try:
+        parent_descriptor = os.open(
+            path.parent,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+        if create:
+            try:
+                os.mkdir(path.name, mode, dir_fd=parent_descriptor)
+                created = True
+            except FileExistsError:
+                pass
+            if created:
+                os.chmod(
+                    path.name,
+                    mode,
+                    dir_fd=parent_descriptor,
+                    follow_symlinks=False,
+                )
+        directory_descriptor = os.open(
+            path.name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=parent_descriptor,
+        )
+        if created:
+            os.fchmod(directory_descriptor, mode)
+        directory_stat = os.fstat(directory_descriptor)
+        trusted_mode = (
+            stat.S_IMODE(directory_stat.st_mode) == mode
+            if exact_mode
+            else not directory_stat.st_mode & 0o022
+        )
+        if (
+            not stat.S_ISDIR(directory_stat.st_mode)
+            or directory_stat.st_uid != owner_uid
+            or not trusted_mode
+        ):
+            raise RestoreError(error)
+        if created:
+            os.fsync(directory_descriptor)
+        os.fsync(parent_descriptor)
+        return directory_descriptor
+    except FileNotFoundError:
+        if not create:
+            return None
+        raise RestoreError(error)
+    except RestoreError:
+        raise
+    except OSError as caught:
+        raise RestoreError(error) from caught
+    finally:
+        if directory_descriptor is not None and (
+            sys.exc_info()[0] is not None
+        ):
+            os.close(directory_descriptor)
+        if parent_descriptor is not None:
+            os.close(parent_descriptor)
+
+
+def pause_for_test(point):
+    pause_points = {
+        value.strip()
+        for value in (
+            os.environ.get("DOJO_RESTORE_TEST_PAUSE_POINTS", "")
+            + ","
+            + os.environ.get("DOJO_RESTORE_TEST_PAUSE_PHASES", "")
+        ).split(",")
+        if value.strip()
+    }
+    if point in pause_points:
+        os.kill(os.getpid(), signal.SIGSTOP)
+
+
+class CommandRunner:
+    def __init__(self):
+        self.process = None
+
+    def run(
+        self,
+        arguments,
+        *,
+        stdin=None,
+        stdout=None,
+        capture_output=False,
+        check=True,
+        timeout=DEFAULT_READY_TIMEOUT,
+        environment=None,
+    ):
+        if capture_output and stdout is not None:
+            raise ValueError("stdout and capture_output cannot be combined")
+        process = subprocess.Popen(
+            arguments,
+            stdin=stdin,
+            stdout=subprocess.PIPE if capture_output else stdout,
+            stderr=subprocess.PIPE,
+            env=environment,
+            start_new_session=True,
+        )
+        self.process = process
+        try:
+            process_stdout, process_stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            raise RestoreError(
+                f"command timed out after {timeout} seconds: {' '.join(arguments)}"
+            ) from error
+        except BaseException:
+            if process.poll() is None:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+            raise
+        finally:
+            self.process = None
+        result = subprocess.CompletedProcess(
+            arguments,
+            process.returncode,
+            process_stdout,
+            process_stderr,
+        )
+        if check and result.returncode:
+            error = (process_stderr or b"").decode(errors="replace")[-8000:]
+            raise RestoreError(
+                f"command failed ({result.returncode}): {' '.join(arguments)}\n{error}"
+            )
+        return result
+
+    def interrupt(self):
+        if self.process is not None and self.process.poll() is None:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(self.process.pid, signal.SIGKILL)
+
+
+class DatabaseTarget:
+    def __init__(self, host, port, name, user, password):
+        for value, field in ((host, "host"), (name, "name"), (user, "user")):
+            if (
+                not isinstance(value, str)
+                or not value
+                or "\x00" in value
+                or len(value.encode()) > 1024
+            ):
+                raise RestoreError(f"invalid configured database {field}")
+        try:
+            port = int(port)
+        except (TypeError, ValueError) as error:
+            raise RestoreError("configured database port must be an integer") from error
+        if not 1 <= port <= 65535:
+            raise RestoreError("configured database port must be between 1 and 65535")
+        if not isinstance(password, str) or "\x00" in password:
+            raise RestoreError("invalid configured database password")
+        if name in {"postgres", "template0", "template1"}:
+            raise RestoreError(
+                "restore database must not be a PostgreSQL maintenance database"
+            )
+        self.host = host
+        self.port = port
+        self.name = name
+        self.user = user
+        self.password = password
+
+    @classmethod
+    def from_environment(cls):
+        return cls(
+            os.environ.get("DB_HOST", "db"),
+            os.environ.get("DB_PORT", "5432"),
+            os.environ.get("DB_NAME", "ctfd"),
+            os.environ.get("DB_USER", "ctfd"),
+            os.environ.get("DB_PASS", "ctfd"),
+        )
+
+    def configuration(self):
+        return {
+            "host": self.host,
+            "port": self.port,
+            "name": self.name,
+            "user": self.user,
+        }
+
+    def journal_target(self, server_identity):
+        validate_server_identity(server_identity)
+        return {**self.configuration(), "server": server_identity}
+
+    def matches(self, journal_target):
+        validate_database_target(journal_target)
+        return self.configuration() == {
+            field: journal_target[field]
+            for field in ("host", "port", "name", "user")
+        }
+
+    def database_url(self):
+        user = urllib.parse.quote(self.user, safe="")
+        password = urllib.parse.quote(self.password, safe="")
+        database = urllib.parse.quote(self.name, safe="")
+        host = urllib.parse.quote(self.host, safe="")
+        if ":" in self.host:
+            host = f"[{urllib.parse.quote(self.host, safe=':')}]"
+        return (
+            f"postgresql+psycopg2://{user}:{password}@{host}:{self.port}/{database}"
+        )
+
+    def with_credentials(self, user, password):
+        return DatabaseTarget(
+            self.host,
+            self.port,
+            self.name,
+            user,
+            password,
+        )
+
+    def with_database(self, name):
+        return DatabaseTarget(
+            self.host,
+            self.port,
+            name,
+            self.user,
+            self.password,
+        )
+
+    def run_client(
+        self,
+        runner,
+        program,
+        arguments=(),
+        *,
+        database=None,
+        connect=False,
+        application_name=None,
+        input_stream=False,
+        **options,
+    ):
+        if connect and application_name is None:
+            raise RestoreError(
+                "connected database maintenance clients require an application name"
+            )
+        timeout = options.pop("timeout", DEFAULT_READY_TIMEOUT)
+        if timeout is None or timeout <= 0:
+            raise RestoreError("database client command requires a positive timeout")
+        timeout_seconds = max(1, int(timeout + 0.999))
+        timeout_milliseconds = min(timeout_seconds * 1000, 2_147_483_647)
+        command = [
+            "docker",
+            "exec",
+            "-e",
+            "PGPASSWORD",
+            "-e",
+            "PGCONNECT_TIMEOUT",
+            "-e",
+            "PGOPTIONS",
+        ]
+        environment = {
+            **os.environ,
+            "PGPASSWORD": self.password,
+            "PGCONNECT_TIMEOUT": str(timeout_seconds),
+            "PGOPTIONS": (
+                f"-c statement_timeout={timeout_milliseconds} "
+                f"-c lock_timeout={timeout_milliseconds}"
+            ),
+        }
+        if application_name is not None:
+            command.extend(("-e", "PGAPPNAME"))
+            environment["PGAPPNAME"] = application_name
+        if input_stream:
+            command.append("-i")
+        command.extend(
+            (
+                "db",
+                "timeout",
+                "--signal=TERM",
+                f"--kill-after={COMMAND_TIMEOUT_GRACE}s",
+                f"{timeout_seconds}s",
+                program,
+            )
+        )
+        if connect:
+            command.extend(
+                (
+                    f"--host={self.host}",
+                    f"--port={self.port}",
+                    f"--username={self.user}",
+                    f"--dbname={database or self.name}",
+                )
+            )
+        command.extend(arguments)
+        return runner.run(
+            command,
+            environment=environment,
+            timeout=timeout + COMMAND_TIMEOUT_GRACE,
+            **options,
+        )
+
+
+class RestoreState:
+    def __init__(self):
+        self.directory_fd = None
+        self.lock_fd = None
+        self.locked = False
+        self.installation_id = None
+        self.maintenance_secret = None
+
+    def __enter__(self):
+        try:
+            self.directory_fd = open_managed_directory(
+                STATE_DIRECTORY,
+                create=True,
+                mode=0o700,
+                owner_uid=STATE_OWNER_UID,
+                exact_mode=True,
+                error=(
+                    "restore state directory must be a root-owned 0700 directory: "
+                    f"{STATE_DIRECTORY}"
+                ),
+            )
+            self.lock_fd = self._open_regular("lock", os.O_RDWR | os.O_CREAT, 0o600)
+            fcntl.flock(self.lock_fd, fcntl.LOCK_EX)
+            self.locked = True
+            self._clean_partials()
+            self.installation_id = self._load_or_create_value(
+                INSTALLATION_ID_FILE,
+                INSTALLATION_ID_LENGTH,
+                lambda: secrets.token_hex(INSTALLATION_ID_LENGTH // 2),
+            )
+            validate_installation_id(self.installation_id)
+            self.maintenance_secret = self._load_or_create_value(
+                MAINTENANCE_SECRET_FILE,
+                MAINTENANCE_SECRET_LENGTH,
+                lambda: secrets.token_hex(MAINTENANCE_SECRET_LENGTH // 2),
+            )
+            if (
+                len(self.maintenance_secret) != MAINTENANCE_SECRET_LENGTH
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in self.maintenance_secret
+                )
+            ):
+                raise RestoreError("restore maintenance secret is invalid")
+            return self
+        except BaseException:
+            self._close()
+            raise
+
+    def __exit__(self, _exception_type, _exception, _traceback):
+        self._close()
+
+    def _close(self):
+        if self.lock_fd is not None:
+            if self.locked:
+                fcntl.flock(self.lock_fd, fcntl.LOCK_UN)
+            os.close(self.lock_fd)
+            self.lock_fd = None
+            self.locked = False
+        if self.directory_fd is not None:
+            os.close(self.directory_fd)
+            self.directory_fd = None
+        self.installation_id = None
+        self.maintenance_secret = None
+
+    def _open_regular(self, name, flags, mode=0):
+        descriptor = os.open(
+            name,
+            flags | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK,
+            mode,
+            dir_fd=self.directory_fd,
+        )
+        file_stat = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(file_stat.st_mode)
+            or file_stat.st_uid != STATE_OWNER_UID
+            or file_stat.st_mode & 0o077
+        ):
+            os.close(descriptor)
+            raise RestoreError(f"untrusted restore state file: {name}")
+        return descriptor
+
+    def _clean_partials(self):
+        for name in os.listdir(self.directory_fd):
+            if name.startswith(".journal.") and name.endswith(".partial"):
+                self._unlink_trusted(name)
+            if name.startswith(".rollback.") and name.endswith(".partial"):
+                self._unlink_trusted(name)
+            if name.startswith(".identity.") and name.endswith(".partial"):
+                self._unlink_trusted(name)
+
+    def _unlink_trusted(self, name):
+        descriptor = self._open_regular(name, os.O_RDONLY)
+        os.close(descriptor)
+        os.unlink(name, dir_fd=self.directory_fd)
+
+    def _fsync_directory(self):
+        os.fsync(self.directory_fd)
+
+    def _load_or_create_value(self, name, length, generate):
+        try:
+            descriptor = self._open_regular(name, os.O_RDONLY)
+        except FileNotFoundError:
+            value = generate()
+            payload = value.encode()
+            temporary_name = f".identity.{os.getpid()}.{uuid.uuid4().hex}.partial"
+            descriptor = self._open_regular(
+                temporary_name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+            )
+            try:
+                if os.write(descriptor, payload) != len(payload):
+                    raise RestoreError("restore identity could not be written")
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            os.replace(
+                temporary_name,
+                name,
+                src_dir_fd=self.directory_fd,
+                dst_dir_fd=self.directory_fd,
+            )
+            self._fsync_directory()
+            return value
+        try:
+            file_stat = os.fstat(descriptor)
+            if file_stat.st_size != length:
+                raise RestoreError("restore identity has an invalid size")
+            payload = os.read(descriptor, length + 1)
+            if len(payload) != length:
+                raise RestoreError("restore identity changed while being read")
+        finally:
+            os.close(descriptor)
+        try:
+            return payload.decode()
+        except UnicodeDecodeError as error:
+            raise RestoreError("restore identity is invalid") from error
+
+    @property
+    def maintenance_role(self):
+        validate_installation_id(self.installation_id)
+        return f"dojo_restore_{self.installation_id}"
+
+    def load_journal(self):
+        try:
+            descriptor = self._open_regular("journal", os.O_RDONLY)
+        except FileNotFoundError:
+            return None
+        try:
+            file_stat = os.fstat(descriptor)
+            if not 0 < file_stat.st_size <= JOURNAL_LIMIT:
+                raise RestoreError("restore journal has an invalid size")
+            payload = os.read(descriptor, JOURNAL_LIMIT + 1)
+            if len(payload) != file_stat.st_size:
+                raise RestoreError("restore journal changed while being read")
+        finally:
+            os.close(descriptor)
+        try:
+            journal = json.loads(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("restore journal is invalid") from error
+        self._validate_journal(journal)
+        return journal
+
+    def _validate_journal(self, journal):
+        if not isinstance(journal, dict):
+            raise RestoreError("restore journal has an invalid structure")
+        version = journal.get("version")
+        expected_fields = {
+            1: {"version", "phase", "services", "database"},
+            2: {"version", "phase", "services", "database", "target"},
+            3: {
+                "version",
+                "phase",
+                "services",
+                "database",
+                "target",
+                "installation_id",
+            },
+            4: {
+                "version",
+                "phase",
+                "services",
+                "database",
+                "target",
+                "installation_id",
+                "application_role",
+            },
+        }
+        if type(version) is not int or set(journal) != expected_fields.get(version):
+            raise RestoreError("restore journal has an unsupported state")
+        if (
+            not isinstance(journal["phase"], str)
+            or journal["phase"] not in JOURNAL_PHASES
+        ):
+            raise RestoreError("restore journal has an unsupported state")
+        services = journal["services"]
+        if not isinstance(services, dict) or frozenset(services) not in {
+            frozenset(SNAPSHOT_SERVICES),
+            frozenset(LEGACY_SNAPSHOT_SERVICES),
+        }:
+            raise RestoreError("restore journal has an invalid service snapshot")
+        for name, service in services.items():
+            if not isinstance(service, dict) or set(service) != {
+                "id",
+                "restart_policy",
+                "restart_retries",
+                "running",
+                "status",
+            }:
+                raise RestoreError(f"restore journal has invalid state for {name}")
+            if not isinstance(service["id"], str) or not service["id"]:
+                raise RestoreError(f"restore journal has invalid identity for {name}")
+            if not isinstance(service["running"], bool):
+                raise RestoreError(f"restore journal has invalid lifecycle for {name}")
+            if not isinstance(service["status"], str) or service["status"] not in (
+                "running",
+                "exited",
+                "created",
+            ):
+                raise RestoreError(f"restore journal has invalid status for {name}")
+            if (
+                not isinstance(service["restart_policy"], str)
+                or service["restart_policy"]
+                not in {"no", "always", "unless-stopped", "on-failure"}
+            ):
+                raise RestoreError(f"restore journal has invalid restart policy for {name}")
+            if (
+                type(service["restart_retries"]) is not int
+                or not 0 <= service["restart_retries"] <= 2_147_483_647
+                or (
+                    service["restart_policy"] != "on-failure"
+                    and service["restart_retries"] != 0
+                )
+            ):
+                raise RestoreError(f"restore journal has invalid restart count for {name}")
+        validate_database_metadata(journal["database"])
+        if version in {2, 3, 4}:
+            validate_database_target(journal["target"])
+        if version in {3, 4}:
+            validate_installation_id(journal["installation_id"])
+        if version == 4:
+            validate_application_role(journal["application_role"])
+
+    def write_journal(self, journal):
+        self._validate_journal(journal)
+        payload = json.dumps(journal, sort_keys=True, separators=(",", ":")).encode()
+        if not 0 < len(payload) <= JOURNAL_LIMIT:
+            raise RestoreError("restore journal output has an invalid size")
+        temporary_name = f".journal.{os.getpid()}.{uuid.uuid4().hex}.partial"
+        descriptor = self._open_regular(
+            temporary_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        try:
+            offset = 0
+            while offset < len(payload):
+                written = os.write(descriptor, payload[offset:])
+                if written == 0:
+                    raise RestoreError("restore journal could not be written")
+                offset += written
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        os.replace(
+            temporary_name,
+            "journal",
+            src_dir_fd=self.directory_fd,
+            dst_dir_fd=self.directory_fd,
+        )
+        self._fsync_directory()
+
+    def set_phase(self, journal, phase):
+        journal["phase"] = phase
+        self.write_journal(journal)
+        pause_for_test(phase)
+
+    @contextlib.contextmanager
+    def create_rollback(self):
+        temporary_name = f".rollback.{os.getpid()}.{uuid.uuid4().hex}.partial"
+        descriptor = self._open_regular(
+            temporary_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        try:
+            yield descriptor
+            os.fsync(descriptor)
+            if os.fstat(descriptor).st_size == 0:
+                raise RestoreError("rollback database dump is empty")
+            os.replace(
+                temporary_name,
+                "rollback.dump",
+                src_dir_fd=self.directory_fd,
+                dst_dir_fd=self.directory_fd,
+            )
+            self._fsync_directory()
+        finally:
+            os.close(descriptor)
+            try:
+                os.unlink(temporary_name, dir_fd=self.directory_fd)
+            except FileNotFoundError:
+                pass
+
+    @contextlib.contextmanager
+    def open_rollback(self):
+        descriptor = self._open_regular("rollback.dump", os.O_RDONLY)
+        if os.fstat(descriptor).st_size == 0:
+            os.close(descriptor)
+            raise RestoreError("rollback database dump is empty")
+        try:
+            with os.fdopen(os.dup(descriptor), "rb") as rollback:
+                yield rollback
+        finally:
+            os.close(descriptor)
+
+    def cleanup(self):
+        try:
+            self._unlink_trusted("journal")
+            self._fsync_directory()
+        except FileNotFoundError:
+            pass
+        try:
+            self._unlink_trusted("rollback.dump")
+        except FileNotFoundError:
+            pass
+        self._clean_partials()
+        self._fsync_directory()
+
+
+class DockerServices:
+    def __init__(self, runner, target):
+        self.runner = runner
+        self.target = target
+        self.ready_timeout = configured_timeout(
+            "DOJO_RESTORE_READY_TIMEOUT_SECONDS", DEFAULT_READY_TIMEOUT
+        )
+        self.cold_start_timeout = configured_timeout(
+            "DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS", DEFAULT_COLD_START_TIMEOUT
+        )
+        self.http_timeout = self.ready_timeout
+
+    def inspect(self, service, *, deadline=None):
+        timeout = (
+            self.ready_timeout
+            if deadline is None
+            else remaining_before_deadline(
+                deadline,
+                f"timed out while inspecting {service}",
+            )
+        )
+        result = self.runner.run(
+            ["docker", "inspect", "--type=container", service],
+            capture_output=True,
+            check=False,
+            timeout=timeout,
+        )
+        if result.returncode:
+            return None
+        try:
+            container = json.loads(result.stdout)[0]
+            state = container["State"]
+        except (json.JSONDecodeError, KeyError, IndexError) as error:
+            raise RestoreError(f"could not inspect {service}") from error
+        return {
+            "id": container["Id"],
+            "running": bool(state["Running"]),
+            "status": state["Status"],
+            "paused": bool(state.get("Paused")),
+            "restarting": bool(state.get("Restarting")),
+            "started_at": state.get("StartedAt", ""),
+            "health": state.get("Health", {}).get("Status"),
+            "restart_policy": container["HostConfig"]["RestartPolicy"]["Name"],
+            "restart_retries": container["HostConfig"]["RestartPolicy"][
+                "MaximumRetryCount"
+            ],
+        }
+
+    def database_client_available(self):
+        database = self.inspect("db")
+        return (
+            database is not None
+            and database["running"]
+            and not database["paused"]
+            and not database["restarting"]
+        )
+
+    def ensure_database_client(self):
+        deadline = time.monotonic() + self.ready_timeout
+        timeout_error = (
+            "database client container did not become ready within "
+            f"{self.ready_timeout} seconds"
+        )
+        state = self.inspect("db", deadline=deadline)
+        if state is None:
+            raise RestoreError("required database client container is missing: db")
+        if not state["running"]:
+            self.runner.run(
+                ["docker", "start", "db"],
+                timeout=remaining_before_deadline(deadline, timeout_error),
+            )
+        while True:
+            remaining_before_deadline(deadline, timeout_error)
+            state = self.inspect("db", deadline=deadline)
+            if state is None or state["status"] in ("dead", "removing"):
+                raise RestoreError("database client container failed during startup")
+            if state["running"] and not state["paused"] and not state["restarting"]:
+                return
+            wait_for_retry(deadline, timeout_error)
+
+    def snapshot_service(self, service):
+        state = self.inspect(service)
+        if state is None:
+            raise RestoreError(f"required container is missing: {service}")
+        if state["paused"] or state["restarting"]:
+            raise RestoreError(f"{service} is not in a stable state")
+        if state["status"] not in ("running", "exited", "created"):
+            raise RestoreError(f"{service} is in unsupported state {state['status']}")
+        if state["running"] and state["health"] not in (None, "healthy"):
+            raise RestoreError(f"{service} is not healthy before restore")
+        if service in (
+            "cache",
+            "pgbouncer",
+            "stats-worker",
+            "ctfd",
+            "nginx",
+        ) and state["status"] == "created":
+            raise RestoreError(f"{service} must be started once before restore")
+        return {
+            "id": state["id"],
+            "restart_policy": state["restart_policy"],
+            "restart_retries": state["restart_retries"],
+            "running": state["running"],
+            "status": state["status"],
+        }
+
+    def snapshot(self):
+        snapshot = {
+            service: self.snapshot_service(service) for service in SNAPSHOT_SERVICES
+        }
+        if any(snapshot[name]["running"] for name in DATABASE_CLIENTS) and not snapshot[
+            "pgbouncer"
+        ]["running"]:
+            raise RestoreError("running database clients require a running pgbouncer")
+        if any(snapshot[name]["running"] for name in DATABASE_CLIENTS) and not snapshot[
+            "cache"
+        ]["running"]:
+            raise RestoreError("running database clients require a running cache")
+        return snapshot
+
+    def verify_identities(self, snapshot):
+        for service, expected in snapshot.items():
+            state = self.inspect(service)
+            if state is None or state["id"] != expected["id"]:
+                raise RestoreError(f"container changed during restore: {service}")
+
+    def stop(self, service):
+        state = self.inspect(service)
+        if state is None:
+            raise RestoreError(f"container disappeared during restore: {service}")
+        if state["running"] or state["paused"] or state["restarting"]:
+            self.runner.run(
+                ["docker", "stop", service],
+                timeout=self.ready_timeout,
+            )
+        state = self.inspect(service)
+        if state is None or state["running"] or state["paused"] or state["restarting"]:
+            raise RestoreError(f"failed to stop {service}")
+
+    def start(self, service):
+        state = self.inspect(service)
+        if state is None:
+            raise RestoreError(f"container disappeared during restore: {service}")
+        if not state["running"]:
+            self.runner.run(
+                ["docker", "start", service],
+                timeout=self.ready_timeout,
+            )
+
+    def stop_clients(self, snapshot):
+        self.verify_identities(snapshot)
+        for service in STOP_ORDER:
+            self.stop(service)
+        self.verify_clients_stopped()
+
+    def verify_clients_stopped(self):
+        running = [
+            service
+            for service in (*DATABASE_CLIENTS, "nginx")
+            if (self.inspect(service) or {}).get("running")
+        ]
+        if running:
+            raise RestoreError(
+                f"database clients or ingress remained running: {', '.join(running)}"
+            )
+
+    def gate_restarts(self, snapshot):
+        self.verify_identities(snapshot)
+        self.runner.run(
+            ["docker", "update", "--restart=no", *SNAPSHOT_SERVICES],
+            timeout=self.ready_timeout,
+        )
+        for service in SNAPSHOT_SERVICES:
+            state = self.inspect(service)
+            if state["restart_policy"] != "no" or state["restart_retries"] != 0:
+                raise RestoreError(f"failed to maintenance-gate {service}")
+
+    def restore_restart_policies(self, snapshot):
+        for service, expected in snapshot.items():
+            policy = expected["restart_policy"] or "no"
+            if policy == "on-failure" and expected["restart_retries"]:
+                policy = f"{policy}:{expected['restart_retries']}"
+            self.runner.run(
+                ["docker", "update", f"--restart={policy}", service],
+                timeout=self.ready_timeout,
+            )
+        for service, expected in snapshot.items():
+            state = self.inspect(service)
+            if (
+                state["restart_policy"] != expected["restart_policy"]
+                or state["restart_retries"] != expected["restart_retries"]
+            ):
+                raise RestoreError(f"failed to restore restart policy for {service}")
+
+    def wait_cache(self):
+        deadline = time.monotonic() + self.ready_timeout
+        timeout_error = (
+            f"cache did not answer PING within {self.ready_timeout} seconds"
+        )
+        while True:
+            remaining_before_deadline(deadline, timeout_error)
+            state = self.inspect("cache", deadline=deadline)
+            if state is None or state["status"] in ("exited", "dead", "removing"):
+                raise RestoreError("cache failed while preparing restored state")
+            if state["running"]:
+                ping = self.runner.run(
+                    ["docker", "exec", "cache", "redis-cli", "PING"],
+                    capture_output=True,
+                    check=False,
+                    timeout=remaining_before_deadline(deadline, timeout_error),
+                )
+                if ping.returncode == 0 and ping.stdout.strip() == b"PONG":
+                    return
+            wait_for_retry(deadline, timeout_error)
+
+    def wait_pgbouncer(self):
+        deadline = time.monotonic() + self.ready_timeout
+        timeout_error = (
+            "pgbouncer did not accept connections within "
+            f"{self.ready_timeout} seconds"
+        )
+        while True:
+            remaining_before_deadline(deadline, timeout_error)
+            state = self.inspect("pgbouncer", deadline=deadline)
+            if state is None or state["status"] in ("exited", "dead", "removing"):
+                raise RestoreError("pgbouncer failed while preparing restored state")
+            ready = self.runner.run(
+                [
+                    "docker",
+                    "exec",
+                    "db",
+                    "timeout",
+                    "--signal=KILL",
+                    f"{max(1, int(remaining_before_deadline(deadline, timeout_error)))}s",
+                    "pg_isready",
+                    "--host=pgbouncer",
+                    "--port=5432",
+                    f"--dbname={self.target.name}",
+                    f"--username={self.target.user}",
+                ],
+                capture_output=True,
+                check=False,
+                timeout=remaining_before_deadline(deadline, timeout_error),
+            )
+            if ready.returncode == 0:
+                return
+            wait_for_retry(deadline, timeout_error)
+
+    def direct_database_url(self):
+        return self.target.database_url()
+
+    def cleanup_private_validation(self):
+        result = self.runner.run(
+            [
+                "docker",
+                "inspect",
+                "--type=container",
+                PRIVATE_VALIDATION_CONTAINER,
+            ],
+            capture_output=True,
+            check=False,
+            timeout=self.ready_timeout,
+        )
+        if result.returncode:
+            return
+        try:
+            container = json.loads(result.stdout)[0]
+            labels = container["Config"].get("Labels") or {}
+        except (json.JSONDecodeError, KeyError, IndexError) as error:
+            raise RestoreError("could not inspect the private validation container") from error
+        if not isinstance(labels, dict):
+            raise RestoreError("could not inspect the private validation container")
+        if labels.get(PRIVATE_VALIDATION_LABEL) != "1":
+            raise RestoreError(
+                f"reserved validation container name is occupied: {PRIVATE_VALIDATION_CONTAINER}"
+            )
+        removal = self.runner.run(
+            ["docker", "rm", "--force", PRIVATE_VALIDATION_CONTAINER],
+            capture_output=True,
+            check=False,
+            timeout=self.ready_timeout,
+        )
+        if removal.returncode:
+            remaining = self.runner.run(
+                [
+                    "docker",
+                    "inspect",
+                    "--type=container",
+                    PRIVATE_VALIDATION_CONTAINER,
+                ],
+                stdout=subprocess.DEVNULL,
+                check=False,
+                timeout=self.ready_timeout,
+            )
+            if remaining.returncode == 0:
+                raise RestoreError("could not remove the private validation container")
+
+    def run_private_validation(self, name, program, timeout):
+        self.verify_clients_stopped()
+        self.cleanup_private_validation()
+        database_url = self.direct_database_url()
+        try:
+            self.runner.run(
+                [
+                    "dojo",
+                    "compose",
+                    "run",
+                    "--rm",
+                    "--no-deps",
+                    "-T",
+                    "--name",
+                    PRIVATE_VALIDATION_CONTAINER,
+                    "--label",
+                    f"{PRIVATE_VALIDATION_LABEL}=1",
+                    "--env",
+                    "DATABASE_URL",
+                    "ctfd",
+                    "python",
+                    "-c",
+                    program,
+                ],
+                capture_output=True,
+                timeout=timeout,
+                environment={**os.environ, "DATABASE_URL": database_url},
+            )
+        except RestoreError as error:
+            raise RestoreError(f"private {name} validation failed: {error}") from error
+        finally:
+            self.cleanup_private_validation()
+        self.verify_clients_stopped()
+
+    def warm_cache(self):
+        self.start("cache")
+        self.wait_cache()
+        flush = self.runner.run(
+            ["docker", "exec", "cache", "redis-cli", "FLUSHDB"],
+            capture_output=True,
+            timeout=self.ready_timeout,
+        )
+        if flush.stdout.strip() != b"OK":
+            raise RestoreError("cache rejected FLUSHDB before restored-state warmup")
+        self.run_private_validation(
+            "cache",
+            CACHE_VALIDATION_PROGRAM,
+            self.cold_start_timeout,
+        )
+        cache_check = self.runner.run(
+            [
+                "docker",
+                "exec",
+                "cache",
+                "redis-cli",
+                "EXISTS",
+                "stats:belts",
+                "stats:emojis",
+                "stats:containers",
+            ],
+            capture_output=True,
+            timeout=self.ready_timeout,
+        )
+        if cache_check.stdout.strip() != b"3":
+            raise RestoreError("stats-worker cold start did not populate required cache keys")
+
+    def wait_service(self, service):
+        deadline = time.monotonic() + self.ready_timeout
+        timeout_error = (
+            f"{service} did not become ready within {self.ready_timeout} seconds"
+        )
+        while True:
+            remaining_before_deadline(deadline, timeout_error)
+            state = self.inspect(service, deadline=deadline)
+            if state is None:
+                raise RestoreError(f"{service} disappeared during startup")
+            if (
+                state["status"] in ("exited", "dead", "removing")
+                or state["restarting"]
+                or state["health"] == "unhealthy"
+            ):
+                raise RestoreError(f"{service} failed during startup")
+            if state["running"] and state["health"] in (None, "healthy"):
+                return
+            wait_for_retry(deadline, timeout_error)
+
+    def validate_application(self, *, fail_after_validation=False):
+        program = APPLICATION_VALIDATION_PROGRAM
+        if fail_after_validation:
+            program += (
+                "\nraise RuntimeError('injected application validation failure')\n"
+            )
+        self.run_private_validation(
+            "application",
+            program,
+            self.ready_timeout,
+        )
+
+    def restore_snapshot(self, snapshot):
+        self.verify_identities(snapshot)
+        for service in START_ORDER:
+            if snapshot[service]["running"]:
+                self.start(service)
+                if service == "cache":
+                    self.wait_cache()
+                elif service == "pgbouncer":
+                    self.wait_pgbouncer()
+                elif service != "stats-worker":
+                    self.wait_service(service)
+        for service in (*STOP_ORDER, "cache"):
+            if not snapshot[service]["running"]:
+                self.stop(service)
+        self.restore_restart_policies(snapshot)
+        self.verify_identities(snapshot)
+        for service, expected in snapshot.items():
+            state = self.inspect(service)
+            if (
+                state["running"] != expected["running"]
+                or state["status"] != expected["status"]
+                or state["restart_policy"] != expected["restart_policy"]
+                or state["restart_retries"] != expected["restart_retries"]
+            ):
+                raise RestoreError(f"failed to restore initial state for {service}")
+
+    def wait_external_http(self):
+        nginx = self.inspect("nginx")
+        if nginx is None or not nginx["running"]:
+            return
+        host = os.environ.get("DOJO_HOST", "localhost.pwn.college")
+        if not host or any(character in host for character in "\x00\r\n"):
+            raise RestoreError("DOJO_HOST is invalid")
+        production = os.environ.get("DOJO_ENV") == "production"
+        port = 443 if production else 80
+        deadline = time.monotonic() + self.http_timeout
+        last_failure = "no response"
+        while True:
+            timeout_error = (
+                "nginx did not serve the CTFd application within "
+                f"{self.http_timeout} seconds: {last_failure}"
+            )
+            remaining = remaining_before_deadline(deadline, timeout_error)
+            connection = None
+            try:
+                if production:
+                    connection = LoopbackHTTPSConnection(
+                        host,
+                        port,
+                        timeout=min(2, remaining),
+                        context=ssl.create_default_context(),
+                    )
+                else:
+                    connection = http.client.HTTPConnection(
+                        "127.0.0.1", port, timeout=min(2, remaining)
+                    )
+                connection.request("GET", "/", headers={"Host": host})
+                response = connection.getresponse()
+                response_body = response.read()
+                if (
+                    response.status == 200
+                    and APPLICATION_RESPONSE_MARKER in response_body
+                ):
+                    return
+                last_failure = (
+                    f"HTTP {response.status} without the expected CTFd response"
+                )
+            except (OSError, http.client.HTTPException) as error:
+                last_failure = str(error)
+            finally:
+                if connection is not None:
+                    connection.close()
+            timeout_error = (
+                "nginx did not serve the CTFd application within "
+                f"{self.http_timeout} seconds: {last_failure}"
+            )
+            wait_for_retry(deadline, timeout_error)
+
+
+class DatabaseRestore:
+    def __init__(self, runner, state, services, target):
+        self.runner = runner
+        self.state = state
+        self.services = services
+        self.application_target = target
+        self.target = target
+        self.database_name = target.name
+        self.drain_timeout = services.ready_timeout
+        self.operation_timeout = getattr(
+            services,
+            "cold_start_timeout",
+            self.drain_timeout,
+        )
+        self.installation_id = (
+            getattr(state, "installation_id", None) or "0" * INSTALLATION_ID_LENGTH
+        )
+        validate_installation_id(self.installation_id)
+        self.fenced_database_name = f"dojo_restore_{self.installation_id}"
+        self.application_names = tuple(
+            application_name(name, self.installation_id)
+            for name in MAINTENANCE_APPLICATION_NAMES
+        )
+        maintenance_secret = getattr(state, "maintenance_secret", None)
+        maintenance_role = getattr(state, "maintenance_role", None)
+        if maintenance_role and maintenance_role == target.user:
+            raise RestoreError(
+                "restore maintenance role must differ from the configured "
+                "PostgreSQL application role"
+            )
+        self.maintenance_target = (
+            target.with_credentials(maintenance_role, maintenance_secret)
+            if maintenance_role and maintenance_secret
+            else None
+        )
+
+    @property
+    def restore_application_name(self):
+        return application_name(RESTORE_APPLICATION_NAME, self.installation_id)
+
+    @property
+    def snapshot_application_name(self):
+        return application_name(SNAPSHOT_APPLICATION_NAME, self.installation_id)
+
+    def use_application_target(self):
+        self.target = self.application_target
+        self.services.target = self.application_target
+
+    def use_maintenance_target(self):
+        if self.maintenance_target is None:
+            raise RestoreError("restore maintenance identity is unavailable")
+        self.target = self.maintenance_target
+        self.services.target = self.maintenance_target
+
+    def use_fenced_maintenance_target(self):
+        self.use_maintenance_target()
+        self.target = self.maintenance_target.with_database(
+            self.fenced_database_name
+        )
+        self.services.target = self.target
+
+    def psql(self, sql, *, deadline=None, check=True, target=None):
+        timeout = (
+            self.drain_timeout
+            if deadline is None
+            else remaining_before_deadline(deadline, "database command timed out")
+        )
+        return (target or self.target).run_client(
+            self.runner,
+            "psql",
+            (
+                "--no-psqlrc",
+                "--tuples-only",
+                "--no-align",
+                "--set=ON_ERROR_STOP=1",
+                "--command",
+                sql,
+            ),
+            database="postgres",
+            connect=True,
+            application_name=self.restore_application_name,
+            capture_output=True,
+            check=check,
+            timeout=timeout,
+        )
+
+    def psql_private(self, sql, *, target):
+        with tempfile.TemporaryFile() as input_file:
+            input_file.write(sql.encode())
+            input_file.seek(0)
+            return target.run_client(
+                self.runner,
+                "psql",
+                (
+                    "--no-psqlrc",
+                    "--tuples-only",
+                    "--no-align",
+                    "--set=ON_ERROR_STOP=1",
+                ),
+                database="postgres",
+                connect=True,
+                application_name=self.restore_application_name,
+                input_stream=True,
+                stdin=input_file,
+                capture_output=True,
+                timeout=self.drain_timeout,
+            )
+
+    def wait_ready(self):
+        deadline = time.monotonic() + self.drain_timeout
+        timeout_error = (
+            "configured PostgreSQL target did not become ready within "
+            f"{self.drain_timeout} seconds"
+        )
+        while True:
+            remaining_before_deadline(deadline, timeout_error)
+            result = self.psql(
+                "SELECT 1;",
+                deadline=deadline,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip() == b"1":
+                return
+            wait_for_retry(deadline, timeout_error)
+
+    def activate_maintenance_role(self):
+        if self.maintenance_target is None:
+            raise RestoreError("restore maintenance identity is unavailable")
+        self.use_application_target()
+        role = sql_identifier(self.maintenance_target.user)
+        exists = self.psql(
+            "SELECT count(*) FROM pg_roles "
+            f"WHERE rolname = {sql_literal(self.maintenance_target.user)};"
+        ).stdout.strip()
+        if exists not in {b"0", b"1"}:
+            raise RestoreError("maintenance role lookup returned invalid data")
+        password_verifier = sql_literal(
+            scram_verifier(self.maintenance_target.password)
+        )
+        if exists == b"0":
+            statement = (
+                f"CREATE ROLE {role} LOGIN SUPERUSER PASSWORD "
+                f"{password_verifier};"
+            )
+        else:
+            statement = (
+                f"ALTER ROLE {role} WITH LOGIN SUPERUSER PASSWORD "
+                f"{password_verifier};"
+            )
+        self.psql_private(statement, target=self.application_target)
+        self.use_maintenance_target()
+        self.wait_ready()
+
+    def deactivate_maintenance_role(self):
+        if self.maintenance_target is None:
+            return
+        role = sql_identifier(self.maintenance_target.user)
+        self.use_application_target()
+        exists = self.psql(
+            "SELECT count(*) FROM pg_roles "
+            f"WHERE rolname = {sql_literal(self.maintenance_target.user)};",
+            target=self.application_target,
+        ).stdout.strip()
+        if exists == b"1":
+            self.psql(f"ALTER ROLE {role} NOLOGIN;", target=self.application_target)
+        elif exists != b"0":
+            raise RestoreError("maintenance role lookup returned invalid data")
+
+    def establish_fence(self, metadata, application_role, *, preflight=False):
+        validate_database_metadata(metadata)
+        validate_application_role(application_role)
+        if application_role["name"] != self.application_target.user:
+            raise RestoreError("database fence application role is inconsistent")
+        self.use_maintenance_target()
+        database = sql_identifier(self.database_name)
+        fenced_database = sql_identifier(self.fenced_database_name)
+        database_oid = self.capture_database_oid(self.database_name)
+        fenced_database_oid = self.capture_database_oid(self.fenced_database_name)
+        if database_oid == metadata["oid"] and fenced_database_oid is None:
+            self.psql(f"ALTER DATABASE {database} ALLOW_CONNECTIONS false;")
+            pause_for_test("fence-denied")
+            self.drain_database(metadata["oid"])
+            pause_for_test("fence-drained")
+            if preflight:
+                self.preflight_recreation(self.database_name)
+            self.disable_application_role(application_role)
+            self.psql(f"ALTER DATABASE {database} RENAME TO {fenced_database};")
+            pause_for_test("fence-renamed")
+            fenced_database_oid = metadata["oid"]
+        elif database_oid is not None or fenced_database_oid not in {
+            None,
+            metadata["oid"],
+        }:
+            raise RestoreError("database fence identity is inconsistent")
+        self.use_fenced_maintenance_target()
+        if fenced_database_oid is not None:
+            if database_oid is None:
+                self.psql(
+                    f"ALTER DATABASE {fenced_database} ALLOW_CONNECTIONS false;"
+                )
+                self.drain_database(metadata["oid"])
+                self.disable_application_role(application_role)
+            application_role_identifier = sql_identifier(self.application_target.user)
+            self.psql(
+                f"ALTER DATABASE {fenced_database} CONNECTION LIMIT 0;"
+                f"REVOKE CONNECT ON DATABASE {fenced_database} "
+                f"FROM PUBLIC, {application_role_identifier};"
+                f"ALTER DATABASE {fenced_database} ALLOW_CONNECTIONS true;"
+            )
+            pause_for_test("fence-enabled")
+        else:
+            self.disable_application_role(application_role)
+
+    def release_fence(self, metadata, application_role):
+        validate_database_metadata(metadata)
+        validate_application_role(application_role)
+        if application_role["name"] != self.application_target.user:
+            raise RestoreError("database fence application role is inconsistent")
+        self.use_maintenance_target()
+        database = sql_identifier(self.database_name)
+        fenced_database = sql_identifier(self.fenced_database_name)
+        database_oid = self.capture_database_oid(self.database_name)
+        fenced_database_oid = self.capture_database_oid(self.fenced_database_name)
+        if fenced_database_oid == metadata["oid"] and database_oid is None:
+            self.use_fenced_maintenance_target()
+            self.psql(
+                f"ALTER DATABASE {fenced_database} ALLOW_CONNECTIONS false;"
+            )
+            self.drain_database(metadata["oid"])
+            pause_for_test("release-drained")
+            self.restore_database_acl(metadata)
+            self.psql(
+                f"ALTER DATABASE {fenced_database} CONNECTION LIMIT "
+                f"{metadata['connection_limit']};"
+                f"ALTER DATABASE {fenced_database} ALLOW_CONNECTIONS "
+                f"{'true' if metadata['allow_connections'] else 'false'};"
+                f"ALTER DATABASE {fenced_database} RENAME TO {database};"
+            )
+            pause_for_test("release-renamed")
+        elif database_oid == metadata["oid"] and fenced_database_oid is None:
+            self.restore_database_acl(metadata)
+            self.psql(
+                f"ALTER DATABASE {database} CONNECTION LIMIT "
+                f"{metadata['connection_limit']};"
+                f"ALTER DATABASE {database} ALLOW_CONNECTIONS "
+                f"{'true' if metadata['allow_connections'] else 'false'};"
+            )
+        else:
+            raise RestoreError("database fence identity is inconsistent")
+        self.restore_application_role(application_role)
+        self.use_application_target()
+
+    def enforce_fenced_acl(self):
+        database = sql_identifier(self.target.name)
+        application_role = sql_identifier(self.application_target.user)
+        self.psql(
+            f"REVOKE CONNECT ON DATABASE {database} "
+            f"FROM PUBLIC, {application_role};"
+        )
+
+    def database_acl_statements(self, metadata, database):
+        if metadata["acl_default"]:
+            return []
+        grantees = {
+            entry["grantee"]
+            for entry in metadata["acl"]
+            if entry["grantee"] is not None
+        }
+        grantees.add(metadata["owner"])
+        statements = [f"REVOKE ALL ON DATABASE {database} FROM PUBLIC"]
+        statements.extend(
+            f"REVOKE ALL ON DATABASE {database} FROM {sql_identifier(grantee)}"
+            for grantee in sorted(grantees)
+        )
+        for entry in metadata["acl"]:
+            grantee = (
+                "PUBLIC"
+                if entry["grantee"] is None
+                else sql_identifier(entry["grantee"])
+            )
+            grant_option = " WITH GRANT OPTION" if entry["grantable"] else ""
+            statements.append(
+                f"GRANT {entry['privilege']} ON DATABASE {database} "
+                f"TO {grantee}{grant_option}"
+            )
+        return statements
+
+    def restore_database_acl(self, metadata):
+        database = sql_identifier(self.target.name)
+        if metadata["acl_default"]:
+            self.psql(
+                "UPDATE pg_database SET datacl = NULL "
+                f"WHERE datname = {sql_literal(self.target.name)};"
+            )
+            return
+        statements = self.database_acl_statements(metadata, database)
+        self.psql(";".join(statements) + ";")
+
+    def capture_server_identity(self):
+        result = self.psql(
+            "SELECT json_build_object("
+            "'system_identifier', control.system_identifier::text, "
+            "'server_version_num', current_setting('server_version_num')::integer"
+            ") FROM pg_control_system() AS control;"
+        )
+        try:
+            identity = json.loads(result.stdout)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("could not identify the configured PostgreSQL server") from error
+        validate_server_identity(identity)
+        return identity
+
+    def capture_target(self):
+        return self.application_target.journal_target(self.capture_server_identity())
+
+    def verify_target(self, journal_target):
+        self.verify_configured_target(journal_target)
+        if self.capture_server_identity() != journal_target["server"]:
+            raise RestoreError(
+                "PostgreSQL server identity does not match the pending restore journal"
+            )
+
+    def verify_configured_target(self, journal_target):
+        if not self.application_target.matches(journal_target):
+            raise RestoreError(
+                "configured database target does not match the pending restore journal"
+            )
+
+    def capture_database_oid(self, database_name=None):
+        database = sql_literal(database_name or self.database_name)
+        result = self.psql(
+            "SELECT json_build_object('oid', ("
+            "SELECT oid::bigint FROM pg_database "
+            f"WHERE datname = {database}));"
+        )
+        try:
+            identity = json.loads(result.stdout)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("could not identify the configured database") from error
+        if (
+            not isinstance(identity, dict)
+            or set(identity) != {"oid"}
+            or (
+                identity["oid"] is not None
+                and (
+                    type(identity["oid"]) is not int
+                    or not 16_384 <= identity["oid"] <= 0xFFFFFFFF
+                )
+            )
+        ):
+            raise RestoreError("configured database identity query returned invalid data")
+        return identity["oid"]
+
+    def verify_database_identity(self, journal):
+        expected_oid = journal["database"]["oid"]
+        current_oid = self.capture_database_oid(self.database_name)
+        fenced_oid = self.capture_database_oid(self.fenced_database_name)
+        present_oids = [oid for oid in (current_oid, fenced_oid) if oid is not None]
+        if not present_oids:
+            if journal["phase"] not in {"restoring", "rolling_back"}:
+                raise RestoreError(
+                    "configured database is unexpectedly missing for the pending restore"
+                )
+            return
+        if present_oids != [expected_oid]:
+            raise RestoreError(
+                "configured database identity does not match the pending restore journal"
+            )
+
+    def verify_journal_identity(self, journal):
+        self.verify_target(journal["target"])
+        self.verify_database_identity(journal)
+
+    def verify_recreation_privileges(self):
+        result = self.psql(
+            "SELECT json_build_object('superuser', role.rolsuper) "
+            "FROM pg_roles AS role WHERE role.rolname = current_user;"
+        )
+        try:
+            privileges = json.loads(result.stdout)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError(
+                "could not verify the PostgreSQL maintenance role"
+            ) from error
+        if privileges != {"superuser": True}:
+            raise RestoreError(
+                "database restore requires the configured PostgreSQL maintenance "
+                "role to be a superuser"
+            )
+
+    def capture_application_role(self, *, target=None):
+        role_name = self.application_target.user
+        role = sql_literal(role_name)
+        result = self.psql(
+            "SELECT json_build_object('name', role.rolname, "
+            "'superuser', role.rolsuper, 'login', role.rolcanlogin) "
+            "FROM pg_roles AS role "
+            f"WHERE role.rolname = {role};",
+            target=target,
+        )
+        try:
+            privileges = json.loads(result.stdout)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("could not verify the PostgreSQL application role") from error
+        if (
+            not isinstance(privileges, dict)
+            or set(privileges) != {"name", "superuser", "login"}
+            or privileges["name"] != role_name
+            or privileges["superuser"] is not True
+            or not isinstance(privileges["login"], bool)
+        ):
+            raise RestoreError(
+                "database restore requires the configured PostgreSQL application "
+                "role to be a superuser"
+            )
+        return {"name": role_name, "login": privileges["login"]}
+
+    def verify_application_role(self):
+        application_role = self.capture_application_role(
+            target=self.application_target
+        )
+        if not application_role["login"]:
+            raise RestoreError(
+                "database restore requires the configured PostgreSQL application "
+                "role to be a login superuser"
+            )
+        return application_role
+
+    def disable_application_role(self, application_role):
+        validate_application_role(application_role)
+        current_role = self.capture_application_role()
+        if current_role["name"] != application_role["name"]:
+            raise RestoreError("database fence application role is inconsistent")
+        role = sql_identifier(application_role["name"])
+        self.psql(f"ALTER ROLE {role} NOLOGIN;")
+        if self.capture_application_role()["login"]:
+            raise RestoreError("database fence could not disable the application role")
+        pause_for_test("application-role-disabled")
+
+    def restore_application_role(self, application_role):
+        validate_application_role(application_role)
+        current_role = self.capture_application_role()
+        if current_role["name"] != application_role["name"]:
+            raise RestoreError("database fence application role is inconsistent")
+        role = sql_identifier(application_role["name"])
+        login = "LOGIN" if application_role["login"] else "NOLOGIN"
+        self.psql(f"ALTER ROLE {role} {login};")
+        if self.capture_application_role()["login"] != application_role["login"]:
+            raise RestoreError("database fence could not restore the application role")
+        pause_for_test(
+            "application-role-enabled"
+            if application_role["login"]
+            else "application-role-restored"
+        )
+
+    def verify_fence_available(self):
+        if self.capture_database_oid(self.fenced_database_name) is not None:
+            raise RestoreError(
+                "database restore maintenance name is already in use on the "
+                "configured PostgreSQL server"
+            )
+
+    def terminate_maintenance_backends(self):
+        applications = ", ".join(
+            sql_literal(application) for application in self.application_names
+        )
+        users = [self.application_target.user]
+        if self.maintenance_target is not None:
+            users.append(self.maintenance_target.user)
+        roles = ", ".join(sql_literal(user) for user in users)
+        deadline = time.monotonic() + self.drain_timeout
+        timeout_error = (
+            "database maintenance sessions could not be terminated within "
+            f"{self.drain_timeout} seconds"
+        )
+        while True:
+            remaining_before_deadline(deadline, timeout_error)
+            result = self.psql(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                f"WHERE application_name IN ({applications}) "
+                f"AND usename IN ({roles}) "
+                "AND pid <> pg_backend_pid(); "
+                "SELECT count(*) FROM pg_stat_activity "
+                f"WHERE application_name IN ({applications}) "
+                f"AND usename IN ({roles}) "
+                "AND pid <> pg_backend_pid();"
+                ,
+                deadline=deadline,
+            )
+            lines = [
+                line.strip()
+                for line in result.stdout.decode().splitlines()
+                if line.strip()
+            ]
+            if lines and lines[-1] == "0":
+                return
+            wait_for_retry(deadline, timeout_error)
+
+    def preflight_recreation(self, database_name=None):
+        self.verify_recreation_privileges()
+        database = sql_literal(database_name or self.target.name)
+        result = self.psql(
+            "SELECT json_build_object("
+            "'prepared_transactions', ("
+            "SELECT count(*) FROM pg_prepared_xacts "
+            f"WHERE database = {database}"
+            "), "
+            "'logical_slots', ("
+            "SELECT count(*) FROM pg_replication_slots "
+            f"WHERE database = {database}"
+            "), "
+            "'subscriptions', ("
+            "SELECT count(*) FROM pg_subscription "
+            "WHERE subdbid = (SELECT oid FROM pg_database "
+            f"WHERE datname = {database})"
+            ")"
+            ");"
+        )
+        try:
+            blockers = json.loads(result.stdout)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("could not preflight database recreation") from error
+        if not isinstance(blockers, dict) or set(blockers) != {
+            "prepared_transactions",
+            "logical_slots",
+            "subscriptions",
+        } or any(type(count) is not int or count < 0 for count in blockers.values()):
+            raise RestoreError("database recreation preflight returned invalid results")
+        present = [name.replace("_", " ") for name, count in blockers.items() if count]
+        if present:
+            raise RestoreError(
+                "database cannot be safely recreated while it has " + ", ".join(present)
+            )
+
+    def capture_metadata(self):
+        database = sql_literal(self.target.name)
+        result = self.psql(
+            "SELECT json_build_object("
+            "'oid', database.oid::bigint, "
+            "'owner', pg_get_userbyid(database.datdba), "
+            "'encoding', pg_encoding_to_char(database.encoding), "
+            "'locale_provider', CASE database.datlocprovider "
+            "WHEN 'b' THEN 'builtin' WHEN 'c' THEN 'libc' WHEN 'i' THEN 'icu' END, "
+            "'collate', database.datcollate, "
+            "'ctype', database.datctype, "
+            "'locale', database.datlocale, "
+            "'icu_rules', database.daticurules, "
+            "'collation_version', database.datcollversion, "
+            "'tablespace', tablespace.spcname, "
+            "'allow_connections', database.datallowconn, "
+            "'is_template', database.datistemplate, "
+            "'connection_limit', database.datconnlimit, "
+            "'acl_default', database.datacl IS NULL, "
+            "'acl', COALESCE(("
+            "SELECT json_agg(json_build_object("
+            "'grantor', pg_get_userbyid(acl.grantor), "
+            "'grantee', CASE WHEN acl.grantee = 0 THEN NULL "
+            "ELSE pg_get_userbyid(acl.grantee) END, "
+            "'privilege', acl.privilege_type, "
+            "'grantable', acl.is_grantable"
+            ") ORDER BY acl.grantee, acl.privilege_type) "
+            "FROM aclexplode(database.datacl) AS acl"
+            "), '[]'::json), "
+            "'comment', shobj_description(database.oid, 'pg_database'), "
+            "'security_labels', COALESCE(("
+            "SELECT json_agg(json_build_object("
+            "'provider', label.provider, 'label', label.label"
+            ") ORDER BY label.provider) "
+            "FROM pg_shseclabel AS label "
+            "WHERE label.classoid = 'pg_database'::regclass "
+            "AND label.objoid = database.oid"
+            "), '[]'::json), "
+            "'settings', COALESCE(("
+            "SELECT json_agg(json_build_object("
+            "'role', CASE WHEN setting.setrole = 0 THEN NULL "
+            "ELSE pg_get_userbyid(setting.setrole) END, "
+            "'name', split_part(item.value, '=', 1), "
+            "'value', substring(item.value FROM position('=' IN item.value) + 1)"
+            ") ORDER BY setting.setrole, item.value) "
+            "FROM pg_db_role_setting AS setting "
+            "CROSS JOIN LATERAL unnest(setting.setconfig) AS item(value) "
+            "WHERE setting.setdatabase = database.oid"
+            "), '[]'::json)"
+            ") "
+            "FROM pg_database AS database "
+            "JOIN pg_tablespace AS tablespace "
+            "ON tablespace.oid = database.dattablespace "
+            f"WHERE database.datname = {database};"
+        )
+        try:
+            metadata = json.loads(result.stdout)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("could not capture database metadata") from error
+        validate_database_metadata(metadata)
+        return metadata
+
+    def drain_database(self, database_oid=None):
+        if database_oid is None:
+            predicate = f"datname = {sql_literal(self.target.name)}"
+        else:
+            if type(database_oid) is not int or not 16_384 <= database_oid <= 0xFFFFFFFF:
+                raise RestoreError("database drain identity is invalid")
+            predicate = f"datid = {database_oid}"
+        deadline = time.monotonic() + self.drain_timeout
+        timeout_error = (
+            "database connections could not be drained within "
+            f"{self.drain_timeout} seconds"
+        )
+        while True:
+            remaining_before_deadline(deadline, timeout_error)
+            result = self.psql(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                f"WHERE {predicate} AND pid <> pg_backend_pid(); "
+                "SELECT count(*) FROM pg_stat_activity "
+                f"WHERE {predicate} AND pid <> pg_backend_pid();"
+                ,
+                deadline=deadline,
+            )
+            lines = [
+                line.strip()
+                for line in result.stdout.decode().splitlines()
+                if line.strip()
+            ]
+            if lines and lines[-1] == "0":
+                return
+            wait_for_retry(deadline, timeout_error)
+
+    def create_rollback(self):
+        with self.state.create_rollback() as output_descriptor:
+            self.target.run_client(
+                self.runner,
+                "pg_dump",
+                (
+                    "--format=custom",
+                ),
+                database=self.target.name,
+                connect=True,
+                application_name=self.snapshot_application_name,
+                stdout=output_descriptor,
+                timeout=self.operation_timeout,
+            )
+
+    def recreate_database(self, metadata):
+        validate_database_metadata(metadata)
+        self.drain_database(metadata["oid"])
+        database = sql_identifier(self.target.name)
+        self.psql(f"DROP DATABASE IF EXISTS {database};")
+        if os.environ.get("DOJO_RESTORE_TEST_SLEEP_AFTER_DATABASE_DROP") == "1":
+            self.psql("SELECT pg_sleep(300);")
+
+        options = [
+            f"OWNER = {sql_identifier(metadata['owner'])}",
+            "TEMPLATE = template0",
+            f"ENCODING = {sql_literal(metadata['encoding'])}",
+            f"LOCALE_PROVIDER = {metadata['locale_provider']}",
+            f"LC_COLLATE = {sql_literal(metadata['collate'])}",
+            f"LC_CTYPE = {sql_literal(metadata['ctype'])}",
+            f"TABLESPACE = {sql_identifier(metadata['tablespace'])}",
+            "ALLOW_CONNECTIONS = true",
+            "CONNECTION LIMIT = 0",
+            f"IS_TEMPLATE = {'true' if metadata['is_template'] else 'false'}",
+            f"OID = {metadata['oid']}",
+        ]
+        if metadata["locale_provider"] == "builtin":
+            options.append(f"BUILTIN_LOCALE = {sql_literal(metadata['locale'])}")
+        elif metadata["locale_provider"] == "icu":
+            options.append(f"ICU_LOCALE = {sql_literal(metadata['locale'])}")
+            if metadata["icu_rules"] is not None:
+                options.append(f"ICU_RULES = {sql_literal(metadata['icu_rules'])}")
+        if metadata["collation_version"] is not None:
+            options.append(
+                f"COLLATION_VERSION = {sql_literal(metadata['collation_version'])}"
+            )
+        self.psql(f"CREATE DATABASE {database} WITH {' '.join(options)};")
+        pause_for_test("database-recreated")
+
+    def apply_metadata(self, metadata):
+        database = sql_identifier(self.target.name)
+        statements = self.database_acl_statements(metadata, database)
+        if metadata["comment"] is not None:
+            statements.append(
+                f"COMMENT ON DATABASE {database} IS {sql_literal(metadata['comment'])}"
+            )
+        statements.extend(
+            f"SECURITY LABEL FOR {sql_identifier(label['provider'])} "
+            f"ON DATABASE {database} IS {sql_literal(label['label'])}"
+            for label in metadata["security_labels"]
+        )
+        for setting in metadata["settings"]:
+            if setting["role"] is None:
+                prefix = f"ALTER DATABASE {database}"
+            else:
+                prefix = (
+                    f"ALTER ROLE {sql_identifier(setting['role'])} "
+                    f"IN DATABASE {database}"
+                )
+            statements.append(
+                f"{prefix} SET {sql_identifier(setting['name'])} "
+                f"TO {sql_literal(setting['value'])}"
+            )
+        if statements:
+            self.psql(";".join(statements) + ";")
+
+    def restore_archive(self, archive, metadata):
+        self.recreate_database(metadata)
+        os.lseek(archive.fileno(), 0, os.SEEK_SET)
+        self.target.run_client(
+            self.runner,
+            "pg_restore",
+            (
+                "--exit-on-error",
+                f"--transaction-size={RESTORE_TRANSACTION_SIZE}",
+            ),
+            database=self.target.name,
+            connect=True,
+            application_name=self.restore_application_name,
+            input_stream=True,
+            stdin=archive,
+            timeout=self.operation_timeout,
+        )
+        self.apply_metadata(metadata)
+        self.enforce_fenced_acl()
+
+    def restore_rollback(self):
+        journal = self.state.load_journal()
+        self.verify_journal_identity(journal)
+        self.state.set_phase(journal, "rolling_back")
+        self.terminate_maintenance_backends()
+        self.services.verify_clients_stopped()
+        self.drain_database(journal["database"]["oid"])
+        with self.state.open_rollback() as rollback:
+            journal = self.state.load_journal()
+            self.restore_archive(rollback, journal["database"])
+
+
+def open_archive(relative_path):
+    path = pathlib.PurePosixPath(relative_path)
+    if path.is_absolute() or not path.parts or any(
+        part in ("", ".", "..") for part in path.parts
+    ):
+        raise RestoreError("backup path must stay beneath /data/backups")
+    try:
+        descriptor = os.open(
+            BACKUP_DIRECTORY,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        )
+    except OSError as error:
+        raise RestoreError("could not open /data/backups") from error
+    try:
+        for component in path.parts[:-1]:
+            next_descriptor = os.open(
+                component,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                dir_fd=descriptor,
+            )
+            os.close(descriptor)
+            descriptor = next_descriptor
+        archive_descriptor = os.open(
+            path.parts[-1],
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+            dir_fd=descriptor,
+        )
+    except OSError as error:
+        raise RestoreError(f"could not open backup archive: {relative_path}") from error
+    finally:
+        os.close(descriptor)
+    archive_stat = os.fstat(archive_descriptor)
+    if (
+        not stat.S_ISREG(archive_stat.st_mode)
+        or archive_stat.st_size == 0
+        or archive_stat.st_uid != 0
+        or archive_stat.st_mode & 0o022
+    ):
+        os.close(archive_descriptor)
+        raise RestoreError(
+            "backup archive must be a non-empty, root-owned, non-writable regular file"
+        )
+    return os.fdopen(archive_descriptor, "rb")
+
+
+def sql_literal(value):
+    if "\x00" in value:
+        raise RestoreError("SQL value contains a null byte")
+    return "E'" + value.replace("\\", "\\\\").replace("'", "''") + "'"
+
+
+def sql_identifier(value):
+    if "\x00" in value:
+        raise RestoreError("database identifier contains a null byte")
+    return '"' + value.replace('"', '""') + '"'
+
+
+def validate_archive(runner, target, archive, *, timeout=DEFAULT_READY_TIMEOUT):
+    os.lseek(archive.fileno(), 0, os.SEEK_SET)
+    contents = target.run_client(
+        runner,
+        "pg_restore",
+        ("--list",),
+        input_stream=True,
+        stdin=archive,
+        capture_output=True,
+        timeout=timeout,
+    )
+    for line in contents.stdout.splitlines():
+        if not line or line.startswith(b";") or b";" not in line:
+            continue
+        fields = line.split(b";", 1)[1].lstrip().split(None, 3)
+        if len(fields) >= 3 and fields[2] == b"SUBSCRIPTION":
+            raise RestoreError("backup archives containing subscriptions are unsupported")
+    os.lseek(archive.fileno(), 0, os.SEEK_SET)
+    target.run_client(
+        runner,
+        "pg_restore",
+        ("--file=/dev/null",),
+        input_stream=True,
+        stdin=archive,
+        stdout=subprocess.DEVNULL,
+        timeout=timeout,
+    )
+    os.lseek(archive.fileno(), 0, os.SEEK_SET)
+
+
+def open_backup_directory(*, create):
+    return open_managed_directory(
+        BACKUP_DIRECTORY,
+        create=create,
+        mode=0o755,
+        owner_uid=BACKUP_OWNER_UID,
+        exact_mode=False,
+        error="backup directory must be root-owned and non-writable",
+    )
+
+
+def trusted_backup_partial(name):
+    parts = name.split(".")
+    if (
+        len(parts) != 5
+        or parts[0] != ""
+        or parts[4] != "partial"
+        or not parts[3].isdecimal()
+        or int(parts[3]) <= 0
+    ):
+        return False
+    if parts[1] == "dojo-backup" and parts[2]:
+        identifier = parts[2]
+    elif parts[1].startswith("db-") and parts[2] == "dump":
+        try:
+            timestamp, identifier = parts[1][3:].rsplit("-", 1)
+            parsed_timestamp = datetime.datetime.strptime(
+                timestamp,
+                "%Y-%m-%dT%H:%M:%SZ",
+            )
+        except ValueError:
+            return False
+        if parsed_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ") != timestamp:
+            return False
+    else:
+        return False
+    try:
+        parsed_identifier = uuid.UUID(identifier)
+    except ValueError:
+        return False
+    return parsed_identifier.hex == identifier
+
+
+def cleanup_backup_partials(state):
+    if not state.locked:
+        raise RestoreError("backup partial cleanup requires the maintenance lock")
+    directory_descriptor = open_backup_directory(create=False)
+    if directory_descriptor is None:
+        return
+    removed = False
+    try:
+        for name in os.listdir(directory_descriptor):
+            if not trusted_backup_partial(name):
+                continue
+            try:
+                descriptor = os.open(
+                    name,
+                    os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+                    dir_fd=directory_descriptor,
+                )
+            except OSError:
+                continue
+            try:
+                partial_stat = os.fstat(descriptor)
+                trusted = (
+                    stat.S_ISREG(partial_stat.st_mode)
+                    and partial_stat.st_uid == BACKUP_OWNER_UID
+                    and stat.S_IMODE(partial_stat.st_mode) == 0o600
+                )
+            finally:
+                os.close(descriptor)
+            if not trusted:
+                continue
+            os.unlink(name, dir_fd=directory_descriptor)
+            removed = True
+        if removed:
+            os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
+
+
+def create_backup(
+    runner,
+    target,
+    state,
+    *,
+    timeout=DEFAULT_COLD_START_TIMEOUT,
+):
+    if not state.locked:
+        raise RestoreError("database backup requires the maintenance lock")
+    directory_descriptor = open_backup_directory(create=True)
+    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    unique_id = uuid.uuid4().hex
+    filename = f"db-{timestamp}-{unique_id}.dump"
+    temporary_name = f"{BACKUP_PARTIAL_PREFIX}{unique_id}.{os.getpid()}.partial"
+    output_descriptor = None
+    renamed = False
+    published = False
+    try:
+        output_descriptor = os.open(
+            temporary_name,
+            os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+            0o600,
+            dir_fd=directory_descriptor,
+        )
+        os.fchmod(output_descriptor, 0o600)
+        pause_for_test("backup-created")
+        target.run_client(
+            runner,
+            "pg_dump",
+            ("--format=custom",),
+            database=target.name,
+            connect=True,
+            application_name=application_name(
+                BACKUP_APPLICATION_NAME,
+                getattr(state, "installation_id", None)
+                or "0" * INSTALLATION_ID_LENGTH,
+            ),
+            stdout=output_descriptor,
+            timeout=timeout,
+        )
+        output_stat = os.fstat(output_descriptor)
+        if (
+            output_stat.st_size == 0
+            or output_stat.st_uid != BACKUP_OWNER_UID
+            or stat.S_IMODE(output_stat.st_mode) != 0o600
+        ):
+            raise RestoreError("database backup output is invalid")
+        os.fsync(output_descriptor)
+        with os.fdopen(os.dup(output_descriptor), "rb") as archive:
+            validate_archive(runner, target, archive, timeout=timeout)
+        os.replace(
+            temporary_name,
+            filename,
+            src_dir_fd=directory_descriptor,
+            dst_dir_fd=directory_descriptor,
+        )
+        renamed = True
+        os.fsync(directory_descriptor)
+        published = True
+    finally:
+        if output_descriptor is not None:
+            os.close(output_descriptor)
+        if not published:
+            for failed_name in (filename if renamed else temporary_name,):
+                try:
+                    os.unlink(failed_name, dir_fd=directory_descriptor)
+                except FileNotFoundError:
+                    pass
+            os.fsync(directory_descriptor)
+        os.close(directory_descriptor)
+    return filename
+
+
+def expose_services(state, journal, database, services, exposed_phase):
+    database.release_fence(journal["database"], journal["application_role"])
+    services.restore_snapshot(journal["services"])
+    if journal["services"]["ctfd"]["running"]:
+        services.wait_external_http()
+    state.set_phase(journal, exposed_phase)
+    state.cleanup()
+    database.deactivate_maintenance_role()
+
+
+def complete_rollback(state, database, services):
+    database.restore_rollback()
+    journal = state.load_journal()
+    state.set_phase(journal, "rollback_warming")
+    services.warm_cache()
+    state.set_phase(journal, "rollback_validating")
+    services.validate_application()
+    state.set_phase(journal, "rolled_back")
+    expose_services(
+        state,
+        journal,
+        database,
+        services,
+        "rolled_back_exposed",
+    )
+
+
+def recover_restore(state, database, services):
+    journal = state.load_journal()
+    if journal is None:
+        if services.database_client_available():
+            database.use_application_target()
+            database.wait_ready()
+            database.terminate_maintenance_backends()
+            database.deactivate_maintenance_role()
+        try:
+            state._unlink_trusted("rollback.dump")
+            state._fsync_directory()
+        except FileNotFoundError:
+            pass
+        return
+    if journal["version"] == 1:
+        raise RestoreError(
+            "version-one restore journals are not bound to a database target and "
+            "require manual intervention"
+        )
+    if (
+        journal["version"] in {3, 4}
+        and journal["installation_id"] != state.installation_id
+    ):
+        raise RestoreError(
+            "pending restore journal belongs to a different installation"
+        )
+    database.verify_configured_target(journal["target"])
+    services.ensure_database_client()
+    if journal["version"] == 2:
+        database.use_application_target()
+        database.wait_ready()
+        database.verify_journal_identity(journal)
+        database.verify_recreation_privileges()
+        application_role = database.verify_application_role()
+        database.activate_maintenance_role()
+        journal = {
+            **journal,
+            "version": 4,
+            "installation_id": state.installation_id,
+            "application_role": application_role,
+        }
+        state.write_journal(journal)
+    elif journal["version"] == 3:
+        database.use_maintenance_target()
+        database.wait_ready()
+        application_role = database.capture_application_role()
+        if not application_role["login"]:
+            raise RestoreError(
+                "version-three restore journal has an unexpectedly disabled "
+                "application role"
+            )
+        journal = {
+            **journal,
+            "version": 4,
+            "application_role": application_role,
+        }
+        state.write_journal(journal)
+    else:
+        database.use_maintenance_target()
+        database.wait_ready()
+    database.verify_journal_identity(journal)
+    database.verify_recreation_privileges()
+    database.terminate_maintenance_backends()
+    services.verify_identities(journal["services"])
+    services.cleanup_private_validation()
+    services.verify_identities(journal["services"])
+    services.gate_restarts(journal["services"])
+    services.stop_clients(journal["services"])
+    database.verify_journal_identity(journal)
+    database.terminate_maintenance_backends()
+    if journal["phase"] in PRE_MUTATION_PHASES:
+        database.release_fence(journal["database"], journal["application_role"])
+        services.restore_snapshot(journal["services"])
+        if journal["services"]["ctfd"]["running"]:
+            services.wait_external_http()
+        state.cleanup()
+        database.deactivate_maintenance_role()
+        return
+    if journal["phase"] in FORWARD_TERMINAL_PHASES | ROLLBACK_TERMINAL_PHASES:
+        database.establish_fence(
+            journal["database"], journal["application_role"]
+        )
+        services.warm_cache()
+        services.validate_application()
+        exposed_phase = (
+            "committed_exposed"
+            if journal["phase"] in FORWARD_TERMINAL_PHASES
+            else "rolled_back_exposed"
+        )
+        expose_services(state, journal, database, services, exposed_phase)
+        return
+    database.establish_fence(journal["database"], journal["application_role"])
+    complete_rollback(state, database, services)
+
+
+def install_interrupt_handlers(runner, operation):
+    def interrupt(signum, _frame):
+        runner.interrupt()
+        raise RestoreInterrupted(f"{operation} interrupted by signal {signum}")
+
+    signal.signal(signal.SIGINT, interrupt)
+    signal.signal(signal.SIGTERM, interrupt)
+
+
+def restore(filename=None):
+    runner = CommandRunner()
+    target = DatabaseTarget.from_environment()
+    services = DockerServices(runner, target)
+    install_interrupt_handlers(runner, "restore")
+
+    with RestoreState() as state:
+        database = DatabaseRestore(runner, state, services, target)
+        recover_restore(state, database, services)
+        cleanup_backup_partials(state)
+        if filename is None:
+            return
+        with open_archive(filename) as archive:
+            validate_archive(
+                runner,
+                target,
+                archive,
+                timeout=services.cold_start_timeout,
+            )
+            database.preflight_recreation()
+            application_role = database.verify_application_role()
+            database.verify_fence_available()
+            pause_for_test("after-initial-preflight")
+            snapshot = services.snapshot()
+            target_identity = database.capture_target()
+            metadata = database.capture_metadata()
+            journal = {
+                "version": 4,
+                "phase": "snapshotting",
+                "services": snapshot,
+                "database": metadata,
+                "target": target_identity,
+                "installation_id": state.installation_id,
+                "application_role": application_role,
+            }
+            database.activate_maintenance_role()
+            try:
+                state.write_journal(journal)
+            except BaseException:
+                database.deactivate_maintenance_role()
+                raise
+            try:
+                database.verify_journal_identity(journal)
+                services.gate_restarts(snapshot)
+                services.stop_clients(snapshot)
+                database.verify_journal_identity(journal)
+                database.terminate_maintenance_backends()
+                database.establish_fence(
+                    metadata,
+                    application_role,
+                    preflight=True,
+                )
+                state.set_phase(journal, "fenced")
+                database.create_rollback()
+                with state.open_rollback() as rollback:
+                    validate_archive(
+                        runner,
+                        database.target,
+                        rollback,
+                        timeout=services.cold_start_timeout,
+                    )
+                state.set_phase(journal, "ready")
+                database.drain_database(metadata["oid"])
+                state.set_phase(journal, "restoring")
+                database.restore_archive(archive, metadata)
+                state.set_phase(journal, "restored")
+                state.set_phase(journal, "warming")
+                services.warm_cache()
+                state.set_phase(journal, "validating")
+                fail_after_validation = (
+                    os.environ.get("DOJO_RESTORE_TEST_FAIL_APPLICATION_VALIDATION")
+                    == "1"
+                )
+                services.validate_application(
+                    fail_after_validation=fail_after_validation
+                )
+                state.set_phase(journal, "committed")
+                expose_services(
+                    state,
+                    journal,
+                    database,
+                    services,
+                    "committed_exposed",
+                )
+            except BaseException:
+                try:
+                    recover_restore(state, database, services)
+                except BaseException as recovery_error:
+                    raise RestoreError(
+                        f"restore failed and recovery remains pending: {recovery_error}"
+                    ) from recovery_error
+                raise
+
+
+def backup():
+    runner = CommandRunner()
+    target = DatabaseTarget.from_environment()
+    install_interrupt_handlers(runner, "backup")
+    with RestoreState() as state:
+        if state.load_journal() is not None:
+            raise RestoreError(
+                "database backup refused because restore recovery is pending"
+            )
+        cleanup_backup_partials(state)
+        filename = create_backup(
+            runner,
+            target,
+            state,
+            timeout=configured_timeout(
+                "DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS",
+                DEFAULT_COLD_START_TIMEOUT,
+            ),
+        )
+    print(f"Created backup at {BACKUP_DIRECTORY / filename}")
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(prog="dojo database maintenance")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--recover", action="store_true")
+    mode.add_argument("--backup", action="store_true")
+    parser.add_argument("filename", nargs="?")
+    arguments = parser.parse_args()
+    if (arguments.recover or arguments.backup) and arguments.filename:
+        parser.error("maintenance modes do not accept a backup filename")
+    if not arguments.recover and not arguments.backup and not arguments.filename:
+        parser.error("a backup filename is required")
+    return arguments
+
+
+def main():
+    arguments = parse_arguments()
+    try:
+        if arguments.backup:
+            backup()
+        else:
+            restore(None if arguments.recover else arguments.filename)
+    except RestoreError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -9,6 +9,9 @@ RemainAfterExit=true
 WorkingDirectory=/opt/pwn.college
 ExecStart=/usr/local/bin/dojo up
 ExecStop=/usr/local/bin/dojo compose down
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=infinity
 
 [Install]
 WantedBy=multi-user.target

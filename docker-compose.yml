@@ -205,7 +205,7 @@ services:
     restart: always
     image: edoburu/pgbouncer
     environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}/${DB_NAME}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}
       AUTH_TYPE: scram-sha-256
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 10000

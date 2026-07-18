@@ -15,11 +15,20 @@ DOCKER_ARGS=${DOCKER_ARGS:--i}
 
 if [ "$ACTION" != "init" ] && [ -f /data/config.env ]; then
     . /data/config.env
+    DB_PORT="${DB_PORT:-5432}"
+    export DB_HOST DB_PORT DB_NAME DB_USER DB_PASS
+    export DOJO_ENV DOJO_HOST
+    export DOJO_RESTORE_READY_TIMEOUT_SECONDS
+    export DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS
 fi
 
 case "$ACTION" in
     # HELP: up: bring the dojo up
     "up")
+        if [ "${WORKSPACE_NODE:-0}" -eq 0 ]; then
+            /opt/pwn.college/dojo/dojo-restore --recover
+        fi
+
         if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_TOKEN" ]; then
             echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
         fi
@@ -103,27 +112,21 @@ case "$ACTION" in
         docker exec $DOCKER_ARGS ctfd flask shell "$@"
         ;;
 
-    # HELP: db: launch a mysql client session, connected to the ctfd db
+    # HELP: db: launch a PostgreSQL client session, connected to the configured database
     "db")
-        docker exec $DOCKER_ARGS db psql "$@"
+        PGPASSWORD="$DB_PASS" docker exec -e PGPASSWORD $DOCKER_ARGS db psql \
+            --host="$DB_HOST" --port="$DB_PORT" --username="$DB_USER" \
+            --dbname="$DB_NAME" "$@"
         ;;
 
     # HELP: backup: does a dojo db backup into the `/data/backups` directory.
     "backup")
-        mkdir -p /data/backups
-        BACKUP_PATH="/data/backups/db-$(date -Iseconds).dump"
-        docker exec db pg_dump -Fc > "$BACKUP_PATH"
-        echo "Created backup at $BACKUP_PATH"
+        exec /opt/pwn.college/dojo/dojo-restore --backup
         ;;
 
     # HELP: restore PATH: restores a dojo db backup. Path arg is relative to the `/data/backups` directory
     "restore")
-        BACKUP_PATH="/data/backups/$1"
-        if [ -f "$BACKUP_PATH" ]; then
-            docker exec -i db pg_restore --clean --if-exists --dbname="$DB_NAME" < "$BACKUP_PATH"
-        else
-            echo "Error: missing file to restore from" >&2
-        fi
+        exec /opt/pwn.college/dojo/dojo-restore "$@"
         ;;
 
     # HELP: cloud-backup: upload the last day's worth of cloud backups to S3, but encrypt it at rest
@@ -132,7 +135,7 @@ case "$ACTION" in
         [ -f $BACKUP_AES_KEY_FILE ] || (echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set to a file, but is $BACKUP_AES_KEY_FILE instead"; exit -1)
         [ -z ${S3_BACKUP_BUCKET+x} ] && (echo "To use cloud backup, S3_BACKUP_BUCKET must be set to the S3 bucket to use"; exit -1)
         set -e
-        for f in $(find /data/backups -mtime -1 -type f)
+        for f in $(find /data/backups -mtime -1 -type f ! -name '*.partial')
         do
             BACKUP_FILENAME="$(basename $f).enc"
             OUT_FILE="/tmp/$BACKUP_FILENAME"
@@ -210,6 +213,10 @@ case "$ACTION" in
     "init")
         echo "[+] Initializing dojo."
         dojo-init
+        . /data/config.env
+        export DOJO_ENV DOJO_HOST
+        export DOJO_RESTORE_READY_TIMEOUT_SECONDS
+        export DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS
         echo "[+] Starting systemd. If this is the first start, the challenge container"
         echo "    will be built, which will take a very long time."
         exec /usr/bin/systemd
