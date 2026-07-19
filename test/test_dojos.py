@@ -2606,9 +2606,23 @@ def test_git_update_sigkill_after_commit_recovers_recalculation(admin_session):
     suffix = "".join(random.choices(string.ascii_lowercase, k=8))
     dojo_id = f"git-outbox-{suffix}"
     dojo = create_transfer_dojo(dojo_id, [{"id": "source"}], admin_session)
-    update_spec = transfer_dojo_spec(dojo_id, [{"id": "source"}])
+    database_id = dojo_database_id(dojo)
+    initial_cache_timestamps = warm_transfer_caches({database_id: {0}})
+    update_spec = transfer_dojo_spec(
+        dojo_id,
+        [{"id": "source"}, {"id": "added"}],
+    )
     update_spec["name"] = "Recovered Outbox Checkout"
+    temporary_entries = dojo_temporary_entries()
     git_root, work_path, dojo_path, _ = initialize_git_backed_dojo(dojo)
+    marker_root = f"/data/dojos/tmp/git-outbox-{suffix}"
+    commit_ready = f"{marker_root}/commit-ready"
+    release_commit = f"{marker_root}/release-commit"
+    recovery_started = f"{marker_root}/recovery-started"
+    dojo_run("mkdir", "-p", marker_root)
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+    updater_future = None
+    recovery_future = None
     try:
         remote_commit = push_git_dojo_spec(
             work_path,
@@ -2617,21 +2631,40 @@ def test_git_update_sigkill_after_commit_recovers_recalculation(admin_session):
         )
         script = r'''
 import os
+import pathlib
 import signal
+import time
 from CTFd.plugins.dojo_plugin.models import Dojos
 import CTFd.plugins.dojo_plugin.utils.dojo as dojo_utils
 
 def die_after_database_commit(swap):
+    pathlib.Path(__COMMIT_READY__).write_text(swap.token)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline and not pathlib.Path(__RELEASE_COMMIT__).exists():
+        time.sleep(0.05)
+    if not pathlib.Path(__RELEASE_COMMIT__).exists():
+        raise RuntimeError("Timed out waiting to crash committed update")
     os.kill(os.getpid(), signal.SIGKILL)
 
 dojo_utils.DurableCheckoutSwap.mark_committed = die_after_database_commit
 dojo = Dojos.query.filter_by(dojo_id=__DOJO_ID__).one()
 dojo_utils.dojo_update(dojo)
-'''.replace("__DOJO_ID__", repr(dojo_database_id(dojo)))
-        result = dojo_run(
-            "dojo", "flask", input=f"exec({script!r})\n", check=False
+'''
+        script = (
+            script
+            .replace("__DOJO_ID__", repr(database_id))
+            .replace("__COMMIT_READY__", repr(commit_ready))
+            .replace("__RELEASE_COMMIT__", repr(release_commit))
         )
-        assert result.returncode != 0
+        updater_future = executor.submit(
+            dojo_run,
+            "dojo",
+            "flask",
+            input=f"exec({script!r})\n",
+            check=False,
+        )
+        wait_for_dojo_path(commit_ready)
+        assert not updater_future.done()
         dojo_hex_id = dojo.rsplit("~", 1)[1]
         journal_path = f"/data/dojos/tmp/updates/{dojo_hex_id}.json"
         assert dojo_run("test", "-e", journal_path).returncode == 0
@@ -2639,16 +2672,43 @@ dojo_utils.dojo_update(dojo)
             "SELECT data ->> '_dojo_update_checkout_token' FROM dojos "
             f"WHERE dojo_id = x'{dojo_hex_id}'::int"
         ).strip()
+        assert token == dojo_run("cat", commit_ready).stdout.strip()
+        journal = json.loads(dojo_run("cat", journal_path).stdout)
+        assert journal["token"] == token
+        assert journal["phase"] == "commit_started"
         assert db_sql(
             "SELECT published::text FROM dojo_update_recalculations "
             f"WHERE token = '{token}'"
         ).strip() == "false"
+        assert json.loads(db_sql(
+            "SELECT data::text FROM dojo_update_recalculations "
+            f"WHERE token = '{token}'"
+        )) == {
+            "dojo_ids": [database_id],
+            "module_ids": [[database_id, 0]],
+            "activity_user_ids": [],
+            "awards": False,
+        }
         assert dojo_run(
             "git", "-C", dojo_path, "rev-parse", "HEAD"
         ).stdout.strip() == remote_commit
 
-        recovery = admin_session.get(f"{DOJO_URL}/")
-        assert recovery.status_code != 503, recovery.text
+        recovery_future = executor.submit(
+            dojo_run,
+            "sh",
+            "-c",
+            f"touch {recovery_started} && exec dojo flask",
+            input='print("EAGER_RECOVERY_DONE")\n',
+        )
+        wait_for_dojo_path(recovery_started)
+        time.sleep(0.5)
+        assert not recovery_future.done()
+        dojo_run("touch", release_commit)
+        updater_result = updater_future.result(timeout=30)
+        assert updater_result.returncode != 0
+        recovery_result = recovery_future.result(timeout=30)
+        assert "EAGER_RECOVERY_DONE" in recovery_result.stdout
+
         assert dojo_run("test", "!", "-e", journal_path).returncode == 0
         assert db_sql(
             "SELECT COUNT(*) FROM dojo_update_recalculations "
@@ -2658,8 +2718,35 @@ dojo_utils.dojo_update(dojo)
             "SELECT name FROM dojos "
             f"WHERE dojo_id = x'{dojo_hex_id}'::int"
         ).strip() == "Recovered Outbox Checkout"
+        assert dojo_challenge_rows(dojo).keys() == {
+            "module:added",
+            "module:source",
+        }
+        assert_transfer_caches_match_database({database_id: {0}})
+        recovered_cache_snapshot = transfer_cache_snapshot(
+            {database_id: {0}},
+            (),
+        )
+        dojo_stats_key = f"stats:dojo:{dojo}"
+        assert (
+            recovered_cache_snapshot["timestamps"][dojo_stats_key] !=
+            initial_cache_timestamps[dojo_stats_key]
+        )
     finally:
-        dojo_run("rm", "-rf", git_root)
+        dojo_run("touch", release_commit, check=False)
+        if updater_future is not None:
+            try:
+                updater_future.result(timeout=30)
+            except Exception:
+                pass
+        if recovery_future is not None:
+            try:
+                recovery_future.result(timeout=30)
+            except Exception:
+                pass
+        executor.shutdown(wait=True, cancel_futures=True)
+        dojo_run("rm", "-rf", marker_root, git_root)
+    assert dojo_temporary_entries() == temporary_entries
 
 
 def run_git_update_ambiguous_commit(admin_session, outcome):
