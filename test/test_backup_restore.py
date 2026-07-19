@@ -651,6 +651,19 @@ def wait_for_database_application(application_name):
     raise AssertionError(f"database application did not connect: {application_name}")
 
 
+def wait_for_temporary_relation(role_name):
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if db_sql(
+            "SELECT count(*) FROM pg_class WHERE relpersistence = 't' "
+            "AND relname = 'active_temp' AND relowner = "
+            f"(SELECT oid FROM pg_roles WHERE rolname = {sql_literal(role_name)});"
+        ).strip() == "1":
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"temporary relation did not appear for role: {role_name}")
+
+
 def wait_for_no_database_application(application_name):
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
@@ -807,18 +820,19 @@ print(" ".join(states))
 
 
 def backup_partials():
-    return set(
-        dojo_run(
-            "find",
-            "/data/backups",
-            "-maxdepth",
-            "1",
-            "-type",
-            "f",
-            "-name",
-            ".dojo-backup.*.partial",
-        ).stdout.split()
+    result = dojo_run(
+        "sh",
+        "-c",
+        "if [ ! -e /data/backups ]; then exit 0; fi; "
+        "exec find /data/backups -maxdepth 1 -type f "
+        "-name '.dojo-backup.*.partial'",
+        check=False,
     )
+    assert result.returncode == 0, command_diagnostics(
+        "backup partial discovery",
+        result,
+    )
+    return set(result.stdout.split())
 
 
 def wait_for_paused_backup(process):
@@ -1844,7 +1858,7 @@ DB_PORT="${DB_PORT:-5432}"
 PGPASSWORD="$1"
 PGAPPNAME="$2"
 export PGPASSWORD PGAPPNAME
-{ printf "%s\n" "$3"; sleep 300; } | docker exec -i \
+printf "%s\nSELECT pg_sleep(300);\n" "$3" | docker exec -i \
     -e PGPASSWORD -e PGAPPNAME db psql \
     --host="$DB_HOST" --port="$DB_PORT" \
     --username="$4" --dbname="$DB_NAME" \
@@ -1862,6 +1876,7 @@ export PGPASSWORD PGAPPNAME
             temporary_role,
         )
         wait_for_database_application(temporary_application)
+        wait_for_temporary_relation(temporary_role)
         snapshot_backup_process = outer_process(
             "env",
             "DOJO_RESTORE_TEST_PAUSE_POINTS=backup-created",
@@ -3707,7 +3722,11 @@ finally:
                 f"WHERE application_name = {sql_literal(temporary_application)};",
                 check=False,
             )
-            temporary_session_process.communicate(timeout=15)
+            try:
+                temporary_session_process.communicate(timeout=15)
+            except subprocess.TimeoutExpired:
+                temporary_session_process.kill()
+                temporary_session_process.communicate(timeout=15)
         if orphan_restore_process is not None and orphan_restore_process.poll() is None:
             signal_restore(backup_filename, "KILL")
             orphan_restore_process.communicate(timeout=15)
@@ -4383,8 +4402,17 @@ loader = importlib.machinery.SourceFileLoader("external_restore", str(path))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 module = importlib.util.module_from_spec(spec)
 loader.exec_module(module)
+installation_state = module.STATE_DIRECTORY
 module.STATE_DIRECTORY = pathlib.Path({external_state!r})
 shutil.rmtree(module.STATE_DIRECTORY, ignore_errors=True)
+module.STATE_DIRECTORY.mkdir(mode=0o700)
+for identity_file in (
+    module.INSTALLATION_ID_FILE,
+    module.MAINTENANCE_SECRET_FILE,
+):
+    target_identity = module.STATE_DIRECTORY / identity_file
+    shutil.copyfile(installation_state / identity_file, target_identity)
+    target_identity.chmod(0o600)
 
 class Services:
     ready_timeout = 30
