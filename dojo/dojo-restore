@@ -2997,7 +2997,8 @@ class DatabaseRestore:
             else "NULL"
         )
         predicate = (
-            f"usename = {application_role} AND pid <> pg_backend_pid() "
+            f"usename = {application_role} AND client_port IS NOT NULL "
+            "AND pid <> pg_backend_pid() "
             f"AND datname IS DISTINCT FROM {database}"
         )
         deadline = time.monotonic() + min(

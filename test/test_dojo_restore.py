@@ -3626,6 +3626,46 @@ def test_database_preflight_waits_for_transient_foreign_database_session(monkeyp
     assert "sessions in another database" in waits[0][1]
 
 
+def test_database_preflight_ignores_background_backends_owned_by_application_role(
+    monkeypatch,
+):
+    database = maintenance_role_database()
+    quiet = {
+        "owner": "ctfd",
+        "other_owned_databases": 0,
+        "privileged_roles": [],
+        "application_memberships": 0,
+        "other_application_sessions": 0,
+        "other_application_session_details": [],
+    }
+    queries = []
+
+    def topology(sql):
+        queries.append(sql)
+        if "client_port IS NOT NULL" not in sql:
+            payload = {
+                **quiet,
+                "other_application_sessions": 1,
+                "other_application_session_details": [
+                    {
+                        "database": None,
+                        "application_name": "",
+                        "client_type": "local",
+                        "backend_type": "logical replication launcher",
+                    }
+                ],
+            }
+        else:
+            payload = quiet
+        return subprocess.CompletedProcess([], 0, json.dumps(payload).encode(), b"")
+
+    monkeypatch.setattr(database, "psql", topology)
+
+    database.verify_exclusive_cluster_topology()
+
+    assert len(queries) == 1
+
+
 @pytest.mark.parametrize(
     "blocker",
     ["prepared_transactions", "logical_slots", "subscriptions"],

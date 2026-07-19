@@ -1794,6 +1794,8 @@ def test_database_backup_restore():
             f"CREATE TABLESPACE {sql_identifier(unrelated_tablespace)} "
             f"OWNER {sql_identifier(unrelated_tablespace_owner)} "
             f"LOCATION {sql_literal(unrelated_tablespace_path)};"
+        )
+        postgres_sql(
             f"GRANT CREATE ON TABLESPACE {sql_identifier(unrelated_tablespace)} "
             f"TO {sql_identifier(temporary_role)};"
         )
