@@ -1526,7 +1526,7 @@ def test_database_backup_restore():
         dojo_run("docker", "rm", "--force", "db")
         activation_recovery_process = outer_process(
             "env",
-            "DOJO_RESTORE_TEST_PAUSE_POINTS=maintenance-role-deactivated",
+            "DOJO_RESTORE_TEST_PAUSE_POINTS=journal-maintenance-role-deactivated",
             "dojo",
             "up",
         )
@@ -1554,7 +1554,7 @@ def test_database_backup_restore():
         deactivation_identity = database_identity()
         deactivation_crash_process = outer_process(
             "env",
-            "DOJO_RESTORE_TEST_PAUSE_POINTS=maintenance-role-deactivated",
+            "DOJO_RESTORE_TEST_PAUSE_POINTS=journal-maintenance-role-deactivated",
             RESTORE_HELPER,
             backup_filename,
         )
@@ -1621,7 +1621,7 @@ def test_database_backup_restore():
         dojo_run("docker", "rm", "--force", "db")
         activation_recovery_process = outer_process(
             "env",
-            "DOJO_RESTORE_TEST_PAUSE_POINTS=maintenance-role-deactivated",
+            "DOJO_RESTORE_TEST_PAUSE_POINTS=startup-maintenance-role-deactivated",
             "dojo",
             "up",
         )

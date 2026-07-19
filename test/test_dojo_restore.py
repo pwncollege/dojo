@@ -801,8 +801,13 @@ def test_prepare_without_database_writes_startup_gate_before_client_mutation():
     assert ("ensure_database_client",) not in events
 
 
-def test_startup_gate_recovery_deactivates_before_exact_service_restore():
+def test_startup_gate_recovery_deactivates_before_exact_service_restore(monkeypatch):
     events = []
+    monkeypatch.setattr(
+        RESTORE_MODULE,
+        "pause_for_test",
+        lambda point: events.append(("pause", point)),
+    )
     state = RecordingState(
         {
             "version": 6,
@@ -828,6 +833,9 @@ def test_startup_gate_recovery_deactivates_before_exact_service_restore():
     database_index = events.index(("ensure_database_client",))
     bind_index = events.index(("bind_startup_database_identity", None))
     deactivate_index = events.index(("deactivate_maintenance_role",))
+    pause_index = events.index(
+        ("pause", "startup-maintenance-role-deactivated")
+    )
     restore_index = events.index(
         ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
     )
@@ -837,6 +845,7 @@ def test_startup_gate_recovery_deactivates_before_exact_service_restore():
         < database_index
         < bind_index
         < deactivate_index
+        < pause_index
         < restore_index
         < cleanup_index
     )
@@ -1021,8 +1030,14 @@ def test_version_two_recovery_accepts_legacy_login_role_with_clients_stopped():
 @pytest.mark.parametrize("maintenance", ["activating", "deactivating", "inactive"])
 def test_inactive_lifecycle_recovery_uses_application_role_before_exposure(
     maintenance,
+    monkeypatch,
 ):
     events = []
+    monkeypatch.setattr(
+        RESTORE_MODULE,
+        "pause_for_test",
+        lambda point: events.append(("pause", point)),
+    )
     journal = restore_journal("committed")
     journal["maintenance"] = maintenance
     state = RecordingState(journal, events)
@@ -1034,14 +1049,45 @@ def test_inactive_lifecycle_recovery_uses_application_role_before_exposure(
     assert ("use_maintenance_target",) not in events
     assert ("activate_maintenance_role",) not in events
     deactivate_index = events.index(("deactivate_maintenance_role",))
+    pause_index = events.index(
+        ("pause", "journal-maintenance-role-deactivated")
+    )
     restore_index = events.index(
         ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
     )
     cleanup_index = events.index(("cleanup",))
-    assert deactivate_index < restore_index < cleanup_index
+    assert deactivate_index < pause_index < restore_index < cleanup_index
     if maintenance != "inactive":
         inactive_index = events.index(("set_maintenance", "inactive"))
-        assert deactivate_index < inactive_index < restore_index
+        assert pause_index < inactive_index < restore_index
+
+
+def test_exposure_deactivation_pause_has_durable_marker_and_inactive_role(
+    monkeypatch,
+):
+    events = []
+    journal = restore_journal("committed")
+    state = RecordingState(journal, events)
+    database = RecordingDatabase(events)
+    monkeypatch.setattr(
+        RESTORE_MODULE,
+        "pause_for_test",
+        lambda point: events.append(("pause", point)),
+    )
+
+    RESTORE_MODULE.deactivate_maintenance_before_exposure(
+        state,
+        journal,
+        database,
+    )
+
+    deactivating_index = events.index(("set_maintenance", "deactivating"))
+    role_index = events.index(("deactivate_maintenance_role",))
+    pause_index = events.index(
+        ("pause", "journal-maintenance-role-deactivated")
+    )
+    inactive_index = events.index(("set_maintenance", "inactive"))
+    assert deactivating_index < role_index < pause_index < inactive_index
 
 
 def test_deactivation_failure_keeps_durable_marker_and_services_stopped():

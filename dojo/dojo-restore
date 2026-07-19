@@ -2753,6 +2753,7 @@ def deactivate_maintenance_before_exposure(state, journal, database):
     state.set_maintenance(journal, "deactivating")
     pause_for_test("maintenance-role-deactivating")
     deactivate_maintenance_with_application(database)
+    pause_for_test("journal-maintenance-role-deactivated")
     state.set_maintenance(journal, "inactive")
 
 
@@ -2860,6 +2861,7 @@ def recover_inactive_maintenance(state, journal, database, services):
     database.verify_journal_identity(journal)
     database.verify_recreation_privileges()
     deactivate_maintenance_with_application(database)
+    pause_for_test("journal-maintenance-role-deactivated")
     if journal["maintenance"] != "inactive":
         state.set_maintenance(journal, "inactive")
     services.cleanup_private_validation()
@@ -2896,6 +2898,7 @@ def recover_restore(state, database, services):
             state.write_journal(journal)
         services.verify_startup_database_identity(journal["database"])
         deactivate_maintenance_with_application(database)
+        pause_for_test("startup-maintenance-role-deactivated")
         services.verify_identities(journal["services"])
         restore_services_and_cleanup(state, journal, services)
         return
