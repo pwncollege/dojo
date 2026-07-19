@@ -1,3 +1,4 @@
+import contextlib
 import importlib.machinery
 import importlib.util
 import json
@@ -230,19 +231,21 @@ def service_snapshot(*, legacy=False):
 
 
 def restore_journal(phase, *, legacy=False, version=None):
-    version = version or (1 if legacy else 4)
+    version = version or (1 if legacy else 5)
     journal = {
         "version": version,
         "phase": phase,
         "services": service_snapshot(legacy=legacy),
         "database": database_metadata(),
     }
-    if version in {2, 3, 4}:
+    if version in {2, 3, 4, 5}:
         journal["target"] = journal_target()
-    if version in {3, 4}:
+    if version in {3, 4, 5}:
         journal["installation_id"] = TEST_INSTALLATION_ID
-    if version == 4:
+    if version in {4, 5}:
         journal["application_role"] = {"name": "ctfd", "login": True}
+    if version == 5:
+        journal["maintenance"] = "active"
     return journal
 
 
@@ -258,27 +261,73 @@ class RecordingState:
     def write_journal(self, journal):
         RESTORE_MODULE.RestoreState()._validate_journal(journal)
         self.journal = journal
-        self.events.append(("write_journal", journal["phase"], set(journal["services"])))
+        self.events.append(
+            (
+                "write_journal",
+                journal.get("phase"),
+                set(journal["services"]),
+                journal.get("maintenance"),
+            )
+        )
 
     def set_phase(self, journal, phase):
         journal["phase"] = phase
         self.events.append(("set_phase", phase))
+
+    def set_maintenance(self, journal, maintenance):
+        journal["maintenance"] = maintenance
+        self.events.append(("set_maintenance", maintenance))
 
     def cleanup(self):
         self.events.append(("cleanup",))
 
 
 class RecordingServices:
-    def __init__(self, events, *, pgbouncer_running):
+    def __init__(
+        self,
+        events,
+        *,
+        pgbouncer_running,
+        database_available=True,
+        database_present=True,
+    ):
         self.events = events
         self.pgbouncer_running = pgbouncer_running
+        self.database_available = database_available
+        self.database_present = database_present
 
     def snapshot_service(self, service):
         self.events.append(("snapshot_service", service))
         return service_snapshot()[service]
 
+    def require_supported_snapshot(self, snapshot):
+        self.events.append(("require_supported_snapshot", set(snapshot)))
+
+    def database_client_available(self):
+        self.events.append(("database_client_available",))
+        return self.database_available
+
+    def snapshot_database_for_startup(self):
+        self.events.append(("snapshot_database_for_startup",))
+        return {
+            "present": self.database_present,
+            "running": self.database_available,
+            "id": "db-id" if self.database_present else None,
+        }
+
+    def snapshot_for_startup(self):
+        self.events.append(("snapshot_for_startup",))
+        return service_snapshot()
+
     def ensure_database_client(self):
         self.events.append(("ensure_database_client",))
+
+    def verify_startup_database_identity(self, expected):
+        self.events.append(("verify_startup_database_identity", expected["id"]))
+
+    def bind_startup_database_identity(self, expected):
+        self.events.append(("bind_startup_database_identity", expected["id"]))
+        return {"present": True, "running": True, "id": "db-id"}
 
     def inspect(self, service):
         self.events.append(("inspect", service))
@@ -312,6 +361,8 @@ class RecordingServices:
 class RecordingDatabase:
     def __init__(self, events):
         self.events = events
+        self.maintenance_target = "maintenance-target"
+        self.application_target = database_target()
 
     def terminate_maintenance_backends(self):
         self.events.append(("terminate_maintenance_backends",))
@@ -328,6 +379,20 @@ class RecordingDatabase:
     def verify_application_role(self):
         self.events.append(("verify_application_role",))
         return {"name": "ctfd", "login": True}
+
+    def verify_maintenance_role_reusable(self):
+        self.events.append(("verify_maintenance_role_reusable",))
+        return None
+
+    def verify_maintenance_role_deactivatable(self):
+        return None
+
+    def capture_maintenance_role(self, *, target=None):
+        self.events.append(("capture_maintenance_role", target))
+        return {"login": True}
+
+    def verify_maintenance_role(self, _role, *, login):
+        self.events.append(("verify_maintenance_role", login))
 
     def capture_application_role(self):
         self.events.append(("capture_application_role",))
@@ -350,6 +415,9 @@ class RecordingDatabase:
 
     def verify_configured_target(self, _target):
         self.events.append(("verify_configured_target",))
+
+    def verify_configured_startup_target(self, _target):
+        self.events.append(("verify_configured_startup_target",))
 
     def verify_recreation_privileges(self):
         self.events.append(("verify_recreation_privileges",))
@@ -375,6 +443,197 @@ def test_version_two_journal_binds_database_target_and_server():
         match="system identifier",
     ):
         RESTORE_MODULE.RestoreState()._validate_journal(journal)
+
+
+@pytest.mark.parametrize(
+    "database",
+    [
+        {"present": False, "running": False},
+        {"present": False, "running": False, "id": "db-id"},
+        {"present": False, "running": False, "id": ""},
+        {"present": True, "running": False, "id": None},
+        {"present": True, "running": False, "id": 1},
+        {"present": False, "running": True, "id": None},
+    ],
+)
+def test_startup_journal_requires_consistent_stopped_database_identity(database):
+    journal = {
+        "version": 6,
+        "kind": "startup",
+        "services": service_snapshot(),
+        "installation_id": TEST_INSTALLATION_ID,
+        "database": database,
+        "target": database_target().configuration(),
+    }
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="invalid startup database state",
+    ):
+        RESTORE_MODULE.RestoreState()._validate_journal(journal)
+
+
+@pytest.mark.parametrize("version", [2, 3])
+@pytest.mark.parametrize(
+    "phase",
+    ["snapshotting", "restoring", "rolling_back", "committed"],
+)
+def test_legacy_no_nginx_journals_fail_before_docker_or_database_actions(
+    version,
+    phase,
+):
+    journal = restore_journal(phase, legacy=True, version=version)
+
+    class State:
+        installation_id = TEST_INSTALLATION_ID
+        maintenance_secret = "2" * RESTORE_MODULE.MAINTENANCE_SECRET_LENGTH
+        maintenance_role = f"dojo_restore_{installation_id}"
+
+        def load_journal(self):
+            RESTORE_MODULE.RestoreState()._validate_journal(journal)
+            return journal
+
+    class Runner:
+        def __init__(self):
+            self.calls = []
+
+        def run(self, arguments, **options):
+            self.calls.append((arguments, options))
+            raise AssertionError("legacy journal reached an external command")
+
+    runner = Runner()
+    state = State()
+    services = RESTORE_MODULE.DockerServices(runner, database_target())
+    database = RESTORE_MODULE.DatabaseRestore(
+        runner,
+        state,
+        services,
+        database_target(),
+    )
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="unsupported legacy service snapshot",
+    ):
+        RESTORE_MODULE.recover_restore(state, database, services)
+
+    assert runner.calls == []
+
+
+@pytest.mark.parametrize(
+    "method_name",
+    ["gate_restarts", "stop_clients", "restore_snapshot"],
+)
+def test_docker_services_reject_legacy_snapshots_before_commands(method_name):
+    class Runner:
+        def __init__(self):
+            self.calls = []
+
+        def run(self, arguments, **options):
+            self.calls.append((arguments, options))
+            raise AssertionError("unsupported snapshot reached Docker")
+
+    runner = Runner()
+    services = RESTORE_MODULE.DockerServices(runner, database_target())
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="unsupported service snapshot",
+    ):
+        getattr(services, method_name)(service_snapshot(legacy=True))
+
+    assert runner.calls == []
+
+
+def test_startup_snapshot_handles_database_outage_but_rejects_partial_clients(
+    monkeypatch,
+):
+    services = RESTORE_MODULE.DockerServices(UnreadyRunner(), database_target())
+
+    def running_state(service):
+        return {
+            "id": f"{service}-id",
+            "running": True,
+            "status": "running",
+            "paused": False,
+            "restarting": False,
+            "started_at": "now",
+            "health": "unhealthy",
+            "restart_policy": "always",
+            "restart_retries": 0,
+        }
+
+    monkeypatch.setattr(services, "inspect", running_state)
+    snapshot = services.snapshot_for_startup()
+    assert set(snapshot) == set(RESTORE_MODULE.SNAPSHOT_SERVICES)
+    assert all(service["running"] for service in snapshot.values())
+
+    monkeypatch.setattr(
+        services,
+        "inspect",
+        lambda service: None if service == "nginx" else running_state(service),
+    )
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="startup recovery requires every tracked container: nginx",
+    ):
+        services.snapshot_for_startup()
+
+
+def test_startup_database_snapshot_distinguishes_absent_and_stopped(monkeypatch):
+    services = RESTORE_MODULE.DockerServices(UnreadyRunner(), database_target())
+    monkeypatch.setattr(services, "inspect", lambda _service: None)
+    assert services.snapshot_database_for_startup() == {
+        "present": False,
+        "running": False,
+        "id": None,
+    }
+    monkeypatch.setattr(
+        services,
+        "inspect",
+        lambda _service: {
+            "id": "db-id",
+            "running": False,
+            "status": "exited",
+            "paused": False,
+            "restarting": False,
+        },
+    )
+    assert services.snapshot_database_for_startup() == {
+        "present": True,
+        "running": False,
+        "id": "db-id",
+    }
+
+
+def test_startup_database_identity_rejects_replacement_but_allows_clean_create(
+    monkeypatch,
+):
+    services = RESTORE_MODULE.DockerServices(UnreadyRunner(), database_target())
+    current = {
+        "id": "original-db-id",
+        "running": True,
+        "status": "running",
+        "paused": False,
+        "restarting": False,
+    }
+    monkeypatch.setattr(services, "inspect", lambda _service: current)
+    services.verify_startup_database_identity(
+        {"present": True, "running": False, "id": "original-db-id"}
+    )
+
+    current["id"] = "replacement-db-id"
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="database container changed during startup recovery",
+    ):
+        services.verify_startup_database_identity(
+            {"present": True, "running": False, "id": "original-db-id"}
+        )
+
+    services.verify_startup_database_identity(
+        {"present": False, "running": False, "id": None}
+    )
 
 
 def test_recovery_rejects_target_change_before_service_or_database_mutation():
@@ -469,6 +728,240 @@ def test_clean_startup_without_database_container_skips_psql(monkeypatch):
     ]
 
 
+def test_no_journal_recovery_deactivates_owned_role_after_database_start():
+    events = []
+
+    class EmptyState:
+        def load_journal(self):
+            events.append(("load_journal",))
+            return None
+
+        def _unlink_trusted(self, name):
+            events.append(("unlink", name))
+            raise FileNotFoundError
+
+        def _fsync_directory(self):
+            events.append(("fsync",))
+
+    services = RecordingServices(
+        events,
+        pgbouncer_running=False,
+        database_available=True,
+    )
+    database = RecordingDatabase(events)
+
+    RESTORE_MODULE.recover_restore(EmptyState(), database, services)
+
+    assert events == [
+        ("load_journal",),
+        ("database_client_available",),
+        ("use_application_target",),
+        ("wait_ready",),
+        ("terminate_maintenance_backends",),
+        ("deactivate_maintenance_role",),
+        ("terminate_maintenance_backends",),
+        ("unlink", "rollback.dump"),
+    ]
+
+
+def test_prepare_without_database_writes_startup_gate_before_client_mutation():
+    events = []
+    state = RecordingState(None, events)
+    services = RecordingServices(
+        events,
+        pgbouncer_running=True,
+        database_available=False,
+        database_present=False,
+    )
+
+    RESTORE_MODULE.prepare_restore_recovery(
+        state,
+        RecordingDatabase(events),
+        services,
+    )
+
+    assert state.journal == {
+        "version": 6,
+        "kind": "startup",
+        "services": service_snapshot(),
+        "installation_id": TEST_INSTALLATION_ID,
+        "database": {"present": False, "running": False, "id": None},
+        "target": database_target().configuration(),
+    }
+    write_index = next(
+        index for index, event in enumerate(events) if event[0] == "write_journal"
+    )
+    gate_index = events.index(
+        ("gate_restarts", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
+    )
+    stop_index = events.index(
+        ("stop_clients", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
+    )
+    assert write_index < gate_index < stop_index
+    assert ("ensure_database_client",) not in events
+
+
+def test_startup_gate_recovery_deactivates_before_exact_service_restore():
+    events = []
+    state = RecordingState(
+        {
+            "version": 6,
+            "kind": "startup",
+            "services": service_snapshot(),
+            "installation_id": TEST_INSTALLATION_ID,
+            "database": {"present": False, "running": False, "id": None},
+            "target": database_target().configuration(),
+        },
+        events,
+    )
+    services = RecordingServices(events, pgbouncer_running=False)
+
+    RESTORE_MODULE.recover_restore(
+        state,
+        RecordingDatabase(events),
+        services,
+    )
+
+    stop_index = events.index(
+        ("stop_clients", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
+    )
+    database_index = events.index(("ensure_database_client",))
+    bind_index = events.index(("bind_startup_database_identity", None))
+    deactivate_index = events.index(("deactivate_maintenance_role",))
+    restore_index = events.index(
+        ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
+    )
+    cleanup_index = events.index(("cleanup",))
+    assert (
+        stop_index
+        < database_index
+        < bind_index
+        < deactivate_index
+        < restore_index
+        < cleanup_index
+    )
+    assert state.journal["database"] == {
+        "present": True,
+        "running": True,
+        "id": "db-id",
+    }
+
+
+def test_startup_gate_rejects_database_replacement_before_database_actions():
+    events = []
+    state = RecordingState(
+        {
+            "version": 6,
+            "kind": "startup",
+            "services": service_snapshot(),
+            "installation_id": TEST_INSTALLATION_ID,
+            "database": {
+                "present": True,
+                "running": False,
+                "id": "original-db-id",
+            },
+            "target": database_target().configuration(),
+        },
+        events,
+    )
+
+    class ReplacedDatabaseServices(RecordingServices):
+        def verify_startup_database_identity(self, expected):
+            super().verify_startup_database_identity(expected)
+            raise RESTORE_MODULE.RestoreError(
+                "database container changed during startup recovery"
+            )
+
+    services = ReplacedDatabaseServices(events, pgbouncer_running=False)
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="database container changed during startup recovery",
+    ):
+        RESTORE_MODULE.recover_restore(
+            state,
+            RecordingDatabase(events),
+            services,
+        )
+
+    assert ("ensure_database_client",) not in events
+    assert ("deactivate_maintenance_role",) not in events
+    assert not any(event[0] == "restore_snapshot" for event in events)
+
+
+def test_prepare_clean_startup_with_no_tracked_containers_needs_no_marker():
+    events = []
+    state = RecordingState(None, events)
+
+    class EmptyServices(RecordingServices):
+        def snapshot_for_startup(self):
+            self.events.append(("snapshot_for_startup",))
+            return None
+
+    services = EmptyServices(
+        events,
+        pgbouncer_running=False,
+        database_available=False,
+        database_present=False,
+    )
+
+    RESTORE_MODULE.prepare_restore_recovery(
+        state,
+        RecordingDatabase(events),
+        services,
+    )
+
+    assert state.journal is None
+    assert events == [
+        ("snapshot_database_for_startup",),
+        ("snapshot_for_startup",),
+    ]
+
+
+def test_prepare_with_running_database_deactivates_before_service_actions():
+    events = []
+    state = RecordingState(None, events)
+    services = RecordingServices(events, pgbouncer_running=True)
+
+    RESTORE_MODULE.prepare_restore_recovery(
+        state,
+        RecordingDatabase(events),
+        services,
+    )
+
+    assert state.journal is None
+    assert events == [
+        ("snapshot_database_for_startup",),
+        ("use_application_target",),
+        ("wait_ready",),
+        ("terminate_maintenance_backends",),
+        ("deactivate_maintenance_role",),
+        ("terminate_maintenance_backends",),
+    ]
+
+
+def test_startup_gate_never_overwrites_pending_restore_journal():
+    events = []
+    pending = restore_journal("restoring")
+    state = RecordingState(pending, events)
+    services = RecordingServices(
+        events,
+        pgbouncer_running=False,
+        database_available=False,
+        database_present=False,
+    )
+
+    RESTORE_MODULE.prepare_restore_recovery(
+        state,
+        RecordingDatabase(events),
+        services,
+    )
+
+    assert state.journal is pending
+    assert not any(event[0] == "write_journal" for event in events)
+    assert ("snapshot_database_for_startup",) not in events
+
+
 def test_ready_recovery_restores_services_without_recreating_database():
     events = []
     state = RecordingState(restore_journal("ready"), events)
@@ -480,17 +973,24 @@ def test_ready_recovery_restores_services_without_recreating_database():
     assert ("restore_rollback",) not in events
     assert ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES)) in events
     assert ("wait_external_http",) in events
-    assert events[-2:] == [("cleanup",), ("deactivate_maintenance_role",)]
-    assert events.count(("terminate_maintenance_backends",)) == 2
+    deactivate_index = events.index(("deactivate_maintenance_role",))
+    inactive_index = events.index(("set_maintenance", "inactive"))
+    restore_index = events.index(
+        ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
+    )
+    assert deactivate_index < inactive_index < restore_index
+    assert events[-2:] == [("wait_external_http",), ("cleanup",)]
+    assert events.count(("terminate_maintenance_backends",)) == 4
     termination_indices = [
         index
         for index, event in enumerate(events)
         if event == ("terminate_maintenance_backends",)
     ]
     assert termination_indices[0] < events.index(("cleanup_private_validation",))
-    assert termination_indices[1] < events.index(
+    assert termination_indices[-1] < events.index(
         ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
     )
+    assert termination_indices[-2] < deactivate_index < termination_indices[-1]
 
 
 def test_version_two_recovery_accepts_legacy_login_role_with_clients_stopped():
@@ -505,13 +1005,180 @@ def test_version_two_recovery_accepts_legacy_login_role_with_clients_stopped():
     assert ("use_application_target",) in events
     assert ("verify_application_role",) in events
     assert ("activate_maintenance_role",) in events
-    assert state.journal["version"] == 4
+    assert state.journal["version"] == 5
     assert state.journal["installation_id"] == TEST_INSTALLATION_ID
     assert state.journal["application_role"] == {"name": "ctfd", "login": True}
     write_index = next(
         index for index, event in enumerate(events) if event[0] == "write_journal"
     )
-    assert events.index(("activate_maintenance_role",)) < write_index
+    activate_index = events.index(("activate_maintenance_role",))
+    active_index = events.index(("set_maintenance", "active"))
+    stop_index = events.index(("stop_clients", set(RESTORE_MODULE.SNAPSHOT_SERVICES)))
+    assert events[write_index][3] == "activating"
+    assert write_index < stop_index < activate_index < active_index
+
+
+@pytest.mark.parametrize("maintenance", ["activating", "deactivating", "inactive"])
+def test_inactive_lifecycle_recovery_uses_application_role_before_exposure(
+    maintenance,
+):
+    events = []
+    journal = restore_journal("committed")
+    journal["maintenance"] = maintenance
+    state = RecordingState(journal, events)
+    services = RecordingServices(events, pgbouncer_running=False)
+    database = RecordingDatabase(events)
+
+    RESTORE_MODULE.recover_restore(state, database, services)
+
+    assert ("use_maintenance_target",) not in events
+    assert ("activate_maintenance_role",) not in events
+    deactivate_index = events.index(("deactivate_maintenance_role",))
+    restore_index = events.index(
+        ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
+    )
+    cleanup_index = events.index(("cleanup",))
+    assert deactivate_index < restore_index < cleanup_index
+    if maintenance != "inactive":
+        inactive_index = events.index(("set_maintenance", "inactive"))
+        assert deactivate_index < inactive_index < restore_index
+
+
+def test_deactivation_failure_keeps_durable_marker_and_services_stopped():
+    events = []
+    journal = restore_journal("snapshotting")
+    state = RecordingState(journal, events)
+    services = RecordingServices(events, pgbouncer_running=False)
+
+    class FailingDatabase(RecordingDatabase):
+        def deactivate_maintenance_role(self):
+            self.events.append(("deactivate_maintenance_role",))
+            raise RESTORE_MODULE.RestoreError("injected deactivation failure")
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="injected deactivation failure",
+    ):
+        RESTORE_MODULE.recover_restore(state, FailingDatabase(events), services)
+
+    assert state.journal["maintenance"] == "deactivating"
+    assert ("cleanup",) not in events
+    assert (
+        "restore_snapshot",
+        set(RESTORE_MODULE.SNAPSHOT_SERVICES),
+    ) not in events
+
+
+def test_prepare_recovery_is_idempotent_without_a_database_client():
+    events = []
+    state = RecordingState(restore_journal("restoring"), events)
+    services = RecordingServices(events, pgbouncer_running=False)
+    database = RecordingDatabase(events)
+
+    RESTORE_MODULE.prepare_restore_recovery(state, database, services)
+    RESTORE_MODULE.prepare_restore_recovery(state, database, services)
+
+    expected = [
+        ("verify_configured_target",),
+        ("require_supported_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES)),
+        ("verify_identities", set(RESTORE_MODULE.SNAPSHOT_SERVICES)),
+        ("gate_restarts", set(RESTORE_MODULE.SNAPSHOT_SERVICES)),
+        ("stop_clients", set(RESTORE_MODULE.SNAPSHOT_SERVICES)),
+    ]
+    assert events == expected * 2
+    assert ("ensure_database_client",) not in events
+    assert ("wait_ready",) not in events
+
+
+def test_prepare_recovery_missing_snapshot_container_fails_before_mutation():
+    events = []
+    state = RecordingState(restore_journal("restoring"), events)
+
+    class MissingServices(RecordingServices):
+        def verify_identities(self, snapshot):
+            self.events.append(("verify_identities", set(snapshot)))
+            raise RESTORE_MODULE.RestoreError(
+                "container changed during restore: nginx"
+            )
+
+    services = MissingServices(events, pgbouncer_running=False)
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="container changed during restore: nginx",
+    ):
+        RESTORE_MODULE.prepare_restore_recovery(
+            state,
+            RecordingDatabase(events),
+            services,
+        )
+
+    assert events == [
+        ("verify_configured_target",),
+        ("require_supported_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES)),
+        ("verify_identities", set(RESTORE_MODULE.SNAPSHOT_SERVICES)),
+    ]
+
+
+def test_provenance_failure_retries_without_exposure_or_journal_cleanup():
+    events = []
+    state = RecordingState(restore_journal("committed"), events)
+    services = RecordingServices(events, pgbouncer_running=False)
+
+    class UnownedDatabase(RecordingDatabase):
+        def verify_maintenance_role(self, _role, *, login):
+            self.events.append(("verify_maintenance_role", login))
+            raise RESTORE_MODULE.RestoreError(
+                "existing PostgreSQL maintenance role is not owned by this installation"
+            )
+
+    database = UnownedDatabase(events)
+    for _attempt in range(2):
+        RESTORE_MODULE.prepare_restore_recovery(state, database, services)
+        with pytest.raises(
+            RESTORE_MODULE.RestoreError,
+            match="not owned by this installation",
+        ):
+            RESTORE_MODULE.recover_restore(state, database, services)
+
+    assert state.journal["maintenance"] == "active"
+    assert events.count(
+        ("gate_restarts", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
+    ) == 2
+    assert events.count(
+        ("stop_clients", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
+    ) == 2
+    assert ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES)) not in events
+    assert ("cleanup",) not in events
+
+
+def test_database_start_failure_leaves_journal_for_successful_retry():
+    events = []
+    state = RecordingState(restore_journal("snapshotting"), events)
+
+    class UnavailableDatabaseServices(RecordingServices):
+        def ensure_database_client(self):
+            self.events.append(("ensure_database_client",))
+            raise RESTORE_MODULE.RestoreError(
+                "required database client container is missing: db"
+            )
+
+    unavailable = UnavailableDatabaseServices(events, pgbouncer_running=False)
+    database = RecordingDatabase(events)
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="database client container is missing",
+    ):
+        RESTORE_MODULE.recover_restore(state, database, unavailable)
+
+    assert state.journal["maintenance"] == "active"
+    assert ("cleanup",) not in events
+    available = RecordingServices(events, pgbouncer_running=False)
+    RESTORE_MODULE.recover_restore(state, database, available)
+
+    assert state.journal["maintenance"] == "inactive"
+    assert events[-2:] == [("wait_external_http",), ("cleanup",)]
 
 
 def test_version_two_recovery_rejects_disabled_application_role_before_upgrade():
@@ -538,6 +1205,7 @@ def test_version_two_recovery_rejects_disabled_application_role_before_upgrade()
     assert state.journal["version"] == 2
     assert events == [
         ("verify_configured_target",),
+        ("require_supported_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES)),
         ("ensure_database_client",),
         ("use_application_target",),
         ("wait_ready",),
@@ -547,22 +1215,20 @@ def test_version_two_recovery_rejects_disabled_application_role_before_upgrade()
     ]
 
 
-def test_version_three_recovery_records_application_role_before_mutation():
+@pytest.mark.parametrize("version", [3, 4])
+def test_pre_provenance_recovery_rejects_before_actions(version):
     events = []
-    state = RecordingState(restore_journal("ready", version=3), events)
+    state = RecordingState(restore_journal("ready", version=version), events)
     services = RecordingServices(events, pgbouncer_running=False)
     database = RecordingDatabase(events)
 
-    RESTORE_MODULE.recover_restore(state, database, services)
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="predates maintenance-role provenance",
+    ):
+        RESTORE_MODULE.recover_restore(state, database, services)
 
-    assert state.journal["version"] == 4
-    assert state.journal["application_role"] == {"name": "ctfd", "login": True}
-    capture_index = events.index(("capture_application_role",))
-    write_index = next(
-        index for index, event in enumerate(events) if event[0] == "write_journal"
-    )
-    mutation_index = events.index(("gate_restarts", set(RESTORE_MODULE.SNAPSHOT_SERVICES)))
-    assert capture_index < write_index < mutation_index
+    assert events == []
 
 
 def test_terminal_recovery_refences_before_validation_and_release():
@@ -576,8 +1242,14 @@ def test_terminal_recovery_refences_before_validation_and_release():
     establish_index = events.index(("establish_fence",))
     warm_index = events.index(("warm_cache",))
     release_index = events.index(("release_fence",))
+    deactivate_index = events.index(("deactivate_maintenance_role",))
+    inactive_index = events.index(("set_maintenance", "inactive"))
+    restore_index = events.index(
+        ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
+    )
     assert establish_index < warm_index < release_index
-    assert events[-2:] == [("cleanup",), ("deactivate_maintenance_role",)]
+    assert release_index < deactivate_index < inactive_index < restore_index
+    assert events[-2:] == [("set_phase", "committed_exposed"), ("cleanup",)]
 
 
 def test_snapshotting_recovery_releases_without_completing_the_fence():
@@ -591,7 +1263,13 @@ def test_snapshotting_recovery_releases_without_completing_the_fence():
     assert ("establish_fence",) not in events
     assert ("release_fence",) in events
     assert ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES)) in events
-    assert events[-2:] == [("cleanup",), ("deactivate_maintenance_role",)]
+    deactivate_index = events.index(("deactivate_maintenance_role",))
+    inactive_index = events.index(("set_maintenance", "inactive"))
+    restore_index = events.index(
+        ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES))
+    )
+    assert deactivate_index < inactive_index < restore_index
+    assert events[-2:] == [("wait_external_http",), ("cleanup",)]
 
 
 def test_database_identity_rejects_replacement_and_unexpected_absence(monkeypatch):
@@ -751,8 +1429,11 @@ def test_recovery_rejects_insufficient_privilege_before_service_mutation():
 
     assert events == [
         ("verify_configured_target",),
+        ("require_supported_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES)),
         ("ensure_database_client",),
         ("use_maintenance_target",),
+        ("capture_maintenance_role", "maintenance-target"),
+        ("verify_maintenance_role", True),
         ("wait_ready",),
         ("verify_journal_identity", "ready"),
         ("verify_recreation_privileges",),
@@ -1364,7 +2045,12 @@ def test_database_target_uses_configured_endpoint_without_password_in_arguments(
         target.run_client(runner, "psql", connect=True)
 
 
-def test_restore_psql_is_tagged_and_termination_covers_every_database():
+def test_restore_psql_is_tagged_and_termination_covers_every_helper_session():
+    class State:
+        installation_id = "3" * RESTORE_MODULE.INSTALLATION_ID_LENGTH
+        maintenance_secret = "4" * RESTORE_MODULE.MAINTENANCE_SECRET_LENGTH
+        maintenance_role = f"dojo_restore_{installation_id}"
+
     class TargetRunner:
         def __init__(self):
             self.calls = []
@@ -1376,7 +2062,7 @@ def test_restore_psql_is_tagged_and_termination_covers_every_database():
     runner = TargetRunner()
     services = type("Services", (), {"ready_timeout": 2})()
     database = RESTORE_MODULE.DatabaseRestore(
-        runner, None, services, database_target()
+        runner, State(), services, database_target()
     )
 
     database.terminate_maintenance_backends()
@@ -1387,6 +2073,18 @@ def test_restore_psql_is_tagged_and_termination_covers_every_database():
     assert "pid <> pg_backend_pid()" in query
     for application in database.application_names:
         assert RESTORE_MODULE.sql_literal(application) in query
+    applications = ", ".join(
+        RESTORE_MODULE.sql_literal(application)
+        for application in database.application_names
+    )
+    application_predicate = (
+        f"(usename = {RESTORE_MODULE.sql_literal(database.application_target.user)} "
+        f"AND application_name IN ({applications}))"
+    )
+    maintenance_predicate = (
+        f"usename = {RESTORE_MODULE.sql_literal(database.maintenance_target.user)}"
+    )
+    assert f"WHERE ({application_predicate} OR {maintenance_predicate})" in query
     assert options["environment"]["PGAPPNAME"] == database.restore_application_name
 
 
@@ -1442,6 +2140,10 @@ def test_installations_cannot_match_each_others_maintenance_sessions():
     assert all(name not in first_query for name in second.application_names)
     assert all(name in second_query for name in second.application_names)
     assert all(name not in second_query for name in first.application_names)
+    assert RESTORE_MODULE.sql_literal(first.maintenance_target.user) in first_query
+    assert RESTORE_MODULE.sql_literal(second.maintenance_target.user) not in first_query
+    assert RESTORE_MODULE.sql_literal(second.maintenance_target.user) in second_query
+    assert RESTORE_MODULE.sql_literal(first.maintenance_target.user) not in second_query
     assert all(len(name.encode()) < 64 for name in first.application_names)
 
 
@@ -1730,6 +2432,262 @@ def test_maintenance_role_cannot_equal_application_role():
         RESTORE_MODULE.DatabaseRestore(None, State(), services, target)
 
 
+def maintenance_role_database():
+    class State:
+        installation_id = "6" * RESTORE_MODULE.INSTALLATION_ID_LENGTH
+        maintenance_secret = "7" * RESTORE_MODULE.MAINTENANCE_SECRET_LENGTH
+        maintenance_role = f"dojo_restore_{installation_id}"
+
+    services = type(
+        "Services",
+        (),
+        {"ready_timeout": 2, "cold_start_timeout": 2, "target": None},
+    )()
+    return RESTORE_MODULE.DatabaseRestore(
+        None,
+        State(),
+        services,
+        database_target(),
+    )
+
+
+def maintenance_role_record(database, *, login, **overrides):
+    role = {
+        "name": database.maintenance_target.user,
+        "oid": 24680,
+        "comment": database.maintenance_provenance,
+        "superuser": True,
+        "inherit": True,
+        "create_db": False,
+        "create_role": False,
+        "login": login,
+        "replication": False,
+        "bypass_rls": False,
+        "connection_limit": -1,
+        "valid_until_null": True,
+        "config_null": True,
+        "memberships": 0,
+    }
+    role.update(overrides)
+    return role
+
+
+def test_unrelated_maintenance_role_collision_is_never_mutated(monkeypatch):
+    database = maintenance_role_database()
+    collision = maintenance_role_record(
+        database,
+        login=False,
+        comment="unrelated role",
+        superuser=False,
+        inherit=False,
+        create_db=True,
+        create_role=True,
+        connection_limit=7,
+        config_null=False,
+        memberships=2,
+    )
+    original = dict(collision)
+    statements = []
+    monkeypatch.setattr(
+        database,
+        "capture_maintenance_role",
+        lambda **_options: collision,
+    )
+    monkeypatch.setattr(
+        database,
+        "psql_private",
+        lambda statement, **_options: statements.append(statement),
+    )
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="not owned by this installation",
+    ):
+        database.activate_maintenance_role()
+
+    assert statements == []
+    assert collision == original
+
+
+def test_unrelated_role_collision_is_rejected_before_session_termination(
+    monkeypatch,
+):
+    database = maintenance_role_database()
+    collision = maintenance_role_record(
+        database,
+        login=False,
+        comment="unrelated role",
+        superuser=False,
+        memberships=1,
+    )
+    terminations = []
+    monkeypatch.setattr(
+        database,
+        "capture_maintenance_role",
+        lambda **_options: collision,
+    )
+    monkeypatch.setattr(database, "wait_ready", lambda: None)
+    monkeypatch.setattr(
+        database,
+        "terminate_maintenance_backends",
+        lambda: terminations.append(True),
+    )
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="not owned by this installation",
+    ):
+        RESTORE_MODULE.deactivate_maintenance_with_application(database)
+
+    assert terminations == []
+
+
+def test_restore_rejects_role_collision_before_mutating_preflight(monkeypatch):
+    events = []
+
+    class State:
+        locked = True
+
+        def __enter__(self):
+            events.append("lock")
+            return self
+
+        def __exit__(self, *_arguments):
+            events.append("unlock")
+
+    class Services:
+        cold_start_timeout = 2
+
+        def __init__(self, _runner, _target):
+            pass
+
+        def snapshot(self):
+            events.append("snapshot")
+            return service_snapshot()
+
+    class Database:
+        def __init__(self, _runner, _state, _services, _target):
+            pass
+
+        def verify_maintenance_role_reusable(self):
+            events.append("verify-maintenance-role")
+            raise RESTORE_MODULE.RestoreError(
+                "existing PostgreSQL maintenance role is not owned by this installation"
+            )
+
+        def preflight_recreation(self):
+            events.append("preflight-recreation")
+
+        def verify_application_role(self):
+            events.append("verify-application-role")
+
+        def verify_fence_available(self):
+            events.append("verify-fence")
+
+    monkeypatch.setattr(RESTORE_MODULE, "RestoreState", State)
+    monkeypatch.setattr(RESTORE_MODULE, "DockerServices", Services)
+    monkeypatch.setattr(RESTORE_MODULE, "DatabaseRestore", Database)
+    monkeypatch.setattr(
+        RESTORE_MODULE.DatabaseTarget,
+        "from_environment",
+        classmethod(lambda _cls: database_target()),
+    )
+    monkeypatch.setattr(
+        RESTORE_MODULE,
+        "install_interrupt_handlers",
+        lambda _runner, _operation: events.append("handlers"),
+    )
+    monkeypatch.setattr(
+        RESTORE_MODULE,
+        "recover_restore",
+        lambda _state, _database, _services: events.append("recover"),
+    )
+    monkeypatch.setattr(
+        RESTORE_MODULE,
+        "cleanup_backup_partials",
+        lambda _state: events.append("cleanup-partials"),
+    )
+    monkeypatch.setattr(
+        RESTORE_MODULE,
+        "open_archive",
+        lambda _filename: contextlib.nullcontext(object()),
+    )
+    monkeypatch.setattr(
+        RESTORE_MODULE,
+        "validate_archive",
+        lambda *_arguments, **_options: events.append("validate-archive"),
+    )
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="not owned by this installation",
+    ):
+        RESTORE_MODULE.restore("backup.dump")
+
+    assert events == [
+        "handlers",
+        "lock",
+        "recover",
+        "cleanup-partials",
+        "validate-archive",
+        "verify-maintenance-role",
+        "unlock",
+    ]
+
+
+def test_helper_owned_role_with_unsafe_membership_is_never_mutated(monkeypatch):
+    database = maintenance_role_database()
+    unsafe_role = maintenance_role_record(database, login=False, memberships=1)
+    statements = []
+    monkeypatch.setattr(
+        database,
+        "capture_maintenance_role",
+        lambda **_options: unsafe_role,
+    )
+    monkeypatch.setattr(
+        database,
+        "psql_private",
+        lambda statement, **_options: statements.append(statement),
+    )
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="unsafe attributes",
+    ):
+        database.activate_maintenance_role()
+
+    assert statements == []
+    assert unsafe_role["memberships"] == 1
+
+
+def test_only_provenance_bound_inactive_role_is_reused(monkeypatch):
+    database = maintenance_role_database()
+    inactive = maintenance_role_record(database, login=False)
+    active = maintenance_role_record(database, login=True)
+    captures = iter((inactive, active))
+    statements = []
+    monkeypatch.setattr(
+        database,
+        "capture_maintenance_role",
+        lambda **_options: next(captures),
+    )
+    monkeypatch.setattr(
+        database,
+        "psql_private",
+        lambda statement, **_options: statements.append(statement),
+    )
+    monkeypatch.setattr(database, "wait_ready", lambda: None)
+
+    database.activate_maintenance_role()
+
+    assert len(statements) == 1
+    assert f'ALTER ROLE "{database.maintenance_target.user}"' in statements[0]
+    assert "CREATE ROLE" not in statements[0]
+    assert "COMMENT ON ROLE" not in statements[0]
+    assert inactive["oid"] == active["oid"]
+    assert inactive["comment"] == active["comment"]
+
+
 def test_maintenance_secret_never_enters_process_arguments():
     class State:
         installation_id = "6" * RESTORE_MODULE.INSTALLATION_ID_LENGTH
@@ -1739,11 +2697,21 @@ def test_maintenance_secret_never_enters_process_arguments():
     class Runner:
         def __init__(self):
             self.calls = []
+            self.role_active = False
 
         def run(self, arguments, **options):
             self.calls.append((arguments, options))
-            if "SELECT count(*) FROM pg_roles" in " ".join(arguments):
-                output = b"0\n"
+            joined = " ".join(arguments)
+            if "-i" in arguments:
+                self.role_active = True
+                output = b""
+            elif "shobj_description" in joined:
+                if self.role_active:
+                    output = json.dumps(
+                        maintenance_role_record(database, login=True)
+                    ).encode()
+                else:
+                    output = b""
             elif "SELECT 1;" in arguments:
                 output = b"1\n"
             else:
@@ -2195,3 +3163,24 @@ def test_restore_timeout_configuration_is_exported_by_shell_entrypoints():
     assert "After=docker.service" in service_contents
     assert "Restart=on-failure" in service_contents
     assert "RestartSec=5s" in service_contents
+
+
+def test_dojo_up_recovers_with_only_database_started_before_clients():
+    repository = pathlib.Path(__file__).parents[1]
+    contents = (repository / "dojo" / "dojo").read_text()
+    prepare_index = contents.index(
+        "/opt/pwn.college/dojo/dojo-restore --prepare-recovery"
+    )
+    database_index = contents.index(
+        'dojo compose up -d "${build_args[@]}" --no-deps --no-recreate db'
+    )
+    recover_index = contents.index(
+        "/opt/pwn.college/dojo/dojo-restore --recover",
+        database_index,
+    )
+    clients_index = contents.index(
+        'dojo compose up -d "${build_args[@]}" --remove-orphans "$@"'
+    )
+
+    assert contents.startswith("#!/bin/bash -e")
+    assert prepare_index < database_index < recover_index < clients_index

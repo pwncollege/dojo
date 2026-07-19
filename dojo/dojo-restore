@@ -87,6 +87,8 @@ INSTALLATION_ID_FILE = "installation-id"
 MAINTENANCE_SECRET_FILE = "maintenance-secret"
 INSTALLATION_ID_LENGTH = 32
 MAINTENANCE_SECRET_LENGTH = 64
+MAINTENANCE_ROLE_PROVENANCE_PREFIX = "pwn.college dojo-restore maintenance role v1"
+MAINTENANCE_STATES = {"activating", "active", "deactivating", "inactive"}
 APPLICATION_RESPONSE_MARKER = b"'csrfNonce':"
 RESTORE_TRANSACTION_SIZE = 100
 PRIVATE_VALIDATION_CONTAINER = "dojo-restore-validation"
@@ -173,6 +175,23 @@ def validate_server_identity(identity):
         raise RestoreError("restore journal has an invalid PostgreSQL server version")
 
 
+def validate_database_configuration(configuration):
+    if not isinstance(configuration, dict) or set(configuration) != {
+        "host",
+        "port",
+        "name",
+        "user",
+    }:
+        raise RestoreError("restore journal has an invalid database target")
+    for field in ("host", "name", "user"):
+        validate_text(configuration[field], f"target {field}", limit=1024)
+    if (
+        type(configuration["port"]) is not int
+        or not 1 <= configuration["port"] <= 65535
+    ):
+        raise RestoreError("restore journal has an invalid database target port")
+
+
 def validate_database_target(target):
     if not isinstance(target, dict) or set(target) != {
         "host",
@@ -182,10 +201,9 @@ def validate_database_target(target):
         "server",
     }:
         raise RestoreError("restore journal has an invalid database target")
-    for field in ("host", "name", "user"):
-        validate_text(target[field], f"target {field}", limit=1024)
-    if type(target["port"]) is not int or not 1 <= target["port"] <= 65535:
-        raise RestoreError("restore journal has an invalid database target port")
+    validate_database_configuration(
+        {field: target[field] for field in ("host", "port", "name", "user")}
+    )
     validate_server_identity(target["server"])
 
 
@@ -343,6 +361,22 @@ def wait_for_retry(deadline, error):
 
 def application_name(base, installation_id):
     return f"{base}:{installation_id}"
+
+
+def maintenance_role_provenance(installation_id, maintenance_secret):
+    validate_installation_id(installation_id)
+    if (
+        not isinstance(maintenance_secret, str)
+        or len(maintenance_secret) != MAINTENANCE_SECRET_LENGTH
+        or any(character not in "0123456789abcdef" for character in maintenance_secret)
+    ):
+        raise RestoreError("restore maintenance secret is invalid")
+    digest = hmac.new(
+        bytes.fromhex(maintenance_secret),
+        f"maintenance-role:{installation_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{MAINTENANCE_ROLE_PROVENANCE_PREFIX}:{installation_id}:{digest}"
 
 
 def validate_installation_id(value):
@@ -863,10 +897,49 @@ class RestoreState:
                 "installation_id",
                 "application_role",
             },
+            5: {
+                "version",
+                "phase",
+                "services",
+                "database",
+                "target",
+                "installation_id",
+                "application_role",
+                "maintenance",
+            },
+            6: {
+                "version",
+                "kind",
+                "services",
+                "installation_id",
+                "database",
+                "target",
+            },
         }
         if type(version) is not int or set(journal) != expected_fields.get(version):
             raise RestoreError("restore journal has an unsupported state")
-        if (
+        if version == 6:
+            if journal["kind"] != "startup":
+                raise RestoreError("restore journal has an unsupported state")
+            validate_installation_id(journal["installation_id"])
+            validate_database_configuration(journal["target"])
+            database = journal["database"]
+            if (
+                not isinstance(database, dict)
+                or set(database) != {"present", "running", "id"}
+                or type(database["present"]) is not bool
+                or type(database["running"]) is not bool
+                or (
+                    database["present"]
+                    and (not isinstance(database["id"], str) or not database["id"])
+                )
+                or (
+                    not database["present"]
+                    and (database["running"] or database["id"] is not None)
+                )
+            ):
+                raise RestoreError("restore journal has invalid startup database state")
+        elif (
             not isinstance(journal["phase"], str)
             or journal["phase"] not in JOURNAL_PHASES
         ):
@@ -877,6 +950,12 @@ class RestoreState:
             frozenset(LEGACY_SNAPSHOT_SERVICES),
         }:
             raise RestoreError("restore journal has an invalid service snapshot")
+        if version != 1 and frozenset(services) == frozenset(
+            LEGACY_SNAPSHOT_SERVICES
+        ):
+            raise RestoreError(
+                "restore journal has an unsupported legacy service snapshot"
+            )
         for name, service in services.items():
             if not isinstance(service, dict) or set(service) != {
                 "id",
@@ -911,13 +990,17 @@ class RestoreState:
                 )
             ):
                 raise RestoreError(f"restore journal has invalid restart count for {name}")
+        if version == 6:
+            return
         validate_database_metadata(journal["database"])
-        if version in {2, 3, 4}:
+        if version in {2, 3, 4, 5}:
             validate_database_target(journal["target"])
-        if version in {3, 4}:
+        if version in {3, 4, 5}:
             validate_installation_id(journal["installation_id"])
-        if version == 4:
+        if version in {4, 5}:
             validate_application_role(journal["application_role"])
+        if version == 5 and journal["maintenance"] not in MAINTENANCE_STATES:
+            raise RestoreError("restore journal has an invalid maintenance state")
 
     def write_journal(self, journal):
         self._validate_journal(journal)
@@ -952,6 +1035,12 @@ class RestoreState:
         journal["phase"] = phase
         self.write_journal(journal)
         pause_for_test(phase)
+
+    def set_maintenance(self, journal, maintenance):
+        if maintenance not in MAINTENANCE_STATES:
+            raise RestoreError("restore maintenance state is invalid")
+        journal["maintenance"] = maintenance
+        self.write_journal(journal)
 
     @contextlib.contextmanager
     def create_rollback(self):
@@ -1063,6 +1152,37 @@ class DockerServices:
             and not database["restarting"]
         )
 
+    def snapshot_database_for_startup(self):
+        database = self.inspect("db")
+        if database is None:
+            return {"present": False, "running": False, "id": None}
+        if database["paused"] or database["restarting"] or database["status"] not in {
+            "running",
+            "exited",
+            "created",
+        }:
+            raise RestoreError("database container is not stable for startup recovery")
+        return {
+            "present": True,
+            "running": database["running"],
+            "id": database["id"],
+        }
+
+    def verify_startup_database_identity(self, expected):
+        database = self.inspect("db")
+        if expected["present"] and (
+            database is None or database["id"] != expected["id"]
+        ):
+            raise RestoreError("database container changed during startup recovery")
+
+    def bind_startup_database_identity(self, expected):
+        database = self.snapshot_database_for_startup()
+        if not database["present"] or not database["running"]:
+            raise RestoreError("database container failed during startup recovery")
+        if expected["present"] and database["id"] != expected["id"]:
+            raise RestoreError("database container changed during startup recovery")
+        return database
+
     def ensure_database_client(self):
         deadline = time.monotonic() + self.ready_timeout
         timeout_error = (
@@ -1086,23 +1206,31 @@ class DockerServices:
                 return
             wait_for_retry(deadline, timeout_error)
 
-    def snapshot_service(self, service):
-        state = self.inspect(service)
+    def _snapshot_service(self, service, state, *, allow_unready):
         if state is None:
             raise RestoreError(f"required container is missing: {service}")
         if state["paused"] or state["restarting"]:
             raise RestoreError(f"{service} is not in a stable state")
         if state["status"] not in ("running", "exited", "created"):
             raise RestoreError(f"{service} is in unsupported state {state['status']}")
-        if state["running"] and state["health"] not in (None, "healthy"):
+        if (
+            not allow_unready
+            and state["running"]
+            and state["health"] not in (None, "healthy")
+        ):
             raise RestoreError(f"{service} is not healthy before restore")
-        if service in (
-            "cache",
-            "pgbouncer",
-            "stats-worker",
-            "ctfd",
-            "nginx",
-        ) and state["status"] == "created":
+        if (
+            not allow_unready
+            and service
+            in (
+                "cache",
+                "pgbouncer",
+                "stats-worker",
+                "ctfd",
+                "nginx",
+            )
+            and state["status"] == "created"
+        ):
             raise RestoreError(f"{service} must be started once before restore")
         return {
             "id": state["id"],
@@ -1111,6 +1239,13 @@ class DockerServices:
             "running": state["running"],
             "status": state["status"],
         }
+
+    def snapshot_service(self, service):
+        return self._snapshot_service(
+            service,
+            self.inspect(service),
+            allow_unready=False,
+        )
 
     def snapshot(self):
         snapshot = {
@@ -1126,11 +1261,36 @@ class DockerServices:
             raise RestoreError("running database clients require a running cache")
         return snapshot
 
+    def snapshot_for_startup(self):
+        states = {service: self.inspect(service) for service in SNAPSHOT_SERVICES}
+        if all(state is None for state in states.values()):
+            return None
+        missing = [service for service, state in states.items() if state is None]
+        if missing:
+            raise RestoreError(
+                "startup recovery requires every tracked container: "
+                + ", ".join(missing)
+            )
+        return {
+            service: self._snapshot_service(
+                service,
+                state,
+                allow_unready=True,
+            )
+            for service, state in states.items()
+        }
+
     def verify_identities(self, snapshot):
         for service, expected in snapshot.items():
             state = self.inspect(service)
             if state is None or state["id"] != expected["id"]:
                 raise RestoreError(f"container changed during restore: {service}")
+
+    def require_supported_snapshot(self, snapshot):
+        if not isinstance(snapshot, dict) or frozenset(snapshot) != frozenset(
+            SNAPSHOT_SERVICES
+        ):
+            raise RestoreError("restore journal has an unsupported service snapshot")
 
     def stop(self, service):
         state = self.inspect(service)
@@ -1156,6 +1316,7 @@ class DockerServices:
             )
 
     def stop_clients(self, snapshot):
+        self.require_supported_snapshot(snapshot)
         self.verify_identities(snapshot)
         for service in STOP_ORDER:
             self.stop(service)
@@ -1173,12 +1334,13 @@ class DockerServices:
             )
 
     def gate_restarts(self, snapshot):
+        self.require_supported_snapshot(snapshot)
         self.verify_identities(snapshot)
         self.runner.run(
-            ["docker", "update", "--restart=no", *SNAPSHOT_SERVICES],
+            ["docker", "update", "--restart=no", *snapshot],
             timeout=self.ready_timeout,
         )
-        for service in SNAPSHOT_SERVICES:
+        for service in snapshot:
             state = self.inspect(service)
             if state["restart_policy"] != "no" or state["restart_retries"] != 0:
                 raise RestoreError(f"failed to maintenance-gate {service}")
@@ -1402,6 +1564,7 @@ class DockerServices:
         )
 
     def restore_snapshot(self, snapshot):
+        self.require_supported_snapshot(snapshot)
         self.verify_identities(snapshot)
         for service in START_ORDER:
             if snapshot[service]["running"]:
@@ -1515,6 +1678,11 @@ class DatabaseRestore:
             if maintenance_role and maintenance_secret
             else None
         )
+        self.maintenance_provenance = (
+            maintenance_role_provenance(self.installation_id, maintenance_secret)
+            if self.maintenance_target is not None
+            else None
+        )
 
     @property
     def restore_application_name(self):
@@ -1605,31 +1773,135 @@ class DatabaseRestore:
                 return
             wait_for_retry(deadline, timeout_error)
 
+    def capture_maintenance_role(self, *, target=None):
+        if self.maintenance_target is None:
+            raise RestoreError("restore maintenance identity is unavailable")
+        role_name = self.maintenance_target.user
+        result = self.psql(
+            "SELECT json_build_object("
+            "'name', role.rolname, "
+            "'oid', role.oid::bigint, "
+            "'comment', shobj_description(role.oid, 'pg_authid'), "
+            "'superuser', role.rolsuper, "
+            "'inherit', role.rolinherit, "
+            "'create_db', role.rolcreatedb, "
+            "'create_role', role.rolcreaterole, "
+            "'login', role.rolcanlogin, "
+            "'replication', role.rolreplication, "
+            "'bypass_rls', role.rolbypassrls, "
+            "'connection_limit', role.rolconnlimit, "
+            "'valid_until_null', role.rolvaliduntil IS NULL, "
+            "'config_null', role.rolconfig IS NULL, "
+            "'memberships', (SELECT count(*) FROM pg_auth_members AS membership "
+            "WHERE membership.roleid = role.oid OR membership.member = role.oid)"
+            ") FROM pg_roles AS role "
+            f"WHERE role.rolname = {sql_literal(role_name)};",
+            target=target or self.application_target,
+        ).stdout.strip()
+        if not result:
+            return None
+        try:
+            role = json.loads(result)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("maintenance role lookup returned invalid data") from error
+        if not isinstance(role, dict) or set(role) != {
+            "name",
+            "oid",
+            "comment",
+            "superuser",
+            "inherit",
+            "create_db",
+            "create_role",
+            "login",
+            "replication",
+            "bypass_rls",
+            "connection_limit",
+            "valid_until_null",
+            "config_null",
+            "memberships",
+        }:
+            raise RestoreError("maintenance role lookup returned invalid data")
+        return role
+
+    def verify_maintenance_role(self, role, *, login):
+        if role is None:
+            raise RestoreError("helper-owned PostgreSQL maintenance role is missing")
+        if (
+            not isinstance(role["comment"], str)
+            or not hmac.compare_digest(role["comment"], self.maintenance_provenance)
+        ):
+            raise RestoreError(
+                "existing PostgreSQL maintenance role is not owned by this installation"
+            )
+        expected = {
+            "name": self.maintenance_target.user,
+            "superuser": True,
+            "inherit": True,
+            "create_db": False,
+            "create_role": False,
+            "login": login,
+            "replication": False,
+            "bypass_rls": False,
+            "connection_limit": -1,
+            "valid_until_null": True,
+            "config_null": True,
+            "memberships": 0,
+        }
+        if (
+            type(role["oid"]) is not int
+            or role["oid"] <= 0
+            or any(role[field] != value for field, value in expected.items())
+        ):
+            raise RestoreError(
+                "helper-owned PostgreSQL maintenance role has unsafe attributes"
+            )
+        return role
+
+    def verify_maintenance_role_reusable(self):
+        role = self.capture_maintenance_role(target=self.application_target)
+        if role is not None:
+            self.verify_maintenance_role(role, login=False)
+        return role
+
+    def verify_maintenance_role_deactivatable(self):
+        role = self.capture_maintenance_role(target=self.application_target)
+        if role is not None:
+            self.verify_maintenance_role(role, login=role["login"])
+        return role
+
     def activate_maintenance_role(self):
         if self.maintenance_target is None:
             raise RestoreError("restore maintenance identity is unavailable")
         self.use_application_target()
         role = sql_identifier(self.maintenance_target.user)
-        exists = self.psql(
-            "SELECT count(*) FROM pg_roles "
-            f"WHERE rolname = {sql_literal(self.maintenance_target.user)};"
-        ).stdout.strip()
-        if exists not in {b"0", b"1"}:
-            raise RestoreError("maintenance role lookup returned invalid data")
+        existing = self.verify_maintenance_role_reusable()
         password_verifier = sql_literal(
             scram_verifier(self.maintenance_target.password)
         )
-        if exists == b"0":
+        if existing is None:
             statement = (
-                f"CREATE ROLE {role} LOGIN SUPERUSER PASSWORD "
-                f"{password_verifier};"
+                "BEGIN;"
+                f"CREATE ROLE {role} WITH LOGIN SUPERUSER INHERIT NOCREATEDB "
+                "NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT -1 "
+                f"PASSWORD {password_verifier};"
+                f"COMMENT ON ROLE {role} IS "
+                f"{sql_literal(self.maintenance_provenance)};"
+                "COMMIT;"
             )
         else:
             statement = (
-                f"ALTER ROLE {role} WITH LOGIN SUPERUSER PASSWORD "
-                f"{password_verifier};"
+                "BEGIN;"
+                f"ALTER ROLE {role} WITH LOGIN SUPERUSER INHERIT NOCREATEDB "
+                "NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT -1 "
+                f"PASSWORD {password_verifier};"
+                "COMMIT;"
             )
         self.psql_private(statement, target=self.application_target)
+        self.verify_maintenance_role(
+            self.capture_maintenance_role(target=self.application_target),
+            login=True,
+        )
+        pause_for_test("maintenance-role-activated")
         self.use_maintenance_target()
         self.wait_ready()
 
@@ -1638,15 +1910,16 @@ class DatabaseRestore:
             return
         role = sql_identifier(self.maintenance_target.user)
         self.use_application_target()
-        exists = self.psql(
-            "SELECT count(*) FROM pg_roles "
-            f"WHERE rolname = {sql_literal(self.maintenance_target.user)};",
-            target=self.application_target,
-        ).stdout.strip()
-        if exists == b"1":
+        existing = self.verify_maintenance_role_deactivatable()
+        if existing is None:
+            return
+        if existing["login"]:
             self.psql(f"ALTER ROLE {role} NOLOGIN;", target=self.application_target)
-        elif exists != b"0":
-            raise RestoreError("maintenance role lookup returned invalid data")
+        self.verify_maintenance_role(
+            self.capture_maintenance_role(target=self.application_target),
+            login=False,
+        )
+        pause_for_test("maintenance-role-deactivated")
 
     def establish_fence(self, metadata, application_role, *, preflight=False):
         validate_database_metadata(metadata)
@@ -1808,6 +2081,13 @@ class DatabaseRestore:
                 "configured database target does not match the pending restore journal"
             )
 
+    def verify_configured_startup_target(self, journal_target):
+        validate_database_configuration(journal_target)
+        if self.application_target.configuration() != journal_target:
+            raise RestoreError(
+                "configured database target does not match the pending startup journal"
+            )
+
     def capture_database_oid(self, database_name=None):
         database = sql_literal(database_name or self.database_name)
         result = self.psql(
@@ -1946,10 +2226,15 @@ class DatabaseRestore:
         applications = ", ".join(
             sql_literal(application) for application in self.application_names
         )
-        users = [self.application_target.user]
+        predicates = [
+            f"(usename = {sql_literal(self.application_target.user)} "
+            f"AND application_name IN ({applications}))"
+        ]
         if self.maintenance_target is not None:
-            users.append(self.maintenance_target.user)
-        roles = ", ".join(sql_literal(user) for user in users)
+            predicates.append(
+                f"usename = {sql_literal(self.maintenance_target.user)}"
+            )
+        predicate = " OR ".join(predicates)
         deadline = time.monotonic() + self.drain_timeout
         timeout_error = (
             "database maintenance sessions could not be terminated within "
@@ -1959,14 +2244,11 @@ class DatabaseRestore:
             remaining_before_deadline(deadline, timeout_error)
             result = self.psql(
                 "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-                f"WHERE application_name IN ({applications}) "
-                f"AND usename IN ({roles}) "
+                f"WHERE ({predicate}) "
                 "AND pid <> pg_backend_pid(); "
                 "SELECT count(*) FROM pg_stat_activity "
-                f"WHERE application_name IN ({applications}) "
-                f"AND usename IN ({roles}) "
-                "AND pid <> pg_backend_pid();"
-                ,
+                f"WHERE ({predicate}) "
+                "AND pid <> pg_backend_pid();",
                 deadline=deadline,
             )
             lines = [
@@ -2458,14 +2740,37 @@ def create_backup(
     return filename
 
 
-def expose_services(state, journal, database, services, exposed_phase):
-    database.release_fence(journal["database"], journal["application_role"])
+def restore_services_and_cleanup(state, journal, services, exposed_phase=None):
     services.restore_snapshot(journal["services"])
     if journal["services"]["ctfd"]["running"]:
         services.wait_external_http()
-    state.set_phase(journal, exposed_phase)
+    if exposed_phase is not None:
+        state.set_phase(journal, exposed_phase)
     state.cleanup()
-    database.deactivate_maintenance_role()
+
+
+def deactivate_maintenance_before_exposure(state, journal, database):
+    state.set_maintenance(journal, "deactivating")
+    pause_for_test("maintenance-role-deactivating")
+    deactivate_maintenance_with_application(database)
+    state.set_maintenance(journal, "inactive")
+
+
+def activate_maintenance_after_gating(state, journal, database, services):
+    database.use_application_target()
+    database.verify_journal_identity(journal)
+    services.gate_restarts(journal["services"])
+    services.stop_clients(journal["services"])
+    database.verify_journal_identity(journal)
+    database.terminate_maintenance_backends()
+    database.activate_maintenance_role()
+    state.set_maintenance(journal, "active")
+
+
+def expose_services(state, journal, database, services, exposed_phase):
+    database.release_fence(journal["database"], journal["application_role"])
+    deactivate_maintenance_before_exposure(state, journal, database)
+    restore_services_and_cleanup(state, journal, services, exposed_phase)
 
 
 def complete_rollback(state, database, services):
@@ -2485,33 +2790,115 @@ def complete_rollback(state, database, services):
     )
 
 
-def recover_restore(state, database, services):
-    journal = state.load_journal()
-    if journal is None:
-        if services.database_client_available():
-            database.use_application_target()
-            database.wait_ready()
-            database.terminate_maintenance_backends()
-            database.deactivate_maintenance_role()
-        try:
-            state._unlink_trusted("rollback.dump")
-            state._fsync_directory()
-        except FileNotFoundError:
-            pass
+def verify_recovery_journal_header(state, journal, database, services):
+    if journal["version"] == 6:
+        if journal["installation_id"] != state.installation_id:
+            raise RestoreError(
+                "pending startup journal belongs to a different installation"
+            )
+        database.verify_configured_startup_target(journal["target"])
+        services.require_supported_snapshot(journal["services"])
         return
     if journal["version"] == 1:
         raise RestoreError(
             "version-one restore journals are not bound to a database target and "
             "require manual intervention"
         )
+    if journal["version"] in {3, 4}:
+        raise RestoreError(
+            "restore journal predates maintenance-role provenance and requires "
+            "manual intervention"
+        )
     if (
-        journal["version"] in {3, 4}
+        journal["version"] == 5
         and journal["installation_id"] != state.installation_id
     ):
         raise RestoreError(
             "pending restore journal belongs to a different installation"
         )
     database.verify_configured_target(journal["target"])
+    services.require_supported_snapshot(journal["services"])
+
+
+def deactivate_maintenance_with_application(database):
+    database.use_application_target()
+    database.wait_ready()
+    database.verify_maintenance_role_deactivatable()
+    database.terminate_maintenance_backends()
+    database.deactivate_maintenance_role()
+    database.terminate_maintenance_backends()
+
+
+def prepare_restore_recovery(state, database, services):
+    journal = state.load_journal()
+    if journal is None:
+        database_state = services.snapshot_database_for_startup()
+        if database_state["running"]:
+            deactivate_maintenance_with_application(database)
+            return
+        snapshot = services.snapshot_for_startup()
+        if snapshot is None:
+            return
+        journal = {
+            "version": 6,
+            "kind": "startup",
+            "services": snapshot,
+            "installation_id": state.installation_id,
+            "database": database_state,
+            "target": database.application_target.configuration(),
+        }
+        state.write_journal(journal)
+    verify_recovery_journal_header(state, journal, database, services)
+    services.verify_identities(journal["services"])
+    services.gate_restarts(journal["services"])
+    services.stop_clients(journal["services"])
+
+
+def recover_inactive_maintenance(state, journal, database, services):
+    database.use_application_target()
+    database.wait_ready()
+    database.verify_journal_identity(journal)
+    database.verify_recreation_privileges()
+    deactivate_maintenance_with_application(database)
+    if journal["maintenance"] != "inactive":
+        state.set_maintenance(journal, "inactive")
+    services.cleanup_private_validation()
+    services.verify_identities(journal["services"])
+    exposed_phase = None
+    if journal["phase"] in FORWARD_TERMINAL_PHASES:
+        exposed_phase = "committed_exposed"
+    elif journal["phase"] in ROLLBACK_TERMINAL_PHASES:
+        exposed_phase = "rolled_back_exposed"
+    restore_services_and_cleanup(state, journal, services, exposed_phase)
+
+
+def recover_restore(state, database, services):
+    journal = state.load_journal()
+    if journal is None:
+        if services.database_client_available():
+            deactivate_maintenance_with_application(database)
+        try:
+            state._unlink_trusted("rollback.dump")
+            state._fsync_directory()
+        except FileNotFoundError:
+            pass
+        return
+    verify_recovery_journal_header(state, journal, database, services)
+    if journal["version"] == 6:
+        services.verify_identities(journal["services"])
+        services.gate_restarts(journal["services"])
+        services.stop_clients(journal["services"])
+        services.verify_startup_database_identity(journal["database"])
+        services.ensure_database_client()
+        database_state = services.bind_startup_database_identity(journal["database"])
+        if database_state != journal["database"]:
+            journal["database"] = database_state
+            state.write_journal(journal)
+        services.verify_startup_database_identity(journal["database"])
+        deactivate_maintenance_with_application(database)
+        services.verify_identities(journal["services"])
+        restore_services_and_cleanup(state, journal, services)
+        return
     services.ensure_database_client()
     if journal["version"] == 2:
         database.use_application_target()
@@ -2519,32 +2906,37 @@ def recover_restore(state, database, services):
         database.verify_journal_identity(journal)
         database.verify_recreation_privileges()
         application_role = database.verify_application_role()
-        database.activate_maintenance_role()
+        database.verify_maintenance_role_reusable()
         journal = {
             **journal,
-            "version": 4,
+            "version": 5,
             "installation_id": state.installation_id,
             "application_role": application_role,
+            "maintenance": "activating",
         }
         state.write_journal(journal)
-    elif journal["version"] == 3:
-        database.use_maintenance_target()
+        activate_maintenance_after_gating(
+            state,
+            journal,
+            database,
+            services,
+        )
+    if journal["maintenance"] == "activating":
+        database.use_application_target()
         database.wait_ready()
-        application_role = database.capture_application_role()
-        if not application_role["login"]:
-            raise RestoreError(
-                "version-three restore journal has an unexpectedly disabled "
-                "application role"
-            )
-        journal = {
-            **journal,
-            "version": 4,
-            "application_role": application_role,
-        }
-        state.write_journal(journal)
-    else:
-        database.use_maintenance_target()
-        database.wait_ready()
+        database.verify_journal_identity(journal)
+        database.verify_recreation_privileges()
+        recover_inactive_maintenance(state, journal, database, services)
+        return
+    if journal["maintenance"] in {"deactivating", "inactive"}:
+        recover_inactive_maintenance(state, journal, database, services)
+        return
+    database.use_maintenance_target()
+    database.verify_maintenance_role(
+        database.capture_maintenance_role(target=database.maintenance_target),
+        login=True,
+    )
+    database.wait_ready()
     database.verify_journal_identity(journal)
     database.verify_recreation_privileges()
     database.terminate_maintenance_backends()
@@ -2557,11 +2949,8 @@ def recover_restore(state, database, services):
     database.terminate_maintenance_backends()
     if journal["phase"] in PRE_MUTATION_PHASES:
         database.release_fence(journal["database"], journal["application_role"])
-        services.restore_snapshot(journal["services"])
-        if journal["services"]["ctfd"]["running"]:
-            services.wait_external_http()
-        state.cleanup()
-        database.deactivate_maintenance_role()
+        deactivate_maintenance_before_exposure(state, journal, database)
+        restore_services_and_cleanup(state, journal, services)
         return
     if journal["phase"] in FORWARD_TERMINAL_PHASES | ROLLBACK_TERMINAL_PHASES:
         database.establish_fence(
@@ -2589,7 +2978,7 @@ def install_interrupt_handlers(runner, operation):
     signal.signal(signal.SIGTERM, interrupt)
 
 
-def restore(filename=None):
+def restore(filename=None, *, prepare_recovery_only=False):
     runner = CommandRunner()
     target = DatabaseTarget.from_environment()
     services = DockerServices(runner, target)
@@ -2597,6 +2986,9 @@ def restore(filename=None):
 
     with RestoreState() as state:
         database = DatabaseRestore(runner, state, services, target)
+        if prepare_recovery_only:
+            prepare_restore_recovery(state, database, services)
+            return
         recover_restore(state, database, services)
         cleanup_backup_partials(state)
         if filename is None:
@@ -2608,6 +3000,7 @@ def restore(filename=None):
                 archive,
                 timeout=services.cold_start_timeout,
             )
+            database.verify_maintenance_role_reusable()
             database.preflight_recreation()
             application_role = database.verify_application_role()
             database.verify_fence_available()
@@ -2616,24 +3009,23 @@ def restore(filename=None):
             target_identity = database.capture_target()
             metadata = database.capture_metadata()
             journal = {
-                "version": 4,
+                "version": 5,
                 "phase": "snapshotting",
                 "services": snapshot,
                 "database": metadata,
                 "target": target_identity,
                 "installation_id": state.installation_id,
                 "application_role": application_role,
+                "maintenance": "activating",
             }
-            database.activate_maintenance_role()
+            state.write_journal(journal)
             try:
-                state.write_journal(journal)
-            except BaseException:
-                database.deactivate_maintenance_role()
-                raise
-            try:
-                database.verify_journal_identity(journal)
-                services.gate_restarts(snapshot)
-                services.stop_clients(snapshot)
+                activate_maintenance_after_gating(
+                    state,
+                    journal,
+                    database,
+                    services,
+                )
                 database.verify_journal_identity(journal)
                 database.terminate_maintenance_backends()
                 database.establish_fence(
@@ -2709,12 +3101,20 @@ def parse_arguments():
     parser = argparse.ArgumentParser(prog="dojo database maintenance")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--recover", action="store_true")
+    mode.add_argument("--prepare-recovery", action="store_true")
     mode.add_argument("--backup", action="store_true")
     parser.add_argument("filename", nargs="?")
     arguments = parser.parse_args()
-    if (arguments.recover or arguments.backup) and arguments.filename:
+    if (
+        arguments.recover or arguments.prepare_recovery or arguments.backup
+    ) and arguments.filename:
         parser.error("maintenance modes do not accept a backup filename")
-    if not arguments.recover and not arguments.backup and not arguments.filename:
+    if (
+        not arguments.recover
+        and not arguments.prepare_recovery
+        and not arguments.backup
+        and not arguments.filename
+    ):
         parser.error("a backup filename is required")
     return arguments
 
@@ -2725,7 +3125,10 @@ def main():
         if arguments.backup:
             backup()
         else:
-            restore(None if arguments.recover else arguments.filename)
+            restore(
+                None if arguments.recover or arguments.prepare_recovery else arguments.filename,
+                prepare_recovery_only=arguments.prepare_recovery,
+            )
     except RestoreError as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1

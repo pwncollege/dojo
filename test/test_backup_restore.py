@@ -226,6 +226,24 @@ def direct_database_sql(database_name, sql, check=True):
     return result.stdout.strip() if check else result
 
 
+def maintenance_role_state():
+    role = f"dojo_restore_{installation_id()}"
+    result = direct_database_sql(
+        "postgres",
+        "SELECT json_build_object("
+        "'role', to_jsonb(role), "
+        "'comment', shobj_description(role.oid, 'pg_authid'), "
+        "'memberships', COALESCE((SELECT json_agg(to_jsonb(membership) "
+        "ORDER BY membership.roleid, membership.member, membership.grantor) "
+        "FROM pg_auth_members AS membership "
+        "WHERE membership.roleid = role.oid OR membership.member = role.oid), "
+        "'[]'::json)"
+        ") FROM pg_roles AS role "
+        f"WHERE role.rolname = {sql_literal(role)};",
+    )
+    return json.loads(result) if result else None
+
+
 def prepare_transaction_through_pgbouncer(sql):
     program = """
 import os
@@ -407,6 +425,31 @@ def outer_process(*arguments):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+    )
+
+
+def maintenance_database_process(database_name, sql, application_name):
+    command = r'''
+. /data/config.env
+DB_PORT="${DB_PORT:-5432}"
+installation_id=$(cat /data/.dojo-restore/installation-id)
+PGPASSWORD=$(cat /data/.dojo-restore/maintenance-secret)
+PGAPPNAME="$3"
+export PGPASSWORD PGAPPNAME
+exec docker exec -e PGPASSWORD -e PGAPPNAME db psql \
+    --host="$DB_HOST" --port="$DB_PORT" \
+    --username="dojo_restore_${installation_id}" --dbname="$1" \
+    --no-psqlrc --tuples-only --no-align --set=ON_ERROR_STOP=1 \
+    --command "$2"
+'''
+    return outer_process(
+        "sh",
+        "-c",
+        command,
+        "dojo-maintenance-process",
+        database_name,
+        sql,
+        application_name,
     )
 
 
@@ -1277,6 +1320,11 @@ def test_database_backup_restore():
     backup_race_process = None
     interrupted_backup_process = None
     orphan_restore_process = None
+    activation_crash_process = None
+    activation_recovery_process = None
+    deactivation_crash_process = None
+    arbitrary_maintenance_process = None
+    arbitrary_maintenance_application = f"dojo-test-unscoped-helper-{suffix}"
     first_filename = None
     second_filename = None
     failed_backup_filename = None
@@ -1295,6 +1343,10 @@ def test_database_backup_restore():
     journal_writer = None
     trusted_recovery_journal = None
     trusted_recovery_requires_missing = False
+    reserved_role = None
+    collision_member = f"restore_collision_member_{suffix}"
+    collision_role_active = False
+    owned_maintenance_role = None
 
     try:
         dojo_run(RESTORE_HELPER, "--recover")
@@ -1338,7 +1390,9 @@ def test_database_backup_restore():
             f"SET application_name TO {sql_literal(metadata_text)};"
         )
         dojo_script = dojo_run("cat", "/opt/pwn.college/dojo/dojo").stdout
+        assert f"{RESTORE_HELPER} --prepare-recovery" in dojo_script
         assert f"{RESTORE_HELPER} --recover" in dojo_script
+        assert '--no-deps --no-recreate db' in dojo_script
         assert f"exec {RESTORE_HELPER}" in dojo_script
         assert_restore_timeout_wrapper_exports(suffix)
 
@@ -1377,6 +1431,40 @@ def test_database_backup_restore():
         collision_identity = database_identity()
         collision_role_attributes = application_role_attributes(database_name)
         reserved_role = f"dojo_restore_{installation_id()}"
+        postgres_sql(
+            f"CREATE ROLE {sql_identifier(collision_member)};"
+            f"CREATE ROLE {sql_identifier(reserved_role)} WITH NOSUPERUSER "
+            "NOINHERIT CREATEDB CREATEROLE NOLOGIN NOREPLICATION NOBYPASSRLS "
+            "CONNECTION LIMIT 7 VALID UNTIL '2035-01-02 03:04:05+00';"
+            f"ALTER ROLE {sql_identifier(reserved_role)} "
+            "SET statement_timeout TO '17s';"
+            f"COMMENT ON ROLE {sql_identifier(reserved_role)} IS "
+            f"{sql_literal(f'unrelated collision {suffix}')};"
+            f"GRANT {sql_identifier(collision_member)} "
+            f"TO {sql_identifier(reserved_role)};"
+        )
+        collision_role_active = True
+        unrelated_role_before = maintenance_role_state()
+        assert unrelated_role_before["role"]["rolsuper"] is False
+        assert unrelated_role_before["role"]["rolcanlogin"] is False
+        assert unrelated_role_before["memberships"]
+        unrelated_collision = dojo_run(
+            RESTORE_HELPER,
+            backup_filename,
+            check=False,
+        )
+        assert unrelated_collision.returncode != 0
+        assert "not owned by this installation" in unrelated_collision.stderr
+        assert maintenance_role_state() == unrelated_role_before
+        assert service_snapshot() == collision_services
+        assert database_identity() == collision_identity
+        assert application_role_attributes(database_name) == collision_role_attributes
+        assert restore_phase() is None
+        postgres_sql(
+            f"DROP ROLE {sql_identifier(reserved_role)};"
+            f"DROP ROLE {sql_identifier(collision_member)};"
+        )
+        collision_role_active = False
         role_collision = dojo_run(
             "env",
             f"DB_USER={reserved_role}",
@@ -1411,6 +1499,160 @@ def test_database_backup_restore():
             assert restore_phase() is None
         finally:
             postgres_sql(f"DROP DATABASE {sql_identifier(reserved_database)};")
+
+        activation_services = service_snapshot()
+        activation_identity = database_identity()
+        activation_crash_process = outer_process(
+            "env",
+            "DOJO_RESTORE_TEST_PAUSE_POINTS=maintenance-role-activated",
+            RESTORE_HELPER,
+            backup_filename,
+        )
+        wait_for_paused_point(activation_crash_process, backup_filename)
+        activation_journal = json.loads(
+            dojo_run("cat", f"{RESTORE_STATE}/journal").stdout
+        )
+        assert activation_journal["version"] == 5
+        assert activation_journal["maintenance"] == "activating"
+        active_role = maintenance_role_state()
+        assert active_role["role"]["rolcanlogin"] is True
+        for service in (*DATABASE_CLIENTS, "nginx"):
+            assert container_info(service)["State"]["Running"] is False
+        assert_http_unavailable()
+        signal_restore(backup_filename, "KILL")
+        activation_crash_process.communicate(timeout=15)
+        assert activation_crash_process.returncode != 0
+        activation_crash_process = None
+        dojo_run("docker", "rm", "--force", "db")
+        activation_recovery_process = outer_process(
+            "env",
+            "DOJO_RESTORE_TEST_PAUSE_POINTS=maintenance-role-deactivated",
+            "dojo",
+            "up",
+        )
+        wait_for_paused_point(activation_recovery_process, "--recover")
+        assert container_info("db")["State"]["Running"] is True
+        assert maintenance_role_state()["role"]["rolcanlogin"] is False
+        for service in (*DATABASE_CLIENTS, "nginx"):
+            assert container_info(service)["State"]["Running"] is False
+        assert_http_unavailable()
+        signal_restore("--recover", "CONT")
+        recovery_stdout, recovery_stderr = activation_recovery_process.communicate(
+            timeout=300
+        )
+        assert activation_recovery_process.returncode == 0, (
+            recovery_stdout,
+            recovery_stderr,
+        )
+        activation_recovery_process = None
+        assert restore_phase() is None
+        assert maintenance_role_state()["role"]["rolcanlogin"] is False
+        assert service_snapshot() == activation_services
+        assert database_identity() == activation_identity
+
+        deactivation_services = service_snapshot()
+        deactivation_identity = database_identity()
+        deactivation_crash_process = outer_process(
+            "env",
+            "DOJO_RESTORE_TEST_PAUSE_POINTS=maintenance-role-deactivated",
+            RESTORE_HELPER,
+            backup_filename,
+        )
+        wait_for_paused_point(deactivation_crash_process, backup_filename)
+        deactivation_journal = json.loads(
+            dojo_run("cat", f"{RESTORE_STATE}/journal").stdout
+        )
+        assert deactivation_journal["version"] == 5
+        assert deactivation_journal["phase"] == "committed"
+        assert deactivation_journal["maintenance"] == "deactivating"
+        assert maintenance_role_state()["role"]["rolcanlogin"] is False
+        for service in (*DATABASE_CLIENTS, "nginx"):
+            assert container_info(service)["State"]["Running"] is False
+        assert_http_unavailable()
+        signal_restore(backup_filename, "KILL")
+        deactivation_crash_process.communicate(timeout=15)
+        assert deactivation_crash_process.returncode != 0
+        deactivation_crash_process = None
+        deactivation_database_container_id = container_info("db")["Id"]
+        dojo_run("docker", "stop", "db")
+        dojo_run("dojo", "up")
+        assert container_info("db")["State"]["Running"] is True
+        assert container_info("db")["Id"] == deactivation_database_container_id
+        assert restore_phase() is None
+        assert maintenance_role_state()["role"]["rolcanlogin"] is False
+        assert service_snapshot() == deactivation_services
+        assert database_identity() == deactivation_identity
+
+        startup_services = service_snapshot()
+        startup_identity = database_identity()
+        direct_database_sql(
+            "postgres",
+            f"ALTER ROLE {sql_identifier(reserved_role)} LOGIN;",
+        )
+        assert restore_phase() is None
+        assert maintenance_role_state()["role"]["rolcanlogin"] is True
+        arbitrary_maintenance_process = maintenance_database_process(
+            "postgres",
+            "SELECT pg_sleep(300);",
+            arbitrary_maintenance_application,
+        )
+        wait_for_database_application(arbitrary_maintenance_application)
+        dojo_run(RESTORE_HELPER, "--recover")
+        arbitrary_stdout, arbitrary_stderr = arbitrary_maintenance_process.communicate(
+            timeout=30
+        )
+        assert arbitrary_maintenance_process.returncode != 0, (
+            arbitrary_stdout,
+            arbitrary_stderr,
+        )
+        arbitrary_maintenance_process = None
+        assert maintenance_role_state()["role"]["rolcanlogin"] is False
+        assert postgres_sql(
+            "SELECT count(*) FROM pg_stat_activity "
+            f"WHERE application_name = {sql_literal(arbitrary_maintenance_application)};"
+        ) == "0"
+        assert service_snapshot() == startup_services
+        assert database_identity() == startup_identity
+        direct_database_sql(
+            "postgres",
+            f"ALTER ROLE {sql_identifier(reserved_role)} LOGIN;",
+        )
+        assert maintenance_role_state()["role"]["rolcanlogin"] is True
+        dojo_run("docker", "rm", "--force", "db")
+        activation_recovery_process = outer_process(
+            "env",
+            "DOJO_RESTORE_TEST_PAUSE_POINTS=maintenance-role-deactivated",
+            "dojo",
+            "up",
+        )
+        wait_for_paused_point(activation_recovery_process, "--recover")
+        startup_journal = json.loads(
+            dojo_run("cat", f"{RESTORE_STATE}/journal").stdout
+        )
+        assert startup_journal["version"] == 6
+        assert startup_journal["kind"] == "startup"
+        assert startup_journal["database"] == {
+            "present": True,
+            "running": True,
+            "id": container_info("db")["Id"],
+        }
+        assert maintenance_role_state()["role"]["rolcanlogin"] is False
+        for service in (*DATABASE_CLIENTS, "nginx"):
+            assert container_info(service)["State"]["Running"] is False
+        assert_http_unavailable()
+        signal_restore("--recover", "CONT")
+        startup_stdout, startup_stderr = activation_recovery_process.communicate(
+            timeout=300
+        )
+        assert activation_recovery_process.returncode == 0, (
+            startup_stdout,
+            startup_stderr,
+        )
+        activation_recovery_process = None
+        assert restore_phase() is None
+        assert maintenance_role_state()["role"]["rolcanlogin"] is False
+        assert service_snapshot() == startup_services
+        assert database_identity() == startup_identity
 
         concurrent_backups = [
             outer_process("sh", "-c", "umask 0777; exec dojo backup")
@@ -1579,6 +1821,14 @@ def test_database_backup_restore():
             f"ROLLBACK PREPARED {sql_literal(prepared_transaction)};",
         )
         prepared_transaction_active = False
+        owned_maintenance_role = maintenance_role_state()
+        assert owned_maintenance_role["role"]["rolsuper"] is True
+        assert owned_maintenance_role["role"]["rolcanlogin"] is False
+        assert owned_maintenance_role["memberships"] == []
+        assert owned_maintenance_role["comment"].startswith(
+            "pwn.college dojo-restore maintenance role v1:"
+            f"{installation_id()}:"
+        )
 
         db_sql(
             f"CREATE SUBSCRIPTION {sql_identifier(subscription_name)} "
@@ -1696,6 +1946,7 @@ def test_database_backup_restore():
             fence_substep_process = None
             dojo_run(RESTORE_HELPER, "--recover")
             assert restore_phase() is None
+            assert maintenance_role_state() == owned_maintenance_role
             assert database_identity() == identity_before
             assert application_role_attributes(
                 wrong_database_name
@@ -1965,12 +2216,24 @@ finally:
         signal_restore(backup_filename, "KILL")
         legacy_recovery_process.communicate(timeout=15)
         legacy_recovery_process = None
-        version_two_journal = json.loads(
+        version_five_journal = json.loads(
             dojo_run("cat", f"{RESTORE_STATE}/journal").stdout
         )
+        version_two_journal = json.loads(json.dumps(version_five_journal))
         version_two_journal["version"] = 2
         version_two_journal.pop("installation_id")
         version_two_journal.pop("application_role")
+        version_two_journal.pop("maintenance")
+        version_three_journal = {
+            **json.loads(json.dumps(version_two_journal)),
+            "version": 3,
+            "installation_id": version_five_journal["installation_id"],
+        }
+        version_four_journal = {
+            **json.loads(json.dumps(version_three_journal)),
+            "version": 4,
+            "application_role": version_five_journal["application_role"],
+        }
         version_one_journal = json.loads(json.dumps(version_two_journal))
         version_one_journal["version"] = 1
         version_one_journal.pop("target")
@@ -1987,6 +2250,34 @@ finally:
         assert application_role_attributes(
             wrong_database_name
         ) == application_role_before_restore
+        preprovenance_services = service_snapshot()
+        preprovenance_role = maintenance_role_state()
+        for preprovenance_journal in (
+            version_three_journal,
+            version_four_journal,
+        ):
+            dojo_run(
+                "python3",
+                "-c",
+                journal_writer,
+                input=json.dumps(preprovenance_journal, separators=(",", ":")),
+            )
+            refused_preprovenance = dojo_run(
+                RESTORE_HELPER,
+                "--recover",
+                check=False,
+            )
+            assert refused_preprovenance.returncode != 0
+            assert (
+                "predates maintenance-role provenance"
+                in refused_preprovenance.stderr
+            )
+            assert service_snapshot() == preprovenance_services
+            assert maintenance_role_state() == preprovenance_role
+            assert direct_database_sql(
+                database_name,
+                f"SELECT value FROM {schema}.parents WHERE id = 6;",
+            ) == "preserved-from-ready-phase"
         dojo_run("docker", "update", "--restart=no", *RESTORE_SERVICES)
         for service in (
             "nginx",
@@ -2018,6 +2309,37 @@ finally:
         )
         trusted_recovery_journal = json.loads(json.dumps(version_two_journal))
         trusted_recovery_journal["phase"] = "ready"
+        stopped_legacy_services = service_snapshot()
+        stopped_legacy_role = maintenance_role_state()
+        legacy_version_two = json.loads(json.dumps(version_two_journal))
+        legacy_version_two["services"].pop("nginx")
+        legacy_version_three = json.loads(json.dumps(version_three_journal))
+        legacy_version_three["services"].pop("nginx")
+        for legacy_journal in (legacy_version_two, legacy_version_three):
+            for legacy_phase in ("snapshotting", "rolling_back", "committed"):
+                legacy_journal["phase"] = legacy_phase
+                dojo_run(
+                    "python3",
+                    "-c",
+                    journal_writer,
+                    input=json.dumps(legacy_journal, separators=(",", ":")),
+                )
+                refused_legacy_snapshot = dojo_run(
+                    RESTORE_HELPER,
+                    "--recover",
+                    check=False,
+                )
+                assert refused_legacy_snapshot.returncode != 0
+                assert (
+                    "unsupported legacy service snapshot"
+                    in refused_legacy_snapshot.stderr
+                )
+                assert service_snapshot() == stopped_legacy_services
+                assert maintenance_role_state() == stopped_legacy_role
+                assert direct_database_sql(
+                    database_name,
+                    f"SELECT value FROM {schema}.parents WHERE id = 6;",
+                ) == "preserved-from-ready-phase"
         for legacy_phase in (
             "restoring",
             "restored",
@@ -2105,6 +2427,7 @@ finally:
         assert db_sql(
             f"SELECT count(*) FROM {schema}.parents WHERE id = 7;"
         ).strip() == "0"
+        assert maintenance_role_state() == stopped_legacy_role
         assert restore_phase() is None
 
         orphan_restore_process = outer_process(
@@ -2588,6 +2911,36 @@ finally:
 
         assert_dynamic_ctfd_upstream(holder)
     finally:
+        if (
+            activation_recovery_process is not None
+            and activation_recovery_process.poll() is None
+        ):
+            signal_restore("--recover", "KILL")
+            activation_recovery_process.communicate(timeout=15)
+        if (
+            activation_crash_process is not None
+            and activation_crash_process.poll() is None
+        ):
+            signal_restore(backup_filename, "KILL")
+            activation_crash_process.communicate(timeout=15)
+        if (
+            deactivation_crash_process is not None
+            and deactivation_crash_process.poll() is None
+        ):
+            signal_restore(backup_filename, "KILL")
+            deactivation_crash_process.communicate(timeout=15)
+        if (
+            arbitrary_maintenance_process is not None
+            and arbitrary_maintenance_process.poll() is None
+        ):
+            direct_database_sql(
+                "postgres",
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                f"WHERE application_name = {sql_literal(arbitrary_maintenance_application)} "
+                "AND pid <> pg_backend_pid();",
+                check=False,
+            )
+            arbitrary_maintenance_process.communicate(timeout=15)
         if interrupted_backup_process is not None and interrupted_backup_process.poll() is None:
             signal_backup("KILL")
             interrupted_backup_process.communicate(timeout=15)
@@ -2710,6 +3063,13 @@ with module.RestoreState() as state:
     module.cleanup_backup_partials(state)
 """
         dojo_run("python3", "-c", trusted_state_cleanup, check=False)
+        if collision_role_active and reserved_role is not None:
+            direct_database_sql(
+                "postgres",
+                f"DROP ROLE IF EXISTS {sql_identifier(reserved_role)};"
+                f"DROP ROLE IF EXISTS {sql_identifier(collision_member)};",
+                check=False,
+            )
         if prepared_transaction_active and database_name is not None:
             direct_database_sql(
                 database_name,
@@ -3005,20 +3365,9 @@ with module.RestoreState() as state:
     database = module.DatabaseRestore(runner, state, services, target)
     metadata = database.capture_metadata()
     application_role = database.verify_application_role()
-    database.activate_maintenance_role()
-    database.establish_fence(metadata, application_role)
-    with module.open_archive({external_backup!r}) as archive:
-        database.restore_archive(archive, metadata)
-    value = target_sql("SELECT value FROM {sentinel_schema}.sentinel;")
-    if value != "external-backup":
-        raise RuntimeError(f"configured restore used the wrong database: {{value}}")
-    target_sql(
-        "UPDATE {sentinel_schema}.sentinel SET value = 'external-acknowledged';"
-    )
-    restored_metadata = metadata
     journal = {{
-        "version": 4,
-        "phase": "ready",
+        "version": 5,
+        "phase": "snapshotting",
         "services": {{
             service: {{
                 "id": f"external-{{service}}",
@@ -3029,18 +3378,32 @@ with module.RestoreState() as state:
             }}
             for service in module.SNAPSHOT_SERVICES
         }},
-        "database": restored_metadata,
+        "database": metadata,
         "target": database.capture_target(),
         "installation_id": state.installation_id,
         "application_role": application_role,
+        "maintenance": "activating",
     }}
     state.write_journal(journal)
+    database.activate_maintenance_role()
+    state.set_maintenance(journal, "active")
+    database.establish_fence(metadata, application_role)
+    with module.open_archive({external_backup!r}) as archive:
+        database.restore_archive(archive, metadata)
+    value = target_sql("SELECT value FROM {sentinel_schema}.sentinel;")
+    if value != "external-backup":
+        raise RuntimeError(f"configured restore used the wrong database: {{value}}")
+    target_sql(
+        "UPDATE {sentinel_schema}.sentinel SET value = 'external-acknowledged';"
+    )
+    restored_metadata = metadata
+    state.set_phase(journal, "ready")
     database.create_rollback()
     target_sql("UPDATE {sentinel_schema}.sentinel SET value = 'destructive';")
     database.restore_rollback()
     database.release_fence(restored_metadata, application_role)
+    module.deactivate_maintenance_before_exposure(state, journal, database)
     state.cleanup()
-    database.deactivate_maintenance_role()
 shutil.rmtree(module.STATE_DIRECTORY, ignore_errors=True)
 """
         maintenance = dojo_run(
