@@ -3,6 +3,7 @@
 import argparse
 import base64
 import contextlib
+import ctypes
 import datetime
 import fcntl
 import hashlib
@@ -13,6 +14,7 @@ import json
 import os
 import pathlib
 import secrets
+import select
 import signal
 import socket
 import ssl
@@ -212,6 +214,7 @@ DEFAULT_READY_TIMEOUT = 300
 DEFAULT_COLD_START_TIMEOUT = 21_600
 MAXIMUM_TIMEOUT = 604_800
 COMMAND_TIMEOUT_GRACE = 2
+TOPOLOGY_SESSION_DRAIN_TIMEOUT = 10
 DATABASE_TLS_OWNER_UID = 0
 DATABASE_TLS_ROOT_CERT_LIMIT = 1024 * 1024
 DATABASE_TLS_DIRECTORY = pathlib.Path("/data/postgres-tls")
@@ -225,6 +228,13 @@ class RestoreError(RuntimeError):
 
 class RestoreInterrupted(RestoreError):
     pass
+
+
+def terminate_with_parent():
+    if ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGKILL) != 0:
+        os._exit(127)
+    if os.getppid() == 1:
+        os.kill(os.getpid(), signal.SIGKILL)
 
 
 class LoopbackHTTPSConnection(http.client.HTTPSConnection):
@@ -991,9 +1001,8 @@ class DatabaseTarget:
         ):
             raise RestoreError("database TLS root certificate identity changed")
 
-    def run_client(
+    def client_invocation(
         self,
-        runner,
         program,
         arguments=(),
         *,
@@ -1001,13 +1010,12 @@ class DatabaseTarget:
         connect=False,
         application_name=None,
         input_stream=False,
-        **options,
+        timeout=DEFAULT_READY_TIMEOUT,
     ):
         if connect and application_name is None:
             raise RestoreError(
                 "connected database maintenance clients require an application name"
             )
-        timeout = options.pop("timeout", DEFAULT_READY_TIMEOUT)
         if timeout is None or timeout <= 0:
             raise RestoreError("database client command requires a positive timeout")
         timeout_seconds = max(1, int(timeout + 0.999))
@@ -1063,12 +1071,123 @@ class DatabaseTarget:
                 )
             )
         command.extend(arguments)
+        return command, environment, timeout + COMMAND_TIMEOUT_GRACE
+
+    def run_client(
+        self,
+        runner,
+        program,
+        arguments=(),
+        *,
+        database=None,
+        connect=False,
+        application_name=None,
+        input_stream=False,
+        **options,
+    ):
+        timeout = options.pop("timeout", DEFAULT_READY_TIMEOUT)
+        command, environment, command_timeout = self.client_invocation(
+            program,
+            arguments,
+            database=database,
+            connect=connect,
+            application_name=application_name,
+            input_stream=input_stream,
+            timeout=timeout,
+        )
         return runner.run(
             command,
             environment=environment,
-            timeout=timeout + COMMAND_TIMEOUT_GRACE,
+            timeout=command_timeout,
             **options,
         )
+
+
+@contextlib.contextmanager
+def exported_database_snapshot(target, installation_id, timeout):
+    command, environment, command_timeout = target.client_invocation(
+        "psql",
+        (
+            "--no-psqlrc",
+            "--quiet",
+            "--tuples-only",
+            "--no-align",
+            "--set=ON_ERROR_STOP=1",
+        ),
+        database=target.name,
+        connect=True,
+        application_name=application_name(
+            BACKUP_APPLICATION_NAME,
+            installation_id,
+        ),
+        input_stream=True,
+        timeout=timeout,
+    )
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=environment,
+        preexec_fn=terminate_with_parent,
+        start_new_session=True,
+    )
+    try:
+        process.stdin.write(
+            b"BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\n"
+            b"SELECT pg_export_snapshot();\n"
+        )
+        process.stdin.flush()
+        deadline = time.monotonic() + command_timeout
+        output = bytearray()
+        snapshot = None
+        while snapshot is None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RestoreError("timed out while exporting the backup snapshot")
+            readable, _, _ = select.select(
+                (process.stdout,),
+                (),
+                (),
+                min(1, remaining),
+            )
+            if not readable:
+                if process.poll() is not None:
+                    break
+                continue
+            chunk = os.read(process.stdout.fileno(), 4096)
+            if not chunk:
+                break
+            output.extend(chunk)
+            if len(output) > 4096:
+                raise RestoreError("database snapshot exporter returned invalid output")
+            while b"\n" in output:
+                line, _, remainder = output.partition(b"\n")
+                output = bytearray(remainder)
+                candidate = line.strip().decode(errors="replace")
+                if candidate and all(
+                    character in "0123456789abcdefABCDEF-"
+                    for character in candidate
+                ):
+                    snapshot = candidate
+                    break
+        if snapshot is None or not 1 <= len(snapshot) <= 256:
+            error = process.stderr.read().decode(errors="replace")[-8000:]
+            raise RestoreError(f"could not export the backup snapshot\n{error}")
+        yield snapshot
+    finally:
+        if process.poll() is None:
+            with contextlib.suppress(BrokenPipeError, OSError):
+                process.stdin.write(b"ROLLBACK;\n\\q\n")
+                process.stdin.flush()
+            try:
+                process.communicate(timeout=COMMAND_TIMEOUT_GRACE)
+            except subprocess.TimeoutExpired:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+        else:
+            process.communicate()
 
 
 class RestoreState:
@@ -2056,6 +2175,13 @@ class DatabaseRestore:
             else None
         )
 
+    def export_backup_snapshot(self):
+        return exported_database_snapshot(
+            self.target,
+            self.installation_id,
+            self.operation_timeout,
+        )
+
     def cluster_claims(self, server_identity):
         if self.maintenance_secret is None:
             raise RestoreError("restore cluster ownership identity is unavailable")
@@ -2870,77 +2996,130 @@ class DatabaseRestore:
             if self.maintenance_target is not None
             else "NULL"
         )
-        result = self.psql(
-            "SELECT json_build_object("
-            "'owner', (SELECT pg_get_userbyid(datdba) FROM pg_database "
-            f"WHERE datname = {database}), "
-            "'other_owned_databases', (SELECT count(*) FROM pg_database "
-            f"WHERE datdba = (SELECT oid FROM pg_roles WHERE rolname = {application_role}) "
-            f"AND datname <> {database} "
-            "AND datname NOT IN ('postgres', 'template0', 'template1')), "
-            "'privileged_roles', COALESCE((SELECT json_agg(rolname ORDER BY rolname) "
-            "FROM pg_roles WHERE (rolsuper OR rolcreatedb) "
-            f"AND rolname <> {application_role} "
-            f"AND rolname <> {maintenance_role}), '[]'::json), "
-            "'application_memberships', (SELECT count(*) FROM pg_auth_members "
-            f"WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = {application_role}) "
-            f"OR member = (SELECT oid FROM pg_roles WHERE rolname = {application_role})), "
-            "'other_application_sessions', (SELECT count(*) FROM pg_stat_activity "
-            f"WHERE usename = {application_role} AND pid <> pg_backend_pid() "
-            f"AND datname IS DISTINCT FROM {database})"
-            ");"
+        predicate = (
+            f"usename = {application_role} AND pid <> pg_backend_pid() "
+            f"AND datname IS DISTINCT FROM {database}"
         )
-        try:
-            topology = json.loads(result.stdout)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise RestoreError("could not verify PostgreSQL cluster isolation") from error
-        if not isinstance(topology, dict) or set(topology) != {
-            "owner",
-            "other_owned_databases",
-            "privileged_roles",
-            "application_memberships",
-            "other_application_sessions",
-        }:
-            raise RestoreError("PostgreSQL cluster isolation check returned invalid data")
-        if topology["owner"] != self.application_target.user:
-            raise RestoreError(
-                "configured PostgreSQL application role must exclusively own the "
-                "restore database"
+        deadline = time.monotonic() + min(
+            self.drain_timeout,
+            TOPOLOGY_SESSION_DRAIN_TIMEOUT,
+        )
+        while True:
+            result = self.psql(
+                "WITH other_application_sessions AS MATERIALIZED ("
+                "SELECT pid, datname AS database_name, "
+                "left(application_name, 128) AS application_name, "
+                "CASE WHEN client_addr IS NULL THEN 'local' ELSE 'network' END "
+                "AS client_type, backend_type FROM pg_stat_activity "
+                f"WHERE {predicate}"
+                ") SELECT json_build_object("
+                "'owner', (SELECT pg_get_userbyid(datdba) FROM pg_database "
+                f"WHERE datname = {database}), "
+                "'other_owned_databases', (SELECT count(*) FROM pg_database "
+                f"WHERE datdba = (SELECT oid FROM pg_roles WHERE rolname = {application_role}) "
+                f"AND datname <> {database} "
+                "AND datname NOT IN ('postgres', 'template0', 'template1')), "
+                "'privileged_roles', COALESCE((SELECT json_agg(rolname ORDER BY rolname) "
+                "FROM pg_roles WHERE (rolsuper OR rolcreatedb) "
+                f"AND rolname <> {application_role} "
+                f"AND rolname <> {maintenance_role}), '[]'::json), "
+                "'application_memberships', (SELECT count(*) FROM pg_auth_members "
+                f"WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = {application_role}) "
+                f"OR member = (SELECT oid FROM pg_roles WHERE rolname = {application_role})), "
+                "'other_application_sessions', (SELECT count(*) "
+                "FROM other_application_sessions), "
+                "'other_application_session_details', COALESCE((SELECT json_agg("
+                "json_build_object('database', database_name, "
+                "'application_name', application_name, "
+                "'client_type', client_type, "
+                "'backend_type', backend_type) "
+                "ORDER BY database_name, application_name, client_type, "
+                "backend_type, pid) FROM other_application_sessions), '[]'::json)"
+                ");"
             )
-        for field in (
-            "other_owned_databases",
-            "application_memberships",
-            "other_application_sessions",
-        ):
-            if type(topology[field]) is not int or topology[field] < 0:
+            try:
+                topology = json.loads(result.stdout)
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise RestoreError(
+                    "could not verify PostgreSQL cluster isolation"
+                ) from error
+            if not isinstance(topology, dict) or set(topology) != {
+                "owner",
+                "other_owned_databases",
+                "privileged_roles",
+                "application_memberships",
+                "other_application_sessions",
+                "other_application_session_details",
+            }:
                 raise RestoreError(
                     "PostgreSQL cluster isolation check returned invalid data"
                 )
-        if (
-            not isinstance(topology["privileged_roles"], list)
-            or any(
-                not isinstance(role, str) or not role
-                for role in topology["privileged_roles"]
+            if topology["owner"] != self.application_target.user:
+                raise RestoreError(
+                    "configured PostgreSQL application role must exclusively own the "
+                    "restore database"
+                )
+            for field in (
+                "other_owned_databases",
+                "application_memberships",
+                "other_application_sessions",
+            ):
+                if type(topology[field]) is not int or topology[field] < 0:
+                    raise RestoreError(
+                        "PostgreSQL cluster isolation check returned invalid data"
+                    )
+            details = topology["other_application_session_details"]
+            if (
+                not isinstance(topology["privileged_roles"], list)
+                or any(
+                    not isinstance(role, str) or not role
+                    for role in topology["privileged_roles"]
+                )
+                or not isinstance(details, list)
+                or len(details) != topology["other_application_sessions"]
+                or any(
+                    not isinstance(detail, dict)
+                    or set(detail)
+                    != {
+                        "database",
+                        "application_name",
+                        "client_type",
+                        "backend_type",
+                    }
+                    or (
+                        detail["database"] is not None
+                        and not isinstance(detail["database"], str)
+                    )
+                    or not isinstance(detail["application_name"], str)
+                    or detail["client_type"] not in {"local", "network"}
+                    or not isinstance(detail["backend_type"], str)
+                    for detail in details
+                )
+            ):
+                raise RestoreError(
+                    "PostgreSQL cluster isolation check returned invalid data"
+                )
+            if topology["other_owned_databases"]:
+                raise RestoreError(
+                    "configured PostgreSQL application role is shared by another database"
+                )
+            if topology["application_memberships"]:
+                raise RestoreError(
+                    "configured PostgreSQL application role must not have role memberships"
+                )
+            if topology["privileged_roles"]:
+                raise RestoreError(
+                    "database restore requires an exclusive PostgreSQL cluster without "
+                    "additional superuser or CREATEDB roles"
+                )
+            if not topology["other_application_sessions"]:
+                return
+            error = (
+                "configured PostgreSQL application role has sessions in another "
+                "database: "
+                + json.dumps(details, sort_keys=True, separators=(",", ":"))
             )
-        ):
-            raise RestoreError("PostgreSQL cluster isolation check returned invalid data")
-        if topology["other_owned_databases"]:
-            raise RestoreError(
-                "configured PostgreSQL application role is shared by another database"
-            )
-        if topology["application_memberships"]:
-            raise RestoreError(
-                "configured PostgreSQL application role must not have role memberships"
-            )
-        if topology["other_application_sessions"]:
-            raise RestoreError(
-                "configured PostgreSQL application role has sessions in another database"
-            )
-        if topology["privileged_roles"]:
-            raise RestoreError(
-                "database restore requires an exclusive PostgreSQL cluster without "
-                "additional superuser or CREATEDB roles"
-            )
+            wait_for_retry(deadline, error)
 
     def preflight_recreation(self, database_name=None):
         self.verify_recreation_privileges()
@@ -3069,11 +3248,22 @@ class DatabaseRestore:
         self,
         required_role_names=(),
         required_tablespace_names=(),
+        *,
+        include_database_dependencies=True,
+        snapshot=None,
+        archive_catalog_ids=None,
     ):
         if not isinstance(required_role_names, (list, tuple, set)):
             raise RestoreError("backup dependency role seed is invalid")
         if not isinstance(required_tablespace_names, (list, tuple, set)):
             raise RestoreError("backup dependency tablespace seed is invalid")
+        if not isinstance(include_database_dependencies, bool):
+            raise RestoreError("backup dependency scope is invalid")
+        if archive_catalog_ids is not None and not isinstance(
+            archive_catalog_ids,
+            (list, tuple, set),
+        ):
+            raise RestoreError("backup archive catalog identity is invalid")
         required_role_names = sorted(set(required_role_names))
         required_tablespace_names = sorted(set(required_tablespace_names))
         for role_name in required_role_names:
@@ -3083,6 +3273,33 @@ class DatabaseRestore:
                 tablespace_name,
                 "backup dependency tablespace seed",
                 limit=1024,
+            )
+        if snapshot is not None and (
+            not isinstance(snapshot, str)
+            or not 1 <= len(snapshot) <= 256
+            or any(
+                character not in "0123456789abcdefABCDEF-"
+                for character in snapshot
+            )
+        ):
+            raise RestoreError("backup dependency snapshot is invalid")
+        if (snapshot is None) != (archive_catalog_ids is None):
+            raise RestoreError(
+                "backup dependency snapshot and archive identity must be paired"
+            )
+        if archive_catalog_ids is not None:
+            if any(
+                not isinstance(identity, (list, tuple))
+                or len(identity) != 2
+                or any(
+                    type(oid) is not int or not 0 < oid <= 0xFFFFFFFF
+                    for oid in identity
+                )
+                for identity in archive_catalog_ids
+            ):
+                raise RestoreError("backup archive catalog identity is invalid")
+            archive_catalog_ids = sorted(
+                {tuple(identity) for identity in archive_catalog_ids}
             )
         required_role_seed = ""
         if required_role_names:
@@ -3100,126 +3317,230 @@ class DatabaseRestore:
                 + tablespaces
                 + ")"
             )
-        result = self.target.run_client(
-            self.runner,
-            "psql",
-            (
-                "--no-psqlrc",
-                "--tuples-only",
-                "--no-align",
-                "--set=ON_ERROR_STOP=1",
-                "--command",
-                "WITH RECURSIVE target_database AS ("
-                "SELECT oid FROM pg_database "
-                "WHERE datname = current_database()"
-                "), target_tablespaces AS ("
-                "SELECT reltablespace FROM pg_class WHERE reltablespace <> 0 "
-                "AND relpersistence <> 't'"
-                f"{required_tablespace_seed}"
-                "), seed_roles AS ("
-                "SELECT dependency.refobjid FROM pg_shdepend AS dependency "
-                "JOIN target_database ON dependency.dbid = target_database.oid "
-                "WHERE dependency.refclassid = 'pg_authid'::regclass UNION "
-                "SELECT defaclrole FROM pg_default_acl UNION "
+        target_tablespace_seed = "SELECT oid FROM pg_tablespace WHERE false"
+        database_role_seed = ""
+        default_acl_role_seed = ""
+        default_acl_predicate = " WHERE false"
+        archive_relation_join = ""
+        archive_default_acl_join = ""
+        archive_setup = ""
+        archive_input = None
+        if archive_catalog_ids is not None:
+            archive_relation_join = (
+                " JOIN archive_objects AS archived_relation "
+                "ON archived_relation.classid = 'pg_class'::regclass "
+                "AND archived_relation.objid = relation.oid"
+            )
+            archive_default_acl_join = (
+                " JOIN archive_objects AS archived_default "
+                "ON archived_default.classid = 'pg_default_acl'::regclass "
+                "AND archived_default.objid = defaults.oid"
+            )
+            archive_setup = (
+                "CREATE TEMP TABLE archive_objects "
+                "(classid oid NOT NULL, objid oid NOT NULL, "
+                "PRIMARY KEY (classid, objid)) ON COMMIT DROP; "
+                "COPY archive_objects (classid, objid) FROM STDIN; "
+            )
+            archive_input = tempfile.TemporaryFile()
+            try:
+                for class_oid, object_oid in archive_catalog_ids:
+                    archive_input.write(f"{class_oid}\t{object_oid}\n".encode())
+                archive_input.write(b"\\.\n")
+                archive_input.seek(0)
+            except BaseException:
+                archive_input.close()
+                raise
+        if include_database_dependencies:
+            target_tablespace_seed = (
+                "SELECT DISTINCT relation.reltablespace AS oid "
+                "FROM pg_class AS relation"
+                f"{archive_relation_join} WHERE relation.reltablespace <> 0 "
+                "AND relation.relpersistence <> 't' AND NOT EXISTS ("
+                "SELECT 1 FROM extension_members AS extension "
+                "WHERE extension.classid = 'pg_class'::regclass "
+                "AND extension.objid = relation.oid)"
+            )
+            database_role_seed = (
+                " UNION SELECT dependency.refobjid "
+                "FROM pg_shdepend AS dependency JOIN target_database "
+                "ON dependency.dbid = target_database.oid "
+                "WHERE dependency.refclassid = 'pg_authid'::regclass "
+                "AND NOT EXISTS (SELECT 1 FROM extension_members AS extension "
+                "WHERE extension.classid = dependency.classid "
+                "AND extension.objid = dependency.objid) "
+                "AND NOT EXISTS (SELECT 1 FROM temp_objects AS temporary "
+                "WHERE temporary.classid = dependency.classid "
+                "AND temporary.objid = dependency.objid)"
+            )
+            default_acl_role_seed = (
+                " UNION SELECT defaults.defaclrole FROM pg_default_acl AS defaults"
+                f"{archive_default_acl_join} UNION "
                 "SELECT acl.grantor FROM pg_default_acl AS defaults "
+                f"{archive_default_acl_join} "
                 "CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl UNION "
                 "SELECT acl.grantee FROM pg_default_acl AS defaults "
+                f"{archive_default_acl_join} "
                 "CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl "
-                "WHERE acl.grantee <> 0 UNION "
-                "SELECT tablespace.spcowner FROM pg_tablespace AS tablespace "
-                "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid "
-                "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global') UNION "
-                "SELECT acl.grantor FROM pg_tablespace AS tablespace "
-                "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid "
-                "CROSS JOIN LATERAL aclexplode(tablespace.spcacl) AS acl "
-                "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global') UNION "
-                "SELECT acl.grantee FROM pg_tablespace AS tablespace "
-                "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid "
-                "CROSS JOIN LATERAL aclexplode(tablespace.spcacl) AS acl "
-                "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global') "
-                "AND acl.grantee <> 0"
-                f"{required_role_seed}"
-                "), role_graph(oid) AS ("
-                "SELECT oid FROM seed_roles UNION "
-                "SELECT related.oid "
-                "FROM role_graph JOIN pg_auth_members AS membership "
-                "ON membership.roleid = role_graph.oid "
-                "OR membership.member = role_graph.oid "
-                "OR membership.grantor = role_graph.oid "
-                "CROSS JOIN LATERAL (VALUES (membership.roleid), "
-                "(membership.member), (membership.grantor)) AS related(oid)"
-                "), contract_roles AS ("
-                "SELECT oid FROM role_graph UNION "
-                "SELECT membership.grantor FROM pg_auth_members AS membership "
-                "WHERE membership.roleid IN (SELECT oid FROM role_graph) "
-                "AND membership.member IN (SELECT oid FROM role_graph)"
-                ") SELECT json_build_object("
-                "'roles', COALESCE((SELECT json_agg(json_build_object("
-                "'name', role.rolname, 'superuser', role.rolsuper, "
-                "'inherit', role.rolinherit, 'create_db', role.rolcreatedb, "
-                "'create_role', role.rolcreaterole, 'login', role.rolcanlogin, "
-                "'replication', role.rolreplication, 'bypass_rls', role.rolbypassrls, "
-                "'connection_limit', role.rolconnlimit, "
-                "'valid_until', role.rolvaliduntil::text, "
-                "'config', COALESCE(role.rolconfig, ARRAY[]::text[])"
-                ") ORDER BY role.rolname) FROM pg_roles AS role "
-                "WHERE role.oid IN (SELECT oid FROM contract_roles) "
-                "AND role.rolname !~ '^pg_'), '[]'::json), "
-                "'memberships', COALESCE((SELECT json_agg(json_build_object("
-                "'role', granted_role.rolname, 'member', member_role.rolname, "
-                "'grantor', grantor_role.rolname, "
-                "'admin_option', membership.admin_option, "
-                "'inherit_option', membership.inherit_option, "
-                "'set_option', membership.set_option"
-                ") ORDER BY granted_role.rolname, member_role.rolname, grantor_role.rolname) "
-                "FROM pg_auth_members AS membership "
-                "JOIN pg_roles AS granted_role ON granted_role.oid = membership.roleid "
-                "JOIN pg_roles AS member_role ON member_role.oid = membership.member "
-                "JOIN pg_roles AS grantor_role ON grantor_role.oid = membership.grantor "
-                "WHERE membership.roleid IN (SELECT oid FROM role_graph) "
-                "AND membership.member IN (SELECT oid FROM role_graph)"
-                "), '[]'::json), "
-                "'default_acls', COALESCE((SELECT json_agg(json_build_object("
-                "'owner', owner.rolname, 'schema', namespace.nspname, "
-                "'object_type', defaults.defaclobjtype::text, "
-                "'grantor', pg_get_userbyid(acl.grantor), "
-                "'grantee', CASE WHEN acl.grantee = 0 THEN NULL "
-                "ELSE pg_get_userbyid(acl.grantee) END, "
-                "'privilege', acl.privilege_type, 'grantable', acl.is_grantable"
-                ") ORDER BY owner.rolname, namespace.nspname, defaults.defaclobjtype, "
-                "acl.grantor, acl.grantee, acl.privilege_type) "
-                "FROM pg_default_acl AS defaults "
-                "JOIN pg_roles AS owner ON owner.oid = defaults.defaclrole "
-                "LEFT JOIN pg_namespace AS namespace ON namespace.oid = defaults.defaclnamespace "
-                "CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl"
-                "), '[]'::json), "
-                "'tablespaces', COALESCE((SELECT json_agg(json_build_object("
-                "'name', tablespace.spcname, 'owner', pg_get_userbyid(tablespace.spcowner), "
-                "'location', pg_tablespace_location(tablespace.oid), "
-                "'options', COALESCE(tablespace.spcoptions, ARRAY[]::text[]), "
-                "'acl_default', tablespace.spcacl IS NULL, "
-                "'acl', COALESCE((SELECT json_agg(json_build_object("
-                "'grantor', pg_get_userbyid(acl.grantor), "
-                "'grantee', CASE WHEN acl.grantee = 0 THEN NULL "
-                "ELSE pg_get_userbyid(acl.grantee) END, "
-                "'privilege', acl.privilege_type, 'grantable', acl.is_grantable"
-                ") ORDER BY acl.grantor, acl.grantee, acl.privilege_type) "
-                "FROM aclexplode(tablespace.spcacl) AS acl), '[]'::json)"
-                ") ORDER BY tablespace.spcname) FROM pg_tablespace AS tablespace "
-                "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid "
-                "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global')"
-                "), '[]'::json)"
-                ");",
-            ),
-            database=self.target.name,
-            connect=True,
-            application_name=self.snapshot_application_name,
-            capture_output=True,
-            timeout=self.operation_timeout,
-        )
+                "WHERE acl.grantee <> 0"
+            )
+            default_acl_predicate = ""
+        transaction_prefix = ""
+        transaction_suffix = ""
+        if snapshot is not None:
+            transaction_prefix = (
+                "BEGIN ISOLATION LEVEL REPEATABLE READ; "
+                f"SET TRANSACTION SNAPSHOT {sql_literal(snapshot)}; "
+            )
+            transaction_suffix = " COMMIT;"
         try:
-            dependencies = json.loads(result.stdout)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            result = self.target.run_client(
+                self.runner,
+                "psql",
+                (
+                    "--no-psqlrc",
+                    "--quiet",
+                    "--tuples-only",
+                    "--no-align",
+                    "--set=ON_ERROR_STOP=1",
+                    "--command",
+                    f"{transaction_prefix}{archive_setup}"
+                    "WITH RECURSIVE target_database AS ("
+                    "SELECT oid FROM pg_database "
+                    "WHERE datname = current_database()"
+                    "), extension_members AS ("
+                    "SELECT classid, objid FROM pg_depend WHERE deptype = 'e'"
+                    "), temp_objects(classid, objid) AS ("
+                    "SELECT 'pg_namespace'::regclass, oid FROM pg_namespace "
+                    "WHERE nspname LIKE 'pg_temp_%' "
+                    "OR nspname LIKE 'pg_toast_temp_%' UNION "
+                    "SELECT 'pg_class'::regclass, oid FROM pg_class "
+                    "WHERE relpersistence = 't' UNION "
+                    "SELECT dependency.classid, dependency.objid "
+                    "FROM pg_depend AS dependency JOIN temp_objects AS temporary "
+                    "ON dependency.refclassid = temporary.classid "
+                    "AND dependency.refobjid = temporary.objid"
+                    "), target_tablespaces AS ("
+                    f"{target_tablespace_seed}"
+                    f"{required_tablespace_seed}"
+                    "), seed_roles AS ("
+                    "SELECT oid FROM pg_roles WHERE false"
+                    f"{database_role_seed}"
+                    f"{default_acl_role_seed} UNION "
+                    "SELECT tablespace.spcowner FROM pg_tablespace AS tablespace "
+                    "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid "
+                    "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global') UNION "
+                    "SELECT acl.grantor FROM pg_tablespace AS tablespace "
+                    "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid "
+                    "CROSS JOIN LATERAL aclexplode(tablespace.spcacl) AS acl "
+                    "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global') UNION "
+                    "SELECT acl.grantee FROM pg_tablespace AS tablespace "
+                    "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid "
+                    "CROSS JOIN LATERAL aclexplode(tablespace.spcacl) AS acl "
+                    "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global') "
+                    "AND acl.grantee <> 0"
+                    f"{required_role_seed}"
+                    "), role_graph(oid) AS ("
+                    "SELECT oid FROM seed_roles UNION "
+                    "SELECT related.oid "
+                    "FROM role_graph JOIN pg_auth_members AS membership "
+                    "ON membership.roleid = role_graph.oid "
+                    "OR membership.member = role_graph.oid "
+                    "OR membership.grantor = role_graph.oid "
+                    "CROSS JOIN LATERAL (VALUES (membership.roleid), "
+                    "(membership.member), (membership.grantor)) AS related(oid)"
+                    "), contract_roles AS ("
+                    "SELECT oid FROM role_graph UNION "
+                    "SELECT membership.grantor FROM pg_auth_members AS membership "
+                    "WHERE membership.roleid IN (SELECT oid FROM role_graph) "
+                    "AND membership.member IN (SELECT oid FROM role_graph)"
+                    ") SELECT json_build_object("
+                    "'roles', COALESCE((SELECT json_agg(json_build_object("
+                    "'name', role.rolname, 'superuser', role.rolsuper, "
+                    "'inherit', role.rolinherit, 'create_db', role.rolcreatedb, "
+                    "'create_role', role.rolcreaterole, 'login', role.rolcanlogin, "
+                    "'replication', role.rolreplication, "
+                    "'bypass_rls', role.rolbypassrls, "
+                    "'connection_limit', role.rolconnlimit, "
+                    "'valid_until', role.rolvaliduntil::text, "
+                    "'config', COALESCE(role.rolconfig, ARRAY[]::text[])"
+                    ") ORDER BY role.rolname) FROM pg_roles AS role "
+                    "WHERE role.oid IN (SELECT oid FROM contract_roles) "
+                    "AND role.rolname !~ '^pg_'), '[]'::json), "
+                    "'memberships', COALESCE((SELECT json_agg(json_build_object("
+                    "'role', granted_role.rolname, 'member', member_role.rolname, "
+                    "'grantor', grantor_role.rolname, "
+                    "'admin_option', membership.admin_option, "
+                    "'inherit_option', membership.inherit_option, "
+                    "'set_option', membership.set_option"
+                    ") ORDER BY granted_role.rolname, member_role.rolname, "
+                    "grantor_role.rolname) FROM pg_auth_members AS membership "
+                    "JOIN pg_roles AS granted_role "
+                    "ON granted_role.oid = membership.roleid "
+                    "JOIN pg_roles AS member_role "
+                    "ON member_role.oid = membership.member "
+                    "JOIN pg_roles AS grantor_role "
+                    "ON grantor_role.oid = membership.grantor "
+                    "WHERE membership.roleid IN (SELECT oid FROM role_graph) "
+                    "AND membership.member IN (SELECT oid FROM role_graph)"
+                    "), '[]'::json), "
+                    "'default_acls', COALESCE((SELECT json_agg(json_build_object("
+                    "'owner', owner.rolname, 'schema', namespace.nspname, "
+                    "'object_type', defaults.defaclobjtype::text, "
+                    "'grantor', pg_get_userbyid(acl.grantor), "
+                    "'grantee', CASE WHEN acl.grantee = 0 THEN NULL "
+                    "ELSE pg_get_userbyid(acl.grantee) END, "
+                    "'privilege', acl.privilege_type, "
+                    "'grantable', acl.is_grantable"
+                    ") ORDER BY owner.rolname, namespace.nspname, "
+                    "defaults.defaclobjtype, acl.grantor, acl.grantee, "
+                    "acl.privilege_type) FROM pg_default_acl AS defaults "
+                    f"{archive_default_acl_join} "
+                    "JOIN pg_roles AS owner ON owner.oid = defaults.defaclrole "
+                    "LEFT JOIN pg_namespace AS namespace "
+                    "ON namespace.oid = defaults.defaclnamespace "
+                    "CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl"
+                    f"{default_acl_predicate}"
+                    "), '[]'::json), "
+                    "'tablespaces', COALESCE((SELECT json_agg(json_build_object("
+                    "'name', tablespace.spcname, "
+                    "'owner', pg_get_userbyid(tablespace.spcowner), "
+                    "'location', pg_tablespace_location(tablespace.oid), "
+                    "'options', COALESCE(tablespace.spcoptions, ARRAY[]::text[]), "
+                    "'acl_default', tablespace.spcacl IS NULL, "
+                    "'acl', COALESCE((SELECT json_agg(json_build_object("
+                    "'grantor', pg_get_userbyid(acl.grantor), "
+                    "'grantee', CASE WHEN acl.grantee = 0 THEN NULL "
+                    "ELSE pg_get_userbyid(acl.grantee) END, "
+                    "'privilege', acl.privilege_type, "
+                    "'grantable', acl.is_grantable"
+                    ") ORDER BY acl.grantor, acl.grantee, acl.privilege_type) "
+                    "FROM aclexplode(tablespace.spcacl) AS acl), '[]'::json)"
+                    ") ORDER BY tablespace.spcname) "
+                    "FROM pg_tablespace AS tablespace "
+                    "JOIN target_tablespaces "
+                    "ON target_tablespaces.oid = tablespace.oid "
+                    "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global')"
+                    "), '[]'::json)"
+                    f");{transaction_suffix}",
+                ),
+                database=self.target.name,
+                connect=True,
+                application_name=self.snapshot_application_name,
+                input_stream=archive_input is not None,
+                stdin=archive_input,
+                capture_output=True,
+                timeout=self.operation_timeout,
+            )
+        finally:
+            if archive_input is not None:
+                archive_input.close()
+        try:
+            lines = result.stdout.decode().splitlines()
+            dependencies = json.loads(
+                next(line for line in lines if line.lstrip().startswith("{"))
+            )
+        except (UnicodeDecodeError, StopIteration, json.JSONDecodeError) as error:
             raise RestoreError("could not capture database backup dependencies") from error
         validate_backup_dependencies(dependencies)
         return dependencies
@@ -3250,6 +3571,7 @@ class DatabaseRestore:
         current = self.capture_backup_dependencies(
             required_role_names,
             {tablespace["name"] for tablespace in expected["tablespaces"]},
+            include_database_dependencies=False,
         )
         current_roles = {role["name"]: role for role in current["roles"]}
         current_tablespaces = {
@@ -3780,28 +4102,49 @@ def sql_identifier(value):
     return '"' + value.replace('"', '""') + '"'
 
 
-def validate_archive(runner, target, archive, *, timeout=DEFAULT_READY_TIMEOUT):
+def validate_archive(
+    runner,
+    target,
+    archive,
+    *,
+    timeout=DEFAULT_READY_TIMEOUT,
+    require_complete=False,
+):
     offset = archive_payload_offset(archive)
     os.lseek(archive.fileno(), offset, os.SEEK_SET)
     contents = target.run_client(
         runner,
         "pg_restore",
-        ("--list",),
+        ("--list", "--create"),
         input_stream=True,
         stdin=archive,
         capture_output=True,
         timeout=timeout,
     )
     full_database_entry = False
+    catalog_ids = set()
     for line in contents.stdout.splitlines():
         if not line or line.startswith(b";") or b";" not in line:
             continue
         fields = line.split(b";", 1)[1].lstrip().split(None, 3)
+        class_oid = object_oid = 0
+        if len(fields) >= 2:
+            try:
+                class_oid, object_oid = (int(field) for field in fields[:2])
+            except ValueError:
+                pass
+            if 0 < class_oid <= 0xFFFFFFFF and 0 < object_oid <= 0xFFFFFFFF:
+                catalog_ids.add((class_oid, object_oid))
         if len(fields) >= 3 and fields[2] == b"SUBSCRIPTION":
             raise RestoreError("backup archives containing subscriptions are unsupported")
-        if len(fields) >= 3 and fields[2] == b"DATABASE":
+        if (
+            len(fields) >= 3
+            and class_oid == 1262
+            and object_oid > 0
+            and fields[2] == b"DATABASE"
+        ):
             full_database_entry = True
-    if hasattr(archive, "manifest") and not full_database_entry:
+    if (require_complete or hasattr(archive, "manifest")) and not full_database_entry:
         raise RestoreError("backup archive is not a complete database dump")
     os.lseek(archive.fileno(), offset, os.SEEK_SET)
     target.run_client(
@@ -3814,6 +4157,7 @@ def validate_archive(runner, target, archive, *, timeout=DEFAULT_READY_TIMEOUT):
         timeout=timeout,
     )
     os.lseek(archive.fileno(), offset, os.SEEK_SET)
+    return catalog_ids
 
 
 def open_backup_directory(*, create):
@@ -3975,6 +4319,7 @@ def create_backup(
     target,
     state,
     source,
+    database,
     *,
     timeout=DEFAULT_COLD_START_TIMEOUT,
 ):
@@ -4005,21 +4350,37 @@ def create_backup(
             if written == 0:
                 raise RestoreError("database backup header could not be reserved")
             position += written
-        pause_for_test("backup-created")
-        target.run_client(
-            runner,
-            "pg_dump",
-            ("--format=custom", "--create"),
-            database=target.name,
-            connect=True,
-            application_name=application_name(
-                BACKUP_APPLICATION_NAME,
-                getattr(state, "installation_id", None)
-                or "0" * INSTALLATION_ID_LENGTH,
-            ),
-            stdout=output_descriptor,
-            timeout=timeout,
-        )
+        with database.export_backup_snapshot() as snapshot:
+            pause_for_test("backup-created")
+            target.run_client(
+                runner,
+                "pg_dump",
+                ("--format=custom", "--create", f"--snapshot={snapshot}"),
+                database=target.name,
+                connect=True,
+                application_name=application_name(
+                    BACKUP_APPLICATION_NAME,
+                    getattr(state, "installation_id", None)
+                    or "0" * INSTALLATION_ID_LENGTH,
+                ),
+                stdout=output_descriptor,
+                timeout=timeout,
+            )
+            pause_for_test("backup-dumped")
+            with os.fdopen(os.dup(output_descriptor), "rb") as archive:
+                archive.payload_offset = BACKUP_HEADER_SIZE
+                archive_catalog_ids = validate_archive(
+                    runner,
+                    target,
+                    archive,
+                    timeout=timeout,
+                    require_complete=True,
+                )
+            dependencies = database.capture_backup_dependencies(
+                snapshot=snapshot,
+                archive_catalog_ids=archive_catalog_ids,
+            )
+        source = {**source, "dependencies": dependencies}
         output_stat = os.fstat(output_descriptor)
         if (
             output_stat.st_size <= BACKUP_HEADER_SIZE
@@ -4027,12 +4388,14 @@ def create_backup(
             or stat.S_IMODE(output_stat.st_mode) != 0o600
         ):
             raise RestoreError("database backup output is invalid")
-        manifest = write_backup_header(output_descriptor, state, source)
+        output_flags = fcntl.fcntl(output_descriptor, fcntl.F_GETFL)
+        fcntl.fcntl(
+            output_descriptor,
+            fcntl.F_SETFL,
+            output_flags & ~os.O_APPEND,
+        )
+        write_backup_header(output_descriptor, state, source)
         os.fsync(output_descriptor)
-        with os.fdopen(os.dup(output_descriptor), "rb") as archive:
-            archive.payload_offset = BACKUP_HEADER_SIZE
-            archive.manifest = manifest
-            validate_archive(runner, target, archive, timeout=timeout)
         os.replace(
             temporary_name,
             filename,
@@ -4449,7 +4812,6 @@ def backup():
         database.verify_maintenance_role_reusable()
         database.verify_exclusive_cluster_topology()
         metadata = database.capture_metadata()
-        dependencies = database.capture_backup_dependencies()
         pg_dump_major = capture_pg_dump_major(
             runner,
             target,
@@ -4463,13 +4825,13 @@ def backup():
                 "metadata": metadata,
             },
             "pg_dump_major": pg_dump_major,
-            "dependencies": dependencies,
         }
         filename = create_backup(
             runner,
             target,
             state,
             source,
+            database,
             timeout=configured_timeout(
                 "DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS",
                 DEFAULT_COLD_START_TIMEOUT,

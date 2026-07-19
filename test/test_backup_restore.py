@@ -651,6 +651,18 @@ def wait_for_database_application(application_name):
     raise AssertionError(f"database application did not connect: {application_name}")
 
 
+def wait_for_no_database_application(application_name):
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if postgres_sql(
+            "SELECT count(*) FROM pg_stat_activity "
+            f"WHERE application_name = {sql_literal(application_name)};"
+        ) == "0":
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"database application did not disconnect: {application_name}")
+
+
 def maintenance_session_count():
     identifier = installation_id()
     applications = ", ".join(
@@ -1600,6 +1612,13 @@ def test_database_backup_restore():
     metadata_role = f"restore_metadata_{suffix}"
     metadata_grantee = f"restore_metadata_grantee_{suffix}"
     source_metadata_only_role = f"restore_source_metadata_{suffix}"
+    extension_member_role = f"restore_extension_member_{suffix}"
+    temporary_role = f"restore_temporary_{suffix}"
+    temporary_role_password = f"temporary-{suffix}"
+    temporary_application = f"restore-temporary-{suffix}"
+    destination_owner_role = f"restore_destination_owner_{suffix}"
+    destination_grantee_role = f"restore_destination_grantee_{suffix}"
+    destination_roles_created = False
     metadata_tablespace = f"restore_tablespace_{suffix}"
     metadata_tablespace_path = f"/data/postgres-tablespaces/{metadata_tablespace}"
     metadata_tablespace_created = False
@@ -1639,6 +1658,8 @@ def test_database_backup_restore():
     oid_recovery_process = None
     backup_race_restore_process = None
     backup_race_process = None
+    snapshot_backup_process = None
+    temporary_session_process = None
     interrupted_backup_process = None
     orphan_restore_process = None
     activation_crash_process = None
@@ -1709,6 +1730,9 @@ def test_database_backup_restore():
             f"CREATE ROLE {metadata_role};"
             f"CREATE ROLE {metadata_grantee};"
             f"CREATE ROLE {source_metadata_only_role};"
+            f"CREATE ROLE {extension_member_role};"
+            f"CREATE ROLE {temporary_role} LOGIN PASSWORD "
+            f"{sql_literal(temporary_role_password)};"
             f"CREATE ROLE {unrelated_tablespace_owner};"
             f"GRANT {sql_identifier(metadata_role)} "
             f"TO {sql_identifier(metadata_grantee)};"
@@ -1770,6 +1794,8 @@ def test_database_backup_restore():
             f"CREATE TABLESPACE {sql_identifier(unrelated_tablespace)} "
             f"OWNER {sql_identifier(unrelated_tablespace_owner)} "
             f"LOCATION {sql_literal(unrelated_tablespace_path)};"
+            f"GRANT CREATE ON TABLESPACE {sql_identifier(unrelated_tablespace)} "
+            f"TO {sql_identifier(temporary_role)};"
         )
         unrelated_tablespace_created = True
         dojo_script = dojo_run("cat", "/opt/pwn.college/dojo/dojo").stdout
@@ -1801,11 +1827,75 @@ def test_database_backup_restore():
             "FROM generate_series(1, 100000) AS values(value);"
             f"CREATE TABLE {schema}.tablespaced (id integer) "
             f"TABLESPACE {sql_identifier(metadata_tablespace)};"
+            f"CREATE TABLE {schema}.extension_member (id integer) "
+            f"TABLESPACE {sql_identifier(unrelated_tablespace)};"
+            f"ALTER TABLE {schema}.extension_member OWNER TO "
+            f"{sql_identifier(extension_member_role)};"
+            f"ALTER EXTENSION plpgsql ADD TABLE {schema}.extension_member;"
             f"INSERT INTO {schema}.parents VALUES (1, 'from-backup');"
             f"INSERT INTO {schema}.children VALUES (1, 1);"
         )
         identity_before = database_identity()
-        backup_filename = create_backup()
+        temporary_session_command = r'''
+. /data/config.env
+DB_PORT="${DB_PORT:-5432}"
+PGPASSWORD="$1"
+PGAPPNAME="$2"
+export PGPASSWORD PGAPPNAME
+{ printf "%s\n" "$3"; sleep 300; } | docker exec -i \
+    -e PGPASSWORD -e PGAPPNAME db psql \
+    --host="$DB_HOST" --port="$DB_PORT" \
+    --username="$4" --dbname="$DB_NAME" \
+    --no-psqlrc --set=ON_ERROR_STOP=1
+'''
+        temporary_session_process = outer_process(
+            "sh",
+            "-c",
+            temporary_session_command,
+            "temporary-role-session",
+            temporary_role_password,
+            temporary_application,
+            f"CREATE TEMP TABLE active_temp (id integer) TABLESPACE "
+            f"{sql_identifier(unrelated_tablespace)};",
+            temporary_role,
+        )
+        wait_for_database_application(temporary_application)
+        snapshot_backup_process = outer_process(
+            "env",
+            "DOJO_RESTORE_TEST_PAUSE_POINTS=backup-created",
+            RESTORE_HELPER,
+            "--backup",
+        )
+        wait_for_paused_backup(snapshot_backup_process)
+        db_sql(
+            f"CREATE ROLE {destination_owner_role};"
+            f"CREATE ROLE {destination_grantee_role};"
+            f"GRANT {sql_identifier(destination_owner_role)} "
+            f"TO {sql_identifier(destination_grantee_role)};"
+            f"ALTER DEFAULT PRIVILEGES FOR ROLE "
+            f"{sql_identifier(destination_owner_role)} IN SCHEMA public "
+            f"GRANT SELECT ON TABLES TO "
+            f"{sql_identifier(destination_grantee_role)};"
+            f"CREATE TABLE {schema}.destination_only (id integer) "
+            f"TABLESPACE {sql_identifier(unrelated_tablespace)};"
+            f"ALTER TABLE {schema}.destination_only OWNER TO "
+            f"{sql_identifier(destination_owner_role)};"
+        )
+        destination_roles_created = True
+        signal_backup("CONT")
+        snapshot_stdout, snapshot_stderr = snapshot_backup_process.communicate(
+            timeout=600
+        )
+        assert snapshot_backup_process.returncode == 0, snapshot_stderr
+        backup_filename = parse_backup_filename(
+            subprocess.CompletedProcess(
+                [],
+                snapshot_backup_process.returncode,
+                snapshot_stdout,
+                snapshot_stderr,
+            )
+        )
+        snapshot_backup_process = None
         backup_path = f"/data/backups/{backup_filename}"
         backup_paths.append(backup_path)
         dependencies = backup_manifest(backup_filename)["dependencies"]
@@ -1816,8 +1906,18 @@ def test_database_backup_restore():
         assert metadata_tablespace in manifest_tablespaces
         assert metadata_role in manifest_roles
         assert source_metadata_only_role not in manifest_roles
+        assert extension_member_role not in manifest_roles
+        assert temporary_role not in manifest_roles
+        assert destination_owner_role not in manifest_roles
+        assert destination_grantee_role not in manifest_roles
         assert unrelated_tablespace not in manifest_tablespaces
         assert unrelated_tablespace_owner not in manifest_roles
+        postgres_sql(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            f"WHERE application_name = {sql_literal(temporary_application)};"
+        )
+        temporary_session_process.communicate(timeout=15)
+        temporary_session_process = None
         assert dojo_run("stat", "--format=%a:%U", backup_path).stdout.strip() == (
             "600:root"
         )
@@ -2231,6 +2331,9 @@ with module.RestoreState() as state:
         assert interrupted_backup_process.returncode != 0
         interrupted_backup_process = None
         assert backup_partials() == killed_partials
+        wait_for_no_database_application(
+            f"dojo-backup:{installation_id()}"
+        )
         post_kill_backup = create_backup()
         post_kill_backup_path = f"/data/backups/{post_kill_backup}"
         backup_paths.append(post_kill_backup_path)
@@ -3593,6 +3696,16 @@ finally:
         if interrupted_backup_process is not None and interrupted_backup_process.poll() is None:
             signal_backup("KILL")
             interrupted_backup_process.communicate(timeout=15)
+        if snapshot_backup_process is not None and snapshot_backup_process.poll() is None:
+            signal_backup("KILL")
+            snapshot_backup_process.communicate(timeout=15)
+        if temporary_session_process is not None and temporary_session_process.poll() is None:
+            postgres_sql(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                f"WHERE application_name = {sql_literal(temporary_application)};",
+                check=False,
+            )
+            temporary_session_process.communicate(timeout=15)
         if orphan_restore_process is not None and orphan_restore_process.poll() is None:
             signal_restore(backup_filename, "KILL")
             orphan_restore_process.communicate(timeout=15)
@@ -3741,6 +3854,23 @@ with module.RestoreState() as state:
                 check=False,
             )
         if database_name is not None:
+            direct_database_sql(
+                database_name,
+                f"ALTER EXTENSION plpgsql DROP TABLE "
+                f"{schema}.extension_member;",
+                check=False,
+            )
+            if destination_roles_created:
+                direct_database_sql(
+                    database_name,
+                    f"ALTER DEFAULT PRIVILEGES FOR ROLE "
+                    f"{sql_identifier(destination_owner_role)} IN SCHEMA public "
+                    f"REVOKE SELECT ON TABLES FROM "
+                    f"{sql_identifier(destination_grantee_role)};"
+                    f"REVOKE {sql_identifier(destination_owner_role)} "
+                    f"FROM {sql_identifier(destination_grantee_role)};",
+                    check=False,
+                )
             for subscription_cleanup in (
                 f"ALTER SUBSCRIPTION {sql_identifier(subscription_name)} DISABLE;",
                 f"ALTER SUBSCRIPTION {sql_identifier(subscription_name)} "
@@ -3840,6 +3970,10 @@ with module.RestoreState() as state:
                     f"DROP ROLE IF EXISTS {sql_identifier(metadata_role)};"
                     f"DROP ROLE IF EXISTS "
                     f"{sql_identifier(source_metadata_only_role)};"
+                    f"DROP ROLE IF EXISTS {sql_identifier(extension_member_role)};"
+                    f"DROP ROLE IF EXISTS {sql_identifier(temporary_role)};"
+                    f"DROP ROLE IF EXISTS {sql_identifier(destination_grantee_role)};"
+                    f"DROP ROLE IF EXISTS {sql_identifier(destination_owner_role)};"
                     f"DROP ROLE IF EXISTS "
                     f"{sql_identifier(unrelated_tablespace_owner)};"
                 ),

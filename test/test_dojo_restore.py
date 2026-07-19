@@ -1,4 +1,5 @@
 import contextlib
+import fcntl
 import importlib.machinery
 import importlib.util
 import json
@@ -199,6 +200,38 @@ def database_metadata():
 
 def database_target():
     return RESTORE_MODULE.DatabaseTarget("db", 5432, "ctfd", "ctfd", "secret")
+
+
+def test_exported_database_snapshot_stays_open_until_consumer_finishes():
+    invocations = []
+
+    class Target:
+        name = "ctfd"
+
+        def client_invocation(self, program, arguments, **options):
+            invocations.append((program, arguments, options))
+            return (
+                [
+                    "sh",
+                    "-c",
+                    "read first; read second; "
+                    "printf '%s\\n' 00000003-0000001B-1; "
+                    "read rollback; read quit",
+                ],
+                os.environ.copy(),
+                2,
+            )
+
+    with RESTORE_MODULE.exported_database_snapshot(
+        Target(),
+        TEST_INSTALLATION_ID,
+        2,
+    ) as snapshot:
+        assert snapshot == "00000003-0000001B-1"
+
+    assert invocations[0][0] == "psql"
+    assert invocations[0][2]["input_stream"] is True
+    assert invocations[0][2]["application_name"].startswith("dojo-backup:")
 
 
 def server_identity():
@@ -3408,9 +3441,18 @@ def test_global_dependency_preflight_seeds_every_manifest_role(monkeypatch):
     ]
     seeds = []
 
-    def capture(required_role_names=(), required_tablespace_names=()):
+    def capture(
+        required_role_names=(),
+        required_tablespace_names=(),
+        *,
+        include_database_dependencies=True,
+    ):
         seeds.append(
-            (set(required_role_names), set(required_tablespace_names))
+            (
+                set(required_role_names),
+                set(required_tablespace_names),
+                include_database_dependencies,
+            )
         )
         return expected
 
@@ -3433,6 +3475,7 @@ def test_global_dependency_preflight_seeds_every_manifest_role(monkeypatch):
                 "tablespace_grantee",
             },
             {"archive_space"},
+            False,
         )
     ]
 
@@ -3480,7 +3523,20 @@ def test_postgresql_16_is_rejected_before_metadata_or_artifact_work(monkeypatch)
     [
         ({"other_owned_databases": 1}, "shared by another database"),
         ({"application_memberships": 1}, "must not have role memberships"),
-        ({"other_application_sessions": 1}, "sessions in another database"),
+        (
+            {
+                "other_application_sessions": 1,
+                "other_application_session_details": [
+                    {
+                        "database": "postgres",
+                        "application_name": "psql",
+                        "client_type": "local",
+                        "backend_type": "client backend",
+                    }
+                ],
+            },
+            "sessions in another database",
+        ),
         ({"privileged_roles": ["other_admin"]}, "exclusive PostgreSQL cluster"),
     ],
 )
@@ -3496,6 +3552,7 @@ def test_database_preflight_rejects_nonexclusive_cluster_topology(
         "privileged_roles": [],
         "application_memberships": 0,
         "other_application_sessions": 0,
+        "other_application_session_details": [],
         **override,
     }
     monkeypatch.setattr(
@@ -3506,8 +3563,67 @@ def test_database_preflight_rejects_nonexclusive_cluster_topology(
         ),
     )
 
-    with pytest.raises(RESTORE_MODULE.RestoreError, match=message):
+    if topology["other_application_sessions"]:
+        monkeypatch.setattr(
+            RESTORE_MODULE,
+            "wait_for_retry",
+            lambda _deadline, error: (_ for _ in ()).throw(
+                RESTORE_MODULE.RestoreError(error)
+            ),
+        )
+
+    with pytest.raises(RESTORE_MODULE.RestoreError, match=message) as caught:
         database.verify_exclusive_cluster_topology()
+
+    if topology["other_application_sessions"]:
+        assert '"application_name":"psql"' in str(caught.value)
+        assert '"client_type":"local"' in str(caught.value)
+
+
+def test_database_preflight_waits_for_transient_foreign_database_session(monkeypatch):
+    database = maintenance_role_database()
+    occupied = {
+        "owner": "ctfd",
+        "other_owned_databases": 0,
+        "privileged_roles": [],
+        "application_memberships": 0,
+        "other_application_sessions": 1,
+        "other_application_session_details": [
+            {
+                "database": "postgres",
+                "application_name": "psql",
+                "client_type": "local",
+                "backend_type": "client backend",
+            }
+        ],
+    }
+    quiet = {
+        **occupied,
+        "other_application_sessions": 0,
+        "other_application_session_details": [],
+    }
+    observations = iter((occupied, quiet))
+    waits = []
+    monkeypatch.setattr(
+        database,
+        "psql",
+        lambda _sql: subprocess.CompletedProcess(
+            [],
+            0,
+            json.dumps(next(observations)).encode(),
+            b"",
+        ),
+    )
+    monkeypatch.setattr(
+        RESTORE_MODULE,
+        "wait_for_retry",
+        lambda deadline, error: waits.append((deadline, error)),
+    )
+
+    database.verify_exclusive_cluster_topology()
+
+    assert len(waits) == 1
+    assert "sessions in another database" in waits[0][1]
 
 
 @pytest.mark.parametrize(
@@ -3610,12 +3726,19 @@ def test_archive_validation_decodes_high_object_count_archive():
     )
     runner = ArchiveRunner(contents)
     with temporary_archive() as archive:
-        RESTORE_MODULE.validate_archive(runner, database_target(), archive)
+        catalog_ids = RESTORE_MODULE.validate_archive(
+            runner,
+            database_target(),
+            archive,
+        )
         assert archive.tell() == 0
 
+    assert catalog_ids == {(1259, index) for index in range(1, 5000)}
     assert len(runner.calls) == 2
     assert "--list" in runner.calls[0]
+    assert "--create" in runner.calls[0]
     assert "--file=/dev/null" in runner.calls[1]
+    assert "--create" not in runner.calls[1]
 
 
 def test_archive_validation_rejects_subscriptions():
@@ -3692,6 +3815,21 @@ class LockedState:
     maintenance_secret = "2" * RESTORE_MODULE.MAINTENANCE_SECRET_LENGTH
 
 
+class SnapshotDatabase:
+    snapshot = "00000003-0000001B-1"
+
+    def __init__(self):
+        self.captured = []
+
+    @contextlib.contextmanager
+    def export_backup_snapshot(self):
+        yield self.snapshot
+
+    def capture_backup_dependencies(self, *, snapshot, archive_catalog_ids):
+        self.captured.append((snapshot, set(archive_catalog_ids)))
+        return backup_dependencies()
+
+
 def test_backup_is_private_validated_atomic_and_same_second_safe(
     monkeypatch,
     tmp_path,
@@ -3706,9 +3844,13 @@ def test_backup_is_private_validated_atomic_and_same_second_safe(
         def now(cls, timezone):
             return real_datetime(2026, 7, 18, 12, 34, 56, tzinfo=timezone)
 
+    dump_commands = []
+    snapshot_databases = [SnapshotDatabase(), SnapshotDatabase()]
+
     class BackupRunner:
         def run(self, arguments, **options):
             if "pg_dump" in arguments:
+                dump_commands.append(arguments)
                 os.write(options["stdout"], b"valid archive")
             return subprocess.CompletedProcess(arguments, 0, b"", b"")
 
@@ -3717,6 +3859,7 @@ def test_backup_is_private_validated_atomic_and_same_second_safe(
     def validate_backup(_runner, _target, archive, **_options):
         archive.seek(archive.payload_offset)
         validated.append(archive.read())
+        return {(1259, 24680)}
 
     monkeypatch.setattr(RESTORE_MODULE.datetime, "datetime", FrozenDateTime)
     monkeypatch.setattr(
@@ -3727,10 +3870,18 @@ def test_backup_is_private_validated_atomic_and_same_second_safe(
     previous_umask = os.umask(0o777)
     try:
         first = RESTORE_MODULE.create_backup(
-            BackupRunner(), database_target(), LockedState(), backup_source()
+            BackupRunner(),
+            database_target(),
+            LockedState(),
+            backup_source(),
+            snapshot_databases[0],
         )
         second = RESTORE_MODULE.create_backup(
-            BackupRunner(), database_target(), LockedState(), backup_source()
+            BackupRunner(),
+            database_target(),
+            LockedState(),
+            backup_source(),
+            snapshot_databases[1],
         )
     finally:
         os.umask(previous_umask)
@@ -3739,6 +3890,14 @@ def test_backup_is_private_validated_atomic_and_same_second_safe(
     assert first.startswith("db-2026-07-18T12:34:56Z-")
     assert second.startswith("db-2026-07-18T12:34:56Z-")
     assert validated == [b"valid archive", b"valid archive"]
+    assert all(
+        f"--snapshot={SnapshotDatabase.snapshot}" in command
+        for command in dump_commands
+    )
+    assert all(
+        database.captured == [(SnapshotDatabase.snapshot, {(1259, 24680)})]
+        for database in snapshot_databases
+    )
     assert {path.name for path in backup_directory.iterdir()} == {first, second}
     for filename in (first, second):
         assert (backup_directory / filename).stat().st_mode & 0o777 == 0o600
@@ -3756,16 +3915,27 @@ def test_backup_envelope_binds_source_checksum_and_explicit_migration(
     class BackupRunner:
         def run(self, arguments, **options):
             if "pg_dump" in arguments:
+                flags = fcntl.fcntl(options["stdout"], fcntl.F_GETFL)
+                fcntl.fcntl(
+                    options["stdout"],
+                    fcntl.F_SETFL,
+                    flags | os.O_APPEND,
+                )
                 os.write(options["stdout"], b"complete custom archive")
             return subprocess.CompletedProcess(arguments, 0, b"", b"")
 
-    monkeypatch.setattr(RESTORE_MODULE, "validate_archive", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        RESTORE_MODULE,
+        "validate_archive",
+        lambda *_args, **_kwargs: {(1259, 24680)},
+    )
     state = LockedState()
     filename = RESTORE_MODULE.create_backup(
         BackupRunner(),
         database_target(),
         state,
         backup_source(),
+        SnapshotDatabase(),
     )
 
     with RESTORE_MODULE.open_archive(filename) as archive:
@@ -3811,11 +3981,27 @@ def test_backup_envelope_binds_source_checksum_and_explicit_migration(
 
 
 def test_manifest_archive_requires_full_database_toc_entry():
-    runner = ArchiveRunner(b"1; 1259 1 TABLE public target ctfd\n")
+    runner = ArchiveRunner(
+        b"1; 0 0 DATABASE PROPERTIES - ctfd ctfd\n"
+        b"2; 1259 1 TABLE public target ctfd\n"
+    )
     with temporary_archive() as archive:
         archive.manifest = {}
         with pytest.raises(RESTORE_MODULE.RestoreError, match="complete database dump"):
             RESTORE_MODULE.validate_archive(runner, database_target(), archive)
+
+
+def test_manifest_archive_accepts_database_toc_entry():
+    runner = ArchiveRunner(b"1; 1262 16384 DATABASE - ctfd ctfd\n")
+    with temporary_archive() as archive:
+        archive.manifest = {}
+        catalog_ids = RESTORE_MODULE.validate_archive(
+            runner,
+            database_target(),
+            archive,
+        )
+
+    assert catalog_ids == {(1262, 16384)}
 
 
 def test_failed_partial_backup_is_never_published(monkeypatch, tmp_path):
@@ -3831,7 +4017,11 @@ def test_failed_partial_backup_is_never_published(monkeypatch, tmp_path):
 
     with pytest.raises(RESTORE_MODULE.RestoreError, match="pg_dump failed"):
         RESTORE_MODULE.create_backup(
-            FailedRunner(), database_target(), LockedState(), backup_source()
+            FailedRunner(),
+            database_target(),
+            LockedState(),
+            backup_source(),
+            SnapshotDatabase(),
         )
 
     assert list(backup_directory.iterdir()) == []
@@ -3994,10 +4184,14 @@ def test_dependency_query_scopes_contract_to_dumped_database_objects():
     query = commands[0][1][commands[0][1].index("--command") + 1]
     assert "target_tablespaces AS (" in query
     assert (
-        "SELECT reltablespace FROM pg_class WHERE reltablespace <> 0 "
-        "AND relpersistence <> 't'"
+        "SELECT DISTINCT relation.reltablespace AS oid FROM pg_class AS relation "
+        "WHERE relation.reltablespace <> 0 AND relation.relpersistence <> 't'"
         in query
     )
+    assert "extension_members AS (" in query
+    assert "temp_objects(classid, objid) AS (" in query
+    assert "extension.classid = dependency.classid" in query
+    assert "temporary.classid = dependency.classid" in query
     assert (
         "UNION SELECT oid FROM pg_tablespace WHERE spcname IN (E'migration_space')"
         in query
@@ -4009,6 +4203,87 @@ def test_dependency_query_scopes_contract_to_dumped_database_objects():
     assert "datdba" not in query
     assert "aclexplode(database.datacl)" not in query
     assert "pg_db_role_setting" not in query
+
+
+def test_dependency_verification_ignores_destination_only_database_graph():
+    database = maintenance_role_database()
+    commands = []
+
+    def run_client(_runner, _program, arguments, **_options):
+        commands.append(arguments)
+        return subprocess.CompletedProcess(
+            [],
+            0,
+            json.dumps(backup_dependencies()).encode(),
+        )
+
+    database.target.run_client = run_client
+
+    database.capture_backup_dependencies(
+        {"ctfd", "reader"},
+        {"migration_space"},
+        include_database_dependencies=False,
+    )
+
+    query = commands[0][commands[0].index("--command") + 1]
+    seed_roles = query.split("), seed_roles AS (", 1)[1].split(
+        "), role_graph(oid) AS (", 1
+    )[0]
+    target_tablespaces = query.split("), target_tablespaces AS (", 1)[1].split(
+        "), seed_roles AS (", 1
+    )[0]
+    assert "pg_shdepend" not in seed_roles
+    assert "pg_default_acl" not in seed_roles
+    assert "pg_class" not in target_tablespaces
+    assert "spcname IN (E'migration_space')" in target_tablespaces
+
+
+def test_dependency_capture_joins_the_exported_dump_snapshot():
+    database = maintenance_role_database()
+    commands = []
+    catalog_inputs = []
+
+    def run_client(_runner, _program, arguments, **_options):
+        commands.append(arguments)
+        catalog_inputs.append(_options["stdin"].read())
+        return subprocess.CompletedProcess(
+            [],
+            0,
+            b"BEGIN\nSET\n" + json.dumps(backup_dependencies()).encode() + b"\nCOMMIT\n",
+        )
+
+    database.target.run_client = run_client
+    snapshot = "00000003-0000001B-1"
+
+    database.capture_backup_dependencies(
+        snapshot=snapshot,
+        archive_catalog_ids={(1259, 40001), (2615, 40000)},
+    )
+
+    arguments = commands[0]
+    query = arguments[arguments.index("--command") + 1]
+    assert "--quiet" in arguments
+    assert "BEGIN ISOLATION LEVEL REPEATABLE READ" in query
+    assert f"SET TRANSACTION SNAPSHOT E'{snapshot}'" in query
+    assert "COPY archive_objects (classid, objid) FROM STDIN" in query
+    assert "archived_relation.objid = relation.oid" in query
+    assert "archived_default.objid = defaults.oid" in query
+    assert query.endswith(" COMMIT;")
+    assert catalog_inputs == [b"1259\t40001\n2615\t40000\n\\.\n"]
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"snapshot": "00000003-0000001B-1"},
+        {"archive_catalog_ids": {(1259, 40001)}},
+    ],
+)
+def test_dependency_capture_requires_paired_snapshot_and_archive_identity(options):
+    database = maintenance_role_database()
+
+    with pytest.raises(RESTORE_MODULE.RestoreError, match="must be paired"):
+        database.capture_backup_dependencies(**options)
 
 
 @pytest.mark.parametrize(
