@@ -5,7 +5,7 @@ x-ctfd-base: &ctfd-base
   entrypoint: ""
 
 x-ctfd-env: &ctfd-env
-  DATABASE_URL: postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
+  DATABASE_URL: postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}?sslmode=disable
   REDIS_URL: redis://cache:6379
   DOJO_HOST: ${DOJO_HOST}
   WORKSPACE_HOST: ${WORKSPACE_HOST}
@@ -31,6 +31,7 @@ x-ctfd-volumes: &ctfd-volumes
   - ./user_firewall.allowed:/var/user_firewall.allowed:ro
   - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
   - /var/run/docker.sock:/var/run/docker.sock:ro
+  - /data/postgres-tls:/data/postgres-tls:ro
   - /opt/pwn.college/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro
 
 x-ctfd-depends: &ctfd-depends
@@ -190,6 +191,8 @@ services:
       - PGUSER=${DB_USER}
     volumes:
       - /data/postgres:/var/lib/postgresql/data
+      - /data/postgres-tls:/data/postgres-tls:ro
+      - /data/postgres-tablespaces:/data/postgres-tablespaces
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "pg_isready"]
@@ -206,6 +209,8 @@ services:
     image: edoburu/pgbouncer
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT:-5432}/${DB_NAME}
+      SERVER_TLS_SSLMODE: ${DB_SSLMODE}
+      SERVER_TLS_CA_FILE: ${DB_SSLROOTCERT:-}
       AUTH_TYPE: scram-sha-256
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 10000
@@ -213,6 +218,8 @@ services:
     depends_on:
       db:
         condition: service_started
+    volumes:
+      - /data/postgres-tls:/data/postgres-tls:ro
 
   cache:
     container_name: cache
@@ -267,7 +274,7 @@ services:
     extra_hosts:
       - "pwn.college:192.168.42.1"
     environment:
-      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}?sslmode=disable
       - REDIS_URL=redis://cache:6379
       - DOJO_SSH_SERVICE_KEY=${DOJO_SSH_SERVICE_KEY}
       - MAC_HOSTNAME=${MAC_HOSTNAME}

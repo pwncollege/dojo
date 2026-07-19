@@ -134,22 +134,38 @@ def handle_emojis_update(payload, event_timestamp=None):
     except Exception as e:
         logger.error(f"Error calculating emojis: {e}", exc_info=True)
 
-def initialize_all_belts():
+def initialize_all_belts(*, fail_on_error=False):
     logger.info("Initializing belts...")
     try:
         belt_data = calculate_belts()
-        set_cached_stat(CACHE_KEY_BELTS, belt_data)
+        set_cached_stat(
+            CACHE_KEY_BELTS,
+            belt_data,
+            raise_errors=fail_on_error,
+        )
         user_count = len(belt_data["users"])
         logger.info(f"Initialized belts ({user_count} users with belts)")
+        return {CACHE_KEY_BELTS: belt_data}
     except Exception as e:
         logger.error(f"Error initializing belts: {e}", exc_info=True)
+        if fail_on_error:
+            raise
+        return {}
 
-def initialize_all_emojis():
+def initialize_all_emojis(*, fail_on_error=False):
     logger.info("Initializing emojis...")
     try:
         emoji_data = calculate_emojis()
-        set_cached_stat(CACHE_KEY_EMOJIS, emoji_data)
+        set_cached_stat(
+            CACHE_KEY_EMOJIS,
+            emoji_data,
+            raise_errors=fail_on_error,
+        )
         user_count = len(emoji_data["emojis"])
         logger.info(f"Initialized emojis ({user_count} users with emojis)")
+        return {CACHE_KEY_EMOJIS: emoji_data}
     except Exception as e:
         logger.error(f"Error initializing emojis: {e}", exc_info=True)
+        if fail_on_error:
+            raise
+        return {}

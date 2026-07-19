@@ -17,6 +17,7 @@ if [ "$ACTION" != "init" ] && [ -f /data/config.env ]; then
     . /data/config.env
     DB_PORT="${DB_PORT:-5432}"
     export DB_HOST DB_PORT DB_NAME DB_USER DB_PASS
+    export DB_SSLMODE DB_SSLROOTCERT DB_TRUSTED_LOCAL
     export DOJO_ENV DOJO_HOST
     export DOJO_RESTORE_READY_TIMEOUT_SECONDS
     export DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS
@@ -118,7 +119,11 @@ case "$ACTION" in
 
     # HELP: db: launch a PostgreSQL client session, connected to the configured database
     "db")
-        PGPASSWORD="$DB_PASS" docker exec -e PGPASSWORD $DOCKER_ARGS db psql \
+        /opt/pwn.college/dojo/dojo-restore --validate-target
+        PGPASSWORD="$DB_PASS" PGSSLMODE="$DB_SSLMODE" \
+            PGSSLROOTCERT="$DB_SSLROOTCERT" \
+            docker exec -e PGPASSWORD -e PGSSLMODE -e PGSSLROOTCERT \
+            $DOCKER_ARGS db psql \
             --host="$DB_HOST" --port="$DB_PORT" --username="$DB_USER" \
             --dbname="$DB_NAME" "$@"
         ;;
@@ -131,6 +136,11 @@ case "$ACTION" in
     # HELP: restore PATH: restores a dojo db backup. Path arg is relative to the `/data/backups` directory
     "restore")
         exec /opt/pwn.college/dojo/dojo-restore "$@"
+        ;;
+
+    # HELP: shutdown: stop the dojo while preserving pending restore recovery state
+    "shutdown")
+        exec /opt/pwn.college/dojo/dojo-restore --shutdown
         ;;
 
     # HELP: cloud-backup: upload the last day's worth of cloud backups to S3, but encrypt it at rest

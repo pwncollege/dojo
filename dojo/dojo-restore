@@ -8,6 +8,7 @@ import fcntl
 import hashlib
 import hmac
 import http.client
+import ipaddress
 import json
 import os
 import pathlib
@@ -16,6 +17,7 @@ import signal
 import socket
 import ssl
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -29,6 +31,10 @@ BACKUP_DIRECTORY = pathlib.Path("/data/backups")
 STATE_OWNER_UID = 0
 BACKUP_OWNER_UID = 0
 BACKUP_PARTIAL_PREFIX = ".dojo-backup."
+BACKUP_MAGIC = b"PWNDOJO-BACKUP\x00"
+BACKUP_HEADER_SIZE = 64 * 1024
+BACKUP_MANIFEST_LIMIT = BACKUP_HEADER_SIZE - len(BACKUP_MAGIC) - 4
+BACKUP_FORMAT_VERSION = 1
 JOURNAL_LIMIT = 64 * 1024
 DATABASE_CLIENTS = (
     "ctfd",
@@ -88,16 +94,25 @@ MAINTENANCE_SECRET_FILE = "maintenance-secret"
 INSTALLATION_ID_LENGTH = 32
 MAINTENANCE_SECRET_LENGTH = 64
 MAINTENANCE_ROLE_PROVENANCE_PREFIX = "pwn.college dojo-restore maintenance role v1"
+CLUSTER_CLAIM_PROVENANCE_PREFIX = "pwn.college dojo-restore cluster claim v1"
 MAINTENANCE_STATES = {"activating", "active", "deactivating", "inactive"}
 APPLICATION_RESPONSE_MARKER = b"'csrfNonce':"
 RESTORE_TRANSACTION_SIZE = 100
 PRIVATE_VALIDATION_CONTAINER = "dojo-restore-validation"
 PRIVATE_VALIDATION_LABEL = "pwn.college.dojo-restore-validation"
+CACHE_VALIDATION_MARKER = b"DOJO_RESTORE_CACHE_VALIDATED="
+CACHE_VALIDATION_TEST_ENVIRONMENT = "DOJO_RESTORE_TEST_FAIL_CACHE_FAMILY"
 CACHE_VALIDATION_PROGRAM = """
+import json
+import math
+import os
+
+import redis
 from CTFd import create_app
 
 app = create_app()
 with app.app_context():
+    from CTFd.plugins.dojo_plugin.utils import background_stats
     from CTFd.plugins.dojo_plugin.worker.handlers.activity import initialize_all_activity
     from CTFd.plugins.dojo_plugin.worker.handlers.awards import initialize_all_belts, initialize_all_emojis
     from CTFd.plugins.dojo_plugin.worker.handlers.containers import initialize_all_container_stats
@@ -105,13 +120,83 @@ with app.app_context():
     from CTFd.plugins.dojo_plugin.worker.handlers.scoreboard import initialize_all_scoreboards
     from CTFd.plugins.dojo_plugin.worker.handlers.scores import initialize_all_scores
 
-    initialize_all_dojo_stats()
-    initialize_all_scoreboards()
-    initialize_all_scores()
-    initialize_all_belts()
-    initialize_all_emojis()
-    initialize_all_container_stats()
-    initialize_all_activity()
+    failure_family = os.environ.get("DOJO_RESTORE_TEST_FAIL_CACHE_FAMILY")
+    failure_targets = {
+        "dojo-stats": ("stats:dojo:", False),
+        "scoreboards": ("stats:scoreboard:", False),
+        "scores": ("stats:scores:", False),
+        "belts": ("stats:belts", True),
+        "emojis": ("stats:emojis", True),
+        "containers": ("stats:containers", True),
+        "activity": ("stats:activity:", False),
+    }
+    if failure_family and failure_family not in failure_targets:
+        raise RuntimeError("invalid injected cache failure family")
+    if failure_family:
+        redis_client = background_stats.get_redis_client()
+        target, exact = failure_targets[failure_family]
+
+        class FailingRedis:
+            def __getattr__(self, name):
+                return getattr(redis_client, name)
+
+            def set(self, key, *args, **kwargs):
+                if (exact and key == target) or (not exact and key.startswith(target)):
+                    raise redis.RedisError(
+                        f"injected {failure_family} cache write failure"
+                    )
+                return redis_client.set(key, *args, **kwargs)
+
+        background_stats.get_redis_client = lambda: FailingRedis()
+
+    families = {
+        "dojo-stats": initialize_all_dojo_stats(fail_on_error=True),
+        "scoreboards": initialize_all_scoreboards(fail_on_error=True),
+        "scores": initialize_all_scores(fail_on_error=True),
+        "belts": initialize_all_belts(fail_on_error=True),
+        "emojis": initialize_all_emojis(fail_on_error=True),
+        "containers": initialize_all_container_stats(fail_on_error=True),
+        "activity": initialize_all_activity(fail_on_error=True),
+    }
+    expected = {}
+    for family, entries in families.items():
+        if not isinstance(entries, dict):
+            raise RuntimeError(f"{family} cache initializer returned an invalid contract")
+        duplicates = set(expected).intersection(entries)
+        if duplicates:
+            raise RuntimeError(f"duplicate cache contract keys: {sorted(duplicates)}")
+        expected.update(entries)
+
+    client = background_stats.get_redis_client()
+    actual_keys = {
+        key
+        for key in client.scan_iter(match="stats:*")
+        if not key.endswith(":updated")
+    }
+    if actual_keys != set(expected):
+        raise RuntimeError(
+            f"cache key contract mismatch: expected={sorted(expected)} "
+            f"actual={sorted(actual_keys)}"
+        )
+    for key, expected_value in expected.items():
+        raw_value = client.get(key)
+        if raw_value is None:
+            raise RuntimeError(f"required cache key is missing: {key}")
+        actual_value = json.loads(raw_value)
+        canonical_expected = json.loads(json.dumps(expected_value))
+        if actual_value != canonical_expected:
+            raise RuntimeError(f"required cache value does not match the database: {key}")
+        raw_timestamp = client.get(f"{key}:updated")
+        if raw_timestamp is None or not math.isfinite(float(raw_timestamp)):
+            raise RuntimeError(f"required cache timestamp is missing: {key}")
+
+    print(
+        "DOJO_RESTORE_CACHE_VALIDATED="
+        + json.dumps(
+            {family: len(entries) for family, entries in families.items()},
+            sort_keys=True,
+        )
+    )
 """
 APPLICATION_VALIDATION_PROGRAM = """
 from CTFd import create_app
@@ -127,6 +212,11 @@ DEFAULT_READY_TIMEOUT = 300
 DEFAULT_COLD_START_TIMEOUT = 21_600
 MAXIMUM_TIMEOUT = 604_800
 COMMAND_TIMEOUT_GRACE = 2
+DATABASE_TLS_OWNER_UID = 0
+DATABASE_TLS_ROOT_CERT_LIMIT = 1024 * 1024
+DATABASE_TLS_DIRECTORY = pathlib.Path("/data/postgres-tls")
+TRUSTED_LOCAL_DATABASE_HOSTS = {"db", "localhost", "127.0.0.1", "::1"}
+SUPPORTED_POSTGRES_MAJOR = 17
 
 
 class RestoreError(RuntimeError):
@@ -173,6 +263,30 @@ def validate_server_identity(identity):
         or not 90_000 <= identity["server_version_num"] <= 9_999_999
     ):
         raise RestoreError("restore journal has an invalid PostgreSQL server version")
+    if identity["server_version_num"] // 10_000 != SUPPORTED_POSTGRES_MAJOR:
+        raise RestoreError(
+            f"PostgreSQL {SUPPORTED_POSTGRES_MAJOR} is required for database restore"
+        )
+
+
+def database_host_is_dns_name(host):
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return False
+    if len(host) > 253 or host.startswith(".") or host.endswith("."):
+        return False
+    labels = host.split(".")
+    return all(
+        label.isascii()
+        and 1 <= len(label) <= 63
+        and label[0].isalnum()
+        and label[-1].isalnum()
+        and all(character.isalnum() or character == "-" for character in label)
+        for label in labels
+    )
 
 
 def validate_database_configuration(configuration):
@@ -181,6 +295,10 @@ def validate_database_configuration(configuration):
         "port",
         "name",
         "user",
+        "sslmode",
+        "sslrootcert",
+        "sslrootcert_sha256",
+        "trusted_local",
     }:
         raise RestoreError("restore journal has an invalid database target")
     for field in ("host", "name", "user"):
@@ -190,6 +308,35 @@ def validate_database_configuration(configuration):
         or not 1 <= configuration["port"] <= 65535
     ):
         raise RestoreError("restore journal has an invalid database target port")
+    if configuration["sslmode"] not in {"disable", "verify-full"}:
+        raise RestoreError("restore journal has an invalid database TLS mode")
+    if not isinstance(configuration["trusted_local"], bool):
+        raise RestoreError("restore journal has an invalid database trust mode")
+    if configuration["sslmode"] == "disable":
+        if (
+            not configuration["trusted_local"]
+            or configuration["host"] not in TRUSTED_LOCAL_DATABASE_HOSTS
+            or configuration["sslrootcert"] is not None
+            or configuration["sslrootcert_sha256"] is not None
+        ):
+            raise RestoreError("restore journal has an unsafe local database target")
+    else:
+        validate_text(
+            configuration["sslrootcert"],
+            "TLS root certificate",
+            limit=4096,
+        )
+        digest = configuration["sslrootcert_sha256"]
+        if (
+            configuration["trusted_local"]
+            or not pathlib.PurePosixPath(configuration["sslrootcert"]).is_absolute()
+            or not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+            or configuration["host"] in TRUSTED_LOCAL_DATABASE_HOSTS
+            or not database_host_is_dns_name(configuration["host"])
+        ):
+            raise RestoreError("restore journal has an invalid verified database target")
 
 
 def validate_database_target(target):
@@ -198,11 +345,15 @@ def validate_database_target(target):
         "port",
         "name",
         "user",
+        "sslmode",
+        "sslrootcert",
+        "sslrootcert_sha256",
+        "trusted_local",
         "server",
     }:
         raise RestoreError("restore journal has an invalid database target")
     validate_database_configuration(
-        {field: target[field] for field in ("host", "port", "name", "user")}
+        {field: target[field] for field in target if field != "server"}
     )
     validate_server_identity(target["server"])
 
@@ -277,6 +428,8 @@ def validate_database_metadata(metadata):
         metadata["is_template"], bool
     ):
         raise RestoreError("restore journal has invalid database lifecycle metadata")
+    if metadata["is_template"]:
+        raise RestoreError("template databases are unsupported for restore")
     if (
         type(metadata["connection_limit"]) is not int
         or not -1 <= metadata["connection_limit"] <= 2_147_483_647
@@ -300,12 +453,27 @@ def validate_database_metadata(metadata):
             entry["grantable"], bool
         ):
             raise RestoreError("restore journal has invalid database ACL privilege")
-        if entry["grantor"] != metadata["owner"] or (
-            entry["grantee"] is None and entry["grantable"]
-        ):
+        if entry["grantee"] is None and entry["grantable"]:
             raise RestoreError("restore journal has unsupported database ACL grantor")
     if metadata["acl_default"] and metadata["acl"]:
         raise RestoreError("restore journal has inconsistent database ACL metadata")
+    available_grants = {
+        (metadata["owner"], privilege)
+        for privilege in ("CONNECT", "CREATE", "TEMPORARY")
+    }
+    pending_grants = list(metadata["acl"])
+    while pending_grants:
+        replayable = [
+            entry
+            for entry in pending_grants
+            if (entry["grantor"], entry["privilege"]) in available_grants
+        ]
+        if not replayable:
+            raise RestoreError("restore journal has an invalid database ACL grant chain")
+        for entry in replayable:
+            pending_grants.remove(entry)
+            if entry["grantable"] and entry["grantee"] is not None:
+                available_grants.add((entry["grantee"], entry["privilege"]))
     validate_text(
         metadata["comment"],
         "comment",
@@ -377,6 +545,42 @@ def maintenance_role_provenance(installation_id, maintenance_secret):
         hashlib.sha256,
     ).hexdigest()
     return f"{MAINTENANCE_ROLE_PROVENANCE_PREFIX}:{installation_id}:{digest}"
+
+
+def cluster_claim_role_name(kind, server_identity, resource):
+    if kind not in {"database", "role"}:
+        raise RestoreError("database cluster claim kind is invalid")
+    validate_server_identity(server_identity)
+    validate_text(resource, "cluster claim resource", limit=1024)
+    digest = hashlib.sha256(
+        (
+            f"{server_identity['system_identifier']}\0{kind}\0{resource}"
+        ).encode()
+    ).hexdigest()[:32]
+    return f"dojo_restore_claim_{kind[0]}_{digest}"
+
+
+def cluster_claim_provenance(
+    installation_id,
+    maintenance_secret,
+    kind,
+    server_identity,
+    resource,
+):
+    role_name = cluster_claim_role_name(kind, server_identity, resource)
+    validate_installation_id(installation_id)
+    if (
+        not isinstance(maintenance_secret, str)
+        or len(maintenance_secret) != MAINTENANCE_SECRET_LENGTH
+        or any(character not in "0123456789abcdef" for character in maintenance_secret)
+    ):
+        raise RestoreError("restore maintenance secret is invalid")
+    digest = hmac.new(
+        bytes.fromhex(maintenance_secret),
+        f"cluster-claim:{role_name}:{installation_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{CLUSTER_CLAIM_PROVENANCE_PREFIX}:{installation_id}:{digest}"
 
 
 def validate_installation_id(value):
@@ -549,8 +753,83 @@ class CommandRunner:
                 os.killpg(self.process.pid, signal.SIGKILL)
 
 
+def database_tls_root_certificate_digest(path):
+    certificate_path = pathlib.PurePosixPath(path)
+    tls_directory = pathlib.PurePosixPath(DATABASE_TLS_DIRECTORY)
+    if (
+        not certificate_path.is_absolute()
+        or certificate_path.parent != tls_directory
+        or certificate_path.name in {"", ".", ".."}
+    ):
+        raise RestoreError(
+            f"database TLS root certificate must be directly beneath {tls_directory}"
+        )
+    directory_descriptor = open_managed_directory(
+        DATABASE_TLS_DIRECTORY,
+        create=False,
+        mode=0o755,
+        owner_uid=DATABASE_TLS_OWNER_UID,
+        exact_mode=False,
+        error=(
+            "database TLS directory must be a root-owned non-writable directory: "
+            f"{DATABASE_TLS_DIRECTORY}"
+        ),
+    )
+    if directory_descriptor is None:
+        raise RestoreError("configured database TLS directory does not exist")
+    try:
+        descriptor = os.open(
+            certificate_path.name,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+            dir_fd=directory_descriptor,
+        )
+    except OSError as error:
+        raise RestoreError(
+            "could not open the configured database TLS root certificate"
+        ) from error
+    finally:
+        os.close(directory_descriptor)
+    try:
+        file_stat = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(file_stat.st_mode)
+            or file_stat.st_uid != DATABASE_TLS_OWNER_UID
+            or file_stat.st_mode & 0o022
+            or not 0 < file_stat.st_size <= DATABASE_TLS_ROOT_CERT_LIMIT
+        ):
+            raise RestoreError(
+                "database TLS root certificate must be a trusted read-only regular file"
+            )
+        contents = bytearray()
+        while len(contents) <= DATABASE_TLS_ROOT_CERT_LIMIT:
+            chunk = os.read(
+                descriptor,
+                min(65536, DATABASE_TLS_ROOT_CERT_LIMIT + 1 - len(contents)),
+            )
+            if not chunk:
+                break
+            contents.extend(chunk)
+        if len(contents) != file_stat.st_size:
+            raise RestoreError("database TLS root certificate changed while being read")
+    finally:
+        os.close(descriptor)
+    return hashlib.sha256(contents).hexdigest()
+
+
 class DatabaseTarget:
-    def __init__(self, host, port, name, user, password):
+    def __init__(
+        self,
+        host,
+        port,
+        name,
+        user,
+        password,
+        *,
+        sslmode="disable",
+        sslrootcert=None,
+        trusted_local=True,
+        sslrootcert_sha256=None,
+    ):
         for value, field in ((host, "host"), (name, "name"), (user, "user")):
             if (
                 not isinstance(value, str)
@@ -576,15 +855,69 @@ class DatabaseTarget:
         self.name = name
         self.user = user
         self.password = password
+        if sslmode not in {"disable", "verify-full"}:
+            raise RestoreError(
+                "configured database TLS mode must be disable or verify-full"
+            )
+        if not isinstance(trusted_local, bool):
+            raise RestoreError("configured database trust mode must be boolean")
+        if sslmode == "disable":
+            if not trusted_local or host not in TRUSTED_LOCAL_DATABASE_HOSTS:
+                raise RestoreError(
+                    "unencrypted PostgreSQL is restricted to explicitly trusted local hosts"
+                )
+            if sslrootcert not in {None, ""} or sslrootcert_sha256 is not None:
+                raise RestoreError(
+                    "trusted local PostgreSQL must not configure a TLS root certificate"
+                )
+            sslrootcert = None
+            root_certificate_digest = None
+        else:
+            if trusted_local:
+                raise RestoreError(
+                    "verified PostgreSQL TLS must not use trusted-local mode"
+                )
+            if host in TRUSTED_LOCAL_DATABASE_HOSTS or not database_host_is_dns_name(host):
+                raise RestoreError(
+                    "verified PostgreSQL TLS requires its certificate hostname"
+                )
+            if (
+                not isinstance(sslrootcert, str)
+                or not pathlib.PurePosixPath(sslrootcert).is_absolute()
+            ):
+                raise RestoreError(
+                    "verified PostgreSQL TLS requires an absolute root certificate path"
+                )
+            root_certificate_digest = database_tls_root_certificate_digest(sslrootcert)
+            if (
+                sslrootcert_sha256 is not None
+                and not hmac.compare_digest(
+                    root_certificate_digest,
+                    sslrootcert_sha256,
+                )
+            ):
+                raise RestoreError("database TLS root certificate identity changed")
+        self.sslmode = sslmode
+        self.sslrootcert = sslrootcert
+        self.sslrootcert_sha256 = root_certificate_digest
+        self.trusted_local = trusted_local
 
     @classmethod
     def from_environment(cls):
+        trusted_local = os.environ.get("DB_TRUSTED_LOCAL")
+        if trusted_local not in {"true", "false"}:
+            raise RestoreError(
+                "DB_TRUSTED_LOCAL must explicitly be true or false"
+            )
         return cls(
             os.environ.get("DB_HOST", "db"),
             os.environ.get("DB_PORT", "5432"),
             os.environ.get("DB_NAME", "ctfd"),
             os.environ.get("DB_USER", "ctfd"),
             os.environ.get("DB_PASS", "ctfd"),
+            sslmode=os.environ.get("DB_SSLMODE", ""),
+            sslrootcert=os.environ.get("DB_SSLROOTCERT") or None,
+            trusted_local=trusted_local == "true",
         )
 
     def configuration(self):
@@ -593,6 +926,10 @@ class DatabaseTarget:
             "port": self.port,
             "name": self.name,
             "user": self.user,
+            "sslmode": self.sslmode,
+            "sslrootcert": self.sslrootcert,
+            "sslrootcert_sha256": self.sslrootcert_sha256,
+            "trusted_local": self.trusted_local,
         }
 
     def journal_target(self, server_identity):
@@ -603,7 +940,7 @@ class DatabaseTarget:
         validate_database_target(journal_target)
         return self.configuration() == {
             field: journal_target[field]
-            for field in ("host", "port", "name", "user")
+            for field in self.configuration()
         }
 
     def database_url(self):
@@ -613,9 +950,13 @@ class DatabaseTarget:
         host = urllib.parse.quote(self.host, safe="")
         if ":" in self.host:
             host = f"[{urllib.parse.quote(self.host, safe=':')}]"
-        return (
+        base_url = (
             f"postgresql+psycopg2://{user}:{password}@{host}:{self.port}/{database}"
         )
+        parameters = {"sslmode": self.sslmode}
+        if self.sslrootcert is not None:
+            parameters["sslrootcert"] = self.sslrootcert
+        return f"{base_url}?{urllib.parse.urlencode(parameters)}"
 
     def with_credentials(self, user, password):
         return DatabaseTarget(
@@ -624,6 +965,10 @@ class DatabaseTarget:
             self.name,
             user,
             password,
+            sslmode=self.sslmode,
+            sslrootcert=self.sslrootcert,
+            trusted_local=self.trusted_local,
+            sslrootcert_sha256=self.sslrootcert_sha256,
         )
 
     def with_database(self, name):
@@ -633,7 +978,18 @@ class DatabaseTarget:
             name,
             self.user,
             self.password,
+            sslmode=self.sslmode,
+            sslrootcert=self.sslrootcert,
+            trusted_local=self.trusted_local,
+            sslrootcert_sha256=self.sslrootcert_sha256,
         )
+
+    def verify_tls_material(self):
+        if self.sslmode == "verify-full" and not hmac.compare_digest(
+            database_tls_root_certificate_digest(self.sslrootcert),
+            self.sslrootcert_sha256,
+        ):
+            raise RestoreError("database TLS root certificate identity changed")
 
     def run_client(
         self,
@@ -656,6 +1012,7 @@ class DatabaseTarget:
             raise RestoreError("database client command requires a positive timeout")
         timeout_seconds = max(1, int(timeout + 0.999))
         timeout_milliseconds = min(timeout_seconds * 1000, 2_147_483_647)
+        self.verify_tls_material()
         command = [
             "docker",
             "exec",
@@ -665,6 +1022,8 @@ class DatabaseTarget:
             "PGCONNECT_TIMEOUT",
             "-e",
             "PGOPTIONS",
+            "-e",
+            "PGSSLMODE",
         ]
         environment = {
             **os.environ,
@@ -674,7 +1033,11 @@ class DatabaseTarget:
                 f"-c statement_timeout={timeout_milliseconds} "
                 f"-c lock_timeout={timeout_milliseconds}"
             ),
+            "PGSSLMODE": self.sslmode,
         }
+        if self.sslrootcert is not None:
+            command.extend(("-e", "PGSSLROOTCERT"))
+            environment["PGSSLROOTCERT"] = self.sslrootcert
         if application_name is not None:
             command.extend(("-e", "PGAPPNAME"))
             environment["PGAPPNAME"] = application_name
@@ -1267,10 +1630,7 @@ class DockerServices:
             return None
         missing = [service for service, state in states.items() if state is None]
         if missing:
-            raise RestoreError(
-                "startup recovery requires every tracked container: "
-                + ", ".join(missing)
-            )
+            return None
         return {
             service: self._snapshot_service(
                 service,
@@ -1469,26 +1829,26 @@ class DockerServices:
         self.verify_clients_stopped()
         self.cleanup_private_validation()
         database_url = self.direct_database_url()
+        arguments = [
+            "dojo",
+            "compose",
+            "run",
+            "--rm",
+            "--no-deps",
+            "-T",
+            "--name",
+            PRIVATE_VALIDATION_CONTAINER,
+            "--label",
+            f"{PRIVATE_VALIDATION_LABEL}=1",
+            "--env",
+            "DATABASE_URL",
+        ]
+        if CACHE_VALIDATION_TEST_ENVIRONMENT in os.environ:
+            arguments.extend(("--env", CACHE_VALIDATION_TEST_ENVIRONMENT))
+        arguments.extend(("ctfd", "python", "-c", program))
         try:
-            self.runner.run(
-                [
-                    "dojo",
-                    "compose",
-                    "run",
-                    "--rm",
-                    "--no-deps",
-                    "-T",
-                    "--name",
-                    PRIVATE_VALIDATION_CONTAINER,
-                    "--label",
-                    f"{PRIVATE_VALIDATION_LABEL}=1",
-                    "--env",
-                    "DATABASE_URL",
-                    "ctfd",
-                    "python",
-                    "-c",
-                    program,
-                ],
+            result = self.runner.run(
+                arguments,
                 capture_output=True,
                 timeout=timeout,
                 environment={**os.environ, "DATABASE_URL": database_url},
@@ -1498,6 +1858,7 @@ class DockerServices:
         finally:
             self.cleanup_private_validation()
         self.verify_clients_stopped()
+        return result
 
     def warm_cache(self):
         self.start("cache")
@@ -1509,11 +1870,13 @@ class DockerServices:
         )
         if flush.stdout.strip() != b"OK":
             raise RestoreError("cache rejected FLUSHDB before restored-state warmup")
-        self.run_private_validation(
+        validation = self.run_private_validation(
             "cache",
             CACHE_VALIDATION_PROGRAM,
             self.cold_start_timeout,
         )
+        if CACHE_VALIDATION_MARKER not in validation.stdout:
+            raise RestoreError("cache warmup did not validate every required cache family")
         cache_check = self.runner.run(
             [
                 "docker",
@@ -1530,6 +1893,14 @@ class DockerServices:
         )
         if cache_check.stdout.strip() != b"3":
             raise RestoreError("stats-worker cold start did not populate required cache keys")
+        persistence = self.runner.run(
+            ["docker", "exec", "cache", "redis-cli", "SAVE"],
+            capture_output=True,
+            timeout=self.cold_start_timeout,
+        )
+        if persistence.stdout.strip() != b"OK":
+            raise RestoreError("cache did not durably persist the restored state")
+        pause_for_test("cache-persisted")
 
     def wait_service(self, service):
         deadline = time.monotonic() + self.ready_timeout
@@ -1667,6 +2038,7 @@ class DatabaseRestore:
             for name in MAINTENANCE_APPLICATION_NAMES
         )
         maintenance_secret = getattr(state, "maintenance_secret", None)
+        self.maintenance_secret = maintenance_secret
         maintenance_role = getattr(state, "maintenance_role", None)
         if maintenance_role and maintenance_role == target.user:
             raise RestoreError(
@@ -1683,6 +2055,26 @@ class DatabaseRestore:
             if self.maintenance_target is not None
             else None
         )
+
+    def cluster_claims(self, server_identity):
+        if self.maintenance_secret is None:
+            raise RestoreError("restore cluster ownership identity is unavailable")
+        resources = {
+            "database": self.database_name,
+            "role": self.application_target.user,
+        }
+        return {
+            cluster_claim_role_name(kind, server_identity, resource): (
+                cluster_claim_provenance(
+                    self.installation_id,
+                    self.maintenance_secret,
+                    kind,
+                    server_identity,
+                    resource,
+                )
+            )
+            for kind, resource in resources.items()
+        }
 
     @property
     def restore_application_name(self):
@@ -1758,11 +2150,12 @@ class DatabaseRestore:
 
     def wait_ready(self):
         deadline = time.monotonic() + self.drain_timeout
-        timeout_error = (
-            "configured PostgreSQL target did not become ready within "
-            f"{self.drain_timeout} seconds"
-        )
+        last_failure = "no PostgreSQL response"
         while True:
+            timeout_error = (
+                "configured PostgreSQL target did not become ready within "
+                f"{self.drain_timeout} seconds: {last_failure}"
+            )
             remaining_before_deadline(deadline, timeout_error)
             result = self.psql(
                 "SELECT 1;",
@@ -1771,6 +2164,13 @@ class DatabaseRestore:
             )
             if result.returncode == 0 and result.stdout.strip() == b"1":
                 return
+            last_failure = result.stderr.decode(errors="replace").strip()[-2000:]
+            if not last_failure:
+                last_failure = f"database client exited {result.returncode}"
+            timeout_error = (
+                "configured PostgreSQL target did not become ready within "
+                f"{self.drain_timeout} seconds: {last_failure}"
+            )
             wait_for_retry(deadline, timeout_error)
 
     def capture_maintenance_role(self, *, target=None):
@@ -1793,7 +2193,8 @@ class DatabaseRestore:
             "'valid_until_null', role.rolvaliduntil IS NULL, "
             "'config_null', role.rolconfig IS NULL, "
             "'memberships', (SELECT count(*) FROM pg_auth_members AS membership "
-            "WHERE membership.roleid = role.oid OR membership.member = role.oid)"
+            "WHERE membership.roleid = role.oid OR membership.member = role.oid "
+            "OR membership.grantor = role.oid)"
             ") FROM pg_roles AS role "
             f"WHERE role.rolname = {sql_literal(role_name)};",
             target=target or self.application_target,
@@ -1822,6 +2223,88 @@ class DatabaseRestore:
         }:
             raise RestoreError("maintenance role lookup returned invalid data")
         return role
+
+    def capture_cluster_claim(self, role_name):
+        result = self.psql(
+            "SELECT json_build_object("
+            "'name', role.rolname, "
+            "'comment', shobj_description(role.oid, 'pg_authid'), "
+            "'superuser', role.rolsuper, "
+            "'inherit', role.rolinherit, "
+            "'create_db', role.rolcreatedb, "
+            "'create_role', role.rolcreaterole, "
+            "'login', role.rolcanlogin, "
+            "'replication', role.rolreplication, "
+            "'bypass_rls', role.rolbypassrls, "
+            "'connection_limit', role.rolconnlimit, "
+            "'valid_until_null', role.rolvaliduntil IS NULL, "
+            "'config_null', role.rolconfig IS NULL, "
+            "'memberships', (SELECT count(*) FROM pg_auth_members AS membership "
+            "WHERE membership.roleid = role.oid OR membership.member = role.oid "
+            "OR membership.grantor = role.oid)"
+            ") FROM pg_roles AS role "
+            f"WHERE role.rolname = {sql_literal(role_name)};"
+        ).stdout.strip()
+        if not result:
+            return None
+        try:
+            claim = json.loads(result)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("database cluster claim lookup returned invalid data") from error
+        return claim
+
+    def verify_cluster_claim(self, claim, role_name, provenance):
+        expected = {
+            "name": role_name,
+            "comment": provenance,
+            "superuser": False,
+            "inherit": True,
+            "create_db": False,
+            "create_role": False,
+            "login": False,
+            "replication": False,
+            "bypass_rls": False,
+            "connection_limit": -1,
+            "valid_until_null": True,
+            "config_null": True,
+            "memberships": 0,
+        }
+        if not isinstance(claim, dict) or claim != expected:
+            raise RestoreError(
+                "PostgreSQL database or application role is claimed by another "
+                "installation"
+            )
+
+    def acquire_cluster_claims(self, server_identity):
+        claims = self.cluster_claims(server_identity)
+        existing = {
+            role_name: self.capture_cluster_claim(role_name)
+            for role_name in claims
+        }
+        for role_name, claim in existing.items():
+            if claim is not None:
+                self.verify_cluster_claim(claim, role_name, claims[role_name])
+        missing = [role_name for role_name, claim in existing.items() if claim is None]
+        if missing:
+            statements = ["BEGIN"]
+            for role_name in missing:
+                role = sql_identifier(role_name)
+                statements.extend(
+                    (
+                        f"CREATE ROLE {role} WITH NOLOGIN NOSUPERUSER INHERIT "
+                        "NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS "
+                        "CONNECTION LIMIT -1 PASSWORD NULL",
+                        f"COMMENT ON ROLE {role} IS {sql_literal(claims[role_name])}",
+                    )
+                )
+            statements.append("COMMIT")
+            self.psql_private(";".join(statements) + ";", target=self.target)
+        for role_name, provenance in claims.items():
+            self.verify_cluster_claim(
+                self.capture_cluster_claim(role_name),
+                role_name,
+                provenance,
+            )
 
     def verify_maintenance_role(self, role, *, login):
         if role is None:
@@ -1939,7 +2422,16 @@ class DatabaseRestore:
             if preflight:
                 self.preflight_recreation(self.database_name)
             self.disable_application_role(application_role)
-            self.psql(f"ALTER DATABASE {database} RENAME TO {fenced_database};")
+            if preflight:
+                self.preflight_recreation(self.database_name)
+            maintenance_role = sql_identifier(self.maintenance_target.user)
+            self.psql(
+                "BEGIN;"
+                f"ALTER DATABASE {database} OWNER TO {maintenance_role};"
+                f"ALTER DATABASE {database} IS_TEMPLATE false;"
+                f"ALTER DATABASE {database} RENAME TO {fenced_database};"
+                "COMMIT;"
+            )
             pause_for_test("fence-renamed")
             fenced_database_oid = metadata["oid"]
         elif database_oid is not None or fenced_database_oid not in {
@@ -1956,12 +2448,16 @@ class DatabaseRestore:
                 self.drain_database(metadata["oid"])
                 self.disable_application_role(application_role)
             application_role_identifier = sql_identifier(self.application_target.user)
+            maintenance_role = sql_identifier(self.maintenance_target.user)
             self.psql(
+                f"ALTER DATABASE {fenced_database} OWNER TO {maintenance_role};"
+                f"ALTER DATABASE {fenced_database} IS_TEMPLATE false;"
                 f"ALTER DATABASE {fenced_database} CONNECTION LIMIT 0;"
                 f"REVOKE CONNECT ON DATABASE {fenced_database} "
                 f"FROM PUBLIC, {application_role_identifier};"
                 f"ALTER DATABASE {fenced_database} ALLOW_CONNECTIONS true;"
             )
+            self.verify_fence_integrity()
             pause_for_test("fence-enabled")
         else:
             self.disable_application_role(application_role)
@@ -1983,20 +2479,30 @@ class DatabaseRestore:
             )
             self.drain_database(metadata["oid"])
             pause_for_test("release-drained")
+            self.psql(
+                f"ALTER DATABASE {fenced_database} OWNER TO "
+                f"{sql_identifier(metadata['owner'])};"
+            )
             self.restore_database_acl(metadata)
             self.psql(
                 f"ALTER DATABASE {fenced_database} CONNECTION LIMIT "
                 f"{metadata['connection_limit']};"
+                f"ALTER DATABASE {fenced_database} IS_TEMPLATE false;"
                 f"ALTER DATABASE {fenced_database} ALLOW_CONNECTIONS "
                 f"{'true' if metadata['allow_connections'] else 'false'};"
                 f"ALTER DATABASE {fenced_database} RENAME TO {database};"
             )
             pause_for_test("release-renamed")
         elif database_oid == metadata["oid"] and fenced_database_oid is None:
+            self.psql(
+                f"ALTER DATABASE {database} OWNER TO "
+                f"{sql_identifier(metadata['owner'])};"
+            )
             self.restore_database_acl(metadata)
             self.psql(
                 f"ALTER DATABASE {database} CONNECTION LIMIT "
                 f"{metadata['connection_limit']};"
+                f"ALTER DATABASE {database} IS_TEMPLATE false;"
                 f"ALTER DATABASE {database} ALLOW_CONNECTIONS "
                 f"{'true' if metadata['allow_connections'] else 'false'};"
             )
@@ -2012,32 +2518,101 @@ class DatabaseRestore:
             f"REVOKE CONNECT ON DATABASE {database} "
             f"FROM PUBLIC, {application_role};"
         )
+        self.verify_fence_integrity()
+
+    def verify_fence_integrity(self):
+        if self.maintenance_target is None:
+            raise RestoreError("restore maintenance identity is unavailable")
+        database = sql_literal(self.target.name)
+        application_role = sql_literal(self.application_target.user)
+        maintenance_role = sql_literal(self.maintenance_target.user)
+        result = self.psql(
+            "SELECT json_build_object("
+            "'owner', (SELECT pg_get_userbyid(datdba) FROM pg_database "
+            f"WHERE datname = {database}), "
+            "'is_template', (SELECT datistemplate FROM pg_database "
+            f"WHERE datname = {database}), "
+            "'allow_connections', (SELECT datallowconn FROM pg_database "
+            f"WHERE datname = {database}), "
+            "'connection_limit', (SELECT datconnlimit FROM pg_database "
+            f"WHERE datname = {database}), "
+            "'application_superuser', (SELECT rolsuper FROM pg_roles "
+            f"WHERE rolname = {application_role}), "
+            "'application_login', (SELECT rolcanlogin FROM pg_roles "
+            f"WHERE rolname = {application_role}), "
+            "'application_sessions', (SELECT count(*) FROM pg_stat_activity "
+            f"WHERE usename = {application_role} AND pid <> pg_backend_pid()), "
+            "'unexpected_privileged_roles', (SELECT count(*) FROM pg_roles "
+            "WHERE (rolsuper OR rolcreatedb) "
+            f"AND rolname NOT IN ({application_role}, {maintenance_role}))"
+            ");"
+        )
+        try:
+            fence = json.loads(result.stdout)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("could not verify the PostgreSQL database fence") from error
+        if fence != {
+            "owner": self.maintenance_target.user,
+            "is_template": False,
+            "allow_connections": True,
+            "connection_limit": 0,
+            "application_superuser": True,
+            "application_login": False,
+            "application_sessions": 0,
+            "unexpected_privileged_roles": 0,
+        }:
+            raise RestoreError("PostgreSQL database fence integrity was lost")
 
     def database_acl_statements(self, metadata, database):
         if metadata["acl_default"]:
             return []
-        grantees = {
+        roles = {metadata["owner"]}
+        roles.update(entry["grantor"] for entry in metadata["acl"])
+        roles.update(
             entry["grantee"]
             for entry in metadata["acl"]
             if entry["grantee"] is not None
-        }
-        grantees.add(metadata["owner"])
-        statements = [f"REVOKE ALL ON DATABASE {database} FROM PUBLIC"]
-        statements.extend(
-            f"REVOKE ALL ON DATABASE {database} FROM {sql_identifier(grantee)}"
-            for grantee in sorted(grantees)
         )
-        for entry in metadata["acl"]:
-            grantee = (
-                "PUBLIC"
-                if entry["grantee"] is None
-                else sql_identifier(entry["grantee"])
-            )
-            grant_option = " WITH GRANT OPTION" if entry["grantable"] else ""
-            statements.append(
-                f"GRANT {entry['privilege']} ON DATABASE {database} "
-                f"TO {grantee}{grant_option}"
-            )
+        statements = [
+            "BEGIN",
+            f"REVOKE ALL ON DATABASE {database} FROM PUBLIC CASCADE",
+        ]
+        statements.extend(
+            f"REVOKE ALL ON DATABASE {database} FROM {sql_identifier(role)} CASCADE"
+            for role in sorted(roles)
+        )
+        available_grants = {
+            (metadata["owner"], privilege)
+            for privilege in ("CONNECT", "CREATE", "TEMPORARY")
+        }
+        pending_grants = list(metadata["acl"])
+        while pending_grants:
+            replayable = [
+                entry
+                for entry in pending_grants
+                if (entry["grantor"], entry["privilege"]) in available_grants
+            ]
+            if not replayable:
+                raise RestoreError("database ACL grant chain cannot be restored")
+            for entry in replayable:
+                pending_grants.remove(entry)
+                grantee = (
+                    "PUBLIC"
+                    if entry["grantee"] is None
+                    else sql_identifier(entry["grantee"])
+                )
+                grant_option = " WITH GRANT OPTION" if entry["grantable"] else ""
+                statements.extend(
+                    (
+                        f"SET ROLE {sql_identifier(entry['grantor'])}",
+                        f"GRANT {entry['privilege']} ON DATABASE {database} "
+                        f"TO {grantee}{grant_option} GRANTED BY CURRENT_USER",
+                        "RESET ROLE",
+                    )
+                )
+                if entry["grantable"] and entry["grantee"] is not None:
+                    available_grants.add((entry["grantee"], entry["privilege"]))
+        statements.append("COMMIT")
         return statements
 
     def restore_database_acl(self, metadata):
@@ -2070,10 +2645,17 @@ class DatabaseRestore:
 
     def verify_target(self, journal_target):
         self.verify_configured_target(journal_target)
-        if self.capture_server_identity() != journal_target["server"]:
+        current_identity = self.capture_server_identity()
+        if (
+            current_identity["system_identifier"]
+            != journal_target["server"]["system_identifier"]
+            or current_identity["server_version_num"] // 10_000
+            != journal_target["server"]["server_version_num"] // 10_000
+        ):
             raise RestoreError(
                 "PostgreSQL server identity does not match the pending restore journal"
             )
+        self.acquire_cluster_claims(journal_target["server"])
 
     def verify_configured_target(self, journal_target):
         if not self.application_target.matches(journal_target):
@@ -2194,9 +2776,28 @@ class DatabaseRestore:
         if current_role["name"] != application_role["name"]:
             raise RestoreError("database fence application role is inconsistent")
         role = sql_identifier(application_role["name"])
-        self.psql(f"ALTER ROLE {role} NOLOGIN;")
+        role_name = sql_literal(application_role["name"])
+        self.psql(
+            f"ALTER ROLE {role} NOLOGIN;"
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            f"WHERE usename = {role_name} AND pid <> pg_backend_pid();"
+        )
         if self.capture_application_role()["login"]:
             raise RestoreError("database fence could not disable the application role")
+        result = self.psql(
+            "SELECT count(*) FROM pg_stat_activity "
+            f"WHERE usename = {role_name} AND pid <> pg_backend_pid();"
+        )
+        try:
+            remaining_sessions = int(result.stdout.strip())
+        except (TypeError, ValueError) as error:
+            raise RestoreError(
+                "database fence application session check returned invalid data"
+            ) from error
+        if remaining_sessions:
+            raise RestoreError(
+                "database fence could not terminate every application role session"
+            )
         pause_for_test("application-role-disabled")
 
     def restore_application_role(self, application_role):
@@ -2260,8 +2861,90 @@ class DatabaseRestore:
                 return
             wait_for_retry(deadline, timeout_error)
 
+    def verify_exclusive_cluster_topology(self, database_name=None):
+        database_name = database_name or self.database_name
+        database = sql_literal(database_name)
+        application_role = sql_literal(self.application_target.user)
+        maintenance_role = (
+            sql_literal(self.maintenance_target.user)
+            if self.maintenance_target is not None
+            else "NULL"
+        )
+        result = self.psql(
+            "SELECT json_build_object("
+            "'owner', (SELECT pg_get_userbyid(datdba) FROM pg_database "
+            f"WHERE datname = {database}), "
+            "'other_owned_databases', (SELECT count(*) FROM pg_database "
+            f"WHERE datdba = (SELECT oid FROM pg_roles WHERE rolname = {application_role}) "
+            f"AND datname <> {database} "
+            "AND datname NOT IN ('postgres', 'template0', 'template1')), "
+            "'privileged_roles', COALESCE((SELECT json_agg(rolname ORDER BY rolname) "
+            "FROM pg_roles WHERE (rolsuper OR rolcreatedb) "
+            f"AND rolname <> {application_role} "
+            f"AND rolname <> {maintenance_role}), '[]'::json), "
+            "'application_memberships', (SELECT count(*) FROM pg_auth_members "
+            f"WHERE roleid = (SELECT oid FROM pg_roles WHERE rolname = {application_role}) "
+            f"OR member = (SELECT oid FROM pg_roles WHERE rolname = {application_role})), "
+            "'other_application_sessions', (SELECT count(*) FROM pg_stat_activity "
+            f"WHERE usename = {application_role} AND pid <> pg_backend_pid() "
+            f"AND datname IS DISTINCT FROM {database})"
+            ");"
+        )
+        try:
+            topology = json.loads(result.stdout)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("could not verify PostgreSQL cluster isolation") from error
+        if not isinstance(topology, dict) or set(topology) != {
+            "owner",
+            "other_owned_databases",
+            "privileged_roles",
+            "application_memberships",
+            "other_application_sessions",
+        }:
+            raise RestoreError("PostgreSQL cluster isolation check returned invalid data")
+        if topology["owner"] != self.application_target.user:
+            raise RestoreError(
+                "configured PostgreSQL application role must exclusively own the "
+                "restore database"
+            )
+        for field in (
+            "other_owned_databases",
+            "application_memberships",
+            "other_application_sessions",
+        ):
+            if type(topology[field]) is not int or topology[field] < 0:
+                raise RestoreError(
+                    "PostgreSQL cluster isolation check returned invalid data"
+                )
+        if (
+            not isinstance(topology["privileged_roles"], list)
+            or any(
+                not isinstance(role, str) or not role
+                for role in topology["privileged_roles"]
+            )
+        ):
+            raise RestoreError("PostgreSQL cluster isolation check returned invalid data")
+        if topology["other_owned_databases"]:
+            raise RestoreError(
+                "configured PostgreSQL application role is shared by another database"
+            )
+        if topology["application_memberships"]:
+            raise RestoreError(
+                "configured PostgreSQL application role must not have role memberships"
+            )
+        if topology["other_application_sessions"]:
+            raise RestoreError(
+                "configured PostgreSQL application role has sessions in another database"
+            )
+        if topology["privileged_roles"]:
+            raise RestoreError(
+                "database restore requires an exclusive PostgreSQL cluster without "
+                "additional superuser or CREATEDB roles"
+            )
+
     def preflight_recreation(self, database_name=None):
         self.verify_recreation_privileges()
+        self.verify_exclusive_cluster_topology(database_name)
         database = sql_literal(database_name or self.target.name)
         result = self.psql(
             "SELECT json_build_object("
@@ -2277,7 +2960,9 @@ class DatabaseRestore:
             "SELECT count(*) FROM pg_subscription "
             "WHERE subdbid = (SELECT oid FROM pg_database "
             f"WHERE datname = {database})"
-            ")"
+            "), "
+            "'is_template', (SELECT datistemplate FROM pg_database "
+            f"WHERE datname = {database})"
             ");"
         )
         try:
@@ -2288,9 +2973,27 @@ class DatabaseRestore:
             "prepared_transactions",
             "logical_slots",
             "subscriptions",
-        } or any(type(count) is not int or count < 0 for count in blockers.values()):
+            "is_template",
+        } or any(
+            type(blockers[field]) is not int or blockers[field] < 0
+            for field in (
+                "prepared_transactions",
+                "logical_slots",
+                "subscriptions",
+            )
+        ) or not isinstance(blockers["is_template"], bool):
             raise RestoreError("database recreation preflight returned invalid results")
-        present = [name.replace("_", " ") for name, count in blockers.items() if count]
+        if blockers["is_template"]:
+            raise RestoreError("template databases are unsupported for restore")
+        present = [
+            name.replace("_", " ")
+            for name in (
+                "prepared_transactions",
+                "logical_slots",
+                "subscriptions",
+            )
+            if blockers[name]
+        ]
         if present:
             raise RestoreError(
                 "database cannot be safely recreated while it has " + ", ".join(present)
@@ -2322,7 +3025,7 @@ class DatabaseRestore:
             "ELSE pg_get_userbyid(acl.grantee) END, "
             "'privilege', acl.privilege_type, "
             "'grantable', acl.is_grantable"
-            ") ORDER BY acl.grantee, acl.privilege_type) "
+            ") ORDER BY acl.grantor, acl.grantee, acl.privilege_type) "
             "FROM aclexplode(database.datacl) AS acl"
             "), '[]'::json), "
             "'comment', shobj_description(database.oid, 'pg_database'), "
@@ -2356,7 +3059,197 @@ class DatabaseRestore:
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
             raise RestoreError("could not capture database metadata") from error
         validate_database_metadata(metadata)
+        if metadata["owner"] != self.application_target.user:
+            raise RestoreError(
+                "configured PostgreSQL application role must own the restore database"
+            )
         return metadata
+
+    def capture_backup_dependencies(self, required_role_names=()):
+        if not isinstance(required_role_names, (list, tuple, set)):
+            raise RestoreError("backup dependency role seed is invalid")
+        required_role_names = sorted(set(required_role_names))
+        for role_name in required_role_names:
+            validate_text(role_name, "backup dependency role seed", limit=1024)
+        required_role_seed = ""
+        if required_role_names:
+            roles = ", ".join(sql_literal(role) for role in required_role_names)
+            required_role_seed = (
+                " UNION SELECT oid FROM pg_roles WHERE rolname IN (" + roles + ")"
+            )
+        result = self.target.run_client(
+            self.runner,
+            "psql",
+            (
+                "--no-psqlrc",
+                "--tuples-only",
+                "--no-align",
+                "--set=ON_ERROR_STOP=1",
+                "--command",
+                "WITH RECURSIVE target_database AS ("
+                "SELECT oid, datdba FROM pg_database WHERE datname = current_database()"
+                "), seed_roles AS ("
+                "SELECT datdba AS oid FROM target_database UNION "
+                "SELECT dependency.refobjid FROM pg_shdepend AS dependency "
+                "JOIN target_database ON dependency.dbid = target_database.oid "
+                "WHERE dependency.refclassid = 'pg_authid'::regclass UNION "
+                "SELECT acl.grantor FROM pg_database AS database "
+                "JOIN target_database ON target_database.oid = database.oid "
+                "CROSS JOIN LATERAL aclexplode(database.datacl) AS acl UNION "
+                "SELECT acl.grantee FROM pg_database AS database "
+                "JOIN target_database ON target_database.oid = database.oid "
+                "CROSS JOIN LATERAL aclexplode(database.datacl) AS acl "
+                "WHERE acl.grantee <> 0 UNION "
+                "SELECT setting.setrole FROM pg_db_role_setting AS setting "
+                "JOIN target_database ON target_database.oid = setting.setdatabase "
+                "WHERE setting.setrole <> 0 UNION "
+                "SELECT defaclrole FROM pg_default_acl UNION "
+                "SELECT acl.grantor FROM pg_default_acl AS defaults "
+                "CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl UNION "
+                "SELECT acl.grantee FROM pg_default_acl AS defaults "
+                "CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl "
+                "WHERE acl.grantee <> 0 UNION "
+                "SELECT spcowner FROM pg_tablespace WHERE spcname NOT IN "
+                "('pg_default', 'pg_global') UNION "
+                "SELECT acl.grantor FROM pg_tablespace AS tablespace "
+                "CROSS JOIN LATERAL aclexplode(tablespace.spcacl) AS acl "
+                "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global') UNION "
+                "SELECT acl.grantee FROM pg_tablespace AS tablespace "
+                "CROSS JOIN LATERAL aclexplode(tablespace.spcacl) AS acl "
+                "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global') "
+                "AND acl.grantee <> 0"
+                f"{required_role_seed}"
+                "), role_graph(oid) AS ("
+                "SELECT oid FROM seed_roles UNION "
+                "SELECT related.oid "
+                "FROM role_graph JOIN pg_auth_members AS membership "
+                "ON membership.roleid = role_graph.oid "
+                "OR membership.member = role_graph.oid "
+                "OR membership.grantor = role_graph.oid "
+                "CROSS JOIN LATERAL (VALUES (membership.roleid), "
+                "(membership.member), (membership.grantor)) AS related(oid)"
+                "), contract_roles AS ("
+                "SELECT oid FROM role_graph UNION "
+                "SELECT membership.grantor FROM pg_auth_members AS membership "
+                "WHERE membership.roleid IN (SELECT oid FROM role_graph) "
+                "AND membership.member IN (SELECT oid FROM role_graph)"
+                ") SELECT json_build_object("
+                "'roles', COALESCE((SELECT json_agg(json_build_object("
+                "'name', role.rolname, 'superuser', role.rolsuper, "
+                "'inherit', role.rolinherit, 'create_db', role.rolcreatedb, "
+                "'create_role', role.rolcreaterole, 'login', role.rolcanlogin, "
+                "'replication', role.rolreplication, 'bypass_rls', role.rolbypassrls, "
+                "'connection_limit', role.rolconnlimit, "
+                "'valid_until', role.rolvaliduntil::text, "
+                "'config', COALESCE(role.rolconfig, ARRAY[]::text[])"
+                ") ORDER BY role.rolname) FROM pg_roles AS role "
+                "WHERE role.oid IN (SELECT oid FROM contract_roles) "
+                "AND role.rolname !~ '^pg_'), '[]'::json), "
+                "'memberships', COALESCE((SELECT json_agg(json_build_object("
+                "'role', granted_role.rolname, 'member', member_role.rolname, "
+                "'grantor', grantor_role.rolname, "
+                "'admin_option', membership.admin_option, "
+                "'inherit_option', membership.inherit_option, "
+                "'set_option', membership.set_option"
+                ") ORDER BY granted_role.rolname, member_role.rolname, grantor_role.rolname) "
+                "FROM pg_auth_members AS membership "
+                "JOIN pg_roles AS granted_role ON granted_role.oid = membership.roleid "
+                "JOIN pg_roles AS member_role ON member_role.oid = membership.member "
+                "JOIN pg_roles AS grantor_role ON grantor_role.oid = membership.grantor "
+                "WHERE membership.roleid IN (SELECT oid FROM role_graph) "
+                "AND membership.member IN (SELECT oid FROM role_graph)"
+                "), '[]'::json), "
+                "'default_acls', COALESCE((SELECT json_agg(json_build_object("
+                "'owner', owner.rolname, 'schema', namespace.nspname, "
+                "'object_type', defaults.defaclobjtype::text, "
+                "'grantor', pg_get_userbyid(acl.grantor), "
+                "'grantee', CASE WHEN acl.grantee = 0 THEN NULL "
+                "ELSE pg_get_userbyid(acl.grantee) END, "
+                "'privilege', acl.privilege_type, 'grantable', acl.is_grantable"
+                ") ORDER BY owner.rolname, namespace.nspname, defaults.defaclobjtype, "
+                "acl.grantor, acl.grantee, acl.privilege_type) "
+                "FROM pg_default_acl AS defaults "
+                "JOIN pg_roles AS owner ON owner.oid = defaults.defaclrole "
+                "LEFT JOIN pg_namespace AS namespace ON namespace.oid = defaults.defaclnamespace "
+                "CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl"
+                "), '[]'::json), "
+                "'tablespaces', COALESCE((SELECT json_agg(json_build_object("
+                "'name', tablespace.spcname, 'owner', pg_get_userbyid(tablespace.spcowner), "
+                "'location', pg_tablespace_location(tablespace.oid), "
+                "'options', COALESCE(tablespace.spcoptions, ARRAY[]::text[]), "
+                "'acl_default', tablespace.spcacl IS NULL, "
+                "'acl', COALESCE((SELECT json_agg(json_build_object("
+                "'grantor', pg_get_userbyid(acl.grantor), "
+                "'grantee', CASE WHEN acl.grantee = 0 THEN NULL "
+                "ELSE pg_get_userbyid(acl.grantee) END, "
+                "'privilege', acl.privilege_type, 'grantable', acl.is_grantable"
+                ") ORDER BY acl.grantor, acl.grantee, acl.privilege_type) "
+                "FROM aclexplode(tablespace.spcacl) AS acl), '[]'::json)"
+                ") ORDER BY tablespace.spcname) FROM pg_tablespace AS tablespace "
+                "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global')"
+                "), '[]'::json)"
+                ");",
+            ),
+            database=self.target.name,
+            connect=True,
+            application_name=self.snapshot_application_name,
+            capture_output=True,
+            timeout=self.operation_timeout,
+        )
+        try:
+            dependencies = json.loads(result.stdout)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("could not capture database backup dependencies") from error
+        validate_backup_dependencies(dependencies)
+        return dependencies
+
+    def verify_global_backup_dependencies(self, expected):
+        validate_backup_dependencies(expected)
+        required_role_names = {
+            role["name"] for role in expected["roles"]
+        }
+        for membership in expected["memberships"]:
+            required_role_names.update(
+                membership[field] for field in ("role", "member", "grantor")
+            )
+        for default_acl in expected["default_acls"]:
+            required_role_names.update(
+                default_acl[field]
+                for field in ("owner", "grantor", "grantee")
+                if default_acl[field] is not None
+            )
+        for tablespace in expected["tablespaces"]:
+            required_role_names.add(tablespace["owner"])
+            for acl in tablespace["acl"]:
+                required_role_names.update(
+                    acl[field]
+                    for field in ("grantor", "grantee")
+                    if acl[field] is not None
+                )
+        current = self.capture_backup_dependencies(required_role_names)
+        current_roles = {role["name"]: role for role in current["roles"]}
+        current_tablespaces = {
+            tablespace["name"]: tablespace
+            for tablespace in current["tablespaces"]
+        }
+        if any(
+            current_roles.get(role["name"]) != role for role in expected["roles"]
+        ) or any(
+            current_tablespaces.get(tablespace["name"]) != tablespace
+            for tablespace in expected["tablespaces"]
+        ) or current["memberships"] != expected["memberships"]:
+            raise RestoreError(
+                "PostgreSQL roles, memberships, or tablespaces do not satisfy the "
+                "backup dependency contract"
+            )
+
+    def verify_restored_default_acls(self, expected):
+        validate_backup_dependencies(expected)
+        current = self.capture_backup_dependencies()
+        if current["default_acls"] != expected["default_acls"]:
+            raise RestoreError(
+                "restored PostgreSQL default privileges do not match the backup"
+            )
 
     def drain_database(self, database_oid=None):
         if database_oid is None:
@@ -2413,7 +3306,7 @@ class DatabaseRestore:
             self.psql("SELECT pg_sleep(300);")
 
         options = [
-            f"OWNER = {sql_identifier(metadata['owner'])}",
+            f"OWNER = {sql_identifier(self.maintenance_target.user)}",
             "TEMPLATE = template0",
             f"ENCODING = {sql_literal(metadata['encoding'])}",
             f"LOCALE_PROVIDER = {metadata['locale_provider']}",
@@ -2422,7 +3315,7 @@ class DatabaseRestore:
             f"TABLESPACE = {sql_identifier(metadata['tablespace'])}",
             "ALLOW_CONNECTIONS = true",
             "CONNECTION LIMIT = 0",
-            f"IS_TEMPLATE = {'true' if metadata['is_template'] else 'false'}",
+            "IS_TEMPLATE = false",
             f"OID = {metadata['oid']}",
         ]
         if metadata["locale_provider"] == "builtin":
@@ -2440,7 +3333,7 @@ class DatabaseRestore:
 
     def apply_metadata(self, metadata):
         database = sql_identifier(self.target.name)
-        statements = self.database_acl_statements(metadata, database)
+        statements = []
         if metadata["comment"] is not None:
             statements.append(
                 f"COMMENT ON DATABASE {database} IS {sql_literal(metadata['comment'])}"
@@ -2467,7 +3360,7 @@ class DatabaseRestore:
 
     def restore_archive(self, archive, metadata):
         self.recreate_database(metadata)
-        os.lseek(archive.fileno(), 0, os.SEEK_SET)
+        os.lseek(archive.fileno(), archive_payload_offset(archive), os.SEEK_SET)
         self.target.run_client(
             self.runner,
             "pg_restore",
@@ -2482,6 +3375,8 @@ class DatabaseRestore:
             stdin=archive,
             timeout=self.operation_timeout,
         )
+        if hasattr(archive, "manifest"):
+            self.verify_restored_default_acls(archive.manifest["dependencies"])
         self.apply_metadata(metadata)
         self.enforce_fenced_acl()
 
@@ -2495,6 +3390,282 @@ class DatabaseRestore:
         with self.state.open_rollback() as rollback:
             journal = self.state.load_journal()
             self.restore_archive(rollback, journal["database"])
+
+
+def archive_payload_offset(archive):
+    offset = getattr(archive, "payload_offset", 0)
+    if type(offset) is not int or offset < 0:
+        raise RestoreError("backup archive payload offset is invalid")
+    return offset
+
+
+def archive_payload_sha256(archive):
+    offset = archive_payload_offset(archive)
+    file_stat = os.fstat(archive.fileno())
+    if file_stat.st_size <= offset:
+        raise RestoreError("backup archive payload is empty")
+    digest = hashlib.sha256()
+    position = offset
+    while position < file_stat.st_size:
+        chunk = os.pread(
+            archive.fileno(),
+            min(1024 * 1024, file_stat.st_size - position),
+            position,
+        )
+        if not chunk:
+            raise RestoreError("backup archive changed while being read")
+        digest.update(chunk)
+        position += len(chunk)
+    current_stat = os.fstat(archive.fileno())
+    if any(
+        getattr(current_stat, field) != getattr(file_stat, field)
+        for field in ("st_dev", "st_ino", "st_mode", "st_uid", "st_size", "st_mtime_ns", "st_ctime_ns")
+    ):
+        raise RestoreError("backup archive changed while being read")
+    return digest.hexdigest()
+
+
+def validate_backup_dependencies(dependencies):
+    if not isinstance(dependencies, dict) or set(dependencies) != {
+        "roles",
+        "memberships",
+        "default_acls",
+        "tablespaces",
+    }:
+        raise RestoreError("backup manifest has an invalid dependency contract")
+    for field, limit in (
+        ("roles", 4096),
+        ("memberships", 16384),
+        ("default_acls", 16384),
+        ("tablespaces", 1024),
+    ):
+        entries = dependencies[field]
+        if not isinstance(entries, list) or len(entries) > limit:
+            raise RestoreError("backup manifest has an invalid dependency contract")
+    role_fields = {
+        "name",
+        "superuser",
+        "inherit",
+        "create_db",
+        "create_role",
+        "login",
+        "replication",
+        "bypass_rls",
+        "connection_limit",
+        "valid_until",
+        "config",
+    }
+    for role in dependencies["roles"]:
+        if not isinstance(role, dict) or set(role) != role_fields:
+            raise RestoreError("backup manifest has an invalid role dependency")
+        validate_text(role["name"], "backup role", limit=1024)
+        if any(
+            not isinstance(role[field], bool)
+            for field in (
+                "superuser",
+                "inherit",
+                "create_db",
+                "create_role",
+                "login",
+                "replication",
+                "bypass_rls",
+            )
+        ):
+            raise RestoreError("backup manifest has an invalid role dependency")
+        if type(role["connection_limit"]) is not int or not -1 <= role[
+            "connection_limit"
+        ] <= 2_147_483_647:
+            raise RestoreError("backup manifest has an invalid role dependency")
+        validate_text(
+            role["valid_until"],
+            "backup role validity",
+            optional=True,
+            limit=1024,
+        )
+        if not isinstance(role["config"], list) or any(
+            not isinstance(value, str) or "\x00" in value
+            for value in role["config"]
+        ):
+            raise RestoreError("backup manifest has an invalid role dependency")
+    for membership in dependencies["memberships"]:
+        if not isinstance(membership, dict) or set(membership) != {
+            "role",
+            "member",
+            "grantor",
+            "admin_option",
+            "inherit_option",
+            "set_option",
+        }:
+            raise RestoreError("backup manifest has an invalid membership dependency")
+        for field in ("role", "member", "grantor"):
+            validate_text(membership[field], f"backup membership {field}", limit=1024)
+        if any(
+            not isinstance(membership[field], bool)
+            for field in ("admin_option", "inherit_option", "set_option")
+        ):
+            raise RestoreError("backup manifest has an invalid membership dependency")
+    for default_acl in dependencies["default_acls"]:
+        if not isinstance(default_acl, dict) or set(default_acl) != {
+            "owner",
+            "schema",
+            "object_type",
+            "grantor",
+            "grantee",
+            "privilege",
+            "grantable",
+        }:
+            raise RestoreError("backup manifest has an invalid default ACL dependency")
+        for field in ("owner", "grantor", "privilege"):
+            validate_text(default_acl[field], f"backup default ACL {field}", limit=1024)
+        for field in ("schema", "grantee"):
+            validate_text(
+                default_acl[field],
+                f"backup default ACL {field}",
+                optional=True,
+                limit=1024,
+            )
+        if default_acl["object_type"] not in {"f", "n", "r", "S", "T"} or not isinstance(
+            default_acl["grantable"], bool
+        ):
+            raise RestoreError("backup manifest has an invalid default ACL dependency")
+    for tablespace in dependencies["tablespaces"]:
+        if not isinstance(tablespace, dict) or set(tablespace) != {
+            "name",
+            "owner",
+            "location",
+            "options",
+            "acl_default",
+            "acl",
+        }:
+            raise RestoreError("backup manifest has an invalid tablespace dependency")
+        for field in ("name", "owner", "location"):
+            validate_text(
+                tablespace[field],
+                f"backup tablespace {field}",
+                allow_empty=field == "location",
+                limit=8192,
+            )
+        if not isinstance(tablespace["options"], list) or any(
+            not isinstance(value, str) or "\x00" in value
+            for value in tablespace["options"]
+        ) or not isinstance(tablespace["acl_default"], bool):
+            raise RestoreError("backup manifest has an invalid tablespace dependency")
+        if not isinstance(tablespace["acl"], list):
+            raise RestoreError("backup manifest has an invalid tablespace dependency")
+        for entry in tablespace["acl"]:
+            if not isinstance(entry, dict) or set(entry) != {
+                "grantor",
+                "grantee",
+                "privilege",
+                "grantable",
+            }:
+                raise RestoreError("backup manifest has an invalid tablespace ACL")
+            validate_text(entry["grantor"], "backup tablespace ACL grantor", limit=1024)
+            validate_text(
+                entry["grantee"],
+                "backup tablespace ACL grantee",
+                optional=True,
+                limit=1024,
+            )
+            validate_text(entry["privilege"], "backup tablespace ACL privilege", limit=1024)
+            if not isinstance(entry["grantable"], bool):
+                raise RestoreError("backup manifest has an invalid tablespace ACL")
+    try:
+        payload = json.dumps(dependencies, sort_keys=True, separators=(",", ":"))
+    except (TypeError, ValueError) as error:
+        raise RestoreError("backup manifest has an invalid dependency contract") from error
+    if len(payload.encode()) > BACKUP_MANIFEST_LIMIT or "\\u0000" in payload:
+        raise RestoreError("backup manifest has an invalid dependency contract")
+
+
+def validate_backup_manifest(manifest):
+    if not isinstance(manifest, dict) or set(manifest) != {
+        "version",
+        "installation_id",
+        "server",
+        "database",
+        "pg_dump_major",
+        "full_dump",
+        "archive_sha256",
+        "dependencies",
+        "signature",
+    }:
+        raise RestoreError("backup archive has an invalid manifest")
+    if manifest["version"] != BACKUP_FORMAT_VERSION:
+        raise RestoreError("backup archive has an unsupported format")
+    validate_installation_id(manifest["installation_id"])
+    validate_server_identity(manifest["server"])
+    database = manifest["database"]
+    if not isinstance(database, dict) or set(database) != {"name", "metadata"}:
+        raise RestoreError("backup archive has invalid source database metadata")
+    validate_text(database["name"], "backup database name", limit=1024)
+    validate_database_metadata(database["metadata"])
+    if (
+        type(manifest["pg_dump_major"]) is not int
+        or manifest["pg_dump_major"] != SUPPORTED_POSTGRES_MAJOR
+        or manifest["full_dump"] is not True
+    ):
+        raise RestoreError("backup archive is not a supported full database dump")
+    for field in ("archive_sha256", "signature"):
+        value = manifest[field]
+        if (
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+        ):
+            raise RestoreError("backup archive has an invalid manifest identity")
+    validate_backup_dependencies(manifest["dependencies"])
+
+
+def backup_manifest_payload(manifest):
+    return json.dumps(
+        {field: value for field, value in manifest.items() if field != "signature"},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+
+
+def verify_backup_manifest(
+    archive,
+    state,
+    target,
+    current_server_identity,
+    *,
+    allow_migration,
+):
+    manifest = archive.manifest
+    validate_backup_manifest(manifest)
+    actual_digest = archive_payload_sha256(archive)
+    if not hmac.compare_digest(actual_digest, manifest["archive_sha256"]):
+        raise RestoreError("backup archive checksum does not match its manifest")
+    same_installation = manifest["installation_id"] == state.installation_id
+    if same_installation:
+        signature = hmac.new(
+            bytes.fromhex(state.maintenance_secret),
+            backup_manifest_payload(manifest),
+            hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(signature, manifest["signature"]):
+            raise RestoreError("backup archive manifest authentication failed")
+    elif not allow_migration:
+        raise RestoreError(
+            "backup belongs to another installation; use --allow-migration "
+            "after verifying its source"
+        )
+    same_server = (
+        manifest["server"]["system_identifier"]
+        == current_server_identity["system_identifier"]
+    )
+    same_database = manifest["database"]["name"] == target.name
+    if (not same_server or not same_database) and not allow_migration:
+        raise RestoreError(
+            "backup source does not match the configured PostgreSQL database"
+        )
+    if (
+        current_server_identity["server_version_num"] // 10_000
+        != manifest["pg_dump_major"]
+    ):
+        raise RestoreError("backup pg_dump major is incompatible with PostgreSQL")
 
 
 def open_archive(relative_path):
@@ -2532,14 +3703,45 @@ def open_archive(relative_path):
     if (
         not stat.S_ISREG(archive_stat.st_mode)
         or archive_stat.st_size == 0
-        or archive_stat.st_uid != 0
+        or archive_stat.st_uid != BACKUP_OWNER_UID
         or archive_stat.st_mode & 0o022
     ):
         os.close(archive_descriptor)
         raise RestoreError(
             "backup archive must be a non-empty, root-owned, non-writable regular file"
         )
-    return os.fdopen(archive_descriptor, "rb")
+    archive = os.fdopen(archive_descriptor, "rb")
+    try:
+        header = os.pread(archive_descriptor, BACKUP_HEADER_SIZE, 0)
+        if len(header) != BACKUP_HEADER_SIZE or not header.startswith(BACKUP_MAGIC):
+            raise RestoreError("backup archive is missing its source manifest")
+        length_offset = len(BACKUP_MAGIC)
+        manifest_length = struct.unpack(
+            ">I",
+            header[length_offset : length_offset + 4],
+        )[0]
+        if not 0 < manifest_length <= BACKUP_MANIFEST_LIMIT:
+            raise RestoreError("backup archive has an invalid manifest size")
+        manifest_bytes = header[
+            length_offset + 4 : length_offset + 4 + manifest_length
+        ]
+        try:
+            manifest = json.loads(manifest_bytes)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RestoreError("backup archive has an invalid manifest") from error
+        validate_backup_manifest(manifest)
+        archive.payload_offset = BACKUP_HEADER_SIZE
+        archive.manifest = manifest
+        if not hmac.compare_digest(
+            archive_payload_sha256(archive),
+            manifest["archive_sha256"],
+        ):
+            raise RestoreError("backup archive checksum does not match its manifest")
+        os.lseek(archive_descriptor, BACKUP_HEADER_SIZE, os.SEEK_SET)
+        return archive
+    except BaseException:
+        archive.close()
+        raise
 
 
 def sql_literal(value):
@@ -2555,7 +3757,8 @@ def sql_identifier(value):
 
 
 def validate_archive(runner, target, archive, *, timeout=DEFAULT_READY_TIMEOUT):
-    os.lseek(archive.fileno(), 0, os.SEEK_SET)
+    offset = archive_payload_offset(archive)
+    os.lseek(archive.fileno(), offset, os.SEEK_SET)
     contents = target.run_client(
         runner,
         "pg_restore",
@@ -2565,13 +3768,18 @@ def validate_archive(runner, target, archive, *, timeout=DEFAULT_READY_TIMEOUT):
         capture_output=True,
         timeout=timeout,
     )
+    full_database_entry = False
     for line in contents.stdout.splitlines():
         if not line or line.startswith(b";") or b";" not in line:
             continue
         fields = line.split(b";", 1)[1].lstrip().split(None, 3)
         if len(fields) >= 3 and fields[2] == b"SUBSCRIPTION":
             raise RestoreError("backup archives containing subscriptions are unsupported")
-    os.lseek(archive.fileno(), 0, os.SEEK_SET)
+        if len(fields) >= 3 and fields[2] == b"DATABASE":
+            full_database_entry = True
+    if hasattr(archive, "manifest") and not full_database_entry:
+        raise RestoreError("backup archive is not a complete database dump")
+    os.lseek(archive.fileno(), offset, os.SEEK_SET)
     target.run_client(
         runner,
         "pg_restore",
@@ -2581,7 +3789,7 @@ def validate_archive(runner, target, archive, *, timeout=DEFAULT_READY_TIMEOUT):
         stdout=subprocess.DEVNULL,
         timeout=timeout,
     )
-    os.lseek(archive.fileno(), 0, os.SEEK_SET)
+    os.lseek(archive.fileno(), offset, os.SEEK_SET)
 
 
 def open_backup_directory(*, create):
@@ -2665,10 +3873,84 @@ def cleanup_backup_partials(state):
         os.close(directory_descriptor)
 
 
+def write_backup_header(output_descriptor, state, source):
+    if not isinstance(source, dict) or set(source) != {
+        "server",
+        "database",
+        "pg_dump_major",
+        "dependencies",
+    }:
+        raise RestoreError("database backup source metadata is invalid")
+    with os.fdopen(os.dup(output_descriptor), "rb") as archive:
+        archive.payload_offset = BACKUP_HEADER_SIZE
+        archive_digest = archive_payload_sha256(archive)
+    manifest = {
+        "version": BACKUP_FORMAT_VERSION,
+        "installation_id": state.installation_id,
+        "server": source["server"],
+        "database": source["database"],
+        "pg_dump_major": source["pg_dump_major"],
+        "full_dump": True,
+        "archive_sha256": archive_digest,
+        "dependencies": source["dependencies"],
+        "signature": "0" * 64,
+    }
+    validate_backup_manifest(manifest)
+    manifest["signature"] = hmac.new(
+        bytes.fromhex(state.maintenance_secret),
+        backup_manifest_payload(manifest),
+        hashlib.sha256,
+    ).hexdigest()
+    manifest_bytes = json.dumps(
+        manifest,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    if len(manifest_bytes) > BACKUP_MANIFEST_LIMIT:
+        raise RestoreError("database backup manifest is too large")
+    header = (
+        BACKUP_MAGIC
+        + struct.pack(">I", len(manifest_bytes))
+        + manifest_bytes
+    ).ljust(BACKUP_HEADER_SIZE, b"\x00")
+    position = 0
+    while position < len(header):
+        written = os.pwrite(output_descriptor, header[position:], position)
+        if written == 0:
+            raise RestoreError("database backup manifest could not be written")
+        position += written
+    return manifest
+
+
+def capture_pg_dump_major(runner, target, *, timeout):
+    result = target.run_client(
+        runner,
+        "pg_dump",
+        ("--version",),
+        capture_output=True,
+        timeout=timeout,
+    )
+    try:
+        output = result.stdout.decode().strip()
+        prefix = "pg_dump (PostgreSQL) "
+        if not output.startswith(prefix):
+            raise ValueError
+        version = output[len(prefix) :].split(None, 1)[0]
+        major = int(version.split(".", 1)[0])
+    except (UnicodeDecodeError, IndexError, ValueError) as error:
+        raise RestoreError("could not identify the PostgreSQL pg_dump client") from error
+    if major != SUPPORTED_POSTGRES_MAJOR:
+        raise RestoreError(
+            f"PostgreSQL pg_dump {SUPPORTED_POSTGRES_MAJOR} is required"
+        )
+    return major
+
+
 def create_backup(
     runner,
     target,
     state,
+    source,
     *,
     timeout=DEFAULT_COLD_START_TIMEOUT,
 ):
@@ -2692,11 +3974,18 @@ def create_backup(
             dir_fd=directory_descriptor,
         )
         os.fchmod(output_descriptor, 0o600)
+        position = 0
+        empty_header = b"\x00" * BACKUP_HEADER_SIZE
+        while position < len(empty_header):
+            written = os.write(output_descriptor, empty_header[position:])
+            if written == 0:
+                raise RestoreError("database backup header could not be reserved")
+            position += written
         pause_for_test("backup-created")
         target.run_client(
             runner,
             "pg_dump",
-            ("--format=custom",),
+            ("--format=custom", "--create"),
             database=target.name,
             connect=True,
             application_name=application_name(
@@ -2709,13 +3998,16 @@ def create_backup(
         )
         output_stat = os.fstat(output_descriptor)
         if (
-            output_stat.st_size == 0
+            output_stat.st_size <= BACKUP_HEADER_SIZE
             or output_stat.st_uid != BACKUP_OWNER_UID
             or stat.S_IMODE(output_stat.st_mode) != 0o600
         ):
             raise RestoreError("database backup output is invalid")
+        manifest = write_backup_header(output_descriptor, state, source)
         os.fsync(output_descriptor)
         with os.fdopen(os.dup(output_descriptor), "rb") as archive:
+            archive.payload_offset = BACKUP_HEADER_SIZE
+            archive.manifest = manifest
             validate_archive(runner, target, archive, timeout=timeout)
         os.replace(
             temporary_name,
@@ -2778,9 +4070,12 @@ def complete_rollback(state, database, services):
     database.restore_rollback()
     journal = state.load_journal()
     state.set_phase(journal, "rollback_warming")
+    database.verify_fence_integrity()
     services.warm_cache()
+    database.verify_fence_integrity()
     state.set_phase(journal, "rollback_validating")
     services.validate_application()
+    database.verify_fence_integrity()
     state.set_phase(journal, "rolled_back")
     expose_services(
         state,
@@ -2960,7 +4255,9 @@ def recover_restore(state, database, services):
             journal["database"], journal["application_role"]
         )
         services.warm_cache()
+        database.verify_fence_integrity()
         services.validate_application()
+        database.verify_fence_integrity()
         exposed_phase = (
             "committed_exposed"
             if journal["phase"] in FORWARD_TERMINAL_PHASES
@@ -2981,7 +4278,7 @@ def install_interrupt_handlers(runner, operation):
     signal.signal(signal.SIGTERM, interrupt)
 
 
-def restore(filename=None, *, prepare_recovery_only=False):
+def restore(filename=None, *, prepare_recovery_only=False, allow_migration=False):
     runner = CommandRunner()
     target = DatabaseTarget.from_environment()
     services = DockerServices(runner, target)
@@ -2997,19 +4294,31 @@ def restore(filename=None, *, prepare_recovery_only=False):
         if filename is None:
             return
         with open_archive(filename) as archive:
+            database.verify_maintenance_role_reusable()
+            database.verify_recreation_privileges()
+            target_identity = database.capture_target()
+            verify_backup_manifest(
+                archive,
+                state,
+                target,
+                target_identity["server"],
+                allow_migration=allow_migration,
+            )
             validate_archive(
                 runner,
                 target,
                 archive,
                 timeout=services.cold_start_timeout,
             )
-            database.verify_maintenance_role_reusable()
-            database.preflight_recreation()
-            application_role = database.verify_application_role()
+            database.verify_global_backup_dependencies(
+                archive.manifest["dependencies"]
+            )
             database.verify_fence_available()
+            database.preflight_recreation()
+            database.acquire_cluster_claims(target_identity["server"])
+            application_role = database.verify_application_role()
             pause_for_test("after-initial-preflight")
             snapshot = services.snapshot()
-            target_identity = database.capture_target()
             metadata = database.capture_metadata()
             journal = {
                 "version": 5,
@@ -3036,6 +4345,9 @@ def restore(filename=None, *, prepare_recovery_only=False):
                     application_role,
                     preflight=True,
                 )
+                database.verify_global_backup_dependencies(
+                    archive.manifest["dependencies"]
+                )
                 state.set_phase(journal, "fenced")
                 database.create_rollback()
                 with state.open_rollback() as rollback:
@@ -3051,7 +4363,9 @@ def restore(filename=None, *, prepare_recovery_only=False):
                 database.restore_archive(archive, metadata)
                 state.set_phase(journal, "restored")
                 state.set_phase(journal, "warming")
+                database.verify_fence_integrity()
                 services.warm_cache()
+                database.verify_fence_integrity()
                 state.set_phase(journal, "validating")
                 fail_after_validation = (
                     os.environ.get("DOJO_RESTORE_TEST_FAIL_APPLICATION_VALIDATION")
@@ -3060,6 +4374,7 @@ def restore(filename=None, *, prepare_recovery_only=False):
                 services.validate_application(
                     fail_after_validation=fail_after_validation
                 )
+                database.verify_fence_integrity()
                 state.set_phase(journal, "committed")
                 expose_services(
                     state,
@@ -3088,10 +4403,49 @@ def backup():
                 "database backup refused because restore recovery is pending"
             )
         cleanup_backup_partials(state)
+        services = type(
+            "BackupServices",
+            (),
+            {
+                "ready_timeout": configured_timeout(
+                    "DOJO_RESTORE_READY_TIMEOUT_SECONDS",
+                    DEFAULT_READY_TIMEOUT,
+                ),
+                "cold_start_timeout": configured_timeout(
+                    "DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS",
+                    DEFAULT_COLD_START_TIMEOUT,
+                ),
+                "target": target,
+            },
+        )()
+        database = DatabaseRestore(runner, state, services, target)
+        database.wait_ready()
+        database.verify_recreation_privileges()
+        target_identity = database.capture_target()
+        database.verify_maintenance_role_reusable()
+        database.verify_exclusive_cluster_topology()
+        metadata = database.capture_metadata()
+        dependencies = database.capture_backup_dependencies()
+        pg_dump_major = capture_pg_dump_major(
+            runner,
+            target,
+            timeout=services.ready_timeout,
+        )
+        database.acquire_cluster_claims(target_identity["server"])
+        source = {
+            "server": target_identity["server"],
+            "database": {
+                "name": target.name,
+                "metadata": metadata,
+            },
+            "pg_dump_major": pg_dump_major,
+            "dependencies": dependencies,
+        }
         filename = create_backup(
             runner,
             target,
             state,
+            source,
             timeout=configured_timeout(
                 "DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS",
                 DEFAULT_COLD_START_TIMEOUT,
@@ -3100,25 +4454,60 @@ def backup():
     print(f"Created backup at {BACKUP_DIRECTORY / filename}")
 
 
+def shutdown():
+    runner = CommandRunner()
+    install_interrupt_handlers(runner, "shutdown")
+    with RestoreState() as state:
+        pending_restore = state.load_journal() is not None
+        runner.run(
+            ["dojo", "compose", "stop" if pending_restore else "down"],
+            timeout=configured_timeout(
+                "DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS",
+                DEFAULT_COLD_START_TIMEOUT,
+            ),
+        )
+
+
+def validate_target_configuration():
+    DatabaseTarget.from_environment()
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(prog="dojo database maintenance")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--recover", action="store_true")
     mode.add_argument("--prepare-recovery", action="store_true")
     mode.add_argument("--backup", action="store_true")
+    mode.add_argument("--shutdown", action="store_true")
+    mode.add_argument("--validate-target", action="store_true")
     parser.add_argument("filename", nargs="?")
+    parser.add_argument("--allow-migration", action="store_true")
     arguments = parser.parse_args()
     if (
-        arguments.recover or arguments.prepare_recovery or arguments.backup
+        arguments.recover
+        or arguments.prepare_recovery
+        or arguments.backup
+        or arguments.shutdown
+        or arguments.validate_target
     ) and arguments.filename:
         parser.error("maintenance modes do not accept a backup filename")
     if (
         not arguments.recover
         and not arguments.prepare_recovery
         and not arguments.backup
+        and not arguments.shutdown
+        and not arguments.validate_target
         and not arguments.filename
     ):
         parser.error("a backup filename is required")
+    if arguments.allow_migration and (
+        arguments.recover
+        or arguments.prepare_recovery
+        or arguments.backup
+        or arguments.shutdown
+        or arguments.validate_target
+    ):
+        parser.error("--allow-migration requires a backup filename")
     return arguments
 
 
@@ -3127,10 +4516,15 @@ def main():
     try:
         if arguments.backup:
             backup()
+        elif arguments.shutdown:
+            shutdown()
+        elif arguments.validate_target:
+            validate_target_configuration()
         else:
             restore(
                 None if arguments.recover or arguments.prepare_recovery else arguments.filename,
                 prepare_recovery_only=arguments.prepare_recovery,
+                allow_migration=arguments.allow_migration,
             )
     except RestoreError as error:
         print(f"Error: {error}", file=sys.stderr)

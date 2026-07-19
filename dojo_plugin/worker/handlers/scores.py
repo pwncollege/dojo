@@ -132,6 +132,51 @@ def handle_scores_update(payload, event_timestamp=None):
     logger.info(f"Successfully updated scores cache for {len(dojos)} dojos")
 
 
-def initialize_all_scores():
+def initialize_all_scores(*, fail_on_error=False):
     logger.info("Initializing all scores...")
-    handle_scores_update({})
+    dojos = Dojos.query.filter(
+        or_(Dojos.data["type"].astext == "public", Dojos.official)
+    ).all()
+    initialized = {}
+    for dojo in dojos:
+        try:
+            cache_key = dojo_scores_cache_key(dojo.dojo_id)
+            dojo_data = calculate_dojo_scores(dojo.dojo_id)
+            set_cached_stat(
+                cache_key,
+                dojo_data,
+                raise_errors=fail_on_error,
+            )
+            initialized[cache_key] = dojo_data
+        except Exception as e:
+            logger.error(
+                f"Error initializing dojo scores for dojo_id {dojo.dojo_id}: {e}",
+                exc_info=True,
+            )
+            if fail_on_error:
+                raise
+        for module in dojo.modules:
+            try:
+                cache_key = module_scores_cache_key(
+                    dojo.dojo_id,
+                    module.module_index,
+                )
+                module_data = calculate_module_scores(
+                    dojo.dojo_id,
+                    module.module_index,
+                )
+                set_cached_stat(
+                    cache_key,
+                    module_data,
+                    raise_errors=fail_on_error,
+                )
+                initialized[cache_key] = module_data
+            except Exception as e:
+                logger.error(
+                    f"Error initializing module scores for dojo_id {dojo.dojo_id} "
+                    f"module {module.module_index}: {e}",
+                    exc_info=True,
+                )
+                if fail_on_error:
+                    raise
+    return initialized

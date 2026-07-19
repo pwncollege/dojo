@@ -27,12 +27,20 @@ def handle_container_stats_update(payload, event_timestamp=None):
     except Exception as e:
         logger.error(f"Error calculating container stats: {e}", exc_info=True)
 
-def initialize_all_container_stats():
+def initialize_all_container_stats(*, fail_on_error=False):
     logger.info("Initializing container stats...")
     try:
         container_data = calculate_container_stats()
-        set_cached_stat(CACHE_KEY_CONTAINERS, container_data)
+        set_cached_stat(
+            CACHE_KEY_CONTAINERS,
+            container_data,
+            raise_errors=fail_on_error,
+        )
         container_count = len(container_data)
         logger.info(f"Initialized container stats ({container_count} containers)")
+        return {CACHE_KEY_CONTAINERS: container_data}
     except Exception as e:
         logger.error(f"Error initializing container stats: {e}", exc_info=True)
+        if fail_on_error:
+            raise
+        return {}

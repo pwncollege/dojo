@@ -208,6 +208,42 @@ def server_identity():
     }
 
 
+def backup_dependencies():
+    def role(name, *, superuser=False, login=False):
+        return {
+            "name": name,
+            "superuser": superuser,
+            "inherit": True,
+            "create_db": superuser,
+            "create_role": superuser,
+            "login": login,
+            "replication": False,
+            "bypass_rls": False,
+            "connection_limit": -1,
+            "valid_until": None,
+            "config": [],
+        }
+
+    return {
+        "roles": [
+            role("ctfd", superuser=True, login=True),
+            role("reader"),
+        ],
+        "memberships": [],
+        "default_acls": [],
+        "tablespaces": [],
+    }
+
+
+def backup_source():
+    return {
+        "server": server_identity(),
+        "database": {"name": "ctfd", "metadata": database_metadata()},
+        "pg_dump_major": RESTORE_MODULE.SUPPORTED_POSTGRES_MAJOR,
+        "dependencies": backup_dependencies(),
+    }
+
+
 def journal_target():
     return database_target().journal_target(server_identity())
 
@@ -425,6 +461,9 @@ class RecordingDatabase:
     def restore_rollback(self):
         self.events.append(("restore_rollback",))
 
+    def verify_fence_integrity(self):
+        pass
+
 
 def test_version_one_legacy_service_snapshot_remains_loadable():
     RESTORE_MODULE.RestoreState()._validate_journal(
@@ -545,7 +584,7 @@ def test_docker_services_reject_legacy_snapshots_before_commands(method_name):
     assert runner.calls == []
 
 
-def test_startup_snapshot_handles_database_outage_but_rejects_partial_clients(
+def test_startup_snapshot_handles_database_outage_and_defers_partial_deployment(
     monkeypatch,
 ):
     services = RESTORE_MODULE.DockerServices(UnreadyRunner(), database_target())
@@ -573,11 +612,7 @@ def test_startup_snapshot_handles_database_outage_but_rejects_partial_clients(
         "inspect",
         lambda service: None if service == "nginx" else running_state(service),
     )
-    with pytest.raises(
-        RESTORE_MODULE.RestoreError,
-        match="startup recovery requires every tracked container: nginx",
-    ):
-        services.snapshot_for_startup()
+    assert services.snapshot_for_startup() is None
 
 
 def test_startup_database_snapshot_distinguishes_absent_and_stopped(monkeypatch):
@@ -1298,6 +1333,44 @@ def test_terminal_recovery_refences_before_validation_and_release():
     assert events[-2:] == [("set_phase", "committed_exposed"), ("cleanup",)]
 
 
+def test_incomplete_cache_warmup_keeps_terminal_recovery_retryable():
+    events = []
+    state = RecordingState(restore_journal("committed"), events)
+
+    class FailOnceServices(RecordingServices):
+        def __init__(self):
+            super().__init__(events, pgbouncer_running=False)
+            self.fail = True
+
+        def warm_cache(self):
+            super().warm_cache()
+            if self.fail:
+                self.fail = False
+                raise RESTORE_MODULE.RestoreError(
+                    "injected required cache family failure"
+                )
+
+    services = FailOnceServices()
+    database = RecordingDatabase(events)
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="required cache family failure",
+    ):
+        RESTORE_MODULE.recover_restore(state, database, services)
+
+    assert state.journal["phase"] == "committed"
+    assert ("release_fence",) not in events
+    assert ("restore_snapshot", set(RESTORE_MODULE.SNAPSHOT_SERVICES)) not in events
+    assert ("cleanup",) not in events
+
+    RESTORE_MODULE.recover_restore(state, database, services)
+
+    assert events.count(("warm_cache",)) == 2
+    assert state.journal["phase"] == "committed_exposed"
+    assert events[-2:] == [("set_phase", "committed_exposed"), ("cleanup",)]
+
+
 def test_snapshotting_recovery_releases_without_completing_the_fence():
     events = []
     state = RecordingState(restore_journal("snapshotting"), events)
@@ -1319,12 +1392,7 @@ def test_snapshotting_recovery_releases_without_completing_the_fence():
 
 
 def test_database_identity_rejects_replacement_and_unexpected_absence(monkeypatch):
-    class Services:
-        ready_timeout = 2
-
-    database = RESTORE_MODULE.DatabaseRestore(
-        None, None, Services(), database_target()
-    )
+    database = maintenance_role_database()
     journal = restore_journal("ready")
     monkeypatch.setattr(
         database,
@@ -1415,6 +1483,8 @@ def test_application_role_is_disabled_and_restored_idempotently(monkeypatch):
                 ).encode(),
                 b"",
             )
+        if "SELECT count(*) FROM pg_stat_activity" in sql:
+            return subprocess.CompletedProcess([], 0, b"0\n", b"")
         return subprocess.CompletedProcess([], 0, b"", b"")
 
     monkeypatch.setattr(database, "psql", psql)
@@ -1423,7 +1493,11 @@ def test_application_role_is_disabled_and_restored_idempotently(monkeypatch):
     database.disable_application_role(role)
     database.restore_application_role(role)
 
-    assert 'ALTER ROLE "ctfd" NOLOGIN;' in statements
+    disable_statement = next(
+        statement for statement in statements if 'ALTER ROLE "ctfd" NOLOGIN;' in statement
+    )
+    assert "pg_terminate_backend" in disable_statement
+    assert "datname" not in disable_statement
     assert 'ALTER ROLE "ctfd" LOGIN;' in statements
 
 
@@ -1956,7 +2030,15 @@ def test_cache_warm_uses_only_the_private_validator(monkeypatch):
     monkeypatch.setattr(
         services,
         "run_private_validation",
-        lambda name, program, timeout: validations.append((name, program, timeout)),
+        lambda name, program, timeout: (
+            validations.append((name, program, timeout))
+            or subprocess.CompletedProcess(
+                [],
+                0,
+                RESTORE_MODULE.CACHE_VALIDATION_MARKER,
+                b"",
+            )
+        ),
     )
 
     services.warm_cache()
@@ -1969,6 +2051,83 @@ def test_cache_warm_uses_only_the_private_validator(monkeypatch):
             services.cold_start_timeout,
         )
     ]
+
+
+def test_cache_warm_synchronously_persists_restored_state(monkeypatch):
+    class CacheRunner:
+        def __init__(self):
+            self.calls = []
+
+        def run(self, arguments, **_options):
+            self.calls.append(arguments)
+            if "EXISTS" in arguments:
+                output = b"3\n"
+            else:
+                output = b"OK\n"
+            return subprocess.CompletedProcess(arguments, 0, output, b"")
+
+    runner = CacheRunner()
+    services = RESTORE_MODULE.DockerServices(runner, database_target())
+    monkeypatch.setattr(services, "start", lambda _service: None)
+    monkeypatch.setattr(services, "wait_cache", lambda: None)
+    monkeypatch.setattr(
+        services,
+        "run_private_validation",
+        lambda *_args: subprocess.CompletedProcess(
+            [],
+            0,
+            RESTORE_MODULE.CACHE_VALIDATION_MARKER,
+            b"",
+        ),
+    )
+
+    services.warm_cache()
+
+    flush_index = next(i for i, call in enumerate(runner.calls) if "FLUSHDB" in call)
+    save_index = next(i for i, call in enumerate(runner.calls) if "SAVE" in call)
+    exists_index = next(i for i, call in enumerate(runner.calls) if "EXISTS" in call)
+    assert flush_index < exists_index < save_index
+
+
+def test_cache_warm_requires_the_complete_cache_contract_marker(monkeypatch):
+    class CacheRunner:
+        def run(self, arguments, **_options):
+            output = b"3\n" if "EXISTS" in arguments else b"OK\n"
+            return subprocess.CompletedProcess(arguments, 0, output, b"")
+
+    services = RESTORE_MODULE.DockerServices(CacheRunner(), database_target())
+    monkeypatch.setattr(services, "start", lambda _service: None)
+    monkeypatch.setattr(services, "wait_cache", lambda: None)
+    monkeypatch.setattr(
+        services,
+        "run_private_validation",
+        lambda *_args: subprocess.CompletedProcess([], 0, b"incomplete", b""),
+    )
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="every required cache family",
+    ):
+        services.warm_cache()
+
+
+def test_cache_validation_contract_is_strict_for_every_initializer():
+    compile(RESTORE_MODULE.CACHE_VALIDATION_PROGRAM, "cache-validation", "exec")
+    for family in (
+        "dojo-stats",
+        "scoreboards",
+        "scores",
+        "belts",
+        "emojis",
+        "containers",
+        "activity",
+    ):
+        assert f'"{family}"' in RESTORE_MODULE.CACHE_VALIDATION_PROGRAM
+    assert RESTORE_MODULE.CACHE_VALIDATION_PROGRAM.count(
+        "fail_on_error=True"
+    ) == 7
+    assert 'scan_iter(match="stats:*")' in RESTORE_MODULE.CACHE_VALIDATION_PROGRAM
+    assert "actual_value != canonical_expected" in RESTORE_MODULE.CACHE_VALIDATION_PROGRAM
 
 
 def test_application_validation_failure_injection_preserves_real_validation(
@@ -2022,6 +2181,10 @@ def test_private_validator_is_unpublished_labeled_and_secret_free(monkeypatch):
         lambda: lifecycle.append("cleanup_private_validation"),
     )
     monkeypatch.setattr(services, "direct_database_url", lambda: database_url)
+    monkeypatch.setenv(
+        RESTORE_MODULE.CACHE_VALIDATION_TEST_ENVIRONMENT,
+        "scoreboards",
+    )
 
     services.run_private_validation("application", "validation program", 17)
 
@@ -2030,6 +2193,8 @@ def test_private_validator_is_unpublished_labeled_and_secret_free(monkeypatch):
     assert "--no-deps" in arguments
     assert "--service-ports" not in arguments
     assert f"{RESTORE_MODULE.PRIVATE_VALIDATION_LABEL}=1" in arguments
+    assert arguments.count("--env") == 2
+    assert RESTORE_MODULE.CACHE_VALIDATION_TEST_ENVIRONMENT in arguments
     assert database_url not in arguments
     assert options["environment"]["DATABASE_URL"] == database_url
     assert options["timeout"] == 17
@@ -2041,7 +2206,10 @@ def test_private_validator_is_unpublished_labeled_and_secret_free(monkeypatch):
     ]
 
 
-def test_database_target_uses_configured_endpoint_without_password_in_arguments():
+def test_database_target_uses_verified_endpoint_without_password_in_arguments(
+    monkeypatch,
+    tmp_path,
+):
     class TargetRunner:
         def __init__(self):
             self.calls = []
@@ -2052,12 +2220,22 @@ def test_database_target_uses_configured_endpoint_without_password_in_arguments(
 
     runner = TargetRunner()
     password = "private password';--"
+    tls_directory = tmp_path / "postgres-tls"
+    tls_directory.mkdir(mode=0o755)
+    root_certificate = tls_directory / "root.crt"
+    root_certificate.write_bytes(b"trusted root certificate")
+    root_certificate.chmod(0o644)
+    monkeypatch.setattr(RESTORE_MODULE, "DATABASE_TLS_DIRECTORY", tls_directory)
+    monkeypatch.setattr(RESTORE_MODULE, "DATABASE_TLS_OWNER_UID", os.getuid())
     target = RESTORE_MODULE.DatabaseTarget(
         "external-postgres",
         5544,
         "dojo_database",
         "maintenance_user",
         password,
+        sslmode="verify-full",
+        sslrootcert=str(root_certificate),
+        trusted_local=False,
     )
     target.run_client(
         runner,
@@ -2076,6 +2254,8 @@ def test_database_target_uses_configured_endpoint_without_password_in_arguments(
     assert password not in arguments
     assert all(password not in argument for argument in arguments)
     assert options["environment"]["PGPASSWORD"] == password
+    assert options["environment"]["PGSSLMODE"] == "verify-full"
+    assert options["environment"]["PGSSLROOTCERT"] == str(root_certificate)
     assert options["environment"]["PGAPPNAME"] == (
         RESTORE_MODULE.BACKUP_APPLICATION_NAME
     )
@@ -2089,6 +2269,136 @@ def test_database_target_uses_configured_endpoint_without_password_in_arguments(
         match="require an application name",
     ):
         target.run_client(runner, "psql", connect=True)
+
+
+def test_database_target_rejects_unverified_remote_password_connections():
+    for sslmode in ("", "allow", "prefer", "require", "verify-ca"):
+        with pytest.raises(RESTORE_MODULE.RestoreError, match="TLS mode"):
+            RESTORE_MODULE.DatabaseTarget(
+                "database.example",
+                5432,
+                "ctfd",
+                "ctfd",
+                "secret",
+                sslmode=sslmode,
+                trusted_local=False,
+            )
+
+    with pytest.raises(RESTORE_MODULE.RestoreError, match="trusted local hosts"):
+        RESTORE_MODULE.DatabaseTarget(
+            "database.example",
+            5432,
+            "ctfd",
+            "ctfd",
+            "secret",
+            sslmode="disable",
+            trusted_local=True,
+        )
+
+
+def test_database_target_requires_explicit_environment_trust(monkeypatch):
+    for field in ("DB_SSLMODE", "DB_SSLROOTCERT", "DB_TRUSTED_LOCAL"):
+        monkeypatch.delenv(field, raising=False)
+
+    with pytest.raises(RESTORE_MODULE.RestoreError, match="explicitly"):
+        RESTORE_MODULE.DatabaseTarget.from_environment()
+
+    monkeypatch.setenv("DB_SSLMODE", "disable")
+    monkeypatch.setenv("DB_TRUSTED_LOCAL", "true")
+    target = RESTORE_MODULE.DatabaseTarget.from_environment()
+    assert target.configuration()["trusted_local"] is True
+    assert target.configuration()["sslmode"] == "disable"
+
+
+def test_database_tls_identity_is_journaled_and_rechecked_before_password_use(
+    monkeypatch,
+    tmp_path,
+):
+    class TargetRunner:
+        def __init__(self):
+            self.calls = []
+
+        def run(self, arguments, **options):
+            self.calls.append((arguments, options))
+            return subprocess.CompletedProcess(arguments, 0, b"", b"")
+
+    tls_directory = tmp_path / "postgres-tls"
+    tls_directory.mkdir(mode=0o755)
+    root_certificate = tls_directory / "root.crt"
+    root_certificate.write_bytes(b"expected certificate authority")
+    root_certificate.chmod(0o644)
+    monkeypatch.setattr(RESTORE_MODULE, "DATABASE_TLS_DIRECTORY", tls_directory)
+    monkeypatch.setattr(RESTORE_MODULE, "DATABASE_TLS_OWNER_UID", os.getuid())
+    target = RESTORE_MODULE.DatabaseTarget(
+        "database.example",
+        5432,
+        "ctfd",
+        "ctfd",
+        "secret",
+        sslmode="verify-full",
+        sslrootcert=str(root_certificate),
+        trusted_local=False,
+    )
+    journal_target = target.journal_target(server_identity())
+
+    assert journal_target["sslmode"] == "verify-full"
+    assert journal_target["sslrootcert"] == str(root_certificate)
+    assert journal_target["sslrootcert_sha256"] == (
+        RESTORE_MODULE.hashlib.sha256(b"expected certificate authority").hexdigest()
+    )
+    RESTORE_MODULE.validate_database_target(journal_target)
+
+    root_certificate.write_bytes(b"attacker certificate authority")
+    runner = TargetRunner()
+    with pytest.raises(RESTORE_MODULE.RestoreError, match="identity changed"):
+        target.run_client(
+            runner,
+            "psql",
+            connect=True,
+            application_name="test",
+        )
+    assert runner.calls == []
+
+
+def test_verified_database_target_rejects_non_dns_host_and_untrusted_ca_path(
+    monkeypatch,
+    tmp_path,
+):
+    tls_directory = tmp_path / "postgres-tls"
+    tls_directory.mkdir(mode=0o755)
+    root_certificate = tls_directory / "root.crt"
+    root_certificate.write_bytes(b"trusted root certificate")
+    root_certificate.chmod(0o644)
+    monkeypatch.setattr(RESTORE_MODULE, "DATABASE_TLS_DIRECTORY", tls_directory)
+    monkeypatch.setattr(RESTORE_MODULE, "DATABASE_TLS_OWNER_UID", os.getuid())
+
+    for host in ("192.0.2.10", "/var/run/postgresql", "db.example,attacker"):
+        with pytest.raises(RESTORE_MODULE.RestoreError, match="certificate hostname"):
+            RESTORE_MODULE.DatabaseTarget(
+                host,
+                5432,
+                "ctfd",
+                "ctfd",
+                "secret",
+                sslmode="verify-full",
+                sslrootcert=str(root_certificate),
+                trusted_local=False,
+            )
+
+    outside_certificate = tmp_path / "outside.crt"
+    outside_certificate.write_bytes(b"untrusted root certificate")
+    outside_certificate.chmod(0o644)
+    with pytest.raises(RESTORE_MODULE.RestoreError, match="directly beneath"):
+        RESTORE_MODULE.DatabaseTarget(
+            "database.example",
+            5432,
+            "ctfd",
+            "ctfd",
+            "secret",
+            sslmode="verify-full",
+            sslrootcert=str(outside_certificate),
+            trusted_local=False,
+        )
 
 
 def test_restore_psql_is_tagged_and_termination_covers_every_helper_session():
@@ -2238,6 +2548,7 @@ def test_server_fence_survives_database_recreation_until_release(monkeypatch):
         "restore_application_role",
         lambda _role: statements.append("restore-application-role"),
     )
+    monkeypatch.setattr(database, "verify_fence_integrity", lambda: None)
 
     metadata = database_metadata()
     metadata["allow_connections"] = False
@@ -2247,43 +2558,26 @@ def test_server_fence_survives_database_recreation_until_release(monkeypatch):
     database.release_fence(metadata, role)
 
     assert statements[0] == 'ALTER DATABASE "ctfd" ALLOW_CONNECTIONS false;'
-    assert statements[1] == "drain"
-    assert statements[2] == "disable-application-role"
-    assert statements[3] == (
-        'ALTER DATABASE "ctfd" RENAME TO '
-        f'"{database.fenced_database_name}";'
+    assert statements[1:3] == ["drain", "disable-application-role"]
+    rename = statements[3]
+    assert 'ALTER DATABASE "ctfd" OWNER TO "dojo_restore_' in rename
+    assert 'ALTER DATABASE "ctfd" IS_TEMPLATE false;' in rename
+    assert f'RENAME TO "{database.fenced_database_name}"' in rename
+    assert 'OWNER TO "dojo_restore_' in statements[4]
+    assert 'IS_TEMPLATE false' in statements[4]
+    create = next(statement for statement in statements if "CREATE DATABASE" in statement)
+    assert f'OWNER = "{database.maintenance_target.user}"' in create
+    assert "IS_TEMPLATE = false" in create
+    assert "ALLOW_CONNECTIONS = true" in create
+    release_owner = (
+        f'ALTER DATABASE "{database.fenced_database_name}" OWNER TO "ctfd";'
     )
-    assert statements[4] == (
-        f'ALTER DATABASE "{database.fenced_database_name}" CONNECTION LIMIT 0;'
-        f'REVOKE CONNECT ON DATABASE "{database.fenced_database_name}" '
-        'FROM PUBLIC, "ctfd";'
-        f'ALTER DATABASE "{database.fenced_database_name}" '
-        'ALLOW_CONNECTIONS true;'
-    )
-    assert statements[5] == "drain"
-    assert (
-        f'DROP DATABASE IF EXISTS "{database.fenced_database_name}";'
-        == statements[6]
-    )
-    assert "ALLOW_CONNECTIONS = true" in statements[7]
-    assert "CONNECTION LIMIT = 0" in statements[7]
-    assert "CONNECTION LIMIT = -1" not in statements[7]
-    assert statements[8] == (
-        f'ALTER DATABASE "{database.fenced_database_name}" '
-        'ALLOW_CONNECTIONS false;'
-    )
-    assert statements[9] == "drain"
-    assert statements[10].startswith(
-        f'REVOKE ALL ON DATABASE "{database.fenced_database_name}" FROM PUBLIC;'
-    )
-    assert 'GRANT CONNECT ON DATABASE' in statements[10]
-    assert statements[11] == (
-        f'ALTER DATABASE "{database.fenced_database_name}" CONNECTION LIMIT -1;'
-        f'ALTER DATABASE "{database.fenced_database_name}" '
-        'ALLOW_CONNECTIONS false;'
-        f'ALTER DATABASE "{database.fenced_database_name}" RENAME TO "ctfd";'
-    )
-    assert statements[12] == "restore-application-role"
+    assert release_owner in statements
+    acl = next(statement for statement in statements if "GRANTED BY CURRENT_USER" in statement)
+    assert "REVOKE ALL" in acl
+    assert "CASCADE" in acl
+    assert "SET ROLE \"ctfd\"" in acl
+    assert statements[-1] == "restore-application-role"
 
 
 def test_server_fence_preflights_after_denial_and_drain(monkeypatch):
@@ -2330,6 +2624,7 @@ def test_server_fence_preflights_after_denial_and_drain(monkeypatch):
         "disable_application_role",
         lambda _role: events.append("disable-application-role"),
     )
+    monkeypatch.setattr(database, "verify_fence_integrity", lambda: None)
 
     database.establish_fence(
         database_metadata(),
@@ -2342,11 +2637,10 @@ def test_server_fence_preflights_after_denial_and_drain(monkeypatch):
         "drain",
         ("preflight", "ctfd"),
         "disable-application-role",
-        (
-            'ALTER DATABASE "ctfd" RENAME TO '
-            f'"{database.fenced_database_name}";'
-        ),
+        ("preflight", "ctfd"),
     ]
+    assert f'RENAME TO "{database.fenced_database_name}"' in events[5]
+    assert "IS_TEMPLATE false" in events[5]
 
 
 def test_release_fence_restores_a_denied_original_database(monkeypatch):
@@ -2391,8 +2685,10 @@ def test_release_fence_restores_a_denied_original_database(monkeypatch):
     database.release_fence(metadata, {"name": "ctfd", "login": True})
 
     assert statements == [
+        'ALTER DATABASE "ctfd" OWNER TO "ctfd";',
         "UPDATE pg_database SET datacl = NULL WHERE datname = E'ctfd';",
         'ALTER DATABASE "ctfd" CONNECTION LIMIT 777;'
+        'ALTER DATABASE "ctfd" IS_TEMPLATE false;'
         'ALTER DATABASE "ctfd" ALLOW_CONNECTIONS true;',
         "restore-application-role",
     ]
@@ -2439,6 +2735,8 @@ def test_server_fence_resumes_from_a_disabled_renamed_database(monkeypatch):
         lambda _role: statements.append("disable-application-role"),
     )
 
+    monkeypatch.setattr(database, "verify_fence_integrity", lambda: None)
+
     database.establish_fence(
         database_metadata(), {"name": "ctfd", "login": True}
     )
@@ -2450,6 +2748,8 @@ def test_server_fence_resumes_from_a_disabled_renamed_database(monkeypatch):
     assert statements[1] == "drain"
     assert statements[2] == "disable-application-role"
     assert statements[3].endswith("ALLOW_CONNECTIONS true;")
+    assert f'OWNER TO "{database.maintenance_target.user}"' in statements[3]
+    assert "IS_TEMPLATE false" in statements[3]
 
 
 def test_maintenance_role_cannot_equal_application_role():
@@ -2516,6 +2816,114 @@ def maintenance_role_record(database, *, login, **overrides):
     }
     role.update(overrides)
     return role
+
+
+def cluster_claim_record(role_name, provenance):
+    return {
+        "name": role_name,
+        "comment": provenance,
+        "superuser": False,
+        "inherit": True,
+        "create_db": False,
+        "create_role": False,
+        "login": False,
+        "replication": False,
+        "bypass_rls": False,
+        "connection_limit": -1,
+        "valid_until_null": True,
+        "config_null": True,
+        "memberships": 0,
+    }
+
+
+def test_cluster_claims_are_atomic_and_installation_owned(monkeypatch):
+    database = maintenance_role_database()
+    expected = database.cluster_claims(server_identity())
+    records = {}
+    statements = []
+    monkeypatch.setattr(database, "capture_cluster_claim", records.get)
+
+    def create_claims(statement, **_options):
+        statements.append(statement)
+        records.update(
+            {
+                name: cluster_claim_record(name, provenance)
+                for name, provenance in expected.items()
+            }
+        )
+
+    monkeypatch.setattr(database, "psql_private", create_claims)
+    database.acquire_cluster_claims(server_identity())
+
+    assert len(statements) == 1
+    assert statements[0].startswith("BEGIN;")
+    assert statements[0].endswith("COMMIT;")
+    assert all(name in statements[0] for name in expected)
+
+    other_database = maintenance_role_database()
+    wrong_records = {
+        name: cluster_claim_record(name, "another installation") for name in expected
+    }
+    monkeypatch.setattr(other_database, "capture_cluster_claim", wrong_records.get)
+    writes = []
+    monkeypatch.setattr(other_database, "psql_private", writes.append)
+    with pytest.raises(RESTORE_MODULE.RestoreError, match="claimed by another"):
+        other_database.acquire_cluster_claims(server_identity())
+    assert writes == []
+
+
+def test_cluster_claim_role_is_shared_across_database_names_for_same_role():
+    first = maintenance_role_database()
+    second = maintenance_role_database()
+    second.database_name = "other"
+    first_claims = first.cluster_claims(server_identity())
+    second_claims = second.cluster_claims(server_identity())
+    role_claim = RESTORE_MODULE.cluster_claim_role_name(
+        "role", server_identity(), "ctfd"
+    )
+
+    assert role_claim in first_claims
+    assert role_claim in second_claims
+    assert set(first_claims) != set(second_claims)
+
+
+def test_fence_integrity_rejects_owner_session_and_privilege_escape(monkeypatch):
+    database = maintenance_role_database()
+    database.use_fenced_maintenance_target()
+    safe = {
+        "owner": database.maintenance_target.user,
+        "is_template": False,
+        "allow_connections": True,
+        "connection_limit": 0,
+        "application_superuser": True,
+        "application_login": False,
+        "application_sessions": 0,
+        "unexpected_privileged_roles": 0,
+    }
+
+    def result(payload):
+        return subprocess.CompletedProcess([], 0, json.dumps(payload).encode(), b"")
+
+    monkeypatch.setattr(database, "psql", lambda _sql: result(safe))
+    database.verify_fence_integrity()
+
+    for field, value in (
+        ("owner", "ctfd"),
+        ("is_template", True),
+        ("allow_connections", False),
+        ("connection_limit", -1),
+        ("application_superuser", False),
+        ("application_login", True),
+        ("application_sessions", 1),
+        ("unexpected_privileged_roles", 1),
+    ):
+        monkeypatch.setattr(
+            database,
+            "psql",
+            lambda _sql, field=field, value=value: result({**safe, field: value}),
+        )
+        with pytest.raises(RESTORE_MODULE.RestoreError, match="integrity was lost"):
+            database.verify_fence_integrity()
 
 
 def test_unrelated_maintenance_role_collision_is_never_mutated(monkeypatch):
@@ -2675,7 +3083,6 @@ def test_restore_rejects_role_collision_before_mutating_preflight(monkeypatch):
         "lock",
         "recover",
         "cleanup-partials",
-        "validate-archive",
         "verify-maintenance-role",
         "unlock",
     ]
@@ -2846,13 +3253,7 @@ def test_private_validation_cleanup_removes_its_labeled_orphan():
 def test_database_recreation_preserves_metadata(monkeypatch):
     metadata = database_metadata()
     metadata["allow_connections"] = False
-
-    class Services:
-        ready_timeout = 2
-
-    database = RESTORE_MODULE.DatabaseRestore(
-        None, None, Services(), database_target()
-    )
+    database = maintenance_role_database()
     statements = []
     monkeypatch.setattr(database, "drain_database", lambda *_arguments: None)
     monkeypatch.setattr(database, "psql", lambda sql: statements.append(sql))
@@ -2863,11 +3264,10 @@ def test_database_recreation_preserves_metadata(monkeypatch):
     assert statements[0] == 'DROP DATABASE IF EXISTS "ctfd";'
     assert "CREATE DATABASE \"ctfd\" WITH" in statements[1]
     assert "TEMPLATE = template0" in statements[1]
-    assert "OWNER = \"ctfd\"" in statements[1]
+    assert f'OWNER = "{database.maintenance_target.user}"' in statements[1]
     assert "ALLOW_CONNECTIONS = true" in statements[1]
     assert "OID = 20000" in statements[1]
     assert "COLLATION_VERSION = E'2.39'" in statements[1]
-    assert 'REVOKE ALL ON DATABASE "ctfd" FROM PUBLIC' in statements[2]
     escaped_value = RESTORE_MODULE.sql_literal(metadata["comment"])
     assert f'COMMENT ON DATABASE "ctfd" IS {escaped_value}' in statements[2]
     assert (
@@ -2887,12 +3287,7 @@ def test_database_recreation_preserves_metadata(monkeypatch):
 def test_database_recreation_interruption_hook_sleeps_between_drop_and_create(
     monkeypatch,
 ):
-    class Services:
-        ready_timeout = 2
-
-    database = RESTORE_MODULE.DatabaseRestore(
-        None, None, Services(), database_target()
-    )
+    database = maintenance_role_database()
     statements = []
     monkeypatch.setattr(database, "drain_database", lambda *_arguments: None)
     monkeypatch.setattr(database, "psql", statements.append)
@@ -2912,6 +3307,204 @@ def test_sql_literal_is_setting_independent():
     )
 
 
+def test_template_database_metadata_is_rejected_before_recreation(monkeypatch):
+    metadata = database_metadata()
+    metadata["is_template"] = True
+    database = maintenance_role_database()
+    mutations = []
+    monkeypatch.setattr(database, "drain_database", lambda *_args: mutations.append("drain"))
+    monkeypatch.setattr(database, "psql", lambda sql: mutations.append(sql))
+
+    with pytest.raises(RESTORE_MODULE.RestoreError, match="template databases"):
+        database.recreate_database(metadata)
+    assert mutations == []
+
+
+def test_database_acl_replay_preserves_delegated_grantors_and_cascade_ordering():
+    metadata = database_metadata()
+    metadata["acl"] = [
+        {
+            "grantor": "ctfd",
+            "grantee": "reader",
+            "privilege": "CONNECT",
+            "grantable": True,
+        },
+        {
+            "grantor": "reader",
+            "grantee": "student",
+            "privilege": "CONNECT",
+            "grantable": False,
+        },
+    ]
+    RESTORE_MODULE.validate_database_metadata(metadata)
+    database = maintenance_role_database()
+    statements = database.database_acl_statements(metadata, '"ctfd"')
+    sql = ";".join(statements)
+
+    assert sql.startswith('BEGIN;REVOKE ALL ON DATABASE "ctfd" FROM PUBLIC CASCADE')
+    assert 'SET ROLE "ctfd";GRANT CONNECT ON DATABASE "ctfd" TO "reader" ' in sql
+    assert "WITH GRANT OPTION GRANTED BY CURRENT_USER" in sql
+    assert 'SET ROLE "reader";GRANT CONNECT ON DATABASE "ctfd" TO "student" ' in sql
+    assert sql.index('SET ROLE "ctfd"') < sql.index('SET ROLE "reader"')
+    assert statements[-1] == "COMMIT"
+
+    metadata["acl"][0]["grantor"] = "unreachable"
+    with pytest.raises(RESTORE_MODULE.RestoreError, match="grant chain"):
+        RESTORE_MODULE.validate_database_metadata(metadata)
+
+
+def test_global_dependency_preflight_seeds_every_manifest_role(monkeypatch):
+    expected = backup_dependencies()
+    role_template = expected["roles"][1]
+    expected["roles"].extend(
+        {**role_template, "name": name}
+        for name in (
+            "analyst",
+            "default_owner",
+            "default_grantor",
+            "default_grantee",
+            "tablespace_owner",
+            "tablespace_grantor",
+            "tablespace_grantee",
+        )
+    )
+    expected["memberships"] = [
+        {
+            "role": "reader",
+            "member": "analyst",
+            "grantor": "ctfd",
+            "admin_option": False,
+            "inherit_option": True,
+            "set_option": True,
+        }
+    ]
+    expected["default_acls"] = [
+        {
+            "owner": "default_owner",
+            "schema": None,
+            "object_type": "r",
+            "grantor": "default_grantor",
+            "grantee": "default_grantee",
+            "privilege": "SELECT",
+            "grantable": False,
+        }
+    ]
+    expected["tablespaces"] = [
+        {
+            "name": "archive_space",
+            "owner": "tablespace_owner",
+            "location": "/data/postgres-tablespaces/archive-space",
+            "options": [],
+            "acl_default": False,
+            "acl": [
+                {
+                    "grantor": "tablespace_grantor",
+                    "grantee": "tablespace_grantee",
+                    "privilege": "CREATE",
+                    "grantable": False,
+                }
+            ],
+        }
+    ]
+    seeds = []
+
+    def capture(required_role_names=()):
+        seeds.append(set(required_role_names))
+        return expected
+
+    database = maintenance_role_database()
+    monkeypatch.setattr(database, "capture_backup_dependencies", capture)
+
+    database.verify_global_backup_dependencies(expected)
+
+    assert seeds == [
+        {
+            "ctfd",
+            "reader",
+            "analyst",
+            "default_owner",
+            "default_grantor",
+            "default_grantee",
+            "tablespace_owner",
+            "tablespace_grantor",
+            "tablespace_grantee",
+        }
+    ]
+
+
+def test_pending_recovery_accepts_postgresql_minor_upgrade(monkeypatch):
+    database = maintenance_role_database()
+    expected = journal_target()
+    current = {
+        **expected["server"],
+        "server_version_num": 170006,
+    }
+    claims = []
+    monkeypatch.setattr(database, "verify_configured_target", lambda _target: None)
+    monkeypatch.setattr(database, "capture_server_identity", lambda: current)
+    monkeypatch.setattr(database, "acquire_cluster_claims", claims.append)
+
+    database.verify_target(expected)
+
+    assert claims == [expected["server"]]
+
+
+def test_postgresql_16_is_rejected_before_metadata_or_artifact_work(monkeypatch):
+    database = maintenance_role_database()
+    identity = {
+        "system_identifier": server_identity()["system_identifier"],
+        "server_version_num": 160010,
+    }
+    monkeypatch.setattr(
+        database,
+        "psql",
+        lambda _sql: subprocess.CompletedProcess(
+            [], 0, json.dumps(identity).encode(), b""
+        ),
+    )
+    work = []
+    monkeypatch.setattr(database, "capture_metadata", lambda: work.append("metadata"))
+
+    with pytest.raises(RESTORE_MODULE.RestoreError, match="PostgreSQL 17 is required"):
+        database.capture_server_identity()
+    assert work == []
+
+
+@pytest.mark.parametrize(
+    ("override", "message"),
+    [
+        ({"other_owned_databases": 1}, "shared by another database"),
+        ({"application_memberships": 1}, "must not have role memberships"),
+        ({"other_application_sessions": 1}, "sessions in another database"),
+        ({"privileged_roles": ["other_admin"]}, "exclusive PostgreSQL cluster"),
+    ],
+)
+def test_database_preflight_rejects_nonexclusive_cluster_topology(
+    monkeypatch,
+    override,
+    message,
+):
+    database = maintenance_role_database()
+    topology = {
+        "owner": "ctfd",
+        "other_owned_databases": 0,
+        "privileged_roles": [],
+        "application_memberships": 0,
+        "other_application_sessions": 0,
+        **override,
+    }
+    monkeypatch.setattr(
+        database,
+        "psql",
+        lambda _sql: subprocess.CompletedProcess(
+            [], 0, json.dumps(topology).encode(), b""
+        ),
+    )
+
+    with pytest.raises(RESTORE_MODULE.RestoreError, match=message):
+        database.verify_exclusive_cluster_topology()
+
+
 @pytest.mark.parametrize(
     "blocker",
     ["prepared_transactions", "logical_slots", "subscriptions"],
@@ -2927,6 +3520,7 @@ def test_database_preflight_rejects_drop_blockers(monkeypatch, blocker):
         "prepared_transactions": 0,
         "logical_slots": 0,
         "subscriptions": 0,
+        "is_template": False,
     }
     blockers[blocker] = 1
     result = subprocess.CompletedProcess(
@@ -2937,10 +3531,47 @@ def test_database_preflight_rejects_drop_blockers(monkeypatch, blocker):
     )
     monkeypatch.setattr(database, "psql", lambda _sql: result)
     monkeypatch.setattr(database, "verify_recreation_privileges", lambda: None)
+    monkeypatch.setattr(
+        database,
+        "verify_exclusive_cluster_topology",
+        lambda _database_name=None: None,
+    )
 
     with pytest.raises(
         RESTORE_MODULE.RestoreError,
         match=blocker.replace("_", " "),
+    ):
+        database.preflight_recreation()
+
+
+def test_database_preflight_rejects_template_before_recreation(monkeypatch):
+    database = maintenance_role_database()
+    blockers = {
+        "prepared_transactions": 0,
+        "logical_slots": 0,
+        "subscriptions": 0,
+        "is_template": True,
+    }
+    monkeypatch.setattr(
+        database,
+        "psql",
+        lambda _sql: subprocess.CompletedProcess(
+            [],
+            0,
+            json.dumps(blockers).encode(),
+            b"",
+        ),
+    )
+    monkeypatch.setattr(database, "verify_recreation_privileges", lambda: None)
+    monkeypatch.setattr(
+        database,
+        "verify_exclusive_cluster_topology",
+        lambda _database_name=None: None,
+    )
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="template databases",
     ):
         database.preflight_recreation()
 
@@ -3006,6 +3637,27 @@ def test_archive_validation_rejects_corrupt_data():
     assert len(runner.calls) == 2
 
 
+def test_pg_dump_major_parses_distribution_suffix_and_rejects_other_major():
+    class Target:
+        def __init__(self, output):
+            self.output = output
+
+        def run_client(self, *_args, **_options):
+            return subprocess.CompletedProcess([], 0, self.output, b"")
+
+    assert RESTORE_MODULE.capture_pg_dump_major(
+        object(),
+        Target(b"pg_dump (PostgreSQL) 17.6 (Debian 17.6-1.pgdg120+1)\n"),
+        timeout=2,
+    ) == 17
+    with pytest.raises(RESTORE_MODULE.RestoreError, match="pg_dump 17 is required"):
+        RESTORE_MODULE.capture_pg_dump_major(
+            object(),
+            Target(b"pg_dump (PostgreSQL) 16.10 (Ubuntu 16.10-1)\n"),
+            timeout=2,
+        )
+
+
 def test_restore_uses_bounded_transactions(monkeypatch):
     class Services:
         ready_timeout = 2
@@ -3016,6 +3668,7 @@ def test_restore_uses_bounded_transactions(monkeypatch):
     )
     monkeypatch.setattr(database, "recreate_database", lambda _metadata: None)
     monkeypatch.setattr(database, "apply_metadata", lambda _metadata: None)
+    monkeypatch.setattr(database, "enforce_fenced_acl", lambda: None)
 
     with temporary_archive() as archive:
         database.restore_archive(archive, database_metadata())
@@ -3030,6 +3683,8 @@ def test_restore_uses_bounded_transactions(monkeypatch):
 
 class LockedState:
     locked = True
+    installation_id = TEST_INSTALLATION_ID
+    maintenance_secret = "2" * RESTORE_MODULE.MAINTENANCE_SECRET_LENGTH
 
 
 def test_backup_is_private_validated_atomic_and_same_second_safe(
@@ -3055,7 +3710,7 @@ def test_backup_is_private_validated_atomic_and_same_second_safe(
     validated = []
 
     def validate_backup(_runner, _target, archive, **_options):
-        archive.seek(0)
+        archive.seek(archive.payload_offset)
         validated.append(archive.read())
 
     monkeypatch.setattr(RESTORE_MODULE.datetime, "datetime", FrozenDateTime)
@@ -3067,10 +3722,10 @@ def test_backup_is_private_validated_atomic_and_same_second_safe(
     previous_umask = os.umask(0o777)
     try:
         first = RESTORE_MODULE.create_backup(
-            BackupRunner(), database_target(), LockedState()
+            BackupRunner(), database_target(), LockedState(), backup_source()
         )
         second = RESTORE_MODULE.create_backup(
-            BackupRunner(), database_target(), LockedState()
+            BackupRunner(), database_target(), LockedState(), backup_source()
         )
     finally:
         os.umask(previous_umask)
@@ -3083,6 +3738,79 @@ def test_backup_is_private_validated_atomic_and_same_second_safe(
     for filename in (first, second):
         assert (backup_directory / filename).stat().st_mode & 0o777 == 0o600
     assert not any(path.name.endswith(".partial") for path in backup_directory.iterdir())
+
+
+def test_backup_envelope_binds_source_checksum_and_explicit_migration(
+    monkeypatch,
+    tmp_path,
+):
+    backup_directory = tmp_path / "backups"
+    monkeypatch.setattr(RESTORE_MODULE, "BACKUP_DIRECTORY", backup_directory)
+    monkeypatch.setattr(RESTORE_MODULE, "BACKUP_OWNER_UID", os.getuid())
+
+    class BackupRunner:
+        def run(self, arguments, **options):
+            if "pg_dump" in arguments:
+                os.write(options["stdout"], b"complete custom archive")
+            return subprocess.CompletedProcess(arguments, 0, b"", b"")
+
+    monkeypatch.setattr(RESTORE_MODULE, "validate_archive", lambda *_args, **_kwargs: None)
+    state = LockedState()
+    filename = RESTORE_MODULE.create_backup(
+        BackupRunner(),
+        database_target(),
+        state,
+        backup_source(),
+    )
+
+    with RESTORE_MODULE.open_archive(filename) as archive:
+        assert archive.read() == b"complete custom archive"
+        RESTORE_MODULE.verify_backup_manifest(
+            archive,
+            state,
+            database_target(),
+            server_identity(),
+            allow_migration=False,
+        )
+        foreign_state = type(
+            "ForeignState",
+            (),
+            {
+                "installation_id": "f" * RESTORE_MODULE.INSTALLATION_ID_LENGTH,
+                "maintenance_secret": "e"
+                * RESTORE_MODULE.MAINTENANCE_SECRET_LENGTH,
+            },
+        )()
+        with pytest.raises(RESTORE_MODULE.RestoreError, match="another installation"):
+            RESTORE_MODULE.verify_backup_manifest(
+                archive,
+                foreign_state,
+                database_target(),
+                server_identity(),
+                allow_migration=False,
+            )
+        RESTORE_MODULE.verify_backup_manifest(
+            archive,
+            foreign_state,
+            database_target(),
+            server_identity(),
+            allow_migration=True,
+        )
+
+    path = backup_directory / filename
+    with path.open("r+b") as tampered:
+        tampered.seek(RESTORE_MODULE.BACKUP_HEADER_SIZE)
+        tampered.write(b"tampered")
+    with pytest.raises(RESTORE_MODULE.RestoreError, match="checksum"):
+        RESTORE_MODULE.open_archive(filename)
+
+
+def test_manifest_archive_requires_full_database_toc_entry():
+    runner = ArchiveRunner(b"1; 1259 1 TABLE public target ctfd\n")
+    with temporary_archive() as archive:
+        archive.manifest = {}
+        with pytest.raises(RESTORE_MODULE.RestoreError, match="complete database dump"):
+            RESTORE_MODULE.validate_archive(runner, database_target(), archive)
 
 
 def test_failed_partial_backup_is_never_published(monkeypatch, tmp_path):
@@ -3098,7 +3826,7 @@ def test_failed_partial_backup_is_never_published(monkeypatch, tmp_path):
 
     with pytest.raises(RESTORE_MODULE.RestoreError, match="pg_dump failed"):
         RESTORE_MODULE.create_backup(
-            FailedRunner(), database_target(), LockedState()
+            FailedRunner(), database_target(), LockedState(), backup_source()
         )
 
     assert list(backup_directory.iterdir()) == []
@@ -3204,11 +3932,63 @@ def test_restore_timeout_configuration_is_exported_by_shell_entrypoints():
         assert "export DOJO_RESTORE_READY_TIMEOUT_SECONDS" in contents
         assert "export DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS" in contents
 
+    dojo_script = (repository / "dojo" / "dojo").read_text()
+    assert "/opt/pwn.college/dojo/dojo-restore --validate-target" in dojo_script
+
     service = repository / "etc" / "systemd" / "system" / "pwn.college.service"
     service_contents = service.read_text()
     assert "After=docker.service" in service_contents
     assert "Restart=on-failure" in service_contents
     assert "RestartSec=5s" in service_contents
+    assert "ExecStop=/usr/local/bin/dojo shutdown" in service_contents
+
+    nginx = (repository / "nginx" / "nginx.conf").read_text()
+    assert "zone frontend_upstream 64k;" in nginx
+    assert "server frontend:3000 resolve;" in nginx
+
+    compose = (repository / "docker-compose.yml").read_text()
+    assert "SERVER_TLS_SSLMODE: ${DB_SSLMODE}" in compose
+    assert "SERVER_TLS_CA_FILE: ${DB_SSLROOTCERT:-}" in compose
+    assert "PGSSLMODE: ${DB_SSLMODE}" not in compose
+
+
+@pytest.mark.parametrize(
+    ("pending", "compose_action"),
+    [(True, "stop"), (False, "down")],
+)
+def test_shutdown_preserves_container_identities_during_pending_restore(
+    monkeypatch,
+    pending,
+    compose_action,
+):
+    calls = []
+
+    class State:
+        def __enter__(self):
+            calls.append("lock")
+            return self
+
+        def __exit__(self, *_args):
+            calls.append("unlock")
+
+        def load_journal(self):
+            return restore_journal("restoring") if pending else None
+
+    class Runner:
+        def run(self, arguments, **_options):
+            calls.append(arguments)
+
+    monkeypatch.setattr(RESTORE_MODULE, "RestoreState", State)
+    monkeypatch.setattr(RESTORE_MODULE, "CommandRunner", Runner)
+    monkeypatch.setattr(
+        RESTORE_MODULE,
+        "install_interrupt_handlers",
+        lambda _runner, _operation: None,
+    )
+
+    RESTORE_MODULE.shutdown()
+
+    assert calls == ["lock", ["dojo", "compose", compose_action], "unlock"]
 
 
 def test_dojo_up_recovers_with_only_database_started_before_clients():

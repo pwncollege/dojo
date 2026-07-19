@@ -47,10 +47,18 @@ def user_challenges(model, duration, user_id):
     return set(challenge_id for (challenge_id,) in query.all())
 
 
-def set_scoreboard_cache(cache_key, scoreboard, member_challenges):
-    set_cached_stat(cache_key, scoreboard)
-    set_cached_stat(cache_key.replace("stats:scoreboard:", "stats:crews:", 1),
-                    aggregate_crews(scoreboard, member_challenges))
+def set_scoreboard_cache(
+    cache_key,
+    scoreboard,
+    member_challenges,
+    *,
+    raise_errors=False,
+):
+    crews_key = cache_key.replace("stats:scoreboard:", "stats:crews:", 1)
+    crews = aggregate_crews(scoreboard, member_challenges)
+    set_cached_stat(cache_key, scoreboard, raise_errors=raise_errors)
+    set_cached_stat(crews_key, crews, raise_errors=raise_errors)
+    return {cache_key: scoreboard, crews_key: crews}
 
 
 def update_scoreboard_cache(model, cache_key, user_id, challenge_id):
@@ -213,34 +221,61 @@ def handle_scoreboard_update(payload, event_timestamp=None):
             logger.error(f"Error calculating challenge_solves for module {model_id}: {e}", exc_info=True)
 
 
-def initialize_all_scoreboards():
+def initialize_all_scoreboards(*, fail_on_error=False):
     dojos = Dojos.query.all()
     logger.info(f"Initializing scoreboards for {len(dojos)} dojos...")
+    initialized = {}
 
     for dojo in dojos:
         for duration in COMMON_DURATIONS:
             try:
                 scoreboard = calculate_scoreboard(dojo, duration)
                 cache_key = f"stats:scoreboard:dojo:{dojo.dojo_id}:{duration}"
-                set_scoreboard_cache(cache_key, scoreboard, calculate_member_challenges(dojo, duration, scoreboard))
+                initialized.update(
+                    set_scoreboard_cache(
+                        cache_key,
+                        scoreboard,
+                        calculate_member_challenges(dojo, duration, scoreboard),
+                        raise_errors=fail_on_error,
+                    )
+                )
                 logger.info(f"Initialized scoreboard for dojo {dojo.reference_id} (id={dojo.dojo_id}), duration={duration}")
             except Exception as e:
                 logger.error(f"Error initializing scoreboard for dojo {dojo.reference_id}, duration={duration}: {e}", exc_info=True)
+                if fail_on_error:
+                    raise
 
         for module in dojo.modules:
             for duration in COMMON_DURATIONS:
                 try:
                     scoreboard = calculate_scoreboard(module, duration)
                     cache_key = f"stats:scoreboard:module:{module.dojo_id}:{module.module_index}:{duration}"
-                    set_scoreboard_cache(cache_key, scoreboard, calculate_member_challenges(module, duration, scoreboard))
+                    initialized.update(
+                        set_scoreboard_cache(
+                            cache_key,
+                            scoreboard,
+                            calculate_member_challenges(module, duration, scoreboard),
+                            raise_errors=fail_on_error,
+                        )
+                    )
                     logger.info(f"Initialized scoreboard for module {dojo.reference_id}/{module.id} (dojo_id={module.dojo_id}, module_index={module.module_index}), duration={duration}")
                 except Exception as e:
                     logger.error(f"Error initializing scoreboard for module {dojo.reference_id}/{module.id}, duration={duration}: {e}", exc_info=True)
+                    if fail_on_error:
+                        raise
 
             try:
                 challenge_solves = calculate_challenge_solves(module)
                 cache_key = challenge_solves_cache_key(module.dojo_id, module.module_index)
-                set_cached_stat(cache_key, challenge_solves)
+                set_cached_stat(
+                    cache_key,
+                    challenge_solves,
+                    raise_errors=fail_on_error,
+                )
+                initialized[cache_key] = challenge_solves
                 logger.info(f"Initialized challenge_solves for module {dojo.reference_id}/{module.id} ({len(challenge_solves)} challenges)")
             except Exception as e:
                 logger.error(f"Error initializing challenge_solves for module {dojo.reference_id}/{module.id}: {e}", exc_info=True)
+                if fail_on_error:
+                    raise
+    return initialized

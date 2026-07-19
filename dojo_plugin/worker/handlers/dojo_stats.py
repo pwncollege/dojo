@@ -155,15 +155,20 @@ def update_dojo_stats(stats, challenge_name):
     return result
 
 
-def initialize_all_dojo_stats():
+def initialize_all_dojo_stats(*, fail_on_error=False):
     dojos = Dojos.query.all()
     logger.info(f"Initializing stats for {len(dojos)} dojos...")
+    initialized = {}
 
     for dojo in dojos:
         try:
             stats = calculate_dojo_stats(dojo)
             cache_key = f"stats:dojo:{dojo.reference_id}"
-            set_cached_stat(cache_key, stats)
+            set_cached_stat(cache_key, stats, raise_errors=fail_on_error)
+            initialized[cache_key] = stats
             logger.info(f"Initialized stats for dojo {dojo.reference_id}")
         except Exception as e:
             logger.error(f"Error initializing stats for dojo {dojo.reference_id}: {e}", exc_info=True)
+            if fail_on_error:
+                raise
+    return initialized

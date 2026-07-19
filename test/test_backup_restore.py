@@ -766,6 +766,37 @@ def wait_for_http():
     raise AssertionError(f"dojo HTTP did not recover: {last_error}")
 
 
+def future_dojo_host():
+    result = dojo_run(
+        "sh",
+        "-c",
+        '. /data/config.env; printf "%s" "future.${DOJO_HOST}"',
+    )
+    host = result.stdout.strip()
+    assert re.fullmatch(r"[A-Za-z0-9.-]+", host), host
+    return host
+
+
+def wait_for_future_http():
+    host = future_dojo_host()
+    deadline = time.monotonic() + 90
+    last_error = None
+    while time.monotonic() < deadline:
+        try:
+            response = requests.get(
+                DOJO_URL,
+                headers={"Host": host},
+                timeout=5,
+            )
+            if response.status_code == 200:
+                return
+            last_error = f"future frontend returned HTTP {response.status_code}"
+        except requests.RequestException as error:
+            last_error = str(error)
+        time.sleep(1)
+    raise AssertionError(f"future frontend HTTP did not recover: {last_error}")
+
+
 def assert_http_unavailable():
     try:
         response = requests.get(DOJO_URL, timeout=3)
@@ -814,9 +845,8 @@ def assert_restore_fence(
         check=False,
     )
     assert rejected_write.returncode != 0
-    database_name = json.loads(
-        dojo_run("cat", f"{RESTORE_STATE}/journal").stdout
-    )["target"]["name"]
+    journal = json.loads(dojo_run("cat", f"{RESTORE_STATE}/journal").stdout)
+    database_name = journal["target"]["name"]
     rejected_direct_write = direct_database_sql(
         database_name,
         f"INSERT INTO {schema}.parents VALUES ({row_id}, 'direct-fence-bypass');",
@@ -841,6 +871,39 @@ def assert_restore_fence(
     if fenced_exists == "1":
         assert fenced_login.returncode != 0
         assert "not permitted to log in" in fenced_login.stderr
+    active_database = fenced_database_name() if fenced_exists == "1" else database_name
+    maintenance_role = f"dojo_restore_{installation_id()}"
+    fence_state = json.loads(
+        postgres_sql(
+            "SELECT json_build_object("
+            "'owner', pg_get_userbyid(database.datdba), "
+            "'is_template', database.datistemplate, "
+            "'allow_connections', database.datallowconn, "
+            "'connection_limit', database.datconnlimit, "
+            "'application_superuser', (SELECT rolsuper FROM pg_roles "
+            f"WHERE rolname = {sql_literal(journal['target']['user'])}), "
+            "'application_login', (SELECT rolcanlogin FROM pg_roles "
+            f"WHERE rolname = {sql_literal(journal['target']['user'])}), "
+            "'application_sessions', (SELECT count(*) FROM pg_stat_activity "
+            f"WHERE usename = {sql_literal(journal['target']['user'])}), "
+            "'unexpected_privileged_roles', (SELECT count(*) FROM pg_roles "
+            "WHERE (rolsuper OR rolcreatedb) "
+            f"AND rolname NOT IN ({sql_literal(journal['target']['user'])}, "
+            f"{sql_literal(maintenance_role)}))"
+            ") FROM pg_database AS database "
+            f"WHERE database.datname = {sql_literal(active_database)};"
+        )
+    )
+    assert fence_state == {
+        "owner": maintenance_role,
+        "is_template": False,
+        "allow_connections": True,
+        "connection_limit": 0,
+        "application_superuser": True,
+        "application_login": False,
+        "application_sessions": 0,
+        "unexpected_privileged_roles": 0,
+    }
     assert maintenance_database_sql(
         decoy_database,
         "SELECT set_config('session_replication_role', 'replica', false);",
@@ -1231,6 +1294,129 @@ def assert_dynamic_ctfd_upstream(holder):
         raise AssertionError(cleanup_failure)
 
 
+def restore_frontend_after_dynamic_test(
+    holder,
+    test_network,
+    default_network,
+):
+    failures = []
+    try:
+        remove_optional_container(holder)
+    except AssertionError as error:
+        failures.append(str(error))
+    try:
+        nginx_networks = container_networks("nginx")
+        if default_network not in nginx_networks:
+            connect_container_network("nginx", default_network, "nginx")
+    except AssertionError as error:
+        failures.append(str(error))
+    for container in DYNAMIC_NGINX_NETWORK_CONTAINERS:
+        disconnection = dojo_run(
+            "docker",
+            "network",
+            "disconnect",
+            "--force",
+            test_network,
+            container,
+            check=False,
+        )
+        failure = ignore_missing_network_result(
+            f"disconnecting {container} from {test_network}", disconnection
+        )
+        if failure:
+            failures.append(failure)
+    network_removal = dojo_run(
+        "docker", "network", "rm", test_network, check=False
+    )
+    network_failure = ignore_missing_network_result(
+        f"removing {test_network}", network_removal
+    )
+    if network_failure:
+        failures.append(network_failure)
+    frontend_start = dojo_run(
+        "dojo", "compose", "up", "--detach", "frontend", check=False
+    )
+    if frontend_start.returncode != 0:
+        failures.append(command_diagnostics("frontend cleanup startup", frontend_start))
+    if frontend_start.returncode == 0:
+        try:
+            reload_nginx()
+            wait_for_future_http()
+        except AssertionError as error:
+            failures.append(str(error))
+    return "\n".join(failures)
+
+
+def assert_dynamic_frontend_upstream(holder):
+    frontend = container_info("frontend")
+    frontend_networks = frontend["NetworkSettings"]["Networks"]
+    if len(frontend_networks) != 1:
+        raise AssertionError(
+            "frontend must have exactly one Compose network: "
+            f"{json.dumps(frontend_networks, sort_keys=True)}"
+        )
+    default_network = next(iter(frontend_networks))
+    test_network = f"restore-frontend-{holder[-12:]}"
+    holder_image = container_info("ctfd")["Image"]
+    failure = None
+    try:
+        create_explicit_test_network(test_network, holder)
+        connect_dynamic_nginx_network(test_network)
+        old_ip = container_networks("frontend")[test_network]["IPAddress"]
+        nginx_disconnect = dojo_run(
+            "docker",
+            "network",
+            "disconnect",
+            default_network,
+            "nginx",
+            check=False,
+        )
+        if nginx_disconnect.returncode != 0:
+            raise AssertionError(
+                command_diagnostics(
+                    f"disconnecting nginx from {default_network}", nginx_disconnect
+                )
+            )
+        reload_nginx()
+        wait_for_future_http()
+        removal = dojo_run("docker", "rm", "--force", "frontend", check=False)
+        if removal.returncode != 0:
+            raise AssertionError(command_diagnostics("frontend removal", removal))
+        reserve_network_ip(holder, test_network, old_ip, holder_image)
+        frontend_start = dojo_run(
+            "dojo", "compose", "up", "--detach", "frontend", check=False
+        )
+        if frontend_start.returncode != 0:
+            raise AssertionError(
+                command_diagnostics("frontend startup", frontend_start)
+            )
+        connect_container_network("frontend", test_network, "frontend")
+        assert_holder_network_ip(holder, test_network, old_ip)
+        new_endpoint = container_networks("frontend").get(test_network)
+        if new_endpoint is None:
+            raise AssertionError("recreated frontend did not join the test network")
+        new_ip = new_endpoint["IPAddress"]
+        assert new_ip and new_ip != old_ip, (
+            f"recreated frontend retained {old_ip} while the holder reserved it"
+        )
+        wait_for_future_http()
+    except Exception as error:
+        failure = error
+    cleanup_failure = restore_frontend_after_dynamic_test(
+        holder,
+        test_network,
+        default_network,
+    )
+    if failure is not None:
+        if cleanup_failure:
+            raise AssertionError(
+                f"{failure}\ndynamic frontend cleanup also failed:\n{cleanup_failure}"
+            ) from failure
+        raise failure
+    if cleanup_failure:
+        raise AssertionError(cleanup_failure)
+
+
 @pytest.mark.parametrize("disconnect_failure", [False, True])
 def test_dynamic_nginx_network_fixture_cleans_every_dependency(
     monkeypatch,
@@ -1315,6 +1501,10 @@ def test_database_backup_restore():
     rollback_writer_name = f"restore_rollback_writer_{suffix}"
     holder = f"ctfd-ip-holder-{suffix}"
     metadata_role = f"restore_metadata_{suffix}"
+    metadata_grantee = f"restore_metadata_grantee_{suffix}"
+    metadata_tablespace = f"restore_tablespace_{suffix}"
+    metadata_tablespace_path = f"/data/postgres-tablespaces/{metadata_tablespace}"
+    metadata_tablespace_created = False
     metadata_setting = f"dojo.restore_{suffix}"
     metadata_text = f"m\\';CREATE SCHEMA {injection_schema};--"
     subscription_name = f"restore_blocker_{suffix}"
@@ -1366,7 +1556,10 @@ def test_database_backup_restore():
     prepared_transaction_active = False
     failed_dump_directory = f"/tmp/dojo-backup-failure-{suffix}"
     legacy_rollback_path = f"/tmp/dojo-restore-v2-rollback-{suffix}"
+    alternate_claim_state = f"/data/.dojo-restore-claim-{suffix}"
     wrong_database_name = f"restore_decoy_{suffix}"
+    shared_database_name = f"restore_shared_{suffix}"
+    extra_superuser = f"restore_superuser_{suffix}"
     journal_writer = None
     trusted_recovery_journal = None
     trusted_recovery_requires_missing = False
@@ -1405,9 +1598,14 @@ def test_database_backup_restore():
             wait_for_http()
             assert int(postgres_sql("SHOW max_prepared_transactions;")) == 10
         database_name = db_sql("SELECT current_database();").strip()
+        application_database_role = db_sql("SELECT current_user;").strip()
         initial_database_identity = database_identity()
+        assert initial_database_identity["acl_default"] is True
         db_sql(
             f"CREATE ROLE {metadata_role};"
+            f"CREATE ROLE {metadata_grantee};"
+            f"GRANT {sql_identifier(metadata_role)} "
+            f"TO {sql_identifier(metadata_grantee)};"
             f"COMMENT ON DATABASE {sql_identifier(database_name)} "
             f"IS {sql_literal(metadata_text)};"
             f"ALTER DATABASE {sql_identifier(database_name)} CONNECTION LIMIT 777;"
@@ -1415,7 +1613,37 @@ def test_database_backup_restore():
             f"SET {sql_identifier(metadata_setting)} TO {sql_literal(metadata_text)};"
             f"ALTER ROLE {metadata_role} IN DATABASE {sql_identifier(database_name)} "
             f"SET application_name TO {sql_literal(metadata_text)};"
+            f"GRANT CONNECT ON DATABASE {sql_identifier(database_name)} "
+            f"TO {sql_identifier(metadata_role)} WITH GRANT OPTION;"
+            f"SET ROLE {sql_identifier(metadata_role)};"
+            f"GRANT CONNECT ON DATABASE {sql_identifier(database_name)} "
+            f"TO {sql_identifier(metadata_grantee)};"
+            "RESET ROLE;"
+            f"ALTER DEFAULT PRIVILEGES FOR ROLE {sql_identifier(metadata_role)} "
+            "IN SCHEMA public GRANT SELECT ON TABLES "
+            f"TO {sql_identifier(metadata_grantee)};"
         )
+        dojo_run(
+            "docker",
+            "exec",
+            "db",
+            "install",
+            "--directory",
+            "--owner=postgres",
+            "--group=postgres",
+            "--mode=700",
+            metadata_tablespace_path,
+        )
+        postgres_sql(
+            f"CREATE TABLESPACE {sql_identifier(metadata_tablespace)} "
+            f"OWNER {sql_identifier(metadata_role)} "
+            f"LOCATION {sql_literal(metadata_tablespace_path)};"
+        )
+        postgres_sql(
+            f"GRANT CREATE ON TABLESPACE {sql_identifier(metadata_tablespace)} "
+            f"TO {sql_identifier(metadata_grantee)};"
+        )
+        metadata_tablespace_created = True
         dojo_script = dojo_run("cat", "/opt/pwn.college/dojo/dojo").stdout
         assert f"{RESTORE_HELPER} --prepare-recovery" in dojo_script
         assert f"{RESTORE_HELPER} --recover" in dojo_script
@@ -1453,6 +1681,104 @@ def test_database_backup_restore():
         assert dojo_run("stat", "--format=%a:%U", backup_path).stdout.strip() == (
             "600:root"
         )
+
+        dependency_services = service_snapshot()
+        dependency_identity = database_identity()
+        postgres_sql(
+            f"REVOKE {sql_identifier(metadata_role)} "
+            f"FROM {sql_identifier(metadata_grantee)};"
+            f"ALTER TABLESPACE {sql_identifier(metadata_tablespace)} "
+            "SET (seq_page_cost = 1.25);"
+        )
+        dependency_contract_failure = dojo_run(
+            RESTORE_HELPER,
+            backup_filename,
+            check=False,
+        )
+        assert dependency_contract_failure.returncode != 0
+        assert "backup dependency contract" in dependency_contract_failure.stderr
+        assert service_snapshot() == dependency_services
+        assert database_identity() == dependency_identity
+        assert restore_phase() is None
+        postgres_sql(
+            f"GRANT {sql_identifier(metadata_role)} "
+            f"TO {sql_identifier(metadata_grantee)};"
+            f"ALTER TABLESPACE {sql_identifier(metadata_tablespace)} "
+            "RESET (seq_page_cost);"
+        )
+
+        alternate_claim_program = f"""
+import importlib.machinery
+import importlib.util
+import pathlib
+
+path = pathlib.Path({RESTORE_HELPER!r})
+loader = importlib.machinery.SourceFileLoader("alternate_claim", str(path))
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+module.STATE_DIRECTORY = pathlib.Path({alternate_claim_state!r})
+
+runner = module.CommandRunner()
+target = module.DatabaseTarget.from_environment()
+services = type(
+    "Services",
+    (),
+    {{"ready_timeout": 30, "cold_start_timeout": 30, "target": target}},
+)()
+with module.RestoreState() as state:
+    database = module.DatabaseRestore(runner, state, services, target)
+    try:
+        database.acquire_cluster_claims(database.capture_server_identity())
+    except module.RestoreError as error:
+        print(error)
+    else:
+        raise RuntimeError("a second installation acquired the same cluster claims")
+"""
+        alternate_claim = dojo_run(
+            "sh",
+            "-c",
+            (
+                ". /data/config.env; "
+                "DB_PORT=${DB_PORT:-5432}; "
+                "export DB_HOST DB_PORT DB_NAME DB_USER DB_PASS "
+                "DB_SSLMODE DB_SSLROOTCERT DB_TRUSTED_LOCAL; "
+                "exec python3 -c \"$1\""
+            ),
+            "alternate-claim",
+            alternate_claim_program,
+            check=False,
+        )
+        assert alternate_claim.returncode == 0, alternate_claim.stderr
+        assert "claimed by another installation" in alternate_claim.stdout
+
+        postgres_sql(
+            f"CREATE DATABASE {sql_identifier(shared_database_name)} "
+            f"OWNER {sql_identifier(application_database_role)};"
+        )
+        shared_role_rejection = dojo_run(
+            RESTORE_HELPER,
+            backup_filename,
+            check=False,
+        )
+        assert shared_role_rejection.returncode != 0
+        assert "shared by another database" in shared_role_rejection.stderr
+        assert restore_phase() is None
+        postgres_sql(f"DROP DATABASE {sql_identifier(shared_database_name)};")
+
+        postgres_sql(
+            f"CREATE ROLE {sql_identifier(extra_superuser)} "
+            "SUPERUSER NOLOGIN;"
+        )
+        superuser_rejection = dojo_run(
+            RESTORE_HELPER,
+            backup_filename,
+            check=False,
+        )
+        assert superuser_rejection.returncode != 0
+        assert "exclusive PostgreSQL cluster" in superuser_rejection.stderr
+        assert restore_phase() is None
+        postgres_sql(f"DROP ROLE {sql_identifier(extra_superuser)};")
 
         collision_services = service_snapshot()
         collision_identity = database_identity()
@@ -1898,7 +2224,10 @@ def test_database_backup_restore():
             f"WHERE subname = {sql_literal(subscription_name)};"
         ) == "0"
 
-        postgres_sql(f"CREATE DATABASE {sql_identifier(wrong_database_name)};")
+        postgres_sql(
+            f"CREATE DATABASE {sql_identifier(wrong_database_name)} "
+            f"OWNER {sql_identifier(metadata_role)};"
+        )
         direct_database_sql(
             wrong_database_name,
             "CREATE TABLE restore_decoy (value text NOT NULL);"
@@ -2673,6 +3002,19 @@ finally:
         redis_cli("SET", "stats:restore-sentinel", "stale")
         redis_cli("SET", "activity_feed:restore-sentinel", "stale")
         redis_cli("XADD", "stat:events", "*", "data", '{"stale":true}')
+        db_sql(
+            f"ALTER DEFAULT PRIVILEGES FOR ROLE {sql_identifier(metadata_role)} "
+            "IN SCHEMA public REVOKE SELECT ON TABLES "
+            f"FROM {sql_identifier(metadata_grantee)};"
+        )
+        assert db_sql(
+            "SELECT count(*) FROM pg_default_acl AS defaults "
+            "CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl "
+            f"WHERE defaults.defaclrole = {sql_literal(metadata_role)}::regrole "
+            "AND defaults.defaclobjtype = 'r' "
+            f"AND acl.grantee = {sql_literal(metadata_grantee)}::regrole "
+            "AND acl.privilege_type = 'SELECT';"
+        ).strip() == "0"
         stats_started_before = container_info("stats-worker")["State"]["StartedAt"]
 
         forward_boundary_process = outer_process(
@@ -2706,10 +3048,49 @@ finally:
             application_role_before_restore,
         )
         assert_repeated_reconnects_rejected(database_name, schema, 41)
-        signal_restore(backup_filename, "CONT")
+        signal_restore(backup_filename, "KILL")
+        forward_boundary_process.communicate(timeout=15)
+        assert forward_boundary_process.returncode != 0
+        forward_boundary_process = None
+
+        for cache_family in (
+            "dojo-stats",
+            "scoreboards",
+            "scores",
+            "belts",
+            "emojis",
+            "containers",
+            "activity",
+        ):
+            cache_failure = dojo_run(
+                "env",
+                f"DOJO_RESTORE_TEST_FAIL_CACHE_FAMILY={cache_family}",
+                RESTORE_HELPER,
+                "--recover",
+                check=False,
+            )
+            assert cache_failure.returncode != 0
+            assert f"injected {cache_family} cache write failure" in (
+                cache_failure.stdout + cache_failure.stderr
+            )
+            assert restore_phase() == "committed"
+            for service in (*DATABASE_CLIENTS, "nginx"):
+                assert container_info(service)["State"]["Running"] is False
+            assert application_database_sql(
+                database_name,
+                "SELECT 1;",
+                check=False,
+            ).returncode != 0
+
+        forward_boundary_process = outer_process(
+            "env",
+            "DOJO_RESTORE_TEST_PAUSE_POINTS=release-renamed",
+            RESTORE_HELPER,
+            "--recover",
+        )
         wait_for_release_renamed(
             forward_boundary_process,
-            backup_filename,
+            "--recover",
             database_name,
         )
         assert_restore_fence(
@@ -2718,7 +3099,7 @@ finally:
             wrong_database_name,
             application_role_before_restore,
         )
-        signal_restore(backup_filename, "KILL")
+        signal_restore("--recover", "KILL")
         forward_boundary_process.communicate(timeout=15)
         assert forward_boundary_process.returncode != 0
         forward_boundary_process = None
@@ -2788,11 +3169,49 @@ finally:
         assert redis_cli(
             "EXISTS", "stats:belts", "stats:emojis", "stats:containers"
         ) == "3"
+        assert db_sql(
+            "SELECT count(*) FROM pg_default_acl AS defaults "
+            "CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl "
+            f"WHERE defaults.defaclrole = {sql_literal(metadata_role)}::regrole "
+            "AND defaults.defaclobjtype = 'r' "
+            f"AND acl.grantee = {sql_literal(metadata_grantee)}::regrole "
+            "AND acl.privilege_type = 'SELECT';"
+        ).strip() == "1"
         stats = container_info("stats-worker")
         assert stats["State"]["StartedAt"] != stats_started_before
         stats_logs = wait_for_stats_cold_start(stats["State"]["StartedAt"])
         assert "Cold start complete - all stats initialized" in stats_logs
         assert restore_phase() is None
+
+        persisted_cache_keys = [
+            key
+            for key in redis_cli("KEYS", "stats:*").splitlines()
+            if key
+        ]
+        assert persisted_cache_keys
+        cache_started_before_crash = container_info("cache")["State"]["StartedAt"]
+        dojo_run("docker", "kill", "--signal=KILL", "cache")
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            cache = container_info("cache")
+            if (
+                cache["State"]["Running"]
+                and cache["State"]["StartedAt"] != cache_started_before_crash
+                and redis_cli("PING", check=False) == "PONG"
+            ):
+                break
+            time.sleep(1)
+        else:
+            raise AssertionError("Redis did not restart after the SIGKILL persistence test")
+        assert container_info("stats-worker")["State"]["StartedAt"] == stats["State"][
+            "StartedAt"
+        ]
+        assert redis_cli("EXISTS", "stats:restore-sentinel") == "0"
+        assert redis_cli("EXISTS", "activity_feed:restore-sentinel") == "0"
+        assert redis_cli("XLEN", "stat:events") == "0"
+        assert redis_cli("EXISTS", *persisted_cache_keys) == str(
+            len(persisted_cache_keys)
+        )
 
         db_sql(
             f"CREATE ROLE {owner_role};"
@@ -2809,69 +3228,18 @@ finally:
             f"INSERT INTO {schema}.parents VALUES (4, 'before-failed-restore');"
         )
         services_before_failure = service_snapshot()
-        rollback_boundary_process = outer_process(
-            "env",
-            "DOJO_RESTORE_TEST_PAUSE_PHASES="
-            "rolling_back,rollback_warming,rollback_validating,rolled_back_exposed",
+        dependency_rejection = dojo_run(
             RESTORE_HELPER,
             failed_backup_filename,
+            check=False,
         )
-        wait_for_paused_phase(
-            rollback_boundary_process,
-            failed_backup_filename,
-            "rolling_back",
-        )
-        assert_restore_fence(
-            schema,
-            10,
-            wrong_database_name,
-            application_role_before_restore,
-        )
-        signal_restore(failed_backup_filename, "CONT")
-        wait_for_paused_phase(
-            rollback_boundary_process,
-            failed_backup_filename,
-            "rollback_warming",
-        )
-        assert_restore_fence(
-            schema,
-            11,
-            wrong_database_name,
-            application_role_before_restore,
-        )
-        signal_restore(failed_backup_filename, "CONT")
-        wait_for_paused_phase(
-            rollback_boundary_process,
-            failed_backup_filename,
-            "rollback_validating",
-        )
-        assert_restore_fence(
-            schema,
-            12,
-            wrong_database_name,
-            application_role_before_restore,
-        )
-        signal_restore(failed_backup_filename, "CONT")
-        wait_for_paused_phase(
-            rollback_boundary_process,
-            failed_backup_filename,
-            "rolled_back_exposed",
-        )
-        register_user(rollback_writer_name)
-        signal_restore(failed_backup_filename, "KILL")
-        rollback_boundary_process.communicate(timeout=15)
-        assert rollback_boundary_process.returncode != 0
-        rollback_boundary_process = None
-        dojo_run(RESTORE_HELPER, "--recover")
+        assert dependency_rejection.returncode != 0
+        assert "backup dependency contract" in dependency_rejection.stderr
         assert service_snapshot() == services_before_failure
         assert db_sql(f"SELECT value FROM {schema}.parents WHERE id = 4;").strip() == (
             "before-failed-restore"
         )
         assert db_sql(f"SELECT to_regclass('{schema}.missing_owner') IS NULL;").strip() == "t"
-        assert db_sql(
-            "SELECT count(*) FROM users WHERE name IN "
-            f"({sql_literal(writer_name)}, {sql_literal(rollback_writer_name)});"
-        ).strip() == "2"
         assert db_sql(
             f"SELECT to_regnamespace('{injection_schema}') IS NULL;"
         ).strip() == "t"
@@ -2880,6 +3248,27 @@ finally:
         assert dojo_run(
             "stat", f"{RESTORE_STATE}/rollback.dump", check=False
         ).returncode != 0
+
+        db_sql(f"CREATE ROLE {owner_role};")
+        dependency_restore = dojo_run(
+            RESTORE_HELPER,
+            failed_backup_filename,
+            check=False,
+        )
+        assert dependency_restore.returncode == 0, dependency_restore.stderr
+        assert db_sql(
+            "SELECT tableowner FROM pg_tables "
+            f"WHERE schemaname = {sql_literal(schema)} "
+            "AND tablename = 'missing_owner';"
+        ).strip() == owner_role
+        assert db_sql(
+            f"SELECT count(*) FROM {schema}.parents WHERE id = 4;"
+        ).strip() == "0"
+        db_sql(
+            f"DROP TABLE {schema}.missing_owner;"
+            f"DROP ROLE {owner_role};"
+            f"INSERT INTO {schema}.parents VALUES (4, 'before-failed-restore');"
+        )
 
         db_sql(
             f"CREATE SCHEMA {target_only_schema};"
@@ -2898,7 +3287,8 @@ finally:
             "env",
             "DOJO_RESTORE_READY_TIMEOUT_SECONDS=60",
             "DOJO_RESTORE_TEST_FAIL_APPLICATION_VALIDATION=1",
-            "DOJO_RESTORE_TEST_PAUSE_PHASES=warming,validating",
+            "DOJO_RESTORE_TEST_PAUSE_PHASES="
+            "warming,validating,rolling_back,rollback_warming,rollback_validating",
             RESTORE_HELPER,
             validation_failure_backup,
         )
@@ -2926,6 +3316,42 @@ finally:
             application_role_before_restore,
         )
         signal_restore(validation_failure_backup, "CONT")
+        wait_for_paused_phase(
+            validation_failure_process,
+            validation_failure_backup,
+            "rolling_back",
+        )
+        assert_restore_fence(
+            schema,
+            15,
+            wrong_database_name,
+            application_role_before_restore,
+        )
+        signal_restore(validation_failure_backup, "CONT")
+        wait_for_paused_phase(
+            validation_failure_process,
+            validation_failure_backup,
+            "rollback_warming",
+        )
+        assert_restore_fence(
+            schema,
+            16,
+            wrong_database_name,
+            application_role_before_restore,
+        )
+        signal_restore(validation_failure_backup, "CONT")
+        wait_for_paused_phase(
+            validation_failure_process,
+            validation_failure_backup,
+            "rollback_validating",
+        )
+        assert_restore_fence(
+            schema,
+            17,
+            wrong_database_name,
+            application_role_before_restore,
+        )
+        signal_restore(validation_failure_backup, "CONT")
         validation_stdout, validation_stderr = validation_failure_process.communicate(
             timeout=240
         )
@@ -2938,7 +3364,8 @@ finally:
             "before-http-validation"
         )
         assert db_sql(
-            f"SELECT count(*) FROM {schema}.parents WHERE id IN (13, 14);"
+            f"SELECT count(*) FROM {schema}.parents "
+            "WHERE id IN (13, 14, 15, 16, 17);"
         ).strip() == "0"
         assert db_sql(f"SELECT to_regnamespace('{target_only_schema}') IS NULL;").strip() == "t"
         assert restore_phase() is None
@@ -2947,6 +3374,51 @@ finally:
         ).returncode != 0
 
         assert_dynamic_ctfd_upstream(holder)
+        assert_dynamic_frontend_upstream(holder)
+
+        lifecycle_identity = database_identity()
+        lifecycle_value = db_sql(
+            f"SELECT value FROM {schema}.parents WHERE id = 4;"
+        ).strip()
+        restore_process = outer_process(
+            "env",
+            "DOJO_RESTORE_TEST_PAUSE_PHASES=fenced",
+            RESTORE_HELPER,
+            backup_filename,
+        )
+        wait_for_paused_phase(restore_process, backup_filename, "fenced")
+        pending_container_ids = {
+            service: container_info(service)["Id"]
+            for service in RESTORE_SERVICES
+        }
+        signal_restore(backup_filename, "KILL")
+        restore_process.communicate(timeout=15)
+        assert restore_process.returncode != 0
+        restore_process = None
+        dojo_run("dojo", "shutdown")
+        assert restore_phase() == "fenced"
+        assert {
+            service: container_info(service)["Id"]
+            for service in RESTORE_SERVICES
+        } == pending_container_ids
+        dojo_run("dojo", "up")
+        assert restore_phase() is None
+        assert {
+            service: container_info(service)["Id"]
+            for service in RESTORE_SERVICES
+        } == pending_container_ids
+        assert database_identity() == lifecycle_identity
+        assert db_sql(
+            f"SELECT value FROM {schema}.parents WHERE id = 4;"
+        ).strip() == lifecycle_value
+
+        old_worker_id = container_info("image-pull-worker")["Id"]
+        dojo_run("dojo", "compose", "stop")
+        dojo_run("docker", "rm", "--force", "image-pull-worker")
+        assert restore_phase() is None
+        dojo_run("dojo", "up")
+        assert container_info("image-pull-worker")["Id"] != old_worker_id
+        wait_for_future_http()
     finally:
         if (
             activation_recovery_process is not None
@@ -3107,6 +3579,21 @@ with module.RestoreState() as state:
                 f"DROP ROLE IF EXISTS {sql_identifier(collision_member)};",
                 check=False,
             )
+        direct_database_sql(
+            "postgres",
+            f"DROP DATABASE IF EXISTS {sql_identifier(shared_database_name)};",
+            check=False,
+        )
+        direct_database_sql(
+            "postgres",
+            f"DROP DATABASE IF EXISTS {sql_identifier(wrong_database_name)};",
+            check=False,
+        )
+        direct_database_sql(
+            "postgres",
+            f"DROP ROLE IF EXISTS {sql_identifier(extra_superuser)};",
+            check=False,
+        )
         if prepared_transaction_active and database_name is not None:
             direct_database_sql(
                 database_name,
@@ -3157,11 +3644,53 @@ with module.RestoreState() as state:
                 ),
                 check=False,
             )
+            direct_database_sql(
+                database_name,
+                f"ALTER DEFAULT PRIVILEGES FOR ROLE "
+                f"{sql_identifier(metadata_role)} IN SCHEMA public "
+                f"REVOKE SELECT ON TABLES FROM "
+                f"{sql_identifier(metadata_grantee)};"
+                f"REVOKE {sql_identifier(metadata_role)} "
+                f"FROM {sql_identifier(metadata_grantee)};"
+                f"REVOKE CONNECT ON DATABASE {sql_identifier(database_name)} "
+                f"FROM {sql_identifier(metadata_grantee)};"
+                f"REVOKE CONNECT ON DATABASE {sql_identifier(database_name)} "
+                f"FROM {sql_identifier(metadata_role)} CASCADE;"
+                "UPDATE pg_database SET datacl = NULL "
+                f"WHERE datname = {sql_literal(database_name)};",
+                check=False,
+            )
+            if metadata_tablespace_created:
+                postgres_sql(
+                    f"REVOKE ALL ON TABLESPACE "
+                    f"{sql_identifier(metadata_tablespace)} FROM "
+                    f"{sql_identifier(metadata_grantee)};",
+                    check=False,
+                )
+                postgres_sql(
+                    f"DROP TABLESPACE IF EXISTS "
+                    f"{sql_identifier(metadata_tablespace)};",
+                    check=False,
+                )
+                metadata_tablespace_created = False
+            dojo_run(
+                "docker",
+                "exec",
+                "db",
+                "rm",
+                "--recursive",
+                "--force",
+                metadata_tablespace_path,
+                check=False,
+            )
             dojo_run(
                 "dojo",
                 "db",
                 "--set=ON_ERROR_STOP=1",
-                input=f"DROP ROLE IF EXISTS {sql_identifier(metadata_role)};",
+                input=(
+                    f"DROP ROLE IF EXISTS {sql_identifier(metadata_grantee)};"
+                    f"DROP ROLE IF EXISTS {sql_identifier(metadata_role)};"
+                ),
                 check=False,
             )
         if postgres_scs_modified:
@@ -3182,15 +3711,12 @@ with module.RestoreState() as state:
             )
             dojo_run("docker", "restart", "db", check=False)
             wait_for_postgres()
-        postgres_sql(
-            f"DROP DATABASE IF EXISTS {sql_identifier(wrong_database_name)};",
-            check=False,
-        )
         if backup_paths:
             dojo_run("rm", "--force", *backup_paths, check=False)
         if backup_directories:
             dojo_run("rmdir", *backup_directories, check=False)
         dojo_run("rm", "--recursive", "--force", failed_dump_directory, check=False)
+        dojo_run("rm", "--recursive", "--force", alternate_claim_state, check=False)
         dojo_run("rm", "--force", legacy_rollback_path, check=False)
         if helper_target is not None:
             dojo_run("ln", "--symbolic", helper_target, helper_link, check=False)
@@ -3210,6 +3736,15 @@ def test_external_database_target_backup_restore_and_rollback():
     restricted_password = f"restore_restricted_password_{suffix}"
     sentinel_schema = f"restore_endpoint_{suffix}"
     external_state = f"/data/.dojo-restore-external-{suffix}"
+    tls_server_directory = f"/data/.dojo-restore-tls-{suffix}"
+    tls_client_ca = f"/data/postgres-tls/restore-ca-{suffix}.crt"
+    tls_client_ca_serial = f"/data/postgres-tls/restore-ca-{suffix}.srl"
+    tls_wrong_ca = f"/data/postgres-tls/restore-wrong-ca-{suffix}.crt"
+    tls_server_ca_key = f"{tls_server_directory}/ca.key"
+    tls_server_csr = f"{tls_server_directory}/server.csr"
+    tls_server_cert = f"{tls_server_directory}/server.crt"
+    tls_server_key = f"{tls_server_directory}/server.key"
+    tls_wrong_ca_key = f"{tls_server_directory}/wrong-ca.key"
     original_config = dojo_run("cat", "/data/config.env").stdout
     config_changed = False
     backup_paths = []
@@ -3222,6 +3757,8 @@ def test_external_database_target_backup_restore_and_rollback():
             f"PGPASSWORD={external_password}",
             "--env",
             "PGCONNECT_TIMEOUT=5",
+            "--env",
+            "PGSSLMODE=disable",
             external_container,
             "psql",
             "--host=127.0.0.1",
@@ -3246,6 +3783,113 @@ def test_external_database_target_backup_restore_and_rollback():
         return result.stdout.strip()
 
     try:
+        postgres_group = dojo_run(
+            "docker",
+            "exec",
+            "db",
+            "id",
+            "--group",
+            "postgres",
+        ).stdout.strip()
+        assert postgres_group.isdigit()
+        dojo_run(
+            "install",
+            "--directory",
+            "--owner=root",
+            f"--group={postgres_group}",
+            "--mode=0750",
+            tls_server_directory,
+        )
+        dojo_run(
+            "install",
+            "--directory",
+            "--owner=root",
+            "--group=root",
+            "--mode=0755",
+            "/data/postgres-tls",
+        )
+        dojo_run(
+            "openssl",
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:2048",
+            "-sha256",
+            "-nodes",
+            "-days",
+            "2",
+            "-subj",
+            f"/CN=restore-ca-{suffix}",
+            "-addext",
+            "basicConstraints=critical,CA:TRUE",
+            "-addext",
+            "keyUsage=critical,keyCertSign,cRLSign",
+            "-keyout",
+            tls_server_ca_key,
+            "-out",
+            tls_client_ca,
+        )
+        dojo_run(
+            "openssl",
+            "req",
+            "-new",
+            "-newkey",
+            "rsa:2048",
+            "-sha256",
+            "-nodes",
+            "-subj",
+            f"/CN={external_container}",
+            "-addext",
+            f"subjectAltName=DNS:{external_container}",
+            "-keyout",
+            tls_server_key,
+            "-out",
+            tls_server_csr,
+        )
+        dojo_run(
+            "openssl",
+            "x509",
+            "-req",
+            "-in",
+            tls_server_csr,
+            "-CA",
+            tls_client_ca,
+            "-CAkey",
+            tls_server_ca_key,
+            "-CAcreateserial",
+            "-days",
+            "2",
+            "-sha256",
+            "-copy_extensions",
+            "copy",
+            "-out",
+            tls_server_cert,
+        )
+        dojo_run(
+            "openssl",
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:2048",
+            "-sha256",
+            "-nodes",
+            "-days",
+            "2",
+            "-subj",
+            f"/CN=restore-wrong-ca-{suffix}",
+            "-keyout",
+            tls_wrong_ca_key,
+            "-out",
+            tls_wrong_ca,
+        )
+        dojo_run("chmod", "0644", tls_client_ca, tls_wrong_ca, tls_server_cert)
+        dojo_run("chmod", "0640", tls_server_key)
+        dojo_run(
+            "chown",
+            f"root:{postgres_group}",
+            tls_server_key,
+            tls_server_cert,
+        )
         postgres_sql(
             f"CREATE ROLE {sql_identifier(external_user)} LOGIN SUPERUSER "
             f"PASSWORD {sql_literal(external_password)};"
@@ -3272,6 +3916,8 @@ def test_external_database_target_backup_restore_and_rollback():
             external_container,
             "--network",
             database_network,
+            "--volume",
+            f"{tls_server_directory}:/tls:ro",
             "--env",
             f"POSTGRES_USER={external_user}",
             "--env",
@@ -3279,6 +3925,13 @@ def test_external_database_target_backup_restore_and_rollback():
             "--env",
             f"POSTGRES_DB={external_database}",
             database_image,
+            "postgres",
+            "-c",
+            "ssl=on",
+            "-c",
+            "ssl_cert_file=/tls/server.crt",
+            "-c",
+            "ssl_key_file=/tls/server.key",
         )
         deadline = time.monotonic() + 90
         while True:
@@ -3300,9 +3953,71 @@ def test_external_database_target_backup_restore_and_rollback():
             DB_NAME=external_database,
             DB_USER=external_user,
             DB_PASS=external_password,
+            DB_SSLMODE="verify-full",
+            DB_SSLROOTCERT=tls_client_ca,
+            DB_TRUSTED_LOCAL="false",
         )
-        write_config(external_config)
+        backup_files_before_tls_failures = set(
+            dojo_run(
+                "find",
+                "/data/backups",
+                "-maxdepth",
+                "1",
+                "-type",
+                "f",
+            ).stdout.splitlines()
+        )
+        wrong_ca_config = configured_database_config(
+            external_config,
+            DB_PASS=f"wrong-{external_password}",
+            DB_SSLROOTCERT=tls_wrong_ca,
+            DOJO_RESTORE_READY_TIMEOUT_SECONDS="3",
+        )
+        write_config(wrong_ca_config)
         config_changed = True
+        wrong_ca_backup = dojo_run("dojo", "backup", check=False)
+        assert wrong_ca_backup.returncode != 0
+        wrong_ca_error = wrong_ca_backup.stdout + wrong_ca_backup.stderr
+        assert "certificate verify failed" in wrong_ca_error
+        assert "password authentication failed" not in wrong_ca_error
+        assert not backup_partials()
+        assert set(
+            dojo_run(
+                "find",
+                "/data/backups",
+                "-maxdepth",
+                "1",
+                "-type",
+                "f",
+            ).stdout.splitlines()
+        ) == backup_files_before_tls_failures
+
+        wrong_password_config = configured_database_config(
+            external_config,
+            DB_PASS=f"wrong-{external_password}",
+            DOJO_RESTORE_READY_TIMEOUT_SECONDS="3",
+        )
+        write_config(wrong_password_config)
+        wrong_password_backup = dojo_run("dojo", "backup", check=False)
+        assert wrong_password_backup.returncode != 0
+        wrong_password_error = (
+            wrong_password_backup.stdout + wrong_password_backup.stderr
+        )
+        assert "password authentication failed" in wrong_password_error
+        assert "certificate verify failed" not in wrong_password_error
+        assert not backup_partials()
+        assert set(
+            dojo_run(
+                "find",
+                "/data/backups",
+                "-maxdepth",
+                "1",
+                "-type",
+                "f",
+            ).stdout.splitlines()
+        ) == backup_files_before_tls_failures
+
+        write_config(external_config)
         external_sql(
             f"CREATE SCHEMA {sentinel_schema};"
             f"CREATE TABLE {sentinel_schema}.sentinel (value text NOT NULL);"
@@ -3355,6 +4070,12 @@ def test_external_database_target_backup_restore_and_rollback():
         ) == "external-live"
         assert restore_phase() is None
         write_config(external_config)
+        external_sql(
+            f"ALTER DATABASE {sql_identifier(external_database)} "
+            f"OWNER TO {sql_identifier(external_user)};"
+            f"REVOKE pg_monitor FROM {sql_identifier(restricted_user)};"
+            f"DROP ROLE {sql_identifier(restricted_user)};"
+        )
         maintenance_program = f"""
 import importlib.machinery
 import importlib.util
@@ -3449,7 +4170,8 @@ shutil.rmtree(module.STATE_DIRECTORY, ignore_errors=True)
             (
                 ". /data/config.env; "
                 "DB_PORT=${DB_PORT:-5432}; "
-                "export DB_HOST DB_PORT DB_NAME DB_USER DB_PASS; "
+                "export DB_HOST DB_PORT DB_NAME DB_USER DB_PASS "
+                "DB_SSLMODE DB_SSLROOTCERT DB_TRUSTED_LOCAL; "
                 "exec python3 -c \"$1\""
             ),
             "external-maintenance",
@@ -3470,6 +4192,21 @@ shutil.rmtree(module.STATE_DIRECTORY, ignore_errors=True)
             config_changed = False
         dojo_run("rm", "--recursive", "--force", external_state, check=False)
         dojo_run("docker", "rm", "--force", external_container, check=False)
+        dojo_run(
+            "rm",
+            "--recursive",
+            "--force",
+            tls_server_directory,
+            check=False,
+        )
+        dojo_run(
+            "rm",
+            "--force",
+            tls_client_ca,
+            tls_client_ca_serial,
+            tls_wrong_ca,
+            check=False,
+        )
         postgres_sql(
             f"DROP DATABASE IF EXISTS {sql_identifier(external_database)};",
             check=False,

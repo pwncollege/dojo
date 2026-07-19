@@ -78,7 +78,7 @@ def initialize_activity_for_user(user_id):
         logger.error(f"Error initializing activity for user {user_id}: {e}", exc_info=True)
         return False
 
-def initialize_all_activity():
+def initialize_all_activity(*, fail_on_error=False):
     one_year_ago = datetime.utcnow() - timedelta(days=365)
 
     all_solves = (
@@ -94,6 +94,7 @@ def initialize_all_activity():
             user_timestamps[user_id].append(date.isoformat() + 'Z')
 
     logger.info(f"Initializing activity for {len(user_timestamps)} active users (batch mode)...")
+    initialized = {}
 
     for user_id, timestamps in user_timestamps.items():
         activity = {
@@ -101,6 +102,8 @@ def initialize_all_activity():
             'total_solves': len(timestamps),
         }
         cache_key = f"stats:activity:{user_id}"
-        set_cached_stat(cache_key, activity)
+        set_cached_stat(cache_key, activity, raise_errors=fail_on_error)
+        initialized[cache_key] = activity
 
     logger.info(f"Activity initialization complete for {len(user_timestamps)} users")
+    return initialized
