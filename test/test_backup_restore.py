@@ -572,6 +572,33 @@ def maintenance_session_count():
     )
 
 
+def wait_for_maintenance_role_login(process):
+    deadline = time.monotonic() + 180
+    while time.monotonic() < deadline:
+        journal_result = dojo_run(
+            "cat",
+            f"{RESTORE_STATE}/journal",
+            check=False,
+        )
+        if journal_result.returncode == 0:
+            journal = json.loads(journal_result.stdout)
+            if journal.get("version") == 5 and journal.get("maintenance") == "active":
+                role = maintenance_role_state()
+                if (
+                    role
+                    and role["role"]["rolcanlogin"] is True
+                    and process.poll() is None
+                ):
+                    return journal, role
+        if process.poll() is not None:
+            stdout, stderr = process.communicate()
+            raise AssertionError(
+                f"restore exited before maintenance-role activation\n{stdout}\n{stderr}"
+            )
+        time.sleep(0.05)
+    raise AssertionError("restore did not activate its maintenance role")
+
+
 def wait_for_database_drop_sleep(process, database_name):
     deadline = time.monotonic() + 180
     while time.monotonic() < deadline:
@@ -2311,6 +2338,7 @@ finally:
         trusted_recovery_journal["phase"] = "ready"
         stopped_legacy_services = service_snapshot()
         stopped_legacy_role = maintenance_role_state()
+        assert stopped_legacy_role["role"]["rolcanlogin"] is False
         legacy_version_two = json.loads(json.dumps(version_two_journal))
         legacy_version_two["services"].pop("nginx")
         legacy_version_three = json.loads(json.dumps(version_three_journal))
@@ -2436,6 +2464,15 @@ finally:
             RESTORE_HELPER,
             backup_filename,
         )
+        orphan_activation_journal, orphan_active_role = (
+            wait_for_maintenance_role_login(orphan_restore_process)
+        )
+        assert orphan_activation_journal["version"] == 5
+        assert orphan_activation_journal["maintenance"] == "active"
+        assert orphan_active_role["role"]["oid"] == stopped_legacy_role["role"]["oid"]
+        assert orphan_active_role["comment"] == stopped_legacy_role["comment"]
+        assert orphan_active_role["memberships"] == stopped_legacy_role["memberships"]
+        assert orphan_active_role["role"]["rolcanlogin"] is True
         wait_for_database_drop_sleep(orphan_restore_process, database_name)
         signal_restore(backup_filename, "KILL")
         orphan_restore_process.communicate(timeout=15)
