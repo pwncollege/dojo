@@ -13,7 +13,13 @@ from restore_test_utils import (
     docker_network_ip_owners,
     is_transient_docker_ip_allocation_error,
 )
-from utils import DOJO_CONTAINER, DOJO_URL, db_sql, dojo_run, parse_csrf_token
+from utils import (
+    DOJO_CONTAINER,
+    DOJO_URL,
+    db_sql,
+    dojo_run as container_dojo_run,
+    parse_csrf_token,
+)
 
 
 pytestmark = pytest.mark.database_restore_integration
@@ -31,6 +37,75 @@ RESTORE_HELPER = "/opt/pwn.college/dojo/dojo-restore"
 RESTORE_STATE = "/data/.dojo-restore"
 DYNAMIC_HOLDER_LABEL = "pwn.college.dojo-restore-ip-holder"
 DYNAMIC_NGINX_NETWORK_CONTAINERS = ("ctfd", "frontend", "nginx")
+RESTORE_ENVIRONMENT = r'''
+. /data/config.env
+DB_PORT="${DB_PORT:-5432}"
+export DB_HOST DB_PORT DB_NAME DB_USER DB_PASS
+export DB_SSLMODE DB_SSLROOTCERT DB_TRUSTED_LOCAL
+export DOJO_ENV DOJO_HOST
+export DOJO_RESTORE_READY_TIMEOUT_SECONDS
+export DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS
+exec "$@"
+'''
+
+
+def configured_restore_arguments(arguments):
+    if RESTORE_HELPER not in arguments:
+        return arguments
+    return (
+        "sh",
+        "-c",
+        RESTORE_ENVIRONMENT,
+        "dojo-restore-config",
+        *arguments,
+    )
+
+
+def dojo_run(*arguments, **options):
+    return container_dojo_run(
+        *configured_restore_arguments(arguments),
+        **options,
+    )
+
+
+def test_dojo_run_failure_includes_captured_output(monkeypatch):
+    class FailedSubprocess:
+        PIPE = subprocess.PIPE
+        CalledProcessError = subprocess.CalledProcessError
+
+        @staticmethod
+        def run(arguments, **_options):
+            raise subprocess.CalledProcessError(
+                17,
+                arguments,
+                output="visible stdout",
+                stderr="visible stderr",
+            )
+
+    monkeypatch.setitem(
+        container_dojo_run.__globals__,
+        "subprocess",
+        FailedSubprocess,
+    )
+
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        container_dojo_run("false")
+
+    assert caught.value.__notes__ == [
+        "stdout:\nvisible stdout\nstderr:\nvisible stderr"
+    ]
+
+
+def test_direct_restore_helper_sources_database_target_configuration():
+    arguments = configured_restore_arguments((RESTORE_HELPER, "--recover"))
+
+    assert arguments[:2] == ("sh", "-c")
+    assert ". /data/config.env" in arguments[2]
+    assert "export DB_SSLMODE DB_SSLROOTCERT DB_TRUSTED_LOCAL" in arguments[2]
+    assert "export DOJO_ENV DOJO_HOST" in arguments[2]
+    assert "export DOJO_RESTORE_READY_TIMEOUT_SECONDS" in arguments[2]
+    assert "export DOJO_RESTORE_COLD_START_TIMEOUT_SECONDS" in arguments[2]
+    assert arguments[-2:] == (RESTORE_HELPER, "--recover")
 
 
 def container_info(service):
@@ -337,6 +412,22 @@ def create_backup():
     return parse_backup_filename(result)
 
 
+def backup_manifest(filename):
+    program = f"""
+import importlib.machinery
+import importlib.util
+import json
+
+loader = importlib.machinery.SourceFileLoader("backup_manifest", {RESTORE_HELPER!r})
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+with module.open_archive({filename!r}) as archive:
+    print(json.dumps(archive.manifest, sort_keys=True))
+"""
+    return json.loads(dojo_run("python3", "-c", program).stdout)
+
+
 def parse_backup_filename(result):
     match = re.search(r"Created backup at /data/backups/([^/\s]+)\s*$", result.stdout)
     assert match, result.stdout
@@ -421,7 +512,13 @@ def assert_restore_timeout_wrapper_exports(suffix):
 
 def outer_process(*arguments):
     return subprocess.Popen(
-        [shutil.which("docker"), "exec", "-i", DOJO_CONTAINER, *arguments],
+        [
+            shutil.which("docker"),
+            "exec",
+            "-i",
+            DOJO_CONTAINER,
+            *configured_restore_arguments(arguments),
+        ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -1502,9 +1599,16 @@ def test_database_backup_restore():
     holder = f"ctfd-ip-holder-{suffix}"
     metadata_role = f"restore_metadata_{suffix}"
     metadata_grantee = f"restore_metadata_grantee_{suffix}"
+    source_metadata_only_role = f"restore_source_metadata_{suffix}"
     metadata_tablespace = f"restore_tablespace_{suffix}"
     metadata_tablespace_path = f"/data/postgres-tablespaces/{metadata_tablespace}"
     metadata_tablespace_created = False
+    unrelated_tablespace = f"restore_unrelated_tablespace_{suffix}"
+    unrelated_tablespace_path = (
+        f"/data/postgres-tablespaces/{unrelated_tablespace}"
+    )
+    unrelated_tablespace_owner = f"restore_unrelated_owner_{suffix}"
+    unrelated_tablespace_created = False
     metadata_setting = f"dojo.restore_{suffix}"
     metadata_text = f"m\\';CREATE SCHEMA {injection_schema};--"
     subscription_name = f"restore_blocker_{suffix}"
@@ -1604,6 +1708,8 @@ def test_database_backup_restore():
         db_sql(
             f"CREATE ROLE {metadata_role};"
             f"CREATE ROLE {metadata_grantee};"
+            f"CREATE ROLE {source_metadata_only_role};"
+            f"CREATE ROLE {unrelated_tablespace_owner};"
             f"GRANT {sql_identifier(metadata_role)} "
             f"TO {sql_identifier(metadata_grantee)};"
             f"COMMENT ON DATABASE {sql_identifier(database_name)} "
@@ -1613,12 +1719,17 @@ def test_database_backup_restore():
             f"SET {sql_identifier(metadata_setting)} TO {sql_literal(metadata_text)};"
             f"ALTER ROLE {metadata_role} IN DATABASE {sql_identifier(database_name)} "
             f"SET application_name TO {sql_literal(metadata_text)};"
+            f"ALTER ROLE {source_metadata_only_role} IN DATABASE "
+            f"{sql_identifier(database_name)} SET application_name TO "
+            f"{sql_literal(metadata_text)};"
             f"GRANT CONNECT ON DATABASE {sql_identifier(database_name)} "
             f"TO {sql_identifier(metadata_role)} WITH GRANT OPTION;"
             f"SET ROLE {sql_identifier(metadata_role)};"
             f"GRANT CONNECT ON DATABASE {sql_identifier(database_name)} "
             f"TO {sql_identifier(metadata_grantee)};"
             "RESET ROLE;"
+            f"GRANT CONNECT ON DATABASE {sql_identifier(database_name)} "
+            f"TO {sql_identifier(source_metadata_only_role)};"
             f"ALTER DEFAULT PRIVILEGES FOR ROLE {sql_identifier(metadata_role)} "
             "IN SCHEMA public GRANT SELECT ON TABLES "
             f"TO {sql_identifier(metadata_grantee)};"
@@ -1644,6 +1755,23 @@ def test_database_backup_restore():
             f"TO {sql_identifier(metadata_grantee)};"
         )
         metadata_tablespace_created = True
+        dojo_run(
+            "docker",
+            "exec",
+            "db",
+            "install",
+            "--directory",
+            "--owner=postgres",
+            "--group=postgres",
+            "--mode=700",
+            unrelated_tablespace_path,
+        )
+        postgres_sql(
+            f"CREATE TABLESPACE {sql_identifier(unrelated_tablespace)} "
+            f"OWNER {sql_identifier(unrelated_tablespace_owner)} "
+            f"LOCATION {sql_literal(unrelated_tablespace_path)};"
+        )
+        unrelated_tablespace_created = True
         dojo_script = dojo_run("cat", "/opt/pwn.college/dojo/dojo").stdout
         assert f"{RESTORE_HELPER} --prepare-recovery" in dojo_script
         assert f"{RESTORE_HELPER} --recover" in dojo_script
@@ -1671,6 +1799,8 @@ def test_database_backup_restore():
             f"CREATE TABLE {schema}.payload AS "
             "SELECT value, md5(random()::text || value::text) AS data "
             "FROM generate_series(1, 100000) AS values(value);"
+            f"CREATE TABLE {schema}.tablespaced (id integer) "
+            f"TABLESPACE {sql_identifier(metadata_tablespace)};"
             f"INSERT INTO {schema}.parents VALUES (1, 'from-backup');"
             f"INSERT INTO {schema}.children VALUES (1, 1);"
         )
@@ -1678,6 +1808,16 @@ def test_database_backup_restore():
         backup_filename = create_backup()
         backup_path = f"/data/backups/{backup_filename}"
         backup_paths.append(backup_path)
+        dependencies = backup_manifest(backup_filename)["dependencies"]
+        manifest_tablespaces = {
+            tablespace["name"] for tablespace in dependencies["tablespaces"]
+        }
+        manifest_roles = {role["name"] for role in dependencies["roles"]}
+        assert metadata_tablespace in manifest_tablespaces
+        assert metadata_role in manifest_roles
+        assert source_metadata_only_role not in manifest_roles
+        assert unrelated_tablespace not in manifest_tablespaces
+        assert unrelated_tablespace_owner not in manifest_roles
         assert dojo_run("stat", "--format=%a:%U", backup_path).stdout.strip() == (
             "600:root"
         )
@@ -3673,6 +3813,13 @@ with module.RestoreState() as state:
                     check=False,
                 )
                 metadata_tablespace_created = False
+            if unrelated_tablespace_created:
+                postgres_sql(
+                    f"DROP TABLESPACE IF EXISTS "
+                    f"{sql_identifier(unrelated_tablespace)};",
+                    check=False,
+                )
+                unrelated_tablespace_created = False
             dojo_run(
                 "docker",
                 "exec",
@@ -3681,6 +3828,7 @@ with module.RestoreState() as state:
                 "--recursive",
                 "--force",
                 metadata_tablespace_path,
+                unrelated_tablespace_path,
                 check=False,
             )
             dojo_run(
@@ -3690,6 +3838,10 @@ with module.RestoreState() as state:
                 input=(
                     f"DROP ROLE IF EXISTS {sql_identifier(metadata_grantee)};"
                     f"DROP ROLE IF EXISTS {sql_identifier(metadata_role)};"
+                    f"DROP ROLE IF EXISTS "
+                    f"{sql_identifier(source_metadata_only_role)};"
+                    f"DROP ROLE IF EXISTS "
+                    f"{sql_identifier(unrelated_tablespace_owner)};"
                 ),
                 check=False,
             )
@@ -3783,6 +3935,14 @@ def test_external_database_target_backup_restore_and_rollback():
         return result.stdout.strip()
 
     try:
+        dojo_run(
+            "install",
+            "--directory",
+            "--owner=root",
+            "--group=root",
+            "--mode=0755",
+            "/data/backups",
+        )
         postgres_group = dojo_run(
             "docker",
             "exec",

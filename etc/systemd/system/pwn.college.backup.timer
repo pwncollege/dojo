@@ -3,6 +3,7 @@ Description=Timer to run pwn.college local backup service
 
 [Timer]
 OnCalendar=hourly
+Unit=pwn.college.backup.service
 
 [Install]
 WantedBy=timers.target

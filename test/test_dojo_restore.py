@@ -3408,8 +3408,10 @@ def test_global_dependency_preflight_seeds_every_manifest_role(monkeypatch):
     ]
     seeds = []
 
-    def capture(required_role_names=()):
-        seeds.append(set(required_role_names))
+    def capture(required_role_names=(), required_tablespace_names=()):
+        seeds.append(
+            (set(required_role_names), set(required_tablespace_names))
+        )
         return expected
 
     database = maintenance_role_database()
@@ -3418,17 +3420,20 @@ def test_global_dependency_preflight_seeds_every_manifest_role(monkeypatch):
     database.verify_global_backup_dependencies(expected)
 
     assert seeds == [
-        {
-            "ctfd",
-            "reader",
-            "analyst",
-            "default_owner",
-            "default_grantor",
-            "default_grantee",
-            "tablespace_owner",
-            "tablespace_grantor",
-            "tablespace_grantee",
-        }
+        (
+            {
+                "ctfd",
+                "reader",
+                "analyst",
+                "default_owner",
+                "default_grantor",
+                "default_grantee",
+                "tablespace_owner",
+                "tablespace_grantor",
+                "tablespace_grantee",
+            },
+            {"archive_space"},
+        )
     ]
 
 
@@ -3950,6 +3955,60 @@ def test_restore_timeout_configuration_is_exported_by_shell_entrypoints():
     assert "SERVER_TLS_SSLMODE: ${DB_SSLMODE}" in compose
     assert "SERVER_TLS_CA_FILE: ${DB_SSLROOTCERT:-}" in compose
     assert "PGSSLMODE: ${DB_SSLMODE}" not in compose
+
+
+def test_backup_timer_waits_for_startup_without_activating_a_stopped_dojo():
+    repository = pathlib.Path(__file__).parents[1]
+    backup_service = (
+        repository / "etc" / "systemd" / "system" / "pwn.college.backup.service"
+    ).read_text()
+    backup_timer = (
+        repository / "etc" / "systemd" / "system" / "pwn.college.backup.timer"
+    ).read_text()
+
+    assert "Requisite=pwn.college.service" in backup_service
+    assert "After=pwn.college.service" in backup_service
+    assert "Requires=pwn.college.service" not in backup_service
+    assert "Wants=pwn.college.service" not in backup_service
+    assert "Unit=pwn.college.backup.service" in backup_timer
+
+
+def test_dependency_query_scopes_contract_to_dumped_database_objects():
+    database = maintenance_role_database()
+    commands = []
+
+    def run_client(_runner, program, arguments, **_options):
+        commands.append((program, arguments))
+        return subprocess.CompletedProcess(
+            [],
+            0,
+            json.dumps(backup_dependencies()).encode(),
+        )
+
+    database.target.run_client = run_client
+
+    database.capture_backup_dependencies(
+        required_tablespace_names={"migration_space"},
+    )
+
+    query = commands[0][1][commands[0][1].index("--command") + 1]
+    assert "target_tablespaces AS (" in query
+    assert (
+        "SELECT reltablespace FROM pg_class WHERE reltablespace <> 0 "
+        "AND relpersistence <> 't'"
+        in query
+    )
+    assert (
+        "UNION SELECT oid FROM pg_tablespace WHERE spcname IN (E'migration_space')"
+        in query
+    )
+    assert query.count(
+        "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid"
+    ) == 4
+    assert "dattablespace" not in query
+    assert "datdba" not in query
+    assert "aclexplode(database.datacl)" not in query
+    assert "pg_db_role_setting" not in query
 
 
 @pytest.mark.parametrize(

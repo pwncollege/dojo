@@ -1,5 +1,7 @@
 [Unit]
 Description=Create a pwn.college backup
+Requisite=pwn.college.service
+After=pwn.college.service
 
 [Service]
 Type=simple

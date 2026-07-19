@@ -115,10 +115,14 @@ def create_dojo_yml(spec, *, session):
 def dojo_run(*args, **kwargs):
     kwargs.update(stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     container = kwargs.pop("container", DOJO_CONTAINER)
-    return subprocess.run(
-        [shutil.which("docker"), "exec", "-i", container, *args],
-        check=kwargs.pop("check", True), **kwargs
-    )
+    try:
+        return subprocess.run(
+            [shutil.which("docker"), "exec", "-i", container, *args],
+            check=kwargs.pop("check", True), **kwargs
+        )
+    except subprocess.CalledProcessError as error:
+        error.add_note(f"stdout:\n{error.stdout}\nstderr:\n{error.stderr}")
+        raise
 
 
 def db_sql(sql):

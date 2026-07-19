@@ -3065,17 +3065,40 @@ class DatabaseRestore:
             )
         return metadata
 
-    def capture_backup_dependencies(self, required_role_names=()):
+    def capture_backup_dependencies(
+        self,
+        required_role_names=(),
+        required_tablespace_names=(),
+    ):
         if not isinstance(required_role_names, (list, tuple, set)):
             raise RestoreError("backup dependency role seed is invalid")
+        if not isinstance(required_tablespace_names, (list, tuple, set)):
+            raise RestoreError("backup dependency tablespace seed is invalid")
         required_role_names = sorted(set(required_role_names))
+        required_tablespace_names = sorted(set(required_tablespace_names))
         for role_name in required_role_names:
             validate_text(role_name, "backup dependency role seed", limit=1024)
+        for tablespace_name in required_tablespace_names:
+            validate_text(
+                tablespace_name,
+                "backup dependency tablespace seed",
+                limit=1024,
+            )
         required_role_seed = ""
         if required_role_names:
             roles = ", ".join(sql_literal(role) for role in required_role_names)
             required_role_seed = (
                 " UNION SELECT oid FROM pg_roles WHERE rolname IN (" + roles + ")"
+            )
+        required_tablespace_seed = ""
+        if required_tablespace_names:
+            tablespaces = ", ".join(
+                sql_literal(tablespace) for tablespace in required_tablespace_names
+            )
+            required_tablespace_seed = (
+                " UNION SELECT oid FROM pg_tablespace WHERE spcname IN ("
+                + tablespaces
+                + ")"
             )
         result = self.target.run_client(
             self.runner,
@@ -3087,34 +3110,31 @@ class DatabaseRestore:
                 "--set=ON_ERROR_STOP=1",
                 "--command",
                 "WITH RECURSIVE target_database AS ("
-                "SELECT oid, datdba FROM pg_database WHERE datname = current_database()"
+                "SELECT oid FROM pg_database "
+                "WHERE datname = current_database()"
+                "), target_tablespaces AS ("
+                "SELECT reltablespace FROM pg_class WHERE reltablespace <> 0 "
+                "AND relpersistence <> 't'"
+                f"{required_tablespace_seed}"
                 "), seed_roles AS ("
-                "SELECT datdba AS oid FROM target_database UNION "
                 "SELECT dependency.refobjid FROM pg_shdepend AS dependency "
                 "JOIN target_database ON dependency.dbid = target_database.oid "
                 "WHERE dependency.refclassid = 'pg_authid'::regclass UNION "
-                "SELECT acl.grantor FROM pg_database AS database "
-                "JOIN target_database ON target_database.oid = database.oid "
-                "CROSS JOIN LATERAL aclexplode(database.datacl) AS acl UNION "
-                "SELECT acl.grantee FROM pg_database AS database "
-                "JOIN target_database ON target_database.oid = database.oid "
-                "CROSS JOIN LATERAL aclexplode(database.datacl) AS acl "
-                "WHERE acl.grantee <> 0 UNION "
-                "SELECT setting.setrole FROM pg_db_role_setting AS setting "
-                "JOIN target_database ON target_database.oid = setting.setdatabase "
-                "WHERE setting.setrole <> 0 UNION "
                 "SELECT defaclrole FROM pg_default_acl UNION "
                 "SELECT acl.grantor FROM pg_default_acl AS defaults "
                 "CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl UNION "
                 "SELECT acl.grantee FROM pg_default_acl AS defaults "
                 "CROSS JOIN LATERAL aclexplode(defaults.defaclacl) AS acl "
                 "WHERE acl.grantee <> 0 UNION "
-                "SELECT spcowner FROM pg_tablespace WHERE spcname NOT IN "
-                "('pg_default', 'pg_global') UNION "
+                "SELECT tablespace.spcowner FROM pg_tablespace AS tablespace "
+                "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid "
+                "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global') UNION "
                 "SELECT acl.grantor FROM pg_tablespace AS tablespace "
+                "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid "
                 "CROSS JOIN LATERAL aclexplode(tablespace.spcacl) AS acl "
                 "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global') UNION "
                 "SELECT acl.grantee FROM pg_tablespace AS tablespace "
+                "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid "
                 "CROSS JOIN LATERAL aclexplode(tablespace.spcacl) AS acl "
                 "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global') "
                 "AND acl.grantee <> 0"
@@ -3186,6 +3206,7 @@ class DatabaseRestore:
                 ") ORDER BY acl.grantor, acl.grantee, acl.privilege_type) "
                 "FROM aclexplode(tablespace.spcacl) AS acl), '[]'::json)"
                 ") ORDER BY tablespace.spcname) FROM pg_tablespace AS tablespace "
+                "JOIN target_tablespaces ON target_tablespaces.oid = tablespace.oid "
                 "WHERE tablespace.spcname NOT IN ('pg_default', 'pg_global')"
                 "), '[]'::json)"
                 ");",
@@ -3226,7 +3247,10 @@ class DatabaseRestore:
                     for field in ("grantor", "grantee")
                     if acl[field] is not None
                 )
-        current = self.capture_backup_dependencies(required_role_names)
+        current = self.capture_backup_dependencies(
+            required_role_names,
+            {tablespace["name"] for tablespace in expected["tablespaces"]},
+        )
         current_roles = {role["name"]: role for role in current["roles"]}
         current_tablespaces = {
             tablespace["name"]: tablespace
