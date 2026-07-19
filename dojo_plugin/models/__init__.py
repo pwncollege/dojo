@@ -758,6 +758,20 @@ class DojoChallengeTransferProvenances(db.Model):
     __repr__ = columns_repr(["challenge", "dojo_id", "module_id", "dojo_challenge_id"])
 
 
+class DojoUpdateRecalculations(db.Model):
+    __tablename__ = "dojo_update_recalculations"
+
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    token = db.Column(db.String(32), nullable=False, unique=True, index=True)
+    data = db.Column(JSONB, nullable=False)
+    published = db.Column(db.Boolean, nullable=False, default=False)
+    created = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.datetime.utcnow,
+    )
+
+
 class SurveyResponses(db.Model):
     __tablename__ = "survey_responses"
 

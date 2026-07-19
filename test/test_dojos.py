@@ -444,6 +444,504 @@ def create_challenge_dependents(dojo, challenge_id, user_id, label):
     }
 
 
+def create_requirement_dependents(canonical_id, duplicate_id, user_id, label):
+    requirements = {
+        "prerequisites": [
+            duplicate_id,
+            label,
+            canonical_id,
+            duplicate_id,
+            True,
+            {"nested": duplicate_id},
+            None,
+            1.5,
+        ],
+    }
+    challenge_id = int(db_sql(
+        "INSERT INTO challenges "
+        "(type, category, name, state, requirements) "
+        f"VALUES ('standard', 'requirements-regression', '{label}', "
+        f"'hidden', '{json.dumps(requirements)}'::json) RETURNING id"
+    ).strip())
+    untouched_requirements = json.dumps({
+        "prerequisites": [duplicate_id, canonical_id, duplicate_id],
+        "nested": {"challenge": duplicate_id},
+    })
+    hint_id = int(db_sql(
+        "INSERT INTO hints "
+        "(type, challenge_id, content, cost, requirements) "
+        f"VALUES ('standard', {duplicate_id}, '{label}', 0, "
+        f"'{untouched_requirements}'::json) RETURNING id"
+    ).strip())
+    award_id = int(db_sql(
+        "INSERT INTO awards "
+        "(user_id, type, name, description, value, category, requirements) "
+        f"VALUES ({user_id}, 'standard', '{label}', '{label}', 0, "
+        f"'requirements-regression', '{untouched_requirements}'::json) "
+        "RETURNING id"
+    ).strip())
+    return {
+        "challenge": challenge_id,
+        "hint": hint_id,
+        "award": award_id,
+        "original_challenge": requirements,
+        "untouched": json.loads(untouched_requirements),
+    }
+
+
+def json_column(table, row_id, column="requirements"):
+    value = db_sql(
+        f"SELECT {column}::text FROM {table} WHERE id = {row_id}"
+    ).strip()
+    return json.loads(value) if value else None
+
+
+def run_submission_transfer_race(
+    dojo,
+    moved_spec,
+    user_id,
+    route,
+    correct,
+    transfer_first,
+):
+    script = r'''
+import threading
+import time
+from flask import current_app
+from sqlalchemy import text
+from CTFd.models import Fails, Solves, Users, db
+import CTFd.plugins.dojo_plugin as dojo_plugin
+from CTFd.plugins.dojo_plugin.models import DojoChallenges, Dojos
+from CTFd.plugins.dojo_plugin.utils import serialize_user_flag
+from CTFd.plugins.dojo_plugin.utils.dojo import dojo_from_spec
+
+app = current_app._get_current_object()
+dojo_id = __DOJO_ID__
+dojo_reference_id = __DOJO_REFERENCE_ID__
+moved_spec = __MOVED_SPEC__
+user_id = __USER_ID__
+route = __ROUTE__
+correct = __CORRECT__
+transfer_first = __TRANSFER_FIRST__
+source = DojoChallenges.from_id(
+    dojo_reference_id,
+    "source-module",
+    "source",
+).one()
+source_challenge_id = source.challenge_id
+user = Users.query.get(user_id)
+submission = (
+    serialize_user_flag(user.account_id, source_challenge_id)
+    if correct else
+    "incorrect-submission"
+)
+db.session.rollback()
+
+class CurrentContainer:
+    labels = {
+        "dojo.dojo_id": dojo_reference_id,
+        "dojo.module_id": "source-module",
+        "dojo.challenge_id": "source",
+    }
+
+original_get_current_container = dojo_plugin.get_current_container
+original_attempt = dojo_plugin.DojoChallenge.attempt
+original_submission_lock = dojo_plugin.lock_dojo_reference_ids_for_update
+dojo_plugin.get_current_container = lambda user=None: CurrentContainer()
+validation_reached = threading.Event()
+release_submission = threading.Event()
+transfer_flushed = threading.Event()
+release_transfer = threading.Event()
+submission_locking = threading.Event()
+transfer_ready = threading.Event()
+backend_pids = {}
+responses = {}
+errors = []
+
+def submit_flag():
+    try:
+        with app.test_client() as client:
+            nonce = f"submission-race-{route}-{correct}-{transfer_first}"
+            with client.session_transaction() as client_session:
+                client_session["id"] = user_id
+                client_session["nonce"] = nonce
+            headers = {"CSRF-Token": nonce}
+            if route == "custom":
+                response = client.post(
+                    f"/pwncollege_api/v1/dojos/{dojo_reference_id}/"
+                    "source-module/source/solve",
+                    json={"submission": submission},
+                    headers=headers,
+                )
+            else:
+                response = client.post(
+                    "/api/v1/challenges/attempt",
+                    json={
+                        "challenge_id": source_challenge_id,
+                        "submission": submission,
+                    },
+                    headers=headers,
+                )
+            responses["status"] = response.status_code
+            responses["json"] = response.get_json()
+    except BaseException as error:
+        errors.append(("submission", repr(error)))
+        validation_reached.set()
+        submission_locking.set()
+
+def transfer_challenge():
+    with app.app_context():
+        try:
+            dojo = Dojos.query.filter_by(dojo_id=dojo_id).one()
+            backend_pids["transfer"] = db.session.execute(
+                text("SELECT pg_backend_pid()")
+            ).scalar()
+            transfer_ready.set()
+            dojo_from_spec(moved_spec, dojo=dojo)
+            db.session.flush()
+            transfer_flushed.set()
+            if transfer_first:
+                assert release_transfer.wait(30)
+            db.session.commit()
+        except BaseException as error:
+            errors.append(("transfer", repr(error)))
+            db.session.rollback()
+            transfer_ready.set()
+            transfer_flushed.set()
+
+def wait_for_lock(pid):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        wait_event_type = db.session.execute(
+            text(
+                "SELECT wait_event_type FROM pg_stat_activity "
+                "WHERE pid = :pid"
+            ),
+            {"pid": pid},
+        ).scalar()
+        if wait_event_type == "Lock":
+            return
+        time.sleep(0.05)
+    raise AssertionError((errors, backend_pids, responses))
+
+def controlled_attempt(cls, challenge, request):
+    result = original_attempt(challenge, request)
+    validation_reached.set()
+    assert release_submission.wait(30)
+    return result
+
+def observed_submission_lock(reference_ids):
+    backend_pids["submission"] = db.session.execute(
+        text("SELECT pg_backend_pid()")
+    ).scalar()
+    submission_locking.set()
+    return original_submission_lock(reference_ids)
+
+submission_thread = threading.Thread(target=submit_flag, name="submission")
+transfer_thread = threading.Thread(target=transfer_challenge, name="transfer")
+try:
+    if transfer_first:
+        dojo_plugin.lock_dojo_reference_ids_for_update = observed_submission_lock
+        transfer_thread.start()
+        assert transfer_flushed.wait(30), errors
+        submission_thread.start()
+        assert submission_locking.wait(30), errors
+        wait_for_lock(backend_pids["submission"])
+        release_transfer.set()
+    else:
+        dojo_plugin.DojoChallenge.attempt = classmethod(controlled_attempt)
+        submission_thread.start()
+        assert validation_reached.wait(30), errors
+        transfer_thread.start()
+        assert transfer_ready.wait(30), errors
+        wait_for_lock(backend_pids["transfer"])
+        release_submission.set()
+    submission_thread.join(30)
+    transfer_thread.join(30)
+finally:
+    release_submission.set()
+    release_transfer.set()
+    dojo_plugin.DojoChallenge.attempt = original_attempt
+    dojo_plugin.lock_dojo_reference_ids_for_update = original_submission_lock
+    dojo_plugin.get_current_container = original_get_current_container
+
+assert not submission_thread.is_alive()
+assert not transfer_thread.is_alive()
+assert errors == [], errors
+db.session.expire_all()
+correct_count = Solves.query.filter_by(
+    user_id=user_id,
+    challenge_id=source_challenge_id,
+).count()
+incorrect_count = Fails.query.filter_by(
+    user_id=user_id,
+    challenge_id=source_challenge_id,
+).count()
+if transfer_first:
+    assert responses["status"] == 404, responses
+    assert correct_count == 0
+    assert incorrect_count == 0
+else:
+    if correct:
+        assert responses["status"] == 200, responses
+        if route == "custom":
+            assert responses["json"] == {"success": True, "status": "solved"}
+        else:
+            assert responses["json"]["data"]["status"] == "correct"
+        assert correct_count == 1
+        assert incorrect_count == 0
+    else:
+        assert responses["status"] == (400 if route == "custom" else 200), responses
+        if route == "custom":
+            assert responses["json"] == {"success": False, "status": "incorrect"}
+        else:
+            assert responses["json"]["data"]["status"] == "incorrect"
+        assert correct_count == 0
+        assert incorrect_count == 1
+assert DojoChallenges.from_id(
+    dojo_reference_id,
+    "destination-module",
+    "moved",
+).one().challenge_id == source_challenge_id
+print("SUBMISSION_TRANSFER_SERIALIZED")
+'''
+    script = (
+        script
+        .replace("__DOJO_ID__", repr(dojo_database_id(dojo)))
+        .replace("__DOJO_REFERENCE_ID__", repr(dojo))
+        .replace("__MOVED_SPEC__", repr(moved_spec))
+        .replace("__USER_ID__", repr(user_id))
+        .replace("__ROUTE__", repr(route))
+        .replace("__CORRECT__", repr(correct))
+        .replace("__TRANSFER_FIRST__", repr(transfer_first))
+    )
+    result = dojo_run("dojo", "flask", input=f"exec({script!r})\n")
+    assert "SUBMISSION_TRANSFER_SERIALIZED" in result.stdout
+
+
+def run_reference_writer_interleavings(dojo, spec, user_id):
+    script = r'''
+import threading
+import time
+from flask import current_app
+from sqlalchemy import text
+from CTFd.models import Challenges, Flags, db
+from CTFd.plugins.dojo_plugin.models import DojoChallenges, Dojos, SurveyResponses
+import CTFd.plugins.dojo_plugin.utils.challenge_references as challenge_references
+from CTFd.plugins.dojo_plugin.utils.dojo import dojo_from_spec
+
+app = current_app._get_current_object()
+dojo_id = __DOJO_ID__
+spec = __SPEC__
+user_id = __USER_ID__
+canonical = DojoChallenges.query.filter_by(
+    dojo_id=dojo_id,
+    module_index=0,
+    challenge_index=0,
+).one().challenge
+category = canonical.category
+challenge_name = canonical.name
+db.session.rollback()
+
+def wait_for_lock(pid, errors):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        wait_event_type = db.session.execute(
+            text(
+                "SELECT wait_event_type FROM pg_stat_activity "
+                "WHERE pid = :pid"
+            ),
+            {"pid": pid},
+        ).scalar()
+        if wait_event_type == "Lock":
+            return
+        time.sleep(0.05)
+    raise AssertionError((pid, errors))
+
+def run_case(kind, writer_first, consolidation_commit, case_index):
+    duplicate = Challenges(
+        type="dojo",
+        category=category,
+        name=challenge_name,
+        flags=[Flags(type="dojo")],
+    )
+    target = Challenges(
+        type="standard",
+        category="reference-writer-race",
+        name=f"target-{case_index}",
+        state="hidden",
+    )
+    db.session.add_all([duplicate, target])
+    db.session.commit()
+    duplicate_id = duplicate.id
+    target_id = target.id
+    label = f"reference-race-{case_index}"
+    writer_locked = threading.Event()
+    release_writer = threading.Event()
+    consolidation_flushed = threading.Event()
+    release_consolidation = threading.Event()
+    writer_ready = threading.Event()
+    consolidation_ready = threading.Event()
+    backend_pids = {}
+    results = {}
+    errors = []
+    real_writer_lock = challenge_references.lock_challenge_references
+
+    def controlled_writer_lock(session=None):
+        real_writer_lock(session)
+        if (
+            writer_first and
+            threading.current_thread().name == "reference-writer"
+        ):
+            writer_locked.set()
+            assert release_writer.wait(30)
+
+    def write_reference():
+        with app.app_context():
+            try:
+                backend_pids["writer"] = db.session.execute(
+                    text("SELECT pg_backend_pid()")
+                ).scalar()
+                writer_ready.set()
+                if kind == "survey":
+                    reference = SurveyResponses(
+                        dojo_id=dojo_id,
+                        challenge_id=duplicate_id,
+                        user_id=user_id,
+                        prompt=label,
+                        response=label,
+                    )
+                    db.session.add(reference)
+                else:
+                    reference = Challenges.query.get(target_id)
+                    reference.requirements = {
+                        "prerequisites": [duplicate_id],
+                        "case": label,
+                    }
+                db.session.flush()
+                db.session.commit()
+                results["writer"] = "committed"
+            except BaseException as error:
+                results["writer"] = type(error).__name__
+                errors.append(("writer", type(error).__name__, str(error)))
+                db.session.rollback()
+                writer_locked.set()
+                writer_ready.set()
+
+    def consolidate():
+        with app.app_context():
+            try:
+                dojo = Dojos.query.filter_by(dojo_id=dojo_id).one()
+                backend_pids["consolidation"] = db.session.execute(
+                    text("SELECT pg_backend_pid()")
+                ).scalar()
+                consolidation_ready.set()
+                dojo_from_spec(spec, dojo=dojo)
+                db.session.flush()
+                consolidation_flushed.set()
+                if not writer_first:
+                    assert release_consolidation.wait(30)
+                if consolidation_commit:
+                    db.session.commit()
+                    results["consolidation"] = "committed"
+                else:
+                    db.session.rollback()
+                    results["consolidation"] = "rolled-back"
+            except BaseException as error:
+                errors.append(("consolidation", type(error).__name__, str(error)))
+                db.session.rollback()
+                consolidation_ready.set()
+                consolidation_flushed.set()
+
+    challenge_references.lock_challenge_references = controlled_writer_lock
+    writer_thread = threading.Thread(
+        target=write_reference,
+        name="reference-writer",
+    )
+    consolidation_thread = threading.Thread(
+        target=consolidate,
+        name="reference-consolidation",
+    )
+    try:
+        if writer_first:
+            writer_thread.start()
+            assert writer_locked.wait(30), errors
+            consolidation_thread.start()
+            assert consolidation_ready.wait(30), errors
+            wait_for_lock(backend_pids["consolidation"], errors)
+            release_writer.set()
+        else:
+            consolidation_thread.start()
+            assert consolidation_flushed.wait(30), errors
+            writer_thread.start()
+            assert writer_ready.wait(30), errors
+            wait_for_lock(backend_pids["writer"], errors)
+            release_consolidation.set()
+        writer_thread.join(30)
+        consolidation_thread.join(30)
+    finally:
+        release_writer.set()
+        release_consolidation.set()
+        challenge_references.lock_challenge_references = real_writer_lock
+
+    assert not writer_thread.is_alive()
+    assert not consolidation_thread.is_alive()
+    assert results.get("consolidation") == (
+        "committed" if consolidation_commit else "rolled-back"
+    ), (results, errors)
+    expected_writer_commit = writer_first or not consolidation_commit
+    if expected_writer_commit:
+        assert results.get("writer") == "committed", (results, errors)
+    else:
+        assert results.get("writer") == "ValueError", (results, errors)
+    db.session.expire_all()
+    duplicate_exists = Challenges.query.get(duplicate_id) is not None
+    assert duplicate_exists is not consolidation_commit
+    expected_reference_id = canonical.id if consolidation_commit else duplicate_id
+    if kind == "survey":
+        references = SurveyResponses.query.filter_by(response=label).all()
+        if expected_writer_commit:
+            assert len(references) == 1
+            assert references[0].challenge_id == expected_reference_id
+        else:
+            assert references == []
+        SurveyResponses.query.filter_by(response=label).delete()
+    else:
+        requirements = Challenges.query.get(target_id).requirements
+        if expected_writer_commit:
+            assert requirements == {
+                "prerequisites": [expected_reference_id],
+                "case": label,
+            }
+        else:
+            assert requirements is None
+    Challenges.query.filter_by(id=target_id).delete()
+    db.session.commit()
+    if duplicate_exists:
+        dojo = Dojos.query.filter_by(dojo_id=dojo_id).one()
+        dojo_from_spec(spec, dojo=dojo)
+        db.session.commit()
+
+cases = (
+    ("survey", True, True),
+    ("requirements", True, False),
+    ("survey", False, True),
+    ("requirements", False, False),
+)
+for case_index, case in enumerate(cases):
+    run_case(*case, case_index)
+print("REFERENCE_WRITER_INTERLEAVINGS_SERIALIZED")
+'''
+    script = (
+        script
+        .replace("__DOJO_ID__", repr(dojo_database_id(dojo)))
+        .replace("__SPEC__", repr(spec))
+        .replace("__USER_ID__", repr(user_id))
+    )
+    result = dojo_run("dojo", "flask", input=f"exec({script!r})\n")
+    assert "REFERENCE_WRITER_INTERLEAVINGS_SERIALIZED" in result.stdout
+
+
 def challenge_database_state(challenge_id):
     challenge = db_sql(
         "SELECT row_to_json(challenge_row)::text "
@@ -542,6 +1040,15 @@ def dojo_temporary_entries():
             "-printf", "%f\\n",
         ).stdout.splitlines()
     )
+
+
+def wait_for_dojo_path(path, timeout=30):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if dojo_run("test", "-e", path, check=False).returncode == 0:
+            return
+        time.sleep(0.1)
+    raise AssertionError(f"Timed out waiting for {path}")
 
 
 def dojo_topology_database_state(dojo):
@@ -922,6 +1429,17 @@ def test_ordinary_updates_consolidate_same_type_challenge_duplicates(
         canonical_id = api_duplicate_id
         orphan_id = live_id
         assert dojo_challenge_rows(dojo) == {"module:source": canonical_id}
+        successor_id = int(db_sql(
+            "INSERT INTO challenges (type, category, name, state) "
+            f"VALUES ('standard', 'duplicate-chain', 'successor-{suffix}', "
+            "'hidden') RETURNING id"
+        ).strip())
+        db_sql(
+            "UPDATE challenges SET next_id = CASE "
+            f"WHEN id = {canonical_id} THEN {orphan_id} "
+            f"WHEN id = {orphan_id} THEN {successor_id} END "
+            f"WHERE id IN ({canonical_id}, {orphan_id})"
+        )
         add_challenge_type_collision_provenance(
             dojo,
             live_id,
@@ -937,6 +1455,12 @@ def test_ordinary_updates_consolidate_same_type_challenge_duplicates(
             orphan_id,
             get_user_id(api_user_name),
             f"dependent-{suffix}",
+        )
+        requirement_dependents = create_requirement_dependents(
+            canonical_id,
+            orphan_id,
+            get_user_id(api_user_name),
+            f"requirements-{suffix}",
         )
         response = update_transfer_dojo(dojo, spec, user_session)
         assert response.status_code == 200, response.text
@@ -957,6 +1481,10 @@ def test_ordinary_updates_consolidate_same_type_challenge_duplicates(
             "SELECT next_id FROM challenges "
             f"WHERE id = {dependent_ids['pointer']}"
         ).strip() == str(canonical_id)
+        assert db_sql(
+            "SELECT next_id FROM challenges "
+            f"WHERE id = {canonical_id}"
+        ).strip() == str(successor_id)
         for table in (
             "challenge_topics",
             "comments",
@@ -969,6 +1497,47 @@ def test_ordinary_updates_consolidate_same_type_challenge_duplicates(
                 f"SELECT challenge_id FROM {table} "
                 f"WHERE id = {dependent_ids[table]}"
             ).strip() == str(canonical_id)
+        assert json_column(
+            "challenges",
+            requirement_dependents["challenge"],
+        ) == {
+            "prerequisites": [
+                canonical_id,
+                f"requirements-{suffix}",
+                True,
+                {"nested": orphan_id},
+                None,
+                1.5,
+            ],
+        }
+        assert json_column(
+            "hints",
+            requirement_dependents["hint"],
+        ) == requirement_dependents["untouched"]
+        assert json_column(
+            "awards",
+            requirement_dependents["award"],
+        ) == requirement_dependents["untouched"]
+        for malformed_prerequisites in ([{}], [True]):
+            malformed_response = admin_session.patch(
+                f"{DOJO_URL}/api/v1/challenges/"
+                f"{requirement_dependents['challenge']}",
+                json={
+                    "requirements": {
+                        "prerequisites": malformed_prerequisites,
+                    },
+                },
+            )
+            assert malformed_response.status_code == 400, malformed_response.text
+        assert json_column(
+            "challenges",
+            requirement_dependents["challenge"],
+        )["prerequisites"][0] == canonical_id
+        deleted_attempt = api_user_session.post(
+            f"{DOJO_URL}/api/v1/challenges/attempt",
+            json={"challenge_id": orphan_id, "submission": "stale"},
+        )
+        assert deleted_attempt.status_code == 404, deleted_attempt.text
         assert challenge_database_state(orphan_id) == ("", (), (), "")
 
         git_root, work_path, dojo_path, update_code = initialize_git_backed_dojo(dojo)
@@ -1121,25 +1690,86 @@ def test_duplicate_solve_consolidation_recalculates_warmed_caches(
     user_name, _ = random_user
     user_id = get_user_id(user_name)
     canonical_id = dojo_challenge_rows(dojo)["module:source"]
-    add_challenge_flag_and_solve(canonical_id, user_id, f"canonical-{suffix}")
+    _, canonical_solve_id = add_challenge_flag_and_solve(
+        canonical_id,
+        user_id,
+        f"canonical-{suffix}",
+    )
+    other_user_name = f"duplicate-order-{suffix}"
+    other_user_session = login(
+        other_user_name,
+        other_user_name,
+        register=True,
+    )
+    other_user_id = get_user_id(other_user_name)
+    _, other_canonical_solve_id = add_challenge_flag_and_solve(
+        canonical_id,
+        other_user_id,
+        f"other-canonical-{suffix}",
+    )
     duplicate_id, _, duplicate_solve_id = create_same_type_challenge_duplicate(
         dojo,
         ("module", "source"),
         user_id,
         f"duplicate-{suffix}",
     )
+    _, other_null_solve_id = add_challenge_flag_and_solve(
+        duplicate_id,
+        other_user_id,
+        f"other-null-{suffix}",
+    )
+    db_sql(
+        "UPDATE submissions SET date = CASE "
+        f"WHEN id = {duplicate_solve_id} "
+        "THEN CURRENT_DATE - INTERVAL '3 days' "
+        f"WHEN id = {other_canonical_solve_id} "
+        "THEN CURRENT_DATE - INTERVAL '2 days' "
+        f"WHEN id = {canonical_solve_id} "
+        "THEN CURRENT_DATE - INTERVAL '1 day' "
+        f"WHEN id = {other_null_solve_id} THEN NULL END "
+        f"WHERE id IN ({duplicate_solve_id}, {other_canonical_solve_id}, "
+        f"{canonical_solve_id}, {other_null_solve_id})"
+    )
     dojo_modules = {dojo_database_id(dojo): (0,)}
-    warm_transfer_caches(dojo_modules, (user_id,))
+    warm_transfer_caches(dojo_modules, (user_id, other_user_id))
 
-    response = update_transfer_dojo(dojo, spec, admin_session)
-    assert response.status_code == 200, response.text
-    assert db_sql(
-        "SELECT type, challenge_id FROM submissions "
-        f"WHERE id = {duplicate_solve_id}"
-    ).strip() == f"discard|{canonical_id}"
-    assert challenge_database_state(duplicate_id) == ("", (), (), "")
-    wait_for_background_worker(timeout=30)
-    assert_transfer_caches_match_database(dojo_modules, (user_id,))
+    try:
+        response = update_transfer_dojo(dojo, spec, admin_session)
+        assert response.status_code == 200, response.text
+        assert db_sql(
+            "SELECT type, challenge_id FROM submissions "
+            f"WHERE id = {duplicate_solve_id}"
+        ).strip() == f"correct|{canonical_id}"
+        assert db_sql(
+            "SELECT type, challenge_id FROM submissions "
+            f"WHERE id = {canonical_solve_id}"
+        ).strip() == f"discard|{canonical_id}"
+        assert db_sql(
+            "SELECT type, challenge_id FROM submissions "
+            f"WHERE id = {other_canonical_solve_id}"
+        ).strip() == f"correct|{canonical_id}"
+        assert db_sql(
+            "SELECT type, challenge_id FROM submissions "
+            f"WHERE id = {other_null_solve_id}"
+        ).strip() == f"discard|{canonical_id}"
+        assert db_sql(
+            "SELECT user_id FROM submissions "
+            f"WHERE challenge_id = {canonical_id} AND type = 'correct' "
+            "ORDER BY date ASC NULLS LAST, id LIMIT 1"
+        ).strip() == str(user_id)
+        assert db_sql(
+            "SELECT date = CURRENT_DATE - INTERVAL '3 days' "
+            "FROM submissions "
+            f"WHERE id = {duplicate_solve_id}"
+        ).strip() == "t"
+        assert challenge_database_state(duplicate_id) == ("", (), (), "")
+        wait_for_background_worker(timeout=30)
+        assert_transfer_caches_match_database(
+            dojo_modules,
+            (user_id, other_user_id),
+        )
+    finally:
+        other_user_session.close()
 
 
 def test_duplicate_consolidation_rollback_emits_no_cache_events(
@@ -1159,6 +1789,12 @@ def test_duplicate_consolidation_rollback_emits_no_cache_events(
         ("module", "source"),
         user_id,
         f"duplicate-{suffix}",
+    )
+    requirement_dependents = create_requirement_dependents(
+        canonical_id,
+        duplicate_id,
+        user_id,
+        f"rollback-requirements-{suffix}",
     )
     add_challenge_type_collision_provenance(
         dojo,
@@ -1190,12 +1826,192 @@ def test_duplicate_consolidation_rollback_emits_no_cache_events(
         ("dojo", canonical_id),
         ("dojo", duplicate_id),
     }
+    assert json_column(
+        "challenges",
+        requirement_dependents["challenge"],
+    ) == requirement_dependents["original_challenge"]
+    assert json_column(
+        "hints",
+        requirement_dependents["hint"],
+    ) == requirement_dependents["untouched"]
+    assert json_column(
+        "awards",
+        requirement_dependents["award"],
+    ) == requirement_dependents["untouched"]
     time.sleep(1)
     assert_transfer_caches_match_database(
         dojo_modules,
         (user_id,),
         timestamps=timestamps,
         timeout=0,
+    )
+
+
+def test_duplicate_next_challenge_cycles_and_conflicts_fail_closed(
+    admin_session,
+    random_user,
+):
+    user_name, _ = random_user
+    user_id = get_user_id(user_name)
+    for topology in ("internal-cycle", "external-cycle", "conflict"):
+        suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+        dojo_id = f"next-{topology[:3]}-{suffix}"
+        spec = transfer_dojo_spec(dojo_id, [{"id": "source"}])
+        dojo = create_transfer_dojo(
+            dojo_id,
+            [{"id": "source"}],
+            admin_session,
+        )
+        canonical_id = dojo_challenge_rows(dojo)["module:source"]
+        duplicate_id, _, _ = create_same_type_challenge_duplicate(
+            dojo,
+            ("module", "source"),
+            user_id,
+            f"next-{topology}-{suffix}",
+        )
+        first_successor = int(db_sql(
+            "INSERT INTO challenges (type, category, name, state) "
+            f"VALUES ('standard', 'next-regression', "
+            f"'first-{topology}-{suffix}', 'hidden') RETURNING id"
+        ).strip())
+        second_successor = int(db_sql(
+            "INSERT INTO challenges (type, category, name, state) "
+            f"VALUES ('standard', 'next-regression', "
+            f"'second-{topology}-{suffix}', 'hidden') RETURNING id"
+        ).strip())
+        if topology == "internal-cycle":
+            updates = {
+                canonical_id: duplicate_id,
+                duplicate_id: canonical_id,
+            }
+        elif topology == "external-cycle":
+            updates = {
+                canonical_id: first_successor,
+                first_successor: duplicate_id,
+            }
+        else:
+            updates = {
+                canonical_id: first_successor,
+                duplicate_id: second_successor,
+            }
+        for challenge_id, next_id in updates.items():
+            db_sql(
+                f"UPDATE challenges SET next_id = {next_id} "
+                f"WHERE id = {challenge_id}"
+            )
+        state_before = {
+            challenge_id: db_sql(
+                "SELECT COALESCE(next_id::text, 'NULL') FROM challenges "
+                f"WHERE id = {challenge_id}"
+            ).strip()
+            for challenge_id in updates
+        }
+
+        response = update_transfer_dojo(dojo, spec, admin_session)
+        assert response.status_code == 400, response.text
+        assert "next challenge" in response.json()["error"].replace("-", " ")
+        assert coordinate_challenge_rows(dojo, ("module", "source")) == {
+            ("dojo", canonical_id),
+            ("dojo", duplicate_id),
+        }
+        assert {
+            challenge_id: db_sql(
+                "SELECT COALESCE(next_id::text, 'NULL') FROM challenges "
+                f"WHERE id = {challenge_id}"
+            ).strip()
+            for challenge_id in updates
+        } == state_before
+
+
+def test_challenge_transfer_serializes_custom_and_stock_submissions(
+    admin_session,
+    random_user,
+):
+    user_name, _ = random_user
+    user_id = get_user_id(user_name)
+    for route in ("custom", "stock"):
+        for correct in (True, False):
+            for transfer_first in (False, True):
+                suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+                dojo_id = (
+                    f"solve-race-{route[:1]}-{int(correct)}-"
+                    f"{int(transfer_first)}-{suffix}"
+                )
+                original_spec = {
+                    "id": dojo_id,
+                    "name": "Submission Transfer Race",
+                    "type": "public",
+                    "modules": [
+                        {
+                            "id": "source-module",
+                            "name": "Source Module",
+                            "resources": [{
+                                "type": "challenge",
+                                "id": "source",
+                                "name": "Source",
+                                "image": TRANSFER_TEST_IMAGE,
+                            }],
+                        },
+                        {
+                            "id": "destination-module",
+                            "name": "Destination Module",
+                            "resources": [],
+                        },
+                    ],
+                }
+                dojo = create_dojo_yml(
+                    yaml.safe_dump(original_spec, sort_keys=False),
+                    session=admin_session,
+                )
+                moved_spec = {
+                    **original_spec,
+                    "modules": [
+                        {
+                            **original_spec["modules"][0],
+                            "resources": [],
+                        },
+                        {
+                            **original_spec["modules"][1],
+                            "resources": [{
+                                "type": "challenge",
+                                "id": "moved",
+                                "name": "Moved",
+                                "image": TRANSFER_TEST_IMAGE,
+                                "transfer": {
+                                    "module": "source-module",
+                                    "challenge": "source",
+                                },
+                            }],
+                        },
+                    ],
+                }
+                run_submission_transfer_race(
+                    dojo,
+                    moved_spec,
+                    user_id,
+                    route,
+                    correct,
+                    transfer_first,
+                )
+
+
+def test_duplicate_consolidation_serializes_reference_writers(
+    admin_session,
+    random_user,
+):
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"reference-race-{suffix}"
+    spec = transfer_dojo_spec(dojo_id, [{"id": "source"}])
+    dojo = create_transfer_dojo(
+        dojo_id,
+        [{"id": "source"}],
+        admin_session,
+    )
+    user_name, _ = random_user
+    run_reference_writer_interleavings(
+        dojo,
+        spec,
+        get_user_id(user_name),
     )
 
 
@@ -1445,7 +2261,7 @@ print(f"LATEST_CHECKOUT_WON:{latest_commit}")
         result = dojo_run(
             "dojo",
             "flask",
-            input=concurrency_script,
+            input=f"exec({concurrency_script!r})\n",
             check=False,
         )
         shell_diagnostics = f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
@@ -1507,6 +2323,7 @@ def test_git_update_head_probe_timeout_is_atomic(admin_session):
             signed=True,
         )
         fault_script = """
+import pathlib
 import subprocess
 from CTFd.plugins.dojo_plugin.models import Dojos
 import CTFd.plugins.dojo_plugin.utils.dojo as dojo_utils
@@ -1516,7 +2333,8 @@ probe_timeouts = []
 real_git_command = dojo_utils.dojo_git_command
 
 def timeout_head_probe(dojo, *args, **kwargs):
-    if args and args[0] == "ls-remote":
+    repo_path = pathlib.Path(kwargs.get("repo_path", dojo.path))
+    if args == ("rev-parse", "HEAD") and repo_path == dojo.path:
         probe_timeouts.append(kwargs.get("timeout"))
         raise subprocess.TimeoutExpired(args, kwargs.get("timeout"))
     return real_git_command(dojo, *args, **kwargs)
@@ -1540,7 +2358,9 @@ print("HEAD_PROBE_TIMEOUT_ROLLED_BACK")
             "__DOJO_ID__",
             repr(dojo_database_id),
         )
-        result = dojo_run("dojo", "flask", input=fault_script)
+        result = dojo_run(
+            "dojo", "flask", input=f"exec({fault_script!r})\n"
+        )
         assert "HEAD_PROBE_TIMEOUT_ROLLED_BACK" in result.stdout
         assert dojo_temporary_entries() == temporary_entries
         assert dojo_run(
@@ -1559,6 +2379,837 @@ print("HEAD_PROBE_TIMEOUT_ROLLED_BACK")
         ).strip() == original_name
     finally:
         dojo_run("rm", "-rf", git_root)
+
+
+def run_git_update_recovery_lock_window(admin_session, window):
+    assert window in {"post_commit", "post_rollback"}
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"git-recovery-{suffix}"
+    dojo = create_transfer_dojo(dojo_id, [{"id": "source"}], admin_session)
+    update_spec = transfer_dojo_spec(dojo_id, [{"id": "source"}])
+    update_spec["name"] = (
+        "Committed Checkout" if window == "post_commit" else "Rejected Checkout"
+    )
+    update_spec["modules"][0]["resources"][0]["privileged"] = True
+    original_name = db_sql(
+        "SELECT name FROM dojos "
+        f"WHERE dojo_id = x'{dojo.rsplit('~', 1)[1]}'::int"
+    ).strip()
+    temporary_entries = dojo_temporary_entries()
+    git_root, work_path, dojo_path, _ = initialize_git_backed_dojo(dojo)
+    marker_root = f"/data/dojos/tmp/recovery-window-{suffix}"
+    ctfd_marker_root = marker_root.replace("/data/dojos/", "/var/dojos/", 1)
+    owner_ready = f"{marker_root}/owner-ready"
+    worker_ready = f"{marker_root}/worker-ready"
+    request_started = f"{marker_root}/request-started"
+    trigger_request = f"{marker_root}/trigger-request"
+    release_owner = f"{marker_root}/release-owner"
+    ctfd_owner_ready = f"{ctfd_marker_root}/owner-ready"
+    ctfd_worker_ready = f"{ctfd_marker_root}/worker-ready"
+    ctfd_request_started = f"{ctfd_marker_root}/request-started"
+    ctfd_trigger_request = f"{ctfd_marker_root}/trigger-request"
+    ctfd_release_owner = f"{ctfd_marker_root}/release-owner"
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+    updater_future = None
+    recovery_future = None
+    try:
+        dojo_run("mkdir", marker_root)
+        remote_commit = push_git_dojo_spec(
+            work_path,
+            update_spec,
+            f"Exercise {window} recovery window",
+        )
+        original_commit = dojo_run(
+            "git", "-C", dojo_path, "rev-parse", "HEAD"
+        ).stdout.strip()
+        assert remote_commit != original_commit
+        updater_script = r'''
+import pathlib
+import time
+
+from CTFd.plugins.dojo_plugin.models import Dojos
+import CTFd.plugins.dojo_plugin.utils.dojo as dojo_utils
+
+dojo_id = __DOJO_ID__
+window = __WINDOW__
+owner_ready = pathlib.Path(__OWNER_READY__)
+release_owner = pathlib.Path(__RELEASE_OWNER__)
+real_install = dojo_utils.DurableCheckoutSwap.install
+real_mark_committed = dojo_utils.DurableCheckoutSwap.mark_committed
+real_rollback = dojo_utils.DurableCheckoutSwap.rollback
+
+class InjectedRollback(RuntimeError):
+    pass
+
+def wait_for_release():
+    owner_ready.write_text("ready")
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if release_owner.exists():
+            return
+        time.sleep(0.05)
+    raise AssertionError("Timed out waiting to release update owner")
+
+def install_then_fail(swap):
+    real_install(swap)
+    raise InjectedRollback("force database rollback")
+
+def pause_before_rollback(swap):
+    wait_for_release()
+    return real_rollback(swap)
+
+def pause_after_commit(swap):
+    wait_for_release()
+    return real_mark_committed(swap)
+
+if window == "post_rollback":
+    dojo_utils.DurableCheckoutSwap.install = install_then_fail
+    dojo_utils.DurableCheckoutSwap.rollback = pause_before_rollback
+else:
+    dojo_utils.DurableCheckoutSwap.mark_committed = pause_after_commit
+
+try:
+    dojo = Dojos.query.filter_by(dojo_id=dojo_id).one()
+    if window == "post_rollback":
+        try:
+            dojo_utils.dojo_update(dojo)
+        except InjectedRollback:
+            pass
+        else:
+            raise AssertionError("Injected rollback update unexpectedly committed")
+    else:
+        dojo_utils.dojo_update(dojo)
+finally:
+    dojo_utils.DurableCheckoutSwap.install = real_install
+    dojo_utils.DurableCheckoutSwap.mark_committed = real_mark_committed
+    dojo_utils.DurableCheckoutSwap.rollback = real_rollback
+
+print(f"UPDATE_WINDOW_DONE:{window}")
+'''
+        updater_script = (
+            updater_script
+            .replace("__DOJO_ID__", repr(dojo_database_id(dojo)))
+            .replace("__WINDOW__", repr(window))
+            .replace("__OWNER_READY__", repr(ctfd_owner_ready))
+            .replace("__RELEASE_OWNER__", repr(ctfd_release_owner))
+        )
+        request_worker_script = r'''
+import pathlib
+import time
+from flask import current_app
+
+worker_ready = pathlib.Path(__WORKER_READY__)
+trigger_request = pathlib.Path(__TRIGGER_REQUEST__)
+request_started = pathlib.Path(__REQUEST_STARTED__)
+worker_ready.write_text("ready")
+deadline = time.monotonic() + 30
+while time.monotonic() < deadline and not trigger_request.exists():
+    time.sleep(0.05)
+if not trigger_request.exists():
+    raise AssertionError("Timed out waiting to trigger recovery request")
+request_started.write_text("started")
+response = current_app._get_current_object().test_client().get("/")
+assert response.status_code != 503
+print("REQUEST_RECOVERY_DONE")
+'''
+        request_worker_script = (
+            request_worker_script
+            .replace("__WORKER_READY__", repr(ctfd_worker_ready))
+            .replace("__TRIGGER_REQUEST__", repr(ctfd_trigger_request))
+            .replace("__REQUEST_STARTED__", repr(ctfd_request_started))
+        )
+        if window == "post_rollback":
+            recovery_future = executor.submit(
+                dojo_run,
+                "dojo",
+                "flask",
+                input=f"exec({request_worker_script!r})\n",
+            )
+            wait_for_dojo_path(worker_ready)
+        updater_future = executor.submit(
+            dojo_run,
+            "dojo",
+            "flask",
+            input=f"exec({updater_script!r})\n",
+        )
+        wait_for_dojo_path(owner_ready)
+        if window == "post_commit":
+            recovery_future = executor.submit(
+                dojo_run,
+                "dojo",
+                "flask",
+                input='print("STARTUP_RECOVERY_DONE")\n',
+            )
+            time.sleep(1)
+        else:
+            dojo_run("touch", trigger_request)
+            wait_for_dojo_path(request_started)
+            time.sleep(0.5)
+        assert recovery_future is not None and not recovery_future.done()
+        dojo_run("touch", release_owner)
+        updater_result = updater_future.result(timeout=30)
+        recovery_result = recovery_future.result(timeout=30)
+        assert f"UPDATE_WINDOW_DONE:{window}" in updater_result.stdout
+        expected_recovery_marker = (
+            "STARTUP_RECOVERY_DONE"
+            if window == "post_commit"
+            else "REQUEST_RECOVERY_DONE"
+        )
+        assert expected_recovery_marker in recovery_result.stdout
+
+        expected_commit = remote_commit if window == "post_commit" else original_commit
+        assert dojo_run(
+            "git", "-C", dojo_path, "rev-parse", "HEAD"
+        ).stdout.strip() == expected_commit
+        expected_name = (
+            "Committed Checkout" if window == "post_commit" else original_name
+        )
+        assert db_sql(
+            "SELECT name FROM dojos "
+            f"WHERE dojo_id = x'{dojo.rsplit('~', 1)[1]}'::int"
+        ).strip() == expected_name
+        expected_privileged = "true" if window == "post_commit" else "false"
+        assert db_sql(
+            "SELECT COALESCE(data ->> 'privileged', 'false') "
+            "FROM dojo_challenges "
+            f"WHERE dojo_id = x'{dojo.rsplit('~', 1)[1]}'::int "
+            "AND module_index = 0 AND challenge_index = 0"
+        ).strip() == expected_privileged
+        journal_path = f"/data/dojos/tmp/updates/{dojo.rsplit('~', 1)[1]}.json"
+        assert dojo_run("test", "!", "-e", journal_path).returncode == 0
+    finally:
+        dojo_run("touch", release_owner, check=False)
+        if updater_future is not None:
+            try:
+                updater_future.result(timeout=30)
+            except Exception:
+                pass
+        if recovery_future is not None:
+            try:
+                recovery_future.result(timeout=30)
+            except Exception:
+                pass
+        executor.shutdown(wait=True, cancel_futures=True)
+        dojo_run("rm", "-rf", marker_root, git_root)
+    assert dojo_temporary_entries() == temporary_entries
+
+
+def test_git_update_post_commit_recovery_is_process_serialized(admin_session):
+    run_git_update_recovery_lock_window(admin_session, "post_commit")
+
+
+def test_git_update_post_rollback_recovery_is_process_serialized(admin_session):
+    run_git_update_recovery_lock_window(admin_session, "post_rollback")
+
+
+def test_git_update_sigkill_after_commit_recovers_recalculation(admin_session):
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"git-outbox-{suffix}"
+    dojo = create_transfer_dojo(dojo_id, [{"id": "source"}], admin_session)
+    update_spec = transfer_dojo_spec(dojo_id, [{"id": "source"}])
+    update_spec["name"] = "Recovered Outbox Checkout"
+    git_root, work_path, dojo_path, _ = initialize_git_backed_dojo(dojo)
+    try:
+        remote_commit = push_git_dojo_spec(
+            work_path,
+            update_spec,
+            "Commit before process death",
+        )
+        script = r'''
+import os
+import signal
+from CTFd.plugins.dojo_plugin.models import Dojos
+import CTFd.plugins.dojo_plugin.utils.dojo as dojo_utils
+
+def die_after_database_commit(swap):
+    os.kill(os.getpid(), signal.SIGKILL)
+
+dojo_utils.DurableCheckoutSwap.mark_committed = die_after_database_commit
+dojo = Dojos.query.filter_by(dojo_id=__DOJO_ID__).one()
+dojo_utils.dojo_update(dojo)
+'''.replace("__DOJO_ID__", repr(dojo_database_id(dojo)))
+        result = dojo_run(
+            "dojo", "flask", input=f"exec({script!r})\n", check=False
+        )
+        assert result.returncode != 0
+        dojo_hex_id = dojo.rsplit("~", 1)[1]
+        journal_path = f"/data/dojos/tmp/updates/{dojo_hex_id}.json"
+        assert dojo_run("test", "-e", journal_path).returncode == 0
+        token = db_sql(
+            "SELECT data ->> '_dojo_update_checkout_token' FROM dojos "
+            f"WHERE dojo_id = x'{dojo_hex_id}'::int"
+        ).strip()
+        assert db_sql(
+            "SELECT published::text FROM dojo_update_recalculations "
+            f"WHERE token = '{token}'"
+        ).strip() == "false"
+        assert dojo_run(
+            "git", "-C", dojo_path, "rev-parse", "HEAD"
+        ).stdout.strip() == remote_commit
+
+        recovery = admin_session.get(f"{DOJO_URL}/")
+        assert recovery.status_code != 503, recovery.text
+        assert dojo_run("test", "!", "-e", journal_path).returncode == 0
+        assert db_sql(
+            "SELECT COUNT(*) FROM dojo_update_recalculations "
+            f"WHERE token = '{token}'"
+        ).strip() == "0"
+        assert db_sql(
+            "SELECT name FROM dojos "
+            f"WHERE dojo_id = x'{dojo_hex_id}'::int"
+        ).strip() == "Recovered Outbox Checkout"
+    finally:
+        dojo_run("rm", "-rf", git_root)
+
+
+def run_git_update_ambiguous_commit(admin_session, outcome):
+    assert outcome in {"committed", "rolled_back"}
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"git-ambiguous-{suffix}"
+    dojo = create_transfer_dojo(dojo_id, [{"id": "source"}], admin_session)
+    update_spec = transfer_dojo_spec(dojo_id, [{"id": "source"}])
+    update_spec["name"] = "Ambiguous Commit Installed"
+    git_root, work_path, dojo_path, _ = initialize_git_backed_dojo(dojo)
+    temporary_entries = dojo_temporary_entries()
+    try:
+        remote_commit = push_git_dojo_spec(
+            work_path,
+            update_spec,
+            f"Exercise ambiguous {outcome} commit",
+        )
+        original_commit = dojo_run(
+            "git", "-C", dojo_path, "rev-parse", "HEAD"
+        ).stdout.strip()
+        script = r'''
+from CTFd.models import db
+from CTFd.plugins.dojo_plugin.models import Dojos
+import CTFd.plugins.dojo_plugin.utils.dojo as dojo_utils
+
+dojo_id = __DOJO_ID__
+outcome = __OUTCOME__
+session_type = type(db.session())
+real_commit = session_type.commit
+real_rollback = session_type.rollback
+real_publish = dojo_utils.DojoCacheRecalculationPlan.publish
+published = []
+
+class AmbiguousCommit(RuntimeError):
+    pass
+
+def commit_then_raise(session):
+    session_type.commit = real_commit
+    if outcome == "committed":
+        real_commit(session)
+    else:
+        real_rollback(session)
+    raise AmbiguousCommit(outcome)
+
+def record_publish(plan):
+    published.append(plan.serialize())
+    return real_publish(plan)
+
+session_type.commit = commit_then_raise
+dojo_utils.DojoCacheRecalculationPlan.publish = record_publish
+try:
+    dojo = Dojos.query.filter_by(dojo_id=dojo_id).one()
+    if outcome == "committed":
+        dojo_utils.dojo_update(dojo)
+    else:
+        try:
+            dojo_utils.dojo_update(dojo)
+        except AmbiguousCommit:
+            pass
+        else:
+            raise AssertionError("Rolled-back ambiguous commit returned success")
+finally:
+    session_type.commit = real_commit
+    dojo_utils.DojoCacheRecalculationPlan.publish = real_publish
+
+expected_publishes = 1 if outcome == "committed" else 0
+assert len(published) == expected_publishes, published
+print(f"AMBIGUOUS_COMMIT_RECONCILED:{outcome}:{len(published)}")
+'''
+        script = (
+            script
+            .replace("__DOJO_ID__", repr(dojo_database_id(dojo)))
+            .replace("__OUTCOME__", repr(outcome))
+        )
+        result = dojo_run("dojo", "flask", input=f"exec({script!r})\n")
+        assert f"AMBIGUOUS_COMMIT_RECONCILED:{outcome}" in result.stdout
+        expected_commit = remote_commit if outcome == "committed" else original_commit
+        assert dojo_run(
+            "git", "-C", dojo_path, "rev-parse", "HEAD"
+        ).stdout.strip() == expected_commit
+        expected_name = (
+            "Ambiguous Commit Installed"
+            if outcome == "committed" else
+            dojo_id.replace("-", " ").title()
+        )
+        assert db_sql(
+            "SELECT name FROM dojos "
+            f"WHERE dojo_id = x'{dojo.rsplit('~', 1)[1]}'::int"
+        ).strip() == expected_name
+        assert dojo_run(
+            "test",
+            "!",
+            "-e",
+            f"/data/dojos/tmp/updates/{dojo.rsplit('~', 1)[1]}.json",
+        ).returncode == 0
+        assert dojo_temporary_entries() == temporary_entries
+    finally:
+        dojo_run("rm", "-rf", git_root)
+
+
+def test_git_update_reconciles_commit_that_succeeded_then_raised(admin_session):
+    run_git_update_ambiguous_commit(admin_session, "committed")
+
+
+def test_git_update_reconciles_commit_that_rolled_back_then_raised(admin_session):
+    run_git_update_ambiguous_commit(admin_session, "rolled_back")
+
+
+def test_git_update_barrier_avoids_reader_promotion_deadlock(admin_session):
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"git-reader-{suffix}"
+    dojo = create_transfer_dojo(dojo_id, [{"id": "source"}], admin_session)
+    updated_spec = transfer_dojo_spec(dojo_id, [{"id": "source"}])
+    updated_spec["name"] = "Barrier Updated"
+    original_name = dojo_id.replace("-", " ").title()
+    git_root, work_path, dojo_path, _ = initialize_git_backed_dojo(dojo)
+    marker_root = f"/data/dojos/tmp/barrier-reader-{suffix}"
+    ctfd_marker_root = marker_root.replace("/data/dojos/", "/var/dojos/", 1)
+    promotion_ready = f"{marker_root}/promotion-ready"
+    reader_ready = f"{marker_root}/reader-ready"
+    updater_ready = f"{marker_root}/updater-ready"
+    release_promotion = f"{marker_root}/release-promotion"
+    ctfd_promotion_ready = f"{ctfd_marker_root}/promotion-ready"
+    ctfd_reader_ready = f"{ctfd_marker_root}/reader-ready"
+    ctfd_updater_ready = f"{ctfd_marker_root}/updater-ready"
+    ctfd_release_promotion = f"{ctfd_marker_root}/release-promotion"
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+    futures = []
+    try:
+        dojo_run("mkdir", marker_root)
+        push_git_dojo_spec(work_path, updated_spec, "Update after promotion")
+        promotion_script = r'''
+import pathlib
+import time
+from CTFd.models import db
+from CTFd.plugins.dojo_plugin.models import Dojos
+from CTFd.plugins.dojo_plugin.utils.dojo import lock_dojo_for_official_promotion
+
+dojo = Dojos.query.filter_by(dojo_id=__DOJO_ID__).one()
+dojo = lock_dojo_for_official_promotion(dojo)
+pathlib.Path(__PROMOTION_READY__).write_text("ready")
+deadline = time.monotonic() + 30
+release = pathlib.Path(__RELEASE_PROMOTION__)
+while time.monotonic() < deadline and not release.exists():
+    time.sleep(0.05)
+if not release.exists():
+    raise AssertionError("Timed out waiting to release promotion")
+dojo.official = True
+db.session.commit()
+print("PROMOTION_DONE")
+'''
+        promotion_script = (
+            promotion_script
+            .replace("__DOJO_ID__", repr(dojo_database_id(dojo)))
+            .replace("__PROMOTION_READY__", repr(ctfd_promotion_ready))
+            .replace("__RELEASE_PROMOTION__", repr(ctfd_release_promotion))
+        )
+        reader_script = r'''
+import pathlib
+import yaml
+from flask import current_app, request
+from CTFd.models import db
+from CTFd.plugins.dojo_plugin.models import Dojos
+
+app = current_app._get_current_object()
+dojo_id = __DOJO_ID__
+live_path = pathlib.Path(__LIVE_PATH__)
+expected_name = __EXPECTED_NAME__
+
+@app.before_request
+def lock_and_read_dojo():
+    if request.path != "/":
+        return
+    pathlib.Path(__READER_READY__).write_text("ready")
+    dojo = (
+        Dojos.query
+        .filter_by(dojo_id=dojo_id)
+        .with_for_update()
+        .one()
+    )
+    file_name = yaml.safe_load((live_path / "dojo.yml").read_text())["name"]
+    assert dojo.official is True
+    assert dojo.name == file_name == expected_name
+    db.session.rollback()
+
+response = app.test_client().get("/")
+assert response.status_code != 503
+print("READER_DONE")
+'''
+        reader_script = (
+            reader_script
+            .replace("__DOJO_ID__", repr(dojo_database_id(dojo)))
+            .replace(
+                "__LIVE_PATH__",
+                repr(dojo_path.replace("/data/dojos/", "/var/dojos/", 1)),
+            )
+            .replace("__EXPECTED_NAME__", repr(original_name))
+            .replace("__READER_READY__", repr(ctfd_reader_ready))
+        )
+        updater_script = r'''
+import contextlib
+import pathlib
+from CTFd.plugins.dojo_plugin.models import Dojos
+import CTFd.plugins.dojo_plugin.utils.dojo as dojo_utils
+
+real_barrier = dojo_utils.checkout_barrier
+
+@contextlib.contextmanager
+def observed_barrier(temp_root, *, exclusive):
+    if exclusive:
+        pathlib.Path(__UPDATER_READY__).write_text("ready")
+    with real_barrier(temp_root, exclusive=exclusive):
+        yield
+
+dojo_utils.checkout_barrier = observed_barrier
+try:
+    dojo = Dojos.query.filter_by(dojo_id=__DOJO_ID__).one()
+    dojo_utils.dojo_update(dojo)
+finally:
+    dojo_utils.checkout_barrier = real_barrier
+print("UPDATER_DONE")
+'''
+        updater_script = (
+            updater_script
+            .replace("__UPDATER_READY__", repr(ctfd_updater_ready))
+            .replace("__DOJO_ID__", repr(dojo_database_id(dojo)))
+        )
+        promotion_future = executor.submit(
+            dojo_run,
+            "dojo",
+            "flask",
+            input=f"exec({promotion_script!r})\n",
+        )
+        futures.append(promotion_future)
+        wait_for_dojo_path(promotion_ready)
+        reader_future = executor.submit(
+            dojo_run,
+            "dojo",
+            "flask",
+            input=f"exec({reader_script!r})\n",
+        )
+        futures.append(reader_future)
+        wait_for_dojo_path(reader_ready)
+        updater_future = executor.submit(
+            dojo_run,
+            "dojo",
+            "flask",
+            input=f"exec({updater_script!r})\n",
+        )
+        futures.append(updater_future)
+        wait_for_dojo_path(updater_ready)
+        time.sleep(0.5)
+        assert not reader_future.done()
+        assert not updater_future.done()
+        assert dojo_run(
+            "test",
+            "!",
+            "-e",
+            f"/data/dojos/tmp/updates/{dojo.rsplit('~', 1)[1]}.json",
+        ).returncode == 0
+        dojo_run("touch", release_promotion)
+        promotion_result = promotion_future.result(timeout=30)
+        reader_result = reader_future.result(timeout=30)
+        updater_result = updater_future.result(timeout=30)
+        assert "PROMOTION_DONE" in promotion_result.stdout
+        assert "READER_DONE" in reader_result.stdout
+        assert "UPDATER_DONE" in updater_result.stdout
+        assert db_sql(
+            "SELECT official::text || '|' || name FROM dojos "
+            f"WHERE dojo_id = x'{dojo.rsplit('~', 1)[1]}'::int"
+        ).strip() == "true|Barrier Updated"
+        assert yaml.safe_load(
+            dojo_run("cat", f"{dojo_path}/dojo.yml").stdout
+        )["name"] == "Barrier Updated"
+    finally:
+        dojo_run("touch", release_promotion, check=False)
+        for future in futures:
+            try:
+                future.result(timeout=30)
+            except Exception:
+                pass
+        executor.shutdown(wait=True, cancel_futures=True)
+        dojo_run("rm", "-rf", marker_root, git_root)
+
+
+def run_spec_update_ambiguous_commit(admin_session, outcome):
+    assert outcome in {"committed", "rolled_back"}
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"spec-ambiguous-{suffix}"
+    dojo = create_transfer_dojo(dojo_id, [{"id": "source"}], admin_session)
+    update_spec = transfer_dojo_spec(dojo_id, [{"id": "source"}])
+    update_spec["name"] = "Spec Commit Installed"
+    script = r'''
+from CTFd.models import Users, db
+from CTFd.plugins.dojo_plugin.models import (
+    DojoUpdateRecalculations,
+)
+import importlib
+dojo_api = importlib.import_module("CTFd.plugins.dojo_plugin.api.v1.dojos")
+import CTFd.plugins.dojo_plugin.utils.dojo as dojo_utils
+from flask import current_app
+import threading
+
+dojo_reference_id = __DOJO_REFERENCE_ID__
+spec = __SPEC__
+outcome = __OUTCOME__
+session_type = type(db.session())
+real_commit = session_type.commit
+real_rollback = session_type.rollback
+real_publish = dojo_utils.DojoCacheRecalculationPlan.publish
+real_create_recalculation = dojo_utils.create_dojo_update_recalculation
+triggered = []
+armed = []
+published = []
+drainer_observed = []
+drainer_errors = []
+commit_persisted = threading.Event()
+drainer_finished = threading.Event()
+app = current_app._get_current_object()
+
+class AmbiguousCommit(RuntimeError):
+    pass
+
+def ambiguous_commit(session):
+    if armed and not triggered:
+        triggered.append(True)
+        session_type.commit = real_commit
+        if outcome == "committed":
+            real_commit(session)
+            commit_persisted.set()
+            if not drainer_finished.wait(30):
+                raise RuntimeError("Concurrent recalculation drainer timed out")
+        else:
+            real_rollback(session)
+        raise AmbiguousCommit(outcome)
+    return real_commit(session)
+
+def arm_ambiguous_commit(plan, token=None):
+    recalculation = real_create_recalculation(plan, token)
+    armed.append(recalculation.id)
+    return recalculation
+
+def record_publish(plan):
+    published.append(plan.serialize())
+    return real_publish(plan)
+
+def drain_committed_recalculation():
+    if not commit_persisted.wait(30):
+        drainer_errors.append("Committed outbox was not persisted")
+        drainer_finished.set()
+        return
+    try:
+        with app.app_context():
+            dojo_utils.drain_pending_dojo_update_recalculations()
+            recalculation = DojoUpdateRecalculations.query.filter_by(
+                id=armed[0],
+            ).one()
+            drainer_observed.append((
+                recalculation.id,
+                recalculation.token,
+                recalculation.published,
+            ))
+    except BaseException as error:
+        drainer_errors.append(repr(error))
+    finally:
+        drainer_finished.set()
+
+session_type.commit = ambiguous_commit
+dojo_utils.DojoCacheRecalculationPlan.publish = record_publish
+dojo_utils.create_dojo_update_recalculation = arm_ambiguous_commit
+drainer_thread = None
+try:
+    if outcome == "committed":
+        drainer_thread = threading.Thread(
+            target=drain_committed_recalculation,
+        )
+        drainer_thread.start()
+    admin_id = Users.query.filter_by(type="admin").order_by(Users.id).first().id
+    nonce = "spec-ambiguous-commit"
+    with current_app._get_current_object().test_client() as client:
+        with client.session_transaction() as client_session:
+            client_session["id"] = admin_id
+            client_session["nonce"] = nonce
+        response = client.post(
+            f"/pwncollege_api/v1/dojos/{dojo_reference_id}/update",
+            json=spec,
+            headers={"CSRF-Token": nonce},
+        )
+finally:
+    commit_persisted.set()
+    if drainer_thread is not None:
+        drainer_thread.join(30)
+    session_type.commit = real_commit
+    dojo_utils.DojoCacheRecalculationPlan.publish = real_publish
+    dojo_utils.create_dojo_update_recalculation = real_create_recalculation
+
+assert triggered == [True]
+expected_status = 200 if outcome == "committed" else 400
+assert response.status_code == expected_status, response.get_data(as_text=True)
+expected_publishes = 1 if outcome == "committed" else 0
+assert len(published) == expected_publishes, published
+expected_drainer_observations = 1 if outcome == "committed" else 0
+assert not drainer_errors, drainer_errors
+assert len(drainer_observed) == expected_drainer_observations, drainer_observed
+if drainer_observed:
+    assert drainer_observed[0][0] == armed[0]
+    assert drainer_observed[0][2] is True
+assert DojoUpdateRecalculations.query.filter_by(id=armed[0]).one_or_none() is None
+print(f"SPEC_AMBIGUOUS_RECONCILED:{outcome}:{response.status_code}")
+'''
+    script = (
+        script
+        .replace("__DOJO_REFERENCE_ID__", repr(dojo))
+        .replace("__SPEC__", repr(update_spec))
+        .replace("__OUTCOME__", repr(outcome))
+    )
+    result = dojo_run("dojo", "flask", input=f"exec({script!r})\n")
+    assert f"SPEC_AMBIGUOUS_RECONCILED:{outcome}" in result.stdout
+    expected_name = (
+        "Spec Commit Installed"
+        if outcome == "committed" else
+        dojo_id.replace("-", " ").title()
+    )
+    assert db_sql(
+        "SELECT name FROM dojos "
+        f"WHERE dojo_id = x'{dojo.rsplit('~', 1)[1]}'::int"
+    ).strip() == expected_name
+
+
+def test_spec_update_reconciles_commit_that_succeeded_then_raised(admin_session):
+    run_spec_update_ambiguous_commit(admin_session, "committed")
+
+
+def test_spec_update_reconciles_commit_that_rolled_back_then_raised(admin_session):
+    run_spec_update_ambiguous_commit(admin_session, "rolled_back")
+
+
+def test_spec_update_crash_recovers_large_recalculation_outbox(admin_session):
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"spec-outbox-{suffix}"
+    dojo = create_transfer_dojo(dojo_id, [{"id": "source"}], admin_session)
+    update_spec = transfer_dojo_spec(dojo_id, [{"id": "source"}])
+    update_spec["name"] = "Outbox Commit Installed"
+    script = r'''
+import os
+import signal
+from CTFd.models import Users, db
+import importlib
+dojo_api = importlib.import_module("CTFd.plugins.dojo_plugin.api.v1.dojos")
+import CTFd.plugins.dojo_plugin.utils.dojo as dojo_utils
+from flask import current_app
+
+dojo_reference_id = __DOJO_REFERENCE_ID__
+spec = __SPEC__
+real_commit_dojo_update = dojo_api.commit_dojo_update
+
+def commit_and_crash(plan):
+    plan.add_activity_users(range(1999998201, 2000000001))
+    dojo_utils.create_dojo_update_recalculation(plan)
+    db.session.commit()
+    os.kill(os.getpid(), signal.SIGKILL)
+
+dojo_api.commit_dojo_update = commit_and_crash
+admin_id = Users.query.filter_by(type="admin").order_by(Users.id).first().id
+nonce = "spec-outbox-crash"
+with current_app._get_current_object().test_client() as client:
+    with client.session_transaction() as client_session:
+        client_session["id"] = admin_id
+        client_session["nonce"] = nonce
+    client.post(
+        f"/pwncollege_api/v1/dojos/{dojo_reference_id}/update",
+        json=spec,
+        headers={"CSRF-Token": nonce},
+    )
+'''
+    script = (
+        script
+        .replace("__DOJO_REFERENCE_ID__", repr(dojo))
+        .replace("__SPEC__", repr(update_spec))
+    )
+    result = dojo_run(
+        "dojo", "flask", input=f"exec({script!r})\n", check=False
+    )
+    assert result.returncode != 0
+    outbox_row = db_sql(
+        "SELECT token || '|' || octet_length(data::text)::text "
+        "FROM dojo_update_recalculations "
+        "WHERE published = false "
+        "AND data -> 'activity_user_ids' @> '[1999998201]'::jsonb"
+    ).strip()
+    token, payload_size = outbox_row.split("|")
+    assert int(payload_size) > 16384
+    assert db_sql(
+        "SELECT name FROM dojos "
+        f"WHERE dojo_id = x'{dojo.rsplit('~', 1)[1]}'::int"
+    ).strip() == "Outbox Commit Installed"
+
+    recovery = admin_session.get(f"{DOJO_URL}/")
+    assert recovery.status_code != 503, recovery.text
+    assert db_sql(
+        "SELECT published::text FROM dojo_update_recalculations "
+        f"WHERE token = '{token}'"
+    ).strip() == "true"
+    db_sql(
+        "DELETE FROM dojo_update_recalculations "
+        f"WHERE token = '{token}'"
+    )
+
+
+def test_dojo_update_recalculation_retries_and_garbage_collects():
+    script = r'''
+import datetime
+from CTFd.models import db
+from CTFd.plugins.dojo_plugin.models import DojoUpdateRecalculations
+import CTFd.plugins.dojo_plugin.utils.dojo as dojo_utils
+
+plan = dojo_utils.DojoCacheRecalculationPlan()
+real_publish = dojo_utils.DojoCacheRecalculationPlan.publish
+publish_attempts = []
+
+def fail_publish_once(plan):
+    publish_attempts.append(plan.serialize())
+    raise RuntimeError("injected publication failure")
+
+dojo_utils.DojoCacheRecalculationPlan.publish = fail_publish_once
+try:
+    token = dojo_utils.commit_dojo_update(plan)
+finally:
+    dojo_utils.DojoCacheRecalculationPlan.publish = real_publish
+
+assert len(publish_attempts) == 1
+failed = DojoUpdateRecalculations.query.filter_by(token=token).one()
+assert failed.published is False
+dojo_utils.drain_pending_dojo_update_recalculations()
+retried = DojoUpdateRecalculations.query.filter_by(token=token).one()
+assert retried.published is True
+
+expired = dojo_utils.create_dojo_update_recalculation(plan)
+expired.published = True
+expired.created = datetime.datetime.utcnow() - datetime.timedelta(days=2)
+expired_token = expired.token
+db.session.commit()
+dojo_utils.drain_pending_dojo_update_recalculations()
+assert DojoUpdateRecalculations.query.filter_by(token=expired_token).one_or_none() is None
+assert DojoUpdateRecalculations.query.filter_by(token=token).one().published is True
+dojo_utils.delete_dojo_update_recalculation(token)
+print("RECALCULATION_RETRY_AND_GC_OK")
+'''
+    result = dojo_run("dojo", "flask", input=f"exec({script!r})\n")
+    assert "RECALCULATION_RETRY_AND_GC_OK" in result.stdout
 
 
 def test_community_dojo_internal_transfer_rejects_invalid_plans(admin_session, random_user):
@@ -1999,7 +3650,7 @@ print("FINAL_IMPORT_TOPOLOGY_INVARIANT_OK")
     result = dojo_run(
         "dojo",
         "flask",
-        input=invariant_script,
+        input=f"exec({invariant_script!r})\n",
         check=False,
     )
     diagnostics = f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
@@ -2601,6 +4252,101 @@ def test_community_dojo_cross_transfer_is_denied(admin_session, random_user):
     assert response.status_code == 200, response.text
 
 
+def test_community_admin_can_replay_legacy_external_transfer_without_theft(
+    admin_session,
+    random_user,
+):
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    source_id = f"legacy-source-{suffix}"
+    destination_id = f"legacy-destination-{suffix}"
+    source_dojo = create_transfer_dojo(
+        source_id,
+        [{"id": "source"}, {"id": "fresh"}],
+        admin_session,
+    )
+    destination_dojo = create_transfer_dojo(
+        destination_id,
+        [{"id": "keep"}],
+        admin_session,
+    )
+    make_dojo_official(source_dojo, admin_session)
+    source_rows = dojo_challenge_rows(source_dojo)
+    destination_rows = dojo_challenge_rows(destination_dojo)
+    replay_spec = transfer_dojo_spec(destination_id, [
+        {"id": "keep"},
+        {
+            "id": "moved",
+            "transfer": {
+                "dojo": source_id,
+                "module": "module",
+                "challenge": "source",
+            },
+        },
+    ])
+    initial_transfer = update_transfer_dojo(
+        destination_dojo,
+        replay_spec,
+        admin_session,
+    )
+    assert initial_transfer.status_code == 200, initial_transfer.text
+    moved_id = source_rows["module:source"]
+    db_sql(
+        "DELETE FROM dojo_challenge_transfer_provenances "
+        f"WHERE challenge_id = {moved_id}"
+    )
+    user_name, user_session = random_user
+    grant_dojo_admin(
+        destination_dojo,
+        user_name,
+        user_session,
+        admin_session,
+    )
+
+    replay = update_transfer_dojo(
+        destination_dojo,
+        replay_spec,
+        user_session,
+    )
+    assert replay.status_code == 200, replay.text
+    assert dojo_challenge_rows(destination_dojo) == {
+        "module:keep": destination_rows["module:keep"],
+        "module:moved": moved_id,
+    }
+    assert dojo_challenge_rows(source_dojo) == {
+        "module:fresh": source_rows["module:fresh"],
+    }
+    assert challenge_transfer_provenance(moved_id) == (
+        "module", "moved", "1", "module", "source",
+    )
+
+    theft_spec = transfer_dojo_spec(destination_id, [
+        {"id": "keep"},
+        replay_spec["modules"][0]["resources"][1],
+        {
+            "id": "stolen",
+            "transfer": {
+                "dojo": source_id,
+                "module": "module",
+                "challenge": "fresh",
+            },
+        },
+    ])
+    theft = update_transfer_dojo(
+        destination_dojo,
+        theft_spec,
+        user_session,
+    )
+    assert theft.status_code == 400, theft.text
+    assert "Permission denied" in theft.json()["error"]
+    assert dojo_challenge_rows(destination_dojo) == {
+        "module:keep": destination_rows["module:keep"],
+        "module:moved": moved_id,
+    }
+    assert dojo_challenge_rows(source_dojo) == {
+        "module:fresh": source_rows["module:fresh"],
+    }
+
+
 def test_global_admin_transfers_into_unique_community_dojo(admin_session):
     suffix = "".join(random.choices(string.ascii_lowercase, k=8))
     source_id = f"global-source-{suffix}"
@@ -2832,6 +4578,182 @@ def test_global_transfer_rename_away_from_official_twin_is_allowed(admin_session
     assert dojo_challenge_rows(destination_dojo)["module:moved"] == (
         source_challenge_id
     )
+
+
+def test_sequential_double_promotion_rejects_second_official(admin_session):
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"promotion-unique-{suffix}"
+    first_dojo = create_transfer_dojo(
+        dojo_id,
+        [{"id": "first"}],
+        admin_session,
+    )
+    second_dojo = create_transfer_dojo(
+        dojo_id,
+        [{"id": "second"}],
+        admin_session,
+    )
+
+    first_response = promote_dojo_request(first_dojo, admin_session)
+    second_response = promote_dojo_request(second_dojo, admin_session)
+
+    assert first_response.status_code == 200, first_response.text
+    assert second_response.status_code == 409, second_response.text
+    assert "Another official dojo" in second_response.json()["error"]
+    assert db_sql(
+        "SELECT COUNT(*) FROM dojos "
+        f"WHERE id = '{dojo_id}' AND official"
+    ).strip() == "1"
+
+
+def test_concurrent_double_promotion_has_one_official(admin_session):
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"promotion-race-{suffix}"
+    dojos = [
+        create_transfer_dojo(
+            dojo_id,
+            [{"id": challenge_id}],
+            admin_session,
+        )
+        for challenge_id in ("first", "second")
+    ]
+    sessions = [clone_authenticated_session(admin_session) for _ in dojos]
+    barrier = threading.Barrier(3)
+
+    def competing_promotion(dojo, session):
+        barrier.wait()
+        return promote_dojo_request(dojo, session)
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(competing_promotion, dojo, session)
+                for dojo, session in zip(dojos, sessions)
+            ]
+            barrier.wait()
+            responses = [future.result(timeout=10) for future in futures]
+    finally:
+        for session in sessions:
+            session.close()
+
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    rejected_response = next(
+        response for response in responses if response.status_code == 409
+    )
+    assert "Another official dojo" in rejected_response.json()["error"]
+    assert db_sql(
+        "SELECT COUNT(*) FROM dojos "
+        f"WHERE id = '{dojo_id}' AND official"
+    ).strip() == "1"
+
+
+def test_official_dojo_rename_to_official_id_is_rejected(admin_session):
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    source_id = f"official-rename-{suffix}"
+    occupied_id = f"official-occupied-{suffix}"
+    source_dojo = create_transfer_dojo(
+        source_id,
+        [{"id": "source"}],
+        admin_session,
+    )
+    occupied_dojo = create_transfer_dojo(
+        occupied_id,
+        [{"id": "occupied"}],
+        admin_session,
+    )
+    make_dojo_official(source_dojo, admin_session)
+    make_dojo_official(occupied_dojo, admin_session)
+
+    response = update_transfer_dojo(
+        source_dojo,
+        transfer_dojo_spec(occupied_id, [{"id": "source"}]),
+        admin_session,
+    )
+
+    assert response.status_code == 400, response.text
+    assert "Another official dojo" in response.json()["error"]
+    assert db_sql(
+        "SELECT id FROM dojos "
+        f"WHERE dojo_id = x'{source_dojo.rsplit('~', 1)[1]}'::int"
+    ).strip() == source_id
+    assert db_sql(
+        "SELECT COUNT(*) FROM dojos "
+        f"WHERE id = '{occupied_id}' AND official"
+    ).strip() == "1"
+
+
+def test_official_rename_serializes_with_same_id_promotion(admin_session):
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    source_id = f"official-race-source-{suffix}"
+    target_id = f"official-race-target-{suffix}"
+    source_dojo = create_transfer_dojo(
+        source_id,
+        [{"id": "source"}],
+        admin_session,
+    )
+    promotion_dojo = create_transfer_dojo(
+        target_id,
+        [{"id": "promotion"}],
+        admin_session,
+    )
+    make_dojo_official(source_dojo, admin_session)
+    rename_spec = transfer_dojo_spec(target_id, [{"id": "source"}])
+    rename_session = clone_authenticated_session(admin_session)
+    promotion_session = clone_authenticated_session(admin_session)
+    barrier = threading.Barrier(3)
+
+    def rename():
+        barrier.wait()
+        return update_transfer_dojo(
+            source_dojo,
+            rename_spec,
+            rename_session,
+        )
+
+    def promote():
+        barrier.wait()
+        return promote_dojo_request(promotion_dojo, promotion_session)
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            rename_future = executor.submit(rename)
+            promotion_future = executor.submit(promote)
+            barrier.wait()
+            rename_response = rename_future.result(timeout=10)
+            promotion_response = promotion_future.result(timeout=10)
+    finally:
+        rename_session.close()
+        promotion_session.close()
+
+    assert (rename_response.status_code, promotion_response.status_code) in {
+        (200, 409),
+        (400, 200),
+    }
+    assert db_sql(
+        "SELECT COUNT(*) FROM dojos "
+        f"WHERE id = '{target_id}' AND official"
+    ).strip() == "1"
+    source_database_id = source_dojo.rsplit("~", 1)[1]
+    promotion_database_id = promotion_dojo.rsplit("~", 1)[1]
+    if rename_response.status_code == 200:
+        assert db_sql(
+            "SELECT id FROM dojos "
+            f"WHERE dojo_id = x'{source_database_id}'::int"
+        ).strip() == target_id
+        assert db_sql(
+            "SELECT official FROM dojos "
+            f"WHERE dojo_id = x'{promotion_database_id}'::int"
+        ).strip() == "f"
+    else:
+        assert "Another official dojo" in rename_response.json()["error"]
+        assert db_sql(
+            "SELECT id FROM dojos "
+            f"WHERE dojo_id = x'{source_database_id}'::int"
+        ).strip() == source_id
+        assert db_sql(
+            "SELECT official FROM dojos "
+            f"WHERE dojo_id = x'{promotion_database_id}'::int"
+        ).strip() == "t"
 
 
 def test_global_transfer_serializes_with_same_id_promotion(
@@ -3105,7 +5027,9 @@ print("TRANSFER_TOPOLOGY_REFRESHED")
         .replace("__SOURCE_ID__", repr(source_id))
         .replace("__SPEC__", repr(moved_spec))
     )
-    result = dojo_run("dojo", "flask", input=concurrency_script)
+    result = dojo_run(
+        "dojo", "flask", input=f"exec({concurrency_script!r})\n"
+    )
     assert "TRANSFER_TOPOLOGY_REFRESHED" in result.stdout
     assert dojo_challenge_rows(dojo) == {"module:moved": source_id}
 

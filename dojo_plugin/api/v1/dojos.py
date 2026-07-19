@@ -10,7 +10,7 @@ from CTFd.models import Solves, Users, db
 from CTFd.plugins.challenges import get_chal_class
 from CTFd.utils.decorators import admins_only, authed_only, ratelimit
 from CTFd.utils.user import get_current_user, get_ip, is_admin
-from flask import request
+from flask import g, request
 from flask_restx import Namespace, Resource
 from sqlalchemy.sql import and_
 
@@ -18,6 +18,7 @@ from .user import authed_only_cli, authed_only_ssh
 from ...models import (DojoAdmins, DojoChallenges, DojoModules, Dojos, DojoStudents,
                        DojoUsers, Emojis, SurveyResponses)
 from ...utils import is_challenge_locked, render_markdown
+from ...utils.challenge_references import lock_challenge_references
 from ...utils.dojo import (
     DojoCacheRecalculationPlan,
     DojoUpdateAuthorizationError,
@@ -25,6 +26,7 @@ from ...utils.dojo import (
     dojo_create,
     dojo_route,
     dojo_from_spec,
+    commit_dojo_update,
     lock_dojo_for_official_promotion,
 )
 from ...utils.image_pulls import enqueue_dojo_image_pulls
@@ -222,8 +224,8 @@ class UpdateDojo(Resource):
                 authorize_legacy_replay=lambda: authorization["global_admin"],
                 cache_recalculation_plan=cache_recalculation_plan,
             )
-            db.session.commit()
-            cache_recalculation_plan.queue()
+            commit_dojo_update(cache_recalculation_plan)
+            restore_queued_stat_events(stat_events_checkpoint)
         except DojoUpdateAuthorizationError:
             db.session.rollback()
             restore_queued_stat_events(stat_events_checkpoint)
@@ -395,6 +397,7 @@ class DojoChallengeSolve(Resource):
                           .filter(DojoChallenges.visible()).first())
         if not dojo_challenge:
             return {"success": False, "error": "Challenge not found"}, 404
+        g._solving_dojo_challenge = dojo_challenge
 
         solve = Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first()
         if solve:
@@ -434,6 +437,7 @@ class DojoSurvey(Resource):
     @dojo_route
     @ratelimit(method="POST", limit=10, interval=60)
     def post(self, dojo, module, challenge_id):
+        lock_challenge_references()
         user = get_current_user()
         data = request.get_json()
         dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id)

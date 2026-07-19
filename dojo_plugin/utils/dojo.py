@@ -1,5 +1,7 @@
+import contextlib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -9,6 +11,7 @@ import functools
 import inspect
 import pathlib
 import urllib.request
+import uuid
 import base64
 import logging
 import json
@@ -17,7 +20,7 @@ import emoji
 import yaml
 import requests
 from schema import Schema, Optional, Regex, Or, Use, SchemaError, And
-from flask import abort, g
+from flask import abort, g, has_request_context
 from sqlalchemy import MetaData, Table, inspect as inspect_database, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
@@ -31,6 +34,7 @@ from ..models import (
     DojoModules,
     DojoChallenges,
     DojoChallengeTransferProvenances,
+    DojoUpdateRecalculations,
     DojoResources,
     DojoChallengeVisibilities,
     DojoResourceVisibilities,
@@ -49,16 +53,28 @@ from .events import (
     queued_stat_events_checkpoint,
     restore_queued_stat_events,
 )
+from .challenge_references import lock_challenge_references
+from .checkout import (
+    DurableCheckoutSwap,
+    bounded_run,
+    checkout_barrier,
+    checkout_lock,
+)
 
 
 DOJOS_TMP_DIR = DOJOS_DIR/"tmp"
 DOJOS_TMP_DIR.mkdir(exist_ok=True)
+(DOJOS_TMP_DIR / "locks").mkdir(exist_ok=True)
 MAX_TRANSFER_DOJOS = 128
 MAX_TRANSFER_REFERENCES = MAX_TRANSFER_DOJOS
 MAX_TRANSFER_REQUESTS = 4096
 MAX_DOJO_UPDATE_ATTEMPTS = 3
 DOJO_UPDATE_HEAD_TIMEOUT = 15
+DOJO_CLONE_TIMEOUT = 300
+DOJO_NETWORK_TIMEOUT = 30
 DOJO_REFERENCE_ID_LOCK_NAMESPACE = 1146047055
+DOJO_UPDATE_CHECKOUT_TOKEN = "_dojo_update_checkout_token"
+MAX_PENDING_DOJO_UPDATE_RECALCULATIONS = 128
 
 
 class DojoUpdateAuthorizationError(RuntimeError):
@@ -127,6 +143,186 @@ class DojoCacheRecalculationPlan:
             queue_stat_event(publish_belts_event)
             queue_stat_event(publish_emojis_event)
 
+    def serialize(self):
+        return {
+            "dojo_ids": sorted(self.dojo_ids),
+            "module_ids": [
+                list(module_id) for module_id in sorted(self.module_ids)
+            ],
+            "activity_user_ids": sorted(self.activity_user_ids),
+            "awards": self.awards,
+        }
+
+    @classmethod
+    def deserialize(cls, data):
+        if not isinstance(data, dict) or set(data) != {
+            "dojo_ids",
+            "module_ids",
+            "activity_user_ids",
+            "awards",
+        }:
+            raise RuntimeError("Invalid durable cache recalculation plan")
+        plan = cls()
+        dojo_ids = data["dojo_ids"]
+        module_ids = data["module_ids"]
+        activity_user_ids = data["activity_user_ids"]
+        if not all((
+            isinstance(dojo_ids, list),
+            all(type(dojo_id) is int for dojo_id in dojo_ids),
+            dojo_ids == sorted(set(dojo_ids)),
+            isinstance(module_ids, list),
+            all(
+                isinstance(module_id, list) and
+                len(module_id) == 2 and
+                all(type(component) is int for component in module_id)
+                for module_id in module_ids
+            ),
+            module_ids == [
+                list(module_id)
+                for module_id in sorted(
+                    {tuple(module_id) for module_id in module_ids}
+                )
+            ],
+            isinstance(activity_user_ids, list),
+            all(type(user_id) is int for user_id in activity_user_ids),
+            activity_user_ids == sorted(set(activity_user_ids)),
+            type(data["awards"]) is bool,
+        )):
+            raise RuntimeError("Invalid durable cache recalculation plan")
+        plan.dojo_ids.update(dojo_ids)
+        plan.module_ids.update(
+            tuple(module_id) for module_id in module_ids
+        )
+        plan.activity_user_ids.update(activity_user_ids)
+        plan.awards = data["awards"]
+        return plan
+
+    def publish(self):
+        results = []
+        for dojo_id in sorted(self.dojo_ids):
+            results.extend((
+                publish_dojo_stats_event(dojo_id),
+                publish_scoreboard_event("dojo", dojo_id),
+                publish_scores_event(dojo_id),
+            ))
+        for dojo_id, module_index in sorted(self.module_ids):
+            results.append(publish_scoreboard_event(
+                "module",
+                {
+                    "dojo_id": dojo_id,
+                    "module_index": module_index,
+                },
+            ))
+        for user_id in sorted(self.activity_user_ids):
+            results.append(publish_activity_event(user_id))
+        if self.awards:
+            results.extend((publish_belts_event(), publish_emojis_event()))
+        if any(result is None for result in results):
+            raise RuntimeError("Failed to publish dojo cache recalculation")
+
+
+def create_dojo_update_recalculation(plan, token=None):
+    token = token or uuid.uuid4().hex
+    recalculation = DojoUpdateRecalculations(
+        token=token,
+        data=plan.serialize(),
+        published=False,
+    )
+    db.session.add(recalculation)
+    db.session.flush()
+    return recalculation
+
+
+def publish_dojo_update_recalculation(token):
+    recalculation = (
+        DojoUpdateRecalculations.query
+        .filter_by(token=token)
+        .with_for_update()
+        .one_or_none()
+    )
+    if recalculation is None:
+        return False
+    if not recalculation.published:
+        DojoCacheRecalculationPlan.deserialize(
+            recalculation.data
+        ).publish()
+        recalculation.published = True
+        db.session.commit()
+    return True
+
+
+def delete_dojo_update_recalculation(token):
+    DojoUpdateRecalculations.query.filter_by(token=token).delete()
+    db.session.commit()
+
+
+def drain_dojo_update_recalculation(token, *, delete=False):
+    if not publish_dojo_update_recalculation(token):
+        return False
+    if delete:
+        delete_dojo_update_recalculation(token)
+    return True
+
+
+def drain_pending_dojo_update_recalculations(*, barrier_held=False):
+    barrier_context = (
+        contextlib.nullcontext()
+        if barrier_held else
+        checkout_barrier(DOJOS_TMP_DIR, exclusive=False)
+    )
+    with barrier_context:
+        tokens = [
+            token
+            for token, in (
+                db.session.query(DojoUpdateRecalculations.token)
+                .filter(DojoUpdateRecalculations.published.is_(False))
+                .order_by(DojoUpdateRecalculations.token)
+                .limit(MAX_PENDING_DOJO_UPDATE_RECALCULATIONS + 1)
+                .all()
+            )
+        ]
+        db.session.rollback()
+        if len(tokens) > MAX_PENDING_DOJO_UPDATE_RECALCULATIONS:
+            raise RuntimeError("Too many pending dojo update recalculations")
+        for token in tokens:
+            drain_dojo_update_recalculation(token)
+        (
+            DojoUpdateRecalculations.query
+            .filter(
+                DojoUpdateRecalculations.published.is_(True),
+                DojoUpdateRecalculations.created < (
+                    datetime.datetime.utcnow() - datetime.timedelta(days=1)
+                ),
+            )
+            .delete(synchronize_session=False)
+        )
+        db.session.commit()
+
+
+def commit_dojo_update(plan, *, drain=True):
+    recalculation = create_dojo_update_recalculation(plan)
+    token = recalculation.token
+    recalculation_id = recalculation.id
+    try:
+        db.session.commit()
+    except BaseException:
+        db.session.rollback()
+        if DojoUpdateRecalculations.query.filter_by(
+            id=recalculation_id,
+            token=token,
+        ).first() is None:
+            db.session.rollback()
+            raise
+    if drain:
+        try:
+            drain_dojo_update_recalculation(token, delete=True)
+        except Exception:
+            db.session.rollback()
+            logging.getLogger(__name__).exception(
+                "Failed to publish committed dojo update recalculation"
+            )
+    return token
+
 
 def lock_dojo_reference_ids_for_update(reference_ids):
     locked_reference_ids = frozenset(
@@ -157,6 +353,7 @@ def lock_dojo_for_official_promotion(dojo, *, authorize_before_lock=None):
             raise DojoUpdateAuthorizationError(
                 "Dojo promotion authorization changed"
             )
+        lock_challenge_references()
         lock_dojo_reference_ids_for_update({expected_dojo_id})
         locked_dojo = Dojos.lock_ids_for_update({dojo_database_id}).get(
             dojo_database_id
@@ -164,6 +361,19 @@ def lock_dojo_for_official_promotion(dojo, *, authorize_before_lock=None):
         if locked_dojo is None:
             return None
         if locked_dojo.id == expected_dojo_id:
+            official_owner = (
+                Dojos.query
+                .filter(
+                    Dojos.id == expected_dojo_id,
+                    Dojos.official.is_(True),
+                    Dojos.dojo_id != dojo_database_id,
+                )
+                .first()
+            )
+            if official_owner is not None:
+                raise RuntimeError(
+                    "Another official dojo already uses this id"
+                )
             return locked_dojo
         expected_dojo_id = locked_dojo.id
         db.session.rollback()
@@ -454,7 +664,14 @@ def dojo_initialize_files(data, dojo_dir):
         abs_path.parent.mkdir(parents=True, exist_ok=True)
 
         if dojo_file["type"] == "download":
-            urllib.request.urlretrieve(dojo_file["url"], str(abs_path))
+            with (
+                urllib.request.urlopen(
+                    dojo_file["url"],
+                    timeout=DOJO_NETWORK_TIMEOUT,
+                ) as source,
+                open(abs_path, "wb") as destination,
+            ):
+                shutil.copyfileobj(source, destination)
             assert abs_path.stat().st_size >= 50*1024*1024, f"{rel_path} is small enough to fit into git ({abs_path.stat().st_size} bytes) --- put it in the repository!"
         if dojo_file["type"] == "text":
             with open(abs_path, "w") as o:
@@ -468,6 +685,7 @@ def dojo_from_dir(
     authorize=None,
     authorize_before_lock=None,
     cache_recalculation_plan=None,
+    prepare=None,
 ):
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
@@ -479,6 +697,8 @@ def dojo_from_dir(
     data = load_dojo_subyamls(data_raw, dojo_dir)
     data = load_surveys(data, dojo_dir)
     dojo_initialize_files(data, dojo_dir)
+    if prepare is not None:
+        prepare(dojo_dir)
     return dojo_from_spec(
         data,
         dojo_dir=dojo_dir,
@@ -635,7 +855,10 @@ def dojo_from_spec(
     assert proposed_dojo_id is not None, "Dojo id must be defined"
     global_admin_authorized = bool(
         authorize_legacy_replay and authorize_legacy_replay()
-    ) if authorize_legacy_replay is not None else bool(is_admin())
+    ) if authorize_legacy_replay is not None else bool(
+        has_request_context() and is_admin()
+    )
+    lock_challenge_references()
     locked_reference_ids = lock_dojo_reference_ids_for_update({
         proposed_dojo_id,
         dojo.id if existing_dojo else None,
@@ -647,8 +870,19 @@ def dojo_from_spec(
             raise RuntimeError(
                 "Dojo identity changed while acquiring update locks"
             )
+    def other_official_dojo():
+        query = Dojos.query.filter(
+            Dojos.id == proposed_dojo_id,
+            Dojos.official.is_(True),
+        )
+        if existing_dojo:
+            query = query.filter(Dojos.dojo_id != dojo.dojo_id)
+        return query.first()
+
     with db.session.no_autoflush:
-        official_twin_absent = Dojos.from_id(proposed_dojo_id).first() is None
+        official_twin_absent = other_official_dojo() is None
+    if existing_dojo and dojo.official and not official_twin_absent:
+        raise RuntimeError("Another official dojo already uses this id")
     global_admin_destination_allowed = bool(
         global_admin_authorized and official_twin_absent
     )
@@ -668,7 +902,7 @@ def dojo_from_spec(
             )
         with db.session.no_autoflush:
             revalidated_official_twin_absent = (
-                Dojos.from_id(proposed_dojo_id).first() is None
+                other_official_dojo() is None
             )
             revalidated_external_authority = bool(
                 dojo.official or
@@ -681,9 +915,15 @@ def dojo_from_spec(
             raise RuntimeError(
                 "Dojo transfer authority changed while acquiring update locks"
             )
+        if dojo.official and not revalidated_official_twin_absent:
+            raise RuntimeError("Another official dojo already uses this id")
         official_twin_absent = revalidated_official_twin_absent
     if authorize is not None and not authorize(dojo):
         raise DojoUpdateAuthorizationError("Dojo update authorization changed")
+    self_transfer_reference_ids = (
+        {dojo.id, dojo.reference_id}
+        if existing_dojo else set()
+    )
 
     def assert_dojo_challenge_type(dojo_challenge):
         if (
@@ -856,17 +1096,21 @@ def dojo_from_spec(
                     submissions.c.id,
                     submissions.c.user_id,
                     submissions.c.team_id,
+                    submissions.c.date,
                 )
                 .where(
                     submissions.c.challenge_id.in_(challenge_ids),
                     submissions.c.type == "correct",
                 )
-                .order_by(submissions.c.id)
+                .order_by(
+                    submissions.c.date.asc().nullslast(),
+                    submissions.c.id,
+                )
             ).all()
             seen_user_ids = set()
             seen_team_ids = set()
             duplicate_solve_ids = set()
-            for solve_id, user_id, team_id in solve_rows:
+            for solve_id, user_id, team_id, solve_date in solve_rows:
                 duplicate_solve = bool(
                     (user_id is not None and user_id in seen_user_ids) or
                     (team_id is not None and team_id in seen_team_ids)
@@ -882,7 +1126,7 @@ def dojo_from_spec(
                 if cache_recalculation_plan is not None:
                     cache_recalculation_plan.add_activity_users(
                         user_id
-                        for solve_id, user_id, team_id in solve_rows
+                        for solve_id, user_id, team_id, solve_date in solve_rows
                         if solve_id in duplicate_solve_ids
                     )
                 if legacy_solves is not None:
@@ -948,6 +1192,56 @@ def dojo_from_spec(
             association.challenge = authoritative
         db.session.flush()
 
+        next_ids = {
+            challenge.id: challenge.next_id
+            for challenge in [authoritative, *duplicates]
+        }
+        for challenge_id in challenge_ids:
+            path = set()
+            current_id = challenge_id
+            while current_id in challenge_ids:
+                if current_id in path:
+                    raise RuntimeError(
+                        "Duplicate challenges contain a next-challenge cycle"
+                    )
+                path.add(current_id)
+                current_id = next_ids[current_id]
+        external_next_ids = {
+            next_id
+            for next_id in next_ids.values()
+            if next_id is not None and next_id not in challenge_ids
+        }
+        if len(external_next_ids) > 1:
+            raise RuntimeError(
+                "Duplicate challenges have conflicting next challenges"
+            )
+        authoritative_next_id = next(iter(external_next_ids), None)
+        current_id = authoritative_next_id
+        visited_external_ids = set()
+        while current_id is not None and current_id not in visited_external_ids:
+            if current_id in challenge_ids:
+                raise RuntimeError(
+                    "Duplicate consolidation would create a next-challenge cycle"
+                )
+            visited_external_ids.add(current_id)
+            current_id = (
+                db.session.query(Challenges.next_id)
+                .filter_by(id=current_id)
+                .with_for_update()
+                .scalar()
+            )
+        authoritative.next_id = authoritative_next_id
+        db.session.flush()
+        db.session.execute(
+            Challenges.__table__.update()
+            .where(
+                ~Challenges.__table__.c.id.in_(challenge_ids),
+                Challenges.__table__.c.next_id.in_(duplicate_ids),
+            )
+            .values(next_id=authoritative.id),
+            execution_options={"synchronize_session": False},
+        )
+
         handled_tables = {
             DojoChallenges.__table__.name,
             DojoChallengeTransferProvenances.__table__.name,
@@ -957,6 +1251,11 @@ def dojo_from_spec(
             if table.name in handled_tables:
                 continue
             for column in table.columns:
+                if (
+                    table.name == Challenges.__table__.name and
+                    column.name == Challenges.next_id.name
+                ):
+                    continue
                 if not any(
                     foreign_key.column.table.name == Challenges.__table__.name and
                     foreign_key.column.name == Challenges.id.name
@@ -979,6 +1278,11 @@ def dojo_from_spec(
                     continue
                 column_name = foreign_key["constrained_columns"][0]
                 key = (table_name, column_name)
+                if key == (
+                    Challenges.__table__.name,
+                    Challenges.next_id.name,
+                ):
+                    continue
                 if key in challenge_reference_columns:
                     continue
                 table = Table(
@@ -1013,6 +1317,43 @@ def dojo_from_spec(
                 .values(challenge_id=authoritative.id),
                 execution_options={"synchronize_session": False},
             )
+
+        requirements_challenges = (
+            Challenges.query
+            .filter(
+                Challenges.requirements.isnot(None),
+                ~Challenges.id.in_(duplicate_ids),
+            )
+            .order_by(Challenges.id)
+            .populate_existing()
+            .with_for_update()
+            .all()
+        )
+        for requirements_challenge in requirements_challenges:
+            requirements = requirements_challenge.requirements
+            if not isinstance(requirements, dict):
+                continue
+            prerequisites = requirements.get("prerequisites")
+            if not isinstance(prerequisites, list):
+                continue
+            rewritten_prerequisites = []
+            canonical_added = False
+            for prerequisite in prerequisites:
+                canonical_reference = (
+                    type(prerequisite) is int and
+                    prerequisite in challenge_ids
+                )
+                if not canonical_reference:
+                    rewritten_prerequisites.append(prerequisite)
+                elif not canonical_added:
+                    rewritten_prerequisites.append(authoritative.id)
+                    canonical_added = True
+            if rewritten_prerequisites != prerequisites:
+                requirements_challenge.requirements = {
+                    **requirements,
+                    "prerequisites": rewritten_prerequisites,
+                }
+        db.session.flush()
         db.session.execute(
             Challenges.__table__.delete().where(
                 Challenges.__table__.c.id.in_(duplicate_ids)
@@ -1141,7 +1482,10 @@ def dojo_from_spec(
         reference = request["reference"]
         if reference is None:
             return dojo, dojo.dojo_id
-        if existing_dojo and reference == dojo.id:
+        if existing_dojo and (
+            reference == dojo.id or
+            reference in self_transfer_reference_ids
+        ):
             return dojo, dojo.dojo_id
         immutable_dojo_id = immutable_reference_dojo_id(reference)
         if immutable_dojo_id is not None:
@@ -1159,7 +1503,6 @@ def dojo_from_spec(
         global_admin_authorized and official_twin_absent
     )
     legacy_transfer_allowed = dojo.official or global_admin_transfer_allowed
-    legacy_replay_allowed = dojo.official or global_admin_authorized
     transfer_plans = {}
     for request in challenge_transfer_requests(dojo_data):
         destination = request["destination"]
@@ -1234,11 +1577,21 @@ def dojo_from_spec(
                 request["source"],
             )
         legacy_replay = bool(
-            legacy_replay_allowed and
             destination_association and
             not destination_association.path_override and
             challenge_at(destination_challenge, destination) and
-            stored_provenance is None
+            stored_provenance is None and
+            (
+                legacy_transfer_allowed or
+                (
+                    source_challenge is None and
+                    request["reference"] is not None
+                ) or
+                (
+                    source_challenge is not None and
+                    source_challenge.id == destination_challenge.id
+                )
+            )
         )
         if not (
             legacy_transfer_allowed or
@@ -1571,7 +1924,7 @@ def _assert_no_symlinks(dojo_dir):
 
 def dojo_clone(repository, private_key):
     url = f"https://github.com/{repository}"
-    if requests.head(url).status_code != 200:
+    if requests.head(url, timeout=DOJO_NETWORK_TIMEOUT).status_code != 200:
         url = f"git@github.com:{repository}"
     return dojo_clone_url(url, private_key)
 
@@ -1582,13 +1935,21 @@ def dojo_clone_url(url, private_key):
     key_file = tempfile.NamedTemporaryFile("w")
     key_file.write(private_key)
     key_file.flush()
-    subprocess.run(["git", "clone", "--depth=1", "--recurse-submodules", url, clone_dir.name],
-                   env={
-                       "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
-                       "GIT_TERMINAL_PROMPT": "0",
-                   },
-                   check=True,
-                   capture_output=True)
+    bounded_run(
+        [
+            "git",
+            "clone",
+            "--depth=1",
+            "--recurse-submodules",
+            url,
+            clone_dir.name,
+        ],
+        env={
+            "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
+            "GIT_TERMINAL_PROMPT": "0",
+        },
+        timeout=DOJO_CLONE_TIMEOUT,
+    )
 
     _assert_no_symlinks(clone_dir.name)
 
@@ -1603,36 +1964,24 @@ def dojo_git_command(dojo, *args, repo_path=None, timeout=None):
     if repo_path is None:
         repo_path = str(dojo.path)
 
-    return subprocess.run(["git", "-C", repo_path, *args],
-                          env={
-                              "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
-                              "GIT_TERMINAL_PROMPT": "0",
-                          },
-                          check=True,
-                          capture_output=True,
-                          timeout=timeout)
+    return bounded_run(
+        ["git", "-C", repo_path, *args],
+        env={
+            "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
+            "GIT_TERMINAL_PROMPT": "0",
+        },
+        timeout=timeout,
+    )
 
 
-def dojo_checkout_is_current(dojo, repo_path):
-    checkout_head = dojo_git_command(
+def dojo_checkout_version(dojo, repo_path):
+    return dojo_git_command(
         dojo,
         "rev-parse",
         "HEAD",
         repo_path=repo_path,
         timeout=DOJO_UPDATE_HEAD_TIMEOUT,
     ).stdout.decode().strip()
-    remote_head_output = dojo_git_command(
-        dojo,
-        "ls-remote",
-        "--exit-code",
-        "origin",
-        "HEAD",
-        repo_path=repo_path,
-        timeout=DOJO_UPDATE_HEAD_TIMEOUT,
-    ).stdout.decode().split()
-    if len(remote_head_output) != 2 or remote_head_output[1] != "HEAD":
-        raise RuntimeError("Unable to determine dojo repository HEAD")
-    return checkout_head == remote_head_output[0]
 
 
 def dojo_create(user, repository, public_key, private_key, spec):
@@ -1670,13 +2019,27 @@ def dojo_create(user, repository, public_key, private_key, spec):
         dojo.admins = [DojoAdmins(user=user)]
 
         db.session.add(dojo)
-        db.session.commit()
+        recalculation_token = commit_dojo_update(
+            cache_recalculation_plan,
+            drain=False,
+        )
         committed = True
-        cache_recalculation_plan.queue()
+        restore_queued_stat_events(stat_events_checkpoint)
 
         dojo.path.parent.mkdir(exist_ok=True)
         dojo_path.rename(dojo.path)
         dojo_path.mkdir()  # TODO: ignore_cleanup_errors=True
+
+        try:
+            drain_dojo_update_recalculation(
+                recalculation_token,
+                delete=True,
+            )
+        except Exception:
+            db.session.rollback()
+            logging.getLogger(__name__).exception(
+                "Failed to publish committed dojo creation recalculation"
+            )
 
     except subprocess.CalledProcessError as e:
         if not committed:
@@ -1707,32 +2070,148 @@ def dojo_create(user, repository, public_key, private_key, spec):
     return dojo
 
 
+def complete_committed_dojo_update(swap):
+    swap.prove_finalize()
+    if swap.data["phase"] != "events_published":
+        if not publish_dojo_update_recalculation(swap.token):
+            raise RuntimeError("Committed dojo update has no recalculation outbox")
+        swap.mark_events_published()
+    else:
+        recalculation = DojoUpdateRecalculations.query.filter_by(
+            token=swap.token
+        ).one_or_none()
+        if recalculation is not None and not recalculation.published:
+            raise RuntimeError(
+                "Checkout journal conflicts with recalculation outbox"
+            )
+    delete_dojo_update_recalculation(swap.token)
+    swap.finalize()
+
+
+def recover_dojo_update_locked(dojo, live_path, *, include_outcome=False):
+    swap = DurableCheckoutSwap.load(live_path, DOJOS_TMP_DIR)
+    if swap is None:
+        return (dojo, None) if include_outcome else dojo
+
+    lock_challenge_references()
+    lock_dojo_reference_ids_for_update({dojo.id})
+    locked_dojo = Dojos.lock_ids_for_update({dojo.dojo_id}).get(dojo.dojo_id)
+    if locked_dojo is None:
+        db.session.rollback()
+        raise RuntimeError("Dojo no longer exists")
+    swap = DurableCheckoutSwap.load(locked_dojo.path, DOJOS_TMP_DIR)
+    if swap is None:
+        db.session.commit()
+        return (locked_dojo, None) if include_outcome else locked_dojo
+
+    committed_token = (locked_dojo.data or {}).get(
+        DOJO_UPDATE_CHECKOUT_TOKEN
+    )
+    try:
+        if committed_token == swap.token:
+            if swap.data["phase"] not in {
+                "committed",
+                "finalize_proven",
+                "events_published",
+            }:
+                swap.mark_committed()
+            complete_committed_dojo_update(swap)
+            outcome = "committed"
+        elif committed_token == swap.data["previous_token"]:
+            if DojoUpdateRecalculations.query.filter_by(
+                token=swap.token
+            ).first() is not None:
+                raise RuntimeError(
+                    "Rolled-back dojo update has a recalculation outbox"
+                )
+            swap.rollback()
+            outcome = "rolled_back"
+        else:
+            raise RuntimeError(
+                "Dojo database state does not match checkout swap journal"
+            )
+        db.session.commit()
+    except BaseException:
+        db.session.rollback()
+        raise
+    return (locked_dojo, outcome) if include_outcome else locked_dojo
+
+
+def recover_dojo_update(dojo, *, barrier_held=False):
+    barrier_context = (
+        contextlib.nullcontext()
+        if barrier_held else
+        checkout_barrier(DOJOS_TMP_DIR, exclusive=False)
+    )
+    with barrier_context:
+        live_path = dojo.path
+        with checkout_lock(live_path, DOJOS_TMP_DIR):
+            return recover_dojo_update_locked(dojo, live_path)
+
+
+def recover_pending_dojo_updates(*, barrier_held=False):
+    barrier_context = (
+        contextlib.nullcontext()
+        if barrier_held else
+        checkout_barrier(DOJOS_TMP_DIR, exclusive=False)
+    )
+    with barrier_context:
+        for live_name in DurableCheckoutSwap.pending_live_names(DOJOS_TMP_DIR):
+            dojo_id = Dojos.hex_to_int(live_name)
+            live_path = DOJOS_DIR / live_name
+            with checkout_lock(live_path, DOJOS_TMP_DIR):
+                with db.session.no_autoflush:
+                    dojo = Dojos.query.filter_by(dojo_id=dojo_id).one_or_none()
+                if dojo is None:
+                    db.session.rollback()
+                    raise RuntimeError(
+                        "Checkout swap journal references a missing dojo"
+                    )
+                recover_dojo_update_locked(dojo, live_path)
+
+
 def dojo_update(dojo, *, authorize=None):
     stat_events_checkpoint = queued_stat_events_checkpoint()
+    dojo = recover_dojo_update(dojo)
     dojo_id = dojo.dojo_id
-    if dojo.path.exists():
-        remote_url = dojo_git_command(dojo, "remote", "get-url", "origin").stdout.decode().strip()
-    else:
-        remote_url = None
+    with checkout_barrier(DOJOS_TMP_DIR, exclusive=False):
+        with checkout_lock(dojo.path, DOJOS_TMP_DIR):
+            if dojo.path.exists():
+                remote_url = dojo_git_command(
+                    dojo,
+                    "remote",
+                    "get-url",
+                    "origin",
+                    timeout=DOJO_UPDATE_HEAD_TIMEOUT,
+                ).stdout.decode().strip()
+            else:
+                remote_url = None
 
     repository = dojo.repository
     private_key = dojo.private_key
 
     for attempt in range(MAX_DOJO_UPDATE_ATTEMPTS):
+        if dojo is None:
+            dojo = Dojos.query.filter_by(dojo_id=dojo_id).one_or_none()
+            if dojo is None:
+                raise RuntimeError("Dojo no longer exists")
+        expected_live_path = dojo.path
         cache_recalculation_plan = DojoCacheRecalculationPlan()
+        with checkout_barrier(DOJOS_TMP_DIR, exclusive=False):
+            with checkout_lock(expected_live_path, DOJOS_TMP_DIR):
+                expected_live_version = (
+                    dojo_checkout_version(dojo, expected_live_path)
+                    if expected_live_path.exists() else
+                    None
+                )
         staged_checkout = (
             dojo_clone_url(remote_url, private_key)
             if remote_url is not None else
             dojo_clone(repository, private_key)
         )
         staged_path = pathlib.Path(staged_checkout.name)
-        if dojo is None:
-            dojo = Dojos.query.filter_by(dojo_id=dojo_id).one_or_none()
-            if dojo is None:
-                staged_checkout.cleanup()
-                raise RuntimeError("Dojo no longer exists")
 
-        def authorize_staged_update(locked_dojo):
+        def authorize_update(locked_dojo):
             if (
                 locked_dojo.repository != repository or
                 locked_dojo.private_key != private_key
@@ -1740,54 +2219,111 @@ def dojo_update(dojo, *, authorize=None):
                 raise RuntimeError("Dojo repository changed during update")
             if authorize is not None and not authorize(locked_dojo):
                 return False
-            if not dojo_checkout_is_current(locked_dojo, staged_path):
+            return True
+
+        def authorize_staged_update(locked_dojo):
+            if not authorize_update(locked_dojo):
+                return False
+            current_live_version = (
+                dojo_checkout_version(locked_dojo, locked_dojo.path)
+                if locked_dojo.path.exists() else
+                None
+            )
+            if current_live_version != expected_live_version:
                 raise DojoUpdateStaleCheckout("Dojo repository changed while waiting for update lock")
             return True
 
-        old_checkout = None
-        installed = False
-        try:
-            dojo = dojo_from_dir(
-                staged_path,
-                dojo=dojo,
-                authorize=authorize_staged_update,
-                authorize_before_lock=authorize_staged_update,
-                cache_recalculation_plan=cache_recalculation_plan,
-            )
-            live_path = dojo.path
-            if live_path.exists():
-                old_checkout = tempfile.TemporaryDirectory(dir=DOJOS_TMP_DIR)
-                os.rename(live_path, old_checkout.name)
-            os.rename(staged_path, live_path)
-            installed = True
-            staged_path.mkdir()
-            db.session.commit()
-            cache_recalculation_plan.queue()
-        except DojoUpdateStaleCheckout as error:
-            db.session.rollback()
-            restore_queued_stat_events(stat_events_checkpoint)
-            staged_checkout.cleanup()
-            if attempt + 1 == MAX_DOJO_UPDATE_ATTEMPTS:
-                raise RuntimeError("Dojo repository changed too frequently during update") from error
-            dojo = None
-            continue
-        except BaseException:
-            db.session.rollback()
-            restore_queued_stat_events(stat_events_checkpoint)
-            if installed:
-                if staged_path.exists():
-                    staged_path.rmdir()
-                os.rename(live_path, staged_path)
-            if old_checkout is not None:
-                os.rename(old_checkout.name, live_path)
-                pathlib.Path(old_checkout.name).mkdir()
-            staged_checkout.cleanup()
-            if old_checkout is not None:
-                old_checkout.cleanup()
-            raise
+        checkout_swap = None
+        prepared_checkout = None
+        prepared_live_checkout = None
+        commit_started = False
+        swap_resolved = False
+        with contextlib.ExitStack() as checkout_context:
+            try:
+                def prepare_checkout(path):
+                    nonlocal prepared_checkout, prepared_live_checkout
+                    db.session.rollback()
+                    prepared_checkout = DurableCheckoutSwap.prepare(path)
+                    checkout_context.enter_context(
+                        checkout_barrier(DOJOS_TMP_DIR, exclusive=True)
+                    )
+                    checkout_context.enter_context(
+                        checkout_lock(expected_live_path, DOJOS_TMP_DIR)
+                    )
+                    prepared_live_checkout = (
+                        DurableCheckoutSwap.prepare_existing(expected_live_path)
+                    )
+
+                dojo = dojo_from_dir(
+                    staged_path,
+                    dojo=dojo,
+                    authorize=authorize_staged_update,
+                    authorize_before_lock=authorize_update,
+                    cache_recalculation_plan=cache_recalculation_plan,
+                    prepare=prepare_checkout,
+                )
+                live_path = dojo.path
+                checkout_swap = DurableCheckoutSwap.begin(
+                    live_path,
+                    staged_path,
+                    DOJOS_TMP_DIR,
+                    (dojo.data or {}).get(DOJO_UPDATE_CHECKOUT_TOKEN),
+                    prepared_checkout,
+                    prepared_live_checkout,
+                    {"transactional_outbox": True},
+                )
+                create_dojo_update_recalculation(
+                    cache_recalculation_plan,
+                    checkout_swap.token,
+                )
+                dojo.data = {
+                    **(dojo.data or {}),
+                    DOJO_UPDATE_CHECKOUT_TOKEN: checkout_swap.token,
+                }
+                db.session.flush()
+                checkout_swap.install()
+                checkout_swap.mark_commit_started()
+                commit_started = True
+                db.session.commit()
+                restore_queued_stat_events(stat_events_checkpoint)
+                checkout_swap.mark_committed()
+                complete_committed_dojo_update(checkout_swap)
+                swap_resolved = True
+            except DojoUpdateStaleCheckout as error:
+                db.session.rollback()
+                restore_queued_stat_events(stat_events_checkpoint)
+                staged_checkout.cleanup()
+                if attempt + 1 == MAX_DOJO_UPDATE_ATTEMPTS:
+                    raise RuntimeError("Dojo repository changed too frequently during update") from error
+                dojo = None
+                continue
+            except BaseException:
+                if not commit_started:
+                    restore_queued_stat_events(stat_events_checkpoint)
+                    db.session.rollback()
+                    if checkout_swap is not None:
+                        checkout_swap.rollback()
+                        swap_resolved = True
+                else:
+                    restore_queued_stat_events(stat_events_checkpoint)
+                    db.session.rollback()
+                    dojo, outcome = recover_dojo_update_locked(
+                        dojo,
+                        dojo.path,
+                        include_outcome=True,
+                    )
+                    if outcome is None:
+                        raise RuntimeError(
+                            "Checkout journal disappeared before outcome reconciliation"
+                        )
+                    swap_resolved = True
+                    if outcome == "committed":
+                        staged_checkout.cleanup()
+                        return dojo
+                if checkout_swap is None or swap_resolved:
+                    staged_checkout.cleanup()
+                raise
         staged_checkout.cleanup()
-        if old_checkout is not None:
-            old_checkout.cleanup()
         return dojo
 
 
