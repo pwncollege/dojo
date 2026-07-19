@@ -924,6 +924,13 @@ def dojo_from_spec(
         {dojo.id, dojo.reference_id}
         if existing_dojo else set()
     )
+    if existing_dojo and cache_recalculation_plan is not None:
+        cache_recalculation_plan.add_dojo(dojo.dojo_id)
+        for module in dojo.modules:
+            cache_recalculation_plan.add_module(
+                dojo.dojo_id,
+                module.module_index,
+            )
 
     def assert_dojo_challenge_type(dojo_challenge):
         if (
@@ -1840,6 +1847,14 @@ def dojo_from_spec(
     for module in dojo.modules:
         for dojo_challenge in module.challenges:
             assert_dojo_challenge_type(dojo_challenge)
+    if cache_recalculation_plan is not None:
+        cache_recalculation_plan.add_dojo(dojo.dojo_id)
+        if existing_dojo:
+            for module in dojo.modules:
+                cache_recalculation_plan.add_module(
+                    dojo.dojo_id,
+                    module.module_index,
+                )
 
     if dojo_dir:
         with dojo.located_at(dojo_dir):

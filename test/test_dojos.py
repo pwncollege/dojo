@@ -2727,6 +2727,13 @@ finally:
 
 expected_publishes = 1 if outcome == "committed" else 0
 assert len(published) == expected_publishes, published
+expected_plan = {
+    "dojo_ids": [dojo_id],
+    "module_ids": [[dojo_id, 0]],
+    "activity_user_ids": [],
+    "awards": False,
+}
+assert published == ([expected_plan] if outcome == "committed" else [])
 print(f"AMBIGUOUS_COMMIT_RECONCILED:{outcome}:{len(published)}")
 '''
         script = (
@@ -2956,6 +2963,7 @@ def run_spec_update_ambiguous_commit(admin_session, outcome):
 from CTFd.models import Users, db
 from CTFd.plugins.dojo_plugin.models import (
     DojoUpdateRecalculations,
+    Dojos,
 )
 import importlib
 dojo_api = importlib.import_module("CTFd.plugins.dojo_plugin.api.v1.dojos")
@@ -3061,6 +3069,14 @@ expected_status = 200 if outcome == "committed" else 400
 assert response.status_code == expected_status, response.get_data(as_text=True)
 expected_publishes = 1 if outcome == "committed" else 0
 assert len(published) == expected_publishes, published
+dojo = Dojos.from_id(dojo_reference_id).one()
+expected_plan = {
+    "dojo_ids": [dojo.dojo_id],
+    "module_ids": [[dojo.dojo_id, 0]],
+    "activity_user_ids": [],
+    "awards": False,
+}
+assert published == ([expected_plan] if outcome == "committed" else [])
 expected_drainer_observations = 1 if outcome == "committed" else 0
 assert not drainer_errors, drainer_errors
 assert len(drainer_observed) == expected_drainer_observations, drainer_observed
@@ -3210,6 +3226,100 @@ print("RECALCULATION_RETRY_AND_GC_OK")
 '''
     result = dojo_run("dojo", "flask", input=f"exec({script!r})\n")
     assert "RECALCULATION_RETRY_AND_GC_OK" in result.stdout
+
+
+def test_dojo_creation_recalculation_recovers_exact_cache_families():
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"creation-outbox-{suffix}"
+    spec = transfer_dojo_spec(dojo_id, [{"id": "ordinary"}])
+    script = r'''
+from CTFd.models import Users
+from CTFd.plugins.dojo_plugin.models import DojoUpdateRecalculations, Dojos
+import CTFd.plugins.dojo_plugin.utils.dojo as dojo_utils
+from flask import current_app
+import yaml
+
+spec = __SPEC__
+real_plan_publish = dojo_utils.DojoCacheRecalculationPlan.publish
+publication_attempts = []
+
+def fail_creation_publish(plan):
+    publication_attempts.append(plan.serialize())
+    raise RuntimeError("injected creation publication failure")
+
+dojo_utils.DojoCacheRecalculationPlan.publish = fail_creation_publish
+try:
+    admin_id = Users.query.filter_by(type="admin").order_by(Users.id).first().id
+    nonce = "creation-outbox"
+    with current_app._get_current_object().test_client() as client:
+        with client.session_transaction() as client_session:
+            client_session["id"] = admin_id
+            client_session["nonce"] = nonce
+        response = client.post(
+            "/pwncollege_api/v1/dojos/create",
+            json={"spec": yaml.safe_dump(spec, sort_keys=False)},
+            headers={"CSRF-Token": nonce},
+        )
+finally:
+    dojo_utils.DojoCacheRecalculationPlan.publish = real_plan_publish
+
+assert response.status_code == 200, response.get_data(as_text=True)
+dojo = Dojos.from_id(response.get_json()["dojo"]).one()
+expected_plan = {
+    "dojo_ids": [dojo.dojo_id],
+    "module_ids": [],
+    "activity_user_ids": [],
+    "awards": False,
+}
+assert publication_attempts == [expected_plan]
+outboxes = [
+    recalculation
+    for recalculation in DojoUpdateRecalculations.query.filter_by(
+        published=False,
+    ).all()
+    if recalculation.data == expected_plan
+]
+assert len(outboxes) == 1
+outbox = outboxes[0]
+published = []
+real_dojo_stats = dojo_utils.publish_dojo_stats_event
+real_scoreboard = dojo_utils.publish_scoreboard_event
+real_scores = dojo_utils.publish_scores_event
+
+def record_dojo_stats(dojo_id):
+    published.append(("dojo_stats", dojo_id))
+    return "dojo-stats-event"
+
+def record_scoreboard(model_type, model_id):
+    published.append(("scoreboard", model_type, model_id))
+    return "scoreboard-event"
+
+def record_scores(dojo_id=None):
+    published.append(("scores", dojo_id))
+    return "scores-event"
+
+dojo_utils.publish_dojo_stats_event = record_dojo_stats
+dojo_utils.publish_scoreboard_event = record_scoreboard
+dojo_utils.publish_scores_event = record_scores
+try:
+    assert dojo_utils.drain_dojo_update_recalculation(outbox.token)
+finally:
+    dojo_utils.publish_dojo_stats_event = real_dojo_stats
+    dojo_utils.publish_scoreboard_event = real_scoreboard
+    dojo_utils.publish_scores_event = real_scores
+
+assert published == [
+    ("dojo_stats", dojo.dojo_id),
+    ("scoreboard", "dojo", dojo.dojo_id),
+    ("scores", dojo.dojo_id),
+]
+assert DojoUpdateRecalculations.query.get(outbox.id).published is True
+dojo_utils.delete_dojo_update_recalculation(outbox.token)
+print("CREATION_RECALCULATION_RECOVERED")
+'''
+    script = script.replace("__SPEC__", repr(spec))
+    result = dojo_run("dojo", "flask", input=f"exec({script!r})\n")
+    assert "CREATION_RECALCULATION_RECOVERED" in result.stdout
 
 
 def test_community_dojo_internal_transfer_rejects_invalid_plans(admin_session, random_user):
@@ -5352,6 +5462,13 @@ def test_lfs(lfs_dojo, random_user_name, random_user_session):
         workspace_run("[ -f '/challenge/dojo.txt' ]", user=random_user_name)
     except subprocess.CalledProcessError:
         assert False, "LFS didn't create dojo.txt"
+
+
+def test_import_override_coexists_with_belt_dojo(import_override_dojo, belt_dojos):
+    import_override_id = import_override_dojo.split("~", 1)[0]
+    orange_belt_id = belt_dojos["orange"].split("~", 1)[0]
+    assert import_override_id.startswith("import-override-")
+    assert orange_belt_id == "intro-to-cybersecurity"
 
 
 def test_import_override(import_override_dojo, random_user_name, random_user_session):
