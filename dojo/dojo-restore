@@ -3,7 +3,6 @@
 import argparse
 import base64
 import contextlib
-import ctypes
 import datetime
 import fcntl
 import hashlib
@@ -228,13 +227,6 @@ class RestoreError(RuntimeError):
 
 class RestoreInterrupted(RestoreError):
     pass
-
-
-def terminate_with_parent():
-    if ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGKILL) != 0:
-        os._exit(127)
-    if os.getppid() == 1:
-        os.kill(os.getpid(), signal.SIGKILL)
 
 
 class LoopbackHTTPSConnection(http.client.HTTPSConnection):
@@ -1103,6 +1095,22 @@ class DatabaseTarget:
         )
 
 
+def finish_snapshot_exporter(process, *, rollback):
+    if rollback and process.poll() is None:
+        with contextlib.suppress(BrokenPipeError, OSError):
+            process.stdin.write(b"ROLLBACK;\n\\q\n")
+            process.stdin.flush()
+    with contextlib.suppress(BrokenPipeError, OSError):
+        process.stdin.close()
+    process.stdin = None
+    try:
+        return process.communicate(timeout=COMMAND_TIMEOUT_GRACE)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
+        return process.communicate()
+
+
 @contextlib.contextmanager
 def exported_database_snapshot(target, installation_id, timeout):
     command, environment, command_timeout = target.client_invocation(
@@ -1129,15 +1137,28 @@ def exported_database_snapshot(target, installation_id, timeout):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=environment,
-        preexec_fn=terminate_with_parent,
         start_new_session=True,
     )
+    exporter_reaped = False
     try:
-        process.stdin.write(
-            b"BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\n"
-            b"SELECT pg_export_snapshot();\n"
-        )
-        process.stdin.flush()
+        try:
+            process.stdin.write(
+                b"BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\n"
+                b"SELECT pg_export_snapshot();\n"
+            )
+            process.stdin.flush()
+        except (BrokenPipeError, OSError) as caught:
+            _, error_output = finish_snapshot_exporter(process, rollback=False)
+            exporter_reaped = True
+            error = error_output.decode(errors="replace")[-8000:]
+            if not error:
+                error = (
+                    "database snapshot exporter exited with status "
+                    f"{process.returncode}"
+                )
+            raise RestoreError(
+                f"could not export the backup snapshot\n{error}"
+            ) from caught
         deadline = time.monotonic() + command_timeout
         output = bytearray()
         snapshot = None
@@ -1176,18 +1197,8 @@ def exported_database_snapshot(target, installation_id, timeout):
             raise RestoreError(f"could not export the backup snapshot\n{error}")
         yield snapshot
     finally:
-        if process.poll() is None:
-            with contextlib.suppress(BrokenPipeError, OSError):
-                process.stdin.write(b"ROLLBACK;\n\\q\n")
-                process.stdin.flush()
-            try:
-                process.communicate(timeout=COMMAND_TIMEOUT_GRACE)
-            except subprocess.TimeoutExpired:
-                with contextlib.suppress(ProcessLookupError):
-                    os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
-        else:
-            process.communicate()
+        if not exporter_reaped:
+            finish_snapshot_exporter(process, rollback=True)
 
 
 class RestoreState:

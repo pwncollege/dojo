@@ -202,8 +202,9 @@ def database_target():
     return RESTORE_MODULE.DatabaseTarget("db", 5432, "ctfd", "ctfd", "secret")
 
 
-def test_exported_database_snapshot_stays_open_until_consumer_finishes():
+def test_exported_database_snapshot_stays_open_until_consumer_finishes(tmp_path):
     invocations = []
+    transcript = tmp_path / "snapshot-exporter-transcript"
 
     class Target:
         name = "ctfd"
@@ -212,11 +213,16 @@ def test_exported_database_snapshot_stays_open_until_consumer_finishes():
             invocations.append((program, arguments, options))
             return (
                 [
-                    "sh",
+                    sys.executable,
                     "-c",
-                    "read first; read second; "
-                    "printf '%s\\n' 00000003-0000001B-1; "
-                    "read rollback; read quit",
+                    "import pathlib,sys;"
+                    "first=sys.stdin.readline();"
+                    "second=sys.stdin.readline();"
+                    "print('00000003-0000001B-1',flush=True);"
+                    "rollback=sys.stdin.readline();"
+                    "quit_command=sys.stdin.readline();"
+                    f"pathlib.Path({str(transcript)!r}).write_text("
+                    "first+second+rollback+quit_command)",
                 ],
                 os.environ.copy(),
                 2,
@@ -228,10 +234,62 @@ def test_exported_database_snapshot_stays_open_until_consumer_finishes():
         2,
     ) as snapshot:
         assert snapshot == "00000003-0000001B-1"
+        assert not transcript.exists()
 
     assert invocations[0][0] == "psql"
     assert invocations[0][2]["input_stream"] is True
     assert invocations[0][2]["application_name"].startswith("dojo-backup:")
+    assert transcript.read_text() == (
+        "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\n"
+        "SELECT pg_export_snapshot();\n"
+        "ROLLBACK;\n"
+        "\\q\n"
+    )
+
+
+def test_exported_database_snapshot_reports_early_client_failure(monkeypatch):
+    real_popen = RESTORE_MODULE.subprocess.Popen
+
+    def exited_popen(_command, **options):
+        assert "preexec_fn" not in options
+        process = real_popen(
+            [
+                sys.executable,
+                "-c",
+                "import sys;"
+                "sys.stdin.close();"
+                "sys.stderr.write('snapshot connection failed\\n');"
+                "raise SystemExit(9)",
+            ],
+            **options,
+        )
+        process.wait(timeout=2)
+        return process
+
+    monkeypatch.setattr(RESTORE_MODULE.subprocess, "Popen", exited_popen)
+
+    class Target:
+        name = "ctfd"
+
+        def client_invocation(self, _program, _arguments, **_options):
+            return (
+                ["snapshot-client"],
+                os.environ.copy(),
+                2,
+            )
+
+    with pytest.raises(
+        RESTORE_MODULE.RestoreError,
+        match="snapshot connection failed",
+    ) as raised:
+        with RESTORE_MODULE.exported_database_snapshot(
+            Target(),
+            TEST_INSTALLATION_ID,
+            2,
+        ):
+            raise AssertionError("snapshot exporter unexpectedly yielded")
+
+    assert isinstance(raised.value.__cause__, BrokenPipeError)
 
 
 def server_identity():
