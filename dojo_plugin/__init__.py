@@ -10,6 +10,7 @@ from urllib.parse import urlparse, urlunparse
 from flask import Response, request, redirect, current_app
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
+from sqlalchemy import text
 from CTFd.models import db, Challenges, Users, Solves
 from CTFd.utils.user import get_current_user
 from CTFd.plugins import register_admin_plugin_menu_bar
@@ -148,8 +149,25 @@ def handle_authorization(default_handler):
     default_handler()
 
 
+DOJO_SCHEMA_LOCK_NAMESPACE = 1685026671
+DOJO_SCHEMA_LOCK_ID = 1886351983
+
+
+def create_dojo_tables():
+    with db.engine.begin() as connection:
+        if connection.dialect.name == "postgresql":
+            connection.execute(
+                text("SELECT pg_advisory_xact_lock(:namespace, :lock_id)"),
+                {
+                    "namespace": DOJO_SCHEMA_LOCK_NAMESPACE,
+                    "lock_id": DOJO_SCHEMA_LOCK_ID,
+                },
+            )
+        db.metadata.create_all(bind=connection)
+
+
 def load(app):
-    db.create_all()
+    create_dojo_tables()
 
     init_query_timer()
 
