@@ -242,12 +242,36 @@ def test_multiple_solves_update_stats(stats_test_dojo, stats_test_user):
     assert second_solves > first_solves, f"Expected solves to increase from {first_solves} to more, got {second_solves}"
 
 def test_cold_start_initializes_cache(example_dojo):
-    cache_key = f"stats:dojo:{example_dojo}"
-    cached_data = redis_get(cache_key)
+    official_dojo_id = example_dojo.split("~", 1)[0]
+    cache_key = f"stats:dojo:{official_dojo_id}"
+    stop = dojo_run(
+        "docker", "stop", "--time", "1", "stats-worker", check=False
+    )
+    assert stop.returncode == 0, stop.stderr
+    redis_delete(cache_key, f"{cache_key}:updated")
+    assert redis_get(cache_key) is None
+    assert redis_get(f"{cache_key}:updated") is None
+    start_time = time.time()
+    start = dojo_run("docker", "start", "stats-worker", check=False)
+    assert start.returncode == 0, start.stderr
+    deadline = time.time() + 30
+    worker_logs = None
+    worker_output = ""
+    while time.time() < deadline:
+        worker_logs = dojo_run(
+            "docker", "logs", "stats-worker", "--since",
+            str(start_time), check=False,
+        )
+        worker_output = worker_logs.stdout + worker_logs.stderr
+        if "Cold start complete" in worker_output:
+            break
+        time.sleep(0.2)
+    assert worker_logs is not None
+    assert "Cold start complete" in worker_output, worker_output
+    assert f"Initialized stats for dojo {official_dojo_id}" in worker_output
 
-    if cached_data is None:
-        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
-        pytest.fail(f"Cold start should have initialized cache for {example_dojo}. Worker logs:\n{result.stdout}")
+    cached_data = redis_get(cache_key)
+    assert cached_data is not None
 
     stats = json.loads(cached_data)
     assert 'solves' in stats
@@ -256,6 +280,7 @@ def test_cold_start_initializes_cache(example_dojo):
 
     timestamp = redis_get(f"{cache_key}:updated")
     assert timestamp is not None, "Cache timestamp should exist from cold start"
+    assert float(timestamp) >= start_time
 
 def test_cache_structure(stats_test_dojo, stats_test_user):
     user_name, user_session = stats_test_user
