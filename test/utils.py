@@ -122,8 +122,12 @@ def dojo_run(*args, **kwargs):
 
 
 def db_sql(sql):
-     db_result = dojo_run("dojo", "db", "-qAt", input=sql)
-     return db_result.stdout
+    db_result = dojo_run(
+        "dojo", "db", "-v", "ON_ERROR_STOP=1", "-qAt", input=sql,
+        check=False,
+    )
+    assert db_result.returncode == 0, db_result.stderr
+    return db_result.stdout
 
 
 def get_user_id(user_name):
