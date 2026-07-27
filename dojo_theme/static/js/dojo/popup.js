@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 function checkUserAwards() {
-    const endpoint = `/api/v1/users/${init.userId}/awards`;
+    const endpoint = "/api/v1/users/me/awards";
     return CTFd.fetch(endpoint, {
         method: "GET",
         credentials: "same-origin",

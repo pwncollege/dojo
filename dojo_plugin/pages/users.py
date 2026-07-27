@@ -13,6 +13,7 @@ from CTFd.cache import cache
 from ..models import Dojos, DojoModules, DojoChallenges
 from ..utils.scores import get_dojo_scores, get_module_scores
 from ..utils.awards import get_belts, get_viewable_emojis
+from ..worker.handlers.awards import calculate_belts, calculate_emojis
 
 
 users = Blueprint("pwncollege_users", __name__)
@@ -95,11 +96,18 @@ def view_hacker(user, bypass_hidden=False):
 
     dojo_scores, module_scores = build_user_scores(user, dojos)
 
+    if user.hidden and bypass_hidden:
+        belts = calculate_belts(user)
+        badges = get_viewable_emojis(user, calculate_emojis(user))
+    else:
+        belts = get_belts()
+        badges = get_viewable_emojis(get_current_user())
+
     return render_template(
         "hacker.html",
         dojos=dojos, user=user,
         dojo_scores=dojo_scores, module_scores=module_scores,
-        belts=get_belts(), badges=get_viewable_emojis(get_current_user()),
+        belts=belts, badges=badges,
         user_solves=user_solves
     )
 

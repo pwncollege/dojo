@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 CACHE_KEY_BELTS = "stats:belts"
 CACHE_KEY_EMOJIS = "stats:emojis"
 
-def calculate_belts():
+def calculate_belts(user=None):
     result = dict(dates={}, users={}, ranks={})
     for color in reversed(BELT_ORDER):
         result["dates"][color] = {}
@@ -20,7 +20,10 @@ def calculate_belts():
     belts = (
         Belts.query
         .join(Users)
-        .filter(Belts.name.in_(BELT_ORDER), ~Users.hidden)
+        .filter(
+            Belts.name.in_(BELT_ORDER),
+            Users.id == user.id if user is not None else ~Users.hidden,
+        )
         .with_entities(
             Belts.date,
             Belts.name.label("color"),
@@ -44,7 +47,7 @@ def calculate_belts():
 
     return result
 
-def calculate_emojis():
+def calculate_emojis(user=None):
     dojos_by_hex = {
         dojo.hex_dojo_id: {
             "reference_id": dojo.reference_id,
@@ -59,7 +62,7 @@ def calculate_emojis():
     emojis = (
         Emojis.query
         .join(Users)
-        .filter(~Users.hidden)
+        .filter(Users.id == user.id if user is not None else ~Users.hidden)
         .order_by(Emojis.date, Emojis.name.desc())
         .with_entities(
             Emojis.name,

@@ -48,16 +48,16 @@ def get_belts():
         result["ranks"][color] = []
     return result
 
-def get_viewable_emojis(user):
-    cached = get_cached_stat(CACHE_KEY_EMOJIS)
-    if cached:
+def get_viewable_emojis(user, emoji_data=None):
+    emoji_data = emoji_data if emoji_data is not None else get_cached_stat(CACHE_KEY_EMOJIS)
+    if emoji_data:
         viewable_dojos = {
             dojo.hex_dojo_id: dojo
             for dojo in Dojos.viewable(user=user).where(Dojos.data["type"].astext != "example")
         }
 
         result = {}
-        for user_id_str, emoji_list in cached.get("emojis", {}).items():
+        for user_id_str, emoji_list in emoji_data.get("emojis", {}).items():
             filtered = []
             for emoji_entry in emoji_list:
                 category = emoji_entry["category"]
