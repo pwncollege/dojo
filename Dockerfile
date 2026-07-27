@@ -111,7 +111,15 @@ EOF
 WORKDIR /opt/pwn.college
 COPY . .
 
-RUN find /opt/pwn.college/ctfd/patches -exec patch -d /opt/CTFd -p1 -N -i {} \;
+RUN <<EOF
+set -eu
+find /opt/pwn.college/ctfd/patches -type f -name '*.patch' -print > /tmp/ctfd-patches
+LC_ALL=C sort -o /tmp/ctfd-patches /tmp/ctfd-patches
+while IFS= read -r patch_file; do
+    patch --batch --forward -d /opt/CTFd -p1 -i "$patch_file"
+done < /tmp/ctfd-patches
+rm /tmp/ctfd-patches
+EOF
 
 RUN <<EOF
 find /opt/pwn.college/etc/systemd/system -type f -exec ln -s {} /etc/systemd/system/ \;
