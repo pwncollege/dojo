@@ -163,7 +163,7 @@
         const fragment = document.createDocumentFragment();
         
         if (data.dojo_name || data.dojo_id) {
-            const dojoLink = createLink(`/dojos/${data.dojo_id}`, data.dojo_name || data.dojo_id);
+            const dojoLink = createLink(`/${data.dojo_id}`, data.dojo_name || data.dojo_id);
             fragment.appendChild(dojoLink);
             fragment.appendChild(document.createTextNode(' / '));
         }
@@ -258,7 +258,7 @@
                 const small = document.createElement('small');
                 small.className = 'text-muted';
                 small.appendChild(document.createTextNode('Completed '));
-                small.appendChild(createLink(`/dojos/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
+                small.appendChild(createLink(`/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
                 
                 detailElem.appendChild(br);
                 detailElem.appendChild(small);
@@ -288,7 +288,7 @@
                 const small = document.createElement('small');
                 small.className = 'text-muted';
                 small.appendChild(document.createTextNode('Completed '));
-                small.appendChild(createLink(`/dojos/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
+                small.appendChild(createLink(`/${event.data.dojo_id}`, event.data.dojo_name || event.data.dojo_id));
                 
                 detailElem.appendChild(br);
                 detailElem.appendChild(small);
@@ -303,7 +303,7 @@
             const card = createEventFromTemplate(EVENT_TEMPLATES.dojo_update, event);
             
             const dojoLink = card.querySelector('.event-dojo-link');
-            dojoLink.href = `/dojos/${event.data.dojo_id}`;
+            dojoLink.href = `/${event.data.dojo_id}`;
             dojoLink.textContent = event.data.dojo_name || event.data.dojo_id;
             
             const detailElem = card.querySelector('.event-update-detail');
