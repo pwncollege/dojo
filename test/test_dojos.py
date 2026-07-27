@@ -14,6 +14,16 @@ def get_dojo_modules(dojo):
     return response.json()["modules"]
 
 
+def get_dojo_challenge_id(dojo_id, module_id, challenge_id):
+    return int(db_sql(f"""
+        SELECT dc.challenge_id
+        FROM dojo_challenges dc
+        JOIN dojo_modules dm USING (dojo_id, module_index)
+        JOIN dojos d USING (dojo_id)
+        WHERE d.id = '{dojo_id}' AND dm.id = '{module_id}' AND dc.id = '{challenge_id}'
+    """))
+
+
 def test_create_dojo(example_dojo, admin_session):
     assert admin_session.get(f"{DOJO_URL}/{example_dojo}/").status_code == 200
     assert admin_session.get(f"{DOJO_URL}/{example_dojo}/").status_code == 200
@@ -242,6 +252,66 @@ def test_challenge_transfer(transfer_src_dojo, transfer_dst_dojo, random_user_na
     scoreboard = random_user_session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{transfer_src_dojo}/_/0/1").json()
     us = next(u for u in scoreboard["standings"] if u["name"] == random_user_name)
     assert us["solves"] == 1
+
+
+def test_community_dojo_internal_transfer(admin_session, guest_dojo_admin):
+    username, session = guest_dojo_admin
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"internal-transfer-{suffix}"
+    spec = {"id": dojo_id, "image": "pwncollege/challenge-simple", "modules": [{"id": "m", "challenges": [{"id": "old"}]}]}
+    dojo = create_dojo_yml(yaml.safe_dump(spec), session=admin_session)
+    assert session.get(f"{DOJO_URL}/dojo/{dojo}/join/").status_code == 200
+    response = admin_session.post(
+        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/admins/promote",
+        json={"user_id": get_user_id(username)},
+    )
+    assert response.status_code == 200
+    challenge_id = get_dojo_challenge_id(dojo_id, "m", "old")
+
+    spec["modules"] = [{
+        "id": "m",
+        "resources": [{"type": "challenge", "id": "new", "name": "New", "transfer": {"challenge": "old"}}],
+    }]
+    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update", json=spec)
+    assert response.status_code == 200
+    assert get_dojo_challenge_id(dojo_id, "m", "new") == challenge_id
+    assert int(db_sql(f"SELECT count(*) FROM flags WHERE challenge_id = {challenge_id}")) == 1
+
+    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update", json=spec)
+    assert response.status_code == 200
+    assert get_dojo_challenge_id(dojo_id, "m", "new") == challenge_id
+
+
+def test_community_dojo_cross_transfer_denied(admin_session, guest_dojo_admin):
+    username, session = guest_dojo_admin
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    source_id = f"transfer-source-{suffix}"
+    target_id = f"transfer-target-{suffix}"
+    source = create_dojo_yml(yaml.safe_dump({"id": source_id, "image": "pwncollege/challenge-simple", "modules": [{"id": "m", "challenges": [{"id": "c"}]}]}), session=admin_session)
+    target = create_dojo_yml(yaml.safe_dump({"id": target_id, "image": "pwncollege/challenge-simple", "modules": [{"id": "m", "challenges": [{"id": "existing"}]}]}), session=admin_session)
+    for dojo in (source, target):
+        assert session.get(f"{DOJO_URL}/dojo/{dojo}/join/").status_code == 200
+        response = admin_session.post(
+            f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/admins/promote",
+            json={"user_id": get_user_id(username)},
+        )
+        assert response.status_code == 200
+    source_challenge_id = get_dojo_challenge_id(source_id, "m", "c")
+    target_challenge_id = get_dojo_challenge_id(target_id, "m", "existing")
+
+    spec = {
+        "id": target_id,
+        "modules": [{"id": "m", "resources": [{
+            "type": "challenge",
+            "id": "new",
+            "name": "New",
+            "transfer": {"dojo": source, "module": "m", "challenge": "c"},
+        }]}],
+    }
+    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{target}/update", json=spec)
+    assert response.status_code == 400
+    assert get_dojo_challenge_id(source_id, "m", "c") == source_challenge_id
+    assert get_dojo_challenge_id(target_id, "m", "existing") == target_challenge_id
 
 
 def test_hidden_challenges(admin_session, random_user_session, hidden_challenges_dojo):
