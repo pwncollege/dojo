@@ -185,7 +185,7 @@ def handle_scoreboard_update(payload, event_timestamp=None):
         if not model:
             logger.info(f"Module not found for id {model_id} (may have been deleted)")
             return
-        cache_prefix = f"stats:scoreboard:module:{model.dojo_id}:{model.module_index}"
+        cache_prefix = f"stats:scoreboard:module:{model.dojo_id}:id:{model.id}"
     else:
         logger.warning(f"Unknown model_type: {model_type}")
         return
@@ -231,7 +231,7 @@ def initialize_all_scoreboards():
             for duration in COMMON_DURATIONS:
                 try:
                     scoreboard = calculate_scoreboard(module, duration)
-                    cache_key = f"stats:scoreboard:module:{module.dojo_id}:{module.module_index}:{duration}"
+                    cache_key = f"stats:scoreboard:module:{module.dojo_id}:id:{module.id}:{duration}"
                     set_scoreboard_cache(cache_key, scoreboard, calculate_member_challenges(module, duration, scoreboard))
                     logger.info(f"Initialized scoreboard for module {dojo.reference_id}/{module.id} (dojo_id={module.dojo_id}, module_index={module.module_index}), duration={duration}")
                 except Exception as e:
