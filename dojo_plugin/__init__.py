@@ -1,4 +1,6 @@
 import datetime
+import functools
+import hashlib
 import logging
 import sys
 import os
@@ -10,7 +12,9 @@ from urllib.parse import urlparse, urlunparse
 from flask import Response, request, redirect, current_app
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
+from werkzeug.utils import safe_join
 from CTFd.models import db, Challenges, Users, Solves
+from CTFd.utils.config import ctf_theme
 from CTFd.utils.user import get_current_user
 from CTFd.plugins import register_admin_plugin_menu_bar
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
@@ -148,6 +152,36 @@ def handle_authorization(default_handler):
     default_handler()
 
 
+@functools.lru_cache(maxsize=1024)
+def theme_asset_digest(asset_path, mtime_ns, ctime_ns, size):
+    with open(asset_path, "rb") as asset:
+        return hashlib.sha256(asset.read()).hexdigest()[:8]
+
+
+def inject_theme_asset_version(endpoint, values):
+    path = values.get("path", "")
+    if (
+        endpoint != "views.themes"
+        or values.get("theme") != ctf_theme()
+        or "v" in values
+        or not path.endswith((".css", ".js"))
+    ):
+        return
+    asset_path = safe_join(current_app.root_path, "themes", values["theme"], "static", path)
+    if not asset_path:
+        return
+    try:
+        stat_result = os.stat(asset_path)
+        values["v"] = theme_asset_digest(
+            asset_path,
+            stat_result.st_mtime_ns,
+            stat_result.st_ctime_ns,
+            stat_result.st_size,
+        )
+    except OSError:
+        return
+
+
 def load(app):
     db.create_all()
 
@@ -179,6 +213,8 @@ def load(app):
 
     if not app.debug:
         app.before_request(redirect_dojo)
+
+    app.url_defaults(inject_theme_asset_version)
 
     app.register_blueprint(dojos)
     app.register_blueprint(dojo)
