@@ -48,6 +48,7 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
                 found_start_event = True
                 assert "Start Here" in event_text, \
                     f"Dojo name 'Start Here' not found in event: {event_text}"
+                assert event.find_elements(By.CSS_SELECTOR, f'a[href="/{welcome_dojo.split("~", 1)[0]}"]')
                 assert "Using the Dojo" in event_text, \
                     f"Module name 'Using the Dojo' not found in event: {event_text}"
                 assert "The Flag File" in event_text, \
@@ -77,6 +78,7 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
                     found_solve_event = True
                     assert "Start Here" in event_text, \
                         f"Dojo name 'Start Here' not found in solve event: {event_text}"
+                    assert event.find_elements(By.CSS_SELECTOR, f'a[href="/{welcome_dojo.split("~", 1)[0]}"]')
                     assert "Using the Dojo" in event_text, \
                         f"Module name 'Using the Dojo' not found in solve event: {event_text}"
                     assert "The Flag File" in event_text, \
