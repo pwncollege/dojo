@@ -156,7 +156,11 @@ def main():
                                                   daemon=True)
                 monitor_thread.start()
             _, status = os.wait()
-            if simple or status == 0:
+            if simple:
+                if os.WIFSIGNALED(status):
+                    exit(128 + os.WTERMSIG(status))
+                exit(os.WEXITSTATUS(status))
+            if status == 0:
                 break
             print(TERMINAL_RESTORE, end="", flush=True)
             print()
@@ -164,6 +168,7 @@ def main():
             time.sleep(0.5)
     else:
         print("\r", " " * 80, "\rError: failed to connect!")
+        exit(1)
 
 
 if __name__ == "__main__":

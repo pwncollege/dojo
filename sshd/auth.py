@@ -30,7 +30,11 @@ def main():
 
     connection = create_db_connection()
     with connection.cursor() as cursor:
-        cursor.execute("SELECT user_id, value FROM ssh_keys")
+        cursor.execute(
+            "SELECT ssh_keys.user_id, ssh_keys.value FROM ssh_keys "
+            "JOIN users ON users.id = ssh_keys.user_id "
+            "WHERE NOT users.banned AND ssh_keys.value <> ''"
+        )
         for user_id, key in cursor.fetchall():
             print(f'command="{enter_path} user_{user_id}" {key}')
 
