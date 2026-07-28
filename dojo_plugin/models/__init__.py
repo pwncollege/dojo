@@ -196,6 +196,8 @@ class Dojos(db.Model):
 
     @property
     def solves_code(self):
+        if not self.private_key:
+            return None
         return hashlib.md5(self.private_key.encode() + b"SOLVES").hexdigest()
 
     @property

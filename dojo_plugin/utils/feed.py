@@ -1,4 +1,5 @@
 import json
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -12,17 +13,46 @@ def get_redis_client() -> redis.Redis:
     redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
     return redis.from_url(redis_url, decode_responses=True)
 
+def _user_emoji_characters(user: Users):
+    from ..models import Dojos, Emojis
+
+    awards = (Emojis.query
+              .filter(Emojis.user == user, Emojis.name != "STALE")
+              .order_by(Emojis.date)
+              .all())
+    dojo_ids = {
+        Dojos.hex_to_int(award.category)
+        for award in awards
+        if isinstance(award.category, str) and re.fullmatch(r"[0-9a-fA-F]{8}", award.category)
+    }
+    public_dojos = {
+        dojo.hex_dojo_id: dojo
+        for dojo in Dojos.query.filter(Dojos.dojo_id.in_(dojo_ids)).all()
+        if dojo.is_public_or_official
+    }
+
+    characters = []
+    for award in awards:
+        dojo = public_dojos.get(award.category)
+        if not dojo:
+            continue
+        emoji = award.icon or (dojo.award or {}).get("emoji")
+        if emoji and emoji not in characters:
+            characters.append(emoji)
+    return characters
+
+
 def create_event(event_type: str, user: Users, data: Dict[str, Any]) -> Optional[str]:
     if user.hidden:
         return None
     
-    from ..models import Belts, Emojis
+    from ..models import Belts
     from ..utils.awards import BELT_ORDER
-    
+
     user_belts = [b.name for b in Belts.query.filter_by(user=user)]
     highest_belt = next((b for b in reversed(BELT_ORDER) if b in user_belts), None)
-    user_emojis = [e.name for e in Emojis.query.filter_by(user=user)]
-    
+    user_emojis = _user_emoji_characters(user)
+
     event = {
         "id": str(uuid.uuid4()),
         "type": event_type,
@@ -49,6 +79,8 @@ def create_event(event_type: str, user: Users, data: Dict[str, Any]) -> Optional
         return None
 
 def get_recent_events(limit: int = 50, offset: int = 0):
+    if limit <= 0:
+        return []
     try:
         r = get_redis_client()
         from ..config import FEED_EVENT_TTL
