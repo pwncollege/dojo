@@ -1,10 +1,10 @@
 from flask import request
 from flask_restx import Namespace, Resource
-from sqlalchemy.orm import joinedload
-from sqlalchemy.sql import or_
-from CTFd.utils.user import get_current_user
+from sqlalchemy.sql import and_, or_
+from CTFd.models import db
+from CTFd.utils.user import get_current_user, is_admin
 
-from ...models import Dojos, DojoModules, DojoChallenges
+from ...models import Dojos, DojoAdmins, DojoModules, DojoChallenges
 
 search_namespace = Namespace("search", description="Search across dojos, modules, and challenges")
 
@@ -28,12 +28,28 @@ class Search(Resource):
         dojos = Dojos.viewable(user=user).filter(ilike(Dojos.name, Dojos.description))
         modules = (DojoModules.query
                    .join(Dojos.viewable(user=user))
-                   .filter(DojoModules.visible())
                    .filter(ilike(DojoModules.name, DojoModules.description)))
         challenges = (DojoChallenges.query
                       .join(Dojos.viewable(user=user))
-                      .filter(DojoChallenges.visible())
+                      .join(DojoModules, and_(DojoModules.dojo_id == DojoChallenges.dojo_id,
+                                              DojoModules.module_index == DojoChallenges.module_index))
                       .filter(ilike(DojoChallenges.name, DojoChallenges.description)))
+
+        if not is_admin():
+            admin_dojo_ids = (db.session.query(DojoAdmins.dojo_id)
+                              .filter(DojoAdmins.user_id == user.id)
+                              .subquery()) if user else db.session.query(DojoAdmins.dojo_id).filter(db.false()).subquery()
+            module_access = DojoModules.dojo_id.in_(admin_dojo_ids)
+            modules = modules.filter(or_(module_access, DojoModules.visible()))
+            challenges = challenges.filter(or_(
+                module_access,
+                and_(
+                    DojoChallenges.visible(),
+                    DojoModules.visible(),
+                    or_(DojoModules.data["show_challenges"].astext == None,
+                        DojoModules.data["show_challenges"].astext != "false"),
+                ),
+            ))
 
         return {
             "success": True,
