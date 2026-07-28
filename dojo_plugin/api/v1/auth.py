@@ -21,9 +21,9 @@ class Register(Resource):
     @auth_namespace.doc(
         description="Register a new user and set session",
         responses={
-            200: ("Success", "SuccessResponse"),
-            400: ("Validation error", "ErrorResponse"),
-            403: ("Registration disabled", "ErrorResponse"),
+            200: "Success",
+            400: "Validation error",
+            403: "Registration disabled",
         },
     )
     def post(self):
@@ -153,8 +153,8 @@ class Login(Resource):
     @auth_namespace.doc(
         description="Login and set session",
         responses={
-            200: ("Success", "SuccessResponse"),
-            401: ("Invalid credentials", "ErrorResponse"),
+            200: "Success",
+            401: "Invalid credentials",
         },
     )
     def post(self):
@@ -203,7 +203,7 @@ class Logout(Resource):
     @auth_namespace.doc(
         description="Logout and clear session",
         responses={
-            200: ("Success", "SuccessResponse"),
+            200: "Success",
         },
     )
     def post(self):
@@ -219,8 +219,8 @@ class VerifyEmail(Resource):
     @auth_namespace.doc(
         description="Verify email address with token",
         responses={
-            200: ("Success", "SuccessResponse"),
-            400: ("Invalid or expired token", "ErrorResponse"),
+            200: "Success",
+            400: "Invalid or expired token",
         },
     )
     def get(self, token):
@@ -257,7 +257,7 @@ class ForgotPassword(Resource):
     @auth_namespace.doc(
         description="Request password reset email",
         responses={
-            200: ("Success", "SuccessResponse"),
+            200: "Success",
         },
     )
     def post(self):
@@ -288,8 +288,8 @@ class ResetPassword(Resource):
     @auth_namespace.doc(
         description="Reset password with token",
         responses={
-            200: ("Success", "SuccessResponse"),
-            400: ("Invalid token or request", "ErrorResponse"),
+            200: "Success",
+            400: "Invalid token or request",
         },
     )
     def post(self, token):

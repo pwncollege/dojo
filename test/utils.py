@@ -6,6 +6,7 @@ import json
 import time
 import re
 import os
+import uuid
 
 def _get_dojo_container():
     if os.getenv("DOJO_CONTAINER"):
@@ -138,9 +139,11 @@ FLASK_EXEC_MARKER = "--- dojo test output ---"
 
 def flask_exec(code):
     """Run python inside CTFd's application context and return everything it printed."""
+    path = f"/tmp/dojo-test-exec-{uuid.uuid4().hex}.py"
     script = f"print({FLASK_EXEC_MARKER!r}, flush=True)\n{code}"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", "cat > /tmp/dojo-test-exec.py", input=script)
-    result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", "/tmp/dojo-test-exec.py", check=False)
+    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {path}", input=script)
+    result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", path, check=False)
+    dojo_run("docker", "exec", "ctfd", "rm", "-f", path, check=False)
     assert FLASK_EXEC_MARKER in result.stdout, f"flask exec produced no output: {result.stdout}\n{result.stderr}"
     return result.stdout.split(FLASK_EXEC_MARKER, 1)[1].lstrip("\n")
 
