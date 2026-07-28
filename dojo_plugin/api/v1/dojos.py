@@ -249,6 +249,8 @@ class DojoSolveList(Resource):
 class DojoCourse(Resource):
     @dojo_route
     def get(self, dojo):
+        if not dojo.course:
+            return {"success": False, "error": "This dojo is not a course"}, 404
         result = dict(syllabus=dojo.course.get("syllabus"), scripts=dojo.course.get("scripts"))
         student = DojoStudents.query.filter_by(dojo=dojo, user=get_current_user()).first()
         if student:
@@ -261,6 +263,8 @@ class DojoCourseStudentList(Resource):
     @dojo_route
     @dojo_admins_only
     def get(self, dojo):
+        if not dojo.course:
+            return {"success": False, "error": "This dojo is not a course"}, 404
         dojo_students = {student.token: student.user_id for student in DojoStudents.query.filter_by(dojo=dojo).order_by(DojoStudents.user_id)}
         course_students = dojo.course.get("students", {})
         students = {
@@ -275,6 +279,8 @@ class DojoCourseSolveList(Resource):
     @dojo_route
     @dojo_admins_only
     def get(self, dojo):
+        if not dojo.course:
+            return {"success": False, "error": "This dojo is not a course"}, 404
         students = dojo.course.get("students", {})
 
         solves_query = dojo.solves(ignore_visibility=True, ignore_admins=False)

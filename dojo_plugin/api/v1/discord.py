@@ -159,7 +159,7 @@ class CourseMemes(Resource):
 
         if not discord_user:
             return {"success": False, "error": "Discord not linked"}
-        course_start = dojo.course.get("start_date", None)
+        course_start = (dojo.course or {}).get("start_date", None)
         if course_start is None:
             return {"success": False, "error": "No course start"}
         course_start = datetime.fromisoformat(course_start).astimezone(timezone.utc)
@@ -186,7 +186,7 @@ class CourseMemes(Resource):
         if discord_user is None:
             return {"success": False, "error": "Discord not linked"}
 
-        course_start = dojo.course.get("start_date", None)
+        course_start = (dojo.course or {}).get("start_date", None)
         if course_start is None:
             return {"success": False, "error": "No course start"}
         course_start = datetime.fromisoformat(course_start)
