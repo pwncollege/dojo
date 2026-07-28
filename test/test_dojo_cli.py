@@ -647,6 +647,7 @@ def test_load_dojo_duplicate_spec_id_creates_second_row(admin_session):
         _delete_dojos(dojo_id, admin_session)
 
 
+@pytest.mark.skipif(MULTINODE, reason="challenge images are pulled onto the workspace nodes")
 def test_pull_images_pulls_challenge_images(admin_session):
     dojo_id = f"cli-pull-{_rand()}"
     unpullable = f"pwncollege/definitely-not-real-{_rand()}"
@@ -683,6 +684,7 @@ modules:
         _delete_dojos(dojo_id, admin_session)
 
 
+@pytest.mark.skipif(MULTINODE, reason="home subvolumes are activated on the node that mounts them")
 def test_homefs_provisions_subvolume_layout(cli_user, random_user):
     fresh_name, _ = random_user
     fresh_user_id = get_user_id(fresh_name)
@@ -705,6 +707,7 @@ def test_homefs_provisions_subvolume_layout(cli_user, random_user):
         "/home/hacker is not the root of a btrfs subvolume"
 
 
+@pytest.mark.skipif(MULTINODE, reason="home subvolumes are activated on the node that mounts them")
 def test_homefs_enforces_1g_quota(cli_user):
     name, _ = cli_user
     user_id = get_user_id(name)
@@ -725,6 +728,7 @@ def test_homefs_enforces_1g_quota(cli_user):
         f"no 1GiB qgroup limit registered for {user_id}/active"
 
 
+@pytest.mark.skipif(MULTINODE, reason="home subvolumes are activated on the node that mounts them")
 def test_homefs_home_survives_volume_recreation(cli_user, example_dojo):
     name, session = cli_user
     user_id = get_user_id(name)
@@ -794,6 +798,7 @@ def test_homefs_driver_remove_keeps_storage():
         _destroy_probe_volume(volume)
 
 
+@pytest.mark.skipif(MULTINODE, reason="home subvolumes are activated on the node that mounts them")
 def test_homefs_driver_list_mountpoints(cli_user):
     name, _ = cli_user
     user_id = get_user_id(name)
@@ -868,6 +873,7 @@ def test_homefs_put_invalid_stream_400():
         _destroy_probe_volume(volume)
 
 
+@pytest.mark.skipif(MULTINODE, reason="home subvolumes are activated on the node that mounts them")
 def test_homefs_overlay_isolation(cli_user, admin_user, example_dojo):
     name, _ = cli_user
     user_id = get_user_id(name)
@@ -992,16 +998,24 @@ def test_watchdog_spares_fresh_and_infrastructure_containers(cli_user):
     assert infrastructure <= running, f"the reaper removed infrastructure containers: {infrastructure - running}"
 
 
-def test_watchdog_sweeps_every_daemon_hosting_user_containers():
+def test_watchdog_sweeps_every_daemon_hosting_user_containers(cli_user):
+    name, _ = cli_user
+    container = f"user_{get_user_id(name)}"
+    host = get_outer_container_for(container)
+
     result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_remove_containers")
     output = result.stdout + result.stderr
     swept = re.findall(r"Removing docker containers on (\S+)", output)
-    if WORKSPACE_NODES:
-        for node_id in WORKSPACE_NODES:
-            expected = f"tcp://192.168.42.{int(node_id) + 1}:2375"
-            assert any(expected in daemon for daemon in swept), f"{expected} was not swept: {swept}"
+    assert swept, "no docker daemon was swept, so no user container can ever be reaped"
+
+    if host == DOJO_CONTAINER:
+        assert any("localhost" in daemon or "unix" in daemon for daemon in swept), \
+            f"the daemon hosting {container} was not swept: {swept}"
     else:
-        assert swept, "no docker daemon was swept, so no user container can ever be reaped"
+        node_id = int(host.rsplit("node", 1)[1])
+        expected = f"tcp://192.168.42.{node_id + 1}:2375"
+        assert any(expected in daemon for daemon in swept), \
+            f"the daemon hosting {container} ({expected}) was not swept: {swept}"
 
 
 def test_watchdog_cron_runs():
@@ -1031,6 +1045,7 @@ def test_watchdog_cron_runs():
         assert 240 <= interval <= 360, f"consecutive reaper runs were {interval}s apart"
 
 
+@pytest.mark.skipif(MULTINODE, reason="the pruner targets the workspace nodes, not the main daemon")
 def test_watchdog_prunes_dangling_images():
     target = WORKER_CONTAINER if MULTINODE else DOJO_CONTAINER
     tag = f"cli-prune-{_rand()}"

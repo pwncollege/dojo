@@ -44,8 +44,14 @@ def flask_run(code):
     return result.stdout.split(FLASK_OUTPUT_MARKER, 1)[1].lstrip("\n"), result.stderr
 
 
-def container_logs(container, marker, *, after_context=0):
-    command = f"docker logs {container} 2>&1 | grep -F -A {after_context} -- {shlex.quote(marker)} || true"
+# Scanning a container's whole log gets slower as the suite runs; every scrape is
+# bounded to the recent past so it stays independent of how much came before.
+LOG_WINDOW = "10m"
+
+
+def container_logs(container, marker, *, after_context=0, since=LOG_WINDOW):
+    command = (f"docker logs --since {since} {container} 2>&1 | "
+               f"grep -F -A {after_context} -- {shlex.quote(marker)} || true")
     return dojo_run("sh", "-c", command, check=False).stdout
 
 
@@ -797,7 +803,7 @@ def test_plugin_logger_names_are_rewritten(random_user_session):
     assert "logger=dojo_plugin.utils.request_logging" in logs, logs
     assert "logger=CTFd.plugins.dojo_plugin" not in logs, logs
 
-    recent = dojo_run("sh", "-c", "docker logs ctfd 2>&1 | tail -n 500").stdout
+    recent = dojo_run("sh", "-c", f"docker logs --since {LOG_WINDOW} ctfd 2>&1 | tail -n 500").stdout
     assert "logger=CTFd.plugins.dojo_plugin" not in recent, (
         "plugin log records must be renamed to dojo_plugin.*")
 

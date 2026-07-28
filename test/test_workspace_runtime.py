@@ -25,6 +25,16 @@ from utils import (
     start_challenge,
 )
 
+def _workspace_nodes():
+    nodes = dojo_run("cat", "/data/workspace_nodes.json", check=False).stdout.strip()
+    try:
+        return json.loads(nodes) if nodes else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+MULTINODE = bool(_workspace_nodes())
+
 DOCKER_API = f"{DOJO_URL}/pwncollege_api/v1/docker"
 WORKSPACE_API = f"{DOJO_URL}/pwncollege_api/v1/workspace"
 
@@ -309,6 +319,7 @@ def test_workspace_profile_symlink_farm_exposes_the_toolchain(runtime_workspace)
         )
 
 
+@pytest.mark.skipif(MULTINODE, reason="the workspace builder runs on the workspace nodes, not the main node")
 def test_workspace_builder_profile_is_the_active_toolchain(runtime_workspace):
     name, _ = runtime_workspace
     profiles = "/data/workspace/nix/var/nix/profiles"
@@ -697,6 +708,7 @@ def test_workspace_service_names_map_to_container_ports(runtime_workspace):
         )
 
 
+@pytest.mark.skipif(MULTINODE, reason="the workspace proxy redirects to the per-node vhost in multinode")
 def test_workspace_proxy_passes_websocket_upgrades_through(runtime_workspace):
     _, session = runtime_workspace
 
@@ -723,6 +735,7 @@ def test_workspace_proxy_passes_websocket_upgrades_through(runtime_workspace):
     assert "upgrade" in response.lower(), f"Expected an Upgrade response from the proxy, but got {response!r}"
 
 
+@pytest.mark.skipif(MULTINODE, reason="the workspace proxy redirects to the per-node vhost in multinode")
 def test_workspace_proxy_signature_covers_the_container_not_the_port(runtime_workspace, random_user_session):
     name, session = runtime_workspace
     session.get(f"{WORKSPACE_API}?service=code")
