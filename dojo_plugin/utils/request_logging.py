@@ -3,6 +3,7 @@ import logging
 import json
 import time
 from flask import request, g, has_request_context
+from werkzeug.exceptions import HTTPException
 from CTFd.utils.user import get_current_user
 
 _trace_id_storage = threading.local()
@@ -78,8 +79,10 @@ class RequestIdFilter(logging.Filter):
 def setup_uncaught_error_logging(app):
     @app.errorhandler(Exception)
     def handle_page_exception(error):
-        if hasattr(error, 'code') and error.code == 404:
-            raise
+        # A deliberate abort() is not a server fault: return it so Flask renders
+        # the intended status instead of re-raising it into a 500.
+        if isinstance(error, HTTPException):
+            return error
 
         log_exception(error, event_type="page_exception")
         raise
