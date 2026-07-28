@@ -182,7 +182,7 @@
             const strong = document.createElement('strong');
             if (data.dojo_id && data.module_id && data.challenge_id) {
                 const challengeLink = createLink(
-                    `/${data.dojo_id}/${data.module_id}#${data.challenge_id}`,
+                    `/${data.dojo_id}/${data.module_id}/${data.challenge_id}`,
                     data.challenge_name
                 );
                 strong.appendChild(challengeLink);

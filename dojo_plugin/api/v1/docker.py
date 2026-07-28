@@ -541,7 +541,7 @@ class RunDocker(Resource):
 
                 if dojo.official or dojo.data.get("type") == "public":
                     challenge_data = {
-                        "challenge_id": dojo_challenge.challenge_id,
+                        "challenge_id": dojo_challenge.id,
                         "challenge_name": dojo_challenge.name,
                         "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
                         "module_name": dojo_challenge.module.name if dojo_challenge.module else None,

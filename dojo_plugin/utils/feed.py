@@ -95,7 +95,7 @@ def publish_container_start(user: Users, mode: str, challenge_data: Dict) -> Opt
 
 def publish_challenge_solve(user: Users, dojo_challenge: Any, dojo: Any, module: Any, points: int, first_blood: bool = False) -> Optional[str]:
     return create_event("challenge_solve", user, {
-        "challenge_id": dojo_challenge.challenge_id,
+        "challenge_id": dojo_challenge.id,
         "challenge_name": dojo_challenge.name,
         "module_id": module.id if module else None,
         "module_name": module.name if module else None,
