@@ -8,6 +8,7 @@ import hashlib
 import pathlib
 import logging
 import re
+import subprocess
 import zlib
 
 import pytz
@@ -217,15 +218,23 @@ class Dojos(db.Model):
     @property
     def hash(self):
         from ..utils.dojo import dojo_git_command
-        if os.path.exists(self.path):
+        if not os.path.exists(self.path):
+            return ""
+        try:
             return dojo_git_command(self, "rev-parse", "HEAD").stdout.decode().strip()
-        else:
+        except subprocess.CalledProcessError:
             return ""
 
     @property
     def last_commit_time(self):
         from ..utils.dojo import dojo_git_command
-        return datetime.datetime.fromisoformat(dojo_git_command(self, "show", "--no-patch", "--format=%ci", "HEAD").stdout.decode().strip().replace(" -", "-")[:-2]+":00")
+        if not os.path.exists(self.path):
+            return None
+        try:
+            commit_time = dojo_git_command(self, "show", "--no-patch", "--format=%ci", "HEAD").stdout.decode().strip()
+        except subprocess.CalledProcessError:
+            return None
+        return datetime.datetime.fromisoformat(commit_time.replace(" -", "-")[:-2]+":00")
 
     @classmethod
     def ordering(cls):
