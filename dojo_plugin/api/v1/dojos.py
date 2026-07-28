@@ -304,14 +304,21 @@ class DojoCourseSolveList(Resource):
         if students:
             solves_query = solves_query.filter(DojoStudents.token.in_(students))
 
-        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoStudents.user_id, DojoModules.id, DojoChallenges.id)
+        # Selecting DojoStudents columns would restrict the query to student rows;
+        # look the token up separately so solvers who never linked one still appear.
+        student_tokens = {
+            student.user_id: student.token
+            for student in DojoStudents.query.filter_by(dojo=dojo)
+        }
+        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(
+            Solves.date, Solves.user_id, DojoModules.id, DojoChallenges.id)
         solves = [
             dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),
-                 student_token=student_token,
+                 student_token=student_tokens.get(user_id),
                  user_id=user_id,
                  module_id=module_id,
                  challenge_id=challenge_id)
-            for timestamp, student_token, user_id, module_id, challenge_id in solves_query.all()
+            for timestamp, user_id, module_id, challenge_id in solves_query.all()
         ]
 
         return {"success": True, "solves": solves}
