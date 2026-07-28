@@ -1,0 +1,82 @@
+id: sb-api-filter
+name: Scoreboard API Filter
+type: public
+modules:
+  - id: hello
+    name: SB Filter Hello
+    challenges:
+      - id: apple
+        name: SB Filter Apple
+  - id: dup
+    name: SB Filter Dup
+    challenges:
+      - id: berry
+        name: SB Filter Berry
+  - id: shared
+    name: SB Filter Shared
+    challenges:
+      - id: apple
+        name: SB Filter Shared Apple
+        import:
+          dojo: example
+          module: hello
+          challenge: apple
+  - id: cache
+    name: SB Filter Cache
+    challenges:
+      - id: cherry
+        name: SB Filter Cherry
+  - id: window
+    name: SB Filter Window
+    challenges:
+      - id: fig
+        name: SB Filter Fig
+  - id: lag
+    name: SB Filter Lag
+    challenges:
+      - id: lemon
+        name: SB Filter Lemon
+  - id: counts
+    name: SB Filter Counts
+    challenges:
+      - id: grape
+        name: SB Filter Grape
+      - id: grapefruit
+        name: SB Filter Grapefruit
+        required: false
+files:
+  - type: text
+    path: hello/apple/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: dup/berry/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: cache/cherry/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: window/fig/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: lag/lemon/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: counts/grape/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: counts/grapefruit/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

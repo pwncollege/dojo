@@ -1,0 +1,30 @@
+id: worker-events
+name: Worker Events Dojo
+type: public
+modules:
+  - id: hello
+    name: Hello
+    challenges:
+      - id: apple
+        name: Apple
+      - id: banana
+        name: Banana
+      - id: bonus
+        name: Bonus
+        required: false
+files:
+  - type: text
+    path: hello/apple/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: hello/banana/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: hello/bonus/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

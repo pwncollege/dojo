@@ -1,0 +1,10 @@
+id: workspace-api-private
+name: Workspace API Private
+type: topic
+modules:
+  - id: solo
+    name: Solo
+    challenges:
+      - id: only
+        name: Only
+        image: pwncollege/challenge-simple
