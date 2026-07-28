@@ -73,6 +73,12 @@ def update_identity(dojo):
     if not dojo.course:
         abort(404)
 
+    body = request.get_json(silent=True) or {}
+    identity = body.get("identity", "")
+    if not isinstance(identity, str):
+        return {"success": False, "error": "identity must be a string"}, 400
+    identity = identity.strip()
+
     user = get_current_user()
     dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
 
@@ -82,7 +88,6 @@ def update_identity(dojo):
     if dojo_user:
         db.session.delete(dojo_user)
 
-    identity = request.json.get("identity", "").strip()
     student = DojoStudents(dojo=dojo, user=user, token=identity)
     db.session.add(student)
     db.session.commit()

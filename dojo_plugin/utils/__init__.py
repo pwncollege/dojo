@@ -34,6 +34,21 @@ def id_regex(s):
     return re.match(ID_REGEX, s) and ".." not in s
 
 
+def parse_positive_int(value, maximum=2**31 - 1):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
+        try:
+            parsed = int(value)
+        except ValueError:
+            return None
+    else:
+        return None
+    return parsed if 0 < parsed <= maximum else None
+
+
 def container_name(user):
     return f"user_{user.id}"
 
