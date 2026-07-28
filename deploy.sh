@@ -89,7 +89,9 @@ function generate_coverage_report {
     docker exec "$CONTAINER" docker exec ctfd coverage xml -o /var/coverage/coverage.xml
 }
 
-ENV_ARGS=( )
+# The discord bot API authenticates against this secret; without one it cannot be
+# exercised at all, so give test deployments a value.
+ENV_ARGS=( "-e" "DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-test-discord-client-secret}" )
 DB_RESTORE=""
 DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
 TEST=no
