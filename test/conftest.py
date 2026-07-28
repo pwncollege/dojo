@@ -121,7 +121,11 @@ def import_dojo(admin_session, example_dojo):
 
 @pytest.fixture(scope="session")
 def import_override_dojo(admin_session, example_dojo):
-    rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "import_override.yml").read(), session=admin_session)
+    # Must not collide with the belt dojos, which claim the same id.
+    n = "".join(random.choices(string.ascii_lowercase, k=8))
+    rid = create_dojo_yml(
+        open(TEST_DOJOS_LOCATION / "import_override.yml").read().replace(
+            "id: intro-to-cybersecurity", f"id: import-override-{n}"), session=admin_session)
     return make_dojo_official(rid, admin_session)
 
 @pytest.fixture(scope="session")
