@@ -72,18 +72,16 @@ let
     done
 
     if [ -x "/challenge/.init" ]; then
-      (
-        touch /run/dojo/var/root/init.log
-        chmod 600 /run/dojo/var/root/init.log
-        PATH="/run/challenge/bin:$IMAGE_PATH" "$DEFAULT_PROFILE"/bin/timeout -k 10 30 /challenge/.init >& /run/dojo/var/root/init.log &
-        INIT_PID=$!
-        tail -f /run/dojo/var/root/init.log --pid "$INIT_PID" | head -n1M
-        if ! wait "$INIT_PID"
-        then
-          echo "DOJO_INIT_FAILED:Challenge initialization error."
-          exit 1
-        fi
-      )
+      touch /run/dojo/var/root/init.log
+      chmod 600 /run/dojo/var/root/init.log
+      PATH="/run/challenge/bin:$IMAGE_PATH" "$DEFAULT_PROFILE"/bin/timeout -k 10 30 /challenge/.init >& /run/dojo/var/root/init.log &
+      INIT_PID=$!
+      tail -f /run/dojo/var/root/init.log --pid "$INIT_PID" | head -n1M
+      if ! wait "$INIT_PID"
+      then
+        echo "DOJO_INIT_FAILED:Challenge initialization error."
+        exit 1
+      fi
     fi
 
     touch /run/dojo/var/ready

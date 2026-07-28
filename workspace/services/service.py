@@ -55,10 +55,10 @@ def start_service(service_name, exec_command):
     service_dir = (RUN_DIR / service_name).parent
     service_dir.mkdir(parents=True, exist_ok=True)
 
+    print(f"Service {service_name} started.", flush=True)
     daemonize(service_name, exec_command)
-    print(f"Service {service_name} started.")
 
-def terminate_service(service_name, signal):
+def terminate_service(service_name, termination_signal):
     pid_file = RUN_DIR / f"{service_name}.pid"
     if not pid_file.exists():
         print(f"Service {service_name} is not running.")
@@ -66,12 +66,18 @@ def terminate_service(service_name, signal):
 
     try:
         pid = int(pid_file.read_text())
-        os.kill(pid, signal.SIGTERM)
-    except (OSError, ValueError, ProcessLookupError):
+        os.kill(pid, termination_signal)
+    except PermissionError:
+        print(f"Service {service_name} is owned by another user.", file=sys.stderr)
+        return 1
+    except (OSError, ValueError):
         pass
 
-    if pid_file.exists():
-        pid_file.unlink()
+    try:
+        pid_file.unlink(missing_ok=True)
+    except PermissionError:
+        print(f"Service {service_name} is owned by another user.", file=sys.stderr)
+        return 1
     print(f"Service {service_name} stopped.")
 
 stop_service = lambda service_name: terminate_service(service_name, signal.SIGTERM)
@@ -90,9 +96,13 @@ def status_service(service_name):
             with pid_file.open('r') as f:
                 pid = int(f.read())
             os.kill(pid, 0)
+        except PermissionError:
+            # The signal was refused, which means the process exists.
             print(f"Service {service_name} is running with PID {pid}.")
         except (OSError, ValueError):
             print(f"Service {service_name} PID file found, but process is not running.")
+        else:
+            print(f"Service {service_name} is running with PID {pid}.")
     else:
         print(f"Service {service_name} is not running.")
 
@@ -104,10 +114,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.command == "start":
-        start_service(args.service_name, args.exec_command)
+        sys.exit(start_service(args.service_name, args.exec_command) or 0)
     elif args.command == "stop":
-        stop_service(args.service_name)
+        sys.exit(stop_service(args.service_name) or 0)
     elif args.command == "kill":
-        kill_service(args.service_name)
+        sys.exit(kill_service(args.service_name) or 0)
     elif args.command == "status":
-        status_service(args.service_name)
+        sys.exit(status_service(args.service_name) or 0)

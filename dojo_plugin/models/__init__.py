@@ -131,8 +131,11 @@ class Dojos(db.Model):
             id = reference_id
             constraints.append(cls.official)
         else:
-            id, dojo_id = reference_id.split("~", 1)
-            dojo_id = cls.hex_to_int(dojo_id)
+            id, hex_dojo_id = reference_id.split("~", 1)
+            try:
+                dojo_id = cls.hex_to_int(hex_dojo_id)
+            except ValueError:
+                return cls.query.filter(db.false())
             constraints.append(cls.dojo_id == dojo_id)
         constraints.append(cls.id == id)
         return cls.query.filter(*constraints)

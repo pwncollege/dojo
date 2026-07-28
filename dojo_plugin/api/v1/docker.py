@@ -25,6 +25,7 @@ from ...models import DojoModules, DojoChallenges
 from ...utils import (
     container_name,
     lookup_workspace_token,
+    parse_positive_int,
     resolved_tar,
     serialize_user_flag,
     user_docker_client,
@@ -457,7 +458,9 @@ class RunDocker(Resource):
     @authed_only
     @docker_locked
     def post(self):
-        data = request.get_json(silent=True) or {}
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return {"success": False, "error": "JSON body must be an object"}, 400
         dojo_id = data.get("dojo")
         module_id = data.get("module")
         challenge_id = data.get("challenge")
@@ -468,7 +471,7 @@ class RunDocker(Resource):
             return {"success": False, "error": "Must supply dojo, module, and challenge."}, 400
 
         if not isinstance(home, bool):
-            return {"success": False, "error": "Invalid home option"}
+            return {"success": False, "error": "Invalid home option"}, 400
 
         user = get_current_user()
         as_user = None
@@ -516,10 +519,9 @@ class RunDocker(Resource):
             }
 
         if dojo.is_admin(user) and "as_user" in data:
-            try:
-                as_user_id = int(data["as_user"])
-            except ValueError:
-                return {"success": False, "error": f"Invalid user ID ({data['as_user']})"}
+            as_user_id = parse_positive_int(data["as_user"])
+            if as_user_id is None:
+                return {"success": False, "error": f"Invalid user ID ({data['as_user']})"}, 400
             if is_admin():
                 as_user = Users.query.get(as_user_id)
             else:
@@ -569,12 +571,17 @@ class RunDocker(Resource):
         else:
             logger.error(f"ERROR: Docker failed for {user.id} after {max_attempts} attempts.")
             response = {"success": False, "error": "Docker failed"}
-            resolved_dojo_challenge = dojo_challenge.resolve()
-            if resolved_dojo_challenge and resolved_dojo_challenge.dojo.is_admin(user):
+            if dojo.is_admin(user):
                 response["debug"] = {
                     "trace_id": get_trace_id(),
                     "attempts": attempt_errors,
                 }
+            # Leaving the half-started container behind would make the next request
+            # believe the user already has a workspace for this challenge.
+            try:
+                remove_container(user)
+            except Exception:
+                logger.exception(f"failed to clean up the workspace container for {user.id}:")
             return response
 
         return {"success": True}
