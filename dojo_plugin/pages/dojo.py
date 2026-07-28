@@ -313,7 +313,7 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
     if not dojo:
         return {"success": False, "error": "Not Found"}, 404
 
-    if dojo.solves_code != solves_code:
+    if not dojo.solves_code or dojo.solves_code != solves_code:
         return {"success": False, "error": "Forbidden"}, 403
 
     solves_query = (

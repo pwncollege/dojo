@@ -12,17 +12,35 @@ def get_redis_client() -> redis.Redis:
     redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
     return redis.from_url(redis_url, decode_responses=True)
 
+def _user_emoji_characters(user: Users):
+    from ..models import Dojos, Emojis
+
+    awards = Emojis.query.filter(Emojis.user == user, Emojis.name != "STALE").order_by(Emojis.date)
+    dojo_emojis = {
+        dojo.hex_dojo_id: dojo.award["emoji"]
+        for dojo in Dojos.query.all()
+        if dojo.award and dojo.award.get("emoji")
+    }
+
+    characters = []
+    for award in awards:
+        emoji = award.icon or dojo_emojis.get(award.category)
+        if emoji and emoji not in characters:
+            characters.append(emoji)
+    return characters
+
+
 def create_event(event_type: str, user: Users, data: Dict[str, Any]) -> Optional[str]:
     if user.hidden:
         return None
     
-    from ..models import Belts, Emojis
+    from ..models import Belts
     from ..utils.awards import BELT_ORDER
-    
+
     user_belts = [b.name for b in Belts.query.filter_by(user=user)]
     highest_belt = next((b for b in reversed(BELT_ORDER) if b in user_belts), None)
-    user_emojis = [e.name for e in Emojis.query.filter_by(user=user)]
-    
+    user_emojis = _user_emoji_characters(user)
+
     event = {
         "id": str(uuid.uuid4()),
         "type": event_type,
@@ -49,6 +67,8 @@ def create_event(event_type: str, user: Users, data: Dict[str, Any]) -> Optional
         return None
 
 def get_recent_events(limit: int = 50, offset: int = 0):
+    if limit <= 0:
+        return []
     try:
         r = get_redis_client()
         from ..config import FEED_EVENT_TTL
