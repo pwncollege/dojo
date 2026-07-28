@@ -513,6 +513,29 @@ def test_actionbar_first_ported_inline(random_user_browser, random_user_name, in
     wait.until(lambda driver: "/8080/" in (iframe.get_attribute("src") or ""))
     random_user_browser.close()
 
+def test_actionbar_banner_treats_challenge_name_as_text(random_user_browser, interfaces_dojo):
+    random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
+    controls = random_user_browser.find_element(By.CSS_SELECTOR, ".workspace-controls")
+    payload = '<img id="actionbar-html-probe" src=x onerror="window.actionbarHtmlExecuted=true">'
+    expected = f"🎉 Successfully completed {payload}! 🎉"
+
+    random_user_browser.execute_script("""
+        window.actionbarHtmlExecuted = false;
+        const controls = arguments[0];
+        const input = controls.querySelector("#flag-input");
+        controls.querySelector("#current-challenge-id").setAttribute("data-challenge-name", arguments[1]);
+        CTFd.api.post_challenge_attempt = () => Promise.resolve({data: {status: "correct"}});
+        input.value = "test";
+        actionSubmitFlag({target: input});
+    """, controls, payload)
+
+    banner = controls.find_element(By.ID, "workspace-notification-banner")
+    WebDriverWait(random_user_browser, 10).until(
+        lambda driver: banner.get_attribute("textContent") == expected)
+    assert not banner.find_elements(By.ID, "actionbar-html-probe")
+    assert not random_user_browser.execute_script("return window.actionbarHtmlExecuted;")
+    random_user_browser.close()
+
 def test_actionbar_popup_blocked(random_user_browser, random_user_name, interfaces_dojo):
     random_user_browser.get(f"{DOJO_URL}/testing-interfaces/test")
     idx = challenge_idx(random_user_browser, "test1")

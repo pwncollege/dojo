@@ -33,6 +33,21 @@ def test_module_resources(module_resources_dojo, admin_session, example_dojo):
     assert "1_xdrCm136NzcDl9bqSgAEQuigUHkNjkKmamhaej296Q" in page_content
 
 
+def test_lecture_slides_link_is_safe(admin_session):
+    dojo_id = create_dojo_yml("""id: lecture-slides-xss
+modules:
+  - id: test
+    resources:
+      - name: Slides
+        type: lecture
+        slides: "x');alert('slides-xss');//"
+""", session=admin_session)
+    response = admin_session.get(f"{DOJO_URL}/{dojo_id}/test/")
+    assert response.status_code == 200
+    assert 'onclick="window.open(' not in response.text
+    assert 'href="https://docs.google.com/presentation/d/x&#39;);alert(&#39;slides-xss&#39;);//"' in response.text
+
+
 def test_module_resources_order(module_resources_dojo, admin_session, example_dojo):
     dojo_id = module_resources_dojo
     

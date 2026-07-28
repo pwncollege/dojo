@@ -2,7 +2,10 @@ import subprocess
 import pytest
 import json
 import re
+from urllib.parse import quote
 
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
 from utils import DOJO_URL, dojo_run, workspace_run, start_challenge, solve_challenge, db_sql, get_user_id
 
 def check_mount(path, *, user, fstype=None, check_nosuid=True):
@@ -26,6 +29,32 @@ def check_mount(path, *, user, fstype=None, check_nosuid=True):
 
 def test_start_challenge(admin_session, example_dojo):
     start_challenge(example_dojo, "hello", "apple", session=admin_session)
+
+
+def test_start_challenge_error_renders_as_user_as_text(browser_fixture, example_dojo):
+    payload = "<img src=x onerror=window.__challengeStartXss=true>"
+    expected_error = f"Invalid user ID ({payload})"
+
+    browser_fixture.get(f"{DOJO_URL}/login")
+    browser_fixture.find_element(By.ID, "name").send_keys("admin")
+    browser_fixture.find_element(By.ID, "password").send_keys("admin")
+    browser_fixture.find_element(By.ID, "_submit").click()
+    browser_fixture.get(f"{DOJO_URL}/{example_dojo}/hello?as_user={quote(payload)}")
+    browser_fixture.execute_script("window.__challengeStartXss = false")
+    browser_fixture.find_element(By.ID, "challenges-header-button-2").click()
+    challenge_body = browser_fixture.find_element(By.ID, "challenges-body-2")
+    start_button = challenge_body.find_element(By.ID, "challenge-start")
+    WebDriverWait(browser_fixture, 10).until(lambda _: start_button.is_displayed() and start_button.is_enabled())
+    start_button.click()
+
+    result_message = challenge_body.find_element(By.ID, "result-message")
+    WebDriverWait(browser_fixture, 10).until(
+        lambda _: result_message.find_element(By.TAG_NAME, "code").text == expected_error
+    )
+    assert result_message.find_element(By.TAG_NAME, "code").text == expected_error
+    assert len(result_message.find_elements(By.TAG_NAME, "br")) == 2
+    assert not result_message.find_elements(By.TAG_NAME, "img")
+    assert not browser_fixture.execute_script("return window.__challengeStartXss")
 
 
 def test_active_module_endpoint(random_user_session, example_dojo):

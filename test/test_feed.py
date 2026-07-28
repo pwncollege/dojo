@@ -1,7 +1,7 @@
 import time
 import logging
 import requests
-from utils import DOJO_URL, start_challenge, solve_challenge, wait_for_background_worker
+from utils import DOJO_URL, start_challenge, solve_challenge, wait_for_background_worker, get_user_id
 from selenium.webdriver import Firefox, FirefoxOptions
 from selenium.webdriver.common.by import By
 
@@ -29,6 +29,7 @@ def challenge_start(browser, idx):
 
 
 def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name, random_user_session):
+    user_id = get_user_id(random_user_name)
     watcher_options = FirefoxOptions()
     watcher_options.add_argument("--headless")
     watcher = Firefox(options=watcher_options)
@@ -46,6 +47,7 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
             event_text = event.text
             if random_user_name in event_text and "started a" in event_text and "container" in event_text:
                 found_start_event = True
+                assert event.find_elements(By.CSS_SELECTOR, f'a[href="/hacker/{user_id}"]')
                 assert "Start Here" in event_text, \
                     f"Dojo name 'Start Here' not found in event: {event_text}"
                 assert event.find_elements(By.CSS_SELECTOR, f'a[href="/{welcome_dojo.split("~", 1)[0]}"]')
@@ -76,6 +78,7 @@ def test_feed_shows_all_events(welcome_dojo, simple_award_dojo, random_user_name
                 elif "solved" in event_text.lower():
                     solve_events += 1
                     found_solve_event = True
+                    assert event.find_elements(By.CSS_SELECTOR, f'a[href="/hacker/{user_id}"]')
                     assert "Start Here" in event_text, \
                         f"Dojo name 'Start Here' not found in solve event: {event_text}"
                     assert event.find_elements(By.CSS_SELECTOR, f'a[href="/{welcome_dojo.split("~", 1)[0]}"]')

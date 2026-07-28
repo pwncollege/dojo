@@ -1,3 +1,5 @@
+import requests
+
 from utils import (
     DOJO_URL,
     db_sql,
@@ -8,13 +10,15 @@ from utils import (
 )
 
 
-def test_hidden_user_can_view_own_profile_data(random_user, example_dojo):
+def test_hidden_user_can_view_own_profile_data(admin_session, random_user, example_dojo):
     username, session = random_user
     user_id = get_user_id(username)
     assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
     start_challenge(example_dojo, "hello", "apple", session=session)
     solve_challenge(example_dojo, "hello", "apple", session=session, user=username)
     wait_for_background_worker()
+    activity_url = f"{DOJO_URL}/pwncollege_api/v1/activity/{user_id}"
+    assert requests.get(activity_url).status_code == 200
 
     db_sql(f"""
         INSERT INTO awards (user_id, type, name, description, date, value, icon)
@@ -31,9 +35,11 @@ def test_hidden_user_can_view_own_profile_data(random_user, example_dojo):
     assert "Hidden self badge" in profile.text
     assert "Time of First Successful Submission" in profile.text
 
-    activity = session.get(f"{DOJO_URL}/pwncollege_api/v1/activity/{user_id}")
+    activity = session.get(activity_url)
     assert activity.status_code == 200
     assert activity.json()["data"]["total_solves"] >= 1
+    assert requests.get(activity_url).status_code == 404
+    assert admin_session.get(activity_url).status_code == 404
 
     awards = session.get(f"{DOJO_URL}/api/v1/users/me/awards")
     assert awards.status_code == 200

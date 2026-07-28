@@ -121,10 +121,10 @@
         return link;
     }
     
-    function createUserElement(userName, belt, emojis) {
+    function createUserElement(userName, userId, belt, emojis) {
         const container = document.createElement('strong');
         const link = document.createElement('a');
-        link.href = `/hacker/${userName}`;
+        link.href = `/hacker/${userId}`;
         
         if (belt) {
             const img = document.createElement('img');
@@ -210,7 +210,7 @@
         
         const userElem = card.querySelector('.event-user');
         if (userElem) {
-            userElem.replaceWith(createUserElement(event.user_name, event.user_belt, event.user_emojis));
+            userElem.replaceWith(createUserElement(event.user_name, event.user_id, event.user_belt, event.user_emojis));
         }
         
         return card;

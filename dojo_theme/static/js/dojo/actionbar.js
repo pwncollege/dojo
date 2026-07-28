@@ -237,7 +237,7 @@ function animateBanner(event, message, type) {
     context(event).find("#workspace-notification-banner").removeClass("animate-banner animate-banner-fast");
     context(event).find("#workspace-notification-banner")[0].offsetHeight;  // Force reflow of element to play animation again.
     context(event).find("#workspace-notification-banner")
-      .html(message)
+      .text(message)
       .css("border-color", color)
       .addClass(animation);
 }
@@ -262,7 +262,7 @@ function actionSubmitFlag(event) {
             animateBanner(event, "Incorrect!", "error");
         }
         else if (response.data.status == "correct") {
-            animateBanner(event, `&#127881 Successfully completed <b>${challengeName}</b>! &#127881`, "success");
+            animateBanner(event, `🎉 Successfully completed ${challengeName}! 🎉`, "success");
             if ($(".challenge-active").length) {
                 const unsolved_flag = $(".challenge-active").find("i.challenge-unsolved")
                 if (unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
@@ -272,7 +272,7 @@ function actionSubmitFlag(event) {
             }
         }
         else if (response.data.status == "already_solved") {
-            animateBanner(event, `&#127881 You've already solved <b>${challengeName}</b>! &#127881`, "success");
+            animateBanner(event, `🎉 You've already solved ${challengeName}! 🎉`, "success");
         }
         else {
             animateBanner(event, "Submission failed.", "warn");

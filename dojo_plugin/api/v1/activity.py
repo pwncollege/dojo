@@ -4,6 +4,7 @@ from collections import defaultdict
 
 from flask_restx import Namespace, Resource
 from CTFd.models import db, Solves, Users
+from CTFd.utils.user import get_current_user
 
 from ...utils.background_stats import get_cached_stat
 from ...worker.handlers.activity import calculate_activity, initialize_activity_for_user
@@ -29,7 +30,8 @@ def get_activity_for_user(user_id):
 class UserActivity(Resource):
     def get(self, user_id):
         user = Users.query.get(user_id)
-        if not user:
+        current_user = get_current_user()
+        if not user or (user.hidden and getattr(current_user, "id", None) != user.id):
             return {"success": False, "error": "User not found"}, 404
 
         activity = get_activity_for_user(user_id)

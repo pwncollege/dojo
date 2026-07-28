@@ -78,7 +78,7 @@ function button_fetch_and_show(name, endpoint, method,data, success_message, abo
                 results.find("#message").text(success_message);
             } else {
                 results.html(error_template);
-                results.find("#message").html(result.error);
+                results.find("#message").text(result.error);
             }
         });
     });

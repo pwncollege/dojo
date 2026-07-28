@@ -24,6 +24,25 @@ def get_dojo_challenge_id(dojo_id, module_id, challenge_id):
     """))
 
 
+def test_dojo_path_errors_are_escaped(admin_session):
+    payload = "<img src=x onerror=alert(1)>"
+    response = admin_session.post(
+        f"{DOJO_URL}/pwncollege_api/v1/dojos/create",
+        json={"spec": f"""
+id: escaped-path-error
+survey-sources: /
+survey:
+  prompt: test
+  data: test
+  src: "{payload}"
+"""},
+    )
+    assert response.status_code == 400
+    error = response.json()["error"]
+    assert payload not in error
+    assert "&lt;img src=x onerror=alert(1)&gt;" in error
+
+
 def test_create_dojo(example_dojo, admin_session):
     assert admin_session.get(f"{DOJO_URL}/{example_dojo}/").status_code == 200
     assert admin_session.get(f"{DOJO_URL}/{example_dojo}/").status_code == 200

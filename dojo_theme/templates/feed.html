@@ -2,7 +2,7 @@
 
 {% macro render_user(event) %}
     <strong>
-        <a href="/hacker/{{ event.user_name }}">
+        <a href="{{ url_for('pwncollege_users.view_other', user_id=event.user_id) }}">
             {% if event.get('user_belt') %}
                 <img src="{{ url_for('pwncollege_belts.view_belt', color=event.user_belt) }}" 
                      class="scoreboard-belt" 
