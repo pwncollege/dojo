@@ -18,6 +18,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.helpers import get_infos
 
 from ..utils import get_current_container, get_all_containers, render_markdown
+from ..utils.background_stats import invalidate_dojo_cached_stats
 from ..utils.stats import get_container_stats, get_dojo_stats, get_challenge_solves
 from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
 from ..utils.image_pulls import enqueue_dojo_image_pulls
@@ -259,10 +260,14 @@ def delete_dojo(dojo):
     if not is_admin():
         abort(403)
 
+    reference_id = dojo.reference_id
+    dojo_id = dojo.dojo_id
+    module_indices = [module.module_index for module in dojo.modules]
     try:
         DojoUsers.query.filter(DojoUsers.dojo_id == dojo.dojo_id).delete()
-        Dojos.query.filter(Dojos.dojo_id == dojo.dojo_id).delete()
+        db.session.delete(dojo)
         db.session.commit()
+        invalidate_dojo_cached_stats(reference_id, dojo_id, module_indices)
     except Exception as e:
         db.session.rollback()
         print(f"ERROR: Dojo failed for {dojo}", file=sys.stderr, flush=True)

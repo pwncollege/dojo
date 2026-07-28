@@ -4,13 +4,18 @@ from sqlalchemy import func
 
 from CTFd.models import db, Solves, Users
 from ...models import Dojos, DojoModules, DojoChallenges
-from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
+from ...utils.background_stats import (
+    SCOREBOARD_DURATIONS,
+    get_cached_stat,
+    is_event_stale,
+    set_cached_stat,
+)
 from ...utils.crews import aggregate_crews, member_challenges_from_crews, parse_crew_tag
 from . import register_handler
 
 logger = logging.getLogger(__name__)
 
-COMMON_DURATIONS = [0, 7, 30]
+COMMON_DURATIONS = SCOREBOARD_DURATIONS
 
 
 def duration_solves_filter(duration):

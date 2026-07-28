@@ -51,6 +51,10 @@ def enqueue_dojo_image_pulls(dojo) -> None:
 
 HandlerResult = Union[bool, Tuple[bool, bool]]
 
+def _wait_for_retry(delay: float) -> bool:
+    time.sleep(delay)
+    return False
+
 def _parse_handler_result(result: HandlerResult) -> Tuple[bool, bool]:
     if isinstance(result, tuple) and len(result) == 2:
         return result[0], result[1]
@@ -58,7 +62,7 @@ def _parse_handler_result(result: HandlerResult) -> Tuple[bool, bool]:
         return result, False
     return True, False
 
-def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult], batch_size: int = 10, block_ms: int = 5000) -> None:
+def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult], batch_size: int = 10, block_ms: int = 5000, shutdown_requested: Callable[[], bool] = lambda: False, wait_for_shutdown: Callable[[float], bool] = _wait_for_retry) -> None:
     r = get_redis_client()
 
     def ensure_consumer_group():
@@ -105,7 +109,8 @@ def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult]
         if retry and attempt + 1 < max_attempts:
             delay = min(60.0, (2 ** attempt) + random.random())
             logger.warning(f"Retrying image pull for {image} in {delay:.1f}s (next attempt {attempt + 2}/{max_attempts})")
-            time.sleep(delay)
+            if shutdown_requested() or wait_for_shutdown(delay):
+                return True
             republished = publish_image_pull(
                 image,
                 dojo_reference_id=event_data.get("dojo_reference_id"),
@@ -116,12 +121,13 @@ def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult]
                 r.xackdel(IMAGE_PULL_STREAM_NAME, CONSUMER_GROUP, message_id)
             else:
                 logger.error(f"Failed to re-enqueue image pull for {image}; leaving message pending")
-            return
+            return False
 
         logger.error(f"Dropping image pull for {image} after {attempt + 1}/{max_attempts} attempts")
         r.xackdel(IMAGE_PULL_STREAM_NAME, CONSUMER_GROUP, message_id)
+        return False
 
-    while True:
+    while not shutdown_requested():
         try:
             try:
                 autoclaim = getattr(r, "xautoclaim", None)
@@ -134,9 +140,10 @@ def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult]
                         start_id="0-0",
                         count=batch_size,
                     )
-                    claimed = result[1] if isinstance(result, tuple) and len(result) >= 2 else []
+                    claimed = result[1] if isinstance(result, (tuple, list)) and len(result) >= 2 else []
                     for message_id, message_data in claimed:
-                        process_message(message_id, message_data)
+                        if process_message(message_id, message_data):
+                            return
             except Exception as e:
                 logger.error(f"Error autoclaiming image pull events: {e}", exc_info=True)
                 time.sleep(1)
@@ -154,7 +161,8 @@ def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult]
 
             for _, stream_messages in messages:
                 for message_id, message_data in stream_messages:
-                    process_message(message_id, message_data)
+                    if process_message(message_id, message_data):
+                        return
         except redis.ResponseError as e:
             if "NOGROUP" in str(e):
                 logger.warning("Image pull consumer group missing, recreating...")

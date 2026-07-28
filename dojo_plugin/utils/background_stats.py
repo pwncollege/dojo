@@ -15,6 +15,7 @@ CONSUMER_GROUP = "stats-workers"
 CONSUMER_NAME = f"worker-{os.getpid()}"
 
 DAILY_RESTART_HOUR_UTC = 12
+SCOREBOARD_DURATIONS = (0, 7, 30)
 
 _redis_client: Optional[redis.Redis] = None
 
@@ -66,7 +67,7 @@ def publish_stat_event(event_type: str, payload: Dict[str, Any]) -> Optional[str
         logger.error(f"Failed to publish event {event_type}: {e}")
         return None
 
-def consume_stat_events(handler: Callable[[str, Dict[str, Any], float], None], batch_size: int = 10, block_ms: int = 5000, start_time: Optional[float] = None):
+def consume_stat_events(handler: Callable[[str, Dict[str, Any], float], None], batch_size: int = 10, block_ms: int = 5000, start_time: Optional[float] = None, shutdown_requested: Callable[[], bool] = lambda: False):
     r = get_redis_client()
     if start_time is None:
         start_time = time.time()
@@ -83,7 +84,7 @@ def consume_stat_events(handler: Callable[[str, Dict[str, Any], float], None], b
     ensure_consumer_group()
     logger.info(f"Worker {CONSUMER_NAME} waiting for events...")
 
-    while True:
+    while not shutdown_requested():
         if should_daily_restart(start_time):
             logger.info(f"Daily restart triggered at UTC hour {DAILY_RESTART_HOUR_UTC}")
             raise DailyRestartException("Scheduled daily restart for cache refresh")
@@ -174,5 +175,27 @@ def invalidate_cached_stat(key: str):
         r = get_redis_client()
         r.delete(key)
         r.delete(f"{key}:updated")
+    except (redis.RedisError, redis.ConnectionError):
+        pass
+
+
+def invalidate_dojo_cached_stats(reference_id: str, dojo_id: int, module_indices):
+    try:
+        r = get_redis_client()
+        keys = {
+            f"stats:dojo:{reference_id}",
+            f"stats:scores:dojo:{dojo_id}",
+        }
+        for duration in SCOREBOARD_DURATIONS:
+            keys.add(f"stats:scoreboard:dojo:{dojo_id}:{duration}")
+            keys.add(f"stats:crews:dojo:{dojo_id}:{duration}")
+        for module_index in module_indices:
+            keys.add(f"stats:scores:module:{dojo_id}:{module_index}")
+            keys.add(f"stats:challenge_solves:module:{dojo_id}:{module_index}")
+            for duration in SCOREBOARD_DURATIONS:
+                keys.add(f"stats:scoreboard:module:{dojo_id}:{module_index}:{duration}")
+                keys.add(f"stats:crews:module:{dojo_id}:{module_index}:{duration}")
+        keys.update(f"{key}:updated" for key in tuple(keys))
+        r.delete(*keys)
     except (redis.RedisError, redis.ConnectionError):
         pass

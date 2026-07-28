@@ -1,5 +1,6 @@
 import logging
 import signal
+import threading
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -7,12 +8,11 @@ handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 logger.addHandler(handler)
 
-shutdown_requested = False
+shutdown_requested = threading.Event()
 
 def signal_handler(signum, frame):
-    global shutdown_requested
     logger.info(f"Received signal {signum}, shutting down gracefully...")
-    shutdown_requested = True
+    shutdown_requested.set()
 
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
@@ -26,7 +26,9 @@ try:
     consume_image_pull_events(
         handler=handle_image_pull_event,
         batch_size=5,
-        block_ms=5000
+        block_ms=5000,
+        shutdown_requested=shutdown_requested.is_set,
+        wait_for_shutdown=shutdown_requested.wait,
     )
 except KeyboardInterrupt:
     logger.info("Image pull worker interrupted by user")
