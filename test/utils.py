@@ -225,7 +225,11 @@ def get_outer_container_for(container_name):
     raise RuntimeError(f"container {container_name} not found on any nodes")
 
 def remove_workspace_container(user):
-    container_name = f"user_{get_user_id(user)}"
+    user_id = db_sql(f"SELECT id FROM users WHERE name = '{user}'").strip()
+    if not user_id:
+        # A test may have renamed or deleted the user it started a workspace for.
+        return
+    container_name = f"user_{user_id}"
     try:
         outer_container = get_outer_container_for(container_name)
     except RuntimeError:
