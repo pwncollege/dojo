@@ -375,7 +375,9 @@ class DojoSurvey(Resource):
     @ratelimit(method="POST", limit=10, interval=60)
     def post(self, dojo, module, challenge_id):
         user = get_current_user()
-        data = request.get_json(silent=True) or {}
+        data = request.get_json(silent=True) if request.is_json else request.form
+        if not isinstance(data, dict) and not hasattr(data, "get"):
+            return {"success": False, "error": "Request body must be an object"}, 400
         dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id)
                           .filter(DojoChallenges.visible()).first())
         if not dojo_challenge:
@@ -385,13 +387,16 @@ class DojoSurvey(Resource):
             return {"success": False, "error": "Survey not found"}, 404
         if "response" not in data:
             return {"success": False, "error": "Missing response"}, 400
+        survey_response = data["response"]
+        if not isinstance(survey_response, (str, int, float, bool)):
+            return {"success": False, "error": "Invalid response"}, 400
 
         response = SurveyResponses(
             user_id=user.id,
             dojo_id=dojo_challenge.dojo_id,
             challenge_id=dojo_challenge.challenge_id,
             prompt=survey["prompt"],
-            response=data["response"],
+            response=survey_response,
         )
         db.session.add(response)
         db.session.commit()

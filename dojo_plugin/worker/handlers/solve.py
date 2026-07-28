@@ -1,8 +1,8 @@
 import logging
 from datetime import datetime
 
-from CTFd.models import db
-from ...models import DojoChallenges
+from CTFd.models import db, Users
+from ...models import DojoChallenges, DojoUsers
 from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
 from .scoreboard import update_scoreboard_cache, update_challenge_solves, challenge_solves_cache_key, COMMON_DURATIONS
@@ -34,6 +34,13 @@ def handle_challenge_solve(payload, event_timestamp):
 
     dojo_challenges = DojoChallenges.query.filter_by(challenge_id=challenge_id).all()
     logger.info(f"Found {len(dojo_challenges)} dojo(s) containing challenge_id={challenge_id}")
+    user = Users.query.get(user_id)
+    dojo_users = (DojoUsers.query
+                  .with_entities(DojoUsers.dojo_id, DojoUsers.type)
+                  .filter_by(user_id=user_id)
+                  .all())
+    member_dojo_ids = {dojo_id for dojo_id, _ in dojo_users}
+    admin_dojo_ids = {dojo_id for dojo_id, user_type in dojo_users if user_type == "admin"}
 
     for dojo_challenge in dojo_challenges:
         dojo = dojo_challenge.dojo
@@ -42,10 +49,16 @@ def handle_challenge_solve(payload, event_timestamp):
         module_index = dojo_challenge.module.module_index
         challenge_name = dojo_challenge.name
 
-        is_member = dojo.is_member(user_id)
+        is_member = dojo.is_public_or_official or dojo_id in member_dojo_ids
         is_public_or_official = dojo.is_public_or_official
 
-        if is_member and dojo_challenge.required:
+        counts_on_scoreboard = (
+            user is not None
+            and not user.hidden
+            and dojo_id not in admin_dojo_ids
+        )
+
+        if is_member and dojo_challenge.required and counts_on_scoreboard:
             logger.info(f"Updating dojo scoreboard for dojo {dojo_ref_id}")
             _update_dojo_scoreboard(dojo, user_id, challenge_id, event_timestamp)
             logger.info(f"Updating module scoreboard for dojo {dojo_ref_id} module {module_index}")

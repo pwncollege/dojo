@@ -34,7 +34,7 @@ def build_user_scores(user, dojos):
     }
 
     for dojo in dojos:
-        dojo_id = dojo.id
+        dojo_id = dojo.reference_id
         scores = get_dojo_scores(dojo.dojo_id)
         ranks = scores.get("ranks", [])
         solves = scores.get("solves", {})
@@ -83,7 +83,7 @@ def view_hacker(user, bypass_hidden=False):
              .all())
     user_solves = {}
     for dojo in dojos:
-        dojo_id = dojo.id
+        dojo_id = dojo.reference_id
         user_solves[dojo_id] = {}
 
         for module in dojo.modules:

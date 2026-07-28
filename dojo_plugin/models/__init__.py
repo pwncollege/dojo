@@ -522,6 +522,12 @@ class DojoModules(db.Model):
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
 
+    def visible_solves(self, **kwargs):
+        return self.solves(ignore_visibility=True, **kwargs).filter(
+            DojoChallenges.visible(),
+            ~Users.hidden,
+        )
+
     @hybrid_method
     def visible(self, when=None):
         when = when or datetime.datetime.utcnow()

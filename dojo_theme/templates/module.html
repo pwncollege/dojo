@@ -243,7 +243,8 @@
             </div>
             <div class="row survey-row">
               <div class="col-md-12">
-                <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{dojo.reference_id}}/surveys/{{module.id}}/{{challenge.id}}" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
+                <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{dojo.reference_id}}/{{module.id}}/{{challenge.id}}/surveys" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
+                  <input type="hidden" name="nonce" value="{{ Session.nonce }}">
                   {{ challenge.survey.data | safe }}
                 </form>
               </div>
