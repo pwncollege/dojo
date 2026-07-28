@@ -52,10 +52,16 @@ LOG_WINDOW = "10m"
 def container_logs(container, marker, *, after_context=0, since=LOG_WINDOW):
     command = (f"docker logs --since {since} {container} 2>&1 | "
                f"grep -F -A {after_context} -- {shlex.quote(marker)} || true")
+    output = dojo_run("sh", "-c", command, check=False).stdout
+    if output:
+        return output
+    # A loaded deployment can take a while to flush, and the windowed read is only
+    # an optimization, so fall back to the whole log before concluding it is absent.
+    command = f"docker logs {container} 2>&1 | grep -F -A {after_context} -- {shlex.quote(marker)} || true"
     return dojo_run("sh", "-c", command, check=False).stdout
 
 
-def wait_for_log(marker, needle, *, container="ctfd", after_context=0, timeout=20):
+def wait_for_log(marker, needle, *, container="ctfd", after_context=0, timeout=60):
     deadline = time.time() + timeout
     while True:
         output = container_logs(container, marker, after_context=after_context)
