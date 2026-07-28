@@ -426,11 +426,13 @@ class RunDocker(Resource):
     @authed_only
     @docker_locked
     def post(self):
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         dojo_id = data.get("dojo")
         module_id = data.get("module")
         challenge_id = data.get("challenge")
         practice = data.get("practice")
+        if not all(isinstance(value, str) for value in [dojo_id, module_id, challenge_id]):
+            return {"success": False, "error": "Must supply dojo, module, and challenge."}, 400
 
         user = get_current_user()
         as_user = None

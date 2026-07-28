@@ -91,10 +91,13 @@ class PromoteAdmin(Resource):
     @dojo_route
     @dojo_admins_only
     def post(self, dojo):
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         if 'user_id' not in data:
             return {"success": False, "error": "User not specified."}, 400
-        new_admin_id = data['user_id']
+        try:
+            new_admin_id = int(data['user_id'])
+        except (TypeError, ValueError):
+            return {"success": False, "error": "Invalid user id."}, 400
         u = DojoUsers.query.filter_by(dojo=dojo, user_id=new_admin_id).first()
         if u:
             u.type = 'admin'
@@ -107,7 +110,7 @@ class PromoteAdmin(Resource):
 class CreateDojo(Resource):
     @authed_only
     def post(self):
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         user = get_current_user()
 
         repository = data.get("repository", "")
@@ -315,6 +318,10 @@ class DojoChallengeSolve(Resource):
     @dojo_route
     def post(self, dojo, module, challenge_id):
         user = get_current_user()
+        submission = (request.form or request.get_json(silent=True) or {}).get("submission")
+        if not isinstance(submission, str):
+            return {"success": False, "error": "Must supply a submission."}, 400
+
         dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id)
                           .filter(DojoChallenges.visible()).first())
         if not dojo_challenge:
@@ -359,7 +366,7 @@ class DojoSurvey(Resource):
     @ratelimit(method="POST", limit=10, interval=60)
     def post(self, dojo, module, challenge_id):
         user = get_current_user()
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id)
                           .filter(DojoChallenges.visible()).first())
         if not dojo_challenge:
@@ -412,7 +419,7 @@ class GrantAward(Resource):
     @dojo_gives_awards
     @dojo_admins_only
     def post(self, dojo):
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         user_id = data.get("user_id")
         emoji = data.get("emoji")
         description = data.get("description")

@@ -39,10 +39,13 @@ class TokenList(Resource):
     @authed_only
     @workspace_tokens_namespace.doc(description="Endpoint to create a token object")
     def post(self):
-        req = request.get_json()
-        expiration = req.get("expiration")
+        req = request.get_json(silent=True)
+        expiration = req.get("expiration") if isinstance(req, dict) else None
         if expiration:
-            expiration = datetime.datetime.strptime(expiration, "%Y-%m-%d")
+            try:
+                expiration = datetime.datetime.strptime(expiration, "%Y-%m-%d")
+            except (TypeError, ValueError):
+                return {"success": False, "error": "expiration must be a YYYY-MM-DD date"}, 400
         else:
             expiration = None
 

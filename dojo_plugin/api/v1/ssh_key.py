@@ -22,8 +22,10 @@ ssh_key_namespace = Namespace(
 class UpdateKey(Resource):
     @authed_only
     def post(self):
-        data = request.get_json()
-        key_value = data.get("ssh_key", "")
+        data = request.get_json(silent=True)
+        key_value = data.get("ssh_key", "") if isinstance(data, dict) else ""
+        if not isinstance(key_value, str):
+            return {"success": False, "error": "ssh_key must be a string"}, 400
 
         if key_value:
             try:
@@ -56,8 +58,10 @@ class UpdateKey(Resource):
 
     @authed_only
     def delete(self):
-        data = request.get_json()
-        key_value = data.get("ssh_key", "")
+        data = request.get_json(silent=True)
+        key_value = data.get("ssh_key", "") if isinstance(data, dict) else ""
+        if not isinstance(key_value, str):
+            return {"success": False, "error": "ssh_key must be a string"}, 400
 
         user = get_current_user()
 
