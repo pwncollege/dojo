@@ -209,6 +209,38 @@ def setdefault_subyaml(data, subyaml_path):
     data.update(topyaml_data)
 
 
+def expand_module_challenges(module_data, *, set_names=False):
+    """Fold a module's `challenges:` shorthand into the `resources:` list it is sugar for.
+
+    Callers that go on to merge per-challenge yaml files fill names in afterwards, so
+    that a challenge.yml name still wins; callers working from a bare spec ask for the
+    names here, because the schema requires them.
+    """
+    module_data.setdefault("resources", [])
+
+    challenges = module_data.pop("challenges", [])
+    if challenges:
+        module_data["resources"].append({
+            "type": "header",
+            "content": "Challenges"
+        })
+
+        for challenge_data in challenges:
+            challenge_data["type"] = "challenge"
+            module_data["resources"].append(challenge_data)
+
+    for resource_data in module_data["resources"]:
+        if resource_data.get("type") != "challenge":
+            continue
+        if "import" in resource_data and "id" not in resource_data:
+            resource_data["id"] = resource_data["import"]["challenge"]
+        if set_names and "id" in resource_data:
+            setdefault_name(resource_data)
+            resource_data.setdefault("name", resource_data["id"].replace("-", " ").title())
+
+    return module_data
+
+
 def load_dojo_subyamls(data, dojo_dir):
     """
     The dojo yaml gets augmented with additional yamls and markdown files found in the dojo repo structure.
@@ -236,25 +268,10 @@ def load_dojo_subyamls(data, dojo_dir):
         setdefault_file(module_data, "description", module_dir / "DESCRIPTION.md")
         setdefault_name(module_data)
 
-        if "resources" not in module_data:
-            module_data["resources"] = []
-
-        challenges = module_data.pop("challenges", [])
-        if challenges:
-            module_data["resources"].append({
-                "type": "header",
-                "content": "Challenges"
-            })
-
-            for challenge_data in challenges:
-                challenge_data["type"] = "challenge"
-                module_data["resources"].append(challenge_data)
+        expand_module_challenges(module_data)
 
         for resource_data in module_data["resources"]:
             if resource_data.get("type") == "challenge":
-                if "import" in resource_data and "id" not in resource_data:
-                    resource_data["id"] = resource_data["import"]["challenge"]
-
                 if "id" not in resource_data:
                     continue
 
@@ -342,6 +359,21 @@ def dojo_from_dir(dojo_dir, *, dojo=None, platform_admin=False):
 
 def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
     try:
+        if not isinstance(data, dict):
+            raise SchemaError("Dojo spec must be a mapping")
+        modules = data.get("modules", [])
+        if not isinstance(modules, list):
+            raise SchemaError("Dojo modules must be a list")
+        for module_data in modules:
+            if not isinstance(module_data, dict):
+                raise SchemaError("Each dojo module must be a mapping")
+            for field in ("challenges", "resources"):
+                values = module_data.get(field, [])
+                if (not isinstance(values, list) or
+                        not all(isinstance(value, dict) for value in values)):
+                    raise SchemaError(f"Module {field} must be a list of mappings")
+        for module_data in modules:
+            expand_module_challenges(module_data, set_names=True)
         dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
         raise AssertionError(markupsafe.escape(e))
@@ -352,7 +384,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
     def assert_importable(o):
         assert o.importable, f"Import disallowed for {o}."
         if isinstance(o, Dojos):
-            for m in o.module:
+            for m in o.modules:
                 assert_importable(m)
         if isinstance(o, DojoModules):
             for c in o.challenges:
@@ -683,10 +715,16 @@ def dojo_create(user, repository, public_key, private_key, spec):
         deploy_url = f"https://github.com/{markupsafe.escape(repository)}/settings/keys"
         raise RuntimeError(f"Failed to clone: <a href='{deploy_url}' target='_blank'>add deploy key</a>")
 
-    except IntegrityError:
+    except IntegrityError as e:
+        # The violation can surface from an interior flush, which leaves the session
+        # unusable for the rest of the request unless it is rolled back here.
+        db.session.rollback()
+        if "dojo_challenges" in str(e.orig) or "dojo_modules" in str(e.orig):
+            raise RuntimeError("Duplicate module or challenge id in the dojo spec")
         raise RuntimeError("This repository already exists as a dojo")
 
     except AssertionError as e:
+        db.session.rollback()
         raise RuntimeError(str(e))
 
     except Exception as e:
