@@ -176,9 +176,14 @@ if [ "${DOJO_OFFLINE}" != "true" ]; then
 fi
 iptables -A WORKSPACE-NET -j DROP
 
-iptables -N DOCKER-USER
-iptables -A DOCKER-USER -i workspace_net -j WORKSPACE-NET
-iptables -A DOCKER-USER -o workspace_net -j WORKSPACE-NET
+iptables -N DOCKER-USER 2>/dev/null
+# These chains survive a re-init, so only add the jumps that are not there yet.
+iptables -C DOCKER-USER -i workspace_net -j WORKSPACE-NET 2>/dev/null || \
+    iptables -I DOCKER-USER 1 -i workspace_net -j WORKSPACE-NET
+iptables -C DOCKER-USER -o workspace_net -j WORKSPACE-NET 2>/dev/null || \
+    iptables -I DOCKER-USER 2 -o workspace_net -j WORKSPACE-NET
 
-iptables -A INPUT -i workspace_net -j WORKSPACE-NET
-iptables -A OUTPUT -o workspace_net -j WORKSPACE-NET
+iptables -C INPUT -i workspace_net -j WORKSPACE-NET 2>/dev/null || \
+    iptables -A INPUT -i workspace_net -j WORKSPACE-NET
+iptables -C OUTPUT -o workspace_net -j WORKSPACE-NET 2>/dev/null || \
+    iptables -A OUTPUT -o workspace_net -j WORKSPACE-NET

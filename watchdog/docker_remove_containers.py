@@ -19,7 +19,10 @@ logging.basicConfig(level=logging.INFO, format=f"%(asctime)s [{os.path.basename(
 logging.info("Starting")
 
 workspace_nodes = json.load(open("/var/workspace_nodes.json"))
-workspace_node_ips = [f"192.168.42.{int(node_id) + 1}" for node_id in workspace_nodes]
+# Single-node deployments run every user container on the local daemon, which has no
+# entry in workspace_nodes.json; sweeping only that file would sweep nothing at all.
+docker_client_urls = ([f"tcp://192.168.42.{int(node_id) + 1}:2375" for node_id in workspace_nodes]
+                      or ["unix:///var/run/docker.sock"])
 
 now = datetime.now(timezone.utc)
 
@@ -30,8 +33,8 @@ def human_size(n):
         n /= 1024.0
     return f"{n:.1f}PiB"
 
-def remove_old_containers(docker_client_ip):
-    docker_client = docker.DockerClient(base_url=f"tcp://{docker_client_ip}:2375")
+def remove_old_containers(docker_client_url):
+    docker_client = docker.DockerClient(base_url=docker_client_url)
 
     logging.info(f"Removing docker containers on {docker_client.api.base_url}")
 
@@ -59,7 +62,7 @@ def remove_old_containers(docker_client_ip):
 
 with ThreadPoolExecutor() as executor:
     logging.info("Removing docker containers")
-    list(executor.map(remove_old_containers, workspace_node_ips))
+    list(executor.map(remove_old_containers, docker_client_urls))
     logging.info("Removed docker containers")
 
 logging.info("Finished")
