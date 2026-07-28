@@ -18,7 +18,7 @@ def log_exception(error, event_type="exception"):
     full_path = request.full_path
     base_url = request.base_url
     ip_address = request.remote_addr
-    user_agent = request.user_agent.string if request.user_agent else None
+    user_agent = request.user_agent.string or None
     referrer = request.referrer
     query_params = json.dumps(dict(request.args)) if request.args else None
     form_data = json.dumps(dict(request.form)) if request.form else None
@@ -150,19 +150,13 @@ def setup_logging(app):
     app.logger.handlers = []
     app.logger.addHandler(handler)
 
-    # Hook CTFd's logger specifically
-    ctfd_logger = logging.getLogger('CTFd')
-    ctfd_logger.handlers = []
-    ctfd_logger.addHandler(handler)
-    ctfd_logger = logging.getLogger('submissions')
-    ctfd_logger.handlers = []
-    ctfd_logger.addHandler(handler)
-    ctfd_logger = logging.getLogger('registrations')
-    ctfd_logger.handlers = []
-    ctfd_logger.addHandler(handler)
-    ctfd_logger = logging.getLogger('logins')
-    ctfd_logger.handlers = []
-    ctfd_logger.addHandler(handler)
+    # Hook CTFd's loggers specifically. They must stop propagating, or every
+    # record they emit is also written by the root handler installed above.
+    for logger_name in ['CTFd', 'submissions', 'registrations', 'logins']:
+        ctfd_logger = logging.getLogger(logger_name)
+        ctfd_logger.handlers = []
+        ctfd_logger.addHandler(handler)
+        ctfd_logger.propagate = False
 
     # inherit stuff from root
     werkzeug_logger = logging.getLogger('werkzeug')
