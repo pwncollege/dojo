@@ -18,17 +18,22 @@ class Search(Resource):
         if not query or len(query) < 2:
             return {"success": False, "error": "Query too short."}, 400
 
-        like_query = f"%{query}%"
+        # The query is a literal, so its LIKE metacharacters must not act as wildcards.
+        escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        like_query = f"%{escaped}%"
 
-        dojos = Dojos.viewable(user=user).filter(
-            or_(Dojos.name.ilike(like_query), Dojos.description.ilike(like_query))
-        )
-        modules = DojoModules.query.join(Dojos.viewable(user=user)).filter(
-            or_(DojoModules.name.ilike(like_query), DojoModules.description.ilike(like_query))
-        )
-        challenges = DojoChallenges.query.join(Dojos.viewable(user=user)).filter(
-            or_(DojoChallenges.name.ilike(like_query), DojoChallenges.description.ilike(like_query))
-        )
+        def ilike(*columns):
+            return or_(*(column.ilike(like_query, escape="\\") for column in columns))
+
+        dojos = Dojos.viewable(user=user).filter(ilike(Dojos.name, Dojos.description))
+        modules = (DojoModules.query
+                   .join(Dojos.viewable(user=user))
+                   .filter(DojoModules.visible())
+                   .filter(ilike(DojoModules.name, DojoModules.description)))
+        challenges = (DojoChallenges.query
+                      .join(Dojos.viewable(user=user))
+                      .filter(DojoChallenges.visible())
+                      .filter(ilike(DojoChallenges.name, DojoChallenges.description)))
 
         return {
             "success": True,

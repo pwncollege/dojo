@@ -8,7 +8,7 @@ from . import register_handler
 from .scoreboard import update_scoreboard_cache, update_challenge_solves, challenge_solves_cache_key, COMMON_DURATIONS
 from .dojo_stats import update_dojo_stats
 from .scores import update_dojo_scores, update_module_scores, dojo_scores_cache_key, module_scores_cache_key
-from .activity import update_activity
+from .activity import update_activity, calculate_activity
 
 logger = logging.getLogger(__name__)
 
@@ -157,9 +157,12 @@ def _update_user_activity(user_id, solve_date, event_timestamp):
     cache_key = f"stats:activity:{user_id}"
     if is_event_stale(cache_key, event_timestamp):
         return
-    current_activity = get_cached_stat(cache_key) or {'solve_timestamps': [], 'total_solves': 0}
+    current_activity = get_cached_stat(cache_key)
     try:
-        updated_activity = update_activity(current_activity, solve_date)
+        # Without a cache to build on, incrementing from zero would report one solve
+        # for a user who has many; recompute the whole window instead.
+        updated_activity = (update_activity(current_activity, solve_date)
+                            if current_activity is not None else calculate_activity(user_id))
         set_cached_stat(cache_key, updated_activity, updated_at=event_timestamp)
     except Exception as e:
         logger.error(f"Error updating activity for user_id {user_id}: {e}", exc_info=True)
