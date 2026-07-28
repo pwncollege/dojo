@@ -624,18 +624,21 @@ def dojo_clone(repository, private_key):
 
 
 def dojo_git_command(dojo, *args, repo_path=None):
-    key_file = tempfile.NamedTemporaryFile("w")
-    key_file.write(dojo.private_key)
-    key_file.flush()
+    env = {"GIT_TERMINAL_PROMPT": "0"}
+
+    # Dojos created from a spec have no deploy key; local git commands don't need one.
+    key_file = None
+    if dojo.private_key:
+        key_file = tempfile.NamedTemporaryFile("w")
+        key_file.write(dojo.private_key)
+        key_file.flush()
+        env["GIT_SSH_COMMAND"] = f"ssh -i {key_file.name}"
 
     if repo_path is None:
         repo_path = str(dojo.path)
 
     return subprocess.run(["git", "-C", repo_path, *args],
-                          env={
-                              "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
-                              "GIT_TERMINAL_PROMPT": "0",
-                          },
+                          env=env,
                           check=True,
                           capture_output=True)
 
