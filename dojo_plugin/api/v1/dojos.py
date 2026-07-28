@@ -208,7 +208,7 @@ class DojoModuleList(Resource):
                          expandable=getattr(item, 'expandable', True) if hasattr(item, 'type') else None,
                          description=getattr(item, 'description', None),
                          required=getattr(item, 'required', None) if item.item_type == 'challenge' else None
-                     ) for item in module.unified_items
+                     ) for item in (module.unified_items if is_dojo_admin else module.visible_items)
                  ])
 
             for module in dojo.modules
@@ -427,6 +427,10 @@ class GrantAward(Resource):
             return {"success": False, "error": "Must supply user_id, emoji, and description."}, 400
         if not emojilib.is_emoji(emoji):
             return {"success": False, "error": "emoji must be emoji."}, 400
+        try:
+            user_id = int(user_id)
+        except (TypeError, ValueError):
+            return {"success": False, "error": "Invalid user id."}, 400
         user = Users.query.filter_by(id=user_id).first()
         if not user:
             return {"success": False, "error": "User not found."}, 404

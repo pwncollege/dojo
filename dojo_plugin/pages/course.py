@@ -27,7 +27,11 @@ def view_course(dojo, resource=None):
     if request.args.get("user"):
         if not dojo.is_admin():
             abort(403)
-        user = Users.query.filter_by(id=request.args.get("user")).first_or_404()
+        try:
+            requested_user_id = int(request.args.get("user"))
+        except ValueError:
+            abort(404)
+        user = Users.query.filter_by(id=requested_user_id).first_or_404()
         name = f"{user.name}'s"
     else:
         user = get_current_user()
@@ -131,6 +135,11 @@ def view_user_info(dojo, user_id):
 
     if not dojo.is_admin():
         abort(403)
+
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        abort(404)
 
     user = Users.query.filter_by(id=user_id).first_or_404()
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()
