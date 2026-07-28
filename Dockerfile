@@ -2,7 +2,7 @@
 
 FROM ubuntu:24.04 AS kata-builder
 
-ENV KATA_VERSION=3.19.1
+ENV KATA_VERSION=3.26.0
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
@@ -63,6 +63,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         unzip
         wget
         wireguard
+        zstd
 EOF
 
 RUN <<EOF
@@ -76,8 +77,8 @@ RUN cp /tmp/daemon.json /etc/docker/daemon.json
 ADD https://raw.githubusercontent.com/moby/profiles/master/seccomp/default.json /etc/docker/seccomp.json
 
 RUN <<EOF
-KATA_VERSION=3.19.1
-curl -L https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.xz | tar -xJ --strip-components=2 -C /opt
+KATA_VERSION=3.26.0
+curl -L https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.zst | tar --use-compress-program=unzstd -x --strip-components=2 -C /opt -f -
 ln -s /opt/kata/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2
 EOF
 
