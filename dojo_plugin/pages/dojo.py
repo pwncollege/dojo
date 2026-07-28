@@ -261,7 +261,9 @@ def delete_dojo(dojo):
 
     try:
         DojoUsers.query.filter(DojoUsers.dojo_id == dojo.dojo_id).delete()
-        Dojos.query.filter(Dojos.dojo_id == dojo.dojo_id).delete()
+        # Delete through the session rather than with a bulk query, so the mapper
+        # level listeners that refresh this dojo's stat caches actually fire.
+        db.session.delete(dojo)
         db.session.commit()
     except Exception as e:
         db.session.rollback()

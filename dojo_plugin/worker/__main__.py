@@ -77,7 +77,8 @@ try:
     consume_stat_events(
         handler=handle_stat_event,
         batch_size=10,
-        block_ms=5000
+        block_ms=5000,
+        shutdown_requested=lambda: shutdown_requested
     )
 except KeyboardInterrupt:
     logger.info("Worker interrupted by user")
