@@ -571,7 +571,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             course_scripts = course.setdefault("scripts", {})
 
             grade_path = dojo_dir / "grade.py"
-            if "grade" not in course and grade_path.exists():
+            if "grade" not in course_scripts and grade_path.exists():
                 course_scripts["grade"] = grade_path.read_text()
 
             dojo.course = course
