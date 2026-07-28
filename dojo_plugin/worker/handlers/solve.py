@@ -1,8 +1,8 @@
 import logging
 from datetime import datetime
 
-from CTFd.models import db
-from ...models import DojoChallenges
+from CTFd.models import db, Users
+from ...models import DojoChallenges, DojoUsers
 from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
 from .scoreboard import update_scoreboard_cache, update_challenge_solves, challenge_solves_cache_key, COMMON_DURATIONS
@@ -45,7 +45,16 @@ def handle_challenge_solve(payload, event_timestamp):
         is_member = dojo.is_member(user_id)
         is_public_or_official = dojo.is_public_or_official
 
-        if is_member and dojo_challenge.required:
+        user = Users.query.get(user_id)
+        # The full recalculation excludes hidden users and the dojo's own admins;
+        # the incremental path has to agree or the two disagree until the next sweep.
+        counts_on_scoreboard = (
+            user is not None
+            and not user.hidden
+            and not DojoUsers.query.filter_by(dojo_id=dojo.dojo_id, user_id=user_id, type="admin").first()
+        )
+
+        if is_member and dojo_challenge.required and counts_on_scoreboard:
             logger.info(f"Updating dojo scoreboard for dojo {dojo_ref_id}")
             _update_dojo_scoreboard(dojo, user_id, challenge_id, event_timestamp)
             logger.info(f"Updating module scoreboard for dojo {dojo_ref_id} module {module_index}")
