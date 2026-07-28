@@ -263,6 +263,19 @@ def solve_challenge_offline(dojo, module, challenge, *, session, user):
                     flag=challenge_flag(dojo, module, challenge, user=user))
 
 
+def suppress_award_popup(browser):
+    """Keep the award popup from covering the page a browser test is driving.
+
+    The popup renders for any award earned in the last two days, so on a
+    deployment where tests have been granting awards it can appear over
+    whatever the test is about to click.
+    """
+    browser.get(f"{DOJO_URL}/")
+    browser.execute_script(
+        "window.localStorage.setItem('lastPopup', new Date(Date.now() + 86400000).toISOString())"
+    )
+
+
 def wait_for_background_worker(timeout=5):
     """Wait for the background stats worker to finish processing all pending events.
 

@@ -11,7 +11,7 @@ from selenium.webdriver.firefox.service import Service as FirefoxService
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, solve_challenge_offline, wait_for_background_worker, db_sql, dojo_db_id
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, solve_challenge_offline, wait_for_background_worker, db_sql, dojo_db_id, suppress_award_popup
 from selenium.webdriver import Firefox, FirefoxOptions
 
 # Nested-docker port publishing drops for a few seconds while user containers
@@ -243,6 +243,7 @@ def browser_fixture():
 
 @pytest.fixture
 def random_user_browser(browser_fixture, random_user_name):
+    suppress_award_popup(browser_fixture)
     browser_fixture.get(f"{DOJO_URL}/login")
     browser_fixture.find_element("id", "name").send_keys(random_user_name)
     browser_fixture.find_element("id", "password").send_keys(random_user_name)
