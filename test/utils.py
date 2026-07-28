@@ -86,8 +86,14 @@ def login(name, password, *, success=True, register=False, email=None):
 
 
 def make_dojo_official(dojo_rid, admin_session):
+    """Promote a dojo and return the reference id it answers to afterwards.
+
+    An official dojo drops the hex differentiator, and that shorter form is what
+    every API then reports, so tests must compare against it.
+    """
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo_rid}/promote", json={})
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
+    return dojo_rid.split("~")[0]
 
 
 def _create_dojo_with_retries(create_dojo_json, *, session):

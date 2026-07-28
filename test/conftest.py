@@ -83,8 +83,7 @@ def example_dojo(admin_session):
         rid = create_dojo("pwncollege/example-dojo", session=admin_session)
     except AssertionError:
         rid = "example"
-    make_dojo_official(rid, admin_session)
-    return rid
+    return make_dojo_official(rid, admin_session)
 
 # this needs the example_dojo because it imports from it
 @pytest.fixture(scope="session")
@@ -94,9 +93,7 @@ def belt_dojos(admin_session, example_dojo):
             open(TEST_DOJOS_LOCATION / f"fake_{color}.yml").read(), session=admin_session
         ) for color in [ "orange", "yellow", "green", "blue" ]
     }
-    for rid in belt_dojo_rids.values():
-        make_dojo_official(rid, admin_session)
-    return belt_dojo_rids
+    return {color: make_dojo_official(rid, admin_session) for color, rid in belt_dojo_rids.items()}
 
 @pytest.fixture(scope="session")
 def example_import_dojo(admin_session, example_dojo):
@@ -104,8 +101,7 @@ def example_import_dojo(admin_session, example_dojo):
         rid = create_dojo("pwncollege/example-import-dojo", session=admin_session)
     except AssertionError:
         rid = "example-import"
-    make_dojo_official(rid, admin_session)
-    return rid
+    return make_dojo_official(rid, admin_session)
 
 @pytest.fixture
 def simple_award_dojo(admin_session):
@@ -126,8 +122,7 @@ def import_dojo(admin_session, example_dojo):
 @pytest.fixture(scope="session")
 def import_override_dojo(admin_session, example_dojo):
     rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "import_override.yml").read(), session=admin_session)
-    make_dojo_official(rid, admin_session)
-    return rid
+    return make_dojo_official(rid, admin_session)
 
 @pytest.fixture(scope="session")
 def transfer_src_dojo(admin_session):
@@ -143,8 +138,7 @@ def transfer_dst_dojo(transfer_src_dojo, admin_session):
         TEST_DOJOS_LOCATION / "transfer_dst.yml"
     ).read().replace("src-dojo", transfer_src_dojo).replace("dst-dojo", f"dst-dojo-{n}")
     rid = create_dojo_yml(yml, session=admin_session)
-    make_dojo_official(rid, admin_session)
-    return rid
+    return make_dojo_official(rid, admin_session)
 
 @pytest.fixture(scope="session")
 def no_import_challenge_dojo(admin_session, example_dojo):
@@ -152,8 +146,7 @@ def no_import_challenge_dojo(admin_session, example_dojo):
     rid = create_dojo_yml(
         open(TEST_DOJOS_LOCATION / "no_import_challenge.yml"
       ).read().replace("no-import-challenge", f"no-import-challenge-{n}"), session=admin_session)
-    make_dojo_official(rid, admin_session)
-    return rid
+    return make_dojo_official(rid, admin_session)
 
 @pytest.fixture(scope="session")
 def no_practice_dojo(admin_session, example_dojo):
@@ -178,21 +171,18 @@ def welcome_dojo(admin_session):
         rid = create_dojo("pwncollege/welcome-dojo", session=admin_session)
     except AssertionError:
         rid = "welcome"
-    make_dojo_official(rid, admin_session)
-    return rid
+    return make_dojo_official(rid, admin_session)
 
 
 @pytest.fixture
 def searchable_dojo(admin_session, example_dojo):
     rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "searchable_dojo.yml").read(), session=admin_session)
-    make_dojo_official(rid, admin_session)
-    return rid
+    return make_dojo_official(rid, admin_session)
 
 @pytest.fixture
 def searchable_xss_dojo(admin_session, example_dojo):
     rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "searchable_xss_dojo.yml").read(), session=admin_session)
-    make_dojo_official(rid, admin_session)
-    return rid
+    return make_dojo_official(rid, admin_session)
 
 @pytest.fixture
 def hidden_challenges_dojo(admin_session, example_dojo):
@@ -210,8 +200,7 @@ def surveys_dojo(admin_session, example_dojo):
 @pytest.fixture(scope="session")
 def privileged_dojo(admin_session, example_dojo):
     rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "privileged_dojo.yml").read(), session=admin_session)
-    make_dojo_official(rid, admin_session)
-    return rid
+    return make_dojo_official(rid, admin_session)
 
 @pytest.fixture(scope="session")
 def visibility_test_dojo(admin_session, example_dojo):
@@ -220,8 +209,7 @@ def visibility_test_dojo(admin_session, example_dojo):
 @pytest.fixture(scope="session")
 def interfaces_dojo(admin_session, example_dojo):
     rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "custom_interfaces.yml").read(), session=admin_session)
-    make_dojo_official(rid, admin_session)
-    return rid
+    return make_dojo_official(rid, admin_session)
 
 @pytest.fixture
 def random_private_dojo(admin_session):
