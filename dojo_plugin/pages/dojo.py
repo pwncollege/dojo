@@ -140,7 +140,10 @@ def active_module():
     g.dojo = active_challenge.dojo
 
     current_challenge = active_challenge
-    challenges = list(filter(lambda x: x.visible(), current_challenge.module.challenges))
+    # The running challenge itself belongs in the list even when it is outside its
+    # visibility window, which a dojo admin can legitimately be sitting in.
+    challenges = [challenge for challenge in current_challenge.module.challenges
+                  if challenge.visible() or challenge == current_challenge]
     current_index = challenges.index(current_challenge)
 
     previous_challenge = challenges[current_index - 1] if current_index > 0 else None
