@@ -144,12 +144,15 @@ def main():
                 monitor_thread.start()
             _, status = os.wait()
             if simple or status == 0:
-                break
+                if os.WIFSIGNALED(status):
+                    exit(128 + os.WTERMSIG(status))
+                exit(os.WEXITSTATUS(status))
             print()
             print("\r", " " * 80, "\rConnecting", end="")
             time.sleep(0.5)
     else:
         print("\r", " " * 80, "\rError: failed to connect!")
+        exit(1)
 
 
 if __name__ == "__main__":

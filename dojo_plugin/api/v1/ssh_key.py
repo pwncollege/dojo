@@ -27,19 +27,22 @@ class UpdateKey(Resource):
         if not isinstance(key_value, str):
             return {"success": False, "error": "ssh_key must be a string"}, 400
 
-        if key_value:
-            try:
-                key = SSHKey(key_value, strict=True)
-                key.parse()
-                key_value = f"{key.key_type.decode()} {base64.b64encode(key._decoded_key).decode()}"
-            except (InvalidKeyError, NotImplementedError) as e:
-                return (
-                    {
-                        "success": False,
-                        "error": f"Invalid SSH Key, error: <code>{markupsafe.escape(e)}</code> <br>Refer below for how to generate a valid ssh key"
-                    },
-                    400,
-                )
+        key_value = key_value.strip()
+        if not key_value:
+            return {"success": False, "error": "Please provide an SSH key"}, 400
+
+        try:
+            key = SSHKey(key_value, strict=True)
+            key.parse()
+            key_value = f"{key.key_type.decode()} {base64.b64encode(key._decoded_key).decode()}"
+        except (InvalidKeyError, NotImplementedError) as e:
+            return (
+                {
+                    "success": False,
+                    "error": f"Invalid SSH Key, error: <code>{markupsafe.escape(e)}</code> <br>Refer below for how to generate a valid ssh key"
+                },
+                400,
+            )
 
         user = get_current_user()
 
