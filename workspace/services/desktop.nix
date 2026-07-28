@@ -37,6 +37,7 @@ let
       ${pkgs.tigervnc}/bin/Xvnc \
         $DISPLAY \
         -localhost 0 \
+        -rfbport 0 \
         -rfbunixpath /run/dojo/var/desktop-service/Xvnc.sock \
         -rfbauth /run/dojo/var/desktop-service/Xvnc.passwd \
         -nolisten tcp \

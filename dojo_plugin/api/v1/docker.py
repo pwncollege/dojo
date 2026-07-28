@@ -523,6 +523,12 @@ class RunDocker(Resource):
                     time.sleep(2)
         else:
             logger.error(f"ERROR: Docker failed for {user.id} after {max_attempts} attempts.")
+            # Leaving the half-started container behind would make the next request
+            # believe the user already has a workspace for this challenge.
+            try:
+                remove_container(user)
+            except Exception:
+                logger.exception(f"failed to clean up the workspace container for {user.id}:")
             return {"success": False, "error": "Docker failed"}
 
         return {"success": True}
