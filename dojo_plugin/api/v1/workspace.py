@@ -9,7 +9,7 @@ from CTFd.models import Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 
-from ...utils import get_current_container, container_password, user_node
+from ...utils import get_current_container, container_password, parse_positive_int, user_node
 from ...utils.workspace import start_on_demand_service, reset_home
 from ...pages.workspace import forward_workspace, forward_port
 from ...config import WORKSPACE_SECRET
@@ -31,7 +31,17 @@ class view_desktop(Resource):
         if user_id and not password and not is_admin():
             abort(403)
 
-        user = get_current_user() if not user_id else Users.query.filter_by(id=int(user_id)).first_or_404()
+        if user_id is not None:
+            user_id = parse_positive_int(user_id)
+            if user_id is None:
+                abort(404)
+
+        if port is not None:
+            port = parse_positive_int(port, maximum=65535)
+            if port is None:
+                abort(404)
+
+        user = get_current_user() if user_id is None else Users.query.filter_by(id=user_id).first_or_404()
         container = get_current_container(user)
         if not container:
             return {"success": False, "active": False}

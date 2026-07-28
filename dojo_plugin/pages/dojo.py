@@ -203,7 +203,7 @@ def update_dojo(dojo, update_code):
     if not dojo:
         return {"success": False, "error": "Not Found"}, 404
 
-    if not secrets.compare_digest(dojo.update_code, update_code):
+    if not dojo.update_code or not secrets.compare_digest(dojo.update_code, update_code):
         return {"success": False, "error": "Forbidden"}, 403
 
     try:
@@ -457,14 +457,15 @@ def view_page(dojo, page):
 
     if file_path.is_dir():
         user = get_current_user()
-        user_path = resolve_dojo_path(dojo, page, f"{user.id}")
-        if user and user_path.is_file():
-            assert dojo.privileged or dojo.official
-            return send_file(user_path)
-        user_markdown_path = resolve_dojo_path(dojo, page, f"{user.id}.md")
-        if user and user_markdown_path.is_file():
-            content = render_markdown(user_markdown_path.read_text())
-            return render_template("markdown.html", dojo=dojo, content=content)
+        if user:
+            user_path = resolve_dojo_path(dojo, page, f"{user.id}")
+            if user_path.is_file():
+                assert dojo.privileged or dojo.official
+                return send_file(user_path)
+            user_markdown_path = resolve_dojo_path(dojo, page, f"{user.id}.md")
+            if user_markdown_path.is_file():
+                content = render_markdown(user_markdown_path.read_text())
+                return render_template("markdown.html", dojo=dojo, content=content)
         default_markdown_path = resolve_dojo_path(dojo, page, "default.md")
         if default_markdown_path.is_file():
             content = render_markdown(default_markdown_path.read_text())

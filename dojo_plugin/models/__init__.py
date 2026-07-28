@@ -470,12 +470,22 @@ class DojoModules(db.Model):
 
     @property
     def unified_items(self):
+        return self.items(include_hidden=True)
+
+    @property
+    def visible_items(self):
+        return self.items(include_hidden=False)
+
+    def items(self, include_hidden=True):
         items = []
 
         for resource in self.resources:
-            items.append((resource.resource_index, resource))
+            if include_hidden or resource.visible:
+                items.append((resource.resource_index, resource))
 
         for challenge in self.challenges:
+            if not include_hidden and not challenge.visible():
+                continue
             if challenge.unified_index is not None:
                 index = challenge.unified_index
             else:

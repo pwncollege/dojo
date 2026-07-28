@@ -9,7 +9,7 @@ from CTFd.plugins import bypass_csrf_protection
 from urllib.parse import urlencode
 
 from ..models import Dojos
-from ..utils import user_ipv4, get_current_container, container_password
+from ..utils import user_ipv4, get_current_container, container_password, parse_positive_int
 from ..utils.dojo import get_current_dojo_challenge
 
 
@@ -115,11 +115,11 @@ def forward_workspace(service, signature, message, service_path="", include_host
 
     elif service.count("~") == 1:
         service_name, user_id = service.split("~", 1)
-        try:
-            user = Users.query.filter_by(id=int(user_id)).first_or_404()
-            port = int(port_names.get(service_name, service_name))
-        except ValueError:
+        user_id = parse_positive_int(user_id)
+        port = parse_positive_int(port_names.get(service_name, service_name), maximum=65535)
+        if user_id is None or port is None:
             abort(404)
+        user = Users.query.filter_by(id=user_id).first_or_404()
 
         container = get_current_container(user)
         if not container:
@@ -130,11 +130,11 @@ def forward_workspace(service, signature, message, service_path="", include_host
 
     elif service.count("~") == 2:
         service_name, user_id, access_code = service.split("~", 2)
-        try:
-            user = Users.query.filter_by(id=int(user_id)).first_or_404()
-            port = int(port_names.get(service_name, service_name))
-        except ValueError:
+        user_id = parse_positive_int(user_id)
+        port = parse_positive_int(port_names.get(service_name, service_name), maximum=65535)
+        if user_id is None or port is None:
             abort(404)
+        user = Users.query.filter_by(id=user_id).first_or_404()
 
         container = get_current_container(user)
         if not container:
@@ -157,6 +157,9 @@ def forward_workspace(service, signature, message, service_path="", include_host
     )
 
 def forward_port(port, signature, message, user, service_path="", include_host=True, **kwargs):
+    port = parse_positive_int(port, maximum=65535)
+    if port is None:
+        abort(404)
     current_user = get_current_user()
     if user != current_user:
         print(f"User {current_user.id} is accessing User {user.id}'s workspace (port {port})", flush=True)

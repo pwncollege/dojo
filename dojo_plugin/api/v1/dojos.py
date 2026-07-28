@@ -214,7 +214,7 @@ class DojoModuleList(Resource):
                          expandable=getattr(item, 'expandable', True) if hasattr(item, 'type') else None,
                          description=getattr(item, 'description', None),
                          required=getattr(item, 'required', None) if item.item_type == 'challenge' else None
-                     ) for item in module.unified_items
+                     ) for item in (module.unified_items if is_dojo_admin else module.visible_items)
                  ])
 
             for module in dojo.modules
@@ -428,14 +428,21 @@ class GrantAward(Resource):
     @dojo_gives_awards
     @dojo_admins_only
     def post(self, dojo):
-        data = request.get_json(silent=True) or {}
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return {"success": False, "error": "JSON body must be an object"}, 400
         user_id = data.get("user_id")
         emoji = data.get("emoji")
         description = data.get("description")
         if None in [user_id, emoji, description]:
             return {"success": False, "error": "Must supply user_id, emoji, and description."}, 400
+        if not isinstance(emoji, str) or not isinstance(description, str):
+            return {"success": False, "error": "emoji and description must be strings."}, 400
         if not emojilib.is_emoji(emoji):
             return {"success": False, "error": "emoji must be emoji."}, 400
+        user_id = parse_positive_int(user_id)
+        if user_id is None:
+            return {"success": False, "error": "Invalid user id."}, 400
         user = Users.query.filter_by(id=user_id).first()
         if not user:
             return {"success": False, "error": "User not found."}, 404

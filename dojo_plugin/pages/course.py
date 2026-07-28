@@ -11,6 +11,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only, admins_only, ratelimit
 
 from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents, DiscordUserActivity
+from ..utils import parse_positive_int
 from ..utils.dojo import dojo_route
 from ..utils.discord import add_role, get_discord_member
 
@@ -24,10 +25,13 @@ def view_course(dojo, resource=None):
     if not dojo.course:
         abort(404)
 
-    if request.args.get("user"):
+    if request.args.get("user") is not None:
         if not dojo.is_admin():
             abort(403)
-        user = Users.query.filter_by(id=request.args.get("user")).first_or_404()
+        requested_user_id = parse_positive_int(request.args.get("user"))
+        if requested_user_id is None:
+            abort(404)
+        user = Users.query.filter_by(id=requested_user_id).first_or_404()
         name = f"{user.name}'s"
     else:
         user = get_current_user()
@@ -73,7 +77,9 @@ def update_identity(dojo):
     if not dojo.course:
         abort(404)
 
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return {"success": False, "error": "JSON body must be an object"}, 400
     identity = body.get("identity", "")
     if not isinstance(identity, str):
         return {"success": False, "error": "identity must be a string"}, 400
@@ -131,6 +137,10 @@ def view_user_info(dojo, user_id):
 
     if not dojo.is_admin():
         abort(403)
+
+    user_id = parse_positive_int(user_id)
+    if user_id is None:
+        abort(404)
 
     user = Users.query.filter_by(id=user_id).first_or_404()
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()

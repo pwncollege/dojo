@@ -78,7 +78,7 @@
 
   <div class="accordion" id="module-content">
     {% set ns = namespace(challenge_count=0) %}
-    {% for item in module.unified_items %}
+    {% for item in (module.unified_items if dojo.is_admin() else module.visible_items) %}
       {% if item.item_type == 'resource' %}
         {% set resource = item %}
         {% if resource.type == 'markdown' and resource.expandable == False %}
