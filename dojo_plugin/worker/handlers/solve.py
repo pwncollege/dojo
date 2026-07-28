@@ -88,7 +88,7 @@ def _update_dojo_scoreboard(dojo, user_id, challenge_id, event_timestamp):
             cache_key = f"{cache_prefix}:{duration}"
             if is_event_stale(cache_key, event_timestamp):
                 continue
-            update_scoreboard_cache(dojo, cache_key, user_id, challenge_id)
+            update_scoreboard_cache(dojo, cache_key, user_id, challenge_id, updated_at=event_timestamp)
         except Exception as e:
             logger.error(f"Error updating dojo scoreboard for dojo {dojo.dojo_id}, duration={duration}: {e}", exc_info=True)
 
@@ -100,7 +100,7 @@ def _update_module_scoreboard(module, user_id, challenge_id, event_timestamp):
             cache_key = f"{cache_prefix}:{duration}"
             if is_event_stale(cache_key, event_timestamp):
                 continue
-            update_scoreboard_cache(module, cache_key, user_id, challenge_id)
+            update_scoreboard_cache(module, cache_key, user_id, challenge_id, updated_at=event_timestamp)
         except Exception as e:
             logger.error(f"Error updating module scoreboard for dojo {module.dojo_id} module {module.module_index}, duration={duration}: {e}", exc_info=True)
 
@@ -115,7 +115,7 @@ def _update_dojo_stats(dojo_ref_id, challenge_name, event_timestamp):
         return
     try:
         updated_stats = update_dojo_stats(current_stats, challenge_name)
-        set_cached_stat(cache_key, updated_stats)
+        set_cached_stat(cache_key, updated_stats, updated_at=event_timestamp)
     except Exception as e:
         logger.error(f"Error updating dojo stats for {dojo_ref_id}: {e}", exc_info=True)
 
@@ -130,7 +130,7 @@ def _update_challenge_solves(dojo_id, module_index, challenge_id, event_timestam
         return
     try:
         updated = update_challenge_solves(current, challenge_id)
-        set_cached_stat(cache_key, updated)
+        set_cached_stat(cache_key, updated, updated_at=event_timestamp)
     except Exception as e:
         logger.error(f"Error updating challenge_solves for dojo {dojo_id} module {module_index}: {e}", exc_info=True)
 
@@ -142,7 +142,7 @@ def _update_scores(dojo_id, module_index, user_id, event_timestamp):
         if not is_event_stale(cache_key, event_timestamp):
             current_scores = get_cached_stat(cache_key) or {"ranks": [], "solves": {}}
             updated_scores = update_dojo_scores(current_scores, user_id)
-            set_cached_stat(cache_key, updated_scores)
+            set_cached_stat(cache_key, updated_scores, updated_at=event_timestamp)
     except Exception as e:
         logger.error(f"Error updating dojo scores: {e}", exc_info=True)
 
@@ -152,7 +152,7 @@ def _update_scores(dojo_id, module_index, user_id, event_timestamp):
         if not is_event_stale(cache_key, event_timestamp):
             current_scores = get_cached_stat(cache_key) or {"ranks": [], "solves": {}}
             updated_scores = update_module_scores(current_scores, user_id)
-            set_cached_stat(cache_key, updated_scores)
+            set_cached_stat(cache_key, updated_scores, updated_at=event_timestamp)
     except Exception as e:
         logger.error(f"Error updating module scores: {e}", exc_info=True)
 
@@ -164,6 +164,6 @@ def _update_user_activity(user_id, solve_date, event_timestamp):
     current_activity = get_cached_stat(cache_key) or {'solve_timestamps': [], 'total_solves': 0}
     try:
         updated_activity = update_activity(current_activity, solve_date)
-        set_cached_stat(cache_key, updated_activity)
+        set_cached_stat(cache_key, updated_activity, updated_at=event_timestamp)
     except Exception as e:
         logger.error(f"Error updating activity for user_id {user_id}: {e}", exc_info=True)
