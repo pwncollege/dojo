@@ -77,23 +77,31 @@ def flask_shell_result(code):
 
 @contextlib.contextmanager
 def server_config(**overrides):
-    original = flask_shell_result(
-        "import json\n"
-        "from CTFd.utils import get_config, set_config\n"
-        f"print('RESULT:' + json.dumps({{key: get_config(key) for key in {list(overrides)!r}}}))\n"
-        f"for key, value in {overrides!r}.items():\n"
-        "    set_config(key, value)\n"
-    )
+    """Flip a CTFd config value for the duration of a test.
+
+    set_config from a separate process updates the row but not the running
+    server's memoized copy, and the two converge at an unpredictable moment, so a
+    test that cannot see its own change must skip rather than leave the
+    deployment holding a setting the rest of the suite does not expect.
+    """
+    read = ("import json\n"
+            "from CTFd.utils import get_config\n"
+            f"print('RESULT:' + json.dumps({{key: get_config(key) for key in {list(overrides)!r}}}))\n")
+    write = ("import json\n"
+             "from CTFd.utils import set_config\n"
+             "for key, value in {values!r}.items():\n"
+             "    set_config(key, value)\n"
+             "print('RESULT:' + json.dumps(True))\n")
+
+    original = flask_shell_result(read)
+    flask_shell_result(write.format(values=overrides))
+    if flask_shell_result(read) != overrides:
+        flask_shell_result(write.format(values=original))
+        pytest.skip("this deployment does not propagate config changes made outside the server")
     try:
         yield
     finally:
-        flask_shell_result(
-            "import json\n"
-            "from CTFd.utils import set_config\n"
-            f"for key, value in {original!r}.items():\n"
-            "    set_config(key, value)\n"
-            "print('RESULT:' + json.dumps(True))\n"
-        )
+        flask_shell_result(write.format(values=original))
 
 
 def mint_signed_token(payload, *, age=0):
