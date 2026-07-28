@@ -11,7 +11,7 @@ from selenium.webdriver.firefox.service import Service as FirefoxService
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, wait_for_background_worker, db_sql
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, solve_challenge_offline, wait_for_background_worker, db_sql, dojo_db_id
 from selenium.webdriver import Firefox, FirefoxOptions
 
 # Nested-docker port publishing drops for a few seconds while user containers
@@ -60,17 +60,11 @@ def completionist_user(simple_award_dojo, codepoints_award_dojo):
     random_id = "".join(random.choices(string.ascii_lowercase, k=16))
     session = login(random_id, random_id, register=True)
 
-    response = session.get(f"{DOJO_URL}/dojo/{simple_award_dojo}/join/")
-    assert response.status_code == 200
-    for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
-        start_challenge(simple_award_dojo, module, challenge, session=session)
-        solve_challenge(simple_award_dojo, module, challenge, session=session, user=random_id)
-
-    response = session.get(f"{DOJO_URL}/dojo/{codepoints_award_dojo}/join/")
-    assert response.status_code == 200
-    for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
-        start_challenge(codepoints_award_dojo, module, challenge, session=session)
-        solve_challenge(codepoints_award_dojo, module, challenge, session=session, user=random_id)
+    for dojo in [simple_award_dojo, codepoints_award_dojo]:
+        response = session.get(f"{DOJO_URL}/dojo/{dojo}/join/")
+        assert response.status_code == 200
+        for module, challenge in [ ("hello", "apple"), ("hello", "banana") ]:
+            solve_challenge_offline(dojo, module, challenge, session=session, user=random_id)
 
     wait_for_background_worker(timeout=2)
 
@@ -172,10 +166,10 @@ def lfs_dojo(admin_session):
 @pytest.fixture(scope="session")
 def event_dojo(admin_session):
     rid = create_dojo_yml(open(TEST_DOJOS_LOCATION / "event_dojo.yml").read(), session=admin_session)
-    db_id = rid.split("~")[0]
-    data = json.loads(db_sql(f"SELECT data FROM dojos WHERE id='{db_id}';"))
+    dojo_id = dojo_db_id(rid)
+    data = json.loads(db_sql(f"SELECT data FROM dojos WHERE dojo_id={dojo_id};"))
     data["permissions"] = ["grant_awards"]
-    db_sql(f"UPDATE dojos SET data='{json.dumps(data)}' WHERE id='{db_id}';")
+    db_sql(f"UPDATE dojos SET data='{json.dumps(data)}' WHERE dojo_id={dojo_id};")
     return rid
 
 @pytest.fixture(scope="session")
