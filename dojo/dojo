@@ -177,23 +177,27 @@ case "$ACTION" in
     "wait")
         # Follow the unit's current state rather than scanning the journal, whose
         # history can hold a failure from an earlier start attempt.
+        until systemctl show -p ActiveState --value pwn.college.service >/dev/null 2>&1; do sleep 1; done
+
         dojo logs -f --no-tail --since "-5 min" &
         LOGS_PID=$!
         trap 'kill $LOGS_PID 2>/dev/null' EXIT
-        while true; do
-            case "$(systemctl show -p ActiveState --value pwn.college.service)" in
-                active)
-                    break
-                    ;;
-                failed|inactive)
-                    echo "Error: pwn.college.service failed to start" >&2
-                    exit 1
-                    ;;
-            esac
+        STATE=""
+        for _ in $(seq 1 1800); do
+            STATE=$(systemctl show -p ActiveState --value pwn.college.service 2>/dev/null)
+            [ "$STATE" = "active" ] && break
+            if [ "$STATE" = "failed" ]; then
+                echo "Error: pwn.college.service failed to start" >&2
+                exit 1
+            fi
             sleep 1
         done
         kill $LOGS_PID 2>/dev/null
         trap - EXIT
+        if [ "$STATE" != "active" ]; then
+            echo "Error: timed out waiting for pwn.college.service" >&2
+            exit 1
+        fi
 
         if docker inspect workspace-builder >/dev/null 2>&1 \
             && ! docker wait workspace-builder
