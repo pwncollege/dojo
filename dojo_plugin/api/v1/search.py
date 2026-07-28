@@ -1,7 +1,7 @@
 from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.orm import joinedload
-from sqlalchemy.sql import or_
+from sqlalchemy.sql import and_, or_
 from CTFd.utils.user import get_current_user
 
 from ...models import Dojos, DojoModules, DojoChallenges
@@ -32,7 +32,12 @@ class Search(Resource):
                    .filter(ilike(DojoModules.name, DojoModules.description)))
         challenges = (DojoChallenges.query
                       .join(Dojos.viewable(user=user))
+                      .join(DojoModules, and_(DojoModules.dojo_id == DojoChallenges.dojo_id,
+                                              DojoModules.module_index == DojoChallenges.module_index))
                       .filter(DojoChallenges.visible())
+                      .filter(DojoModules.visible())
+                      .filter(or_(DojoModules.data["show_challenges"].astext == None,
+                                  DojoModules.data["show_challenges"].astext != "false"))
                       .filter(ilike(DojoChallenges.name, DojoChallenges.description)))
 
         return {

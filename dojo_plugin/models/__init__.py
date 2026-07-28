@@ -534,8 +534,8 @@ class DojoModules(db.Model):
     def visible(cls, when=None):
         when = when or datetime.datetime.utcnow()
         return or_(cls.visibility == None, and_(
-            cls.visibility.has(or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start)),
-            cls.visibility.has(or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop)),
+            cls.visibility.has(or_(DojoModuleVisibilities.start == None, when >= DojoModuleVisibilities.start)),
+            cls.visibility.has(or_(DojoModuleVisibilities.stop == None, when <= DojoModuleVisibilities.stop)),
         ))
 
     __repr__ = columns_repr(["dojo", "id"])
