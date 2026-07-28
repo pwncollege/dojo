@@ -35,7 +35,8 @@ ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
 UNIQUE_ID_REGEX = Regex(r"^[a-z0-9-~]{1,128}$")
 NAME_REGEX = Regex(r"^[\S ]{1,128}$")
 IMAGE_REGEX = Regex(r"^[\S]{1,256}$")
-FILE_PATH_REGEX = Regex(r"^[A-Za-z0-9_][A-Za-z0-9-_./]*$")
+FILE_PATH_PATTERN = r"^[A-Za-z0-9_][A-Za-z0-9-_./]*$"
+FILE_PATH_REGEX = Regex(FILE_PATH_PATTERN)
 FILE_URL_REGEX = Regex(r"^https://www.dropbox.com/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9.-_]*?rlkey=[a-zA-Z0-9]*&dl=1")
 INTERFACES_LIST = [Or({"name": Regex(r"^[a-zA-Z][a-zA-Z0-9 _-]{0,31}$"),"port": int},{"name": "SSH"})]
 DATE = Use(datetime.datetime.fromisoformat)
@@ -209,6 +210,38 @@ def setdefault_subyaml(data, subyaml_path):
     data.update(topyaml_data)
 
 
+def expand_module_challenges(module_data, *, set_names=False):
+    """Fold a module's `challenges:` shorthand into the `resources:` list it is sugar for.
+
+    Callers that go on to merge per-challenge yaml files fill names in afterwards, so
+    that a challenge.yml name still wins; callers working from a bare spec ask for the
+    names here, because the schema requires them.
+    """
+    module_data.setdefault("resources", [])
+
+    challenges = module_data.pop("challenges", [])
+    if challenges:
+        module_data["resources"].append({
+            "type": "header",
+            "content": "Challenges"
+        })
+
+        for challenge_data in challenges:
+            challenge_data["type"] = "challenge"
+            module_data["resources"].append(challenge_data)
+
+    for resource_data in module_data["resources"]:
+        if resource_data.get("type") != "challenge":
+            continue
+        if "import" in resource_data and "id" not in resource_data:
+            resource_data["id"] = resource_data["import"]["challenge"]
+        if set_names and "id" in resource_data:
+            setdefault_name(resource_data)
+            resource_data.setdefault("name", resource_data["id"].replace("-", " ").title())
+
+    return module_data
+
+
 def load_dojo_subyamls(data, dojo_dir):
     """
     The dojo yaml gets augmented with additional yamls and markdown files found in the dojo repo structure.
@@ -236,25 +269,10 @@ def load_dojo_subyamls(data, dojo_dir):
         setdefault_file(module_data, "description", module_dir / "DESCRIPTION.md")
         setdefault_name(module_data)
 
-        if "resources" not in module_data:
-            module_data["resources"] = []
-
-        challenges = module_data.pop("challenges", [])
-        if challenges:
-            module_data["resources"].append({
-                "type": "header",
-                "content": "Challenges"
-            })
-
-            for challenge_data in challenges:
-                challenge_data["type"] = "challenge"
-                module_data["resources"].append(challenge_data)
+        expand_module_challenges(module_data)
 
         for resource_data in module_data["resources"]:
             if resource_data.get("type") == "challenge":
-                if "import" in resource_data and "id" not in resource_data:
-                    resource_data["id"] = resource_data["import"]["challenge"]
-
                 if "id" not in resource_data:
                     continue
 
@@ -307,9 +325,13 @@ def load_surveys(data, dojo_dir):
 def dojo_initialize_files(data, dojo_dir):
     for dojo_file in data.get("files", []):
         assert is_admin(), "yml-specified files support requires admin privileges"
-        rel_path = dojo_dir / dojo_file["path"]
+        rel_path = dojo_file["path"]
+        assert isinstance(rel_path, str) and re.match(FILE_PATH_PATTERN, rel_path), \
+            f"Invalid file path: `{markupsafe.escape(rel_path)}`"
 
         abs_path = dojo_dir / rel_path
+        assert dojo_dir.resolve() in abs_path.resolve().parents, \
+            f"Error: file `{markupsafe.escape(rel_path)}` references path outside of the dojo"
         assert not abs_path.is_symlink(), f"{rel_path} is a symbolic link!"
         if abs_path.exists():
             continue
@@ -338,6 +360,11 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
 
 
 def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
+    # `challenges:` is sugar for challenge resources; dojos loaded from a directory
+    # have already been expanded, but a spec posted to the update endpoint has not.
+    for module_data in data.get("modules", []):
+        expand_module_challenges(module_data, set_names=True)
+
     try:
         dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
@@ -346,7 +373,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     def assert_importable(o):
         assert o.importable, f"Import disallowed for {o}."
         if isinstance(o, Dojos):
-            for m in o.module:
+            for m in o.modules:
                 assert_importable(m)
         if isinstance(o, DojoModules):
             for c in o.challenges:
@@ -676,10 +703,16 @@ def dojo_create(user, repository, public_key, private_key, spec):
         deploy_url = f"https://github.com/{markupsafe.escape(repository)}/settings/keys"
         raise RuntimeError(f"Failed to clone: <a href='{deploy_url}' target='_blank'>add deploy key</a>")
 
-    except IntegrityError:
+    except IntegrityError as e:
+        # The violation can surface from an interior flush, which leaves the session
+        # unusable for the rest of the request unless it is rolled back here.
+        db.session.rollback()
+        if "dojo_challenges" in str(e.orig) or "dojo_modules" in str(e.orig):
+            raise RuntimeError("Duplicate module or challenge id in the dojo spec")
         raise RuntimeError("This repository already exists as a dojo")
 
     except AssertionError as e:
+        db.session.rollback()
         raise RuntimeError(str(e))
 
     except Exception as e:
