@@ -133,6 +133,58 @@ def db_sql(sql):
 def get_user_id(user_name):
     return int(db_sql(f"SELECT id FROM users WHERE name = '{user_name}'"))
 
+
+FLASK_EXEC_MARKER = "--- dojo test output ---"
+
+def flask_exec(code):
+    """Run python inside CTFd's application context and return everything it printed."""
+    script = f"print({FLASK_EXEC_MARKER!r}, flush=True)\n{code}"
+    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", "cat > /tmp/dojo-test-exec.py", input=script)
+    result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", "/tmp/dojo-test-exec.py", check=False)
+    assert FLASK_EXEC_MARKER in result.stdout, f"flask exec produced no output: {result.stdout}\n{result.stderr}"
+    return result.stdout.split(FLASK_EXEC_MARKER, 1)[1].lstrip("\n")
+
+
+def dojo_db_id(dojo_reference_id):
+    if "~" in dojo_reference_id:
+        _, hex_id = dojo_reference_id.split("~", 1)
+        return int.from_bytes(bytes.fromhex(hex_id.rjust(8, "0")), "big", signed=True)
+    return int(db_sql(f"SELECT dojo_id FROM dojos WHERE id = '{dojo_reference_id}' AND official"))
+
+
+_challenge_ids = {}
+
+def challenge_db_id(dojo, module, challenge):
+    key = (dojo, module, challenge)
+    if key not in _challenge_ids:
+        _challenge_ids[key] = int(db_sql(
+            "SELECT dc.challenge_id FROM dojo_challenges dc "
+            "JOIN dojo_modules dm ON dm.dojo_id = dc.dojo_id AND dm.module_index = dc.module_index "
+            f"WHERE dc.dojo_id = {dojo_db_id(dojo)} AND dm.id = '{module}' AND dc.id = '{challenge}'"
+        ))
+    return _challenge_ids[key]
+
+
+_flags = {}
+
+def challenge_flag(dojo, module, challenge, *, user):
+    """Derive a challenge's flag the way the workspace does, without starting a container.
+
+    The derivation runs inside the ctfd container so it always uses the same
+    serializer implementation and secret key that flag submission validates against.
+    """
+    key = (user, dojo, module, challenge)
+    if key not in _flags:
+        _flags[key] = dojo_run(
+            "docker", "exec", "ctfd", "python3", "-c",
+            "import sys, os\n"
+            "from itsdangerous.url_safe import URLSafeSerializer\n"
+            "data = [int(sys.argv[1]), int(sys.argv[2])]\n"
+            "print('pwn.college{' + URLSafeSerializer(os.environ['SECRET_KEY']).dumps(data)[::-1] + '}')",
+            str(get_user_id(user)), str(challenge_db_id(dojo, module, challenge)),
+        ).stdout.strip()
+    return _flags[key]
+
 def get_outer_container_for(container_name):
     # Check main node first
     result = subprocess.run(
@@ -200,6 +252,12 @@ def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):
     )
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], "Expected to successfully submit flag"
+
+
+def solve_challenge_offline(dojo, module, challenge, *, session, user):
+    """Register a solve without paying for a workspace container start."""
+    solve_challenge(dojo, module, challenge, session=session,
+                    flag=challenge_flag(dojo, module, challenge, user=user))
 
 
 def wait_for_background_worker(timeout=5):
