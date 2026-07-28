@@ -111,7 +111,7 @@ def view_all_grades(dojo):
     if not dojo.is_admin():
         abort(403)
 
-    if not (dojo.course and dojo.course["scripts"].get("grade")):
+    if not (dojo.course and dojo.course.get("scripts", {}).get("grade")):
         abort(404)
 
     return render_template("grades_admin.html", dojo=dojo)
