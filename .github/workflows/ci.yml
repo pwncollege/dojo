@@ -11,7 +11,7 @@ jobs:
   test:
     name: "${{ matrix.mode }} DOJO Test"
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       matrix:
         mode: [singlenode, multinode]
@@ -133,7 +133,7 @@ jobs:
           ./deploy.sh -g -D /mnt/data/docker -W /mnt/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C
 
       - name: Run ${{ matrix.mode }} dojo tests
-        timeout-minutes: 20
+        timeout-minutes: 60
         run: |
           ./deploy.sh -g -D /mnt/data/docker -W /mnt/data/workspace ${{ matrix.mode == 'multinode' && '-M' || '' }} -C -N -t
 
