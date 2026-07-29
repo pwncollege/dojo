@@ -1012,8 +1012,9 @@ def test_watchdog_sweeps_every_daemon_hosting_user_containers(cli_user):
         assert any("localhost" in daemon or "unix" in daemon for daemon in swept), \
             f"the daemon hosting {container} was not swept: {swept}"
     else:
+        # The docker client reports the url it dialed, whose scheme it rewrites.
         node_id = int(host.rsplit("node", 1)[1])
-        expected = f"tcp://192.168.42.{node_id + 1}:2375"
+        expected = f"192.168.42.{node_id + 1}:2375"
         assert any(expected in daemon for daemon in swept), \
             f"the daemon hosting {container} ({expected}) was not swept: {swept}"
 
