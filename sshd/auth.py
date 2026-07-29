@@ -2,6 +2,7 @@
 
 import os
 import pathlib
+import shlex
 import sys
 from urllib.parse import urlparse
 
@@ -27,9 +28,26 @@ def create_db_connection():
 
 def main():
     enter_path = pathlib.Path(__file__).parent.resolve() / "enter.py"
+    onboard_path = pathlib.Path(__file__).parent.resolve() / "onboard.py"
+    key_type = sys.argv[1] if len(sys.argv) > 1 else None
+    key_base64 = sys.argv[2] if len(sys.argv) > 2 else None
 
     connection = create_db_connection()
     with connection.cursor() as cursor:
+        if key_type and key_base64:
+            key = f"{key_type} {key_base64}"
+            cursor.execute("SELECT user_id FROM ssh_keys WHERE value = %s", (key,))
+            if user_id := cursor.fetchone():
+                print(f'command="{enter_path} user_{user_id[0]}" {key}')
+                return
+            command = shlex.join([
+                str(onboard_path),
+                "--key-type", key_type,
+                "--key-base64", key_base64,
+            ]).replace("\\", "\\\\").replace('"', '\\"')
+            print(f'command="{command}" {key}')
+            return
+
         cursor.execute("SELECT user_id, value FROM ssh_keys")
         for user_id, key in cursor.fetchall():
             print(f'command="{enter_path} user_{user_id}" {key}')

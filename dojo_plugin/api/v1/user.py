@@ -1,3 +1,5 @@
+from functools import wraps
+
 from flask_restx import Namespace, Resource
 from flask import current_app, request, session
 from itsdangerous.url_safe import URLSafeTimedSerializer
@@ -11,20 +13,26 @@ user_namespace = Namespace("user", description="User management endpoints")
 CLI_AUTH_PREFIX = "sk-workspace-local-"
 SSH_AUTH_PREFIX = "sk-ssh-service-"
 
+
+def ssh_service_token():
+    auth_header = request.headers.get("Authorization", "")
+    prefix = f"Bearer {SSH_AUTH_PREFIX}"
+    if not auth_header.startswith(prefix):
+        return None
+    token = auth_header[len(prefix):].strip()
+    return URLSafeTimedSerializer(DOJO_SSH_SERVICE_KEY).loads(token, max_age=300)
+
+
 def authed_only_ssh(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
-        auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            return func(*args, **kwargs)
-        if not auth_header.startswith("Bearer "):
-            return func(*args, **kwargs)
-        token = auth_header[len("Bearer "):].strip()
-        if not token.startswith(SSH_AUTH_PREFIX):
-            return func(*args, **kwargs)
-        token = token[len(SSH_AUTH_PREFIX):].strip()
         try:
-            user_id, token_tag = URLSafeTimedSerializer(DOJO_SSH_SERVICE_KEY).loads(token, max_age=300)
-            assert token_tag == "ssh-tui"
+            token = ssh_service_token()
+            if token is None:
+                return func(*args, **kwargs)
+            user_id, token_tag = token
+            if token_tag != "ssh-tui":
+                raise ValueError
         except Exception:
             return {"success": False, "error": "Failed to authenticate ssh service token."}, 401
         user = Users.query.filter_by(id=user_id).first()
@@ -41,7 +49,6 @@ def authed_only_ssh(func):
         finally:
             for k in ("id", "name", "type", "verified"):
                 session.pop(k, None)
-        return func(*args, **kwargs)
     return wrapper
 
 
