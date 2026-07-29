@@ -2,6 +2,7 @@ import random
 import string
 
 import pytest
+import yaml
 
 from utils import DOJO_URL, login, create_dojo_yml, workspace_run, start_challenge, solve_challenge, wait_for_background_worker, get_user_id, remove_workspace_container
 
@@ -111,6 +112,50 @@ modules:
     assert result["pages"] == []
 
 
+def test_replaced_module_has_fresh_scoreboard(admin_session, example_dojo, random_user):
+    user_name, session = random_user
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"module-scoreboard-{suffix}"
+    spec = {
+        "id": dojo_id,
+        "type": "public",
+        "modules": [{
+            "id": "old",
+            "resources": [{
+                "type": "challenge",
+                "id": "old",
+                "name": "Old",
+                "import": {"dojo": example_dojo, "module": "hello", "challenge": "apple"},
+            }],
+        }],
+    }
+    dojo = create_dojo_yml(yaml.safe_dump(spec), session=admin_session)
+    assert session.get(f"{DOJO_URL}/dojo/{dojo}/join/").status_code == 200
+    start_challenge(dojo, "old", "old", session=session)
+    solve_challenge(dojo, "old", "old", session=session, user=user_name)
+    wait_for_background_worker(timeout=2)
+    assert any(entry["name"] == user_name for entry in get_all_standings(session, dojo, "old"))
+
+    spec["modules"] = [{
+        "id": "new",
+        "resources": [{
+            "type": "challenge",
+            "id": "new",
+            "name": "New",
+            "import": {"dojo": example_dojo, "module": "hello", "challenge": "banana"},
+        }],
+    }]
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update", json=spec)
+    assert response.status_code == 200
+    assert get_all_standings(session, dojo, "new") == []
+
+    start_challenge(dojo, "new", "new", session=session)
+    solve_challenge(dojo, "new", "new", session=session, user=user_name)
+    wait_for_background_worker(timeout=2)
+    standings = get_all_standings(session, dojo, "new")
+    assert next(entry for entry in standings if entry["name"] == user_name)["solves"] == 1
+
+
 def test_folder_awards(admin_session, event_dojo, random_user, example_dojo):
     grant_award = f"{DOJO_URL}/pwncollege_api/v1/dojos/{event_dojo}/award/grant"
     random_user_name, random_user_session = random_user
@@ -131,4 +176,3 @@ def test_folder_awards(admin_session, event_dojo, random_user, example_dojo):
         if emoji["emoji"] == "🥈" and emoji["count"] == 2:
             return
     assert False, f"Failed to find second place award with count 2. Emojis: {scoreboard["me"]["badges"]}"
-

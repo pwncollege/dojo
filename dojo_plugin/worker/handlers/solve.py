@@ -81,7 +81,7 @@ def _update_dojo_scoreboard(dojo, user_id, challenge_id, event_timestamp):
 
 
 def _update_module_scoreboard(module, user_id, challenge_id, event_timestamp):
-    cache_prefix = f"stats:scoreboard:module:{module.dojo_id}:{module.module_index}"
+    cache_prefix = f"stats:scoreboard:module:{module.dojo_id}:id:{module.id}"
     for duration in COMMON_DURATIONS:
         try:
             cache_key = f"{cache_prefix}:{duration}"

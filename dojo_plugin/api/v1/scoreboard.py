@@ -30,7 +30,7 @@ def model_cache_key(model, kind, duration):
     if isinstance(model, Dojos):
         return f"stats:{kind}:dojo:{model.dojo_id}:{duration}"
     if isinstance(model, DojoModules):
-        return f"stats:{kind}:module:{model.dojo_id}:{model.module_index}:{duration}"
+        return f"stats:{kind}:module:{model.dojo_id}:id:{model.id}:{duration}"
     return None
 
 
