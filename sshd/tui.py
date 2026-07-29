@@ -43,14 +43,18 @@ class ChallengeClient:
         self.ssh_key = os.environ.get("DOJO_SSH_SERVICE_KEY")
         if not self.ssh_key:
             raise RuntimeError("Missing DOJO_SSH_SERVICE_KEY")
+        self.dojo_host = os.environ.get("DOJO_HOST")
         self.api_base = "http://pwn.college:80/pwncollege_api/v1"
 
     def headers(self):
         token = URLSafeTimedSerializer(self.ssh_key).dumps([self.user_id, "ssh-tui"])
-        return {
+        headers = {
             "Authorization": f"Bearer sk-ssh-service-{token}",
             "Content-Type": "application/json",
         }
+        if self.dojo_host:
+            headers["Host"] = self.dojo_host
+        return headers
 
     def get(self, path, key):
         response = requests.get(f"{self.api_base}{path}", headers=self.headers(), timeout=20)
@@ -125,6 +129,81 @@ def challenge_details(challenge):
         "Press `p` to start practice mode.",
     ])
     return "\n".join(lines)
+
+
+class VimTree(Tree):
+    BINDINGS = [
+        Binding("j", "vim_down", "Down", show=False),
+        Binding("k", "vim_up", "Up", show=False),
+        Binding("h", "vim_left", "Collapse", show=False),
+        Binding("l", "vim_right", "Expand", show=False),
+        Binding("g", "vim_top", "Top", show=False),
+        Binding("G", "vim_bottom", "Bottom", show=False),
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._count = ""
+        self._pending_g = False
+
+    def on_key(self, event):
+        if event.character and event.character.isdigit() and (event.character != "0" or self._count):
+            self._count += event.character
+            self._pending_g = False
+            event.stop()
+            event.prevent_default()
+            return
+        if event.key not in ("j", "k", "h", "l", "g", "G"):
+            self._count = ""
+        if event.key != "g":
+            self._pending_g = False
+
+    def take_count(self):
+        count = int(self._count) if self._count else 1
+        self._count = ""
+        return count
+
+    def move_cursor_by(self, delta):
+        self.cursor_line = max(self.cursor_line, 0) + delta
+        self.scroll_to_line(self.cursor_line, animate=False)
+
+    def action_vim_down(self):
+        self.move_cursor_by(self.take_count())
+
+    def action_vim_up(self):
+        self.move_cursor_by(-self.take_count())
+
+    def action_vim_left(self):
+        self.take_count()
+        node = self.cursor_node
+        if node and node.allow_expand and node.is_expanded:
+            node.collapse()
+        else:
+            self.action_cursor_parent()
+
+    def action_vim_right(self):
+        self.take_count()
+        node = self.cursor_node
+        if not node:
+            return
+        if node.allow_expand and not node.is_expanded:
+            node.expand()
+        elif node.children:
+            self.move_cursor_by(1)
+
+    def action_vim_top(self):
+        if not self._pending_g:
+            self._pending_g = True
+            return
+        self._pending_g = False
+        self.take_count()
+        self.cursor_line = 0
+        self.scroll_to_line(self.cursor_line, animate=False)
+
+    def action_vim_bottom(self):
+        self.take_count()
+        self.cursor_line = self.last_line
+        self.scroll_to_line(self.cursor_line, animate=False)
 
 
 def render_details(data):
@@ -267,7 +346,7 @@ class ChallengeBrowserApp(App):
         with Horizontal(id="body"):
             with Vertical(id="nav"):
                 yield Static("Dojos", id="nav-title")
-                yield Tree("Challenge Browser", id="tree")
+                yield VimTree("Challenge Browser", id="tree")
                 yield Markdown("", id="start-pane")
             with Vertical(id="details-pane"):
                 yield Static("Details", id="details-title")
