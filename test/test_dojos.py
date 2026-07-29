@@ -277,7 +277,7 @@ def test_community_dojo_internal_transfer(admin_session, guest_dojo_admin):
     username, session = guest_dojo_admin
     suffix = "".join(random.choices(string.ascii_lowercase, k=8))
     dojo_id = f"internal-transfer-{suffix}"
-    spec = {"id": dojo_id, "image": "pwncollege/challenge-simple", "modules": [{"id": "m", "challenges": [{"id": "old"}]}]}
+    spec = {"id": dojo_id, "image": "pwncollege/challenge-simple", "modules": [{"id": "m", "challenges": [{"id": "old"}, {"id": "new"}]}]}
     dojo = create_dojo_yml(yaml.safe_dump(spec), session=admin_session)
     assert session.get(f"{DOJO_URL}/dojo/{dojo}/join/").status_code == 200
     response = admin_session.post(
@@ -286,10 +286,36 @@ def test_community_dojo_internal_transfer(admin_session, guest_dojo_admin):
     )
     assert response.status_code == 200
     challenge_id = get_dojo_challenge_id(dojo_id, "m", "old")
+    stale_challenge_id = get_dojo_challenge_id(dojo_id, "m", "new")
+
+    spec["modules"] = [{
+        "id": "m",
+        "resources": [{"type": "challenge", "id": "old", "name": "Old"}],
+    }]
+    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update", json=spec)
+    assert response.status_code == 200
+    assert get_dojo_challenge_id(dojo_id, "m", "old") == challenge_id
+    assert int(db_sql(f"SELECT count(*) FROM challenges WHERE id = {stale_challenge_id}")) == 1
 
     spec["modules"] = [{
         "id": "m",
         "resources": [{"type": "challenge", "id": "new", "name": "New", "transfer": {"challenge": "old"}}],
+    }]
+    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update", json=spec)
+    assert response.status_code == 200
+    assert get_dojo_challenge_id(dojo_id, "m", "new") == stale_challenge_id
+
+    spec["modules"] = [{
+        "id": "m",
+        "resources": [{"type": "challenge", "id": "old", "name": "Old"}],
+    }]
+    response = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update", json=spec)
+    assert response.status_code == 200
+    assert get_dojo_challenge_id(dojo_id, "m", "old") == challenge_id
+
+    spec["modules"] = [{
+        "id": "m",
+        "resources": [{"type": "challenge", "id": "new", "name": "New", "transfer": {"challenge": "old", "overwrite": True}}],
     }]
     response = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update", json=spec)
     assert response.status_code == 200

@@ -155,6 +155,7 @@ DOJO_SPEC = Schema({
                     Optional("dojo"): UNIQUE_ID_REGEX,
                     Optional("module"): ID_REGEX,
                     "challenge": ID_REGEX,
+                    Optional("overwrite", default=False): bool,
                 },
                 Optional("survey"): {
                     Optional("probability"): float,
@@ -384,16 +385,22 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     def challenge(module_id, challenge_id, transfer=None):
         if (module_id, challenge_id) in existing_challenges:
             return existing_challenges[(module_id, challenge_id)]
-        if chal := Challenges.query.filter_by(category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}").first():
-            return chal
+        destination_challenge = Challenges.query.filter_by(category=dojo.hex_dojo_id, name=f"{module_id}:{challenge_id}").first()
+        if destination_challenge and not (transfer and transfer["overwrite"]):
+            return destination_challenge
         if transfer:
             old_dojo_id = transfer.get("dojo", dojo.reference_id)
             old_module_id = transfer.get("module", module_id)
             old_challenge_id = transfer["challenge"]
             old_dojo = Dojos.from_id(old_dojo_id).first()
             assert old_dojo and (old_dojo.dojo_id == dojo.dojo_id or dojo.official or (is_admin() and not Dojos.from_id(dojo.id).first()))
-            old_challenge = Challenges.query.filter_by(category=old_dojo.hex_dojo_id, name=f"{old_module_id}:{old_challenge_id}").first()
-            assert old_challenge, f"unable to find source dojo/module/challenge in database for {old_dojo_id}:{old_module_id}:{old_challenge_id}"
+            old_dojo_challenge = DojoChallenges.from_id(old_dojo.reference_id, old_module_id, old_challenge_id).first()
+            assert (
+                old_dojo_challenge
+                and old_dojo_challenge.challenge.category == old_dojo.hex_dojo_id
+                and old_dojo_challenge.challenge.name == f"{old_module_id}:{old_challenge_id}"
+            ), f"unable to find source dojo/module/challenge in database for {old_dojo_id}:{old_module_id}:{old_challenge_id}"
+            old_challenge = old_dojo_challenge.challenge
             old_challenge.category = dojo.hex_dojo_id
             old_challenge.name = f"{module_id}:{challenge_id}"
             return old_challenge
