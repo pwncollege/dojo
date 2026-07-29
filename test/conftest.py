@@ -11,7 +11,7 @@ from selenium.webdriver.firefox.service import Service as FirefoxService
 
 #pylint:disable=redefined-outer-name,use-dict-literal,missing-timeout,unspecified-encoding,consider-using-with
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, solve_challenge_offline, remove_workspace_container, wait_for_background_worker, db_sql, dojo_db_id, suppress_award_popup
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, solve_challenge_offline, remove_workspace_container, remove_workspace_home, wait_for_background_worker, db_sql, dojo_db_id, suppress_award_popup
 from selenium.webdriver import Firefox, FirefoxOptions
 
 # Nested-docker port publishing drops for a few seconds while user containers
@@ -45,7 +45,10 @@ def random_user():
     yield random_id, session
     # Workspaces idle for six hours before the watchdog reaps them, which is far
     # longer than a suite run; leaving one behind per test starves the runner.
-    remove_workspace_container(random_id)
+    user_id = db_sql(f"SELECT id FROM users WHERE name = '{random_id}'").strip()
+    if user_id:
+        remove_workspace_container(random_id)
+        remove_workspace_home(user_id)
 
 @pytest.fixture
 def random_user_name(random_user):

@@ -237,6 +237,21 @@ def remove_workspace_container(user):
     dojo_run("docker", "rm", "-f", container_name, check=False, container=outer_container)
 
 
+def remove_workspace_home(user_id):
+    """Drop a test user's home storage.
+
+    Homes outlive their container by design, so a suite that registers a
+    thousand users would otherwise leave a thousand subvolumes behind.
+    """
+    dojo_run(
+        "sh", "-c",
+        f"for subvolume in /data/homes/{user_id}/snapshots/* /data/homes/{user_id}/overlays/* "
+        f"/data/homes/{user_id}/snapshots /data/homes/{user_id}/overlays /data/homes/{user_id}/active "
+        f"/data/homes/{user_id}; do btrfs subvolume delete \"$subvolume\" 2>/dev/null; done; true",
+        check=False,
+    )
+
+
 def workspace_run(cmd, *, user, root=False, **kwargs):
     container_name = f"user_{get_user_id(user)}"
     outer_container = get_outer_container_for(container_name)
