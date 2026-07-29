@@ -85,7 +85,6 @@ let
         fi
       )
     fi
-
     touch /run/dojo/var/ready
     echo "DOJO_INIT_READY"
 
