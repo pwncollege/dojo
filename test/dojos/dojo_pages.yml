@@ -1,0 +1,41 @@
+id: dojo-pages
+name: Dojo Pages Test
+description: Fixture dojo for the dojo listing, dojo page and read API tests.
+type: public
+modules:
+  - id: pages-module
+    name: Pages Module
+    description: Module mixing resources and challenges.
+    resources:
+      - type: header
+        content: Pages Section
+      - type: challenge
+        id: a
+        name: Challenge A
+      - type: markdown
+        name: Pages Notes
+        content: |
+          Notes between challenges.
+      - type: challenge
+        id: b
+        name: Challenge B
+        required: false
+      - type: challenge
+        id: c
+        name: Challenge C
+files:
+  - type: text
+    path: pages-module/a/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: pages-module/b/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: pages-module/c/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

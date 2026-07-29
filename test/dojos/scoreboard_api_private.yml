@@ -1,0 +1,21 @@
+id: sb-api-private
+name: Scoreboard API Private
+type: topic
+modules:
+  - id: m1
+    name: SB Private Module
+    challenges:
+      - id: apple
+        name: SB Private Imported Apple
+        import:
+          dojo: example
+          module: hello
+          challenge: apple
+      - id: own
+        name: SB Private Own
+files:
+  - type: text
+    path: m1/own/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

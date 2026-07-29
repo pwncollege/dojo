@@ -1,0 +1,38 @@
+id: workspace-runtime
+name: Workspace Runtime
+type: public
+modules:
+  - id: runtime
+    name: Runtime
+    challenges:
+      - id: hooked
+        name: Hooked
+        image: pwncollege/challenge-simple
+      - id: init-failure
+        name: Init Failure
+        image: pwncollege/challenge-simple
+files:
+  - type: text
+    path: runtime/hooked/.init
+    content: |
+      #!/bin/sh
+      echo "DOJO_INIT_LOG_MARKER_9F3A"
+      {
+        echo "uid=$(id -u)"
+        echo "path=$PATH"
+        echo "python3=$(command -v python3 || echo none)"
+        echo "flagmode=$(stat -c %a:%U /flag)"
+        echo "flag=$(cat /flag)"
+      } > /tmp/init-proof
+      chmod 644 /tmp/init-proof
+  - type: text
+    path: runtime/hooked/bin/hostname
+    content: |
+      #!/bin/sh
+      echo "DOJO_CHALLENGE_SHADOW_4B2C"
+  - type: text
+    path: runtime/init-failure/.init
+    content: |
+      #!/bin/sh
+      echo "deliberate init failure"
+      exit 1

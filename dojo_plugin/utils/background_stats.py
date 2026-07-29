@@ -66,7 +66,7 @@ def publish_stat_event(event_type: str, payload: Dict[str, Any]) -> Optional[str
         logger.error(f"Failed to publish event {event_type}: {e}")
         return None
 
-def consume_stat_events(handler: Callable[[str, Dict[str, Any], float], None], batch_size: int = 10, block_ms: int = 5000, start_time: Optional[float] = None):
+def consume_stat_events(handler: Callable[[str, Dict[str, Any], float], None], batch_size: int = 10, block_ms: int = 5000, start_time: Optional[float] = None, shutdown_requested: Callable[[], bool] = lambda: False):
     r = get_redis_client()
     if start_time is None:
         start_time = time.time()
@@ -83,7 +83,7 @@ def consume_stat_events(handler: Callable[[str, Dict[str, Any], float], None], b
     ensure_consumer_group()
     logger.info(f"Worker {CONSUMER_NAME} waiting for events...")
 
-    while True:
+    while not shutdown_requested():
         if should_daily_restart(start_time):
             logger.info(f"Daily restart triggered at UTC hour {DAILY_RESTART_HOUR_UTC}")
             raise DailyRestartException("Scheduled daily restart for cache refresh")

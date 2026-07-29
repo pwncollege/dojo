@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from utils import DOJO_URL, dojo_run, workspace_run, start_challenge, solve_challenge, db_sql, get_user_id
+from utils import DOJO_URL, dojo_run, workspace_run, start_challenge, solve_challenge, db_sql, get_user_id, suppress_award_popup
 
 def check_mount(path, *, user, fstype=None, check_nosuid=True):
     try:
@@ -35,6 +35,7 @@ def test_start_challenge_error_renders_as_user_as_text(browser_fixture, example_
     payload = "<img src=x onerror=window.__challengeStartXss=true>"
     expected_error = f"Invalid user ID ({payload})"
 
+    suppress_award_popup(browser_fixture)
     browser_fixture.get(f"{DOJO_URL}/login")
     browser_fixture.find_element(By.ID, "name").send_keys("admin")
     browser_fixture.find_element(By.ID, "password").send_keys("admin")
@@ -45,6 +46,13 @@ def test_start_challenge_error_renders_as_user_as_text(browser_fixture, example_
     challenge_body = browser_fixture.find_element(By.ID, "challenges-body-2")
     start_button = challenge_body.find_element(By.ID, "challenge-start")
     WebDriverWait(browser_fixture, 10).until(lambda _: start_button.is_displayed() and start_button.is_enabled())
+    # The accordion is still animating, so scroll the button to the middle of the
+    # viewport and wait for nothing to be sitting on top of it before clicking.
+    browser_fixture.execute_script("arguments[0].scrollIntoView({block: 'center'})", start_button)
+    WebDriverWait(browser_fixture, 10).until(lambda _: browser_fixture.execute_script(
+        "var rect = arguments[0].getBoundingClientRect();"
+        "var top = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);"
+        "return top === arguments[0] || arguments[0].contains(top);", start_button))
     start_button.click()
 
     result_message = challenge_body.find_element(By.ID, "result-message")

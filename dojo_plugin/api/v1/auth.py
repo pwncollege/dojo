@@ -7,6 +7,7 @@ from CTFd.utils.crypto import verify_password
 from CTFd.utils.config.visibility import registration_visible
 from CTFd.utils.validators import ValidationError
 from CTFd.utils.config import can_send_mail
+from CTFd.utils.decorators import ratelimit
 from CTFd.utils.security.signing import unserialize
 from itsdangerous.exc import BadSignature, BadTimeSignature, SignatureExpired
 import base64
@@ -16,12 +17,13 @@ auth_namespace = Namespace("auth", description="Authentication endpoints")
 
 @auth_namespace.route("/register")
 class Register(Resource):
+    @ratelimit(method="POST", limit=10, interval=5)
     @auth_namespace.doc(
         description="Register a new user and set session",
         responses={
-            200: ("Success", "SuccessResponse"),
-            400: ("Validation error", "ErrorResponse"),
-            403: ("Registration disabled", "ErrorResponse"),
+            200: "Success",
+            400: "Validation error",
+            403: "Registration disabled",
         },
     )
     def post(self):
@@ -147,11 +149,12 @@ class Register(Resource):
 
 @auth_namespace.route("/login")
 class Login(Resource):
+    @ratelimit(method="POST", limit=10, interval=5)
     @auth_namespace.doc(
         description="Login and set session",
         responses={
-            200: ("Success", "SuccessResponse"),
-            401: ("Invalid credentials", "ErrorResponse"),
+            200: "Success",
+            401: "Invalid credentials",
         },
     )
     def post(self):
@@ -200,7 +203,7 @@ class Logout(Resource):
     @auth_namespace.doc(
         description="Logout and clear session",
         responses={
-            200: ("Success", "SuccessResponse"),
+            200: "Success",
         },
     )
     def post(self):
@@ -216,8 +219,8 @@ class VerifyEmail(Resource):
     @auth_namespace.doc(
         description="Verify email address with token",
         responses={
-            200: ("Success", "SuccessResponse"),
-            400: ("Invalid or expired token", "ErrorResponse"),
+            200: "Success",
+            400: "Invalid or expired token",
         },
     )
     def get(self, token):
@@ -250,10 +253,11 @@ class VerifyEmail(Resource):
 
 @auth_namespace.route("/forgot-password")
 class ForgotPassword(Resource):
+    @ratelimit(method="POST", limit=10, interval=60)
     @auth_namespace.doc(
         description="Request password reset email",
         responses={
-            200: ("Success", "SuccessResponse"),
+            200: "Success",
         },
     )
     def post(self):
@@ -280,11 +284,12 @@ class ForgotPassword(Resource):
 
 @auth_namespace.route("/reset-password/<token>")
 class ResetPassword(Resource):
+    @ratelimit(method="POST", limit=10, interval=60)
     @auth_namespace.doc(
         description="Reset password with token",
         responses={
-            200: ("Success", "SuccessResponse"),
-            400: ("Invalid token or request", "ErrorResponse"),
+            200: "Success",
+            400: "Invalid token or request",
         },
     )
     def post(self, token):

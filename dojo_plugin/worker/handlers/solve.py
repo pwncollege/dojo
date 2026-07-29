@@ -1,14 +1,14 @@
 import logging
 from datetime import datetime
 
-from CTFd.models import db
-from ...models import DojoChallenges
+from CTFd.models import db, Users
+from ...models import DojoChallenges, DojoUsers
 from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
 from .scoreboard import update_scoreboard_cache, update_challenge_solves, challenge_solves_cache_key, COMMON_DURATIONS
 from .dojo_stats import update_dojo_stats
 from .scores import update_dojo_scores, update_module_scores, dojo_scores_cache_key, module_scores_cache_key
-from .activity import update_activity
+from .activity import update_activity, calculate_activity
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,16 @@ def handle_challenge_solve(payload, event_timestamp):
         is_member = dojo.is_member(user_id)
         is_public_or_official = dojo.is_public_or_official
 
-        if is_member and dojo_challenge.required:
+        user = Users.query.get(user_id)
+        # The full recalculation excludes hidden users and the dojo's own admins;
+        # the incremental path has to agree or the two disagree until the next sweep.
+        counts_on_scoreboard = (
+            user is not None
+            and not user.hidden
+            and not DojoUsers.query.filter_by(dojo_id=dojo.dojo_id, user_id=user_id, type="admin").first()
+        )
+
+        if is_member and dojo_challenge.required and counts_on_scoreboard:
             logger.info(f"Updating dojo scoreboard for dojo {dojo_ref_id}")
             _update_dojo_scoreboard(dojo, user_id, challenge_id, event_timestamp)
             logger.info(f"Updating module scoreboard for dojo {dojo_ref_id} module {module_index}")
@@ -75,7 +84,7 @@ def _update_dojo_scoreboard(dojo, user_id, challenge_id, event_timestamp):
             cache_key = f"{cache_prefix}:{duration}"
             if is_event_stale(cache_key, event_timestamp):
                 continue
-            update_scoreboard_cache(dojo, cache_key, user_id, challenge_id)
+            update_scoreboard_cache(dojo, cache_key, user_id, challenge_id, updated_at=event_timestamp)
         except Exception as e:
             logger.error(f"Error updating dojo scoreboard for dojo {dojo.dojo_id}, duration={duration}: {e}", exc_info=True)
 
@@ -87,7 +96,7 @@ def _update_module_scoreboard(module, user_id, challenge_id, event_timestamp):
             cache_key = f"{cache_prefix}:{duration}"
             if is_event_stale(cache_key, event_timestamp):
                 continue
-            update_scoreboard_cache(module, cache_key, user_id, challenge_id)
+            update_scoreboard_cache(module, cache_key, user_id, challenge_id, updated_at=event_timestamp)
         except Exception as e:
             logger.error(f"Error updating module scoreboard for dojo {module.dojo_id} module {module.module_index}, duration={duration}: {e}", exc_info=True)
 
@@ -102,7 +111,7 @@ def _update_dojo_stats(dojo_ref_id, challenge_name, event_timestamp):
         return
     try:
         updated_stats = update_dojo_stats(current_stats, challenge_name)
-        set_cached_stat(cache_key, updated_stats)
+        set_cached_stat(cache_key, updated_stats, updated_at=event_timestamp)
     except Exception as e:
         logger.error(f"Error updating dojo stats for {dojo_ref_id}: {e}", exc_info=True)
 
@@ -117,7 +126,7 @@ def _update_challenge_solves(dojo_id, module_index, challenge_id, event_timestam
         return
     try:
         updated = update_challenge_solves(current, challenge_id)
-        set_cached_stat(cache_key, updated)
+        set_cached_stat(cache_key, updated, updated_at=event_timestamp)
     except Exception as e:
         logger.error(f"Error updating challenge_solves for dojo {dojo_id} module {module_index}: {e}", exc_info=True)
 
@@ -129,7 +138,7 @@ def _update_scores(dojo_id, module_index, user_id, event_timestamp):
         if not is_event_stale(cache_key, event_timestamp):
             current_scores = get_cached_stat(cache_key) or {"ranks": [], "solves": {}}
             updated_scores = update_dojo_scores(current_scores, user_id)
-            set_cached_stat(cache_key, updated_scores)
+            set_cached_stat(cache_key, updated_scores, updated_at=event_timestamp)
     except Exception as e:
         logger.error(f"Error updating dojo scores: {e}", exc_info=True)
 
@@ -139,7 +148,7 @@ def _update_scores(dojo_id, module_index, user_id, event_timestamp):
         if not is_event_stale(cache_key, event_timestamp):
             current_scores = get_cached_stat(cache_key) or {"ranks": [], "solves": {}}
             updated_scores = update_module_scores(current_scores, user_id)
-            set_cached_stat(cache_key, updated_scores)
+            set_cached_stat(cache_key, updated_scores, updated_at=event_timestamp)
     except Exception as e:
         logger.error(f"Error updating module scores: {e}", exc_info=True)
 
@@ -148,9 +157,12 @@ def _update_user_activity(user_id, solve_date, event_timestamp):
     cache_key = f"stats:activity:{user_id}"
     if is_event_stale(cache_key, event_timestamp):
         return
-    current_activity = get_cached_stat(cache_key) or {'solve_timestamps': [], 'total_solves': 0}
+    current_activity = get_cached_stat(cache_key)
     try:
-        updated_activity = update_activity(current_activity, solve_date)
-        set_cached_stat(cache_key, updated_activity)
+        # Without a cache to build on, incrementing from zero would report one solve
+        # for a user who has many; recompute the whole window instead.
+        updated_activity = (update_activity(current_activity, solve_date)
+                            if current_activity is not None else calculate_activity(user_id))
+        set_cached_stat(cache_key, updated_activity, updated_at=event_timestamp)
     except Exception as e:
         logger.error(f"Error updating activity for user_id {user_id}: {e}", exc_info=True)

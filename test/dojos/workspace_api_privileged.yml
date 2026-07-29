@@ -1,0 +1,11 @@
+id: wsapi-privileged
+name: Workspace API Privileged
+type: public
+modules:
+  - id: net
+    name: Net
+    challenges:
+      - id: admin
+        name: Admin
+        image: pwncollege/challenge-simple
+        privileged: True

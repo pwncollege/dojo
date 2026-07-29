@@ -8,6 +8,7 @@ import hashlib
 import pathlib
 import logging
 import re
+import subprocess
 import zlib
 
 import pytz
@@ -130,8 +131,11 @@ class Dojos(db.Model):
             id = reference_id
             constraints.append(cls.official)
         else:
-            id, dojo_id = reference_id.split("~", 1)
-            dojo_id = cls.hex_to_int(dojo_id)
+            id, hex_dojo_id = reference_id.split("~", 1)
+            try:
+                dojo_id = cls.hex_to_int(hex_dojo_id)
+            except ValueError:
+                return cls.query.filter(db.false())
             constraints.append(cls.dojo_id == dojo_id)
         constraints.append(cls.id == id)
         return cls.query.filter(*constraints)
@@ -196,6 +200,8 @@ class Dojos(db.Model):
 
     @property
     def solves_code(self):
+        if not self.private_key:
+            return None
         return hashlib.md5(self.private_key.encode() + b"SOLVES").hexdigest()
 
     @property
@@ -215,15 +221,23 @@ class Dojos(db.Model):
     @property
     def hash(self):
         from ..utils.dojo import dojo_git_command
-        if os.path.exists(self.path):
+        if not os.path.exists(self.path):
+            return ""
+        try:
             return dojo_git_command(self, "rev-parse", "HEAD").stdout.decode().strip()
-        else:
+        except subprocess.CalledProcessError:
             return ""
 
     @property
     def last_commit_time(self):
         from ..utils.dojo import dojo_git_command
-        return datetime.datetime.fromisoformat(dojo_git_command(self, "show", "--no-patch", "--format=%ci", "HEAD").stdout.decode().strip().replace(" -", "-")[:-2]+":00")
+        if not os.path.exists(self.path):
+            return None
+        try:
+            commit_time = dojo_git_command(self, "show", "--no-patch", "--format=%ci", "HEAD").stdout.decode().strip()
+        except subprocess.CalledProcessError:
+            return None
+        return datetime.datetime.fromisoformat(commit_time.replace(" -", "-")[:-2]+":00")
 
     @classmethod
     def ordering(cls):
@@ -459,12 +473,22 @@ class DojoModules(db.Model):
 
     @property
     def unified_items(self):
+        return self.items(include_hidden=True)
+
+    @property
+    def visible_items(self):
+        return self.items(include_hidden=False)
+
+    def items(self, include_hidden=True):
         items = []
 
         for resource in self.resources:
-            items.append((resource.resource_index, resource))
+            if include_hidden or resource.visible:
+                items.append((resource.resource_index, resource))
 
         for challenge in self.challenges:
+            if not include_hidden and not challenge.visible():
+                continue
             if challenge.unified_index is not None:
                 index = challenge.unified_index
             else:
@@ -510,8 +534,8 @@ class DojoModules(db.Model):
     def visible(cls, when=None):
         when = when or datetime.datetime.utcnow()
         return or_(cls.visibility == None, and_(
-            cls.visibility.has(or_(DojoChallengeVisibilities.start == None, when >= DojoChallengeVisibilities.start)),
-            cls.visibility.has(or_(DojoChallengeVisibilities.stop == None, when <= DojoChallengeVisibilities.stop)),
+            cls.visibility.has(or_(DojoModuleVisibilities.start == None, when >= DojoModuleVisibilities.start)),
+            cls.visibility.has(or_(DojoModuleVisibilities.stop == None, when <= DojoModuleVisibilities.stop)),
         ))
 
     __repr__ = columns_repr(["dojo", "id"])

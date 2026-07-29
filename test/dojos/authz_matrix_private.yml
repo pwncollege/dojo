@@ -1,0 +1,15 @@
+id: authz-matrix-private
+name: Authz Matrix Private Dojo
+type: topic
+modules:
+  - id: secret-module
+    name: Secret Module
+    challenges:
+      - id: secret-challenge
+        name: Secret Challenge
+files:
+  - type: text
+    path: secret-module/secret-challenge/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

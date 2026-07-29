@@ -1,0 +1,13 @@
+id: fs-blood
+name: Feed First Blood Dojo
+type: public
+modules:
+  - id: hello
+    challenges:
+      - id: apple
+files:
+  - type: text
+    path: hello/apple/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

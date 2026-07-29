@@ -140,7 +140,10 @@ def active_module():
     g.dojo = active_challenge.dojo
 
     current_challenge = active_challenge
-    challenges = list(filter(lambda x: x.visible(), current_challenge.module.challenges))
+    # The running challenge itself belongs in the list even when it is outside its
+    # visibility window, which a dojo admin can legitimately be sitting in.
+    challenges = [challenge for challenge in current_challenge.module.challenges
+                  if challenge.visible() or challenge == current_challenge]
     current_index = challenges.index(current_challenge)
 
     previous_challenge = challenges[current_index - 1] if current_index > 0 else None
@@ -203,7 +206,7 @@ def update_dojo(dojo, update_code=None):
     if not dojo:
         return {"success": False, "error": "Not Found"}, 404
 
-    if dojo.update_code != update_code:
+    if not dojo.update_code or dojo.update_code != update_code:
         return {"success": False, "error": "Forbidden"}, 403
 
     try:
@@ -261,7 +264,9 @@ def delete_dojo(dojo):
 
     try:
         DojoUsers.query.filter(DojoUsers.dojo_id == dojo.dojo_id).delete()
-        Dojos.query.filter(Dojos.dojo_id == dojo.dojo_id).delete()
+        # Delete through the session rather than with a bulk query, so the mapper
+        # level listeners that refresh this dojo's stat caches actually fire.
+        db.session.delete(dojo)
         db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -313,7 +318,7 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
     if not dojo:
         return {"success": False, "error": "Not Found"}, 404
 
-    if dojo.solves_code != solves_code:
+    if not dojo.solves_code or dojo.solves_code != solves_code:
         return {"success": False, "error": "Forbidden"}, 403
 
     solves_query = (
@@ -457,14 +462,15 @@ def view_page(dojo, page):
 
     if file_path.is_dir():
         user = get_current_user()
-        user_path = resolve_dojo_path(dojo, page, f"{user.id}")
-        if user and user_path.is_file():
-            assert dojo.privileged or dojo.official
-            return send_file(user_path)
-        user_markdown_path = resolve_dojo_path(dojo, page, f"{user.id}.md")
-        if user and user_markdown_path.is_file():
-            content = render_markdown(user_markdown_path.read_text())
-            return render_template("markdown.html", dojo=dojo, content=content)
+        if user:
+            user_path = resolve_dojo_path(dojo, page, f"{user.id}")
+            if user_path.is_file():
+                assert dojo.privileged or dojo.official
+                return send_file(user_path)
+            user_markdown_path = resolve_dojo_path(dojo, page, f"{user.id}.md")
+            if user_markdown_path.is_file():
+                content = render_markdown(user_markdown_path.read_text())
+                return render_template("markdown.html", dojo=dojo, content=content)
         default_markdown_path = resolve_dojo_path(dojo, page, "default.md")
         if default_markdown_path.is_file():
             content = render_markdown(default_markdown_path.read_text())

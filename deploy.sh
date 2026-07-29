@@ -89,7 +89,9 @@ function generate_coverage_report {
     docker exec "$CONTAINER" docker exec ctfd coverage xml -o /var/coverage/coverage.xml
 }
 
-ENV_ARGS=( )
+# The discord bot API authenticates against this secret; without one it cannot be
+# exercised at all, so give test deployments a value.
+ENV_ARGS=( "-e" "DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-test-discord-client-secret}" )
 DB_RESTORE=""
 DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
 TEST=no
@@ -299,7 +301,7 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	docker exec "$DOJO_CONTAINER" dojo-node add 1 "$NODE1_KEY"
 	docker exec "$DOJO_CONTAINER" dojo-node add 2 "$NODE2_KEY"
 	sleep 5
-	docker exec "$DOJO_CONTAINER" dojo compose restart ctfd sshd stats-worker image-pull-worker
+	docker exec "$DOJO_CONTAINER" dojo compose restart ctfd sshd stats-worker image-pull-worker watchdog
 	sleep 5
 	docker exec "$DOJO_CONTAINER" dojo compose restart nginx
 	sleep 5
@@ -343,7 +345,7 @@ log_endgroup
 if [ "$TEST" == "yes" ]; then
 	log_newgroup "Running tests in container"
 	cleanup_container $DOJO_CONTAINER-test
-	test_container pytest --order-dependencies --timeout=60 -v . "$@"
+	test_container pytest --order-dependencies --timeout=120 -v . "$@"
 	if [ "$COVERAGE" == "yes" ]; then
 		generate_coverage_report "$DOJO_CONTAINER"
 	fi

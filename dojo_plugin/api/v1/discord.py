@@ -15,14 +15,26 @@ from ...utils.dojo import get_current_dojo_challenge, dojo_route
 discord_namespace = Namespace("discord", description="Endpoint to manage discord")
 
 def auth_check(authorization):
+    # Without a configured secret there is no way to authenticate a bot caller,
+    # so every bot request must be refused rather than trivially satisfied.
+    if not DISCORD_CLIENT_SECRET:
+        return {"success": False, "error": "Unauthorized"}, 401
+
     if not authorization or not authorization.startswith("Bearer "):
         return {"success": False, "error": "Unauthorized"}, 401
 
-    token = authorization.split(" ")[1]
+    token = authorization[len("Bearer "):].strip()
     if not hmac.compare_digest(token, DISCORD_CLIENT_SECRET):
         return {"success": False, "error": "Unauthorized"}, 401
 
     return None, None
+
+
+def parse_discord_id(discord_id):
+    try:
+        return int(discord_id)
+    except (TypeError, ValueError):
+        return None
 
 @discord_namespace.route("")
 class Discord(Resource):
@@ -43,6 +55,9 @@ class DiscordActivity(Resource):
         res, code = auth_check(authorization)
         if res:
             return res, code
+
+        if parse_discord_id(discord_id) is None:
+            return {"success": False, "error": "Invalid discord id"}, 400
 
         discord_user = DiscordUsers.query.filter_by(discord_id=discord_id).first()
         if not discord_user:
@@ -66,7 +81,8 @@ class DiscordActivity(Resource):
 
 
 def get_user_activity_prop(discord_id, activity, start=None, end=None):
-    user = DiscordUsers.query.filter_by(discord_id=discord_id).first()
+    discord_id = parse_discord_id(discord_id)
+    user = DiscordUsers.query.filter_by(discord_id=discord_id).first() if discord_id is not None else None
     if not user:
         count = 0
     elif activity == "thanks":
@@ -80,6 +96,8 @@ def get_user_activity_prop(discord_id, activity, start=None, end=None):
     return {"success": True, activity: count}
 
 def get_user_activity(discord_id, activity, request):
+    if parse_discord_id(discord_id) is None:
+        return {"success": False, "error": "Invalid discord id"}, 400
 
     start_stamp = request.args.get("start")
     end_stamp = request.args.get("end")
@@ -89,12 +107,12 @@ def get_user_activity(discord_id, activity, request):
     if start_stamp:
         try:
             start = datetime.fromisoformat(start_stamp)
-        except:
+        except ValueError:
             return {"success": False, "error": "invalid start format"}, 400
     if end_stamp:
         try:
-            end = datetime.fromisoformat(start_stamp)
-        except:
+            end = datetime.fromisoformat(end_stamp)
+        except ValueError:
             return {"success": False, "error": "invalid end format"}, 400
 
     return get_user_activity_prop(discord_id, activity, start, end)
@@ -105,7 +123,10 @@ def post_user_activity(discord_id, activity, request):
     if res:
         return res, code
 
-    data = request.get_json()
+    if parse_discord_id(discord_id) is None:
+        return {"success": False, "error": "Invalid discord id"}, 400
+
+    data = request.get_json(silent=True) or {}
 
     expected_vals = ['source_user_id',
                      'guild_id',
@@ -118,6 +139,11 @@ def post_user_activity(discord_id, activity, request):
         if ev not in data:
             return {"success": False, "error": f"Invalid JSON data - {ev} not found!"}, 400
 
+    try:
+        message_timestamp = datetime.fromisoformat(data["message_timestamp"])
+    except (TypeError, ValueError):
+        return {"success": False, "error": "invalid message_timestamp format"}, 400
+
     kwargs = {
             'user_id' : discord_id,
             'source_user_id': data.get("source_user_id", ""),
@@ -125,7 +151,7 @@ def post_user_activity(discord_id, activity, request):
             'channel_id': data.get("channel_id"),
             'message_id': data.get("message_id"),
             'timestamp': data.get("timestamp"),
-            'message_timestamp': datetime.fromisoformat(data.get("message_timestamp")),
+            'message_timestamp': message_timestamp,
             'type': activity
             }
     entry = DiscordUserActivity(**kwargs)
@@ -159,7 +185,7 @@ class CourseMemes(Resource):
 
         if not discord_user:
             return {"success": False, "error": "Discord not linked"}
-        course_start = dojo.course.get("start_date", None)
+        course_start = (dojo.course or {}).get("start_date", None)
         if course_start is None:
             return {"success": False, "error": "No course start"}
         course_start = datetime.fromisoformat(course_start).astimezone(timezone.utc)
@@ -177,7 +203,7 @@ class CourseMemes(Resource):
         return {"success": True, "memes": valid_meme_cnt}
 
 @discord_namespace.route("/course/<dojo>/thanks", methods=["GET"])
-class CourseMemes(Resource):
+class CourseThanks(Resource):
     @authed_only
     @dojo_route
     def get(self, dojo):
@@ -186,7 +212,7 @@ class CourseMemes(Resource):
         if discord_user is None:
             return {"success": False, "error": "Discord not linked"}
 
-        course_start = dojo.course.get("start_date", None)
+        course_start = (dojo.course or {}).get("start_date", None)
         if course_start is None:
             return {"success": False, "error": "No course start"}
         course_start = datetime.fromisoformat(course_start)

@@ -78,7 +78,7 @@
 
   <div class="accordion" id="module-content">
     {% set ns = namespace(challenge_count=0) %}
-    {% for item in module.unified_items %}
+    {% for item in (module.unified_items if dojo.is_admin() else module.visible_items) %}
       {% if item.item_type == 'resource' %}
         {% set resource = item %}
         {% if resource.type == 'markdown' and resource.expandable == False %}
@@ -243,7 +243,7 @@
             </div>
             <div class="row survey-row">
               <div class="col-md-12">
-                <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{dojo.reference_id}}/surveys/{{module.id}}/{{challenge.id}}" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
+                <form target="survey-target" method="post" action="/pwncollege_api/v1/dojos/{{dojo.reference_id}}/{{module.id}}/{{challenge.id}}/surveys" id="survey-notification" class="survey alert-dismissable w-100 survey-id-{{challenge.challenge_id}}" role="alert" style="display: none;">
                   {{ challenge.survey.data | safe }}
                 </form>
               </div>

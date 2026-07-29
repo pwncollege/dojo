@@ -31,7 +31,19 @@ class view_desktop(Resource):
         if user_id and not password and not is_admin():
             abort(403)
 
-        user = get_current_user() if not user_id else Users.query.filter_by(id=int(user_id)).first_or_404()
+        if user_id is not None:
+            try:
+                user_id = int(user_id)
+            except ValueError:
+                abort(404)
+
+        if port is not None:
+            try:
+                port = int(port)
+            except ValueError:
+                abort(404)
+
+        user = get_current_user() if not user_id else Users.query.filter_by(id=user_id).first_or_404()
         container = get_current_container(user)
         if not container:
             return {"success": False, "active": False}

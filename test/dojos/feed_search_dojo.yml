@@ -1,0 +1,15 @@
+id: fs-dojo
+name: FSMARKER Dojo
+description: This dojo holds FSMARKER content for search coverage.
+modules:
+  - id: hello-module
+    name: FSMARKER Hello Module
+    description: This module holds FSMARKER content for search coverage.
+    challenges:
+      - id: apple-challenge
+        name: FSMARKER Apple Challenge
+        description: This challenge holds FSMARKER content for search coverage.
+        import:
+          dojo: example
+          module: hello
+          challenge: apple

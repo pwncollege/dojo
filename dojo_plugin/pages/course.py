@@ -27,7 +27,11 @@ def view_course(dojo, resource=None):
     if request.args.get("user"):
         if not dojo.is_admin():
             abort(403)
-        user = Users.query.filter_by(id=request.args.get("user")).first_or_404()
+        try:
+            requested_user_id = int(request.args.get("user"))
+        except ValueError:
+            abort(404)
+        user = Users.query.filter_by(id=requested_user_id).first_or_404()
         name = f"{user.name}'s"
     else:
         user = get_current_user()
@@ -73,6 +77,12 @@ def update_identity(dojo):
     if not dojo.course:
         abort(404)
 
+    body = request.get_json(silent=True) or {}
+    identity = body.get("identity", "")
+    if not isinstance(identity, str):
+        return {"success": False, "error": "identity must be a string"}, 400
+    identity = identity.strip()
+
     user = get_current_user()
     dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
 
@@ -82,7 +92,6 @@ def update_identity(dojo):
     if dojo_user:
         db.session.delete(dojo_user)
 
-    identity = request.json.get("identity", "").strip()
     student = DojoStudents(dojo=dojo, user=user, token=identity)
     db.session.add(student)
     db.session.commit()
@@ -111,7 +120,7 @@ def view_all_grades(dojo):
     if not dojo.is_admin():
         abort(403)
 
-    if not (dojo.course and dojo.course["scripts"].get("grade")):
+    if not (dojo.course and dojo.course.get("scripts", {}).get("grade")):
         abort(404)
 
     return render_template("grades_admin.html", dojo=dojo)
@@ -126,6 +135,11 @@ def view_user_info(dojo, user_id):
 
     if not dojo.is_admin():
         abort(403)
+
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        abort(404)
 
     user = Users.query.filter_by(id=user_id).first_or_404()
     student = DojoStudents.query.filter_by(dojo=dojo, user=user).first()

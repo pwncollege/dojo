@@ -26,7 +26,8 @@ try:
     consume_image_pull_events(
         handler=handle_image_pull_event,
         batch_size=5,
-        block_ms=5000
+        block_ms=5000,
+        shutdown_requested=lambda: shutdown_requested
     )
 except KeyboardInterrupt:
     logger.info("Image pull worker interrupted by user")
