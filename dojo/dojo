@@ -80,6 +80,7 @@ case "$ACTION" in
             profiles+=("workspace_exclusive")
         elif [ "$multi_node" == "true" ]; then
             profiles+=("main")
+            export DOJO_WORKSPACE=cli
         else
             profiles+=("main" "workspace")
         fi
