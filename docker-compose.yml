@@ -487,6 +487,15 @@ services:
     networks:
       - workspace_net
 
+  compose-orchestrator:
+    privileged: true
+    container_name: compose-orchestrator
+    hostname: compose-orchestrator
+    image: nementon/dojo-challenge-compose-orchestrator-sidecar:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /data/dojos:/var/dojos:rw
+
 volumes:
   prometheus_targets:
 
