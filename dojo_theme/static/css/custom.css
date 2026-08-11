@@ -441,6 +441,36 @@ p[data-hide="true"] {
     border-radius: 8px;
 }
 
+.optional-challenge > .accordion-item-header {
+    background-color: rgba(255,255,255,0.04);
+    border: 1px dashed rgba(255,255,255,0.25);
+    opacity: 0.62;
+    transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.optional-challenge > .accordion-item-header:hover,
+.optional-challenge > .accordion-item-header:focus-within,
+.optional-challenge:has(> .collapse.show) > .accordion-item-header,
+.optional-challenge:has(> .collapsing) > .accordion-item-header {
+    background-color: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.45);
+    opacity: 1;
+}
+
+.optional-challenge-label {
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 999px;
+    color: rgba(255,255,255,0.75);
+    display: inline-flex;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    margin-left: 0.25rem;
+    padding: 0.25rem 0.45rem;
+    text-transform: uppercase;
+}
+
 .accordion-item-body {
     padding: 1.25rem;
     background-color: rgba(255,255,255,0.03);
