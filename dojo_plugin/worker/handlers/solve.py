@@ -57,11 +57,11 @@ def handle_challenge_solve(payload, event_timestamp):
         else:
             logger.info(f"User {user_id} is not a member of dojo {dojo_ref_id}, skipping scoreboard/stats updates")
 
-        if is_public_or_official:
+        if is_public_or_official and dojo_challenge.required:
             logger.info(f"Updating scores for dojo {dojo_ref_id}")
             _update_scores(dojo_id, module_index, user_id, event_timestamp)
         else:
-            logger.info(f"Dojo {dojo_ref_id} is not public or official, skipping scores update")
+            logger.info(f"Dojo {dojo_ref_id} is not public or official, or challenge {challenge_name} is optional; skipping scores update")
 
     logger.info(f"Updating activity for user {user_id}")
     _update_user_activity(user_id, solve_date, event_timestamp)
