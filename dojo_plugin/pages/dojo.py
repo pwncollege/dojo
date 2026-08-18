@@ -6,6 +6,7 @@ import traceback
 import datetime
 import sys
 import re
+import secrets
 
 from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context, request, g
 from sqlalchemy.exc import IntegrityError
@@ -195,15 +196,14 @@ def join_dojo(dojo, password=None):
     return redirect(url_for("pwncollege_dojo.listing", dojo=dojo.reference_id))
 
 
-@dojo.route("/dojo/<dojo>/update/", methods=["GET", "POST"])
-@dojo.route("/dojo/<dojo>/update/<update_code>", methods=["GET", "POST"])
+@dojo.route("/dojo/<dojo>/update/<update_code>", methods=["POST"])
 @bypass_csrf_protection
-def update_dojo(dojo, update_code=None):
+def update_dojo(dojo, update_code):
     dojo = Dojos.from_id(dojo).first()
     if not dojo:
         return {"success": False, "error": "Not Found"}, 404
 
-    if dojo.update_code != update_code:
+    if not secrets.compare_digest(dojo.update_code, update_code):
         return {"success": False, "error": "Forbidden"}, 403
 
     try:

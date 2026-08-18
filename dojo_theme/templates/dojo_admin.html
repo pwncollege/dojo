@@ -22,10 +22,12 @@
       </div>
     <div class="col-lg-auto m-3">
       <figure>
-      <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.update_dojo', dojo=dojo.reference_id, update_code=dojo.update_code) }}" target="_blank">
-        <i class="fas fa-upload fa-3x"></i>
-        <figcaption><b>Update</b></figcaption>
-      </a>
+      <form action="{{ url_for('pwncollege_dojo.update_dojo', dojo=dojo.reference_id, update_code=dojo.update_code) }}" method="post" target="_blank">
+        <button class="brand-blue text-decoration-none border-0 bg-transparent p-0" type="submit">
+          <i class="fas fa-upload fa-3x"></i>
+          <figcaption><b>Update</b></figcaption>
+        </button>
+      </form>
       </figure>
     </div>
     {% if is_admin() %}
@@ -56,6 +58,16 @@
       </figure>
     </div>
     {% endif %}
+  </div>
+  <label class="mb-1 ml-3 font-weight-bold" for="dojo-update-url-result">Update URL</label>
+  <small class="form-text text-muted mb-2 ml-3">Send an unauthenticated POST request to this URL to update the dojo.</small>
+  <div class="input-group mx-3 mb-3">
+    <input type="text" id="dojo-update-url-result" class="form-control text-monospace" value="{{ url_for('pwncollege_dojo.update_dojo', dojo=dojo.reference_id, update_code=dojo.update_code, _external=True) }}" readonly>
+    <div class="input-group-append copy-button">
+      <button class="btn btn-outline-secondary" type="button">
+        <i class="fas fa-clipboard"></i>
+      </button>
+    </div>
   </div>
   {% if dojo.public_key %}
   <label class="mb-1 ml-3 font-weight-bold" for="dojo-deploy-key-result">Deploy Key</label>
