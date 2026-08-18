@@ -268,7 +268,7 @@ def insert_flag(container, flag):
         ws.close()
 
 
-def start_challenge(user, dojo_challenge, practice, *, as_user=None):
+def start_challenge(user, dojo_challenge, practice, *, as_user=None, home=True):
     docker_client = user_docker_client(user, image_name=dojo_challenge.image)
     node_id = user_node(user)
     if node_id is None:
@@ -279,7 +279,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     remove_container(user)
 
     user_mounts = []
-    if as_user is None:
+    if home and as_user is None:
         user_mounts.append(
             docker.types.Mount(
                 "/home/hacker",
@@ -289,7 +289,7 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None):
                 driver_config=docker.types.DriverConfig("homefs", options=dict(trace_id=get_trace_id())),
             )
         )
-    else:
+    elif home:
         user_mounts.extend([
             docker.types.Mount(
                 "/home/hacker",
@@ -431,6 +431,10 @@ class RunDocker(Resource):
         module_id = data.get("module")
         challenge_id = data.get("challenge")
         practice = data.get("practice")
+        home = data.get("home", True)
+
+        if not isinstance(home, bool):
+            return {"success": False, "error": "Invalid home option"}
 
         user = get_current_user()
         as_user = None
@@ -496,7 +500,7 @@ class RunDocker(Resource):
         for attempt in range(1, max_attempts+1):
             try:
                 logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
-                start_challenge(user, dojo_challenge, practice, as_user=as_user)
+                start_challenge(user, dojo_challenge, practice, as_user=as_user, home=home)
 
                 if dojo.official or dojo.data.get("type") == "public":
                     challenge_data = {
