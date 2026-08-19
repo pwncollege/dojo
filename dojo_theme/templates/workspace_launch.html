@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+
+{% block stylesheets %}
+{{ super() }}
+
+<style>
+    .workspace-launch {
+        min-height: 70vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .workspace-launch-spinner {
+        width: 3rem;
+        height: 3rem;
+        margin: 0 auto 1.5rem;
+        border: 0.35rem solid var(--brand-light-gray);
+        border-top-color: var(--brand-blue);
+        border-radius: 50%;
+        animation: workspace-launch-spin 0.8s linear infinite;
+    }
+
+    @keyframes workspace-launch-spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="workspace-launch">
+  <div>
+    <div id="workspace-launch-spinner" class="workspace-launch-spinner" role="status">
+      <span class="sr-only">Starting challenge</span>
+    </div>
+    <h2 id="workspace-launch-status">Starting challenge...</h2>
+    <div id="workspace-launch-error" class="alert alert-danger mt-4" style="display: none;"></div>
+  </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+window.addEventListener("load", async function () {
+    const spinner = document.getElementById("workspace-launch-spinner");
+    const status = document.getElementById("workspace-launch-status");
+    const error = document.getElementById("workspace-launch-error");
+
+    try {
+        const response = await CTFd.fetch("/pwncollege_api/v1/docker", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({{ launch | tojson }})
+        });
+
+        if (response.status === 403) {
+            window.location = CTFd.config.urlRoot + "/login?next=" +
+                encodeURIComponent(window.location.pathname + window.location.search);
+            return;
+        }
+
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.error || "Failed to start challenge");
+        }
+
+        status.textContent = "Opening workspace...";
+        window.location.replace({{ url_for("pwncollege_workspace.view_workspace") | tojson }});
+    } catch (exception) {
+        spinner.style.display = "none";
+        status.textContent = "Failed to start challenge";
+        error.textContent = exception.message || "An unexpected error occurred";
+        error.style.display = "block";
+    }
+});
+</script>
+{% endblock %}

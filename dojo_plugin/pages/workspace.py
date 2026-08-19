@@ -26,6 +26,36 @@ port_names = {
 @workspace.route("/workspace", methods=["GET"])
 @authed_only
 def view_workspace():
+    launch_ids = {
+        key: request.args.get(key)
+        for key in ("dojo", "module", "challenge")
+    }
+    if any(value is not None for value in launch_ids.values()):
+        if not all(launch_ids.values()):
+            return render_template(
+                "error.html",
+                error="dojo, module, and challenge are all required to start a workspace",
+            ), 400
+
+        launch_options = {}
+        for key, default in (("practice", False), ("home", True)):
+            value = request.args.get(key)
+            if value is None:
+                launch_options[key] = default
+            elif value.lower() == "true":
+                launch_options[key] = True
+            elif value.lower() == "false":
+                launch_options[key] = False
+            else:
+                return render_template(
+                    "error.html",
+                    error=f"{key} must be true or false",
+                ), 400
+
+        return render_template(
+            "workspace_launch.html",
+            launch={**launch_ids, **launch_options},
+        )
 
     current_challenge = get_current_dojo_challenge()
     if not current_challenge:

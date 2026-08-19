@@ -2,7 +2,7 @@ import subprocess
 import pytest
 import json
 import re
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -134,6 +134,32 @@ def test_workspace_challenge():
 
 def test_workspace_home_mount():
     check_mount("/home/hacker", user="admin")
+
+
+def test_workspace_auto_start_without_home_mount(
+    random_user_name, random_user_session, random_user_browser, example_dojo
+):
+    query = urlencode({
+        "dojo": example_dojo,
+        "module": "hello",
+        "challenge": "apple",
+        "home": "false",
+    })
+    random_user_browser.get(f"{DOJO_URL}/workspace?{query}")
+
+    assert random_user_browser.find_element(By.ID, "workspace-launch-status").text.startswith("Starting challenge")
+    WebDriverWait(random_user_browser, 60).until(
+        lambda browser: browser.current_url.rstrip("/").endswith("/workspace")
+    )
+    assert random_user_browser.find_element(By.ID, "workspace-iframe")
+
+    workspace_run("test -d /home/hacker", user=random_user_name)
+    with pytest.raises(subprocess.CalledProcessError):
+        workspace_run("findmnt --mountpoint /home/hacker", user=random_user_name)
+
+    workspace_run("touch /home/hacker/ephemeral", user=random_user_name)
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session, home=False)
+    workspace_run("test ! -e /home/hacker/ephemeral", user=random_user_name)
 
 
 def test_workspace_no_sudo():
