@@ -25,6 +25,7 @@ def _scores_query(granularity, dojo_filter):
     dsc_query = db.session.query(*fields).where(
         Dojos.dojo_id == DojoChallenges.dojo_id,
         DojoChallenges.challenge_id == Solves.challenge_id,
+        DojoChallenges.required,
         dojo_filter
     ).group_by(*grouping).order_by(Dojos.dojo_id, solve_count.desc(), last_solve_date)
 
