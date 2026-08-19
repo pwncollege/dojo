@@ -694,11 +694,9 @@ class DojoChallenges(db.Model):
 
     def resolve(self):
         # TODO: We should probably refactor to correctly store a reference to the DojoChallenge
-        if not self.path_override:
-            return self
         return (DojoChallenges.query
-                .filter(DojoChallenges.challenge_id == self.challenge_id,
-                        DojoChallenges.data["path_override"] == None)
+                .filter_by(dojo_id=Dojos.hex_to_int(self.challenge.category),
+                           challenge_id=self.challenge_id)
                 .first())
 
     __repr__ = columns_repr(["module", "id", "challenge_id"])
