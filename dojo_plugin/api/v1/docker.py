@@ -20,7 +20,7 @@ from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
 from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
 
-from ...config import HOST_DATA_PATH, INTERNET_FOR_ALL, SECCOMP, USER_FIREWALL_ALLOWED
+from ...config import DOJO_HOST, HOST_DATA_PATH, INTERNET_FOR_ALL, SECCOMP, USER_FIREWALL_ALLOWED
 from ...models import DojoModules, DojoChallenges
 from ...utils import (
     container_name,
@@ -155,6 +155,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             "PATH": env_path,
             "SHELL": f"{dojo_bin_path}/bash",
             "DOJO_AUTH_TOKEN": auth_token,
+            "DOJO_HOST": DOJO_HOST,
         },
         labels={
             "dojo.dojo_id": dojo_challenge.dojo.reference_id,
