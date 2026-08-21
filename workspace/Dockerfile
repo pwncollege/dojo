@@ -14,12 +14,10 @@ COPY --chmod=755 <<'EOF' /docker-entrypoint.sh
 TIMESTAMP=$(date +%Y%m%d%H%M%S)
 NIX_PROFILES_DIR=/nix/var/nix/profiles
 NIX_PROFILE=${NIX_PROFILES_DIR}/dojo-workspace-${TIMESTAMP}
-NIX_FLAKE_LOCK_FILE=/nix/var/nix/dojo-workspace-flake.lock
 
 nix build ".#${DOJO_WORKSPACE:-default}" \
     --out-link "$NIX_PROFILE" \
-    --reference-lock-file "$NIX_FLAKE_LOCK_FILE" \
-    --output-lock-file "$NIX_FLAKE_LOCK_FILE" \
+    --no-update-lock-file \
     --print-build-logs
 
 SUID_FILE="$NIX_PROFILE/suid"
