@@ -6,7 +6,7 @@ from urllib.parse import quote, urlencode
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from utils import DOJO_URL, dojo_run, workspace_run, start_challenge, solve_challenge, db_sql, get_user_id
+from utils import DOJO_URL, create_dojo_yml, dojo_run, workspace_run, start_challenge, solve_challenge, db_sql, get_user_id
 
 def check_mount(path, *, user, fstype=None, check_nosuid=True):
     try:
@@ -29,6 +29,55 @@ def check_mount(path, *, user, fstype=None, check_nosuid=True):
 
 def test_start_challenge(admin_session, example_dojo):
     start_challenge(example_dojo, "hello", "apple", session=admin_session)
+
+
+def test_start_challenge_failure_debug(admin_session, guest_dojo_admin, random_user_session):
+    dojo_admin_name, dojo_admin_session = guest_dojo_admin
+    dojo = create_dojo_yml(f"""
+id: docker-failure-{dojo_admin_name}
+type: public
+image: pwncollege/challenge-simple
+modules:
+  - id: test
+    challenges:
+      - id: test
+files:
+  - type: text
+    path: test/test/.init
+    content: |
+      #!/bin/sh
+      printf '%20000s\\n' x
+      echo init-stdout
+      echo init-stderr >&2
+      exit 1
+""", session=admin_session)
+
+    assert dojo_admin_session.get(f"{DOJO_URL}/dojo/{dojo}/join/").status_code == 200
+    response = admin_session.post(
+        f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/admins/promote",
+        json={"user_id": get_user_id(dojo_admin_name)},
+    )
+    assert response.status_code == 200
+
+    start_data = {"dojo": dojo, "module": "test", "challenge": "test", "practice": False}
+    response = dojo_admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=start_data)
+    assert response.status_code == 200
+    result = response.json()
+    assert result["success"] is False
+    assert result["error"] == "Docker failed"
+    assert result["debug"]["trace_id"]
+    assert [attempt["attempt"] for attempt in result["debug"]["attempts"]] == [1, 2, 3]
+    for attempt in result["debug"]["attempts"]:
+        assert attempt["type"] == "WorkspaceInitializationError"
+        assert attempt["message"] == "DOJO_INIT_FAILED: Challenge initialization error."
+        assert "init-stdout" in attempt["output"]
+        assert "init-stderr" in attempt["output"]
+        assert len(attempt["output"].encode()) <= 16 * 1024
+
+    response = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=start_data)
+    assert response.status_code == 200
+    result = response.json()
+    assert result == {"success": False, "error": "Docker failed"}
 
 
 def test_start_challenge_error_renders_as_user_as_text(browser_fixture, example_dojo):
