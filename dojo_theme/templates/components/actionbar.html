@@ -36,13 +36,15 @@
     justify-content: center;
   }
 
-  button.workspace-control.workspace-service {
+  button.workspace-control.workspace-service,
+  button.workspace-control.workspace-description-control {
     width: auto;
     padding-left: 0.75em;
     padding-right: 0.75em;
   }
 
-  .workspace-service .workspace-service-name {
+  .workspace-service .workspace-service-name,
+  .workspace-description-control .workspace-description-name {
     margin-left: 0.4em;
   }
 
@@ -53,13 +55,15 @@
     opacity: 0.6;
   }
 
-  .workspace-service.active {
+  .workspace-service.active,
+  .workspace-description-control.active {
     color: #fff;
     background-color: var(--foreground) !important;
     box-shadow: inset 0 0 0 1px var(--highlight) !important;
   }
 
-  .workspace-service.active:focus {
+  .workspace-service.active:focus,
+  .workspace-description-control.active:focus {
     box-shadow: inset 0 0 0 1px var(--highlight), 0 0 0 0.2rem rgba(108, 117, 125, 0.5) !important;
   }
 
@@ -217,6 +221,13 @@
     {% if popout and not service.port %}<i class="fas fa-question-circle hint-icon"></i>{% endif %}
   </button>
   {% endfor %}
+  {% if not popout %}
+  <button id="workspace-description" class="workspace-control workspace-description-control btn btn-md btn-outline-secondary"
+      aria-pressed="false" title="Show challenge description">
+    <i class="fas fa-book-open"></i>
+    <span class="workspace-description-name">Description</span>
+  </button>
+  {% endif %}
   <div title="Enter flag" class="workspace-control workspace-input">
     <i class="fas fa-flag workspace-highlight input-icon"></i>
     <input id="flag-input" type="text" placeholder="Flag">

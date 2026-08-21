@@ -26,6 +26,22 @@ port_names = {
 @workspace.route("/workspace", methods=["GET"])
 @authed_only
 def view_workspace():
+    return render_workspace()
+
+
+@workspace.route("/workspace/<int:port>", strict_slashes=False)
+@authed_only
+def view_workspace_port(port):
+    return render_workspace(port=port)
+
+
+@workspace.route("/workspace/<string:service>", strict_slashes=False)
+@authed_only
+def view_workspace_service(service):
+    return render_workspace(service=service)
+
+
+def render_workspace(*, service=None, port=None):
     launch_ids = {
         key: request.args.get(key)
         for key in ("dojo", "module", "challenge")
@@ -55,6 +71,7 @@ def view_workspace():
         return render_template(
             "workspace_launch.html",
             launch={**launch_ids, **launch_options},
+            workspace_url=request.path,
         )
 
     current_challenge = get_current_dojo_challenge()
@@ -62,22 +79,30 @@ def view_workspace():
         return render_template("error.html", error="No active challenge session; start a challenge!")
 
     practice = get_current_container().labels.get("dojo.mode") == "privileged"
+    initial_service = None
+    if service is not None or port is not None:
+        for interface in current_challenge.interfaces:
+            interface_name = interface["name"].lower()
+            interface_port = interface.get("port")
+            if service is not None and interface_name != service.lower():
+                continue
+            if port is not None and interface_port != port:
+                continue
+            initial_service = f"{interface_name}: {interface_port or ''}"
+            break
+
+        if initial_service is None:
+            return render_template(
+                "error.html",
+                error="Workspace service is not available for the active challenge",
+            ), 404
 
     return render_template(
         "workspace.html",
         practice=practice,
         challenge=current_challenge,
+        initial_service=initial_service,
     )
-
-@workspace.route("/workspace/<int:port>", strict_slashes=False)
-@authed_only
-def view_workspace_port(port):
-    return render_template("workspace_port.html", iframe_name="workspace", port=port)
-
-@workspace.route("/workspace/<string:service>", strict_slashes=False)
-@authed_only
-def view_workspace_service(service):
-    return render_template("workspace_service.html", iframe_name="workspace", service=service)
 
 def forward_workspace(service, signature, message, service_path="", include_host=True, **kwargs):
     if service.count("~") == 0:
