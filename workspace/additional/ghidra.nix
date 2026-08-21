@@ -5,33 +5,9 @@ let
 
   description = "Software reverse engineering (SRE) suite of tools developed by NSA's Research Directorate in support of the Cybersecurity mission";
 
-  ghidraPythonDist = "${pkgs.ghidra}/lib/ghidra/Ghidra/Debug/Debugger-rmi-trace/pypkg/dist";
-
-  ghidraProtobuf = pkgs.python3Packages.buildPythonPackage {
-    pname = "protobuf";
-    version = "3.20.3";
-    format = "wheel";
-    src = "${ghidraPythonDist}/protobuf-3.20.3-py2.py3-none-any.whl";
-    doCheck = false;
-    pythonImportsCheck = [ "google.protobuf" ];
-  };
-
-  ghidraPsutil = pkgs.python3Packages.buildPythonPackage {
-    pname = "psutil";
-    version = "5.9.8";
-    pyproject = true;
-    src = "${ghidraPythonDist}/psutil-5.9.8.tar.gz";
-    build-system = with pkgs.python3Packages; [
-      setuptools
-      wheel
-    ];
-    doCheck = false;
-    pythonImportsCheck = [ "psutil" ];
-  };
-
-  pythonEnv = pkgs.python3.withPackages (_: [
-    ghidraProtobuf
-    ghidraPsutil
+  pythonEnv = pkgs.python3.withPackages (ps: [
+    ps.protobuf
+    ps.psutil
   ]);
 
   gdb = pkgs.symlinkJoin {
@@ -44,26 +20,44 @@ let
     '';
   };
 
-in pkgs.stdenv.mkDerivation {
-  inherit pname version meta description;
+in
+pkgs.stdenv.mkDerivation {
+  inherit
+    pname
+    version
+    meta
+    description
+    ;
 
   src = pkgs.ghidra;
 
   buildInputs = [ pkgs.makeWrapper ];
 
+  doCheck = true;
+
+  checkPhase = ''
+    runHook preCheck
+    export PYTHONPATH="${pkgs.ghidra}/lib/ghidra/Ghidra/Debug/Debugger-agent-gdb/pypkg/src:${pkgs.ghidra}/lib/ghidra/Ghidra/Debug/Debugger-rmi-trace/pypkg/src"
+    ${gdb}/bin/gdb -q -nx -batch \
+      -ex 'python import google.protobuf, psutil, ghidragdb.commands' \
+      -ex 'help ghidra trace connect' | \
+      ${pkgs.gnugrep}/bin/grep -F 'Connect GDB to Ghidra for tracing.'
+    runHook postCheck
+  '';
+
   installPhase = ''
-      runHook preInstall
+    runHook preInstall
 
-      mkdir -p "$out/bin"
+    mkdir -p "$out/bin"
 
-      # Ghidra will spam-log stack traces into the home directory when not run in a desktop environment.
-      makeWrapper "$src/bin/ghidra" \
-        "$out/bin/ghidra" \
-        --prefix PATH : "${pkgs.lib.makeBinPath [ gdb ]}" \
-        --run 'if [ -z "$DISPLAY" ]; then echo "Error: DISPLAY is not set. Please run under desktop environment." >&2; exit 1; fi'
+    # Ghidra will spam-log stack traces into the home directory when not run in a desktop environment.
+    makeWrapper "$src/bin/ghidra" \
+      "$out/bin/ghidra" \
+      --prefix PATH : "${pkgs.lib.makeBinPath [ gdb ]}" \
+      --run 'if [ -z "$DISPLAY" ]; then echo "Error: DISPLAY is not set. Please run under desktop environment." >&2; exit 1; fi'
 
-      cp -r "$src/share" "$out/share"
+    cp -r "$src/share" "$out/share"
 
-      runHook postInstall
+    runHook postInstall
   '';
 }

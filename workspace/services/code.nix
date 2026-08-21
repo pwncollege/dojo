@@ -14,10 +14,16 @@ let
         sys.argv.remove("--follow")
     os.execv(sys.argv[0], sys.argv)
   '';
-  code-server = pkgs.stdenv.mkDerivation {
-    name = "code-server";
+  code-server-unwrapped = pkgs.stdenv.mkDerivation {
+    inherit (pkgs.code-server) pname version;
     src = pkgs.code-server;
-    buildInputs = with pkgs; [ nodejs makeWrapper ];
+    buildInputs = with pkgs; [
+      nodejs
+      makeWrapper
+    ];
+    passthru = {
+      inherit (pkgs.code-server) executableName longName;
+    };
     installPhase = ''
       runHook preInstall
       rgBin=libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
@@ -30,6 +36,14 @@ let
       runHook postInstall
     '';
   };
+  codeExtensions = with pkgs.vscode-extensions; [
+    ms-python.python
+    ms-vscode.cpptools
+  ];
+  code-server = pkgs.vscode-with-extensions.override {
+    vscode = code-server-unwrapped;
+    vscodeExtensions = codeExtensions;
+  };
 
   serviceScript = pkgs.writeScript "dojo-code" ''
     #!${pkgs.bash}/bin/bash
@@ -37,9 +51,9 @@ let
     until [ -f /run/dojo/var/ready ]; do sleep 0.1; done
 
     if [ -d /run/challenge/share/code/extensions ]; then
-      EXTENSIONS_DIR="/run/challenge/share/code/extensions"
+      extensionArgs=(--extensions-dir=/run/challenge/share/code/extensions)
     else
-      EXTENSIONS_DIR="@out@/share/code/extensions"
+      extensionArgs=()
     fi
 
     ${service}/bin/dojo-service start code-service/code-server \
@@ -48,21 +62,20 @@ let
         --bind-addr=0.0.0.0:8080 \
         --trusted-origins='*' \
         --disable-telemetry \
-        --extensions-dir=$EXTENSIONS_DIR \
+        "''${extensionArgs[@]}" \
         --config=/dev/null
 
     until ${pkgs.curl}/bin/curl -fs localhost:8080 >/dev/null; do sleep 0.1; done
   '';
 
-in pkgs.stdenv.mkDerivation {
+in
+pkgs.stdenv.mkDerivation {
   name = "code-service";
   buildInputs = with pkgs; [
     code-server
     bash
     python3
-    wget
     curl
-    cacert
   ];
   dontUnpack = true;
 
@@ -70,22 +83,9 @@ in pkgs.stdenv.mkDerivation {
     runHook preInstall
 
     mkdir -p $out/bin
-    substitute ${serviceScript} $out/bin/dojo-code \
-      --subst-var-by out $out
-    chmod +x $out/bin/dojo-code
+    cp ${serviceScript} $out/bin/dojo-code
     ln -s ${code-server}/bin/code-server $out/bin/code-server
     ln -s ${code-server}/bin/code-server $out/bin/code
-
-    mkdir -p $out/share/code/extensions
-    ${pkgs.wget}/bin/wget -P $NIX_BUILD_TOP 'https://github.com/microsoft/vscode-cpptools/releases/download/v1.20.5/cpptools-linux.vsix'
-    export HOME=$NIX_BUILD_TOP
-    ${code-server}/bin/code-server \
-      --auth=none \
-      --disable-telemetry \
-      --extensions-dir=$out/share/code/extensions \
-      --install-extension ms-python.python \
-      --install-extension $NIX_BUILD_TOP/cpptools-linux.vsix
-    chmod +x $out/share/code/extensions/ms-vscode.cpptools-*/{bin/cpptools*,bin/libc.so,debugAdapters/bin/OpenDebugAD7,LLVM/bin/clang-*}
 
     runHook postInstall
   '';
