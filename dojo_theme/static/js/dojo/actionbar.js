@@ -134,8 +134,8 @@ function loadIframe(service, content) {
     }
 }
 
-function popoutUrl(service) {
-    if (isSpecialService(service)) {
+function workspaceUrl(service) {
+    if (isSpecialService(service) || servicePort(service) === "") {
         return "/workspace/" + encodeURIComponent(serviceName(service));
     }
     return "/workspace/" + encodeURIComponent(servicePort(service));
@@ -148,23 +148,44 @@ function selectService(service, log=true) {
         return;
     }
     if (log) {logService(service);}
-    const root = $(content).closest(".challenge-workspace").find(".workspace-controls");
+    const workspace = $(content).closest(".challenge-workspace");
+    const root = workspace.find(".workspace-controls");
+    $(content).show();
+    workspace.find(".workspace-description").hide();
+    root.find(".workspace-description-control").removeClass("active").attr("aria-pressed", "false");
     root.find(".workspace-service").each(function () {
         const active = $(this).attr("data-service") === service;
         $(this).toggleClass("active", active);
         $(this).attr("aria-pressed", active ? "true" : "false");
     });
+    if (!isPopout(root)) {
+        const url = new URL(window.location.href);
+        url.pathname = workspaceUrl(service);
+        window.history.replaceState(null, "", url);
+    }
     if (serviceName(service) == "ssh" && servicePort(service) == "") {
         content.src = "";
         $(content).addClass("SSH");
-        $(".workspace-ssh").show();
+        workspace.find(".workspace-ssh").show();
         return;
     }
     else {
         $(content).removeClass("SSH");
-        $(".workspace-ssh").hide();
+        workspace.find(".workspace-ssh").hide();
     }
     loadIframe(service, content);
+}
+
+function descriptionClickCallback(event) {
+    event.preventDefault();
+    const button = $(event.currentTarget);
+    const root = context(event);
+    const workspace = root.closest(".challenge-workspace");
+    workspace.find("#workspace-iframe").hide();
+    workspace.find(".workspace-ssh").hide();
+    workspace.find(".workspace-description").show();
+    root.find(".workspace-service").removeClass("active").attr("aria-pressed", "false");
+    button.addClass("active").attr("aria-pressed", "true");
 }
 
 function portlessButton(root) {
@@ -211,17 +232,17 @@ function serviceClickCallback(event) {
         }
         return;
     }
-    const popout = window.open("", "workspace-" + popoutUrl(service).split("/").pop());
+    const popout = window.open("", "workspace-" + workspaceUrl(service).split("/").pop());
     if (!popout) {
         animateBanner(event, "Pop-up blocked — please allow pop-ups for this site.", "warn");
         return;
     }
     let needsNavigation = true;
     try {
-        needsNavigation = popout.location.pathname !== popoutUrl(service);
+        needsNavigation = popout.location.pathname !== workspaceUrl(service);
     } catch (error) {}
     if (needsNavigation) {
-        popout.location = popoutUrl(service);
+        popout.location = workspaceUrl(service);
     }
     popout.focus();
 }
@@ -415,7 +436,10 @@ function loadWorkspace(log=true) {
         }
         return;
     }
-    var recent = getRecentService(root);
+    var recent = root.closest(".challenge-workspace").attr("data-initial-service");
+    if (!recent) {
+        recent = getRecentService(root);
+    }
     if (recent == null) {
         recent = root.find(".workspace-service").first().attr("data-service");
     }
@@ -443,6 +467,7 @@ $(() => {
     loadWorkspace();
     $(".workspace-controls").each(function () {
         $(this).find(".workspace-service").click(serviceClickCallback);
+        $(this).find(".workspace-description-control").click(descriptionClickCallback);
 
         $(this).find("#flag-input").on("input", function(event) {
             event.preventDefault();

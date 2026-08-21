@@ -194,13 +194,22 @@ def test_workspace_auto_start_without_home_mount(
         "challenge": "apple",
         "home": "false",
     })
-    random_user_browser.get(f"{DOJO_URL}/workspace?{query}")
+    random_user_browser.get(f"{DOJO_URL}/workspace/terminal?{query}")
 
     assert random_user_browser.find_element(By.ID, "workspace-launch-status").text.startswith("Starting challenge")
     WebDriverWait(random_user_browser, 60).until(
-        lambda browser: browser.current_url.rstrip("/").endswith("/workspace")
+        lambda browser: browser.current_url.rstrip("/").endswith("/workspace/terminal")
     )
-    assert random_user_browser.find_element(By.ID, "workspace-iframe")
+    workspace_iframe = random_user_browser.find_element(By.ID, "workspace-iframe")
+    workspace_controls = random_user_browser.find_element(By.CSS_SELECTOR, ".workspace-controls")
+    terminal_button = workspace_controls.find_element(
+        By.CSS_SELECTOR, '.workspace-service[data-service="terminal: 7681"]'
+    )
+    assert workspace_controls.get_attribute("data-popout") == "false"
+    assert "active" in terminal_button.get_attribute("class")
+    WebDriverWait(random_user_browser, 30).until(
+        lambda browser: "/7681/" in (workspace_iframe.get_attribute("src") or "")
+    )
 
     workspace_run("test -d /home/hacker", user=random_user_name)
     with pytest.raises(subprocess.CalledProcessError):

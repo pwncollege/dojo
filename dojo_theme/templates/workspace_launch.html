@@ -76,7 +76,7 @@ window.addEventListener("load", async function () {
         }
 
         status.textContent = "Opening workspace...";
-        window.location.replace({{ url_for("pwncollege_workspace.view_workspace") | tojson }});
+        window.location.replace({{ workspace_url | tojson }});
     } catch (exception) {
         spinner.style.display = "none";
         status.textContent = "Failed to start challenge";

@@ -22,7 +22,16 @@ def vscode_terminal(browser):
     browser.get(f"{DOJO_URL}/workspace/code")
 
     wait = WebDriverWait(browser, 30)
-    workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace_iframe")))
+    workspace_iframe = wait.until(
+        lambda driver: next(
+            (
+                iframe
+                for iframe in driver.find_elements(By.ID, "workspace-iframe")
+                if "/8080/" in (iframe.get_attribute("src") or "")
+            ),
+            False,
+        )
+    )
     browser.switch_to.frame(workspace_iframe)
 
     def wait_for_selector(*selectors):
@@ -106,17 +115,23 @@ def ttyd_terminal(browser):
     browser.get(f"{DOJO_URL}/workspace/terminal")
 
     wait = WebDriverWait(browser, 30)
-    workspace_iframe = wait.until(EC.presence_of_element_located((By.ID, "workspace_iframe")))
+    workspace_iframe = wait.until(
+        lambda driver: next(
+            (
+                iframe
+                for iframe in driver.find_elements(By.ID, "workspace-iframe")
+                if "/7681/" in (iframe.get_attribute("src") or "")
+            ),
+            False,
+        )
+    )
     browser.switch_to.frame(workspace_iframe)
 
-    # Wait for ttyd to be ready and find the terminal input
     time.sleep(10)
-    # ttyd uses body as the input element
-    body = browser.find_element("tag name", "body")
-    body.click()  # Focus the terminal
-    time.sleep(1)
+    terminal = browser.find_element(By.TAG_NAME, "body")
+    terminal.click()
 
-    yield body
+    yield terminal
 
     browser.close()
     browser.switch_to.window(module_window)
@@ -274,6 +289,7 @@ def test_actionbar_service_buttons(random_user_browser, random_user_name, interf
     idx = challenge_idx(random_user_browser, "test1")
     challenge_start(random_user_browser, idx)
     body = random_user_browser.find_element("id", f"challenges-body-{idx}")
+    assert not body.find_elements(By.CSS_SELECTOR, ".workspace-description-control")
     module_handle = random_user_browser.current_window_handle
     handles = set(random_user_browser.window_handles)
     wait = WebDriverWait(random_user_browser, 30)
@@ -283,6 +299,51 @@ def test_actionbar_service_buttons(random_user_browser, random_user_name, interf
     popout_handle = (set(random_user_browser.window_handles) - handles).pop()
     random_user_browser.switch_to.window(popout_handle)
     wait.until(lambda driver: driver.current_url.rstrip("/").endswith("/workspace/terminal"))
+    popout_controls = wait.until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, ".workspace-controls"))
+    )
+    assert popout_controls.get_attribute("data-popout") == "false"
+    terminal_button = popout_controls.find_element(
+        By.CSS_SELECTOR, '.workspace-service[data-service="terminal: 7681"]'
+    )
+    wait.until(lambda driver: "active" in terminal_button.get_attribute("class"))
+
+    description_button = popout_controls.find_element(
+        By.CSS_SELECTOR, ".workspace-description-control"
+    )
+    flag_control = popout_controls.find_element(By.CSS_SELECTOR, ".workspace-input")
+    assert random_user_browser.execute_script(
+        "return arguments[0].nextElementSibling === arguments[1]",
+        description_button,
+        flag_control,
+    )
+    description_button.click()
+    description = wait.until(
+        EC.visibility_of_element_located((By.CSS_SELECTOR, ".workspace-description"))
+    )
+    assert "Interface test challenge description." in description.text
+    assert "active" in description_button.get_attribute("class")
+    assert set(random_user_browser.window_handles) == handles | {popout_handle}
+
+    terminal_button.click()
+    wait.until(lambda driver: not description.is_displayed())
+
+    ssh_button = popout_controls.find_element(
+        By.CSS_SELECTOR, '.workspace-service[data-service="ssh: "]'
+    )
+    ssh_button.click()
+    wait.until(lambda driver: driver.current_url.rstrip("/").endswith("/workspace/ssh"))
+    assert set(random_user_browser.window_handles) == handles | {popout_handle}
+    assert random_user_browser.find_element(By.CSS_SELECTOR, ".workspace-ssh").is_displayed()
+    controls_bottom = random_user_browser.execute_script(
+        "return arguments[0].getBoundingClientRect().bottom", popout_controls
+    )
+    viewport_height = random_user_browser.execute_script("return window.innerHeight")
+    assert viewport_height - controls_bottom < 10
+
+    terminal_button.click()
+    wait.until(lambda driver: driver.current_url.rstrip("/").endswith("/workspace/terminal"))
+    assert set(random_user_browser.window_handles) == handles | {popout_handle}
 
     random_user_browser.switch_to.window(module_handle)
     random_user_browser.find_element("id", f"challenges-body-{idx}") \
@@ -323,6 +384,14 @@ def test_actionbar_port_popout(random_user_browser, random_user_name, interfaces
     popout_handle = (set(random_user_browser.window_handles) - handles).pop()
     random_user_browser.switch_to.window(popout_handle)
     wait.until(lambda driver: driver.current_url.rstrip("/").endswith("/workspace/80"))
+    popout_controls = wait.until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, ".workspace-controls"))
+    )
+    assert popout_controls.get_attribute("data-popout") == "false"
+    web_button = popout_controls.find_element(
+        By.CSS_SELECTOR, '.workspace-service[data-service="web: 80"]'
+    )
+    wait.until(lambda driver: "active" in web_button.get_attribute("class"))
     random_user_browser.close()
 
 def test_actionbar_ssh_only_challenge(random_user_browser, random_user_name, interfaces_dojo):

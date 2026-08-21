@@ -9,6 +9,7 @@ modules:
     challenges:
       - id: test1
         name: test1
+        description: Interface test challenge description.
       - id: test2
         name: test2
         interfaces:
