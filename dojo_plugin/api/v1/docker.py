@@ -48,6 +48,13 @@ docker_namespace = Namespace(
 HOST_HOMES = pathlib.Path(HOST_DATA_PATH) / "workspace" / "homes"
 HOST_HOMES_MOUNTS = HOST_HOMES / "mounts"
 HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
+WORKSPACE_OUTPUT_LIMIT = 16 * 1024
+
+
+class WorkspaceInitializationError(RuntimeError):
+    def __init__(self, message, output):
+        super().__init__(message)
+        self.output = output
 
 
 def remove_container(user):
@@ -210,14 +217,22 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
 
     container.start()
     logger.info(f"container started after {time.time()-start_time:.1f} seconds")
+    workspace_output = bytearray()
     for message in log_generator_output(
         "workspace initialization ", container.logs(stream=True, follow=True), start_time=start_time
     ):
+        workspace_output.extend(message)
+        if len(workspace_output) > WORKSPACE_OUTPUT_LIMIT:
+            del workspace_output[:-WORKSPACE_OUTPUT_LIMIT]
+
         if b"DOJO_INIT_INITIALIZED" in message or message == b"Initialized.\n":
             logger.info(f"workspace initialized after {time.time()-start_time:.1f} seconds")
             break
     else:
-        raise RuntimeError(f"Workspace failed to initialize after {time.time()-start_time:.1f} seconds.")
+        raise WorkspaceInitializationError(
+            f"Workspace failed to initialize after {time.time()-start_time:.1f} seconds.",
+            workspace_output.decode(errors="replace"),
+        )
 
     cache.set(f"user_{user.id}-running-image", resolved_dojo_challenge.image, timeout=0)
     return container
@@ -331,17 +346,32 @@ def start_challenge(user, dojo_challenge, practice, *, as_user=None, home=True):
         flag = serialize_user_flag(as_user.id, dojo_challenge.challenge_id)
     insert_flag(container, flag)
 
+    workspace_output = bytearray()
     for message in log_generator_output(
         "workspace readying ", container.logs(stream=True, follow=True), start_time=start_time
     ):
+        workspace_output.extend(message)
+        if len(workspace_output) > WORKSPACE_OUTPUT_LIMIT:
+            del workspace_output[:-WORKSPACE_OUTPUT_LIMIT]
+
         if b"DOJO_INIT_READY" in message or message == b"Ready.\n":
             logger.info(f"workspace ready after {time.time()-start_time:.1f} seconds")
             break
         if b"DOJO_INIT_FAILED:" in message:
-            cause = message.split(b"DOJO_INIT_FAILED:")[1].split(b"\n")[0]
-            raise RuntimeError(f"DOJO_INIT_FAILED: {cause}")
+            cause = (
+                message.split(b"DOJO_INIT_FAILED:", 1)[1]
+                .split(b"\n", 1)[0]
+                .decode(errors="replace")
+            )
+            raise WorkspaceInitializationError(
+                f"DOJO_INIT_FAILED: {cause}",
+                workspace_output.decode(errors="replace"),
+            )
     else:
-        raise RuntimeError(f"Workspace failed to become ready.")
+        raise WorkspaceInitializationError(
+            "Workspace failed to become ready.",
+            workspace_output.decode(errors="replace"),
+        )
 
 def docker_locked(func):
     def wrapper(*args, **kwargs):
@@ -498,6 +528,7 @@ class RunDocker(Resource):
                 as_user = student.user
 
         max_attempts = 3
+        attempt_errors = []
         for attempt in range(1, max_attempts+1):
             try:
                 logger.info(f"Starting challenge for user {user.id} (attempt {attempt}/{max_attempts})...")
@@ -521,12 +552,27 @@ class RunDocker(Resource):
                 break
             except Exception as e:
                 logger.warning(f"Attempt {attempt} failed for user {user.id} with error: {e}")
+                attempt_error = {
+                    "attempt": attempt,
+                    "type": type(e).__name__,
+                    "message": str(e),
+                }
+                if isinstance(e, WorkspaceInitializationError):
+                    attempt_error["output"] = e.output
+                attempt_errors.append(attempt_error)
                 if attempt < max_attempts:
                     logger.info(f"Retrying... ({attempt}/{max_attempts})")
                     time.sleep(2)
         else:
             logger.error(f"ERROR: Docker failed for {user.id} after {max_attempts} attempts.")
-            return {"success": False, "error": "Docker failed"}
+            response = {"success": False, "error": "Docker failed"}
+            resolved_dojo_challenge = dojo_challenge.resolve()
+            if resolved_dojo_challenge and resolved_dojo_challenge.dojo.is_admin(user):
+                response["debug"] = {
+                    "trace_id": get_trace_id(),
+                    "attempts": attempt_errors,
+                }
+            return response
 
         return {"success": True}
 

@@ -360,6 +360,9 @@ function actionStartChallenge(event, privileged) {
             return response.json();
         }).then(function (result) {
             if (result.success == false) {
+                if (result.debug) {
+                    console.error("Challenge start failed:", result.debug);
+                }
                 startFailed(result.error);
                 return;
             }

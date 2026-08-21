@@ -69,6 +69,9 @@ window.addEventListener("load", async function () {
 
         const result = await response.json();
         if (!result.success) {
+            if (result.debug) {
+                console.error("Challenge start failed:", result.debug);
+            }
             throw new Error(result.error || "Failed to start challenge");
         }
 
