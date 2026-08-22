@@ -13,6 +13,26 @@ from selenium.webdriver.firefox.service import Service as FirefoxService
 
 from utils import TEST_DOJOS_LOCATION, DOJO_URL, login, make_dojo_official, create_dojo, create_dojo_yml, start_challenge, solve_challenge, solve_challenge_offline, remove_workspace_container, remove_workspace_home, wait_for_background_worker, db_sql, dojo_db_id, suppress_award_popup
 from selenium.webdriver import Firefox, FirefoxOptions
+from tiers import MULTINODE_TEST_FILES, MULTINODE_TESTS, TEST_FILE_TIERS, TEST_TIER_OVERRIDES
+
+TEST_TIERS = ("semantic", "contract", "integration", "unit")
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        test_name = getattr(item, "originalname", None) or item.name.split("[", 1)[0]
+        test_key = f"{item.path.name}::{test_name}"
+        tier = TEST_TIER_OVERRIDES.get(test_key, TEST_FILE_TIERS.get(item.path.name))
+        if tier not in TEST_TIERS:
+            raise pytest.UsageError(f"Test tier is not configured for {item.nodeid}")
+        existing_tiers = {marker.name for marker in item.iter_markers() if marker.name in TEST_TIERS}
+        if existing_tiers and existing_tiers != {tier}:
+            raise pytest.UsageError(
+                f"Test tier for {item.nodeid} conflicts with configured {tier}: {sorted(existing_tiers)}"
+            )
+        if not existing_tiers:
+            item.add_marker(getattr(pytest.mark, tier))
+        if item.path.name in MULTINODE_TEST_FILES or test_key in MULTINODE_TESTS:
+            item.add_marker(pytest.mark.multinode)
 
 # Nested-docker port publishing drops for a few seconds while user containers
 # attach/detach networks; retry connection establishment (never sent requests)
