@@ -4,6 +4,7 @@ import json
 import os
 import pathlib
 import shlex
+import subprocess
 import sys
 import time
 import signal
@@ -12,7 +13,19 @@ import docker
 import redis
 
 from mac_docker import MacDockerClient
-from tui import run_challenge_tui
+
+
+DOJO_CLI = "/nix/var/nix/profiles/dojo-workspace/bin/dojo"
+
+TERMINAL_RESTORE = "\x1b[<u\x1b[?1049l\x1b[?25h\x1b[?7h\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l\x1b[?1004l\x1b[?2004l\x1b[?2026l\x1b[0m"
+
+
+def run_challenge_tui(user_id):
+    result = subprocess.run(
+        [DOJO_CLI, "tui"],
+        env={**os.environ, "DOJO_USER_ID": str(user_id)},
+    )
+    return result.returncode == 0
 
 
 WORKSPACE_NODES = {
@@ -143,10 +156,13 @@ def main():
                                                   daemon=True)
                 monitor_thread.start()
             _, status = os.wait()
-            if simple or status == 0:
+            if simple:
                 if os.WIFSIGNALED(status):
                     exit(128 + os.WTERMSIG(status))
                 exit(os.WEXITSTATUS(status))
+            if status == 0:
+                break
+            print(TERMINAL_RESTORE, end="", flush=True)
             print()
             print("\r", " " * 80, "\rConnecting", end="")
             time.sleep(0.5)

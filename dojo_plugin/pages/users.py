@@ -78,6 +78,7 @@ def view_hacker(user, bypass_hidden=False):
 
     dojos = (Dojos
              .viewable(user=get_current_user())
+             .options(db.undefer(Dojos.required_challenges_count))
              .filter(Dojos.data["type"].astext != "hidden", Dojos.data["type"].astext != "course")
              .all())
     user_solves = {}

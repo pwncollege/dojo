@@ -2,18 +2,19 @@
   description = "DOJO Workspace Flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-    nixpkgs-24-11.url = "github:NixOS/nixpkgs/nixos-24.11";
-    nixpkgs-pr-angr-management.url = "github:NixOS/nixpkgs/pull/360310/head";
-    pwndbg.url = "github:pwndbg/pwndbg";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    nixpkgs-pr-angr.url = "github:NixOS/nixpkgs/pull/554851/head";
+    pwndbg = {
+      url = "github:pwndbg/pwndbg";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
     {
       self,
       nixpkgs,
-      nixpkgs-24-11,
-      nixpkgs-pr-angr-management,
+      nixpkgs-pr-angr,
       pwndbg,
     }:
     {
@@ -23,39 +24,19 @@
             system = "x86_64-linux";
             config = {
               allowUnfree = true;
-              allowBroken = true; # angr is currently marked "broken" in nixpkgs, but works fine (without unicorn)
             };
 
-            angr-management-overlay = self: super: {
-              angr-management = (import nixpkgs-pr-angr-management { inherit system config; }).angr-management;
-            };
-
-            ida-free-overlay = self: super: {
-              ida-free = (import nixpkgs-24-11 { inherit system config; }).ida-free;
-            };
-
-            pwndbg-overlay = self: super: {
-              pwndbg = pwndbg.packages.${system}.pwndbg;
-            };
-
-            sage-overlay = final: prev: {
-              sage = prev.sage.override {
-                extraPythonPackages = ps: with ps; [
-                  pycryptodome
-                  pwntools
-                ];
-              requireSageTests = false;
-              };
+            workspace-overlays = import ./overlays {
+              inherit
+                nixpkgs-pr-angr
+                pwndbg
+                system
+                ;
             };
 
             pkgs = import nixpkgs {
               inherit system config;
-              overlays = [
-                angr-management-overlay
-                ida-free-overlay
-                sage-overlay
-                pwndbg-overlay
-              ];
+              overlays = workspace-overlays;
             };
 
             ldd = pkgs.writeShellScriptBin "ldd" ''
@@ -78,6 +59,7 @@
             ssh-entrypoint = import ./core/ssh-entrypoint.nix { inherit pkgs; };
             sudo = import ./core/sudo.nix { inherit pkgs; };
             dojo-cli = import ./core/dojo-cli.nix { inherit pkgs; };
+            ghostty-terminfo = import ./core/ghostty-terminfo.nix { inherit pkgs; };
 
             service = import ./services/service.nix { inherit pkgs; };
             code-service = import ./services/code.nix { inherit pkgs; };
@@ -93,6 +75,7 @@
               curl
               findutils
               gawk
+              ghostty-terminfo
               glibc
               glibc.static
               glibcLocales
@@ -152,10 +135,9 @@
           {
             default = buildDojoEnv "core" corePackages;
             core = buildDojoEnv "core" corePackages;
+            cli = buildDojoEnv "cli" [ dojo-cli ];
             full = buildDojoEnv "full" fullPackages;
           };
       };
-
-      defaultPackage.x86_64-linux = self.packages.x86_64-linux;
     };
 }

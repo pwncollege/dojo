@@ -1,3 +1,5 @@
+import html
+import re
 import subprocess
 import requests
 import random
@@ -5,7 +7,7 @@ import string
 import time
 import yaml
 
-from utils import TEST_DOJOS_LOCATION, DOJO_URL, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id, wait_for_background_worker
+from utils import TEST_DOJOS_LOCATION, DOJO_URL, create_dojo_yml, start_challenge, solve_challenge, workspace_run, login, db_sql, get_user_id, wait_for_background_worker, dojo_run
 
 
 def get_dojo_modules(dojo):
@@ -41,6 +43,40 @@ survey:
     error = response.json()["error"]
     assert payload not in error
     assert "&lt;img src=x onerror=alert(1)&gt;" in error
+
+
+def test_dojo_files_reject_path_traversal(admin_session):
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"file-path-{suffix}"
+    target = f"/tmp/{dojo_id}"
+    assert dojo_run("docker", "exec", "ctfd", "test", "!", "-e", target, check=False).returncode == 0
+    response = admin_session.post(
+        f"{DOJO_URL}/pwncollege_api/v1/dojos/create",
+        json={"spec": yaml.safe_dump({
+            "id": dojo_id,
+            "files": [{
+                "type": "text",
+                "path": f"a/../../../../../../tmp/{dojo_id}",
+                "content": "unexpected",
+            }],
+        })},
+    )
+    target_missing = dojo_run("docker", "exec", "ctfd", "test", "!", "-e", target, check=False).returncode == 0
+    dojo_run("docker", "exec", "ctfd", "rm", "-f", target, check=False)
+
+    assert response.status_code == 400
+    assert target_missing
+
+
+def test_dojo_update_code_requires_post_not_authentication(example_dojo, admin_session):
+    admin_page = admin_session.get(f"{DOJO_URL}/dojo/{example_dojo}/admin/")
+    action_match = re.search(r'<form action="([^"]+/update/[^"]+)" method="post"', admin_page.text)
+    assert action_match
+    update_url = requests.compat.urljoin(DOJO_URL, html.unescape(action_match.group(1)))
+
+    assert admin_session.get(update_url).status_code in {404, 405}
+
+    assert requests.post(update_url).status_code == 200
 
 
 def test_create_dojo(example_dojo, admin_session):

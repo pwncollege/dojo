@@ -89,7 +89,7 @@
         <h2>{{ dojo.name }}</h2>
         <h4>
           <i class="fas fa-flag pt-3 pr-3" title="Solves"></i>
-          <td>{{ solves }} / {{ dojo.challenges | length }}</td>
+          <td>{{ solves }} / {{ dojo.required_challenges_count }}</td>
           <i class="fas fa-trophy pt-3 pr-3 pl-5 " title="Rank"></i>
           <td>{{ rank or "-" }} / {{ max_rank or "-" }}</td>
         </h4>
@@ -107,7 +107,7 @@
               <h4 class="accordion-item-name">{{ module.name }}</h4>
               <span class="challenge-header-right">
                 <i class="fas fa-flag pr-1" title="Solves"></i>
-                <td>{{ solves }} / {{ module.challenges | length }}</td>
+                <td>{{ solves }} / {{ module.challenges | selectattr("required") | list | length }}</td>
                 <i class="fas fa-trophy pr-1 pl-3 " title="Rank"></i>
                 <td>{{ rank or "-" }} / {{ max_rank or "-" }}</td>
               </span>

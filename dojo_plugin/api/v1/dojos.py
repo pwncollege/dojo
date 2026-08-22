@@ -148,7 +148,7 @@ class UpdateDojo(Resource):
             return {"success": False, "error": "Missing dojo spec."}, 400
 
         try:
-            dojo_from_spec(data, dojo=dojo)
+            dojo_from_spec(data, dojo=dojo, platform_admin=is_admin())
             db.session.commit()
         except Exception as e:
             db.session.rollback()

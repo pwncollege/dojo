@@ -38,19 +38,29 @@ def sort_dojos(dojos):
 
 
 class ChallengeClient:
-    def __init__(self, user_id):
-        self.user_id = user_id
+    def __init__(self):
+        self.auth_token = os.environ.get("DOJO_AUTH_TOKEN")
         self.ssh_key = os.environ.get("DOJO_SSH_SERVICE_KEY")
-        if not self.ssh_key:
-            raise RuntimeError("Missing DOJO_SSH_SERVICE_KEY")
+        self.user_id = os.environ.get("DOJO_USER_ID")
+        if not self.auth_token and not (self.ssh_key and self.user_id):
+            raise RuntimeError("Missing DOJO_AUTH_TOKEN, or DOJO_SSH_SERVICE_KEY and DOJO_USER_ID")
+        self.dojo_host = os.environ.get("DOJO_HOST")
         self.api_base = "http://pwn.college:80/pwncollege_api/v1"
 
+    def authorization(self):
+        if self.auth_token:
+            return f"Bearer {self.auth_token}"
+        token = URLSafeTimedSerializer(self.ssh_key).dumps([int(self.user_id), "ssh-tui"])
+        return f"Bearer sk-ssh-service-{token}"
+
     def headers(self):
-        token = URLSafeTimedSerializer(self.ssh_key).dumps([self.user_id, "ssh-tui"])
-        return {
-            "Authorization": f"Bearer sk-ssh-service-{token}",
+        headers = {
+            "Authorization": self.authorization(),
             "Content-Type": "application/json",
         }
+        if self.dojo_host:
+            headers["Host"] = self.dojo_host
+        return headers
 
     def get(self, path, key):
         response = requests.get(f"{self.api_base}{path}", headers=self.headers(), timeout=20)
@@ -125,6 +135,81 @@ def challenge_details(challenge):
         "Press `p` to start practice mode.",
     ])
     return "\n".join(lines)
+
+
+class VimTree(Tree):
+    BINDINGS = [
+        Binding("j", "vim_down", "Down", show=False),
+        Binding("k", "vim_up", "Up", show=False),
+        Binding("h", "vim_left", "Collapse", show=False),
+        Binding("l", "vim_right", "Expand", show=False),
+        Binding("g", "vim_top", "Top", show=False),
+        Binding("G", "vim_bottom", "Bottom", show=False),
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._count = ""
+        self._pending_g = False
+
+    def on_key(self, event):
+        if event.character and event.character.isdigit() and (event.character != "0" or self._count):
+            self._count += event.character
+            self._pending_g = False
+            event.stop()
+            event.prevent_default()
+            return
+        if event.key not in ("j", "k", "h", "l", "g", "G"):
+            self._count = ""
+        if event.key != "g":
+            self._pending_g = False
+
+    def take_count(self):
+        count = int(self._count) if self._count else 1
+        self._count = ""
+        return count
+
+    def move_cursor_by(self, delta):
+        self.cursor_line = max(self.cursor_line, 0) + delta
+        self.scroll_to_line(self.cursor_line, animate=False)
+
+    def action_vim_down(self):
+        self.move_cursor_by(self.take_count())
+
+    def action_vim_up(self):
+        self.move_cursor_by(-self.take_count())
+
+    def action_vim_left(self):
+        self.take_count()
+        node = self.cursor_node
+        if node and node.allow_expand and node.is_expanded:
+            node.collapse()
+        else:
+            self.action_cursor_parent()
+
+    def action_vim_right(self):
+        self.take_count()
+        node = self.cursor_node
+        if not node:
+            return
+        if node.allow_expand and not node.is_expanded:
+            node.expand()
+        elif node.children:
+            self.move_cursor_by(1)
+
+    def action_vim_top(self):
+        if not self._pending_g:
+            self._pending_g = True
+            return
+        self._pending_g = False
+        self.take_count()
+        self.cursor_line = 0
+        self.scroll_to_line(self.cursor_line, animate=False)
+
+    def action_vim_bottom(self):
+        self.take_count()
+        self.cursor_line = self.last_line
+        self.scroll_to_line(self.cursor_line, animate=False)
 
 
 def render_details(data):
@@ -224,12 +309,12 @@ class ChallengeBrowserApp(App):
         Binding("p", "start_practice", "Practice"),
     ]
 
-    def __init__(self, client):
+    def __init__(self, client, start_error=None):
         super().__init__()
         self.client = client
         self.selection = None
-        self.starting = False
         self.choosing_start = False
+        self.start_error = start_error
 
     def add_loading_node(self, node):
         node.add_leaf("Loading...", {"kind": "loading"})
@@ -267,7 +352,7 @@ class ChallengeBrowserApp(App):
         with Horizontal(id="body"):
             with Vertical(id="nav"):
                 yield Static("Dojos", id="nav-title")
-                yield Tree("Challenge Browser", id="tree")
+                yield VimTree("Challenge Browser", id="tree")
                 yield Markdown("", id="start-pane")
             with Vertical(id="details-pane"):
                 yield Static("Details", id="details-title")
@@ -279,6 +364,8 @@ class ChallengeBrowserApp(App):
         self.query_one("#start-pane", Markdown).display = False
         self.reload()
         self.query_one("#tree", Tree).focus()
+        if self.start_error:
+            self.sub_title = f"start failed: {self.start_error}"
 
     def select_tree_node(self, node):
         tree = self.query_one("#tree", Tree)
@@ -323,7 +410,6 @@ class ChallengeBrowserApp(App):
         self.query_one("#details", Markdown).update(description)
 
     def reload(self):
-        self.starting = False
         self.choosing_start = False
         self.show_browser_view()
         tree = self.query_one("#tree", Tree)
@@ -364,8 +450,6 @@ class ChallengeBrowserApp(App):
         status.update("No dojos available")
 
     def update_selection(self, data):
-        if self.starting:
-            return
         self.selection = data
         self.query_one("#details", Markdown).update(render_details(data))
         status = self.query_one("#status", Static)
@@ -418,7 +502,7 @@ class ChallengeBrowserApp(App):
         self.reload()
 
     def action_cancel_start(self):
-        if self.choosing_start and not self.starting:
+        if self.choosing_start:
             self.show_browser_view()
             if self.selection:
                 self.update_selection(self.selection)
@@ -437,46 +521,26 @@ class ChallengeBrowserApp(App):
         self.query_one("#status", Static).update("Choose a mode: s starts standard, p starts practice")
 
     def start_selected(self, practice):
-        if self.starting or not self.selection or self.selection["kind"] != "challenge":
+        if not self.selection or self.selection["kind"] != "challenge":
             return
-        self.starting = True
-        dojo = self.selection["dojo"]
-        module = self.selection["module"]
-        challenge = self.selection["challenge"]
-        mode = "practice" if practice else "standard"
-        self.show_start_view()
-        self.query_one("#start-pane", Markdown).update(
-            "\n".join([
-                f"# Starting {display_name(challenge, 'challenge')}",
-                "",
-                f"- Dojo: `{display_name(dojo, 'dojo')}`",
-                f"- Module: `{display_name(module, 'module')}`",
-                f"- Mode: `{mode}`",
-                "",
-                "Start requested. Preparing your workspace...",
-            ])
-        )
-        self.query_one("#status", Static).update(f"Starting {challenge['id']}...")
-        self.set_timer(0.1, lambda: self.finish_start(dojo["id"], module["id"], challenge["id"], practice))
+        self.exit({
+            "dojo": self.selection["dojo"]["id"],
+            "module": self.selection["module"]["id"],
+            "challenge": self.selection["challenge"]["id"],
+            "practice": practice,
+        })
 
-    def finish_start(self, dojo_id, module_id, challenge_id, practice):
+
+def run_challenge_tui():
+    client = ChallengeClient()
+    start_error = None
+    while True:
+        selection = ChallengeBrowserApp(client, start_error=start_error).run()
+        if not selection:
+            return False
+        print(f"Starting {selection['challenge']}...")
         try:
-            self.client.start_challenge(dojo_id, module_id, challenge_id, practice)
+            client.start_challenge(selection["dojo"], selection["module"], selection["challenge"], selection["practice"])
+            return True
         except Exception as error:
-            self.starting = False
-            self.query_one("#start-pane", Markdown).update(
-                "\n".join([
-                    "# Failed to start challenge",
-                    "",
-                    f"`{error}`",
-                    "",
-                    "Press `r` to reload and try again.",
-                ])
-            )
-            self.query_one("#status", Static).update("Start failed")
-            return
-        self.exit(True)
-
-
-def run_challenge_tui(user_id):
-    return bool(ChallengeBrowserApp(ChallengeClient(user_id)).run())
+            start_error = str(error)

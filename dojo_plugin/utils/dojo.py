@@ -35,9 +35,8 @@ ID_REGEX = Regex(r"^[a-z0-9-]{1,32}$")
 UNIQUE_ID_REGEX = Regex(r"^[a-z0-9-~]{1,128}$")
 NAME_REGEX = Regex(r"^[\S ]{1,128}$")
 IMAGE_REGEX = Regex(r"^[\S]{1,256}$")
-FILE_PATH_PATTERN = r"^[A-Za-z0-9_][A-Za-z0-9-_./]*$"
-FILE_PATH_REGEX = Regex(FILE_PATH_PATTERN)
-FILE_URL_REGEX = Regex(r"^https://www.dropbox.com/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9]*/[a-zA-Z0-9.-_]*?rlkey=[a-zA-Z0-9]*&dl=1")
+FILE_PATH_REGEX = Regex(r"^[A-Za-z0-9_][A-Za-z0-9-_./]*$")
+FILE_URL_REGEX = Regex(r"^https://www\.dropbox\.com/[a-zA-Z0-9]+/[a-zA-Z0-9]+/[a-zA-Z0-9]+/[a-zA-Z0-9._-]+\?rlkey=[a-zA-Z0-9]+&dl=1$")
 INTERFACES_LIST = [Or({"name": Regex(r"^[a-zA-Z][a-zA-Z0-9 _-]{0,31}$"),"port": int},{"name": "SSH"})]
 DATE = Use(datetime.datetime.fromisoformat)
 
@@ -322,17 +321,17 @@ def load_surveys(data, dojo_dir):
 
     return data
 
-def dojo_initialize_files(data, dojo_dir):
-    for dojo_file in data.get("files", []):
-        assert is_admin(), "yml-specified files support requires admin privileges"
-        rel_path = dojo_file["path"]
-        assert isinstance(rel_path, str) and re.match(FILE_PATH_PATTERN, rel_path), \
-            f"Invalid file path: `{markupsafe.escape(rel_path)}`"
+def dojo_initialize_files(data, dojo_dir, *, platform_admin=False):
+    dojo_files = data.get("files", [])
+    if dojo_files and not platform_admin:
+        raise AssertionError("yml-specified files support requires admin privileges")
 
-        abs_path = dojo_dir / rel_path
-        assert dojo_dir.resolve() in abs_path.resolve().parents, \
-            f"Error: file `{markupsafe.escape(rel_path)}` references path outside of the dojo"
-        assert not abs_path.is_symlink(), f"{rel_path} is a symbolic link!"
+    dojo_dir = dojo_dir.resolve()
+    for dojo_file in dojo_files:
+        rel_path = pathlib.Path(dojo_file["path"])
+        abs_path = (dojo_dir / rel_path).resolve()
+        if abs_path == dojo_dir or not abs_path.is_relative_to(dojo_dir):
+            raise AssertionError(f"{markupsafe.escape(rel_path)} references path outside of the dojo")
         if abs_path.exists():
             continue
         abs_path.parent.mkdir(parents=True, exist_ok=True)
@@ -341,11 +340,11 @@ def dojo_initialize_files(data, dojo_dir):
             urllib.request.urlretrieve(dojo_file["url"], str(abs_path))
             assert abs_path.stat().st_size >= 50*1024*1024, f"{rel_path} is small enough to fit into git ({abs_path.stat().st_size} bytes) --- put it in the repository!"
         if dojo_file["type"] == "text":
-            with open(abs_path, "w") as o:
-                o.write(dojo_file["content"])
+            with open(abs_path, "w") as output:
+                output.write(dojo_file["content"])
 
 
-def dojo_from_dir(dojo_dir, *, dojo=None):
+def dojo_from_dir(dojo_dir, *, dojo=None, platform_admin=False):
     dojo_yml_path = dojo_dir / "dojo.yml"
     assert dojo_yml_path.exists(), "Missing file: `dojo.yml`"
 
@@ -355,11 +354,10 @@ def dojo_from_dir(dojo_dir, *, dojo=None):
     data_raw = yaml.safe_load(dojo_yml_path.read_text())
     data = load_dojo_subyamls(data_raw, dojo_dir)
     data = load_surveys(data, dojo_dir)
-    dojo_initialize_files(data, dojo_dir)
-    return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo)
+    return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo, platform_admin=platform_admin)
 
 
-def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
+def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
     # `challenges:` is sugar for challenge resources; dojos loaded from a directory
     # have already been expanded, but a spec posted to the update endpoint has not.
     for module_data in data.get("modules", []):
@@ -368,7 +366,10 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
     try:
         dojo_data = DOJO_SPEC.validate(data)
     except SchemaError as e:
-        raise AssertionError(markupsafe.escape(e))  # TODO: this probably shouldn't be re-raised as an AssertionError
+        raise AssertionError(markupsafe.escape(e))
+
+    if dojo_dir:
+        dojo_initialize_files(dojo_data, dojo_dir, platform_admin=platform_admin)
 
     def assert_importable(o):
         assert o.importable, f"Import disallowed for {o}."
@@ -418,7 +419,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None):
             old_module_id = transfer.get("module", module_id)
             old_challenge_id = transfer["challenge"]
             old_dojo = Dojos.from_id(old_dojo_id).first()
-            assert old_dojo and (old_dojo.dojo_id == dojo.dojo_id or dojo.official or (is_admin() and not Dojos.from_id(dojo.id).first()))
+            assert old_dojo and (old_dojo.dojo_id == dojo.dojo_id or dojo.official or (platform_admin and not Dojos.from_id(dojo.id).first()))
             old_challenge = Challenges.query.filter_by(category=old_dojo.hex_dojo_id, name=f"{old_module_id}:{old_challenge_id}").first()
             assert old_challenge, f"unable to find source dojo/module/challenge in database for {old_dojo_id}:{old_module_id}:{old_challenge_id}"
             old_challenge.category = dojo.hex_dojo_id
@@ -666,6 +667,7 @@ def dojo_git_command(dojo, *args, repo_path=None):
 
 def dojo_create(user, repository, public_key, private_key, spec):
     try:
+        platform_admin = is_admin()
         if repository:
             repository_re = r"[\w\-]+/[\w\-]+"
             repository = repository.replace("https://github.com/", "")
@@ -677,7 +679,7 @@ def dojo_create(user, repository, public_key, private_key, spec):
             dojo_dir = dojo_clone(repository, private_key)
 
         elif spec:
-            assert is_admin(), "Must be an admin user to create dojos from spec rather than repositories"
+            assert platform_admin, "Must be an admin user to create dojos from spec rather than repositories"
             dojo_dir = dojo_yml_dir(spec)
             repository, public_key, private_key = None, None, None
 
@@ -686,7 +688,7 @@ def dojo_create(user, repository, public_key, private_key, spec):
 
         dojo_path = pathlib.Path(dojo_dir.name)
 
-        dojo = dojo_from_dir(dojo_path)
+        dojo = dojo_from_dir(dojo_path, platform_admin=platform_admin)
         dojo.repository = repository
         dojo.public_key = public_key
         dojo.private_key = private_key
@@ -722,7 +724,7 @@ def dojo_create(user, repository, public_key, private_key, spec):
     return dojo
 
 
-def dojo_update(dojo):
+def dojo_update(dojo, *, platform_admin=False):
     if dojo.path.exists():
         old_commit = dojo_git_command(dojo, "rev-parse", "HEAD").stdout.decode().strip()
 
@@ -745,7 +747,7 @@ def dojo_update(dojo):
     else:
         tmpdir = dojo_clone(dojo.repository, dojo.private_key)
         os.rename(tmpdir.name, str(dojo.path))
-    return dojo_from_dir(dojo.path, dojo=dojo)
+    return dojo_from_dir(dojo.path, dojo=dojo, platform_admin=platform_admin)
 
 
 def dojo_accessible(id):

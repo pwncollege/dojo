@@ -260,10 +260,12 @@ def workspace_run(cmd, *, user, root=False, **kwargs):
     return dojo_run(*args, stdin=subprocess.DEVNULL, check=True, container=outer_container, **kwargs)
 
 
-def start_challenge(dojo, module, challenge, practice=False, *, session, as_user=None, wait=0):
+def start_challenge(dojo, module, challenge, practice=False, *, session, as_user=None, home=None, wait=0):
     start_challenge_json = dict(dojo=dojo, module=module, challenge=challenge, practice=practice)
     if as_user:
         start_challenge_json["as_user"] = as_user
+    if home is not None:
+        start_challenge_json["home"] = home
     response = session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=start_challenge_json)
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], f"Failed to start challenge: {response.json()['error']}"

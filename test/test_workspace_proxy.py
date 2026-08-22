@@ -85,14 +85,22 @@ def test_workspace_api_without_container_reports_inactive(random_user_session):
     )
 
 
-def test_workspace_port_and_service_pages_target_their_workspace(random_user_session):
-    port_page = random_user_session.get(f"{DOJO_URL}/workspace/8080")
-    assert port_page.status_code == 200, f"Expected status code 200, but got {port_page.status_code}"
-    assert "port=8080" in port_page.text, "Expected /workspace/8080 to load the workspace on port 8080"
+def test_workspace_port_and_service_pages_target_their_workspace(workspace_owner):
+    _, session, _ = workspace_owner
 
-    service_page = random_user_session.get(f"{DOJO_URL}/workspace/terminal")
+    port_page = session.get(f"{DOJO_URL}/workspace/8080")
+    assert port_page.status_code == 200, f"Expected status code 200, but got {port_page.status_code}"
+    assert 'data-initial-service="code: 8080"' in port_page.text, \
+        "Expected /workspace/8080 to select the code service"
+
+    service_page = session.get(f"{DOJO_URL}/workspace/terminal")
     assert service_page.status_code == 200, f"Expected status code 200, but got {service_page.status_code}"
-    assert "service=terminal" in service_page.text, "Expected /workspace/terminal to load the terminal service"
+    assert 'data-initial-service="terminal: 7681"' in service_page.text, \
+        "Expected /workspace/terminal to select the terminal service"
+
+    unavailable_page = session.get(f"{DOJO_URL}/workspace/1234")
+    assert unavailable_page.status_code == 404, \
+        f"Expected an unavailable workspace port to return 404, got {unavailable_page.status_code}"
 
 
 def test_workspace_api_service_names_map_to_ports(workspace_owner, example_dojo):

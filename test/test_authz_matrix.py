@@ -623,17 +623,15 @@ def test_update_code_null_rejects_anonymous_update(authz_private_dojo):
     db_sql(f"UPDATE dojos SET update_code = NULL WHERE dojo_id = {db_id}")
     anonymous = anonymous_session()
     try:
-        wrong_code = anonymous.get(f"{DOJO_URL}/dojo/{authz_private_dojo}/update/anything")
+        wrong_code = anonymous.post(f"{DOJO_URL}/dojo/{authz_private_dojo}/update/anything")
         assert wrong_code.status_code == 403, \
             f"A wrong update code must be 403, but got {wrong_code.status_code}"
         assert wrong_code.json() == {"success": False, "error": "Forbidden"}, \
             f"Unexpected payload for a wrong update code: {wrong_code.json()}"
 
-        no_code = anonymous.get(f"{DOJO_URL}/dojo/{authz_private_dojo}/update/")
-        assert no_code.status_code == 403, \
-            f"An anonymous update of a NULL-update_code dojo must be 403, but got {no_code.status_code}"
-        assert no_code.json() == {"success": False, "error": "Forbidden"}, \
-            f"Unexpected payload for an anonymous update: {no_code.json()}"
+        no_code = anonymous.post(f"{DOJO_URL}/dojo/{authz_private_dojo}/update/")
+        assert no_code.status_code in {404, 405}, \
+            f"A code-less update route must be unavailable, but got {no_code.status_code}"
     finally:
         db_sql(f"UPDATE dojos SET update_code = '{update_code}' WHERE dojo_id = {db_id}")
 

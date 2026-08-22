@@ -7,11 +7,16 @@ from typing import Any
 
 DOJO_API = "http://pwn.college:80/pwncollege_api/v1"
 DOJO_AUTH_TOKEN = os.environ.get("DOJO_AUTH_TOKEN")
+DOJO_HOST = os.environ.get("DOJO_HOST")
+
+HEADERS = {"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"}
+if DOJO_HOST:
+    HEADERS["Host"] = DOJO_HOST
 
 def whoami():
     response = requests.get(
         f"{DOJO_API}/users/me",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        headers=HEADERS,
         timeout=5.0,
     )
     data = response.json()
@@ -22,7 +27,7 @@ def whoami():
 def get_current_challenge() -> dict[str, str]:
     response = requests.get(
         f"{DOJO_API}/docker",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        headers=HEADERS,
         timeout = 5.0
     )
     if not response.ok:
@@ -39,7 +44,7 @@ def solve(args : argparse.Namespace):
     challenge = get_current_challenge()
     response = requests.post(
         f"{DOJO_API}/dojos/{challenge["dojo"]}/{challenge["module"]}/{challenge["challenge"]}/solve",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        headers=HEADERS,
         json={
             "submission": args.flag
         },
@@ -61,7 +66,7 @@ def solve(args : argparse.Namespace):
 def start_challenge(dojo:str, module:str, challenge:str, privileged:bool):
     response = requests.post(
         f"{DOJO_API}/docker",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        headers=HEADERS,
         json={
             "dojo": dojo,
             "module": module,
@@ -144,7 +149,7 @@ def start(args : argparse.Namespace):
 def list_dojos(types: list[str], use_expanded_format: bool):
     response = requests.get(
         f"{DOJO_API}/dojos",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        headers=HEADERS,
         timeout=5.0,
     )
     if not response.ok or not response.json().get("success", False):
@@ -183,7 +188,7 @@ def list_dojos(types: list[str], use_expanded_format: bool):
 def list_modules(dojo: str, use_expanded_format: bool):
     response = requests.get(
         f"{DOJO_API}/dojos/{dojo}/modules",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        headers=HEADERS,
         timeout=5.0,
     )
     if not response.ok or not response.json().get("success", False):
@@ -206,7 +211,7 @@ def list_modules(dojo: str, use_expanded_format: bool):
 def list_challenges(dojo:str, t_module:str, use_expanded_format: bool):
     response = requests.get(
         f"{DOJO_API}/dojos/{dojo}/modules",
-        headers={"Authorization": f"Bearer {DOJO_AUTH_TOKEN}"},
+        headers=HEADERS,
         timeout=5.0,
     )
     if not response.ok or not response.json().get("success", False):
@@ -232,6 +237,20 @@ def list_challenges(dojo:str, t_module:str, use_expanded_format: bool):
     print(f"id (name)")
     for challenge in module.get("challenges"):
         print(f"{challenge.get("id")} ({challenge.get("name")})")
+
+def tui(args: argparse.Namespace):
+    """
+    Launches the challenge browser TUI. Exits 0 if a challenge was started.
+    """
+    from tui import run_challenge_tui
+    try:
+        started = run_challenge_tui()
+    except RuntimeError as e:
+        sys.exit(str(e))
+    if started:
+        print("Challenge started. Your session will reconnect to the new workspace.")
+        sys.exit(0)
+    sys.exit(1)
 
 def list(args: argparse.Namespace):
     """
@@ -356,12 +375,19 @@ def main():
         nargs="?",
         type=str
     )
+    subparsers.add_parser(
+        name="tui",
+        aliases=["browse"],
+        help="Browse and start challenges interactively."
+    )
     args = parser.parse_args()
-    if not DOJO_AUTH_TOKEN:
-        sys.exit("Missing DOJO_AUTH_TOKEN.")
     if not args.command:
         parser.print_help()
         sys.exit(1)
+    if args.command.lower() in ("tui", "browse"):
+        return tui(args)
+    if not DOJO_AUTH_TOKEN:
+        sys.exit("Missing DOJO_AUTH_TOKEN.")
     if args.command.lower() == "whoami":
         return whoami()
     if args.command.lower() == "submit":

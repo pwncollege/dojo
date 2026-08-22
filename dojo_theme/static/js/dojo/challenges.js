@@ -249,6 +249,9 @@ function startChallenge(event) {
             item.find(".challenge-name").addClass("challenge-active");
         }
         else {
+            if (result.debug) {
+                console.error("Challenge start failed:", result.debug);
+            }
             result_message.html("Error:<br><code></code><br>");
             result_message.find("code").text(result.error);
             result_notification.addClass('alert alert-warning alert-dismissable text-center');

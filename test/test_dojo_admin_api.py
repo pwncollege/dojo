@@ -432,10 +432,6 @@ def test_update_api_enqueues_image_pulls(admin_session):
 def test_update_code_pull_succeeds_unauthenticated(example_dojo):
     code = db_sql(f"SELECT update_code FROM dojos WHERE dojo_id = {dojo_db_id(example_dojo)}").strip()
 
-    response = requests.get(f"{DOJO_URL}/dojo/{example_dojo}/update/{code}")
-    assert response.status_code == 200, f"Expected 200, got {response.status_code} - {response.text[:300]}"
-    assert response.json() == {"success": True}
-
     response = requests.post(f"{DOJO_URL}/dojo/{example_dojo}/update/{code}")
     assert response.status_code == 200, f"the webhook must bypass CSRF, got {response.status_code}"
     assert response.json() == {"success": True}
@@ -445,15 +441,14 @@ def test_update_code_pull_succeeds_unauthenticated(example_dojo):
 
 
 def test_update_code_wrong_or_missing_forbidden(example_dojo):
-    response = requests.get(f"{DOJO_URL}/dojo/{example_dojo}/update/deadbeef")
+    response = requests.post(f"{DOJO_URL}/dojo/{example_dojo}/update/deadbeef")
     assert response.status_code == 403, f"Expected 403, got {response.status_code}"
     assert response.json() == {"success": False, "error": "Forbidden"}
 
-    response = requests.get(f"{DOJO_URL}/dojo/{example_dojo}/update/")
-    assert response.status_code == 403, f"Expected 403, got {response.status_code}"
-    assert response.json()["error"] == "Forbidden"
+    response = requests.post(f"{DOJO_URL}/dojo/{example_dojo}/update/")
+    assert response.status_code in {404, 405}, f"Expected no code-less update route, got {response.status_code}"
 
-    response = requests.get(f"{DOJO_URL}/dojo/no-such-dojo-{rand()}/update/whatever")
+    response = requests.post(f"{DOJO_URL}/dojo/no-such-dojo-{rand()}/update/whatever")
     assert response.status_code == 404, f"Expected 404, got {response.status_code}"
     assert response.json() == {"success": False, "error": "Not Found"}
 
@@ -462,7 +457,7 @@ def test_update_code_on_spec_dojo_fails_gracefully(admin_session):
     reference_id = create_spec(admin_session, simple_spec(spec_id("specpull")))
     code = db_sql(f"SELECT update_code FROM dojos WHERE dojo_id = {dojo_db_id(reference_id)}").strip()
 
-    response = requests.get(f"{DOJO_URL}/dojo/{reference_id}/update/{code}")
+    response = requests.post(f"{DOJO_URL}/dojo/{reference_id}/update/{code}")
     assert response.status_code == 400, \
         f"a spec dojo has no repository to pull, expected a clean 400, got {response.status_code}"
     assert response.json()["success"] is False
