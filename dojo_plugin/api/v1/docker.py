@@ -457,12 +457,15 @@ class RunDocker(Resource):
     @authed_only
     @docker_locked
     def post(self):
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         dojo_id = data.get("dojo")
         module_id = data.get("module")
         challenge_id = data.get("challenge")
         practice = data.get("practice")
         home = data.get("home", True)
+
+        if not all(isinstance(value, str) for value in [dojo_id, module_id, challenge_id]):
+            return {"success": False, "error": "Must supply dojo, module, and challenge."}, 400
 
         if not isinstance(home, bool):
             return {"success": False, "error": "Invalid home option"}
@@ -536,7 +539,7 @@ class RunDocker(Resource):
 
                 if dojo.official or dojo.data.get("type") == "public":
                     challenge_data = {
-                        "challenge_id": dojo_challenge.challenge_id,
+                        "challenge_id": dojo_challenge.id,
                         "challenge_name": dojo_challenge.name,
                         "module_id": dojo_challenge.module.id if dojo_challenge.module else None,
                         "module_name": dojo_challenge.module.name if dojo_challenge.module else None,
@@ -572,6 +575,12 @@ class RunDocker(Resource):
                     "trace_id": get_trace_id(),
                     "attempts": attempt_errors,
                 }
+            # Leaving the half-started container behind would make the next request
+            # believe the user already has a workspace for this challenge.
+            try:
+                remove_container(user)
+            except Exception:
+                logger.exception(f"failed to clean up the workspace container for {user.id}:")
             return response
 
         return {"success": True}

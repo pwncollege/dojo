@@ -1,0 +1,47 @@
+id: authz-matrix
+name: Authz Matrix Dojo
+type: public
+pages:
+  - authz-notes
+modules:
+  - id: surveyed
+    name: Surveyed Module
+    survey:
+      prompt: Authz matrix survey prompt
+      data: <div>authz-matrix</div>
+    challenges:
+      - id: surveyed-challenge
+        name: Surveyed Challenge
+      - id: hidden-challenge
+        name: Hidden Challenge
+        visibility:
+          start: "2099-01-01T00:00:00Z"
+  - id: plain
+    name: Plain Module
+    challenges:
+      - id: plain-challenge
+        name: Plain Challenge
+files:
+  - type: text
+    path: course.yml
+    content: |
+      student_id: Authz Student ID
+  - type: text
+    path: authz-notes/default.md
+    content: |
+      AUTHZ_MATRIX_DEFAULT_PAGE
+  - type: text
+    path: surveyed/surveyed-challenge/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: surveyed/hidden-challenge/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: plain/plain-challenge/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

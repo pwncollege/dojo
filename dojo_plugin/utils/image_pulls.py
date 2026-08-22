@@ -58,7 +58,7 @@ def _parse_handler_result(result: HandlerResult) -> Tuple[bool, bool]:
         return result, False
     return True, False
 
-def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult], batch_size: int = 10, block_ms: int = 5000) -> None:
+def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult], batch_size: int = 10, block_ms: int = 5000, shutdown_requested: Callable[[], bool] = lambda: False) -> None:
     r = get_redis_client()
 
     def ensure_consumer_group():
@@ -121,7 +121,7 @@ def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult]
         logger.error(f"Dropping image pull for {image} after {attempt + 1}/{max_attempts} attempts")
         r.xackdel(IMAGE_PULL_STREAM_NAME, CONSUMER_GROUP, message_id)
 
-    while True:
+    while not shutdown_requested():
         try:
             try:
                 autoclaim = getattr(r, "xautoclaim", None)
@@ -134,7 +134,7 @@ def consume_image_pull_events(handler: Callable[[Dict[str, Any]], HandlerResult]
                         start_id="0-0",
                         count=batch_size,
                     )
-                    claimed = result[1] if isinstance(result, tuple) and len(result) >= 2 else []
+                    claimed = result[1] if isinstance(result, (tuple, list)) and len(result) >= 2 else []
                     for message_id, message_data in claimed:
                         process_message(message_id, message_data)
             except Exception as e:

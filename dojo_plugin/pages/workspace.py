@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import hmac
 import os
 
@@ -8,6 +10,7 @@ from CTFd.utils.decorators import authed_only
 from CTFd.plugins import bypass_csrf_protection
 from urllib.parse import urlencode
 
+from ..config import WORKSPACE_SECRET
 from ..models import Dojos
 from ..utils import user_ipv4, get_current_container, container_password
 from ..utils.dojo import get_current_dojo_challenge
@@ -104,7 +107,7 @@ def render_workspace(*, service=None, port=None):
         initial_service=initial_service,
     )
 
-def forward_workspace(service, signature, message, service_path="", include_host=True, **kwargs):
+def forward_workspace(service, message, service_path="", include_host=True, **kwargs):
     if service.count("~") == 0:
         service_name = service
         try:
@@ -148,7 +151,6 @@ def forward_workspace(service, signature, message, service_path="", include_host
 
     return forward_port(
         port,
-        signature,
         message,
         user,
         service_path=service_path,
@@ -156,7 +158,8 @@ def forward_workspace(service, signature, message, service_path="", include_host
         **(kwargs or {})
     )
 
-def forward_port(port, signature, message, user, service_path="", include_host=True, **kwargs):
+def forward_port(port, message, user, service_path="", include_host=True, **kwargs):
+    port = int(port)
     current_user = get_current_user()
     if user != current_user:
         print(f"User {current_user.id} is accessing User {user.id}'s workspace (port {port})", flush=True)
@@ -167,6 +170,12 @@ def forward_port(port, signature, message, user, service_path="", include_host=T
         abort(500)
         return
 
+    digest = hmac.new(
+        WORKSPACE_SECRET.encode(),
+        f"{message}:{port}".encode(),
+        hashlib.sha256,
+    ).digest()
+    signature = base64.urlsafe_b64encode(digest).decode()
     url = f"/workspace/{message}/{signature}/{port}/{service_path}"
 
     scheme = request.scheme if request else "http"

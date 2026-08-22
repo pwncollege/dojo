@@ -1,0 +1,15 @@
+id: workspace-api-course
+name: Workspace API Course
+type: public
+modules:
+  - id: gate
+    name: Gate
+    challenges:
+      - id: first
+        name: First
+        image: pwncollege/challenge-simple
+        progression_locked: True
+      - id: second
+        name: Second
+        image: pwncollege/challenge-simple
+        progression_locked: True

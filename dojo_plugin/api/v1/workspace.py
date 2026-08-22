@@ -1,7 +1,5 @@
 import hmac
 import os
-import hashlib
-import base64
 
 from flask_restx import Namespace, Resource
 from flask import request, url_for, abort
@@ -31,7 +29,19 @@ class view_desktop(Resource):
         if user_id and not password and not is_admin():
             abort(403)
 
-        user = get_current_user() if not user_id else Users.query.filter_by(id=int(user_id)).first_or_404()
+        if user_id is not None:
+            try:
+                user_id = int(user_id)
+            except ValueError:
+                abort(404)
+
+        if port is not None:
+            try:
+                port = int(port)
+            except ValueError:
+                abort(404)
+
+        user = get_current_user() if not user_id else Users.query.filter_by(id=user_id).first_or_404()
         container = get_current_container(user)
         if not container:
             return {"success": False, "active": False}
@@ -60,14 +70,6 @@ class view_desktop(Resource):
         if not node == None and not node == 0:
             message = f"{container_id}:192.168.42.{node + 1}"
 
-        digest = hmac.new(
-            WORKSPACE_SECRET.encode(),
-            message.encode(),
-            hashlib.sha256
-        ).digest()
-
-        signature = base64.urlsafe_b64encode(digest).decode()
-
         iframe_src = None
         if not service == "desktop":
             if user_id and not is_admin():
@@ -93,11 +95,11 @@ class view_desktop(Resource):
                     "reconnect": 1,
                     "reconnect_delay": 200,
                     "resize": "remote",
-                    "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, message=message, include_host=False),
+                    "path": forward_workspace(service=service_param, service_path="websockify", message=message, include_host=False),
                     "view_only": int(view_only),
                     "password": password,
                 }
-                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, message=message, **vnc_params)
+                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", message=message, **vnc_params)
 
             elif service == "desktop-windows":
                 service_param = "~".join(("desktop-windows", str(user.id), container_password(container, "desktop-windows")))
@@ -106,17 +108,17 @@ class view_desktop(Resource):
                     "reconnect": 1,
                     "reconnect_delay": 200,
                     "resize": "local",
-                    "path": forward_workspace(service=service_param, service_path="websockify", signature=signature, message=message, include_host=False),
+                    "path": forward_workspace(service=service_param, service_path="websockify", message=message, include_host=False),
                     "password": "password",
                 }
-                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", signature=signature, message=message, **vnc_params)
+                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", message=message, **vnc_params)
             else:
-                iframe_src = forward_workspace(service=service, service_path="", signature=signature, message=message)
+                iframe_src = forward_workspace(service=service, service_path="", message=message)
 
             if start_on_demand_service(user, service) is False:
                 return {"success": False, "active": True, "error": f"Failed to start service {service}"}
         elif port:
-            iframe_src = forward_port(port=port, service_path="", user=user, signature=signature, message=message)
+            iframe_src = forward_port(port=port, service_path="", user=user, message=message)
 
         return {"success": True, "active": True, "iframe_src": iframe_src, "service": service, "port": port, "setPort": os.getenv("DOJO_ENV") == "development", "current_challenge": challenge_info}
 

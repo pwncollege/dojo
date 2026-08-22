@@ -1,0 +1,64 @@
+id: sb-api-main
+name: Scoreboard API Main
+type: public
+modules:
+  - id: m1
+    name: SB Module One
+    challenges:
+      - id: apple
+        name: SB Apple
+      - id: banana
+        name: SB Banana
+        required: false
+  - id: m2
+    name: SB Module Two
+    show_scoreboard: false
+    challenges:
+      - id: cherry
+        name: SB Cherry
+  - id: m3
+    name: SB Module Three
+    challenges:
+      - id: date
+        name: SB Date
+  - id: m4
+    name: SB Module Four
+    challenges:
+      - id: elderberry
+        name: SB Elderberry
+  - id: m5
+    name: SB Module Five
+    challenges:
+      - id: fig
+        name: SB Fig
+files:
+  - type: text
+    path: m1/apple/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: m1/banana/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: m2/cherry/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: m3/date/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: m4/elderberry/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: m5/fig/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

@@ -1,0 +1,22 @@
+id: solves-test-dojo
+name: Solves Test Dojo
+type: public
+modules:
+  - id: solves-module
+    name: Solves Module
+    challenges:
+      - id: first-blood-challenge
+        name: First Blood Challenge
+      - id: unofficial-challenge
+        name: Unofficial Challenge
+files:
+  - type: text
+    path: solves-module/first-blood-challenge/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: solves-module/unofficial-challenge/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

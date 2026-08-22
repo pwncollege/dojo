@@ -68,6 +68,8 @@ case "$ACTION" in
                 exit $?
             fi
         done
+        echo "Error: no running container for $CONTAINER" >&2
+        exit 1
         ;;
 
     # HELP: compose ARGS: run a docker compose command with the config.env file loaded
@@ -124,14 +126,24 @@ case "$ACTION" in
             docker exec -i db pg_restore --clean --if-exists --dbname="$DB_NAME" < "$BACKUP_PATH"
         else
             echo "Error: missing file to restore from" >&2
+            exit 1
         fi
         ;;
 
     # HELP: cloud-backup: upload the last day's worth of cloud backups to S3, but encrypt it at rest
     "cloud-backup")
-        [ -z ${BACKUP_AES_KEY_FILE+x} ]  && (echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set"; exit -1)
-        [ -f $BACKUP_AES_KEY_FILE ] || (echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set to a file, but is $BACKUP_AES_KEY_FILE instead"; exit -1)
-        [ -z ${S3_BACKUP_BUCKET+x} ] && (echo "To use cloud backup, S3_BACKUP_BUCKET must be set to the S3 bucket to use"; exit -1)
+        if [ -z "${BACKUP_AES_KEY_FILE:-}" ]; then
+            echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set" >&2
+            exit 1
+        fi
+        if [ ! -f "$BACKUP_AES_KEY_FILE" ]; then
+            echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set to a file, but is $BACKUP_AES_KEY_FILE instead" >&2
+            exit 1
+        fi
+        if [ -z "${S3_BACKUP_BUCKET:-}" ]; then
+            echo "To use cloud backup, S3_BACKUP_BUCKET must be set to the S3 bucket to use" >&2
+            exit 1
+        fi
         set -e
         for f in $(find /data/backups -mtime -1 -type f)
         do
@@ -164,20 +176,29 @@ case "$ACTION" in
 
     # HELP: wait: wait for the dojo to finish starting
     "wait")
-        dojo logs -f --no-tail | while IFS= read -r line; do
-            echo "$line"
-            case "$line" in
-                *"Finished pwn.college.service - pwn.college docker compose service"*)
-                    break
-                    ;;
-                *"Failed to start pwn.college.service - pwn.college docker compose service."*)
-                    exit 1
-                    ;;
-                *"Job pwn.college.service/start failed"*)
-                    exit 1
-                    ;;
-            esac
+        # Follow the unit's current state rather than scanning the journal, whose
+        # history can hold a failure from an earlier start attempt.
+        until systemctl show -p ActiveState --value pwn.college.service >/dev/null 2>&1; do sleep 1; done
+
+        dojo logs -f --no-tail --since "-5 min" &
+        LOGS_PID=$!
+        trap 'kill $LOGS_PID 2>/dev/null' EXIT
+        STATE=""
+        for _ in $(seq 1 1800); do
+            STATE=$(systemctl show -p ActiveState --value pwn.college.service 2>/dev/null)
+            [ "$STATE" = "active" ] && break
+            if [ "$STATE" = "failed" ]; then
+                echo "Error: pwn.college.service failed to start" >&2
+                exit 1
+            fi
+            sleep 1
         done
+        kill $LOGS_PID 2>/dev/null
+        trap - EXIT
+        if [ "$STATE" != "active" ]; then
+            echo "Error: timed out waiting for pwn.college.service" >&2
+            exit 1
+        fi
 
         if docker inspect workspace-builder >/dev/null 2>&1 \
             && ! docker wait workspace-builder

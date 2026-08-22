@@ -9,7 +9,7 @@ from email.message import EmailMessage
 from email.utils import formatdate
 from urllib.parse import urlparse, urlunparse
 
-from flask import Response, request, redirect, current_app
+from flask import Response, g, request, redirect, current_app
 from itsdangerous.exc import BadSignature
 from marshmallow_sqlalchemy import field_for
 from werkzeug.utils import safe_join
@@ -56,7 +56,13 @@ class DojoChallenge(BaseChallenge):
         super().solve(user, team, challenge, request)
         update_awards(user)
 
-        dojo_challenge = DojoChallenges.query.filter_by(challenge_id=challenge.id).first()
+        # A challenge row can be shared by several dojos through imports; credit the
+        # dojo the solve was actually submitted against when the request names one.
+        solved_dojo = getattr(g, "dojo", None)
+        dojo_challenge = (
+            DojoChallenges.query.filter_by(challenge_id=challenge.id, dojo_id=solved_dojo.dojo_id).first()
+            if solved_dojo else None
+        ) or DojoChallenges.query.filter_by(challenge_id=challenge.id).first()
         if dojo_challenge:
             dojo = dojo_challenge.module.dojo
             if dojo.official or dojo.data.get("type") == "public":
@@ -232,7 +238,6 @@ def load(app):
     app.jinja_env.filters["markdown"] = render_markdown
 
     register_admin_plugin_menu_bar("Dojos", "/admin/dojos")
-    register_admin_plugin_menu_bar("Desktops", "/admin/desktops")
 
     before_request_funcs = app.before_request_funcs[None]
     tokens_handler = next(func for func in before_request_funcs if func.__name__ == "tokens")

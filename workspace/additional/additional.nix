@@ -143,7 +143,6 @@ let
       landrun
       ncdu
       nftables
-      openssh
       rsync
     ];
 

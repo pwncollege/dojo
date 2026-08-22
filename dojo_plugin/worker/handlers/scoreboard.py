@@ -47,13 +47,13 @@ def user_challenges(model, duration, user_id):
     return set(challenge_id for (challenge_id,) in query.all())
 
 
-def set_scoreboard_cache(cache_key, scoreboard, member_challenges):
-    set_cached_stat(cache_key, scoreboard)
+def set_scoreboard_cache(cache_key, scoreboard, member_challenges, updated_at=None):
+    set_cached_stat(cache_key, scoreboard, updated_at=updated_at)
     set_cached_stat(cache_key.replace("stats:scoreboard:", "stats:crews:", 1),
-                    aggregate_crews(scoreboard, member_challenges))
+                    aggregate_crews(scoreboard, member_challenges), updated_at=updated_at)
 
 
-def update_scoreboard_cache(model, cache_key, user_id, challenge_id):
+def update_scoreboard_cache(model, cache_key, user_id, challenge_id, updated_at=None):
     current_scoreboard = get_cached_stat(cache_key) or []
     updated_scoreboard = update_scoreboard(current_scoreboard, user_id)
     crews_key = cache_key.replace("stats:scoreboard:", "stats:crews:", 1)
@@ -65,7 +65,7 @@ def update_scoreboard_cache(model, cache_key, user_id, challenge_id):
         else:
             duration = int(cache_key.rsplit(":", 1)[1])
             member_challenges[user_id] = user_challenges(model, duration, user_id)
-    set_scoreboard_cache(cache_key, updated_scoreboard, member_challenges)
+    set_scoreboard_cache(cache_key, updated_scoreboard, member_challenges, updated_at=updated_at)
 
 
 def update_scoreboard(scoreboard, user_id, solve_delta=1):

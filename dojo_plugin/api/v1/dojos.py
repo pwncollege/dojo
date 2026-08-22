@@ -91,10 +91,13 @@ class PromoteAdmin(Resource):
     @dojo_route
     @dojo_admins_only
     def post(self, dojo):
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         if 'user_id' not in data:
             return {"success": False, "error": "User not specified."}, 400
-        new_admin_id = data['user_id']
+        try:
+            new_admin_id = int(data['user_id'])
+        except (TypeError, ValueError):
+            return {"success": False, "error": "Invalid user id."}, 400
         u = DojoUsers.query.filter_by(dojo=dojo, user_id=new_admin_id).first()
         if u:
             u.type = 'admin'
@@ -107,7 +110,7 @@ class PromoteAdmin(Resource):
 class CreateDojo(Resource):
     @authed_only
     def post(self):
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         user = get_current_user()
 
         repository = data.get("repository", "")
@@ -205,7 +208,7 @@ class DojoModuleList(Resource):
                          expandable=getattr(item, 'expandable', True) if hasattr(item, 'type') else None,
                          description=getattr(item, 'description', None),
                          required=getattr(item, 'required', None) if item.item_type == 'challenge' else None
-                     ) for item in module.unified_items
+                     ) for item in (module.unified_items if is_dojo_admin else module.visible_items)
                  ])
 
             for module in dojo.modules
@@ -249,6 +252,8 @@ class DojoSolveList(Resource):
 class DojoCourse(Resource):
     @dojo_route
     def get(self, dojo):
+        if not dojo.course:
+            return {"success": False, "error": "This dojo is not a course"}, 404
         result = dict(syllabus=dojo.course.get("syllabus"), scripts=dojo.course.get("scripts"))
         student = DojoStudents.query.filter_by(dojo=dojo, user=get_current_user()).first()
         if student:
@@ -261,6 +266,8 @@ class DojoCourseStudentList(Resource):
     @dojo_route
     @dojo_admins_only
     def get(self, dojo):
+        if not dojo.course:
+            return {"success": False, "error": "This dojo is not a course"}, 404
         dojo_students = {student.token: student.user_id for student in DojoStudents.query.filter_by(dojo=dojo).order_by(DojoStudents.user_id)}
         course_students = dojo.course.get("students", {})
         students = {
@@ -275,6 +282,8 @@ class DojoCourseSolveList(Resource):
     @dojo_route
     @dojo_admins_only
     def get(self, dojo):
+        if not dojo.course:
+            return {"success": False, "error": "This dojo is not a course"}, 404
         students = dojo.course.get("students", {})
 
         solves_query = dojo.solves(ignore_visibility=True, ignore_admins=False)
@@ -289,14 +298,21 @@ class DojoCourseSolveList(Resource):
         if students:
             solves_query = solves_query.filter(DojoStudents.token.in_(students))
 
-        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(Solves.date, DojoStudents.token, DojoStudents.user_id, DojoModules.id, DojoChallenges.id)
+        # Selecting DojoStudents columns would restrict the query to student rows;
+        # look the token up separately so solvers who never linked one still appear.
+        student_tokens = {
+            student.user_id: student.token
+            for student in DojoStudents.query.filter_by(dojo=dojo)
+        }
+        solves_query = solves_query.order_by(Solves.date.asc()).with_entities(
+            Solves.date, Solves.user_id, DojoModules.id, DojoChallenges.id)
         solves = [
             dict(timestamp=timestamp.astimezone(datetime.timezone.utc).isoformat(),
-                 student_token=student_token,
+                 student_token=student_tokens.get(user_id),
                  user_id=user_id,
                  module_id=module_id,
                  challenge_id=challenge_id)
-            for timestamp, student_token, user_id, module_id, challenge_id in solves_query.all()
+            for timestamp, user_id, module_id, challenge_id in solves_query.all()
         ]
 
         return {"success": True, "solves": solves}
@@ -309,6 +325,10 @@ class DojoChallengeSolve(Resource):
     @dojo_route
     def post(self, dojo, module, challenge_id):
         user = get_current_user()
+        submission = (request.form or request.get_json(silent=True) or {}).get("submission")
+        if not isinstance(submission, str):
+            return {"success": False, "error": "Must supply a submission."}, 400
+
         dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id)
                           .filter(DojoChallenges.visible()).first())
         if not dojo_challenge:
@@ -353,7 +373,7 @@ class DojoSurvey(Resource):
     @ratelimit(method="POST", limit=10, interval=60)
     def post(self, dojo, module, challenge_id):
         user = get_current_user()
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         dojo_challenge = (DojoChallenges.from_id(dojo.reference_id, module.id, challenge_id)
                           .filter(DojoChallenges.visible()).first())
         if not dojo_challenge:
@@ -406,7 +426,7 @@ class GrantAward(Resource):
     @dojo_gives_awards
     @dojo_admins_only
     def post(self, dojo):
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         user_id = data.get("user_id")
         emoji = data.get("emoji")
         description = data.get("description")
@@ -414,6 +434,10 @@ class GrantAward(Resource):
             return {"success": False, "error": "Must supply user_id, emoji, and description."}, 400
         if not emojilib.is_emoji(emoji):
             return {"success": False, "error": "emoji must be emoji."}, 400
+        try:
+            user_id = int(user_id)
+        except (TypeError, ValueError):
+            return {"success": False, "error": "Invalid user id."}, 400
         user = Users.query.filter_by(id=user_id).first()
         if not user:
             return {"success": False, "error": "User not found."}, 404
