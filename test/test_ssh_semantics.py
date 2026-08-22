@@ -162,7 +162,7 @@ print(URLSafeTimedSerializer(secret, signer=signer).dumps(payload))
 
 
 def mint_ssh_token(payload, *, secret="", backdate=0):
-    result = dojo_run("docker", "exec", "sshd", "python3", "-c", _MINT_TOKEN_SCRIPT,
+    result = dojo_run("docker", "exec", "ctfd", "python3", "-c", _MINT_TOKEN_SCRIPT,
                       json.dumps(payload), secret, str(backdate))
     return result.stdout.strip()
 

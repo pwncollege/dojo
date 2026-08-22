@@ -881,7 +881,8 @@ def test_private_dojo_solve_skips_scores_cache(random_private_dojo, random_user,
     assert worker_barrier(barrier_user), "solve event was not processed"
 
     logs = container_logs_since("stats-worker", start)
-    assert f"Dojo {random_private_dojo} is not public or official, skipping scores update" in logs, \
+    assert (f"Dojo {random_private_dojo} is not public or official, or challenge Test Challenge is optional; "
+            "skipping scores update") in logs, \
         "scores update was not skipped for a private dojo"
     assert not redis_exists(scores_key), "a private dojo solve created a scores cache"
 

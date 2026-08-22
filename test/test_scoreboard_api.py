@@ -619,19 +619,19 @@ def test_scores_ranks_solves_and_module_scoping(sb_main):
     by_name = {name: report[str(sb_main["uids"][name])] for name in names}
 
     assert by_name[sb_main["alice"]]["rank"] == 1, "alice has the most solves in the dojo"
-    assert by_name[sb_main["alice"]]["solves"] == 4, \
-        "the scores cache counts every solve, including 'required: false' ones"
+    assert by_name[sb_main["alice"]]["solves"] == 3, \
+        "the scores cache excludes 'required: false' challenges"
     assert by_name[sb_main["crew1"]]["rank"] == 2
     assert by_name[sb_main["crew1"]]["solves"] == 2
     assert by_name[sb_main["nobody"]]["rank"] is None, "a user with no solves is unranked"
     assert by_name[sb_main["nobody"]]["solves"] == 0
 
-    assert by_name[sb_main["dave"]]["solves"] == 1, \
-        "dave only solved a non-required challenge, but the scores cache still counts it"
-    assert by_name[sb_main["dave"]]["rank"] is not None, \
-        "the scores ranking includes users the scoreboard excludes"
+    assert by_name[sb_main["dave"]]["solves"] == 0, \
+        "dave only solved a non-required challenge"
+    assert by_name[sb_main["dave"]]["rank"] is None, \
+        "the scores ranking excludes users with only optional solves"
 
-    assert by_name[sb_main["alice"]]["0"] == [1, 2], "alice tops m1 with 2 solves"
+    assert by_name[sb_main["alice"]]["0"] == [1, 1], "alice tops m1 with 1 required solve"
     assert by_name[sb_main["alice"]]["1"] == [1, 1], "alice tops m2 with 1 solve"
     assert by_name[sb_main["bob"]]["1"][0] is None, "bob solved nothing in m2"
     assert by_name[sb_main["alice"]]["3"][0] is None, "nobody solved anything in m4"
@@ -660,8 +660,11 @@ def test_hacker_page_renders_ranks(sb_main, sb_filter):
     assert response.status_code == 200, "a public profile is readable without authentication"
     assert f"{rank} / {max_rank}" in response.text, \
         f"expected the cached dojo rank {rank} / {max_rank} on the profile page"
-    assert f"{solves} / {len(sb_main['cids'])}" in response.text, \
-        f"expected the cached solve count {solves} of {len(sb_main['cids'])} challenges"
+    required_count = int(db_sql(
+        f"SELECT COUNT(*) FROM dojo_challenges WHERE dojo_id = {sb_main['dojo_id']} AND required"
+    ).strip())
+    assert f"{solves} / {required_count}" in response.text, \
+        f"expected the cached solve count {solves} of {required_count} required challenges"
 
     assert get_page(f"{DOJO_URL}/hacker/{sb_main['alice']}").status_code == 200
 

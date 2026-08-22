@@ -630,9 +630,12 @@ def test_code_service_contract(runtime_workspace):
     cmdline = process_cmdline(name, pid)
     for argument in ["--auth=none", "--bind-addr=0.0.0.0:8080", "--disable-telemetry", "--config=/dev/null"]:
         assert argument in cmdline, f"Expected code-server to be started with {argument}, but got {cmdline!r}"
+    cmdline_parts = cmdline.split()
     extensions_dir = next(
-        (part.split("=", 1)[1] for part in cmdline.split() if part.startswith("--extensions-dir=")), None
+        (part.split("=", 1)[1] for part in cmdline_parts if part.startswith("--extensions-dir=")), None
     )
+    if extensions_dir is None and "--extensions-dir" in cmdline_parts:
+        extensions_dir = cmdline_parts[cmdline_parts.index("--extensions-dir") + 1]
     assert extensions_dir and extensions_dir.startswith("/nix/store/"), (
         f"Expected the packaged extension directory to be used, but got {extensions_dir}"
     )

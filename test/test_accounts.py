@@ -122,7 +122,7 @@ def mint_signed_token(payload, *, age=0):
 
 def mint_ssh_service_token(user_id):
     token = dojo_run(
-        "docker", "exec", "sshd", "python3", "-c",
+        "docker", "exec", "ctfd", "python3", "-c",
         "import os, sys\n"
         "from itsdangerous.url_safe import URLSafeTimedSerializer\n"
         "print(URLSafeTimedSerializer(os.environ['DOJO_SSH_SERVICE_KEY']).dumps([int(sys.argv[1]), 'ssh-tui']))\n",
