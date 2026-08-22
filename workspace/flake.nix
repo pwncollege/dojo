@@ -104,6 +104,7 @@
               man
               ncurses
               nettools
+              openssh
               procps
               python3
               util-linux

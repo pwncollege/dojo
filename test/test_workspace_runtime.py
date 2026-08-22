@@ -324,10 +324,14 @@ def test_workspace_profile_symlink_farm_exposes_the_toolchain(runtime_workspace)
         )
 
     for binary in ["bash", "sh", "sudo", "exec-suid", "dojo", "dojo-service", "dojo-init",
-                   "ssh-entrypoint", "dojo-terminal", "dojo-code", "dojo-desktop"]:
+                   "ssh-entrypoint", "scp", "dojo-terminal", "dojo-code", "dojo-desktop"]:
         assert workspace_exec(name, f"test -x /run/dojo/bin/{binary}").returncode == 0, (
             f"Expected /run/dojo/bin/{binary} to exist and be executable in the workspace"
         )
+
+    assert workspace_exec(name, "test -x /run/dojo/libexec/sftp-server").returncode == 0, (
+        "Expected the workspace SSH file-transfer server to exist and be executable"
+    )
 
 
 @pytest.mark.skipif(MULTINODE, reason="the workspace builder runs on the workspace nodes, not the main node")

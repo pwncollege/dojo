@@ -631,11 +631,16 @@ def test_x11_and_tcp_forwarding_are_refused(workspace_ssh_user):
         result.stderr
 
 
-def test_sftp_session_fails_promptly(workspace_ssh_user, tmp_path):
+def test_sftp_transfer_round_trips(workspace_ssh_user, tmp_path):
+    payload = b"sftp-payload\x00round-trip\n"
     source = tmp_path / "sftp_payload.txt"
-    source.write_text("sftp-payload\n")
+    source.write_bytes(payload)
+    destination = tmp_path / "sftp_down.txt"
     batch = tmp_path / "batch"
-    batch.write_text(f"put {source} /home/hacker/sftp_up.txt\n")
+    batch.write_text(
+        f"put {source} /home/hacker/sftp_up.txt\n"
+        f"get /home/hacker/sftp_up.txt {destination}\n"
+    )
 
     started = time.time()
     result = subprocess.run(
@@ -646,33 +651,39 @@ def test_sftp_session_fails_promptly(workspace_ssh_user, tmp_path):
     )
     elapsed = time.time() - started
     assert elapsed < 30, f"the sftp session hung for {elapsed:.1f}s"
-    assert result.returncode != 0, "sftp unexpectedly succeeded without an sftp server in the workspace"
+    assert result.returncode == 0, result.stderr
+    assert workspace_run("base64 -w0 /home/hacker/sftp_up.txt",
+                         user=workspace_ssh_user.name).stdout == base64.b64encode(payload).decode()
+    assert destination.read_bytes() == payload
 
 
-@pytest.mark.xfail(reason="the workspace image ships no scp binary, so legacy scp transfers fail", strict=False)
-def test_scp_legacy_transfer_round_trips(workspace_ssh_user, tmp_path):
+@pytest.mark.parametrize("protocol_options", [
+    pytest.param([], id="sftp"),
+    pytest.param(["-O"], id="legacy"),
+])
+def test_scp_transfer_round_trips(workspace_ssh_user, tmp_path, protocol_options):
     private_key = workspace_ssh_user.keys["ed25519"]["private_file"]
-    payload = "scp-payload-round-trip"
+    payload = b"scp-payload\x00round-trip\n"
     source = tmp_path / "scp_up.txt"
-    source.write_text(payload + "\n")
+    source.write_bytes(payload)
 
     upload = subprocess.run(
-        ["scp", "-O", *SSH_BASE_OPTIONS, "-P", str(SSH_PORT), "-i", private_key,
+        ["scp", *protocol_options, *SSH_BASE_OPTIONS, "-P", str(SSH_PORT), "-i", private_key,
          str(source), f"hacker@{DOJO_SSH_HOST}:/home/hacker/scp_up.txt"],
         stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60,
     )
     assert upload.returncode == 0, upload.stderr
-    assert workspace_run("cat /home/hacker/scp_up.txt",
-                         user=workspace_ssh_user.name).stdout.strip() == payload
+    assert workspace_run("base64 -w0 /home/hacker/scp_up.txt",
+                         user=workspace_ssh_user.name).stdout == base64.b64encode(payload).decode()
 
     destination = tmp_path / "scp_down.txt"
     download = subprocess.run(
-        ["scp", "-O", *SSH_BASE_OPTIONS, "-P", str(SSH_PORT), "-i", private_key,
+        ["scp", *protocol_options, *SSH_BASE_OPTIONS, "-P", str(SSH_PORT), "-i", private_key,
          f"hacker@{DOJO_SSH_HOST}:/home/hacker/scp_up.txt", str(destination)],
         stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60,
     )
     assert download.returncode == 0, download.stderr
-    assert destination.read_text().strip() == payload
+    assert destination.read_bytes() == payload
 
 
 def test_ssh_requires_the_users_own_running_workspace(workspace_ssh_user, dojo_user, ssh_keys, example_dojo):
