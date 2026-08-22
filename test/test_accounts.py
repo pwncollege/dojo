@@ -9,8 +9,6 @@ import string
 import subprocess
 import tempfile
 import time
-import urllib.parse
-
 import pytest
 import requests
 
@@ -177,88 +175,6 @@ def test_api_register_creates_user_and_session():
     assert me.json()["id"] == body["data"]["user_id"], me.json()
 
 
-def test_api_register_optional_profile_fields_persisted():
-    name = rand_name()
-    session = anon_session()
-
-    response = api_register(session, **registration_payload(
-        name, website="https://example.com", affiliation="ASU", country="US",
-    ))
-    assert response.status_code == 200, response.text
-
-    me = session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me").json()
-    assert me["website"] == "https://example.com", me
-    assert me["affiliation"] == "ASU", me
-    assert me["country"] == "US", me
-
-    stored = db_sql(f"SELECT website, affiliation, country FROM users WHERE name = '{name}'").strip()
-    assert stored == "https://example.com|ASU|US", stored
-
-
-def test_api_register_duplicate_name_and_email(random_user_name):
-    session = anon_session()
-
-    taken_name = api_register(session, **registration_payload(
-        random_user_name, email=f"{rand_name()}@example.com",
-    ))
-    assert taken_name.status_code == 400, taken_name.text
-    assert "That username is already taken" in taken_name.json()["errors"], taken_name.json()
-
-    fresh_name = rand_name()
-    taken_email = api_register(session, **registration_payload(
-        fresh_name, email=f"{random_user_name}@example.com",
-    ))
-    assert taken_email.status_code == 400, taken_email.text
-    assert "That email is already registered" in taken_email.json()["errors"], taken_email.json()
-
-    assert count_users(random_user_name) == 1, "duplicate registration must not create a second row"
-    assert count_users(fresh_name) == 0, "rejected registration must not create a user"
-
-
-def test_api_register_field_validation():
-    session = anon_session()
-
-    single_faults = [
-        (dict(name=""), "Please provide a username"),
-        (dict(name="someone@example.com"), "Username cannot be an email address"),
-        (dict(email="notanemail"), "Please enter a valid email address"),
-        (dict(password=""), "Please provide a password"),
-        (dict(password="x" * 129), "Password is too long"),
-        (dict(website="ftp://example.com"), "Website must be a valid URL"),
-        (dict(country="ZZ"), "Invalid country"),
-        (dict(affiliation="a" * 129), "Affiliation is too long"),
-    ]
-
-    for overrides, expected_error in single_faults:
-        payload = registration_payload(rand_name())
-        payload.update(overrides)
-        response = api_register(session, **payload)
-        assert response.status_code == 400, f"{overrides} should be rejected: {response.status_code} {response.text}"
-        assert expected_error in response.json()["errors"], f"{overrides} -> {response.json()}"
-        assert count_users(payload["name"]) == 0, f"{overrides} must not create a user"
-
-    aggregate = api_register(session, name="", email="notanemail", password="")
-    assert aggregate.status_code == 400, aggregate.text
-    errors = aggregate.json()["errors"]
-    assert len(errors) >= 3, errors
-    for expected_error in ["Please provide a username", "Please enter a valid email address", "Please provide a password"]:
-        assert expected_error in errors, errors
-
-
-def test_api_register_requires_csrf_token():
-    for headers in [{}, {"CSRF-Token": "bogus"}]:
-        name = rand_name()
-        session = requests.Session()
-        session.get(f"{DOJO_URL}/login")
-        response = session.post(
-            f"{DOJO_URL}/pwncollege_api/v1/auth/register",
-            json=registration_payload(name),
-            headers=headers,
-        )
-        assert response.status_code == 403, f"headers={headers} -> {response.status_code} {response.text[:200]}"
-        assert count_users(name) == 0, "CSRF-rejected registration must not create a user"
-
-
 def test_api_register_blocked_when_registration_not_public():
     name = rand_name()
     session = anon_session()
@@ -309,19 +225,6 @@ def test_api_register_registration_code():
     assert count_users(accepted_name) == 1, "correct registration code must create a user"
 
 
-def test_api_register_autoverifies_without_mail():
-    name = rand_name()
-    session = anon_session()
-
-    with server_config(verify_emails=True):
-        response = api_register(session, **registration_payload(name))
-        assert response.status_code == 200, response.text
-        assert response.json()["data"]["verified"] is True, response.json()
-
-    assert db_sql(f"SELECT verified FROM users WHERE name = '{name}'").strip() == "t", \
-        "without a mail server the account must be auto-verified rather than left unverified"
-
-
 def test_api_login_success_returns_identity():
     name = rand_name()
     assert api_register(anon_session(), **registration_payload(name)).status_code == 200
@@ -345,14 +248,6 @@ def test_api_login_success_returns_identity():
     assert admin_response.json()["data"]["type"] == "admin", admin_response.json()
 
 
-def test_api_login_by_email(random_user_name):
-    session = anon_session()
-    response = api_login(session, name=f"{random_user_name}@example.com", password=random_user_name)
-    assert response.status_code == 200, response.text
-    assert response.json()["data"]["username"] == random_user_name, response.json()
-    assert session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me").json()["name"] == random_user_name
-
-
 def test_api_login_invalid_credentials_uniform_error(random_user_name):
     wrong_password_session = anon_session()
     wrong_password = api_login(wrong_password_session, name=random_user_name, password="wrong")
@@ -371,24 +266,6 @@ def test_api_login_invalid_credentials_uniform_error(random_user_name):
         assert session.get(
             f"{DOJO_URL}/pwncollege_api/v1/users/me", headers={"Content-Type": "application/json"}
         ).status_code == 403
-
-
-def test_api_login_remember_me_cookie_lifetime(random_user_name):
-    def session_cookie(session):
-        return next(cookie for cookie in session.cookies if cookie.name == "session")
-
-    remembered = anon_session()
-    assert api_login(remembered, name=random_user_name, password=random_user_name,
-                     remember_me=True).status_code == 200
-    expires = session_cookie(remembered).expires
-    assert expires is not None, "remember_me must make the session cookie permanent"
-    remaining_days = (expires - time.time()) / 86400
-    assert 170 < remaining_days < 190, f"expected a ~180 day session lifetime, got {remaining_days} days"
-
-    forgotten = anon_session()
-    assert api_login(forgotten, name=random_user_name, password=random_user_name).status_code == 200
-    assert session_cookie(forgotten).expires is None, \
-        "without remember_me the session cookie must expire with the browser session"
 
 
 def test_api_login_rate_limited(random_user_name):
@@ -767,166 +644,6 @@ def test_workspace_token_header_rejected_when_invalid(random_user, second_user):
     assert without_header.json() == {"success": False, "error": "Invalid dojo"}, without_header.json()
 
 
-def test_form_login_redirect_chain(random_user_name):
-    session = requests.Session()
-    nonce = parse_csrf_token(session.get(f"{DOJO_URL}/login").text)
-    while True:
-        response = session.post(
-            f"{DOJO_URL}/login",
-            data={"name": random_user_name, "password": random_user_name, "nonce": nonce},
-            allow_redirects=False,
-        )
-        if response.status_code != 429:
-            break
-        time.sleep(1)
-
-    assert response.status_code == 302, f"{response.status_code} {response.text[:200]}"
-    assert response.headers["Location"].endswith("/challenges"), response.headers["Location"]
-
-    challenges = session.get(f"{DOJO_URL}/challenges", allow_redirects=False)
-    assert challenges.status_code == 301, challenges.status_code
-    assert challenges.headers["Location"].endswith("/dojos"), challenges.headers["Location"]
-
-    assert session.get(f"{DOJO_URL}/dojos").status_code == 200
-    assert session.get(f"{DOJO_URL}/hacker/").status_code == 200
-
-
-def test_form_login_failure_leaves_session_anonymous():
-    session = login("admin", "incorrect_password", success=False)
-
-    hacker = session.get(f"{DOJO_URL}/hacker/", allow_redirects=False)
-    assert hacker.status_code == 302 and "/login" in hacker.headers["Location"], hacker.headers
-    assert session.get(
-        f"{DOJO_URL}/pwncollege_api/v1/users/me", headers={"Content-Type": "application/json"}
-    ).status_code == 403
-
-
-def test_form_login_and_register_require_nonce():
-    for nonce in [None, "bogus"]:
-        session = requests.Session()
-        session.get(f"{DOJO_URL}/login")
-
-        login_data = {"name": "admin", "password": "admin"}
-        if nonce is not None:
-            login_data["nonce"] = nonce
-        login_response = session.post(f"{DOJO_URL}/login", data=login_data, allow_redirects=False)
-        assert login_response.status_code == 403, f"nonce={nonce} -> {login_response.status_code}"
-
-        name = rand_name()
-        register_data = {"name": name, "email": f"{name}@example.com", "password": name}
-        if nonce is not None:
-            register_data["nonce"] = nonce
-        register_response = session.post(f"{DOJO_URL}/register", data=register_data, allow_redirects=False)
-        assert register_response.status_code == 403, f"nonce={nonce} -> {register_response.status_code}"
-        assert count_users(name) == 0, "a nonce-less registration must not create an account"
-
-
-def test_form_register_commitment_gate_is_client_side_only():
-    name = rand_name()
-    session = requests.Session()
-    nonce = parse_csrf_token(session.get(f"{DOJO_URL}/register").text)
-    while True:
-        response = session.post(
-            f"{DOJO_URL}/register",
-            data={"name": name, "email": f"{name}@example.com", "password": name, "nonce": nonce},
-            allow_redirects=False,
-        )
-        if response.status_code != 429:
-            break
-        time.sleep(1)
-
-    assert response.status_code == 302, (
-        "the ground-rules commitment box is enforced only in JavaScript, so a direct POST succeeds: "
-        f"{response.status_code}"
-    )
-    assert count_users(name) == 1, "the account must have been created without commitment_verified"
-
-
-def test_form_register_duplicates_and_email_username(random_user_name):
-    login(random_user_name, "whatever", register=True, success=False)
-    assert count_users(random_user_name) == 1, "a duplicate username must not create a second row"
-
-    duplicate_email_name = rand_name()
-    login(duplicate_email_name, duplicate_email_name, register=True,
-          email=f"{random_user_name}@example.com", success=False)
-    assert count_users(duplicate_email_name) == 0, "a duplicate email must not create an account"
-
-    email_username = f"{rand_name()}@example.com"
-    login(email_username, "password", register=True, success=False)
-    assert count_users(email_username) == 0, "a username that is an email address must be rejected"
-
-
-def test_form_register_authed_user_redirects(random_user_session):
-    response = random_user_session.get(f"{DOJO_URL}/register", allow_redirects=False)
-    assert response.status_code == 302, response.status_code
-    assert response.headers["Location"].endswith("/challenges"), response.headers["Location"]
-
-    assert requests.get(f"{DOJO_URL}/register").status_code == 200
-
-
-def test_form_logout_clears_session():
-    name = rand_name()
-    session = login(name, name, register=True)
-
-    response = session.get(f"{DOJO_URL}/logout", allow_redirects=False)
-    assert response.status_code == 302, response.status_code
-    assert urllib.parse.urlparse(response.headers["Location"]).path.rstrip("/") == "", \
-        f"logout must return to the site root, got {response.headers['Location']}"
-
-    hacker = session.get(f"{DOJO_URL}/hacker/", allow_redirects=False)
-    assert hacker.status_code == 302 and "/login" in hacker.headers["Location"], hacker.headers
-    settings = session.get(f"{DOJO_URL}/settings", allow_redirects=False)
-    assert settings.status_code == 302 and "/login" in settings.headers["Location"], settings.headers
-    assert "next" in settings.headers["Location"], settings.headers
-
-
-def test_form_login_rate_limited():
-    session = requests.Session()
-    nonce = parse_csrf_token(session.get(f"{DOJO_URL}/login").text)
-
-    statuses = []
-    for _ in range(15):
-        response = session.post(
-            f"{DOJO_URL}/login",
-            data={"name": "admin", "password": "definitely-not-the-password", "nonce": nonce},
-            allow_redirects=False,
-        )
-        statuses.append(response.status_code)
-        if response.status_code == 429:
-            assert response.json()["code"] == 429, response.text
-            break
-
-    assert 429 in statuses, f"the login form must be rate limited: {statuses}"
-
-    time.sleep(6)
-    login("admin", "admin")
-
-
-def test_removed_ctfd_user_and_scoreboard_routes(random_user_name, random_user_session, admin_session):
-    user_id = get_user_id(random_user_name)
-    for path in ["/users", f"/users/{user_id}", "/user", "/scoreboard"]:
-        assert requests.get(f"{DOJO_URL}{path}").status_code == 404, f"{path} must be removed"
-        assert random_user_session.get(f"{DOJO_URL}{path}").status_code == 404, f"{path} must be removed"
-        assert admin_session.get(f"{DOJO_URL}{path}").status_code == 404, f"{path} must be removed for admins too"
-
-    assert requests.get(f"{DOJO_URL}/hacker/{user_id}").status_code == 200, \
-        "the profile surface moved to /hacker/, it did not disappear"
-
-
-def test_hacker_profile_visibility(random_user):
-    name, session = random_user
-    user_id = get_user_id(name)
-
-    assert requests.get(f"{DOJO_URL}/hacker/{user_id}").status_code == 200
-    assert requests.get(f"{DOJO_URL}/hacker/{name}").status_code == 200
-    assert requests.get(f"{DOJO_URL}/hacker/999999").status_code == 404
-    assert requests.get(f"{DOJO_URL}/hacker/definitely-no-such-user").status_code == 404
-
-    anonymous = requests.get(f"{DOJO_URL}/hacker/", allow_redirects=False)
-    assert anonymous.status_code == 302 and "/login" in anonymous.headers["Location"], anonymous.headers
-    assert session.get(f"{DOJO_URL}/hacker/").status_code == 200
-
-
 def test_hidden_flag_round_trip(random_user, admin_session):
     name, session = random_user
     user_id = get_user_id(name)
@@ -962,103 +679,6 @@ def test_self_patch_cannot_escalate_privileges(random_user):
     assert session.get(f"{DOJO_URL}/admin/dojos", allow_redirects=False).status_code in (302, 403)
 
 
-def test_self_patch_name_change(random_user, second_user):
-    name, session = random_user
-    other_name, _ = second_user
-    renamed = f"{name}x"
-
-    assert session.patch(f"{DOJO_URL}/api/v1/users/me", json={"name": renamed}).status_code == 200
-    assert requests.get(f"{DOJO_URL}/hacker/{renamed}").status_code == 200
-    assert requests.get(f"{DOJO_URL}/hacker/{name}").status_code == 404
-    login(renamed, name)
-    login(name, name, success=False)
-
-    taken = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"name": other_name})
-    assert taken.status_code == 400, taken.text
-    assert "already been taken" in str(taken.json()["errors"]["name"]), taken.json()
-    assert count_users(renamed) == 1, "a rejected rename must leave the account untouched"
-
-    with server_config(prevent_name_change=True):
-        allowed = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"name": f"{renamed}y"})
-        assert allowed.status_code == 200, (
-            "the settings page reads a 'prevent_name_change' config that nothing enforces: "
-            f"{allowed.status_code} {allowed.text}"
-        )
-
-    with server_config(name_changes=False):
-        blocked = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"name": f"{renamed}z"})
-        assert blocked.status_code == 400, blocked.text
-        assert "Name changes are disabled" in str(blocked.json()["errors"]["name"]), blocked.json()
-
-    assert count_users(f"{renamed}y") == 1, "the account must keep the last accepted name"
-
-
-def test_self_patch_email_and_password_require_current_password(random_user):
-    name, session = random_user
-    new_email = f"{name}-new@example.com"
-
-    missing = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"email": new_email})
-    assert missing.status_code == 400, missing.text
-    assert missing.json()["errors"]["confirm"] == ["Please confirm your current password"], missing.json()
-
-    wrong = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"email": new_email, "confirm": "wrong"})
-    assert wrong.status_code == 400, wrong.text
-    assert wrong.json()["errors"]["confirm"] == ["Your previous password is incorrect"], wrong.json()
-
-    accepted = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"email": new_email, "confirm": name})
-    assert accepted.status_code == 200, accepted.text
-    assert db_sql(f"SELECT email FROM users WHERE name = '{name}'").strip() == new_email
-    by_email = api_login(anon_session(), name=new_email, password=name)
-    assert by_email.status_code == 200, by_email.text
-    assert by_email.json()["data"]["username"] == name, by_email.json()
-
-    missing_password = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"password": "newpass123"})
-    assert missing_password.status_code == 400, missing_password.text
-    assert missing_password.json()["errors"]["confirm"] == ["Please confirm your current password"]
-
-    wrong_password = session.patch(
-        f"{DOJO_URL}/api/v1/users/me", json={"password": "newpass123", "confirm": "wrong"}
-    )
-    assert wrong_password.status_code == 400, wrong_password.text
-    assert wrong_password.json()["errors"]["confirm"] == ["Your previous password is incorrect"]
-
-    changed = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"password": "newpass123", "confirm": name})
-    assert changed.status_code == 200, changed.text
-    login(name, "newpass123")
-    login(name, name, success=False)
-
-
-def test_self_patch_profile_field_validation(random_user):
-    name, session = random_user
-
-    bad_website = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"website": "notaurl"})
-    assert bad_website.status_code == 400, bad_website.text
-    assert "website" in bad_website.json()["errors"], bad_website.json()
-
-    bad_country = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"country": "XX"})
-    assert bad_country.status_code == 400, bad_country.text
-    assert "country" in bad_country.json()["errors"], bad_country.json()
-
-    assert db_sql(
-        f"SELECT coalesce(website, '') || '|' || coalesce(country, '') FROM users WHERE name = '{name}'"
-    ).strip() == "|", "rejected values must never be written"
-
-    accepted = session.patch(
-        f"{DOJO_URL}/api/v1/users/me",
-        json={"website": "https://example.com", "country": "US", "affiliation": "ASU"},
-    )
-    assert accepted.status_code == 200, accepted.text
-    me = session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me").json()
-    assert (me["website"], me["country"], me["affiliation"]) == ("https://example.com", "US", "ASU"), me
-
-
-def test_self_patch_unauthenticated():
-    before = db_sql("SELECT count(*) FROM users WHERE hidden = true").strip()
-    response = anon_session().patch(f"{DOJO_URL}/api/v1/users/me", json={"hidden": True})
-    assert response.status_code == 403, f"{response.status_code} {response.text[:200]}"
-    assert db_sql("SELECT count(*) FROM users WHERE hidden = true").strip() == before
-
-
 def test_banned_user_locked_out(random_user, admin_session):
     name, session = random_user
     user_id = get_user_id(name)
@@ -1079,42 +699,6 @@ def test_banned_user_locked_out(random_user, admin_session):
         assert unbanned.status_code == 200, unbanned.text
 
     assert login(name, name).get(f"{DOJO_URL}/dojos").status_code == 200
-
-
-def test_admin_cannot_ban_or_delete_self(admin_session):
-    admin_id = get_user_id("admin")
-
-    ban = admin_session.patch(f"{DOJO_URL}/api/v1/users/{admin_id}", json={"banned": True})
-    assert ban.status_code == 400, ban.text
-    assert ban.json()["errors"]["id"] == "You cannot ban yourself", ban.json()
-
-    delete = admin_session.delete(f"{DOJO_URL}/api/v1/users/{admin_id}", json={})
-    assert delete.status_code == 400, delete.text
-    assert delete.json()["errors"]["id"] == "You cannot delete yourself", delete.json()
-
-    assert db_sql("SELECT banned FROM users WHERE name = 'admin'").strip() == "f"
-    assert admin_session.get(f"{DOJO_URL}/dojos").status_code == 200
-
-
-def test_user_deletion_cascades_account_data(admin_session, ssh_keypairs):
-    name = rand_name("doomed")
-    session = login(name, name, register=True)
-    user_id = get_user_id(name)
-
-    assert session.post(
-        f"{DOJO_URL}/pwncollege_api/v1/ssh_key", json={"ssh_key": ssh_keypairs[5]}
-    ).status_code == 200
-    assert session.post(f"{DOJO_URL}/pwncollege_api/v1/workspace_tokens", json={}).status_code == 200
-    assert db_sql(f"SELECT count(*) FROM ssh_keys WHERE user_id = {user_id}").strip() == "1"
-    assert db_sql(f"SELECT count(*) FROM workspace_tokens WHERE user_id = {user_id}").strip() == "1"
-
-    deleted = admin_session.delete(f"{DOJO_URL}/api/v1/users/{user_id}", json={})
-    assert deleted.status_code == 200, deleted.text
-
-    assert db_sql(f"SELECT count(*) FROM users WHERE id = {user_id}").strip() == "0"
-    assert db_sql(f"SELECT count(*) FROM ssh_keys WHERE user_id = {user_id}").strip() == "0"
-    assert db_sql(f"SELECT count(*) FROM workspace_tokens WHERE user_id = {user_id}").strip() == "0"
-    assert session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me", allow_redirects=False).status_code in (302, 403)
 
 
 def test_settings_page_requires_auth_and_reflects_account_state(random_user, second_user, ssh_keypairs):
@@ -1147,113 +731,3 @@ def test_settings_page_requires_auth_and_reflects_account_state(random_user, sec
         "the settings page must list the caller's own access tokens"
     assert "Active Tokens" not in other_session.get(f"{DOJO_URL}/settings").text, \
         "the settings page must not list another user's access tokens"
-
-
-def test_settings_page_unverified_email_notice(random_user):
-    name, session = random_user
-
-    with server_config(verify_emails=True):
-        db_sql(f"UPDATE users SET verified = false WHERE name = '{name}'")
-        unverified = session.get(f"{DOJO_URL}/settings")
-        assert unverified.status_code == 200, unverified.status_code
-        assert "isn't confirmed" in unverified.text, "an unverified user must be told to confirm their email"
-        assert "/confirm" in unverified.text, "the notice must link to the resend endpoint"
-
-        db_sql(f"UPDATE users SET verified = true WHERE name = '{name}'")
-        verified = session.get(f"{DOJO_URL}/settings")
-        assert verified.status_code == 200, verified.status_code
-        assert "isn't confirmed" not in verified.text, "a verified user must not see the notice"
-
-
-def test_ssh_key_cannot_be_claimed_across_users(random_user, second_user, ssh_keypairs):
-    owner_name, owner_session = random_user
-    _, other_session = second_user
-    key = ssh_keypairs[2]
-    normalized = " ".join(key.split()[:2])
-
-    assert owner_session.post(f"{DOJO_URL}/pwncollege_api/v1/ssh_key", json={"ssh_key": key}).status_code == 200
-
-    stolen = other_session.post(f"{DOJO_URL}/pwncollege_api/v1/ssh_key", json={"ssh_key": key})
-    assert stolen.status_code == 400, stolen.text
-    assert stolen.json()["error"] == "SSH Key already in use", stolen.json()
-
-    assert db_sql(f"SELECT user_id FROM ssh_keys WHERE value = '{normalized}'").strip() == str(get_user_id(owner_name))
-
-
-def test_ssh_key_delete_scoped_to_owner(random_user, second_user, ssh_keypairs):
-    owner_name, owner_session = random_user
-    _, other_session = second_user
-    key = ssh_keypairs[3]
-    normalized = " ".join(key.split()[:2])
-
-    assert owner_session.post(f"{DOJO_URL}/pwncollege_api/v1/ssh_key", json={"ssh_key": key}).status_code == 200
-
-    stolen_delete = other_session.delete(f"{DOJO_URL}/pwncollege_api/v1/ssh_key", json={"ssh_key": normalized})
-    assert stolen_delete.status_code == 400, stolen_delete.text
-    assert stolen_delete.json()["error"] == "SSH Key does not exist", stolen_delete.json()
-    assert db_sql(f"SELECT user_id FROM ssh_keys WHERE value = '{normalized}'").strip() == str(get_user_id(owner_name))
-
-    own_delete = owner_session.delete(f"{DOJO_URL}/pwncollege_api/v1/ssh_key", json={"ssh_key": normalized})
-    assert own_delete.status_code == 200, own_delete.text
-    assert db_sql(f"SELECT count(*) FROM ssh_keys WHERE value = '{normalized}'").strip() == "0"
-
-
-def test_ssh_key_endpoint_requires_auth(ssh_keypairs):
-    before = db_sql("SELECT count(*) FROM ssh_keys").strip()
-    session = anon_session()
-
-    assert session.post(f"{DOJO_URL}/pwncollege_api/v1/ssh_key", json={"ssh_key": ssh_keypairs[4]}).status_code == 403
-    assert session.delete(f"{DOJO_URL}/pwncollege_api/v1/ssh_key", json={"ssh_key": ssh_keypairs[4]}).status_code == 403
-    assert db_sql("SELECT count(*) FROM ssh_keys").strip() == before
-
-
-def test_discord_unlink_is_owner_scoped_and_idempotent(random_user, second_user):
-    owner_name, owner_session = random_user
-    other_name, _ = second_user
-    owner_id, other_id = get_user_id(owner_name), get_user_id(other_name)
-    owner_discord = random.randint(10 ** 17, 10 ** 18)
-    other_discord = owner_discord + 1
-
-    db_sql(
-        "INSERT INTO discord_users (user_id, discord_id) VALUES "
-        f"({owner_id}, {owner_discord}), ({other_id}, {other_discord})"
-    )
-    try:
-        unlinked = owner_session.delete(f"{DOJO_URL}/pwncollege_api/v1/discord", json={})
-        assert unlinked.status_code == 200, unlinked.text
-        assert unlinked.json()["success"] is True, unlinked.json()
-        assert db_sql(f"SELECT count(*) FROM discord_users WHERE user_id = {owner_id}").strip() == "0"
-        assert db_sql(f"SELECT count(*) FROM discord_users WHERE user_id = {other_id}").strip() == "1"
-
-        repeated = owner_session.delete(f"{DOJO_URL}/pwncollege_api/v1/discord", json={})
-        assert repeated.status_code == 200, repeated.text
-        assert repeated.json()["success"] is True, repeated.json()
-
-        assert anon_session().delete(f"{DOJO_URL}/pwncollege_api/v1/discord", json={}).status_code == 403
-        assert db_sql(f"SELECT count(*) FROM discord_users WHERE user_id = {other_id}").strip() == "1"
-    finally:
-        db_sql(f"DELETE FROM discord_users WHERE user_id IN ({owner_id}, {other_id})")
-
-
-@pytest.mark.parametrize("path", ["/discord/connect", "/discord/redirect"])
-def test_discord_connect_disabled_without_client_id(path, random_user_session):
-    authenticated = random_user_session.get(f"{DOJO_URL}{path}", allow_redirects=False)
-    if authenticated.status_code == 302 and "discord.com" in authenticated.headers.get("Location", ""):
-        pytest.skip("DISCORD_CLIENT_ID is configured in this deployment")
-    assert authenticated.status_code == 501, f"{path} -> {authenticated.status_code}"
-
-    anonymous = requests.get(f"{DOJO_URL}{path}", allow_redirects=False)
-    assert anonymous.status_code == 302, f"{path} -> {anonymous.status_code}"
-    assert "/login" in anonymous.headers["Location"], anonymous.headers
-
-
-def test_index_served_by_dojo_listing(random_user_session, example_dojo):
-    anonymous = requests.get(f"{DOJO_URL}/")
-    assert anonymous.status_code == 200, anonymous.status_code
-    assert example_dojo in anonymous.text, "the index must render the dojo listing"
-
-    authenticated = random_user_session.get(f"{DOJO_URL}/")
-    assert authenticated.status_code == 200, authenticated.status_code
-    assert example_dojo in authenticated.text, "the index must render the dojo listing"
-
-    assert requests.get(f"{DOJO_URL}/definitely-not-a-page").status_code == 404

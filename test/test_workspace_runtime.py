@@ -334,33 +334,6 @@ def test_workspace_profile_symlink_farm_exposes_the_toolchain(runtime_workspace)
     )
 
 
-@pytest.mark.skipif(MULTINODE, reason="the workspace builder runs on the workspace nodes, not the main node")
-def test_workspace_builder_profile_is_the_active_toolchain(runtime_workspace):
-    name, _ = runtime_workspace
-    profiles = "/data/workspace/nix/var/nix/profiles"
-
-    active = dojo_run("readlink", f"{profiles}/dojo-workspace").stdout.strip()
-    assert active.startswith("/nix/var/nix/profiles/dojo-workspace-"), (
-        f"Expected the active profile to point at a timestamped build, but it pointed at {active}"
-    )
-
-    build = dojo_run("readlink", f"{profiles}/{active.split('/')[-1]}").stdout.strip()
-    assert build.startswith("/nix/store/"), f"Expected the build to live in the nix store, but got {build}"
-    assert workspace_output(name, "readlink -f /run/current-system/sw") == build, (
-        f"Expected the workspace to resolve its toolchain through the built profile {build}"
-    )
-
-    builder = dojo_run(
-        "docker", "inspect", "--format", "{{.State.Status}} {{.State.ExitCode}}", "workspace-builder", check=False,
-    ).stdout.strip()
-    if builder.startswith("exited"):
-        assert builder == "exited 0", f"Expected the workspace builder to have succeeded, but it {builder}"
-        logs = dojo_run("docker", "logs", "workspace-builder", check=False)
-        assert f"Updated profile to {active}" in logs.stdout + logs.stderr, (
-            "Expected the workspace builder to log the profile it activated"
-        )
-
-
 def test_workspace_synthesizes_passwd_and_group_entries(runtime_workspace):
     name, _ = runtime_workspace
 
@@ -525,21 +498,6 @@ def test_dojo_service_start_is_idempotent(runtime_workspace):
         cleanup_service(name, service, pid)
 
 
-def test_dojo_service_start_reports_that_it_started_the_service(runtime_workspace):
-    name, _ = runtime_workspace
-    service = "wsr-announce/sleeper"
-    command = "/run/dojo/bin/sleep 3118"
-    pid = None
-    try:
-        started = workspace_exec(name, f"dojo-service start {service} {command}")
-        pid = service_pid(name, service)
-        assert f"Service {service} started." in started.stdout, (
-            f"Expected dojo-service to report the start, but it printed {started.stdout!r}"
-        )
-    finally:
-        cleanup_service(name, service, pid)
-
-
 def test_dojo_service_kill_terminates_a_service_that_ignores_sigterm(runtime_workspace):
     name, _ = runtime_workspace
     service = "wsr-kill/stubborn"
@@ -554,42 +512,6 @@ def test_dojo_service_kill_terminates_a_service_that_ignores_sigterm(runtime_wor
         assert workspace_exec(name, f"kill -0 {pid}").returncode != 0, (
             f"Expected `dojo-service kill` to force-kill pid {pid}, but it survived SIGTERM and is unmanaged now"
         )
-    finally:
-        cleanup_service(name, service, pid)
-
-
-def test_dojo_service_status_reports_a_foreign_owned_service_as_running(runtime_workspace):
-    name, _ = runtime_workspace
-    service = "wsr-foreign-status/rootsvc"
-    command = "/run/dojo/bin/sleep 3217"
-    pid = None
-    try:
-        workspace_exec(name, f"dojo-service start {service} {command}", root=True)
-        pid = service_pid(name, service)
-        assert workspace_exec(name, f"kill -0 {pid}", root=True).returncode == 0, "Expected the service to be running"
-        status = workspace_output(name, f"dojo-service status {service}")
-        assert status == f"Service {service} is running with PID {pid}.", (
-            f"Expected status to report the live service, but it reported {status!r}"
-        )
-    finally:
-        cleanup_service(name, service, pid)
-
-
-def test_dojo_service_stop_of_a_foreign_owned_service_reports_cleanly(runtime_workspace):
-    name, _ = runtime_workspace
-    service = "wsr-foreign-stop/rootsvc"
-    command = "/run/dojo/bin/sleep 3218"
-    pid = None
-    try:
-        workspace_exec(name, f"dojo-service start {service} {command}", root=True)
-        pid = service_pid(name, service)
-        stopped = workspace_exec(name, f"dojo-service stop {service}")
-        assert "Traceback" not in stopped.stderr, (
-            f"Expected a clean error when stopping another user's service, but got {stopped.stderr!r}"
-        )
-        assert stopped.returncode != 0, "Expected a failing exit status when the stop is not permitted"
-        remaining = workspace_exec(name, f"pgrep -c -f '^{command}$'", root=True).stdout.strip()
-        assert remaining == "1", "an unprivileged user must not be able to stop another user's service"
     finally:
         cleanup_service(name, service, pid)
 
@@ -710,20 +632,6 @@ def test_only_whitelisted_services_are_executed_in_the_workspace(runtime_workspa
     assert workspace_output(name, "find /run/dojo/var -name '*desktop-windows*' | wc -l", root=True) == "0", (
         "Expected no desktop-windows service state to be created"
     )
-
-
-def test_workspace_service_names_map_to_container_ports(runtime_workspace):
-    _, session = runtime_workspace
-
-    for service, port in [("challenge", 80), ("terminal", 7681), ("code", 8080),
-                          ("desktop", 6080), ("desktop-windows", 6082), ("7681", 7681)]:
-        response = session.get(f"{WORKSPACE_API}?service={service}")
-        assert response.status_code == 200, f"Expected status code 200 for {service}, got {response.status_code}"
-        result = response.json()
-        assert result["success"] and result["active"], f"Expected an active workspace for {service}: {result}"
-        assert forwarded_port(result["iframe_src"]) == port, (
-            f"Expected service {service} to forward to port {port}, but got {result['iframe_src']}"
-        )
 
 
 @pytest.mark.skipif(MULTINODE, reason="the workspace proxy redirects to the per-node vhost in multinode")

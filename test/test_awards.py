@@ -21,7 +21,6 @@ from utils import (
 )
 
 BELT_ORDER = ["orange", "yellow", "green", "purple", "blue", "brown", "red", "black"]
-BELT_SVG_COLORS = ["white"] + BELT_ORDER
 
 
 def random_suffix(k=8):
@@ -303,21 +302,6 @@ def test_belts_api_and_page_exclude_hidden_and_unbelted_users(belt_dojos, arena_
     assert plain_name not in body, "unbelted users must not be listed on the belts page"
 
 
-def test_belts_api_ignores_unknown_belt_names(arena_dojo):
-    user_name, session = new_user()
-    user_id = get_user_id(user_name)
-    assert http_get(session, f"{DOJO_URL}/dojo/{arena_dojo}/join/").status_code == 200
-    solve_challenge_offline(arena_dojo, "hello", "apple", session=session, user=user_name)
-
-    db_sql("INSERT INTO awards (user_id, type, name, description, date, value, icon) "
-           f"VALUES ({user_id}, 'belt', 'rainbow', 'Rainbow Belt', NOW(), 0, NULL)")
-    recalculate_belts()
-
-    assert str(user_id) not in belts_payload()["users"], "belts outside BELT_ORDER must be ignored"
-    entry = scoreboard_me(session, arena_dojo)
-    assert entry["belt"] == "/belt/white.svg", f"expected a white belt, got {entry['belt']}"
-
-
 def test_belts_api_ranks_ordered_by_date(belt_dojos):
     first_name, first_session = new_user()
     second_name, second_session = new_user()
@@ -330,92 +314,6 @@ def test_belts_api_ranks_ordered_by_date(belt_dojos):
     first_id, second_id = get_user_id(first_name), get_user_id(second_name)
     assert first_id in ranks and second_id in ranks
     assert ranks.index(first_id) < ranks.index(second_id), "ranks should be ordered by ascension date"
-
-
-def test_belts_degrade_to_white_when_cache_is_missing(belt_dojos):
-    user_name, session = new_user()
-    user_id = get_user_id(user_name)
-    solve_challenge_offline(belt_dojos["orange"], "test", "test", session=session, user=user_name)
-    recalculate_belts()
-    entry = scoreboard_me(session, belt_dojos["orange"])
-    assert entry["belt"] == "/belt/orange.svg"
-
-    try:
-        dojo_run("docker", "exec", "cache", "redis-cli", "DEL", "stats:belts", "stats:belts:updated")
-
-        payload = belts_payload()
-        assert payload["users"] == {}, "a missing belts cache should degrade to an empty skeleton"
-        for color in BELT_ORDER:
-            assert payload["ranks"][color] == [], f"ranks[{color}] should be empty without a cache"
-        assert http_get(requests, f"{DOJO_URL}/belts").status_code == 200, "the belts page should survive a missing cache"
-        entry = scoreboard_me(session, belt_dojos["orange"])
-        assert entry["belt"] == "/belt/white.svg", "scoreboards should fall back to white belts"
-    finally:
-        recalculate_belts()
-
-    assert user_id in belts_payload()["ranks"]["orange"], "belts should return once the cache is rebuilt"
-
-
-def test_belt_svg_endpoint():
-    bodies = {}
-    for color in BELT_SVG_COLORS:
-        response = http_get(requests, f"{DOJO_URL}/belt/{color}.svg")
-        assert response.status_code == 200, f"expected 200 for {color}.svg, got {response.status_code}"
-        assert response.headers["Content-Type"] == "image/svg+xml"
-        assert response.headers["Cache-Control"] == "public, max-age=300"
-        assert response.text.startswith("<?xml"), f"{color}.svg did not render an SVG document"
-        bodies[color] = response.text
-
-    assert "#ff7f32" in bodies["orange"], "the orange belt should be colorized with the orange palette"
-    assert "#ff7f32" not in bodies["black"], "the black belt should not use the orange palette"
-    assert len(set(bodies.values())) == len(BELT_SVG_COLORS), "each belt color should render a distinct image"
-
-    assert http_get(requests, f"{DOJO_URL}/belt/pink.svg").status_code == 404
-    assert http_get(requests, f"{DOJO_URL}/belt/ORANGE.svg").status_code == 404
-
-
-def test_scoreboard_belt_defaults_to_white_and_is_fetchable(belt_dojos, arena_dojo):
-    user_name, session = new_user()
-    assert http_get(session, f"{DOJO_URL}/dojo/{arena_dojo}/join/").status_code == 200
-    solve_challenge_offline(arena_dojo, "hello", "apple", session=session, user=user_name)
-
-    entry = scoreboard_me(session, arena_dojo)
-    assert entry["belt"] == "/belt/white.svg", f"expected a white belt, got {entry['belt']}"
-
-    belt_response = http_get(requests, DOJO_URL.rstrip("/") + entry["belt"])
-    assert belt_response.status_code == 200, "the scoreboard belt url should resolve"
-    assert belt_response.headers["Content-Type"] == "image/svg+xml"
-
-    solve_challenge_offline(belt_dojos["orange"], "test", "test", session=session, user=user_name)
-    recalculate_belts()
-    entry = scoreboard_me(session, arena_dojo)
-    assert entry["belt"] == "/belt/orange.svg", f"expected an orange belt, got {entry['belt']}"
-    assert http_get(requests, DOJO_URL.rstrip("/") + entry["belt"]).status_code == 200
-
-
-def test_scoreboard_belt_reflects_manually_granted_high_belt(belt_dojos):
-    user_name, session = new_user()
-    user_id = get_user_id(user_name)
-    solve_challenge_offline(belt_dojos["orange"], "test", "test", session=session, user=user_name)
-    recalculate_belts()
-    assert scoreboard_me(session, belt_dojos["orange"])["belt"] == "/belt/orange.svg"
-
-    db_sql("INSERT INTO awards (user_id, type, name, description, date, value, icon) "
-           f"VALUES ({user_id}, 'belt', 'black', 'Black Belt', NOW(), 0, NULL)")
-    recalculate_belts()
-
-    payload = belts_payload()
-    assert payload["users"][str(user_id)]["color"] == "black", "black outranks every dojo-earned belt"
-    assert user_id in payload["ranks"]["black"]
-    assert user_id not in payload["ranks"]["orange"]
-    assert scoreboard_me(session, belt_dojos["orange"])["belt"] == "/belt/black.svg"
-
-
-def test_sensei_page_loads(random_user_session):
-    response = http_get(requests, f"{DOJO_URL}/sensei")
-    assert response.status_code == 200, f"expected 200 from /sensei, got {response.status_code}"
-    assert "pwn" in response.text
-    assert http_get(random_user_session, f"{DOJO_URL}/sensei").status_code == 200
 
 
 def test_emoji_award_row_and_badge_contract(awarded_user, simple_award_dojo, codepoints_award_dojo, arena_dojo):

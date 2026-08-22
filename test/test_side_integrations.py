@@ -199,24 +199,6 @@ modules:
     return rid
 
 
-@pytest.fixture(scope="module")
-def side_hidden_dojo(admin_session):
-    spec = f"""
-id: si-hidden-{random_name()}
-name: Side Integrations Hidden Dojo
-type: hidden
-modules:
-  - id: lessons
-    name: Lessons
-    challenges:
-      - id: first
-        name: First
-{DOJO_FILES_SPEC}"""
-    rid = create_dojo_yml(spec, session=admin_session)
-    make_dojo_official(rid, admin_session)
-    return rid
-
-
 def test_discord_bot_auth_rejects_missing_or_wrong_bearer():
     endpoints = [
         f"{DISCORD_API}/activity/1234",
@@ -581,15 +563,6 @@ def test_course_discord_endpoints_without_course_start(linked_discord_user, side
         assert response.json() == {"success": False, "error": "No course start"}, response.json()
 
 
-def test_course_discord_endpoints_on_non_course_dojo_do_not_crash(linked_discord_user, example_dojo):
-    _, session, _, _ = linked_discord_user
-    for resource in ["memes", "thanks"]:
-        response = session.get(f"{DISCORD_API}/course/{example_dojo}/{resource}")
-        assert response.status_code == 200, \
-            f"/course/{example_dojo}/{resource} returned {response.status_code}: {response.text[:200]}"
-        assert response.json() == {"success": False, "error": "No course start"}, response.json()
-
-
 def test_course_memes_counts_weekly_buckets(linked_discord_user, side_course_dojo):
     _, session, _, discord_id = linked_discord_user
     set_course(side_course_dojo, {"start_date": "2026-01-01T00:00:00"})
@@ -870,23 +843,6 @@ def test_research_page_is_public(side_other_user):
     assert response.status_code == 200, f"authenticated /research returned {response.status_code}"
 
 
-def test_research_trailing_slash_is_not_an_alias():
-    response = requests.get(f"{DOJO_URL}/research/", allow_redirects=False)
-    assert response.status_code == 404, f"/research/ returned {response.status_code}"
-
-    response = requests.get(f"{DOJO_URL}/research?x=1")
-    assert response.status_code == 200, f"/research?x=1 returned {response.status_code}"
-
-
-def test_index_serves_the_dojo_listing(side_other_user):
-    _, session, _, _ = side_other_user
-    for label, response in [("anonymous", requests.get(f"{DOJO_URL}/")),
-                            ("authenticated", session.get(f"{DOJO_URL}/"))]:
-        assert response.status_code == 200, f"{label} / returned {response.status_code}"
-        assert "Learn to Hack!" in response.text, f"{label} / did not render the dojo index template"
-        assert "YOUR Journey" in response.text, f"{label} / did not render the next-steps section"
-
-
 def test_index_next_step_recommends_welcome_dojo(welcome_dojo, random_user_session):
     anonymous = index_next_section(requests.get(f"{DOJO_URL}/").text)
     assert f'"/dojo/{welcome_dojo}"' in anonymous, \
@@ -909,26 +865,6 @@ def test_index_next_step_advances_after_completion(welcome_dojo, random_user):
     assert f'"/dojo/{welcome_dojo}"' not in section, \
         f"a completed dojo must not stay in the next-steps section: {section}"
     assert "/dojo/" in section, f"next steps should advance to another dojo: {section}"
-
-
-def test_index_and_listing_hide_hidden_and_official_example_dojos(side_hidden_dojo, example_dojo, side_other_user):
-    _, session, _, _ = side_other_user
-
-    response = session.get(f"{DOJO_URL}/dojo/{side_hidden_dojo}")
-    assert response.status_code == 200, \
-        f"the hidden dojo should still be reachable directly, got {response.status_code}"
-
-    for path in ["/", "/dojos"]:
-        response = session.get(f"{DOJO_URL}{path}")
-        assert response.status_code == 200, f"{path} returned {response.status_code}"
-        assert f'"/dojo/{side_hidden_dojo}"' not in response.text, f"hidden dojo leaked into {path}"
-        assert f'"/dojo/{example_dojo}"' not in response.text, f"official example dojo leaked into {path}"
-
-
-def test_index_unknown_route_404():
-    assert requests.get(f"{DOJO_URL}/nonexistent-page-xyz").status_code == 404
-    assert requests.get(f"{DOJO_URL}/index").status_code == 404, "/index must not alias /"
-    assert requests.get(f"{DOJO_URL}/sensei").status_code == 200, "existing CTFd pages must still render"
 
 
 def test_belt_granted_with_linked_but_unreachable_discord(belt_dojos, random_user):

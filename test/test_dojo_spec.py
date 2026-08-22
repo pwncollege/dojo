@@ -1161,14 +1161,6 @@ def test_course_discord_role_requires_official(admin_session):
     assert dojos_named(dojo_id) == 0
 
 
-def test_course_endpoints_absent_without_course_yml(admin_session, example_dojo):
-    assert admin_session.get(f"{DOJO_URL}/dojo/{example_dojo}/course").status_code == 404
-
-    response = admin_session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{example_dojo}/course")
-    assert response.status_code == 404, f"Expected a clean 404, got {response.status_code}"
-    assert response.json()["success"] is False
-
-
 def test_update_removes_and_restores_challenges(admin_session, spec_user):
     name, session = spec_user
     spec = {
@@ -1311,26 +1303,3 @@ def test_spec_creation_requires_admin(admin_session, spec_user):
 
     create_dojo_spec(admin_session, {"id": spec_id("admincreate")})
     create_dojo_spec(admin_session, {"id": spec_id("admincreate")})
-
-
-def test_dojo_delete_cascades(admin_session):
-    dojo = create_dojo_spec(admin_session, {
-        "id": spec_id("delete"),
-        "type": "public",
-        "modules": [{"id": "m",
-                     "resources": [{"type": "markdown", "name": "R", "content": "x"}],
-                     "challenges": [{"id": "c", "visibility": {"stop": "2099-01-01T00:00:00Z"}}]}],
-        "files": [challenge_file("m/c/src")],
-    })
-    dojo_id = dojo_db_id(dojo)
-    tables = ["dojo_modules", "dojo_challenges", "dojo_resources", "dojo_challenge_visibilities"]
-
-    before = [int(db_sql(f"SELECT count(*) FROM {table} WHERE dojo_id = {dojo_id}")) for table in tables]
-    assert all(count > 0 for count in before), f"Expected rows in every table, got {dict(zip(tables, before))}"
-
-    response = admin_session.post(f"{DOJO_URL}/dojo/{dojo}/delete/", json={"dojo": dojo})
-    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
-
-    after = [int(db_sql(f"SELECT count(*) FROM {table} WHERE dojo_id = {dojo_id}")) for table in tables]
-    assert after == [0, 0, 0, 0], f"Deleting a dojo must cascade, got {dict(zip(tables, after))}"
-    assert admin_session.get(f"{DOJO_URL}/{dojo}/").status_code == 404

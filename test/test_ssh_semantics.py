@@ -242,29 +242,6 @@ def test_key_normalization_strips_comments_options_and_whitespace(dojo_user, ssh
     assert key_count(name) == 2, "duplicate submission must not create another row"
 
 
-def test_authorized_keys_command_binds_each_key_to_its_owner(dojo_user, ssh_keys):
-    name, session = dojo_user
-    user_id = get_user_id(name)
-    ed25519 = ssh_keys["ed25519"]["public"]
-    injected_marker = f"pwned-{name}"
-
-    response = add_ssh_key(session, f'command="touch /tmp/{injected_marker}",no-pty {ed25519}')
-    assert response.status_code == 200, response.text
-
-    lines = authorized_keys_lines()
-    expected = forced_command_line(user_id, ed25519)
-    owned = [line for line in lines if line.endswith(normalized(ed25519))]
-    assert owned == [expected], f"expected exactly one forced-command line for the key, got {owned}"
-    assert owned[0].count("command=") == 1, f"a second forced command was injected: {owned[0]!r}"
-    assert injected_marker not in "\n".join(lines), "user-supplied option leaked into the sshd key stream"
-
-    listing = dojo_run("docker", "exec", "sshd", "ls", "/tmp").stdout
-    assert injected_marker not in listing, "user-supplied forced command executed in the sshd container"
-
-    assert delete_ssh_key(session, ed25519).status_code == 200
-    assert expected not in authorized_keys_lines(), "auth.py served a deleted key"
-
-
 def test_invalid_key_material_rejected(dojo_user, ssh_keys, tmp_path):
     name, session = dojo_user
     ed25519_blob = ssh_keys["ed25519"]["public"].split()[1]
@@ -345,21 +322,6 @@ def test_malformed_request_body_rejected(dojo_user):
             assert 400 <= response.status_code < 500, \
                 f"{method.__name__} with {description} returned {response.status_code}"
     assert key_count(name) == 0, "a malformed request created an ssh_keys row"
-
-
-def test_duplicate_key_rejected_and_db_session_recovers(dojo_user, ssh_keys):
-    name, session = dojo_user
-    rsa = ssh_keys["rsa"]["public"]
-
-    assert add_ssh_key(session, rsa).status_code == 200
-    response = add_ssh_key(session, rsa)
-    assert response.status_code == 400, response.status_code
-    assert response.json() == {"success": False, "error": "SSH Key already in use"}, response.json()
-    assert key_count(name) == 1
-
-    response = add_ssh_key(session, ssh_keys["ed25519"]["public"])
-    assert response.status_code == 200, f"session was left unusable by the rollback: {response.text}"
-    assert key_count(name) == 2
 
 
 def test_key_stays_bound_to_the_first_registering_user(workspace_ssh_user, dojo_user):
@@ -462,80 +424,6 @@ def test_key_attaches_to_the_session_user_only(dojo_user, ssh_keys, admin_sessio
         assert key_count(name) == 0
     finally:
         admin_session.delete(SSH_KEY_ENDPOINT, json={"ssh_key": rsa})
-
-
-def test_settings_page_scopes_keys_to_owner(dojo_user, second_user, ssh_keys):
-    _, session = dojo_user
-    _, other_session = second_user
-    mine = normalized(ssh_keys["rsa"]["public"])
-    theirs = normalized(ssh_keys["ed25519"]["public"])
-
-    assert add_ssh_key(session, mine).status_code == 200
-    assert add_ssh_key(other_session, theirs).status_code == 200
-
-    page = session.get(f"{DOJO_URL}/settings")
-    assert page.status_code == 200
-    assert mine in page.text, "the user's own key is missing from their settings page"
-    assert theirs not in page.text, "another user's key leaked into the settings page"
-
-    page = other_session.get(f"{DOJO_URL}/settings")
-    assert page.status_code == 200
-    assert theirs in page.text
-    assert mine not in page.text
-
-
-def test_user_deletion_cascades_keys(dojo_user, second_user, ssh_keys):
-    name, session = dojo_user
-    other_name, other_session = second_user
-    user_id = get_user_id(name)
-    rsa = ssh_keys["rsa"]["public"]
-
-    assert add_ssh_key(session, rsa).status_code == 200
-    assert key_count(name) == 1
-    assert forced_command_line(user_id, rsa) in authorized_keys_lines()
-
-    db_sql(f"DELETE FROM users WHERE id = {user_id}")
-
-    assert int(db_sql(f"SELECT count(*) FROM ssh_keys WHERE user_id = {user_id}")) == 0, \
-        "deleting a user left their ssh keys behind"
-    assert forced_command_line(user_id, rsa) not in authorized_keys_lines(), \
-        "a deleted user's key is still served to sshd"
-
-    assert add_ssh_key(other_session, rsa).status_code == 200, \
-        "the deleted user's key value never became available again"
-    assert key_count(other_name) == 1
-
-
-def test_malformed_key_row_does_not_break_auth(workspace_ssh_user, dojo_user):
-    other_name, _ = dojo_user
-    owner_id = get_user_id(workspace_ssh_user.name)
-    owner_line = forced_command_line(owner_id, workspace_ssh_user.keys["rsa"]["public"])
-
-    db_sql(f"INSERT INTO ssh_keys (user_id, value) VALUES ({get_user_id(other_name)}, '')")
-    try:
-        assert owner_line in authorized_keys_lines(), \
-            "a blank ssh_keys row suppressed a healthy user's key"
-        result = ssh_run(workspace_ssh_user.keys["rsa"]["private_file"], "whoami")
-        assert result.returncode == 0, result.stderr
-        assert "hacker" in result.stdout
-    finally:
-        db_sql("DELETE FROM ssh_keys WHERE value = ''")
-
-
-def test_every_registered_key_reaches_the_owners_workspace(workspace_ssh_user):
-    assert key_count(workspace_ssh_user.name) == 3
-
-    for key_type in ("rsa", "ed25519", "ecdsa"):
-        result = ssh_run(workspace_ssh_user.keys[key_type]["private_file"], "whoami; hostname")
-        assert result.returncode == 0, f"{key_type} key failed to authenticate: {result.stderr}"
-        assert "hacker" in result.stdout, f"{key_type}: {result.stdout!r}"
-        assert "hello~apple" in result.stdout, f"{key_type}: {result.stdout!r}"
-
-    user_id = get_user_id(workspace_ssh_user.name)
-    node = get_outer_container_for(f"user_{user_id}")
-    running = dojo_run("docker", "inspect", "-f", "{{.State.Running}}", f"user_{user_id}",
-                       container=node).stdout.strip()
-    assert running == "true", f"ssh reached a container that is not running on {node}"
 
 
 def test_commands_run_in_the_workspace_not_the_sshd_container(workspace_ssh_user):

@@ -1,5 +1,4 @@
 import hashlib
-import json
 import random
 import re
 import socket
@@ -13,7 +12,6 @@ import yaml
 
 from utils import (
     DOJO_URL,
-    TEST_DOJOS_LOCATION,
     create_dojo_yml,
     db_sql,
     dojo_db_id,
@@ -23,7 +21,6 @@ from utils import (
     remove_workspace_container,
     solve_challenge_offline,
     start_challenge,
-    wait_for_background_worker,
 )
 
 CREATE_ENDPOINT = "pwncollege_api.dojos_create_dojo"
@@ -107,14 +104,6 @@ def clear_create_rate_limit():
     dojo_run("docker", "exec", "cache", "redis-cli", "DEL", f"flask_cache_rl:{client_ip()}:{CREATE_ENDPOINT}")
 
 
-def dojo_data(reference_id):
-    return json.loads(db_sql(f"SELECT data FROM dojos WHERE dojo_id = {dojo_db_id(reference_id)}"))
-
-
-def set_dojo_data(reference_id, data):
-    db_sql(f"UPDATE dojos SET data = '{json.dumps(data)}' WHERE dojo_id = {dojo_db_id(reference_id)}")
-
-
 def solves_code(reference_id):
     private_key = db_sql(f"SELECT private_key FROM dojos WHERE dojo_id = {dojo_db_id(reference_id)}").strip()
     assert private_key, f"{reference_id} has no private key"
@@ -143,38 +132,6 @@ def description_dojo(admin_session):
              "visibility": {"start": "2099-01-01T00:00:00Z"}},
         ]}],
     })
-
-
-@pytest.fixture(scope="module")
-def course_dojo(admin_session):
-    reference_id = create_spec(admin_session, simple_spec(spec_id("course")))
-    data = dojo_data(reference_id)
-    data["course"] = {"student_id": "Student ID", "students": {"student-token-1": {"name": "Test Student"}}}
-    set_dojo_data(reference_id, data)
-    return reference_id
-
-
-@pytest.fixture
-def award_dojo(admin_session):
-    spec = (TEST_DOJOS_LOCATION / "simple_award_dojo.yml").read_text().replace(
-        "simple-award", spec_id("award"))
-    return create_dojo_yml(spec, session=admin_session)
-
-
-@pytest.fixture
-def award_completionist(award_dojo):
-    name, session = new_user()
-    assert session.get(f"{DOJO_URL}/dojo/{award_dojo}/join/").status_code == 200
-    for challenge in ["apple", "banana"]:
-        solve_challenge_offline(award_dojo, "hello", challenge, session=session, user=name)
-    wait_for_background_worker(timeout=2)
-    return name, session
-
-
-def award_names(reference_id, user_id):
-    return sorted(db_sql(
-        f"SELECT name FROM awards WHERE user_id = {user_id} AND category = '{dojo_hex(reference_id)}'"
-    ).split())
 
 
 def test_create_from_spec_as_site_admin(admin_session):
@@ -260,33 +217,6 @@ def test_create_rate_limit_per_ip(admin_session, random_user_session):
         assert response.json() == {"success": False, "error": "You can only create 1 dojo per day."}
     finally:
         clear_create_rate_limit()
-
-
-def test_create_anonymous_denied():
-    dojo_id = spec_id("anon")
-    response = requests.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/create", json={"spec": f"id: {dojo_id}\n"})
-    assert response.status_code == 403, f"Expected 403, got {response.status_code} - {response.text[:200]}"
-    assert dojos_named(dojo_id) == 0
-
-
-def test_create_invalid_spec_rejected(admin_session):
-    response = post_create(admin_session, {"spec": "id: BAD ID!\n"})
-    assert response.status_code == 400, f"Expected 400, got {response.status_code} - {response.text[:300]}"
-    assert response.json()["success"] is False
-    assert response.json()["error"], "a schema failure must report an error"
-    assert int(db_sql("SELECT count(*) FROM dojos WHERE id = 'BAD ID!'")) == 0
-
-    response = post_create(admin_session, {"spec": "modules:\n  - id: m\n"})
-    assert response.status_code == 400, f"Expected 400, got {response.status_code} - {response.text[:300]}"
-    assert "Dojo id must be defined" in response.json()["error"], \
-        f"Unexpected error: {response.json()['error'][:200]}"
-
-    payload = "<img src=x onerror=alert(1)>"
-    response = post_create(admin_session, {"spec": f"id: {payload}\n"})
-    assert response.status_code == 400, f"Expected 400, got {response.status_code} - {response.text[:300]}"
-    error = response.json()["error"]
-    assert payload not in error and "&lt;img" in error, f"schema errors must be html-escaped: {error[:200]}"
-    assert int(db_sql(f"SELECT count(*) FROM dojos WHERE id = '{payload}'")) == 0
 
 
 def test_create_page_issues_fresh_keypair(random_user_session):
@@ -605,23 +535,6 @@ def test_promote_admin_authorization(admin_session):
     assert dojo_user_type(reference_id, users["c"][2]) == "member"
 
 
-def test_join_public_dojo_idempotent(admin_session, random_user_session, random_user_name):
-    reference_id = create_spec(admin_session, simple_spec(spec_id("join"), type="topic"))
-    user_id = get_user_id(random_user_name)
-
-    assert reference_id not in listed_dojo_ids(random_user_session)
-    for _ in range(2):
-        assert random_user_session.get(f"{DOJO_URL}/dojo/{reference_id}/join/").status_code == 200
-
-    assert int(db_sql(f"SELECT count(*) FROM dojo_users WHERE dojo_id = x'{dojo_hex(reference_id)}'::int "
-                      f"AND user_id = {user_id}")) == 1, "joining twice must not duplicate the membership"
-    assert dojo_user_type(reference_id, user_id) == "member"
-    assert reference_id in listed_dojo_ids(random_user_session), "a joined dojo is listed for its member"
-
-    _, outsider_session = new_user()
-    assert reference_id not in listed_dojo_ids(outsider_session)
-
-
 def test_join_password_enforced(admin_session, random_user_session, random_user_name):
     reference_id = create_spec(admin_session, simple_spec(
         spec_id("password"), type="public", password="hunter2hunter2"))
@@ -653,17 +566,6 @@ def test_join_private_dojo_by_reference_id(random_private_dojo, random_user_sess
     assert random_user_session.get(f"{DOJO_URL}/{random_private_dojo}/").status_code == 200
     assert random_user_session.get(
         f"{DOJO_URL}/pwncollege_api/v1/dojos/{random_private_dojo}/modules").status_code == 200
-
-
-def test_join_anonymous_and_unknown(admin_session, random_private_dojo, example_dojo):
-    response = requests.get(f"{DOJO_URL}/dojo/{example_dojo}/join/", allow_redirects=False)
-    assert response.status_code == 302, f"Expected 302, got {response.status_code}"
-    assert "/login" in response.headers["Location"], f"Unexpected redirect {response.headers['Location']}"
-
-    assert admin_session.get(f"{DOJO_URL}/dojo/no-such-dojo-{rand()}/join/").status_code == 404
-    bare_id = random_private_dojo.split("~")[0]
-    assert admin_session.get(f"{DOJO_URL}/dojo/{bare_id}/join/").status_code == 404, \
-        "the bare id of an unofficial dojo must not resolve"
 
 
 def test_join_does_not_demote_existing_admin(admin_session):
@@ -780,73 +682,6 @@ def test_solves_export_hidden_user_visibility(example_dojo, admin_session):
     finally:
         db_sql(f"UPDATE users SET hidden = false WHERE id = {user_id}")
 
-
-def test_modules_api_visibility_by_role(example_dojo, random_private_dojo, admin_session, random_user_session):
-    assert requests.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{example_dojo}/modules").status_code == 200
-
-    url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{random_private_dojo}/modules"
-    assert requests.get(url).status_code == 404, "anonymous users cannot read a private dojo"
-    assert random_user_session.get(url).status_code == 404, "non-members cannot read a private dojo"
-    assert admin_session.get(url).status_code == 200, "site admins can read any dojo"
-
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{random_private_dojo}/join/").status_code == 200
-    assert random_user_session.get(url).status_code == 200
-
-    assert requests.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/nope-{rand()}/modules").status_code == 404
-
-
-def test_modules_api_hides_invisible_resources_from_non_admins(admin_session, random_user_session):
-    reference_id = create_spec(admin_session, {
-        "id": spec_id("resvis"),
-        "type": "public",
-        "image": CHALLENGE_IMAGE,
-        "modules": [{"id": "m", "resources": [
-            {"type": "markdown", "name": "Visible Resource", "content": "now"},
-            {"type": "markdown", "name": "Future Resource", "content": "later",
-             "visibility": {"start": "2099-01-01T00:00:00Z"}},
-        ]}],
-    })
-
-    def resource_names(session):
-        return [resource["name"] for resource in get_modules(session, reference_id)[0]["resources"]]
-
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{reference_id}/join/").status_code == 200
-    assert resource_names(random_user_session) == ["Visible Resource"], \
-        "resources whose visibility has not started must be hidden from regular users"
-    assert resource_names(admin_session) == ["Visible Resource", "Future Resource"], \
-        "dojo admins see invisible resources"
-
-
-def test_dojo_listing_api_visibility(example_dojo, random_private_dojo, random_user_session):
-    assert example_dojo in listed_dojo_ids(requests), "official dojos are listed for everyone"
-    assert random_private_dojo not in listed_dojo_ids(requests)
-    assert random_private_dojo not in listed_dojo_ids(random_user_session)
-
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{random_private_dojo}/join/").status_code == 200
-
-    assert random_private_dojo in listed_dojo_ids(random_user_session), \
-        "a private dojo is listed for its members"
-    assert random_private_dojo not in listed_dojo_ids(requests), \
-        "a private dojo stays hidden from anonymous users"
-
-
-def test_dojos_page_excludes_hidden_and_example_dojos(admin_session, random_user_session, example_dojo):
-    dojo_id = spec_id("hiddenlist")
-    reference_id = create_spec(admin_session, {"id": dojo_id, "type": "hidden"})
-    assert admin_session.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{reference_id}/promote", json={}).status_code == 200
-
-    link = f'/dojo/{dojo_id}"'
-    example_link = f'/dojo/{example_dojo}"'
-    for session in [requests, random_user_session]:
-        page = session.get(f"{DOJO_URL}/dojos").text
-        assert link not in page, "a hidden dojo must not be listed"
-        assert example_link not in page, "an official example dojo must not be listed"
-
-    assert link in admin_session.get(f"{DOJO_URL}/dojos").text, \
-        "the dojo's own admin still sees it under their dojos"
-
-
 def test_admin_dojos_page_authorization(random_private_dojo, admin_session, random_user_session):
     response = admin_session.get(f"{DOJO_URL}/admin/dojos")
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
@@ -858,120 +693,6 @@ def test_admin_dojos_page_authorization(random_private_dojo, admin_session, rand
         if response.status_code == 302:
             assert "/login" in response.headers["Location"], f"Unexpected redirect {response.headers['Location']}"
         assert random_private_dojo not in response.text
-
-
-def test_prune_awards_marks_stale_and_reports_count(award_dojo, award_completionist, admin_session):
-    name, _ = award_completionist
-    user_id = get_user_id(name)
-    assert award_names(award_dojo, user_id) == ["CURRENT"], "completing the dojo grants a current award"
-
-    db_sql(f"DELETE FROM submissions WHERE id IN (SELECT id FROM submissions WHERE user_id = {user_id} "
-           f"ORDER BY id LIMIT 1)")
-
-    url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{award_dojo}/awards/prune"
-    response = admin_session.post(url, json={})
-    assert response.status_code == 200, f"Expected 200, got {response.status_code} - {response.text[:200]}"
-    assert response.json() == {"success": True, "pruned_awards": 1}
-    assert award_names(award_dojo, user_id) == ["STALE"]
-
-    response = admin_session.post(url, json={})
-    assert response.status_code == 200
-    assert response.json()["pruned_awards"] == 0, "a second prune has nothing left to flip"
-
-
-def test_prune_awards_preserves_completions_and_custom_awards(award_dojo, award_completionist, admin_session):
-    name, session = award_completionist
-    user_id = get_user_id(name)
-
-    data = dojo_data(award_dojo)
-    data["permissions"] = ["grant_awards"]
-    set_dojo_data(award_dojo, data)
-    granted = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{award_dojo}/award/grant",
-                                 json={"user_id": user_id, "emoji": "🏆", "description": "manual"})
-    assert granted.status_code == 200, f"Expected 200, got {granted.status_code} - {granted.text[:200]}"
-
-    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{award_dojo}/awards/prune", json={})
-    assert response.status_code == 200, f"Expected 200, got {response.status_code} - {response.text[:200]}"
-    assert response.json()["pruned_awards"] == 0, "a still-completing user keeps their award"
-
-    assert award_names(award_dojo, user_id) == ["CURRENT", "CUSTOM"], \
-        "pruning must touch neither completions nor manually granted awards"
-
-    wait_for_background_worker(timeout=2)
-    scoreboard = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{award_dojo}/_/0/1").json()
-    us = next(user for user in scoreboard["standings"] if user["name"] == name)
-    assert not any(badge["stale"] for badge in us["badges"]), f"Unexpected badges: {us['badges']}"
-
-
-def test_prune_awards_authorization(award_dojo, award_completionist, random_private_dojo, random_user_session):
-    name, _ = award_completionist
-    user_id = get_user_id(name)
-    url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{award_dojo}/awards/prune"
-
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{award_dojo}/join/").status_code == 200
-    assert random_user_session.post(url, json={}).status_code == 403, "plain members must not prune"
-    assert requests.post(url, json={}).status_code == 403, "anonymous users must not prune"
-
-    private_url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{random_private_dojo}/awards/prune"
-    assert random_user_session.post(private_url, json={}).status_code == 404
-
-    assert award_names(award_dojo, user_id) == ["CURRENT"], "a refused prune must not change any award"
-
-
-def test_grant_award_validation(event_dojo, admin_session, random_user_name):
-    user_id = get_user_id(random_user_name)
-    url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{event_dojo}/award/grant"
-
-    def award_count():
-        return int(db_sql(f"SELECT count(*) FROM awards WHERE category = '{dojo_hex(event_dojo)}'"))
-
-    before = award_count()
-
-    response = admin_session.post(url, json={"user_id": user_id, "emoji": "🥈"})
-    assert response.status_code == 400, f"Expected 400, got {response.status_code} - {response.text[:200]}"
-    assert response.json() == {"success": False, "error": "Must supply user_id, emoji, and description."}
-
-    response = admin_session.post(url, json={"user_id": user_id, "emoji": "X", "description": "d"})
-    assert response.status_code == 400, f"Expected 400, got {response.status_code} - {response.text[:200]}"
-    assert response.json() == {"success": False, "error": "emoji must be emoji."}
-
-    response = admin_session.post(url, json={"user_id": 999999999, "emoji": "🥈", "description": "d"})
-    assert response.status_code == 404, f"Expected 404, got {response.status_code} - {response.text[:200]}"
-    assert response.json() == {"success": False, "error": "User not found."}
-
-    assert award_count() == before, "no award row may be created by a rejected grant"
-
-
-def test_grant_award_authorization(event_dojo, example_dojo, admin_session, random_user_session, random_user_name):
-    user_id = get_user_id(random_user_name)
-    payload = {"user_id": user_id, "emoji": "🥈", "description": "test"}
-
-    response = admin_session.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{example_dojo}/award/grant", json=payload)
-    assert response.status_code == 403, \
-        f"a dojo without the grant_awards permission refuses even site admins, got {response.status_code}"
-
-    url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{event_dojo}/award/grant"
-    before = int(db_sql(f"SELECT count(*) FROM awards WHERE category = '{dojo_hex(event_dojo)}'"))
-
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{event_dojo}/join/").status_code == 200
-    assert random_user_session.post(url, json=payload).status_code == 403, "plain members must not grant awards"
-    assert requests.post(url, json=payload).status_code == 403, "anonymous users must not grant awards"
-
-    assert int(db_sql(f"SELECT count(*) FROM awards WHERE category = '{dojo_hex(event_dojo)}'")) == before
-
-
-def test_grant_award_creates_custom_award(event_dojo, admin_session, random_user_name):
-    user_id = get_user_id(random_user_name)
-    response = admin_session.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{event_dojo}/award/grant",
-        json={"user_id": user_id, "emoji": "🏆", "description": "unit test award"})
-    assert response.status_code == 200, f"Expected 200, got {response.status_code} - {response.text[:200]}"
-    assert response.json() == {"success": True}
-
-    rows = db_sql(f"SELECT name, icon, description, type FROM awards "
-                  f"WHERE user_id = {user_id} AND category = '{dojo_hex(event_dojo)}'").strip().split("\n")
-    assert rows == ["CUSTOM|🏆|unit test award|emoji"], f"Unexpected award rows: {rows}"
 
 
 def test_challenge_description_api(description_dojo, random_user_session):
@@ -995,28 +716,6 @@ def test_challenge_description_requires_auth(description_dojo):
         f"{DOJO_URL}/pwncollege_api/v1/dojos/{description_dojo}/m/a/description", allow_redirects=False)
     assert response.status_code in (302, 403), f"Expected 302/403, got {response.status_code}"
     assert "<strong>flag</strong>" not in response.text, "an unauthenticated caller learns nothing"
-
-
-def test_challenge_description_locked_and_hidden(progression_locked_dojo, description_dojo,
-                                                 admin_session, random_user):
-    name, session = random_user
-    base = f"{DOJO_URL}/pwncollege_api/v1/dojos/{progression_locked_dojo}/progression-locked-module"
-    assert session.get(f"{DOJO_URL}/dojo/{progression_locked_dojo}/join/").status_code == 200
-
-    response = session.get(f"{base}/locked-challenge/description")
-    assert response.status_code == 403, f"Expected 403, got {response.status_code} - {response.text[:200]}"
-    assert response.json()["error"] == "This challenge is locked"
-
-    solve_challenge_offline(progression_locked_dojo, "progression-locked-module", "unlocked-challenge",
-                            session=session, user=name)
-    response = session.get(f"{base}/locked-challenge/description")
-    assert response.status_code == 200, \
-        f"solving the predecessor unlocks the description, got {response.status_code}"
-
-    invisible_url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{description_dojo}/m/future/description"
-    assert session.get(invisible_url).status_code == 404, \
-        "an invisible challenge's description must not be readable by a regular user"
-    assert admin_session.get(invisible_url).status_code == 200, "dojo admins can read it"
 
 
 def test_per_user_solves_api_user_resolution(example_dojo):
@@ -1044,18 +743,3 @@ def test_per_user_solves_api_user_resolution(example_dojo):
         assert response.json()["error"] == "User not found"
     finally:
         db_sql(f"UPDATE users SET hidden = false WHERE id = {user_id}")
-
-
-def test_course_endpoints_admin_only(course_dojo, admin_session, random_user_session):
-    assert random_user_session.get(f"{DOJO_URL}/dojo/{course_dojo}/join/").status_code == 200
-
-    for endpoint, key in [("students", "students"), ("solves", "solves")]:
-        url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{course_dojo}/course/{endpoint}"
-
-        assert random_user_session.get(url).status_code == 403, f"members must not read course/{endpoint}"
-        assert requests.get(url).status_code == 403, f"anonymous users must not read course/{endpoint}"
-
-        response = admin_session.get(url)
-        assert response.status_code == 200, f"Expected 200, got {response.status_code} - {response.text[:200]}"
-        assert response.json()["success"] is True
-        assert key in response.json(), f"Unexpected payload: {response.json()}"

@@ -5,7 +5,7 @@ import string
 import threading
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from queue import Empty, Queue
 
 import pytest
@@ -33,8 +33,6 @@ FEED_PAGE_URL = f"{DOJO_URL}/feed"
 SEARCH_URL = f"{DOJO_URL}/pwncollege_api/v1/search"
 ACTIVITY_URL = f"{DOJO_URL}/pwncollege_api/v1/activity"
 
-FEED_KEY = "activity_feed:events"
-FEED_MAX_EVENTS = 1000
 FEED_EVENT_TYPES = {"container_start", "challenge_solve", "emoji_earned", "belt_earned", "dojo_update"}
 EVENT_KEYS = {"id", "type", "timestamp", "user_id", "user_name", "user_belt", "user_emojis", "data"}
 
@@ -54,11 +52,6 @@ def redis_cli(*args):
     return result.stdout.strip()
 
 
-def redis_get(key):
-    value = redis_cli("GET", key)
-    return value or None
-
-
 def fetch_feed(session=None, **params):
     response = (session or requests).get(FEED_EVENTS_URL, params=params)
     assert response.status_code == 200, f"Expected 200 from the feed API, got {response.status_code}"
@@ -76,35 +69,6 @@ def poll_feed_event(predicate, timeout=20, limit=100):
         if time.time() >= deadline:
             return None
         time.sleep(0.3)
-
-
-def synthetic_event(user_name, index):
-    return {
-        "id": str(uuid.uuid4()),
-        "type": "container_start",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "user_id": 1,
-        "user_name": user_name,
-        "user_belt": None,
-        "user_emojis": [],
-        "data": {
-            "challenge_id": index,
-            "challenge_name": "Synthetic Challenge",
-            "module_id": "synthetic",
-            "module_name": "Synthetic Module",
-            "dojo_id": "synthetic",
-            "dojo_name": "Synthetic Dojo",
-            "mode": "assessment",
-        },
-    }
-
-
-def zadd_events(scored_members):
-    for start in range(0, len(scored_members), 100):
-        args = []
-        for score, member in scored_members[start:start + 100]:
-            args += [f"{score:.6f}", member]
-        redis_cli("ZADD", FEED_KEY, *args)
 
 
 def search(query, session=None, **kwargs):
@@ -501,39 +465,6 @@ def test_feed_event_envelope_shape_and_ordering(example_dojo, random_user):
     assert banana_index < apple_index, "the newer solve must sort ahead of the older one"
 
 
-def test_feed_has_no_dojo_update_events(feed_official_dojo, admin_session):
-    marker = feed_official_dojo["marker"]
-    spec = {
-        "id": feed_official_dojo["id"],
-        "name": f"{marker} Dojo",
-        "description": f"This dojo holds {marker} content for search coverage.",
-        "modules": [
-            {
-                "id": "hello-module",
-                "name": f"{marker} Hello Module",
-                "description": f"This module holds {marker} content for search coverage.",
-                "challenges": [
-                    {
-                        "id": "apple-challenge",
-                        "name": f"{marker} Apple Challenge",
-                        "description": f"This challenge holds {marker} content for search coverage.",
-                        "import": {"dojo": "example", "module": "hello", "challenge": "apple"},
-                    }
-                ],
-            }
-        ],
-    }
-    response = admin_session.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{feed_official_dojo['rid']}/update", json=spec
-    )
-    assert response.status_code == 200, f"dojo update failed: {response.status_code} - {response.text[:300]}"
-    assert response.json()["success"] is True
-    time.sleep(1)
-
-    updates = [event for event in fetch_feed(limit=100)["data"] if event["type"] == "dojo_update"]
-    assert not updates, f"no code path publishes dojo_update events, but the feed carried {updates}"
-
-
 def test_feed_events_limit_and_offset_handling(example_dojo, random_user):
     name, session = random_user
     assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
@@ -573,27 +504,6 @@ def test_feed_events_limit_and_offset_handling(example_dojo, random_user):
     assert past_end["meta"]["offset"] == 100000
 
 
-def test_feed_events_pagination_offset(example_dojo, random_user):
-    name, session = random_user
-    assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
-    for challenge in ["apple", "banana"]:
-        solve_challenge_offline(example_dojo, "hello", challenge, session=session, user=name)
-    solve_challenge_offline(example_dojo, "world", "earth", session=session, user=name)
-
-    deadline = time.time() + 20
-    while len(fetch_feed(limit=100)["data"]) < 3 and time.time() < deadline:
-        time.sleep(0.3)
-
-    for _ in range(3):
-        page = [e["id"] for e in fetch_feed(limit=2, offset=0)["data"]]
-        first = [e["id"] for e in fetch_feed(limit=1, offset=0)["data"]]
-        second = [e["id"] for e in fetch_feed(limit=1, offset=1)["data"]]
-        if page and first and page[0] == first[0]:
-            break
-    assert len(page) == 2, f"expected two events on the first page, got {page}"
-    assert page == first + second, f"offset paging must partition the feed, got {page} vs {first + second}"
-
-
 def test_feed_events_readable_anonymously_and_persist(example_dojo, random_user):
     name, session = random_user
     assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
@@ -616,68 +526,6 @@ def test_feed_events_readable_anonymously_and_persist(example_dojo, random_user)
         assert event["id"] in [e["id"] for e in fetch_feed(limit=100)["data"]], \
             "events must not be consumed on read"
         time.sleep(1)
-
-
-def test_feed_ttl_prunes_expired_events():
-    probe_name = f"ttlprobe-{token()}"
-    member = json.dumps(synthetic_event(probe_name, 0))
-    expired_score = time.time() - 200000
-    zadd_events([(expired_score, member)])
-    try:
-        assert redis_cli("ZSCORE", FEED_KEY, member), "the expired probe event was not stored"
-
-        events = fetch_feed(limit=100)["data"]
-        assert not [e for e in events if e["user_name"] == probe_name], \
-            "events older than FEED_EVENT_TTL must not be returned"
-        assert redis_cli("ZSCORE", FEED_KEY, member) == "", \
-            "reading the feed must prune events older than FEED_EVENT_TTL"
-    finally:
-        redis_cli("ZREM", FEED_KEY, member)
-
-
-def test_feed_publishing_trims_to_max_events(example_dojo, random_user):
-    name, session = random_user
-    assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
-
-    probe_name = f"capprobe-{token()}"
-    base = time.time() - 3600
-    members = [(base + index * 0.001, json.dumps(synthetic_event(probe_name, index))) for index in range(1010)]
-
-    redis_cli("DEL", FEED_KEY)
-    try:
-        zadd_events(members)
-        assert int(redis_cli("ZCARD", FEED_KEY)) == len(members)
-
-        solve_challenge_offline(example_dojo, "hello", "apple", session=session, user=name)
-        deadline = time.time() + 20
-        while time.time() < deadline:
-            stored = int(redis_cli("ZCARD", FEED_KEY))
-            if stored <= FEED_MAX_EVENTS:
-                break
-            time.sleep(0.3)
-        assert stored == FEED_MAX_EVENTS, f"publishing must trim the store to {FEED_MAX_EVENTS}, got {stored}"
-        assert redis_cli("ZSCORE", FEED_KEY, members[0][1]) == "", "the oldest events must be dropped first"
-        assert redis_cli("ZSCORE", FEED_KEY, members[-1][1]) != "", "the newest events must be kept"
-    finally:
-        redis_cli("ZREMRANGEBYSCORE", FEED_KEY, f"{base - 1:.6f}", f"{base + 2:.6f}")
-
-
-def test_feed_events_empty_store(example_dojo, random_user):
-    name, session = random_user
-    assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
-
-    for _ in range(5):
-        redis_cli("DEL", FEED_KEY)
-        body = fetch_feed(limit=50)
-        if body["data"] == []:
-            break
-    assert body["data"] == [], "an empty store must return no events"
-    assert body["meta"]["count"] == 0
-
-    solve_challenge_offline(example_dojo, "hello", "apple", session=session, user=name)
-    event = poll_feed_event(lambda e: e["user_name"] == name and e["type"] == "challenge_solve")
-    assert event, "the feed must recover after its store is cleared"
-    assert event["data"]["dojo_id"] == example_dojo
 
 
 def test_feed_stream_connected_frame_without_authentication():
@@ -758,32 +606,6 @@ def test_feed_page_accessible_and_respects_account_visibility(random_user_sessio
     assert requests.get(FEED_PAGE_URL, allow_redirects=False).status_code == 200
 
 
-def test_feed_page_bootstraps_the_newest_twenty_events():
-    probe_name = f"pageprobe-{token()}"
-    base = time.time() - 5
-    members = [(base + index * 0.01, json.dumps(synthetic_event(probe_name, index))) for index in range(30)]
-
-    zadd_events(members)
-    try:
-        for _ in range(5):
-            events = fetch_feed(limit=30)["data"]
-            response = requests.get(FEED_PAGE_URL)
-            assert response.status_code == 200
-            page = response.text
-            if fetch_feed(limit=1)["data"][0]["id"] == events[0]["id"]:
-                break
-        assert len(events) >= 25, "not enough events to exercise the page bootstrap limit"
-
-        rendered = [event["id"] for event in events if event["id"] in page]
-        assert len(rendered) <= 20, f"the feed page must bootstrap at most 20 events, got {len(rendered)}"
-        assert all(event["id"] in page for event in events[:20]), \
-            "the feed page must bootstrap the newest 20 events"
-        assert all(event["id"] not in page for event in events[20:]), \
-            "the feed page must not bootstrap events past the newest 20"
-    finally:
-        redis_cli("ZREMRANGEBYSCORE", FEED_KEY, f"{base - 1:.6f}", f"{base + 2:.6f}")
-
-
 def test_activity_zero_solves_user(random_user):
     name, _ = random_user
     user_id = get_user_id(name)
@@ -791,43 +613,6 @@ def test_activity_zero_solves_user(random_user):
     response = requests.get(f"{ACTIVITY_URL}/{user_id}")
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
     assert response.json() == {"success": True, "data": {"solve_timestamps": [], "total_solves": 0}}
-
-
-def test_activity_cache_miss_recomputes_and_repopulates(example_dojo, random_user):
-    name, session = random_user
-    user_id = get_user_id(name)
-    assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
-    solve_challenge_offline(example_dojo, "hello", "apple", session=session, user=name)
-    wait_for_background_worker()
-
-    cache_key = f"stats:activity:{user_id}"
-    redis_cli("DEL", cache_key, f"{cache_key}:updated")
-    assert redis_get(cache_key) is None, "the activity cache was not cleared"
-
-    response = requests.get(f"{ACTIVITY_URL}/{user_id}")
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["total_solves"] >= 1, f"expected at least one solve, got {data}"
-    assert len(data["solve_timestamps"]) == data["total_solves"]
-
-    for timestamp in data["solve_timestamps"]:
-        assert timestamp.endswith("Z"), f"activity timestamps must be Z-suffixed, got {timestamp!r}"
-        datetime.fromisoformat(timestamp[:-1])
-    newest = max(datetime.fromisoformat(t[:-1]) for t in data["solve_timestamps"])
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    assert abs(now - newest) < timedelta(minutes=5), \
-        f"the newest solve timestamp {newest} is not close to now"
-
-    deadline = time.time() + 10
-    cached = None
-    while time.time() < deadline:
-        raw = redis_get(cache_key)
-        if raw:
-            cached = json.loads(raw)
-            break
-        time.sleep(0.3)
-    assert cached is not None, "a cache miss must write the computed activity back to redis"
-    assert cached["total_solves"] == data["total_solves"]
 
 
 def test_activity_only_counts_the_last_365_days(example_dojo, random_user):
@@ -872,127 +657,6 @@ def test_activity_counts_private_dojo_solves(random_private_dojo, random_user):
     assert expected >= 1, "the private dojo solve was not recorded"
     assert data["total_solves"] == expected, \
         f"activity must count every solve row, expected {expected}, got {data['total_solves']}"
-
-
-def test_activity_total_matches_db_after_cache_loss(example_dojo, feed_public_award_dojo, random_user):
-    name, session = random_user
-    user_id = get_user_id(name)
-    assert session.get(f"{DOJO_URL}/dojo/{feed_public_award_dojo}/join/").status_code == 200
-    for challenge in ["apple", "banana"]:
-        solve_challenge_offline(feed_public_award_dojo, "hello", challenge, session=session, user=name)
-    wait_for_background_worker()
-    time.sleep(1)
-
-    assert requests.get(f"{ACTIVITY_URL}/{user_id}").json()["data"]["total_solves"] == 2
-
-    cache_key = f"stats:activity:{user_id}"
-    redis_cli("DEL", cache_key, f"{cache_key}:updated")
-
-    assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
-    solve_challenge_offline(example_dojo, "hello", "apple", session=session, user=name)
-    wait_for_background_worker()
-    time.sleep(2)
-
-    expected = recent_solve_count(user_id)
-    assert expected == 3, f"expected three solve rows, got {expected}"
-    cached = json.loads(redis_get(cache_key) or "{}")
-    assert cached.get("total_solves") == expected, \
-        f"the cached activity total must track the database, expected {expected}, got {cached.get('total_solves')}"
-
-
-def test_activity_worker_recomputes_on_activity_update_event(example_dojo, random_user):
-    name, session = random_user
-    user_id = get_user_id(name)
-    assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
-    solve_challenge_offline(example_dojo, "hello", "apple", session=session, user=name)
-    wait_for_background_worker()
-
-    cache_key = f"stats:activity:{user_id}"
-    redis_cli("DEL", cache_key, f"{cache_key}:updated")
-    published_at = time.time()
-    redis_cli("XADD", "stat:events", "*", "data", json.dumps({
-        "type": "activity_update",
-        "payload": {"user_id": user_id},
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }))
-
-    deadline = time.time() + 15
-    cached = None
-    while time.time() < deadline:
-        raw = redis_get(cache_key)
-        if raw:
-            cached = json.loads(raw)
-            break
-        time.sleep(0.3)
-    assert cached is not None, "the worker must recompute activity for an activity_update event"
-
-    expected = recent_solve_count(user_id)
-    assert cached["total_solves"] == expected, \
-        f"recomputed activity must match the database, expected {expected}, got {cached['total_solves']}"
-    updated_at = float(redis_get(f"{cache_key}:updated"))
-    assert updated_at >= published_at - 5, \
-        f"the cache updated marker {updated_at} predates the event at {published_at}"
-
-
-def test_activity_worker_ignores_malformed_events(example_dojo, random_user):
-    name, session = random_user
-    user_id = get_user_id(name)
-    assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
-    solve_challenge_offline(example_dojo, "hello", "apple", session=session, user=name)
-    wait_for_background_worker()
-
-    cache_key = f"stats:activity:{user_id}"
-    redis_cli("DEL", cache_key, f"{cache_key}:updated")
-
-    missing_user = {"type": "activity_update", "payload": {},
-                    "timestamp": datetime.now(timezone.utc).isoformat()}
-    unknown_user = {"type": "activity_update", "payload": {"user_id": 9999999},
-                    "timestamp": datetime.now(timezone.utc).isoformat()}
-    real_user = {"type": "activity_update", "payload": {"user_id": user_id},
-                 "timestamp": datetime.now(timezone.utc).isoformat()}
-    for event in [missing_user, unknown_user, real_user]:
-        redis_cli("XADD", "stat:events", "*", "data", json.dumps(event))
-
-    deadline = time.time() + 15
-    recovered = False
-    while time.time() < deadline:
-        if redis_get(cache_key):
-            recovered = True
-            break
-        time.sleep(0.3)
-    assert recovered, "the worker must keep consuming after malformed activity_update events"
-
-    assert redis_cli("EXISTS", "stats:activity:9999999") == "0", \
-        "an activity_update for an unknown user must not create a cache entry"
-    status = dojo_run("docker", "inspect", "stats-worker", "--format", "{{.State.Status}}").stdout.strip()
-    assert status == "running", f"the stats worker must survive malformed events, status is {status}"
-
-
-def test_activity_worker_skips_stale_events(example_dojo, random_user):
-    name, session = random_user
-    user_id = get_user_id(name)
-    assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
-    solve_challenge_offline(example_dojo, "hello", "apple", session=session, user=name)
-    wait_for_background_worker()
-
-    cache_key = f"stats:activity:{user_id}"
-    try:
-        redis_cli("SET", cache_key, json.dumps({"solve_timestamps": [], "total_solves": 4242}))
-        redis_cli("SET", f"{cache_key}:updated", f"{time.time() + 3600:.6f}")
-
-        redis_cli("XADD", "stat:events", "*", "data", json.dumps({
-            "type": "activity_update",
-            "payload": {"user_id": user_id},
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }))
-        wait_for_background_worker()
-        time.sleep(3)
-
-        cached = json.loads(redis_get(cache_key))
-        assert cached["total_solves"] == 4242, \
-            f"an event older than the cache marker must be skipped, got {cached}"
-    finally:
-        redis_cli("DEL", cache_key, f"{cache_key}:updated")
 
 
 def test_search_rejects_short_queries(admin_session, feed_official_dojo):

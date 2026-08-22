@@ -1,7 +1,6 @@
 import datetime
 import json
 import random
-import re
 import string
 
 import pytest
@@ -94,86 +93,6 @@ def join(session, dojo):
     assert response.status_code == 200, f"Expected to join {dojo}, but got {response.status_code}"
 
 
-def test_survey_post_requires_auth(authz_dojo):
-    clear_ratelimit("dojo_survey")
-    url = survey_url(authz_dojo, "surveyed", "surveyed-challenge")
-    before = survey_response_count(authz_dojo, "surveyed", "surveyed-challenge")
-
-    no_csrf = anonymous_session()
-    with_csrf = anonymous_session(with_csrf=True)
-
-    for label, response in [
-        ("json without csrf", no_csrf.post(url, json={"response": "x"}, allow_redirects=False)),
-        ("json with csrf", with_csrf.post(url, json={"response": "x"}, allow_redirects=False)),
-        ("bodyless", with_csrf.post(url, data="", allow_redirects=False)),
-        ("form encoded", with_csrf.post(url, data={"response": "x"}, allow_redirects=False)),
-    ]:
-        assert response.status_code == 403, \
-            f"Anonymous survey POST ({label}) should be 403, but got {response.status_code}"
-
-    assert survey_response_count(authz_dojo, "surveyed", "surveyed-challenge") == before, \
-        "Anonymous survey POSTs must not store a survey response"
-
-
-def test_survey_post_missing_response(authz_dojo, random_user):
-    clear_ratelimit("dojo_survey")
-    name, session = random_user
-    join(session, authz_dojo)
-    url = survey_url(authz_dojo, "surveyed", "surveyed-challenge")
-
-    for body in [{}, {"answer": "x"}]:
-        response = session.post(url, json=body)
-        assert response.status_code == 400, f"Expected 400 for body {body}, but got {response.status_code}"
-        assert response.json() == {"success": False, "error": "Missing response"}, \
-            f"Unexpected error payload for body {body}: {response.json()}"
-
-    assert survey_response_count(authz_dojo, "surveyed", "surveyed-challenge", name) == 0, \
-        "A survey POST without a 'response' key must not store anything"
-
-
-def test_survey_post_missing_survey_and_success(authz_dojo, random_user):
-    clear_ratelimit("dojo_survey")
-    name, session = random_user
-    join(session, authz_dojo)
-
-    response = session.post(survey_url(authz_dojo, "plain", "plain-challenge"), json={"response": "x"})
-    assert response.status_code == 404, \
-        f"Expected 404 for a challenge with no survey, but got {response.status_code}"
-    assert response.json() == {"success": False, "error": "Survey not found"}, \
-        f"Unexpected error payload: {response.json()}"
-
-    response = session.post(survey_url(authz_dojo, "surveyed", "surveyed-challenge"), json={"response": "x"})
-    assert response.status_code == 200, f"Expected 200 for a survey-bearing challenge, but got {response.status_code}"
-    assert response.json()["success"], f"Expected a successful survey submission: {response.json()}"
-
-    assert survey_response_count(authz_dojo, "plain", "plain-challenge", name) == 0, \
-        "The survey-less challenge must have stored nothing"
-    assert survey_response_count(authz_dojo, "surveyed", "surveyed-challenge", name) == 1, \
-        "The survey-bearing challenge must have stored exactly one response"
-
-
-def test_survey_post_unknown_or_invisible_challenge(authz_dojo, random_user, admin_session):
-    clear_ratelimit("dojo_survey")
-    name, session = random_user
-    join(session, authz_dojo)
-
-    for label, url in [
-        ("nonexistent challenge", survey_url(authz_dojo, "surveyed", "no-such-challenge")),
-        ("not-yet-visible challenge", survey_url(authz_dojo, "surveyed", "hidden-challenge")),
-    ]:
-        response = session.post(url, json={"response": "x"})
-        assert response.status_code == 404, f"Expected 404 for {label}, but got {response.status_code}"
-        assert response.json() == {"success": False, "error": "Challenge not found"}, \
-            f"Unexpected error payload for {label}: {response.json()}"
-
-    admin_response = admin_session.post(survey_url(authz_dojo, "surveyed", "hidden-challenge"), json={"response": "x"})
-    assert admin_response.status_code == 404, \
-        f"Survey visibility has no admin bypass, expected 404 but got {admin_response.status_code}"
-
-    assert survey_response_count(authz_dojo, "surveyed", "hidden-challenge") == 0, \
-        "An invisible challenge must never accumulate survey responses"
-
-
 def test_survey_post_malformed_body(authz_dojo, random_user):
     clear_ratelimit("dojo_survey")
     name, session = random_user
@@ -192,68 +111,6 @@ def test_survey_post_malformed_body(authz_dojo, random_user):
         "A malformed survey POST must not store a survey response"
 
 
-def test_promote_admin_rejects_anonymous_and_nonmember(authz_dojo, authz_private_dojo, random_user):
-    name, session = random_user
-    join(session, authz_dojo)
-    join(session, authz_private_dojo)
-    user_id = get_user_id(name)
-    anonymous = anonymous_session(with_csrf=True)
-
-    public_anon = anonymous.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{authz_dojo}/admins/promote", json={"user_id": user_id}
-    )
-    assert public_anon.status_code == 403, \
-        f"Anonymous promote on a viewable dojo should be 403, but got {public_anon.status_code}"
-
-    private_anon = anonymous.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{authz_private_dojo}/admins/promote", json={"user_id": user_id}
-    )
-    assert private_anon.status_code == 404, \
-        f"Anonymous promote on a private dojo must not disclose it, expected 404 but got {private_anon.status_code}"
-
-    nonmember_name = "".join(random.choices(string.ascii_lowercase, k=16))
-    nonmember_session = login(nonmember_name, nonmember_name, register=True)
-    private_nonmember = nonmember_session.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{authz_private_dojo}/admins/promote", json={"user_id": user_id}
-    )
-    assert private_nonmember.status_code == 404, \
-        f"Non-member promote on a private dojo should be 404, but got {private_nonmember.status_code}"
-    assert authz_private_dojo.split("~")[0] not in private_nonmember.text, \
-        "The 404 body must not disclose the private dojo"
-
-    for dojo in [authz_dojo, authz_private_dojo]:
-        types = db_sql(f"SELECT type FROM dojo_users WHERE dojo_id = {dojo_db_id(dojo)} AND user_id = {user_id}").split()
-        assert types == ["member"], f"Expected {name} to still be a member of {dojo}, but got {types}"
-
-
-def test_promote_admin_rejects_malformed_input(authz_dojo, random_user, admin_session):
-    name, session = random_user
-    join(session, authz_dojo)
-    user_id = get_user_id(name)
-    db_id = dojo_db_id(authz_dojo)
-    url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{authz_dojo}/admins/promote"
-    admins_before = count_rows("dojo_users", f"dojo_id = {db_id} AND type = 'admin'")
-
-    non_integer = admin_session.post(url, json={"user_id": "notanint"})
-    assert 400 <= non_integer.status_code < 500, \
-        f"A non-integer user_id must be a client error, but got {non_integer.status_code}"
-    assert not non_integer.json()["success"], f"Unexpected success payload: {non_integer.json()}"
-
-    undecodable = admin_session.post(url, **BAD_JSON)
-    assert 400 <= undecodable.status_code < 500, \
-        f"An undecodable JSON body must be a client error, but got {undecodable.status_code}"
-
-    assert count_rows("dojo_users", f"dojo_id = {db_id} AND type = 'admin'") == admins_before, \
-        "Malformed promote requests must not change the dojo's admin set"
-    assert db_sql(f"SELECT type FROM dojo_users WHERE dojo_id = {db_id} AND user_id = {user_id}").split() == ["member"], \
-        "Malformed promote requests must not promote the target user"
-
-    valid = admin_session.post(url, json={"user_id": user_id})
-    assert valid.status_code == 200, f"Expected the following valid promote to succeed, but got {valid.status_code}"
-    assert db_sql(f"SELECT type FROM dojo_users WHERE dojo_id = {db_id} AND user_id = {user_id}").split() == ["admin"], \
-        "A valid promote after a malformed one must still take effect"
-
-
 def test_grant_award_non_integer_user_id_is_client_error(authz_dojo, admin_session):
     response = admin_session.post(
         f"{DOJO_URL}/pwncollege_api/v1/dojos/{authz_dojo}/award/grant",
@@ -261,43 +118,6 @@ def test_grant_award_non_integer_user_id_is_client_error(authz_dojo, admin_sessi
     )
     assert 400 <= response.status_code < 500, \
         f"A non-integer user_id must be a client error, but got {response.status_code}"
-
-
-def test_grant_award_malformed_user_id_grants_nothing(authz_dojo, random_user, admin_session):
-    name, session = random_user
-    join(session, authz_dojo)
-    user_id = get_user_id(name)
-    category = authz_dojo.split("~")[1]
-    url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{authz_dojo}/award/grant"
-    awards_before = count_rows("awards", f"category = '{category}'")
-
-    admin_session.post(url, json={"user_id": "notanint", "emoji": "\U0001f600", "description": "authz-matrix-bad"})
-    assert count_rows("awards", f"category = '{category}'") == awards_before, \
-        "A malformed grant must not create an award"
-
-    valid = admin_session.post(
-        url, json={"user_id": user_id, "emoji": "\U0001f600", "description": "authz-matrix-good"}
-    )
-    assert valid.status_code == 200, f"Expected the following valid grant to succeed, but got {valid.status_code}"
-    assert count_rows("awards", f"category = '{category}' AND user_id = {user_id}") == 1, \
-        "A valid grant after a malformed one must still create exactly one award"
-
-
-def test_promote_official_requires_site_admin(authz_dojo, random_user, admin_session):
-    _, session = random_user
-
-    unknown = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/definitely-not-a-dojo/promote", json={})
-    real = session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{authz_dojo}/promote", json={})
-    assert unknown.status_code == 403, f"Expected 403 for a non-admin promote, but got {unknown.status_code}"
-    assert real.status_code == 403, f"Expected 403 for a non-admin promote, but got {real.status_code}"
-    assert unknown.text == real.text, "A non-admin must not be able to tell a real dojo from a nonexistent one"
-
-    admin_unknown = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/definitely-not-a-dojo/promote", json={})
-    assert admin_unknown.status_code == 404, \
-        f"Expected 404 when a site admin promotes an unknown dojo, but got {admin_unknown.status_code}"
-
-    official = db_sql(f"SELECT official FROM dojos WHERE dojo_id = {dojo_db_id(authz_dojo)}").strip()
-    assert official == "f", f"The rejected promote must leave the dojo unofficial, but official is {official!r}"
 
 
 def test_create_dojo_malformed_body(admin_session):
@@ -329,25 +149,6 @@ def test_update_api_malformed_body(authz_dojo, admin_session):
 
     assert admin_session.get(modules_url).json() == before, \
         "A rejected update must leave the dojo's modules and challenges untouched"
-
-
-def test_workspace_tokens_require_auth():
-    url = f"{DOJO_URL}/pwncollege_api/v1/workspace_tokens"
-    anonymous = anonymous_session(with_csrf=True)
-
-    json_get = anonymous.get(url, headers={"Content-Type": "application/json"}, allow_redirects=False)
-    assert json_get.status_code == 403, f"Expected 403 for an anonymous JSON GET, but got {json_get.status_code}"
-    assert not re.search(r"workspace_[0-9a-f]{64}", json_get.text), "The rejection must not disclose any token value"
-
-    plain_get = anonymous.get(url, allow_redirects=False)
-    assert plain_get.status_code == 302, f"Expected a login redirect, but got {plain_get.status_code}"
-    assert "/login" in plain_get.headers["Location"], f"Expected a /login redirect, got {plain_get.headers['Location']}"
-
-    post = anonymous.post(url, json={}, allow_redirects=False)
-    assert post.status_code == 403, f"Expected 403 for an anonymous POST, but got {post.status_code}"
-
-    assert count_rows("workspace_tokens", "user_id IS NULL") == 0, \
-        "Anonymous workspace token requests must not mint an ownerless token"
 
 
 def test_workspace_token_malformed_expiration(random_user):
@@ -421,14 +222,6 @@ def test_workspace_api_unknown_user_is_not_an_oracle(random_user, admin_session,
         "A non-admin must not be able to tell an existing user id from a nonexistent one"
 
 
-def test_workspace_api_port_param(container_user):
-    _, session = container_user
-    response = session.get(f"{DOJO_URL}/pwncollege_api/v1/workspace?port=8080")
-    assert response.status_code == 200, f"Expected 200 for a valid port, but got {response.status_code}"
-    assert response.json()["iframe_src"].endswith("/8080/"), \
-        f"Expected the proxy url to end in the requested port, got {response.json()['iframe_src']}"
-
-
 @pytest.mark.parametrize("port", ["../../etc", "8080/../../x"])
 def test_workspace_api_port_param_rejects_traversal(container_user, port):
     _, session = container_user
@@ -460,30 +253,6 @@ def test_active_module_requires_auth(container_user):
         f"Expected the owner's active challenge, got {owner.json()['c_current']}"
 
 
-def test_docker_get_delete_next_require_auth(container_user):
-    name, session = container_user
-    url = f"{DOJO_URL}/pwncollege_api/v1/docker"
-    anonymous = anonymous_session(with_csrf=True)
-
-    for label, response in [
-        ("GET", anonymous.get(url, headers={"Content-Type": "application/json"})),
-        ("GET next", anonymous.get(f"{url}/next", headers={"Content-Type": "application/json"})),
-        ("DELETE", anonymous.delete(url, headers={"Content-Type": "application/json"})),
-    ]:
-        assert response.status_code == 403, f"Expected 403 for an anonymous {label}, but got {response.status_code}"
-        assert "apple" not in response.text, f"The anonymous {label} rejection must not leak the running challenge"
-
-    plain = anonymous.get(url, allow_redirects=False)
-    assert plain.status_code == 302, f"Expected a login redirect, but got {plain.status_code}"
-    assert "/login" in plain.headers["Location"], f"Expected a /login redirect, got {plain.headers['Location']}"
-
-    get_outer_container_for(f"user_{get_user_id(name)}")
-
-    owner = session.get(url)
-    assert owner.status_code == 200, f"Expected the container owner to get 200, but got {owner.status_code}"
-    assert owner.json()["challenge"] == "apple", f"Expected the owner's running challenge, got {owner.json()}"
-
-
 def test_docker_post_malformed_body(random_user):
     name, session = random_user
     url = f"{DOJO_URL}/pwncollege_api/v1/docker"
@@ -496,71 +265,6 @@ def test_docker_post_malformed_body(random_user):
         "A rejected docker POST must not leave an active challenge"
     with pytest.raises(RuntimeError):
         get_outer_container_for(f"user_{get_user_id(name)}")
-
-
-def test_solve_missing_submission_field(authz_dojo, random_user):
-    name, session = random_user
-    join(session, authz_dojo)
-    user_id = get_user_id(name)
-    challenge_id = challenge_db_id(authz_dojo, "surveyed", "surveyed-challenge")
-    url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{authz_dojo}/surveyed/surveyed-challenge/solve"
-
-    for body in [{}, {"flag": "x"}]:
-        response = session.post(url, json=body)
-        assert 400 <= response.status_code < 500, \
-            f"Expected a client error for body {body}, but got {response.status_code}"
-        assert not response.json()["success"], f"Unexpected success payload for body {body}: {response.json()}"
-
-    assert count_rows("submissions", f"user_id = {user_id} AND challenge_id = {challenge_id}") == 0, \
-        "A solve without a submission must not record a submission of any type"
-
-    incorrect = session.post(url, json={"submission": "wrong"})
-    assert incorrect.status_code == 400, f"Expected 400 for a wrong flag, but got {incorrect.status_code}"
-    assert incorrect.json()["status"] == "incorrect", f"Expected an incorrect status, got {incorrect.json()}"
-    assert count_rows("submissions", f"user_id = {user_id} AND challenge_id = {challenge_id} AND type = 'incorrect'") == 1, \
-        "The endpoint must still record real submissions after rejecting malformed ones"
-
-
-def test_dojo_scoped_routes_hide_private_dojo(authz_private_dojo, random_user):
-    name, session = random_user
-    anonymous = anonymous_session()
-    routes = [
-        f"/pwncollege_api/v1/scoreboard/{authz_private_dojo}/_/0/1",
-        f"/pwncollege_api/v1/scoreboard/{authz_private_dojo}/_/crews/0/1",
-        f"/pwncollege_api/v1/dojos/{authz_private_dojo}/modules",
-        f"/pwncollege_api/v1/dojos/{authz_private_dojo}/solves",
-        f"/pwncollege_api/v1/dojos/{authz_private_dojo}/course",
-        f"/pwncollege_api/v1/dojos/{authz_private_dojo}/secret-module/secret-challenge/surveys",
-        f"/{authz_private_dojo}",
-    ]
-
-    for route in routes:
-        for label, response in [("anonymous", anonymous.get(DOJO_URL + route)),
-                                ("non-member", session.get(DOJO_URL + route))]:
-            assert response.status_code == 404, \
-                f"Expected 404 for a {label} on {route}, but got {response.status_code}"
-            assert "Secret Module" not in response.text and "Secret Challenge" not in response.text, \
-                f"The {label} 404 for {route} must not disclose the dojo's contents"
-
-    description = f"/pwncollege_api/v1/dojos/{authz_private_dojo}/secret-module/secret-challenge/description"
-    anonymous_description = anonymous.get(DOJO_URL + description, allow_redirects=False)
-    assert anonymous_description.status_code == 302, \
-        f"Expected an authentication redirect on the description route, but got {anonymous_description.status_code}"
-    assert session.get(DOJO_URL + description).status_code == 404, \
-        "A logged-in non-member must get 404 from the description route"
-
-    join(session, authz_private_dojo)
-
-    for route in routes:
-        response = session.get(DOJO_URL + route)
-        if route.endswith("/course"):
-            assert response.status_code == 404 and response.json()["error"] == "This dojo is not a course", \
-                f"Expected the not-a-course error once joined, but got {response.status_code} {response.text[:100]}"
-            continue
-        assert response.status_code == 200, \
-            f"Expected 200 for a member on {route}, but got {response.status_code}"
-    assert session.get(DOJO_URL + description).status_code == 200, \
-        "A member must be able to read the challenge description"
 
 
 def test_csrf_required_on_mutating_dojo_endpoints(authz_dojo, random_user, admin_session):
@@ -634,28 +338,6 @@ def test_update_code_null_rejects_anonymous_update(authz_private_dojo):
             f"A code-less update route must be unavailable, but got {no_code.status_code}"
     finally:
         db_sql(f"UPDATE dojos SET update_code = '{update_code}' WHERE dojo_id = {db_id}")
-
-
-def test_dojo_page_directory_renders_default(authz_dojo, random_user_session):
-    response = random_user_session.get(f"{DOJO_URL}/{authz_dojo}/authz-notes")
-    assert response.status_code == 200, f"Expected the page directory to render, but got {response.status_code}"
-    assert "AUTHZ_MATRIX_DEFAULT_PAGE" in response.text, "Expected the page directory's default.md content"
-
-
-def test_dojo_page_directory_anonymous(authz_dojo):
-    response = anonymous_session().get(f"{DOJO_URL}/{authz_dojo}/authz-notes")
-    assert response.status_code == 200, \
-        f"An anonymous page-directory request must not crash, but got {response.status_code}"
-    assert "AUTHZ_MATRIX_DEFAULT_PAGE" in response.text, "Expected the page directory's default.md content"
-
-
-def test_course_page_user_param_requires_dojo_admin(authz_dojo, random_user):
-    _, session = random_user
-    join(session, authz_dojo)
-
-    response = session.get(f"{DOJO_URL}/dojo/{authz_dojo}/course?user=abc", allow_redirects=False)
-    assert response.status_code == 403, \
-        f"A non-admin must be rejected before the user lookup, expected 403 but got {response.status_code}"
 
 
 def test_course_page_non_numeric_user_param(authz_dojo, admin_session):

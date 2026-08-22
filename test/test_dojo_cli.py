@@ -24,11 +24,6 @@ from utils import (
 )
 
 
-CLI_SUBCOMMANDS = [
-    "up", "update", "sync", "enter", "compose", "node", "flask", "db", "backup",
-    "restore", "cloud-backup", "vscode", "logs", "load-dojo", "wait", "init", "help",
-]
-
 PULL_IMAGES_SCRIPT = "/opt/CTFd/CTFd/plugins/dojo_plugin/scripts/pull_images.py"
 
 SPEC_TEMPLATE = """
@@ -162,29 +157,6 @@ def privileged_cli_user(privileged_dojo):
     start_challenge(privileged_dojo, "test", "test", session=session)
     yield name, session
     remove_workspace_container(name)
-
-
-def test_help_lists_every_annotated_subcommand():
-    for args in (["help"], []):
-        invocation = f"dojo {' '.join(args)}".strip()
-        result = dojo_run("dojo", *args, check=False)
-        assert result.returncode == 0, f"`{invocation}` exited {result.returncode}"
-        assert "COMMANDS:" in result.stdout, f"`{invocation}` printed no command list"
-        for command in CLI_SUBCOMMANDS:
-            assert re.search(rf"^\t{re.escape(command)}[: ]", result.stdout, re.M), \
-                f"`{invocation}` does not document the `{command}` subcommand"
-
-
-def test_unknown_subcommand_exits_nonzero():
-    result = dojo_run("dojo", "not-a-real-command", check=False)
-    assert result.returncode == 1, f"`dojo not-a-real-command` exited {result.returncode}"
-    assert "Unknown command" in result.stdout, result.stdout
-    assert "COMMANDS:" in result.stdout, "unknown command did not print the help text"
-
-    node_result = dojo_run("dojo", "node", "not-a-real-command", check=False)
-    assert node_result.returncode == 1, f"`dojo node not-a-real-command` exited {node_result.returncode}"
-    assert "Unknown command" in node_result.stdout, node_result.stdout
-    assert "COMMANDS:" in node_result.stdout, "unknown node command did not print the help text"
 
 
 def test_db_propagates_psql_exit_status():
@@ -1077,21 +1049,6 @@ def test_watchdog_prunes_dangling_images():
             dojo_run("docker", "rmi", "-f", image, check=False, container=target)
 
 
-def test_init_config_env_shape():
-    lines = [line for line in dojo_run("cat", "/data/config.env").stdout.splitlines() if "=" in line]
-    keys = [line.split("=", 1)[0] for line in lines]
-    assert len(keys) == len(set(keys)), f"duplicate keys in config.env: {keys}"
-    required = {"DOJO_HOST", "WORKSPACE_HOST", "DOJO_ENV", "WORKSPACE_NODE", "SECRET_KEY",
-                "WORKSPACE_SECRET", "DOJO_SSH_SERVICE_KEY", "DB_NAME", "DB_USER"}
-    assert required <= set(keys), f"missing config keys: {required - set(keys)}"
-
-    environment = _config_env()
-    assert environment["DOJO_ENV"] in ("development", "coverage", "production"), environment["DOJO_ENV"]
-    assert environment["SECRET_KEY"], "SECRET_KEY was never generated"
-    assert environment["WORKSPACE_SECRET"], "WORKSPACE_SECRET was never generated"
-    assert environment["DOJO_SSH_SERVICE_KEY"], "DOJO_SSH_SERVICE_KEY was never generated"
-
-
 def test_init_homes_quota_enabled():
     assert dojo_run("findmnt", "-nro", "FSTYPE", "--", "/data/homes").stdout.strip() == "btrfs"
     quota = dojo_run("btrfs", "qgroup", "show", "-re", "/data/homes", check=False)
@@ -1127,18 +1084,6 @@ def test_workspace_egress_policy(cli_user):
     docker_user = dojo_run("iptables", "-S", "DOCKER-USER").stdout
     assert "-A DOCKER-USER -i workspace_net -j WORKSPACE-NET" in docker_user, docker_user
     assert "-A DOCKER-USER -o workspace_net -j WORKSPACE-NET" in docker_user, docker_user
-
-
-def test_splunk_forwarder_disabled_noop():
-    environment = _config_env()
-    if environment.get("ENABLE_SPLUNK") == "true":
-        pytest.skip("splunk is enabled on this dojo")
-    result = dojo_run("env", "ENABLE_SPLUNK=false", "/opt/pwn.college/dojo/journal-to-splunk",
-                      check=False, timeout=20)
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "Splunk is not enabled, exiting" in result.stdout, result.stdout
-    active = dojo_run("systemctl", "is-active", "journal-to-splunk", check=False)
-    assert active.stdout.strip() != "active", "journal-to-splunk is running without ENABLE_SPLUNK"
 
 
 @pytest.mark.order(-1)

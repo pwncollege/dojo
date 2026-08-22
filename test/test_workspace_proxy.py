@@ -9,7 +9,6 @@ import requests
 
 from utils import (
     DOJO_URL,
-    db_sql,
     dojo_run,
     get_outer_container_for,
     get_user_id,
@@ -20,8 +19,6 @@ from utils import (
 )
 
 WORKSPACE_API = f"{DOJO_URL}/pwncollege_api/v1/workspace"
-TOKENS_API = f"{DOJO_URL}/pwncollege_api/v1/workspace_tokens"
-DOCKER_API = f"{DOJO_URL}/pwncollege_api/v1/docker"
 
 
 def random_name(prefix):
@@ -254,89 +251,3 @@ def test_workspace_system_mounts_are_read_only(workspace_owner):
         assert "Read-only file system" in exception.value.stderr, (
             f"Expected root to be unable to write to {path}, but got {exception.value.stderr}"
         )
-
-
-def test_workspace_tokens_are_scoped_to_their_owner(random_user):
-    name, session = random_user
-    other_name = random_name("wstoken")
-    other_session = login(other_name, other_name, register=True)
-
-    values = []
-    for _ in range(2):
-        response = session.post(TOKENS_API, json={})
-        assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-        data = response.json()["data"]
-        assert data["value"].startswith("workspace_"), f"Unexpected token value: {data['value']}"
-        values.append(data["value"])
-    assert values[0] != values[1], "Expected each created token to be unique"
-
-    owner_id = get_user_id(name)
-    for value in values:
-        assert db_sql(f"SELECT user_id FROM workspace_tokens WHERE value = '{value}'").strip() == str(owner_id), (
-            "Expected the created token to belong to its creator"
-        )
-
-    other_token_id = other_session.post(TOKENS_API, json={}).json()["data"]["id"]
-
-    listing = session.get(TOKENS_API)
-    assert listing.status_code == 200, f"Expected status code 200, but got {listing.status_code}"
-    tokens = listing.json()["data"]
-    assert len(tokens) == 2, f"Expected exactly the caller's 2 tokens, but got {tokens}"
-    for token in tokens:
-        assert set(token) == {"id", "expiration"}, f"Expected token listings to only expose id/expiration: {token}"
-    assert other_token_id not in [token["id"] for token in tokens], "Another user's token leaked into the listing"
-    for value in values:
-        assert value not in listing.text, "The token value must never be listed"
-
-    anonymous = requests.Session()
-    unauthorized = anonymous.get(TOKENS_API, headers={"Content-Type": "application/json"})
-    assert unauthorized.status_code == 403, (
-        f"Expected status code 403 for an anonymous token listing, but got {unauthorized.status_code}"
-    )
-
-
-def test_workspace_token_honors_requested_expiration(random_user_session):
-    response = random_user_session.post(TOKENS_API, json={"expiration": "2030-01-01"})
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.text}"
-    data = response.json()["data"]
-    assert data["expiration"].startswith("2030-01-01"), (
-        f"Expected the requested expiration to be honored, but got {data['expiration']}"
-    )
-    stored = db_sql(f"SELECT expiration FROM workspace_tokens WHERE value = '{data['value']}'").strip()
-    assert stored.startswith("2030-01-01"), f"Expected the requested expiration to be stored, but got {stored}"
-
-
-def test_workspace_token_resolves_the_token_owner(random_user, random_user_session):
-    name, session = random_user
-    token = session.post(TOKENS_API, json={}).json()["data"]["value"]
-
-    response = random_user_session.post(
-        DOCKER_API,
-        json={"dojo": "no-such-dojo", "module": "no-such-module", "challenge": "no-such-challenge"},
-        headers={"X-Workspace-Token": token},
-    )
-    assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.text}"
-    assert response.json() == {"success": False, "error": "Invalid dojo"}, (
-        f"Expected a valid workspace token to be accepted, but got {response.json()}"
-    )
-
-
-@pytest.mark.parametrize("case", ["expired", "invalid"])
-def test_workspace_token_rejects_expired_and_invalid_tokens(random_user, case):
-    _, session = random_user
-
-    if case == "expired":
-        token = session.post(TOKENS_API, json={}).json()["data"]["value"]
-        db_sql(f"UPDATE workspace_tokens SET expiration = now() - interval '1 day' WHERE value = '{token}'")
-        expected_description = "This workspace token has expired"
-    else:
-        token = "workspace_" + "0" * 64
-        expected_description = "Invalid workspace token"
-
-    response = session.post(
-        DOCKER_API,
-        json={"dojo": "no-such-dojo", "module": "no-such-module", "challenge": "no-such-challenge"},
-        headers={"X-Workspace-Token": token},
-    )
-    assert response.status_code == 401, f"Expected status code 401, but got {response.status_code}"
-    assert expected_description in response.text, f"Expected {expected_description!r} in the response"

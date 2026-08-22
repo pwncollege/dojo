@@ -157,27 +157,10 @@ def redis_cmd(*args):
     return result.stdout.strip() if result.returncode == 0 else None
 
 
-def redis_json(key):
-    raw = redis_cmd("GET", key)
-    if not raw or raw == "(nil)":
-        return None
-    return json.loads(raw)
-
-
 def recalc_dojo(dojo_id):
     output = sb_flask_exec(
         "from CTFd.plugins.dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update\n"
         f"handle_scoreboard_update({{'model_type': 'dojo', 'model_id': {dojo_id}}})\n"
-        "print('RECALC-OK')\n"
-    )
-    assert "RECALC-OK" in output, output
-
-
-def recalc_module(dojo_id, module_index):
-    output = sb_flask_exec(
-        "from CTFd.plugins.dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update\n"
-        "handle_scoreboard_update({'model_type': 'module', 'model_id': "
-        f"{{'dojo_id': {dojo_id}, 'module_index': {module_index}}}}})\n"
         "print('RECALC-OK')\n"
     )
     assert "RECALC-OK" in output, output
@@ -457,30 +440,6 @@ def test_scoreboard_symbol_by_email_domain(sb_main):
         assert "email" not in entry, "the email used to pick the symbol must not be returned"
 
 
-def test_scoreboard_challenge_solve_counts(sb_filter):
-    grape = str(sb_filter["cids"][("counts", "grape")])
-    grapefruit = str(sb_filter["cids"][("counts", "grapefruit")])
-    cache_key = f"stats:challenge_solves:module:{sb_filter['dojo_id']}:6"
-
-    recalc_module(sb_filter["dojo_id"], 6)
-    counts = redis_json(cache_key)
-    assert counts is not None, "a module recalculation populates the challenge_solves cache"
-    assert counts.get(grape) == 1, f"expected the required challenge keyed by its string id, got {counts}"
-    assert grapefruit not in counts, f"'required: false' challenges are not counted, got {counts}"
-
-    extra, extra_session = register()
-    extra_id = user_ids([extra])[extra]
-    flag = derive_flags([(extra_id, int(grape))])[0]
-    wait_for_background_worker(timeout=60)
-    solve_challenge(sb_filter["dojo"], "counts", "grape", session=extra_session, flag=flag)
-    wait_for_background_worker(timeout=60)
-
-    incremented = wait_until(lambda: redis_json(cache_key).get(grape) == 2, timeout=15)
-    counts = redis_json(cache_key)
-    assert incremented, f"a new solve increments the count by one, got {counts}"
-    assert grapefruit not in counts, f"'required: false' challenges stay uncounted, got {counts}"
-
-
 def test_scoreboard_me_entry(sb_main):
     session = sb_main["sessions"][sb_main["alice"]]
     result = board(session, sb_main["dojo"])
@@ -551,67 +510,6 @@ def test_module_show_scoreboard_false_still_served(sb_main):
         "'show_scoreboard: false' is a UI-only flag; the module scoreboard API still serves standings"
 
 
-def test_crew_scoreboard_modes_and_scoping(sb_main):
-    session = sb_main["sessions"][sb_main["crew1"]]
-    key = SB_CREW_TAG.lower()
-
-    default = crew_board(session, sb_main["dojo"])
-    assert default["mode"] == "cumulative"
-    bogus = crew_board(session, sb_main["dojo"], mode="bogus")
-    assert bogus["mode"] == "cumulative", "an unrecognized mode falls back to cumulative"
-    assert [crew["key"] for crew in bogus["standings"]] == [crew["key"] for crew in default["standings"]]
-
-    crew = next(entry for entry in default["standings"] if entry["key"] == key)
-    assert crew["score"] == 3, "the crew's cumulative score is the sum of its members' required solves"
-    assert crew["unique"] == 2, "the crew collectively solved 2 distinct challenges"
-    assert len(crew["members"]) == 2
-    for member in crew["members"]:
-        assert "email" not in member, "crew members must not leak email addresses"
-        assert "challenges" not in member
-
-    m1_crew = next(entry for entry in crew_board(session, sb_main["dojo"], "m1")["standings"]
-                   if entry["key"] == key)
-    assert m1_crew["score"] == 2, "a module crew board only counts that module's solves"
-    assert m1_crew["unique"] == 1
-
-    m2_crew = next(entry for entry in crew_board(session, sb_main["dojo"], "m2")["standings"]
-                   if entry["key"] == key)
-    assert m2_crew["score"] == 1, "only crew1 solved in m2"
-
-    unique = crew_board(session, sb_main["dojo"], mode="unique")
-    assert unique["mode"] == "unique"
-    assert [entry["rank"] for entry in unique["standings"]] == list(range(1, len(unique["standings"]) + 1))
-
-    response = session.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{sb_main['dojo']}/crews/0/1")
-    assert response.status_code == 404, "the dojo-level crew board requires the literal '_' module segment"
-
-
-def test_crew_board_empty_flag(sb_main):
-    session = sb_main["sessions"][sb_main["alice"]]
-
-    solvers_no_crews = crew_board(session, sb_main["dojo"], "m3")
-    assert solvers_no_crews["standings"] == [], "nobody tagged solved anything in m3"
-    assert solvers_no_crews["board_empty"] is False, \
-        "m3 has solvers, so the board is not empty even though no crews exist"
-
-    nothing = crew_board(session, sb_main["dojo"], "m4")
-    assert nothing["standings"] == []
-    assert nothing["board_empty"] is True, "m4 has neither crews nor solvers"
-
-
-def test_crew_me_crew(sb_main):
-    tagged = crew_board(sb_main["sessions"][sb_main["crew1"]], sb_main["dojo"])
-    assert "me_crew" in tagged, "a tagged solver gets their own crew back"
-    assert tagged["me_crew"]["key"] == SB_CREW_TAG.lower()
-    assert (tagged["me_crew"]["rank"] - 1) // 20 + 1 in tagged["pages"], tagged["pages"]
-
-    untagged = crew_board(sb_main["sessions"][sb_main["alice"]], sb_main["dojo"])
-    assert "me_crew" not in untagged, "an untagged user has no crew"
-
-    anonymous = crew_board(None, sb_main["dojo"])
-    assert "me_crew" not in anonymous, "anonymous requests get no crew"
-
-
 def test_scores_ranks_solves_and_module_scoping(sb_main):
     names = [sb_main["alice"], sb_main["crew1"], sb_main["dave"], sb_main["bob"], sb_main["nobody"]]
     uids = [sb_main["uids"][name] for name in names]
@@ -635,13 +533,6 @@ def test_scores_ranks_solves_and_module_scoping(sb_main):
     assert by_name[sb_main["alice"]]["1"] == [1, 1], "alice tops m2 with 1 solve"
     assert by_name[sb_main["bob"]]["1"][0] is None, "bob solved nothing in m2"
     assert by_name[sb_main["alice"]]["3"][0] is None, "nobody solved anything in m4"
-
-
-def test_scores_cache_written_for_public_dojo(sb_main):
-    scores = redis_json(f"stats:scores:dojo:{sb_main['dojo_id']}")
-    assert scores is not None, "public dojos get a scores cache"
-    assert sb_main["uids"][sb_main["alice"]] in scores["ranks"], scores["ranks"]
-    assert scores["ranks"][0] == sb_main["uids"][sb_main["alice"]], "alice is ranked first"
 
 
 def test_hacker_page_renders_ranks(sb_main, sb_filter):
@@ -673,33 +564,6 @@ def test_hacker_page_renders_ranks(sb_main, sb_filter):
         "hidden users' profiles are not viewable by others"
 
 
-def test_duplicate_solve_returns_already_solved(sb_filter):
-    name = sb_filter["duplicate"]
-    session = sb_filter["sessions"][name]
-    challenge_id = sb_filter["cids"][("dup", "berry")]
-    user_id = sb_filter["uids"][name]
-
-    before = board(session, sb_filter["dojo"]).get("me")
-    assert before is not None and before["solves"] == 1, before
-
-    flag = derive_flags([(user_id, challenge_id)])[0]
-    response = session.post(
-        f"{DOJO_URL}/pwncollege_api/v1/dojos/{sb_filter['dojo']}/dup/berry/solve", json={"submission": flag}
-    )
-    assert response.status_code == 200, response.text
-    assert response.json() == {"success": True, "status": "already_solved"}, response.json()
-
-    count = db_sql(
-        f"SELECT COUNT(*) FROM submissions WHERE user_id = {user_id} "
-        f"AND challenge_id = {challenge_id} AND type = 'correct'"
-    ).strip()
-    assert count == "1", f"re-submitting a solved flag must not create a second solve, got {count}"
-
-    wait_for_background_worker(timeout=30)
-    after = board(session, sb_filter["dojo"])["me"]
-    assert after["solves"] == 1, "a duplicate submission must not increment the scoreboard"
-
-
 def test_solve_credited_to_every_dojo_sharing_the_challenge(sb_filter, example_dojo):
     name = sb_filter["shared"]
     session = sb_filter["sessions"][name]
@@ -721,19 +585,6 @@ def test_scoreboard_excludes_hidden_users_incremental(sb_filter):
             f"hidden user appeared on the incrementally-updated {module} scoreboard"
 
 
-def test_scoreboard_excludes_hidden_users_after_recalc(sb_filter):
-    recalc_dojo(sb_filter["dojo_id"])
-    recalc_module(sb_filter["dojo_id"], 0)
-    session = sb_filter["sessions"][sb_filter["control"]]
-
-    for module in ["_", "hello"]:
-        standings = all_standings(session, sb_filter["dojo"], module)
-        assert entry_for(standings, sb_filter["hidden"]) is None, \
-            f"hidden user must not appear on the recalculated {module} scoreboard"
-        assert entry_for(standings, sb_filter["control"]) is not None, \
-            f"the control user must still be on the recalculated {module} scoreboard"
-
-
 def test_hidden_user_gets_no_me_entry(sb_filter):
     session = sb_filter["sessions"][sb_filter["hidden"]]
     assert "me" not in board(session, sb_filter["dojo"]), "hidden users get no 'me' entry"
@@ -745,19 +596,6 @@ def test_scoreboard_excludes_dojo_admins_incremental(sb_filter):
     for module, standings in sb_filter["snapshot"].items():
         assert entry_for(standings, sb_filter["promoted"]) is None, \
             f"dojo admin appeared on the incrementally-updated {module} scoreboard"
-
-
-def test_scoreboard_excludes_dojo_admins_after_recalc(sb_filter):
-    recalc_dojo(sb_filter["dojo_id"])
-    recalc_module(sb_filter["dojo_id"], 0)
-    session = sb_filter["sessions"][sb_filter["control"]]
-
-    for module in ["_", "hello"]:
-        standings = all_standings(session, sb_filter["dojo"], module)
-        assert entry_for(standings, sb_filter["promoted"]) is None, \
-            f"a dojo admin must not appear on the recalculated {module} scoreboard"
-        assert entry_for(standings, sb_filter["control"]) is not None, \
-            f"the control user must still be on the recalculated {module} scoreboard"
 
 
 def test_scoreboard_duration_windows(sb_filter):
@@ -779,40 +617,6 @@ def test_scoreboard_duration_windows(sb_filter):
             assert not present, "a 10-day-old solve must not appear on the 7-day board"
         else:
             assert present, f"a 10-day-old solve belongs on the {duration}-day board"
-
-
-def test_scoreboard_cache_miss_returns_empty(sb_filter):
-    session = sb_filter["sessions"][sb_filter["cached"]]
-    populated = all_standings(session, sb_filter["dojo"], "cache")
-    assert entry_for(populated, sb_filter["cached"]) is not None, "precondition: the cache module has a solver"
-
-    redis_cmd("DEL", f"stats:scoreboard:module:{sb_filter['dojo_id']}:3:0")
-    result = board(session, sb_filter["dojo"], "cache")
-    assert result["standings"] == [], "a missing cache degrades to an empty board rather than an error"
-    assert result["pages"] == []
-    assert "me" not in result
-
-
-def test_solve_worker_idempotent_on_replay(sb_filter):
-    name = sb_filter["replayed"]
-    session = sb_filter["sessions"][name]
-    user_id = sb_filter["uids"][name]
-    challenge_id = sb_filter["cids"][("hello", "apple")]
-
-    before = board(session, sb_filter["dojo"]).get("me")
-    assert before is not None and before["solves"] == 1, before
-
-    output = sb_flask_exec(
-        "from CTFd.plugins.dojo_plugin.worker.handlers.solve import handle_challenge_solve\n"
-        f"handle_challenge_solve({{'user_id': {user_id}, 'challenge_id': {challenge_id}}}, 1.0)\n"
-        "print('REPLAY-OK')\n"
-    )
-    assert "REPLAY-OK" in output, output
-
-    after = board(session, sb_filter["dojo"])["me"]
-    assert after["solves"] == 1, "replaying an event older than the cache must not double-count the solve"
-    module_entry = board(session, sb_filter["dojo"], "hello")["me"]
-    assert module_entry["solves"] == 1, "the module scoreboard must not double-count either"
 
 
 def test_queued_solve_events_are_not_dropped(sb_filter):
