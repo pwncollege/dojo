@@ -96,6 +96,17 @@ def forwarded_port(iframe_src):
     return int([part for part in urlparse(iframe_src).path.split("/") if part][3])
 
 
+def forwarded_signature(iframe_src):
+    return [part for part in urlparse(iframe_src).path.split("/") if part][2]
+
+
+def replace_forwarded_signature(iframe_src, signature):
+    parsed = urlparse(iframe_src)
+    parts = parsed.path.split("/")
+    parts[3] = signature
+    return parsed._replace(path="/".join(parts)).geturl()
+
+
 def dojo_host():
     return dojo_run("docker", "exec", "nginx", "printenv", "DOJO_HOST").stdout.strip()
 
@@ -735,10 +746,22 @@ def test_workspace_proxy_passes_websocket_upgrades_through(runtime_workspace):
     assert "upgrade" in response.lower(), f"Expected an Upgrade response from the proxy, but got {response!r}"
 
 
-@pytest.mark.skipif(MULTINODE, reason="the workspace proxy redirects to the per-node vhost in multinode")
-def test_workspace_proxy_signature_covers_the_container_not_the_port(runtime_workspace, random_user_session):
+def test_workspace_proxy_signature_covers_the_container_and_port(runtime_workspace, random_user_session):
     name, session = runtime_workspace
-    session.get(f"{WORKSPACE_API}?service=code")
+    code_response = session.get(f"{WORKSPACE_API}?service=code")
+    assert code_response.status_code == 200, f"Expected the code service to start, got {code_response.status_code}"
+    code_iframe_src = code_response.json()["iframe_src"]
+    assert forwarded_port(code_iframe_src) == 8080, f"Expected code on port 8080, got {code_iframe_src}"
+
+    code_proxy = requests.get(code_iframe_src, timeout=30, allow_redirects=False)
+    node_code_iframe_src = None
+    if MULTINODE:
+        assert code_proxy.status_code == 307, (
+            f"Expected the main proxy to redirect to the workspace node, got {code_proxy.status_code}"
+        )
+        node_code_iframe_src = code_proxy.headers["Location"]
+        code_proxy = requests.get(node_code_iframe_src, timeout=30, allow_redirects=False)
+    assert code_proxy.status_code == 200, f"Expected the signed code url to work, got {code_proxy.status_code}"
 
     token = workspace_output(name, "cat /run/dojo/var/auth_token")
     view_password = hmac.HMAC(token.encode(), b"desktop-view", hashlib.sha256).hexdigest()
@@ -746,17 +769,35 @@ def test_workspace_proxy_signature_covers_the_container_not_the_port(runtime_wor
         f"{WORKSPACE_API}?user={get_user_id(name)}&password={view_password}&service=desktop"
     )
     assert shared.status_code == 200, f"Expected the view-only desktop share to be granted, got {shared.status_code}"
-    iframe_src = shared.json()["iframe_src"]
-    assert forwarded_port(iframe_src) == 6080, f"Expected the shared desktop on port 6080, but got {iframe_src}"
+    desktop_iframe_src = shared.json()["iframe_src"]
+    assert forwarded_port(desktop_iframe_src) == 6080, (
+        f"Expected the shared desktop on port 6080, but got {desktop_iframe_src}"
+    )
+    desktop_proxy = requests.get(desktop_iframe_src, timeout=30)
+    assert desktop_proxy.status_code == 200, (
+        f"Expected the signed desktop url to work, got {desktop_proxy.status_code}"
+    )
 
-    parsed = urlparse(iframe_src)
-    rewritten = parsed.path.replace("/6080/", "/8080/").split("vnc.html")[0]
-    response = requests.get(
-        f"{DOJO_URL.rstrip('/')}{rewritten}", headers={"Host": parsed.netloc}, timeout=30, allow_redirects=False
+    desktop_signature = forwarded_signature(desktop_iframe_src)
+    assert desktop_signature != forwarded_signature(code_iframe_src), (
+        "Expected the same container to use different signatures for ports 6080 and 8080"
     )
-    assert response.status_code == 200, (
-        f"Expected the signature to remain valid for a rewritten port, but got {response.status_code}"
+
+    tampered_code_iframe_src = replace_forwarded_signature(code_iframe_src, desktop_signature)
+    tampered_code_proxy = requests.get(tampered_code_iframe_src, timeout=30, allow_redirects=False)
+    assert tampered_code_proxy.status_code == 404, (
+        f"Expected the desktop signature to reject port 8080, got {tampered_code_proxy.status_code}"
     )
+    assert tampered_code_proxy.text.strip() == "Workspace not found", tampered_code_proxy.text
+
+    if node_code_iframe_src:
+        tampered_node_iframe_src = replace_forwarded_signature(node_code_iframe_src, desktop_signature)
+        tampered_node_proxy = requests.get(tampered_node_iframe_src, timeout=30, allow_redirects=False)
+        assert tampered_node_proxy.status_code == 404, (
+            f"Expected the workspace node to reject the desktop signature on port 8080, "
+            f"got {tampered_node_proxy.status_code}"
+        )
+        assert tampered_node_proxy.text.strip() == "Workspace not found", tampered_node_proxy.text
 
 
 def test_nginx_routes_by_host_header():

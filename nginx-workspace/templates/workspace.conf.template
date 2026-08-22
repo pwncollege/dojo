@@ -6,7 +6,7 @@ resolver_timeout 1s;
 location ~ ^/workspace/(?P<container_id>[^/]+):(?P<target_host>[^/]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
     secure_link_hmac "$sig";
     secure_link_hmac_secret "$WORKSPACE_SECRET";
-    secure_link_hmac_message "$container_id:$target_host";
+    secure_link_hmac_message "$container_id:$target_host:$port";
     secure_link_hmac_algorithm sha256;
 
     if ($secure_link_hmac != "1") {
