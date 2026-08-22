@@ -214,7 +214,9 @@ def test_workspace_auto_start_without_home_mount(
         By.CSS_SELECTOR, '.workspace-service[data-service="terminal: 7681"]'
     )
     assert workspace_controls.get_attribute("data-popout") == "false"
-    assert "active" in terminal_button.get_attribute("class")
+    WebDriverWait(random_user_browser, 30).until(
+        lambda browser: "active" in terminal_button.get_attribute("class")
+    )
     WebDriverWait(random_user_browser, 30).until(
         lambda browser: "/7681/" in (workspace_iframe.get_attribute("src") or "")
     )
