@@ -293,6 +293,7 @@ def test_compose_selects_profiles_by_node_role():
     worker_services = set(dojo_run("dojo", "compose", "config", "--services", container=WORKER_CONTAINER).stdout.split())
     assert "nginx-workspace" in worker_services, worker_services
     assert "dojofs" in worker_services, worker_services
+    assert "workspace-builder" in worker_services, worker_services
     assert "ctfd" not in worker_services, "a workspace node must not run ctfd"
     assert "db" not in worker_services, "a workspace node must not run the database"
     assert "sshd" not in worker_services, "a workspace node must not run sshd"
@@ -300,7 +301,7 @@ def test_compose_selects_profiles_by_node_role():
     main_services = set(dojo_run("dojo", "compose", "config", "--services").stdout.split())
     assert "ctfd" in main_services, main_services
     assert "dojofs" not in main_services, "the main node of a multinode dojo must not host workspaces"
-    assert "workspace-builder" not in main_services, main_services
+    assert "workspace-builder" in main_services, main_services
 
 
 def test_startup_gates_are_satisfied():
