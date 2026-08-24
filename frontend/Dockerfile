@@ -11,7 +11,12 @@ WORKDIR /app
 # Install dependencies with bun
 FROM base AS deps
 COPY package.json bun.lock* ./
-RUN bun install --no-save --frozen-lockfile
+RUN for attempt in 1 2 3; do \
+        bun install --no-save --frozen-lockfile && exit 0; \
+        rm -rf node_modules ~/.bun/install/cache; \
+        sleep "$attempt"; \
+    done; \
+    exit 1
 
 # Rebuild the source code only when needed
 FROM base AS builder
