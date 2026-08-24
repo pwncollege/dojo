@@ -345,6 +345,11 @@ def locate_translated_resource(resources, locator, source_path):
         f"Error: `{markupsafe.escape(source_path)}` translates a resource with {key} "
         f"`{markupsafe.escape(locator[key])}`, which does not exist"
     )
+    assert len(matches) == 1, (
+        f"Error: `{markupsafe.escape(source_path)}` translates a resource with {key} "
+        f"`{markupsafe.escape(locator[key])}`, which matches {len(matches)} resources; "
+        "use `index` to say which one"
+    )
     return matches[0]
 
 
