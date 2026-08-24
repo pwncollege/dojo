@@ -1389,6 +1389,12 @@ code {
     font-size: 0.65rem;
 }
 
+/* the label is a block span, so bootstrap's inline-block ::after caret would wrap
+   to its own line; the caret is an explicit icon inside the label instead */
+.language-switcher .dropdown-toggle::after {
+    display: none;
+}
+
 .language-switcher .dropdown-menu {
     background-color: #272727;
     border: 1px solid var(--brand-light-gray);
