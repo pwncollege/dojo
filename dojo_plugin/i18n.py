@@ -113,10 +113,6 @@ def current_language():
 
 
 def init_language(app):
-    @app.before_request
-    def set_request_language():
-        g.language = select_language()
-
     @app.context_processor
     def inject_language():
         return dict(current_language=current_language(),

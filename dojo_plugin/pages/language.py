@@ -34,5 +34,5 @@ def set_language():
     response.set_cookie(LANGUAGE_COOKIE, selected,
                         max_age=LANGUAGE_COOKIE_MAX_AGE,
                         samesite="Lax",
-                        httponly=False)
+                        secure=request.is_secure)
     return response

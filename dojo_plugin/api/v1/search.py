@@ -10,17 +10,11 @@ from ...models import Dojos, DojoAdmins, DojoModules, DojoChallenges
 search_namespace = Namespace("search", description="Search across dojos, modules, and challenges")
 
 
-def translated_match(model, language, like_query):
-    if language == DEFAULT_LANGUAGE:
-        return None
-    return model.data["translations"][language].astext.ilike(like_query, escape="\\")
-
-
-def matches(model, language, like_query, *columns):
-    conditions = [column.ilike(like_query, escape="\\") for column in columns]
-    translated = translated_match(model, language, like_query)
-    if translated is not None:
-        conditions.append(translated)
+def matches(model, language, like_query, *fields):
+    conditions = [getattr(model, field).ilike(like_query, escape="\\") for field in fields]
+    if language != DEFAULT_LANGUAGE:
+        conditions += [model.data["translations"][language][field].astext.ilike(like_query, escape="\\")
+                       for field in fields]
     return or_(*conditions)
 
 
@@ -40,17 +34,15 @@ class Search(Resource):
         like_query = f"%{escaped}%"
 
         dojos = Dojos.viewable(user=user).filter(
-            matches(Dojos, language, like_query, Dojos.name, Dojos.description))
+            matches(Dojos, language, like_query, "name", "description"))
         modules = (DojoModules.query
                    .join(Dojos.viewable(user=user))
-                   .filter(matches(DojoModules, language, like_query,
-                                   DojoModules.name, DojoModules.description)))
+                   .filter(matches(DojoModules, language, like_query, "name", "description")))
         challenges = (DojoChallenges.query
                       .join(Dojos.viewable(user=user))
                       .join(DojoModules, and_(DojoModules.dojo_id == DojoChallenges.dojo_id,
                                               DojoModules.module_index == DojoChallenges.module_index))
-                      .filter(matches(DojoChallenges, language, like_query,
-                                      DojoChallenges.name, DojoChallenges.description)))
+                      .filter(matches(DojoChallenges, language, like_query, "name", "description")))
 
         if not is_admin():
             admin_dojo_ids = (db.session.query(DojoAdmins.dojo_id)
