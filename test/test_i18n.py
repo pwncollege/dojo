@@ -4,12 +4,19 @@ import string
 import pytest
 import requests
 
-from utils import DOJO_URL, TEST_DOJOS_LOCATION, create_dojo_yml, login, parse_csrf_token
+from utils import (DOJO_URL, TEST_DOJOS_LOCATION, create_dojo_yml, login,
+                   make_dojo_official, parse_csrf_token)
 
 
 @pytest.fixture(scope="session")
 def i18n_dojo(admin_session, example_dojo):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "i18n_dojo.yml").read(), session=admin_session)
+
+
+@pytest.fixture(scope="session")
+def i18n_import_dojo(admin_session, i18n_dojo):
+    make_dojo_official(i18n_dojo, admin_session)
+    return create_dojo_yml(open(TEST_DOJOS_LOCATION / "i18n_import_dojo.yml").read(), session=admin_session)
 
 
 def module_page(session, dojo, language=None):
@@ -134,6 +141,22 @@ def test_search_matches_translations(i18n_dojo, admin_session):
 
     results = admin_session.get(url, params={"q": "MODDESC_KO", "lang": "en"}).json()["results"]
     assert not results["modules"], "English search should not match Korean translations"
+
+
+def test_import_inherits_translations(i18n_import_dojo, admin_session):
+    korean = admin_session.get(f"{DOJO_URL}/{i18n_import_dojo}/reimporting/",
+                               params={"lang": "ko"}).text
+    assert "번역된 챌린지" in korean, "an import with no local translation should inherit the source's"
+    assert "CHALDESC_KO" in korean, "an import should inherit the source's translated description"
+
+
+def test_local_translation_does_not_discard_inherited_fields(i18n_import_dojo, admin_session):
+    korean = admin_session.get(f"{DOJO_URL}/{i18n_import_dojo}/reimporting/",
+                               params={"lang": "ko"}).text
+    assert "이름을 바꾼 챌린지" in korean, "a local translated name should win over the inherited one"
+    assert korean.count("CHALDESC_KO") == 2, (
+        "translating only the name must not discard the inherited translated description")
+    assert "CHALDESC_EN" not in korean
 
 
 def main_content(text):

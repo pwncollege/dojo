@@ -29,6 +29,15 @@ from ..config import DOJOS_DIR
 from ..i18n import current_language, language_candidates
 
 
+def merge_translations(translations, inherited):
+    # per-language, per-field: an import inherits the source's translations for every
+    # field it does not translate itself
+    merged = {language: dict(fields) for language, fields in (inherited or {}).items()}
+    for language, fields in (translations or {}).items():
+        merged.setdefault(language, {}).update(fields)
+    return merged
+
+
 class LocalizedMixin:
     def localized(self, field, language=None):
         translations = self.translations or {}
@@ -435,8 +444,8 @@ class DojoModules(LocalizedMixin, db.Model):
         if default:
             for field in ["id", "name", "description"]:
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
-            if not kwargs["data"].get("translations"):
-                kwargs["data"]["translations"] = default.translations
+            kwargs["data"]["translations"] = merge_translations(
+                kwargs["data"].get("translations"), default.translations)
 
         def set_module_import(challenge):
             challenge.data["module_import"] = True
@@ -640,8 +649,8 @@ class DojoChallenges(LocalizedMixin, db.Model):
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
 
             # TODO: maybe we should track the entire import
-            if not kwargs["data"].get("translations"):
-                kwargs["data"]["translations"] = default.translations
+            kwargs["data"]["translations"] = merge_translations(
+                kwargs["data"].get("translations"), default.translations)
             kwargs["data"]["image"] = default.data.get("image")
             kwargs["data"]["path_override"] = str(default.path)
             # only update the unified_index for module and dojo imports, not challenge specific ones
