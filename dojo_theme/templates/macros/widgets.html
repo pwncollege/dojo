@@ -20,7 +20,12 @@
 </li>
 {% endmacro %}
 
+{# guarded because base.html -- and therefore every page, including error pages --
+   includes the navbar: if the context processor is ever missing (a deploy that
+   swapped templates under a still-running plugin, say), drop the switcher rather
+   than 500 the whole site #}
 {% macro language_switcher() %}
+{% if languages is defined and languages %}
 <li class="nav-item dropdown language-switcher">
   <a class="nav-link dropdown-toggle" href="#" id="language-switcher-toggle" role="button"
      data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -47,6 +52,7 @@
     </form>
   </div>
 </li>
+{% endif %}
 {% endmacro %}
 
 {% macro card(url, title=None, text_lines=None, icon=None, emoji=None, custom=False, solve_percent=0, course=False) -%}
