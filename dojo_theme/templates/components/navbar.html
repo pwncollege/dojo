@@ -1,4 +1,6 @@
-{% from "macros/widgets.html" import navitem, language_switcher %}
+{# language_switcher reads context-processor variables (languages, current_language,
+   language_switch_next, Session), which an import does not carry by default #}
+{% from "macros/widgets.html" import navitem, language_switcher with context %}
 
 <nav class="navbar navbar-expand-md navbar-dark fixed-top">
   <div class="container">

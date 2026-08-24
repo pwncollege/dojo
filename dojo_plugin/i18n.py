@@ -99,6 +99,8 @@ def select_language():
 
 
 def language_switch_next():
+    if not has_request_context():
+        return "/"
     # a `lang` already in the URL would out-rank the cookie the switcher is about to set
     query = [(key, value) for key, value in request.args.items(multi=True) if key != "lang"]
     return request.path + ("?" + urlencode(query) if query else "")
