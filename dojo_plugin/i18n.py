@@ -64,19 +64,6 @@ def selectable_language(language):
     return None
 
 
-def _stored_language():
-    from .models import UserPreferences
-    from CTFd.utils.user import authed, get_current_user
-
-    if not authed():
-        return None
-    user = get_current_user()
-    if not user:
-        return None
-    preferences = UserPreferences.query.filter_by(user_id=user.id).first()
-    return preferences.language if preferences else None
-
-
 def _accept_language():
     for language, _ in request.accept_languages:
         selected = selectable_language(language)
@@ -86,13 +73,8 @@ def _accept_language():
 
 
 def select_language():
-    sources = [
-        lambda: request.args.get("lang"),
-        _stored_language,
-        lambda: request.cookies.get(LANGUAGE_COOKIE),
-    ]
-    for source in sources:
-        selected = selectable_language(source())
+    for source in [request.args.get("lang"), request.cookies.get(LANGUAGE_COOKIE)]:
+        selected = selectable_language(source)
         if selected:
             return selected
     return _accept_language() or DEFAULT_LANGUAGE

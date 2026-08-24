@@ -942,17 +942,6 @@ class SSHKeys(db.Model):
     __repr__ = columns_repr(["user", "value"])
 
 
-class UserPreferences(db.Model):
-    __tablename__ = "dojo_user_preferences"
-
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    language = db.Column(db.String(16))
-
-    user = db.relationship("Users")
-
-    __repr__ = columns_repr(["user", "language"])
-
-
 class DiscordUserActivity(db.Model):
     __tablename__ = "discord_user_activity"
     id = db.Column(db.Integer, primary_key=True)

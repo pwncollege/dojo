@@ -107,7 +107,7 @@ def test_switcher_rejects_offsite_next(i18n_dojo):
         assert response.headers["Location"].endswith("/"), f"redirected off-site for {target}"
 
 
-def test_preference_persists_across_sessions(i18n_dojo):
+def test_language_is_per_session_not_per_account(i18n_dojo):
     name = "".join(random.choices(string.ascii_lowercase, k=16))
     session = login(name, name, register=True)
     switch_language(session, "ko")
@@ -115,7 +115,16 @@ def test_preference_persists_across_sessions(i18n_dojo):
 
     fresh = login(name, name)
     assert fresh.cookies.get("dojo_language") is None
-    assert "MODDESC_KO" in module_page(fresh, i18n_dojo)
+    assert "MODDESC_EN" in module_page(fresh, i18n_dojo)
+
+
+def test_accept_language_header_is_honored(i18n_dojo):
+    session = requests.Session()
+    session.headers["Accept-Language"] = "ko-KR,ko;q=0.9,en;q=0.8"
+    assert "MODDESC_KO" in module_page(session, i18n_dojo)
+
+    session.headers["Accept-Language"] = "fr-FR,fr;q=0.9"
+    assert "MODDESC_EN" in module_page(session, i18n_dojo)
 
 
 def test_api_returns_localized_content(i18n_dojo, admin_session):
