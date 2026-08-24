@@ -1,0 +1,51 @@
+id: i18n-test
+name: I18n Test Dojo
+description: An English dojo description, marker DOJODESC_EN.
+translations:
+  ko:
+    name: 국제화 시험 도장
+    description: 한국어 도장 설명, 표식 DOJODESC_KO.
+
+modules:
+  - id: translated
+    name: Translated Module
+    description: An English module description, marker MODDESC_EN.
+    translations:
+      ko:
+        name: 번역된 모듈
+        description: 한국어 모듈 설명, 표식 MODDESC_KO.
+    resources:
+      - type: markdown
+        name: English Resource Name
+        content: |
+          English resource content, marker RESOURCE_EN.
+        translations:
+          ko:
+            name: 한국어 자료 이름
+            content: |
+              한국어 자료 내용, 표식 RESOURCE_KO.
+      - type: header
+        content: English Header
+        translations:
+          ko:
+            content: 한국어 헤더
+      - type: challenge
+        id: translated
+        name: Translated Challenge
+        description: An English challenge description, marker CHALDESC_EN.
+        translations:
+          ko:
+            name: 번역된 챌린지
+            description: 한국어 챌린지 설명, 표식 CHALDESC_KO.
+        import:
+          dojo: example
+          module: hello
+          challenge: apple
+      - type: challenge
+        id: untranslated
+        name: Untranslated Challenge
+        description: An untranslated challenge description, marker UNTRANSLATED_EN.
+        import:
+          dojo: example
+          module: hello
+          challenge: banana
