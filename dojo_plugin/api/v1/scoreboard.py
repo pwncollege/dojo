@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 scoreboard_namespace = Namespace("scoreboard")
 
+CREW_MODE_RANK_FIELDS = {"unique": "unique_rank", "mastery": "mastery_rank"}
+
 
 def email_symbol_asset(email):
     if email.endswith("@asu.edu"):
@@ -116,11 +118,12 @@ def get_crew_scoreboard_page(model, duration=None, page=1, per_page=20, mode="cu
     emojis = get_viewable_emojis(user)
     crews = get_crews_for(model, duration)
 
-    if mode == "unique" and all(crew.get("unique_rank") is not None for crew in crews):
-        crews = sorted(crews, key=lambda crew: crew["unique_rank"])
+    rank_field = CREW_MODE_RANK_FIELDS.get(mode)
+    if rank_field and all(crew.get(rank_field) is not None for crew in crews):
+        crews = sorted(crews, key=lambda crew: crew[rank_field])
 
     def crew_rank(crew):
-        return crew["unique_rank"] if mode == "unique" and crew.get("unique_rank") is not None else crew["rank"]
+        return crew[rank_field] if rank_field and crew.get(rank_field) is not None else crew["rank"]
 
     def crew_entry(crew):
         return {
@@ -129,6 +132,7 @@ def get_crew_scoreboard_page(model, duration=None, page=1, per_page=20, mode="cu
             "key": crew["key"],
             "score": crew["score"],
             "unique": crew.get("unique"),
+            "mastery": crew.get("mastery"),
             "members": [
                 entry for entry in (standing_entry(member, belt_data, emojis) for member in crew["members"])
                 if entry is not None
@@ -162,7 +166,7 @@ def get_crew_scoreboard_page(model, duration=None, page=1, per_page=20, mode="cu
 
 def crew_mode_arg():
     mode = request.args.get("mode", "cumulative")
-    return mode if mode in ("cumulative", "unique") else "cumulative"
+    return mode if mode in ("cumulative", "unique", "mastery") else "cumulative"
 
 
 @scoreboard_namespace.route("/<dojo>/_/<int:duration>/<int:page>")
