@@ -49,9 +49,12 @@ def aggregate_crews(standings, member_challenges=None):
     for i, crew in enumerate(ranked):
         crew["rank"] = i + 1
         if member_challenges is not None:
-            crew["unique"] = len(set().union(*(member["challenges"] for member in crew["members"])) if crew["members"] else set())
+            challenge_sets = [set(member["challenges"]) for member in crew["members"]]
+            crew["unique"] = len(set().union(*challenge_sets)) if challenge_sets else 0
+            crew["mastery"] = len(set.intersection(*challenge_sets)) if challenge_sets else 0
         else:
             crew["unique"] = None
+            crew["mastery"] = None
 
     if member_challenges is not None:
         by_unique = sorted(
@@ -60,9 +63,17 @@ def aggregate_crews(standings, member_challenges=None):
         )
         for i, crew in enumerate(by_unique):
             crew["unique_rank"] = i + 1
+        # Bigger crews rank higher on mastery ties: a full-crew solve is harder with more members.
+        by_mastery = sorted(
+            ranked,
+            key=lambda crew: (-crew["mastery"], -len(crew["members"]), crew["best_rank"], crew["key"]),
+        )
+        for i, crew in enumerate(by_mastery):
+            crew["mastery_rank"] = i + 1
     else:
         for crew in ranked:
             crew["unique_rank"] = None
+            crew["mastery_rank"] = None
 
     return ranked
 

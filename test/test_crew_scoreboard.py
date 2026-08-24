@@ -128,6 +128,13 @@ def test_crew_scoreboard_happy_path(browser_fixture, crew_dojo):
          if row.find_element("css selector", ".crew-tag-text").text == tag), None))
     assert unique_crew_row.find_element("css selector", ".crew-score").text == "2"
     assert browser.execute_script("return location.hash") == "#crews-unique"
+    browser.execute_script("setCrewMode('mastery')")
+    wait_until(lambda: browser.execute_script("return $('#scoreboard-th-score').text() === 'Mastery' && $('#scoreboard .crew-row').length > 0"))
+    mastery_crew_row = wait_until(lambda: next(
+        (row for row in browser.find_elements("css selector", ".crew-row")
+         if row.find_element("css selector", ".crew-tag-text").text == tag), None))
+    assert mastery_crew_row.find_element("css selector", ".crew-score").text == "1"
+    assert browser.execute_script("return location.hash") == "#crews-mastery"
     browser.execute_script("setCrewMode('cumulative')")
     wait_until(lambda: browser.execute_script("return $('#scoreboard-th-score').text() === 'Score' && $('#scoreboard .crew-row').length > 0"))
 
@@ -144,6 +151,13 @@ def test_crew_scoreboard_happy_path(browser_fixture, crew_dojo):
     wait_until(lambda: browser.execute_script("return $('#scoreboard .crew-row').length > 0"))
     assert browser.execute_script("return $('#scoreboard-th-score').text()") == "Unique"
     assert browser.execute_script("return $('#scoreboard-crew-mode-unique').hasClass('scoreboard-view-selected')")
+    assert browser.execute_script("return $('#scoreboard-view-crews').hasClass('scoreboard-view-selected')")
+
+    browser.get(f"{DOJO_URL}/login")
+    browser.get(f"{DOJO_URL}/dojo/{crew_dojo}#crews-mastery")
+    wait_until(lambda: browser.execute_script("return $('#scoreboard .crew-row').length > 0"))
+    assert browser.execute_script("return $('#scoreboard-th-score').text()") == "Mastery"
+    assert browser.execute_script("return $('#scoreboard-crew-mode-mastery').hasClass('scoreboard-view-selected')")
     assert browser.execute_script("return $('#scoreboard-view-crews').hasClass('scoreboard-view-selected')")
 
 
@@ -221,6 +235,7 @@ standings = [
 crews = aggregate_crews(standings)
 assert [(c["tag"], c["score"], len(c["members"]), c["rank"]) for c in crews] == [("X", 9, 2, 1), ("Y", 3, 1, 2), ("__proto__", 2, 1, 3)]
 assert all(c["unique"] is None and c["unique_rank"] is None for c in crews)
+assert all(c["mastery"] is None and c["mastery_rank"] is None for c in crews)
 
 challenge_map = {1: {10, 11, 12, 13, 14}, 2: {10, 11, 12, 13}, 3: {10, 11, 12}, 4: {20, 21}}
 crews = aggregate_crews(standings, challenge_map)
@@ -230,6 +245,8 @@ proto = next(c for c in crews if c["key"] == "__proto__")
 assert (x["score"], x["unique"], x["rank"]) == (9, 5, 1)
 assert (y["score"], y["unique"], y["rank"]) == (3, 3, 2)
 assert x["unique_rank"] == 1 and y["unique_rank"] == 2 and proto["unique_rank"] == 3
+assert (x["mastery"], y["mastery"], proto["mastery"]) == (4, 3, 2)
+assert x["mastery_rank"] == 1 and y["mastery_rank"] == 2 and proto["mastery_rank"] == 3
 assert x["members"][0]["challenges"] == [10, 11, 12, 13, 14]
 
 overlap = aggregate_crews([
@@ -242,6 +259,28 @@ wide = next(c for c in overlap if c["key"] == "wide")
 assert (dup["score"], dup["unique"], dup["rank"]) == (6, 3, 1)
 assert (wide["score"], wide["unique"], wide["rank"]) == (4, 4, 2)
 assert wide["unique_rank"] == 1 and dup["unique_rank"] == 2
+assert (dup["mastery"], wide["mastery"]) == (3, 4)
+assert wide["mastery_rank"] == 1 and dup["mastery_rank"] == 2
+
+disjoint = aggregate_crews([
+    {"user_id": 1, "name": "a [Split]", "solves": 1, "rank": 1},
+    {"user_id": 2, "name": "b [Split]", "solves": 1, "rank": 2},
+    {"user_id": 3, "name": "c [Solo]", "solves": 2, "rank": 3},
+], {1: {1}, 2: {2}, 3: {1, 2}})
+split = next(c for c in disjoint if c["key"] == "split")
+solo = next(c for c in disjoint if c["key"] == "solo")
+assert (split["mastery"], solo["mastery"]) == (0, 2)
+assert solo["mastery_rank"] == 1 and split["mastery_rank"] == 2
+
+mastery_tie = aggregate_crews([
+    {"user_id": 1, "name": "a [Duo]", "solves": 2, "rank": 1},
+    {"user_id": 2, "name": "b [Duo]", "solves": 2, "rank": 2},
+    {"user_id": 3, "name": "c [One]", "solves": 2, "rank": 3},
+], {1: {1, 2}, 2: {1, 2}, 3: {1, 2}})
+duo = next(c for c in mastery_tie if c["key"] == "duo")
+one = next(c for c in mastery_tie if c["key"] == "one")
+assert duo["mastery"] == 2 and one["mastery"] == 2
+assert duo["mastery_rank"] == 1 and one["mastery_rank"] == 2
 
 tie = aggregate_crews([
     {"user_id": 1, "name": "a [Big]", "solves": 3, "rank": 1},
@@ -306,6 +345,16 @@ def test_crew_scoreboard_api(crew_dojo):
     unique_ranks = [c["rank"] for c in unique_board["standings"]]
     assert unique_ranks == sorted(unique_ranks)
 
+    mastery_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1?mode=mastery").json()
+    assert mastery_board["mode"] == "mastery"
+    mastery_crew = next(c for c in mastery_board["standings"] if c["key"] == tag.lower())
+    assert mastery_crew["mastery"] == 0
+    mastery_ranks = [c["rank"] for c in mastery_board["standings"]]
+    assert mastery_ranks == sorted(mastery_ranks)
+
+    bogus_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1?mode=bogus").json()
+    assert bogus_board["mode"] == "cumulative"
+
     solve(crew_dojo, name_b, session_b, "apple")
     remove_workspace_container(name_b)
     wait_for_background_worker(timeout=30)
@@ -313,11 +362,13 @@ def test_crew_scoreboard_api(crew_dojo):
     overlap_crew = next(c for c in overlap_board["standings"] if c["key"] == tag.lower())
     assert overlap_crew["score"] == 3
     assert overlap_crew["unique"] == 2
+    assert overlap_crew["mastery"] == 1
 
     module_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/hello/crews/0/1").json()
     module_crew = next(c for c in module_board["standings"] if c["key"] == tag.lower())
     assert module_crew["score"] == 3
     assert module_crew["unique"] == 2
+    assert module_crew["mastery"] == 1
 
     solo_tag = "".join(random.choices(string.ascii_uppercase, k=8))
     name_s, _, session_s = register_user(tag=solo_tag)
@@ -334,8 +385,10 @@ def test_crew_scoreboard_api(crew_dojo):
 
     cumulative_order = crew_order("cumulative")
     unique_order = crew_order("unique")
+    mastery_order = crew_order("mastery")
     assert cumulative_order.index(tag.lower()) < cumulative_order.index(solo_tag.lower())
     assert unique_order.index(solo_tag.lower()) < unique_order.index(tag.lower())
+    assert mastery_order.index(solo_tag.lower()) < mastery_order.index(tag.lower())
 
     flask_exec(f"""
 from CTFd.plugins.dojo_plugin.models import Dojos
@@ -348,9 +401,11 @@ print("RECALC-DONE", dojo.dojo_id)
     recalc_crew = next(c for c in recalc_board["standings"] if c["key"] == tag.lower())
     assert recalc_crew["score"] == 3
     assert recalc_crew["unique"] == 2
+    assert recalc_crew["mastery"] == 1
     recalc_solo = next(c for c in recalc_board["standings"] if c["key"] == solo_tag.lower())
     assert recalc_solo["score"] == 2
     assert recalc_solo["unique"] == 2
+    assert recalc_solo["mastery"] == 2
 
     dojo_id = flask_exec(f"""
 from CTFd.plugins.dojo_plugin.models import Dojos
@@ -362,10 +417,15 @@ print("DOJO-ID", Dojos.from_id({crew_dojo!r}).first().dojo_id)
     fallback_crew = next(c for c in fallback_board["standings"] if c["key"] == tag.lower())
     assert fallback_crew["score"] == 3
     assert fallback_crew["unique"] is None
+    assert fallback_crew["mastery"] is None
     dojo_run("docker", "exec", "cache", "redis-cli", "DEL", f"stats:crews:dojo:{dojo_id}:0")
     fallback_unique = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1?mode=unique")
     assert fallback_unique.status_code == 200
     assert fallback_unique.json()["mode"] == "unique"
+    dojo_run("docker", "exec", "cache", "redis-cli", "DEL", f"stats:crews:dojo:{dojo_id}:0")
+    fallback_mastery = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1?mode=mastery")
+    assert fallback_mastery.status_code == 200
+    assert fallback_mastery.json()["mode"] == "mastery"
 
     hacker_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/0/1").json()
     tagged = next(entry for entry in hacker_board["standings"] if entry["name"] == name_a)

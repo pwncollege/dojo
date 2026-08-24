@@ -1,7 +1,9 @@
+const CREW_MODE_HASHES = { cumulative: "#crews", unique: "#crews-unique", mastery: "#crews-mastery" };
+
 const scoreboardState = {
     generation: 0,
-    view: location.hash === "#crews" || location.hash === "#crews-unique" ? "crews" : "hackers",
-    crewMode: location.hash === "#crews-unique" ? "unique" : "cumulative",
+    view: Object.values(CREW_MODE_HASHES).includes(location.hash) ? "crews" : "hackers",
+    crewMode: Object.keys(CREW_MODE_HASHES).find(mode => CREW_MODE_HASHES[mode] === location.hash) || "cumulative",
     duration: 30,
 };
 
@@ -131,10 +133,12 @@ function buildCrewRow(crew, myCrewKey) {
     const top = crew.members[0];
     row.find(".scoreboard-belt").attr("src", top.belt).attr("title", `Top member: ${top.name}`);
     const unique = crew.unique === null || crew.unique === undefined ? "—" : crew.unique.toLocaleString();
+    const mastery = crew.mastery === null || crew.mastery === undefined ? "—" : crew.mastery.toLocaleString();
     const scoreCell = row.find(".crew-score");
     if (scoreboardState.crewMode === "unique") scoreCell.text(unique);
+    else if (scoreboardState.crewMode === "mastery") scoreCell.text(mastery);
     else scoreCell.text(crew.score.toLocaleString());
-    scoreCell.attr("title", `Cumulative: ${crew.score.toLocaleString()} · Unique challenges: ${unique}`);
+    scoreCell.attr("title", `Cumulative: ${crew.score.toLocaleString()} · Unique challenges: ${unique} · Mastered: ${mastery}`);
     if (myCrewKey && crew.key === myCrewKey) row.addClass("scoreboard-row-me");
 
     let memberRows = null;
@@ -191,16 +195,19 @@ function setScoreboardControls(view, duration) {
     const controls = { 7: "#scoreboard-control-week", 30: "#scoreboard-control-month", 0: "#scoreboard-control-all" };
     if (controls[duration]) $(controls[duration]).addClass("scoreboard-page-selected");
     const crews = view === "crews";
-    const unique = scoreboardState.crewMode === "unique";
+    const crewMode = scoreboardState.crewMode;
+    const scoreLabels = { unique: "Unique", mastery: "Mastery" };
     $("#scoreboard-heading").text(`${labels[duration] || ""}${crews ? " Crew" : ""} Scoreboard:`);
     $("#scoreboard-th-name").text(crews ? "Crew" : "Hacker");
     $("#scoreboard-th-badges").text(crews ? "Members" : "Badges");
-    $("#scoreboard-th-score").text(crews && unique ? "Unique" : "Score");
+    $("#scoreboard-th-score").text((crews && scoreLabels[crewMode]) || "Score");
     $("#scoreboard-view-hackers").toggleClass("scoreboard-view-selected", !crews).attr("aria-selected", String(!crews));
     $("#scoreboard-view-crews").toggleClass("scoreboard-view-selected", crews).attr("aria-selected", String(crews));
     $("#scoreboard-crew-mode-toggle").prop("hidden", !crews);
-    $("#scoreboard-crew-mode-cumulative").toggleClass("scoreboard-view-selected", !unique).attr("aria-selected", String(!unique));
-    $("#scoreboard-crew-mode-unique").toggleClass("scoreboard-view-selected", unique).attr("aria-selected", String(unique));
+    Object.keys(CREW_MODE_HASHES).forEach(mode => {
+        const selected = crewMode === mode;
+        $(`#scoreboard-crew-mode-${mode}`).toggleClass("scoreboard-view-selected", selected).attr("aria-selected", String(selected));
+    });
     $(".scoreboard").toggleClass("scoreboard-crew-mode", crews);
 }
 
@@ -321,7 +328,7 @@ function loadScoreboard(duration, page) {
 
 function scoreboardHash() {
     if (scoreboardState.view !== "crews") return location.pathname + location.search;
-    return scoreboardState.crewMode === "unique" ? "#crews-unique" : "#crews";
+    return CREW_MODE_HASHES[scoreboardState.crewMode] || "#crews";
 }
 
 function setScoreboardView(view) {
