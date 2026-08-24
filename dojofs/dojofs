@@ -268,9 +268,7 @@ def get_container_created_ns():
     if not container:
         return 0
     timestamp = container.attrs["Created"]
-    if "." in timestamp:
-        timestamp = timestamp[:timestamp.index(".") + 7] + "Z"
-    created_time = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    created_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
     return created_time.timestamp() * 1_000_000_000
 
 
