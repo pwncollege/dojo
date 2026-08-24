@@ -306,6 +306,11 @@ def load_dojo_subyamls(data, dojo_dir):
 
     return data
 
+def translations_kwarg(data):
+    translations = data.get("translations")
+    return {"translations": translations} if translations else {}
+
+
 def setdefault_translation(entry, language, field, value):
     if value is None:
         return
@@ -417,7 +422,8 @@ def load_dojo_translations(data, dojo_dir):
         languages.append(language)
         load_language_translations(data, language_dir, language)
 
-    data.setdefault("languages", languages)
+    if languages:
+        data.setdefault("languages", languages)
     return data
 
 
@@ -546,8 +552,13 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
         field: dojo_data.get(field, getattr(import_dojo, field, None))
         for field in ["id", "name", "description", "password", "type", "award"]
     }
-    dojo_kwargs["translations"] = dojo_data.get("translations") or getattr(import_dojo, "translations", None) or {}
-    dojo_kwargs["languages"] = dojo_data.get("languages") or getattr(import_dojo, "languages", None) or []
+    # only put i18n keys in `data` when there is something to store, so an untranslated
+    # dojo's row stays exactly as it was -- but an update that drops translations still
+    # has to clear whatever is already stored
+    for field, default in [("translations", {}), ("languages", [])]:
+        value = dojo_data.get(field) or getattr(import_dojo, field, None) or default
+        if value or (dojo is not None and (dojo.data or {}).get(field)):
+            dojo_kwargs[field] = value
 
     assert dojo_kwargs.get("id") is not None, "Dojo id must be defined"
 
@@ -641,11 +652,11 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
     dojo.modules = [
         DojoModules(
             **{kwarg: module_data.get(kwarg) for kwarg in ["id", "name", "description"]},
-            translations=module_data.get("translations") or {},
+            **translations_kwarg(module_data),
             challenges=[
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
-                    translations=challenge_data.get("translations") or {},
+                    **translations_kwarg(challenge_data),
                     image=shadow("image", dojo_data, module_data, challenge_data, default=None),
                     privileged=shadow("privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
@@ -668,7 +679,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
             resources = [
                 DojoResources(
                     **{kwarg: resource_data.get(kwarg) for kwarg in ["name", "type", "content", "video", "playlist", "slides", "expandable"]},
-                    translations=resource_data.get("translations") or {},
+                    **translations_kwarg(resource_data),
                     visibility=visibility(DojoResourceVisibilities, dojo_data, module_data, resource_data),
                     resource_index=resource_index,
                 )

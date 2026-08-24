@@ -444,8 +444,9 @@ class DojoModules(LocalizedMixin, db.Model):
         if default:
             for field in ["id", "name", "description"]:
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
-            kwargs["data"]["translations"] = merge_translations(
-                kwargs["data"].get("translations"), default.translations)
+            translations = merge_translations(kwargs["data"].get("translations"), default.translations)
+            if translations:
+                kwargs["data"]["translations"] = translations
 
         def set_module_import(challenge):
             challenge.data["module_import"] = True
@@ -649,8 +650,9 @@ class DojoChallenges(LocalizedMixin, db.Model):
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
 
             # TODO: maybe we should track the entire import
-            kwargs["data"]["translations"] = merge_translations(
-                kwargs["data"].get("translations"), default.translations)
+            translations = merge_translations(kwargs["data"].get("translations"), default.translations)
+            if translations:
+                kwargs["data"]["translations"] = translations
             kwargs["data"]["image"] = default.data.get("image")
             kwargs["data"]["path_override"] = str(default.path)
             # only update the unified_index for module and dojo imports, not challenge specific ones
