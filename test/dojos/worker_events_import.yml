@@ -1,0 +1,7 @@
+id: worker-events-import
+name: Worker Events Import Dojo
+type: topic
+modules:
+  - import:
+      dojo: example
+      module: hello

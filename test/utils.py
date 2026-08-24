@@ -6,6 +6,7 @@ import json
 import time
 import re
 import os
+import uuid
 
 def _get_dojo_container():
     if os.getenv("DOJO_CONTAINER"):
@@ -85,8 +86,14 @@ def login(name, password, *, success=True, register=False, email=None):
 
 
 def make_dojo_official(dojo_rid, admin_session):
+    """Promote a dojo and return the reference id it answers to afterwards.
+
+    An official dojo drops the hex differentiator, and that shorter form is what
+    every API then reports, so tests must compare against it.
+    """
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo_rid}/promote", json={})
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code} - {response.json()}"
+    return dojo_rid.split("~")[0]
 
 
 def _create_dojo_with_retries(create_dojo_json, *, session):
@@ -133,6 +140,60 @@ def db_sql(sql):
 def get_user_id(user_name):
     return int(db_sql(f"SELECT id FROM users WHERE name = '{user_name}'"))
 
+
+FLASK_EXEC_MARKER = "--- dojo test output ---"
+
+def flask_exec(code):
+    """Run python inside CTFd's application context and return everything it printed."""
+    path = f"/tmp/dojo-test-exec-{uuid.uuid4().hex}.py"
+    script = f"print({FLASK_EXEC_MARKER!r}, flush=True)\n{code}"
+    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {path}", input=script)
+    result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", path, check=False)
+    dojo_run("docker", "exec", "ctfd", "rm", "-f", path, check=False)
+    assert FLASK_EXEC_MARKER in result.stdout, f"flask exec produced no output: {result.stdout}\n{result.stderr}"
+    return result.stdout.split(FLASK_EXEC_MARKER, 1)[1].lstrip("\n")
+
+
+def dojo_db_id(dojo_reference_id):
+    if "~" in dojo_reference_id:
+        _, hex_id = dojo_reference_id.split("~", 1)
+        return int.from_bytes(bytes.fromhex(hex_id.rjust(8, "0")), "big", signed=True)
+    return int(db_sql(f"SELECT dojo_id FROM dojos WHERE id = '{dojo_reference_id}' AND official"))
+
+
+_challenge_ids = {}
+
+def challenge_db_id(dojo, module, challenge):
+    key = (dojo, module, challenge)
+    if key not in _challenge_ids:
+        _challenge_ids[key] = int(db_sql(
+            "SELECT dc.challenge_id FROM dojo_challenges dc "
+            "JOIN dojo_modules dm ON dm.dojo_id = dc.dojo_id AND dm.module_index = dc.module_index "
+            f"WHERE dc.dojo_id = {dojo_db_id(dojo)} AND dm.id = '{module}' AND dc.id = '{challenge}'"
+        ))
+    return _challenge_ids[key]
+
+
+_flags = {}
+
+def challenge_flag(dojo, module, challenge, *, user):
+    """Derive a challenge's flag the way the workspace does, without starting a container.
+
+    The derivation runs inside the ctfd container so it always uses the same
+    serializer implementation and secret key that flag submission validates against.
+    """
+    key = (user, dojo, module, challenge)
+    if key not in _flags:
+        _flags[key] = dojo_run(
+            "docker", "exec", "ctfd", "python3", "-c",
+            "import sys, os\n"
+            "from itsdangerous.url_safe import URLSafeSerializer\n"
+            "data = [int(sys.argv[1]), int(sys.argv[2])]\n"
+            "print('pwn.college{' + URLSafeSerializer(os.environ['SECRET_KEY']).dumps(data)[::-1] + '}')",
+            str(get_user_id(user)), str(challenge_db_id(dojo, module, challenge)),
+        ).stdout.strip()
+    return _flags[key]
+
 def get_outer_container_for(container_name):
     # Check main node first
     result = subprocess.run(
@@ -164,12 +225,31 @@ def get_outer_container_for(container_name):
     raise RuntimeError(f"container {container_name} not found on any nodes")
 
 def remove_workspace_container(user):
-    container_name = f"user_{get_user_id(user)}"
+    user_id = db_sql(f"SELECT id FROM users WHERE name = '{user}'").strip()
+    if not user_id:
+        # A test may have renamed or deleted the user it started a workspace for.
+        return
+    container_name = f"user_{user_id}"
     try:
         outer_container = get_outer_container_for(container_name)
     except RuntimeError:
         return
     dojo_run("docker", "rm", "-f", container_name, check=False, container=outer_container)
+
+
+def remove_workspace_home(user_id):
+    """Drop a test user's home storage.
+
+    Homes outlive their container by design, so a suite that registers a
+    thousand users would otherwise leave a thousand subvolumes behind.
+    """
+    dojo_run(
+        "sh", "-c",
+        f"for subvolume in /data/homes/{user_id}/snapshots/* /data/homes/{user_id}/overlays/* "
+        f"/data/homes/{user_id}/snapshots /data/homes/{user_id}/overlays /data/homes/{user_id}/active "
+        f"/data/homes/{user_id}; do btrfs subvolume delete \"$subvolume\" 2>/dev/null; done; true",
+        check=False,
+    )
 
 
 def workspace_run(cmd, *, user, root=False, **kwargs):
@@ -202,6 +282,25 @@ def solve_challenge(dojo, module, challenge, *, session, flag=None, user=None):
     )
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     assert response.json()["success"], "Expected to successfully submit flag"
+
+
+def solve_challenge_offline(dojo, module, challenge, *, session, user):
+    """Register a solve without paying for a workspace container start."""
+    solve_challenge(dojo, module, challenge, session=session,
+                    flag=challenge_flag(dojo, module, challenge, user=user))
+
+
+def suppress_award_popup(browser):
+    """Keep the award popup from covering the page a browser test is driving.
+
+    The popup renders for any award earned in the last two days, so on a
+    deployment where tests have been granting awards it can appear over
+    whatever the test is about to click.
+    """
+    browser.get(f"{DOJO_URL}/")
+    browser.execute_script(
+        "window.localStorage.setItem('lastPopup', new Date(Date.now() + 86400000).toISOString())"
+    )
 
 
 def wait_for_background_worker(timeout=5):

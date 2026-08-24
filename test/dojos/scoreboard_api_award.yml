@@ -1,0 +1,25 @@
+id: sb-api-award
+name: Scoreboard API Award
+type: public
+show_scoreboard: false
+award:
+  emoji: 🏅
+modules:
+  - id: hello
+    name: SB Award Hello
+    challenges:
+      - id: apple
+        name: SB Award Apple
+      - id: banana
+        name: SB Award Banana
+files:
+  - type: text
+    path: hello/apple/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag
+  - type: text
+    path: hello/banana/src
+    content: |
+      #!/opt/pwn.college/bash
+      cat /flag

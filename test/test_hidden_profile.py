@@ -4,8 +4,7 @@ from utils import (
     DOJO_URL,
     db_sql,
     get_user_id,
-    solve_challenge,
-    start_challenge,
+    solve_challenge_offline,
     wait_for_background_worker,
 )
 
@@ -14,8 +13,7 @@ def test_hidden_user_can_view_own_profile_data(admin_session, random_user, examp
     username, session = random_user
     user_id = get_user_id(username)
     assert session.get(f"{DOJO_URL}/dojo/{example_dojo}/join/").status_code == 200
-    start_challenge(example_dojo, "hello", "apple", session=session)
-    solve_challenge(example_dojo, "hello", "apple", session=session, user=username)
+    solve_challenge_offline(example_dojo, "hello", "apple", session=session, user=username)
     wait_for_background_worker()
     activity_url = f"{DOJO_URL}/pwncollege_api/v1/activity/{user_id}"
     assert requests.get(activity_url).status_code == 200

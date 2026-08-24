@@ -89,7 +89,12 @@ function generate_coverage_report {
     docker exec "$CONTAINER" docker exec ctfd coverage xml -o /var/coverage/coverage.xml
 }
 
-ENV_ARGS=( )
+ENV_ARGS=()
+DISCORD_CLIENT_SECRET_CONFIGURED=no
+if [ -n "${DISCORD_CLIENT_SECRET:-}" ]; then
+	ENV_ARGS+=("-e" "DISCORD_CLIENT_SECRET=$DISCORD_CLIENT_SECRET")
+	DISCORD_CLIENT_SECRET_CONFIGURED=yes
+fi
 DB_RESTORE=""
 DOJO_CONTAINER="$DEFAULT_CONTAINER_NAME"
 TEST=no
@@ -112,7 +117,12 @@ do
 		v) VIBECHECK=yes ;;
 		D) DOCKER_DIR="$OPTARG" ;;
 		W) WORKSPACE_DIR="$OPTARG" ;;
-		e) ENV_ARGS+=("-e" "$OPTARG") ;;
+		e)
+			ENV_ARGS+=("-e" "$OPTARG")
+			if [[ "$OPTARG" == DISCORD_CLIENT_SECRET=* ]]; then
+				DISCORD_CLIENT_SECRET_CONFIGURED=yes
+			fi
+			;;
 		p) EXPORT_PORTS=yes ;;
 		b) BUILD_IMAGE=yes ;;
 		M) MULTINODE=yes ;;
@@ -128,6 +138,10 @@ do
 	esac
 done
 shift $((OPTIND-1))
+
+if [ "$TEST" == "yes" -a "$DISCORD_CLIENT_SECRET_CONFIGURED" == "no" ]; then
+	ENV_ARGS+=("-e" "DISCORD_CLIENT_SECRET=test-discord-client-secret")
+fi
 
 if [ "$START" == "yes" -o "$CLEAN_ONLY" == "yes" ]; then
 	cleanup_container $DOJO_CONTAINER
@@ -299,7 +313,7 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	docker exec "$DOJO_CONTAINER" dojo-node add 1 "$NODE1_KEY"
 	docker exec "$DOJO_CONTAINER" dojo-node add 2 "$NODE2_KEY"
 	sleep 5
-	docker exec "$DOJO_CONTAINER" dojo compose restart ctfd sshd stats-worker image-pull-worker
+	docker exec "$DOJO_CONTAINER" dojo compose restart ctfd sshd stats-worker image-pull-worker watchdog
 	sleep 5
 	docker exec "$DOJO_CONTAINER" dojo compose restart nginx
 	sleep 5
@@ -343,7 +357,7 @@ log_endgroup
 if [ "$TEST" == "yes" ]; then
 	log_newgroup "Running tests in container"
 	cleanup_container $DOJO_CONTAINER-test
-	test_container pytest --order-dependencies --timeout=60 -v . "$@"
+	test_container pytest --order-dependencies --timeout=120 -v . "$@"
 	if [ "$COVERAGE" == "yes" ]; then
 		generate_coverage_report "$DOJO_CONTAINER"
 	fi

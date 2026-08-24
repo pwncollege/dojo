@@ -21,8 +21,9 @@ def redis_exists(key):
     return result == "1"
 
 def redis_delete(*keys):
-    if keys:
-        redis_cli("DEL", *keys)
+    # The key set grows with the suite, and a single DEL would blow the argv limit.
+    for start in range(0, len(keys), 200):
+        redis_cli("DEL", *keys[start:start + 200])
 
 def redis_keys(pattern):
     result = redis_cli("KEYS", pattern)

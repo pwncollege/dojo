@@ -1,0 +1,23 @@
+id: course-test-dojotag
+name: Course Test dojotag
+type: course
+modules:
+  - id: hello
+    name: Hello
+    challenges:
+      - id: apple
+        import:
+          dojo: example
+          module: hello
+          challenge: apple
+      - id: banana
+        import:
+          dojo: example
+          module: hello
+          challenge: banana
+      - id: optional-c
+        required: false
+        import:
+          dojo: example
+          module: world
+          challenge: earth
