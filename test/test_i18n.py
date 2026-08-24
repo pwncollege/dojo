@@ -75,8 +75,18 @@ def test_language_switcher_rendered(i18n_dojo):
     anonymous = requests.Session()
     page = anonymous.get(f"{DOJO_URL}/").text
     assert 'class="nav-item dropdown language-switcher"' in page
-    assert 'value="ko"' in page
-    assert "한국어" in page
+    for code, label in [("en", "English"), ("ko", "한국어"), ("zh-CN", "简体中文"),
+                        ("zh-TW", "繁體中文"), ("it", "Italiano")]:
+        assert f'value="{code}"' in page, f"switcher is missing {code}"
+        assert label in page, f"switcher is missing the label for {code}"
+
+
+def test_browser_language_variants_resolve_to_an_offered_language(i18n_dojo, admin_session):
+    for tag, expected in [("zh-Hans-CN", "zh-CN"), ("zh", "zh-CN"), ("zh-SG", "zh-CN"),
+                          ("zh-Hant-TW", "zh-TW"), ("zh-HK", "zh-TW"),
+                          ("it-CH", "it"), ("ko-KR", "ko"), ("fr", "en")]:
+        page = admin_session.get(f"{DOJO_URL}/{i18n_dojo}/", params={"lang": tag}).text
+        assert f'<html lang="{expected}">' in page, f"{tag} did not resolve to {expected}"
 
 
 def test_switcher_sets_cookie_and_sticks(i18n_dojo, admin_session):

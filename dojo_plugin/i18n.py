@@ -9,6 +9,20 @@ DEFAULT_LANGUAGE = "en"
 LANGUAGES = {
     "en": "English",
     "ko": "한국어",
+    "zh-CN": "简体中文",
+    "zh-TW": "繁體中文",
+    "it": "Italiano",
+}
+
+# Browsers name Chinese by script (`zh-Hans`) or generically (`zh`) as often as they name
+# it by region, and none of those truncate down to a tag offered above.
+LANGUAGE_ALIASES = {
+    "zh": "zh-CN",
+    "zh-Hans": "zh-CN",
+    "zh-SG": "zh-CN",
+    "zh-Hant": "zh-TW",
+    "zh-HK": "zh-TW",
+    "zh-MO": "zh-TW",
 }
 
 LANGUAGE_COOKIE = "dojo_language"
@@ -22,6 +36,9 @@ LANGUAGE_RE = re.compile(LANGUAGE_PATTERN)
 UI_STRINGS = {
     "challenges_header": {
         "ko": "챌린지",
+        "zh-CN": "挑战",
+        "zh-TW": "挑戰",
+        "it": "Sfide",
     },
 }
 
@@ -61,6 +78,8 @@ def selectable_language(language):
     for candidate in language_candidates(language):
         if candidate in LANGUAGES:
             return candidate
+        if candidate in LANGUAGE_ALIASES:
+            return LANGUAGE_ALIASES[candidate]
     return None
 
 
