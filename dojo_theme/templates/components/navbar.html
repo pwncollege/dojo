@@ -1,4 +1,4 @@
-{% from "macros/widgets.html" import navitem %}
+{% from "macros/widgets.html" import navitem, language_switcher %}
 
 <nav class="navbar navbar-expand-md navbar-dark fixed-top">
   <div class="container">
@@ -24,6 +24,7 @@
       </ul>
       <hr class="d-sm-flex d-md-flex d-lg-none">
       <ul class="navbar-nav ml-md-auto d-block d-sm-flex d-md-flex">
+        {{ language_switcher() }}
         {% if authed() %}
         {% if is_admin() %}
           {{ navitem("Admin Panel", url_for("admin.view"), "fa-wrench", shrink=True) }}

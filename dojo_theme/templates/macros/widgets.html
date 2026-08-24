@@ -20,6 +20,34 @@
 </li>
 {% endmacro %}
 
+{% macro language_switcher() %}
+<li class="nav-item dropdown language-switcher">
+  <a class="nav-link dropdown-toggle" href="#" id="language-switcher-toggle" role="button"
+     data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+    <span class="d-block" data-toggle="tooltip" data-placement="bottom" title="Language">
+      <i class="fas fa-globe d-none d-md-block d-lg-none" style="width: 20px"></i>
+    </span>
+    <span class="d-sm-block d-md-none d-lg-block text-nowrap">
+      <i class="fas fa-globe pr-1"></i>
+      {{ languages.get(current_language, current_language) }}
+    </span>
+  </a>
+  <div class="dropdown-menu dropdown-menu-right" aria-labelledby="language-switcher-toggle">
+    <form method="POST" action="{{ url_for('pwncollege_language.set_language') }}">
+      <input type="hidden" name="nonce" value="{{ Session.nonce }}">
+      <input type="hidden" name="next" value="{{ language_switch_next }}">
+      {% for code, label in languages.items() %}
+      <button type="submit" name="language" value="{{ code }}"
+              class="dropdown-item{% if code == current_language %} active{% endif %}"
+              lang="{{ code }}">
+        {{ label }}
+      </button>
+      {% endfor %}
+    </form>
+  </div>
+</li>
+{% endmacro %}
+
 {% macro card(url, title=None, text_lines=None, icon=None, emoji=None, custom=False, solve_percent=0, course=False) -%}
   <a class="text-decoration-none" href="{{ url }}">
     <li class="card card-small">
@@ -81,7 +109,7 @@
       {% set solve_percent = (solves / dojo.required_challenges_count) * 100 if dojo.required_challenges_count else 0 %}
       {{ card(
         url_for("pwncollege_dojo.view_dojo", dojo=dojo.reference_id),
-        title=dojo.name or dojo.id,
+        title=dojo.localized_name or dojo.id,
         text_lines=[
           "{} Hacking".format(dojo_container_counts.get(dojo.reference_id, 0)) if dojo_container_counts.get(dojo.reference_id, 0) else "",
           "{} Module{}".format(dojo.modules_count, "" if dojo.modules_count == 1 else "s"),

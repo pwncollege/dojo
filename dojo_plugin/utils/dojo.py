@@ -25,6 +25,7 @@ from CTFd.utils.user import get_current_user, is_admin
 
 from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
 from ..config import DOJOS_DIR
+from ..i18n import LANGUAGE_PATTERN, normalize_language, ui_string_translations
 from ..utils import get_current_container, sanitize_survey
 
 
@@ -40,10 +41,23 @@ FILE_URL_REGEX = Regex(r"^https://www\.dropbox\.com/[a-zA-Z0-9]+/[a-zA-Z0-9]+/[a
 INTERFACES_LIST = [Or({"name": Regex(r"^[a-zA-Z][a-zA-Z0-9 _-]{0,31}$"),"port": int},{"name": "SSH"})]
 DATE = Use(datetime.datetime.fromisoformat)
 
+LANGUAGE_REGEX = Regex(LANGUAGE_PATTERN)
+
+TRANSLATABLE = {
+    Optional("name"): NAME_REGEX,
+    Optional("description"): str,
+    Optional("content"): str,
+}
+
+TRANSLATIONS = {
+    Optional("translations"): {LANGUAGE_REGEX: TRANSLATABLE},
+}
+
 ID_NAME_DESCRIPTION = {
     Optional("id"): ID_REGEX,
     Optional("name"): NAME_REGEX,
     Optional("description"): str,
+    **TRANSLATIONS,
 }
 
 VISIBILITY = {
@@ -56,6 +70,8 @@ VISIBILITY = {
 DOJO_SPEC = Schema({
     **ID_NAME_DESCRIPTION,
     **VISIBILITY,
+
+    Optional("languages"): [LANGUAGE_REGEX],
 
     Optional("password"): Regex(r"^[\S ]{8,128}$"),
 
@@ -118,6 +134,7 @@ DOJO_SPEC = Schema({
                 Optional("content"): str,
                 Optional("file"): FILE_PATH_REGEX,
                 Optional("expandable", default=True): bool,
+                **TRANSLATIONS,
                 **VISIBILITY,
             },
             {
@@ -126,11 +143,13 @@ DOJO_SPEC = Schema({
                 Optional("video"): str,
                 Optional("playlist"): str,
                 Optional("slides"): str,
+                **TRANSLATIONS,
                 **VISIBILITY,
             },
             {
                 "type": "header",
                 "content": str,
+                **TRANSLATIONS,
                 **VISIBILITY,
             },
             {
@@ -138,6 +157,7 @@ DOJO_SPEC = Schema({
                 "id": ID_REGEX,
                 "name": NAME_REGEX,
                 Optional("description"): str,
+                **TRANSLATIONS,
                 **VISIBILITY,
                 Optional("image"): IMAGE_REGEX,
                 Optional("privileged"): bool,
@@ -222,7 +242,8 @@ def expand_module_challenges(module_data, *, set_names=False):
     if challenges:
         module_data["resources"].append({
             "type": "header",
-            "content": "Challenges"
+            "content": "Challenges",
+            "translations": ui_string_translations("challenges_header"),
         })
 
         for challenge_data in challenges:
@@ -284,6 +305,116 @@ def load_dojo_subyamls(data, dojo_dir):
                     resource_data["name"] = resource_data.get("id", "Imported Challenge").replace("-", " ").title()
 
     return data
+
+def setdefault_translation(entry, language, field, value):
+    if value is None:
+        return
+    translations = entry.setdefault("translations", {})
+    translations.setdefault(language, {}).setdefault(field, value)
+
+
+def load_translation_yml(path):
+    if not path.exists():
+        return {}
+    loaded = yaml.safe_load(path.read_text()) or {}
+    assert isinstance(loaded, dict), f"Error: `{markupsafe.escape(path.name)}` must be a mapping"
+    return loaded
+
+
+def apply_translation(entry, language, translation, description_path=None):
+    for field in ("name", "description", "content"):
+        setdefault_translation(entry, language, field, translation.get(field))
+    if description_path is not None and description_path.exists():
+        setdefault_translation(entry, language, "description", description_path.read_text())
+
+
+def locate_translated_resource(resources, locator, source_path):
+    for key, source_value in [("id", lambda r: r.get("id")), ("source", lambda r: r.get("name"))]:
+        if key in locator:
+            matches = [r for r in resources if source_value(r) == locator[key]]
+            break
+    else:
+        key = "index"
+        assert key in locator, (
+            f"Error: a resource translation in `{markupsafe.escape(source_path)}` has no "
+            "`id`, `source`, or `index` locator"
+        )
+        matches = [resources[locator[key]]] if 0 <= locator[key] < len(resources) else []
+
+    assert matches, (
+        f"Error: `{markupsafe.escape(source_path)}` translates a resource with {key} "
+        f"`{markupsafe.escape(locator[key])}`, which does not exist"
+    )
+    return matches[0]
+
+
+def language_subdir(parent, name):
+    subdir = (parent / name).resolve()
+    assert parent.resolve() in subdir.parents, \
+        f"Error: `{markupsafe.escape(name)}` references a path outside of the dojo"
+    return subdir
+
+
+def load_language_translations(data, language_dir, language):
+    apply_translation(data, language,
+                      load_translation_yml(language_dir / "dojo.yml"),
+                      language_dir / "DESCRIPTION.md")
+
+    for module_data in data.get("modules", []):
+        if "id" not in module_data:
+            continue
+
+        module_language_dir = language_subdir(language_dir, module_data["id"])
+        module_translation = load_translation_yml(module_language_dir / "module.yml")
+        apply_translation(module_data, language, module_translation,
+                          module_language_dir / "DESCRIPTION.md")
+
+        resources = module_data.get("resources", [])
+        source_path = f"i18n/{language}/{module_data['id']}/module.yml"
+        for locator in module_translation.get("resources", []):
+            resource_data = locate_translated_resource(resources, locator, source_path)
+            apply_translation(resource_data, language, locator)
+
+        for resource_data in resources:
+            if resource_data.get("type") != "challenge" or "id" not in resource_data:
+                continue
+            challenge_language_dir = language_subdir(module_language_dir, resource_data["id"])
+            apply_translation(resource_data, language,
+                              load_translation_yml(challenge_language_dir / "challenge.yml"),
+                              challenge_language_dir / "DESCRIPTION.md")
+
+
+def load_dojo_translations(data, dojo_dir):
+    """
+    Translations live in a parallel tree mirroring the dojo's own structure:
+
+    repo-root/i18n/<lang>/dojo.yml <- translated dojo name
+    repo-root/i18n/<lang>/DESCRIPTION.md <- translated dojo description
+    repo-root/i18n/<lang>/module-id/module.yml <- translated module and resource names
+    repo-root/i18n/<lang>/module-id/DESCRIPTION.md <- translated module description
+    repo-root/i18n/<lang>/module-id/challenge-id/challenge.yml <- translated challenge name
+    repo-root/i18n/<lang>/module-id/challenge-id/DESCRIPTION.md <- translated challenge description
+
+    `translations` written directly into the dojo's own ymls wins over this tree, the same
+    way a `description` in dojo.yml wins over DESCRIPTION.md.
+    """
+
+    i18n_dir = dojo_dir / "i18n"
+    if not i18n_dir.is_dir():
+        return data
+
+    languages = []
+    for language_dir in sorted(i18n_dir.iterdir()):
+        if not language_dir.is_dir():
+            continue
+        language = normalize_language(language_dir.name)
+        assert language, f"Error: `i18n/{markupsafe.escape(language_dir.name)}` is not a valid language tag"
+        languages.append(language)
+        load_language_translations(data, language_dir, language)
+
+    data.setdefault("languages", languages)
+    return data
+
 
 def load_surveys(data, dojo_dir):
     """
@@ -353,6 +484,7 @@ def dojo_from_dir(dojo_dir, *, dojo=None, platform_admin=False):
 
     data_raw = yaml.safe_load(dojo_yml_path.read_text())
     data = load_dojo_subyamls(data_raw, dojo_dir)
+    data = load_dojo_translations(data, dojo_dir)
     data = load_surveys(data, dojo_dir)
     return dojo_from_spec(data, dojo_dir=dojo_dir, dojo=dojo, platform_admin=platform_admin)
 
@@ -409,6 +541,8 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
         field: dojo_data.get(field, getattr(import_dojo, field, None))
         for field in ["id", "name", "description", "password", "type", "award"]
     }
+    dojo_kwargs["translations"] = dojo_data.get("translations") or getattr(import_dojo, "translations", None) or {}
+    dojo_kwargs["languages"] = dojo_data.get("languages") or getattr(import_dojo, "languages", None) or []
 
     assert dojo_kwargs.get("id") is not None, "Dojo id must be defined"
 
@@ -502,9 +636,11 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
     dojo.modules = [
         DojoModules(
             **{kwarg: module_data.get(kwarg) for kwarg in ["id", "name", "description"]},
+            translations=module_data.get("translations") or {},
             challenges=[
                 DojoChallenges(
                     **{kwarg: challenge_data.get(kwarg) for kwarg in ["id", "name", "description"]},
+                    translations=challenge_data.get("translations") or {},
                     image=shadow("image", dojo_data, module_data, challenge_data, default=None),
                     privileged=shadow("privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
                     allow_privileged=shadow("allow_privileged", dojo_data, module_data, challenge_data, default_dict=DojoChallenges.data_defaults),
@@ -527,6 +663,7 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
             resources = [
                 DojoResources(
                     **{kwarg: resource_data.get(kwarg) for kwarg in ["name", "type", "content", "video", "playlist", "slides", "expandable"]},
+                    translations=resource_data.get("translations") or {},
                     visibility=visibility(DojoResourceVisibilities, dojo_data, module_data, resource_data),
                     resource_index=resource_index,
                 )

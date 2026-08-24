@@ -4,9 +4,25 @@ from sqlalchemy.sql import and_, or_
 from CTFd.models import db
 from CTFd.utils.user import get_current_user, is_admin
 
+from ...i18n import DEFAULT_LANGUAGE, current_language
 from ...models import Dojos, DojoAdmins, DojoModules, DojoChallenges
 
 search_namespace = Namespace("search", description="Search across dojos, modules, and challenges")
+
+
+def translated_match(model, language, like_query):
+    if language == DEFAULT_LANGUAGE:
+        return None
+    return model.data["translations"][language].astext.ilike(like_query, escape="\\")
+
+
+def matches(model, language, like_query, *columns):
+    conditions = [column.ilike(like_query, escape="\\") for column in columns]
+    translated = translated_match(model, language, like_query)
+    if translated is not None:
+        conditions.append(translated)
+    return or_(*conditions)
+
 
 @search_namespace.route("")
 class Search(Resource):
@@ -14,6 +30,7 @@ class Search(Resource):
         query = request.args.get("q", "").strip()
 
         user = get_current_user()
+        language = current_language()
 
         if not query or len(query) < 2:
             return {"success": False, "error": "Query too short."}, 400
@@ -22,18 +39,18 @@ class Search(Resource):
         escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         like_query = f"%{escaped}%"
 
-        def ilike(*columns):
-            return or_(*(column.ilike(like_query, escape="\\") for column in columns))
-
-        dojos = Dojos.viewable(user=user).filter(ilike(Dojos.name, Dojos.description))
+        dojos = Dojos.viewable(user=user).filter(
+            matches(Dojos, language, like_query, Dojos.name, Dojos.description))
         modules = (DojoModules.query
                    .join(Dojos.viewable(user=user))
-                   .filter(ilike(DojoModules.name, DojoModules.description)))
+                   .filter(matches(DojoModules, language, like_query,
+                                   DojoModules.name, DojoModules.description)))
         challenges = (DojoChallenges.query
                       .join(Dojos.viewable(user=user))
                       .join(DojoModules, and_(DojoModules.dojo_id == DojoChallenges.dojo_id,
                                               DojoModules.module_index == DojoChallenges.module_index))
-                      .filter(ilike(DojoChallenges.name, DojoChallenges.description)))
+                      .filter(matches(DojoChallenges, language, like_query,
+                                      DojoChallenges.name, DojoChallenges.description)))
 
         if not is_admin():
             admin_dojo_ids = (db.session.query(DojoAdmins.dojo_id)
@@ -57,42 +74,42 @@ class Search(Resource):
                 "dojos": [
                     {
                         "id": dojo.reference_id,
-                        "name": dojo.name,
+                        "name": dojo.localized_name,
                         "link": f"/{dojo.reference_id}",
-                        "description": dojo.description,
+                        "description": dojo.localized_description,
                     }
                     for dojo in dojos
                 ],
                 "modules": [
                     {
                         "id": module.id,
-                        "name": module.name,
+                        "name": module.localized_name,
                         "dojo": {
                             "id": module.dojo.reference_id,
-                            "name": module.dojo.name,
+                            "name": module.dojo.localized_name,
                             "link": f"/{module.dojo.reference_id}"
                         },
                         "link": f"/{module.dojo.reference_id}/{module.id}",
-                        "description": module.description,
+                        "description": module.localized_description,
                     }
                     for module in modules
                 ],
                 "challenges": [
                     {
                         "id": challenge.id,
-                        "name": challenge.name,
+                        "name": challenge.localized_name,
                         "module": {
                             "id": challenge.module.id,
-                            "name": challenge.module.name,
+                            "name": challenge.module.localized_name,
                             "link": f"/{challenge.module.dojo.reference_id}/{challenge.module.id}"
                         },
                         "dojo": {
                             "id": challenge.module.dojo.reference_id,
-                            "name": challenge.module.dojo.name,
+                            "name": challenge.module.dojo.localized_name,
                             "link": f"/{challenge.module.dojo.reference_id}"
                         },
                         "link": f"/{challenge.module.dojo.reference_id}/{challenge.module.id}/{challenge.id}",
-                        "description": challenge.description,
+                        "description": challenge.localized_description,
                     }
                     for challenge in challenges
                 ]

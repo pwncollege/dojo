@@ -1388,3 +1388,28 @@ code {
     margin-right: 2px;
     font-size: 0.65rem;
 }
+
+.language-switcher .dropdown-menu {
+    background-color: #272727;
+    border: 1px solid var(--brand-light-gray);
+    min-width: 8rem;
+}
+
+.language-switcher .dropdown-item {
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    color: var(--brand-gold);
+}
+
+.language-switcher .dropdown-item:hover,
+.language-switcher .dropdown-item:focus {
+    background-color: #151515;
+    color: var(--brand-gold);
+}
+
+.language-switcher .dropdown-item.active {
+    background-color: #151515;
+    font-weight: bold;
+}
