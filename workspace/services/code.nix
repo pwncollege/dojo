@@ -3,42 +3,45 @@
 let
   service = import ./service.nix { inherit pkgs; };
 
-  rgScript = pkgs.writeScript "rg" ''
-    #!${pkgs.python3}/bin/python3
-
-    import sys
-    import os
-
-    sys.argv[0] += ".orig"
-    if "--follow" in sys.argv:
-        sys.argv.remove("--follow")
-    os.execv(sys.argv[0], sys.argv)
+  rgScript = pkgs.writeShellScript "rg" ''
+    args=()
+    for arg in "$@"; do
+      if [[ "$arg" == "--follow" ]]; then
+        arg="--no-follow"
+      fi
+      args+=("$arg")
+    done
+    exec "$0.orig" "''${args[@]}"
   '';
-  code-server-unwrapped = pkgs.stdenv.mkDerivation {
+  code-server-unwrapped = pkgs.stdenvNoCC.mkDerivation {
     inherit (pkgs.code-server) pname version;
-    src = pkgs.code-server;
-    buildInputs = with pkgs; [
-      nodejs
-      makeWrapper
-    ];
+    dontUnpack = true;
+    dontFixup = true;
     passthru = {
       inherit (pkgs.code-server) executableName longName;
     };
     installPhase = ''
       runHook preInstall
-      rgBin=libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
-      mkdir -p $out/$rgBin
-      cp ${rgScript} $out/$rgBin/rg
-      cp ${pkgs.code-server}/$rgBin/rg $out/$rgBin/rg.orig
-      cp -ru ${pkgs.code-server}/libexec/code-server/. $out/libexec/code-server
-      mkdir -p $out/bin
-      makeWrapper ${pkgs.nodejs}/bin/node $out/bin/code-server --add-flags $out/libexec/code-server/out/node/entry.js
+
+      mkdir -p $out/libexec $out/bin
+      cp -r ${pkgs.code-server}/libexec/code-server $out/libexec/code-server
+
+      rgBin=$out/libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
+      chmod u+w "$rgBin"
+      mv "$rgBin/rg" "$rgBin/rg.orig"
+      cp ${rgScript} "$rgBin/rg"
+
+      cp ${pkgs.code-server}/bin/code-server $out/bin/code-server
+      chmod u+w $out/bin/code-server
+      substituteInPlace $out/bin/code-server \
+        --replace-fail ${pkgs.code-server} $out
+
       runHook postInstall
     '';
   };
   codeExtensions = with pkgs.vscode-extensions; [
     ms-python.python
-    ms-vscode.cpptools
+    vadimcn.vscode-lldb
   ];
   code-server = pkgs.vscode-with-extensions.override {
     vscode = code-server-unwrapped;
@@ -74,7 +77,6 @@ pkgs.stdenv.mkDerivation {
   buildInputs = with pkgs; [
     code-server
     bash
-    python3
     curl
   ];
   dontUnpack = true;
