@@ -70,7 +70,7 @@ def _homefs_rows(container, volume):
         "for table in ('active_volumes', 'docker_volumes')}))"
     )
     result = dojo_run(
-        "docker", "exec", "homefs", "python", "-c", script, volume,
+        "python3", "-c", script, volume,
         container=container,
     )
     return json.loads(result.stdout)
@@ -85,7 +85,7 @@ def _delete_homefs_rows(container, volume):
         "connection.commit()"
     )
     dojo_run(
-        "docker", "exec", "homefs", "python", "-c", script, volume,
+        "python3", "-c", script, volume,
         container=container, check=False,
     )
 
