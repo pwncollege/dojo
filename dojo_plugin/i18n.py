@@ -1,5 +1,4 @@
 import re
-from urllib.parse import urlencode
 
 from flask import g, has_request_context, request
 
@@ -102,9 +101,11 @@ def select_language():
 def language_switch_next():
     if not has_request_context():
         return "/"
-    # a `lang` already in the URL would out-rank the cookie the switcher is about to set
-    query = [(key, value) for key, value in request.args.items(multi=True) if key != "lang"]
-    return request.path + ("?" + urlencode(query) if query else "")
+    # The path only. This renders into every page's navbar, error pages included, so
+    # echoing the query string back would make two error responses differ by whatever the
+    # caller passed. Dropping it also drops any `lang`, which would otherwise out-rank the
+    # cookie the switcher is about to set.
+    return request.path
 
 
 def current_language():

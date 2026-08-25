@@ -89,6 +89,15 @@ def test_browser_language_variants_resolve_to_an_offered_language(i18n_dojo, adm
         assert f'<html lang="{expected}">' in page, f"{tag} did not resolve to {expected}"
 
 
+def test_switcher_next_does_not_reflect_the_query_string(i18n_dojo, admin_session):
+    probed = admin_session.get(f"{DOJO_URL}/{i18n_dojo}/",
+                               params={"lang": "ko", "probe": "PROBEVALUE"}).text
+    assert 'class="nav-item dropdown language-switcher"' in probed, "the switcher must be on the page"
+    assert "PROBEVALUE" not in probed, (
+        "the switcher's next field renders in every page's navbar, error pages included, so "
+        "echoing the query string makes two error responses differ by the caller's own input")
+
+
 def test_switcher_sets_cookie_and_sticks(i18n_dojo, admin_session):
     session = requests.Session()
     response = switch_language(session, "ko", f"/{i18n_dojo}/translated/")
