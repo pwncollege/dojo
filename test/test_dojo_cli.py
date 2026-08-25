@@ -358,6 +358,7 @@ def test_native_units_select_singlenode_role():
     assert "server 127.0.0.1:3001;" in nginx_config
     assert "server ctfd:8000;" not in nginx_config
     assert "server frontend:3000;" not in nginx_config
+    assert "access_log syslog:server=unix:/dev/log,nohostname,tag=dojo_nginx main;" in nginx_config
 
 
 @pytest.mark.skipif(not MULTINODE, reason="requires a multinode deployment")
