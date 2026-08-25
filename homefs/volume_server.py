@@ -1,3 +1,5 @@
+import os
+
 from flask import Blueprint, Response, request
 from sqlalchemy.exc import IntegrityError
 
@@ -5,6 +7,8 @@ from models import ActiveVolumes, db
 
 
 volume_server = Blueprint("volume", __name__)
+LOCAL_STORAGE_HOSTS = {"127.0.0.1", os.environ.get("LOCAL_STORAGE_HOST")}
+LOCAL_STORAGE_HOSTS.discard(None)
 
 
 @volume_server.route("/<volume:volume>", methods=["GET"])
@@ -12,7 +16,7 @@ def get_volume(volume):
     # If it active on this node, do not fetch it (infinite recursive loop)
     if not volume.active:
         active_volume = ActiveVolumes.query.filter_by(name=volume.name).first()
-        if active_volume:
+        if active_volume and active_volume.host not in LOCAL_STORAGE_HOSTS:
             volume.fetch(active_volume.host)
 
     snapshot_path = volume.snapshot()

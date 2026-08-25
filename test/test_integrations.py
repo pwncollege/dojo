@@ -4,7 +4,7 @@ import datetime
 import subprocess
 from typing import Any
 
-from utils import dojo_run, get_outer_container_for, get_user_id, workspace_run, start_challenge
+from utils import dojo_run, get_outer_container_for, get_user_id, redis_cli, workspace_run, start_challenge
 
 CLI_INCORRECT_USAGE = 1
 CLI_TOKEN_NOT_FOUND = 2
@@ -22,6 +22,8 @@ def inspect_container(username) -> dict[str, Any]:
         return {}
 
 def validate_current_container(username, dojo, module, challenge, attempts=30, mode:str=None, before:datetime.datetime=None, after:datetime.datetime=None) -> bool:
+    user_id = get_user_id(username)
+    container_name = f"user_{user_id}"
     for _ in range(attempts):
         container = inspect_container(username)
         try:
@@ -35,6 +37,16 @@ def validate_current_container(username, dojo, module, challenge, attempts=30, m
                 assert before > datetime.datetime.fromisoformat(container["Created"])
             if after is not None:
                 assert after < datetime.datetime.fromisoformat(container["Created"])
+            outer_container = get_outer_container_for(container_name)
+            ready = dojo_run(
+                "docker", "exec", container["Id"], "test", "-e", "/run/dojo/var/ready",
+                container=outer_container, check=False,
+            )
+            assert ready.returncode == 0
+            assert redis_cli("EXISTS", f"user.{user_id}.docker.lock").stdout.strip() == "0"
+            current = inspect_container(username)
+            assert current.get("Id") == container["Id"]
+            assert current["State"]["Running"]
             return True
         except:
             time.sleep(1)

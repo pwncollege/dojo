@@ -131,6 +131,15 @@ def _destroy_probe_volume(name):
     )
 
 
+def _delete_homefs_active_record(name):
+    dojo_run(
+        "python3", "-c",
+        "import sqlite3, sys; connection = sqlite3.connect('/run/homefs/homefs.db'); "
+        "connection.execute('DELETE FROM active_volumes WHERE name=?', (sys.argv[1],)); "
+        "connection.commit()", name, check=False,
+    )
+
+
 def _write_spec_in_ctfd(spec):
     path = f"/tmp/cli-load-{_rand()}.yml"
     dojo_run("sh", "-c", f"cat > {path}", input=spec)
@@ -1195,12 +1204,32 @@ def test_homefs_activate_records_owning_host():
         assert status == 409, f"a volume active on another host must be refused: {status} {body}"
         assert "Volume already active" in body, body
     finally:
-        dojo_run(
-            "python3", "-c",
-            "import sqlite3, sys; connection = sqlite3.connect('/run/homefs/homefs.db'); "
-            "connection.execute('DELETE FROM active_volumes WHERE name=?', (sys.argv[1],)); "
-            "connection.commit()", volume, check=False,
+        _delete_homefs_active_record(volume)
+        _destroy_probe_volume(volume)
+
+
+def test_homefs_stale_local_active_record_recovers():
+    volume = f"cli-probe-{_rand()}"
+    try:
+        status, body = _homefs_driver("Create", {"Name": volume})
+        assert status == 200, body
+        status, body = _homefs_driver("Mount", {"Name": volume, "ID": "initial"})
+        assert status == 200, body
+
+        dojo_run("btrfs", "subvolume", "delete", f"/data/homes/{volume}/active")
+
+        status, body = _curl(
+            "http://localhost/VolumeDriver.Mount",
+            "--unix-socket", "/run/docker/plugins/homefs.sock",
+            "--max-time", "10", "-XPOST",
+            "-d", json.dumps({"Name": volume, "ID": "recovery"}),
         )
+        assert status == 200, body
+        assert dojo_run(
+            "test", "-e", f"/data/homes/{volume}/active", check=False,
+        ).returncode == 0
+    finally:
+        _delete_homefs_active_record(volume)
         _destroy_probe_volume(volume)
 
 

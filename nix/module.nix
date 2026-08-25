@@ -281,6 +281,7 @@ let
       export PYTHONPATH=${dojoSource}/homefs
       export STORAGE_ROOT=/run/homefs
       export STORAGE_HOST="''${STORAGE_HOST:-192.168.42.1}"
+      export LOCAL_STORAGE_HOST="$bind_address"
       exec ${pythonRuntime}/bin/gunicorn \
         --chdir ${dojoSource}/homefs \
         'homefs:create_app()' \
