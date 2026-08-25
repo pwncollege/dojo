@@ -1,5 +1,6 @@
 id: i18n-test
 name: I18n Test Dojo
+type: public
 description: An English dojo description, marker DOJODESC_EN.
 translations:
   ko:
