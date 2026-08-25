@@ -2,11 +2,19 @@
 
 let
   service = import ./service.nix { inherit pkgs; };
+
   code-server-libc =
     if pkgs.stdenv.hostPlatform.isMusl then "musl" else "glibc";
 
-  # Prevent VS Code searches from following workspace symlinks into the host
-  # filesystem and consuming excessive CPU.
+  codeConfigurationDefaults = {
+    "chat.disableAIFeatures" = true;
+    "extensions.ignoreRecommendations" = true;
+    "telemetry.telemetryLevel" = "off";
+    "workbench.colorTheme" = "Dark 2026";
+    "workbench.secondarySideBar.defaultVisibility" = "hidden";
+    "workbench.startupEditor" = "none";
+  };
+
   code-server-patched = pkgs.runCommand "${pkgs.code-server.name}-patched" {
     inherit (pkgs.code-server) pname version meta;
     passthru = {
@@ -24,6 +32,8 @@ let
         "var libc = process.env.LIBC || (isAlpine(platform) ? 'musl' : 'glibc')" \
         "var libc = '${code-server-libc}'"
 
+    # Prevent VS Code searches from following workspace symlinks into the host
+    # filesystem and consuming excessive CPU.
     extensionHost=$out/libexec/code-server/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js
     chmod u+w "$extensionHost"
     substituteInPlace "$extensionHost" \
@@ -34,15 +44,32 @@ let
       exit 1
     fi
 
+    serverMain=$out/libexec/code-server/lib/vscode/out/server-main.js
+    chmod u+w "$serverMain"
+    substituteInPlace "$serverMain" \
+      --replace-fail \
+        'productConfiguration:W,callbackRoute:x' \
+        'productConfiguration:W,configurationDefaults:${builtins.toJSON codeConfigurationDefaults},callbackRoute:x'
+
     cp ${pkgs.code-server}/bin/code-server $out/bin/code-server
     chmod u+w $out/bin/code-server
     substituteInPlace $out/bin/code-server \
       --replace-fail ${pkgs.code-server} $out
   '';
+
+  clangdExtension = pkgs.vscode-extensions.llvm-vs-code-extensions.vscode-clangd.overrideAttrs (oldAttrs: {
+    postPatch = (oldAttrs.postPatch or "") + ''
+      substituteInPlace package.json \
+        --replace-fail '"default": "clangd"' '"default": "${pkgs.clang-tools}/bin/clangd"'
+    '';
+  });
+
   codeExtensions = with pkgs.vscode-extensions; [
+    clangdExtension
     ms-python.python
     vadimcn.vscode-lldb
   ];
+
   code-server = pkgs.vscode-with-extensions.override {
     vscode = code-server-patched;
     vscodeExtensions = codeExtensions;
@@ -63,6 +90,8 @@ let
         --bind-addr=0.0.0.0:8080 \
         --trusted-origins='*' \
         --disable-telemetry \
+        --disable-update-check \
+        --disable-getting-started-override \
         "''${extensionArgs[@]}" \
         --config=/dev/null
 
