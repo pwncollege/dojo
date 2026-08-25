@@ -17,6 +17,7 @@ TEST_FILE_TIERS = {
     "test_feed_search.py": "semantic",
     "test_hidden_profile.py": "semantic",
     "test_homefs_semantics.py": "semantic",
+    "test_i18n.py": "semantic",
     "test_integrations.py": "semantic",
     "test_middleware.py": "integration",
     "test_module_resources.py": "semantic",
