@@ -1,5 +1,7 @@
 import logging
 import os
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from flask import Flask
@@ -29,8 +31,13 @@ def create_app():
 
     app = Flask(__name__)
 
-    homefs_db_path= STORAGE_ROOT / "homefs.db"
+    homefs_db_path = STORAGE_ROOT / "homefs.db"
+    with closing(sqlite3.connect(homefs_db_path, timeout=30)) as connection:
+        journal_mode = connection.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+        if journal_mode != "wal":
+            raise RuntimeError(f"Failed to enable WAL for {homefs_db_path}: {journal_mode}")
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{homefs_db_path}"
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"connect_args": {"timeout": 30}}
 
     db.init_app(app)
 

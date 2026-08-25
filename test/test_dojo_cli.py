@@ -1153,6 +1153,52 @@ def test_homefs_driver_duplicate_create_409():
     assert volume not in [entry["Name"] for entry in json.loads(listing)["Volumes"]]
 
 
+def test_homefs_metadata_writes_do_not_block_behind_readers():
+    volume = f"cli-probe-{_rand()}"
+    ready_path = f"/run/homefs-reader-{_rand()}"
+    reader = subprocess.Popen(
+        [
+            "docker", "exec", DOJO_CONTAINER, "python3", "-c",
+            "import pathlib, sqlite3, sys, time; "
+            "connection = sqlite3.connect('/run/homefs/homefs.db'); "
+            "connection.execute('BEGIN'); "
+            "connection.execute('SELECT * FROM docker_volumes').fetchall(); "
+            "pathlib.Path(sys.argv[1]).touch(); "
+            "time.sleep(8); connection.rollback()",
+            ready_path,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        for _ in range(100):
+            if dojo_run("test", "-e", ready_path, check=False).returncode == 0:
+                break
+            time.sleep(0.1)
+        else:
+            pytest.fail("homefs metadata reader did not start")
+
+        journal_mode = dojo_run(
+            "python3", "-c",
+            "import sqlite3; connection = sqlite3.connect('/run/homefs/homefs.db'); "
+            "print(connection.execute('PRAGMA journal_mode').fetchone()[0])",
+        ).stdout.strip()
+        assert journal_mode == "wal", journal_mode
+
+        started = time.monotonic()
+        status, body = _homefs_driver("Create", {"Name": volume})
+        elapsed = time.monotonic() - started
+        assert status == 200, body
+        assert elapsed < 3, f"homefs metadata write waited {elapsed:.1f}s behind a reader"
+        assert reader.poll() is None, "homefs metadata write only completed after the reader exited"
+    finally:
+        reader_stdout, reader_stderr = reader.communicate(timeout=15)
+        assert reader.returncode == 0, reader_stdout + reader_stderr
+        dojo_run("rm", "-f", ready_path, check=False)
+        _destroy_probe_volume(volume)
+
+
 def test_homefs_driver_remove_keeps_storage():
     volume = f"cli-probe-{_rand()}"
     try:
