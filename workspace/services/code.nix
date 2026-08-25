@@ -3,17 +3,7 @@
 let
   service = import ./service.nix { inherit pkgs; };
 
-  rgScript = pkgs.writeShellScript "rg" ''
-    args=()
-    for arg in "$@"; do
-      if [[ "$arg" == "--follow" ]]; then
-        arg="--no-follow"
-      fi
-      args+=("$arg")
-    done
-    exec "$0.orig" "''${args[@]}"
-  '';
-  code-server-unwrapped = pkgs.stdenvNoCC.mkDerivation {
+  code-server-patched = pkgs.stdenvNoCC.mkDerivation {
     inherit (pkgs.code-server) pname version;
     dontUnpack = true;
     dontFixup = true;
@@ -26,10 +16,19 @@ let
       mkdir -p $out/libexec $out/bin
       cp -r ${pkgs.code-server}/libexec/code-server $out/libexec/code-server
 
-      rgBin=$out/libexec/code-server/lib/vscode/node_modules/@vscode/ripgrep/bin
-      chmod u+w "$rgBin"
-      mv "$rgBin/rg" "$rgBin/rg.orig"
-      cp ${rgScript} "$rgBin/rg"
+      vscodeOut=$out/libexec/code-server/lib/vscode/out
+      chmod -R u+w "$vscodeOut"
+      followCount=$(grep -RhoF --include='*.js' -- '--follow' "$vscodeOut" | wc -l || true)
+      if [ "$followCount" -lt 2 ]; then
+        echo "expected at least two compiled --follow arguments, found $followCount" >&2
+        exit 1
+      fi
+      grep -RlZ --include='*.js' -F -- '--follow' "$vscodeOut" \
+        | xargs -0 sed -i 's/--follow/--no-follow/g'
+      if grep -RqF --include='*.js' -- '--follow' "$vscodeOut"; then
+        echo "unpatched --follow argument remains in compiled VS Code" >&2
+        exit 1
+      fi
 
       cp ${pkgs.code-server}/bin/code-server $out/bin/code-server
       chmod u+w $out/bin/code-server
@@ -44,7 +43,7 @@ let
     vadimcn.vscode-lldb
   ];
   code-server = pkgs.vscode-with-extensions.override {
-    vscode = code-server-unwrapped;
+    vscode = code-server-patched;
     vscodeExtensions = codeExtensions;
   };
 
