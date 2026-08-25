@@ -3,7 +3,9 @@
 let
   service = import ./service.nix { inherit pkgs; };
 
-  code-server = pkgs.runCommand "${pkgs.code-server.name}-patched" {
+  # Prevent VS Code searches from following workspace symlinks into the host
+  # filesystem and consuming excessive CPU.
+  code-server-patched = pkgs.runCommand "${pkgs.code-server.name}-patched" {
     inherit (pkgs.code-server) pname version meta;
     passthru = {
       inherit (pkgs.code-server) executableName longName;
@@ -31,8 +33,8 @@ let
     ms-python.python
     vadimcn.vscode-lldb
   ];
-  code-server-with-extensions = pkgs.vscode-with-extensions.override {
-    vscode = code-server;
+  code-server = pkgs.vscode-with-extensions.override {
+    vscode = code-server-patched;
     vscodeExtensions = codeExtensions;
   };
 
@@ -46,7 +48,7 @@ let
     fi
 
     ${service}/bin/dojo-service start code-service/code-server \
-      ${code-server-with-extensions}/bin/code-server \
+      ${code-server}/bin/code-server \
         --auth=none \
         --bind-addr=0.0.0.0:8080 \
         --trusted-origins='*' \
@@ -61,6 +63,6 @@ in
 pkgs.runCommand "code-service" { } ''
   mkdir -p $out/bin
   cp ${serviceScript} $out/bin/dojo-code
-  ln -s ${code-server-with-extensions}/bin/code-server $out/bin/code-server
-  ln -s ${code-server-with-extensions}/bin/code-server $out/bin/code
+  ln -s ${code-server}/bin/code-server $out/bin/code-server
+  ln -s ${code-server}/bin/code-server $out/bin/code
 ''
