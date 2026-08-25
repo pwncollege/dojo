@@ -2,7 +2,7 @@ import time
 import json
 import pytest
 
-from utils import DOJO_URL, login, create_dojo_yml, start_challenge, solve_challenge, journalctl, redis_cli as run_redis_cli, systemctl, unit_environment, unit_is_active, TEST_DOJOS_LOCATION
+from utils import DOJO_URL, login, create_dojo_yml, start_challenge, solve_challenge, dojo_run, journalctl, redis_cli as run_redis_cli, systemctl, unit_environment, unit_is_active, TEST_DOJOS_LOCATION
 
 def redis_cli(*args):
     result = run_redis_cli(*args, check=False)

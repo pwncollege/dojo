@@ -911,6 +911,7 @@ in
       pkgs.btrfs-progs
       pkgs.coreutils
       pkgs.e2fsprogs
+      pkgs.gawk
       pkgs.gnugrep
       pkgs.openssh
       pkgs.openssl
