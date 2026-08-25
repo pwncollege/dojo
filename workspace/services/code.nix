@@ -5,6 +5,15 @@ let
   code-server-libc =
     if pkgs.stdenv.hostPlatform.isMusl then "musl" else "glibc";
 
+  codeConfigurationDefaults = {
+    "chat.disableAIFeatures" = true;
+    "extensions.ignoreRecommendations" = true;
+    "telemetry.telemetryLevel" = "off";
+    "workbench.colorTheme" = "Dark 2026";
+    "workbench.secondarySideBar.defaultVisibility" = "hidden";
+    "workbench.startupEditor" = "none";
+  };
+
   # Prevent VS Code searches from following workspace symlinks into the host
   # filesystem and consuming excessive CPU.
   code-server-patched = pkgs.runCommand "${pkgs.code-server.name}-patched" {
@@ -33,6 +42,13 @@ let
       echo "unpatched --follow argument remains in compiled VS Code" >&2
       exit 1
     fi
+
+    serverMain=$out/libexec/code-server/lib/vscode/out/server-main.js
+    chmod u+w "$serverMain"
+    substituteInPlace "$serverMain" \
+      --replace-fail \
+        'productConfiguration:W,callbackRoute:x' \
+        'productConfiguration:W,configurationDefaults:${builtins.toJSON codeConfigurationDefaults},callbackRoute:x'
 
     cp ${pkgs.code-server}/bin/code-server $out/bin/code-server
     chmod u+w $out/bin/code-server
@@ -63,6 +79,8 @@ let
         --bind-addr=0.0.0.0:8080 \
         --trusted-origins='*' \
         --disable-telemetry \
+        --disable-update-check \
+        --disable-getting-started-override \
         "''${extensionArgs[@]}" \
         --config=/dev/null
 
