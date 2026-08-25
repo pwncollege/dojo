@@ -135,4 +135,35 @@ else
     echo "   ⚠ No recent Docker container logs found (may be normal if no containers running)"
     exit 1
 fi
+
+echo
+echo "[+] Checking systemd journal log forwarding..."
+TEST_JOURNAL_MESSAGE="JOURNAL_TEST_NODE_${WORKSPACE_NODE}_$$"
+echo "${TEST_JOURNAL_MESSAGE}" | systemd-cat --identifier=dojo-splunk-test --priority=info
+
+JOURNAL_FOUND=no
+for _ in {1..15}; do
+    sleep 2
+    JOURNAL_SEARCH="search source=\"systemd-journal\" ${TEST_JOURNAL_MESSAGE}"
+    JOURNAL_RESPONSE=$(curl -s -k \
+        -u "admin:DojoSplunk2024!" \
+        -d "search=${JOURNAL_SEARCH}" \
+        -d "earliest_time=-5m" \
+        -d "latest_time=now" \
+        -d "output_mode=json" \
+        "${SPLUNK_MANAGEMENT_URL}/services/search/jobs/export" || echo "{}")
+    if echo "${JOURNAL_RESPONSE}" | grep -q "${TEST_JOURNAL_MESSAGE}"; then
+        JOURNAL_FOUND=yes
+        break
+    fi
+done
+
+if [ "${JOURNAL_FOUND}" = yes ]; then
+    echo "   ✓ Systemd journal logs found in Splunk!"
+else
+    echo "   ✗ Could not find systemd journal logs in Splunk"
+    systemctl status dojo-journal-splunk.service --no-pager || true
+    exit 1
+fi
+
 echo "=== Test Succeeded ==="

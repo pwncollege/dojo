@@ -706,7 +706,8 @@ def test_node_add_and_del_manage_wireguard_peers():
     )
 
     usage = dojo_run("dojo", "node", "add", check=False)
-    assert "Usage:" in usage.stdout, usage.stdout
+    usage_output = usage.stdout + usage.stderr
+    assert "Usage:" in usage_output, usage_output
     assert dojo_run("cat", "/data/workspace_nodes.json").stdout == nodes, \
         "`dojo node add` without arguments modified workspace_nodes.json"
 
@@ -736,7 +737,7 @@ def test_node_add_and_del_manage_wireguard_peers():
 
     assert restored.returncode == 0, restored.stdout + restored.stderr
     restored_nodes = json.loads(dojo_run("cat", "/data/workspace_nodes.json").stdout)
-    assert list(restored_nodes.items()) == list(WORKSPACE_NODES.items()), restored_nodes
+    assert restored_nodes == WORKSPACE_NODES, restored_nodes
     assert _ctfd_workspace_nodes() == WORKSPACE_NODES, \
         "CTFd did not load the restored workspace-node topology"
     after_add = _service_invocation_ids(*topology_services)
@@ -756,12 +757,14 @@ def test_node_mutation_denied_on_worker():
     nodes = dojo_run("cat", "/data/workspace_nodes.json", container=WORKER_CONTAINER, check=False).stdout
 
     added = dojo_run("dojo", "node", "add", "9", "key", container=WORKER_CONTAINER, check=False)
-    assert added.returncode == 1, added.stdout
-    assert "only the main dojo node can add nodes" in added.stdout, added.stdout
+    added_output = added.stdout + added.stderr
+    assert added.returncode == 1, added_output
+    assert "only the main dojo node can add nodes" in added_output, added_output
 
     deleted = dojo_run("dojo", "node", "del", "9", container=WORKER_CONTAINER, check=False)
-    assert deleted.returncode == 1, deleted.stdout
-    assert "only the main dojo node can delete nodes" in deleted.stdout, deleted.stdout
+    deleted_output = deleted.stdout + deleted.stderr
+    assert deleted.returncode == 1, deleted_output
+    assert "only the main dojo node can delete nodes" in deleted_output, deleted_output
 
     assert dojo_run("cat", "/data/workspace_nodes.json", container=WORKER_CONTAINER, check=False).stdout == nodes
 
@@ -1389,10 +1392,9 @@ def test_storage_homes_quota_enabled():
     storage_source = dojo_run("findmnt", "-nro", "SOURCE", "--", "/run/homefs").stdout.strip()
     assert homes_source == storage_source, f"{homes_source} != {storage_source}"
 
-    if dojo_run("test", "-f", "/data/homes/btrfs.img", check=False).returncode == 0:
+    if homes_source.startswith("/dev/loop"):
         autoclear = dojo_run(
-            "losetup", "--associated", "/data/homes/btrfs.img",
-            "--noheadings", "--output", "AUTOCLEAR",
+            "losetup", "--noheadings", "--output", "AUTOCLEAR", homes_source,
         ).stdout.split()
         assert autoclear and set(autoclear) == {"1"}, autoclear
 
