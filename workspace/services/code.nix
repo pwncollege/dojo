@@ -55,7 +55,14 @@ let
     substituteInPlace $out/bin/code-server \
       --replace-fail ${pkgs.code-server} $out
   '';
+  clangdExtension = pkgs.vscode-extensions.llvm-vs-code-extensions.vscode-clangd.overrideAttrs (oldAttrs: {
+    postPatch = (oldAttrs.postPatch or "") + ''
+      substituteInPlace package.json \
+        --replace-fail '"default": "clangd"' '"default": "${pkgs.clang-tools}/bin/clangd"'
+    '';
+  });
   codeExtensions = with pkgs.vscode-extensions; [
+    clangdExtension
     ms-python.python
     vadimcn.vscode-lldb
   ];
