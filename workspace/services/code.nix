@@ -2,6 +2,7 @@
 
 let
   service = import ./service.nix { inherit pkgs; };
+
   code-server-libc =
     if pkgs.stdenv.hostPlatform.isMusl then "musl" else "glibc";
 
@@ -14,8 +15,6 @@ let
     "workbench.startupEditor" = "none";
   };
 
-  # Prevent VS Code searches from following workspace symlinks into the host
-  # filesystem and consuming excessive CPU.
   code-server-patched = pkgs.runCommand "${pkgs.code-server.name}-patched" {
     inherit (pkgs.code-server) pname version meta;
     passthru = {
@@ -33,6 +32,8 @@ let
         "var libc = process.env.LIBC || (isAlpine(platform) ? 'musl' : 'glibc')" \
         "var libc = '${code-server-libc}'"
 
+    # Prevent VS Code searches from following workspace symlinks into the host
+    # filesystem and consuming excessive CPU.
     extensionHost=$out/libexec/code-server/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js
     chmod u+w "$extensionHost"
     substituteInPlace "$extensionHost" \
@@ -55,17 +56,20 @@ let
     substituteInPlace $out/bin/code-server \
       --replace-fail ${pkgs.code-server} $out
   '';
+
   clangdExtension = pkgs.vscode-extensions.llvm-vs-code-extensions.vscode-clangd.overrideAttrs (oldAttrs: {
     postPatch = (oldAttrs.postPatch or "") + ''
       substituteInPlace package.json \
         --replace-fail '"default": "clangd"' '"default": "${pkgs.clang-tools}/bin/clangd"'
     '';
   });
+
   codeExtensions = with pkgs.vscode-extensions; [
     clangdExtension
     ms-python.python
     vadimcn.vscode-lldb
   ];
+
   code-server = pkgs.vscode-with-extensions.override {
     vscode = code-server-patched;
     vscodeExtensions = codeExtensions;
