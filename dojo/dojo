@@ -13,7 +13,7 @@ if [ -f /data/config.env ]; then
     . /data/config.env
 fi
 
-ctfd_source="${DOJO_CTFD_SOURCE:-/opt/CTFd}"
+ctfd_source="${DOJO_CTFD_SOURCE:-/run/dojo/ctfd}"
 
 database_host="${DB_HOST:-/run/postgresql}"
 database_port=5432
@@ -47,10 +47,6 @@ journal_units=(
 )
 
 case "$action" in
-    init)
-        exec /init
-        ;;
-
     up)
         if [ -n "${DOCKER_USERNAME:-}" ] && [ -n "${DOCKER_TOKEN:-}" ]; then
             printf '%s' "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
@@ -257,7 +253,6 @@ Usage: $0 COMMAND [ ARG ... ]
 
 COMMANDS:
 
-    init: start the NixOS init system when dojo is used as the outer image entrypoint
     up: rebuild the NixOS system and switch to it
     update: pull the repository, rebuild the NixOS system, and switch to it
     sync: rebuild the NixOS system from /opt/pwn.college and switch to it

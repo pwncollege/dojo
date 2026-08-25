@@ -35,43 +35,18 @@ mount_loop_image() {
     losetup --detach "$loop_device"
 }
 
-bind_directory() {
-    local source_path="$1"
-    local target_path="$2"
-
-    if findmnt -n --mountpoint "$target_path" >/dev/null 2>&1; then
-        return
-    fi
-    if [ -L "$target_path" ]; then
-        rm "$target_path"
-    fi
-    install -d -m 755 "$target_path"
-    mount --bind "$source_path" "$target_path"
-}
-
-bind_file_read_only() {
-    local source_path="$1"
-    local target_path="$2"
-
-    if findmnt -n --mountpoint "$target_path" >/dev/null 2>&1; then
-        return
-    fi
-    if [ -L "$target_path" ]; then
-        rm "$target_path"
-    fi
-    touch "$target_path"
-    mount --bind "$source_path" "$target_path"
-    mount --options remount,bind,ro "$target_path"
-}
-
 install -d -m 755 /run/dojo
 
+environment_dojo_offline_set=false
+if [[ -v DOJO_OFFLINE ]]; then
+    environment_dojo_offline="$DOJO_OFFLINE"
+    environment_dojo_offline_set=true
+fi
 if [ -f /run/dojo/config.env ]; then
     . /run/dojo/config.env
 elif [ -f /data/config.env ]; then
     . /data/config.env
 fi
-
 mount --make-shared /
 
 data_config_before_mount=
@@ -101,6 +76,9 @@ fi
 if [ -f /data/config.env ]; then
     . /data/config.env
     install -m 600 -o root -g root /data/config.env /run/dojo/config.env
+fi
+if [ "$environment_dojo_offline_set" = true ]; then
+    DOJO_OFFLINE="$environment_dojo_offline"
 fi
 
 if printf '%s' "$data_mount_options" | grep -Fqw nosuid; then
@@ -135,26 +113,11 @@ if [ ! -f /data/workspace_nodes.json ]; then
 fi
 chmod 644 /data/workspace_nodes.json
 
-bind_directory /data/dojos /var/dojos
-bind_directory /data/mac /var/mac
-bind_file_read_only /opt/pwn.college/user_firewall.allowed /var/user_firewall.allowed
-
 if [ ! -f /data/grafana-secret-key ]; then
     openssl rand -hex 32 > /data/grafana-secret-key
     chmod 600 /data/grafana-secret-key
 fi
-chown grafana:grafana /data/grafana-secret-key
-chmod 600 /data/grafana-secret-key
-
-chown -R postgres:postgres /data/postgres
-chown -R redis-dojo:redis-dojo /data/redis
-chown -R ctfd:ctfd /data/CTFd /data/coverage /data/ctfd-ipython /data/dojos
-chown root:ctfd /data/mac /data/ssh_host_keys
-chmod 710 /data/mac /data/ssh_host_keys
-if [ -f /data/mac/key ]; then
-    chown ctfd:ctfd /data/mac/key
-    chmod 600 /data/mac/key
-fi
+dojo-storage-permissions
 
 home_filesystem="$(findmnt -nro FSTYPE --target /data/homes)"
 data_filesystem="$(findmnt -nro FSTYPE --target /data)"
@@ -204,10 +167,4 @@ if [ "${DOJO_OFFLINE:-false}" != true ]; then
         rm -f "$known_hosts_temp"
     fi
     trap - EXIT
-fi
-
-if [ -n "${BACKUP_AES_KEY_FILE:-}" ] && [ ! -f "$BACKUP_AES_KEY_FILE" ]; then
-    install -d -m 700 "$(dirname "$BACKUP_AES_KEY_FILE")"
-    openssl rand 214 > "$BACKUP_AES_KEY_FILE"
-    chmod 600 "$BACKUP_AES_KEY_FILE"
 fi

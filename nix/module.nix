@@ -55,7 +55,6 @@ let
     frontend
     kata
     nginx
-    pythonCompat
     pythonRuntime
     vscodeCli
     workspaceCli
@@ -71,6 +70,22 @@ let
     patchShebangs "$out/bin"
   '';
 
+  dojoTool = name: pkgs.writeShellScriptBin name (builtins.readFile "${dojoSource}/dojo/${name}");
+  dojoCommand = dojoTool "dojo";
+  dojoCertificatesTool = dojoTool "dojo-certificates";
+  dojoConfigTool = dojoTool "dojo-config";
+  dojoDockerMigrateTool = dojoTool "dojo-docker-migrate";
+  dojoNetworkTool = dojoTool "dojo-network";
+  dojoNginxConfigTool = dojoTool "dojo-nginx-config";
+  dojoNodeTool = dojoTool "dojo-node";
+  dojoSplunkInstallTool = dojoTool "dojo-splunk-install";
+  dojoStorageTool = dojoTool "dojo-storage";
+  dojoStoragePermissionsTool = dojoTool "dojo-storage-permissions";
+  dojoWorkspaceBuildTool = dojoTool "dojo-workspace-build";
+  dojoUserFirewall = pkgs.writeText "dojo-user-firewall.allowed" (
+    builtins.readFile "${dojoSource}/user_firewall.allowed"
+  );
+
   writeDojoShellApplication =
     arguments:
     pkgs.writeShellApplication (
@@ -80,7 +95,49 @@ let
       }
     );
 
-  pythonSitePackages = "${pythonCompat}/lib/python3.13/site-packages";
+  ctfdRuntimeSource = "/run/dojo/ctfd";
+  ctfdLiveSourcePaths = [
+    "-/opt/pwn.college/dojo_plugin"
+    "-/opt/pwn.college/dojo_theme"
+  ];
+
+  dojoCtfdSource = writeDojoShellApplication {
+    name = "dojo-ctfd-source";
+    runtimeInputs = [ pkgs.coreutils ];
+    text = ''
+      runtime_link=${ctfdRuntimeSource}
+      runtime_source="$(mktemp -d /run/dojo/ctfd-source.XXXXXX)"
+      temporary_link="$runtime_source.link"
+      trap 'rm -rf "$runtime_source" "$temporary_link"' EXIT
+      chmod 755 "$runtime_source"
+      cp --archive --symbolic-link ${ctfdSource}/. "$runtime_source"
+
+      plugin_source=${ctfdSource}/CTFd/plugins/dojo_plugin
+      if [ -f /opt/pwn.college/dojo_plugin/__init__.py ] \
+        && [ -f /opt/pwn.college/dojo_plugin/config.py ] \
+        && [ -d /opt/pwn.college/dojo_plugin/api ] \
+        && [ -d /opt/pwn.college/dojo_plugin/pages ]; then
+        plugin_source=/opt/pwn.college/dojo_plugin
+      fi
+      theme_source=${ctfdSource}/CTFd/themes/dojo_theme
+      if [ -d /opt/pwn.college/dojo_theme/static ] \
+        && [ -f /opt/pwn.college/dojo_theme/templates/base.html ]; then
+        theme_source=/opt/pwn.college/dojo_theme
+      fi
+
+      chmod u+w "$runtime_source/CTFd/plugins" "$runtime_source/CTFd/themes"
+      rm -rf "$runtime_source/CTFd/plugins/dojo_plugin" "$runtime_source/CTFd/themes/dojo_theme"
+      ln -s "$plugin_source" "$runtime_source/CTFd/plugins/dojo_plugin"
+      ln -s "$theme_source" "$runtime_source/CTFd/themes/dojo_theme"
+
+      if [ -d "$runtime_link" ] && [ ! -L "$runtime_link" ]; then
+        rm -rf "$runtime_link"
+      fi
+      ln -s "$runtime_source" "$temporary_link"
+      mv -Tf "$temporary_link" "$runtime_link"
+      trap - EXIT
+    '';
+  };
 
   dojoRole = writeDojoShellApplication {
     name = "dojo-role";
@@ -124,7 +181,7 @@ let
       export REDIS_URL="redis://127.0.0.1:6379"
       export HOST_DATA_PATH=/data
       export FLASK_APP=CTFd
-      export PYTHONPATH="${pythonSitePackages}:${ctfdSource}"
+      export PYTHONPATH="${ctfdRuntimeSource}"
       export UPLOAD_FOLDER=/data/CTFd/uploads
       export LOG_FOLDER=/data/CTFd/logs
       export WORKERS=8
@@ -135,7 +192,7 @@ let
       export CORS_ORIGINS="''${CORS_ORIGINS:-http://future.$DOJO_HOST}"
       export COVERAGE_FILE=/data/coverage/.coverage
       export IPYTHONDIR=/data/ctfd-ipython
-      cd ${ctfdSource}
+      cd ${ctfdRuntimeSource}
       if [ "''${1:-}" = --coverage ]; then
         shift
         exec ${pythonRuntime}/bin/coverage run --source=CTFd/plugins/dojo_plugin -m flask "$@"
@@ -172,7 +229,7 @@ let
         production)
           RUN_ID="$(${pkgs.openssl}/bin/openssl rand -hex 4)"
           export RUN_ID
-          exec dojo-flask --exec ${pkgs.bash}/bin/bash ${ctfdSource}/docker-entrypoint.sh
+          exec dojo-flask --exec ${pkgs.bash}/bin/bash ${ctfdRuntimeSource}/docker-entrypoint.sh
           ;;
         *)
           echo "Invalid DOJO_ENV: $DOJO_ENV" >&2
@@ -603,9 +660,10 @@ in
     vscodeCli
   ];
 
-  environment.variables.DOJO_CTFD_SOURCE = ctfdSource;
+  environment.variables.DOJO_CTFD_SOURCE = ctfdRuntimeSource;
 
   environment.etc."docker/seccomp.json".source = dockerSeccomp;
+  environment.etc."dojo/user_firewall.allowed".source = dojoUserFirewall;
   environment.etc."kata-containers/configuration.toml".source =
     "${kata}/kata/share/defaults/kata-containers/configuration.toml";
   programs.ssh.extraConfig = ''
@@ -630,7 +688,6 @@ in
     "d /run/dojo/acme/.well-known/acme-challenge 0755 nginx nginx -"
     "d /run/homefs 0755 root root -"
     "L+ /opt/kata - - - - ${kata}/kata"
-    "L+ /opt/CTFd - - - - ${ctfdSource}"
   ];
 
   virtualisation.docker.enable = true;
@@ -646,13 +703,19 @@ in
       "dojo-storage.service"
     ];
     path = [
+      pkgs.docker
       pkgs.iptables
       pkgs.nftables
+      dojoStoragePermissionsTool
     ];
-    serviceConfig.ExecStart = lib.mkForce [
-      ""
-      "${dockerDaemon}/bin/dojo-dockerd"
-    ];
+    serviceConfig = {
+      ExecStart = lib.mkForce [
+        ""
+        "${dockerDaemon}/bin/dojo-dockerd"
+      ];
+      ExecStartPost = "${dojoDockerMigrateTool}/bin/dojo-docker-migrate";
+      TimeoutStartSec = "10min";
+    };
   };
 
   services.postgresql = {
@@ -669,10 +732,12 @@ in
 
   systemd.services.postgresql = {
     after = [
+      "docker.service"
       "dojo-config.service"
       "dojo-storage.service"
     ];
     requires = [
+      "docker.service"
       "dojo-config.service"
       "dojo-storage.service"
     ];
@@ -684,10 +749,12 @@ in
 
   systemd.services.postgresql-setup = {
     after = [
+      "docker.service"
       "dojo-config.service"
       "dojo-storage.service"
     ];
     requires = [
+      "docker.service"
       "dojo-config.service"
       "dojo-storage.service"
     ];
@@ -726,10 +793,12 @@ in
 
   systemd.services.redis-dojo = {
     after = [
+      "docker.service"
       "dojo-config.service"
       "dojo-storage.service"
     ];
     requires = [
+      "docker.service"
       "dojo-config.service"
       "dojo-storage.service"
     ];
@@ -808,10 +877,20 @@ in
     ];
   };
 
+  systemd.services.cadvisor = {
+    after = [ "docker.service" ];
+    requires = [ "docker.service" ];
+  };
+
   services.prometheus.exporters.node = {
     enable = true;
     listenAddress = "0.0.0.0";
     port = 9100;
+  };
+
+  systemd.services.prometheus-node-exporter = {
+    after = [ "docker.service" ];
+    requires = [ "docker.service" ];
   };
 
   programs.fuse.userAllowOther = true;
@@ -834,8 +913,14 @@ in
   };
 
   systemd.services.prometheus = {
-    after = [ "dojo-prometheus-targets.service" ];
-    requires = [ "dojo-prometheus-targets.service" ];
+    after = [
+      "docker.service"
+      "dojo-prometheus-targets.service"
+    ];
+    requires = [
+      "docker.service"
+      "dojo-prometheus-targets.service"
+    ];
     serviceConfig.ExecCondition = "+${dojoRole}/bin/dojo-role main";
   };
 
@@ -873,10 +958,14 @@ in
 
   systemd.services.grafana = {
     after = [
+      "docker.service"
       "dojo-storage.service"
       "prometheus.service"
     ];
-    requires = [ "dojo-storage.service" ];
+    requires = [
+      "docker.service"
+      "dojo-storage.service"
+    ];
     serviceConfig.ExecCondition = "+${dojoRole}/bin/dojo-role main";
   };
 
@@ -894,7 +983,7 @@ in
       Type = "oneshot";
       RemainAfterExit = true;
       PassEnvironment = dojoConfigNames;
-      ExecStart = "${dojoTools}/bin/dojo-config";
+      ExecStart = "${dojoConfigTool}/bin/dojo-config";
     };
   };
 
@@ -916,17 +1005,17 @@ in
       pkgs.openssh
       pkgs.openssl
       pkgs.util-linux
+      dojoStoragePermissionsTool
     ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
       PassEnvironment = [
-        "BACKUP_AES_KEY_FILE"
         "DOJO_DATA_STORAGE_SIZE"
         "DOJO_HOME_STORAGE_SIZE"
         "DOJO_OFFLINE"
       ];
-      ExecStart = "${dojoTools}/bin/dojo-storage";
+      ExecStart = "${dojoStorageTool}/bin/dojo-storage";
     };
   };
 
@@ -954,8 +1043,9 @@ in
     wantedBy = [ "dojo.target" ];
     after = [ "docker.service" ];
     requires = [ "docker.service" ];
+    restartTriggers = [ dojoUserFirewall ];
     path = [
-      dojoTools
+      dojoNodeTool
       pkgs.bind.dnsutils
       pkgs.coreutils
       pkgs.docker
@@ -969,7 +1059,7 @@ in
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = "${dojoTools}/bin/dojo-network";
+      ExecStart = "${dojoNetworkTool}/bin/dojo-network";
     };
   };
 
@@ -1025,7 +1115,7 @@ in
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = "${dojoTools}/bin/dojo-workspace-build";
+      ExecStart = "${dojoWorkspaceBuildTool}/bin/dojo-workspace-build";
       TimeoutStartSec = "infinity";
     };
   };
@@ -1084,11 +1174,24 @@ in
     };
   };
 
+  systemd.services.dojo-ctfd-source = {
+    description = "Prepare the CTFd runtime source tree";
+    wantedBy = [ "dojo.target" ];
+    before = [ "dojo-ctfd.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = "${dojoCtfdSource}/bin/dojo-ctfd-source";
+    };
+  };
+
   systemd.services.dojo-ctfd = {
     description = "pwn.college CTFd application";
     wantedBy = [ "dojo.target" ];
+    partOf = [ "dojo-ctfd-source.service" ];
     after = [
       "dojo-database-init.service"
+      "dojo-ctfd-source.service"
       "dojo-dojofs.service"
       "dojo-homefs.service"
       "dojo-network.service"
@@ -1099,6 +1202,7 @@ in
     ];
     requires = [
       "dojo-database-init.service"
+      "dojo-ctfd-source.service"
       "dojo-homefs.service"
       "dojo-network.service"
       "dojo-runtime-images.service"
@@ -1118,19 +1222,23 @@ in
       Restart = "always";
       RestartSec = 2;
       LimitNOFILE = "32768:1048576";
+      ReadOnlyPaths = ctfdLiveSourcePaths;
     };
   };
 
   systemd.services.dojo-stats-worker = {
     description = "Dojo statistics worker";
     wantedBy = [ "dojo.target" ];
+    partOf = [ "dojo-ctfd-source.service" ];
     environment.DOJO_STATS_READY = "/run/dojo-stats/ready";
     after = [
       "dojo-ctfd.service"
+      "dojo-ctfd-source.service"
       "redis-dojo.service"
     ];
     requires = [
       "dojo-ctfd.service"
+      "dojo-ctfd-source.service"
       "redis-dojo.service"
     ];
     serviceConfig = {
@@ -1140,38 +1248,49 @@ in
       RuntimeDirectory = "dojo-stats";
       RuntimeDirectoryMode = "0750";
       ExecStartPre = "${pkgs.coreutils}/bin/rm -f /run/dojo-stats/ready";
-      ExecStart = "${dojoFlask}/bin/dojo-flask shell ${ctfdSource}/CTFd/plugins/dojo_plugin/worker/__main__.py";
+      ExecStart = "${dojoFlask}/bin/dojo-flask shell ${ctfdRuntimeSource}/CTFd/plugins/dojo_plugin/worker/__main__.py";
       Restart = "always";
       RestartSec = 2;
+      ReadOnlyPaths = ctfdLiveSourcePaths;
     };
   };
 
   systemd.services.dojo-image-pull-worker = {
     description = "Dojo challenge image pull worker";
     wantedBy = [ "dojo.target" ];
+    partOf = [ "dojo-ctfd-source.service" ];
     after = [
       "dojo-ctfd.service"
+      "dojo-ctfd-source.service"
       "redis-dojo.service"
     ];
     requires = [
       "dojo-ctfd.service"
+      "dojo-ctfd-source.service"
       "redis-dojo.service"
     ];
     serviceConfig = {
       User = "ctfd";
       Group = "ctfd";
       ExecCondition = "+${dojoRole}/bin/dojo-role main";
-      ExecStart = "${dojoFlask}/bin/dojo-flask shell ${ctfdSource}/CTFd/plugins/dojo_plugin/worker/image_pulls_main.py";
+      ExecStart = "${dojoFlask}/bin/dojo-flask shell ${ctfdRuntimeSource}/CTFd/plugins/dojo_plugin/worker/image_pulls_main.py";
       Restart = "always";
       RestartSec = 2;
+      ReadOnlyPaths = ctfdLiveSourcePaths;
     };
   };
 
   systemd.services.dojo-frontend = {
     description = "Dojo Next.js frontend";
     wantedBy = [ "dojo.target" ];
-    after = [ "dojo-config.service" ];
-    requires = [ "dojo-config.service" ];
+    after = [
+      "docker.service"
+      "dojo-config.service"
+    ];
+    requires = [
+      "docker.service"
+      "dojo-config.service"
+    ];
     environment = {
       DOJO_API_ORIGIN = "http://127.0.0.1:8000";
       NODE_ENV = "production";
@@ -1209,7 +1328,7 @@ in
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = "${dojoTools}/bin/dojo-certificates";
+      ExecStart = "${dojoCertificatesTool}/bin/dojo-certificates";
     };
   };
 
@@ -1240,7 +1359,7 @@ in
       DOJO_NGINX_WORKSPACE_SOURCE = "${dojoSource}/nginx-workspace";
     };
     serviceConfig = {
-      ExecStartPre = "${dojoTools}/bin/dojo-nginx-config";
+      ExecStartPre = "${dojoNginxConfigTool}/bin/dojo-nginx-config";
       ExecStart = "${nginx}/bin/nginx -c /run/dojo/nginx/nginx.conf -g 'daemon off;'";
       ExecReload = "${nginx}/bin/nginx -c /run/dojo/nginx/nginx.conf -s reload";
       Restart = "always";
@@ -1264,7 +1383,7 @@ in
     serviceConfig = {
       Type = "oneshot";
       ExecCondition = "${dojoRole}/bin/dojo-role main";
-      ExecStart = "${dojoTools}/bin/dojo-certificates renew";
+      ExecStart = "${dojoCertificatesTool}/bin/dojo-certificates renew";
     };
   };
 
@@ -1300,11 +1419,13 @@ in
     description = "Install and configure native Splunk";
     wantedBy = [ "dojo.target" ];
     after = [
+      "docker.service"
       "dojo-config.service"
       "dojo-storage.service"
       "network-online.target"
     ];
     requires = [
+      "docker.service"
       "dojo-config.service"
       "dojo-storage.service"
     ];
@@ -1320,7 +1441,7 @@ in
       Type = "oneshot";
       RemainAfterExit = true;
       ExecCondition = "${dojoRole}/bin/dojo-role splunk";
-      ExecStart = "${dojoTools}/bin/dojo-splunk-install";
+      ExecStart = "${dojoSplunkInstallTool}/bin/dojo-splunk-install";
       TimeoutStartSec = 1800;
     };
   };
@@ -1376,10 +1497,7 @@ in
 
   systemd.paths.dojo-prometheus-targets = {
     wantedBy = [ "dojo.target" ];
-    after = [ "dojo-storage.service" ];
-    requires = [ "dojo-storage.service" ];
     pathConfig.PathChanged = "/data/workspace_nodes.json";
-    unitConfig.ConditionPathExists = "/data/workspace_nodes.json";
   };
 
   systemd.services.dojo-watchdog-cleanup = {
@@ -1441,7 +1559,7 @@ in
     serviceConfig = {
       Type = "oneshot";
       ExecCondition = "${dojoRole}/bin/dojo-role main";
-      ExecStart = "${dojoTools}/bin/dojo backup";
+      ExecStart = "${dojoCommand}/bin/dojo backup";
     };
     path = [ pkgs.postgresql_17 ];
   };
@@ -1468,7 +1586,7 @@ in
     serviceConfig = {
       Type = "oneshot";
       ExecCondition = "${dojoRole}/bin/dojo-role cloud-backup";
-      ExecStart = "${dojoTools}/bin/dojo cloud-backup";
+      ExecStart = "${dojoCommand}/bin/dojo cloud-backup";
     };
     path = [
       pkgs.awscli2
@@ -1502,6 +1620,7 @@ in
     wantedBy = [ "dojo-ready.target" ];
     after = [
       "dojo-ctfd.service"
+      "dojo-ctfd-source.service"
       "dojo-dojofs.service"
       "dojo-frontend.service"
       "dojo-homefs.service"

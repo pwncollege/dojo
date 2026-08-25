@@ -1031,7 +1031,7 @@ def test_files_outside_the_dojo_directory_are_not_written(admin_session):
     marker = "".join(random.choices(string.ascii_lowercase, k=12))
 
     post_spec(admin_session, {"id": spec_id("filepath"), "files": [text_file(f"../{marker}", "x")]})
-    assert not ctfd_path_exists(f"/var/dojos/tmp/{marker}"), \
+    assert not ctfd_path_exists(f"/data/dojos/tmp/{marker}"), \
         "a files entry rejected by FILE_PATH_REGEX must not be written outside the dojo directory"
 
     post_spec(admin_session, {"id": spec_id("filepath"), "files": [
@@ -1104,7 +1104,7 @@ def test_pages_directory_serves_per_user_then_default_markdown(admin_session, sp
     assert response.status_code == 200 and "DEFAULT_NOTES" in response.text
 
     hex_id = dojo.split("~")[1]
-    dojo_run("bash", "-c", f"echo USER_NOTES > /var/dojos/{hex_id}/notes/{get_user_id(name)}.md")
+    dojo_run("bash", "-c", f"echo USER_NOTES > /data/dojos/{hex_id}/notes/{get_user_id(name)}.md")
 
     response = session.get(f"{DOJO_URL}/{dojo}/notes")
     assert response.status_code == 200 and "USER_NOTES" in response.text, \

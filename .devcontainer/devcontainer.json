@@ -1,6 +1,7 @@
 {
     "name": "Development",
-    "image": "pwncollege/dojo",
+    "initializeCommand": "cd \"${localWorkspaceFolder}\" && ./nix/build-image.sh pwncollege/dojo-devcontainer:local",
+    "image": "pwncollege/dojo-devcontainer:local",
     "workspaceFolder": "/opt/pwn.college",
     "workspaceMount": "source=${localWorkspaceFolder},target=/opt/pwn.college,type=bind",
     "runArgs": ["-v", "/tmp/dojo-data-${devcontainerId}:/data:shared"],

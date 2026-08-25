@@ -737,7 +737,7 @@ def test_nginx_routes_by_host_header(workspace_runtime_dojo):
         "Expected the server-rendered frontend to load dojos from the native CTFd origin"
     )
 
-    for api_path in ("/api/v1/challenges", "/pwncollege_api/v1/dojos"):
+    for api_path in ("/api/v1/users", "/pwncollege_api/v1/dojos"):
         api_response = requests.get(f"{base}{api_path}", headers={"Host": f"future.{host}"}, timeout=30)
         assert api_response.headers.get("Content-Type", "").startswith("application/json"), (
             f"Expected {api_path} on the future host to be served by CTFd, but got {api_response.headers}"

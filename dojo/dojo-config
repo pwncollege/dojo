@@ -4,6 +4,7 @@ set -euo pipefail
 
 umask 077
 
+current_config_version=1
 persistent_config=/data/config.env
 runtime_config=/run/dojo/config.env
 config_names=(
@@ -55,6 +56,7 @@ for config_name in "${config_names[@]}"; do
     fi
     unset "$config_name"
 done
+unset DOJO_CONFIG_VERSION
 
 if [ -f "$persistent_config" ]; then
     set -a
@@ -69,10 +71,33 @@ for config_name in "${config_names[@]}"; do
     unset "$config_name"
 done
 
+persisted_config_version="${DOJO_CONFIG_VERSION:-0}"
+unset DOJO_CONFIG_VERSION
+if [[ ! "$persisted_config_version" =~ ^[0-9]+$ ]]; then
+    echo "Error: invalid DOJO_CONFIG_VERSION: $persisted_config_version" >&2
+    exit 1
+fi
+if (( persisted_config_version > current_config_version )); then
+    echo "Error: configuration version $persisted_config_version is newer than supported version $current_config_version" >&2
+    exit 1
+fi
+if (( persisted_config_version < 1 )); then
+    if [ "${persisted_values[DB_HOST]:-}" = db ] \
+        && [ -z "${environment_values[DB_HOST]:-}" ]; then
+        persisted_values[DB_HOST]=/run/postgresql
+    fi
+    if [ "${persisted_values[WORKSPACE_HOST]:-}" = workspace.localhost.pwn.college ] \
+        && [ -z "${environment_values[WORKSPACE_HOST]:-}" ]; then
+        selected_dojo_host="${environment_values[DOJO_HOST]:-${persisted_values[DOJO_HOST]:-localhost.pwn.college}}"
+        persisted_values[WORKSPACE_HOST]="workspace.$selected_dojo_host"
+    fi
+fi
+
 mkdir -p /data
 install -d -m 755 -o root -g root /run/dojo
 config_temp="$(mktemp /data/.config.env.XXXXXX)"
 trap 'rm -f "$config_temp"' EXIT
+printf 'DOJO_CONFIG_VERSION=%s\n' "$current_config_version" > "$config_temp"
 
 select_value() {
     local name="$1"
@@ -132,6 +157,10 @@ select_value DB_NAME ctfd
 select_value DB_USER ctfd
 select_value DB_PASS ctfd
 select_value BACKUP_AES_KEY_FILE ''
+if [ -n "$BACKUP_AES_KEY_FILE" ] && [ ! -f "$BACKUP_AES_KEY_FILE" ]; then
+    echo "Error: configured BACKUP_AES_KEY_FILE does not exist: $BACKUP_AES_KEY_FILE" >&2
+    exit 1
+fi
 select_value S3_BACKUP_BUCKET ''
 select_value AWS_DEFAULT_REGION ''
 select_value AWS_ACCESS_KEY_ID ''

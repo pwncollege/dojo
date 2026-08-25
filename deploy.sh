@@ -97,31 +97,9 @@ function generate_coverage_report {
 	docker exec "$CONTAINER" systemctl kill --signal=SIGINT dojo-ctfd.service
 	docker exec "$CONTAINER" systemctl restart dojo-ctfd.service
 	docker exec "$CONTAINER" bash -c \
-		'cd /opt/CTFd && coverage xml --rcfile=/opt/CTFd/.coveragerc --data-file=/data/coverage/.coverage -o /data/coverage/coverage.xml'
+		'cd /run/dojo/ctfd && coverage xml --rcfile=/run/dojo/ctfd/.coveragerc --data-file=/data/coverage/.coverage -o /data/coverage/coverage.xml'
 	mkdir -p "$PWD/data/coverage"
 	docker cp "$CONTAINER:/data/coverage/coverage.xml" "$PWD/data/coverage/coverage.xml"
-}
-
-function build_dojo_image {
-	local IMAGE_NAME="$1"
-	local IMAGE_TARBALLS=()
-
-	nix build --print-build-logs .#dojo-image
-	shopt -s nullglob
-	IMAGE_TARBALLS=(result/tarball/nixos-system-*.tar.xz)
-	shopt -u nullglob
-	if [ "${#IMAGE_TARBALLS[@]}" -ne 1 ]; then
-		echo "Expected exactly one NixOS image at result/tarball/nixos-system-*.tar.xz" >&2
-		return 1
-	fi
-	docker import \
-		--change 'CMD ["/init"]' \
-		--change 'ENV LC_CTYPE=C.UTF-8' \
-		--change 'ENV PATH=/run/wrappers/bin:/run/current-system/sw/bin' \
-		--change 'EXPOSE 22 80 443 8001' \
-		--change 'STOPSIGNAL SIGRTMIN+3' \
-		--change 'WORKDIR /opt/pwn.college' \
-		"${IMAGE_TARBALLS[0]}" "$IMAGE_NAME"
 }
 
 ENV_ARGS=()
@@ -227,7 +205,7 @@ fi
 IMAGE_NAME="pwncollege/dojo"
 if [ "$BUILD_IMAGE" == "yes" ]; then
 	log_newgroup "Building NixOS image with tag: $DOJO_CONTAINER"
-	build_dojo_image "$DOJO_CONTAINER"
+	./nix/build-image.sh "$DOJO_CONTAINER"
 	IMAGE_NAME="$DOJO_CONTAINER"
 	log_endgroup
 fi

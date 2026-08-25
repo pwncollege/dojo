@@ -37,28 +37,38 @@ if [[ "$logical_profile" != /nix/store/* ]]; then
     exit 1
 fi
 physical_profile="$workspace_store_root$logical_profile"
-suid_file="$physical_profile/suid"
-if [ -f "$suid_file" ]; then
-    while IFS= read -r logical_path; do
-        [ -n "$logical_path" ] || continue
-        case "$logical_path" in
-            /nix/store/*)
-                physical_path="$workspace_store_root$logical_path"
-                ;;
-            *)
-                echo "Warning: refusing to set SUID outside the workspace store: $logical_path" >&2
-                continue
-                ;;
-        esac
-        if [ -e "$physical_path" ]; then
-            chmod u+s "$physical_path"
-        else
-            echo "Warning: file not found: $logical_path" >&2
-        fi
-    done < "$suid_file"
-else
-    echo "Warning: SUID file not found: $logical_profile/suid" >&2
+if ! logical_suid_file="$(readlink "$physical_profile/suid")"; then
+    echo "Error: SUID manifest link not found: $logical_profile/suid" >&2
+    exit 1
 fi
+if [[ "$logical_suid_file" != /nix/store/* ]]; then
+    echo "Error: workspace build returned an invalid SUID manifest path: $logical_suid_file" >&2
+    exit 1
+fi
+
+suid_file="$workspace_store_root$logical_suid_file"
+if [ ! -f "$suid_file" ]; then
+    echo "Error: SUID file not found: $logical_suid_file" >&2
+    exit 1
+fi
+
+while IFS= read -r logical_path; do
+    [ -n "$logical_path" ] || continue
+    case "$logical_path" in
+        /nix/store/*)
+            physical_path="$workspace_store_root$logical_path"
+            ;;
+        *)
+            echo "Warning: refusing to set SUID outside the workspace store: $logical_path" >&2
+            continue
+            ;;
+    esac
+    if [ -e "$physical_path" ]; then
+        chmod u+s "$physical_path"
+    else
+        echo "Warning: file not found: $logical_path" >&2
+    fi
+done < "$suid_file"
 
 ln -sfn "/nix/var/nix/profiles/$profile_name" "$profiles_directory/dojo-workspace"
 echo "Updated workspace profile to $logical_profile"

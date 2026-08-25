@@ -102,16 +102,6 @@ let
     '';
   };
 
-  pythonCompat = stdenvNoCC.mkDerivation {
-    pname = "dojo-python-compat";
-    version = "1";
-    dontUnpack = true;
-    installPhase = ''
-      mkdir -p "$out/lib/python3.13/site-packages"
-      cp ${./ctfd/sitecustomize.py} "$out/lib/python3.13/site-packages/sitecustomize.py"
-    '';
-  };
-
   frontendSource = lib.cleanSourceWith {
     src = "${dojoSource}/frontend";
     filter =
@@ -340,7 +330,6 @@ in
     frontendDependencies
     kata
     nginx
-    pythonCompat
     pythonRuntime
     vscodeCli
     workspaceCli

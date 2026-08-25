@@ -10,7 +10,7 @@ from flask import current_app
 from CTFd.models import Users
 
 def get_redis_client() -> redis.Redis:
-    redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
+    redis_url = current_app.config["REDIS_URL"]
     return redis.from_url(redis_url, decode_responses=True)
 
 def _user_emoji_characters(user: Users):

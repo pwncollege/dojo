@@ -55,8 +55,6 @@ while IFS= read -r template_path; do
 done < <(find "$render_directory/templates" -maxdepth 1 -type f -name '*.template' -print)
 
 sed -i \
-    -e 's/server ctfd:8000;/server 127.0.0.1:8000;/' \
-    -e 's/server frontend:3000;/server 127.0.0.1:3001;/' \
     -e "s|/etc/nginx/mime.types|$runtime_directory/mime.types|g" \
     -e "s|/etc/nginx/conf.d|$runtime_directory/conf.d|g" \
     "$render_directory/nginx.conf"

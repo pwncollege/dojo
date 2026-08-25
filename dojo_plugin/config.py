@@ -12,7 +12,7 @@ from CTFd.utils import config, set_config
 
 logger = logging.getLogger(__name__)
 
-DOJOS_DIR = pathlib.Path("/var/dojos")
+DOJOS_DIR = pathlib.Path("/data/dojos")
 
 FEED_EVENT_TTL = int(os.environ.get("FEED_EVENT_TTL", "86400"))
 FEED_MAX_EVENTS = int(os.environ.get("FEED_MAX_EVENTS", "1000"))
@@ -76,7 +76,7 @@ def first_ipv4_address(hostname):
 
 USER_FIREWALL_ALLOWED = {
     host: first_ipv4_address(host) or "0.0.0.0"
-    for host in pathlib.Path("/var/user_firewall.allowed").read_text().split()
+    for host in pathlib.Path("/etc/dojo/user_firewall.allowed").read_text().split()
 }
 
 DOJO_HOST = os.getenv("DOJO_HOST")

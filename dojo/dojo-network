@@ -32,7 +32,7 @@ if [ "${DOJO_OFFLINE:-false}" != true ]; then
         while IFS= read -r allowed_address; do
             iptables -w -A WORKSPACE-NET -d "$allowed_address" -j RETURN
         done < <(getent ahostsv4 "$allowed_host" | awk '{print $1}' | sort -u)
-    done < "${DOJO_USER_FIREWALL_FILE:-/var/user_firewall.allowed}"
+    done < "${DOJO_USER_FIREWALL_FILE:-/etc/dojo/user_firewall.allowed}"
 fi
 
 iptables -w -A WORKSPACE-NET -j DROP

@@ -22,16 +22,7 @@ git clone https://github.com/pwncollege/dojo "$DOJO_PATH"
 mkdir -p "$DATA_PATH"
 cd "$DOJO_PATH"
 
-nix build .#dojo-image
-docker import \
-    --change 'CMD ["/init"]' \
-    --change 'ENV LC_CTYPE=C.UTF-8' \
-    --change 'ENV PATH=/run/wrappers/bin:/run/current-system/sw/bin' \
-    --change 'EXPOSE 22 80 443 8001' \
-    --change 'STOPSIGNAL SIGRTMIN+3' \
-    --change 'WORKDIR /opt/pwn.college' \
-    result/tarball/nixos-system-*.tar.xz \
-    pwncollege/dojo
+./nix/build-image.sh pwncollege/dojo
 
 sudo modprobe br_netfilter
 
@@ -94,22 +85,31 @@ Rebuild and import the image after updating the checkout, then recreate the oute
 ```sh
 git -C "$DOJO_PATH" pull
 cd "$DOJO_PATH"
-nix build .#dojo-image
-docker import \
-    --change 'CMD ["/init"]' \
-    --change 'ENV LC_CTYPE=C.UTF-8' \
-    --change 'ENV PATH=/run/wrappers/bin:/run/current-system/sw/bin' \
-    --change 'EXPOSE 22 80 443 8001' \
-    --change 'STOPSIGNAL SIGRTMIN+3' \
-    --change 'WORKDIR /opt/pwn.college' \
-    result/tarball/nixos-system-*.tar.xz \
-    pwncollege/dojo
+./nix/build-image.sh pwncollege/dojo
+
+BACKUP_KEY_PATH="$(docker exec dojo bash -c '. /data/config.env; printf %s "${BACKUP_AES_KEY_FILE:-}"')"
+if [ -n "$BACKUP_KEY_PATH" ] && [[ "$BACKUP_KEY_PATH" != /data/* ]]; then
+    docker exec dojo test -f "$BACKUP_KEY_PATH"
+    docker cp -L "dojo:${BACKUP_KEY_PATH}" "$DATA_PATH/backup-aes.key"
+    sudo chmod 600 "$DATA_PATH/backup-aes.key"
+    sudo sed -i 's|^BACKUP_AES_KEY_FILE=.*$|BACKUP_AES_KEY_FILE=/data/backup-aes.key|' "$DATA_PATH/config.env"
+fi
+
 docker rm -f dojo
-docker run ...
+docker run \
+    --name dojo \
+    --privileged \
+    -v "${DOJO_PATH}:/opt/pwn.college" \
+    -v "${DATA_PATH}:/data:shared" \
+    -p 22:22 -p 80:80 -p 443:443 \
+    -d \
+    pwncollege/dojo
 docker exec dojo dojo wait
 ```
 
-Recreating the outer container does not remove data stored under `$DATA_PATH`, but the service is unavailable during replacement.
+The backup-key step preserves keys that older deployments stored inside the disposable outer container. A configured key that is missing now stops startup instead of silently replacing the key needed to decrypt existing cloud backups.
+
+Recreating the outer container does not remove data stored under `$DATA_PATH`, but the service is unavailable during replacement. On the first NixOS boot, the appliance removes only the retired infrastructure containers from the nested Docker daemon before starting the native services. Challenge images and persistent learner and dojo data remain in place.
 
 ## Customization
 
@@ -117,7 +117,14 @@ All persistent DOJO state lives under `/data` in the outer container. Keep that 
 
 Once logged in, add a dojo at `/dojos/create`. Dojos are contained in Git repositories; see the [example dojo](https://github.com/pwncollege/example-dojo) for a starting point.
 
-The hourly backup service creates local database dumps. When `BACKUP_AES_KEY_FILE` and `S3_BACKUP_BUCKET` are configured, the daily cloud-backup service encrypts recent dumps and uploads them to S3.
+The hourly backup service creates local database dumps. To enable encrypted cloud backups, create a durable key before starting the appliance:
+
+```sh
+openssl rand -hex 32 > "$DATA_PATH/backup-aes.key"
+chmod 600 "$DATA_PATH/backup-aes.key"
+```
+
+Set `BACKUP_AES_KEY_FILE=/data/backup-aes.key` and `S3_BACKUP_BUCKET` on the outer container. The daily cloud-backup service encrypts recent dumps and uploads them to S3.
 
 ## Multi-node Deployment
 

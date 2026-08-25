@@ -106,7 +106,7 @@ def _ctfd_workspace_nodes():
 def test_dojo_command_surface():
     help_output = dojo_run("dojo", "help").stdout
     for command in (
-        "init", "up", "update", "sync", "enter", "node", "flask", "db", "backup",
+        "up", "update", "sync", "enter", "node", "flask", "db", "backup",
         "restore", "cloud-backup", "vscode", "logs", "load-dojo", "wait", "help",
     ):
         assert f"    {command}" in help_output, f"dojo help omits {command}"
@@ -349,9 +349,15 @@ def test_native_units_select_singlenode_role():
         "a single-node dojo unexpectedly exposes the worker Docker API"
 
     environment = config_env()
+    assert environment["DOJO_CONFIG_VERSION"] == "1"
     rendered_config = dojo_run("grep", "-R", "-h", "server_name", "/run/dojo/nginx/conf.d").stdout
     assert environment["DOJO_HOST"] in rendered_config
     assert environment["WORKSPACE_HOST"] in rendered_config
+    nginx_config = dojo_run("cat", "/run/dojo/nginx/nginx.conf").stdout
+    assert "server 127.0.0.1:8000;" in nginx_config
+    assert "server 127.0.0.1:3001;" in nginx_config
+    assert "server ctfd:8000;" not in nginx_config
+    assert "server frontend:3000;" not in nginx_config
 
 
 @pytest.mark.skipif(not MULTINODE, reason="requires a multinode deployment")
@@ -420,6 +426,13 @@ def test_native_service_boundaries():
             "ConfigPath": "/opt/kata/share/defaults/kata-containers/configuration.toml",
         },
     }
+    docker_start_post = systemctl(
+        "show", "--property=ExecStartPost", "--value", "docker.service"
+    ).stdout
+    assert "dojo-docker-migrate" in docker_start_post, docker_start_post
+    for service in ("dojo-ctfd", "dojo-stats-worker", "dojo-image-pull-worker"):
+        part_of = systemctl("show", "--property=PartOf", "--value", service).stdout.split()
+        assert "dojo-ctfd-source.service" in part_of, f"{service} is not restarted with its source view"
 
     effective_sshd_config = dojo_run(
         "sshd", "-T", "-C", "user=hacker,host=localhost,addr=127.0.0.1"
@@ -537,11 +550,73 @@ def test_native_service_boundaries():
     assert homefs_propagation == "shared", homefs_propagation
 
 
+def test_retired_infrastructure_migration_is_scoped():
+    suffix = _rand()
+    retired = f"retired-ctfd-{suffix}"
+    foreign = f"foreign-ctfd-{suffix}"
+    extended = f"extended-service-{suffix}"
+    nearby = f"nearby-config-{suffix}"
+    permission_probe = f"/data/CTFd/.migration-permission-{suffix}"
+    common = (
+        "--label", "com.docker.compose.project.working_dir=/opt/pwn.college",
+        "--label", "com.docker.compose.project.config_files=/opt/pwn.college/docker-compose.yml",
+    )
+    try:
+        dojo_run("install", "-m", "600", "-o", "root", "-g", "root", "/dev/null", permission_probe)
+        dojo_run(
+            "docker", "create", "--name", retired, *common,
+            "--label", "com.docker.compose.service=ctfd",
+            "busybox:uclibc", "true",
+        )
+        dojo_run(
+            "docker", "create", "--name", foreign,
+            "--label", "com.docker.compose.project.working_dir=/srv/another-project",
+            "--label", "com.docker.compose.project.config_files=/srv/another-project/docker-compose.yml",
+            "--label", "com.docker.compose.service=ctfd",
+            "busybox:uclibc", "true",
+        )
+        dojo_run(
+            "docker", "create", "--name", extended, *common,
+            "--label", "com.docker.compose.service=custom-service",
+            "busybox:uclibc", "true",
+        )
+        dojo_run(
+            "docker", "create", "--name", nearby,
+            "--label", "com.docker.compose.project.working_dir=/opt/pwn.college",
+            "--label", "com.docker.compose.project.config_files=/opt/pwn.college/docker-compose.yml.backup",
+            "--label", "com.docker.compose.service=ctfd",
+            "busybox:uclibc", "true",
+        )
+
+        migration = dojo_run("dojo-docker-migrate", check=False)
+        assert migration.returncode == 0, migration.stdout + migration.stderr
+        assert dojo_run("stat", "-c", "%U:%G", permission_probe).stdout.strip() == "ctfd:ctfd"
+        assert dojo_run("docker", "inspect", retired, check=False).returncode != 0, \
+            "the retired Dojo infrastructure container survived migration"
+        for preserved in (foreign, extended, nearby):
+            assert dojo_run("docker", "inspect", preserved, check=False).returncode == 0, \
+                f"migration removed out-of-scope container {preserved}"
+    finally:
+        dojo_run("rm", "-f", permission_probe, check=False)
+        for container in (retired, foreign, extended, nearby):
+            dojo_run("docker", "rm", "--force", container, check=False)
+
+
 def test_startup_gates_are_satisfied():
     assert unit_is_active("dojo-workspace-builder"), "the workspace builder did not complete"
-    assert dojo_run(
-        "test", "-L", "/data/workspace/nix/var/nix/profiles/dojo-workspace", check=False
-    ).returncode == 0, "the workspace profile was not built"
+    active_profile = "/data/workspace/nix/var/nix/profiles/dojo-workspace"
+    assert dojo_run("test", "-L", active_profile, check=False).returncode == 0, \
+        "the workspace profile was not built"
+    logical_generation = dojo_run("readlink", active_profile).stdout.strip()
+    logical_profile = dojo_run("readlink", f"/data/workspace{logical_generation}").stdout.strip()
+    logical_suid_file = dojo_run("readlink", f"/data/workspace{logical_profile}/suid").stdout.strip()
+    assert logical_suid_file.startswith("/nix/store/"), logical_suid_file
+    suid_paths = dojo_run("cat", f"/data/workspace{logical_suid_file}").stdout.split()
+    assert suid_paths, "the workspace profile has no SUID manifest entries"
+    for logical_path in suid_paths:
+        owner, mode = dojo_run("stat", "-c", "%u:%a", f"/data/workspace{logical_path}").stdout.strip().split(":")
+        assert owner == "0", f"workspace SUID path is not root-owned: {logical_path}"
+        assert int(mode, 8) & 0o4000, f"workspace SUID bit is missing: {logical_path} ({mode})"
     assert unit_is_active("dojo-stats-worker"), "the stats worker is not active"
     deadline = time.time() + 40
     while True:
