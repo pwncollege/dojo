@@ -1,4 +1,3 @@
-import datetime
 import json
 import os
 import random
@@ -13,20 +12,24 @@ import requests
 from utils import (
     DOJO_CONTAINER,
     DOJO_URL,
+    config_env,
     create_dojo_yml,
     db_sql,
     dojo_run,
     get_outer_container_for,
     get_user_id,
+    journalctl,
     login,
     remove_workspace_container,
     solve_challenge_offline,
     start_challenge,
+    systemctl,
+    unit_is_active,
     workspace_run,
 )
 
 
-PULL_IMAGES_SCRIPT = "/opt/CTFd/CTFd/plugins/dojo_plugin/scripts/pull_images.py"
+PULL_IMAGES_SCRIPT = "/opt/pwn.college/dojo_plugin/scripts/pull_images.py"
 
 SPEC_TEMPLATE = """
 id: {dojo_id}
@@ -45,14 +48,6 @@ def _rand(k=8):
     return "".join(random.choices(string.ascii_lowercase, k=k))
 
 
-def _config_env(container=None):
-    return dict(
-        line.split("=", 1)
-        for line in dojo_run("cat", "/data/config.env", container=container or DOJO_CONTAINER).stdout.splitlines()
-        if "=" in line
-    )
-
-
 def _read_workspace_nodes():
     result = dojo_run("cat", "/data/workspace_nodes.json", check=False)
     if result.returncode != 0 or not result.stdout.strip():
@@ -66,6 +61,7 @@ def _read_workspace_nodes():
 WORKSPACE_NODES = _read_workspace_nodes()
 MULTINODE = bool(WORKSPACE_NODES)
 WORKER_CONTAINER = f"{DOJO_CONTAINER}-node{sorted(WORKSPACE_NODES)[0]}" if MULTINODE else None
+WORKSPACE_CONTAINER = WORKER_CONTAINER if MULTINODE else DOJO_CONTAINER
 
 
 def _curl(url, *args, container=None):
@@ -85,8 +81,43 @@ def _curl_status(url, *args, container=None):
     return int(result.stdout.strip())
 
 
+def _service_invocation_ids(*services):
+    return {
+        service: systemctl(
+            "show", "--property=InvocationID", "--value", service
+        ).stdout.strip()
+        for service in services
+    }
+
+
+def _ctfd_workspace_nodes():
+    result = dojo_run(
+        "dojo", "flask",
+        input=(
+            "import json; from CTFd.plugins.dojo_plugin.config import WORKSPACE_NODES; "
+            "print('TOPOLOGY:' + json.dumps(WORKSPACE_NODES, sort_keys=True))\n"
+        ),
+    )
+    match = re.search(r"TOPOLOGY:(\{[^\n]*\})", result.stdout)
+    assert match, result.stdout
+    return json.loads(match.group(1))
+
+
+def test_dojo_command_surface():
+    help_output = dojo_run("dojo", "help").stdout
+    for command in (
+        "init", "up", "update", "sync", "enter", "node", "flask", "db", "backup",
+        "restore", "cloud-backup", "vscode", "logs", "load-dojo", "wait", "help",
+    ):
+        assert f"    {command}" in help_output, f"dojo help omits {command}"
+    assert "    compose" not in help_output, "dojo still exposes the removed Compose control plane"
+
+
 def _homefs_driver(endpoint, payload):
-    return _curl(f"http://localhost:4201/VolumeDriver.{endpoint}", "-XPOST", "-d", json.dumps(payload))
+    return _curl(
+        f"http://localhost/VolumeDriver.{endpoint}",
+        "--unix-socket", "/run/docker/plugins/homefs.sock", "-XPOST", "-d", json.dumps(payload),
+    )
 
 
 def _destroy_probe_volume(name):
@@ -100,22 +131,9 @@ def _destroy_probe_volume(name):
     )
 
 
-def _rerun_dojo_init():
-    # dojo-init truncates ssh_known_hosts before re-scanning github, so a flaky lookup here would
-    # break every later dojo clone in the suite.
-    known_hosts = dojo_run("cat", "/data/ssh_host_keys/ssh_known_hosts", check=False).stdout
-    try:
-        return dojo_run("dojo-init", check=False, timeout=120)
-    finally:
-        if known_hosts.strip() and not dojo_run(
-            "cat", "/data/ssh_host_keys/ssh_known_hosts", check=False
-        ).stdout.strip():
-            dojo_run("sh", "-c", "cat > /data/ssh_host_keys/ssh_known_hosts", input=known_hosts)
-
-
 def _write_spec_in_ctfd(spec):
     path = f"/tmp/cli-load-{_rand()}.yml"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {path}", input=spec)
+    dojo_run("sh", "-c", f"cat > {path}", input=spec)
     return path
 
 
@@ -254,15 +272,13 @@ def test_flask_exit_code_semantics():
     assert "RuntimeError" in interactive.stdout, interactive.stdout
 
     failing_script = "/tmp/cli-flask-fail.py"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {failing_script}",
-             input='raise RuntimeError("cli-probe-boom")\n')
+    dojo_run("sh", "-c", f"cat > {failing_script}", input='raise RuntimeError("cli-probe-boom")\n')
     failing = dojo_run("dojo", "flask", "--", failing_script, check=False)
     assert failing.returncode != 0, "script-mode `dojo flask` must propagate a failing script"
 
     marker = _rand()
     working_script = "/tmp/cli-flask-ok.py"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {working_script}",
-             input=f'print("{marker}")\n')
+    dojo_run("sh", "-c", f"cat > {working_script}", input=f'print("{marker}")\n')
     working = dojo_run("dojo", "flask", "--", working_script, check=False)
     assert working.returncode == 0, working.stdout + working.stderr
     assert marker in working.stdout, working.stdout
@@ -318,50 +334,216 @@ def test_enter_finds_container_on_worker_node(cli_user):
         f"`dojo enter` from the main node did not reach the container on {outer_container}"
 
 
-@pytest.mark.skipif(MULTINODE, reason="single-node profile selection")
-def test_compose_selects_singlenode_profiles():
-    services = set(dojo_run("dojo", "compose", "config", "--services").stdout.split())
+@pytest.mark.skipif(MULTINODE, reason="single-node unit selection")
+def test_native_units_select_singlenode_role():
     expected = {
-        "ctfd", "db", "cache", "nginx", "sshd", "stats-worker", "image-pull-worker",
-        "homefs", "dojofs", "watchdog", "workspace-builder",
+        "cadvisor", "dojo-ctfd", "dojo-stats-worker", "dojo-image-pull-worker",
+        "dojo-nginx", "dojo-frontend", "dojo-homefs", "dojo-dojofs",
+        "dojo-workspace-authorizer", "dojo-workspace-builder", "grafana", "pgbouncer",
+        "postgresql", "postgresql-setup", "prometheus", "prometheus-node-exporter",
+        "redis-dojo", "sshd",
     }
-    assert expected <= services, f"missing services: {expected - services}"
-    assert "nginx-workspace" not in services, "worker-only service selected on a single-node dojo"
-    assert "splunk" not in services, "splunk profile selected without ENABLE_SPLUNK"
+    inactive = {unit for unit in expected if not unit_is_active(unit)}
+    assert not inactive, f"inactive single-node units: {inactive}"
+    assert not unit_is_active("dojo-docker-api"), \
+        "a single-node dojo unexpectedly exposes the worker Docker API"
 
-    config = dojo_run("dojo", "compose", "config").stdout
-    environment = _config_env()
-    assert f"DOJO_HOST: {environment['DOJO_HOST']}" in config, "config.env was not interpolated into the compose config"
-    assert f"WORKSPACE_HOST: {environment['WORKSPACE_HOST']}" in config, config[:200]
+    environment = config_env()
+    rendered_config = dojo_run("grep", "-R", "-h", "server_name", "/run/dojo/nginx/conf.d").stdout
+    assert environment["DOJO_HOST"] in rendered_config
+    assert environment["WORKSPACE_HOST"] in rendered_config
 
 
 @pytest.mark.skipif(not MULTINODE, reason="requires a multinode deployment")
-def test_compose_selects_profiles_by_node_role():
-    worker_services = set(dojo_run("dojo", "compose", "config", "--services", container=WORKER_CONTAINER).stdout.split())
-    assert "nginx-workspace" in worker_services, worker_services
-    assert "dojofs" in worker_services, worker_services
-    assert "workspace-builder" in worker_services, worker_services
-    assert "ctfd" not in worker_services, "a workspace node must not run ctfd"
-    assert "db" not in worker_services, "a workspace node must not run the database"
-    assert "sshd" not in worker_services, "a workspace node must not run sshd"
+def test_native_units_select_multinode_roles():
+    workspace_units = {
+        "cadvisor", "dojo-nginx", "dojo-homefs", "dojo-dojofs", "dojo-docker-api",
+        "dojo-workspace-authorizer", "dojo-workspace-builder", "prometheus-node-exporter",
+    }
+    main_units = {
+        "cadvisor", "dojo-ctfd", "dojo-stats-worker", "dojo-image-pull-worker",
+        "dojo-nginx", "dojo-frontend", "dojo-homefs", "dojo-workspace-authorizer",
+        "dojo-workspace-builder", "grafana", "pgbouncer", "postgresql",
+        "postgresql-setup", "prometheus", "prometheus-node-exporter", "redis-dojo", "sshd",
+    }
 
-    main_services = set(dojo_run("dojo", "compose", "config", "--services").stdout.split())
-    assert "ctfd" in main_services, main_services
-    assert "dojofs" not in main_services, "the main node of a multinode dojo must not host workspaces"
-    assert "workspace-builder" in main_services, main_services
+    inactive_worker_units = {
+        unit for unit in workspace_units if not unit_is_active(unit, container=WORKER_CONTAINER)
+    }
+    assert not inactive_worker_units, f"inactive workspace-node units: {inactive_worker_units}"
+    for unit in {
+        "dojo-ctfd", "dojo-stats-worker", "dojo-image-pull-worker", "dojo-frontend",
+        "grafana", "pgbouncer", "postgresql", "postgresql-setup", "prometheus",
+        "redis-dojo", "sshd",
+    }:
+        assert not unit_is_active(unit, container=WORKER_CONTAINER), \
+            f"workspace node unexpectedly runs {unit}"
+
+    inactive_main_units = {unit for unit in main_units if not unit_is_active(unit)}
+    assert not inactive_main_units, f"inactive main-node units: {inactive_main_units}"
+    assert not unit_is_active("dojo-dojofs"), "the main node of a multinode dojo must not host workspaces"
+    assert not unit_is_active("dojo-docker-api"), "the main node unexpectedly exposes the worker Docker API"
+
+
+@pytest.mark.skipif(not MULTINODE, reason="requires a multinode deployment")
+def test_workspace_nodes_have_no_published_web_or_storage_ports():
+    main_workspace_host = config_env()["WORKSPACE_HOST"]
+    for node_id in WORKSPACE_NODES:
+        worker_container = f"{DOJO_CONTAINER}-node{node_id}"
+        worker_environment = config_env(container=worker_container)
+        assert worker_environment["WORKSPACE_HOST"] == main_workspace_host
+        assert worker_environment["STORAGE_HOST"] == "192.168.42.1"
+
+        inspected = subprocess.run(
+            ["docker", "inspect", worker_container],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        port_bindings = json.loads(inspected.stdout)[0]["HostConfig"]["PortBindings"]
+        assert not port_bindings, f"workspace node {node_id} publishes host ports: {port_bindings}"
+
+        route_config = dojo_run(
+            "cat", "/run/dojo/nginx/conf.d/route-redirecter.conf", container=worker_container
+        ).stdout
+        assert "listen 8888;" in route_config, route_config
+        assert "auth_request /_dojo_workspace_authorize;" in route_config, route_config
+        assert "proxy_pass http://$container_ip:$port/" in route_config, route_config
+        assert "return 307" not in route_config, route_config
+
+
+def test_native_service_boundaries():
+    daemon_config = json.loads(dojo_run("cat", "/run/dojo/docker-daemon.json").stdout)
+    assert daemon_config["runtimes"]["io.containerd.run.kata.v2"] == {
+        "runtimeType": "/opt/kata/bin/containerd-shim-kata-v2",
+        "options": {
+            "ConfigPath": "/opt/kata/share/defaults/kata-containers/configuration.toml",
+        },
+    }
+
+    effective_sshd_config = dojo_run(
+        "sshd", "-T", "-C", "user=hacker,host=localhost,addr=127.0.0.1"
+    ).stdout.splitlines()
+    sshd_settings = dict(line.split(maxsplit=1) for line in effective_sshd_config)
+    assert sshd_settings["authorizedkeyscommand"] == "/run/wrappers/bin/dojo-ssh-auth"
+    assert sshd_settings["authorizedkeyscommanduser"] == "root"
+    resolved_command = dojo_run(
+        "readlink", "-f", sshd_settings["authorizedkeyscommand"]
+    ).stdout.strip()
+    command_parts = resolved_command.strip("/").split("/")
+    command_paths = ["/"] + [
+        "/" + "/".join(command_parts[:index])
+        for index in range(1, len(command_parts) + 1)
+    ]
+    for path in command_paths:
+        owner, mode = dojo_run("stat", "-Lc", "%u:%a", path).stdout.strip().split(":")
+        assert owner == "0", f"unsafe AuthorizedKeysCommand owner on {path}: {owner}"
+        assert int(mode, 8) & 0o22 == 0, f"unsafe AuthorizedKeysCommand mode on {path}: {mode}"
+
+    listeners = dojo_run("ss", "-Hlnpt").stdout
+    assert "127.0.0.1:8000" in listeners, listeners
+    assert "0.0.0.0:8000" not in listeners, listeners
+    assert "[::]:8000" not in listeners, listeners
+    assert "127.0.0.1:4201" in listeners, listeners
+    assert "192.168.42.1:4201" in listeners, listeners
+    assert "0.0.0.0:4201" not in listeners, listeners
+    assert "[::]:4201" not in listeners, listeners
+
+    expected_permissions = {
+        "/data/config.env": "600:root:root",
+        "/run/dojo/config.env": "600:root:root",
+        "/run/dojo/ctfd.env": "640:root:ctfd",
+        "/run/dojo/pgbouncer.ini": "640:root:pgbouncer",
+        "/run/dojo/ssh-auth.env": "600:root:root",
+        "/run/dojo/ssh.env": "640:root:hacker",
+    }
+    for path, permissions in expected_permissions.items():
+        actual = dojo_run("stat", "-c", "%a:%U:%G", path).stdout.strip()
+        assert actual == permissions, f"{path}: {actual} != {permissions}"
+
+    for username in ("ctfd", "hacker"):
+        for path in ("/data/config.env", "/run/dojo/config.env", "/run/dojo/ssh-auth.env"):
+            unreadable = dojo_run(
+                "runuser", "-u", username, "--", "test", "!", "-r", path, check=False
+            )
+            assert unreadable.returncode == 0, f"{username} can read full configuration from {path}"
+    assert dojo_run(
+        "runuser", "-u", "ctfd", "--", "test", "-r", "/run/dojo/ctfd.env", check=False
+    ).returncode == 0, "ctfd cannot read its scoped configuration"
+
+    forbidden_ctfd_names = {
+        "AWS_ACCESS_KEY_ID", "AWS_DEFAULT_REGION", "AWS_SECRET_ACCESS_KEY",
+        "BACKUP_AES_KEY_FILE", "S3_BACKUP_BUCKET",
+    }
+    ctfd_configuration = dojo_run("cat", "/run/dojo/ctfd.env").stdout
+    assert not forbidden_ctfd_names & {line.partition("=")[0] for line in ctfd_configuration.splitlines()}
+    ssh_configuration = dojo_run("cat", "/run/dojo/ssh.env").stdout
+    assert not {"DB_NAME", "DB_PASS", "DB_USER"} & {
+        line.partition("=")[0] for line in ssh_configuration.splitlines()
+    }
+
+    pooled_query = dojo_run(
+        "bash", "-c",
+        '. /data/config.env; PGPASSWORD="$DB_PASS" psql -h 127.0.0.1 -p 6432 '
+        '-U "$DB_USER" -d "$DB_NAME" -qAtc "SELECT 1"',
+    )
+    assert pooled_query.stdout.strip() == "1", pooled_query.stdout + pooled_query.stderr
+    assert dojo_run(
+        "stat", "-c", "%a:%U:%G", "/run/dojo/pgbouncer-users.txt"
+    ).stdout.strip() == "640:root:pgbouncer"
+    database_host = config_env()["DB_HOST"]
+    database_port = "5432"
+    bracketed_host = re.fullmatch(r"\[([^]]+)]:(\d+)", database_host)
+    host_with_port = re.fullmatch(r"([^:/]+):(\d+)", database_host)
+    if bracketed_host or host_with_port:
+        database_host, database_port = (bracketed_host or host_with_port).groups()
+    pgbouncer_config = dojo_run("cat", "/run/dojo/pgbouncer.ini").stdout
+    assert f"*=host={database_host} port={database_port}" in pgbouncer_config
+    assert "/run/dojo/pgbouncer.ini" in systemctl(
+        "show", "--property=ExecStart", "--value", "pgbouncer.service"
+    ).stdout
+    outer_containers = [DOJO_CONTAINER]
+    if MULTINODE:
+        outer_containers.extend(f"{DOJO_CONTAINER}-node{node_id}" for node_id in WORKSPACE_NODES)
+    for outer_container in outer_containers:
+        assert not unit_is_active("dhcpcd.service", container=outer_container), \
+            f"dhcpcd is managing interfaces in {outer_container}"
+        assert systemctl(
+            "is-enabled", "dhcpcd.service", container=outer_container, check=False
+        ).returncode != 0, f"dhcpcd is enabled in {outer_container}"
+        assert not unit_is_active("resolvconf.service", container=outer_container), \
+            f"resolvconf is overwriting host DNS in {outer_container}"
+        assert systemctl(
+            "is-enabled", "resolvconf.service", container=outer_container, check=False
+        ).returncode != 0, f"resolvconf is enabled in {outer_container}"
+        if config_env(container=outer_container)["DOJO_OFFLINE"] != "true":
+            resolved = dojo_run(
+                "getent", "ahostsv4", "registry-1.docker.io",
+                container=outer_container, check=False,
+            )
+            assert resolved.returncode == 0, \
+                f"host DNS resolution failed in {outer_container}: {resolved.stderr}"
+
+    dojo_propagation = dojo_run(
+        "findmnt", "-nro", "PROPAGATION", "--target", "/run/dojo"
+    ).stdout.strip()
+    homefs_propagation = dojo_run(
+        "findmnt", "-nro", "PROPAGATION", "--target", "/run/homefs"
+    ).stdout.strip()
+    assert dojo_propagation == "shared", dojo_propagation
+    assert homefs_propagation == "shared", homefs_propagation
 
 
 def test_startup_gates_are_satisfied():
-    builder = dojo_run("docker", "inspect", "-f", "{{.State.ExitCode}}", "workspace-builder", check=False)
-    if builder.returncode == 0:
-        assert builder.stdout.strip() == "0", "workspace-builder did not exit successfully"
-
-    if "stats-worker" not in dojo_run("docker", "ps", "--format", "{{.Names}}").stdout.split():
-        return
+    assert unit_is_active("dojo-workspace-builder"), "the workspace builder did not complete"
+    assert dojo_run(
+        "test", "-L", "/data/workspace/nix/var/nix/profiles/dojo-workspace", check=False
+    ).returncode == 0, "the workspace profile was not built"
+    assert unit_is_active("dojo-stats-worker"), "the stats worker is not active"
     deadline = time.time() + 40
     while True:
-        logs = dojo_run("docker", "logs", "stats-worker", check=False)
-        if "Cold start complete" in logs.stdout + logs.stderr:
+        logs = journalctl("dojo-stats-worker", "--boot", check=False).stdout
+        if "Cold start complete" in logs:
             return
         assert time.time() < deadline, "stats-worker never finished its cold start"
         time.sleep(2)
@@ -377,6 +559,7 @@ def test_wait_times_out_when_systemd_never_becomes_available(tmp_path):
     executable_dir.mkdir()
     for name, contents in {
         "dojo": "#!/bin/sh\nexit 0\n",
+        "journalctl": "#!/bin/sh\nexit 0\n",
         "sleep": "#!/bin/sh\nexit 0\n",
         "systemctl": "#!/bin/sh\nexit 1\n",
     }.items():
@@ -395,16 +578,14 @@ def test_wait_times_out_when_systemd_never_becomes_available(tmp_path):
         timeout=5,
     )
     assert result.returncode != 0, "dojo wait reported success without a usable systemd bus"
-    assert "timed out waiting for pwn.college.service" in result.stderr, result.stderr
+    assert "dojo readiness check failed" in result.stderr, result.stderr
 
 
 @pytest.mark.skipif(not MULTINODE, reason="requires a multinode deployment")
-def test_wait_skips_stats_gate_on_worker():
+def test_wait_succeeds_without_stats_worker_on_worker():
     result = dojo_run("dojo", "wait", container=WORKER_CONTAINER, check=False, timeout=45)
     assert result.returncode == 0, result.stdout[-2000:]
-    assert "No stats-worker container found" in result.stdout, result.stdout[-2000:]
-    running = dojo_run("docker", "ps", "--format", "{{.Names}}", container=WORKER_CONTAINER).stdout.split()
-    assert "stats-worker" not in running, running
+    assert not unit_is_active("dojo-stats-worker", container=WORKER_CONTAINER)
 
 
 def test_backup_creates_restorable_dump():
@@ -415,7 +596,7 @@ def test_backup_creates_restorable_dump():
     try:
         assert path.startswith("/data/backups/db-"), path
         assert int(dojo_run("stat", "-c", "%s", path).stdout) > 1000, "backup is suspiciously small"
-        toc = dojo_run("sh", "-c", f"docker exec -i db pg_restore -l < '{path}'").stdout
+        toc = dojo_run("pg_restore", "-l", path).stdout
         assert "Format: CUSTOM" in toc, toc[:400]
         assert "TABLE DATA public users" in toc, "backup does not contain the users table"
         assert "TABLE DATA public dojos" in toc, "backup does not contain the dojos table"
@@ -435,7 +616,11 @@ def test_restore_applies_dump():
     dump = f"cli-restore-{_rand()}.dump"
     db_sql(f"CREATE TABLE {table} (v text); INSERT INTO {table} VALUES ('sentinel');")
     try:
-        dojo_run("sh", "-c", f"docker exec -i db pg_dump -Fc -t {table} > /data/backups/{dump}")
+        dojo_run(
+            "sh", "-c",
+            f'. /data/config.env; PGPASSWORD="$DB_PASS" pg_dump -h 127.0.0.1 '
+            f'-U "$DB_USER" -d "$DB_NAME" -Fc -t {table} > /data/backups/{dump}',
+        )
         db_sql(f"DROP TABLE {table};")
         assert db_sql(f"SELECT to_regclass('{table}') IS NULL;").strip() == "t"
 
@@ -450,7 +635,7 @@ def test_restore_applies_dump():
 
 
 def test_cloud_backup_unconfigured_fails_loudly():
-    environment = _config_env()
+    environment = config_env()
     if environment.get("BACKUP_AES_KEY_FILE") or environment.get("S3_BACKUP_BUCKET"):
         pytest.skip("cloud backup is configured on this dojo")
     result = dojo_run("dojo", "cloud-backup", check=False)
@@ -459,25 +644,9 @@ def test_cloud_backup_unconfigured_fails_loudly():
     assert "BACKUP_AES_KEY_FILE must be set" in output or "S3_BACKUP_BUCKET must be set" in output, output
 
 
-def test_sync_copies_plugin_and_theme():
-    marker = f"cli-sync-{_rand()}"
-    source = f"/opt/pwn.college/dojo_theme/{marker}.txt"
-    destination = f"/opt/CTFd/CTFd/themes/dojo_theme/{marker}.txt"
-    dojo_run("sh", "-c", f"echo {marker} > {source}")
-    try:
-        result = dojo_run("dojo", "sync", check=False)
-        assert result.returncode == 0, result.stderr[-2000:]
-        assert dojo_run("cat", destination).stdout.strip() == marker, "dojo sync did not copy the theme"
-        assert dojo_run("test", "-f", "/opt/CTFd/CTFd/plugins/dojo_plugin/__init__.py", check=False).returncode == 0, \
-            "dojo sync did not copy the plugin"
-    finally:
-        dojo_run("rm", "-f", source, check=False)
-        dojo_run("rm", "-f", destination, check=False)
-
-
 def test_node_show_reports_identity():
     output = dojo_run("dojo", "node", "show").stdout
-    environment = _config_env()
+    environment = config_env()
     workspace_node = int(environment["WORKSPACE_NODE"])
     assert f"DOJO_HOST: {environment['DOJO_HOST']}" in output, output
     assert f"WORKSPACE_NODE: {workspace_node}" in output, output
@@ -522,31 +691,61 @@ def test_node_refresh_is_stable_and_configures_main_interface():
     assert "192.168.42.1/24" in dojo_run("ip", "-4", "addr", "show", "wg0").stdout
 
 
-@pytest.mark.skipif(MULTINODE, reason="registering a fake peer would disrupt real worker nodes")
+@pytest.mark.skipif(not MULTINODE, reason="requires a reachable workspace node")
 def test_node_add_and_del_manage_wireguard_peers():
-    node_key = dojo_run("sh", "-c", "wg genkey | wg pubkey").stdout.strip()
+    node_id = max(WORKSPACE_NODES, key=int)
+    node_key = WORKSPACE_NODES[node_id]
     nodes = dojo_run("cat", "/data/workspace_nodes.json").stdout
+    topology_services = (
+        "dojo-ctfd.service",
+        "dojo-stats-worker.service",
+        "dojo-image-pull-worker.service",
+    )
 
     usage = dojo_run("dojo", "node", "add", check=False)
     assert "Usage:" in usage.stdout, usage.stdout
     assert dojo_run("cat", "/data/workspace_nodes.json").stdout == nodes, \
         "`dojo node add` without arguments modified workspace_nodes.json"
 
+    before_delete = _service_invocation_ids(*topology_services)
+    restored = None
     try:
-        dojo_run("dojo", "node", "add", "5", node_key)
-        registered = json.loads(dojo_run("cat", "/data/workspace_nodes.json").stdout)
-        assert registered.get("5") == node_key, registered
-        config = dojo_run("cat", "/data/wireguard/wg0.conf").stdout
-        assert f"PublicKey = {node_key}" in config, config
-        assert "AllowedIPs = 192.168.42.6/32, 10.80.0.0/12" in config, config
-        assert node_key in dojo_run("wg", "show", "wg0").stdout, "peer was not applied to the live interface"
-    finally:
-        dojo_run("dojo", "node", "del", "5", check=False)
-        dojo_run("sh", "-c", "cat > /data/workspace_nodes.json", input=nodes)
+        dojo_run("dojo", "node", "del", str(node_id))
+        after_delete = _service_invocation_ids(*topology_services)
+        assert all(after_delete[service] != before_delete[service] for service in topology_services), \
+            f"topology consumers did not restart after node deletion: {before_delete} -> {after_delete}"
 
-    assert "5" not in json.loads(dojo_run("cat", "/data/workspace_nodes.json").stdout)
-    assert node_key not in dojo_run("cat", "/data/wireguard/wg0.conf").stdout, "peer survived `dojo node del`"
-    assert node_key not in dojo_run("wg", "show", "wg0").stdout, "peer survived on the live interface"
+        registered = json.loads(dojo_run("cat", "/data/workspace_nodes.json").stdout)
+        assert str(node_id) not in registered, registered
+        assert str(node_id) not in _ctfd_workspace_nodes(), \
+            "CTFd retained a deleted workspace node"
+        config = dojo_run("cat", "/data/wireguard/wg0.conf").stdout
+        assert f"PublicKey = {node_key}" not in config, config
+        assert node_key not in dojo_run("wg", "show", "wg0").stdout, \
+            "deleted peer survived on the live interface"
+
+        if len(WORKSPACE_NODES) == 1:
+            assert unit_is_active("dojo-dojofs"), "deleting the last worker did not restore single-node workspaces"
+
+        before_add = after_delete
+    finally:
+        restored = dojo_run("dojo", "node", "add", str(node_id), node_key, check=False)
+
+    assert restored.returncode == 0, restored.stdout + restored.stderr
+    restored_nodes = json.loads(dojo_run("cat", "/data/workspace_nodes.json").stdout)
+    assert list(restored_nodes.items()) == list(WORKSPACE_NODES.items()), restored_nodes
+    assert _ctfd_workspace_nodes() == WORKSPACE_NODES, \
+        "CTFd did not load the restored workspace-node topology"
+    after_add = _service_invocation_ids(*topology_services)
+    assert all(after_add[service] != before_add[service] for service in topology_services), \
+        f"topology consumers did not restart after node addition: {before_add} -> {after_add}"
+    config = dojo_run("cat", "/data/wireguard/wg0.conf").stdout
+    assert f"PublicKey = {node_key}" in config, config
+    node_ip = int(node_id) + 1
+    node_subnet = int(node_id) * 16
+    assert f"AllowedIPs = 192.168.42.{node_ip}/32, 10.{node_subnet}.0.0/12" in config, config
+    assert node_key in dojo_run("wg", "show", "wg0").stdout, "peer was not restored to the live interface"
+    assert not unit_is_active("dojo-dojofs"), "adding a worker left single-node workspace hosting active"
 
 
 @pytest.mark.skipif(not MULTINODE, reason="requires a multinode deployment")
@@ -565,14 +764,28 @@ def test_node_mutation_denied_on_worker():
 
 
 @pytest.mark.skipif(not MULTINODE, reason="requires a multinode deployment")
-def test_node_refresh_worker_daemon_json_idempotent():
+def test_node_refresh_preserves_private_worker_docker_api():
     node_id = sorted(WORKSPACE_NODES)[0]
-    host = f"tcp://192.168.42.{int(node_id) + 1}:2375"
-    hosts = json.loads(dojo_run("cat", "/etc/docker/daemon.json", container=WORKER_CONTAINER).stdout)["hosts"]
-    assert hosts.count(host) == 1, hosts
+    docker_api = f"192.168.42.{int(node_id) + 1}:2375"
+    hosts = json.loads(dojo_run("cat", "/run/dojo/docker-daemon.json", container=WORKER_CONTAINER).stdout)["hosts"]
+    assert hosts == ["fd://"], hosts
+    assert unit_is_active("dojo-docker-api", container=WORKER_CONTAINER), \
+        "the worker Docker API proxy is not active"
+    listeners = dojo_run(
+        "ss", "-H", "-ltn", "sport = :2375", container=WORKER_CONTAINER
+    ).stdout
+    assert docker_api in listeners, listeners
+
     dojo_run("dojo", "node", "refresh", container=WORKER_CONTAINER)
-    hosts = json.loads(dojo_run("cat", "/etc/docker/daemon.json", container=WORKER_CONTAINER).stdout)["hosts"]
-    assert hosts.count(host) == 1, hosts
+
+    hosts = json.loads(dojo_run("cat", "/run/dojo/docker-daemon.json", container=WORKER_CONTAINER).stdout)["hosts"]
+    assert hosts == ["fd://"], hosts
+    assert unit_is_active("dojo-docker-api", container=WORKER_CONTAINER), \
+        "the worker Docker API proxy stopped during `dojo node refresh`"
+    listeners = dojo_run(
+        "ss", "-H", "-ltn", "sport = :2375", container=WORKER_CONTAINER
+    ).stdout
+    assert docker_api in listeners, listeners
 
 
 def test_load_dojo_spec_creates_usable_dojo(admin_session):
@@ -672,19 +885,13 @@ def test_load_dojo_invalid_args():
         "an invalid load-dojo invocation created a dojo"
 
 
-def test_load_dojo_path_resolved_inside_ctfd(admin_session):
+def test_load_dojo_path_resolved_on_native_host(admin_session):
     dojo_id = f"cli-load-{_rand()}"
     spec = SPEC_TEMPLATE.format(dojo_id=dojo_id)
     outer_path = f"/tmp/{dojo_id}.yml"
     dojo_run("sh", "-c", f"cat > {outer_path}", input=spec)
     try:
-        outer_only = dojo_run("dojo", "load-dojo", outer_path, check=False)
-        assert outer_only.returncode == 1, outer_only.stdout[-2000:]
-        assert "Invalid repository" in outer_only.stdout + outer_only.stderr, outer_only.stdout[-2000:]
-        assert int(db_sql(f"SELECT count(*) FROM dojos WHERE id = '{dojo_id}';")) == 0
-
-        inner_path = _write_spec_in_ctfd(spec)
-        loaded = dojo_run("dojo", "load-dojo", inner_path, check=False)
+        loaded = dojo_run("dojo", "load-dojo", outer_path, check=False)
         assert loaded.returncode == 0, loaded.stdout[-2000:] + loaded.stderr[-2000:]
         assert int(db_sql(f"SELECT count(*) FROM dojos WHERE id = '{dojo_id}';")) == 1
     finally:
@@ -895,19 +1102,23 @@ def test_homefs_activate_records_owning_host():
         status, body = _curl(f"http://localhost:4201/volume/{volume}/activate", "-XPOST")
         assert status == 201, f"re-activation from the same host must succeed: {status} {body}"
 
-        dojo_run("docker", "exec", "homefs", "python", "-c",
-                 "import sqlite3; connection = sqlite3.connect('/run/homefs/homefs.db'); "
-                 f"connection.execute(\"update active_volumes set host='10.255.255.1' where name='{volume}'\"); "
-                 "connection.commit()")
+        dojo_run(
+            "python3", "-c",
+            "import sqlite3, sys; connection = sqlite3.connect('/run/homefs/homefs.db'); "
+            "connection.execute(\"UPDATE active_volumes SET host='10.255.255.1' WHERE name=?\", "
+            "(sys.argv[1],)); connection.commit()", volume,
+        )
 
         status, body = _curl(f"http://localhost:4201/volume/{volume}/activate", "-XPOST")
         assert status == 409, f"a volume active on another host must be refused: {status} {body}"
         assert "Volume already active" in body, body
     finally:
-        dojo_run("docker", "exec", "homefs", "python", "-c",
-                 "import sqlite3; connection = sqlite3.connect('/run/homefs/homefs.db'); "
-                 f"connection.execute(\"delete from active_volumes where name='{volume}'\"); "
-                 "connection.commit()", check=False)
+        dojo_run(
+            "python3", "-c",
+            "import sqlite3, sys; connection = sqlite3.connect('/run/homefs/homefs.db'); "
+            "connection.execute('DELETE FROM active_volumes WHERE name=?', (sys.argv[1],)); "
+            "connection.commit()", volume, check=False,
+        )
         _destroy_probe_volume(volume)
 
 
@@ -1000,9 +1211,17 @@ def test_dojofs_privileged_flag(cli_user, practice_cli_user, privileged_cli_user
     for name, expected_mode in ((practice_name, "privileged"), (standard_name, "standard"),
                                 (privileged_name, "standard")):
         container = f"user_{get_user_id(name)}"
+        outer_container = get_outer_container_for(container)
         mode = dojo_run("docker", "inspect", "-f", '{{index .Config.Labels "dojo.mode"}}', container,
-                        container=get_outer_container_for(container)).stdout.strip()
+                        container=outer_container).stdout.strip()
         assert mode == expected_mode, f"{container} has dojo.mode={mode}, expected {expected_mode}"
+        runtime = dojo_run(
+            "docker", "inspect", "-f", "{{.HostConfig.Runtime}}", container,
+            container=outer_container,
+        ).stdout.strip()
+        expected_runtime = "io.containerd.run.kata.v2" if name == privileged_name else "runc"
+        assert runtime == expected_runtime, \
+            f"{container} uses runtime={runtime}, expected {expected_runtime}"
 
 
 def test_dojofs_readonly_and_path_errors(cli_user):
@@ -1021,10 +1240,15 @@ def test_dojofs_readonly_and_path_errors(cli_user):
 
 
 def test_dojofs_outside_container_eio():
-    result = dojo_run("sh", "-c", "cat /run/dojo/dojofs/workspace/privileged 2>&1; echo rc=$?")
+    result = dojo_run(
+        "sh", "-c", "cat /run/dojo/dojofs/workspace/privileged 2>&1; echo rc=$?",
+        container=WORKSPACE_CONTAINER,
+    )
     assert "Input/output error" in result.stdout, result.stdout
     assert "rc=1" in result.stdout, result.stdout
-    assert dojo_run("stat", "-c", "%s", "/run/dojo/dojofs/workspace/privileged").stdout.strip() == "0", \
+    assert dojo_run(
+        "stat", "-c", "%s", "/run/dojo/dojofs/workspace/privileged", container=WORKSPACE_CONTAINER
+    ).stdout.strip() == "0", \
         "the privileged file has a size outside of a container"
 
 
@@ -1039,10 +1263,11 @@ def test_watchdog_reaps_old_user_containers(cli_user, example_dojo):
         "    @classmethod\n"
         "    def now(cls, tz=None): return real.now(tz) + datetime.timedelta(hours=7)\n"
         "datetime.datetime = Fake\n"
-        "globals_ = {'__file__': '/usr/local/bin/docker_remove_containers', '__name__': '__main__'}\n"
-        "exec(open('/usr/local/bin/docker_remove_containers').read(), globals_)\n"
+        "source = '/opt/pwn.college/watchdog/docker_remove_containers.py'\n"
+        "globals_ = {'__file__': source, '__name__': '__main__'}\n"
+        "exec(open(source).read(), globals_)\n"
     )
-    result = dojo_run("docker", "exec", "-i", "watchdog", "python3", "-c", script, check=False)
+    result = dojo_run("python3", "-c", script, check=False)
     output = result.stdout + result.stderr
     assert "Removing old docker container" in output, output[-2000:]
     running = dojo_run("docker", "ps", "--format", "{{.Names}}").stdout.split()
@@ -1053,13 +1278,16 @@ def test_watchdog_reaps_old_user_containers(cli_user, example_dojo):
     start_challenge(example_dojo, "hello", "apple", session=session)
 
 
-def test_watchdog_spares_fresh_and_infrastructure_containers(cli_user):
+def test_watchdog_spares_fresh_user_and_native_services(cli_user):
     name, _ = cli_user
     container = f"user_{get_user_id(name)}"
     outer_container = get_outer_container_for(container)
-    infrastructure = {"ctfd", "db", "cache", "nginx", "homefs", "watchdog"}
+    infrastructure = {
+        "dojo-ctfd", "dojo-stats-worker", "dojo-image-pull-worker", "dojo-nginx",
+        "dojo-frontend", "dojo-homefs",
+    }
 
-    result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_remove_containers", check=False)
+    result = dojo_run("docker_remove_containers", check=False)
     output = result.stdout + result.stderr
     assert result.returncode == 0, output[-2000:]
     assert "Removing old docker container" not in output, output[-2000:]
@@ -1068,8 +1296,8 @@ def test_watchdog_spares_fresh_and_infrastructure_containers(cli_user):
     assert container in dojo_run("docker", "ps", "--format", "{{.Names}}",
                                  container=outer_container).stdout.split(), \
         "the reaper removed a freshly started user container"
-    running = set(dojo_run("docker", "ps", "--format", "{{.Names}}").stdout.split())
-    assert infrastructure <= running, f"the reaper removed infrastructure containers: {infrastructure - running}"
+    inactive = {unit for unit in infrastructure if not unit_is_active(unit)}
+    assert not inactive, f"the reaper disrupted native services: {inactive}"
 
 
 def test_watchdog_sweeps_every_daemon_hosting_user_containers(cli_user):
@@ -1077,7 +1305,7 @@ def test_watchdog_sweeps_every_daemon_hosting_user_containers(cli_user):
     container = f"user_{get_user_id(name)}"
     host = get_outer_container_for(container)
 
-    result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_remove_containers")
+    result = dojo_run("docker_remove_containers")
     output = result.stdout + result.stderr
     swept = re.findall(r"Removing docker containers on (\S+)", output)
     assert swept, "no docker daemon was swept, so no user container can ever be reaped"
@@ -1093,31 +1321,23 @@ def test_watchdog_sweeps_every_daemon_hosting_user_containers(cli_user):
             f"the daemon hosting {container} ({expected}) was not swept: {swept}"
 
 
-def test_watchdog_cron_runs():
-    started_at = dojo_run("docker", "inspect", "-f", "{{.State.StartedAt}}", "watchdog").stdout.strip()
-    started = datetime.datetime.fromisoformat(re.sub(r"(\.\d{0,6})\d*Z$", r"\1+00:00", started_at))
-    uptime = (datetime.datetime.now(datetime.timezone.utc) - started).total_seconds()
+def test_watchdog_timers_are_active():
+    timers = {"dojo-watchdog-cleanup.timer", "dojo-watchdog-prune.timer"}
+    for timer in timers:
+        assert unit_is_active(timer), f"{timer} is not active"
+        enabled = systemctl("is-enabled", timer, check=False)
+        assert enabled.returncode == 0, f"{timer} is not enabled: {enabled.stdout}{enabled.stderr}"
 
-    crontab = dojo_run("docker", "exec", "watchdog", "crontab", "-l").stdout
-    assert re.search(r"^\*/5 \* \* \* \* /usr/local/bin/docker_remove_containers", crontab, re.M), crontab
-    assert re.search(r"^0 9 \* \* \* /usr/local/bin/docker_prune_images", crontab, re.M), crontab
+    listing = systemctl("list-timers", "--all", "--no-pager", "--no-legend").stdout
+    for timer in timers:
+        assert timer in listing, f"{timer} has no scheduled trigger: {listing}"
 
-    if uptime < 400:
-        pytest.skip("watchdog has not been up for a full cron interval")
-
-    logs = dojo_run("docker", "logs", "--since", "7m", "watchdog")
-    recent = logs.stdout + logs.stderr
-    assert "[docker_remove_containers] [INFO] Starting" in recent, "the reaper cron job did not run"
-    assert "[docker_remove_containers] [INFO] Finished" in recent, "the reaper cron job did not complete"
-
-    logs = dojo_run("docker", "logs", "--since", "20m", "-t", "watchdog")
-    timestamps = re.findall(r"^(\S+) .*\[docker_remove_containers\] \[INFO\] Starting",
-                            logs.stdout + logs.stderr, re.M)
-    if len(timestamps) >= 2:
-        parsed = [datetime.datetime.fromisoformat(re.sub(r"(\.\d{0,6})\d*Z$", r"\1+00:00", stamp))
-                  for stamp in timestamps[-2:]]
-        interval = (parsed[1] - parsed[0]).total_seconds()
-        assert 240 <= interval <= 360, f"consecutive reaper runs were {interval}s apart"
+    started = time.time()
+    cleanup = systemctl("start", "dojo-watchdog-cleanup.service", check=False)
+    assert cleanup.returncode == 0, cleanup.stdout + cleanup.stderr
+    logs = journalctl("dojo-watchdog-cleanup", "--since", f"@{started}", check=False).stdout
+    assert "[docker_remove_containers.py] [INFO] Starting" in logs, logs
+    assert "[docker_remove_containers.py] [INFO] Finished" in logs, logs
 
 
 @pytest.mark.skipif(MULTINODE, reason="the pruner targets the workspace nodes, not the main daemon")
@@ -1135,7 +1355,7 @@ def test_watchdog_prunes_dangling_images():
                                container=target).stdout.split()) - existing
         assert created, "failed to create a dangling image"
 
-        result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_prune_images", check=False)
+        result = dojo_run("docker_prune_images", check=False)
         output = result.stdout + result.stderr
         assert result.returncode == 0, output[-2000:]
         assert "Prune docker images complete" in output, output[-2000:]
@@ -1150,7 +1370,7 @@ def test_watchdog_prunes_dangling_images():
             dojo_run("docker", "rmi", "-f", image, check=False, container=target)
 
 
-def test_init_homes_quota_enabled():
+def test_storage_homes_quota_enabled():
     assert dojo_run("findmnt", "-nro", "FSTYPE", "--", "/data/homes").stdout.strip() == "btrfs"
     quota = dojo_run("btrfs", "qgroup", "show", "-re", "/data/homes", check=False)
     output = quota.stdout + quota.stderr
@@ -1163,7 +1383,7 @@ def test_init_homes_quota_enabled():
     assert homes_source == storage_source, f"{homes_source} != {storage_source}"
 
 
-def test_init_ssh_host_keys_persist():
+def test_storage_ssh_host_keys_persist():
     stored = dojo_run("ls", "/data/ssh_host_keys").stdout.split()
     assert any(name.startswith("ssh_host_ed25519_key") for name in stored), stored
 
@@ -1188,36 +1408,43 @@ def test_workspace_egress_policy(cli_user):
 
 
 @pytest.mark.order(-1)
-@pytest.mark.skipif(MULTINODE, reason="re-running dojo-init would bounce the cluster's wireguard tunnels")
-def test_init_rerun_preserves_secrets_and_host_keys(admin_session):
+@pytest.mark.skipif(MULTINODE, reason="re-running native network initialization would bounce the cluster's wireguard tunnels")
+def test_config_and_storage_rerun_preserve_secrets_and_host_keys(admin_session):
     before = dojo_run("cat", "/data/config.env").stdout
     fingerprint = dojo_run("ssh-keygen", "-lf", "/data/ssh_host_keys/ssh_host_ed25519_key.pub").stdout.split()[1]
 
-    result = _rerun_dojo_init()
-    assert result.returncode == 0, (result.stdout + result.stderr)[-2000:]
+    for command in ("dojo-config", "dojo-storage"):
+        result = dojo_run(command, check=False, timeout=120)
+        assert result.returncode == 0, (result.stdout + result.stderr)[-2000:]
 
     after = dojo_run("cat", "/data/config.env").stdout
-    assert after == before, "dojo-init rewrote config.env, rotating generated secrets"
+    assert after == before, "native initialization rewrote config.env, rotating generated secrets"
     assert dojo_run("ssh-keygen", "-lf", "/data/ssh_host_keys/ssh_host_ed25519_key.pub").stdout.split()[1] == \
-        fingerprint, "dojo-init regenerated the ssh host keys"
-    assert admin_session.get(f"{DOJO_URL}/dojos").status_code == 200, "an existing session broke across dojo-init"
+        fingerprint, "native initialization regenerated the ssh host keys"
+    assert admin_session.get(f"{DOJO_URL}/dojos").status_code == 200, \
+        "an existing session broke across native initialization"
 
 
 @pytest.mark.order(-1)
-@pytest.mark.skipif(MULTINODE, reason="re-running dojo-init would bounce the cluster's wireguard tunnels")
-def test_init_docker_user_rules_idempotent(cli_user):
+@pytest.mark.skipif(MULTINODE, reason="re-running native network initialization would bounce the cluster's wireguard tunnels")
+def test_network_docker_user_rules_idempotent(cli_user):
     name, _ = cli_user
     inbound = "-A DOCKER-USER -i workspace_net -j WORKSPACE-NET"
     outbound = "-A DOCKER-USER -o workspace_net -j WORKSPACE-NET"
+    default_bridge = "-A DOCKER-USER -i docker0 -d 192.168.42.0/24 -j WORKSPACE-NET"
+    default_bridge_input = "-A INPUT -i docker0 -j WORKSPACE-NET"
 
-    result = _rerun_dojo_init()
+    result = dojo_run("dojo-network", check=False, timeout=120)
     assert result.returncode == 0, (result.stdout + result.stderr)[-2000:]
 
     rules = dojo_run("iptables", "-S", "DOCKER-USER").stdout
+    input_rules = dojo_run("iptables", "-S", "INPUT").stdout
     workspace_rules = dojo_run("iptables", "-S", "WORKSPACE-NET").stdout.strip().splitlines()
     assert workspace_rules[-1] == "-A WORKSPACE-NET -j DROP", workspace_rules[-1]
     status = workspace_run("curl -s -o /dev/null -w %{http_code} --max-time 10 http://pwn.college/", user=name)
-    assert status.stdout.strip() == "200", "workspaces lost access to the dojo after dojo-init"
+    assert status.stdout.strip() == "200", "workspaces lost access to the dojo after network initialization"
 
     assert rules.count(inbound) == 1, f"DOCKER-USER accumulated inbound jumps:\n{rules}"
     assert rules.count(outbound) == 1, f"DOCKER-USER accumulated outbound jumps:\n{rules}"
+    assert rules.count(default_bridge) == 1, f"DOCKER-USER accumulated default-bridge jumps:\n{rules}"
+    assert input_rules.count(default_bridge_input) == 1, f"INPUT accumulated default-bridge jumps:\n{input_rules}"

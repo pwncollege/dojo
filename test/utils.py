@@ -128,6 +128,43 @@ def dojo_run(*args, **kwargs):
     )
 
 
+def config_env(*, container=DOJO_CONTAINER):
+    result = dojo_run(
+        "bash", "-c", "set -a; . /data/config.env; env -0",
+        container=container,
+    )
+    return dict(
+        entry.split("=", 1)
+        for entry in result.stdout.split("\0")
+        if "=" in entry
+    )
+
+
+def systemctl(*args, **kwargs):
+    return dojo_run("systemctl", *args, **kwargs)
+
+
+def unit_is_active(unit, *, container=DOJO_CONTAINER):
+    result = systemctl("is-active", "--quiet", unit, container=container, check=False)
+    return result.returncode == 0
+
+
+def unit_environment(unit, *, container=DOJO_CONTAINER):
+    pid = systemctl("show", "--property=MainPID", "--value", unit, container=container).stdout.strip()
+    result = dojo_run(
+        "sh", "-c", f"tr '\\0' '\\n' < /proc/{int(pid)}/environ", container=container
+    )
+    return dict(entry.split("=", 1) for entry in result.stdout.splitlines() if "=" in entry)
+
+
+def journalctl(unit, *args, **kwargs):
+    return dojo_run("journalctl", "--no-pager", "--output=cat", "--unit", unit, *args, **kwargs)
+
+
+def redis_cli(*args, **kwargs):
+    return dojo_run("redis-cli", "-h", "127.0.0.1", "-p", "6379", *args, **kwargs)
+
+
 def db_sql(sql):
     db_result = dojo_run(
         "dojo", "db", "-v", "ON_ERROR_STOP=1", "-qAt", input=sql,
@@ -147,9 +184,9 @@ def flask_exec(code):
     """Run python inside CTFd's application context and return everything it printed."""
     path = f"/tmp/dojo-test-exec-{uuid.uuid4().hex}.py"
     script = f"print({FLASK_EXEC_MARKER!r}, flush=True)\n{code}"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {path}", input=script)
-    result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", path, check=False)
-    dojo_run("docker", "exec", "ctfd", "rm", "-f", path, check=False)
+    dojo_run("sh", "-c", f"cat > {path}", input=script)
+    result = dojo_run("dojo", "flask", "--", path, check=False)
+    dojo_run("rm", "-f", path, check=False)
     assert FLASK_EXEC_MARKER in result.stdout, f"flask exec produced no output: {result.stdout}\n{result.stderr}"
     return result.stdout.split(FLASK_EXEC_MARKER, 1)[1].lstrip("\n")
 
@@ -179,19 +216,19 @@ _flags = {}
 def challenge_flag(dojo, module, challenge, *, user):
     """Derive a challenge's flag the way the workspace does, without starting a container.
 
-    The derivation runs inside the ctfd container so it always uses the same
-    serializer implementation and secret key that flag submission validates against.
+    The derivation runs in CTFd's application environment so it always uses the
+    same serializer implementation and secret key that flag submission validates against.
     """
     key = (user, dojo, module, challenge)
     if key not in _flags:
-        _flags[key] = dojo_run(
-            "docker", "exec", "ctfd", "python3", "-c",
-            "import sys, os\n"
+        user_id = get_user_id(user)
+        challenge_id = challenge_db_id(dojo, module, challenge)
+        _flags[key] = flask_exec(
+            "import os\n"
             "from itsdangerous.url_safe import URLSafeSerializer\n"
-            "data = [int(sys.argv[1]), int(sys.argv[2])]\n"
-            "print('pwn.college{' + URLSafeSerializer(os.environ['SECRET_KEY']).dumps(data)[::-1] + '}')",
-            str(get_user_id(user)), str(challenge_db_id(dojo, module, challenge)),
-        ).stdout.strip()
+            f"data = [{user_id}, {challenge_id}]\n"
+            "print('pwn.college{' + URLSafeSerializer(os.environ['SECRET_KEY']).dumps(data)[::-1] + '}')"
+        ).strip()
     return _flags[key]
 
 def get_outer_container_for(container_name):
@@ -310,7 +347,7 @@ def wait_for_background_worker(timeout=5):
     """
     start_time = time.time()
     while time.time() - start_time < timeout:
-        result = dojo_run("docker", "exec", "cache", "redis-cli", "XLEN", "stat:events", check=False)
+        result = redis_cli("XLEN", "stat:events", check=False)
         if result.returncode == 0 and int(result.stdout.strip()) == 0:
             return
         time.sleep(0.1)

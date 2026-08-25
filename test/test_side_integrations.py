@@ -8,6 +8,7 @@ import requests
 
 from utils import (
     DOJO_URL,
+    config_env,
     create_dojo_yml,
     db_sql,
     dojo_db_id,
@@ -50,10 +51,7 @@ def register_side_user(discord_id_base):
 
 
 def config_env_value(key):
-    for line in dojo_run("cat", "/data/config.env", check=False).stdout.splitlines():
-        if line.startswith(f"{key}="):
-            return line.split("=", 1)[1].strip()
-    return ""
+    return config_env().get(key, "")
 
 
 def activity_count():
@@ -111,13 +109,14 @@ def index_next_section(text):
 
 def ctfd_direct(url, session=None, method=None):
     """Talk to CTFd behind nginx's back, so the headers nginx consumes stay visible."""
-    args = ["docker", "exec", "nginx", "curl", "-s", "-i"]
+    _, _, request_target = url.partition(":8000")
+    args = ["curl", "-s", "-i"]
     if session is not None:
         cookie = "; ".join(f"{name}={value}" for name, value in session.cookies.get_dict().items())
         args += ["-H", f"Cookie: {cookie}"]
     if method:
         args += ["-X", method]
-    raw = dojo_run(*args, url).stdout.replace("\r\n", "\n")
+    raw = dojo_run(*args, f"http://127.0.0.1:8000{request_target}").stdout.replace("\r\n", "\n")
     head, _, body = raw.partition("\n\n")
     lines = head.split("\n")
     status = int(lines[0].split()[1])
@@ -687,7 +686,7 @@ def test_sensai_view_tracks_active_challenge(side_other_user, example_dojo):
 def test_sensai_proxy_emits_accel_redirect_with_identity(side_other_user, admin_session):
     _, session, user_id, _ = side_other_user
 
-    status, headers, body = ctfd_direct("http://ctfd:8000/sensai/foo?bar=1", session=session)
+    status, headers, body = ctfd_direct("http://127.0.0.1:8000/sensai/foo?bar=1", session=session)
     assert status == 200, f"expected 200, got {status}"
     assert headers["x-accel-redirect"] == "@sensai", headers
     assert headers["x-forwarded-prefix"] == "/sensai", headers
@@ -696,7 +695,7 @@ def test_sensai_proxy_emits_accel_redirect_with_identity(side_other_user, admin_
     assert headers["content-length"] == "0", headers
     assert body.strip() == "", f"expected an empty body, got {body[:100]!r}"
 
-    status, headers, _ = ctfd_direct("http://ctfd:8000/sensai/foo", session=admin_session)
+    status, headers, _ = ctfd_direct("http://127.0.0.1:8000/sensai/foo", session=admin_session)
     assert status == 200, f"expected 200, got {status}"
     assert headers["redirect_auth"] == f"Admin {get_user_id('admin')}", headers
 
@@ -704,18 +703,16 @@ def test_sensai_proxy_emits_accel_redirect_with_identity(side_other_user, admin_
 def test_sensai_proxy_post_bypasses_csrf_and_rejects_other_methods(side_other_user):
     _, session, _, _ = side_other_user
 
-    status, headers, _ = ctfd_direct("http://ctfd:8000/sensai/chat", session=session, method="POST")
+    status, headers, _ = ctfd_direct("http://127.0.0.1:8000/sensai/chat", session=session, method="POST")
     assert status == 200, f"POST without a CSRF nonce returned {status}"
     assert headers.get("x-accel-redirect") == "@sensai", headers
 
-    status, headers, _ = ctfd_direct("http://ctfd:8000/sensai/chat", session=session, method="PUT")
+    status, headers, _ = ctfd_direct("http://127.0.0.1:8000/sensai/chat", session=session, method="PUT")
     assert status == 404, f"PUT should not be routed, got {status}"
     assert "x-accel-redirect" not in headers, headers
 
 
 def test_sensai_proxy_without_upstream_is_a_gateway_error(side_other_user):
-    if "sensai" in dojo_run("dojo", "compose", "ps", "--services", check=False).stdout.split():
-        pytest.skip("this deployment runs a sensai upstream")
     _, session, _, _ = side_other_user
 
     for path in ["/sensai/", "/sensai/anything"]:

@@ -644,6 +644,7 @@ def dojo_clone(repository, private_key):
         url = f"git@github.com:{repository}"
     subprocess.run(["git", "clone", "--depth=1", "--recurse-submodules", url, clone_dir.name],
                    env={
+                       "PATH": os.environ["PATH"],
                        "GIT_SSH_COMMAND": f"ssh -i {key_file.name}",
                        "GIT_TERMINAL_PROMPT": "0",
                    },
@@ -656,7 +657,7 @@ def dojo_clone(repository, private_key):
 
 
 def dojo_git_command(dojo, *args, repo_path=None):
-    env = {"GIT_TERMINAL_PROMPT": "0"}
+    env = {"GIT_TERMINAL_PROMPT": "0", "PATH": os.environ["PATH"]}
 
     # Dojos created from a spec have no deploy key; local git commands don't need one.
     key_file = None

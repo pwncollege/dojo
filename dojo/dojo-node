@@ -1,126 +1,183 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-cd /opt/pwn.college
+set -euo pipefail
 
-if [ -n "$1" ]
-then
-    ACTION="$1"
-    shift
+if [ -f /data/config.env ]; then
+    . /data/config.env
 else
-    ACTION="help"
+    . /run/dojo/config.env
 fi
 
-. /data/config.env
+action="${1:-help}"
+if [ "$#" -gt 0 ]; then
+    shift
+fi
 
-case "$ACTION" in
-    # HELP: refresh: refresh dojo node information
-    "refresh")
-        if [ ! -f /data/wireguard/publickey ]; then
-            mkdir -p /data/wireguard
-            wg genkey | tee /data/wireguard/privatekey | wg pubkey > /data/wireguard/publickey
+refresh_node() {
+    if ! [[ "${WORKSPACE_NODE:-}" =~ ^[0-9]+$ ]] || [ "$WORKSPACE_NODE" -gt 15 ]; then
+        echo "Error: WORKSPACE_NODE must be an integer from 0 through 15" >&2
+        exit 1
+    fi
+
+    umask 077
+    install -d -m 700 /data/wireguard
+    if [ ! -f /data/wireguard/privatekey ]; then
+        wg genkey > /data/wireguard/privatekey
+    fi
+    if [ ! -f /data/wireguard/publickey ]; then
+        wg pubkey < /data/wireguard/privatekey > /data/wireguard/publickey
+    fi
+
+    private_key="$(< /data/wireguard/privatekey)"
+    node_ip="192.168.42.$((WORKSPACE_NODE + 1))"
+    config_path=/data/wireguard/wg0.conf
+    config_temp="$(mktemp /data/wireguard/.wg0.conf.XXXXXX)"
+    trap 'rm -f "$config_temp"' EXIT
+
+    if [ "$WORKSPACE_NODE" -eq 0 ]; then
+        printf '%s\n' \
+            '[Interface]' \
+            "PrivateKey = $private_key" \
+            "Address = $node_ip/24" \
+            'ListenPort = 51820' > "$config_temp"
+
+        if [ ! -f /data/workspace_nodes.json ]; then
+            printf '{}\n' > /data/workspace_nodes.json
         fi
+        chmod 644 /data/workspace_nodes.json
 
-        touch /data/wireguard/wg0.conf
-        chmod 600 /data/wireguard/wg0.conf
-
-        private_key=$(cat /data/wireguard/privatekey)
-        node_ip="192.168.42.$((WORKSPACE_NODE + 1))"
-
-        if [ "${WORKSPACE_NODE}" -eq 0 ]; then
-            printf "%s\n" \
-            "[Interface]" \
-            "PrivateKey = $private_key" \
-            "Address = $node_ip/24" \
-            "ListenPort = 51820" > /data/wireguard/wg0.conf
-
-            if [ ! -f /data/workspace_nodes.json ]; then
-                echo '{}' > /data/workspace_nodes.json
+        while IFS=$'\t' read -r peer_node peer_key; do
+            if ! [[ "$peer_node" =~ ^[1-9][0-9]*$ ]] || [ "$peer_node" -gt 15 ]; then
+                echo "Error: workspace node ID $peer_node is outside the supported range 1 through 15" >&2
+                exit 1
             fi
-
-            for node in $(jq -r 'keys[]' /data/workspace_nodes.json); do
-                node_key=$(jq -r '.["'$node'"]' /data/workspace_nodes.json)
-                node_ip="192.168.42.$((node + 1))"
-                node_subnet="10.$((node * 16)).0.0/12"
-                printf "%s\n" \
-                "" \
-                "[Peer]" \
-                "PublicKey = $node_key" \
-                "AllowedIPs = $node_ip/32, $node_subnet" >> /data/wireguard/wg0.conf
-            done
-
-        else
-            printf "%s\n" \
-            "[Interface]" \
+            peer_ip="192.168.42.$((peer_node + 1))"
+            peer_subnet="10.$((peer_node * 16)).0.0/12"
+            printf '%s\n' \
+                '' \
+                '[Peer]' \
+                "PublicKey = $peer_key" \
+                "AllowedIPs = $peer_ip/32, $peer_subnet" >> "$config_temp"
+        done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' /data/workspace_nodes.json)
+    else
+        if [ -z "${WORKSPACE_KEY:-}" ]; then
+            echo 'Error: WORKSPACE_KEY must be configured on workspace nodes' >&2
+            exit 1
+        fi
+        printf '%s\n' \
+            '[Interface]' \
             "PrivateKey = $private_key" \
             "Address = $node_ip/24" \
-            "" \
-            "[Peer]" \
+            '' \
+            '[Peer]' \
             "PublicKey = $WORKSPACE_KEY" \
             "Endpoint = $DOJO_HOST:51820" \
-            "AllowedIPs = 192.168.42.1/32, 10.0.0.0/12" \
-            "PersistentKeepalive = 25" > /data/wireguard/wg0.conf
+            'AllowedIPs = 192.168.42.1/32, 10.0.0.0/12' \
+            'PersistentKeepalive = 25' > "$config_temp"
+    fi
 
-            jq '.hosts |= (. + ["tcp://'$node_ip':2375"] | unique)' /etc/docker/daemon.json > /etc/docker/daemon.json.tmp
-            mv /etc/docker/daemon.json.tmp /etc/docker/daemon.json
-        fi
+    chmod 600 "$config_temp"
+    mv -f "$config_temp" "$config_path"
+    trap - EXIT
+    wg-quick down "$config_path" >/dev/null 2>&1 || true
+    wg-quick up "$config_path"
+}
 
-        wg-quick down /data/wireguard/wg0.conf || true
-        wg-quick up /data/wireguard/wg0.conf
+restart_topology_consumers() {
+    systemctl restart \
+        dojo-ctfd.service \
+        dojo-stats-worker.service \
+        dojo-image-pull-worker.service
+    dojo wait
+}
+
+case "$action" in
+    refresh)
+        refresh_node
         ;;
 
-    # HELP: show: show dojo node information
-    "show")
-        printf "DOJO_HOST: %s\n" "$DOJO_HOST"
-        printf "WORKSPACE_NODE: %d\n" "$WORKSPACE_NODE"
-        printf "WORKSPACE_HOST: %s\n" "$WORKSPACE_HOST"
-        printf "WORKSPACE_SECRET: %s\n" "$WORKSPACE_SECRET"
-        printf "WORKSPACE_KEY: %s\n\n" "${WORKSPACE_KEY:-$(cat /data/wireguard/publickey)}"
+    show)
+        printf 'DOJO_HOST: %s\n' "$DOJO_HOST"
+        printf 'WORKSPACE_NODE: %d\n' "$WORKSPACE_NODE"
+        printf 'WORKSPACE_HOST: %s\n' "$WORKSPACE_HOST"
+        printf 'WORKSPACE_SECRET: %s\n' "$WORKSPACE_SECRET"
+        printf 'WORKSPACE_KEY: %s\n\n' "${WORKSPACE_KEY:-$(< /data/wireguard/publickey)}"
         wg show wg0
         ;;
 
-    # HELP: add NODE_ID NODE_KEY: add a node to the dojo
-    "add")
-        if [ "${WORKSPACE_NODE}" -ne 0 ]; then
-            echo "Error: only the main dojo node can add nodes"
+    add)
+        if [ "$WORKSPACE_NODE" -ne 0 ]; then
+            echo 'Error: only the main dojo node can add nodes' >&2
             exit 1
         fi
-        if [ -n "$1" ] && [ -n "$2" ]; then
-            jq ".[\"$1\"] = \"$2\"" /data/workspace_nodes.json > /data/workspace_nodes.json.tmp
-            mv /data/workspace_nodes.json.tmp /data/workspace_nodes.json
-            dojo-node refresh
-        else
-            echo "Usage: $0 add NODE_ID NODE_KEY"
-        fi
-        ;;
-
-    # HELP: del NODE_ID: remove a node from the dojo
-    "del")
-        if [ "${WORKSPACE_NODE}" -ne 0 ]; then
-            echo "Error: only the main dojo node can delete nodes"
+        if [ "$#" -ne 2 ]; then
+            echo "Usage: $0 add NODE_ID NODE_KEY" >&2
             exit 1
         fi
-        if [ -n "$1" ]; then
-            jq "del(.\"$1\")" /data/workspace_nodes.json > /data/workspace_nodes.json.tmp
-            mv /data/workspace_nodes.json.tmp /data/workspace_nodes.json
-            dojo-node refresh
-        else
-            echo "Usage: $0 del NODE_ID"
+        node_id="$1"
+        node_key="$2"
+        if ! [[ "$node_id" =~ ^[1-9][0-9]*$ ]] || [ "$node_id" -gt 15 ]; then
+            echo 'Error: NODE_ID must be an integer from 1 through 15' >&2
+            exit 1
         fi
+        nodes_temp="$(mktemp /data/.workspace_nodes.json.XXXXXX)"
+        trap 'rm -f "$nodes_temp"' EXIT
+        jq --arg node_id "$node_id" --arg node_key "$node_key" \
+            '.[$node_id] = $node_key' \
+            /data/workspace_nodes.json > "$nodes_temp"
+        chmod 644 "$nodes_temp"
+        mv -f "$nodes_temp" /data/workspace_nodes.json
+        trap - EXIT
+        refresh_node
+        systemctl stop dojo-dojofs.service
+        restart_topology_consumers
         ;;
 
-    # HELP: help: displays this help
-    "help")
-        echo "Usage: $0 COMMAND [ ARG ]"
-        echo
-        echo "COMMANDS:"
-        echo
-        cat "$0" | grep "[H]ELP" | sed -e "s/.*H[E]LP: /\t/"
+    del)
+        if [ "$WORKSPACE_NODE" -ne 0 ]; then
+            echo 'Error: only the main dojo node can delete nodes' >&2
+            exit 1
+        fi
+        if [ "$#" -ne 1 ]; then
+            echo "Usage: $0 del NODE_ID" >&2
+            exit 1
+        fi
+        node_id="$1"
+        if ! [[ "$node_id" =~ ^[1-9][0-9]*$ ]] || [ "$node_id" -gt 15 ]; then
+            echo 'Error: NODE_ID must be an integer from 1 through 15' >&2
+            exit 1
+        fi
+        nodes_temp="$(mktemp /data/.workspace_nodes.json.XXXXXX)"
+        trap 'rm -f "$nodes_temp"' EXIT
+        jq --arg node_id "$node_id" 'del(.[$node_id])' /data/workspace_nodes.json > "$nodes_temp"
+        chmod 644 "$nodes_temp"
+        mv -f "$nodes_temp" /data/workspace_nodes.json
+        trap - EXIT
+        refresh_node
+        if [ "$(jq length /data/workspace_nodes.json)" -eq 0 ]; then
+            systemctl start dojo-dojofs.service
+        fi
+        restart_topology_consumers
+        ;;
+
+    help)
+        cat <<EOF
+Usage: $0 COMMAND [ ARG ... ]
+
+COMMANDS:
+
+    refresh: refresh dojo node information and WireGuard configuration
+    show: show dojo node information
+    add NODE_ID NODE_KEY: add a workspace node
+    del NODE_ID: remove a workspace node
+    help: display this help
+EOF
         ;;
 
     *)
-        echo "Unknown command."
-        echo ""
-        "$0" help
+        echo "Unknown command: $action" >&2
+        echo >&2
+        "$0" help >&2
         exit 1
         ;;
 esac

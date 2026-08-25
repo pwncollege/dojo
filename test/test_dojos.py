@@ -49,7 +49,7 @@ def test_dojo_files_reject_path_traversal(admin_session):
     suffix = "".join(random.choices(string.ascii_lowercase, k=8))
     dojo_id = f"file-path-{suffix}"
     target = f"/tmp/{dojo_id}"
-    assert dojo_run("docker", "exec", "ctfd", "test", "!", "-e", target, check=False).returncode == 0
+    assert dojo_run("test", "!", "-e", target, check=False).returncode == 0
     response = admin_session.post(
         f"{DOJO_URL}/pwncollege_api/v1/dojos/create",
         json={"spec": yaml.safe_dump({
@@ -61,8 +61,8 @@ def test_dojo_files_reject_path_traversal(admin_session):
             }],
         })},
     )
-    target_missing = dojo_run("docker", "exec", "ctfd", "test", "!", "-e", target, check=False).returncode == 0
-    dojo_run("docker", "exec", "ctfd", "rm", "-f", target, check=False)
+    target_missing = dojo_run("test", "!", "-e", target, check=False).returncode == 0
+    dojo_run("rm", "-f", target, check=False)
 
     assert response.status_code == 400
     assert target_missing

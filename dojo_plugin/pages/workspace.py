@@ -107,11 +107,11 @@ def render_workspace(*, service=None, port=None):
         initial_service=initial_service,
     )
 
-def forward_workspace(service, message, service_path="", include_host=True, **kwargs):
+def forward_workspace(service, message, service_path="", include_host=True, user=None, **kwargs):
     if service.count("~") == 0:
         service_name = service
         try:
-            user = get_current_user()
+            user = user or get_current_user()
             port = int(port_names.get(service_name, service_name))
         except ValueError:
             abort(404)
@@ -172,13 +172,17 @@ def forward_port(port, message, user, service_path="", include_host=True, **kwar
         abort(500)
         return
 
+    container_id, separator, target_host = message.partition(":")
+    target = f"{container_id}@{user_ipv4(user)}"
+    if separator:
+        target = f"{target}:{target_host}"
     digest = hmac.new(
         WORKSPACE_SECRET.encode(),
-        f"{message}:{port}".encode(),
+        f"{target}:{port}".encode(),
         hashlib.sha256,
     ).digest()
     signature = base64.urlsafe_b64encode(digest).decode()
-    url = f"/workspace/{message}/{signature}/{port}/{service_path}"
+    url = f"/workspace/{target}/{signature}/{port}/{service_path}"
 
     scheme = request.scheme if request else "http"
 

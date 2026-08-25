@@ -6,18 +6,19 @@ This file provides guidance to AI agents when working with code in this reposito
 
 The pwn.college DOJO is a cybersecurity education platform built as a comprehensive CTFd plugin.
 It provides isolated Docker-based workspace environments for hands-on security challenges.
-The DOJO runs in a docker-in-docker setting, with the "outer" container using docker-compose to spin up "inner" containers running infrastructure components.
+The outer container is a NixOS system whose infrastructure runs as native systemd services.
+Its inner Docker daemon manages learner challenge containers.
 
 ## Common Development Commands
 
 ### Quick Development Setup
 
 ```bash
-# Start up the dojo
-./deploy.sh
+# Build the NixOS image and start the dojo
+./deploy.sh -b
 
-# (Re)start the dojo, and run all testcases
-./deploy.sh -t
+# Rebuild, restart, and run all testcases
+./deploy.sh -b -t
 
 # Run the testcases (without restarting the dojo)
 ./deploy.sh -N -t
@@ -25,18 +26,16 @@ The DOJO runs in a docker-in-docker setting, with the "outer" container using do
 # Get container details
 DOJO_CONTAINER=$(basename "$PWD")
 
-# access the web instance
+# Access the web instance
 DOJO_IP=$(docker inspect "$DOJO_CONTAINER" | jq -r '.[0].NetworkSettings.Networks.bridge.IPAddress')
-curl "http://$DOJO_URL"
+curl "http://$DOJO_IP"
 
-# get CTFd logs
-docker exec "$DOJO_CONTAINER" docker logs ctfd
+# Get CTFd logs
+docker exec "$DOJO_CONTAINER" journalctl -b -u dojo-ctfd
 
-# interact with docker-compose with the correct settings
-docker exec "$DOJO_CONTAINER" dojo compose ps
-
-# interact with docker-compose with the correct settings
-docker exec "$DOJO_CONTAINER" dojo compose ps
+# Inspect native services
+docker exec "$DOJO_CONTAINER" systemctl status dojo.target
+docker exec "$DOJO_CONTAINER" systemctl --failed
 
 # run DB queries against DOJO's postgresql database
 docker exec -i "$DOJO_CONTAINER" dojo db
@@ -47,28 +46,28 @@ docker exec -i "$DOJO_CONTAINER" dojo flask
 # enter a learner's container (must be started first via a testcase or the web interface)
 docker exec -i "$DOJO_CONTAINER" dojo enter USER_ID
 
-# run an inidividual testcase (needs docker socket)
-docker run -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/opt/pwn.college -e "DOJO_CONTAINER=dojo" dojo-test pytest -v /opt/pwn.college/test/test_dojos.py::test_create_dojo
+# Run an individual testcase (needs docker socket)
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/opt/pwn.college" -e "DOJO_CONTAINER=dojo" dojo-test pytest -v /opt/pwn.college/test/test_dojos.py::test_create_dojo
 ```
 
 ### Troubleshooting
 
-Container start failures show up in the ctfd container logs.
+Container start failures appear in the outer container's journal. Start with `systemctl --failed` and the logs for the failed unit.
 
 ### Testing
 
 ```bash
-# Restart the dojo and run all tests
-./deploy.sh -t
+# Rebuild, restart, and run all tests
+./deploy.sh -b -t
 
 # Run the testcases again (without restarting the dojo)
 ./deploy.sh -N -t
 
-# Run tests without using docker or workspace cache
-./deploy.sh -D "" -W "" -t
+# Run tests without using Docker or workspace cache
+./deploy.sh -b -D "" -W "" -t
 
 # Run an individual testcase (needs docker socket)
-docker run -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/opt/pwn.college -e "DOJO_CONTAINER=dojo" dojo-test pytest -v /opt/pwn.college/test/test_dojos.py::test_create_dojo
+docker run -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/opt/pwn.college" -e "DOJO_CONTAINER=dojo" dojo-test pytest -v /opt/pwn.college/test/test_dojos.py::test_create_dojo
 ```
 
 **Test Script Options:**
@@ -76,20 +75,23 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/opt/pwn.college
 - `-c CONTAINER_NAME`: Custom container name (default: <dirname>)
 - `-D DOCKER_DIR`: Persistent Docker directory (avoids rebuilds)
 - `-W WORKSPACE_DIR`: Persistent workspace directory (avoids rebuilds)
-- `-T`: Skip running tests (only setup environment)
 - `-N`: Skip startup (just run tests)
+- `-K`: Clean up outer containers and exit
 - `-p`: Export ports (80->80, 443->443, 22->2222)
 - `-e ENV_VAR=value`: Set environment variables
-- `-b`: Build Docker image locally
+- `-b`: Build and import the NixOS outer image locally
+- `-M`: Run a main node and two workspace nodes
+- `-C`: Collect CTFd coverage when running tests
 
 
 ## High-Level Architecture
 
 ### Nested Docker Architecture
-The system uses a sophisticated nested Docker setup:
-- Outer container runs all infrastructure (CTFd, database, nginx, etc.)
-- Inner Docker-in-Docker daemon manages isolated user workspace containers
-- This provides strong security isolation between infrastructure and user environments
+The system uses a nested Docker setup:
+
+- The privileged NixOS outer container runs infrastructure as systemd services.
+- The inner Docker daemon manages isolated learner workspaces.
+- `dojo.target` groups runtime services and `dojo-ready.target` represents readiness.
 
 ### Key Components
 
@@ -109,8 +111,12 @@ The system uses a sophisticated nested Docker setup:
    - User container configuration
    - Security tools and development environment
 
-4. **SSH Service** (`/sshd/`)
-   - Custom SSH daemon for user access
+4. **NixOS Runtime** (`/nix/`)
+   - Native service, package, filesystem, and image definitions
+   - Builds the `.#dojo-image` flake output
+
+5. **SSH Service** (`/sshd/`)
+   - Authentication and workspace entry logic for OpenSSH
    - Authenticates against database
    - Executes into user containers
 
@@ -124,16 +130,9 @@ Inside the "outer" component:
 - `/data/workspace/nix/` - Nix store for tools
 - `/data/postgres/` - Database files
 
-### Container Services
-The docker-compose.yml defines these services:
-- `db` - PostgreSQL database
-- `cache` - Redis cache
-- `ctfd` - Main CTFd application
-- `nginx` - Reverse proxy with SSL
-- `sshd` - SSH access service
-- `homefs` - Home directory management
-- `workspacefs` - Workspace filesystem overlay
-- Monitoring stack (Prometheus, Grafana, Splunk)
+### Native Services
+
+The NixOS modules define PostgreSQL, Redis, CTFd, background workers, nginx, OpenSSH, homefs, dojofs, the frontend, and the workspace builder. Use `systemctl` and `journalctl` inside the outer container to inspect them.
 
 ### Security Model
 - Challenges run as setuid binaries
@@ -151,8 +150,8 @@ The docker-compose.yml defines these services:
 ## Adding Configuration
 
 To add a new configuration entry:
-1. Add default in `dojo/dojo-init`
-2. Propagate to containers in `docker-compose.sh`
+1. Add the default and allowlisted name in `dojo/dojo-config`
+2. Expose it to the affected service in the NixOS modules under `nix/`
 3. Load as global in `dojo_plugin/config.py`
 4. Import where needed
 
@@ -163,7 +162,7 @@ The project uses pytest with fixtures for:
 - Dojo creation and loading
 - Challenge interaction testing
 
-Run tests with `./deploy.sh -t` which handles container setup and cleanup.
+Run tests with `./deploy.sh -b -t`, which rebuilds the outer image and handles container setup and cleanup.
 Tests are in `test/test_*.py`, implemented as module-level `test_*` functions, not classes.
 
 ## Coding Standards

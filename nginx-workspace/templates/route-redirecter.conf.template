@@ -2,7 +2,51 @@ server {
     server_name _;
     listen 8888;
 
-    location ~ ^/workspace/(?P<container_id>[^/]+):(?P<target_host>[^/]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
-        return 307 $http_x_forwarded_proto://$WORKSPACE_HOST/workspace/$container_id:$target_host/$sig/$port/$path$is_args$args;
+    location ~ ^/workspace/(?P<container_id>[^/@:]+)@(?P<container_ip>10\.[0-9]+\.[0-9]+\.[0-9]+):(?P<target_host>192\.168\.42\.[0-9]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
+        secure_link_hmac "$sig";
+        secure_link_hmac_secret "$WORKSPACE_SECRET";
+        secure_link_hmac_message "$container_id@$container_ip:$target_host:$port";
+        secure_link_hmac_algorithm sha256;
+
+        if ($secure_link_hmac != "1") {
+            error_page 404 = @workspace_not_found;
+            return 404;
+        }
+
+        auth_request /_dojo_workspace_authorize;
+        error_page 403 = @workspace_not_found;
+
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $http_x_real_ip;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+
+        proxy_intercept_errors on;
+        error_page 502 = @workspace_not_found;
+
+        proxy_pass http://$container_ip:$port/$path$is_args$args;
+    }
+
+    location = /_dojo_workspace_authorize {
+        internal;
+        proxy_pass http://127.0.0.1:4202;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header X-Dojo-Workspace-URI $request_uri;
+    }
+
+    location @workspace_not_found {
+        internal;
+        default_type text/plain;
+        add_header Content-Type text/plain;
+        return 404 "Workspace not found\n";
     }
 }

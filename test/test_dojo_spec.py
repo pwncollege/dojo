@@ -15,6 +15,7 @@ from utils import (
     get_user_id,
     login,
     make_dojo_official,
+    redis_cli,
     solve_challenge_offline,
     wait_for_background_worker,
 )
@@ -113,7 +114,7 @@ def request_container(session, dojo, module, challenge, practice=False):
 
 
 def ctfd_path_exists(path):
-    return dojo_run("docker", "exec", "ctfd", "test", "-e", path, check=False).returncode == 0
+    return dojo_run("test", "-e", path, check=False).returncode == 0
 
 
 @pytest.fixture(scope="module")
@@ -1103,8 +1104,7 @@ def test_pages_directory_serves_per_user_then_default_markdown(admin_session, sp
     assert response.status_code == 200 and "DEFAULT_NOTES" in response.text
 
     hex_id = dojo.split("~")[1]
-    dojo_run("docker", "exec", "ctfd", "bash", "-c",
-             f"echo USER_NOTES > /var/dojos/{hex_id}/notes/{get_user_id(name)}.md")
+    dojo_run("bash", "-c", f"echo USER_NOTES > /var/dojos/{hex_id}/notes/{get_user_id(name)}.md")
 
     response = session.get(f"{DOJO_URL}/{dojo}/notes")
     assert response.status_code == 200 and "USER_NOTES" in response.text, \
@@ -1291,9 +1291,10 @@ def test_challenge_import_without_id(admin_session, example_dojo):
 
 def test_spec_creation_requires_admin(admin_session, spec_user):
     _, session = spec_user
-    for key in dojo_run("docker", "exec", "cache", "redis-cli", "--scan",
-                        "--pattern", "flask_cache_rl:*:pwncollege_api.dojos_create_dojo").stdout.split():
-        dojo_run("docker", "exec", "cache", "redis-cli", "DEL", key)
+    for key in redis_cli(
+        "--scan", "--pattern", "flask_cache_rl:*:pwncollege_api.dojos_create_dojo"
+    ).stdout.split():
+        redis_cli("DEL", key)
 
     dojo_id = spec_id("nonadmin")
     response = post_spec(session, {"id": dojo_id})

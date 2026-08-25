@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [ -f /run/dojo/config.env ]; then
+    . /run/dojo/config.env
+else
+    . /data/config.env
+fi
+
+dojo-node refresh
+
+if ! docker network inspect workspace_net >/dev/null 2>&1; then
+    docker network create \
+        --driver bridge \
+        --subnet 10.0.0.0/8 \
+        --opt com.docker.network.bridge.name=workspace_net \
+        workspace_net >/dev/null
+fi
+
+iptables -w -N WORKSPACE-NET 2>/dev/null || true
+iptables -w -F WORKSPACE-NET
+iptables -w -A WORKSPACE-NET -s 10.0.0.0/24 -m conntrack --ctstate NEW -j RETURN
+iptables -w -A WORKSPACE-NET -s 192.168.42.0/24 -m conntrack --ctstate NEW -j RETURN
+iptables -w -A WORKSPACE-NET -d 192.168.42.1 -p tcp --dport 80 -m conntrack --ctstate NEW -j ACCEPT
+iptables -w -A WORKSPACE-NET -d 192.168.42.1 -p tcp --dport 443 -m conntrack --ctstate NEW -j ACCEPT
+iptables -w -A WORKSPACE-NET -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+
+if [ "${DOJO_OFFLINE:-false}" != true ]; then
+    while IFS= read -r allowed_host; do
+        [ -n "$allowed_host" ] || continue
+        while IFS= read -r allowed_address; do
+            iptables -w -A WORKSPACE-NET -d "$allowed_address" -j RETURN
+        done < <(getent ahostsv4 "$allowed_host" | awk '{print $1}' | sort -u)
+    done < "${DOJO_USER_FIREWALL_FILE:-/var/user_firewall.allowed}"
+fi
+
+iptables -w -A WORKSPACE-NET -j DROP
+iptables -w -N DOCKER-USER 2>/dev/null || true
+
+iptables -w -C DOCKER-USER -i workspace_net -j WORKSPACE-NET 2>/dev/null || \
+    iptables -w -I DOCKER-USER 1 -i workspace_net -j WORKSPACE-NET
+iptables -w -C DOCKER-USER -o workspace_net -j WORKSPACE-NET 2>/dev/null || \
+    iptables -w -I DOCKER-USER 2 -o workspace_net -j WORKSPACE-NET
+iptables -w -C DOCKER-USER -i docker0 -d 192.168.42.0/24 -j WORKSPACE-NET 2>/dev/null || \
+    iptables -w -I DOCKER-USER 3 -i docker0 -d 192.168.42.0/24 -j WORKSPACE-NET
+iptables -w -C INPUT -i workspace_net -j WORKSPACE-NET 2>/dev/null || \
+    iptables -w -A INPUT -i workspace_net -j WORKSPACE-NET
+iptables -w -C INPUT -i docker0 -j WORKSPACE-NET 2>/dev/null || \
+    iptables -w -A INPUT -i docker0 -j WORKSPACE-NET
+iptables -w -C OUTPUT -o workspace_net -j WORKSPACE-NET 2>/dev/null || \
+    iptables -w -A OUTPUT -o workspace_net -j WORKSPACE-NET

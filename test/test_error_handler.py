@@ -1,6 +1,9 @@
-import pytest
 import requests
-from utils import login, DOJO_URL, dojo_run
+from utils import DOJO_URL, journalctl
+
+
+def ctfd_logs():
+    return journalctl("dojo-ctfd", "--since", "-10m", "--lines", "100").stdout
 
 
 def test_api_error_handler_logs_anonymous_user_context():
@@ -12,8 +15,7 @@ def test_api_error_handler_logs_authenticated_user_context(random_user_session):
     response = random_user_session.get(f"{DOJO_URL}/pwncollege_api/v1/test_error")
     assert response.status_code == 500
 
-    result = dojo_run("sh", "-c", "docker logs --since 10m ctfd 2>&1 | tail -100")
-    logs = result.stdout
+    logs = ctfd_logs()
     assert "API_EXCEPTION" in logs
     assert "error_type='Exception'" in logs
     assert "Test error: This is a deliberate test of the error handler!" in logs
@@ -31,7 +33,7 @@ def test_api_error_handler_captures_request_data(random_user_session):
 
     assert response.status_code == 500
 
-    logs = dojo_run("sh", "-c", "docker logs --since 10m ctfd 2>&1 | tail -100").stdout
+    logs = ctfd_logs()
     assert "API_EXCEPTION" in logs
     assert "method='POST'" in logs
     assert "query_params=" in logs
@@ -48,7 +50,7 @@ def test_api_error_handler_captures_user_agent(random_user_session):
 
     assert response.status_code == 500
 
-    logs = dojo_run("sh", "-c", "docker logs --since 10m ctfd 2>&1 | tail -100").stdout
+    logs = ctfd_logs()
     assert "API_EXCEPTION" in logs
     assert "user_agent=" in logs
 
@@ -65,7 +67,7 @@ def test_api_error_handler_with_admin_user(admin_session):
 
     assert response.status_code == 500
 
-    logs = dojo_run("sh", "-c", "docker logs --since 10m ctfd 2>&1 | tail -100").stdout
+    logs = ctfd_logs()
     assert "API_EXCEPTION" in logs
     assert "user_id=1" in logs
 
@@ -80,7 +82,7 @@ def test_page_error_handler_logs_authenticated_user_context(random_user_session)
 
     assert response.status_code == 500
 
-    logs = dojo_run("sh", "-c", "docker logs --since 10m ctfd 2>&1 | tail -100").stdout
+    logs = ctfd_logs()
     assert "PAGE_EXCEPTION" in logs
     assert "event='page_exception'" in logs
     assert "error_type='Exception'" in logs
@@ -100,7 +102,7 @@ def test_page_error_handler_captures_post_data(random_user_session):
 
     assert response.status_code == 500
 
-    logs = dojo_run("sh", "-c", "docker logs --since 10m ctfd 2>&1 | tail -100").stdout
+    logs = ctfd_logs()
     assert "PAGE_EXCEPTION" in logs
     assert "form_data=" in logs
     assert "field1" in logs
@@ -112,7 +114,7 @@ def test_page_error_handler_with_admin_user(admin_session):
 
     assert response.status_code == 500
 
-    logs = dojo_run("sh", "-c", "docker logs --since 10m ctfd 2>&1 | tail -100").stdout
+    logs = ctfd_logs()
     assert "PAGE_EXCEPTION" in logs
     assert "user_id=1" in logs
 
@@ -121,5 +123,6 @@ def test_page_404_errors_not_logged():
     response = requests.get(f"{DOJO_URL}/this_page_does_not_exist")
     assert response.status_code == 404
 
-    logs = dojo_run("sh", "-c", "docker logs --since 10m ctfd 2>&1 | grep PAGE_EXCEPTION | grep this_page_does_not_exist || echo 'not found'").stdout
-    assert "not found" in logs
+    logs = ctfd_logs()
+    assert not any("PAGE_EXCEPTION" in line and "this_page_does_not_exist" in line
+                   for line in logs.splitlines())

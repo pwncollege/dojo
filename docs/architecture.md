@@ -1,199 +1,128 @@
 # DOJO Architecture
 
-We created the pwn.college DOJO specifically to facilitate hands-on cybersecurity education.
-DOJO adopts principles from the realm of Capture The Flag competitions, wherein learners are tasked with solving challenges and obtaining flags as evidence of their newfound skills.
-Instead of imposing the onus of environment setup on learners, DOJO offers a pre-configured environment, available through browsers or SSH and allowing students to dive into hands-on cybersecurity challenges instantly.
-In contrast to existing platforms, our primary focus is to allow students to execute _every step_---discovery, implementation, and debugging---of even the most advanced and technical challenges directly within the DOJO environment.
+The pwn.college DOJO provides hands-on cybersecurity challenges without requiring learners to configure local environments. It extends [CTFd](https://github.com/CTFd/CTFd) with browser and SSH workspaces, challenge lifecycle management, persistent homes, and instructor-facing course features.
 
-Of course, this all means that the DOJO is insanely complex, despite only comprising about 5,000 lines of actual code.
-This document is an attempt to clarify this complexity and enable new admins or contributors to get up to speed quickly.
+Learner workspaces are isolated Docker containers. A workspace starts when a learner begins a challenge and stops when the learner is finished or its timeout expires. Browser services such as VSCode and the desktop run inside that workspace, while a standard suite of security tools is mounted into every challenge environment.
 
-## High Level Overview
+The challenge objective is always to capture a flag. The learner runs as `hacker` (UID 1000), while `/flag` is readable only by `root` (UID 0). A root-owned setuid challenge program can read the flag, and the learner must satisfy or exploit that program to obtain it.
 
-Roughly speaking, it is implemented as a "plugin" to the popular [CTFd](https://github.com/CTFd/CTFd) platform.
-CTFd provides for a concept of users, challenges, and users solving those challenges by submitting flags.
-The DOJO extends upon this by providing a way for instructors to create challenges, which students may then work on solving within a browser-based workspace environment.
+## Infrastructure Layout
 
-These workspace environments are isolated from one another, and implemented as Docker containers (significantly more performant than deploying VMs).
-The workspace starts when a student begins working on a challenge, and stops when the student is finished (or after a timeout).
-It automatically spawns several services, including a VSCode instance, and desktop environment---both accessible within the browser via internal nginx redirects.
-Alternatively, students may choose to connect to the workspace via SSH after providing an SSH public key in their profile settings.
-Their home directory is persisted across workspace instances, allowing students to save their work and return to it later.
-The workspace may also situationally start a virtual machine, if the challenge requires it (e.g., for kernel exploitation), or configure custom networking (e.g., for network exploitation).
-Additionally, the workspace comes with a suite of tools pre-installed, including debuggers, disassemblers, and exploit development tools.
+The repository's root flake builds a NixOS root filesystem archive through the `.#dojo-image` output. The archive is imported as a Docker image with `/init` as its command. That produces a privileged outer container with systemd as PID 1.
 
-The challenge objective is always to *capture the flag*.
-More specifically, the learner runs as the `hacker` user (UID 1000), and there is a flag file located at `/flag`, which is only readable by the `root` user (UID 0).
-The challenge program runs as a root-owned setuid binary, and so it has the ability to read the flag.
-The learner must then either satisfy some challenge requirements, or otherwise exploit the challenge program in order to *capture the flag*.
+Infrastructure processes run as native NixOS services inside the outer container. The Docker daemon inside that container is reserved for learner challenge and workspace containers.
 
-## Infrastructure Containerization
-
-The DOJO components are managed by docker compose, configured [here](https://github.com/pwncollege/dojo/blob/master/docker-compose.yml).
-Admins could conceivably launch this on a bare host, but we run our entire infra inside a docker container, defined [here](https://github.com/pwncollege/dojo/blob/master/Dockerfile).
-We call this docker container the "outer docker".
-Conceptually, this looks like:
-
-```
------------------------------------------------------
-| The DOJO host                                     |
-|                                                   |
-|    - "Outer" Docker Daemon -                      |
-|   /                         \                     |
-|   ---------------------------------------------   |
-|   | The "Outer Docker"                        |   |
-|   |                                           |   |
-|   |   Docker Compose                          |   |
-|   |        |                                  |   |
-|   |    - "Inner" Docker-in-Docker Daemon -    |   |
-|   |   /                                  /    |   |
-|   |   --------------------------------  /     |   |
-|   |   |                              | /      |   |
-|   |   |   ------------------------   |        |   |
-|   |   |   | DOJO infra container |   |        |   |
-|   |   |   ------------------------   |        |   |
-|   |   |                              |        |   |
-|   |   |   ------------------------   |        |   |
-|   |   |   | DOJO infra container |   |        |   |
-|   |   |   ------------------------   |        |   |
-|   |   |                              |        |   |
-|   |   |   ------------------------   |        |   |
-|   |   |   | DOJO user container  |   |        |   |
-|   |   |   ------------------------   |        |   |
-|   |   |                              |        |   |
-|   |   |   ------------------------   |        |   |
-|   |   |   | DOJO infra container |   |        |   |
-|   |   |   ------------------------   |        |   |
-|   |   |                              |        |   |
-|   |   --------------------------------        |   |
-|   |                                           |   |
-|   ---------------------------------------------   |
-|                                                   |
------------------------------------------------------
+```text
+DOJO host
+└── Host Docker daemon
+    └── Privileged NixOS outer container
+        ├── systemd
+        │   ├── CTFd and background workers
+        │   ├── PostgreSQL, PgBouncer, and Redis
+        │   ├── nginx and OpenSSH
+        │   ├── homefs and dojofs
+        │   └── workspace and frontend builders
+        └── Inner Docker daemon
+            └── Learner challenge containers
 ```
 
-## DOJO Scripts
+The outer container remains a useful deployment boundary: the host only needs Docker and Nix to build it, while NixOS defines the complete runtime and service dependencies. Privileged mode is required for the inner Docker daemon, shared mounts, network setup, and filesystem services.
 
-The dojo has a few scripts to help manage things:
+## Native Services
 
-- [dojo-init](https://github.com/pwncollege/dojo/blob/master/dojo/dojo-init) initializes the host and prepares it to run the dojo.
-- [dojo](https://github.com/pwncollege/dojo/tree/master/dojo/dojo) provides functionality for admins to interact with the database (both in Python and via the DB client directly), user containers, and the dojo containers themselves.
-- [dojo-node](https://github.com/pwncollege/dojo/blob/master/dojo/dojo-node) manages the dojo host's connection to its user hosting nodes. This is likely only used in the main https://pwn.college deployment.
+The NixOS modules under [`nix/`](../nix) declare the infrastructure. The principal units are:
 
-## DOJO Startup
+- `dojo-ctfd.service`
+- `dojo-nginx.service`
+- `sshd.service`
+- `dojo-stats-worker.service`
+- `dojo-image-pull-worker.service`
+- `dojo-homefs.service`
+- `dojo-dojofs.service`
+- `dojo-frontend.service`
+- `dojo-workspace-builder.service`
 
-The outer docker initializes its environment with `dojo-init` and then runs `systemd`, which eventually calls `dojo up`.
-A few [other systemd services](https://github.com/pwncollege/dojo/tree/master/etc/systemd/system) also exist:
+`dojo.target` groups the runtime services. `dojo-ready.target` represents a fully initialized node, and `dojo wait` is the supported readiness interface for deployment and tests.
 
-- An hourly backup that dumps the dojo's main database into `/data/backups`.
-- A service that syncs backups to the cloud.
-- A service that runs every minute to refresh various redis caches to keep the front-end zippy.
-- A service that runs every minute to refresh challenge containers on all dojo nodes.
+## Administrative Commands
 
-## DOJO Configuration
+The repository provides three primary command interfaces:
 
-Most of the configuration of the DOJO lives in two files:
+- [`dojo-config`](../dojo/dojo-config) creates persistent and runtime configuration.
+- [`dojo`](../dojo/dojo) provides database, Flask, workspace, backup, restore, log, and readiness operations.
+- [`dojo-node`](../dojo/dojo-node) configures WireGuard relationships between the main node and workspace nodes.
 
-### `/data/config.env`
+Systemd starts initialization and the units required by the node's role. Timers handle periodic work such as database backups, cache refreshes, and challenge-container maintenance.
 
-This file is created in [dojo-init](https://github.com/pwncollege/dojo/blob/master/dojo/dojo-init#L30) if it does not already exist.
-It controls a lot of different options.
+## Configuration and Data
 
-### `/data/workspace_nodes.json`
+Persistent state is mounted at `/data`. Important paths include:
 
-This file is created by [dojo-node](https://github.com/pwncollege/dojo/blob/master/dojo/dojo-node#L36).
-By default, it is an empty list.
-The `dojo-node` script handles updating it with new nodes.
-Each entry in this list is the node's wireguard public key.
+- `/data/config.env` for administrator configuration
+- `/data/postgres` for PostgreSQL data
+- `/data/redis` for Redis data
+- `/data/dojos` for dojo definitions
+- `/data/homes` for learner home subvolumes
+- `/data/workspace/nix` for the workspace Nix store
+- `/data/docker` for the inner Docker daemon
+- `/data/workspace_nodes.json` for multi-node configuration
 
-## DOJO database
+`dojo-config` creates defaults when persistent configuration does not exist. Environment variables supplied to the outer container override or seed those values. It writes the complete durable configuration to root-only `/data/config.env`, keeps a root-only runtime copy at `/run/dojo/config.env`, and derives narrower environment files for the individual services that need them.
 
-The DOJO uses mysql.
+## CTFd and the DOJO Plugin
 
-The DOJO database lives in the `db` container by default.
-You can use an external database by setting `DB_HOST` in `config.env`.
-You can launch a database client session with `dojo db`.
+The user-facing application is a CTFd plugin in [`dojo_plugin/`](../dojo_plugin), paired with the theme and templates in [`dojo_theme/`](../dojo_theme). Together they replace most of the stock CTFd interface and implement dojo, module, challenge, workspace, scoreboard, and administrative behavior.
 
-## CTFd and the dojo-plugin
+CTFd accesses PostgreSQL through SQLAlchemy and coordinates transient state through Redis. The native CTFd service can access the inner Docker socket directly, allowing it to start and manage learner containers without another infrastructure-container boundary.
 
-The front-end interface of the dojo is a total-conversion-style [CTFd plugin](https://github.com/pwncollege/dojo/tree/master/dojo_plugin).
-The plugin, along with its companion [theme/templates](https://github.com/pwncollege/dojo/tree/master/dojo_theme) replaces almost all front-end functionality.
+Use `dojo flask` for a Python shell in the configured CTFd environment and `dojo db` for a database client.
 
-CTFd accesses the DOJO DB using the SQLAlchemy ORM.
-You can drop into a python shell to leverage this as well by running `dojo flask`.
+## Challenge Containers
 
-The docker socket of the docker-in-docker daemon is mapped into the CTFd container, allowing CTFd to start up user challenge containers.
+When a learner launches a challenge, CTFd creates a container through the inner Docker daemon and:
 
-## Challenge containers
+- copies challenge files into the container;
+- mounts the standard workspace tool environment;
+- mounts the learner's persistent home directory;
+- applies the configured network and security policy; and
+- starts any requested browser workspace services.
 
-When a user launches a challenge, CTFd starts a docker container that will run alongside the infrastructure containers, and:
+The workspace initializer ensures the `hacker` user and standard filesystem interfaces exist, installs the flag, and runs challenge initialization. Challenge containers use a six-hour lifetime by default.
 
-- Copies challenge files into the container (currently [here](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L184)).
-- Mounts the Workspace tool overlay into the container (currently [here](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L116)).
-- Mounts the user's home directory into the container (currently [here](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L136)).
+## Workspace Tools
 
-This is initialized with a [different dojo-init](https://github.com/pwncollege/dojo/blob/master/workspace/core/init.nix), which does the following:
+The workspace builder realizes the Nix tool environment under `/data/workspace/nix`. Challenge containers receive a read-only `/nix` mount and a profile exposed through `/run/dojo`.
 
-- Makes sure that certain standard files are sufficiently initalized (e.g., the `hacker` user exists in `/etc/passwd`, `/bin/sh` is a file that makes sense, etc)
-- Sets the `/flag`
-- If it is present, runs `/challenge/.init`
+The dojofs service provides the filtered filesystem view used to keep ordinary challenge processes separate from privileged workspace tooling. This allows all challenges to share a consistent tool suite without baking those tools into every challenge image.
 
-Challenge containers are started with a [command](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L92) of `sleep 6`, so they will time out after 6 hours.
+## Persistent Homes
 
-## DOJO workspace
+Learner homes are btrfs subvolumes under `/data/homes`, with a per-user quota. The native homefs service exposes a Docker volume plugin socket to the inner daemon. When CTFd starts a challenge, its `homefs` volume request causes Docker to mount the correct learner subvolume into the container.
 
-The DOJO provides standard security tooling for users by mounting in a nix-based overlay into `/nix` of every challenge launched.
-This overlay is built (e.g., the nix packages are installed) by the [workspace-builder](https://github.com/pwncollege/dojo/tree/master/workspace) container, defined in [docker-compose.yml](https://github.com/pwncollege/dojo/blob/master/docker-compose.yml#L33).
-This will be done before the DOJO can start up, imposing a delay on the start of a fresh dojo.
+The `/data` mount must use shared propagation so mounts created inside the outer container are visible where Docker expects them.
 
-To improve isolation between the challenges themselves and the user tools, the DOJO uses a fuse-based overlay to block default challenge access to the `/nix` tools.
+## Workspace Access
 
-## DOJO Homes
+HTTP workspace traffic enters through the native nginx service. CTFd authorizes the request and routes it to the selected learner container. Workspace services are started on demand when the corresponding browser endpoint is requested.
 
-The DOJO supports persistent home directories per user.
-These home directories live in a btrfs volume that the dojo stores in `/dojo/homes/btrfs.img`, with each home being a subvolume.
-These are mounted in `/dojo/homes` and mapped into each docker container.
-You can inspect and manage these with, e.g., `btrfs subvolume list /data/homes`.
+SSH access is handled by the native OpenSSH service. It validates the submitted public key against the DOJO database, resolves the learner and active workspace, then enters that workspace through the inner Docker daemon.
 
-Each user gets 1gb of space (TODO: where is this defined??).
+## Multi-node Operation
 
-User home directories are mounted into the docker container through a clever use of docker volume plugins:
+A main node runs the application, database, public proxy, and coordination services. Workspace nodes run the storage, Docker, and workspace services needed to host learner containers. `dojo-node` manages the WireGuard keys and the ordered node list stored in `/data/workspace_nodes.json`.
 
-- The [homefs container](https://github.com/pwncollege/dojo/tree/master/homefs) starts a service that talks over a [unix socket called "homefs"](https://github.com/pwncollege/dojo/blob/master/homefs/Dockerfile#L18) in the [plugins directory](https://github.com/pwncollege/dojo/blob/master/docker-compose.yml#L76) of the docker-in-docker daemon.
-- The home dir mount is [specified](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L136) with a type of `homefs`.
-- This causes docker to automatically talk to the homefs service to mount the subvolume.
+Each node has distinct persistent data and Docker storage. Nodes share a `WORKSPACE_SECRET`; workspace nodes also receive the main node's public `WORKSPACE_KEY`, reachable `DOJO_HOST` and `STORAGE_HOST` values, and the public `WORKSPACE_HOST`. The main proxy sends authorized workspace traffic to the selected node over WireGuard, so workspace nodes do not expose separate learner-facing hosts or certificates.
 
-## DOJO Workspace Access
+## Logs and Diagnostics
 
-Access to the DOJO workspace happens one of two protocols.
+All infrastructure logs are available through the outer container's journal:
 
-### HTTP
+```sh
+docker exec dojo systemctl --failed
+docker exec dojo systemctl status dojo.target
+docker exec dojo journalctl -b -u dojo-ctfd
+docker exec dojo journalctl -b -u dojo-nginx
+docker exec dojo journalctl -b -u docker
+```
 
-HTTP access is [proxied through CTFd](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/pages/workspace.py#L35).
-Services are [automatically started](https://github.com/pwncollege/dojo/tree/master/workspace/services) in the user's container when the request is received by [dojo-plugin](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/workspace.py#L73).
-
-### SSH
-
-SSH is handled by the [sshd container](https://github.com/pwncollege/dojo/tree/master/sshd).
-This container checks the public key provided against the keys table in the database, retrieves the right user, and `docker exec`s into that user's running container.
-
-## dojofs
-
-TODO: what is this?
-
-## Multi-node
-
-TODO
-
-## DOJO Logs
-
-You might want to look at some logs while administrating or developing the dojo.
-The most useful logs are:
-
-- **dojo-init:** `docker logs dojo` (e.g., logs of the outer docker)
-- **dojo:** `journalctl -b -u pwn.college.*`
-- **ctfd:** `docker logs ctfd`
-- **nginx:** `docker logs nginx`
-
-All of these except for the first one should be run inside the outer docker.
-If you are outside of the outer docker (e.g., on the host itself), you can do stuff like `docker exec dojo journalctl -b -u dojo-up`.
+Use `docker logs dojo` for messages emitted before or outside the journal, and `docker exec dojo dojo wait` to test the same readiness condition used by deployment and CI.

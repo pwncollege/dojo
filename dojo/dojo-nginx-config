@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+set -a
+if [ -f /run/dojo/config.env ]; then
+    . /run/dojo/config.env
+else
+    . /data/config.env
+fi
+set +a
+
+if [ "${WORKSPACE_NODE:-0}" -eq 0 ]; then
+    source_directory="${DOJO_NGINX_MAIN_SOURCE:-/opt/pwn.college/nginx}"
+else
+    source_directory="${DOJO_NGINX_WORKSPACE_SOURCE:-/opt/pwn.college/nginx-workspace}"
+fi
+
+runtime_directory=/run/dojo/nginx
+render_directory="$(mktemp -d /run/dojo/.nginx.XXXXXX)"
+trap 'rm -rf "$render_directory"' EXIT
+
+cp -a "$source_directory/nginx.conf" "$render_directory/nginx.conf"
+cp -a "$source_directory/conf.d" "$render_directory/conf.d"
+cp -a "$source_directory/templates" "$render_directory/templates"
+
+nginx_binary="$(readlink -f "$(command -v nginx)")"
+nginx_prefix="$(dirname "$(dirname "$nginx_binary")")"
+if [ -f "$nginx_prefix/conf/mime.types" ]; then
+    cp "$nginx_prefix/conf/mime.types" "$render_directory/mime.types"
+elif [ -f /etc/nginx/mime.types ]; then
+    cp /etc/nginx/mime.types "$render_directory/mime.types"
+else
+    echo 'Error: unable to locate nginx mime.types' >&2
+    exit 1
+fi
+
+if [ "${DOJO_ENV:-development}" = production ]; then
+    config_suffix=.prod.conf
+else
+    config_suffix=.dev.conf
+fi
+
+while IFS= read -r variant_path; do
+    variant_name="$(basename "$variant_path")"
+    selected_name="${variant_name%$config_suffix}.conf"
+    ln -sfn "$variant_name" "$render_directory/conf.d/$selected_name"
+done < <(find "$render_directory/conf.d" -maxdepth 1 -type f -name "*$config_suffix" -print)
+
+while IFS= read -r template_path; do
+    rendered_name="$(basename "${template_path%.template}")"
+    envsubst '${DOJO_HOST} ${WORKSPACE_HOST} ${WORKSPACE_SECRET}' \
+        < "$template_path" \
+        > "$render_directory/conf.d/$rendered_name"
+done < <(find "$render_directory/templates" -maxdepth 1 -type f -name '*.template' -print)
+
+sed -i \
+    -e 's/server ctfd:8000;/server 127.0.0.1:8000;/' \
+    -e 's/server frontend:3000;/server 127.0.0.1:3001;/' \
+    -e "s|/etc/nginx/mime.types|$runtime_directory/mime.types|g" \
+    -e "s|/etc/nginx/conf.d|$runtime_directory/conf.d|g" \
+    "$render_directory/nginx.conf"
+
+while IFS= read -r config_path; do
+    sed -i \
+        -e '/^[[:space:]]*resolver[[:space:]_]/d' \
+        -e "s|/etc/nginx/conf.d|$runtime_directory/conf.d|g" \
+        "$config_path"
+done < <(find "$render_directory/conf.d" -maxdepth 1 -type f -name '*.conf' -print)
+
+if [ "${WORKSPACE_NODE:-0}" -eq 0 ]; then
+    resolver_address="$(awk '$1 == "nameserver" && $2 ~ /^[0-9]+\./ { print $2; exit }' /etc/resolv.conf)"
+    resolver_address="${resolver_address:-127.0.0.11}"
+    printf 'resolver %s ipv6=off valid=30s;\nresolver_timeout 5s;\n' \
+        "$resolver_address" > "$render_directory/conf.d/resolver.conf"
+fi
+
+rm -rf "$runtime_directory"
+mv "$render_directory" "$runtime_directory"
+trap - EXIT

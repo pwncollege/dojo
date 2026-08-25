@@ -17,11 +17,11 @@ from utils import (
     TEST_DOJOS_LOCATION,
     create_dojo_yml,
     db_sql,
-    dojo_run,
     flask_exec,
     get_user_id,
     login,
     make_dojo_official,
+    redis_cli as run_redis_cli,
     remove_workspace_container,
     solve_challenge_offline,
     start_challenge,
@@ -48,7 +48,7 @@ def new_user():
 
 
 def redis_cli(*args):
-    result = dojo_run("docker", "exec", "cache", "redis-cli", *args, check=False)
+    result = run_redis_cli(*args, check=False)
     assert result.returncode == 0, f"redis-cli {args[0]} failed: {result.stderr}"
     return result.stdout.strip()
 

@@ -21,7 +21,7 @@ FEED_BATCH_SIZE = int(os.environ.get("FEED_BATCH_SIZE", "50"))
 WORKSPACE_NODES = {
     int(node_id): node_key
     for node_id, node_key in
-    json.load(pathlib.Path("/var/workspace_nodes.json").open()).items()
+    json.load(pathlib.Path("/data/workspace_nodes.json").open()).items()
 }
 
 def create_seccomp():

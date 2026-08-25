@@ -1,12 +1,9 @@
 {
     "name": "Development",
-    "build": {
-        "dockerfile": "../Dockerfile",
-        "context": ".."
-    },
+    "image": "pwncollege/dojo",
     "workspaceFolder": "/opt/pwn.college",
     "workspaceMount": "source=${localWorkspaceFolder},target=/opt/pwn.college,type=bind",
-    "runArgs": ["-v", "/tmp/dojo-data-${devcontainerId}:/data"],
+    "runArgs": ["-v", "/tmp/dojo-data-${devcontainerId}:/data:shared"],
     "privileged": true,
     "overrideCommand": false,
     "forwardPorts": [22, 80, 443],

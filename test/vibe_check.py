@@ -31,8 +31,8 @@ Make sure nothing breaks along the way.
 Throw in some normal functionality for good measure.
 
 TRICKS:
-- keep in mind that the dojo is a multi-docker infra running inside the {DOJO_CONTAINER} docker-in-docker container.
-- feel free to "cheat": you can `docker exec {DOJO_CONTAINER} docker exec $WHATEVER` directly into containers to look around
+- keep in mind that native systemd services run inside {DOJO_CONTAINER}, while learner workspaces use its Docker daemon.
+- feel free to "cheat": you can `docker exec {DOJO_CONTAINER} systemctl status $UNIT` or inspect learner containers directly
 - `docker exec -i {DOJO_CONTAINER} dojo enter -s $USER <<< "cat /flag"` is especially useful for getting flags without having to solve the actual tricky challenges, to test that part of the dojo's functionality. You will almost certainly have to do this to solve challenges to test functionality!
 - this environment is disposable for your use; don't worry about breaking things
 

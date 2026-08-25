@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [ -f /run/dojo/config.env ]; then
+    . /run/dojo/config.env
+else
+    . /data/config.env
+fi
+
+install -d -m 700 /data/acme/live
+install -d -m 755 /run/dojo/acme /run/dojo/tls
+
+if [ "${DOJO_ENV:-development}" != production ]; then
+    exit 0
+fi
+
+certificate_path=/data/acme/live/fullchain.pem
+private_key_path=/data/acme/live/privkey.pem
+action="${1:-bootstrap}"
+certificate_domains=("$WORKSPACE_HOST")
+if [ "${WORKSPACE_NODE:-0}" -eq 0 ]; then
+    certificate_domains=("$DOJO_HOST" "future.$DOJO_HOST" "$WORKSPACE_HOST")
+fi
+
+if [ "$action" = bootstrap ] && { [ ! -s "$certificate_path" ] || [ ! -s "$private_key_path" ]; }; then
+    certificate_temp="$(mktemp /data/acme/live/.fullchain.pem.XXXXXX)"
+    private_key_temp="$(mktemp /data/acme/live/.privkey.pem.XXXXXX)"
+    trap 'rm -f "$certificate_temp" "$private_key_temp"' EXIT
+
+    subject_alternative_names="$(printf 'DNS:%s,' "${certificate_domains[@]}")"
+    subject_alternative_names="${subject_alternative_names%,}"
+    openssl req \
+        -x509 \
+        -newkey rsa:4096 \
+        -sha256 \
+        -days 30 \
+        -nodes \
+        -subj "/CN=${certificate_domains[0]}" \
+        -addext "subjectAltName=$subject_alternative_names" \
+        -keyout "$private_key_temp" \
+        -out "$certificate_temp"
+    chmod 600 "$private_key_temp"
+    chmod 644 "$certificate_temp"
+    mv -f "$private_key_temp" "$private_key_path"
+    mv -f "$certificate_temp" "$certificate_path"
+    trap - EXIT
+fi
+
+ln -sfn "$certificate_path" /run/dojo/tls/fullchain.pem
+ln -sfn "$private_key_path" /run/dojo/tls/privkey.pem
+
+if [ "$action" = bootstrap ]; then
+    exit 0
+fi
+if [ "$action" != renew ]; then
+    echo "Usage: $0 [bootstrap|renew]" >&2
+    exit 1
+fi
+
+email="${MAIL_ADDRESS:-admin@$DOJO_HOST}"
+lego_args=(
+    --accept-tos
+    --email "$email"
+    --http
+    --http.webroot /run/dojo/acme
+    --path /data/acme/lego
+)
+for certificate_domain in "${certificate_domains[@]}"; do
+    lego_args+=(--domains "$certificate_domain")
+done
+
+if [ -d /data/acme/lego/accounts ]; then
+    lego "${lego_args[@]}" renew --days 30
+else
+    lego "${lego_args[@]}" run
+fi
+
+issued_certificate="/data/acme/lego/certificates/${certificate_domains[0]}.crt"
+issued_private_key="/data/acme/lego/certificates/${certificate_domains[0]}.key"
+certificate_temp="$(mktemp /data/acme/live/.fullchain.pem.XXXXXX)"
+private_key_temp="$(mktemp /data/acme/live/.privkey.pem.XXXXXX)"
+trap 'rm -f "$certificate_temp" "$private_key_temp"' EXIT
+install -m 644 "$issued_certificate" "$certificate_temp"
+install -m 600 "$issued_private_key" "$private_key_temp"
+mv -f "$private_key_temp" "$private_key_path"
+mv -f "$certificate_temp" "$certificate_path"
+trap - EXIT
+systemctl reload dojo-nginx.service

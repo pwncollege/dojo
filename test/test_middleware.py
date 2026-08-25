@@ -1,7 +1,6 @@
 import json
 import random
 import re
-import shlex
 import socket
 import string
 import time
@@ -16,8 +15,11 @@ from utils import (
     dojo_run,
     flask_exec,
     get_user_id,
+    journalctl,
     login,
     parse_csrf_token,
+    redis_cli,
+    unit_environment,
 )
 
 
@@ -28,34 +30,31 @@ def flask_run(code):
     """Run python inside CTFd's app context; returns (stdout after marker, stderr)."""
     path = f"/tmp/dojo-test-middleware-{uuid.uuid4().hex}.py"
     script = f"print({FLASK_OUTPUT_MARKER!r}, flush=True)\n{code}"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {path}", input=script)
-    result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", path, check=False)
-    dojo_run("docker", "exec", "ctfd", "rm", "-f", path, check=False)
+    dojo_run("sh", "-c", f"cat > {path}", input=script)
+    result = dojo_run("dojo", "flask", "--", path, check=False)
+    dojo_run("rm", "-f", path, check=False)
     assert FLASK_OUTPUT_MARKER in result.stdout, f"flask shell produced no output: {result.stdout}\n{result.stderr}"
     return result.stdout.split(FLASK_OUTPUT_MARKER, 1)[1].lstrip("\n"), result.stderr
 
 
-# Scanning a container's whole log gets slower as the suite runs; every scrape is
-# bounded to the recent past so it stays independent of how much came before.
 LOG_WINDOW = "10m"
 
 
-def container_logs(container, marker, *, after_context=0, since=LOG_WINDOW):
-    command = (f"docker logs --since {since} {container} 2>&1 | "
-               f"grep -F -A {after_context} -- {shlex.quote(marker)} || true")
-    output = dojo_run("sh", "-c", command, check=False).stdout
-    if output:
-        return output
-    # A loaded deployment can take a while to flush, and the windowed read is only
-    # an optimization, so fall back to the whole log before concluding it is absent.
-    command = f"docker logs {container} 2>&1 | grep -F -A {after_context} -- {shlex.quote(marker)} || true"
-    return dojo_run("sh", "-c", command, check=False).stdout
+def service_logs(service, marker, *, after_context=0, since=LOG_WINDOW):
+    unit = {"ctfd": "dojo-ctfd", "nginx": "dojo-nginx"}[service]
+    result = journalctl(unit, "--since", f"-{since}", check=False)
+    lines = result.stdout.splitlines()
+    matches = []
+    for index, line in enumerate(lines):
+        if marker in line:
+            matches.extend(lines[index:index + after_context + 1])
+    return "\n".join(matches)
 
 
-def wait_for_log(marker, needle, *, container="ctfd", after_context=0, timeout=60):
+def wait_for_log(marker, needle, *, service="ctfd", after_context=0, timeout=60):
     deadline = time.time() + timeout
     while True:
-        output = container_logs(container, marker, after_context=after_context)
+        output = service_logs(service, marker, after_context=after_context)
         if needle in output or time.time() > deadline:
             return output
         time.sleep(0.5)
@@ -88,11 +87,11 @@ def ratelimit_key(endpoint):
 
 
 def clear_ratelimit(endpoint):
-    dojo_run("docker", "exec", "cache", "redis-cli", "DEL", ratelimit_key(endpoint), check=False)
+    redis_cli("DEL", ratelimit_key(endpoint), check=False)
 
 
 def cors_origin():
-    return dojo_run("docker", "exec", "ctfd", "printenv", "CORS_ORIGINS", check=False).stdout.strip()
+    return unit_environment("dojo-ctfd").get("CORS_ORIGINS", "")
 
 
 def uncsrfed_session():
@@ -345,7 +344,7 @@ def test_trace_id_comes_from_nginx_and_is_not_spoofable():
         response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/belts", params={"m": marker}, headers=headers)
         assert response.status_code == 200, response.status_code
 
-        nginx_logs = wait_for_log(marker, marker, container="nginx")
+        nginx_logs = wait_for_log(marker, marker, service="nginx")
         entries = [json.loads(line) for line in nginx_logs.splitlines() if line.startswith("{")]
         entries = [entry for entry in entries if marker in entry.get("request", "")]
         assert entries, f"no nginx access log entry for {marker}: {nginx_logs}"
@@ -393,7 +392,7 @@ def test_plugin_logger_names_are_rewritten(random_user_session):
     assert "logger=dojo_plugin.utils.request_logging" in logs, logs
     assert "logger=CTFd.plugins.dojo_plugin" not in logs, logs
 
-    recent = dojo_run("sh", "-c", f"docker logs --since {LOG_WINDOW} ctfd 2>&1 | tail -n 500").stdout
+    recent = journalctl("dojo-ctfd", "--since", f"-{LOG_WINDOW}", "--lines", "500").stdout
     assert "logger=CTFd.plugins.dojo_plugin" not in recent, (
         "plugin log records must be renamed to dojo_plugin.*")
 

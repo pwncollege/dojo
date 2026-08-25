@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import signal
+import shutil
 import threading
 import docker
 import redis
@@ -15,7 +16,7 @@ import redis
 from mac_docker import MacDockerClient
 
 
-DOJO_CLI = "/nix/var/nix/profiles/dojo-workspace/bin/dojo"
+DOJO_CLI = os.environ.get("DOJO_WORKSPACE_CLI", "/nix/var/nix/profiles/dojo-workspace/bin/dojo")
 
 TERMINAL_RESTORE = "\x1b[<u\x1b[?1049l\x1b[?25h\x1b[?7h\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l\x1b[?1004l\x1b[?2004l\x1b[?2026l\x1b[0m"
 
@@ -31,7 +32,7 @@ def run_challenge_tui(user_id):
 WORKSPACE_NODES = {
     int(node_id): node_key
     for node_id, node_key in
-    json.load(pathlib.Path("/var/workspace_nodes.json").open()).items()
+    json.load(pathlib.Path("/data/workspace_nodes.json").open()).items()
 }
 
 redis_client = redis.from_url(os.environ.get("REDIS_URL"))
@@ -127,8 +128,11 @@ def main():
             else:
                 command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
                 environ = [] if "TERM" not in os.environ else [f"--env=TERM={os.environ['TERM']}"]
+                docker_path = shutil.which("docker")
+                if not docker_path:
+                    raise RuntimeError("docker executable not found")
                 os.execve(
-                    "/usr/bin/docker",
+                    docker_path,
                     [
                         "docker",
                         "exec",

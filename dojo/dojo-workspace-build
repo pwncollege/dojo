@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [ -f /run/dojo/config.env ]; then
+    . /run/dojo/config.env
+else
+    . /data/config.env
+fi
+
+workspace_store_root=/data/workspace
+workspace_flake="${DOJO_WORKSPACE_FLAKE:-/opt/pwn.college/workspace}"
+profiles_directory="$workspace_store_root/nix/var/nix/profiles"
+
+install -d -m 755 "$profiles_directory"
+exec 9> "$workspace_store_root/.build.lock"
+flock 9
+profile_name="dojo-workspace-$(date -u +%Y%m%d%H%M%S)-$$"
+profile_path="$profiles_directory/$profile_name"
+
+build_args=(
+    build
+    --store "$workspace_store_root"
+    "path:$workspace_flake#${DOJO_WORKSPACE:-default}"
+    --out-link "$profile_path"
+    --no-update-lock-file
+    --print-build-logs
+)
+if [ "${DOJO_OFFLINE:-false}" = true ]; then
+    build_args+=(--offline)
+fi
+nix --extra-experimental-features 'nix-command flakes' "${build_args[@]}"
+
+logical_profile="$(readlink "$profile_path")"
+if [[ "$logical_profile" != /nix/store/* ]]; then
+    echo "Error: workspace build returned an invalid store path: $logical_profile" >&2
+    exit 1
+fi
+physical_profile="$workspace_store_root$logical_profile"
+suid_file="$physical_profile/suid"
+if [ -f "$suid_file" ]; then
+    while IFS= read -r logical_path; do
+        [ -n "$logical_path" ] || continue
+        case "$logical_path" in
+            /nix/store/*)
+                physical_path="$workspace_store_root$logical_path"
+                ;;
+            *)
+                echo "Warning: refusing to set SUID outside the workspace store: $logical_path" >&2
+                continue
+                ;;
+        esac
+        if [ -e "$physical_path" ]; then
+            chmod u+s "$physical_path"
+        else
+            echo "Warning: file not found: $logical_path" >&2
+        fi
+    done < "$suid_file"
+else
+    echo "Warning: SUID file not found: $logical_profile/suid" >&2
+fi
+
+ln -sfn "/nix/var/nix/profiles/$profile_name" "$profiles_directory/dojo-workspace"
+echo "Updated workspace profile to $logical_profile"
+
+find "$profiles_directory" \
+    -maxdepth 1 \
+    -name 'dojo-workspace-*' \
+    -type l \
+    -mmin +600 \
+    -delete
+
+if [ "${NIX_GARBAGE_COLLECT:-false}" = true ]; then
+    nix --extra-experimental-features 'nix-command flakes' store gc --store "$workspace_store_root"
+fi

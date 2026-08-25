@@ -1,13 +1,13 @@
 #!/bin/bash -eu
 
-cd $(dirname "${BASH_SOURCE[0]}")
+cd "$(dirname "${BASH_SOURCE[0]}")"
 
 REPO_DIR=$(basename "$PWD")
 DEFAULT_CONTAINER_NAME="${REPO_DIR}"
 
 function usage {
 	set +x
-	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -t ] [ -v ] [ -N ] [ -p ] [ -e ENV_VAR=value ] [ -b ] [ -M ] [ -g ] [ -C ]"
+	echo "Usage: $0 [-r DB_BACKUP ] [ -c DOJO_CONTAINER ] [ -D DOCKER_DIR ] [ -W WORKSPACE_DIR ] [ -t ] [ -v ] [ -N ] [ -K ] [ -p ] [ -e ENV_VAR=value ] [ -b ] [ -M ] [ -g ] [ -C ]"
 	echo ""
 	echo "	-r	full path to db backup to restore"
 	echo "	-c	the name of the dojo container (default: <dirname>)"
@@ -19,10 +19,10 @@ function usage {
 	echo "	-K	clean up and exit"
 	echo "	-p	export ports (80->80, 443->443, 22->2222)"
 	echo "	-e	set environment variable (can be used multiple times)"
-	echo "	-b	build the Docker image locally (tag: same as container name)"
+	echo "	-b	build and import the NixOS image locally (tag: same as container name)"
 	echo "	-M	run in multi-node mode (3 containers: 1 main + 2 workspace nodes)"
 	echo "	-g	use GitHub Actions group output formatting"
-	echo "	-C	run the ctfd container with code coverage. Generates an xml coverage report when paired with the -t flag"
+	echo "	-C	run CTFd with code coverage and generate an XML report when paired with -t"
 	exit
 }
 
@@ -39,6 +39,17 @@ function cleanup_container {
 	do
 		sudo umount "$ENTRY" || echo "Failed ^"
 	done
+}
+
+function cleanup_docker_state {
+	local DIRECTORY="$1"
+	local RESOLVED_DIRECTORY
+	RESOLVED_DIRECTORY=$(realpath -m -- "$DIRECTORY")
+	if [ "$RESOLVED_DIRECTORY" = "/" ] || [ "$RESOLVED_DIRECTORY" = "$PWD" ] || [ "$RESOLVED_DIRECTORY" = "$HOME" ]; then
+		echo "Refusing to clean unsafe Docker state directory: $RESOLVED_DIRECTORY" >&2
+		return 1
+	fi
+	sudo rm -rf -- "$RESOLVED_DIRECTORY/containers" "$RESOLVED_DIRECTORY/volumes"
 }
 
 function fix_insane_routing {
@@ -83,10 +94,34 @@ function test_container {
 
 function generate_coverage_report {
 	local CONTAINER="$1"
-    docker exec "$CONTAINER" docker kill -s SIGINT ctfd
-	docker exec "$CONTAINER" docker wait ctfd
-    docker exec "$CONTAINER" docker start ctfd
-    docker exec "$CONTAINER" docker exec ctfd coverage xml -o /var/coverage/coverage.xml
+	docker exec "$CONTAINER" systemctl kill --signal=SIGINT dojo-ctfd.service
+	docker exec "$CONTAINER" systemctl restart dojo-ctfd.service
+	docker exec "$CONTAINER" bash -c \
+		'cd /opt/CTFd && coverage xml --rcfile=/opt/CTFd/.coveragerc --data-file=/data/coverage/.coverage -o /data/coverage/coverage.xml'
+	mkdir -p "$PWD/data/coverage"
+	docker cp "$CONTAINER:/data/coverage/coverage.xml" "$PWD/data/coverage/coverage.xml"
+}
+
+function build_dojo_image {
+	local IMAGE_NAME="$1"
+	local IMAGE_TARBALLS=()
+
+	nix build --print-build-logs .#dojo-image
+	shopt -s nullglob
+	IMAGE_TARBALLS=(result/tarball/nixos-system-*.tar.xz)
+	shopt -u nullglob
+	if [ "${#IMAGE_TARBALLS[@]}" -ne 1 ]; then
+		echo "Expected exactly one NixOS image at result/tarball/nixos-system-*.tar.xz" >&2
+		return 1
+	fi
+	docker import \
+		--change 'CMD ["/init"]' \
+		--change 'ENV LC_CTYPE=C.UTF-8' \
+		--change 'ENV PATH=/run/wrappers/bin:/run/current-system/sw/bin' \
+		--change 'EXPOSE 22 80 443 8001' \
+		--change 'STOPSIGNAL SIGRTMIN+3' \
+		--change 'WORKDIR /opt/pwn.college' \
+		"${IMAGE_TARBALLS[0]}" "$IMAGE_NAME"
 }
 
 ENV_ARGS=()
@@ -168,7 +203,7 @@ MAIN_NODE_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared"
 if [ -n "$DOCKER_DIR" ]; then
 	MAIN_NODE_VOLUME_ARGS+=( "-v" "$DOCKER_DIR:/data/docker" )
 	if [ "$START" == "yes" ]; then
-		sudo rm -rf $DOCKER_DIR/{containers,volumes}
+		cleanup_docker_state "$DOCKER_DIR"
 	fi
 fi
 
@@ -183,24 +218,23 @@ if [ "$MULTINODE" == "yes" ]; then
 		NODE1_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node1:/data/docker")
 		NODE2_VOLUME_ARGS+=("-v" "$DOCKER_DIR-node2:/data/docker")
 		if [ "$START" == "yes" ]; then
-			sudo rm -rf $DOCKER_DIR-node1/{containers,volumes}
-			sudo rm -rf $DOCKER_DIR-node2/{containers,volumes}
+			cleanup_docker_state "$DOCKER_DIR-node1"
+			cleanup_docker_state "$DOCKER_DIR-node2"
 		fi
 	fi
 fi
 
 IMAGE_NAME="pwncollege/dojo"
 if [ "$BUILD_IMAGE" == "yes" ]; then
-	log_newgroup "Building Docker image with tag: $DOJO_CONTAINER"
-	docker build -t "$DOJO_CONTAINER" . || exit 1
+	log_newgroup "Building NixOS image with tag: $DOJO_CONTAINER"
+	build_dojo_image "$DOJO_CONTAINER"
 	IMAGE_NAME="$DOJO_CONTAINER"
 	log_endgroup
-	log_newgroup "Building test container $DOJO_CONTAINER-test"
-	docker build -t "${DOJO_CONTAINER}-test" test/
-	log_endgroup
-elif ! docker image inspect "${DOJO_CONTAINER}-test" >&/dev/null
+fi
+if [ "$TEST" == "yes" -o "$VIBECHECK" == "yes" ] && \
+	{ [ "$BUILD_IMAGE" == "yes" ] || ! docker image inspect "${DOJO_CONTAINER}-test" >&/dev/null; }
 then
-	log_newgroup "Building test container $DOJO_CONTAINER-test (it doesn't exist)"
+	log_newgroup "Building test image $DOJO_CONTAINER-test (it doesn't exist)"
 	docker build -t "${DOJO_CONTAINER}-test" test/
 	log_endgroup
 fi
@@ -244,8 +278,8 @@ fi
 
 log_endgroup
 
-DOJO_HOST_CONFIG=$(docker exec "$DOJO_CONTAINER" sh -c 'echo -n "${DOJO_HOST-}"')
-WORKSPACE_HOST_CONFIG=$(docker exec "$DOJO_CONTAINER" sh -c 'echo -n "${WORKSPACE_HOST-}"')
+DOJO_HOST_CONFIG=$(docker exec "$DOJO_CONTAINER" bash -c '. /data/config.env; printf %s "$DOJO_HOST"')
+WORKSPACE_HOST_CONFIG=$(docker exec "$DOJO_CONTAINER" bash -c '. /data/config.env; printf %s "$WORKSPACE_HOST"')
 
 if [ -z "$DOJO_HOST_CONFIG" ]; then
         DOJO_HOST_CONFIG="localhost.pwn.college"
@@ -266,9 +300,6 @@ fi
 if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	log_newgroup "Setting up multi-node cluster"
 
-	# Disconnect nginx from workspace_net for multinode routing to work
-	docker exec "$DOJO_CONTAINER" docker network disconnect workspace_net nginx 2>/dev/null || true
-
 	docker exec "$DOJO_CONTAINER" dojo-node refresh
 	MAIN_KEY=$(docker exec "$DOJO_CONTAINER" cat /data/wireguard/publickey)
 
@@ -278,8 +309,8 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 		-e WORKSPACE_NODE=1 \
 		-e WORKSPACE_KEY="$MAIN_KEY" \
 		-e DOJO_HOST="$CONTAINER_IP" \
-		-e STORAGE_HOST="$CONTAINER_IP" \
-		-e "WORKSPACE_HOST=node-1.workspace.${DOJO_HOST_CONFIG}" \
+		-e STORAGE_HOST=192.168.42.1 \
+		-e "WORKSPACE_HOST=$WORKSPACE_HOST_CONFIG" \
 		--name "$DOJO_CONTAINER-node1" \
 		"$IMAGE_NAME"
 	fix_insane_routing "$DOJO_CONTAINER-node1"
@@ -290,8 +321,8 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 		-e WORKSPACE_NODE=2 \
 		-e WORKSPACE_KEY="$MAIN_KEY" \
 		-e DOJO_HOST="$CONTAINER_IP" \
-		-e STORAGE_HOST="$CONTAINER_IP" \
-		-e "WORKSPACE_HOST=node-2.workspace.${DOJO_HOST_CONFIG}" \
+		-e STORAGE_HOST=192.168.42.1 \
+		-e "WORKSPACE_HOST=$WORKSPACE_HOST_CONFIG" \
 		--name "$DOJO_CONTAINER-node2" \
 		"$IMAGE_NAME"
 	fix_insane_routing "$DOJO_CONTAINER-node2"
@@ -299,9 +330,6 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	# Wait for workspace containers and set up WireGuard
 	docker exec "$DOJO_CONTAINER-node1" dojo wait
 	docker exec "$DOJO_CONTAINER-node2" dojo wait
-
-	NODE1_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER-node1")
-	NODE2_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$DOJO_CONTAINER-node2")
 
 	docker exec "$DOJO_CONTAINER-node1" dojo-node refresh
 	docker exec "$DOJO_CONTAINER-node2" dojo-node refresh
@@ -312,12 +340,6 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 
 	docker exec "$DOJO_CONTAINER" dojo-node add 1 "$NODE1_KEY"
 	docker exec "$DOJO_CONTAINER" dojo-node add 2 "$NODE2_KEY"
-	sleep 5
-	docker exec "$DOJO_CONTAINER" dojo compose restart ctfd sshd stats-worker image-pull-worker watchdog
-	sleep 5
-	docker exec "$DOJO_CONTAINER" dojo compose restart nginx
-	sleep 5
-	docker exec "$DOJO_CONTAINER" dojo wait
 
 	docker exec "$DOJO_CONTAINER-node1" docker pull pwncollege/challenge-simple
 	docker exec "$DOJO_CONTAINER-node1" docker pull pwncollege/challenge-lecture
@@ -327,18 +349,6 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	docker exec "$DOJO_CONTAINER-node2" docker tag pwncollege/challenge-simple pwncollege/challenge-legacy
 
 	log_endgroup
-fi
-
-if [ "$MULTINODE" == "yes" ]; then
-        for NODE in 1 2; do
-                NODE_CONTAINER="$DOJO_CONTAINER-node${NODE}"
-                if docker inspect "$NODE_CONTAINER" >/dev/null 2>&1; then
-                        NODE_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$NODE_CONTAINER")
-                        if [ -n "$NODE_IP" ]; then
-                                TEST_CONTAINER_EXTRA_ARGS+=("--add-host" "node-${NODE}.workspace.${DOJO_HOST_CONFIG}:${NODE_IP}")
-                        fi
-                fi
-        done
 fi
 
 if [ -n "$DB_RESTORE" ]; then
@@ -351,7 +361,7 @@ if [ -n "$DB_RESTORE" ]; then
 fi
 
 log_newgroup "Waiting for dojo to be ready"
-until curl -Ls "http://${CONTAINER_IP}" | grep -q pwn; do sleep 1; done
+docker exec "$DOJO_CONTAINER" dojo wait
 log_endgroup
 
 if [ "$TEST" == "yes" ]; then

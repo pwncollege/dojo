@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+umask 077
+
+attach_loop_image() {
+    local image_path="$1"
+    local loop_device loop_name loop_major loop_minor
+
+    loop_device="$(losetup --associated "$image_path" --noheadings --output NAME | head -n 1)"
+    if [ -z "$loop_device" ]; then
+        loop_device="$(losetup --find | awk '{ print $1 }')"
+        if [ ! -b "$loop_device" ]; then
+            loop_name="${loop_device#/dev/}"
+            IFS=: read -r loop_major loop_minor < "/sys/class/block/$loop_name/dev"
+            mknod -m 660 "$loop_device" b "$loop_major" "$loop_minor"
+            chown root:disk "$loop_device"
+        fi
+        losetup --autoclear "$loop_device" "$image_path"
+    fi
+    printf '%s\n' "$loop_device"
+}
+
+bind_directory() {
+    local source_path="$1"
+    local target_path="$2"
+
+    if findmnt -n --mountpoint "$target_path" >/dev/null 2>&1; then
+        return
+    fi
+    if [ -L "$target_path" ]; then
+        rm "$target_path"
+    fi
+    install -d -m 755 "$target_path"
+    mount --bind "$source_path" "$target_path"
+}
+
+bind_file_read_only() {
+    local source_path="$1"
+    local target_path="$2"
+
+    if findmnt -n --mountpoint "$target_path" >/dev/null 2>&1; then
+        return
+    fi
+    if [ -L "$target_path" ]; then
+        rm "$target_path"
+    fi
+    touch "$target_path"
+    mount --bind "$source_path" "$target_path"
+    mount --options remount,bind,ro "$target_path"
+}
+
+install -d -m 755 /run/dojo
+
+if [ -f /run/dojo/config.env ]; then
+    . /run/dojo/config.env
+elif [ -f /data/config.env ]; then
+    . /data/config.env
+fi
+
+mount --make-shared /
+
+data_config_before_mount=
+if ! data_mount_options="$(findmnt -nro OPTIONS --mountpoint /data 2>/dev/null)"; then
+    if [ -f /data/config.env ]; then
+        data_config_before_mount="$(mktemp /run/dojo/.config.env.XXXXXX)"
+        cp /data/config.env "$data_config_before_mount"
+        trap 'rm -f "$data_config_before_mount"' EXIT
+    fi
+    if [ ! -f /data.img ]; then
+        echo '[+] Creating data storage'
+        truncate -s "${DOJO_DATA_STORAGE_SIZE:-256G}" /data.img
+        mkfs.ext4 -F /data.img
+    fi
+    mkdir -p /data
+    data_loop_device="$(attach_loop_image /data.img)"
+    mount "$data_loop_device" /data
+    data_mount_options="$(findmnt -nro OPTIONS --mountpoint /data)"
+    if [ -n "$data_config_before_mount" ]; then
+        if [ ! -f /data/config.env ]; then
+            install -m 600 "$data_config_before_mount" /data/config.env
+        fi
+        rm -f "$data_config_before_mount"
+        trap - EXIT
+    fi
+fi
+
+if [ -f /data/config.env ]; then
+    . /data/config.env
+    install -m 600 -o root -g root /data/config.env /run/dojo/config.env
+fi
+
+if printf '%s' "$data_mount_options" | grep -Fqw nosuid; then
+    echo '[+] Remounting /data with suid enabled'
+    mount --options remount,suid /data
+fi
+if mountpoint -q /data; then
+    mount --make-shared /data
+fi
+
+install -d -m 700 \
+    /data/acme/live \
+    /data/backups \
+    /data/ctfd-ipython \
+    /data/mac \
+    /data/postgres \
+    /data/redis \
+    /data/ssh_host_keys
+install -d -m 755 \
+    /data/CTFd/logs \
+    /data/CTFd/uploads \
+    /data/coverage \
+    /data/dojos \
+    /data/homes \
+    /data/workspace/nix \
+    /data/workspacefs/bin \
+    /run/dojo \
+    /run/homefs
+
+if [ ! -f /data/workspace_nodes.json ]; then
+    printf '{}\n' > /data/workspace_nodes.json
+fi
+chmod 644 /data/workspace_nodes.json
+
+bind_directory /data/dojos /var/dojos
+bind_directory /data/mac /var/mac
+bind_file_read_only /opt/pwn.college/user_firewall.allowed /var/user_firewall.allowed
+
+if [ ! -f /data/grafana-secret-key ]; then
+    openssl rand -hex 32 > /data/grafana-secret-key
+    chmod 600 /data/grafana-secret-key
+fi
+chown grafana:grafana /data/grafana-secret-key
+chmod 600 /data/grafana-secret-key
+
+chown -R postgres:postgres /data/postgres
+chown -R redis-dojo:redis-dojo /data/redis
+chown -R ctfd:ctfd /data/CTFd /data/coverage /data/ctfd-ipython /data/dojos
+chown root:ctfd /data/mac /data/ssh_host_keys
+chmod 710 /data/mac /data/ssh_host_keys
+if [ -f /data/mac/key ]; then
+    chown ctfd:ctfd /data/mac/key
+    chmod 600 /data/mac/key
+fi
+
+home_filesystem="$(findmnt -nro FSTYPE --target /data/homes)"
+data_filesystem="$(findmnt -nro FSTYPE --target /data)"
+if [ "$home_filesystem" != btrfs ] && [ "$data_filesystem" != btrfs ]; then
+    home_image=/data/homes/btrfs.img
+    if [ ! -f "$home_image" ]; then
+        echo '[+] Creating home storage'
+        truncate -s "${DOJO_HOME_STORAGE_SIZE:-256G}" "$home_image"
+        mkfs.btrfs -f "$home_image"
+    fi
+    home_loop_device="$(attach_loop_image "$home_image")"
+    mount "$home_loop_device" /data/homes
+    home_filesystem=btrfs
+fi
+
+if [ "$home_filesystem" = btrfs ]; then
+    btrfs quota enable /data/homes
+fi
+
+if ! mountpoint -q /run/homefs; then
+    mount --bind /data/homes /run/homefs
+fi
+mount --options remount,bind,nosuid /run/homefs
+mount --make-shared /run/homefs
+
+generate_host_key() {
+    local key_type="$1"
+    shift
+    local key_path="/data/ssh_host_keys/ssh_host_${key_type}_key"
+    if [ ! -f "$key_path" ]; then
+        ssh-keygen -q -t "$key_type" "$@" -N '' -f "$key_path"
+    fi
+}
+
+generate_host_key rsa -b 4096 -m PEM
+generate_host_key ecdsa -b 256 -m PEM
+generate_host_key ed25519
+chmod 600 /data/ssh_host_keys/ssh_host_*_key
+chmod 644 /data/ssh_host_keys/ssh_host_*_key.pub
+
+if [ "${DOJO_OFFLINE:-false}" != true ]; then
+    known_hosts_temp="$(mktemp /data/ssh_host_keys/.ssh_known_hosts.XXXXXX)"
+    trap 'rm -f "$known_hosts_temp"' EXIT
+    if ssh-keyscan -T 10 github.com > "$known_hosts_temp"; then
+        chmod 644 "$known_hosts_temp"
+        mv -f "$known_hosts_temp" /data/ssh_host_keys/ssh_known_hosts
+    else
+        rm -f "$known_hosts_temp"
+    fi
+    trap - EXIT
+fi
+
+if [ -n "${BACKUP_AES_KEY_FILE:-}" ] && [ ! -f "$BACKUP_AES_KEY_FILE" ]; then
+    install -d -m 700 "$(dirname "$BACKUP_AES_KEY_FILE")"
+    openssl rand 214 > "$BACKUP_AES_KEY_FILE"
+    chmod 600 "$BACKUP_AES_KEY_FILE"
+fi
