@@ -2,6 +2,8 @@
 
 let
   service = import ./service.nix { inherit pkgs; };
+  code-server-libc =
+    if pkgs.stdenv.hostPlatform.isMusl then "musl" else "glibc";
 
   # Prevent VS Code searches from following workspace symlinks into the host
   # filesystem and consuming excessive CPU.
@@ -13,6 +15,14 @@ let
   } ''
     mkdir -p $out/libexec $out/bin
     cp -r ${pkgs.code-server}/libexec/code-server $out/libexec/code-server
+
+    # Nix's Node runtime determines the libc ABI, not the challenge image.
+    nodeGypBuild=$out/libexec/code-server/node_modules/node-gyp-build/node-gyp-build.js
+    chmod u+w "$nodeGypBuild"
+    substituteInPlace "$nodeGypBuild" \
+      --replace-fail \
+        "var libc = process.env.LIBC || (isAlpine(platform) ? 'musl' : 'glibc')" \
+        "var libc = '${code-server-libc}'"
 
     extensionHost=$out/libexec/code-server/lib/vscode/out/vs/workbench/api/node/extensionHostProcess.js
     chmod u+w "$extensionHost"
