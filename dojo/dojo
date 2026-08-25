@@ -123,6 +123,16 @@ case "$action" in
         ;;
 
     flask)
+        if [ "$EUID" -eq 0 ]; then
+            exec /run/current-system/sw/bin/setpriv \
+                --reuid=ctfd \
+                --regid=ctfd \
+                --init-groups \
+                --inh-caps=-all \
+                --ambient-caps=-all \
+                --bounding-set=-all \
+                /run/current-system/sw/bin/dojo-flask shell "$@"
+        fi
         exec /run/current-system/sw/bin/dojo-flask shell "$@"
         ;;
 

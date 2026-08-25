@@ -1350,10 +1350,14 @@ def test_watchdog_prunes_dangling_images():
     existing = set(dojo_run("docker", "images", "-qf", "dangling=true", container=target).stdout.split())
     created = set()
     try:
-        dojo_run("sh", "-c",
-                 f'printf "FROM hello-world\\nLABEL probe=one\\n" | docker build -q -t {tag} - && '
-                 f'printf "FROM hello-world\\nLABEL probe=two\\n" | docker build -q -t {tag} -',
-                 container=target)
+        dojo_run(
+            "sh", "-c",
+            f'tar -C /tmp --files-from /dev/null -cf - | '
+            f'docker import --change "LABEL probe=one" - {tag} >/dev/null && '
+            f'tar -C /tmp --files-from /dev/null -cf - | '
+            f'docker import --change "LABEL probe=two" - {tag} >/dev/null',
+            container=target,
+        )
         created = set(dojo_run("docker", "images", "-qf", "dangling=true",
                                container=target).stdout.split()) - existing
         assert created, "failed to create a dangling image"
@@ -1441,7 +1445,6 @@ def test_network_docker_user_rules_idempotent(cli_user):
     name, _ = cli_user
     inbound = "-A DOCKER-USER -i workspace_net -j WORKSPACE-NET"
     outbound = "-A DOCKER-USER -o workspace_net -j WORKSPACE-NET"
-    default_bridge = "-A DOCKER-USER -i docker0 -d 192.168.42.0/24 -j WORKSPACE-NET"
     default_bridge_input = "-A INPUT -i docker0 -j WORKSPACE-NET"
 
     result = dojo_run("dojo-network", check=False, timeout=120)
@@ -1456,5 +1459,11 @@ def test_network_docker_user_rules_idempotent(cli_user):
 
     assert rules.count(inbound) == 1, f"DOCKER-USER accumulated inbound jumps:\n{rules}"
     assert rules.count(outbound) == 1, f"DOCKER-USER accumulated outbound jumps:\n{rules}"
-    assert rules.count(default_bridge) == 1, f"DOCKER-USER accumulated default-bridge jumps:\n{rules}"
+    default_bridge_rules = [
+        rule for rule in rules.splitlines()
+        if "-i docker0" in rule
+        and "-d 192.168.42.0/24" in rule
+        and rule.endswith("-j WORKSPACE-NET")
+    ]
+    assert len(default_bridge_rules) == 1, f"DOCKER-USER accumulated default-bridge jumps:\n{rules}"
     assert input_rules.count(default_bridge_input) == 1, f"INPUT accumulated default-bridge jumps:\n{input_rules}"

@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from utils import DOJO_URL, login, create_dojo_yml, redis_cli, start_challenge, solve_challenge, workspace_run, wait_for_background_worker, remove_workspace_container
+from utils import DOJO_URL, dojo_run, login, create_dojo_yml, redis_cli, start_challenge, solve_challenge, workspace_run, wait_for_background_worker, remove_workspace_container
 
 
 CREW_DOJO_SPEC = """
