@@ -424,7 +424,10 @@ def test_native_service_boundaries():
     effective_sshd_config = dojo_run(
         "sshd", "-T", "-C", "user=hacker,host=localhost,addr=127.0.0.1"
     ).stdout.splitlines()
-    sshd_settings = dict(line.split(maxsplit=1) for line in effective_sshd_config)
+    sshd_settings = {
+        key.lower(): value
+        for key, value in (line.split(maxsplit=1) for line in effective_sshd_config)
+    }
     assert sshd_settings["authorizedkeyscommand"] == "/run/wrappers/bin/dojo-ssh-auth"
     assert sshd_settings["authorizedkeyscommanduser"] == "root"
     resolved_command = dojo_run(
