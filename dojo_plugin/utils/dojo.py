@@ -23,7 +23,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from CTFd.models import db, Challenges, Flags
 from CTFd.utils.user import get_current_user, is_admin
 
-from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
+from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities, merge_translations
 from ..config import DOJOS_DIR
 from ..i18n import LANGUAGE_PATTERN, normalize_language, ui_string_translations
 from ..utils import get_current_container, sanitize_survey
@@ -312,7 +312,8 @@ def translations_kwarg(data):
 
 
 def setdefault_translation(entry, language, field, value):
-    if value is None:
+    # an empty translation file is a stub, not an instruction to render nothing
+    if not value:
         return
     translations = entry.setdefault("translations", {})
     translations.setdefault(language, {}).setdefault(field, value)
@@ -552,11 +553,18 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
         field: dojo_data.get(field, getattr(import_dojo, field, None))
         for field in ["id", "name", "description", "password", "type", "award"]
     }
+    # merged per language and per field, the same as an imported module or challenge: a
+    # dojo that translates only its own name still inherits the source's translated
+    # description
+    i18n_kwargs = [
+        ("translations", merge_translations(dojo_data.get("translations"),
+                                            getattr(import_dojo, "translations", None))),
+        ("languages", dojo_data.get("languages") or getattr(import_dojo, "languages", None) or []),
+    ]
     # only put i18n keys in `data` when there is something to store, so an untranslated
     # dojo's row stays exactly as it was -- but an update that drops translations still
     # has to clear whatever is already stored
-    for field, default in [("translations", {}), ("languages", [])]:
-        value = dojo_data.get(field) or getattr(import_dojo, field, None) or default
+    for field, value in i18n_kwargs:
         if value or (dojo is not None and (dojo.data or {}).get(field)):
             dojo_kwargs[field] = value
 

@@ -19,6 +19,11 @@ def i18n_import_dojo(admin_session, i18n_dojo):
     return create_dojo_yml(open(TEST_DOJOS_LOCATION / "i18n_import_dojo.yml").read(), session=admin_session)
 
 
+@pytest.fixture(scope="session")
+def i18n_dojo_import(admin_session, i18n_import_dojo):
+    return create_dojo_yml(open(TEST_DOJOS_LOCATION / "i18n_dojo_import.yml").read(), session=admin_session)
+
+
 def module_page(session, dojo, language=None):
     params = {"lang": language} if language else {}
     response = session.get(f"{DOJO_URL}/{dojo}/translated/", params=params)
@@ -185,6 +190,14 @@ def test_local_translation_does_not_discard_inherited_fields(i18n_import_dojo, a
     assert korean.count("CHALDESC_KO") == 2, (
         "translating only the name must not discard the inherited translated description")
     assert "CHALDESC_EN" not in korean
+
+
+def test_dojo_level_import_merges_translations_per_field(i18n_dojo_import, admin_session):
+    korean = admin_session.get(f"{DOJO_URL}/{i18n_dojo_import}/", params={"lang": "ko"}).text
+    assert "국제화 도장 가져오기 시험" in korean, "a local translated name should win over the inherited one"
+    assert "DOJODESC_KO" in korean, (
+        "translating only the dojo name must not discard the inherited translated description")
+    assert "DOJODESC_EN" not in korean
 
 
 def main_content(text):
