@@ -3,6 +3,15 @@
 let
   service = import ./service.nix { inherit pkgs; };
 
+  libwebsockets' = pkgs.libwebsockets.overrideAttrs (previousAttrs: {
+    cmakeFlags = previousAttrs.cmakeFlags ++ [
+      (pkgs.lib.cmakeBool "LWS_WITH_SOCKS5" false)
+      (pkgs.lib.cmakeBool "LWS_WITHOUT_CLIENT" true)
+    ];
+  });
+
+  ttyd = pkgs.ttyd.override { libwebsockets = libwebsockets'; };
+
   serviceScript = pkgs.writeScript "dojo-terminal" ''
     #!${pkgs.bash}/bin/bash
 
@@ -11,7 +20,7 @@ let
     export TERM=xterm-256color
     
     ${service}/bin/dojo-service start terminal-service/ttyd \
-      ${pkgs.ttyd}/bin/ttyd \
+      ${ttyd}/bin/ttyd \
         --port 7681 \
         --interface 0.0.0.0 \
         --writable \
@@ -23,10 +32,10 @@ let
 
 in pkgs.stdenv.mkDerivation {
   name = "terminal-service";
-  buildInputs = with pkgs; [
+  buildInputs = [
     ttyd
-    bashInteractive
-    curl
+    pkgs.bashInteractive
+    pkgs.curl
   ];
   dontUnpack = true;
 
@@ -36,8 +45,8 @@ in pkgs.stdenv.mkDerivation {
     mkdir -p $out/bin
     cp ${serviceScript} $out/bin/dojo-terminal
     chmod +x $out/bin/dojo-terminal
-    ln -s ${pkgs.ttyd}/bin/ttyd $out/bin/ttyd
-    ln -s ${pkgs.ttyd}/bin/ttyd $out/bin/terminal
+    ln -s ${ttyd}/bin/ttyd $out/bin/ttyd
+    ln -s ${ttyd}/bin/ttyd $out/bin/terminal
 
     runHook postInstall
   '';
