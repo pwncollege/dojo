@@ -1385,6 +1385,13 @@ def test_storage_homes_quota_enabled():
     storage_source = dojo_run("findmnt", "-nro", "SOURCE", "--", "/run/homefs").stdout.strip()
     assert homes_source == storage_source, f"{homes_source} != {storage_source}"
 
+    if dojo_run("test", "-f", "/data/homes/btrfs.img", check=False).returncode == 0:
+        autoclear = dojo_run(
+            "losetup", "--associated", "/data/homes/btrfs.img",
+            "--noheadings", "--output", "AUTOCLEAR",
+        ).stdout.split()
+        assert autoclear and set(autoclear) == {"1"}, autoclear
+
 
 def test_storage_ssh_host_keys_persist():
     stored = dojo_run("ls", "/data/ssh_host_keys").stdout.split()

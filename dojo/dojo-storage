@@ -17,9 +17,22 @@ attach_loop_image() {
             mknod -m 660 "$loop_device" b "$loop_major" "$loop_minor"
             chown root:disk "$loop_device"
         fi
-        losetup --autoclear "$loop_device" "$image_path"
+        losetup "$loop_device" "$image_path"
     fi
     printf '%s\n' "$loop_device"
+}
+
+mount_loop_image() {
+    local image_path="$1"
+    local target_path="$2"
+    local loop_device
+
+    loop_device="$(attach_loop_image "$image_path")"
+    if ! mount "$loop_device" "$target_path"; then
+        losetup --detach "$loop_device" || true
+        return 1
+    fi
+    losetup --detach "$loop_device"
 }
 
 bind_directory() {
@@ -74,8 +87,7 @@ if ! data_mount_options="$(findmnt -nro OPTIONS --mountpoint /data 2>/dev/null)"
         mkfs.ext4 -F /data.img
     fi
     mkdir -p /data
-    data_loop_device="$(attach_loop_image /data.img)"
-    mount "$data_loop_device" /data
+    mount_loop_image /data.img /data
     data_mount_options="$(findmnt -nro OPTIONS --mountpoint /data)"
     if [ -n "$data_config_before_mount" ]; then
         if [ ! -f /data/config.env ]; then
@@ -153,8 +165,7 @@ if [ "$home_filesystem" != btrfs ] && [ "$data_filesystem" != btrfs ]; then
         truncate -s "${DOJO_HOME_STORAGE_SIZE:-256G}" "$home_image"
         mkfs.btrfs -f "$home_image"
     fi
-    home_loop_device="$(attach_loop_image "$home_image")"
-    mount "$home_loop_device" /data/homes
+    mount_loop_image "$home_image" /data/homes
     home_filesystem=btrfs
 fi
 
