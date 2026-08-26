@@ -74,7 +74,7 @@ function fix_insane_routing {
 	local SYSTEM_PATH_READY=no
 	for ATTEMPT in {1..120}
 	do
-		if docker exec "$CONTAINER" /bin/sh -c '[ -x /run/current-system/sw/bin/ip ]' 2>/dev/null; then
+		if docker exec "$CONTAINER" /run/current-system/sw/bin/systemctl show --property=Version --value >/dev/null 2>&1; then
 			SYSTEM_PATH_READY=yes
 			break
 		fi
