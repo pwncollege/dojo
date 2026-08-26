@@ -16,6 +16,7 @@ from utils import (
     DOJO_URL,
     db_sql,
     dojo_run,
+    flask_exec,
     get_user_id,
     login,
     parse_csrf_token,
@@ -104,18 +105,16 @@ def server_config(**overrides):
 
 def mint_signed_token(payload, *, age=0):
     """Mint a CTFd-compatible URLSafeTimedSerializer token, optionally backdated by `age` seconds."""
-    return dojo_run(
-        "docker", "exec", "ctfd", "python3", "-c",
+    return flask_exec(
         "import os, sys, time\n"
         "from itsdangerous.url_safe import URLSafeTimedSerializer\n"
         "from itsdangerous.timed import TimestampSigner\n"
-        "age = int(sys.argv[2])\n"
+        f"age = {age}\n"
         "class Backdated(TimestampSigner):\n"
         "    def get_timestamp(self):\n"
         "        return int(time.time()) - age\n"
-        "print(URLSafeTimedSerializer(os.environ['SECRET_KEY'], signer=Backdated).dumps(sys.argv[1]))\n",
-        payload, str(age),
-    ).stdout.strip()
+        f"print(URLSafeTimedSerializer(os.environ['SECRET_KEY'], signer=Backdated).dumps({payload!r}))\n"
+    ).strip()
 
 
 def password_hash(name):

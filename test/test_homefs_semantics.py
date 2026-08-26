@@ -2,6 +2,7 @@ import json
 import random
 import re
 import string
+import time
 
 import pytest
 
@@ -70,7 +71,7 @@ def _homefs_rows(container, volume):
         "for table in ('active_volumes', 'docker_volumes')}))"
     )
     result = dojo_run(
-        "docker", "exec", "homefs", "python", "-c", script, volume,
+        "python3", "-c", script, volume,
         container=container,
     )
     return json.loads(result.stdout)
@@ -85,9 +86,44 @@ def _delete_homefs_rows(container, volume):
         "connection.commit()"
     )
     dojo_run(
-        "docker", "exec", "homefs", "python", "-c", script, volume,
+        "python3", "-c", script, volume,
         container=container, check=False,
     )
+
+
+def _set_active_host(volume, host):
+    script = (
+        "import sqlite3, sys; "
+        "connection = sqlite3.connect('/run/homefs/homefs.db'); "
+        "connection.execute('insert into active_volumes (name, host) values (?, ?) "
+        "on conflict(name) do update set host = excluded.host', (sys.argv[1], sys.argv[2])); "
+        "connection.commit()"
+    )
+    dojo_run("python3", "-c", script, volume, host)
+
+
+def _claim_volume(container, volume):
+    result = dojo_run(
+        "curl", "-s", "-o", "/dev/stdout", "-w", "\n%{http_code}",
+        "-XPOST", f"http://192.168.42.1:4201/volume/{volume}/activate",
+        container=container,
+    )
+    body, _, status = result.stdout.rpartition("\n")
+    return int(status), body
+
+
+def _subvolume_uuid(container, path):
+    output = dojo_run("btrfs", "subvolume", "show", path, container=container).stdout
+    match = re.search(r"^\s*UUID:\s+(\S+)", output, re.M)
+    assert match, output
+    return match.group(1)
+
+
+def _numeric_volume_for(node_id):
+    volume_id = random.randrange(10 ** 11, 10 ** 12)
+    while _expected_node(volume_id) != node_id:
+        volume_id += 1
+    return str(volume_id)
 
 
 def _delete_volume_tree(container, volume):
@@ -354,4 +390,114 @@ def test_multinode_coordinator_rejects_competing_active_host():
         status, body = _driver(first_worker, "Mount", {"Name": volume, "ID": "again"})
         assert status == 200, (status, body)
     finally:
+        _remove_volume_everywhere(volume)
+
+
+def test_multinode_legacy_active_owner_reconciles_without_replacing_subvolume():
+    expected_node, wrong_node = WORKSPACE_NODES[:2]
+    expected_worker = _worker_container(expected_node)
+    wrong_worker = _worker_container(wrong_node)
+    volume = _numeric_volume_for(expected_node)
+    unresolved_volume = _random_name("homefs-legacy-unresolved-")
+    legacy_host = "172.18.0.1"
+    nonlegacy_private_host = "10.64.0.7"
+    malformed_legacy_host = "legacy.invalid"
+    expected_host = f"192.168.42.{expected_node + 1}"
+    competing_host = f"192.168.42.{wrong_node + 1}"
+    unregistered_node = next(
+        (node_id for node_id in range(1, 16) if node_id not in WORKSPACE_NODES),
+        16,
+    )
+    unregistered_wireguard_host = f"192.168.42.{unregistered_node + 1}"
+    marker = _random_name("legacy-owner-")
+
+    try:
+        status, body = _driver(expected_worker, "Create", {"Name": volume})
+        assert status == 200, (status, body)
+        status, body = _driver(expected_worker, "Mount", {"Name": volume, "ID": "legacy"})
+        assert status == 200, (status, body)
+        active_path = f"/data/homes/{volume}/active"
+        dojo_run(
+            "sh", "-c", f"printf {marker} > {active_path}/legacy-owner-marker",
+            container=expected_worker,
+        )
+        active_uuid = _subvolume_uuid(expected_worker, active_path)
+
+        _delete_homefs_rows(DOJO_CONTAINER, volume)
+        status, body = _claim_volume(wrong_worker, volume)
+        assert status == 409, (status, body)
+        assert _homefs_rows(DOJO_CONTAINER, volume)["active_volumes"] == []
+        status, body = _claim_volume(expected_worker, volume)
+        assert status == 201, (status, body)
+        assert _homefs_rows(DOJO_CONTAINER, volume)["active_volumes"][0][1] == expected_host
+
+        _set_active_host(volume, legacy_host)
+        status, body = _claim_volume(wrong_worker, volume)
+        assert status == 409, (status, body)
+        assert _homefs_rows(DOJO_CONTAINER, volume)["active_volumes"][0][1] == legacy_host
+
+        _set_active_host(volume, competing_host)
+        status, body = _claim_volume(wrong_worker, volume)
+        assert status == 409, (status, body)
+        status, body = _claim_volume(expected_worker, volume)
+        assert status == 409, (status, body)
+        assert _homefs_rows(DOJO_CONTAINER, volume)["active_volumes"][0][1] == competing_host
+
+        _set_active_host(volume, unregistered_wireguard_host)
+        status, body = _claim_volume(expected_worker, volume)
+        assert status == 409, (status, body)
+        assert (
+            _homefs_rows(DOJO_CONTAINER, volume)["active_volumes"][0][1]
+            == unregistered_wireguard_host
+        )
+
+        _set_active_host(volume, "127.0.0.1")
+        status, body = _claim_volume(expected_worker, volume)
+        assert status == 409, (status, body)
+        assert _homefs_rows(DOJO_CONTAINER, volume)["active_volumes"][0][1] == "127.0.0.1"
+
+        _set_active_host(volume, malformed_legacy_host)
+        status, body = _claim_volume(expected_worker, volume)
+        assert status == 409, (status, body)
+        assert (
+            _homefs_rows(DOJO_CONTAINER, volume)["active_volumes"][0][1]
+            == malformed_legacy_host
+        )
+
+        _set_active_host(volume, nonlegacy_private_host)
+        status, body = _claim_volume(expected_worker, volume)
+        assert status == 409, (status, body)
+        assert (
+            _homefs_rows(DOJO_CONTAINER, volume)["active_volumes"][0][1]
+            == nonlegacy_private_host
+        )
+
+        _set_active_host(volume, legacy_host)
+        status, body = _claim_volume(expected_worker, volume)
+        assert status == 201, (status, body)
+        assert _homefs_rows(DOJO_CONTAINER, volume)["active_volumes"][0][1] == expected_host
+
+        _set_active_host(unresolved_volume, legacy_host)
+        status, body = _claim_volume(expected_worker, unresolved_volume)
+        assert status == 409, (status, body)
+        assert _homefs_rows(DOJO_CONTAINER, unresolved_volume)["active_volumes"][0][1] == legacy_host
+
+        _set_active_host(volume, legacy_host)
+        dojo_run("systemctl", "restart", "dojo-homefs.service", container=expected_worker)
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            rows = _homefs_rows(DOJO_CONTAINER, volume)["active_volumes"]
+            if rows and rows[0][1] == expected_host:
+                break
+            time.sleep(0.25)
+        else:
+            pytest.fail(f"legacy owner remained unreconciled: {rows}")
+
+        assert _subvolume_uuid(expected_worker, active_path) == active_uuid
+        assert dojo_run(
+            "cat", f"{active_path}/legacy-owner-marker", container=expected_worker,
+        ).stdout == marker
+        assert _homefs_rows(DOJO_CONTAINER, unresolved_volume)["active_volumes"][0][1] == legacy_host
+    finally:
+        _remove_volume_everywhere(unresolved_volume)
         _remove_volume_everywhere(volume)

@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+. /run/dojo/config.env
+
+version=9.1.2
+build=b6b9c8185839
+release="$version-$build"
+archive="/data/splunk/cache/splunk-$release.tgz"
+archive_url="https://download.splunk.com/products/splunk/releases/$version/linux/splunk-$release-Linux-x86_64.tgz"
+archive_sha512=0244198c7c210e034227fc5420a705ea15aa5758fb01581cdad7ff0f4a31c54c34953c4a3177428daa3751c6f70c327c6161df096fbea2bb33df931b4c1c94bf
+release_path="/data/splunk/releases/$release"
+splunk_home=/data/splunk/opt/splunk
+
+install -d -m 755 /data/splunk/cache /data/splunk/opt /data/splunk/releases
+chown splunk:splunk /data/splunk
+
+if [ ! -f "$release_path/.installed" ]; then
+    if [ ! -f "$archive" ] || ! printf '%s  %s\n' "$archive_sha512" "$archive" | sha512sum --check --status; then
+        if [ "$DOJO_OFFLINE" = true ]; then
+            echo "Splunk $release is not cached and the dojo is offline" >&2
+            exit 1
+        fi
+        archive_temp="$(mktemp /data/splunk/cache/.splunk.tgz.XXXXXX)"
+        trap 'rm -f "$archive_temp"' EXIT
+        curl --fail --location --retry 3 --output "$archive_temp" "$archive_url"
+        printf '%s  %s\n' "$archive_sha512" "$archive_temp" | sha512sum --check --status
+        mv -f "$archive_temp" "$archive"
+        trap - EXIT
+    fi
+
+    release_temp="$(mktemp -d /data/splunk/releases/.splunk.XXXXXX)"
+    trap 'rm -rf "$release_temp"' EXIT
+    tar -xzf "$archive" -C "$release_temp"
+    for directory in etc var; do
+        if [ ! -e "/data/splunk/$directory" ]; then
+            mv "$release_temp/splunk/$directory" "/data/splunk/$directory"
+        else
+            rm -rf "$release_temp/splunk/$directory"
+        fi
+        ln -s "/data/splunk/$directory" "$release_temp/splunk/$directory"
+    done
+    touch "$release_temp/splunk/.installed"
+    chown -R splunk:splunk "$release_temp/splunk" /data/splunk/etc /data/splunk/var
+    mv "$release_temp/splunk" "$release_path"
+    rmdir "$release_temp"
+    trap - EXIT
+fi
+
+ln -sfn "$release_path" "$splunk_home"
+install -d -m 755 -o splunk -g splunk \
+    /data/splunk/etc/apps/dojo/local \
+    /data/splunk/etc/apps/splunk_httpinput/local \
+    /data/splunk/etc/system/local
+
+if [ ! -s /data/splunk/etc/passwd ]; then
+    install -m 600 -o splunk -g splunk /dev/null /data/splunk/etc/system/local/user-seed.conf
+    printf '%s\n' '[user_info]' 'USERNAME = admin' 'PASSWORD = DojoSplunk2024!' > /data/splunk/etc/system/local/user-seed.conf
+fi
+
+printf '%s\n' '[settings]' 'httpport = 8001' > /data/splunk/etc/apps/dojo/local/web.conf
+printf '%s\n' '[kvstore]' 'maxKVSize = 8192' > /data/splunk/etc/apps/dojo/local/limits.conf
+printf '%s\n' '[general]' 'serverName = dojo-splunk' > /data/splunk/etc/apps/dojo/local/server.conf
+printf '%s\n' \
+    '[http]' \
+    'disabled = 0' \
+    'port = 8088' \
+    'enableSSL = 0' \
+    '' \
+    '[http://dojo]' \
+    'disabled = 0' \
+    'token = 11111111-1111-1111-1111-111111111111' \
+    'index = main' \
+    'indexes = main' > /data/splunk/etc/apps/splunk_httpinput/local/inputs.conf
+chown -R splunk:splunk /data/splunk/etc/apps/dojo /data/splunk/etc/apps/splunk_httpinput/local
+
+bootstrap_marker="/data/splunk/.bootstrapped-$release"
+if [ ! -f "$bootstrap_marker" ]; then
+    runuser -u splunk -- env HOME=/data/splunk SPLUNK_HOME="$splunk_home" \
+        "$splunk_home/bin/splunk" start --accept-license --answer-yes --no-prompt
+    runuser -u splunk -- env HOME=/data/splunk SPLUNK_HOME="$splunk_home" \
+        "$splunk_home/bin/splunk" stop
+    touch "$bootstrap_marker"
+    chown splunk:splunk "$bootstrap_marker"
+fi

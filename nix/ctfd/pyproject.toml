@@ -1,0 +1,53 @@
+[project]
+name = "dojo-python-runtime"
+version = "0.1.0"
+requires-python = "==3.13.*"
+dependencies = [
+  "bcrypt==4.0.1",
+  "bleach[css]==6.1.0",
+  "boto3==1.20.0",
+  "cmarkgfm==2022.10.27",
+  "coverage==7.10.6",
+  "dataset==1.5.2",
+  "docker==6.1.2",
+  "emoji==2.15.0",
+  "flask==2.2.5",
+  "flask-babel==2.0.0",
+  "flask-caching==2.0.2",
+  "flask-marshmallow==0.10.1",
+  "flask-migrate==2.5.3",
+  "flask-restx==1.1.0",
+  "flask-script==2.0.6",
+  "flask-shell-ipython==0.5.1",
+  "flask-sqlalchemy==2.5.1",
+  "freezegun==1.5.3",
+  "gevent==25.5.1",
+  "gunicorn==22.0.0",
+  "ipython==8.16.1",
+  "legacy-cgi==2.6.3",
+  "marshmallow==2.20.2",
+  "marshmallow-sqlalchemy==0.17.0",
+  "maxminddb==1.5.4",
+  "passlib==1.7.4",
+  "psycopg2-binary==2.9.10",
+  "pybluemonday==0.0.14",
+  "pydantic==1.10.13",
+  "pymysql[rsa]==1.0.2",
+  "python-dotenv==0.13.0",
+  "python-geoacumen-city==2023.4.15",
+  "pytz>=2024.1",
+  "pyyaml==6.0.2",
+  "redis==7.1.0",
+  "requests==2.31.0",
+  "schema==0.7.5",
+  "setuptools==80.9.0",
+  "sqlalchemy==1.4.48",
+  "sqlalchemy-utils==0.41.1",
+  "sshpubkeys==3.3.1",
+  "tenacity==6.2.0",
+  "werkzeug==2.3.8",
+  "wtforms==2.3.1",
+]
+
+[tool.uv]
+package = false

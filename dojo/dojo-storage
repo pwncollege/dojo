@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+umask 077
+
+attach_loop_image() {
+    local image_path="$1"
+    local loop_device loop_name loop_major loop_minor
+
+    loop_device="$(losetup --associated "$image_path" --noheadings --output NAME | head -n 1)"
+    if [ -z "$loop_device" ]; then
+        loop_device="$(losetup --find | awk '{ print $1 }')"
+        if [ ! -b "$loop_device" ]; then
+            loop_name="${loop_device#/dev/}"
+            IFS=: read -r loop_major loop_minor < "/sys/class/block/$loop_name/dev"
+            mknod -m 660 "$loop_device" b "$loop_major" "$loop_minor"
+            chown root:disk "$loop_device"
+        fi
+        losetup "$loop_device" "$image_path"
+    fi
+    printf '%s\n' "$loop_device"
+}
+
+mount_loop_image() {
+    local image_path="$1"
+    local target_path="$2"
+    local loop_device
+
+    loop_device="$(attach_loop_image "$image_path")"
+    if ! mount "$loop_device" "$target_path"; then
+        losetup --detach "$loop_device" || true
+        return 1
+    fi
+    losetup --detach "$loop_device"
+}
+
+install -d -m 755 /run/dojo
+
+environment_dojo_offline_set=false
+if [[ -v DOJO_OFFLINE ]]; then
+    environment_dojo_offline="$DOJO_OFFLINE"
+    environment_dojo_offline_set=true
+fi
+if [ -f /run/dojo/config.env ]; then
+    . /run/dojo/config.env
+elif [ -f /data/config.env ]; then
+    . /data/config.env
+fi
+mount --make-shared /
+
+data_config_before_mount=
+if ! data_mount_options="$(findmnt -nro OPTIONS --mountpoint /data 2>/dev/null)"; then
+    if [ -f /data/config.env ]; then
+        data_config_before_mount="$(mktemp /run/dojo/.config.env.XXXXXX)"
+        cp /data/config.env "$data_config_before_mount"
+        trap 'rm -f "$data_config_before_mount"' EXIT
+    fi
+    if [ ! -f /data.img ]; then
+        echo '[+] Creating data storage'
+        truncate -s "${DOJO_DATA_STORAGE_SIZE:-256G}" /data.img
+        mkfs.ext4 -F /data.img
+    fi
+    mkdir -p /data
+    mount_loop_image /data.img /data
+    data_mount_options="$(findmnt -nro OPTIONS --mountpoint /data)"
+    if [ -n "$data_config_before_mount" ]; then
+        if [ ! -f /data/config.env ]; then
+            install -m 600 "$data_config_before_mount" /data/config.env
+        fi
+        rm -f "$data_config_before_mount"
+        trap - EXIT
+    fi
+fi
+
+if [ -f /data/config.env ]; then
+    . /data/config.env
+    install -m 600 -o root -g root /data/config.env /run/dojo/config.env
+fi
+if [ "$environment_dojo_offline_set" = true ]; then
+    DOJO_OFFLINE="$environment_dojo_offline"
+fi
+
+if printf '%s' "$data_mount_options" | grep -Fqw nosuid; then
+    echo '[+] Remounting /data with suid enabled'
+    mount --options remount,suid /data
+fi
+if mountpoint -q /data; then
+    mount --make-shared /data
+fi
+
+install -d -m 700 \
+    /data/acme/live \
+    /data/backups \
+    /data/ctfd-ipython \
+    /data/mac \
+    /data/postgres \
+    /data/redis \
+    /data/ssh_host_keys
+install -d -m 755 \
+    /data/CTFd/logs \
+    /data/CTFd/uploads \
+    /data/coverage \
+    /data/dojos \
+    /data/homes \
+    /data/workspace/nix \
+    /data/workspacefs/bin \
+    /run/dojo \
+    /run/homefs
+
+if [ ! -f /data/workspace_nodes.json ]; then
+    printf '{}\n' > /data/workspace_nodes.json
+fi
+chmod 644 /data/workspace_nodes.json
+
+if [ ! -f /data/grafana-secret-key ]; then
+    openssl rand -hex 32 > /data/grafana-secret-key
+    chmod 600 /data/grafana-secret-key
+fi
+dojo-storage-permissions
+
+home_filesystem="$(findmnt -nro FSTYPE --target /data/homes)"
+data_filesystem="$(findmnt -nro FSTYPE --target /data)"
+if [ "$home_filesystem" != btrfs ] && [ "$data_filesystem" != btrfs ]; then
+    home_image=/data/homes/btrfs.img
+    if [ ! -f "$home_image" ]; then
+        echo '[+] Creating home storage'
+        truncate -s "${DOJO_HOME_STORAGE_SIZE:-256G}" "$home_image"
+        mkfs.btrfs -f "$home_image"
+    fi
+    mount_loop_image "$home_image" /data/homes
+    home_filesystem=btrfs
+fi
+
+if [ "$home_filesystem" = btrfs ]; then
+    btrfs quota enable /data/homes
+fi
+
+if ! mountpoint -q /run/homefs; then
+    mount --bind /data/homes /run/homefs
+fi
+mount --options remount,bind,nosuid /run/homefs
+mount --make-shared /run/homefs
+
+generate_host_key() {
+    local key_type="$1"
+    shift
+    local key_path="/data/ssh_host_keys/ssh_host_${key_type}_key"
+    if [ ! -f "$key_path" ]; then
+        ssh-keygen -q -t "$key_type" "$@" -N '' -f "$key_path"
+    fi
+}
+
+generate_host_key rsa -b 4096 -m PEM
+generate_host_key ecdsa -b 256 -m PEM
+generate_host_key ed25519
+chmod 600 /data/ssh_host_keys/ssh_host_*_key
+chmod 644 /data/ssh_host_keys/ssh_host_*_key.pub
+
+if [ "${DOJO_OFFLINE:-false}" != true ]; then
+    known_hosts_temp="$(mktemp /data/ssh_host_keys/.ssh_known_hosts.XXXXXX)"
+    trap 'rm -f "$known_hosts_temp"' EXIT
+    if ssh-keyscan -T 10 github.com > "$known_hosts_temp"; then
+        chmod 644 "$known_hosts_temp"
+        mv -f "$known_hosts_temp" /data/ssh_host_keys/ssh_known_hosts
+    else
+        rm -f "$known_hosts_temp"
+    fi
+    trap - EXIT
+fi

@@ -1,254 +1,280 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+
+set -euo pipefail
 
 cd /opt/pwn.college
 
-if [ -n "$1" ]
-then
-    ACTION="$1"
+action="${1:-help}"
+if [ "$#" -gt 0 ]; then
     shift
-else
-    ACTION="help"
 fi
 
-DOCKER_ARGS=${DOCKER_ARGS:--i}
-[ -t 0 ] && DOCKER_ARGS="-t $DOCKER_ARGS"
-
-if [ "$ACTION" != "init" ] && [ -f /data/config.env ]; then
+if [ -f /data/config.env ]; then
     . /data/config.env
 fi
 
-case "$ACTION" in
-    # HELP: up: bring the dojo up
-    "up")
-        if [ -n "$DOCKER_USERNAME" ] && [ -n "$DOCKER_TOKEN" ]; then
-            echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
-        fi
+ctfd_source="${DOJO_CTFD_SOURCE:-/run/dojo/ctfd}"
 
-        dojo sync
-        build_args=(--build)
-        if [ "${DOJO_OFFLINE}" = "true" ]; then
-            build_args=(--no-build)
+database_host="${DB_HOST:-/run/postgresql}"
+database_port=5432
+if [[ "$database_host" =~ ^\[([^]]+)\]:([0-9]+)$ ]]; then
+    database_port="${BASH_REMATCH[2]}"
+    database_host="${BASH_REMATCH[1]}"
+elif [[ "$database_host" =~ ^([^:/]+):([0-9]+)$ ]]; then
+    database_port="${BASH_REMATCH[2]}"
+    database_host="${BASH_REMATCH[1]}"
+fi
+
+database_args=(
+    --host="$database_host"
+    --port="$database_port"
+    --username="${DB_USER:-ctfd}"
+    --dbname="${DB_NAME:-ctfd}"
+)
+
+journal_units=(
+    -u 'dojo-*'
+    -u cadvisor.service
+    -u docker.service
+    -u grafana.service
+    -u pgbouncer.service
+    -u postgresql.service
+    -u prometheus.service
+    -u prometheus-node-exporter.service
+    -u redis-dojo.service
+    -u splunk.service
+    -u sshd.service
+)
+
+case "$action" in
+    up)
+        if [ -n "${DOCKER_USERNAME:-}" ] && [ -n "${DOCKER_TOKEN:-}" ]; then
+            printf '%s' "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
         fi
-        dojo compose up -d "${build_args[@]}" --remove-orphans "$@"
+        exec "$0" sync "$@"
         ;;
 
-    # HELP: update: update dojo files (warning: does `git pull`), rebuild containers, and restart any changed services
-    "update")
+    update)
         git pull
-        dojo up "$@"
+        exec "$0" up "$@"
         ;;
 
-    # HELP: sync: sync changed dojo files
-    "sync")
-        cp -rv --preserve=timestamps ctfd/* /opt/CTFd/
-        cp -rv --preserve=timestamps dojo_plugin /opt/CTFd/CTFd/plugins/
-        cp -rv --preserve=timestamps dojo_theme /opt/CTFd/CTFd/themes/
+    sync)
+        exec nixos-rebuild switch --flake /opt/pwn.college#dojo "$@"
         ;;
 
-    # HELP: enter [ -s ] USER_ID: enter a user's running container. -s for entering as root
-    "enter")
-        USER_SWITCH="--user=1000"
-        if [ "$1" == "-s" ]
-        then
-            USER_SWITCH="--user=0"
+    enter)
+        container_user=1000
+        if [ "${1:-}" = "-s" ]; then
+            container_user=0
             shift
         fi
-        DOJO_UID="$1"
-        [ -n "${DOJO_UID//[0-9]}" ] && DOJO_UID=$(echo "select id from users where name='$DOJO_UID'" | dojo db -qAt)
-        CONTAINER="user_$DOJO_UID"
-        shift
+        if [ "$#" -eq 0 ]; then
+            echo "Usage: $0 enter [ -s ] USER_ID [ COMMAND ... ]" >&2
+            exit 1
+        fi
 
-        NODES=( unix:///var/run/docker.sock )
-        NODES+=( $(wg | grep "allowed ips" | awk -F " |/" '{print $5}') )
-        for NODE in ${NODES[@]}
-        do
-            if docker -H $NODE ps | grep -q "$CONTAINER$"
-            then
-                docker -H "$NODE" exec $DOCKER_ARGS $USER_SWITCH "$CONTAINER" bash
-                exit $?
+        dojo_uid="$1"
+        shift
+        if [[ "$dojo_uid" =~ [^0-9] ]]; then
+            dojo_uid="$(printf "select id from users where name='%s'" "${dojo_uid//\'/\'\'}" | "$0" db -qAt)"
+        fi
+        if [ -z "$dojo_uid" ]; then
+            echo "Error: user not found" >&2
+            exit 1
+        fi
+
+        container="user_$dojo_uid"
+        exec_args=(-i)
+        if [ -t 0 ] && [ -t 1 ]; then
+            exec_args+=(-t)
+        fi
+        if [ "$#" -eq 0 ]; then
+            set -- bash
+        fi
+
+        nodes=(unix:///var/run/docker.sock)
+        if command -v wg >/dev/null && wg show wg0 >/dev/null 2>&1; then
+            while IFS= read -r node_ip; do
+                nodes+=("tcp://${node_ip}:2375")
+            done < <(
+                wg show wg0 allowed-ips |
+                    awk '{print $2}' |
+                    tr ',' '\n' |
+                    sed -nE 's|^(192\.168\.42\.[0-9]+)/32$|\1|p'
+            )
+        fi
+
+        for node in "${nodes[@]}"; do
+            if [ "$(docker -H "$node" inspect --format '{{.State.Running}}' "$container" 2>/dev/null || true)" = "true" ]; then
+                exec docker -H "$node" exec "${exec_args[@]}" --user "$container_user" "$container" "$@"
             fi
         done
-        echo "Error: no running container for $CONTAINER" >&2
+        echo "Error: no running container for $container" >&2
         exit 1
         ;;
 
-    # HELP: compose ARGS: run a docker compose command with the config.env file loaded
-    "compose")
-        profiles=()
+    node)
+        exec dojo-node "$@"
+        ;;
 
-        multi_node=$(jq 'length > 0' /data/workspace_nodes.json 2>/dev/null || echo "unknown")
-        if [ "$WORKSPACE_NODE" -gt 0 ]; then
-            profiles+=("workspace")
-            profiles+=("workspace_exclusive")
-        elif [ "$multi_node" == "true" ]; then
-            profiles+=("main")
-            export DOJO_WORKSPACE=cli
-        else
-            profiles+=("main" "workspace")
+    flask)
+        if [ "$EUID" -eq 0 ]; then
+            exec /run/current-system/sw/bin/setpriv \
+                --reuid=ctfd \
+                --regid=ctfd \
+                --init-groups \
+                --inh-caps=-all \
+                --ambient-caps=-all \
+                --bounding-set=-all \
+                /run/current-system/sw/bin/dojo-flask shell "$@"
         fi
-
-        [ "${ENABLE_SPLUNK}" = "true" ] && profiles+=("splunk")
-
-        args=(--env-file=/data/config.env)
-        for p in "${profiles[@]}"; do
-            args+=(--profile "$p")
-        done
-        docker compose "${args[@]}" "$@"
+        exec /run/current-system/sw/bin/dojo-flask shell "$@"
         ;;
 
-    # HELP: node: run a dojo node command
-    "node")
-        dojo-node "$@"
+    db)
+        PGPASSWORD="${DB_PASS:-ctfd}" exec psql "${database_args[@]}" "$@"
         ;;
 
-    # HELP: flask: drop into a flask shell in the ctfd container
-    "flask")
-        docker exec $DOCKER_ARGS ctfd flask shell "$@"
-        ;;
-
-    # HELP: db: launch a mysql client session, connected to the ctfd db
-    "db")
-        docker exec $DOCKER_ARGS db psql "$@"
-        ;;
-
-    # HELP: backup: does a dojo db backup into the `/data/backups` directory.
-    "backup")
+    backup)
+        umask 077
         mkdir -p /data/backups
-        BACKUP_PATH="/data/backups/db-$(date -Iseconds).dump"
-        docker exec db pg_dump -Fc > "$BACKUP_PATH"
-        echo "Created backup at $BACKUP_PATH"
+        backup_path="/data/backups/db-$(date -Iseconds).dump"
+        PGPASSWORD="${DB_PASS:-ctfd}" pg_dump "${database_args[@]}" --format=custom --file="$backup_path"
+        echo "Created backup at $backup_path"
         ;;
 
-    # HELP: restore PATH: restores a dojo db backup. Path arg is relative to the `/data/backups` directory
-    "restore")
-        BACKUP_PATH="/data/backups/$1"
-        if [ -f "$BACKUP_PATH" ]; then
-            docker exec -i db pg_restore --clean --if-exists --dbname="$DB_NAME" < "$BACKUP_PATH"
-        else
+    restore)
+        if [ "$#" -ne 1 ]; then
+            echo "Usage: $0 restore PATH" >&2
+            exit 1
+        fi
+        backup_path="/data/backups/$1"
+        if [ ! -f "$backup_path" ]; then
             echo "Error: missing file to restore from" >&2
             exit 1
         fi
+        PGPASSWORD="${DB_PASS:-ctfd}" pg_restore \
+            "${database_args[@]}" \
+            --clean \
+            --if-exists \
+            "$backup_path"
         ;;
 
-    # HELP: cloud-backup: upload the last day's worth of cloud backups to S3, but encrypt it at rest
-    "cloud-backup")
+    cloud-backup)
         if [ -z "${BACKUP_AES_KEY_FILE:-}" ]; then
             echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set" >&2
             exit 1
         fi
         if [ ! -f "$BACKUP_AES_KEY_FILE" ]; then
-            echo "To use cloud backup, BACKUP_AES_KEY_FILE must be set to a file, but is $BACKUP_AES_KEY_FILE instead" >&2
+            echo "To use cloud backup, BACKUP_AES_KEY_FILE must name a file, but is $BACKUP_AES_KEY_FILE instead" >&2
             exit 1
         fi
         if [ -z "${S3_BACKUP_BUCKET:-}" ]; then
             echo "To use cloud backup, S3_BACKUP_BUCKET must be set to the S3 bucket to use" >&2
             exit 1
         fi
-        set -e
-        for f in $(find /data/backups -mtime -1 -type f)
-        do
-            BACKUP_FILENAME="$(basename $f).enc"
-            OUT_FILE="/tmp/$BACKUP_FILENAME"
-            openssl enc -in "$f" -out "$OUT_FILE" -e -aes256 -pbkdf2 -kfile "$BACKUP_AES_KEY_FILE"
-            echo "created encrypted $OUT_FILE"
 
-            AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} aws s3 cp "$OUT_FILE" "s3://$S3_BACKUP_BUCKET/$BACKUP_FILENAME"
-            echo "backed up $OUT_FILE to S3 bucket $S3_BACKUP_BUCKET"
-            rm "$OUT_FILE"
-        done
+        while IFS= read -r -d '' backup_file; do
+            backup_filename="$(basename "$backup_file").enc"
+            output_file="$(mktemp "/tmp/${backup_filename}.XXXXXX")"
+            trap 'rm -f "$output_file"' EXIT
+            openssl enc \
+                -in "$backup_file" \
+                -out "$output_file" \
+                -e \
+                -aes256 \
+                -pbkdf2 \
+                -kfile "$BACKUP_AES_KEY_FILE"
+            echo "Created encrypted $output_file"
+            AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-}" \
+                AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-}" \
+                AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-}" \
+                aws s3 cp "$output_file" "s3://$S3_BACKUP_BUCKET/$backup_filename"
+            echo "Backed up $output_file to S3 bucket $S3_BACKUP_BUCKET"
+            rm -f "$output_file"
+            trap - EXIT
+        done < <(find /data/backups -mtime -1 -type f -print0)
         ;;
 
-    # HELP: vscode: start vscode tunnel
-    "vscode")
-        dojo-vscode "$@"
+    vscode)
+        exec dojo-vscode "$@"
         ;;
 
-    # HELP: logs: display dojo logs
-    "logs")
-        journalctl --no-pager -u pwn.college "$@"
+    logs)
+        exec journalctl --no-pager "${journal_units[@]}" "$@"
         ;;
 
-    # HELP: load-dojo: load a dojo from a git repository
-    "load-dojo")
-        "$0" flask -- /opt/CTFd/CTFd/plugins/dojo_plugin/scripts/load_dojo.py -- "$@"
-        exit $?
+    load-dojo)
+        exec "$0" flask -- "$ctfd_source/CTFd/plugins/dojo_plugin/scripts/load_dojo.py" -- "$@"
         ;;
 
-    # HELP: wait: wait for the dojo to finish starting
-    "wait")
-        dojo logs -f --no-tail --since "-5 min" &
-        LOGS_PID=$!
-        trap 'kill $LOGS_PID 2>/dev/null' EXIT
-        STATE=""
-        WAIT_TIMEOUT=${DOJO_WAIT_TIMEOUT:-1800}
-        for _ in $(seq 1 "$WAIT_TIMEOUT"); do
-            if ! STATE=$(systemctl show -p ActiveState --value pwn.college.service 2>/dev/null); then
-                STATE=""
-            fi
-            [ "$STATE" = "active" ] && break
-            if [ "$STATE" = "failed" ]; then
-                echo "Error: pwn.college.service failed to start" >&2
-                exit 1
-            fi
-            sleep 1
-        done
-        kill $LOGS_PID 2>/dev/null || true
-        trap - EXIT
-        if [ "$STATE" != "active" ]; then
-            echo "Error: timed out waiting for pwn.college.service" >&2
-            exit 1
-        fi
+    wait)
+        journalctl --no-pager -f --no-tail --since '-5 min' "${journal_units[@]}" &
+        logs_pid=$!
+        trap 'kill "$logs_pid" 2>/dev/null || true' EXIT
 
-        if docker inspect workspace-builder >/dev/null 2>&1 \
-            && ! docker wait workspace-builder
-        then
-            docker logs --tail 100 workspace-builder
-            echo "Error: workspace-builder failed"
-            exit 1
-        fi
-
-        if docker ps --format '{{.Names}}' | grep -q '^stats-worker$'; then
-            echo "Waiting for stats-worker cold start to complete..."
-            timeout=300
-            elapsed=0
-            while [ $elapsed -lt $timeout ]; do
-                if docker logs stats-worker 2>&1 | grep -q "Cold start complete - all stats initialized"; then
-                    echo "Stats-worker initialization complete"
-                    exit 0
-                fi
-                sleep 1
-                elapsed=$((elapsed + 1))
-            done
-            echo "Error: stats-worker did not complete initialization within ${timeout}s"
-            exit 1
+        wait_timeout="${DOJO_WAIT_TIMEOUT:-1800}"
+        if timeout --foreground "${wait_timeout}s" systemctl restart dojo-ready.service; then
+            wait_status=0
         else
-            echo "No stats-worker container found (workspace node), skipping stats initialization check"
-            exit 0
+            wait_status=$?
+        fi
+
+        kill "$logs_pid" 2>/dev/null || true
+        wait "$logs_pid" 2>/dev/null || true
+        trap - EXIT
+        if [ "$wait_status" -eq 124 ]; then
+            systemctl stop dojo-ready.service 2>/dev/null || true
+            echo "Error: timed out waiting for dojo-ready.target" >&2
+            exit 1
+        fi
+        if [ "$wait_status" -ne 0 ]; then
+            echo "Error: dojo readiness check failed" >&2
+            systemctl --no-pager --failed \
+                'dojo-*' \
+                cadvisor.service \
+                docker.service \
+                grafana.service \
+                pgbouncer.service \
+                postgresql.service \
+                prometheus.service \
+                prometheus-node-exporter.service \
+                redis-dojo.service \
+                splunk.service \
+                sshd.service >&2 || true
+            exit "$wait_status"
         fi
         ;;
 
-    # HELP: init: main entry point for the docker image
-    "init")
-        echo "[+] Initializing dojo."
-        dojo-init
-        echo "[+] Starting systemd. If this is the first start, the challenge container"
-        echo "    will be built, which will take a very long time."
-        exec /usr/bin/systemd
-        ;;
+    help)
+        cat <<EOF
+Usage: $0 COMMAND [ ARG ... ]
 
-    # HELP: help: displays this help
-    "help")
-        echo "Usage: $0 COMMAND [ ARG ]"
-        echo
-        echo "COMMANDS:"
-        echo
-        cat "$0" | grep "[H]ELP" | sed -e "s/.*H[E]LP: /\t/"
+COMMANDS:
+
+    up: rebuild the NixOS system and switch to it
+    update: pull the repository, rebuild the NixOS system, and switch to it
+    sync: rebuild the NixOS system from /opt/pwn.college and switch to it
+    enter [ -s ] USER_ID [ COMMAND ... ]: enter a user's running container; -s enters as root
+    node: run a dojo node command
+    flask: run a Flask shell through the native dojo environment
+    db: launch a PostgreSQL client connected to the dojo database
+    backup: create a database backup in /data/backups
+    restore PATH: restore a database backup relative to /data/backups
+    cloud-backup: encrypt and upload recent backups to S3
+    vscode: start a VS Code tunnel
+    logs: display logs for native dojo services
+    load-dojo: load a dojo from a git repository
+    wait: wait for dojo-ready.target
+    help: display this help
+EOF
         ;;
 
     *)
-        echo "Unknown command $0."
-        echo ""
-        "$0" help
+        echo "Unknown command: $action" >&2
+        echo >&2
+        "$0" help >&2
         exit 1
         ;;
 esac

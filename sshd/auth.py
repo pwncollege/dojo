@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-import pathlib
 import sys
 from urllib.parse import urlparse
 
@@ -13,9 +12,11 @@ def error(msg):
     exit(1)
 
 def create_db_connection():
-    os.environ.update(dict(entry.split("=", maxsplit=1) for entry in open("/etc/environment", "r").read().splitlines()))
     if not (db_url := os.environ.get("DATABASE_URL")):
-        error("DATABASE_URL environment variable is not set")
+        db_user = os.environ.get("DB_USER", "ctfd")
+        db_pass = os.environ.get("DB_PASS", "ctfd")
+        db_name = os.environ.get("DB_NAME", "ctfd")
+        db_url = f"postgresql://{db_user}:{db_pass}@127.0.0.1:5432/{db_name}"
     parsed = urlparse(db_url)
     return psycopg2.connect(
         host=parsed.hostname,
@@ -26,7 +27,7 @@ def create_db_connection():
     )
 
 def main():
-    enter_path = pathlib.Path(__file__).parent.resolve() / "enter.py"
+    enter_path = os.environ.get("DOJO_SSH_ENTER", "/run/current-system/sw/bin/dojo-ssh-enter")
 
     connection = create_db_connection()
     with connection.cursor() as cursor:

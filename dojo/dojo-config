@@ -1,0 +1,275 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+umask 077
+
+current_config_version=1
+persistent_config=/data/config.env
+runtime_config=/run/dojo/config.env
+config_names=(
+    DOJO_HOST
+    WORKSPACE_HOST
+    DOJO_ENV
+    DOJO_OFFLINE
+    DOJO_WORKSPACE
+    NIX_GARBAGE_COLLECT
+    WORKSPACE_KEY
+    WORKSPACE_SECRET
+    WORKSPACE_NODE
+    SECRET_KEY
+    DOJO_SSH_SERVICE_KEY
+    INTERNET_FOR_ALL
+    MAIL_SERVER
+    MAIL_PORT
+    MAIL_USERNAME
+    MAIL_PASSWORD
+    MAIL_ADDRESS
+    CORS_ORIGINS
+    DOCKER_USERNAME
+    DOCKER_TOKEN
+    DISCORD_CLIENT_ID
+    DISCORD_CLIENT_SECRET
+    DISCORD_BOT_TOKEN
+    DISCORD_GUILD_ID
+    DB_HOST
+    DB_NAME
+    DB_USER
+    DB_PASS
+    BACKUP_AES_KEY_FILE
+    S3_BACKUP_BUCKET
+    AWS_DEFAULT_REGION
+    AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY
+    MAC_HOSTNAME
+    MAC_USERNAME
+    ENABLE_SPLUNK
+    STORAGE_HOST
+)
+
+declare -A environment_values=()
+declare -A persisted_values=()
+
+for config_name in "${config_names[@]}"; do
+    if [[ -v "$config_name" ]]; then
+        environment_values["$config_name"]="${!config_name}"
+    fi
+    unset "$config_name"
+done
+unset DOJO_CONFIG_VERSION
+
+if [ -f "$persistent_config" ]; then
+    set -a
+    . "$persistent_config"
+    set +a
+fi
+
+for config_name in "${config_names[@]}"; do
+    if [[ -v "$config_name" ]]; then
+        persisted_values["$config_name"]="${!config_name}"
+    fi
+    unset "$config_name"
+done
+
+persisted_config_version="${DOJO_CONFIG_VERSION:-0}"
+unset DOJO_CONFIG_VERSION
+if [[ ! "$persisted_config_version" =~ ^[0-9]+$ ]]; then
+    echo "Error: invalid DOJO_CONFIG_VERSION: $persisted_config_version" >&2
+    exit 1
+fi
+if (( persisted_config_version > current_config_version )); then
+    echo "Error: configuration version $persisted_config_version is newer than supported version $current_config_version" >&2
+    exit 1
+fi
+if (( persisted_config_version < 1 )); then
+    if [ "${persisted_values[DB_HOST]:-}" = db ] \
+        && [ -z "${environment_values[DB_HOST]:-}" ]; then
+        persisted_values[DB_HOST]=/run/postgresql
+    fi
+    if [ "${persisted_values[WORKSPACE_HOST]:-}" = workspace.localhost.pwn.college ] \
+        && [ -z "${environment_values[WORKSPACE_HOST]:-}" ]; then
+        selected_dojo_host="${environment_values[DOJO_HOST]:-${persisted_values[DOJO_HOST]:-localhost.pwn.college}}"
+        persisted_values[WORKSPACE_HOST]="workspace.$selected_dojo_host"
+    fi
+fi
+
+mkdir -p /data
+install -d -m 755 -o root -g root /run/dojo
+config_temp="$(mktemp /data/.config.env.XXXXXX)"
+trap 'rm -f "$config_temp"' EXIT
+printf 'DOJO_CONFIG_VERSION=%s\n' "$current_config_version" > "$config_temp"
+
+select_value() {
+    local name="$1"
+    local default_value="$2"
+    local value="$default_value"
+
+    if [ -n "${environment_values[$name]:-}" ]; then
+        value="${environment_values[$name]}"
+    elif [ -n "${persisted_values[$name]:-}" ]; then
+        value="${persisted_values[$name]}"
+    fi
+    if [[ "$value" == *$'\n'* ]] || [[ "$value" == *$'\r'* ]]; then
+        echo "Error: $name cannot contain a newline" >&2
+        exit 1
+    fi
+
+    printf -v "$name" '%s' "$value"
+    printf '%s=' "$name" >> "$config_temp"
+    printf '%q\n' "$value" >> "$config_temp"
+}
+
+select_secret() {
+    local name="$1"
+    local value="${environment_values[$name]:-${persisted_values[$name]:-}}"
+    if [ -z "$value" ]; then
+        value="$(openssl rand -hex 16)"
+    fi
+    select_value "$name" "$value"
+}
+
+select_value DOJO_HOST localhost.pwn.college
+select_value WORKSPACE_HOST "workspace.$DOJO_HOST"
+select_value DOJO_ENV development
+select_value DOJO_OFFLINE false
+select_value DOJO_WORKSPACE core
+select_value NIX_GARBAGE_COLLECT false
+select_value WORKSPACE_KEY ''
+select_secret WORKSPACE_SECRET
+select_value WORKSPACE_NODE 0
+select_secret SECRET_KEY
+select_secret DOJO_SSH_SERVICE_KEY
+select_value INTERNET_FOR_ALL False
+select_value MAIL_SERVER ''
+select_value MAIL_PORT ''
+select_value MAIL_USERNAME ''
+select_value MAIL_PASSWORD ''
+select_value MAIL_ADDRESS ''
+select_value CORS_ORIGINS ''
+select_value DOCKER_USERNAME ''
+select_value DOCKER_TOKEN ''
+select_value DISCORD_CLIENT_ID ''
+select_value DISCORD_CLIENT_SECRET ''
+select_value DISCORD_BOT_TOKEN ''
+select_value DISCORD_GUILD_ID ''
+select_value DB_HOST /run/postgresql
+select_value DB_NAME ctfd
+select_value DB_USER ctfd
+select_value DB_PASS ctfd
+select_value BACKUP_AES_KEY_FILE ''
+if [ -n "$BACKUP_AES_KEY_FILE" ] && [ ! -f "$BACKUP_AES_KEY_FILE" ]; then
+    echo "Error: configured BACKUP_AES_KEY_FILE does not exist: $BACKUP_AES_KEY_FILE" >&2
+    exit 1
+fi
+select_value S3_BACKUP_BUCKET ''
+select_value AWS_DEFAULT_REGION ''
+select_value AWS_ACCESS_KEY_ID ''
+select_value AWS_SECRET_ACCESS_KEY ''
+select_value MAC_HOSTNAME ''
+select_value MAC_USERNAME ''
+select_value ENABLE_SPLUNK false
+select_value STORAGE_HOST 192.168.42.1
+
+chown root:root "$config_temp"
+chmod 600 "$config_temp"
+if [ ! -f "$persistent_config" ] || ! cmp -s "$config_temp" "$persistent_config"; then
+    mv -f "$config_temp" "$persistent_config"
+else
+    rm -f "$config_temp"
+fi
+trap - EXIT
+chown root:root "$persistent_config"
+chmod 600 "$persistent_config"
+
+install -m 600 -o root -g root "$persistent_config" "$runtime_config"
+
+ctfd_config=/run/dojo/ctfd.env
+ctfd_config_temp="$(mktemp /run/dojo/.ctfd.env.XXXXXX)"
+trap 'rm -f "$ctfd_config_temp"' EXIT
+for config_name in \
+    CORS_ORIGINS \
+    DB_NAME \
+    DB_PASS \
+    DB_USER \
+    DISCORD_BOT_TOKEN \
+    DISCORD_CLIENT_ID \
+    DISCORD_CLIENT_SECRET \
+    DISCORD_GUILD_ID \
+    DOCKER_TOKEN \
+    DOCKER_USERNAME \
+    DOJO_ENV \
+    DOJO_HOST \
+    DOJO_SSH_SERVICE_KEY \
+    INTERNET_FOR_ALL \
+    MAC_HOSTNAME \
+    MAC_USERNAME \
+    MAIL_ADDRESS \
+    MAIL_PASSWORD \
+    MAIL_PORT \
+    MAIL_SERVER \
+    MAIL_USERNAME \
+    SECRET_KEY \
+    WORKSPACE_HOST \
+    WORKSPACE_SECRET
+do
+    printf '%s=' "$config_name" >> "$ctfd_config_temp"
+    printf '%q\n' "${!config_name}" >> "$ctfd_config_temp"
+done
+chown root:ctfd "$ctfd_config_temp"
+chmod 640 "$ctfd_config_temp"
+mv -f "$ctfd_config_temp" "$ctfd_config"
+trap - EXIT
+
+ssh_auth_config=/run/dojo/ssh-auth.env
+ssh_auth_config_temp="$(mktemp /run/dojo/.ssh-auth.env.XXXXXX)"
+for config_name in DB_NAME DB_PASS DB_USER; do
+    printf '%s=' "$config_name" >> "$ssh_auth_config_temp"
+    printf '%q\n' "${!config_name}" >> "$ssh_auth_config_temp"
+done
+install -m 600 -o root -g root "$ssh_auth_config_temp" "$ssh_auth_config"
+rm -f "$ssh_auth_config_temp"
+
+ssh_config=/run/dojo/ssh.env
+ssh_config_temp="$(mktemp /run/dojo/.ssh.env.XXXXXX)"
+for config_name in DOJO_HOST DOJO_SSH_SERVICE_KEY MAC_HOSTNAME MAC_USERNAME; do
+    printf '%s=' "$config_name" >> "$ssh_config_temp"
+    printf '%q\n' "${!config_name}" >> "$ssh_config_temp"
+done
+install -m 640 -o root -g hacker "$ssh_config_temp" "$ssh_config"
+rm -f "$ssh_config_temp"
+
+pgbouncer_auth=/run/dojo/pgbouncer-users.txt
+pgbouncer_auth_temp="$(mktemp /run/dojo/.pgbouncer-users.XXXXXX)"
+pgbouncer_user="${DB_USER//\"/\"\"}"
+pgbouncer_password="${DB_PASS//\"/\"\"}"
+printf '"%s" "%s"\n' "$pgbouncer_user" "$pgbouncer_password" > "$pgbouncer_auth_temp"
+install -m 640 -o root -g pgbouncer "$pgbouncer_auth_temp" "$pgbouncer_auth"
+rm -f "$pgbouncer_auth_temp"
+
+pgbouncer_host="$DB_HOST"
+pgbouncer_port=5432
+if [[ "$DB_HOST" =~ ^\[([^]]+)\]:([0-9]+)$ ]]; then
+    pgbouncer_host="${BASH_REMATCH[1]}"
+    pgbouncer_port="${BASH_REMATCH[2]}"
+elif [[ "$DB_HOST" =~ ^([^:/]+):([0-9]+)$ ]]; then
+    pgbouncer_host="${BASH_REMATCH[1]}"
+    pgbouncer_port="${BASH_REMATCH[2]}"
+fi
+
+pgbouncer_config=/run/dojo/pgbouncer.ini
+pgbouncer_config_temp="$(mktemp /run/dojo/.pgbouncer.XXXXXX)"
+printf '%s\n' \
+    '[databases]' \
+    "*=host=$pgbouncer_host port=$pgbouncer_port" \
+    '' \
+    '[pgbouncer]' \
+    'auth_file=/run/dojo/pgbouncer-users.txt' \
+    'auth_type=scram-sha-256' \
+    'default_pool_size=20' \
+    'listen_addr=127.0.0.1' \
+    'listen_port=6432' \
+    'max_client_conn=10000' \
+    'pool_mode=transaction' \
+    'unix_socket_dir=/run/pgbouncer' > "$pgbouncer_config_temp"
+install -m 640 -o root -g pgbouncer "$pgbouncer_config_temp" "$pgbouncer_config"
+rm -f "$pgbouncer_config_temp"

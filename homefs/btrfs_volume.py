@@ -1,19 +1,20 @@
-import io
 import os
 import re
 import subprocess
 import sys
+import tempfile
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
 import requests
 
-from utils import file_lock
+from utils import file_lock, CONTROL_REQUEST_TIMEOUT, TRANSFER_REQUEST_TIMEOUT
 
 
 STORAGE_ROOT = Path(os.environ.get("STORAGE_ROOT", "/data"))
 VOLUME_SIZE = os.environ.get("VOLUME_SIZE", "1G")
+SNAPSHOT_NAME_PATTERN = re.compile(r"[0-9]{8}-[0-9]{6}-[0-9]{6}")
 
 
 def btrfs(*args, **kwargs):
@@ -58,11 +59,14 @@ class BTRFSVolume:
 
         snapshot_path = self.fetch(host)
 
-        response = requests.post(f"http://{host}:4201/volume/{self.name}/activate")
-        try:
-            response.raise_for_status()
-        except requests.exceptions.HTTPError:
-            raise RuntimeError("Failed to activate")
+        with requests.post(
+            f"http://{host}:4201/volume/{self.name}/activate",
+            allow_redirects=False,
+            stream=True,
+            timeout=CONTROL_REQUEST_TIMEOUT,
+        ) as response:
+            if response.status_code != 201:
+                raise RuntimeError(f"Failed to activate: {response.status_code}")
 
         btrfs("subvolume", "snapshot", snapshot_path, self.active_path)
         btrfs("qgroup", "limit", VOLUME_SIZE, self.active_path)
@@ -137,19 +141,62 @@ class BTRFSVolume:
         if incremental_from and (incremental_from_path := self.snapshots_path / incremental_from).exists():
             btrfs_send_args.extend(["-p", incremental_from_path])
         btrfs_send_args.append(snapshot_path)
-        return subprocess.check_output(btrfs_send_args)
+
+        error_file = tempfile.TemporaryFile()
+        send_process = subprocess.Popen(
+            btrfs_send_args,
+            stdout=subprocess.PIPE,
+            stderr=error_file,
+        )
+
+        def chunks():
+            try:
+                while chunk := send_process.stdout.read(0x10000):
+                    yield chunk
+                if send_process.wait() != 0:
+                    error_file.seek(0)
+                    raise RuntimeError(error_file.read().decode())
+            finally:
+                send_process.stdout.close()
+                if send_process.poll() is None:
+                    send_process.terminate()
+                    try:
+                        send_process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        send_process.kill()
+                        send_process.wait()
+                error_file.close()
+
+        return chunks()
 
     def receive(self, stream):
         receive_process = subprocess.Popen(["btrfs", "receive", str(self.snapshots_path)],
                                            stdin=subprocess.PIPE,
-                                           stdout=subprocess.PIPE,
+                                           stdout=subprocess.DEVNULL,
                                            stderr=subprocess.PIPE)
-        while True:
-            chunk = stream.read(0x1000)
-            if not chunk:
-                break
-            receive_process.stdin.write(chunk)
-        stdout, stderr = receive_process.communicate()
+        try:
+            while True:
+                chunk = stream.read(0x1000)
+                if not chunk:
+                    break
+                receive_process.stdin.write(chunk)
+        except BrokenPipeError:
+            pass
+        except BaseException:
+            try:
+                receive_process.stdin.close()
+            except OSError:
+                pass
+            receive_process.stdin = None
+            if receive_process.poll() is None:
+                receive_process.terminate()
+            try:
+                receive_process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                receive_process.kill()
+                receive_process.communicate()
+            raise
+        _, stderr = receive_process.communicate()
         if receive_process.returncode != 0:
             raise RuntimeError(stderr.decode())
         if match := re.match(r"At subvol (?P<subvol>\S+)", stderr.decode()):
@@ -159,15 +206,31 @@ class BTRFSVolume:
         headers = {}
         if self.latest_snapshot_path:
             headers["If-None-Match"] = self.latest_snapshot_path.name
-        response = requests.get(f"http://{host}:4201/volume/{self.name}", headers=headers)
-        etag_path = self.snapshots_path / response.headers["ETag"]
-        if response.status_code == 304 or etag_path.exists():
-            # We already have the latest snapshot (we may have requested the volume from ourselves)
-            return etag_path
-        elif response.status_code == 200:
-            return self.receive(io.BytesIO(response.content))
-        else:
-            raise RuntimeError(f"Failed to get snapshot: {response.status_code}")
+        with requests.get(
+            f"http://{host}:4201/volume/{self.name}",
+            allow_redirects=False,
+            headers=headers,
+            stream=True,
+            timeout=TRANSFER_REQUEST_TIMEOUT,
+        ) as response:
+            if response.status_code not in (200, 304):
+                raise RuntimeError(f"Failed to get snapshot: {response.status_code}")
+
+            etag = response.headers.get("ETag")
+            if not etag or not SNAPSHOT_NAME_PATTERN.fullmatch(etag):
+                raise RuntimeError("Failed to get snapshot: invalid ETag")
+            etag_path = self.snapshots_path / etag
+
+            if response.status_code == 304:
+                if not etag_path.exists():
+                    raise RuntimeError("Failed to get snapshot: missing cached snapshot")
+                return etag_path
+            if etag_path.exists():
+                return etag_path
+            snapshot_path = self.receive(response.raw)
+            if snapshot_path != etag_path:
+                raise RuntimeError("Failed to get snapshot: mismatched snapshot")
+            return snapshot_path
 
     @property
     def path(self):

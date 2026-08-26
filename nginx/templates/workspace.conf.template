@@ -1,18 +1,18 @@
 server_name $WORKSPACE_HOST;
 
-resolver 127.0.0.11 valid=30s ipv6=off;
-resolver_timeout 1s;
-
-location ~ ^/workspace/(?P<container_id>[^/:]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
+location ~ ^/workspace/(?P<container_id>[^/@:]+)@(?P<container_ip>10\.[0-9]+\.[0-9]+\.[0-9]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
     secure_link_hmac "$sig";
     secure_link_hmac_secret "$WORKSPACE_SECRET";
-    secure_link_hmac_message "$container_id:$port";
+    secure_link_hmac_message "$container_id@$container_ip:$port";
     secure_link_hmac_algorithm sha256;
 
     if ($secure_link_hmac != "1") {
         error_page 404 = @workspace_not_found;
         return 404;
     }
+
+    auth_request /_dojo_workspace_authorize;
+    error_page 403 = @workspace_not_found;
 
     proxy_http_version 1.1;
     proxy_buffering off;
@@ -30,13 +30,13 @@ location ~ ^/workspace/(?P<container_id>[^/:]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/
     proxy_intercept_errors on;
     error_page 502 = @workspace_not_found;
 
-    proxy_pass http://$container_id:$port/$path$is_args$args;
+    proxy_pass http://$container_ip:$port/$path$is_args$args;
 }
 
-location ~ ^/workspace/(?P<container_id>[^/]+):(?P<target_host>[^/]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
+location ~ ^/workspace/(?P<container_id>[^/@:]+)@(?P<container_ip>10\.[0-9]+\.[0-9]+\.[0-9]+):(?P<target_host>192\.168\.42\.[0-9]+)/(?P<sig>[^/]+)/(?P<port>\d+)(?:/(?P<path>.*))?$ {
     secure_link_hmac "$sig";
     secure_link_hmac_secret "$WORKSPACE_SECRET";
-    secure_link_hmac_message "$container_id:$target_host:$port";
+    secure_link_hmac_message "$container_id@$container_ip:$target_host:$port";
     secure_link_hmac_algorithm sha256;
 
     if ($secure_link_hmac != "1") {
@@ -61,7 +61,15 @@ location ~ ^/workspace/(?P<container_id>[^/]+):(?P<target_host>[^/]+)/(?P<sig>[^
     error_page 502 = @workspace_not_found;
 
     # route via the workspace nginx/gateway
-    proxy_pass http://$target_host:8888/workspace/$container_id:$target_host/$sig/$port/$path$is_args$args;
+    proxy_pass http://$target_host:8888/workspace/$container_id@$container_ip:$target_host/$sig/$port/$path$is_args$args;
+}
+
+location = /_dojo_workspace_authorize {
+    internal;
+    proxy_pass http://127.0.0.1:4202;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header X-Dojo-Workspace-URI $request_uri;
 }
 
 location @workspace_not_found {

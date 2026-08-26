@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+legacy_services=(
+    cache
+    cadvisor
+    create-workspace-net
+    ctfd
+    db
+    dojofs
+    frontend
+    grafana
+    homefs
+    image-pull-worker
+    nginx
+    nginx-workspace
+    node-exporter
+    pgbouncer
+    prometheus
+    prometheus-generate-targets
+    splunk
+    sshd
+    stats-worker
+    watchdog
+    workspace-builder
+)
+
+is_legacy_service() {
+    local candidate="$1"
+    local service
+
+    for service in "${legacy_services[@]}"; do
+        if [ "$candidate" = "$service" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+uses_legacy_config() {
+    local config_files="$1"
+    local config_file
+    local -a configured_files
+
+    IFS=, read -r -a configured_files <<< "$config_files"
+    for config_file in "${configured_files[@]}"; do
+        if [ "$config_file" = /opt/pwn.college/docker-compose.yml ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+candidate_output="$(
+    docker ps --all --quiet --no-trunc \
+        --filter label=com.docker.compose.project.working_dir=/opt/pwn.college
+)"
+candidate_ids=()
+if [ -n "$candidate_output" ]; then
+    mapfile -t candidate_ids <<< "$candidate_output"
+fi
+legacy_ids=()
+for container_id in "${candidate_ids[@]}"; do
+    service="$(
+        docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$container_id"
+    )"
+    config_files="$(
+        docker inspect --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}' "$container_id"
+    )"
+    if is_legacy_service "$service" && uses_legacy_config "$config_files"; then
+        legacy_ids+=("$container_id")
+    fi
+done
+
+if [ "${#legacy_ids[@]}" -eq 0 ]; then
+    exit 0
+fi
+
+docker inspect --format 'Retiring {{.Name}}' "${legacy_ids[@]}"
+docker stop --timeout 60 "${legacy_ids[@]}" || true
+docker rm --force "${legacy_ids[@]}"
+dojo-storage-permissions

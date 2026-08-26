@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+chown grafana:grafana /data/grafana-secret-key
+chmod 600 /data/grafana-secret-key
+
+chown -R postgres:postgres /data/postgres
+chown -R redis-dojo:redis-dojo /data/redis
+chown -R ctfd:ctfd /data/CTFd /data/coverage /data/ctfd-ipython /data/dojos
+chown root:ctfd /data/mac /data/ssh_host_keys
+chmod 710 /data/mac /data/ssh_host_keys
+if [ -f /data/mac/key ]; then
+    chown ctfd:ctfd /data/mac/key
+    chmod 600 /data/mac/key
+fi

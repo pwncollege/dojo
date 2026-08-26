@@ -13,8 +13,9 @@ from utils import (
     create_dojo_yml,
     db_sql,
     dojo_db_id,
-    dojo_run,
+    flask_exec,
     login,
+    redis_cli,
     solve_challenge,
     wait_for_background_worker,
 )
@@ -25,25 +26,8 @@ SB_CREW_TAG = "SBCREW"
 SB_HIDDEN_TAG = "SBHID"
 ENTRY_KEYS = {"rank", "solves", "user_id", "name", "url", "symbol", "belt", "badges", "crew"}
 
-FLAG_SCRIPT = (
-    "import sys, os\n"
-    "from itsdangerous.url_safe import URLSafeSerializer\n"
-    "serializer = URLSafeSerializer(os.environ['SECRET_KEY'])\n"
-    "for arg in sys.argv[1:]:\n"
-    "    user_id, challenge_id = arg.split(':')\n"
-    "    print('pwn.college{' + serializer.dumps([int(user_id), int(challenge_id)])[::-1] + '}')\n"
-)
-
-SB_MARKER = "--- scoreboard api test output ---"
-SB_SCRIPT_PATH = "/tmp/dojo-test-scoreboard-api.py"
-
-
 def sb_flask_exec(code):
-    script = f"print({SB_MARKER!r}, flush=True)\n{code}"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {SB_SCRIPT_PATH}", input=script)
-    result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", SB_SCRIPT_PATH, check=False)
-    assert SB_MARKER in result.stdout, f"flask exec produced no output: {result.stdout}\n{result.stderr}"
-    return result.stdout.split(SB_MARKER, 1)[1]
+    return flask_exec(code)
 
 
 def rand_id(k=8):
@@ -90,9 +74,13 @@ def user_ids(names):
 
 
 def derive_flags(pairs):
-    args = [f"{user_id}:{challenge_id}" for user_id, challenge_id in pairs]
-    result = dojo_run("docker", "exec", "ctfd", "python3", "-c", FLAG_SCRIPT, *args)
-    flags = result.stdout.strip().splitlines()
+    flags = flask_exec(
+        "import os\n"
+        "from itsdangerous.url_safe import URLSafeSerializer\n"
+        "serializer = URLSafeSerializer(os.environ['SECRET_KEY'])\n"
+        f"for user_id, challenge_id in {pairs!r}:\n"
+        "    print('pwn.college{' + serializer.dumps([user_id, challenge_id])[::-1] + '}')"
+    ).strip().splitlines()
     assert len(flags) == len(pairs), f"expected {len(pairs)} flags, got {flags}"
     return flags
 
@@ -153,7 +141,7 @@ def crew_board(session, dojo, module="_", duration=0, page=1, **params):
 
 
 def redis_cmd(*args):
-    result = dojo_run("docker", "exec", "cache", "redis-cli", *args, check=False)
+    result = redis_cli(*args, check=False)
     return result.stdout.strip() if result.returncode == 0 else None
 
 
@@ -635,10 +623,10 @@ def test_queued_solve_events_are_not_dropped(sb_filter):
                     "payload": {"user_id": sb_filter["uids"][name], "challenge_id": challenge_id}})
         for name in [first, second]
     ]
-    dojo_run("docker", "exec", "cache", "redis-cli", "EVAL",
-             "redis.call('XADD', KEYS[1], '*', 'data', ARGV[1]); "
-             "redis.call('XADD', KEYS[1], '*', 'data', ARGV[2])",
-             "1", "stat:events", *events)
+    redis_cli("EVAL",
+              "redis.call('XADD', KEYS[1], '*', 'data', ARGV[1]); "
+              "redis.call('XADD', KEYS[1], '*', 'data', ARGV[2])",
+              "1", "stat:events", *events)
     wait_for_background_worker(timeout=60)
 
     replayed = names_on(all_standings(session, sb_filter["dojo"], "lag"))

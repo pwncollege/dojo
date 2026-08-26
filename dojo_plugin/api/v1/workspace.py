@@ -111,7 +111,7 @@ class view_desktop(Resource):
                 }
                 iframe_src = forward_workspace(service=service_param, service_path="vnc.html", message=message, **vnc_params)
             else:
-                iframe_src = forward_workspace(service=service, service_path="", message=message)
+                iframe_src = forward_workspace(service=service, service_path="", message=message, user=user)
 
             if start_on_demand_service(user, service) is False:
                 return {"success": False, "active": True, "error": f"Failed to start service {service}"}

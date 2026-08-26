@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format=f"%(asctime)s [{os.path.basename(
 
 logging.info("Starting")
 
-workspace_nodes = json.load(open("/var/workspace_nodes.json"))
+workspace_nodes = json.load(open("/data/workspace_nodes.json"))
 docker_client_urls = ([f"tcp://192.168.42.{int(node_id) + 1}:2375" for node_id in workspace_nodes]
                       or ["unix:///var/run/docker.sock"])
 

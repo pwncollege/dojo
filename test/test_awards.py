@@ -13,9 +13,9 @@ from utils import (
     challenge_db_id,
     create_dojo_yml,
     db_sql,
-    dojo_run,
     get_user_id,
     login,
+    redis_cli,
     solve_challenge_offline,
     wait_for_background_worker,
 )
@@ -76,7 +76,7 @@ def publish_stat_event(event_type):
         "payload": {},
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     })
-    dojo_run("docker", "exec", "cache", "redis-cli", "XADD", "stat:events", "*", "data", event)
+    redis_cli("XADD", "stat:events", "*", "data", event)
     wait_for_background_worker(timeout=15)
 
 

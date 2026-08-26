@@ -13,9 +13,9 @@ from utils import (
     create_dojo_yml,
     db_sql,
     dojo_db_id,
-    dojo_run,
     get_user_id,
     login,
+    redis_cli,
     remove_workspace_container,
     solve_challenge_offline,
     start_challenge,
@@ -71,11 +71,11 @@ def publish_stat_event(event_type, payload):
         "payload": payload,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     })
-    dojo_run("docker", "exec", "cache", "redis-cli", "XADD", "stat:events", "*", "data", event)
+    redis_cli("XADD", "stat:events", "*", "data", event)
 
 
 def cache_stamp(cache_key):
-    result = dojo_run("docker", "exec", "cache", "redis-cli", "GET", f"{cache_key}:updated", check=False)
+    result = redis_cli("GET", f"{cache_key}:updated", check=False)
     value = result.stdout.strip()
     return float(value) if value else 0.0
 

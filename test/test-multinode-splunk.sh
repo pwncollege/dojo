@@ -27,24 +27,36 @@ if [ "${ENABLE_SPLUNK}" != "true" ]; then
     exit 0
 fi
 
-
-echo "[+] Checking /etc/hosts for splunk entry..."
-if ping -c1 splunk; then
-    echo "   ✓ Splunk host reachable"
+if [ "${WORKSPACE_NODE}" -eq 0 ]; then
+    SPLUNK_HOST=127.0.0.1
 else
-    echo "   ✗ Splunk host unreachable or does not exist"
-    exit 1
+    SPLUNK_HOST=192.168.42.1
 fi
-echo
 
-echo "[+] Checking Docker daemon configuration..."
-if [ -f /etc/docker/daemon.json ]; then
-    if grep -q '"splunk-url": "http://splunk:8088"' /etc/docker/daemon.json; then
+SPLUNK_HEC_URL="http://${SPLUNK_HOST}:8088"
+SPLUNK_MANAGEMENT_URL="https://${SPLUNK_HOST}:8089"
+
+search_splunk() {
+    curl --fail-with-body --silent --show-error --insecure \
+        --connect-timeout 5 --max-time 30 \
+        -u "admin:DojoSplunk2024!" \
+        -d "search=$1" \
+        -d "earliest_time=-5m" \
+        -d "latest_time=now" \
+        -d "output_mode=json" \
+        "${SPLUNK_MANAGEMENT_URL}/services/search/jobs/export"
+}
+
+echo "[+] Checking generated Docker daemon configuration..."
+if [ -f /run/dojo/docker-daemon.json ]; then
+    DOCKER_SPLUNK_URL=$(jq -r '.["log-opts"]["splunk-url"] // empty' /run/dojo/docker-daemon.json)
+    if [ "${DOCKER_SPLUNK_URL}" = "${SPLUNK_HEC_URL}" ]; then
         echo "   ✓ Docker daemon configured with correct Splunk URL"
     else
         echo "   ✗ Docker daemon NOT configured with correct Splunk URL"
-        echo "   Current splunk-url:"
-        grep "splunk-url" /etc/docker/daemon.json || echo "   Not found"
+        echo "   Expected: ${SPLUNK_HEC_URL}"
+        echo "   Actual: ${DOCKER_SPLUNK_URL:-not found}"
+        exit 1
     fi
 else
     echo "   ✗ Docker daemon configuration not found"
@@ -54,9 +66,9 @@ echo
 
 echo "[+] Testing connectivity to Splunk HEC..."
 # Test if we can reach Splunk HEC
-if curl -s -o /dev/null -w "%{http_code}" \
+if curl --fail --silent --show-error --connect-timeout 5 --max-time 30 -o /dev/null \
        -H "Authorization: Splunk 11111111-1111-1111-1111-111111111111" \
-       http://splunk:8088/services/collector/health | grep -q "200"; then
+       "${SPLUNK_HEC_URL}/services/collector/health"; then
     echo "   ✓ Successfully connected to Splunk HEC"
 else
     echo "   ✗ Failed to connect to Splunk HEC"
@@ -68,7 +80,7 @@ echo "[+] Testing Docker logging and verifying in Splunk..."
 TEST_MESSAGE="TEST_LOG_FROM_NODE_${WORKSPACE_NODE}_ID_$$"
 
 echo "   Creating test container splunk-test-$$"
-docker run --rm -d --name splunk-test-$$ alpine:latest sh -c "
+docker run --rm -d --name splunk-test-$$ busybox:uclibc sh -c "
     echo '${TEST_MESSAGE}';
     echo 'Log line 1 from node ${WORKSPACE_NODE}'; sleep 0.5;
     echo 'Log line 2 from node ${WORKSPACE_NODE}'; sleep 0.5;
@@ -83,93 +95,53 @@ docker run --rm -d --name splunk-test-$$ alpine:latest sh -c "
 echo "   Waiting for container to finish and logs to be ingested..."
 docker wait splunk-test-$$
 
-# Give Splunk a moment to ingest the logs
-sleep 2
-
 echo "   Searching Splunk for test logs..."
 
-# Query Splunk for our test message
-# Using Splunk REST API to search for our test message
 SEARCH_QUERY="search ${TEST_MESSAGE}"
-ENCODED_QUERY=$(echo -n "$SEARCH_QUERY" | jq -sRr @uri)
+SEARCH_FOUND=no
+for _ in {1..15}; do
+    sleep 2
+    if SEARCH_RESPONSE="$(search_splunk "$SEARCH_QUERY")" &&
+        jq -e --arg message "$TEST_MESSAGE" \
+            'select((.result._raw? // "") | contains($message))' \
+            <<< "$SEARCH_RESPONSE" >/dev/null; then
+        SEARCH_FOUND=yes
+        break
+    fi
+done
 
-# Execute search job
-# Note: Splunk management API uses HTTPS on port 8089!
-SEARCH_RESPONSE=$(curl -s -k \
-    -u "admin:DojoSplunk2024!" \
-    -d "search=${SEARCH_QUERY}" \
-    -d "earliest_time=-5m" \
-    -d "latest_time=now" \
-    -d "output_mode=json" \
-    "https://splunk:8089/services/search/jobs/export" || echo "{}")
-
-# Check if we found our test message
-if echo "$SEARCH_RESPONSE" | grep -q "$TEST_MESSAGE"; then
+if [ "$SEARCH_FOUND" = yes ]; then
     echo "   ✓ Test logs found in Splunk!"
     echo "   Found $(echo "$SEARCH_RESPONSE" | grep -c "$TEST_MESSAGE") occurrence(s)"
 else
-    echo "   ⚠ Could not verify logs in Splunk (may need more time to index)"
-    echo "   Note: Logs may still be processing. Check Splunk UI at http://<host>:8001"
-    echo "   Search for: ${TEST_MESSAGE}"
+    echo "   ✗ Could not verify logs in Splunk"
     exit 1
 fi
-
-# Also test if container logs are being forwarded
-echo
-echo "[+] Checking Docker container log forwarding..."
-
-# Look for any docker container logs in Splunk
-CONTAINER_SEARCH="search source=\"stderr\" OR source=\"stdout\" | head 5"
-CONTAINER_LOGS=$(curl -s -k \
-    -u "admin:DojoSplunk2024!" \
-    -d "search=${CONTAINER_SEARCH}" \
-    -d "earliest_time=-5m" \
-    -d "latest_time=now" \
-    -d "output_mode=json" \
-    "https://splunk:8089/services/search/jobs/export" 2>/dev/null || echo "{}")
-
-if [ ! -z "$CONTAINER_LOGS" ] && [ "$CONTAINER_LOGS" != "{}" ]; then
-    echo "   ✓ Found Docker container logs in Splunk"
-else
-    echo "   ⚠ No recent Docker container logs found (may be normal if no containers running)"
-    exit 1
-fi
-echo
 
 echo
 echo "[+] Checking systemd journal log forwarding..."
+TEST_JOURNAL_MESSAGE="JOURNAL_TEST_NODE_${WORKSPACE_NODE}_$$"
+echo "${TEST_JOURNAL_MESSAGE}" | systemd-cat --identifier=dojo-splunk-test --priority=info
 
-# Generate a unique test message in the journal
-TEST_JOURNAL_MSG="JOURNAL_TEST_NODE_${WORKSPACE_NODE}_$$"
-echo "   Writing test message to journal: ${TEST_JOURNAL_MSG}"
-echo "$TEST_JOURNAL_MSG" | systemd-cat -t splunk-test -p info
+JOURNAL_FOUND=no
+for _ in {1..15}; do
+    sleep 2
+    JOURNAL_SEARCH="search source=\"systemd-journal\" ${TEST_JOURNAL_MESSAGE}"
+    if JOURNAL_RESPONSE="$(search_splunk "$JOURNAL_SEARCH")" &&
+        jq -e --arg message "$TEST_JOURNAL_MESSAGE" \
+            'select((.result._raw? // "") | contains($message))' \
+            <<< "$JOURNAL_RESPONSE" >/dev/null; then
+        JOURNAL_FOUND=yes
+        break
+    fi
+done
 
-# Give Splunk time to receive and index the journal entry
-sleep 3
-
-# Search for the journal test message
-JOURNAL_SEARCH="search source=\"systemd-journal\" ${TEST_JOURNAL_MSG}"
-JOURNAL_RESPONSE=$(curl -s -k \
-    -u "admin:DojoSplunk2024!" \
-    -d "search=${JOURNAL_SEARCH}" \
-    -d "earliest_time=-5m" \
-    -d "latest_time=now" \
-    -d "output_mode=json" \
-    "https://splunk:8089/services/search/jobs/export" || echo "{}")
-
-if echo "$JOURNAL_RESPONSE" | grep -q "$TEST_JOURNAL_MSG"; then
+if [ "${JOURNAL_FOUND}" = yes ]; then
     echo "   ✓ Systemd journal logs found in Splunk!"
 else
-    echo "   ⚠ Could not find systemd journal logs in Splunk"
-    echo "   Note: Journal forwarding service may not be running yet"
-    
-    # Check if the service is running
-    if systemctl is-active journal-to-splunk.service >/dev/null 2>&1; then
-        echo "   ✓ journal-to-splunk.service is active"
-    else
-        echo "   ✗ journal-to-splunk.service is not active"
-        echo "   Run: systemctl status journal-to-splunk.service"
-    fi
+    echo "   ✗ Could not find systemd journal logs in Splunk"
+    systemctl status dojo-journal-splunk.service --no-pager || true
+    exit 1
 fi
 
 echo "=== Test Succeeded ==="

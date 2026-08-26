@@ -12,11 +12,11 @@ from utils import (
     create_dojo_yml,
     db_sql,
     dojo_db_id,
-    dojo_run,
     get_outer_container_for,
     get_user_id,
     login,
     parse_csrf_token,
+    redis_cli,
     remove_workspace_container,
     start_challenge,
 )
@@ -29,10 +29,10 @@ NO_CSRF = {"CSRF-Token": None}
 
 def clear_ratelimit(endpoint_fragment):
     """The whole suite shares one client IP, so a neighbouring test file can exhaust an endpoint's ratelimit."""
-    scan = dojo_run("docker", "exec", "cache", "redis-cli", "--scan", "--pattern", "flask_cache_rl:*", check=False)
+    scan = redis_cli("--scan", "--pattern", "flask_cache_rl:*", check=False)
     keys = [key for key in scan.stdout.split() if endpoint_fragment in key]
     if keys:
-        dojo_run("docker", "exec", "cache", "redis-cli", "DEL", *keys, check=False)
+        redis_cli("DEL", *keys, check=False)
 
 
 def anonymous_session(*, with_csrf=False):

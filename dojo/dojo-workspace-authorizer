@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+
+import re
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import docker
+
+
+workspace_pattern = re.compile(
+    r"^/workspace/(?P<container_id>[0-9a-f]{12,64})@"
+    r"(?P<container_ip>10(?:\.[0-9]{1,3}){3})"
+    r"(?::192\.168\.42\.[0-9]{1,3})?/"
+)
+docker_client = docker.from_env()
+
+
+class WorkspaceAuthorizationHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        workspace_uri = self.headers.get("X-Dojo-Workspace-URI", "")
+        match = workspace_pattern.match(workspace_uri)
+        if not match:
+            self.send_response(403)
+            self.end_headers()
+            return
+
+        try:
+            container = docker_client.containers.get(match["container_id"])
+            network = container.attrs["NetworkSettings"]["Networks"]["workspace_net"]
+            authorized = (
+                container.status == "running"
+                and container.id.startswith(match["container_id"])
+                and network["IPAddress"] == match["container_ip"]
+            )
+        except (docker.errors.DockerException, KeyError):
+            authorized = False
+
+        self.send_response(204 if authorized else 403)
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        return
+
+
+ThreadingHTTPServer(("127.0.0.1", 4202), WorkspaceAuthorizationHandler).serve_forever()

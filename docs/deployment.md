@@ -1,245 +1,208 @@
 # Deployment
 
-While we recommend using the [pwn.college](https://pwn.college) deployment, you can also run the DOJO locally.
+While we recommend using the [pwn.college](https://pwn.college) deployment, you can also run the DOJO on an x86-64 Linux host with Docker and Nix installed. Nix must have flakes enabled, and the host must permit privileged containers.
+
+For a local development instance, the deployment helper builds the NixOS outer image, imports it into Docker, starts it, and publishes the web and SSH ports:
 
 ```sh
-curl -fsSL https://get.docker.com | /bin/sh
+./deploy.sh -b -p
+```
 
-DOJO_PATH="./dojo"
-DATA_PATH="./dojo/data"
+The web interface will be available at `http://localhost.pwn.college`, and SSH will be published on port `2222`.
+
+## Build and Run
+
+Use a persistent host directory for production data:
+
+```sh
+DOJO_PATH="$PWD/dojo"
+DATA_PATH="$PWD/dojo-data"
 
 git clone https://github.com/pwncollege/dojo "$DOJO_PATH"
-docker build -t pwncollege/dojo "$DOJO_PATH"
+mkdir -p "$DATA_PATH"
+cd "$DOJO_PATH"
 
-# this is needed for the dojo's networking
-modprobe br_netfilter
+./nix/build-image.sh pwncollege/dojo
+
+sudo modprobe br_netfilter
 
 docker run \
     --name dojo \
     --privileged \
     -v "${DOJO_PATH}:/opt/pwn.college" \
-    -v "${DATA_PATH}:/data" \
+    -v "${DATA_PATH}:/data:shared" \
     -p 22:22 -p 80:80 -p 443:443 \
     -d \
     pwncollege/dojo
+
+docker exec dojo dojo wait
 ```
 
-This will run the initial setup, including building the challenge docker image.
+The `.#dojo-image` flake output produces one NixOS root filesystem archive at `result/tarball/nixos-system-*.tar.xz`. Importing it with `CMD ["/init"]` starts systemd as PID 1. The outer container must remain privileged because it runs the Docker daemon and mount services used by learner workspaces.
 
-> **Warning**
-> **(MacOS)**
->
-> It's important to note that while the dojo is capable of operating on MacOS (either x86 or ARM), MacOS has inherent limitations when it comes to nested Linux mounts within a MacOS bind mount.
-> This limitation specifically affects `data/docker`, which necessitates the use of OverlayFS mounts, preventing nested docker orchestration from functioning properly.
-> In order to circumvent this issue, you must ensure that`data/docker` is not backed by a MacOS bind mount.
-> This can be accomplished by replacing the bind mount with a docker volume for `data/docker`, which will use a native Linux mount:
-> ```sh
-> -v "dojo-data-docker:/data/docker"
-> ```
-
-By default, the dojo will initialize itself to listen on and serve from `localhost.pwn.college` and `workspace.localhost.pwn.college` (which resolve to 127.0.0.1).
-This is fine for development, but to serve your dojo to the world, you will need to update this (see Production Deployment).
-
-It will take some time to initialize everything and build the challenge docker image.
-You can check on your container (and the progress of the initial build) with:
+The first startup can take some time while the workspace environment and challenge images are prepared. Inspect progress and failures through the native services:
 
 ```sh
-docker exec dojo dojo logs
+docker exec dojo systemctl status dojo.target
+docker exec dojo systemctl --failed
+docker exec dojo journalctl -b -u dojo-ctfd
 ```
 
-Once things are set up, you should be able to access the dojo and login with username `admin` and password `admin`.
-You can change these admin credentials in the admin panel.
+Once `dojo wait` succeeds, log in with username `admin` and password `admin`, then change those credentials in the admin panel.
 
-## Production Deployment
+The deployment target is Linux. Docker Desktop bind mounts do not reliably support the nested mounts required by `/data/docker`; if Docker Desktop is used for development, back that path with a Docker-managed volume rather than a host bind mount.
 
-Customizing the setup process is done through `-e KEY=VALUE` arguments to the `docker run` command, or by modifying the `$DATA_PATH/config.env` file.
-You can stop the already running dojo instance with `docker stop dojo`, and then re-run the `docker run` command with the appropriately modified flags.
+## Production Configuration
 
-In order to specify that the dojo should be running in a production environment, you can modify `DOJO_ENV`; for example: `-e DOJO_ENV=production`.
-This will switch from the default development settings to production settings, which will, for example, disable the `flask` debugger.
+Pass configuration through `-e KEY=VALUE` arguments to `docker run`, or edit `$DATA_PATH/config.env`. Stop and recreate the outer container after changing environment arguments.
 
-In order to change where the host is serving from, you can modify `DOJO_HOST`; for example: `-e DOJO_HOST=example.com`.
-In order for this to work correctly, you must correctly point the domain at the server's IP via DNS.
+Set `DOJO_ENV=production` for production behavior:
 
-By default, the `WORKSPACE_HOST` where all workspace content is served from is set to `workspace.$DOJO_HOST`.
-If you would like to change where workspaces are served from you can modify `WORKSPACE_HOST`; for example: `-e WORSKPACE_HOST=helloworskpace.example.com`.
+```sh
+-e DOJO_ENV=production
+```
 
-More of these configuration options (and defaults) can be found in [./dojo/dojo-init](./dojo/dojo-init).
+Set `DOJO_HOST` to the public hostname and point its DNS record at the server:
+
+```sh
+-e DOJO_HOST=example.com
+```
+
+Workspace traffic uses `workspace.$DOJO_HOST` by default. Override it when needed:
+
+```sh
+-e WORKSPACE_HOST=workspace.example.com
+```
+
+On the main node, production TLS uses one certificate for `DOJO_HOST`, `future.$DOJO_HOST`, and `WORKSPACE_HOST`. Create public DNS records for all three names that point to the server and allow inbound HTTP on port 80 before starting the appliance. The ACME service does not attempt issuance or renewal unless every name resolves, and validation must succeed for every name before the shared certificate is installed.
+
+Configuration defaults and allowed environment names are defined by [`dojo/dojo-config`](../dojo/dojo-config). The NixOS modules under [`nix/`](../nix) expose those values to the native services.
+
+Set `ENABLE_SPLUNK=true` to enable the native Splunk service and journal forwarding. On first start, the appliance downloads the official Splunk Enterprise 9.1.2 archive into `/data/splunk/cache`, verifies its checksum, and accepts the Splunk license during unattended initialization. An offline deployment must seed that archive in the cache before startup.
 
 ## Updating
 
-When updating your dojo deployment, there is only one supported method in the `dojo` directory:
+Rebuild and import the image after updating the checkout, then recreate the outer container with the same data mount and environment:
 
 ```sh
-docker rm -f dojo
 git -C "$DOJO_PATH" pull
-docker build -t pwncollege/dojo "$DOJO_PATH"
-docker run ... # (see Setup)
+cd "$DOJO_PATH"
+./nix/build-image.sh pwncollege/dojo
+
+BACKUP_KEY_PATH="$(docker exec dojo bash -c '. /data/config.env; printf %s "${BACKUP_AES_KEY_FILE:-}"')"
+if [ -n "$BACKUP_KEY_PATH" ] && [[ "$BACKUP_KEY_PATH" != /data/* ]]; then
+    docker exec dojo test -f "$BACKUP_KEY_PATH"
+    docker cp -L "dojo:${BACKUP_KEY_PATH}" "$DATA_PATH/backup-aes.key"
+    sudo chmod 600 "$DATA_PATH/backup-aes.key"
+    sudo sed -i 's|^BACKUP_AES_KEY_FILE=.*$|BACKUP_AES_KEY_FILE=/data/backup-aes.key|' "$DATA_PATH/config.env"
+fi
+
+docker rm -f dojo
+docker run \
+    --name dojo \
+    --privileged \
+    -v "${DOJO_PATH}:/opt/pwn.college" \
+    -v "${DATA_PATH}:/data:shared" \
+    -p 22:22 -p 80:80 -p 443:443 \
+    -d \
+    pwncollege/dojo
+docker exec dojo dojo wait
 ```
 
-This will cause downtime when the dojo is rebuilding.
+The backup-key step preserves keys that older deployments stored inside the disposable outer container. A configured key that is missing now stops startup instead of silently replacing the key needed to decrypt existing cloud backups.
 
-Some changes _can_ be applied without a complete restart, however _this is not guaranteed_.
-
-If you really know what you're doing (the changes that you're pulling in are just to `ctfd`), inside the `dojo` container you can do the following:
-
-```sh
-dojo update
-```
-
-Note that `dojo update` is not guaranteed to be successful and should only be used if you fully understand each commit/change that you are updating.
+Recreating the outer container does not remove data stored under `$DATA_PATH`, but the service is unavailable during replacement. On the first NixOS boot, the appliance removes only the retired infrastructure containers from the nested Docker daemon before starting the native services. Challenge images and persistent learner and dojo data remain in place.
 
 ## Customization
 
-_All_ dojo data will be stored in the `./data` directory.
+All persistent DOJO state lives under `/data` in the outer container. Keep that path on durable storage and include it in backups.
 
-Once logged in, you can add a dojo by visiting `/dojos/create`.
-Dojos are contained within git repositories.
-Refer to [the example dojo](https://github.com/pwncollege/example-dojo) for more information.
+Once logged in, add a dojo at `/dojos/create`. Dojos are contained in Git repositories; see the [example dojo](https://github.com/pwncollege/example-dojo) for a starting point.
 
-If configured properly, the dojo will store the hourly database backups into an S3 bucket of your choosing.
+The hourly backup service creates local database dumps. To enable encrypted cloud backups, create a durable key before starting the appliance:
+
+```sh
+openssl rand -hex 32 > "$DATA_PATH/backup-aes.key"
+chmod 600 "$DATA_PATH/backup-aes.key"
+```
+
+Set `BACKUP_AES_KEY_FILE=/data/backup-aes.key` and `S3_BACKUP_BUCKET` on the outer container. The daily cloud-backup service encrypts recent dumps and uploads them to S3.
 
 ## Multi-node Deployment
 
-Setting up a multi-node deployment allows you to scale your dojo infrastructure across multiple nodes, with a central "main" node and additional "workspace" nodes.
+A multi-node deployment has one main node and one or more workspace nodes. Every outer container uses the same NixOS image, runs privileged, and needs distinct `/data` and `/data/docker` storage.
 
-### Build The Image
-
-Refer to the standard deployment instructions above for how to build the dojo image and configure the host environment.
-
-### Set Up The Main Node
-
-Run the main node container, which will act as the central management point:
+The `-M` option creates a three-container development cluster on one host:
 
 ```sh
-DOJO_PATH="./dojo"
-DATA_PATH="/tmp/dojo-data-main"
+./deploy.sh -b -M -p
+```
+
+For a deployment across hosts, point both the dojo and workspace hostnames at the main node. Start it with a shared workspace secret and publish WireGuard in addition to the public web and SSH services:
+
+```sh
+DOJO_HOST="example.com"
+WORKSPACE_HOST="workspace.example.com"
+WORKSPACE_SECRET="$(openssl rand -hex 16)"
 
 docker run \
     --name dojo-main \
     --privileged \
+    -e WORKSPACE_NODE=0 \
+    -e "DOJO_HOST=$DOJO_HOST" \
+    -e "WORKSPACE_HOST=$WORKSPACE_HOST" \
+    -e "WORKSPACE_SECRET=$WORKSPACE_SECRET" \
     -v "${DOJO_PATH}:/opt/pwn.college" \
-    -v "${DATA_PATH}:/data" \
-    -p 22:22 -p 80:80 -p 443:443 -p 51820:51820/udp \
+    -v "${DATA_PATH}-main:/data:shared" \
+    -p 22:22 -p 80:80 -p 443:443 \
+    -p 51820:51820/udp \
     -d \
     pwncollege/dojo
+
+docker exec dojo-main dojo wait
+docker exec dojo-main dojo-node refresh
+WORKSPACE_KEY="$(docker exec dojo-main cat /data/wireguard/publickey)"
 ```
 
-Pay particular attention to the `DATA_PATH`, which must be unique for each node if you are running multiple nodes on the same host.
-Additionally, unlike the standard deployment, the main node must have port `51820/udp` exposed (for WireGuard) if you are going to be deploying workspace nodes across multiple hosts.
-
-Retrieve configuration data from the main node:
+Start each workspace node with a contiguous numeric ID beginning at 1. `DOJO_HOST` identifies the main node's reachable WireGuard endpoint, `WORKSPACE_HOST` remains the main node's public learner URL, and storage uses the main node's private WireGuard address.
 
 ```sh
-docker exec -it dojo-main bash
-dojo node show | grep -oP 'WORKSPACE_KEY: \K[A-Za-z0-9+/]+={0,2}'  # This is the WORKSPACE_KEY
-dojo node show | grep -oP 'WORKSPACE_SECRET:\s*\K[0-9a-fA-F]+'     # This is the WORKSPACE_SECRET
-ip -4 addr show eth0 | grep -oP 'inet \K[0-9\.]+'                  # This may be the DOJO_HOST
-```
-
-The `WORKSPACE_KEY` will be necessary to authenticate workspace nodes with the main node.
-The `WORKSPACE_SECRET` will be used to sign workspace urls for accessing a container.
-If you already have a `DOJO_HOST` (for example, a publicly accessible IP address), you can use that; otherwise, if you're running multiple nodes on the same host, this IP address (assigned by Docker) will be the `DOJO_HOST`. However, in all cases the `WORKSPACE_HOST` **must be on a separate IP or domain/subdomain** due to NGINX routing.
-The important detail is that the `DOJO_HOST` must be reachable by the workspace node.
-
-### Set Up a Workspace Node
-
-You may run a workspace node on the same host as the main node, or on a different host.
-If you choose to run multiple nodes on the same host you will need a reverse proxy to route the domains (ex `example.com` `1.workspace.example.com`) to the correct containers.
-If you do decide to run the workspace node on a different host, make sure to refer to the standard deployment instructions above for how to build the dojo image and configure the host environment.
-
-In order to run a workspace node container, use the `WORKSPACE_KEY`, `WORKSPACE_SECRET`, and `DOJO_HOST` obtained from the main node; set a new unique `WORKSPACE_HOST`; and `WORKSPACE_NODE` id if you have multiple workspace nodes:
-
-```sh
-WORKSPACE_NODE=1     # The node id for this workspace node
-WORKSPACE_KEY=...    # Replace with the WORKSPACE_KEY
-WORKSPACE_SECRET=... # Replace with the WORKSPACE_SECRET
-DOJO_HOST=...        # Replace with the DOJO_HOST
-WORKSPACE_HOST=...   # Replace with a unique WORKSPACE_HOST
-
-DOJO_PATH="./dojo"
-DATA_PATH="/tmp/dojo-data-workspace"
+WORKSPACE_NODE=1
+STORAGE_HOST="192.168.42.1"
 
 docker run \
-    --name dojo-workspace \
+    --name "dojo-node${WORKSPACE_NODE}" \
     --privileged \
-    -e DOJO_HOST=$DOJO_HOST \
-    -e WORKSPACE_HOST=$WORKSPACE_HOST \
-    -e WORKSPACE_KEY=$WORKSPACE_KEY \
-    -e WORKSPACE_SECRET=$WORKSPACE_SECRET \
-    -e WORKSPACE_NODE=$WORKSPACE_NODE \
+    -e "WORKSPACE_NODE=$WORKSPACE_NODE" \
+    -e "WORKSPACE_KEY=$WORKSPACE_KEY" \
+    -e "WORKSPACE_SECRET=$WORKSPACE_SECRET" \
+    -e "DOJO_HOST=$DOJO_HOST" \
+    -e "STORAGE_HOST=$STORAGE_HOST" \
+    -e "WORKSPACE_HOST=$WORKSPACE_HOST" \
     -v "${DOJO_PATH}:/opt/pwn.college" \
-    -v "${DATA_PATH}:/data" \
+    -v "${DATA_PATH}-node${WORKSPACE_NODE}:/data:shared" \
     -d \
     pwncollege/dojo
+
+docker exec "dojo-node${WORKSPACE_NODE}" dojo wait
+docker exec "dojo-node${WORKSPACE_NODE}" dojo-node refresh
+NODE_KEY="$(docker exec "dojo-node${WORKSPACE_NODE}" cat /data/wireguard/publickey)"
 ```
 
-Again, pay particular attention to the `DATA_PATH`, which must be unique for each node if you are running multiple nodes on the same host.
-In this case `WORKSPACE_NODE=1` indicates that this is a workspace node (the main node is always, and by default, `WORKSPACE_NODE=0`).
-If you want to add multiple workspace nodes, you must increment this id for each additional workspace node.
-Each workspace node must have a unique `WORKSPACE_NODE` value, and the values must be contiguous, starting from 1.
-
-Retrieve the `NODE_KEY` for the workspace node:
+Register the workspace node on the main node:
 
 ```sh
-docker exec -it dojo-workspace bash
-dojo node show | grep -oP 'public key: \K[A-Za-z0-9+/]+={0,2}'  # This is the NODE_KEY
+docker exec dojo-main dojo-node add "$WORKSPACE_NODE" "$NODE_KEY"
 ```
 
-This `NODE_KEY` is needed in order to add the workspace node to the main node.
+`dojo-node add` and `dojo-node del` apply the WireGuard topology, restart services that cache the node list, and wait for readiness. Workspace nodes do not publish ports 80, 443, or 4201. The main proxy forwards workspace HTTP and WebSocket traffic to each worker's private port 8888 over WireGuard, so per-node DNS names and public worker endpoints are unnecessary.
 
-At this point, you can also double-check that the workspace node can reach the main node:
+## Shared Mount Errors
+
+The `/data` bind mount must use shared propagation. If a mount service reports that a path is not shared, recreate the container with:
 
 ```sh
-docker exec -it dojo-workspace bash
-ping $DOJO_HOST
+-v /host/path:/data:shared
 ```
 
-If this fails, you may need to review and adjust your network configuration.
-
-### Add The Workspace Node To The Main Node
-
-On the main node, add the workspace node using its `NODE_KEY` (and `WORKSPACE_NODE` id if you have multiple workspace nodes):
-
-```sh
-docker exec -it dojo-main bash
-NODE_ID=1     # Replace with the node id
-NODE_KEY=...  # The NODE_KEY for the workspace node
-dojo node add $NODE_ID $NODE_KEY
-dojo compose restart --no-deps ctfd
-```
-
-After a short delay, you should be able to reach the workspace node from the main node:
-
-```sh
-docker exec -it dojo-main bash
-NODE_ID=1     # Replace with the node id
-ping 192.168.42.$(($NODE_ID + 1))
-```
-
-## Common DOJO Errors
-
-### Non-readable build context
-
-```
-ERROR: failed to solve: error from sender: open docker: permission denied
-```
-
-Some directory in your git repo is not readable.
-This can happen if you've used `$PWD/data` as your data volume (this is okay --- `data` is in the `.dockerignore`, so it is not accessed when building) and then moved your `data` dir to, e.g., `data.bak` (which would no longer match the `.dockerignore`, causing the docker daemon to try, and fail, to access it).
-
-
-### Shared mount woes
-
-In the docker-compose logs:
-
-```
-Error response from daemon: path /run/homefs is mounted on /run/homefs but it is not a shared mount
-```
-
-- Make sure your `/data` directory is a shared mount.
-  If you are mounting it into the outer docker via `-v`, do:
-
-  `-v /host/path:/data:shared`
-
-- If the problem persists: rebuild the outer docker container
+If the error remains, verify the host mount propagation and inspect the relevant unit with `journalctl` inside the outer container.

@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from utils import DOJO_URL, dojo_run, login, create_dojo_yml, start_challenge, solve_challenge, workspace_run, wait_for_background_worker, remove_workspace_container
+from utils import DOJO_URL, dojo_run, login, create_dojo_yml, redis_cli, start_challenge, solve_challenge, workspace_run, wait_for_background_worker, remove_workspace_container
 
 
 CREW_DOJO_SPEC = """
@@ -412,17 +412,17 @@ from CTFd.plugins.dojo_plugin.models import Dojos
 print("DOJO-ID", Dojos.from_id({crew_dojo!r}).first().dojo_id)
 """)
     dojo_id = re.search(r"DOJO-ID (-?\d+)", dojo_id).group(1)
-    dojo_run("docker", "exec", "cache", "redis-cli", "DEL", f"stats:crews:dojo:{dojo_id}:0")
+    redis_cli("DEL", f"stats:crews:dojo:{dojo_id}:0")
     fallback_board = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1").json()
     fallback_crew = next(c for c in fallback_board["standings"] if c["key"] == tag.lower())
     assert fallback_crew["score"] == 3
     assert fallback_crew["unique"] is None
     assert fallback_crew["mastery"] is None
-    dojo_run("docker", "exec", "cache", "redis-cli", "DEL", f"stats:crews:dojo:{dojo_id}:0")
+    redis_cli("DEL", f"stats:crews:dojo:{dojo_id}:0")
     fallback_unique = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1?mode=unique")
     assert fallback_unique.status_code == 200
     assert fallback_unique.json()["mode"] == "unique"
-    dojo_run("docker", "exec", "cache", "redis-cli", "DEL", f"stats:crews:dojo:{dojo_id}:0")
+    redis_cli("DEL", f"stats:crews:dojo:{dojo_id}:0")
     fallback_mastery = session_a.get(f"{DOJO_URL}/pwncollege_api/v1/scoreboard/{crew_dojo}/_/crews/0/1?mode=mastery")
     assert fallback_mastery.status_code == 200
     assert fallback_mastery.json()["mode"] == "mastery"

@@ -4,19 +4,28 @@ Before you begin development, please be sure to read the [architecture](./archit
 
 ## Quick Development Setup
 
-To quickly set up a development environment, use the following commands, which will build the dojo image and run it in a self-contained container:
+Clone the branch or pull request you want to develop, then let the deployment helper build and import the NixOS image:
 
 ```sh
-BRANCH="master"  # or PR with "pull/N/head"
+git clone https://github.com/pwncollege/dojo
+cd dojo
+
+BRANCH="master"
+git switch "$BRANCH"
 
 TAG="dev-$(printf '%s' "$BRANCH" | tr '/' '-' | tr -c '[:alnum:]' '-')"
 
-docker build --build-arg BUILDKIT_CONTEXT_KEEP_GIT_DIR=1 -t "pwncollege/dojo:$TAG" "https://github.com/pwncollege/dojo.git#$BRANCH"
-
-docker run --privileged --name "dojo-$TAG" -d "pwncollege/dojo:$TAG"
+./deploy.sh -b -p -c "dojo-$TAG"
 ```
 
-Start a VSCode tunnel (authenticated with your GitHub account) to this container using the following command:
+For a pull request, fetch its head before building:
+
+```sh
+git fetch origin pull/NUMBER/head
+git switch --detach FETCH_HEAD
+```
+
+Start a VSCode tunnel authenticated with your GitHub account:
 
 ```sh
 docker exec -i "dojo-$TAG" dojo vscode
@@ -24,7 +33,7 @@ docker exec -i "dojo-$TAG" dojo vscode
 
 ## Testing
 
-You can run the dojo CI testcases locally using `./deploy.sh -t`.
+Run the test suite against a newly built instance with `./deploy.sh -b -t`, or reuse an already running instance with `./deploy.sh -N -t`.
 If you want to recreate the exact(ish) environment of our CI, do:
 
 ```console
@@ -36,7 +45,7 @@ gh act # run the CI
 
 ## Adding a config entry
 
-1. Add it with a reasonable default in `dojo/dojo-init`
-2. Propagate it to the relevant containers (typically `ctfd`) in `docker-compose.sh`
+1. Add its allowlisted name and a reasonable default in `dojo/dojo-config`
+2. Expose it to the relevant native service in the NixOS modules under `nix/`
 3. Load it into a global in `dojo_plugin/config.py`
 4. Import it appropriately

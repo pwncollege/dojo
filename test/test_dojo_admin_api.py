@@ -15,9 +15,9 @@ from utils import (
     create_dojo_yml,
     db_sql,
     dojo_db_id,
-    dojo_run,
     get_user_id,
     login,
+    redis_cli,
     remove_workspace_container,
     solve_challenge_offline,
     start_challenge,
@@ -101,7 +101,7 @@ def client_ip():
 
 
 def clear_create_rate_limit():
-    dojo_run("docker", "exec", "cache", "redis-cli", "DEL", f"flask_cache_rl:{client_ip()}:{CREATE_ENDPOINT}")
+    redis_cli("DEL", f"flask_cache_rl:{client_ip()}:{CREATE_ENDPOINT}")
 
 
 def solves_code(reference_id):

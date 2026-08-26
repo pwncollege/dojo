@@ -48,7 +48,7 @@ def is_event_stale(cache_key: str, event_timestamp: float) -> bool:
 def get_redis_client() -> redis.Redis:
     global _redis_client
     if _redis_client is None:
-        redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
+        redis_url = current_app.config["REDIS_URL"]
         _redis_client = redis.from_url(redis_url, decode_responses=True)
     return _redis_client
 

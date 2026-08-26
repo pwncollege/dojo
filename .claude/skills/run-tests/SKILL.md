@@ -21,22 +21,13 @@ tail -f /tmp/test.log
 
 ## Running Specific Tests
 
-To run only specific test files quickly, edit `deploy.sh` line:
+Pass a pytest expression through the deployment helper:
+
 ```bash
-test_container pytest --order-dependencies --timeout=60 -v . "$@"
+./deploy.sh -N -t -k test_create_dojo 2>&1 | tee /tmp/test.log &
 ```
 
-Change it to run a specific file:
-```bash
-test_container pytest --order-dependencies --timeout=60 -v test_belts.py "$@"
-```
-
-Then run:
-```bash
-./deploy.sh -b -t 2>&1 | tee /tmp/test.log &
-```
-
-**Important:** After specific tests pass, restore the original line and rerun ALL tests.
+Start the DOJO with `./deploy.sh -b` first if an instance is not already running.
 
 ## Analyzing Failures
 
@@ -50,14 +41,14 @@ After tests complete, analyze `/tmp/test.log`:
 1. **Identify failures** - Analyze `/tmp/test.log` for FAILED/ERROR
 2. **Find root cause** - Look at tracebacks, check CTFd logs with:
    ```bash
-   docker exec $(basename "$PWD") docker logs ctfd 2>&1 | tail -100
+   docker exec "$(basename "$PWD")" journalctl -b -u dojo-ctfd --no-pager
    ```
-   You can also look at all any of the containers inside of `docker exec $(basename "$PWD")`, the whole list including names is in docker-compose.yml.
+   Inspect all native services with `systemctl status dojo.target` and `systemctl --failed` inside the outer container.
 3. **If root cause unclear** - Add logging to help understand, then rerun tests
 4. **Fix the root cause** - Don't just fix symptoms
-5. **Run specific tests** - Edit deploy.sh to run just the affected test file
+5. **Run specific tests** - Pass a `-k` expression to `./deploy.sh -N -t`
 6. **Verify fix** - Ensure the specific test passes
-7. **Run ALL tests** - Restore deploy.sh and run full suite before declaring success
+7. **Run ALL tests** - Run the full suite before declaring success
 
 ## Key Commands
 
@@ -72,13 +63,13 @@ jobs
 cat /tmp/test.log
 
 # Search for failures
-grep -E "(FAILED|ERROR|error)" /tmp/test.log
+rg "FAILED|ERROR|error" /tmp/test.log
 
 # View CTFd logs for debugging
-docker exec $(basename "$PWD") docker logs ctfd 2>&1 | tail -200
+docker exec "$(basename "$PWD")" journalctl -b -u dojo-ctfd --no-pager
 
 # Run DB queries for debugging
-docker exec -i $(basename "$PWD") dojo db
+docker exec -i "$(basename "$PWD")" dojo db
 ```
 
 ## Multinode Testing

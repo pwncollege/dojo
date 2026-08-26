@@ -2,13 +2,17 @@ import time
 import json
 import pytest
 
-from utils import DOJO_URL, DOJO_CONTAINER, login, create_dojo_yml, start_challenge, solve_challenge, dojo_run, TEST_DOJOS_LOCATION
+from utils import DOJO_URL, login, create_dojo_yml, start_challenge, solve_challenge, dojo_run, journalctl, redis_cli as run_redis_cli, systemctl, unit_environment, unit_is_active, TEST_DOJOS_LOCATION
 
 def redis_cli(*args):
-    result = dojo_run("docker", "exec", "cache", "redis-cli", *args, check=False)
+    result = run_redis_cli(*args, check=False)
     if result.returncode == 0:
         return result.stdout.strip()
     return None
+
+
+def stats_worker_logs(*args):
+    return journalctl("dojo-stats-worker", *args, check=False).stdout
 
 def redis_get(key):
     result = redis_cli("GET", key)
@@ -245,29 +249,21 @@ def test_multiple_solves_update_stats(stats_test_dojo, stats_test_user):
 def test_cold_start_initializes_cache(example_dojo):
     official_dojo_id = example_dojo.split("~", 1)[0]
     cache_key = f"stats:dojo:{official_dojo_id}"
-    stop = dojo_run(
-        "docker", "stop", "--time", "1", "stats-worker", check=False
-    )
+    stop = systemctl("stop", "dojo-stats-worker", check=False)
     assert stop.returncode == 0, stop.stderr
     redis_delete(cache_key, f"{cache_key}:updated")
     assert redis_get(cache_key) is None
     assert redis_get(f"{cache_key}:updated") is None
     start_time = time.time()
-    start = dojo_run("docker", "start", "stats-worker", check=False)
+    start = systemctl("start", "dojo-stats-worker", check=False)
     assert start.returncode == 0, start.stderr
     deadline = time.time() + 30
-    worker_logs = None
     worker_output = ""
     while time.time() < deadline:
-        worker_logs = dojo_run(
-            "docker", "logs", "stats-worker", "--since",
-            str(start_time), check=False,
-        )
-        worker_output = worker_logs.stdout + worker_logs.stderr
+        worker_output = stats_worker_logs("--since", f"@{start_time}")
         if "Cold start complete" in worker_output:
             break
         time.sleep(0.2)
-    assert worker_logs is not None
     assert "Cold start complete" in worker_output, worker_output
     assert f"Initialized stats for dojo {official_dojo_id}" in worker_output
 
@@ -312,35 +308,12 @@ def test_cache_structure(stats_test_dojo, stats_test_user):
     assert isinstance(stats['recent_solves'], list)
 
 def test_stats_worker_running():
-    result = dojo_run("docker", "ps", "--filter", "name=stats-worker", "--format", "{{.Names}}", check=False)
-
-    if result.returncode != 0 or "stats-worker" not in result.stdout:
-        pytest.skip("stats-worker container not running")
-
-    assert "stats-worker" in result.stdout, "stats-worker container should be running"
-
     time.sleep(2)
-
-    result = dojo_run("docker", "inspect", "stats-worker", "--format", "{{.State.Status}}", check=True)
-    status = result.stdout.strip().lower()
-
-    if status == "restarting":
-        result = dojo_run("docker", "logs", "stats-worker", "--tail", "50", check=False)
-        pytest.fail(f"stats-worker is crash-looping. Last 50 log lines:\n{result.stdout}")
-
-    assert status == "running", f"stats-worker should be in running state, got: {status}"
+    if not unit_is_active("dojo-stats-worker"):
+        pytest.fail(f"stats worker is not active. Last 50 log lines:\n{stats_worker_logs('--lines', '50')}")
 
 def test_worker_env_variables():
-    result = dojo_run(
-        "docker", "inspect", "stats-worker",
-        "--format", "{{range .Config.Env}}{{println .}}{{end}}",
-        check=False
-    )
-
-    if result.returncode != 0:
-        pytest.skip("stats-worker container not found")
-
-    env_vars = result.stdout
+    env_vars = unit_environment("dojo-stats-worker")
     assert "REDIS_URL" in env_vars, "REDIS_URL should be configured"
     assert "DATABASE_URL" in env_vars, "DATABASE_URL should be configured"
 
@@ -561,8 +534,7 @@ def test_scores_cold_start_initialization():
     module_scores_keys = [k for k in module_scores_keys if not k.endswith(":updated")]
 
     if not dojo_scores_keys or not module_scores_keys:
-        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
-        pytest.fail(f"Cold start should have initialized scores cache. Worker logs:\n{result.stdout}")
+        pytest.fail(f"Cold start should have initialized scores cache. Worker logs:\n{stats_worker_logs('--lines', '100')}")
 
     dojo_scores_data = redis_get(dojo_scores_keys[0])
     dojo_scores = json.loads(dojo_scores_data)
@@ -720,8 +692,7 @@ def test_emojis_cold_start_initialization():
     emojis_data = redis_get(emojis_key)
 
     if emojis_data is None:
-        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
-        pytest.fail(f"Cold start should have initialized emojis cache. Worker logs:\n{result.stdout}")
+        pytest.fail(f"Cold start should have initialized emojis cache. Worker logs:\n{stats_worker_logs('--lines', '100')}")
 
     emojis = json.loads(emojis_data)
     assert 'emojis' in emojis, "emojis cache should have emojis field"
@@ -900,8 +871,7 @@ def test_container_stats_cold_start_initialization():
     cached_data = redis_get(cache_key)
 
     if cached_data is None:
-        result = dojo_run("docker", "logs", "stats-worker", "--tail", "100", check=False)
-        pytest.fail(f"Cold start should have initialized container stats cache. Worker logs:\n{result.stdout}")
+        pytest.fail(f"Cold start should have initialized container stats cache. Worker logs:\n{stats_worker_logs('--lines', '100')}")
 
     containers = json.loads(cached_data)
     assert isinstance(containers, list), "container stats should be a list"

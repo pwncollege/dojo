@@ -23,7 +23,7 @@ class FeedEvents(Resource):
 @feed_namespace.route("/stream")
 class FeedStream(Resource):
     def get(self):
-        redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")
+        redis_url = current_app.config["REDIS_URL"]
         
         def generate():
             r = redis.from_url(redis_url, decode_responses=True)

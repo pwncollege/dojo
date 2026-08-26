@@ -17,6 +17,7 @@ from utils import (
     DOJO_URL,
     db_sql,
     dojo_run,
+    flask_exec,
     get_outer_container_for,
     get_user_id,
     login,
@@ -37,7 +38,7 @@ SSH_BASE_OPTIONS = [
     "-o", "ConnectTimeout=10",
 ]
 
-ENTER_COMMAND = "/opt/sshd/enter.py"
+ENTER_COMMAND = "/run/current-system/sw/bin/dojo-ssh-enter"
 
 
 def random_name(prefix):
@@ -66,7 +67,7 @@ def stored_key_values(user_name):
 
 
 def authorized_keys_lines():
-    return dojo_run("docker", "exec", "sshd", "/opt/sshd/auth.py").stdout.splitlines()
+    return dojo_run("dojo-ssh-auth").stdout.splitlines()
 
 
 def forced_command_line(user_id, public_key):
@@ -143,28 +144,20 @@ def short_rsa_public_key(directory):
     return f"ssh-rsa {base64.b64encode(blob).decode()}"
 
 
-_MINT_TOKEN_SCRIPT = """
-import json, os, sys, time
-import itsdangerous
-from itsdangerous.url_safe import URLSafeTimedSerializer
-
-payload = json.loads(sys.argv[1])
-secret = sys.argv[2] or os.environ["DOJO_SSH_SERVICE_KEY"]
-backdate = int(sys.argv[3])
-
-class BackdatedSigner(itsdangerous.TimestampSigner):
-    def get_timestamp(self):
-        return int(time.time()) - backdate
-
-signer = BackdatedSigner if backdate else itsdangerous.TimestampSigner
-print(URLSafeTimedSerializer(secret, signer=signer).dumps(payload))
-"""
-
-
 def mint_ssh_token(payload, *, secret="", backdate=0):
-    result = dojo_run("docker", "exec", "ctfd", "python3", "-c", _MINT_TOKEN_SCRIPT,
-                      json.dumps(payload), secret, str(backdate))
-    return result.stdout.strip()
+    return flask_exec(
+        "import json, os, time\n"
+        "import itsdangerous\n"
+        "from itsdangerous.url_safe import URLSafeTimedSerializer\n"
+        f"payload = json.loads({json.dumps(payload)!r})\n"
+        f"secret = {secret!r} or os.environ['DOJO_SSH_SERVICE_KEY']\n"
+        f"backdate = {backdate}\n"
+        "class BackdatedSigner(itsdangerous.TimestampSigner):\n"
+        "    def get_timestamp(self):\n"
+        "        return int(time.time()) - backdate\n"
+        "signer = BackdatedSigner if backdate else itsdangerous.TimestampSigner\n"
+        "print(URLSafeTimedSerializer(secret, signer=signer).dumps(payload))"
+    ).strip()
 
 
 def ssh_token_header(payload, **kwargs):
@@ -426,15 +419,15 @@ def test_key_attaches_to_the_session_user_only(dojo_user, ssh_keys, admin_sessio
         admin_session.delete(SSH_KEY_ENDPOINT, json={"ssh_key": rsa})
 
 
-def test_commands_run_in_the_workspace_not_the_sshd_container(workspace_ssh_user):
+def test_commands_run_in_the_workspace_not_the_native_ssh_host(workspace_ssh_user):
     result = ssh_run(
         workspace_ssh_user.keys["ed25519"]["private_file"],
-        "hostname; cat /etc/environment 2>/dev/null; ls /opt/sshd 2>/dev/null; "
+        "hostname; cat /etc/environment 2>/dev/null; ls /opt/pwn.college/sshd 2>/dev/null; "
         "echo WORKSPACE_BIN=$(ls /run/dojo/bin | head -1)",
     )
     assert result.returncode == 0, result.stderr
-    assert "DATABASE_URL" not in result.stdout, "sshd's environment file was readable over ssh"
-    assert "auth.py" not in result.stdout, "sshd's own files were readable over ssh"
+    assert "DATABASE_URL" not in result.stdout, "the SSH host's environment was readable over ssh"
+    assert "auth.py" not in result.stdout, "the SSH host's own files were readable over ssh"
     assert "hello~apple" in result.stdout, f"landed in the wrong container: {result.stdout!r}"
     workspace_bin = [line for line in result.stdout.splitlines() if line.startswith("WORKSPACE_BIN=")]
     assert workspace_bin and workspace_bin[0] != "WORKSPACE_BIN=", \
@@ -635,7 +628,7 @@ def test_new_key_authenticates_on_the_next_connection(dojo_user, ssh_keys, examp
         assert result.returncode == 0, f"a freshly added key did not work immediately: {result.stderr}"
         assert "hacker" in result.stdout, \
             "a key submitted with authorized_keys options must still land in the workspace"
-        assert f"pwned-{name}" not in dojo_run("docker", "exec", "sshd", "ls", "/tmp").stdout, \
+        assert f"pwned-{name}" not in dojo_run("ls", "/tmp").stdout, \
             "a user-supplied forced command ran on login"
     finally:
         remove_workspace_container(name)
@@ -731,8 +724,7 @@ def test_interactive_session_without_a_workspace_offers_the_challenge_tui(dojo_u
 
     combined = result.stdout + result.stderr
     assert "No active challenge session; start a challenge!" in combined, repr(combined[-400:])
-    assert "\x1b[" in result.stdout or "Failed to launch challenge tui" in combined, \
-        "no full-screen tui was rendered for an interactive session without a workspace"
+    assert "\x1b[" in result.stdout, "no full-screen tui was rendered for an interactive session without a workspace"
 
 
 def test_ssh_service_token_authenticates_and_respects_dojo_access(

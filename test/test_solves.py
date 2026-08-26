@@ -12,10 +12,10 @@ from utils import (
     challenge_flag,
     create_dojo_yml,
     db_sql,
-    dojo_run,
     get_user_id,
     login,
     parse_csrf_token,
+    redis_cli,
     remove_workspace_container,
     start_challenge,
     wait_for_background_worker,
@@ -58,12 +58,12 @@ def submission_total(challenge_id):
 
 
 def clear_score_validate_ratelimit():
-    keys = dojo_run(
-        "docker", "exec", "cache", "redis-cli", "--scan",
+    keys = redis_cli(
+        "--scan",
         "--pattern", "flask_cache_rl:*:pwncollege_api.score_validate_user",
     ).stdout.split()
     for key in keys:
-        dojo_run("docker", "exec", "cache", "redis-cli", "DEL", key)
+        redis_cli("DEL", key)
 
 
 def score_validate(username=None, email=None):

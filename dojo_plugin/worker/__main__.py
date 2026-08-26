@@ -2,6 +2,7 @@ import logging
 import os
 import signal
 import time
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -67,6 +68,9 @@ else:
         logger.info(f"Cold start complete - all stats initialized ({time.time() - cold_start_begin:.2f}s total)")
     except Exception as e:
         logger.error(f"Error during cold start: {e}", exc_info=True)
+        raise
+
+Path(os.environ.get("DOJO_STATS_READY", "/run/dojo/stats-ready")).touch()
 
 logger.info("Starting event consumption loop...")
 

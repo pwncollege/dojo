@@ -22,6 +22,7 @@ from utils import (
     login,
     make_dojo_official,
     remove_workspace_container,
+    redis_cli,
     solve_challenge_offline,
     wait_for_background_worker,
     workspace_run,
@@ -115,11 +116,10 @@ def dojo_user_rows(dojo, user_id):
 
 def clear_identity_ratelimit():
     """The identity endpoint allows 10 PATCHes per minute per IP, and the whole suite shares one IP."""
-    scan = dojo_run("docker", "exec", "cache", "redis-cli", "--scan", "--pattern",
-                    "flask_cache_rl:*:course.update_identity", check=False)
+    scan = redis_cli("--scan", "--pattern", "flask_cache_rl:*:course.update_identity", check=False)
     keys = [key for key in scan.stdout.split() if key]
     if keys:
-        dojo_run("docker", "exec", "cache", "redis-cli", "DEL", *keys, check=False)
+        redis_cli("DEL", *keys, check=False)
 
 
 def patch_identity(session, dojo, identity=REMOVE):

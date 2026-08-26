@@ -107,8 +107,33 @@ def replace_forwarded_signature(iframe_src, signature):
     return parsed._replace(path="/".join(parts)).geturl()
 
 
+def public_workspace_proxy_get(iframe_src, **kwargs):
+    parsed = urlparse(iframe_src)
+    dojo_url = urlparse(DOJO_URL)
+    direct_url = parsed._replace(scheme=dojo_url.scheme, netloc=dojo_url.netloc).geturl()
+    headers = {"Host": parsed.netloc, **kwargs.pop("headers", {})}
+    return requests.get(direct_url, headers=headers, **kwargs)
+
+
+def private_worker_proxy_status(iframe_src):
+    parsed = urlparse(iframe_src)
+    forward_target = [part for part in parsed.path.split("/") if part][1]
+    target_host = forward_target.rsplit(":", 1)[1]
+    result = dojo_run(
+        "curl", "--silent", "--show-error", "--noproxy", "*", "--output", "/dev/null",
+        "--write-out", "%{http_code}",
+        "--header", f"Host: {parsed.netloc}",
+        "--header", f"X-Forwarded-Proto: {parsed.scheme}",
+        f"http://{target_host}:8888{parsed.path}",
+        timeout=30,
+    )
+    return int(result.stdout)
+
+
 def dojo_host():
-    return dojo_run("docker", "exec", "nginx", "printenv", "DOJO_HOST").stdout.strip()
+    return dojo_run(
+        "sh", "-c", ". /data/config.env; printf '%s' \"$DOJO_HOST\""
+    ).stdout.strip()
 
 
 @pytest.fixture(scope="module")
@@ -630,7 +655,6 @@ def test_only_whitelisted_services_are_executed_in_the_workspace(runtime_workspa
     )
 
 
-@pytest.mark.skipif(MULTINODE, reason="the workspace proxy redirects to the per-node vhost in multinode")
 def test_workspace_proxy_passes_websocket_upgrades_through(runtime_workspace):
     _, session = runtime_workspace
 
@@ -664,15 +688,14 @@ def test_workspace_proxy_signature_covers_the_container_and_port(runtime_workspa
     code_iframe_src = code_response.json()["iframe_src"]
     assert forwarded_port(code_iframe_src) == 8080, f"Expected code on port 8080, got {code_iframe_src}"
 
-    code_proxy = requests.get(code_iframe_src, timeout=30, allow_redirects=False)
-    node_code_iframe_src = None
-    if MULTINODE:
-        assert code_proxy.status_code == 307, (
-            f"Expected the main proxy to redirect to the workspace node, got {code_proxy.status_code}"
-        )
-        node_code_iframe_src = code_proxy.headers["Location"]
-        code_proxy = requests.get(node_code_iframe_src, timeout=30, allow_redirects=False)
+    code_proxy = public_workspace_proxy_get(code_iframe_src, timeout=30, allow_redirects=False)
     assert code_proxy.status_code == 200, f"Expected the signed code url to work, got {code_proxy.status_code}"
+    assert "Location" not in code_proxy.headers, (
+        f"Expected the main proxy to keep the learner URL stable, got {code_proxy.headers['Location']}"
+    )
+    if MULTINODE:
+        assert private_worker_proxy_status(code_iframe_src) == 200, \
+            "Expected the worker's private proxy to accept the signed code URL"
 
     token = workspace_output(name, "cat /run/dojo/var/auth_token")
     view_password = hmac.HMAC(token.encode(), b"desktop-view", hashlib.sha256).hexdigest()
@@ -684,7 +707,7 @@ def test_workspace_proxy_signature_covers_the_container_and_port(runtime_workspa
     assert forwarded_port(desktop_iframe_src) == 6080, (
         f"Expected the shared desktop on port 6080, but got {desktop_iframe_src}"
     )
-    desktop_proxy = requests.get(desktop_iframe_src, timeout=30)
+    desktop_proxy = public_workspace_proxy_get(desktop_iframe_src, timeout=30)
     assert desktop_proxy.status_code == 200, (
         f"Expected the signed desktop url to work, got {desktop_proxy.status_code}"
     )
@@ -695,23 +718,19 @@ def test_workspace_proxy_signature_covers_the_container_and_port(runtime_workspa
     )
 
     tampered_code_iframe_src = replace_forwarded_signature(code_iframe_src, desktop_signature)
-    tampered_code_proxy = requests.get(tampered_code_iframe_src, timeout=30, allow_redirects=False)
+    tampered_code_proxy = public_workspace_proxy_get(
+        tampered_code_iframe_src, timeout=30, allow_redirects=False,
+    )
     assert tampered_code_proxy.status_code == 404, (
         f"Expected the desktop signature to reject port 8080, got {tampered_code_proxy.status_code}"
     )
     assert tampered_code_proxy.text.strip() == "Workspace not found", tampered_code_proxy.text
-
-    if node_code_iframe_src:
-        tampered_node_iframe_src = replace_forwarded_signature(node_code_iframe_src, desktop_signature)
-        tampered_node_proxy = requests.get(tampered_node_iframe_src, timeout=30, allow_redirects=False)
-        assert tampered_node_proxy.status_code == 404, (
-            f"Expected the workspace node to reject the desktop signature on port 8080, "
-            f"got {tampered_node_proxy.status_code}"
-        )
-        assert tampered_node_proxy.text.strip() == "Workspace not found", tampered_node_proxy.text
+    if MULTINODE:
+        assert private_worker_proxy_status(tampered_code_iframe_src) == 404, \
+            "Expected the worker's private proxy to reject a signature for a different port"
 
 
-def test_nginx_routes_by_host_header():
+def test_nginx_routes_by_host_header(workspace_runtime_dojo):
     host = dojo_host()
     base = DOJO_URL.rstrip("/")
 
@@ -724,13 +743,24 @@ def test_nginx_routes_by_host_header():
     assert frontend.headers.get("X-Powered-By") == "Next.js", (
         f"Expected the future host to be served by the frontend, but got {frontend.headers}"
     )
+    assert workspace_runtime_dojo in frontend.text, (
+        "Expected the server-rendered frontend to load dojos from the native CTFd origin"
+    )
+
+    for api_path in ("/api/v1/users", "/pwncollege_api/v1/dojos"):
+        api_response = requests.get(f"{base}{api_path}", headers={"Host": f"future.{host}"}, timeout=30)
+        assert api_response.headers.get("Content-Type", "").startswith("application/json"), (
+            f"Expected {api_path} on the future host to be served by CTFd, but got {api_response.headers}"
+        )
 
     unknown = requests.get(base, headers={"Host": "bogus.example"}, timeout=30)
     assert unknown.status_code == 200, f"Expected status code 200 for an unknown host, but got {unknown.status_code}"
     assert "session" in unknown.cookies, "Expected an unknown host to fall through to CTFd's default server"
 
     workspace = requests.get(
-        f"{base}/workspace/deadbeef/badsig/8080/", headers={"Host": f"workspace.{host}"}, timeout=30
+        f"{base}/workspace/deadbeefdead@10.0.1.1/badsig/8080/",
+        headers={"Host": f"workspace.{host}"},
+        timeout=30,
     )
     assert workspace.status_code == 404, (
         f"Expected an unsigned workspace url to be rejected, but got {workspace.status_code}"

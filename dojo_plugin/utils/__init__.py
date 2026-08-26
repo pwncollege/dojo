@@ -101,7 +101,7 @@ def user_docker_client(user, image_name=None):
     if image_name and image_name.startswith("mac:"):
         return mac_docker.MacDockerClient(hostname=MAC_HOSTNAME,
                                           username=MAC_USERNAME,
-                                          key_path="/var/mac/key")
+                                          key_path="/data/mac/key")
 
     node_id = user_node(user)
     return (docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)

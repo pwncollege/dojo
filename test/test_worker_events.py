@@ -16,11 +16,15 @@ from utils import (
     db_sql,
     dojo_db_id,
     dojo_run,
+    flask_exec,
+    journalctl,
     get_user_id,
     login,
     remove_workspace_container,
     solve_challenge_offline,
     start_challenge,
+    systemctl,
+    unit_is_active,
 )
 
 STAT_STREAM = "stat:events"
@@ -37,13 +41,12 @@ FLASK_MARKER = "--- worker events test output ---"
 
 def _redis_py(body):
     script = (
-        "import json, redis\n"
-        "r = redis.from_url('redis://cache:6379', decode_responses=True)\n"
+        "import json, os, redis\n"
+        "r = redis.from_url(os.environ['REDIS_URL'], decode_responses=True)\n"
         f"{body}\n"
     )
-    result = dojo_run("docker", "exec", "ctfd", "python3", "-c", script, check=False)
-    assert result.returncode == 0, f"redis helper failed:\n{result.stdout}\n{result.stderr}"
-    return json.loads(result.stdout) if result.stdout.strip() else None
+    output = flask_exec(script)
+    return json.loads(output) if output.strip() else None
 
 
 def redis_get(key):
@@ -122,33 +125,36 @@ def pending_ids(stream, group):
     )
 
 
-def container_status(name):
-    result = dojo_run("docker", "inspect", name, "--format", "{{.State.Status}}", check=False)
-    return result.stdout.strip()
+def worker_status(name):
+    unit = {"stats-worker": "dojo-stats-worker", "image-pull-worker": "dojo-image-pull-worker"}[name]
+    return "running" if unit_is_active(unit) else systemctl(
+        "show", "--property=ActiveState", "--value", unit, check=False
+    ).stdout.strip()
 
 
-def container_logs_since(name, since):
-    result = dojo_run("docker", "logs", name, "--since", str(since - 2), check=False)
-    return result.stdout + result.stderr
+def worker_logs_since(name, since):
+    unit = {"stats-worker": "dojo-stats-worker", "image-pull-worker": "dojo-image-pull-worker"}[name]
+    return journalctl(unit, "--since", f"@{since - 2}", check=False).stdout
 
 
 @contextlib.contextmanager
-def paused(name):
-    dojo_run("docker", "pause", name)
+def paused_worker(name):
+    unit = {"stats-worker": "dojo-stats-worker", "image-pull-worker": "dojo-image-pull-worker"}[name]
+    systemctl("kill", "--kill-whom=main", "--signal=STOP", unit)
     try:
         yield
     finally:
-        dojo_run("docker", "unpause", name, check=False)
+        systemctl("kill", "--kill-whom=main", "--signal=CONT", unit, check=False)
 
 
 def run_in_ctfd(code):
     script = f"print({FLASK_MARKER!r}, flush=True)\n{code}"
     path = f"/tmp/dojo-test-worker-events-{os.getpid()}.py"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {path}", input=script)
+    dojo_run("sh", "-c", f"cat > {path}", input=script)
     # The marker is the snippet's first statement, so a missing marker means the app never
     # booted (the shared host occasionally cannot spare the memory) rather than a test failure.
     for attempt in range(3):
-        result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", path, check=False)
+        result = dojo_run("dojo", "flask", "--", path, check=False)
         output = result.stdout + result.stderr
         if FLASK_MARKER in output:
             break
@@ -229,7 +235,7 @@ def test_unknown_and_failing_events_do_not_wedge_worker(barrier_user):
 
     assert worker_barrier(barrier_user), "worker stopped processing events"
 
-    logs = container_logs_since("stats-worker", start)
+    logs = worker_logs_since("stats-worker", start)
     assert "No handler registered for event type: totally_unknown_worker_events_type" in logs, \
         "unknown event type was not logged as unhandled"
     assert "Error handling event challenge_solve" in logs, \
@@ -240,7 +246,7 @@ def test_unknown_and_failing_events_do_not_wedge_worker(barrier_user):
     pending = pending_ids(STAT_STREAM, STAT_GROUP)
     assert unknown_id not in pending and poison_id not in pending, \
         f"unhandled/failed events were left pending: {pending}"
-    assert container_status("stats-worker") == "running", "stats-worker died on a bad event"
+    assert worker_status("stats-worker") == "running", "stats-worker died on a bad event"
 
 
 def test_full_recalculation_corrects_incremental_drift(worker_events_dojo, random_user, barrier_user):
@@ -275,7 +281,7 @@ def test_activity_cache_miss_does_not_double_count_queued_solves(worker_events_d
     user_id = get_user_id(user_name)
     cache_key = f"stats:activity:{user_id}"
 
-    with paused("stats-worker"):
+    with paused_worker("stats-worker"):
         redis_delete(cache_key, f"{cache_key}:updated")
         solve_challenge_offline(worker_events_dojo, "hello", "apple", session=session, user=user_name)
         solve_challenge_offline(worker_events_dojo, "hello", "banana", session=session, user=user_name)
@@ -314,7 +320,7 @@ def test_stale_event_skips_dojo_stats_write(worker_events_dojo, random_user, bar
 
         assert redis_json(cache_key)["solves"] == 12345, \
             "a stale challenge_solve event overwrote newer cached dojo stats"
-        logs = container_logs_since("stats-worker", start)
+        logs = worker_logs_since("stats-worker", start)
         assert f"Skipping stale event for {cache_key}" in logs, "staleness guard did not fire"
     finally:
         redis_delete(cache_key, f"{cache_key}:updated")
@@ -342,7 +348,7 @@ def test_imported_challenge_updates_every_containing_dojo(example_dojo, worker_e
     solve_challenge_offline(example_dojo, "hello", "apple", session=session, user=user_name)
     assert worker_barrier(barrier_user), "solve event was not processed"
 
-    logs = container_logs_since("stats-worker", start)
+    logs = worker_logs_since("stats-worker", start)
     match = re.search(rf"Found (\d+) dojo\(s\) containing challenge_id={challenge_id}", logs)
     assert match, "solve handler did not report the dojos containing the imported challenge"
     assert int(match.group(1)) >= 2, \
@@ -397,7 +403,7 @@ def test_deleted_dojo_clears_caches_without_wedging_worker(admin_session, barrie
         "dojo row was not deleted"
 
     assert worker_barrier(barrier_user), "worker stopped processing events after a dojo deletion"
-    assert container_status("stats-worker") == "running", "stats-worker died on a deleted dojo"
+    assert worker_status("stats-worker") == "running", "stats-worker died on a deleted dojo"
     assert redis_matching(*cache_patterns) == [], "deleting a dojo left its cached statistics behind"
 
 
@@ -487,9 +493,9 @@ def test_image_pull_invalid_message_acked_and_deleted():
     pending = pending_ids(IMAGE_STREAM, IMAGE_GROUP)
     assert not any(message_id in pending for message_id in message_ids), \
         f"invalid image pull events were left pending: {pending}"
-    logs = container_logs_since("image-pull-worker", start)
+    logs = worker_logs_since("image-pull-worker", start)
     assert "Invalid image pull event" in logs, "invalid image pull event was not logged"
-    assert container_status("image-pull-worker") == "running", \
+    assert worker_status("image-pull-worker") == "running", \
         "image-pull-worker died on an invalid message"
 
 
@@ -513,7 +519,7 @@ def test_image_pull_enqueue_dedups_and_filters_images(admin_session):
     update_spec = json.loads(json.dumps(spec))
     update_spec["modules"][0]["challenges"][2]["image"] = BOGUS_IMAGE
 
-    with paused("image-pull-worker"):
+    with paused_worker("image-pull-worker"):
         last_id = stream_last_id(IMAGE_STREAM)
         reference_id = create_dojo_yml(yaml.safe_dump(spec), session=admin_session)
         created = [event for event in stream_events_after(IMAGE_STREAM, last_id)
