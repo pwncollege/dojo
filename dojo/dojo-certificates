@@ -2,34 +2,111 @@
 
 set -euo pipefail
 
-if [ -f /run/dojo/config.env ]; then
-    . /run/dojo/config.env
+data_directory="${DOJO_CERTIFICATES_DATA_DIRECTORY:-/data}"
+runtime_directory="${DOJO_CERTIFICATES_RUNTIME_DIRECTORY:-/run/dojo}"
+
+if [ -f "$runtime_directory/config.env" ]; then
+    . "$runtime_directory/config.env"
 else
-    . /data/config.env
+    . "$data_directory/config.env"
 fi
 
-install -d -m 700 /data/acme/live
-install -d -m 755 /run/dojo/acme /run/dojo/tls
+live_directory="$data_directory/acme/live"
+lego_directory="$data_directory/acme/lego"
+install -d -m 700 "$live_directory"
+install -d -m 755 "$runtime_directory/acme" "$runtime_directory/tls"
 
 if [ "${DOJO_ENV:-development}" != production ]; then
     exit 0
 fi
 
-certificate_path=/data/acme/live/fullchain.pem
-private_key_path=/data/acme/live/privkey.pem
+certificate_path="$live_directory/fullchain.pem"
+private_key_path="$live_directory/privkey.pem"
 action="${1:-bootstrap}"
 certificate_domains=("$WORKSPACE_HOST")
 if [ "${WORKSPACE_NODE:-0}" -eq 0 ]; then
     certificate_domains=("$DOJO_HOST" "future.$DOJO_HOST" "$WORKSPACE_HOST")
 fi
 
-if [ "$action" = bootstrap ] && { [ ! -s "$certificate_path" ] || [ ! -s "$private_key_path" ]; }; then
-    certificate_temp="$(mktemp /data/acme/live/.fullchain.pem.XXXXXX)"
-    private_key_temp="$(mktemp /data/acme/live/.privkey.pem.XXXXXX)"
+certificate_matches_domain() {
+    local checked_certificate="$1"
+    local checked_domain="$2"
+    local match_output
+
+    if [[ "$checked_domain" == *:* || "$checked_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        match_output="$(openssl x509 -in "$checked_certificate" -noout -checkip "$checked_domain" 2>/dev/null)" || return 1
+    else
+        match_output="$(openssl x509 -in "$checked_certificate" -noout -checkhost "$checked_domain" 2>/dev/null)" || return 1
+    fi
+    [[ "$match_output" == *"does match certificate"* ]]
+}
+
+certificate_pair_is_usable() {
+    local checked_certificate="$1"
+    local checked_private_key="$2"
+    local certificate_public_key private_key_public_key required_domain
+    shift 2
+
+    [ -s "$checked_certificate" ] &&
+        [ -s "$checked_private_key" ] &&
+        openssl x509 -in "$checked_certificate" -noout -checkend 0 >/dev/null 2>&1 || return 1
+    for required_domain in "$@"; do
+        certificate_matches_domain "$checked_certificate" "$required_domain" || return 1
+    done
+    certificate_public_key="$(openssl x509 -in "$checked_certificate" -pubkey -noout 2>/dev/null)" || return 1
+    private_key_public_key="$(openssl pkey -in "$checked_private_key" -pubout 2>/dev/null)" || return 1
+    [ "$certificate_public_key" = "$private_key_public_key" ]
+}
+
+install_certificate_pair() {
+    local source_certificate="$1"
+    local source_private_key="$2"
+    local certificate_temp private_key_temp
+
+    certificate_temp="$(mktemp "$live_directory/.fullchain.pem.XXXXXX")" || return 1
+    if ! private_key_temp="$(mktemp "$live_directory/.privkey.pem.XXXXXX")"; then
+        rm -f "$certificate_temp"
+        return 1
+    fi
+    if ! install -m 644 "$source_certificate" "$certificate_temp" ||
+        ! install -m 600 "$source_private_key" "$private_key_temp" ||
+        ! mv -f "$private_key_temp" "$private_key_path" ||
+        ! mv -f "$certificate_temp" "$certificate_path"; then
+        rm -f "$certificate_temp" "$private_key_temp"
+        return 1
+    fi
+}
+
+adopt_legacy_certificate_pair() {
+    local legacy_certificate legacy_private_key
+
+    for legacy_certificate in "$data_directory"/acme/*.crt; do
+        [ -e "$legacy_certificate" ] || continue
+        legacy_private_key="${legacy_certificate%.crt}.key"
+        if certificate_pair_is_usable \
+            "$legacy_certificate" "$legacy_private_key" "${certificate_domains[0]}"; then
+            install_certificate_pair "$legacy_certificate" "$legacy_private_key"
+            return
+        fi
+    done
+    return 1
+}
+
+if [ "$action" = bootstrap ] &&
+    ! certificate_pair_is_usable "$certificate_path" "$private_key_path" "${certificate_domains[0]}" &&
+    ! adopt_legacy_certificate_pair; then
+    certificate_temp="$(mktemp "$live_directory/.fullchain.pem.XXXXXX")"
+    private_key_temp="$(mktemp "$live_directory/.privkey.pem.XXXXXX")"
     trap 'rm -f "$certificate_temp" "$private_key_temp"' EXIT
 
-    subject_alternative_names="$(printf 'DNS:%s,' "${certificate_domains[@]}")"
-    subject_alternative_names="${subject_alternative_names%,}"
+    subject_alternative_names=
+    for certificate_domain in "${certificate_domains[@]}"; do
+        certificate_domain_type=DNS
+        if [[ "$certificate_domain" == *:* || "$certificate_domain" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            certificate_domain_type=IP
+        fi
+        subject_alternative_names+="${subject_alternative_names:+,}${certificate_domain_type}:${certificate_domain}"
+    done
     openssl req \
         -x509 \
         -newkey rsa:4096 \
@@ -47,8 +124,8 @@ if [ "$action" = bootstrap ] && { [ ! -s "$certificate_path" ] || [ ! -s "$priva
     trap - EXIT
 fi
 
-ln -sfn "$certificate_path" /run/dojo/tls/fullchain.pem
-ln -sfn "$private_key_path" /run/dojo/tls/privkey.pem
+ln -sfn "$certificate_path" "$runtime_directory/tls/fullchain.pem"
+ln -sfn "$private_key_path" "$runtime_directory/tls/privkey.pem"
 
 if [ "$action" = bootstrap ]; then
     exit 0
@@ -59,31 +136,41 @@ if [ "$action" != renew ]; then
 fi
 
 email="${MAIL_ADDRESS:-admin@$DOJO_HOST}"
+missing_domains=()
+for certificate_domain in "${certificate_domains[@]}"; do
+    if ! getent ahosts "$certificate_domain" >/dev/null 2>&1; then
+        missing_domains+=("$certificate_domain")
+    fi
+done
+if [ "${#missing_domains[@]}" -gt 0 ]; then
+    printf 'ACME certificate issuance requires DNS records for: %s\n' "${missing_domains[*]}" >&2
+    exit 1
+fi
+
 lego_args=(
     --accept-tos
     --email "$email"
     --http
-    --http.webroot /run/dojo/acme
-    --path /data/acme/lego
+    --http.webroot "$runtime_directory/acme"
+    --path "$lego_directory"
 )
 for certificate_domain in "${certificate_domains[@]}"; do
     lego_args+=(--domains "$certificate_domain")
 done
 
-if [ -d /data/acme/lego/accounts ]; then
+issued_certificate="$lego_directory/certificates/${certificate_domains[0]}.crt"
+issued_private_key="$lego_directory/certificates/${certificate_domains[0]}.key"
+if certificate_pair_is_usable \
+    "$issued_certificate" "$issued_private_key" "${certificate_domains[@]}"; then
     lego "${lego_args[@]}" renew --days 30
 else
     lego "${lego_args[@]}" run
 fi
 
-issued_certificate="/data/acme/lego/certificates/${certificate_domains[0]}.crt"
-issued_private_key="/data/acme/lego/certificates/${certificate_domains[0]}.key"
-certificate_temp="$(mktemp /data/acme/live/.fullchain.pem.XXXXXX)"
-private_key_temp="$(mktemp /data/acme/live/.privkey.pem.XXXXXX)"
-trap 'rm -f "$certificate_temp" "$private_key_temp"' EXIT
-install -m 644 "$issued_certificate" "$certificate_temp"
-install -m 600 "$issued_private_key" "$private_key_temp"
-mv -f "$private_key_temp" "$private_key_path"
-mv -f "$certificate_temp" "$certificate_path"
-trap - EXIT
+if ! certificate_pair_is_usable \
+    "$issued_certificate" "$issued_private_key" "${certificate_domains[@]}"; then
+    echo 'ACME client did not produce a usable certificate and private key.' >&2
+    exit 1
+fi
+install_certificate_pair "$issued_certificate" "$issued_private_key"
 systemctl reload dojo-nginx.service

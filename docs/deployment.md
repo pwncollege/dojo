@@ -74,6 +74,8 @@ Workspace traffic uses `workspace.$DOJO_HOST` by default. Override it when neede
 -e WORKSPACE_HOST=workspace.example.com
 ```
 
+On the main node, production TLS uses one certificate for `DOJO_HOST`, `future.$DOJO_HOST`, and `WORKSPACE_HOST`. Create public DNS records for all three names that point to the server and allow inbound HTTP on port 80 before starting the appliance. The ACME service does not attempt issuance or renewal unless every name resolves, and validation must succeed for every name before the shared certificate is installed.
+
 Configuration defaults and allowed environment names are defined by [`dojo/dojo-config`](../dojo/dojo-config). The NixOS modules under [`nix/`](../nix) expose those values to the native services.
 
 Set `ENABLE_SPLUNK=true` to enable the native Splunk service and journal forwarding. On first start, the appliance downloads the official Splunk Enterprise 9.1.2 archive into `/data/splunk/cache`, verifies its checksum, and accepts the Splunk license during unattended initialization. An offline deployment must seed that archive in the cache before startup.

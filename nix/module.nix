@@ -277,6 +277,7 @@ let
     ];
     text = ''
       . /run/dojo/config.env
+      export WORKSPACE_NODE
       bind_address="192.168.42.$((WORKSPACE_NODE + 1))"
       export PYTHONPATH=${dojoSource}/homefs
       export STORAGE_ROOT=/run/homefs
@@ -831,6 +832,11 @@ in
         type = "ed25519";
       }
       {
+        path = "/data/ssh_host_keys/ssh_host_ecdsa_key";
+        type = "ecdsa";
+        bits = 256;
+      }
+      {
         path = "/data/ssh_host_keys/ssh_host_rsa_key";
         type = "rsa";
         bits = 4096;
@@ -1378,7 +1384,9 @@ in
     wants = [ "network-online.target" ];
     path = [
       pkgs.coreutils
+      pkgs.getent
       pkgs.lego
+      pkgs.openssl
       pkgs.systemd
     ];
     serviceConfig = {
@@ -1598,7 +1606,11 @@ in
   systemd.services.vscode-tunnel = {
     description = "VS Code Remote Tunnel";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-online.target" ];
+    after = [
+      "dojo-storage.service"
+      "network-online.target"
+    ];
+    requires = [ "dojo-storage.service" ];
     wants = [ "network-online.target" ];
     unitConfig.ConditionPathExists = "/data/vscode/tunnel-name";
     serviceConfig = {

@@ -3,6 +3,10 @@ import os
 from contextlib import contextmanager
 
 
+CONTROL_REQUEST_TIMEOUT = (5, 10)
+TRANSFER_REQUEST_TIMEOUT = (5, 300)
+
+
 @contextmanager
 def file_lock(path, *, blocking=True):
     lock_fd = os.open(path, os.O_CREAT | os.O_RDWR)

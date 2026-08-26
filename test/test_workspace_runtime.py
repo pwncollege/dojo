@@ -107,6 +107,14 @@ def replace_forwarded_signature(iframe_src, signature):
     return parsed._replace(path="/".join(parts)).geturl()
 
 
+def public_workspace_proxy_get(iframe_src, **kwargs):
+    parsed = urlparse(iframe_src)
+    dojo_url = urlparse(DOJO_URL)
+    direct_url = parsed._replace(scheme=dojo_url.scheme, netloc=dojo_url.netloc).geturl()
+    headers = {"Host": parsed.netloc, **kwargs.pop("headers", {})}
+    return requests.get(direct_url, headers=headers, **kwargs)
+
+
 def private_worker_proxy_status(iframe_src):
     parsed = urlparse(iframe_src)
     forward_target = [part for part in parsed.path.split("/") if part][1]
@@ -680,7 +688,7 @@ def test_workspace_proxy_signature_covers_the_container_and_port(runtime_workspa
     code_iframe_src = code_response.json()["iframe_src"]
     assert forwarded_port(code_iframe_src) == 8080, f"Expected code on port 8080, got {code_iframe_src}"
 
-    code_proxy = requests.get(code_iframe_src, timeout=30, allow_redirects=False)
+    code_proxy = public_workspace_proxy_get(code_iframe_src, timeout=30, allow_redirects=False)
     assert code_proxy.status_code == 200, f"Expected the signed code url to work, got {code_proxy.status_code}"
     assert "Location" not in code_proxy.headers, (
         f"Expected the main proxy to keep the learner URL stable, got {code_proxy.headers['Location']}"
@@ -699,7 +707,7 @@ def test_workspace_proxy_signature_covers_the_container_and_port(runtime_workspa
     assert forwarded_port(desktop_iframe_src) == 6080, (
         f"Expected the shared desktop on port 6080, but got {desktop_iframe_src}"
     )
-    desktop_proxy = requests.get(desktop_iframe_src, timeout=30)
+    desktop_proxy = public_workspace_proxy_get(desktop_iframe_src, timeout=30)
     assert desktop_proxy.status_code == 200, (
         f"Expected the signed desktop url to work, got {desktop_proxy.status_code}"
     )
@@ -710,7 +718,9 @@ def test_workspace_proxy_signature_covers_the_container_and_port(runtime_workspa
     )
 
     tampered_code_iframe_src = replace_forwarded_signature(code_iframe_src, desktop_signature)
-    tampered_code_proxy = requests.get(tampered_code_iframe_src, timeout=30, allow_redirects=False)
+    tampered_code_proxy = public_workspace_proxy_get(
+        tampered_code_iframe_src, timeout=30, allow_redirects=False,
+    )
     assert tampered_code_proxy.status_code == 404, (
         f"Expected the desktop signature to reject port 8080, got {tampered_code_proxy.status_code}"
     )

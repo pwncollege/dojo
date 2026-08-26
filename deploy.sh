@@ -4,6 +4,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 REPO_DIR=$(basename "$PWD")
 DEFAULT_CONTAINER_NAME="${REPO_DIR}"
+DATA_TMPDIR="$(realpath -m -- "${DOJO_DATA_TMPDIR:-/var/tmp}")"
+mkdir -p "$DATA_TMPDIR"
 
 function usage {
 	set +x
@@ -29,15 +31,30 @@ function usage {
 
 function cleanup_container {
 	local CONTAINER=$1
+	local DATA_PREFIX="$DATA_TMPDIR/data-${CONTAINER}-"
+	local MOUNT_TARGETS
 	docker kill "$CONTAINER" 2>/dev/null || echo "No $CONTAINER container to kill."
 	docker rm "$CONTAINER" 2>/dev/null || echo "No $CONTAINER container to remove."
 	while docker ps -a | grep "$CONTAINER$"; do sleep 1; done
 
 	# freaking bad unmount
-	mount | grep /tmp/data-${CONTAINER}-....../ && sleep 4
-	mount | grep /tmp/data-${CONTAINER}-....../ | sed -e "s/.* on //" | sed -e "s/ .*//" | tac | while read ENTRY
+	MOUNT_TARGETS=$(findmnt -rn -o TARGET | awk -v prefix="$DATA_PREFIX" '
+		index($0, prefix) == 1 {
+			remainder = substr($0, length(prefix) + 1)
+			slash = index(remainder, "/")
+			suffix = slash ? substr(remainder, 1, slash - 1) : remainder
+			if (length(suffix) == 6 && suffix !~ /[^[:alnum:]]/) print
+		}
+	')
+	[ -z "$MOUNT_TARGETS" ] || sleep 4
+	printf '%s\n' "$MOUNT_TARGETS" | awk 'NF { print length($0), $0 }' | sort -rn | cut -d' ' -f2- | while read ENTRY
 	do
 		sudo umount "$ENTRY" || echo "Failed ^"
+	done
+	for DIRECTORY in "$DATA_TMPDIR"/"data-${CONTAINER}-"??????
+	do
+		[ -e "$DIRECTORY" ] || continue
+		sudo find "$DIRECTORY" -xdev -depth -delete
 	done
 }
 
@@ -54,6 +71,23 @@ function cleanup_docker_state {
 
 function fix_insane_routing {
 	local CONTAINER="$1"
+	local SYSTEM_PATH_READY=no
+	for ATTEMPT in {1..120}
+	do
+		if docker exec "$CONTAINER" /bin/sh -c '[ -x /run/current-system/sw/bin/ip ]' 2>/dev/null; then
+			SYSTEM_PATH_READY=yes
+			break
+		fi
+		if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null)" != true ]; then
+			echo "$CONTAINER exited before activating its system path" >&2
+			return 1
+		fi
+		sleep 0.25
+	done
+	if [ "$SYSTEM_PATH_READY" != yes ]; then
+		echo "$CONTAINER did not activate its system path" >&2
+		return 1
+	fi
 	read -a GW <<<$(ip route show default)
 	read -a NS <<<$(docker exec "$CONTAINER" cat /etc/resolv.conf | grep nameserver)
 	docker exec "$CONTAINER" ip route add "${GW[2]}" via 172.17.0.1
@@ -169,10 +203,10 @@ if [ "$CLEAN_ONLY" == "yes" ]; then
 	exit
 fi
 
-WORKDIR=$(mktemp -d /tmp/data-${DOJO_CONTAINER}-XXXXXX)
+WORKDIR=$(mktemp -d "$DATA_TMPDIR/data-${DOJO_CONTAINER}-XXXXXX")
 if [ "$MULTINODE" == "yes" ]; then
-	WORKDIR_NODE1=$(mktemp -d /tmp/data-${DOJO_CONTAINER}-node1-XXXXXX)
-	WORKDIR_NODE2=$(mktemp -d /tmp/data-${DOJO_CONTAINER}-node2-XXXXXX)
+	WORKDIR_NODE1=$(mktemp -d "$DATA_TMPDIR/data-${DOJO_CONTAINER}-node1-XXXXXX")
+	WORKDIR_NODE2=$(mktemp -d "$DATA_TMPDIR/data-${DOJO_CONTAINER}-node2-XXXXXX")
 fi
 
 MAIN_NODE_VOLUME_ARGS=("-v" "$PWD:/opt/pwn.college" "-v" "$WORKDIR:/data:shared")
@@ -202,7 +236,7 @@ if [ "$MULTINODE" == "yes" ]; then
 	fi
 fi
 
-IMAGE_NAME="pwncollege/dojo"
+IMAGE_NAME="${DOJO_IMAGE:-pwncollege/dojo}"
 if [ "$BUILD_IMAGE" == "yes" ]; then
 	log_newgroup "Building NixOS image with tag: $DOJO_CONTAINER"
 	./nix/build-image.sh "$DOJO_CONTAINER"
@@ -345,7 +379,7 @@ log_endgroup
 if [ "$TEST" == "yes" ]; then
 	log_newgroup "Running tests in container"
 	cleanup_container $DOJO_CONTAINER-test
-	test_container pytest --order-dependencies --timeout=120 -v . "$@"
+	test_container python3 -m pytest --order-dependencies --timeout=120 -v . "$@"
 	if [ "$COVERAGE" == "yes" ]; then
 		generate_coverage_report "$DOJO_CONTAINER"
 	fi

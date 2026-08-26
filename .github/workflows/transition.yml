@@ -1,0 +1,136 @@
+name: DOJO Transition Coverage
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Transition suite to run
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - upgrade
+          - splunk
+  schedule:
+    - cron: "17 08 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: false
+
+jobs:
+  upgrade:
+    name: Persisted Compose to NixOS Upgrade
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'upgrade'
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      TRANSITION_DATA_ROOT: /mnt/data/upgrade-${{ github.run_id }}-${{ github.run_attempt }}
+      TRANSITION_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout native appliance
+        uses: actions/checkout@v6
+        with:
+          path: native
+
+      - name: Checkout last Compose appliance
+        uses: actions/checkout@v6
+        with:
+          ref: fb053127a68437273b8cbf624702ce3ee2d163eb
+          path: legacy
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Free runner disk space
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /usr/local/share/powershell \
+                      /usr/share/swift /opt/hostedtoolcache || true
+
+      - name: Set up Docker storage
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo systemctl stop docker
+          sudo rm -rf /var/lib/docker
+          sudo mkdir -p /mnt/docker
+          sudo ln -s /mnt/docker /var/lib/docker
+          sudo systemctl start docker
+
+      - name: Prepare upgrade data
+        run: sudo install -d -o "$USER" -g "$(id -gn)" "$TRANSITION_DATA_ROOT"
+
+      - name: Exercise persisted-state upgrade
+        timeout-minutes: 300
+        run: native/test/test-native-upgrade.sh legacy native "$TRANSITION_DATA_ROOT"
+
+      - name: Output upgrade diagnostics
+        if: always()
+        run: |
+          docker ps --all
+          docker images
+          df -h
+
+  splunk:
+    name: Native Multinode Splunk
+    if: github.event_name == 'schedule' || inputs.suite == 'all' || inputs.suite == 'splunk'
+    runs-on: ubuntu-latest
+    timeout-minutes: 270
+    env:
+      SPLUNK_DATA_ROOT: /mnt/data/splunk-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cachix/install-nix-action@v31
+
+      - name: Free runner disk space
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost /usr/local/share/powershell \
+                      /usr/share/swift /opt/hostedtoolcache || true
+
+      - name: Set up test storage
+        run: |
+          sudo install -d -o "$USER" -g "$(id -gn)" \
+            "$SPLUNK_DATA_ROOT/docker" "$SPLUNK_DATA_ROOT/workspace"
+
+      - name: Set up Docker storage
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo systemctl stop docker
+          sudo rm -rf /var/lib/docker
+          sudo mkdir -p /mnt/docker
+          sudo ln -s /mnt/docker /var/lib/docker
+          sudo systemctl start docker
+
+      - name: Start Splunk multinode appliance
+        timeout-minutes: 225
+        run: DOJO_DATA_TMPDIR="$SPLUNK_DATA_ROOT" ./deploy.sh -b -g -M -D "$SPLUNK_DATA_ROOT/docker" -W "$SPLUNK_DATA_ROOT/workspace" -e ENABLE_SPLUNK=true
+
+      - name: Run Splunk coverage on every node
+        timeout-minutes: 30
+        run: |
+          for container in dojo dojo-node1 dojo-node2; do
+            echo "::group::$container Splunk coverage"
+            docker exec "$container" bash -c '. /data/config.env; test "$ENABLE_SPLUNK" = true'
+            docker exec "$container" /opt/pwn.college/test/test-multinode-splunk.sh
+            echo "::endgroup::"
+          done
+
+      - name: Output Splunk diagnostics
+        if: always()
+        run: |
+          docker ps --all
+          for container in dojo dojo-node1 dojo-node2; do
+            if docker inspect "$container" >/dev/null 2>&1; then
+              echo "::group::$container systemd logs"
+              docker exec "$container" systemctl --failed --no-pager || true
+              docker exec "$container" journalctl -b -u splunk -u dojo-journal-splunk --no-pager || true
+              echo "::endgroup::"
+            fi
+          done
+          df -h

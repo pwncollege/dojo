@@ -444,6 +444,15 @@ def test_native_service_boundaries():
         part_of = systemctl("show", "--property=PartOf", "--value", service).stdout.split()
         assert "dojo-ctfd-source.service" in part_of, f"{service} is not restarted with its source view"
 
+    vscode_after = systemctl(
+        "show", "--property=After", "--value", "vscode-tunnel.service"
+    ).stdout.split()
+    vscode_requires = systemctl(
+        "show", "--property=Requires", "--value", "vscode-tunnel.service"
+    ).stdout.split()
+    assert "dojo-storage.service" in vscode_after, vscode_after
+    assert "dojo-storage.service" in vscode_requires, vscode_requires
+
     effective_sshd_config = dojo_run(
         "sshd", "-T", "-C", "user=hacker,host=localhost,addr=127.0.0.1"
     ).stdout.splitlines()
@@ -1254,6 +1263,50 @@ def test_homefs_activate_records_owning_host():
         _destroy_probe_volume(volume)
 
 
+@pytest.mark.skipif(MULTINODE, reason="single-node local ownership is replaced by worker ownership")
+def test_homefs_legacy_single_node_owner_reconciles_without_replacing_subvolume():
+    volume = str(random.randrange(10 ** 11, 10 ** 12))
+    active_path = f"/data/homes/{volume}/active"
+    marker = f"legacy-owner-{_rand()}"
+    try:
+        status, body = _homefs_driver("Create", {"Name": volume})
+        assert status == 200, body
+        status, body = _homefs_driver("Mount", {"Name": volume, "ID": "legacy"})
+        assert status == 200, body
+        dojo_run("sh", "-c", f"printf %s {marker} > {active_path}/legacy-owner-marker")
+        subvolume = dojo_run("btrfs", "subvolume", "show", active_path).stdout
+        active_uuid = re.search(r"^\s*UUID:\s+(\S+)", subvolume, re.M).group(1)
+        dojo_run(
+            "python3", "-c",
+            "import sqlite3, sys; connection = sqlite3.connect('/run/homefs/homefs.db'); "
+            "connection.execute(\"UPDATE active_volumes SET host='172.18.0.1' WHERE name=?\", "
+            "(sys.argv[1],)); connection.commit()", volume,
+        )
+
+        dojo_run("systemctl", "restart", "dojo-homefs.service", timeout=60)
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            owner = dojo_run(
+                "python3", "-c",
+                "import sqlite3, sys; connection = sqlite3.connect('/run/homefs/homefs.db'); "
+                "row = connection.execute('SELECT host FROM active_volumes WHERE name=?', "
+                "(sys.argv[1],)).fetchone(); print(row[0] if row else '')", volume,
+            ).stdout.strip()
+            if owner == "192.168.42.1":
+                break
+            time.sleep(0.25)
+        else:
+            pytest.fail(f"legacy owner remained unreconciled: {owner!r}")
+
+        current_subvolume = dojo_run("btrfs", "subvolume", "show", active_path).stdout
+        current_uuid = re.search(r"^\s*UUID:\s+(\S+)", current_subvolume, re.M).group(1)
+        assert current_uuid == active_uuid
+        assert dojo_run("cat", f"{active_path}/legacy-owner-marker").stdout == marker
+    finally:
+        _delete_homefs_active_record(volume)
+        _destroy_probe_volume(volume)
+
+
 def test_homefs_stale_local_active_record_recovers():
     volume = f"cli-probe-{_rand()}"
     try:
@@ -1552,11 +1605,18 @@ def test_storage_homes_quota_enabled():
 
 def test_storage_ssh_host_keys_persist():
     stored = dojo_run("ls", "/data/ssh_host_keys").stdout.split()
-    assert any(name.startswith("ssh_host_ed25519_key") for name in stored), stored
+    for key_type in ("ed25519", "ecdsa", "rsa"):
+        key_name = f"ssh_host_{key_type}_key"
+        assert key_name in stored and f"{key_name}.pub" in stored, stored
 
-    fingerprint = dojo_run("ssh-keygen", "-lf", "/data/ssh_host_keys/ssh_host_ed25519_key.pub").stdout.split()[1]
-    live = dojo_run("sh", "-c", "ssh-keyscan -t ed25519 -p 22 localhost 2>/dev/null | ssh-keygen -lf -").stdout
-    assert fingerprint in live, f"the live sshd is not serving the persisted host key: {live}"
+        fingerprint = dojo_run(
+            "ssh-keygen", "-lf", f"/data/ssh_host_keys/{key_name}.pub"
+        ).stdout.split()[1]
+        live = dojo_run(
+            "sh", "-c",
+            f"ssh-keyscan -t {key_type} -p 22 localhost 2>/dev/null | ssh-keygen -lf -",
+        ).stdout
+        assert fingerprint in live, f"the live sshd is not serving the persisted {key_type} host key: {live}"
 
 
 def test_workspace_egress_policy(cli_user):
@@ -1578,7 +1638,12 @@ def test_workspace_egress_policy(cli_user):
 @pytest.mark.skipif(MULTINODE, reason="re-running native network initialization would bounce the cluster's wireguard tunnels")
 def test_config_and_storage_rerun_preserve_secrets_and_host_keys(admin_session):
     before = dojo_run("cat", "/data/config.env").stdout
-    fingerprint = dojo_run("ssh-keygen", "-lf", "/data/ssh_host_keys/ssh_host_ed25519_key.pub").stdout.split()[1]
+    fingerprints = {
+        key_type: dojo_run(
+            "ssh-keygen", "-lf", f"/data/ssh_host_keys/ssh_host_{key_type}_key.pub",
+        ).stdout.split()[1]
+        for key_type in ("ed25519", "ecdsa", "rsa")
+    }
 
     for command in ("dojo-config", "dojo-storage"):
         result = dojo_run(command, check=False, timeout=120)
@@ -1586,8 +1651,11 @@ def test_config_and_storage_rerun_preserve_secrets_and_host_keys(admin_session):
 
     after = dojo_run("cat", "/data/config.env").stdout
     assert after == before, "native initialization rewrote config.env, rotating generated secrets"
-    assert dojo_run("ssh-keygen", "-lf", "/data/ssh_host_keys/ssh_host_ed25519_key.pub").stdout.split()[1] == \
-        fingerprint, "native initialization regenerated the ssh host keys"
+    for key_type, fingerprint in fingerprints.items():
+        current = dojo_run(
+            "ssh-keygen", "-lf", f"/data/ssh_host_keys/ssh_host_{key_type}_key.pub",
+        ).stdout.split()[1]
+        assert current == fingerprint, f"native initialization regenerated the {key_type} ssh host key"
     assert admin_session.get(f"{DOJO_URL}/dojos").status_code == 200, \
         "an existing session broke across native initialization"
 
