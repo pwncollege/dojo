@@ -447,7 +447,7 @@ def test_actionbar_popup_blocked(random_user_browser, interfaces_dojo):
     random_user_browser.close()
 
 
-def test_registration_commitment(browser_fixture):
+def test_registration(browser_fixture):
     browser_fixture.get(f"{DOJO_URL}/register")
     wait = WebDriverWait(browser_fixture, 10)
 
@@ -457,19 +457,7 @@ def test_registration_commitment(browser_fixture):
     browser_fixture.find_element(By.ID, "email").send_keys(f"{test_username}@example.com")
     browser_fixture.find_element(By.ID, "password").send_keys("TestPassword123!")
 
-    submit_button = browser_fixture.find_element(By.ID, "register-submit")
-    submit_button.click()
-
-    alert = browser_fixture.switch_to.alert
-    assert "Please type the commitment" in alert.text
-    alert.accept()
-
-    commitment_input = browser_fixture.find_element(By.ID, "commitment-input")
-    commitment_input.send_keys("i have read the ground rules and commit to not publish pwn.college writeups on the internet")
-
-    time.sleep(0.5)
-
-    submit_button.click()
+    browser_fixture.find_element(By.ID, "register-submit").click()
 
     wait.until(lambda driver: "register" not in driver.current_url.lower())
     assert "register" not in browser_fixture.current_url.lower()
