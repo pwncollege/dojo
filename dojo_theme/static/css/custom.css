@@ -207,6 +207,47 @@ p[data-hide="true"] {
     border-color: #6c757d !important;
 }
 
+.announcement {
+    position: fixed;
+    z-index: 9999;
+    left: 1rem;
+    bottom: 1rem;
+    max-width: 30rem;
+    margin-right: 1rem;
+    padding: 2rem;
+    background-color: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 3px solid var(--brand-green);
+    border-radius: 1rem;
+    font-size: 1.1rem;
+}
+
+.announcement-btn-wrap {
+    display: flex;
+    justify-content: center;
+    column-gap: 2rem;
+}
+
+.announcement-btn {
+    padding: 0.5rem;
+    border-radius: 0.3rem;
+    border: 2px var(--blue) solid;
+    width: 100%;
+}
+
+#later-btn {
+    background: none;
+    color: var(--blue);
+}
+
+#check-it-out-btn {
+    background-color: var(--blue);
+    color: white;
+}
+
 .challenge-button {
     margin-bottom: 1.5rem !important
 }
