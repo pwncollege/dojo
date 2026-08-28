@@ -381,6 +381,7 @@ services:
       interval: 10s
       timeout: 10s
       retries: 3
+      start_period: 60s
     depends_on:
       prometheus-generate-targets:
         condition: service_completed_successfully
