@@ -47,8 +47,8 @@ class DojoList(Resource):
         dojos = [
             dict(id=dojo.reference_id,
                  hex_id=dojo.hex_dojo_id,
-                 name=dojo.name,
-                 description=dojo.description,
+                 name=dojo.localized_name,
+                 description=dojo.localized_description,
                  type=dojo.type,
                  official=dojo.official,
                  award=dojo.award,
@@ -179,13 +179,13 @@ class DojoModuleList(Resource):
         is_dojo_admin = dojo.is_admin()
         modules = [
             dict(id=module.id,
-                 name=module.name,
-                 description=module.description,
+                 name=module.localized_name,
+                 description=module.localized_description,
                  resources=[
                     dict(id=f"resource-{resource.resource_index}",
-                         name=resource.name,
+                         name=resource.localized_name,
                          type=resource.type,
-                         content=getattr(resource, 'content', None) if resource.type == "markdown" else None,
+                         content=resource.localized_content if resource.type == "markdown" else None,
                          video=getattr(resource, 'video', None) if resource.type == "lecture" else None,
                          playlist=getattr(resource, 'playlist', None) if resource.type == "lecture" else None,
                          slides=getattr(resource, 'slides', None) if resource.type == "lecture" else None,
@@ -195,9 +195,9 @@ class DojoModuleList(Resource):
                  ],
                  challenges=[
                     dict(id=challenge.id,
-                         name=challenge.name,
+                         name=challenge.localized_name,
                          required=challenge.required,
-                         description=challenge.description)
+                         description=challenge.localized_description)
                     for challenge in (module.visible_challenges() if not is_dojo_admin
                                       else module.challenges)
                  ],
@@ -205,14 +205,14 @@ class DojoModuleList(Resource):
                      dict(
                          item_type=item.item_type,
                          id=f"resource-{item.resource_index}" if item.item_type == 'resource' else getattr(item, 'id', None),
-                         name=item.name,
+                         name=item.localized_name,
                          type=getattr(item, 'type', None),
-                         content=getattr(item, 'content', None) if hasattr(item, 'type') and item.type in ["markdown", "header"] else None,
+                         content=item.localized_content if hasattr(item, 'type') and item.type in ["markdown", "header"] else None,
                          video=getattr(item, 'video', None) if hasattr(item, 'type') and item.type == "lecture" else None,
                          playlist=getattr(item, 'playlist', None) if hasattr(item, 'type') and item.type == "lecture" else None,
                          slides=getattr(item, 'slides', None) if hasattr(item, 'type') and item.type == "lecture" else None,
                          expandable=getattr(item, 'expandable', True) if hasattr(item, 'type') else None,
-                         description=getattr(item, 'description', None),
+                         description=item.localized_description,
                          required=getattr(item, 'required', None) if item.item_type == 'challenge' else None
                      ) for item in (module.unified_items if is_dojo_admin else module.visible_items)
                  ])
@@ -430,7 +430,7 @@ class DojoChallengeDescription(Resource):
 
         return {
             "success": True,
-            "description": render_markdown(dojo_challenge.description)
+            "description": render_markdown(dojo_challenge.localized_description)
         }
 
 

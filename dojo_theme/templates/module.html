@@ -40,9 +40,9 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1 class="brand-white brand-mono-bold">{{ module.name or module.id }}</h1>
+    <h1 class="brand-white brand-mono-bold">{{ module.localized_name or module.id }}</h1>
     <br>
-    <h2 class="module-dojo"><a class="brand-white brand-mono-bold" href="{{ url_for('pwncollege_dojo.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.name or dojo.id }}<span class="brand-dot">.</span></a></h2>
+    <h2 class="module-dojo"><a class="brand-white brand-mono-bold" href="{{ url_for('pwncollege_dojo.view_dojo', dojo=dojo.reference_id) }}">{{ dojo.localized_name or dojo.id }}<span class="brand-dot">.</span></a></h2>
 
     {% if assessments %}
     <br>
@@ -54,7 +54,7 @@
 </div>
 <div class="container">
 
-  {% if module.description %}
+  {% if module.localized_description %}
   <div>
     {% if module_description_edit_url %}
       <a href="{{ module_description_edit_url }}"
@@ -64,7 +64,7 @@
         <i class="fas fa-edit"></i>
       </a>
     {% endif %}
-    {{ module.description | markdown }}
+    {{ module.localized_description | markdown }}
   </div>
   <br>
   {% endif %}
@@ -83,18 +83,18 @@
         {% set resource = item %}
         {% if resource.type == 'markdown' and resource.expandable == False %}
           <div class="description-content my-3">
-            {{ resource.content | markdown }}
+            {{ resource.localized_content | markdown }}
           </div>
         {% elif resource.type == 'header' %}
           <br>
-          <h2>{{ resource.content }}</h2>
+          <h2>{{ resource.localized_content }}</h2>
         {% else %}
         {% call(header) accordion_item("module-content", loop.index) %}
           {% if header %}
             {% set resource_icon = "fa-video" if resource.type == "lecture" else "fa-file-alt" %}
             <h4 class="accordion-item-name">
               <i class="resource-icon pr-3 fas {{ resource_icon }}"></i>
-              <span class="pr-2">{{ resource.name }}</span>
+              <span class="pr-2">{{ resource.localized_name }}</span>
             </h4>
           {% else %}
             {% if resource.type == "lecture" %}
@@ -122,7 +122,7 @@
                   <i class="fas fa-edit"></i>
                 </a>
               {% endif %}
-              {{ resource.content | markdown }}
+              {{ resource.localized_content | markdown }}
             </div>
             {% endif %}
           {% endif %}
@@ -151,16 +151,16 @@
 
         {% call(header) accordion_item("module-content", loop.index, lock_challenge, challenge_index=ns.challenge_count) %}
           {% if header %}
-            <h4 class="accordion-item-name challenge-name {{ active }}" data-challenge-index="{{ ns.challenge_count }}" data-challenge-id="{{ challenge.id }}" data-challenge-name="{{ challenge.name or challenge.id }}" id="challenges-header-{{ ns.challenge_count }}">
+            <h4 class="accordion-item-name challenge-name {{ active }}" data-challenge-index="{{ ns.challenge_count }}" data-challenge-id="{{ challenge.id }}" data-challenge-name="{{ challenge.localized_name or challenge.id }}" id="challenges-header-{{ ns.challenge_count }}">
                 <i class="challenge-icon pr-3 {{ icon }} {{ solved }} "></i>
                 {% if lock_challenge %}
                 <div class="challenge-text-wrapper">
-                  <span class="challenge-name-text">{{ challenge.name or challenge.id }}</span>
-                  <span class="challenge-locked-text">Solve <strong></string><span style="color: white">{{ previous_challenge.name or previous_challenge.id }}</span></strong> to unlock this challenge</span>
-                  <span class="invisible-placeholder pr-2">{{ challenge.name or challenge.id }}</span>
+                  <span class="challenge-name-text">{{ challenge.localized_name or challenge.id }}</span>
+                  <span class="challenge-locked-text">Solve <strong></string><span style="color: white">{{ previous_challenge.localized_name or previous_challenge.id }}</span></strong> to unlock this challenge</span>
+                  <span class="invisible-placeholder pr-2">{{ challenge.localized_name or challenge.id }}</span>
                 </div>
                 {% else %}
-                <span class="pr-2">{{ challenge.name or challenge.id }}</span>
+                <span class="pr-2">{{ challenge.localized_name or challenge.id }}</span>
                 {% endif %}
                 {% if is_dojo_admin and (progression_locked or hidden) %}
                 <small><small><small>
@@ -197,7 +197,7 @@
                     <i class="fas fa-edit"></i>
                   </a>
                 {% endif %}
-                {{ challenge.description | markdown }}
+                {{ challenge.localized_description | markdown }}
               {% endif %}
             </div>
             <div class="challenge-init row{% if active %} challenge-hidden{% endif %}">

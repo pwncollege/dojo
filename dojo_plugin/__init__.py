@@ -23,6 +23,7 @@ from CTFd.plugins.flags import FLAG_CLASSES, BaseFlag, FlagException
 from .models import Dojos, DojoChallenges, Belts, Emojis
 from .config import DOJO_HOST, bootstrap
 from .utils import unserialize_user_flag, render_markdown
+from .i18n import init_language
 from .utils.dojo import get_current_dojo_challenge
 from .utils.awards import update_awards
 from .utils.feed import publish_challenge_solve
@@ -35,6 +36,7 @@ from .pages.sensai import sensai
 from .pages.users import users
 from .pages.settings import settings_override
 from .pages.discord import discord
+from .pages.language import language
 from .pages.course import course
 from .pages.belts import belts
 from .pages.research import research
@@ -227,6 +229,7 @@ def load(app):
     app.register_blueprint(workspace)
     app.register_blueprint(sensai)
     app.register_blueprint(discord)
+    app.register_blueprint(language)
     app.register_blueprint(users)
     app.register_blueprint(course)
     app.register_blueprint(belts)
@@ -236,6 +239,8 @@ def load(app):
     app.register_blueprint(api, url_prefix="/pwncollege_api/v1")
 
     app.jinja_env.filters["markdown"] = render_markdown
+
+    init_language(app)
 
     register_admin_plugin_menu_bar("Dojos", "/admin/dojos")
 
