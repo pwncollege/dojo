@@ -800,7 +800,7 @@ def test_desktop_service_serializes_startup_and_migrates_a_live_novnc_runtime(
         f"printf %s {shlex.quote(marker)} > /tmp/legacy-novnc/index.html && "
         "dojo-service start desktop-service/Xvnc /run/dojo/bin/sleep 3119 && "
         "dojo-service start desktop-service/xfce4-session /run/dojo/bin/sleep 3121 && "
-        "dojo-service start desktop-service/novnc python3 -m http.server 6080 "
+        "dojo-service start desktop-service/novnc /run/dojo/bin/python3 -m http.server 6080 "
         "--bind 0.0.0.0 --directory /tmp/legacy-novnc",
     )
     legacy_pids = [
@@ -854,7 +854,7 @@ def test_desktop_service_serializes_startup_and_migrates_a_live_novnc_runtime(
     assert_xpra_route(desktop_response.json()["iframe_src"], 6080)
     assert_xpra_route(view_response.json()["iframe_src"], 6081)
     assert workspace_output(
-        name, "pgrep -fc '[x]pra monitor :0'"
+        name, "pgrep -fc '[x]pra.*monitor :0'"
     ) == "1", "Expected concurrent startup to leave exactly one tracked monitor server"
     for legacy_pid in legacy_pids:
         assert workspace_exec(name, f"kill -0 {legacy_pid}").returncode != 0, (
@@ -1484,11 +1484,6 @@ def test_desktop_view_route_enforces_read_only(
         ActionChains(browser_fixture).move_to_element(interactive_canvas).click().send_keys(
             f"touch {view_marker}"
         ).perform()
-        modifier_state_before_view = workspace_xpra_keyboard_state(name, True)
-        assert modifier_state_before_view["shift_down"] and modifier_state_before_view["mask"], (
-            f"Expected the test fixture to hold Shift before the viewer hello, got {modifier_state_before_view}"
-        )
-
         workspace_exec(
             name,
             f"printf %s {shlex.quote(clipboard_sentinel)} | "
@@ -1501,6 +1496,10 @@ def test_desktop_view_route_enforces_read_only(
         )
 
         browser_fixture.switch_to.new_window("tab")
+        modifier_state_before_view = workspace_xpra_keyboard_state(name, True)
+        assert modifier_state_before_view["shift_down"] and modifier_state_before_view["mask"], (
+            f"Expected the test fixture to hold Shift before the viewer hello, got {modifier_state_before_view}"
+        )
         view_canvas = connect_xpra_browser(browser_fixture, hostile_view_src)
         modifier_state_after_view = workspace_xpra_keyboard_state(name)
         assert modifier_state_after_view == modifier_state_before_view, (
