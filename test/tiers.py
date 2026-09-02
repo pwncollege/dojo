@@ -77,6 +77,7 @@ MULTINODE_TESTS = {
     "test_workspace_api.py::test_net_admin_capability_requires_the_dojo_permission",
     "test_workspace_runtime.py::test_workspace_profile_symlink_farm_exposes_the_toolchain",
     "test_workspace_runtime.py::test_terminal_service_contract",
+    "test_workspace_runtime.py::test_production_workspace_http_redirects_before_route_proxying",
     "test_workspace_runtime.py::test_workspace_proxy_signature_covers_the_container_and_port",
     "test_workspace_runtime.py::test_nginx_routes_by_host_header",
 }

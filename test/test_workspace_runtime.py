@@ -41,6 +41,19 @@ def _workspace_nodes():
 
 MULTINODE = bool(_workspace_nodes())
 
+
+def production_redirect_proxies():
+    proxies = [("pwncollege-nginx", DOJO_CONTAINER)]
+    workspace_nodes = _workspace_nodes()
+    if workspace_nodes:
+        node = next(iter(workspace_nodes))
+        proxies.append((
+            "pwncollege-nginx-workspace",
+            f"{DOJO_CONTAINER}-node{node}",
+        ))
+    return proxies
+
+
 DOCKER_API = f"{DOJO_URL}/pwncollege_api/v1/docker"
 WORKSPACE_API = f"{DOJO_URL}/pwncollege_api/v1/workspace"
 
@@ -1688,10 +1701,10 @@ def test_workspace_proxy_signature_covers_the_container_and_port(
         node_code_iframe_src = code_proxy.headers["Location"]
         code_proxy = requests.get(node_code_iframe_src, timeout=30, allow_redirects=False)
         workspace_outer = get_outer_container_for(f"user_{get_user_id(name)}")
-        workspace_proxy_log = dojo_run(
-            "docker", "exec", "nginx-workspace", "cat", "/var/log/nginx/access.log",
-            container=workspace_outer,
-        ).stdout
+        workspace_proxy_logs = dojo_run(
+            "docker", "logs", "nginx-workspace", container=workspace_outer,
+        )
+        workspace_proxy_log = workspace_proxy_logs.stdout + workspace_proxy_logs.stderr
         assert forwarded_signature(code_iframe_src) not in workspace_proxy_log, (
             "Expected the node redirecter to redact signed workspace routes from its access log"
         )
@@ -1873,26 +1886,29 @@ def test_workspace_proxy_signature_covers_the_container_and_port(
         )
 
 
-@pytest.mark.parametrize("image", ["pwncollege-nginx", "pwncollege-nginx-workspace"])
+@pytest.mark.parametrize(("image", "outer"), production_redirect_proxies())
 @pytest.mark.parametrize("route_tail", ["6080/", "xpra/6080/"])
-def test_production_workspace_http_redirects_before_route_proxying(image, route_tail):
+def test_production_workspace_http_redirects_before_route_proxying(image, outer, route_tail):
     proxy_name = random_name("workspace_redirect_")
     workspace_host = "workspace.example.test"
     route = "/workspace/aaaaaaaaaaaa/" + "b" * 64 + f"/{route_tail}?reconnect=1"
     try:
         started = dojo_run(
             "docker", "run", "--detach", "--name", proxy_name,
+            "--pull", "never",
             "--env", "DOJO_ENV=production",
             "--env", "DOJO_HOST=dojo.example.test",
             "--env", f"WORKSPACE_HOST={workspace_host}",
             "--env", "WORKSPACE_SECRET=production-redirect-test",
             image,
+            container=outer,
             check=False,
         )
         assert started.returncode == 0, f"Expected {image} to start: {started.stderr}"
         proxy_ip = dojo_run(
             "docker", "inspect", "--format",
             "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", proxy_name,
+            container=outer,
         ).stdout.strip()
         response = None
         deadline = time.time() + 15
@@ -1901,6 +1917,7 @@ def test_production_workspace_http_redirects_before_route_proxying(image, route_
                 "curl", "--silent", "--show-error", "--output", "/dev/null",
                 "--write-out", "%{http_code}\n%{redirect_url}",
                 "--header", f"Host: {workspace_host}", f"http://{proxy_ip}{route}",
+                container=outer,
                 check=False,
             )
             if response.returncode == 0:
@@ -1915,7 +1932,7 @@ def test_production_workspace_http_redirects_before_route_proxying(image, route_
             f"Expected the signed route to be preserved only in the HTTPS redirect, got {location!r}"
         )
     finally:
-        dojo_run("docker", "rm", "--force", proxy_name, check=False)
+        dojo_run("docker", "rm", "--force", proxy_name, container=outer, check=False)
 
 
 def test_nginx_routes_by_host_header():
