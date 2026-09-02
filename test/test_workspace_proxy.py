@@ -2,6 +2,7 @@ import hmac
 import random
 import string
 import subprocess
+import time
 from urllib.parse import urlparse, parse_qs
 
 import pytest
@@ -46,7 +47,7 @@ def forwarded_port(iframe_src):
     parts = [part for part in urlparse(iframe_src).path.split("/") if part]
     assert parts and parts[0] == "workspace", f"unexpected workspace url: {iframe_src}"
     assert len(parts) >= 4, f"workspace url is missing its port segment: {iframe_src}"
-    return int(parts[3])
+    return int(parts[4] if parts[3] == "xpra" else parts[3])
 
 
 @pytest.fixture(scope="module")
@@ -199,7 +200,11 @@ def test_workspace_api_other_user_requires_admin_or_password(workspace_owner, ra
         f"Expected status code 403 without a password, but got {no_password.status_code}"
     )
 
-    non_desktop = random_user_session.get(f"{WORKSPACE_API}?user={user_id}&password=x&service=terminal")
+    non_desktop = random_user_session.get(
+        WORKSPACE_API,
+        params={"user": user_id, "service": "terminal"},
+        headers={"X-Workspace-Password": "x"},
+    )
     assert non_desktop.status_code == 403, (
         f"Expected status code 403 for a non-desktop service, but got {non_desktop.status_code}"
     )
@@ -214,28 +219,96 @@ def test_workspace_api_other_user_requires_admin_or_password(workspace_owner, ra
 def test_workspace_api_desktop_sharing_requires_the_desktop_password(workspace_owner, random_user_session):
     name, _, user_id = workspace_owner
 
-    wrong_password = random_user_session.get(f"{WORKSPACE_API}?user={user_id}&password=wrong&service=desktop")
+    query_password = random_user_session.get(
+        WORKSPACE_API,
+        params={"user": user_id, "password": "wrong", "service": "desktop"},
+    )
+    assert query_password.status_code == 400, (
+        f"Expected workspace passwords in query strings to be rejected, got {query_password.status_code}"
+    )
+
+    wrong_password = random_user_session.get(
+        WORKSPACE_API,
+        params={"user": user_id, "service": "desktop"},
+        headers={"X-Workspace-Password": "wrong"},
+    )
     assert wrong_password.status_code == 403, (
         f"Expected status code 403 for a wrong desktop password, but got {wrong_password.status_code}"
     )
 
     view_password = container_password(name, "desktop", "view")
-    shared = random_user_session.get(f"{WORKSPACE_API}?user={user_id}&password={view_password}&service=desktop")
+    log_since = str(int(time.time()) - 1)
+    shared = random_user_session.get(
+        WORKSPACE_API,
+        params={"user": user_id, "service": "desktop"},
+        headers={"X-Workspace-Password": view_password},
+    )
     assert shared.status_code == 200, f"Expected status code 200, but got {shared.status_code}"
     result = shared.json()
     assert result["success"], f"Expected desktop sharing to succeed, but got {result}"
-    assert forwarded_port(result["iframe_src"]) == 6080, (
-        f"Expected the desktop to forward to port 6080, but got {result['iframe_src']}"
+    assert result["service"] == "desktop", f"Expected the public desktop service name, got {result}"
+    assert forwarded_port(result["iframe_src"]) == 6081, (
+        f"Expected the shared desktop to forward to the read-only port 6081, but got {result['iframe_src']}"
     )
+    assert "/xpra/6081/" in urlparse(result["iframe_src"]).path
 
     params = parse_qs(urlparse(result["iframe_src"]).query)
-    assert params["view_only"] == ["1"], f"Expected a shared desktop to be view-only, but got {params.get('view_only')}"
-    assert params["password"] == [view_password[:8]], (
-        f"Expected the vnc password to be derived from the supplied password, but got {params.get('password')}"
+    assert params == {
+        "reconnect": ["1"],
+        "clipboard": ["1"],
+        "sharing": ["1"],
+        "steal": ["1"],
+        "toolbar_position": ["novnc"],
+        "autohide": ["1"],
+        "sound": ["0"],
+        "printing": ["0"],
+        "file_transfer": ["0"],
+        "remote_logging": ["0"],
+    }, f"Expected only the Xpra client settings in the shared URL, but got {params}"
+    assert not {"password", "path", "view_only"} & params.keys(), (
+        f"Expected workspace routing to keep desktop credentials out of the client URL, but got {params}"
     )
-    assert params["path"][0].endswith("/6080/websockify"), (
-        f"Expected the vnc websocket to be forwarded to the desktop port, but got {params.get('path')}"
+    assert view_password not in result["iframe_src"], (
+        f"Expected the desktop password to be exchanged only through the API, got {result['iframe_src']}"
     )
+
+    interact_password = container_password(name, "desktop", "interact")
+    interact_share = random_user_session.get(
+        WORKSPACE_API,
+        params={"user": user_id, "service": "desktop"},
+        headers={"X-Workspace-Password": interact_password},
+    )
+    assert interact_share.status_code == 200 and interact_share.json()["success"], (
+        f"Expected the interact password to authorize sharing, got {interact_share.text}"
+    )
+    interact_result = interact_share.json()
+    assert interact_result["service"] == "desktop", (
+        f"Expected the public desktop service name, got {interact_result}"
+    )
+    assert forwarded_port(interact_result["iframe_src"]) == 6080, (
+        f"Expected the interact credential to select port 6080, got {interact_result['iframe_src']}"
+    )
+    assert "/xpra/6080/" in urlparse(interact_result["iframe_src"]).path
+    interact_params = parse_qs(urlparse(interact_result["iframe_src"]).query)
+    assert interact_params == params, (
+        f"Expected only the Xpra client settings in the interactive URL, got {interact_params}"
+    )
+    assert not {"password", "path", "view_only"} & interact_params.keys(), (
+        f"Expected workspace routing to keep desktop credentials out of the client URL, got {interact_params}"
+    )
+    assert interact_password not in interact_result["iframe_src"], (
+        f"Expected the interact password to be exchanged only through the API, got {interact_result['iframe_src']}"
+    )
+    time.sleep(0.2)
+    nginx_logs = dojo_run("docker", "logs", "--since", log_since, "nginx", check=False)
+    combined_nginx_logs = nginx_logs.stdout + nginx_logs.stderr
+    assert "/pwncollege_api/v1/workspace" in combined_nginx_logs, (
+        f"Expected the workspace API requests to reach Nginx, got {combined_nginx_logs!r}"
+    )
+    for password in (view_password, interact_password):
+        assert password not in combined_nginx_logs, (
+            "Expected desktop share credentials sent in headers to stay out of proxy logs"
+        )
 
 
 def test_workspace_system_mounts_are_read_only(workspace_owner):

@@ -9,7 +9,12 @@ from CTFd.utils.decorators import authed_only
 
 from ...utils import get_current_container, container_password, parse_positive_int, user_node
 from ...utils.workspace import start_on_demand_service, reset_home
-from ...pages.workspace import forward_workspace, forward_port
+from ...pages.workspace import (
+    forward_workspace,
+    forward_port,
+    workspace_signature,
+    workspace_xpra_tls_credentials,
+)
 from ...config import WORKSPACE_SECRET
 
 
@@ -22,7 +27,9 @@ class view_desktop(Resource):
     @authed_only
     def get(self):
         user_id = request.args.get("user")
-        password = request.args.get("password")
+        if "password" in request.args:
+            abort(400)
+        password = request.headers.get("X-Workspace-Password")
         service = request.args.get("service", None)
         port = request.args.get("port", None)
 
@@ -69,35 +76,66 @@ class view_desktop(Resource):
             message = f"{container_id}:192.168.42.{node + 1}"
 
         iframe_src = None
+        on_demand_service = service
+        service_environment = None
         if not service == "desktop":
             if user_id and not is_admin():
                 abort(403)
 
         if service:
-            if service == "desktop":
-                interact_password = container_password(container, "desktop", "interact")
-                view_password = container_password(container, "desktop", "view")
+            if service in ("desktop", "desktop-view"):
+                on_demand_service = service
+                if service == "desktop":
+                    interact_password = container_password(
+                        container, "desktop", "interact"
+                    )
+                    view_password = container_password(container, "desktop", "view")
 
-                if user_id and password:
-                    if not hmac.compare_digest(password, interact_password) and not hmac.compare_digest(password, view_password):
-                        abort(403)
-                    password = password[:8]
-                else:
-                    password = interact_password[:8]
+                    if user_id and password:
+                        interact_authorized = hmac.compare_digest(
+                            password, interact_password
+                        )
+                        view_authorized = hmac.compare_digest(password, view_password)
+                        if not interact_authorized and not view_authorized:
+                            abort(403)
+                        if view_authorized:
+                            on_demand_service = "desktop-view"
+                    elif user_id is not None:
+                        on_demand_service = "desktop-view"
 
-                view_only = user_id is not None
-                service_param = "~".join(("desktop", str(user.id), container_password(container, "desktop")))
+                service_param = "~".join((on_demand_service, str(user.id), container_password(container, on_demand_service)))
 
-                vnc_params = {
-                    "autoconnect": 1,
+                xpra_params = {
                     "reconnect": 1,
-                    "reconnect_delay": 200,
-                    "resize": "remote",
-                    "path": forward_workspace(service=service_param, service_path="websockify", message=message, include_host=False),
-                    "view_only": int(view_only),
-                    "password": password,
+                    "clipboard": 1,
+                    "sharing": 1,
+                    "steal": 1,
+                    "toolbar_position": "novnc",
+                    "autohide": 1,
+                    "sound": 0,
+                    "printing": 0,
+                    "file_transfer": 0,
+                    "remote_logging": 0,
                 }
-                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", message=message, **vnc_params)
+                iframe_src = forward_workspace(
+                    service=service_param,
+                    service_path="",
+                    message=message,
+                    transport="xpra",
+                    **xpra_params,
+                )
+                tls_certificate, tls_private_key = workspace_xpra_tls_credentials(container_id)
+                service_environment = {
+                    "DOJO_XPRA_DESKTOP_ROUTE_PASSWORD": workspace_signature(
+                        message, 6080, "xpra"
+                    ),
+                    "DOJO_XPRA_TLS_CERTIFICATE": tls_certificate,
+                    "DOJO_XPRA_TLS_PRIVATE_KEY": tls_private_key,
+                }
+                if on_demand_service == "desktop-view":
+                    service_environment["DOJO_XPRA_VIEW_ROUTE_PASSWORD"] = (
+                        workspace_signature(message, 6081, "xpra")
+                    )
 
             elif service == "desktop-windows":
                 service_param = "~".join(("desktop-windows", str(user.id), container_password(container, "desktop-windows")))
@@ -113,7 +151,7 @@ class view_desktop(Resource):
             else:
                 iframe_src = forward_workspace(service=service, service_path="", message=message)
 
-            if start_on_demand_service(user, service) is False:
+            if start_on_demand_service(user, on_demand_service, environment=service_environment) is False:
                 return {"success": False, "active": True, "error": f"Failed to start service {service}"}
         elif port:
             iframe_src = forward_port(port=port, service_path="", user=user, message=message)

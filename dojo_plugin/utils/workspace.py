@@ -10,18 +10,21 @@ from .request_logging import log_generator_output
 
 logger = logging.getLogger(__name__)
 
-on_demand_services = {"terminal", "code", "desktop"}
+on_demand_services = {"terminal", "code", "desktop", "desktop-view"}
+on_demand_service_timeouts = {"desktop": 180, "desktop-view": 240}
 
-def start_on_demand_service(user, service_name):
+def start_on_demand_service(user, service_name, environment=None):
     if service_name not in on_demand_services:
         return None
+    timeout = on_demand_service_timeouts.get(service_name, 30)
     try:
         exec_run(
-            f"/run/current-system/sw/bin/timeout -k 10 30 /run/current-system/sw/bin/dojo-{service_name}",
+            f"/run/current-system/sw/bin/timeout -k 10 {timeout} /run/current-system/sw/bin/dojo-{service_name}",
             workspace_user="hacker",
             user_id=user.id,
             assert_success=True,
             log=True,
+            **({"environment": environment} if environment else {}),
         )
     except (docker.errors.NotFound, AssertionError, requests.HTTPError) as exception:
         logger.warning(f"start_on_demand_service failure: {service_name=} {exception=}")
@@ -47,7 +50,9 @@ def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", us
 
     start_time = time.time()
     if log:
-        exec_id = docker_client.api.exec_create(container.id, cmd, privileged=False, user=workspace_user)["Id"]
+        exec_id = docker_client.api.exec_create(
+            container.id, cmd, privileged=False, user=workspace_user, **kwargs
+        )["Id"]
         out_stream = docker_client.api.exec_start(exec_id, stream=True, demux=False)
         output = b"".join(log_generator_output(f"exec_run {cmd=} ", out_stream, start_time=start_time))
         exit_code = docker_client.api.exec_inspect(exec_id)['ExitCode']
