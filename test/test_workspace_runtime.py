@@ -1795,7 +1795,8 @@ def test_workspace_proxy_signature_covers_the_container_and_port(
     ).stdout
     assert "proxy_ssl_verify on;" in nginx_config
     assert "proxy_ssl_name $container_id;" in nginx_config
-    assert "secure_link_hmac_message \"$container_id:xpra:$port\";" in nginx_config
+    signature_scope = "$container_id:$target_host" if MULTINODE else "$container_id"
+    assert f'secure_link_hmac_message "{signature_scope}:xpra:$port";' in nginx_config
     assert "proxy_pass https://$container_id:$port/" in nginx_config
     assert "proxy_pass http://$container_id:$port/" in nginx_config
     assert "$workspace_upstream_scheme" not in nginx_config
@@ -1865,10 +1866,10 @@ def test_workspace_proxy_signature_covers_the_container_and_port(
         f"Expected the stopped Xpra upstream to produce a redacted 404, got {failed_desktop_proxy.status_code}"
     )
     time.sleep(0.2)
-    proxy_targets = [(desktop_outer, tls_proxy)]
+    proxy_targets = [(desktop_outer, tls_proxy, "404")]
     if MULTINODE:
-        proxy_targets.append((DOJO_CONTAINER, "nginx"))
-    for outer, proxy in proxy_targets:
+        proxy_targets.append((DOJO_CONTAINER, "nginx", "307"))
+    for outer, proxy, expected_status in proxy_targets:
         proxy_logs = dojo_run(
             "docker", "logs", "--since", log_since, proxy,
             container=outer,
@@ -1881,8 +1882,8 @@ def test_workspace_proxy_signature_covers_the_container_and_port(
         assert view_password not in combined_proxy_logs, (
             f"Expected {proxy} access and error logs not to contain the desktop share password"
         )
-        assert '"status":"404"' in combined_proxy_logs, (
-            f"Expected {proxy} to record the redacted upstream failure, got {combined_proxy_logs!r}"
+        assert f'"status":"{expected_status}"' in combined_proxy_logs, (
+            f"Expected {proxy} to record status {expected_status}, got {combined_proxy_logs!r}"
         )
 
 
