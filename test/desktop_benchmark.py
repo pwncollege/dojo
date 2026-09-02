@@ -1239,7 +1239,7 @@ def measure_profile(args, profile, repetition, trial_index, output_dir, shaper):
         workload_before, pre_workload_quiescence = wait_for_traffic_quiescence(
             args.interface,
             pre_workload_started,
-            30 + profile.estimated_rtt_ms / 1000 * 4,
+            args.quiescence_timeout + profile.estimated_rtt_ms / 1000 * 4,
             shaper=shaper if args.shaping == "local" else None,
         )
         result["pre_workload_quiescence"] = pre_workload_quiescence
@@ -1301,7 +1301,7 @@ def measure_profile(args, profile, repetition, trial_index, output_dir, shaper):
             workload_after, traffic_drain = wait_for_traffic_quiescence(
                 args.interface,
                 workload_generated_after,
-                30 + profile.estimated_rtt_ms / 1000 * 4,
+                args.quiescence_timeout + profile.estimated_rtt_ms / 1000 * 4,
                 shaper=shaper if args.shaping == "local" else None,
                 browser=browser,
                 delivery_samples=delivery_samples,
@@ -1562,6 +1562,7 @@ def parse_args():
     parser.add_argument("--page-load-timeout", type=int, default=180)
     parser.add_argument("--settle-seconds", type=int, default=3)
     parser.add_argument("--workload-seconds", type=int, default=30)
+    parser.add_argument("--quiescence-timeout", type=int, default=30)
     parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument(
         "--check-link-interruption",
@@ -1586,6 +1587,8 @@ def parse_args():
         parser.error("--shaping external requires exactly one selected profile")
     if args.workload_seconds < 1:
         parser.error("--workload-seconds must be positive")
+    if args.quiescence_timeout < 1:
+        parser.error("--quiescence-timeout must be positive")
     if args.repetitions < 1:
         parser.error("--repetitions must be positive")
     return args
