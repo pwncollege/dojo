@@ -919,13 +919,14 @@ def benchmark_route(dojo_url, interface):
 def benchmark_provenance(args):
     benchmark_path = pathlib.Path(__file__).resolve()
     repository = benchmark_path.parent.parent
-    git_head = command_version("git", "-C", str(repository), "rev-parse", "HEAD")
+    git = ["git", "-c", f"safe.directory={repository}", "-C", str(repository)]
+    git_head = command_version(*git, "rev-parse", "HEAD")
     git_diff = subprocess.run(
-        ["git", "-C", str(repository), "diff", "--binary", "HEAD", "--"],
+        [*git, "diff", "--binary", "HEAD", "--"],
         capture_output=True,
     )
     git_status = command_version(
-        "git", "-C", str(repository), "status", "--short", "--untracked-files=all"
+        *git, "status", "--short", "--untracked-files=all"
     )
     xpra = workspace_run(
         "xpra --version; readlink -f /run/dojo/bin/dojo-desktop",
