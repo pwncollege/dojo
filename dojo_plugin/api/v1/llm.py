@@ -8,6 +8,7 @@ from CTFd.utils.user import get_current_user
 
 from .user import authed_only_cli
 from ...config import (
+    DOJO_HOST,
     LITELLM_MASTER_KEY,
     LITELLM_URL,
     LITELLM_USER_BUDGET_LIMITS,
@@ -19,7 +20,7 @@ from ...utils.llm import LiteLLMKeyManager
 
 logger = logging.getLogger(__name__)
 llm_namespace = Namespace("llm", description="Managed LLM credentials")
-LLM_BASE_URL = "http://pwn.college/llm"
+LLM_BASE_URL = f"http://{DOJO_HOST}/llm"
 
 
 def key_manager():

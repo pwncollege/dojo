@@ -3,6 +3,7 @@ location = /llm {
 }
 
 location ^~ /llm/ {
+    client_max_body_size 16m;
     set $litellm_backend litellm:4000;
     proxy_pass http://$litellm_backend;
     include /etc/nginx/conf.d/proxy-headers.conf;

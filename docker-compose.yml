@@ -240,7 +240,7 @@ services:
     env_file:
       - /data/litellm/env
     environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@db:5432/litellm
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@db:5432/litellm?connection_limit=10
       REDIS_URL: redis://cache:6379/1
       SERVER_ROOT_PATH: /llm
     volumes:

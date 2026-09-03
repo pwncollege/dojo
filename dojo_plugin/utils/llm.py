@@ -7,6 +7,9 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
+KEY_DURATION = "6h"
+
+
 class LiteLLMError(RuntimeError):
     def __init__(self, status, detail):
         super().__init__(f"LiteLLM returned HTTP {status}: {detail}")
@@ -96,6 +99,7 @@ class LiteLLMKeyManager:
         user_name = f"user_{user_id}"
         key = self.key_for_user(user_id)
         if self._key_exists(key):
+            self._request("POST", "/key/update", {"key": key, "duration": KEY_DURATION})
             return key
         self._request(
             "POST",
@@ -105,6 +109,7 @@ class LiteLLMKeyManager:
                 "user_id": user_name,
                 "key_alias": user_name,
                 "key_type": "llm_api",
+                "duration": KEY_DURATION,
                 "models": ["all-proxy-models"],
                 "budget_limits": self.budget_limits,
                 "metadata": {"dojo_user_id": user_name},
