@@ -137,7 +137,10 @@ def connect_xpra_browser(browser, iframe_src):
         lambda driver: driver.execute_script(
             "const info = client.server_last_info;"
             "if (!info || info === window.__dojoPreviousServerInfo) return null;"
-            "const keyboard = info.client && info.client.keyboard;"
+            "const clients = info.client || {};"
+            "const current = clients.uuid === client.uuid ? clients : "
+            "Object.values(clients).find(value => value && value.uuid === client.uuid);"
+            "const keyboard = current && current.keyboard;"
             "return {present: Boolean(keyboard) && "
             "Object.prototype.hasOwnProperty.call(keyboard, 'sync'), "
             "sync: keyboard && keyboard.sync};"
