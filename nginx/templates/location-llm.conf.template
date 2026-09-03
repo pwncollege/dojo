@@ -1,0 +1,14 @@
+location = /llm {
+    return 308 /llm/;
+}
+
+location ^~ /llm/ {
+    client_max_body_size 16m;
+    set $litellm_backend litellm:4000;
+    proxy_pass http://$litellm_backend;
+    include /etc/nginx/conf.d/proxy-headers.conf;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+}

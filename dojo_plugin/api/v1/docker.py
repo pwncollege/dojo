@@ -187,6 +187,7 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
             "dojo-user": user_ipv4(user),
             "pwn.college": "192.168.42.1",
             **USER_FIREWALL_ALLOWED,
+            DOJO_HOST: "192.168.42.1",
         },
         init=True,
         detach=True,

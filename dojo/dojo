@@ -75,6 +75,7 @@ case "$ACTION" in
     # HELP: compose ARGS: run a docker compose command with the config.env file loaded
     "compose")
         profiles=()
+        args=(--env-file=/data/config.env)
 
         multi_node=$(jq 'length > 0' /data/workspace_nodes.json 2>/dev/null || echo "unknown")
         if [ "$WORKSPACE_NODE" -gt 0 ]; then
@@ -88,8 +89,11 @@ case "$ACTION" in
         fi
 
         [ "${ENABLE_SPLUNK}" = "true" ] && profiles+=("splunk")
+        if [ -d /data/litellm ] && [ "$WORKSPACE_NODE" -eq 0 ]; then
+            profiles+=("llm")
+            args+=(--env-file=/data/litellm/env)
+        fi
 
-        args=(--env-file=/data/config.env)
         for p in "${profiles[@]}"; do
             args+=(--profile "$p")
         done
