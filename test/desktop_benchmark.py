@@ -406,6 +406,282 @@ def canvas_visual_digest(browser):
         }
 
 
+def canvas_region_rgb(browser, canvas):
+    return browser.execute_script(
+        "const source = arguments[0];"
+        "const size = 16;"
+        "const sourceSize = Math.max(16, Math.floor(Math.min(source.width, source.height) / 12));"
+        "const sourceX = Math.floor((source.width - sourceSize) / 2);"
+        "const sourceY = Math.floor((source.height - sourceSize) / 2);"
+        "const sample = document.createElement('canvas');"
+        "sample.width = size;"
+        "sample.height = size;"
+        "const context = sample.getContext('2d', {willReadFrequently: true});"
+        "context.drawImage(source, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);"
+        "const pixels = context.getImageData(0, 0, size, size).data;"
+        "const totals = [0, 0, 0];"
+        "for (let index = 0; index < pixels.length; index += 4) {"
+        "totals[0] += pixels[index];"
+        "totals[1] += pixels[index + 1];"
+        "totals[2] += pixels[index + 2];"
+        "}"
+        "const count = pixels.length / 4;"
+        "return totals.map(total => Math.round(total / count));",
+        canvas,
+    )
+
+
+def rgb_distance(first, second):
+    return max(abs(left - right) for left, right in zip(first, second))
+
+
+def wait_for_canvas_region_transition(
+    browser,
+    canvas,
+    different_from,
+    timeout,
+    minimum_distance=48,
+    stable_distance=4,
+    stable_samples=3,
+):
+    deadline = time.monotonic() + timeout
+    candidate = None
+    matching_samples = 0
+    while time.monotonic() < deadline:
+        current = canvas_region_rgb(browser, canvas)
+        if rgb_distance(current, different_from) >= minimum_distance:
+            if candidate and rgb_distance(current, candidate) <= stable_distance:
+                matching_samples += 1
+            else:
+                candidate = current
+                matching_samples = 1
+            if matching_samples >= stable_samples:
+                return current
+        else:
+            candidate = None
+            matching_samples = 0
+        time.sleep(0.05)
+    raise TimeoutException("the latency probe color transition was not visible")
+
+
+def capture_latency_template(browser, canvas, name):
+    return browser.execute_script(
+        "const source = arguments[0];"
+        "const name = arguments[1];"
+        "const width = 192;"
+        "const height = 108;"
+        "const sample = document.createElement('canvas');"
+        "sample.width = width;"
+        "sample.height = height;"
+        "const context = sample.getContext('2d', {willReadFrequently: true});"
+        "context.imageSmoothingEnabled = false;"
+        "context.drawImage(source, 0, 0, width, height);"
+        "const pixels = Array.from(context.getImageData(0, 0, width, height).data);"
+        "const calibration = window.__dojoLatencyCalibration || "
+        "{width: width, height: height, templates: {}};"
+        "calibration.templates[name] = pixels;"
+        "calibration.mask = [];"
+        "if (calibration.templates.a && calibration.templates.b) {"
+        "const a = calibration.templates.a;"
+        "const b = calibration.templates.b;"
+        "for (let pixel = 0; pixel < width * height; pixel += 1) {"
+        "const offset = pixel * 4;"
+        "const difference = Math.abs(a[offset] - b[offset]) + "
+        "Math.abs(a[offset + 1] - b[offset + 1]) + "
+        "Math.abs(a[offset + 2] - b[offset + 2]);"
+        "if (difference >= 48) calibration.mask.push(pixel);"
+        "}"
+        "}"
+        "window.__dojoLatencyCalibration = calibration;"
+        "return {name: name, width: width, height: height, "
+        "discriminating_pixels: calibration.mask.length};",
+        canvas,
+        name,
+    )
+
+
+def latency_template_progress(browser, canvas, source_name, target_name):
+    return browser.execute_script(
+        "const source = arguments[0];"
+        "const calibration = window.__dojoLatencyCalibration;"
+        "const from = calibration.templates[arguments[1]];"
+        "const to = calibration.templates[arguments[2]];"
+        "const sample = document.createElement('canvas');"
+        "sample.width = calibration.width;"
+        "sample.height = calibration.height;"
+        "const context = sample.getContext('2d', {willReadFrequently: true});"
+        "context.imageSmoothingEnabled = false;"
+        "context.drawImage(source, 0, 0, sample.width, sample.height);"
+        "const current = context.getImageData(0, 0, sample.width, sample.height).data;"
+        "let numerator = 0;"
+        "let denominator = 0;"
+        "for (const pixel of calibration.mask) {"
+        "const offset = pixel * 4;"
+        "for (let channel = 0; channel < 3; channel += 1) {"
+        "const direction = to[offset + channel] - from[offset + channel];"
+        "numerator += (current[offset + channel] - from[offset + channel]) * direction;"
+        "denominator += direction * direction;"
+        "}"
+        "}"
+        "return denominator ? numerator / denominator : null;",
+        canvas,
+        source_name,
+        target_name,
+    )
+
+
+def wait_for_latency_template(
+    browser,
+    canvas,
+    source_name,
+    target_name,
+    timeout,
+    minimum_progress=0.98,
+):
+    deadline = time.monotonic() + timeout
+    stable_samples = 0
+    while time.monotonic() < deadline:
+        progress = latency_template_progress(
+            browser, canvas, source_name, target_name
+        )
+        if isinstance(progress, (int, float)) and progress >= minimum_progress:
+            stable_samples += 1
+            if stable_samples >= 2:
+                return progress
+        else:
+            stable_samples = 0
+        time.sleep(0.05)
+    raise TimeoutException(f"latency template {target_name} was not stable")
+
+
+def arm_canvas_latency_probe(browser, canvas, key, source_name, target_name, timeout):
+    return browser.execute_script(
+        "if (window.__dojoLatencyStop) window.__dojoLatencyStop();"
+        "const source = arguments[0];"
+        "const expectedKey = arguments[1];"
+        "const sourceName = arguments[2];"
+        "const targetName = arguments[3];"
+        "const timeoutMs = arguments[4] * 1000;"
+        "const calibration = window.__dojoLatencyCalibration;"
+        "const from = calibration.templates[sourceName];"
+        "const to = calibration.templates[targetName];"
+        "const sample = document.createElement('canvas');"
+        "sample.width = calibration.width;"
+        "sample.height = calibration.height;"
+        "const context = sample.getContext('2d', {willReadFrequently: true});"
+        "context.imageSmoothingEnabled = false;"
+        "const progress = () => {"
+        "context.drawImage(source, 0, 0, sample.width, sample.height);"
+        "const current = context.getImageData(0, 0, sample.width, sample.height).data;"
+        "let numerator = 0;"
+        "let denominator = 0;"
+        "for (const pixel of calibration.mask) {"
+        "const offset = pixel * 4;"
+        "for (let channel = 0; channel < 3; channel += 1) {"
+        "const direction = to[offset + channel] - from[offset + channel];"
+        "numerator += (current[offset + channel] - from[offset + channel]) * direction;"
+        "denominator += direction * direction;"
+        "}"
+        "}"
+        "return denominator ? numerator / denominator : null;"
+        "};"
+        "const probe = {"
+        "status: 'armed', key: expectedKey, source: sourceName, target: targetName,"
+        "armed_at_ms: performance.now(), keydown_at_ms: null, keydown_trusted: null,"
+        "event_timestamp_source: null, onset: null, settled: null, progress: null,"
+        "frame_count: 0, raf_intervals_ms: [], last_frame_at_ms: null,"
+        "initial_progress: progress()"
+        "};"
+        "let frameRequest;"
+        "let onsetPending = null;"
+        "let settledPending = null;"
+        "let onsetLastNegative = null;"
+        "let settledLastNegative = null;"
+        "const stop = () => {"
+        "window.removeEventListener('keydown', onKeydown, true);"
+        "if (frameRequest) cancelAnimationFrame(frameRequest);"
+        "window.__dojoLatencyStop = null;"
+        "};"
+        "const onKeydown = event => {"
+        "if (probe.keydown_at_ms !== null || event.key !== expectedKey || event.repeat) return;"
+        "const now = performance.now();"
+        "const compatible = Math.abs(event.timeStamp - now) < 1000;"
+        "probe.keydown_at_ms = compatible ? event.timeStamp : now;"
+        "probe.event_timestamp_source = compatible ? 'KeyboardEvent.timeStamp' : 'performance.now';"
+        "probe.keydown_trusted = event.isTrusted;"
+        "probe.status = 'waiting_for_pixels';"
+        "onsetLastNegative = probe.keydown_at_ms;"
+        "settledLastNegative = probe.keydown_at_ms;"
+        "};"
+        "const observeThreshold = (value, threshold, pending, lastNegative, timestamp) => {"
+        "if (value < threshold) return {pending: null, lastNegative: timestamp, result: null};"
+        "if (pending === null) return {pending: timestamp, lastNegative: lastNegative, result: null};"
+        "return {pending: pending, lastNegative: lastNegative, result: {"
+        "lower_ms: Math.max(0, lastNegative - probe.keydown_at_ms),"
+        "upper_ms: Math.max(0, pending - probe.keydown_at_ms),"
+        "observation_interval_ms: Math.max(0, pending - lastNegative)"
+        "}};"
+        "};"
+        "const sampleFrame = timestamp => {"
+        "probe.frame_count += 1;"
+        "if (probe.last_frame_at_ms !== null && probe.keydown_at_ms !== null) "
+        "probe.raf_intervals_ms.push(timestamp - probe.last_frame_at_ms);"
+        "probe.last_frame_at_ms = timestamp;"
+        "try {"
+        "probe.progress = progress();"
+        "const observedAt = performance.now();"
+        "if (probe.keydown_at_ms !== null) {"
+        "const onsetState = observeThreshold(probe.progress, 0.10, onsetPending, onsetLastNegative, observedAt);"
+        "onsetPending = onsetState.pending;"
+        "onsetLastNegative = onsetState.lastNegative;"
+        "if (!probe.onset && onsetState.result) probe.onset = onsetState.result;"
+        "const settledState = observeThreshold(probe.progress, 0.90, settledPending, settledLastNegative, observedAt);"
+        "settledPending = settledState.pending;"
+        "settledLastNegative = settledState.lastNegative;"
+        "if (!probe.settled && settledState.result) probe.settled = settledState.result;"
+        "if (probe.onset && probe.settled) {"
+        "probe.status = probe.keydown_trusted ? 'passed' : 'untrusted_input';"
+        "stop();"
+        "return;"
+        "}"
+        "}"
+        "if (timestamp - probe.armed_at_ms >= timeoutMs) {"
+        "probe.status = 'timed_out';"
+        "stop();"
+        "return;"
+        "}"
+        "frameRequest = requestAnimationFrame(sampleFrame);"
+        "} catch (error) {"
+        "probe.status = 'failed';"
+        "probe.error = `${error.name}: ${error.message}`;"
+        "stop();"
+        "}"
+        "};"
+        "window.__dojoLatencyProbe = probe;"
+        "window.__dojoLatencyStop = stop;"
+        "window.addEventListener('keydown', onKeydown, true);"
+        "frameRequest = requestAnimationFrame(sampleFrame);"
+        "return {status: probe.status, initial_progress: probe.initial_progress};",
+        canvas,
+        key,
+        source_name,
+        target_name,
+        timeout,
+    )
+
+
+def canvas_latency_probe_state(browser):
+    return browser.execute_script(
+        "const probe = window.__dojoLatencyProbe;"
+        "if (!probe) return null;"
+        "return {status: probe.status, key: probe.key, source: probe.source, target: probe.target, "
+        "keydown_trusted: probe.keydown_trusted, event_timestamp_source: probe.event_timestamp_source, "
+        "onset: probe.onset, settled: probe.settled, progress: probe.progress, "
+        "initial_progress: probe.initial_progress, frame_count: probe.frame_count, "
+        "raf_intervals_ms: probe.raf_intervals_ms, error: probe.error || null};"
+    )
+
+
 def sample_browser_delivery(browser, samples, started_at, phase):
     sample = {
         "seconds": round(time.monotonic() - started_at, 3),
@@ -1044,6 +1320,312 @@ def wait_for_traffic_quiescence(
     }
 
 
+def stage_latency_probe(user, sample_count):
+    identity = f"latency_{os.getpid()}_{uuid.uuid4().hex[:6]}"
+    executable = f"/tmp/dbl_{identity}"
+    ready = f"/tmp/dbl_ready_{identity}"
+    accepted = f"/tmp/dbl_accepted_{identity}"
+    acknowledged = f"/tmp/dbl_ack_{identity}"
+    completed = f"/tmp/dbl_completed_{identity}"
+    pid_path = f"/tmp/dbl_pid_{identity}"
+    log_path = f"/tmp/dbl_log_{identity}"
+    total_samples = sample_count + 2
+    script = f"""#!/bin/bash
+printf %s "$$" > {pid_path}
+stty -echo
+trap 'stty echo; printf "\\033[0m\\033[?25h\\033[2J\\033[H"' EXIT
+printf '\033[?25l\033[40m\033[2J\033[H'
+draw_marker() {{
+    read -r terminal_rows terminal_columns < <(stty size)
+    marker_row=$((terminal_rows / 2 - 3))
+    marker_column=$((terminal_columns / 2 - 8))
+    marker_line=0
+    while [ "$marker_line" -lt 6 ]; do
+        printf '\033[%d;%dH\033[48;5;%dm                \033[0m' \
+            "$((marker_row + marker_line))" "$marker_column" "$1"
+        marker_line=$((marker_line + 1))
+    done
+}}
+state=a
+draw_marker 19
+printf 0 > {ready}
+sample=1
+while [ "$sample" -le {total_samples} ]; do
+    IFS= read -r -n 1
+    if [ "$state" = a ]; then
+        state=b
+        draw_marker 46
+    else
+        state=a
+        draw_marker 19
+    fi
+    printf %s "$sample" > {accepted}
+    attempt=0
+    while [ "$attempt" -lt 3000 ]; do
+        [ "$(cat {acknowledged} 2>/dev/null || true)" = "$sample" ] && break
+        attempt=$((attempt + 1))
+        sleep 0.01
+    done
+    printf %s "$sample" > {ready}
+    sample=$((sample + 1))
+done
+: > {completed}
+sleep 0.5
+"""
+    encoded = base64.b64encode(script.encode()).decode()
+    workspace_run(
+        f"printf %s {shlex.quote(encoded)} | base64 -d > {shlex.quote(executable)} && "
+        f"chmod 700 {shlex.quote(executable)} && rm -f "
+        + " ".join(
+            shlex.quote(path)
+            for path in (ready, accepted, acknowledged, completed, pid_path, log_path)
+        ),
+        user=user,
+    )
+    return executable, ready, accepted, acknowledged, completed, pid_path, log_path
+
+
+def wait_for_remote_text(user, path, expected, timeout):
+    deadline = time.monotonic() + timeout
+    value = ""
+    while time.monotonic() < deadline:
+        value = workspace_run(
+            f"if [ -e {shlex.quote(path)} ]; then printf present:; "
+            f"cat {shlex.quote(path)}; fi",
+            user=user,
+        ).stdout
+        if value == f"present:{expected}":
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def remove_latency_probe(user, paths):
+    executable, _, _, _, _, pid_path, _ = paths
+    workspace_run(
+        f"probe_pid=$(cat {shlex.quote(pid_path)} 2>/dev/null || true); "
+        "case $probe_pid in ''|*[!0-9]*) probe_pid=;; esac; "
+        "if [ -n \"$probe_pid\" ] && [ \"$probe_pid\" -gt 1 ] && "
+        "[ -r /proc/$probe_pid/cmdline ] && "
+        f"tr '\\0' '\\n' < /proc/$probe_pid/cmdline | grep -Fxq {shlex.quote(executable)}; then "
+        "kill -TERM -- $probe_pid 2>/dev/null || true; "
+        "fi; "
+        "rm -f " + " ".join(shlex.quote(path) for path in paths),
+        user=user,
+    )
+
+
+def measure_interaction_latency(
+    browser,
+    canvas,
+    profile,
+    user,
+    interface,
+    shaper,
+    shaping,
+    sample_count,
+):
+    timeout = 15 + profile.estimated_rtt_ms / 1000 * 8
+    paths = stage_latency_probe(user, sample_count)
+    executable, ready, accepted, acknowledged, completed, _, log_path = paths
+    samples = []
+    calibration = []
+    try:
+        ActionChains(browser).move_to_element(canvas).click().perform()
+        workspace_run(
+            "DISPLAY=:0 xfce4-terminal --disable-server --fullscreen --hide-menubar "
+            "--hide-toolbar --hide-scrollbar "
+            f"--command={shlex.quote(executable)} >{shlex.quote(log_path)} 2>&1 &",
+            user=user,
+        )
+        if not wait_for_remote_text(user, ready, "0", timeout):
+            raise TimeoutException("latency probe did not become ready")
+        canvas = WebDriverWait(browser, timeout).until(visible_desktop_canvas)
+        before = interface_counters(interface)
+        _, quiescence = wait_for_traffic_quiescence(
+            interface,
+            before,
+            timeout,
+            shaper=shaper if shaping == "local" else None,
+            sample_seconds=0.1,
+            quiet_seconds=0.5,
+        )
+        if not quiescence["quiesced"]:
+            raise TimeoutException("traffic did not quiesce before latency calibration")
+        ActionChains(browser).move_to_element(canvas).click().perform()
+        time.sleep(0.25)
+        calibration.append(capture_latency_template(browser, canvas, "a"))
+        previous_color = canvas_region_rgb(browser, canvas)
+        for calibration_number, template_name, key in (
+            (1, "b", "x"),
+            (2, "a", "y"),
+        ):
+            ActionChains(browser).send_keys(key).perform()
+            expected = str(calibration_number)
+            if not wait_for_remote_text(user, accepted, expected, timeout):
+                raise TimeoutException(
+                    f"latency calibration {calibration_number} was not accepted"
+                )
+            previous_color = wait_for_canvas_region_transition(
+                browser, canvas, previous_color, timeout
+            )
+            before = interface_counters(interface)
+            _, quiescence = wait_for_traffic_quiescence(
+                interface,
+                before,
+                timeout,
+                shaper=shaper if shaping == "local" else None,
+                sample_seconds=0.1,
+                quiet_seconds=0.5,
+            )
+            if not quiescence["quiesced"]:
+                raise TimeoutException(
+                    f"traffic did not quiesce during latency calibration {calibration_number}"
+                )
+            template = capture_latency_template(browser, canvas, template_name)
+            calibration.append(template)
+            if template["discriminating_pixels"] < 32:
+                raise RuntimeError(
+                    f"latency calibration found only {template['discriminating_pixels']} discriminating pixels"
+                )
+            workspace_run(
+                f"printf %s {shlex.quote(expected)} > {shlex.quote(acknowledged)}",
+                user=user,
+            )
+        for sample_number in range(1, sample_count + 1):
+            remote_sample = sample_number + 2
+            ready_value = str(remote_sample - 1)
+            expected = str(remote_sample)
+            if not wait_for_remote_text(user, ready, ready_value, timeout):
+                raise TimeoutException(
+                    f"latency probe sample {sample_number} did not become ready"
+                )
+            canvas = WebDriverWait(browser, timeout).until(visible_desktop_canvas)
+            target_name = "b" if remote_sample % 2 else "a"
+            source_name = "a" if target_name == "b" else "b"
+            wait_for_latency_template(
+                browser, canvas, target_name, source_name, timeout
+            )
+            jitter_seconds = 0.6 + ((sample_number * 37 + remote_sample * 13) % 41) / 100
+            time.sleep(jitter_seconds)
+            before = interface_counters(interface)
+            _, quiescence = wait_for_traffic_quiescence(
+                interface,
+                before,
+                timeout,
+                shaper=shaper if shaping == "local" else None,
+                sample_seconds=0.1,
+                quiet_seconds=0.5,
+            )
+            if not quiescence["quiesced"]:
+                raise TimeoutException(
+                    f"traffic did not quiesce before latency sample {sample_number}"
+                )
+            key = chr(ord("a") + (sample_number - 1) % 26)
+            armed = arm_canvas_latency_probe(
+                browser,
+                canvas,
+                key,
+                source_name,
+                target_name,
+                timeout,
+            )
+            if not isinstance(armed.get("initial_progress"), (int, float)) or abs(
+                armed["initial_progress"]
+            ) > 0.05:
+                raise RuntimeError(
+                    f"latency probe source template was not stable: {armed}"
+                )
+            ActionChains(browser).send_keys(key).perform()
+            try:
+                state = WebDriverWait(browser, timeout, poll_frequency=0.01).until(
+                    lambda driver: (
+                        current
+                        if (current := canvas_latency_probe_state(driver))
+                        and current.get("status")
+                        in ("passed", "failed", "timed_out", "untrusted_input")
+                        else False
+                    )
+                )
+            except TimeoutException:
+                state = canvas_latency_probe_state(browser) or {"status": "timed_out"}
+            remote_input_accepted = wait_for_remote_text(
+                user, accepted, expected, timeout
+            )
+            for endpoint in ("onset", "settled"):
+                if state.get(endpoint):
+                    state[endpoint] = {
+                        key: round(value, 3)
+                        for key, value in state[endpoint].items()
+                    }
+            state["raf_intervals_ms"] = [
+                round(value, 3) for value in state.get("raf_intervals_ms", [])
+            ]
+            state.update(
+                {
+                    "sample": sample_number,
+                    "remote_input_accepted": remote_input_accepted,
+                    "pre_input_delay_ms": round(jitter_seconds * 1000, 3),
+                    "pre_input_quiescence_seconds": quiescence["seconds"],
+                }
+            )
+            if state.get("status") != "passed" or not remote_input_accepted:
+                samples.append(state)
+                raise RuntimeError(f"latency probe sample failed: {state}")
+            samples.append(state)
+            workspace_run(
+                f"printf %s {shlex.quote(expected)} > {shlex.quote(acknowledged)}",
+                user=user,
+            )
+        if not wait_for_remote_text(user, completed, "", timeout):
+            raise TimeoutException("latency probe did not complete")
+        onset_values = [sample["onset"]["upper_ms"] for sample in samples]
+        settled_values = [sample["settled"]["upper_ms"] for sample in samples]
+        raf_intervals = [
+            interval
+            for sample in samples
+            for interval in sample["raf_intervals_ms"]
+        ]
+        return {
+            "status": "passed",
+            "method": "trusted-browser-keydown-to-requestAnimationFrame-observed-calibrated-marker-change",
+            "clock": "KeyboardEvent.timeStamp and performance.now after requestAnimationFrame canvas reads",
+            "sample_grid": "192x108 RGB",
+            "template_pixel_l1_threshold": 48,
+            "minimum_discriminating_pixels": 32,
+            "onset_progress_threshold": 0.10,
+            "settled_progress_threshold": 0.90,
+            "warmup_samples": 2,
+            "requested_samples": sample_count,
+            "calibration": calibration,
+            "samples": samples,
+            "onset_upper_ms": numeric_summary(onset_values),
+            "settled_upper_ms": numeric_summary(settled_values),
+            "raf_interval_ms": numeric_summary(raf_intervals),
+        }
+    except Exception as error:
+        return {
+            "status": "failed",
+            "method": "trusted-browser-keydown-to-requestAnimationFrame-observed-calibrated-marker-change",
+            "requested_samples": sample_count,
+            "calibration": calibration,
+            "samples": samples,
+            "error": f"{type(error).__name__}: {error}",
+        }
+    finally:
+        with contextlib.suppress(Exception):
+            browser.execute_script(
+                "if (window.__dojoLatencyStop) window.__dojoLatencyStop();"
+            )
+        with contextlib.suppress(Exception):
+            workspace_run(
+                f"printf done > {shlex.quote(acknowledged)}",
+                user=user,
+            )
+        with contextlib.suppress(Exception):
+            remove_latency_probe(user, paths)
+
+
 def stage_workload(user, profile_name, seconds):
     identity = f"{profile_name}_{os.getpid()}_{uuid.uuid4().hex[:6]}"
     executable = f"/tmp/dbw_{identity}"
@@ -1200,6 +1782,10 @@ def measure_profile(args, profile, repetition, trial_index, output_dir, shaper):
                 "canvas": dimensions,
                 "connect_seconds": round(connect_seconds, 3),
                 "connect_bytes": counter_delta(connect_before, connect_after),
+                "desktop_route": benchmark_route(
+                    browser.execute_script("return window.location.href;"),
+                    args.interface,
+                ),
             }
         )
         if args.variant != "auto" and client != args.variant:
@@ -1350,6 +1936,23 @@ def measure_profile(args, profile, repetition, trial_index, output_dir, shaper):
                 ),
             }
         )
+        canvas = visible_desktop_canvas(browser)
+        if not canvas:
+            raise RuntimeError("desktop surface disappeared before the latency probe")
+        result["interaction_latency"] = measure_interaction_latency(
+            browser,
+            canvas,
+            profile,
+            args.user,
+            args.interface,
+            shaper,
+            args.shaping,
+            args.latency_samples,
+        )
+        if result["interaction_latency"].get("status") != "passed":
+            raise RuntimeError(
+                f"interaction latency check did not pass: {result['interaction_latency']}"
+            )
         if result.get("link_interruption", {}).get("status") == "pending":
             result["link_interruption"]["status"] = (
                 "passed"
@@ -1397,8 +2000,7 @@ def percentile(values, quantile):
     return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower)
 
 
-def metric_summary(results, value):
-    values = [number for result in results if isinstance((number := value(result)), (int, float))]
+def numeric_summary(values):
     if not values:
         return {"count": 0, "median": None, "min": None, "max": None, "p95": None}
     return {
@@ -1408,6 +2010,11 @@ def metric_summary(results, value):
         "max": round(max(values), 3),
         "p95": round(percentile(values, 0.95), 3),
     }
+
+
+def metric_summary(results, value):
+    values = [number for result in results if isinstance((number := value(result)), (int, float))]
+    return numeric_summary(values)
 
 
 def boolean_pass_count(results, value):
@@ -1425,6 +2032,16 @@ def status_pass_count(results, key):
         "attempted": len(attempted),
         "skipped": len(statuses) - len(attempted),
     }
+
+
+def latency_sample_summary(results, endpoint):
+    values = [
+        sample[endpoint]["upper_ms"]
+        for result in results
+        for sample in result.get("interaction_latency", {}).get("samples", [])
+        if isinstance(sample.get(endpoint, {}).get("upper_ms"), (int, float))
+    ]
+    return numeric_summary(values)
 
 
 def successful_workload_results(results):
@@ -1463,6 +2080,12 @@ def summarize_group(results):
                 lambda result: result.get("link_interruption", {}).get(
                     "recovery_probe_seconds"
                 ),
+            ),
+            "interaction_onset_upper_ms": latency_sample_summary(
+                results, "onset"
+            ),
+            "interaction_settled_upper_ms": latency_sample_summary(
+                results, "settled"
             ),
             "pre_workload_quiescence_seconds": metric_summary(
                 results,
@@ -1503,6 +2126,9 @@ def summarize_group(results):
             ),
             "clipboard": status_pass_count(results, "clipboard"),
             "link_interruption": status_pass_count(results, "link_interruption"),
+            "interaction_latency": status_pass_count(
+                results, "interaction_latency"
+            ),
             "pre_workload_quiesced": boolean_pass_count(
                 results,
                 lambda result: result.get("pre_workload_quiescence", {}).get(
@@ -1562,6 +2188,7 @@ def parse_args():
     parser.add_argument("--page-load-timeout", type=int, default=180)
     parser.add_argument("--settle-seconds", type=int, default=3)
     parser.add_argument("--workload-seconds", type=int, default=30)
+    parser.add_argument("--latency-samples", type=int, default=20)
     parser.add_argument("--quiescence-timeout", type=int, default=30)
     parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument(
@@ -1587,6 +2214,8 @@ def parse_args():
         parser.error("--shaping external requires exactly one selected profile")
     if args.workload_seconds < 1:
         parser.error("--workload-seconds must be positive")
+    if args.latency_samples < 1:
+        parser.error("--latency-samples must be positive")
     if args.quiescence_timeout < 1:
         parser.error("--quiescence-timeout must be positive")
     if args.repetitions < 1:
@@ -1636,6 +2265,7 @@ def main():
         "variant": args.variant,
         "interface": args.interface,
         "workload_seconds": args.workload_seconds,
+        "latency_samples": args.latency_samples,
         "repetitions": args.repetitions,
         "profile_ordering": "cyclic-rotation-by-repetition",
         "check_link_interruption": args.check_link_interruption,
@@ -1653,6 +2283,11 @@ def main():
                 "qualifying two-second quiet window with empty local netem queues"
             ),
             "browser_delivery": "distinct sampled post-input canvas states",
+            "interaction_latency": (
+                "trusted browser keydown to the first requestAnimationFrame-observed 10% and 90% "
+                "transitions toward a calibrated remote terminal marker; reported values are the "
+                "conservative upper bounds of the observation intervals"
+            ),
             "screenshots": "qualitative captures",
         },
         "provenance": provenance,
@@ -1676,6 +2311,7 @@ def main():
         and result.get("input_accepted")
         and result.get("workload_complete")
         and result.get("browser_delivery", {}).get("status") == "passed"
+        and result.get("interaction_latency", {}).get("status") == "passed"
         and result.get("traffic_drain", {}).get("quiesced")
         and result.get("resize", {}).get("surface_nonzero")
         and result.get("resize", {}).get("surface_changed")
