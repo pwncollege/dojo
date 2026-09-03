@@ -124,6 +124,28 @@ def connect_xpra_browser(browser, iframe_src):
     assert browser.execute_script(
         "return client._get_keymap_caps().sync === false;"
     ), "Expected Xpra HTML5 to disable synchronized key state"
+    wait.until(
+        lambda driver: driver.execute_script(
+            "return !client.info_request_pending;"
+        )
+    )
+    browser.execute_script(
+        "window.__dojoPreviousServerInfo = client.server_last_info;"
+        "client.send_info_request();"
+    )
+    server_keyboard = wait.until(
+        lambda driver: driver.execute_script(
+            "const info = client.server_last_info;"
+            "if (!info || info === window.__dojoPreviousServerInfo) return null;"
+            "const keyboard = info.client && info.client.keyboard;"
+            "return {present: Boolean(keyboard) && "
+            "Object.prototype.hasOwnProperty.call(keyboard, 'sync'), "
+            "sync: keyboard && keyboard.sync};"
+        )
+    )
+    assert server_keyboard == {"present": True, "sync": False}, (
+        f"Expected Xpra to apply unsynchronized key state, got {server_keyboard}"
+    )
     return canvas
 
 

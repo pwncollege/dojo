@@ -1330,6 +1330,10 @@ def stage_latency_probe(user, sample_count):
     pid_path = f"/tmp/dbl_pid_{identity}"
     log_path = f"/tmp/dbl_log_{identity}"
     total_samples = sample_count + 2
+    post_input_guard_seconds = 3
+    expected_keys = "xy" + "".join(
+        chr(ord("a") + sample_number % 26) for sample_number in range(sample_count)
+    )
     script = f"""#!/bin/bash
 printf %s "$$" > {pid_path}
 stty -echo
@@ -1340,18 +1344,26 @@ draw_marker() {{
     marker_row=$((terminal_rows / 2 - 3))
     marker_column=$((terminal_columns / 2 - 8))
     marker_line=0
+    marker_output=
     while [ "$marker_line" -lt 6 ]; do
-        printf '\033[%d;%dH\033[48;5;%dm                \033[0m' \
+        printf -v marker_segment '\033[%d;%dH\033[48;5;%dm                \033[0m' \
             "$((marker_row + marker_line))" "$marker_column" "$1"
+        marker_output+=$marker_segment
         marker_line=$((marker_line + 1))
     done
+    printf %s "$marker_output"
 }}
 state=a
+expected_keys={shlex.quote(expected_keys)}
 draw_marker 19
 printf 0 > {ready}
 sample=1
 while [ "$sample" -le {total_samples} ]; do
-    IFS= read -r -n 1
+    expected_key=${{expected_keys:$((sample - 1)):1}}
+    received_key=
+    IFS= read -r -n 1 received_key
+    printf '%s:%s' "$sample" "$received_key" > {accepted}
+    [ "$received_key" = "$expected_key" ] || exit 2
     if [ "$state" = a ]; then
         state=b
         draw_marker 46
@@ -1359,7 +1371,6 @@ while [ "$sample" -le {total_samples} ]; do
         state=a
         draw_marker 19
     fi
-    printf %s "$sample" > {accepted}
     attempt=0
     while [ "$attempt" -lt 3000 ]; do
         [ "$(cat {acknowledged} 2>/dev/null || true)" = "$sample" ] && break
@@ -1369,6 +1380,11 @@ while [ "$sample" -le {total_samples} ]; do
     printf %s "$sample" > {ready}
     sample=$((sample + 1))
 done
+received_key=
+if IFS= read -r -t {post_input_guard_seconds} -n 1 received_key; then
+    printf 'extra:%s' "$received_key" > {accepted}
+    exit 2
+fi
 : > {completed}
 sleep 0.5
 """
@@ -1387,17 +1403,20 @@ sleep 0.5
 
 def wait_for_remote_text(user, path, expected, timeout):
     deadline = time.monotonic() + timeout
-    value = ""
     while time.monotonic() < deadline:
-        value = workspace_run(
-            f"if [ -e {shlex.quote(path)} ]; then printf present:; "
-            f"cat {shlex.quote(path)}; fi",
-            user=user,
-        ).stdout
-        if value == f"present:{expected}":
+        if read_remote_text(user, path) == expected:
             return True
         time.sleep(0.05)
     return False
+
+
+def read_remote_text(user, path):
+    value = workspace_run(
+        f"if [ -e {shlex.quote(path)} ]; then printf present:; "
+        f"cat {shlex.quote(path)}; fi",
+        user=user,
+    ).stdout
+    return value.removeprefix("present:") if value.startswith("present:") else None
 
 
 def remove_latency_probe(user, paths):
@@ -1461,10 +1480,11 @@ def measure_interaction_latency(
             (2, "a", "y"),
         ):
             ActionChains(browser).send_keys(key).perform()
-            expected = str(calibration_number)
-            if not wait_for_remote_text(user, accepted, expected, timeout):
+            accepted_value = f"{calibration_number}:{key}"
+            if not wait_for_remote_text(user, accepted, accepted_value, timeout):
                 raise TimeoutException(
-                    f"latency calibration {calibration_number} was not accepted"
+                    f"latency calibration {calibration_number} expected {accepted_value!r}, "
+                    f"observed {read_remote_text(user, accepted)!r}"
                 )
             previous_color = wait_for_canvas_region_transition(
                 browser, canvas, previous_color, timeout
@@ -1489,13 +1509,12 @@ def measure_interaction_latency(
                     f"latency calibration found only {template['discriminating_pixels']} discriminating pixels"
                 )
             workspace_run(
-                f"printf %s {shlex.quote(expected)} > {shlex.quote(acknowledged)}",
+                f"printf %s {calibration_number} > {shlex.quote(acknowledged)}",
                 user=user,
             )
         for sample_number in range(1, sample_count + 1):
             remote_sample = sample_number + 2
             ready_value = str(remote_sample - 1)
-            expected = str(remote_sample)
             if not wait_for_remote_text(user, ready, ready_value, timeout):
                 raise TimeoutException(
                     f"latency probe sample {sample_number} did not become ready"
@@ -1522,6 +1541,7 @@ def measure_interaction_latency(
                     f"traffic did not quiesce before latency sample {sample_number}"
                 )
             key = chr(ord("a") + (sample_number - 1) % 26)
+            accepted_value = f"{remote_sample}:{key}"
             armed = arm_canvas_latency_probe(
                 browser,
                 canvas,
@@ -1550,7 +1570,7 @@ def measure_interaction_latency(
             except TimeoutException:
                 state = canvas_latency_probe_state(browser) or {"status": "timed_out"}
             remote_input_accepted = wait_for_remote_text(
-                user, accepted, expected, timeout
+                user, accepted, accepted_value, timeout
             )
             for endpoint in ("onset", "settled"):
                 if state.get(endpoint):
@@ -1564,6 +1584,8 @@ def measure_interaction_latency(
             state.update(
                 {
                     "sample": sample_number,
+                    "expected_key": key,
+                    "remote_input_observed": read_remote_text(user, accepted),
                     "remote_input_accepted": remote_input_accepted,
                     "pre_input_delay_ms": round(jitter_seconds * 1000, 3),
                     "pre_input_quiescence_seconds": quiescence["seconds"],
@@ -1574,11 +1596,14 @@ def measure_interaction_latency(
                 raise RuntimeError(f"latency probe sample failed: {state}")
             samples.append(state)
             workspace_run(
-                f"printf %s {shlex.quote(expected)} > {shlex.quote(acknowledged)}",
+                f"printf %s {remote_sample} > {shlex.quote(acknowledged)}",
                 user=user,
             )
         if not wait_for_remote_text(user, completed, "", timeout):
-            raise TimeoutException("latency probe did not complete")
+            raise TimeoutException(
+                "latency probe did not complete after the post-input guard; "
+                f"observed {read_remote_text(user, accepted)!r}"
+            )
         onset_values = [sample["onset"]["upper_ms"] for sample in samples]
         settled_values = [sample["settled"]["upper_ms"] for sample in samples]
         raf_intervals = [
@@ -1596,6 +1621,9 @@ def measure_interaction_latency(
             "onset_progress_threshold": 0.10,
             "settled_progress_threshold": 0.90,
             "warmup_samples": 2,
+            "remote_input_validation": "exact expected ASCII key and sample sequence",
+            "post_input_guard_seconds": 3,
+            "measurement_phase": "same connected session before link interruption and screen-update workload",
             "requested_samples": sample_count,
             "calibration": calibration,
             "samples": samples,
@@ -1607,6 +1635,9 @@ def measure_interaction_latency(
         return {
             "status": "failed",
             "method": "trusted-browser-keydown-to-requestAnimationFrame-observed-calibrated-marker-change",
+            "remote_input_validation": "exact expected ASCII key and sample sequence",
+            "post_input_guard_seconds": 3,
+            "measurement_phase": "same connected session before link interruption and screen-update workload",
             "requested_samples": sample_count,
             "calibration": calibration,
             "samples": samples,
@@ -1802,6 +1833,30 @@ def measure_profile(args, profile, repetition, trial_index, output_dir, shaper):
         result["clipboard"] = check_clipboard(browser, client, args.user)
         if client == "xpra" and result["clipboard"].get("status") != "passed":
             raise RuntimeError(f"Xpra clipboard check did not pass: {result['clipboard']}")
+        time.sleep(args.settle_seconds)
+        repetition_suffix = f"r{repetition:02d}"
+        connected_screenshot = (
+            output_dir / f"{args.label}-{profile.name}-{repetition_suffix}-connected.png"
+        )
+        save_screenshot(browser, connected_screenshot)
+        result["connected_screenshot"] = str(connected_screenshot)
+        canvas = visible_desktop_canvas(browser)
+        if not canvas:
+            raise RuntimeError("desktop surface disappeared before the latency probe")
+        result["interaction_latency"] = measure_interaction_latency(
+            browser,
+            canvas,
+            profile,
+            args.user,
+            args.interface,
+            shaper,
+            args.shaping,
+            args.latency_samples,
+        )
+        if result["interaction_latency"].get("status") != "passed":
+            raise RuntimeError(
+                f"interaction latency check did not pass: {result['interaction_latency']}"
+            )
         if args.check_link_interruption:
             result["link_interruption"] = check_link_interruption(
                 browser, client, args.interface, args.connect_timeout
@@ -1811,13 +1866,6 @@ def measure_profile(args, profile, repetition, trial_index, output_dir, shaper):
                 raise RuntimeError("desktop surface disappeared after the link interruption")
         else:
             result["link_interruption"] = {"status": "skipped"}
-        time.sleep(args.settle_seconds)
-        repetition_suffix = f"r{repetition:02d}"
-        connected_screenshot = (
-            output_dir / f"{args.label}-{profile.name}-{repetition_suffix}-connected.png"
-        )
-        save_screenshot(browser, connected_screenshot)
-        result["connected_screenshot"] = str(connected_screenshot)
         workload_paths = stage_workload(args.user, profile.name, args.workload_seconds)
         executable, started_marker, completed_marker, _ = workload_paths
         canvas = prepare_workload(browser, profile, args.user)
@@ -1936,23 +1984,6 @@ def measure_profile(args, profile, repetition, trial_index, output_dir, shaper):
                 ),
             }
         )
-        canvas = visible_desktop_canvas(browser)
-        if not canvas:
-            raise RuntimeError("desktop surface disappeared before the latency probe")
-        result["interaction_latency"] = measure_interaction_latency(
-            browser,
-            canvas,
-            profile,
-            args.user,
-            args.interface,
-            shaper,
-            args.shaping,
-            args.latency_samples,
-        )
-        if result["interaction_latency"].get("status") != "passed":
-            raise RuntimeError(
-                f"interaction latency check did not pass: {result['interaction_latency']}"
-            )
         if result.get("link_interruption", {}).get("status") == "pending":
             result["link_interruption"]["status"] = (
                 "passed"
@@ -2286,7 +2317,8 @@ def main():
             "interaction_latency": (
                 "trusted browser keydown to the first requestAnimationFrame-observed 10% and 90% "
                 "transitions toward a calibrated remote terminal marker; reported values are the "
-                "conservative upper bounds of the observation intervals"
+                "conservative upper bounds of the observation intervals, measured on the same "
+                "connected session before link interruption and the screen-update workload"
             ),
             "screenshots": "qualitative captures",
         },
