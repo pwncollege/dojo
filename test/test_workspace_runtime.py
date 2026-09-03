@@ -126,7 +126,25 @@ def connect_xpra_browser(browser, iframe_src):
     ), "Expected Xpra HTML5 to disable synchronized key state"
     assert browser.execute_script(
         "return [client.PING_TIMEOUT, client.PING_GRACE, client.PING_FREQUENCY];"
-    ) == [60_000, 30_000, 15_000], "Expected Xpra HTML5 degraded-link timeouts"
+    ) == [60_000, 30_000, 5_000], "Expected Xpra HTML5 degraded-link timeouts"
+    assert browser.execute_script(
+        "const originalSend = client.send;"
+        "const originalSetTimeout = window.setTimeout;"
+        "const originalTimeoutTimer = client.ping_timeout_timer;"
+        "const originalGraceTimer = client.ping_grace_timer;"
+        "const delays = [];"
+        "try {"
+        "client.send = () => {};"
+        "window.setTimeout = (_callback, delay) => { delays.push(delay); return -1; };"
+        "client._send_ping();"
+        "return delays;"
+        "} finally {"
+        "client.send = originalSend;"
+        "window.setTimeout = originalSetTimeout;"
+        "client.ping_timeout_timer = originalTimeoutTimer;"
+        "client.ping_grace_timer = originalGraceTimer;"
+        "}"
+    ) == [60_000, 30_000], "Expected Xpra HTML5 to apply both ping thresholds"
     wait.until(
         lambda driver: driver.execute_script(
             "return !client.info_request_pending;"

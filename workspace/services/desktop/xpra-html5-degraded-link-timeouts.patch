@@ -2,19 +2,16 @@ diff --git a/html5/js/Client.js b/html5/js/Client.js
 index 0d8c35c..9d530ba 100644
 --- a/html5/js/Client.js
 +++ b/html5/js/Client.js
-@@ -136,9 +136,9 @@ class XpraClient {
+@@ -136,7 +136,7 @@ class XpraClient {
      this.swap_keys = Utilities.isMacOS();
      this.HELLO_TIMEOUT = 30_000;
      this.OPEN_TIMEOUT = 10_000;
 -    this.PING_TIMEOUT = 15_000;
 -    this.PING_GRACE = 2000;
--    this.PING_FREQUENCY = 5000;
 +    this.PING_TIMEOUT = 60_000;
 +    this.PING_GRACE = 30_000;
-+    this.PING_FREQUENCY = 15_000;
+     this.PING_FREQUENCY = 5000;
      this.INFO_FREQUENCY = 1000;
-     this.uuid = Utilities.getHexUUID();
-     this.offscreen_api = false;
 @@ -2959,7 +2959,7 @@ class XpraClient {
        this.PING_TIMEOUT
      );
