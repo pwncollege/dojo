@@ -38,6 +38,45 @@ let
   '';
 
   desktopStartScript = pkgs.writeShellScript "dojo-desktop-start" ''
+    desktop_xpra_running() {
+      local xpra_pid=
+
+      [ -r /run/dojo/var/desktop-service/xpra.pid ] || return 1
+      read -r xpra_pid < /run/dojo/var/desktop-service/xpra.pid || return 1
+      case "$xpra_pid" in
+        ""|*[!0-9]*) return 1 ;;
+      esac
+      [ "$xpra_pid" -gt 1 ] && kill -0 -- "$xpra_pid" 2>/dev/null
+    }
+
+    terminate_recorded_xorg() {
+      local xvfb_pid_file=
+      local xvfb_pid=
+      local xvfb_executable=
+      local deadline=
+
+      for xvfb_pid_file in /run/dojo/var/desktop-service/sessions/*/xvfb.pid; do
+        [ -r "$xvfb_pid_file" ] || continue
+        read -r xvfb_pid < "$xvfb_pid_file" || continue
+        case "$xvfb_pid" in
+          ""|*[!0-9]*) continue ;;
+        esac
+        [ "$xvfb_pid" -gt 1 ] || continue
+        kill -0 -- "$xvfb_pid" 2>/dev/null || continue
+        xvfb_executable="$(${pkgs.coreutils}/bin/readlink -f "/proc/$xvfb_pid/exe" 2>/dev/null || true)"
+        [ "$xvfb_executable" = "${pkgs.xorg-server}/bin/Xorg" ] || continue
+
+        kill -TERM -- "$xvfb_pid" 2>/dev/null || true
+        deadline=$((SECONDS + 2))
+        while kill -0 -- "$xvfb_pid" 2>/dev/null && (( SECONDS < deadline )); do
+          sleep 0.1
+        done
+        if kill -0 -- "$xvfb_pid" 2>/dev/null; then
+          kill -KILL -- "$xvfb_pid" 2>/dev/null || true
+        fi
+      done
+    }
+
     until [ -f /run/dojo/var/ready ]; do sleep 0.1; done
 
     export DISPLAY=:0
@@ -58,6 +97,14 @@ let
         /run/dojo/var/desktop-service/Xvnc.passwd \
         /tmp/.X11-unix/X0 \
         /tmp/.X0-lock
+    fi
+
+    if ! desktop_xpra_running; then
+      ${service}/bin/dojo-service kill desktop-service/xfce4-session || true
+      rm -f /run/dojo/var/desktop-service/xpra.pid
+      terminate_recorded_xorg
+      rm -f /tmp/.X11-unix/X0 /tmp/.X0-lock
+      rm -rf /run/dojo/var/desktop-service/sessions/*
     fi
 
     mkdir -p "$XDG_RUNTIME_DIR" /run/dojo/var/desktop-service/sessions

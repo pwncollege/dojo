@@ -668,6 +668,36 @@ def test_desktop_service_contract(runtime_workspace):
     ).returncode == 0, "Expected the Linux desktop to contain no legacy VNC runtime"
 
 
+def test_desktop_service_recovers_from_an_orphaned_xorg(runtime_workspace):
+    name, session = runtime_workspace
+    started = session.get(f"{WORKSPACE_API}?service=desktop", timeout=60)
+    assert started.status_code == 200 and started.json()["success"], started.text
+    desktop_pid = service_pid(name, "desktop-service/xpra")
+    xorg_pid = workspace_output(
+        name, "cat /run/dojo/var/desktop-service/sessions/*/xvfb.pid"
+    )
+
+    assert workspace_exec(name, f"kill -KILL {desktop_pid}").returncode == 0
+    deadline = time.time() + 15
+    while workspace_exec(name, f"kill -0 {desktop_pid}").returncode == 0:
+        assert time.time() < deadline, "Expected the killed Xpra server to exit"
+        time.sleep(0.2)
+    assert workspace_exec(name, f"kill -0 {xorg_pid}").returncode == 0, (
+        "Expected the detached Xorg to survive an abrupt Xpra exit"
+    )
+
+    recovered = session.get(f"{WORKSPACE_API}?service=desktop", timeout=60)
+    assert recovered.status_code == 200 and recovered.json()["success"], recovered.text
+    assert forwarded_port(recovered.json()["iframe_src"]) == 6080
+    assert service_pid(name, "desktop-service/xpra") != desktop_pid
+    assert workspace_exec(name, f"kill -0 {xorg_pid}").returncode != 0, (
+        f"Expected recovery to terminate orphaned Xorg pid {xorg_pid}"
+    )
+    assert workspace_output(
+        name, "cat /run/dojo/var/desktop-service/sessions/*/xvfb.pid"
+    ) != xorg_pid
+
+
 def test_desktop_does_not_expose_a_legacy_vnc_port(runtime_workspace):
     name, session = runtime_workspace
     session.get(f"{WORKSPACE_API}?service=desktop")
@@ -849,7 +879,17 @@ def test_workspace_proxy_signature_covers_the_container_and_port(runtime_workspa
     assert forwarded_port(desktop_iframe_src) == 6080, (
         f"Expected the desktop on port 6080, but got {desktop_iframe_src}"
     )
-    desktop_proxy = requests.get(desktop_iframe_src, timeout=30)
+    desktop_proxy = requests.get(
+        desktop_iframe_src, timeout=30, allow_redirects=False
+    )
+    if MULTINODE:
+        assert desktop_proxy.status_code == 307, (
+            f"Expected the main proxy to redirect to the desktop's workspace node, got "
+            f"{desktop_proxy.status_code}"
+        )
+        desktop_proxy = requests.get(
+            desktop_proxy.headers["Location"], timeout=30, allow_redirects=False
+        )
     assert desktop_proxy.status_code == 200, (
         f"Expected the signed desktop url to work, got {desktop_proxy.status_code}"
     )
