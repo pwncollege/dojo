@@ -663,9 +663,11 @@ def test_desktop_service_contract(runtime_workspace):
     )
     assert workspace_exec(
         name,
-        "! pgrep -x Xvnc && ! pgrep -f '[n]ovnc' && "
-        "! command -v Xvnc && ! command -v novnc",
+        "! pgrep -x Xvnc && ! pgrep -f '[n]ovnc'",
     ).returncode == 0, "Expected the Linux desktop to contain no legacy VNC runtime"
+    assert workspace_exec(
+        name, "! command -v Xvnc && ! command -v novnc"
+    ).returncode == 0, "Expected the Linux desktop profile to contain no legacy VNC commands"
 
 
 def test_desktop_service_recovers_from_an_orphaned_xorg(runtime_workspace):

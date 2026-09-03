@@ -42,7 +42,7 @@ let
       local xpra_pid=
 
       [ -r /run/dojo/var/desktop-service/xpra.pid ] || return 1
-      read -r xpra_pid < /run/dojo/var/desktop-service/xpra.pid || return 1
+      read -r xpra_pid < /run/dojo/var/desktop-service/xpra.pid || true
       case "$xpra_pid" in
         ""|*[!0-9]*) return 1 ;;
       esac
@@ -57,7 +57,7 @@ let
 
       for xvfb_pid_file in /run/dojo/var/desktop-service/sessions/*/xvfb.pid; do
         [ -r "$xvfb_pid_file" ] || continue
-        read -r xvfb_pid < "$xvfb_pid_file" || continue
+        read -r xvfb_pid < "$xvfb_pid_file" || true
         case "$xvfb_pid" in
           ""|*[!0-9]*) continue ;;
         esac
