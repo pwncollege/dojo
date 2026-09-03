@@ -98,6 +98,10 @@ DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
 INTERNET_FOR_ALL = bool(ast.literal_eval(os.getenv("INTERNET_FOR_ALL") or "False"))
 MAC_HOSTNAME = os.getenv("MAC_HOSTNAME")
 MAC_USERNAME = os.getenv("MAC_USERNAME")
+LITELLM_URL = "http://litellm:4000"
+LITELLM_MASTER_KEY = os.getenv("LITELLM_MASTER_KEY")
+LITELLM_USER_KEY_SECRET = os.getenv("LITELLM_USER_KEY_SECRET")
+LITELLM_USER_BUDGET_LIMITS = json.loads(os.getenv("LITELLM_USER_BUDGET_LIMITS") or "[]")
 
 missing_errors = ["DOJO_HOST", "HOST_DATA_PATH"]
 for config_option in missing_errors:

@@ -24,6 +24,37 @@ def whoami():
         sys.exit(data.get("error", "Unknown error"))
     print(f"You are the epic hacker {data['name']} ({data['id']}).")
 
+def llm_usage():
+    response = requests.get(
+        f"{DOJO_API}/llm/usage",
+        headers=HEADERS,
+        timeout=10.0,
+    )
+    data = response.json()
+    if not response.ok:
+        sys.exit(data.get("error", "Unable to get managed LLM usage."))
+
+    print("Managed LLM usage")
+    print(f"Spend:              ${data['spend']:.6f}")
+    print(f"Input tokens:       {data['prompt_tokens']:,}")
+    print(f"  Cache reads:      {data['cache_read_input_tokens']:,}")
+    print(f"  Cache writes:     {data['cache_creation_input_tokens']:,}")
+    print(f"Output tokens:      {data['completion_tokens']:,}")
+    print(f"Total tokens:       {data['total_tokens']:,}")
+    print(f"Requests:           {data['api_requests']:,}")
+    print(f"  Successful:       {data['successful_requests']:,}")
+    print(f"  Failed:           {data['failed_requests']:,}")
+
+    if data["models"]:
+        print("\nBy model")
+        model_width = max(len(model["model"]) for model in data["models"])
+        for model in data["models"]:
+            print(
+                f"{model['model']:<{model_width}}  "
+                f"${model['spend']:>12.6f}  "
+                f"{model['total_tokens']:>14,} tokens"
+            )
+
 def get_current_challenge() -> dict[str, str]:
     response = requests.get(
         f"{DOJO_API}/docker",
@@ -287,6 +318,7 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command", help="Dojo command to execute, not case sensitive.")
     subparsers.add_parser(name="whoami", help="Prints information about the current user (you!).")
+    subparsers.add_parser(name="llm-usage", help="Show your managed LLM spend and token usage.")
     submit_parser = subparsers.add_parser(
         name="submit",
         help="Makes a submission attempt for the current running challenge."
@@ -390,6 +422,8 @@ def main():
         sys.exit("Missing DOJO_AUTH_TOKEN.")
     if args.command.lower() == "whoami":
         return whoami()
+    if args.command.lower() == "llm-usage":
+        return llm_usage()
     if args.command.lower() == "submit":
         return solve(args)
     if args.command.lower() == "restart":

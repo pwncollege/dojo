@@ -60,6 +60,7 @@
             sudo = import ./core/sudo.nix { inherit pkgs; };
             dojo-cli = import ./core/dojo-cli.nix { inherit pkgs; };
             ghostty-terminfo = import ./core/ghostty-terminfo.nix { inherit pkgs; };
+            llm-tools = import ./core/llm-tools.nix { inherit pkgs; };
 
             service = import ./services/service.nix { inherit pkgs; };
             code-service = import ./services/code.nix { inherit pkgs; };
@@ -106,6 +107,7 @@
               desktop-service
               terminal-service
               dojo-cli
+              llm-tools
             ];
 
             fullPackages = corePackages ++ additional.packages;

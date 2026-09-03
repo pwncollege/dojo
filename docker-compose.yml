@@ -147,6 +147,9 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://future.${DOJO_HOST}}
       DOCKER_USERNAME: ${DOCKER_USERNAME}
       DOCKER_TOKEN: ${DOCKER_TOKEN}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
+      LITELLM_USER_KEY_SECRET: ${LITELLM_USER_KEY_SECRET:-}
+      LITELLM_USER_BUDGET_LIMITS: ${LITELLM_USER_BUDGET_LIMITS:-[]}
     volumes:
       - /data/CTFd/logs:/var/log/CTFd
       - /data/CTFd/uploads:/var/uploads
@@ -224,6 +227,37 @@ services:
     image: redis:8
     volumes:
       - /data/redis:/data
+
+  litellm:
+    container_name: litellm
+    hostname: litellm
+    profiles:
+      - llm
+    restart: always
+    image: docker.litellm.ai/berriai/litellm:v1.99.1
+    command:
+      - --config=/app/config.yaml
+    env_file:
+      - /data/litellm/env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@db:5432/litellm
+      REDIS_URL: redis://cache:6379/1
+      SERVER_ROOT_PATH: /llm
+    volumes:
+      - /data/litellm/config.yaml:/app/config.yaml:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 40s
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
 
   stats-worker:
     <<: *ctfd-base
