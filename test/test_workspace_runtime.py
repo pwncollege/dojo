@@ -124,6 +124,9 @@ def connect_xpra_browser(browser, iframe_src):
     assert browser.execute_script(
         "return client._get_keymap_caps().sync === false;"
     ), "Expected Xpra HTML5 to disable synchronized key state"
+    assert browser.execute_script(
+        "return [client.PING_TIMEOUT, client.PING_GRACE, client.PING_FREQUENCY];"
+    ) == [60_000, 30_000, 15_000], "Expected Xpra HTML5 degraded-link timeouts"
     wait.until(
         lambda driver: driver.execute_script(
             "return !client.info_request_pending;"
