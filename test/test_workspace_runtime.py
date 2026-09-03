@@ -671,10 +671,29 @@ def test_desktop_service_contract(runtime_workspace):
             f"Expected the desktop's {service} (pid {pid}) to be running"
         )
 
-    xpra_cmdline = process_cmdline(name, service_pid(name, "desktop-service/xpra"))
-    assert "xpra" in xpra_cmdline and "--bind-ws=0.0.0.0:6080" in xpra_cmdline, (
-        f"Expected the recorded service to be Xpra's HTML5 websocket server, got {xpra_cmdline!r}"
-    )
+    xpra_pid = service_pid(name, "desktop-service/xpra")
+    xpra_cmdline = process_cmdline(name, xpra_pid)
+    for argument in (
+        "--bind=none",
+        "--bind-ws=0.0.0.0:6080,auth=none",
+        "--commands=no",
+        "--shell=no",
+        "--control=no",
+        "--file-transfer=no",
+        "--printing=no",
+        "--open-files=no",
+        "--open-url=no",
+        "--start-new-commands=no",
+    ):
+        assert argument in xpra_cmdline, (
+            f"Expected Xpra to start with {argument}, got {xpra_cmdline!r}"
+        )
+    xpra_environment = workspace_output(
+        name, f"tr '\\0' '\\n' < /proc/{xpra_pid}/environ"
+    ).splitlines()
+    assert not any(
+        variable.startswith("DOJO_AUTH_TOKEN=") for variable in xpra_environment
+    ), "Expected the Xpra server not to inherit the workspace API credential"
 
     listening = workspace_output(name, "ss -ltn", root=True)
     assert ":6080" in listening, f"Expected Xpra to be listening on 6080, but saw {listening!r}"
