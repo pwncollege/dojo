@@ -137,7 +137,6 @@ services:
       <<: *ctfd-env
       UPLOAD_FOLDER: /var/uploads
       WORKERS: 8
-      GUNICORN_CMD_ARGS: "--timeout 300"
       LOG_FOLDER: /var/log/CTFd
       ACCESS_LOG: "-"
       ERROR_LOG: "-"

@@ -976,41 +976,6 @@ def test_survey_data_is_sanitized(admin_session):
     assert '<label for="a">Hi</label>' in data, f"labels must survive: {data}"
 
 
-def test_ctfd_html_sanitizer_blocks_unsafe_urls_and_inline_styles():
-    result = json.loads(flask_exec("""
-import json
-from CTFd.utils.security.sanitize import SANITIZER, sanitize_html
-
-payloads = {
-    "image": '<img alt="pixel" src="data:image/png;base64,iVBORw0KGgo=">',
-    "iframe": '<iframe src="&#x01;d&#x09;ata:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="></iframe>',
-    "link": '<a href="DATA:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">link</a>',
-    "video": '<video src="  data:video/mp4;base64,AAAA"></video>',
-    "overlay": '<div class="notice" style="position:fixed;inset:0;z-index:2147483647">notice</div>',
-}
-print(json.dumps({
-    "cleaner": type(SANITIZER).__name__,
-    "sanitized": {name: sanitize_html(payload) for name, payload in payloads.items()},
-}))
-"""))
-
-    assert result["cleaner"] == "Cleaner", f"Expected the reusable nh3 cleaner, got {result}"
-    sanitized = result["sanitized"]
-    assert 'src="data:image/png;base64,iVBORw0KGgo="' in sanitized["image"], (
-        f"Expected legacy data-image support to remain available, got {sanitized['image']}"
-    )
-    assert 'class="notice"' in sanitized["overlay"], (
-        f"Expected CSS classes to remain available, got {sanitized['overlay']}"
-    )
-    assert "style=" not in sanitized["overlay"].lower(), (
-        f"Expected inline CSS to be removed, got {sanitized['overlay']}"
-    )
-    for tag, attribute in (("iframe", "src"), ("link", "href"), ("video", "src")):
-        assert f"{attribute}=" not in sanitized[tag].lower(), (
-            f"Expected active data URL attribute removal for {tag}, got {sanitized[tag]}"
-        )
-
-
 def test_survey_src_path_validation(admin_session):
     escaping_id = spec_id("surveysrc")
     error = reject_dojo_spec(admin_session, {

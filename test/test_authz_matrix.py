@@ -223,10 +223,7 @@ def test_workspace_token_create_malformed_body(random_user):
 def test_workspace_api_non_numeric_user_param(random_user, admin_session):
     _, session = random_user
 
-    as_user = session.get(
-        f"{DOJO_URL}/pwncollege_api/v1/workspace?user=abc",
-        headers={"X-Workspace-Password": "x"},
-    )
+    as_user = session.get(f"{DOJO_URL}/pwncollege_api/v1/workspace?user=abc&password=x")
     assert 400 <= as_user.status_code < 500, \
         f"A non-numeric user param must be a client error, but got {as_user.status_code}"
     assert "iframe_src" not in as_user.text, "A rejected workspace request must not return an iframe_src"
