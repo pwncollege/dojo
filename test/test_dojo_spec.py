@@ -976,7 +976,7 @@ def test_survey_data_is_sanitized(admin_session):
     assert '<label for="a">Hi</label>' in data, f"labels must survive: {data}"
 
 
-def test_ctfd_html_sanitizer_scopes_data_urls_to_image_sources():
+def test_ctfd_html_sanitizer_blocks_unsafe_urls_and_inline_styles():
     result = json.loads(flask_exec("""
 import json
 from CTFd.utils.security.sanitize import SANITIZER, sanitize_html
@@ -986,6 +986,7 @@ payloads = {
     "iframe": '<iframe src="&#x01;d&#x09;ata:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="></iframe>',
     "link": '<a href="DATA:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">link</a>',
     "video": '<video src="  data:video/mp4;base64,AAAA"></video>',
+    "overlay": '<div class="notice" style="position:fixed;inset:0;z-index:2147483647">notice</div>',
 }
 print(json.dumps({
     "cleaner": type(SANITIZER).__name__,
@@ -997,6 +998,12 @@ print(json.dumps({
     sanitized = result["sanitized"]
     assert 'src="data:image/png;base64,iVBORw0KGgo="' in sanitized["image"], (
         f"Expected legacy data-image support to remain available, got {sanitized['image']}"
+    )
+    assert 'class="notice"' in sanitized["overlay"], (
+        f"Expected CSS classes to remain available, got {sanitized['overlay']}"
+    )
+    assert "style=" not in sanitized["overlay"].lower(), (
+        f"Expected inline CSS to be removed, got {sanitized['overlay']}"
     )
     for tag, attribute in (("iframe", "src"), ("link", "href"), ("video", "src")):
         assert f"{attribute}=" not in sanitized[tag].lower(), (

@@ -20,7 +20,7 @@
 @@ -62,2 +70,0 @@
 -SANITIZER = UGCPolicy()
 -
-@@ -66,31 +73,37 @@
+@@ -66,31 +73,36 @@
 -        SANITIZER.AllowElements(element)
 -        SANITIZER.AllowAttrs(*TAGS[element]).OnElements(element)
 -
@@ -63,7 +63,6 @@
 +    HTML_ALLOWED_ATTRIBUTES["*"].add(attribute)
 +
 +HTML_ALLOWED_ATTRIBUTES["*"].add("class")
-+HTML_ALLOWED_ATTRIBUTES["*"].add("style")
 +
 +
 +URL_ATTRIBUTES = {"action", "background", "cite", "href", "longdesc", "poster", "src", "usemap"}
