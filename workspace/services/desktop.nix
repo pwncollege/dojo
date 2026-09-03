@@ -27,7 +27,7 @@ let
     };
     patches = (oldAttrs.patches or [ ]) ++ [
       ./desktop/xpra-html5-unsynchronized-keyboard.patch
-      ./desktop/xpra-html5-degraded-link-timeouts.patch
+      ./desktop/xpra-html5-degraded-link-liveness.patch
     ];
     postInstall = (oldAttrs.postInstall or "") + ''
       cat ${xpraHtml5Settings} >> $out/share/xpra/www/default-settings.txt
