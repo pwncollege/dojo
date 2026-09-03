@@ -25,6 +25,9 @@ let
       tag = "v${version}";
       hash = "sha256-sOHUqphOZ15FezQKe1r7DC3vYiwsI0I7IC8YiIv6m8E=";
     };
+    patches = (oldAttrs.patches or [ ]) ++ [
+      ./desktop/xpra-html5-unsynchronized-keyboard.patch
+    ];
     postInstall = (oldAttrs.postInstall or "") + ''
       cat ${xpraHtml5Settings} >> $out/share/xpra/www/default-settings.txt
     '';

@@ -121,6 +121,9 @@ def connect_xpra_browser(browser, iframe_src):
         "return Object.values(client.id_to_window).length > 0 && "
         "Object.values(client.id_to_window).every(window => !window.decorated);"
     ), "Expected the Xpra desktop to fill the workspace without client-side window frames"
+    assert browser.execute_script(
+        "return client._get_keymap_caps().sync === false;"
+    ), "Expected Xpra HTML5 to disable synchronized key state"
     return canvas
 
 
