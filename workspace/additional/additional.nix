@@ -5,6 +5,7 @@ let
   burpsuite = import ./burpsuite.nix { inherit pkgs; };
   ghidra = import ./ghidra.nix { inherit pkgs; };
   ida-free = import ./ida-free.nix { inherit pkgs; };
+  llm-tools = import ./llm-tools.nix { inherit pkgs; };
   wireshark = import ./wireshark.nix { inherit pkgs; };
 
   pythonPackages =
@@ -163,7 +164,10 @@ in
 {
   packages =
     with pkgs;
-    [ (lib.hiPrio pythonEnv) ]
+    [
+      (lib.hiPrio pythonEnv)
+      llm-tools
+    ]
     ++ tools.build
     ++ tools.cli-tools
     ++ tools.compress
