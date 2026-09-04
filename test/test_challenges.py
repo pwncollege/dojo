@@ -122,11 +122,18 @@ def test_workspace_auto_start_without_home_mount(
         "module": "hello",
         "challenge": "apple",
         "home": "false",
+        "fullscreen": "true",
     })
     random_user_browser.get(f"{DOJO_URL}/workspace/terminal?{query}")
 
     WebDriverWait(random_user_browser, 60).until(
-        lambda browser: browser.current_url.rstrip("/").endswith("/workspace/terminal")
+        lambda browser: browser.current_url.endswith("/workspace/terminal?fullscreen=true")
+    )
+    navbar = random_user_browser.find_element(By.CLASS_NAME, "navbar")
+    fullscreen_icon = random_user_browser.find_element(By.CSS_SELECTOR, "#fullscreen i")
+    WebDriverWait(random_user_browser, 30).until(
+        lambda _: "navbar-hidden" in navbar.get_attribute("class")
+        and "fa-compress" in fullscreen_icon.get_attribute("class")
     )
     workspace_iframe = random_user_browser.find_element(By.ID, "workspace-iframe")
     terminal_button = random_user_browser.find_element(
