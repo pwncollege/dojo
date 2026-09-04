@@ -705,6 +705,7 @@ def sample_browser_delivery_until(browser, samples, started_at, phase, deadline)
 
 def summarize_browser_delivery(samples):
     valid_samples = [sample for sample in samples if sample.get("digest")]
+    error_samples = [sample for sample in samples if sample.get("error")]
     baseline = next(
         (sample for sample in valid_samples if sample["phase"] == "baseline"),
         None,
@@ -742,12 +743,14 @@ def summarize_browser_delivery(samples):
             if baseline
             and changed_samples
             and len(post_input_digests) >= minimum_post_input_frames
+            and not error_samples
             else "failed"
         ),
         "sample_method": baseline.get("method") if baseline else None,
         "samples": samples,
         "sample_count": len(samples),
         "valid_sample_count": len(valid_samples),
+        "error_count": len(error_samples),
         "unique_digest_count": len(
             {sample["digest"] for sample in valid_samples}
         ),
@@ -2066,12 +2069,17 @@ def status_pass_count(results, key):
 
 
 def latency_sample_summary(results, endpoint):
-    values = [
-        sample[endpoint]["upper_ms"]
-        for result in results
-        for sample in result.get("interaction_latency", {}).get("samples", [])
-        if isinstance(sample.get(endpoint, {}).get("upper_ms"), (int, float))
-    ]
+    values = []
+    for result in results:
+        interaction_latency = result.get("interaction_latency", {})
+        if interaction_latency.get("status") != "passed":
+            continue
+        for sample in interaction_latency.get("samples", []):
+            endpoint_value = sample.get(endpoint)
+            if isinstance(endpoint_value, dict) and isinstance(
+                endpoint_value.get("upper_ms"), (int, float)
+            ):
+                values.append(endpoint_value["upper_ms"])
     return numeric_summary(values)
 
 
@@ -2254,6 +2262,12 @@ def parse_args():
     return args
 
 
+def write_json(path, value):
+    temporary_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary_path.write_text(json.dumps(value, indent=2) + "\n")
+    temporary_path.replace(path)
+
+
 def main():
     args = parse_args()
     if args.output.exists() and any(args.output.iterdir()):
@@ -2263,6 +2277,7 @@ def main():
     provenance = benchmark_provenance(args)
     shaper = LocalLinkShaper(args.interface)
     results = []
+    trials_path = args.output / f"{args.label}-trials.json"
     shaping_unavailable = False
     trial_index = 0
     try:
@@ -2280,6 +2295,7 @@ def main():
                     shaper,
                 )
                 results.append(result)
+                write_json(trials_path, results)
                 print(json.dumps(result, indent=2), flush=True)
                 if isinstance(result.get("error"), str) and result["error"].startswith(
                     "ShapingUnavailable:"
@@ -2327,12 +2343,12 @@ def main():
         "summary": summarize_results(results, args.profile_names),
     }
     report_path = args.output / f"{args.label}-results.json"
-    report_path.write_text(json.dumps(report, indent=2) + "\n")
+    write_json(report_path, report)
     summary_path = args.output / f"{args.label}-summary.json"
     summary_report = {
         key: value for key, value in report.items() if key != "results"
     }
-    summary_path.write_text(json.dumps(summary_report, indent=2) + "\n")
+    write_json(summary_path, summary_report)
     print(f"wrote {report_path}")
     print(f"wrote {summary_path}")
     return 0 if results and all(
