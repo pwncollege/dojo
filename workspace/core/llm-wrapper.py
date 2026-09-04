@@ -6,6 +6,7 @@ import pathlib
 import subprocess
 import sys
 from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 
@@ -50,6 +51,32 @@ def is_authenticated(client, executable):
     ).returncode == 0
 
 
+def fetch_managed_credentials(url, headers):
+    request = Request(url, data=b"", method="POST", headers=headers)
+    try:
+        response = urlopen(request, timeout=15)
+    except HTTPError as error:
+        if error.code not in (307, 308):
+            raise
+
+        redirected_url = urljoin(url, error.headers.get("Location", ""))
+        redirected = urlsplit(redirected_url)
+        dojo_host = urlsplit(f"//{os.environ.get('DOJO_HOST', 'pwn.college')}").hostname
+        if (
+            redirected.scheme != "https"
+            or redirected.hostname != dojo_host
+            or redirected.port not in (None, 443)
+        ):
+            raise URLError("Refusing untrusted managed LLM redirect")
+
+        error.close()
+        request = Request(redirected_url, data=b"", method="POST", headers=headers)
+        response = urlopen(request, timeout=15)
+
+    with response:
+        return json.load(response)
+
+
 def managed_credentials():
     token = os.environ.get("DOJO_AUTH_TOKEN")
     if not token:
@@ -58,15 +85,11 @@ def managed_credentials():
     headers = {"Authorization": f"Bearer {token}"}
     if dojo_host := os.environ.get("DOJO_HOST"):
         headers["Host"] = dojo_host
-    request = Request(
-        "http://pwn.college:80/pwncollege_api/v1/llm/credentials",
-        data=b"",
-        method="POST",
-        headers=headers,
-    )
     try:
-        with urlopen(request, timeout=15) as response:
-            result = json.load(response)
+        result = fetch_managed_credentials(
+            "http://pwn.college:80/pwncollege_api/v1/llm/credentials",
+            headers,
+        )
     except HTTPError as error:
         if error.code not in (401, 403):
             print("Managed dojo LLM access is unavailable; using the client's normal login.", file=sys.stderr)

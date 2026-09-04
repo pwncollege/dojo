@@ -1,7 +1,7 @@
 import logging
 
 import redis
-from flask import current_app
+from flask import current_app, request
 from flask_restx import Namespace, Resource
 from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user
@@ -20,7 +20,6 @@ from ...utils.llm import LiteLLMKeyManager
 
 logger = logging.getLogger(__name__)
 llm_namespace = Namespace("llm", description="Managed LLM credentials")
-LLM_BASE_URL = f"http://{DOJO_HOST}/llm"
 
 
 def key_manager():
@@ -62,7 +61,7 @@ class LLMCredentials(Resource):
 
         return {
             "success": True,
-            "base_url": LLM_BASE_URL,
+            "base_url": f"{request.scheme}://{DOJO_HOST}/llm",
             **credentials,
         }
 
