@@ -57,7 +57,7 @@ def render_workspace(*, service=None, port=None):
             ), 400
 
         launch_options = {}
-        for key, default in (("practice", False), ("home", True)):
+        for key, default in (("practice", False), ("home", True), ("fullscreen", False)):
             value = request.args.get(key)
             if value is None:
                 launch_options[key] = default
@@ -71,10 +71,11 @@ def render_workspace(*, service=None, port=None):
                     error=f"{key} must be true or false",
                 ), 400
 
+        fullscreen = launch_options.pop("fullscreen")
         return render_template(
             "workspace_launch.html",
             launch={**launch_ids, **launch_options},
-            workspace_url=request.path,
+            workspace_url=f"{request.path}?fullscreen=true" if fullscreen else request.path,
         )
 
     current_challenge = get_current_dojo_challenge()

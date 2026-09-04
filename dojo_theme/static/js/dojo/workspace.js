@@ -18,8 +18,10 @@ function doFullscreen() {
 }
 
 $(() => {
-    if (new URLSearchParams(window.location.search).has("hide-navbar")) {
+    const query = new URLSearchParams(window.location.search);
+    if (query.has("hide-navbar") || query.get("fullscreen") === "true") {
         hideNavbar();
+        $("#fullscreen i").removeClass("fa-expand").addClass("fa-compress");
     }
     $(".close-link").hide();
     $("footer").hide();
