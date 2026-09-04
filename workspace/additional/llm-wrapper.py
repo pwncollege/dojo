@@ -98,18 +98,32 @@ def managed_credentials():
         print("Managed dojo LLM access is unavailable; using the client's normal login.", file=sys.stderr)
         return None
 
-    required = ("base_url", "key", "default_model", "models")
-    if not result.get("success") or not all(result.get(name) for name in required[:3]):
+    if not result.get("success") or not all(
+        result.get(name) for name in ("base_url", "key")
+    ):
         return None
-    if not isinstance(result.get("models"), list):
+    models = result.get("models")
+    if (
+        not isinstance(models, list)
+        or not models
+        or not all(isinstance(model, str) and model for model in models)
+    ):
         return None
     return result
+
+
+def select_model(models, provider=None):
+    if provider:
+        prefix = f"{provider}/"
+        if model := next((model for model in models if model.startswith(prefix)), None):
+            return model
+    return models[0]
 
 
 def codex_args(credentials, args):
     base_url = f"{credentials['base_url'].rstrip('/')}/v1"
     settings = {
-        "model": credentials["default_model"],
+        "model": select_model(credentials["models"], "openai"),
         "model_provider": "dojo",
         "model_providers.dojo.name": "Dojo",
         "model_providers.dojo.base_url": base_url,
@@ -124,13 +138,10 @@ def codex_args(credentials, args):
     return [*overrides, *args]
 
 
-def configure_opencode(credentials):
-    config_dir = pathlib.Path.home() / ".config/dojo"
-    config_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    config_path = config_dir / "opencode.json"
+def opencode_config_content(credentials):
     config = {
         "$schema": "https://opencode.ai/config.json",
-        "model": f"dojo/{credentials['default_model']}",
+        "model": f"dojo/{select_model(credentials['models'])}",
         "provider": {
             "dojo": {
                 "npm": "@ai-sdk/openai-compatible",
@@ -147,11 +158,7 @@ def configure_opencode(credentials):
             }
         },
     }
-    temporary_path = config_path.with_suffix(".tmp")
-    temporary_path.write_text(json.dumps(config, indent=2) + "\n")
-    temporary_path.chmod(0o600)
-    temporary_path.replace(config_path)
-    return str(config_path)
+    return json.dumps(config)
 
 
 def main():
@@ -168,7 +175,7 @@ def main():
             if client == "codex":
                 args = codex_args(credentials, args)
             elif client == "claude":
-                model = credentials["default_model"]
+                model = select_model(credentials["models"], "anthropic")
                 env.update({
                     "ANTHROPIC_AUTH_TOKEN": credentials["key"],
                     "ANTHROPIC_BASE_URL": credentials["base_url"],
@@ -180,7 +187,7 @@ def main():
                     "CLAUDE_CODE_SUBAGENT_MODEL": model,
                 })
             else:
-                env["OPENCODE_CONFIG"] = configure_opencode(credentials)
+                env["OPENCODE_CONFIG_CONTENT"] = opencode_config_content(credentials)
 
     os.execve(executable, [executable, *args], env)
 

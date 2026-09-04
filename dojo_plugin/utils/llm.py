@@ -126,8 +126,7 @@ class LiteLLMKeyManager:
             for model in models_response.get("data", [])
             if isinstance(model, dict) and isinstance(model.get("id"), str)
         ]
-        default_model = models[0] if models else None
-        return {"key": key, "default_model": default_model, "models": models}
+        return {"key": key, "models": models}
 
     def usage(self, user_id):
         user_name = f"user_{user_id}"
