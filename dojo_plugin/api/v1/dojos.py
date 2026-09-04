@@ -301,6 +301,10 @@ class DojoCourseSolveList(Resource):
                 return {"success": False, "error": "Invalid after date format"}, 400
             solves_query = solves_query.filter(Solves.date > after_date)
 
+        student_token = request.args.get("student_token")
+        if student_token is not None:
+            solves_query = solves_query.filter(DojoStudents.token == student_token)
+
         if students:
             solves_query = solves_query.filter(DojoStudents.token.in_(students))
 

@@ -771,6 +771,32 @@ def test_course_solves_api_roster_filtering(course, solving_student, admin_sessi
     assert by_user[ghost_id]["student_token"] == course.ghost, by_user[ghost_id]
 
 
+def test_course_solves_api_student_token_filter(course, solving_student, admin_session, identity_budget):
+    _, _, linked_id = solving_student
+
+    other_name, other_session = new_user()
+    other_id = get_user_id(other_name)
+    assert patch_identity(other_session, course.dojo, course.b).json()["success"] is True
+    solve_challenge_offline(course.dojo, "hello", "apple", session=other_session, user=other_name)
+
+    url = f"{API}/dojos/{course.dojo}/course/solves"
+    token_response = admin_session.get(url, params={"student_token": course.a})
+    assert token_response.status_code == 200, token_response.status_code
+    token_solves = token_response.json()["solves"]
+    assert len(token_solves) == 2 and all(solve["user_id"] == linked_id for solve in token_solves), token_solves
+
+    later_response = admin_session.get(url, params={
+        "student_token": course.a,
+        "after": token_solves[0]["timestamp"],
+    })
+    assert later_response.status_code == 200, later_response.status_code
+    later_solves = later_response.json()["solves"]
+    assert len(later_solves) == 1 and later_solves[0]["user_id"] == linked_id, later_solves
+
+    unknown = admin_session.get(url, params={"student_token": f"unknown-{other_id}"})
+    assert unknown.status_code == 200 and unknown.json()["solves"] == [], unknown.text[:200]
+
+
 def test_course_solves_api_without_a_roster_includes_everyone(course, admin_session):
     plain_name, plain_session = new_user()
     plain_id = get_user_id(plain_name)
