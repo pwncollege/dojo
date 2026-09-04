@@ -26,7 +26,7 @@ in
 
     buildPhase = builtins.replaceStrings
       [ "bun --bun ./script/build.ts --single --skip-install" ]
-      [ "bun --bun ./script/build.ts --single --baseline --skip-install" ]
+      [ "bun --bun ./script/build.ts --single --baseline --skip-embed-web-ui --skip-install" ]
       oldAttrs.buildPhase;
   });
 }
