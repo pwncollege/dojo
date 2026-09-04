@@ -138,10 +138,7 @@ def codex_args(credentials, args):
     return [*overrides, *args]
 
 
-def configure_opencode(credentials):
-    config_dir = pathlib.Path.home() / ".config/dojo"
-    config_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    config_path = config_dir / "opencode.json"
+def opencode_config_content(credentials):
     config = {
         "$schema": "https://opencode.ai/config.json",
         "model": f"dojo/{select_model(credentials['models'])}",
@@ -161,11 +158,7 @@ def configure_opencode(credentials):
             }
         },
     }
-    temporary_path = config_path.with_suffix(".tmp")
-    temporary_path.write_text(json.dumps(config, indent=2) + "\n")
-    temporary_path.chmod(0o600)
-    temporary_path.replace(config_path)
-    return str(config_path)
+    return json.dumps(config)
 
 
 def main():
@@ -194,7 +187,7 @@ def main():
                     "CLAUDE_CODE_SUBAGENT_MODEL": model,
                 })
             else:
-                env["OPENCODE_CONFIG"] = configure_opencode(credentials)
+                env["OPENCODE_CONFIG_CONTENT"] = opencode_config_content(credentials)
 
     os.execve(executable, [executable, *args], env)
 
