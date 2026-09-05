@@ -1,0 +1,12 @@
+diff --git a/html5/js/Client.js b/html5/js/Client.js
+index 0d8c35c..d643f8b 100644
+--- a/html5/js/Client.js
++++ b/html5/js/Client.js
+@@ -1552,6 +1552,7 @@ class XpraClient {
+   _get_keymap_caps() {
+     return {
++      "sync": false,
+       "layout": this.key_layout,
+       "keycodes": this._get_keycodes(),
+     }
+   }
