@@ -4,6 +4,7 @@ from urllib.parse import quote, urlencode
 import pytest
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 from utils import (
     DOJO_URL,
@@ -153,3 +154,41 @@ def test_workspace_auto_start_without_home_mount(
     workspace_run("touch /home/hacker/ephemeral", user=random_user_name)
     start_challenge(example_dojo, "hello", "apple", session=random_user_session, home=False)
     workspace_run("test ! -e /home/hacker/ephemeral", user=random_user_name)
+
+
+@pytest.mark.parametrize("home", [False, True])
+def test_workspace_restart_preserves_home_mount(
+    random_user_name, random_user_session, random_user_browser, example_dojo, home
+):
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session, home=home)
+    workspace_run("touch /tmp/restart-marker /home/hacker/restart-marker", user=random_user_name)
+    random_user_browser.get(f"{DOJO_URL}/workspace/terminal")
+    wait = WebDriverWait(random_user_browser, 60)
+    restart = wait.until(EC.element_to_be_clickable((By.ID, "challenge-restart")))
+    restart.click()
+    wait.until(lambda _: restart.is_enabled())
+
+    def check_home(practice):
+        state = random_user_session.get(f"{DOJO_URL}/pwncollege_api/v1/docker").json()
+        assert state["success"]
+        assert state["home"] is home
+        assert state["practice"] is practice
+        if home:
+            workspace_run("findmnt --mountpoint /home/hacker", user=random_user_name)
+        else:
+            with pytest.raises(subprocess.CalledProcessError):
+                workspace_run("findmnt --mountpoint /home/hacker", user=random_user_name)
+
+    check_home(practice=False)
+    workspace_run("test ! -e /tmp/restart-marker", user=random_user_name)
+    workspace_run(
+        "test -e /home/hacker/restart-marker" if home else "test ! -e /home/hacker/restart-marker",
+        user=random_user_name,
+    )
+
+    checkbox = random_user_browser.find_element(By.CSS_SELECTOR, "#workspace-change-privilege input")
+    checkbox.click()
+    wait.until(EC.alert_is_present())
+    random_user_browser.switch_to.alert.accept()
+    wait.until(lambda _: checkbox.is_enabled())
+    check_home(practice=True)

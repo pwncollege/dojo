@@ -519,7 +519,7 @@ def test_started_container_is_labeled_with_the_running_challenge(standard_worksp
 
     current = session.get(DOCKER_API)
     assert current.json() == {
-        "success": True, "dojo": example_dojo, "module": "hello", "challenge": "apple", "practice": False
+        "success": True, "dojo": example_dojo, "module": "hello", "challenge": "apple", "practice": False, "home": True
     }, f"Unexpected active challenge: {current.json()}"
 
     workspace = session.get(WORKSPACE_API).json()
@@ -686,7 +686,7 @@ def test_practice_mode_workspace_is_privileged_and_carries_the_practice_flag(pra
 
     current = session.get(DOCKER_API)
     assert current.json() == {
-        "success": True, "dojo": example_dojo, "module": "hello", "challenge": "apple", "practice": True
+        "success": True, "dojo": example_dojo, "module": "hello", "challenge": "apple", "practice": True, "home": True
     }, f"Expected the active challenge to be reported as practice, but got {current.json()}"
 
 

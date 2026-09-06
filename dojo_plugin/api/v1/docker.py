@@ -607,6 +607,7 @@ class RunDocker(Resource):
             "module": dojo_challenge.module.id,
             "challenge": dojo_challenge.id,
             "practice" : practice,
+            "home": any(mount["Destination"] == "/home/hacker" for mount in container.attrs.get("Mounts", [])),
         }
 
     @authed_only
