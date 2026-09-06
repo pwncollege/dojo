@@ -56,6 +56,7 @@ TEST_TIER_OVERRIDES = {
 MULTINODE_TESTS = {
     "test_challenges.py::test_workspace_auto_start_without_home_mount",
     "test_challenges.py::test_workspace_restart_preserves_home_mount",
+    "test_challenges.py::test_workspace_home_option_ignores_image_volume",
     "test_dojo_cli.py::test_enter_finds_container_on_worker_node",
     "test_dojo_cli.py::test_compose_selects_profiles_by_node_role",
     "test_dojo_cli.py::test_startup_gates_are_satisfied",

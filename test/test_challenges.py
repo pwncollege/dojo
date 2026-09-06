@@ -1,4 +1,5 @@
 import subprocess
+import json
 from urllib.parse import quote, urlencode
 
 import pytest
@@ -9,6 +10,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from utils import (
     DOJO_URL,
     create_dojo_yml,
+    dojo_run,
+    get_outer_container_for,
     get_user_id,
     start_challenge,
     suppress_award_popup,
@@ -192,3 +195,34 @@ def test_workspace_restart_preserves_home_mount(
     random_user_browser.switch_to.alert.accept()
     wait.until(lambda _: checkbox.is_enabled())
     check_home(practice=True)
+
+
+def test_workspace_home_option_ignores_image_volume(
+    random_user_name, random_user_session, example_dojo
+):
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session, home=False)
+    container = f"user_{get_user_id(random_user_name)}"
+    outer = get_outer_container_for(container)
+    image = "pwncollege/test-home-volume"
+    dojo_run(
+        "docker", "build", "-t", image, "-", container=outer,
+        input="FROM pwncollege/challenge-simple\nVOLUME /home/hacker\n",
+    )
+    dojo_run("docker", "rm", "-f", container, container=outer)
+    try:
+        dojo_run(
+            "docker", "create", "--name", container,
+            "--label", f"dojo.dojo_id={example_dojo}",
+            "--label", "dojo.module_id=hello",
+            "--label", "dojo.challenge_id=apple",
+            "--label", "dojo.mode=standard",
+            image, container=outer,
+        )
+        mounts = json.loads(dojo_run("docker", "inspect", container, container=outer).stdout)[0]["Mounts"]
+        assert any(mount["Destination"] == "/home/hacker" and mount["Driver"] == "local" for mount in mounts)
+        response = random_user_session.get(f"{DOJO_URL}/pwncollege_api/v1/docker")
+        assert response.status_code == 200
+        assert response.json()["success"]
+        assert response.json()["home"] is False
+    finally:
+        dojo_run("docker", "rm", "-fv", container, container=outer)
