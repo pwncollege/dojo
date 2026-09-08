@@ -59,12 +59,32 @@ let
     )}
     </ul><p>Read with w3m or the workspace browser. Some links and interactive examples require network access.</p>
     <p>In w3m: Tab selects the next link, Enter follows it, B goes back, / searches this page, q quits.</p>
+    <h2>Terminal text copies</h2>
+    <p>Searchable plain-text companions are under <code>/run/dojo/share/doc/text/</code>, with the same
+    directory layout and <code>.txt</code> instead of <code>.html</code>. For example:</p>
+    <pre>less /run/dojo/share/doc/text/python/library/base64.txt
+    grep -R -n -F 'b64decode' /run/dojo/share/doc/text/python/</pre>
+    <p>Paragraphs are unwrapped for searching; less wraps them to the terminal width.
+    Links and visual layout are omitted. Tables retain their cell text and code in source order;
+    use the original HTML for column alignment, merged cells, and full context.
+    Images and interactive examples require the original HTML; use a graphical browser for diagrams.</p>
     </body></html>
+  '';
+  textPage = pkgs.writeShellScript "documentation-text" ''
+    set -euo pipefail
+    export DOC_HTML_RELATIVE="''${1#"$out/share/doc/"}"
+    destination="$out/share/doc/text/''${DOC_HTML_RELATIVE%.html}.txt"
+    mkdir -p "$(dirname "$destination")"
+    pandoc --sandbox --quiet --from=html --to=plain --wrap=none \
+      --lua-filter=${./text.lua} "$1" --output="$destination"
   '';
 in
 pkgs.runCommand "dojo-offline-documentation"
   {
-    nativeBuildInputs = [ pkgs.rsync ];
+    nativeBuildInputs = [
+      pkgs.rsync
+      pkgs.pandoc
+    ];
     passthru = {
       inherit
         mdn
@@ -87,4 +107,6 @@ pkgs.runCommand "dojo-offline-documentation"
     )}
     cp ${index} "$out/share/doc/index.html"
     cp ${metadata} "$out/share/doc/sources.json"
+    find "$out/share/doc" -type f -name '*.html' -print0 \
+      | xargs -0 -r -n 1 -P "$NIX_BUILD_CORES" ${textPage}
   ''
