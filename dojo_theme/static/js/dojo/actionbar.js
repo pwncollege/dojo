@@ -367,6 +367,7 @@ function actionStartChallenge(event, privileged) {
             "module": result.module,
             "challenge": result.challenge,
             "practice": privileged,
+            "home": result.home,
         };
 
         return CTFd.fetch('/pwncollege_api/v1/docker', {

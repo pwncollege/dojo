@@ -607,6 +607,10 @@ class RunDocker(Resource):
             "module": dojo_challenge.module.id,
             "challenge": dojo_challenge.id,
             "practice" : practice,
+            "home": any(
+                mount["Destination"] == "/home/hacker" and mount.get("Driver") == "homefs"
+                for mount in container.attrs.get("Mounts", [])
+            ),
         }
 
     @authed_only

@@ -1,13 +1,17 @@
 import subprocess
+import json
 from urllib.parse import quote, urlencode
 
 import pytest
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 from utils import (
     DOJO_URL,
     create_dojo_yml,
+    dojo_run,
+    get_outer_container_for,
     get_user_id,
     start_challenge,
     suppress_award_popup,
@@ -153,3 +157,72 @@ def test_workspace_auto_start_without_home_mount(
     workspace_run("touch /home/hacker/ephemeral", user=random_user_name)
     start_challenge(example_dojo, "hello", "apple", session=random_user_session, home=False)
     workspace_run("test ! -e /home/hacker/ephemeral", user=random_user_name)
+
+
+@pytest.mark.parametrize("home", [False, True])
+def test_workspace_restart_preserves_home_mount(
+    random_user_name, random_user_session, random_user_browser, example_dojo, home
+):
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session, home=home)
+    workspace_run("touch /tmp/restart-marker /home/hacker/restart-marker", user=random_user_name)
+    random_user_browser.get(f"{DOJO_URL}/workspace/terminal")
+    wait = WebDriverWait(random_user_browser, 60)
+    restart = wait.until(EC.element_to_be_clickable((By.ID, "challenge-restart")))
+    restart.click()
+    wait.until(lambda _: restart.is_enabled())
+
+    def check_home(practice):
+        state = random_user_session.get(f"{DOJO_URL}/pwncollege_api/v1/docker").json()
+        assert state["success"]
+        assert state["home"] is home
+        assert state["practice"] is practice
+        if home:
+            workspace_run("findmnt --mountpoint /home/hacker", user=random_user_name)
+        else:
+            with pytest.raises(subprocess.CalledProcessError):
+                workspace_run("findmnt --mountpoint /home/hacker", user=random_user_name)
+
+    check_home(practice=False)
+    workspace_run("test ! -e /tmp/restart-marker", user=random_user_name)
+    workspace_run(
+        "test -e /home/hacker/restart-marker" if home else "test ! -e /home/hacker/restart-marker",
+        user=random_user_name,
+    )
+
+    checkbox = random_user_browser.find_element(By.CSS_SELECTOR, "#workspace-change-privilege input")
+    checkbox.click()
+    wait.until(EC.alert_is_present())
+    random_user_browser.switch_to.alert.accept()
+    wait.until(lambda _: checkbox.is_enabled())
+    check_home(practice=True)
+
+
+def test_workspace_home_option_ignores_image_volume(
+    random_user_name, random_user_session, example_dojo
+):
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session, home=False)
+    container = f"user_{get_user_id(random_user_name)}"
+    outer = get_outer_container_for(container)
+    image = "pwncollege/test-home-volume"
+    dojo_run(
+        "docker", "build", "-t", image, "-", container=outer,
+        input="FROM pwncollege/challenge-simple\nVOLUME /home/hacker\n",
+    )
+    dojo_run("docker", "rm", "-f", container, container=outer)
+    try:
+        dojo_run(
+            "docker", "create", "--name", container,
+            "--label", f"dojo.dojo_id={example_dojo}",
+            "--label", "dojo.module_id=hello",
+            "--label", "dojo.challenge_id=apple",
+            "--label", "dojo.mode=standard",
+            image, container=outer,
+        )
+        mounts = json.loads(dojo_run("docker", "inspect", container, container=outer).stdout)[0]["Mounts"]
+        assert any(mount["Destination"] == "/home/hacker" and mount["Driver"] == "local" for mount in mounts)
+        response = random_user_session.get(f"{DOJO_URL}/pwncollege_api/v1/docker")
+        assert response.status_code == 200
+        assert response.json()["success"]
+        assert response.json()["home"] is False
+    finally:
+        dojo_run("docker", "rm", "-fv", container, container=outer)
