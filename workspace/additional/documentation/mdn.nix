@@ -18,7 +18,7 @@ let
     '') (builtins.attrNames archives)}
     <li><a href="developer.mozilla.org/en-US/docs/Web/API.html">Web APIs / DOM</a></li>
     </ul><p>MDN reference collections packaged by <a href="https://kapeli.com/mdn_offline">Kapeli</a>, not a complete MDN mirror.
-    Original attribution and contributor files are retained. Local links and offline presentation have been adapted.</p>
+    Original attribution and contributor files are retained.</p>
     </body></html>
   '';
 in
