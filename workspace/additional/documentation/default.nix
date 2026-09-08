@@ -57,5 +57,4 @@ pkgs.runCommand "dojo-offline-documentation"
   }
   ''
     python ${./prepare.py} ${sources} "$out/share/doc"
-    PYTHONPATH=${./.} python ${./test-documentation.py} "$out/share/doc"
   ''

@@ -165,7 +165,6 @@ let
 
 in
 {
-  documentation = offline-docs;
   packages =
     with pkgs;
     [
