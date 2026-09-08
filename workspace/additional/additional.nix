@@ -3,6 +3,7 @@
 let
   bata24-gef = import ./bata24-gef.nix { inherit pkgs; };
   burpsuite = import ./burpsuite.nix { inherit pkgs; };
+  offline-docs = import ./documentation { inherit pkgs; };
   ghidra = import ./ghidra.nix { inherit pkgs; };
   ida-free = import ./ida-free.nix { inherit pkgs; };
   llm-tools = import ./llm-tools.nix { inherit pkgs; };
@@ -74,6 +75,8 @@ let
     documentation = [
       man-pages
       man-pages-posix
+      offline-docs
+      w3m
     ];
 
     editor = [
