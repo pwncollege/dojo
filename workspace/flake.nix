@@ -136,6 +136,7 @@
             default = buildDojoEnv "core" corePackages;
             core = buildDojoEnv "core" corePackages;
             cli = buildDojoEnv "cli" [ dojo-cli ];
+            documentation = additional.documentation;
             full = buildDojoEnv "full" fullPackages;
           };
       };

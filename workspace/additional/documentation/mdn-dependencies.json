@@ -1,0 +1,38 @@
+[
+  {
+    "name": "browser-specs",
+    "version": "5.3.0",
+    "url": "https://registry.npmjs.org/browser-specs/-/browser-specs-5.3.0.tgz",
+    "hash": "sha512-PGeKThuNS1U3U4S6pkRolfMBlCrJqzobWK7QUPVXbZAAf5WuD1r9Kp6n7FblGQbE7xU5mREuvDbN2IvukDjNVA=="
+  },
+  {
+    "name": "mdn-data",
+    "version": "2.35.0",
+    "url": "https://registry.npmjs.org/mdn-data/-/mdn-data-2.35.0.tgz",
+    "hash": "sha512-k+1+dEIm2z/BEfdvYzT/fIyAGeDBo/1AJNJI4ilFXJRYoxP/3Ds+GP8shAOIq8jYXY9N5nGB3Ag104NsagmLAA=="
+  },
+  {
+    "name": "web-features",
+    "version": "3.37.0",
+    "url": "https://registry.npmjs.org/web-features/-/web-features-3.37.0.tgz",
+    "hash": "sha512-47x5zchtpsvvH/EEQ0h3d3E9kZyFxFyk6LkmYHXDZjLF0RAa3OV2s8dMRqphp/PTxxrd/iZwz37dte6xWgV7mQ=="
+  },
+  {
+    "name": "web-specs",
+    "version": "4.12.0",
+    "url": "https://registry.npmjs.org/web-specs/-/web-specs-4.12.0.tgz",
+    "hash": "sha512-daTuJnj0TgP4OWt4Tull0lHqIoyO+OT8EVZokLdGDdj6yIQwOy6OfIIlvAKiN1UF+iO6hmvImUrZcwpyHIfNIQ=="
+  },
+  {
+    "name": "@webref/css",
+    "version": "8.7.4",
+    "url": "https://registry.npmjs.org/@webref/css/-/css-8.7.4.tgz",
+    "hash": "sha512-Wo1iEFRPnMehms5A9xUpZxUkUMkNEGXEVX97yB3up2CsqyK/UtKgVcxUOplMVeL1SLVry0c1JPepMIXNAOWXPA=="
+  },
+  {
+    "name": "@mdn/browser-compat-data",
+    "version": "8.1.0",
+    "url": "https://registry.npmjs.org/@mdn/browser-compat-data/-/browser-compat-data-8.1.0.tgz",
+    "hash": "sha512-BNlUjp+9O6gtIHPVZEGFb5rgtuWW8weR+mSKfLOevxbfoZv5DRe3N4ZTEpXiIm5wfR7+kqHu8malCCgP6USrlg=="
+  }
+]
