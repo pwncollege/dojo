@@ -10,6 +10,7 @@ let
     inherit pkgs;
     package = pkgs.python3Packages.requests;
   };
+  pwntools = import ./pwntools.nix { inherit pkgs; };
   python = pkgs.python3.withPackages (ps: [
     ps.beautifulsoup4
     ps.lxml
@@ -38,11 +39,17 @@ let
         url = "https://requests.readthedocs.io/en/latest/";
         license = "${requests}/LICENSE";
       };
+      pwntools = {
+        path = "${pwntools}/html";
+        version = pwntools.version;
+        url = "https://docs.pwntools.com/en/stable/";
+        license = "${pwntools}/LICENSE";
+      };
       mdn = {
         path = "${mdn}/html";
-        version = mdn.revision;
+        version = mdn.version;
         url = "https://developer.mozilla.org/";
-        license = "${mdn}/LICENSE.md";
+        prefix = "developer.mozilla.org";
       };
     }
   );
@@ -53,7 +60,14 @@ pkgs.runCommand "dojo-offline-documentation"
       python
       pkgs.w3m
     ];
-    passthru = { inherit mdn flask requests; };
+    passthru = {
+      inherit
+        mdn
+        flask
+        requests
+        pwntools
+        ;
+    };
   }
   ''
     python ${./prepare.py} ${sources} "$out/share/doc"

@@ -1,14 +1,23 @@
-{ pkgs, package }:
+{
+  pkgs,
+  package,
+  sourceDir ? "docs",
+  extraPackages ? [ ],
+}:
 
 let
-  python = pkgs.python3.withPackages (ps: [
-    package
-    ps.sphinx
-    ps.pallets-sphinx-themes
-    ps.sphinxcontrib-log-cabinet
-    ps.sphinx-tabs
-    ps.myst-parser
-  ]);
+  python = pkgs.python3.withPackages (
+    ps:
+    [
+      package
+      ps.sphinx
+      ps.pallets-sphinx-themes
+      ps.sphinxcontrib-log-cabinet
+      ps.sphinx-tabs
+      ps.myst-parser
+    ]
+    ++ extraPackages
+  );
   config = pkgs.writeTextDir "conf.py" ''
     from pathlib import Path
     import os
@@ -21,7 +30,7 @@ let
     html_theme = "alabaster"
     html_theme_options = {}
     html_sidebars = {"**": ["about.html", "navigation.html", "relations.html", "searchbox.html"]}
-    html_static_path = [str(source / "_static")]
+    html_static_path = [str(source / "_static")] if (source / "_static").is_dir() else []
     templates_path = []
     html_favicon = None
     html_logo = None
@@ -39,8 +48,9 @@ pkgs.stdenvNoCC.mkDerivation {
   '';
   buildPhase = ''
     runHook preBuild
-    export DOC_SOURCE="$PWD/docs"
-    sphinx-build -b html -c ${config} -w build-warnings.txt docs html
+    export DOC_SOURCE="$PWD/${sourceDir}"
+    export PWNLIB_NOTERM=1
+    sphinx-build -b html -c ${config} -w build-warnings.txt "$DOC_SOURCE" html
     if grep -q 'ERROR:' build-warnings.txt; then
       exit 1
     fi

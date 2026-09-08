@@ -1,43 +1,38 @@
 { pkgs }:
 
 let
-  revision = "bf7c500b8129e076e5beda8d9932a7db879a6841";
-  content = pkgs.fetchFromGitHub {
-    owner = "mdn";
-    repo = "content";
-    rev = revision;
-    hash = "sha256-3QH9OGUK4PeZnKsY7qgKelJ6pfbKnEgAsRysJRkPM8g=";
+  archives = {
+    CSS = "sha256-E7Jz+ISATlA0s3am/Ab9emEwjQ6TQtSRJ6dBrpOs3AA=";
+    HTML = "sha256-W2fi1GarQjg2AkO5ya8Vme8/XzN0W3uyzgC50i+tBh4=";
+    HTTP = "sha256-lux/4xe2ugF+6DVx7vuyiu8pPSSZWBhn4hZiBMm8DKw=";
+    JavaScript = "sha256-S/8ImKgBWqi32pNc8hgzkuHOfPDquxKtMUGXemet77s=";
+    SVG = "sha256-1GU08EC3w6f1riwTemN7C3jY3WO/jq5cCQbpEuxQvVk=";
   };
-  rari = import ./rari.nix { inherit pkgs; };
-  dependencies = builtins.fromJSON (builtins.readFile ./mdn-dependencies.json);
-  extensionExamples = pkgs.fetchurl {
-    url = "https://raw.githubusercontent.com/mdn/webextensions-examples/5ab9204e76a723d3c92b0f44c4e430011799c6a0/examples.json";
-    hash = "sha256-EaOzMBw5MKJOMN2Wv+fr6lTnmXsi9k5k4QoRSd1XJ0o=";
-  };
+  index = pkgs.writeText "mdn-index.html" ''
+    <!doctype html><html lang="en"><head><meta charset="utf-8"><title>MDN offline documentation</title></head><body>
+    <h1>MDN offline documentation</h1><ul>
+    ${pkgs.lib.concatMapStringsSep "\n" (name: ''
+      <li><a href="developer.mozilla.org/en-US/docs/Web/${
+        if name == "JavaScript" then "JavaScript/Reference" else name
+      }.html">${name}</a></li>
+    '') (builtins.attrNames archives)}
+    <li><a href="developer.mozilla.org/en-US/docs/Web/API.html">Web APIs / DOM</a></li>
+    </ul><p>MDN reference collections packaged by <a href="https://kapeli.com/mdn_offline">Kapeli</a>, not a complete MDN mirror.
+    Original attribution and contributor files are retained. Local links and offline presentation have been adapted.</p>
+    </body></html>
+  '';
 in
-pkgs.runCommand "mdn-doc-${builtins.substring 0 12 revision}"
-  {
-    nativeBuildInputs = [
-      rari
-      pkgs.python3
-    ];
-    passthru = { inherit revision content; };
-  }
-  ''
-    export DEPS_DATA_DIR="$TMPDIR/deps"
-    ${pkgs.lib.concatMapStringsSep "\n" (dependency: ''
-      mkdir -p "$DEPS_DATA_DIR/rari/${dependency.name}"
-      tar -xzf ${pkgs.fetchurl { inherit (dependency) url hash; }} \
-        -C "$DEPS_DATA_DIR/rari/${dependency.name}"
-    '') dependencies}
-    install -Dm644 ${extensionExamples} "$DEPS_DATA_DIR/rari/web_ext_examples/data.json"
-    install -Dm644 ${pkgs.writeText "empty-developer-signals.json" "{}"} \
-      "$DEPS_DATA_DIR/rari/developer_signals/data.json"
-    export CONTENT_ROOT=${content}/files
-    export BUILD_OUT_ROOT="$TMPDIR/rendered"
-    export RAYON_NUM_THREADS="$NIX_BUILD_CORES"
-    mkdir -p "$out"
-    rari build --no-basic --content --locale en-US --issues "$out/issues.json"
-    python ${./render-mdn.py} "$BUILD_OUT_ROOT" ${content} \
-      "$DEPS_DATA_DIR/rari/@mdn/browser-compat-data/package/data.json" "$out"
-  ''
+pkgs.runCommand "mdn-offline-docs" { passthru.version = "2026-07-17"; } ''
+  mkdir -p "$out/html"
+  ${pkgs.lib.concatStringsSep "\n" (
+    pkgs.lib.mapAttrsToList (name: hash: ''
+      tar -xzf ${
+        pkgs.fetchurl {
+          url = "https://kapeli.com/feeds/zzz/mdn/${name}.tgz";
+          inherit hash;
+        }
+      } --strip-components=1 --no-same-owner -C "$out/html"
+    '') archives
+  )}
+  cp ${index} "$out/html/index.html"
+''

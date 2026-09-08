@@ -2,7 +2,6 @@ import concurrent.futures
 import html
 import json
 import os
-import posixpath
 import shutil
 import subprocess
 import sys
@@ -12,9 +11,9 @@ from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
 from bs4 import BeautifulSoup
 
 
-def initialize_worker(root, sources, mdn_urls, redirects):
+def initialize_worker(root, sources):
     global PAGE_CONTEXT
-    PAGE_CONTEXT = (root, sources, mdn_urls, redirects)
+    PAGE_CONTEXT = (root, sources)
 
 
 def prepare_worker(page):
@@ -27,24 +26,7 @@ def relative_link(destination, current, fragment="", query=""):
     )
 
 
-def resolve_mdn(path, root, urls, redirects):
-    path = unquote(path).rstrip("/").lower()
-    seen = set()
-    while path in redirects and path not in seen:
-        seen.add(path)
-        path = redirects[path].rstrip("/").lower()
-    if path in urls:
-        return root / urls[path]
-    parent, name = posixpath.split(path)
-    if parent in urls:
-        asset = root / urls[parent]
-        asset = asset.parent / name
-        if asset.is_file():
-            return asset
-    return None
-
-
-def rewrite_link(value, current, collection, root, sources, mdn_urls, redirects):
+def rewrite_link(value, current, collection, root, sources):
     parsed = urlsplit(value)
     if not value or value.startswith("#") or parsed.scheme in ("mailto", "data"):
         return value
@@ -58,39 +40,35 @@ def rewrite_link(value, current, collection, root, sources, mdn_urls, redirects)
             return relative_link(
                 local / "index.html", current, parsed.fragment, parsed.query
             )
-    absolute = urlsplit(urljoin(sources[collection]["url"], value))
-    if collection == "mdn" and parsed.path == "/index.html":
-        return relative_link(root / "mdn/index.html", current)
-    if absolute.netloc == "developer.mozilla.org":
-        destination = resolve_mdn(absolute.path, root / "mdn", mdn_urls, redirects)
-        if destination:
-            return relative_link(
-                destination, current, absolute.fragment, absolute.query
-            )
-    else:
-        for name, source in sources.items():
-            base = urlsplit(source["url"])
-            if absolute.netloc.removeprefix("www.") != base.netloc.removeprefix("www."):
-                continue
-            path = unquote(absolute.path)
-            if name == "python" and path.startswith("/3/"):
-                path = base.path + path[3:]
-            if not path.startswith(base.path):
-                continue
-            destination = root / name / path[len(base.path) :]
-            if destination.is_dir():
-                destination /= "index.html"
+    source = sources[collection]
+    source_root = root / collection / source.get("prefix", "")
+    relative = (
+        current.relative_to(source_root)
+        if current.is_relative_to(source_root)
+        else Path("index.html")
+    )
+    absolute = urlsplit(urljoin(urljoin(source["url"], relative.as_posix()), value))
+    for name, source in sources.items():
+        base = urlsplit(source["url"])
+        if absolute.netloc.removeprefix("www.") != base.netloc.removeprefix("www."):
+            continue
+        path = unquote(absolute.path)
+        if name == "python" and path.startswith("/3/"):
+            path = base.path + path[3:]
+        if not path.startswith(base.path):
+            continue
+        target = (
+            root / name / source.get("prefix", "") / path[len(base.path) :].rstrip("/")
+        )
+        for destination in (target, Path(str(target) + ".html"), target / "index.html"):
             if destination.is_file():
                 return relative_link(
                     destination, current, absolute.fragment, absolute.query
                 )
-    if not parsed.netloc and not parsed.scheme and not parsed.path.startswith("/"):
-        relative = current.relative_to(root / collection).as_posix()
-        return urljoin(urljoin(sources[collection]["url"], relative), value)
     return urlunsplit(absolute)
 
 
-def prepare_page(page, root, sources, mdn_urls, redirects):
+def prepare_page(page, root, sources):
     collection = page.relative_to(root).parts[0]
     soup = BeautifulSoup(page.read_bytes(), "lxml")
     for tag in soup.find_all(["base", "iframe", "object", "embed"]):
@@ -101,12 +79,12 @@ def prepare_page(page, root, sources, mdn_urls, redirects):
         else:
             tag.decompose()
     for tag in soup.find_all(True):
-        if tag.name is None:
+        if tag.attrs is None:
             continue
         for attribute in ("href", "src", "action", "poster"):
             if tag.get(attribute):
                 tag[attribute] = rewrite_link(
-                    tag[attribute], page, collection, root, sources, mdn_urls, redirects
+                    tag[attribute], page, collection, root, sources
                 )
         if tag.name == "a" and urlsplit(tag.get("href", "")).netloc:
             tag["title"] = "External website (requires network access)"
@@ -176,24 +154,12 @@ def main(sources_path, output):
             directory.chmod(0o755)
         if source.get("license"):
             shutil.copyfile(source["license"], root / name / "LICENSE")
-    mdn_root = Path(sources["mdn"]["path"]).parent
-    mdn_urls = json.loads((mdn_root / "urls.json").read_text())
-    redirects = {}
-    for line in (mdn_root / "redirects.txt").read_text().splitlines():
-        if line and not line.startswith("#"):
-            old, new = line.split("\t")
-            redirects[old.lower()] = new.lower()
-    pages = sorted(root.glob("*/*.html")) + sorted(
-        page
-        for name in sources
-        for page in (root / name).rglob("*.html")
-        if page.parent != root / name
-    )
+    pages = sorted(root.rglob("*.html"))
     workers = min(8, max(1, int(os.environ.get("NIX_BUILD_CORES", "1"))))
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=workers,
         initializer=initialize_worker,
-        initargs=(root, sources, mdn_urls, redirects),
+        initargs=(root, sources),
     ) as executor:
         for count, _ in enumerate(executor.map(prepare_worker, pages, chunksize=32), 1):
             if count % 2000 == 0:
