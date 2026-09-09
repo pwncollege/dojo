@@ -265,7 +265,11 @@ class Dojos(db.Model):
 
     def completions(self):
         solves_subquery = (
-            self.solves(ignore_visibility=True, ignore_admins=False)
+            self.solves(
+                include_visibility_exempt=True,
+                include_hidden_users=True,
+                include_admin_users=True,
+            )
             .with_entities(Solves.user_id,
                            db.func.count().label("solve_count"),
                            db.func.max(Solves.date).label("last_solve"))
@@ -295,7 +299,12 @@ class Dojos(db.Model):
         return awards
 
     def completed(self, user):
-        return self.solves(user=user, ignore_visibility=True, ignore_admins=False).count() == len([challenge for challenge in self.challenges if challenge.required])
+        return self.solves(
+            user=user,
+            include_visibility_exempt=True,
+            include_hidden_users=True,
+            include_admin_users=True,
+        ).count() == len([challenge for challenge in self.challenges if challenge.required])
 
     def is_admin(self, user=None):
         if user is None:
@@ -522,10 +531,13 @@ class DojoModules(db.Model):
     def solves(self, **kwargs):
         return DojoChallenges.solves(module=self, **kwargs)
 
-    def visible_solves(self, **kwargs):
-        return self.solves(ignore_visibility=True, **kwargs).filter(
+    def visible_solves(self, *, include_hidden_users=False, **kwargs):
+        return self.solves(
+            include_visibility_exempt=True,
+            include_hidden_users=include_hidden_users,
+            **kwargs,
+        ).filter(
             DojoChallenges.visible(),
-            ~Users.hidden,
         )
 
     @hybrid_method
@@ -658,7 +670,9 @@ class DojoChallenges(db.Model):
         return result
 
     @hybrid_method
-    def solves(self, *, user=None, dojo=None, module=None, ignore_visibility=False, ignore_admins=True, required_only=True):
+    def solves(self, *, user=None, dojo=None, module=None,
+               include_visibility_exempt=False, include_optional_challenges=False,
+               include_hidden_users=False, include_admin_users=False):
         result = (
             Solves.query
             .filter_by(type=Solves.__mapper__.polymorphic_identity)
@@ -679,7 +693,7 @@ class DojoChallenges(db.Model):
             .join(Users, Users.id == Solves.user_id)
         )
 
-        if not ignore_visibility:
+        if not include_visibility_exempt:
             result = (
                 result.outerjoin(DojoChallengeVisibilities, and_(
                     DojoChallengeVisibilities.dojo_id == DojoChallenges.dojo_id,
@@ -690,10 +704,12 @@ class DojoChallenges(db.Model):
                     or_(DojoChallengeVisibilities.start == None, Solves.date >= DojoChallengeVisibilities.start),
                     or_(DojoChallengeVisibilities.stop == None, Solves.date <= DojoChallengeVisibilities.stop),
                 )
-                .filter(~Users.hidden)
             )
 
-        if ignore_admins:
+        if not include_hidden_users:
+            result = result.filter(~Users.hidden)
+
+        if not include_admin_users:
             result = result.filter(or_(DojoUsers.type == None, DojoUsers.type != "admin"))
 
         if user:
@@ -703,7 +719,7 @@ class DojoChallenges(db.Model):
         if module:
             result = result.filter(DojoChallenges.module == module)
 
-        if required_only:
+        if not include_optional_challenges:
             result = result.filter(DojoChallenges.required)
 
         return result

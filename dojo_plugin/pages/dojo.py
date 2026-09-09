@@ -326,7 +326,7 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
 
     solves_query = (
         dojo
-        .solves(ignore_visibility=True)
+        .solves(include_visibility_exempt=True, include_hidden_users=True)
         .filter(or_(DojoUsers.user_id != None, ~Users.hidden))
         .order_by(DojoChallenges.module_index, DojoChallenges.challenge_index, Solves.date)
         .with_entities(Solves.user_id, Users.name, DojoModules.id, DojoChallenges.id, Solves.date)
@@ -355,7 +355,12 @@ def dojo_solves(dojo, solves_code=None, format="csv"):
 def view_module(dojo, module, scroll_to_challenge=None):
     user = get_current_user()
     user_solves = set(solve.challenge_id for solve in (
-        module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
+        module.solves(
+            user=user,
+            include_visibility_exempt=True,
+            include_hidden_users=True,
+            include_admin_users=True,
+        ) if user else []
     ))
     total_solves = get_challenge_solves(module)
     if total_solves is None:

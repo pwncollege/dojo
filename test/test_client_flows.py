@@ -248,7 +248,8 @@ def test_dojo_progress_counts_only_required_solves(flows_dojo, flows_solver):
         "from CTFd.models import Users\n"
         f"dojo = Dojos.from_id({flows_dojo!r}).first()\n"
         f"user = Users.query.filter_by(name={name!r}).first()\n"
-        "solves = DojoChallenges.solves(user=user, ignore_visibility=True, ignore_admins=False)"
+        "solves = DojoChallenges.solves(user=user, include_visibility_exempt=True, "
+        "include_hidden_users=True, include_admin_users=True)"
         ".filter(DojoChallenges.dojo_id == dojo.dojo_id).count()\n"
         "print(solves, dojo.required_challenges_count, len(dojo.challenges))\n"
     ).strip()
@@ -295,7 +296,7 @@ def test_module_card_progress_cannot_exceed_denominator(admin_session, example_d
         f"dojo = Dojos.from_id({dojo!r}).first()\n"
         f"user = Users.query.filter_by(name={name!r}).first()\n"
         "module = dojo.modules[0]\n"
-        "solved = module.visible_solves(user=user, ignore_admins=False).count()\n"
+        "solved = module.visible_solves(user=user, include_admin_users=True).count()\n"
         "print(solved, len(module.visible_challenges(required_only=True)))\n"
     ).strip()
     solved, visible_required = (int(value) for value in counts.split())

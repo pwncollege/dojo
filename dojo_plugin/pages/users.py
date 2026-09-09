@@ -88,7 +88,12 @@ def view_hacker(user, bypass_hidden=False):
 
         for module in dojo.modules:
             module_id = module.id
-            solves = module.solves(user=user, ignore_visibility=True, ignore_admins=False) if user else []
+            solves = module.solves(
+                user=user,
+                include_visibility_exempt=True,
+                include_hidden_users=True,
+                include_admin_users=True,
+            ) if user else []
 
             if solves:
                 user_solves[dojo_id][module_id] = {
