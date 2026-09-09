@@ -525,7 +525,6 @@ class DojoModules(db.Model):
     def visible_solves(self, **kwargs):
         return self.solves(ignore_visibility=True, **kwargs).filter(
             DojoChallenges.visible(),
-            ~Users.hidden,
         )
 
     @hybrid_method
