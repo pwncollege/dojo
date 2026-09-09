@@ -52,10 +52,10 @@ index 6e4af29..6f46a99 100644
          if (!UI.rfb) return;
          UI.rfb.showDotCursor = UI.getSetting('show_dot');
 diff --git a/core/clipboard.js b/core/clipboard.js
-index ae3cad1..d0f25a0 100644
+index ae3cad1..a55be83 100644
 --- a/core/clipboard.js
 +++ b/core/clipboard.js
-@@ -5,68 +5,192 @@
+@@ -5,68 +5,191 @@
   */
  
  import * as Log from './util/logging.js';
@@ -121,6 +121,7 @@ index ae3cad1..d0f25a0 100644
 +        const generation = this._generation;
 +        // Without a persistent grant, use the browser's paste event.
 +        if (!(await this._hasPermission('clipboard-read'))) return;
++        if (!this._grabbed || generation !== this._generation) return;
          try {
              const text = await navigator.clipboard.readText();
 +            if (!this._grabbed || generation !== this._generation) return;
@@ -229,8 +230,6 @@ index ae3cad1..d0f25a0 100644
 +            this._pendingWrite = text;
 +            this._tryWrite();
 +        }
-+        // Always update the manual panel too: asynchronous writes can fail.
-+        return false;
      }
  
      grab() {
@@ -305,7 +304,7 @@ index 3cc8917..4e5a699 100644
          //Log.Debug(">> Keyboard.grab");
  
 diff --git a/core/rfb.js b/core/rfb.js
-index 8994317..aff34a9 100644
+index 8994317..0d4ec43 100644
 --- a/core/rfb.js
 +++ b/core/rfb.js
 @@ -273,6 +273,8 @@ export default class RFB extends EventTargetMixin {
@@ -325,8 +324,20 @@ index 8994317..aff34a9 100644
          this._gestures.detach();
          this._sock.close();
          try {
+@@ -2335,8 +2338,9 @@ export default class RFB extends EventTargetMixin {
+ 
+     _writeClipboard(text) {
+         if (this._viewOnly) return;
+-        if (this._asyncClipboard.writeClipboard(text)) return;
+-        // Fallback clipboard
++        this._asyncClipboard.writeClipboard(text);
++        // Notify consumers even when automatic synchronization is attempted:
++        // browser writes can fail or wait for a user gesture.
+         this.dispatchEvent(
+             new CustomEvent("clipboard", {detail: {text: text}})
+         );
 diff --git a/docs/API-internal.md b/docs/API-internal.md
-index 1d0a110..f1966ab 100644
+index 1d0a110..4f68408 100644
 --- a/docs/API-internal.md
 +++ b/docs/API-internal.md
 @@ -46,6 +46,8 @@ None
@@ -338,6 +349,15 @@ index 1d0a110..f1966ab 100644
  
  ### 2.1.3 Callbacks
  
+@@ -94,7 +96,7 @@ None
+ 
+ | name               | parameters        | description
+ | ------------------ | ----------------- | ------------
+-| writeClipboard     | (text)            | An async write text to clipboard
++| writeClipboard     | (text)            | Attempt to write text, or queue it for a user gesture; no return value
+ | grab               | ()                | Begin capturing clipboard events
+ | ungrab             | ()                | Stop capturing clipboard events
+ 
 @@ -102,4 +104,6 @@ None
  
  | name    | parameters | description
@@ -346,8 +366,21 @@ index 1d0a110..f1966ab 100644
 +| onpaste | (text)     | Called following a granted async read or a native text paste
 +| onpastekey | (event) | Called after onpaste to forward the captured paste shortcut
 +| onreleasekeys | () | Release keys when a native paste is canceled or times out
+diff --git a/docs/API.md b/docs/API.md
+index c1f6fac..c16a8e1 100644
+--- a/docs/API.md
++++ b/docs/API.md
+@@ -247,6 +247,8 @@ with the new value of `RFB.clippingViewport`.
+ #### clipboard
+ 
+ The `clipboard` event is fired when the server has sent clipboard data.
++It is also fired when automatic browser clipboard synchronization is
++attempted; it does not indicate whether the browser clipboard was updated.
+ The `detail` property is an `Object` containing the property `text`
+ which is a `DOMString` with the clipboard data.
+ 
 diff --git a/tests/test.clipboard.js b/tests/test.clipboard.js
-index 1c173a8..6f3b75a 100644
+index 1c173a8..91db28c 100644
 --- a/tests/test.clipboard.js
 +++ b/tests/test.clipboard.js
 @@ -17,10 +17,16 @@ describe('Async Clipboard', function () {
@@ -386,7 +419,7 @@ index 1c173a8..6f3b75a 100644
      });
  
      it('focus event triggers onpaste() if permissions granted', async function () {
-@@ -98,24 +105,123 @@ describe('Async Clipboard', function () {
+@@ -98,24 +105,179 @@ describe('Async Clipboard', function () {
  
      it('writeClipboard() calls navigator.clipboard.writeText() if permissions granted', async function () {
          stubClipboardPermissions('granted');
@@ -399,7 +432,7 @@ index 1c173a8..6f3b75a 100644
  
          expect(navigator.clipboard.writeText.calledWith(text)).to.be.true;
 -        expect(result).to.be.true;
-+        expect(result).to.be.false;
++        expect(result).to.be.undefined;
      });
  
 -    it('writeClipboard() does not call navigator.clipboard.writeText() if permissions denied', async function () {
@@ -412,17 +445,16 @@ index 1c173a8..6f3b75a 100644
          const text = 'should not write';
          const result = clipboard.writeClipboard(text);
  
--        expect(navigator.clipboard.writeText.called).to.be.false;
 +        expect(navigator.clipboard.writeText.calledWith(text)).to.be.true;
-         expect(result).to.be.false;
-     });
- 
++        expect(result).to.be.undefined;
++    });
++
 +    it('retries a denied write on click and preserves manual fallback', async function () {
 +        stubClipboardPermissions('denied');
 +        clipboard.grab();
 +        targetMock.focus();
 +        navigator.clipboard.writeText.rejects(new Error('activation required'));
-+        expect(clipboard.writeClipboard('remote')).to.be.false;
++        clipboard.writeClipboard('remote');
 +        await nextTick();
 +        navigator.clipboard.writeText.resolves();
 +        targetMock.dispatchEvent(new MouseEvent('mousedown'));
@@ -469,6 +501,62 @@ index 1c173a8..6f3b75a 100644
 +        expect(document.activeElement).to.equal(targetMock);
 +    });
 +
++    it('releases keys and restores focus without pasting stale text on timeout', function () {
++        const clock = sinon.useFakeTimers();
++        clipboard.grab();
++        targetMock.focus();
++        clipboard.onpaste = sinon.spy();
++        clipboard.onpastekey = sinon.spy();
++        clipboard.onreleasekeys = sinon.spy();
++        targetMock.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyV', ctrlKey: true }));
++        clock.tick(1000);
++        expect(document.activeElement).to.equal(targetMock);
++        expect(clipboard.onpaste.called).to.be.false;
++        expect(clipboard.onpastekey.called).to.be.false;
++        expect(clipboard.onreleasekeys.calledOnce).to.be.true;
++    });
++
++    it('cancels a paste without text and releases held keys', function () {
++        clipboard.grab();
++        targetMock.focus();
++        clipboard.onpaste = sinon.spy();
++        clipboard.onpastekey = sinon.spy();
++        clipboard.onreleasekeys = sinon.spy();
++        targetMock.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyV', ctrlKey: true }));
++        clipboard._pasteTarget.dispatchEvent(new Event('paste', { cancelable: true }));
++        expect(document.activeElement).to.equal(targetMock);
++        expect(clipboard.onpaste.called).to.be.false;
++        expect(clipboard.onpastekey.called).to.be.false;
++        expect(clipboard.onreleasekeys.calledOnce).to.be.true;
++    });
++
++    it('does not read after a permission query completes following ungrab', async function () {
++        let resolvePermission;
++        navigator.permissions.query.withArgs({ name: 'clipboard-read', allowWithoutGesture: false })
++            .returns(new Promise((resolve) => { resolvePermission = resolve; }));
++        clipboard.grab();
++        const pending = clipboard._handleFocus();
++        clipboard.ungrab();
++        resolvePermission({ state: 'granted' });
++        await pending;
++        expect(navigator.clipboard.readText.called).to.be.false;
++    });
++
++    it('ignores an outstanding read after ungrab', async function () {
++        stubClipboardPermissions('granted');
++        let resolveRead;
++        navigator.clipboard.readText.returns(new Promise((resolve) => { resolveRead = resolve; }));
++        clipboard.onpaste = sinon.spy();
++        clipboard.grab();
++        const pending = clipboard._handleFocus();
++        await nextTick();
++        expect(navigator.clipboard.readText.calledOnce).to.be.true;
++        clipboard.ungrab();
++        resolveRead('stale');
++        await pending;
++        expect(clipboard.onpaste.called).to.be.false;
++    });
++
 +    it('does not intercept ordinary typing, AltGr, or IME composition', function () {
 +        clipboard.grab();
 +        for (const options of [
@@ -506,14 +594,15 @@ index 1c173a8..6f3b75a 100644
 +        await nextTick();
 +        navigator.userActivation.isActive = false;
 +        clipboard.writeClipboard('idle remote');
-+        expect(navigator.clipboard.writeText.called).to.be.false;
+         expect(navigator.clipboard.writeText.called).to.be.false;
+-        expect(result).to.be.false;
 +        expect(clipboard._pendingWrite).to.equal('idle remote');
 +        targetMock.dispatchEvent(new MouseEvent('mousedown'));
 +        expect(navigator.clipboard.writeText.calledOnceWith('idle remote')).to.be.true;
 +        await nextTick();
 +        expect(clipboard._pendingWrite).to.equal(null);
-+    });
-+
+     });
+ 
  });
 diff --git a/tests/test.keyboard.js b/tests/test.keyboard.js
 index ccc0124..4770bc5 100644
@@ -552,10 +641,15 @@ index ccc0124..4770bc5 100644
          it('should decode keydown events', function (done) {
              const kbd = new Keyboard(document);
 diff --git a/tests/test.rfb.js b/tests/test.rfb.js
-index 8d3a971..57390cc 100644
+index 8d3a971..ca68b8d 100644
 --- a/tests/test.rfb.js
 +++ b/tests/test.rfb.js
-@@ -3471,6 +3471,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3467,10 +3467,11 @@ describe('Remote Frame Buffer protocol client', function () {
+         });
+ 
+         describe('Normal clipboard handling receive', function () {
+-            it('should not dispatch a clipboard event following successful async write clipboard', async function () {
++            it('should dispatch a clipboard event even when automatic writing is attempted', async function () {
                  client._viewOnly = false;
                  client._asyncClipboard = {
                      writeClipboard: sinon.stub().returns(true),
@@ -563,7 +657,18 @@ index 8d3a971..57390cc 100644
                  };
                  const expectedStr = 'cheese!';
                  const data = [3, 0, 0, 0];
-@@ -3493,6 +3494,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3484,15 +3485,15 @@ describe('Remote Frame Buffer protocol client', function () {
+                 expect(client._asyncClipboard.writeClipboard.calledOnceWith(
+                     expectedStr
+                 )).to.be.true;
+-                expect(dispatchEventSpy.calledWith(
+-                    new CustomEvent("clipboard", {detail: {text: expectedStr}})
+-                )).to.be.false;
++                expect(dispatchEventSpy.args[0][0].type).to.equal("clipboard");
++                expect(dispatchEventSpy.args[0][0].detail.text).to.equal(expectedStr);
+             });
+ 
+             it('should dispatch a clipboard event following unsuccessful async write clipboard', async function () {
                  client._viewOnly = false;
                  client._asyncClipboard = {
                      writeClipboard: sinon.stub().returns(false),
@@ -571,7 +676,12 @@ index 8d3a971..57390cc 100644
                  };
                  const expectedStr = 'cheese!';
                  const data = [3, 0, 0, 0];
-@@ -3564,6 +3566,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3560,10 +3561,11 @@ describe('Remote Frame Buffer protocol client', function () {
+                     client._sock._websocket._receiveData(new Uint8Array(data));
+                 });
+ 
+-                it('should not dispatch a clipboard event following successful async write clipboard', async function () {
++                it('should dispatch a clipboard event even when automatic writing is attempted', async function () {
                      client._viewOnly = false;
                      client._asyncClipboard = {
                          writeClipboard: sinon.stub().returns(true),
@@ -579,7 +689,17 @@ index 8d3a971..57390cc 100644
                      };
                      let expectedData = "Schnitzel";
                      let data = [3, 0, 0, 0];
-@@ -3593,6 +3596,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3585,14 +3587,14 @@ describe('Remote Frame Buffer protocol client', function () {
+                     expect(client._asyncClipboard.writeClipboard.calledOnceWith(
+                         expectedData
+                     )).to.be.true;
+-                    expect(dispatchEventSpy.calledOnceWith(
+-                        new CustomEvent("clipboard", {detail: {text: expectedData}})
+-                    )).to.be.false;
++                    expect(dispatchEventSpy.args[0][0].type).to.equal("clipboard");
++                    expect(dispatchEventSpy.args[0][0].detail.text).to.equal(expectedData);
+                 });
+                 it('should dispatch a clipboard event following unsuccessful async write clipboard', async function () {
                      client._viewOnly = false;
                      client._asyncClipboard = {
                          writeClipboard: sinon.stub().returns(false),
@@ -587,7 +707,7 @@ index 8d3a971..57390cc 100644
                      };
                      let expectedData = "Potatoes";
                      let data = [3, 0, 0, 0];
-@@ -3623,6 +3627,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3623,6 +3625,7 @@ describe('Remote Frame Buffer protocol client', function () {
                          client._viewOnly = false;
                          client._asyncClipboard = {
                              writeClipboard: sinon.stub().returns(false),
@@ -595,7 +715,7 @@ index 8d3a971..57390cc 100644
                          };
                          let expectedData = "Aå漢字!";
                          let data = [3, 0, 0, 0];
-@@ -3652,6 +3657,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3652,6 +3655,7 @@ describe('Remote Frame Buffer protocol client', function () {
                          client._viewOnly = false;
                          client._asyncClipboard = {
                              writeClipboard: sinon.stub().returns(false),
@@ -603,7 +723,7 @@ index 8d3a971..57390cc 100644
                          };
                          let expectedData = "Oh\nmy\n!";
                          let data = [3, 0, 0, 0];
-@@ -3682,6 +3688,7 @@ describe('Remote Frame Buffer protocol client', function () {
+@@ -3682,6 +3686,7 @@ describe('Remote Frame Buffer protocol client', function () {
                          client._viewOnly = false;
                          client._asyncClipboard = {
                              writeClipboard: sinon.stub().returns(false),
