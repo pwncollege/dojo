@@ -6,14 +6,6 @@ let
     fontDirectories = [ pkgs.dejavu_fonts ];
   };
 
-  # Revert https://github.com/novnc/noVNC/pull/1672
-  reconnectPatch = pkgs.writeText "reconnect_patch.diff" ''
-    --- a/share/webapps/novnc/app/ui.js
-    +++ b/share/webapps/novnc/app/ui.js
-    @@ -1,3 +1,3 @@
-    -        if (UI.getSetting('reconnect', false) === true && !UI.inhibitReconnect) {
-    +        else if (UI.getSetting('reconnect', false) === true && !UI.inhibitReconnect) {
-  '';
   novnc = pkgs.novnc.overrideAttrs (oldAttrs: {
     version = "unstable-2026-09-07";
     src = pkgs.fetchFromGitHub {
@@ -22,10 +14,11 @@ let
       rev = "acca57b997f206683d27796829ee1f72da37002a";
       hash = "sha256-MlnFM3DkBBuGIAXbJYjyb5qEDz8ayxN4E7lCZ3kT6Pw=";
     };
-    patches = (oldAttrs.patches or []) ++ [ ./novnc-clipboard.patch ];
-    postInstall = (oldAttrs.postInstall or "") + ''
-      patch -p1 -d $out < ${reconnectPatch}
-    '';
+    patches = (oldAttrs.patches or []) ++ [
+      ./novnc-clipboard.patch
+      ./novnc-reconnect.patch
+      ./novnc-hide-sidebar.patch
+    ];
   });
 
   serviceScript = pkgs.writeScript "dojo-desktop" ''

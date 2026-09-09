@@ -1,0 +1,11 @@
+--- a/app/styles/base.css
++++ b/app/styles/base.css
+@@ -242,6 +242,8 @@
+ #noVNC_control_bar_anchor {
++    /* Dojo embeds the desktop without noVNC's sidebar or reopen handle. */
++    display: none !important;
+     /* The anchor is needed to get z-stacking to work */
+     position: fixed;
+     z-index: 10;
+ 
+     transition: 0.5s ease-in-out;
