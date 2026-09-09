@@ -7,6 +7,16 @@
           <property name="last-image" type="string" value="/run/dojo/share/backgrounds/pwncollege-background.png"/>
         </property>
       </property>
+      <property name="monitorVFB" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/run/dojo/share/backgrounds/pwncollege-background.png"/>
+        </property>
+      </property>
+      <property name="monitorVFB-0" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="last-image" type="string" value="/run/dojo/share/backgrounds/pwncollege-background.png"/>
+        </property>
+      </property>
     </property>
   </property>
 </channel>

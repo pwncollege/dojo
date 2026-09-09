@@ -2,7 +2,7 @@ import hmac
 import random
 import string
 import subprocess
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 
 import pytest
 import requests
@@ -191,15 +191,21 @@ def test_workspace_api_service_user_code_form_checks_access_code(workspace_owner
     )
 
 
-def test_workspace_api_other_user_requires_admin_or_password(workspace_owner, random_user_session, admin_session):
+def test_workspace_api_other_user_requires_admin(workspace_owner, random_user_session, admin_session):
     _, _, user_id = workspace_owner
 
-    no_password = random_user_session.get(f"{WORKSPACE_API}?user={user_id}")
-    assert no_password.status_code == 403, (
-        f"Expected status code 403 without a password, but got {no_password.status_code}"
+    desktop = random_user_session.get(
+        WORKSPACE_API,
+        params={"user": user_id, "service": "desktop"},
+    )
+    assert desktop.status_code == 403, (
+        f"Expected non-admin cross-user desktop access to be forbidden, got {desktop.status_code}"
     )
 
-    non_desktop = random_user_session.get(f"{WORKSPACE_API}?user={user_id}&password=x&service=terminal")
+    non_desktop = random_user_session.get(
+        WORKSPACE_API,
+        params={"user": user_id, "service": "terminal"},
+    )
     assert non_desktop.status_code == 403, (
         f"Expected status code 403 for a non-desktop service, but got {non_desktop.status_code}"
     )
@@ -208,33 +214,6 @@ def test_workspace_api_other_user_requires_admin_or_password(workspace_owner, ra
     assert as_admin.status_code == 200, f"Expected status code 200, but got {as_admin.status_code}"
     assert forwarded_port(as_admin.json()["iframe_src"]) == 80, (
         f"Expected an admin to reach the user's workspace, but got {as_admin.json()['iframe_src']}"
-    )
-
-
-def test_workspace_api_desktop_sharing_requires_the_desktop_password(workspace_owner, random_user_session):
-    name, _, user_id = workspace_owner
-
-    wrong_password = random_user_session.get(f"{WORKSPACE_API}?user={user_id}&password=wrong&service=desktop")
-    assert wrong_password.status_code == 403, (
-        f"Expected status code 403 for a wrong desktop password, but got {wrong_password.status_code}"
-    )
-
-    view_password = container_password(name, "desktop", "view")
-    shared = random_user_session.get(f"{WORKSPACE_API}?user={user_id}&password={view_password}&service=desktop")
-    assert shared.status_code == 200, f"Expected status code 200, but got {shared.status_code}"
-    result = shared.json()
-    assert result["success"], f"Expected desktop sharing to succeed, but got {result}"
-    assert forwarded_port(result["iframe_src"]) == 6080, (
-        f"Expected the desktop to forward to port 6080, but got {result['iframe_src']}"
-    )
-
-    params = parse_qs(urlparse(result["iframe_src"]).query)
-    assert params["view_only"] == ["1"], f"Expected a shared desktop to be view-only, but got {params.get('view_only')}"
-    assert params["password"] == [view_password[:8]], (
-        f"Expected the vnc password to be derived from the supplied password, but got {params.get('password')}"
-    )
-    assert params["path"][0].endswith("/6080/websockify"), (
-        f"Expected the vnc websocket to be forwarded to the desktop port, but got {params.get('path')}"
     )
 
 

@@ -1,4 +1,3 @@
-import hmac
 import os
 
 from flask_restx import Namespace, Resource
@@ -22,11 +21,10 @@ class view_desktop(Resource):
     @authed_only
     def get(self):
         user_id = request.args.get("user")
-        password = request.args.get("password")
         service = request.args.get("service", None)
         port = request.args.get("port", None)
 
-        if user_id and not password and not is_admin():
+        if user_id and not is_admin():
             abort(403)
 
         if user_id is not None:
@@ -69,37 +67,8 @@ class view_desktop(Resource):
             message = f"{container_id}:192.168.42.{node + 1}"
 
         iframe_src = None
-        if not service == "desktop":
-            if user_id and not is_admin():
-                abort(403)
-
         if service:
-            if service == "desktop":
-                interact_password = container_password(container, "desktop", "interact")
-                view_password = container_password(container, "desktop", "view")
-
-                if user_id and password:
-                    if not hmac.compare_digest(password, interact_password) and not hmac.compare_digest(password, view_password):
-                        abort(403)
-                    password = password[:8]
-                else:
-                    password = interact_password[:8]
-
-                view_only = user_id is not None
-                service_param = "~".join(("desktop", str(user.id), container_password(container, "desktop")))
-
-                vnc_params = {
-                    "autoconnect": 1,
-                    "reconnect": 1,
-                    "reconnect_delay": 200,
-                    "resize": "remote",
-                    "path": forward_workspace(service=service_param, service_path="websockify", message=message, include_host=False),
-                    "view_only": int(view_only),
-                    "password": password,
-                }
-                iframe_src = forward_workspace(service=service_param, service_path="vnc.html", message=message, **vnc_params)
-
-            elif service == "desktop-windows":
+            if service == "desktop-windows":
                 service_param = "~".join(("desktop-windows", str(user.id), container_password(container, "desktop-windows")))
                 vnc_params = {
                     "autoconnect": 1,

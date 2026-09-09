@@ -1,0 +1,59 @@
+diff --git a/html5/js/Client.js b/html5/js/Client.js
+index 0d8c35c..c19b164 100644
+--- a/html5/js/Client.js
++++ b/html5/js/Client.js
+@@ -92,2 +92,3 @@ class XpraClient {
+     this.init_settings();
++    this.server_packet_count = 0;
+     this.init_state();
+@@ -136,7 +137,7 @@ class XpraClient {
+     this.swap_keys = Utilities.isMacOS();
+     this.HELLO_TIMEOUT = 30_000;
+     this.OPEN_TIMEOUT = 10_000;
+-    this.PING_TIMEOUT = 15_000;
+-    this.PING_GRACE = 2000;
++    this.PING_TIMEOUT = 60_000;
++    this.PING_GRACE = 30_000;
+     this.PING_FREQUENCY = 5000;
+     this.INFO_FREQUENCY = 1000;
+@@ -737,1 +738,5 @@ class XpraClient {
+       function_.call(this, packet);
++      this.server_packet_count++;
++      if (this.connected && !this.server_ok) {
++        this._check_server_echo(0);
++      }
+@@ -1234,9 +1239,10 @@ class XpraClient {
+   /**
+    * Ping
+    */
+-  _check_server_echo(ping_sent_time) {
++  _check_server_echo(ping_sent_time, server_packet_count = this.server_packet_count) {
+     const last = this.server_ok;
+-    this.server_ok = this.last_ping_echoed_time >= ping_sent_time;
++    this.server_ok = this.last_ping_echoed_time >= ping_sent_time ||
++      this.server_packet_count > server_packet_count;
+     if (last !== this.server_ok) {
+       if (!this.server_ok) {
+         this.clog("server connection is not responding, drawing spinners...");
+@@ -2954,18 +2960,19 @@ class XpraClient {
+   _send_ping() {
+     if (this.reconnect_in_progress || !this.connected) {
+       return;
+     }
+     const now_ms = Math.ceil(performance.now());
++    const server_packet_count = this.server_packet_count;
+     this.send([PACKET_TYPES.ping, now_ms]);
+     // add timeout to wait for ping timout
+     this.ping_timeout_timer = setTimeout(
+       () => this._check_echo_timeout(now_ms),
+       this.PING_TIMEOUT
+     );
+     // add timeout to detect temporary ping miss for spinners
+-    const wait = 2000;
++    const wait = this.PING_GRACE;
+     this.ping_grace_timer = setTimeout(
+-      () => this._check_server_echo(now_ms),
++      () => this._check_server_echo(now_ms, server_packet_count),
+       wait
+     );
+   }

@@ -1,15 +1,16 @@
-import hashlib
-import hmac
 import json
 import random
+import shlex
 import socket
 import string
 import subprocess
 import time
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 import pytest
 import requests
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
 
 from utils import (
     DOJO_CONTAINER,
@@ -90,6 +91,165 @@ def cleanup_service(user, service_name, pid=None):
 
 def process_cmdline(user, pid):
     return workspace_output(user, f"tr '\\0' ' ' < /proc/{pid}/cmdline")
+
+
+def visible_desktop_canvas(driver):
+    canvases = [
+        canvas
+        for canvas in driver.find_elements(By.CSS_SELECTOR, "canvas")
+        if canvas.is_displayed()
+        and canvas.size["width"] >= 320
+        and canvas.size["height"] >= 200
+    ]
+    return max(
+        canvases,
+        key=lambda canvas: canvas.size["width"] * canvas.size["height"],
+        default=False,
+    )
+
+
+def connect_xpra_browser(browser, iframe_src):
+    browser.get(iframe_src)
+    wait = WebDriverWait(browser, 30)
+    wait.until(
+        lambda driver: driver.execute_script(
+            "return typeof client !== 'undefined' && client.connected;"
+        )
+    )
+    canvas = wait.until(visible_desktop_canvas)
+    assert browser.execute_script(
+        "return Object.values(client.id_to_window).length > 0 && "
+        "Object.values(client.id_to_window).every(window => !window.decorated);"
+    ), "Expected the Xpra desktop to fill the workspace without client-side window frames"
+    assert browser.execute_script(
+        "return client._get_keymap_caps().sync === false;"
+    ), "Expected Xpra HTML5 to disable synchronized key state"
+    assert browser.execute_script(
+        "return [client.PING_TIMEOUT, client.PING_GRACE, client.PING_FREQUENCY];"
+    ) == [60_000, 30_000, 5_000], "Expected Xpra HTML5 degraded-link timeouts"
+    assert browser.execute_script(
+        "const originalSend = client.send;"
+        "const originalSetTimeout = window.setTimeout;"
+        "const originalTimeoutTimer = client.ping_timeout_timer;"
+        "const originalGraceTimer = client.ping_grace_timer;"
+        "const originalLastPingEchoedTime = client.last_ping_echoed_time;"
+        "const originalServerOk = client.server_ok;"
+        "const originalWindows = client.id_to_window;"
+        "const originalDoReconnect = client.do_reconnect;"
+        "const originalReconnect = client.reconnect;"
+        "const originalReconnectAttempt = client.reconnect_attempt;"
+        "const originalReconnectCount = client.reconnect_count;"
+        "const packetType = 'dojo-liveness-test';"
+        "const originalHandler = client.packet_handlers[packetType];"
+        "const hadHandler = Object.prototype.hasOwnProperty.call(client.packet_handlers, packetType);"
+        "const timers = [];"
+        "try {"
+        "client.send = () => {};"
+        "window.setTimeout = (callback, delay) => { timers.push({callback, delay}); return -1; };"
+        "const serverPacketCount = client.server_packet_count;"
+        "client.packet_handlers[packetType] = () => {};"
+        "client.last_ping_echoed_time = 0;"
+        "client.server_ok = true;"
+        "client.id_to_window = {};"
+        "client.reconnect = true;"
+        "client.reconnect_attempt = 0;"
+        "client.reconnect_count = 5;"
+        "let hardReconnects = 0;"
+        "client.do_reconnect = () => { hardReconnects++; };"
+        "client._send_ping();"
+        "timers.find(timer => timer.delay === client.PING_GRACE).callback();"
+        "const silent = !client.server_ok;"
+        "client.last_ping_echoed_time = 1;"
+        "timers.find(timer => timer.delay === client.PING_TIMEOUT).callback();"
+        "client.last_ping_echoed_time = 0;"
+        "client._route_packet([packetType]);"
+        "const recovered = client.server_ok;"
+        "client._send_ping();"
+        "client._route_packet([packetType]);"
+        "client.server_ok = false;"
+        "timers.filter(timer => timer.delay === client.PING_GRACE).at(-1).callback();"
+        "const active = client.server_ok;"
+        "client.last_ping_echoed_time = 0;"
+        "client.server_ok = true;"
+        "timers.find(timer => timer.delay === client.PING_GRACE).callback();"
+        "return {delays: Array.from(new Set(timers.map(timer => timer.delay))), "
+        "silent, hardReconnects, recovered, active, staleGraceHealthy: client.server_ok, "
+        "routed: client.server_packet_count >= serverPacketCount + 2};"
+        "} finally {"
+        "client.send = originalSend;"
+        "window.setTimeout = originalSetTimeout;"
+        "client.ping_timeout_timer = originalTimeoutTimer;"
+        "client.ping_grace_timer = originalGraceTimer;"
+        "client.last_ping_echoed_time = originalLastPingEchoedTime;"
+        "client.server_ok = originalServerOk;"
+        "client.id_to_window = originalWindows;"
+        "client.do_reconnect = originalDoReconnect;"
+        "client.reconnect = originalReconnect;"
+        "client.reconnect_attempt = originalReconnectAttempt;"
+        "client.reconnect_count = originalReconnectCount;"
+        "if (hadHandler) client.packet_handlers[packetType] = originalHandler;"
+        "else delete client.packet_handlers[packetType];"
+        "}"
+    ) == {
+        "delays": [60_000, 30_000],
+        "silent": True,
+        "hardReconnects": 1,
+        "recovered": True,
+        "active": True,
+        "staleGraceHealthy": True,
+        "routed": True,
+    }, "Expected Xpra HTML5 liveness thresholds to follow valid server traffic"
+    wait.until(
+        lambda driver: driver.execute_script(
+            "return !client.info_request_pending;"
+        )
+    )
+    browser.execute_script(
+        "window.__dojoPreviousServerInfo = client.server_last_info;"
+        "client.send_info_request();"
+    )
+    server_keyboard = wait.until(
+        lambda driver: driver.execute_script(
+            "const info = client.server_last_info;"
+            "if (!info || info === window.__dojoPreviousServerInfo) return null;"
+            "const clients = info.client || {};"
+            "const current = clients.uuid === client.uuid ? clients : "
+            "Object.values(clients).find(value => value && value.uuid === client.uuid);"
+            "const keyboard = current && current.keyboard;"
+            "return {present: Boolean(keyboard) && "
+            "Object.prototype.hasOwnProperty.call(keyboard, 'sync'), "
+            "sync: keyboard && keyboard.sync};"
+        )
+    )
+    assert server_keyboard == {"present": True, "sync": False}, (
+        f"Expected Xpra to apply unsynchronized key state, got {server_keyboard}"
+    )
+    return canvas
+
+
+def assert_xpra_browser_ping(browser, timeout=10):
+    ping_token = random.randint(1_500_000_000, 2_000_000_000)
+    browser.execute_script("client.send(['ping', arguments[0]]);", ping_token)
+    WebDriverWait(browser, timeout).until(
+        lambda driver: driver.execute_script(
+            "return typeof client !== 'undefined' && client.connected && "
+            "client.last_ping_echoed_time === arguments[0];",
+            ping_token,
+        )
+    )
+
+
+def wait_for_workspace_clipboard(user, expected, timeout=10):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = workspace_exec(
+            user,
+            "DISPLAY=:0 timeout 2 xclip -selection clipboard -out 2>/dev/null",
+        )
+        if result.returncode == 0 and result.stdout == expected:
+            return True
+        time.sleep(0.25)
+    return False
 
 
 def forwarded_port(iframe_src):
@@ -320,7 +480,7 @@ def test_workspace_profile_symlink_farm_exposes_the_toolchain(runtime_workspace)
         )
 
     for binary in ["bash", "sh", "sudo", "exec-suid", "dojo", "dojo-service", "dojo-init",
-                   "ssh-entrypoint", "scp", "dojo-terminal", "dojo-code", "dojo-desktop"]:
+                   "ssh-entrypoint", "scp", "dojo-terminal", "dojo-code", "dojo-desktop", "xpra"]:
         assert workspace_exec(name, f"test -x /run/dojo/bin/{binary}").returncode == 0, (
             f"Expected /run/dojo/bin/{binary} to exist and be executable in the workspace"
         )
@@ -570,41 +730,202 @@ def test_desktop_service_contract(runtime_workspace):
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
     result = response.json()
     assert result["success"] and result["active"], f"Expected an active desktop workspace, but got {result}"
-    assert forwarded_port(result["iframe_src"]) == 6080, f"Expected noVNC on port 6080: {result['iframe_src']}"
+    iframe_src = result["iframe_src"]
+    parsed_iframe_src = urlparse(iframe_src)
+    assert forwarded_port(iframe_src) == 6080, f"Expected Xpra on port 6080: {iframe_src}"
+    assert parsed_iframe_src.path.endswith("/6080/"), (
+        f"Expected the ordinary signed workspace-port route, got {iframe_src}"
+    )
+    assert not parsed_iframe_src.query, f"Expected no desktop-specific route parameters, got {iframe_src}"
 
     token = workspace_output(name, "cat /run/dojo/var/auth_token")
-    expected = hmac.HMAC(token.encode(), b"desktop-interact", hashlib.sha256).hexdigest()[:8]
-    password = parse_qs(urlparse(result["iframe_src"]).query)["password"][0]
-    assert password == expected, (
-        f"Expected the vnc password to be HMAC-SHA256(auth token, 'desktop-interact')[:8] = {expected}, got {password}"
+    assert token not in iframe_src, (
+        f"Expected the signed workspace route not to expose the workspace token, got {iframe_src}"
     )
 
-    for service in ["Xvnc", "novnc", "xfce4-session"]:
+    for service in ["xpra", "xfce4-session"]:
         pid = service_pid(name, f"desktop-service/{service}")
         assert workspace_exec(name, f"kill -0 {pid}").returncode == 0, (
             f"Expected the desktop's {service} (pid {pid}) to be running"
         )
-    assert workspace_exec(name, "test -s /run/dojo/var/desktop-service/Xvnc.passwd").returncode == 0, (
-        "Expected the desktop service to write a vnc password file"
-    )
 
-    xvnc_cmdline = process_cmdline(name, service_pid(name, "desktop-service/Xvnc"))
-    for argument in ["-nolisten tcp", "-geometry 1024x768", "-depth 24",
-                     "-rfbunixpath /run/dojo/var/desktop-service/Xvnc.sock"]:
-        assert argument in xvnc_cmdline, f"Expected Xvnc to be started with {argument}, but got {xvnc_cmdline!r}"
+    xpra_pid = service_pid(name, "desktop-service/xpra")
+    xpra_cmdline = process_cmdline(name, xpra_pid)
+    for argument in (
+        "--bind=none",
+        "--bind-ws=0.0.0.0:6080,auth=none",
+        "--commands=no",
+        "--shell=no",
+        "--control=no",
+        "--file-transfer=no",
+        "--printing=no",
+        "--open-files=no",
+        "--open-url=no",
+        "--start-new-commands=no",
+    ):
+        assert argument in xpra_cmdline, (
+            f"Expected Xpra to start with {argument}, got {xpra_cmdline!r}"
+        )
+    xpra_environment = workspace_output(
+        name, f"tr '\\0' '\\n' < /proc/{xpra_pid}/environ"
+    ).splitlines()
+    assert not any(
+        variable.startswith("DOJO_AUTH_TOKEN=") for variable in xpra_environment
+    ), "Expected the Xpra server not to inherit the workspace API credential"
 
     listening = workspace_output(name, "ss -ltn", root=True)
-    assert ":6080" in listening, f"Expected noVNC to be listening on 6080, but saw {listening!r}"
+    assert ":6080" in listening, f"Expected Xpra to be listening on 6080, but saw {listening!r}"
+    assert workspace_output(
+        name, "curl -fs -o /dev/null -w '%{http_code}' http://localhost:6080/"
+    ) == "200", "Expected Xpra's HTML5 client to answer over HTTP on port 6080"
+
+    proxied = requests.get(iframe_src, timeout=30)
+    assert proxied.status_code == 200, (
+        f"Expected the signed workspace route to reach Xpra, got {proxied.status_code}"
+    )
+    assert workspace_exec(
+        name,
+        "! pgrep -x Xvnc && ! pgrep -f '[n]ovnc'",
+    ).returncode == 0, "Expected the Linux desktop to contain no legacy VNC runtime"
+    assert workspace_exec(
+        name, "! command -v Xvnc && ! command -v novnc"
+    ).returncode == 0, "Expected the Linux desktop profile to contain no legacy VNC commands"
 
 
-def test_desktop_vnc_server_is_not_reachable_over_tcp(runtime_workspace):
+def test_desktop_service_recovers_from_an_orphaned_xorg(runtime_workspace):
+    name, session = runtime_workspace
+    started = session.get(f"{WORKSPACE_API}?service=desktop", timeout=60)
+    assert started.status_code == 200 and started.json()["success"], started.text
+    desktop_pid = service_pid(name, "desktop-service/xpra")
+    xorg_pid = workspace_output(
+        name, "cat /run/dojo/var/desktop-service/sessions/*/xvfb.pid"
+    )
+
+    assert workspace_exec(name, f"kill -KILL {desktop_pid}").returncode == 0
+    deadline = time.time() + 15
+    while workspace_exec(name, f"kill -0 {desktop_pid}").returncode == 0:
+        assert time.time() < deadline, "Expected the killed Xpra server to exit"
+        time.sleep(0.2)
+    assert workspace_exec(name, f"kill -0 {xorg_pid}").returncode == 0, (
+        "Expected the detached Xorg to survive an abrupt Xpra exit"
+    )
+
+    recovered = session.get(f"{WORKSPACE_API}?service=desktop", timeout=60)
+    assert recovered.status_code == 200 and recovered.json()["success"], recovered.text
+    assert forwarded_port(recovered.json()["iframe_src"]) == 6080
+    assert service_pid(name, "desktop-service/xpra") != desktop_pid
+    assert workspace_exec(name, f"kill -0 {xorg_pid}").returncode != 0, (
+        f"Expected recovery to terminate orphaned Xorg pid {xorg_pid}"
+    )
+    assert workspace_output(
+        name, "cat /run/dojo/var/desktop-service/sessions/*/xvfb.pid"
+    ) != xorg_pid
+
+
+def test_desktop_does_not_expose_a_legacy_vnc_port(runtime_workspace):
     name, session = runtime_workspace
     session.get(f"{WORKSPACE_API}?service=desktop")
 
     listening = workspace_output(name, "ss -ltn", root=True)
     assert ":5900" not in listening, (
-        f"Expected the desktop's vnc server to be reachable only over its unix socket, but it listens: {listening!r}"
+        f"Expected the desktop to expose Xpra rather than a VNC server, but it listens: {listening!r}"
     )
+
+
+def test_xpra_desktop_is_visible_and_survives_concurrent_reconnects(
+    runtime_workspace, browser_fixture
+):
+    _, session = runtime_workspace
+    response = session.get(f"{WORKSPACE_API}?service=desktop")
+    assert response.status_code == 200, (
+        f"Expected the desktop to start, got {response.status_code}"
+    )
+    result = response.json()
+    assert result["success"] and result["active"], (
+        f"Expected an active desktop, got {result}"
+    )
+    iframe_src = result["iframe_src"]
+    assert forwarded_port(iframe_src) == 6080
+
+    connect_xpra_browser(browser_fixture, iframe_src)
+    first_handle = browser_fixture.current_window_handle
+    browser_fixture.switch_to.new_window("tab")
+    second_handle = browser_fixture.current_window_handle
+    connect_xpra_browser(browser_fixture, iframe_src)
+
+    browser_fixture.switch_to.window(first_handle)
+    assert_xpra_browser_ping(browser_fixture)
+    browser_fixture.execute_script(
+        "window.__xpraReconnectConnections = 0;"
+        "const originalOnConnect = client.on_connect;"
+        "client.on_connect = (...args) => {"
+        "window.__xpraReconnectConnections += 1;"
+        "return originalOnConnect.apply(client, args);"
+        "};"
+        "client.do_reconnect();"
+    )
+    WebDriverWait(browser_fixture, 30).until(
+        lambda driver: driver.execute_script(
+            "return client.connected && window.__xpraReconnectConnections >= 1;"
+        )
+    )
+    assert_xpra_browser_ping(browser_fixture)
+
+    browser_fixture.switch_to.window(second_handle)
+    assert_xpra_browser_ping(browser_fixture)
+
+
+def test_xpra_owner_clipboard_round_trip(runtime_workspace, browser_fixture):
+    name, session = runtime_workspace
+    response = session.get(f"{WORKSPACE_API}?service=desktop")
+    assert response.status_code == 200, (
+        f"Expected the desktop to start, got {response.status_code}"
+    )
+    result = response.json()
+    assert result["success"] and result["active"], (
+        f"Expected an active desktop, got {result}"
+    )
+    connect_xpra_browser(browser_fixture, result["iframe_src"])
+
+    suffix = random_name("")
+    clipboard_from_workspace = f"pwn.college ✓ λ {suffix}"
+    clipboard_from_browser = f"browser ⇄ workspace ✓ {suffix}"
+    clipboard_pid = f"/tmp/xpra-owner-clipboard-{suffix}.pid"
+    clipboard_log = f"/tmp/xpra-owner-clipboard-{suffix}.log"
+    try:
+        workspace_exec(
+            name,
+            f"printf %s {shlex.quote(clipboard_from_workspace)} | "
+            f"DISPLAY=:0 timeout 60 xclip -selection clipboard -in "
+            f">{shlex.quote(clipboard_log)} 2>&1 & "
+            f"echo $! > {shlex.quote(clipboard_pid)}",
+        )
+        assert wait_for_workspace_clipboard(name, clipboard_from_workspace), (
+            "Expected the Unicode workspace clipboard value to be established"
+        )
+        assert WebDriverWait(browser_fixture, 10).until(
+            lambda driver: driver.execute_script("return client.get_clipboard_buffer();")
+            == clipboard_from_workspace
+        ), "Expected the browser client to receive the workspace clipboard value"
+
+        browser_fixture.execute_script(
+            "Object.defineProperty(navigator, 'clipboard', {"
+            "configurable: true, value: {readText: () => Promise.resolve(arguments[0])}"
+            "});"
+            "client.clipboard_buffer = '';"
+            "client.read_clipboard_text();",
+            clipboard_from_browser,
+        )
+        assert wait_for_workspace_clipboard(name, clipboard_from_browser), (
+            "Expected the workspace to receive the browser clipboard value"
+        )
+    finally:
+        workspace_exec(
+            name,
+            f"if test -s {shlex.quote(clipboard_pid)}; then "
+            f"kill \"$(cat {shlex.quote(clipboard_pid)})\" 2>/dev/null || true; fi; "
+            f"rm -f {shlex.quote(clipboard_pid)} {shlex.quote(clipboard_log)}",
+        )
 
 
 def test_only_whitelisted_services_are_executed_in_the_workspace(runtime_workspace):
@@ -657,7 +978,7 @@ def test_workspace_proxy_passes_websocket_upgrades_through(runtime_workspace):
     assert "upgrade" in response.lower(), f"Expected an Upgrade response from the proxy, but got {response!r}"
 
 
-def test_workspace_proxy_signature_covers_the_container_and_port(runtime_workspace, random_user_session):
+def test_workspace_proxy_signature_covers_the_container_and_port(runtime_workspace):
     name, session = runtime_workspace
     code_response = session.get(f"{WORKSPACE_API}?service=code")
     assert code_response.status_code == 200, f"Expected the code service to start, got {code_response.status_code}"
@@ -674,17 +995,25 @@ def test_workspace_proxy_signature_covers_the_container_and_port(runtime_workspa
         code_proxy = requests.get(node_code_iframe_src, timeout=30, allow_redirects=False)
     assert code_proxy.status_code == 200, f"Expected the signed code url to work, got {code_proxy.status_code}"
 
-    token = workspace_output(name, "cat /run/dojo/var/auth_token")
-    view_password = hmac.HMAC(token.encode(), b"desktop-view", hashlib.sha256).hexdigest()
-    shared = random_user_session.get(
-        f"{WORKSPACE_API}?user={get_user_id(name)}&password={view_password}&service=desktop"
+    desktop_response = session.get(f"{WORKSPACE_API}?service=desktop")
+    assert desktop_response.status_code == 200, (
+        f"Expected the owner's desktop route to be granted, got {desktop_response.status_code}"
     )
-    assert shared.status_code == 200, f"Expected the view-only desktop share to be granted, got {shared.status_code}"
-    desktop_iframe_src = shared.json()["iframe_src"]
+    desktop_iframe_src = desktop_response.json()["iframe_src"]
     assert forwarded_port(desktop_iframe_src) == 6080, (
-        f"Expected the shared desktop on port 6080, but got {desktop_iframe_src}"
+        f"Expected the desktop on port 6080, but got {desktop_iframe_src}"
     )
-    desktop_proxy = requests.get(desktop_iframe_src, timeout=30)
+    desktop_proxy = requests.get(
+        desktop_iframe_src, timeout=30, allow_redirects=False
+    )
+    if MULTINODE:
+        assert desktop_proxy.status_code == 307, (
+            f"Expected the main proxy to redirect to the desktop's workspace node, got "
+            f"{desktop_proxy.status_code}"
+        )
+        desktop_proxy = requests.get(
+            desktop_proxy.headers["Location"], timeout=30, allow_redirects=False
+        )
     assert desktop_proxy.status_code == 200, (
         f"Expected the signed desktop url to work, got {desktop_proxy.status_code}"
     )

@@ -91,19 +91,21 @@ def desktop_workspace(browser):
     wait = WebDriverWait(browser, 30)
     wait.until(EC.frame_to_be_available_and_switch_to_it((By.NAME, "workspace")))
     wait.until(
-        lambda driver: "noVNC_connected"
-        in driver.find_element(By.TAG_NAME, "html").get_attribute("class").split()
+        lambda driver: driver.execute_script(
+            "return typeof client !== 'undefined' && client.connected;"
+        )
     )
     desktop = wait.until(
-        lambda driver: next(
-            (
+        lambda driver: max(
+            [
                 canvas
-                for canvas in driver.find_elements(By.CSS_SELECTOR, "#noVNC_container canvas")
+                for canvas in driver.find_elements(By.CSS_SELECTOR, "canvas")
                 if canvas.is_displayed()
-                and canvas.size["width"] > 0
-                and canvas.size["height"] > 0
-            ),
-            False,
+                and canvas.size["width"] >= 640
+                and canvas.size["height"] >= 480
+            ],
+            key=lambda canvas: canvas.size["width"] * canvas.size["height"],
+            default=False,
         )
     )
 
