@@ -8,7 +8,7 @@ Upstream source is `acca57b997f206683d27796829ee1f72da37002a`.
 The source hash, inherited Nixpkgs patch, gesture patch, and Dojo reconnect
 patch all applied successfully.
 
-Output: `/nix/store/4h49zisx1k97pjxwvq4yjxj9ypbc0mxh-novnc-unstable-2026-09-07`.
+Output: `/nix/store/y8xp1r30zpb96ybrfj1rl0sf7vpgk4ma-novnc-unstable-2026-09-07`.
 These built web assets were used for the final integration checks, not merely
 the source checkout. Full Dojo desktop closure/deployment was not built or run.
 
@@ -35,6 +35,19 @@ paste target, fresh Chromium's idle-write permission prompt stealing focus,
 and Chromium mouse-capture changing the click target. Test harness fixes included
 Tk's nonstandard default Ctrl+A binding, cursor-aware insertion expectations,
 and importing UI in the page realm instead of Firefox's WebDriver sandbox.
+
+## Simplification follow-up
+
+Removed the legacy execCommand copy path and its temporary selection/focus
+handling. Gesture retries now call writeText directly. Replaced the browser
+availability/permission-family flags with a single permission-query helper;
+unsupported permissions naturally use gestures. Removed the empty UI update
+hook. The clipboard module is 26 lines shorter, without removing race or
+view-only safeguards or compressing the control flow.
+
+During retesting, the integration fixture exposed a JSON read/write race;
+its snapshots now use atomic replacement. This was a test-fixture issue, not
+a clipboard failure. Browser checks were rerun against the final built assets.
 
 ## Limitations and remaining review
 

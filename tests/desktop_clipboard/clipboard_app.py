@@ -23,10 +23,13 @@ def select_all(event):
 entry.bind('<Control-a>', select_all)
 
 def report():
-    Path('/opt/test/results/clipboard-app.json').write_text(json.dumps({
+    result = Path('/opt/test/results/clipboard-app.json')
+    temporary = result.with_suffix('.tmp')
+    temporary.write_text(json.dumps({
         'text': entry.get('1.0', 'end-1c'),
         'cursor': len(entry.get('1.0', 'insert')),
     }))
+    temporary.replace(result)
     root.after(50, report)
 
 report()

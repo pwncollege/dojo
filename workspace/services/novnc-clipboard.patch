@@ -1,5 +1,5 @@
 diff --git a/app/ui.js b/app/ui.js
-index 6e4af29..6278527 100644
+index 6e4af29..6f46a99 100644
 --- a/app/ui.js
 +++ b/app/ui.js
 @@ -9,7 +9,7 @@
@@ -11,10 +11,19 @@ index 6e4af29..6278527 100644
      from '../core/util/browser.js';
  import { setCapture, getPointerEvent } from '../core/util/events.js';
  import KeyTable from "../core/input/keysym.js";
-@@ -1862,28 +1862,8 @@ const UI = {
+@@ -1184,7 +1184,6 @@ const UI = {
+         UI.rfb.showDotCursor = UI.getSetting('show_dot');
+ 
+         UI.updateViewOnly(); // requires UI.rfb
+-        UI.updateClipboard();
      },
  
-     updateClipboard() {
+     disconnect() {
+@@ -1861,31 +1860,6 @@ const UI = {
+         }
+     },
+ 
+-    updateClipboard() {
 -        browserAsyncClipboardSupport()
 -            .then((support) => {
 -                if (support === 'unsupported') {
@@ -37,20 +46,26 @@ index 6e4af29..6278527 100644
 -            .catch(() => {
 -                // Treat as unsupported
 -            });
-+        // Keep manual recovery available even when automatic access is
-+        // supported: individual operations can still be denied.
-     },
- 
+-    },
+-
      updateShowDotCursor() {
+         if (!UI.rfb) return;
+         UI.rfb.showDotCursor = UI.getSetting('show_dot');
 diff --git a/core/clipboard.js b/core/clipboard.js
-index ae3cad1..e5dea2d 100644
+index ae3cad1..d0f25a0 100644
 --- a/core/clipboard.js
 +++ b/core/clipboard.js
-@@ -12,14 +12,33 @@ export default class AsyncClipboard {
+@@ -5,68 +5,192 @@
+  */
+ 
+ import * as Log from './util/logging.js';
+-import { browserAsyncClipboardSupport } from './util/browser.js';
+ 
+ export default class AsyncClipboard {
+     constructor(target) {
          this._target = target || null;
  
-         this._isAvailable = null;
-+        this._permissionBased = false;
+-        this._isAvailable = null;
 +        this._writeWithoutGesture = false;
 +        this._grabbed = false;
 +        this._pendingWrite = null;
@@ -80,33 +95,33 @@ index ae3cad1..e5dea2d 100644
      }
  
      // ===== PRIVATE METHODS =====
-@@ -29,6 +48,13 @@ export default class AsyncClipboard {
+ 
+-    async _ensureAvailable() {
+-        if (this._isAvailable !== null) return this._isAvailable;
++    async _hasPermission(name) {
          try {
-             const status = await browserAsyncClipboardSupport();
-             this._isAvailable = (status === 'available');
-+            this._permissionBased = (status !== 'unsupported');
-+            if (this._permissionBased) {
-+                const permission = await navigator.permissions.query({
-+                    name: 'clipboard-write', allowWithoutGesture: true,
-+                });
-+                this._writeWithoutGesture = (permission.state === 'granted');
-+            }
+-            const status = await browserAsyncClipboardSupport();
+-            this._isAvailable = (status === 'available');
++            const permission = await navigator.permissions.query({
++                name, allowWithoutGesture: name === 'clipboard-write',
++            });
++            return permission.state === 'granted';
          } catch {
-             this._isAvailable = false;
+-            this._isAvailable = false;
++            // Firefox and Safari do not expose clipboard permissions.
++            return false;
          }
-@@ -36,37 +62,161 @@ export default class AsyncClipboard {
+-        return this._isAvailable;
      }
  
      async _handleFocus(event) {
+-        if (!(await this._ensureAvailable())) return;
 +        if (this._redirectingFocus) return;
 +        this._cancel();
 +        const generation = this._generation;
-         if (!(await this._ensureAvailable())) return;
++        // Without a persistent grant, use the browser's paste event.
++        if (!(await this._hasPermission('clipboard-read'))) return;
          try {
-+            const permission = await navigator.permissions.query({ name: 'clipboard-read' });
-+            // Do not interrupt desktop focus with a permission prompt.
-+            // Without a persistent grant, use the browser's paste event.
-+            if (permission.state !== 'granted') return;
              const text = await navigator.clipboard.readText();
 +            if (!this._grabbed || generation !== this._generation) return;
              this.onpaste(text);
@@ -179,31 +194,15 @@ index ae3cad1..e5dea2d 100644
 +        // Use mousedown: noVNC's mouse-capture overlay can consume the
 +        // subsequent click in Chromium before it reaches the canvas.
 +        if (this._pendingWrite === null) return;
-+        // Some browser/iframe configurations reject async writes even on
-+        // activation. Retain the synchronous copy-command fallback used by
-+        // other remote desktop clients, without showing a clipboard textbox.
-+        this._redirectingFocus = true;
-+        try {
-+            this._pasteTarget.value = this._pendingWrite;
-+            this._pasteTarget.focus({ preventScroll: true });
-+            this._pasteTarget.select();
-+            if (document.execCommand('copy')) this._pendingWrite = null;
-+        } catch {
-+            // The manual panel is still available if both APIs are blocked.
-+        } finally {
-+            this._pasteTarget.value = '';
-+            this._target.focus({ preventScroll: true });
-+            this._redirectingFocus = false;
-+        }
-+        if (this._pendingWrite !== null) this._tryWrite();
++        this._tryWrite(true);
 +    }
 +
-+    _tryWrite() {
++    _tryWrite(inGesture = false) {
 +        if (!navigator.clipboard || !navigator.clipboard.writeText) return;
 +        // An idle write in fresh Chromium can open a permission prompt and
 +        // steal focus. Queue it for a gesture instead of prompting remotely.
-+        if (this._permissionBased && !this._writeWithoutGesture &&
-+            !navigator.userActivation.isActive) return;
++        if (!inGesture && !this._writeWithoutGesture &&
++            !navigator.userActivation?.isActive) return;
 +        const text = this._pendingWrite;
 +        const generation = this._generation;
 +        // Call synchronously within the click's user activation. In
@@ -246,7 +245,9 @@ index ae3cad1..e5dea2d 100644
 +        this._target.parentNode.appendChild(this._pasteTarget);
 +        this._pasteTarget.addEventListener('paste', this._eventHandlers.paste);
 +        this._pasteTarget.addEventListener('blur', this._eventHandlers.blur);
-+        this._ensureAvailable();
++        this._hasPermission('clipboard-write').then((granted) => {
++            this._writeWithoutGesture = granted;
++        });
 +        for (const [type, handler] of Object.entries(this._eventHandlers)) {
 +            this._target.addEventListener(type, handler, true);
 +        }
@@ -346,17 +347,16 @@ index 1d0a110..f1966ab 100644
 +| onpastekey | (event) | Called after onpaste to forward the captured paste shortcut
 +| onreleasekeys | () | Release keys when a native paste is canceled or times out
 diff --git a/tests/test.clipboard.js b/tests/test.clipboard.js
-index 1c173a8..68981c0 100644
+index 1c173a8..6f3b75a 100644
 --- a/tests/test.clipboard.js
 +++ b/tests/test.clipboard.js
-@@ -17,10 +17,17 @@ describe('Async Clipboard', function () {
+@@ -17,10 +17,16 @@ describe('Async Clipboard', function () {
          });
  
          targetMock = document.createElement("canvas");
 +        targetMock.tabIndex = 0;
 +        document.body.appendChild(targetMock);
 +        sinon.stub(document, 'hasFocus').returns(true);
-+        sinon.stub(document, 'execCommand').returns(false);
 +        sinon.stub(navigator, 'userActivation').value({ isActive: true });
          clipboard = new AsyncClipboard(targetMock);
      });
@@ -367,17 +367,7 @@ index 1c173a8..68981c0 100644
          sinon.restore();
          targetMock = null;
          clipboard = null;
-@@ -33,6 +40,9 @@ describe('Async Clipboard', function () {
-         navigator.permissions.query
-             .withArgs({ name: 'clipboard-read', allowWithoutGesture: false })
-             .resolves({ state: state });
-+        navigator.permissions.query
-+            .withArgs({ name: 'clipboard-read' })
-+            .resolves({ state: state });
-     }
- 
-     function nextTick() {
-@@ -50,7 +60,7 @@ describe('Async Clipboard', function () {
+@@ -50,7 +56,7 @@ describe('Async Clipboard', function () {
          expect(addListenerSpy.calledWith('focus')).to.be.true;
      });
  
@@ -386,7 +376,7 @@ index 1c173a8..68981c0 100644
          stubClipboardPermissions('denied');
  
          const addListenerSpy = sinon.spy(targetMock, 'addEventListener');
-@@ -58,7 +68,8 @@ describe('Async Clipboard', function () {
+@@ -58,7 +64,8 @@ describe('Async Clipboard', function () {
  
          await nextTick();
  
@@ -396,10 +386,11 @@ index 1c173a8..68981c0 100644
      });
  
      it('focus event triggers onpaste() if permissions granted', async function () {
-@@ -99,23 +110,124 @@ describe('Async Clipboard', function () {
+@@ -98,24 +105,123 @@ describe('Async Clipboard', function () {
+ 
      it('writeClipboard() calls navigator.clipboard.writeText() if permissions granted', async function () {
          stubClipboardPermissions('granted');
-         clipboard._isAvailable = true;
+-        clipboard._isAvailable = true;
 +        clipboard.grab();
 +        targetMock.focus();
  
@@ -414,7 +405,7 @@ index 1c173a8..68981c0 100644
 -    it('writeClipboard() does not call navigator.clipboard.writeText() if permissions denied', async function () {
 +    it('writeClipboard() attempts gesture-authorized writes without permission support', async function () {
          stubClipboardPermissions('denied');
-         clipboard._isAvailable = false;
+-        clipboard._isAvailable = false;
 +        clipboard.grab();
 +        targetMock.focus();
  
@@ -517,9 +508,9 @@ index 1c173a8..68981c0 100644
 +        clipboard.writeClipboard('idle remote');
 +        expect(navigator.clipboard.writeText.called).to.be.false;
 +        expect(clipboard._pendingWrite).to.equal('idle remote');
-+        document.execCommand.returns(true);
 +        targetMock.dispatchEvent(new MouseEvent('mousedown'));
-+        expect(document.execCommand.calledWith('copy')).to.be.true;
++        expect(navigator.clipboard.writeText.calledOnceWith('idle remote')).to.be.true;
++        await nextTick();
 +        expect(clipboard._pendingWrite).to.equal(null);
 +    });
 +
