@@ -8,8 +8,8 @@ _final: prev: {
       hash = "sha256-MlnFM3DkBBuGIAXbJYjyb5qEDz8ayxN4E7lCZ3kT6Pw=";
     };
     patches = (oldAttrs.patches or []) ++ [
-      ./novnc/clipboard.patch
-      ./novnc/reconnect.patch
+      ./clipboard.patch
+      ./reconnect.patch
     ];
   });
 }
