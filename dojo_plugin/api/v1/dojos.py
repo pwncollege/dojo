@@ -235,7 +235,12 @@ class DojoSolveList(Resource):
         if not user:
             return {"error": "User not found"}, 400
 
-        solves_query = dojo.solves(user=user, ignore_visibility=True, ignore_admins=False)
+        solves_query = dojo.solves(
+            user=user,
+            include_visibility_exempt=True,
+            include_hidden_users=True,
+            include_admin_users=True,
+        )
 
         if after := request.args.get("after"):
             try:
@@ -292,7 +297,11 @@ class DojoCourseSolveList(Resource):
             return {"success": False, "error": "This dojo is not a course"}, 404
         students = dojo.course.get("students", {})
 
-        solves_query = dojo.solves(ignore_visibility=True, ignore_admins=False)
+        solves_query = dojo.solves(
+            include_visibility_exempt=True,
+            include_hidden_users=True,
+            include_admin_users=True,
+        )
 
         if after := request.args.get("after"):
             try:

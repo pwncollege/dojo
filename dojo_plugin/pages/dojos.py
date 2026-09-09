@@ -36,7 +36,12 @@ def listing(template="dojos.html"):
     )
     if user:
         solves_subquery = (
-            DojoChallenges.solves(user=user, ignore_visibility=True, ignore_admins=False)
+            DojoChallenges.solves(
+                user=user,
+                include_visibility_exempt=True,
+                include_hidden_users=True,
+                include_admin_users=True,
+            )
             .group_by(DojoChallenges.dojo_id)
             .with_entities(DojoChallenges.dojo_id, db.func.count().label("solve_count"))
             .subquery()
