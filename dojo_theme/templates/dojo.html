@@ -68,7 +68,7 @@
     {% for module in dojo.modules %}
     {% set container_count = module_container_counts.get(module.id, 0) %}
     {% set num_challs = module.visible_challenges(required_only=True) | length %}
-    {% set num_solved_required = module.visible_solves(user=user, ignore_admins=False).count() if user else 0 %}
+    {% set num_solved_required = module.visible_solves(user=user, include_admin_users=True).count() if user else 0 %}
     {% if module.visible() or dojo.is_admin(user) %}
       {{ card(
         url_for('pwncollege_dojo.view_dojo_path', dojo=dojo_id, path=module.id),
