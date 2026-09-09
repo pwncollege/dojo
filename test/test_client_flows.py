@@ -5,6 +5,7 @@ import time
 from urllib.parse import urlparse
 
 import pytest
+import requests
 
 from utils import (
     DOJO_URL,
@@ -260,6 +261,28 @@ def test_dojo_progress_counts_only_required_solves(flows_dojo, flows_solver):
 
     assert session.get(f"{DOJO_URL}/{flows_dojo}").status_code == 200
     assert session.get(f"{DOJO_URL}/hacker/{get_user_id(name)}").status_code == 200
+
+
+def test_hidden_user_module_progress_is_only_shown_to_self(flows_dojo, random_user):
+    name, session = random_user
+    _, other_session = register_user()
+    solve_challenge_offline(flows_dojo, "flows", "required-one", session=session, user=name)
+
+    def progress(viewer):
+        response = viewer.get(f"{DOJO_URL}/{flows_dojo}")
+        assert response.status_code == 200, response.status_code
+        widths = re.findall(r'class="progress-bar" style="width: ([\d.]+)%"', response.text)
+        assert len(widths) == 1, widths
+        return float(widths[0])
+
+    assert progress(session) == 100
+    response = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"hidden": True})
+    assert response.status_code == 200, response.text
+
+    assert progress(session) == 100, "hidden users must see their own module progress"
+    assert progress(other_session) == 0, "another viewer must only see their own progress"
+    with requests.Session() as anonymous:
+        assert progress(anonymous) == 0, "anonymous viewers must not see another user's progress"
 
 
 def test_module_card_progress_cannot_exceed_denominator(admin_session, example_dojo):
