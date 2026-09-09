@@ -13,17 +13,15 @@ let
     requests = "0z7ksaypjcj9wl3g6ab1i8q5n10rxvnd60ps572vsbcyli5qmrci";
   };
   revision = "29952fe571b3eef4be58152192d450dea352e7e4";
-  fetchClient =
-    path: sha256:
-    pkgs.fetchurl {
-      url = "https://raw.githubusercontent.com/dimitry-ishenko-cpp/devdocs/${revision}/${path}";
-      inherit sha256;
-    };
-  devopen = fetchClient "bin/devopen.in" "1wmsa2m3vfdaj5vfidpmnchg51g6cy4yvqbdhsn7prdmcz1bj0y1";
-  devgrep = fetchClient "bin/devgrep.in" "0p9fwmx9c75phibwnjr8hqhkdwgw99jirpfgkvahl9lfvqwl7s8m";
-  config = fetchClient "elinks/elinks.conf" "0pmivy1kg4a872ssqjgw41f3949a0pdbjq1fy3smqq99ma4cwq5z";
-  hooks = fetchClient "elinks/hooks.py" "1na1k615sd4ijq3d2fd37s8rgwwrwaw8zqyc155kfrfm0q44bvxl";
-  license = fetchClient "LICENSE.md" "0mh4d01s2xdvspqcjfsgyr6p1nlnkxlxk01zzwc79pqnwskbslc9";
+  src = pkgs.fetchgit {
+    url = "https://github.com/dimitry-ishenko-cpp/devdocs.git";
+    rev = revision;
+    sparseCheckout = [
+      "bin"
+      "elinks"
+    ];
+    hash = "sha256-0w29inZ5CMGex3DxIAUWErM30yMgM1Dqw1QWmRzDssA=";
+  };
   python = pkgs.python3.withPackages (ps: [
     ps.lxml
     ps.pygments
@@ -38,8 +36,7 @@ let
     text = ''
       devdocs_config=$(mktemp -d -t devdocs-elinks.XXXXXXXX)
       trap 'rm -rf -- "$devdocs_config"' EXIT
-      cp ${config} "$devdocs_config/elinks.conf"
-      cp ${hooks} "$devdocs_config/hooks.py"
+      cp ${src}/elinks/{elinks.conf,hooks.py} "$devdocs_config/"
       export PYTHONPATH="${python}/${python.sitePackages}"
       ${elinks}/bin/elinks -config-dir "$devdocs_config" -no-connect 1 \
         -eval "set terminal.''${TERM:-xterm-256color}.transparency = 0" \
@@ -51,7 +48,7 @@ let
     import posixpath
     from pathlib import Path
     import sys
-    from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
+    from urllib.parse import unquote, urljoin, urlsplit
 
     from lxml import html
 
@@ -68,17 +65,13 @@ let
             target = urlsplit(link.get("href"))
             if target.scheme or target.netloc or not target.path:
                 continue
-            resolved = unquote(
-                urlsplit(urljoin("/" + filename(page), target.path)).path
-            ).lstrip("/")
+            resolved = unquote(urljoin("/" + filename(page), target.path)).lstrip("/")
             candidate = filename(resolved)
             if candidate in files:
                 relative = posixpath.relpath(
                     candidate, posixpath.dirname(filename(page)) or "."
                 )
-                link.set(
-                    "href", urlunsplit(("", "", relative, target.query, target.fragment))
-                )
+                link.set("href", target._replace(path=relative).geturl())
         output = destination / filename(page)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(html.tostring(document, encoding="unicode"))
@@ -98,23 +91,21 @@ let
       }
       ''
         mkdir -p "$out/html"
-        ${pkgs.lib.concatStringsSep "\n" (
-          pkgs.lib.mapAttrsToList (
-            slug: sha256:
-            let
-              archive = pkgs.fetchurl {
-                name = "devdocs-${builtins.replaceStrings [ "~" ] [ "-" ] slug}.tar.gz";
-                url = "https://downloads.devdocs.io/${slug}.tar.gz";
-                inherit sha256;
-              };
-            in
-            ''
-              mkdir -p "${slug}"
-              tar --warning=no-unknown-keyword --exclude='._*' -xf ${archive} -C "${slug}"
-              python ${prepare} "${slug}" "$out/html/${slug}"
-            ''
-          ) collections
-        )}
+        ${pkgs.lib.concatMapAttrsStringSep "\n" (
+          slug: sha256:
+          let
+            archive = pkgs.fetchurl {
+              name = "devdocs-${builtins.replaceStrings [ "~" ] [ "-" ] slug}.tar.gz";
+              url = "https://downloads.devdocs.io/${slug}.tar.gz";
+              inherit sha256;
+            };
+          in
+          ''
+            mkdir -p "${slug}"
+            tar --warning=no-unknown-keyword --exclude='._*' -xf ${archive} -C "${slug}"
+            python ${prepare} "${slug}" "$out/html/${slug}"
+          ''
+        ) collections}
       '';
 in
 pkgs.runCommand "devdocs-terminal"
@@ -125,9 +116,9 @@ pkgs.runCommand "devdocs-terminal"
   }
   ''
     mkdir -p "$out/bin" "$out/share/devdocs-terminal"
-    cp ${devopen} "$out/bin/devopen"
-    cp ${devgrep} "$out/bin/devgrep"
-    cp ${license} "$out/share/devdocs-terminal/LICENSE.md"
+    cp ${src}/LICENSE.md "$out/share/devdocs-terminal/LICENSE.md"
+    install -m755 ${src}/bin/devopen.in "$out/bin/devopen"
+    install -m755 ${src}/bin/devgrep.in "$out/bin/devgrep"
     substituteInPlace "$out/bin/devopen" "$out/bin/devgrep" \
       --replace-fail '@DEVDOCS_INSTALL_DATADIR@' '${docs}' \
       --replace-fail '@PROJECT_VERSION@' '${builtins.substring 0 8 revision}' \
@@ -135,7 +126,6 @@ pkgs.runCommand "devdocs-terminal"
     substituteInPlace "$out/bin/devopen" \
       --replace-fail 'www = [ "elinks", "-config-dir", root_path / "elinks", "-no-connect", "1" ]' \
         'www = [ "${viewer}/bin/devdocs-elinks" ]'
-    chmod +x "$out/bin/devopen" "$out/bin/devgrep"
     wrapProgram "$out/bin/devopen" --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.fzf ]}
     wrapProgram "$out/bin/devgrep" --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.fzf ]}
     ln -s devgrep "$out/bin/devdocs"
