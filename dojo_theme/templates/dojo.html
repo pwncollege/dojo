@@ -4,13 +4,13 @@
 {% block content %}
 <div class="jumbotron">
   <div class="container">
-    <h1 class="brand-white brand-mono-bold">{{ dojo.name or dojo.id }}<span class="brand-dot">.</span></h1>
+    <h1 class="brand-white brand-mono-bold">{{ dojo.localized_name or dojo.id }}<span class="brand-dot">.</span></h1>
   </div>
 </div>
 <div class="container">
   {% include "components/errors.html" %}
 
-  {% if dojo.description %}
+  {% if dojo.localized_description %}
   <div>
     {% if description_edit_url %}
       <a href="{{ description_edit_url }}"
@@ -20,7 +20,7 @@
         <i class="fas fa-edit"></i>
       </a>
     {% endif %}
-    {{ dojo.description | markdown }}
+    {{ dojo.localized_description | markdown }}
   </div>
   <br>
   {% endif %}
@@ -72,7 +72,7 @@
     {% if module.visible() or dojo.is_admin(user) %}
       {{ card(
         url_for('pwncollege_dojo.view_dojo_path', dojo=dojo_id, path=module.id),
-	title=module.name or module.id,
+	title=module.localized_name or module.id,
         text_lines = [
           "{} Hacking".format(container_count) if container_count > 0 else "",
           "{} / {}".format(

@@ -17,6 +17,7 @@ from CTFd.utils.decorators import authed_only
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.helpers import get_infos
 
+from ..i18n import DEFAULT_LANGUAGE, current_language
 from ..utils import get_current_container, get_all_containers, render_markdown
 from ..utils.background_stats import invalidate_dojo_cached_stats
 from ..utils.stats import get_container_stats, get_dojo_stats, get_challenge_solves
@@ -45,9 +46,12 @@ def get_dojo_branch(dojo):
 
     return "main"
 
-def find_description_edit_url(dojo, relative_paths, search_pattern=None, branch="main"):
+def find_description_edit_url(dojo, relative_paths, search_pattern=None, branch="main", language=None):
     if not (dojo.official and dojo.repository):
         return None
+
+    if language and language != DEFAULT_LANGUAGE:
+        relative_paths = [f"i18n/{language}/{path}" for path in relative_paths] + relative_paths
 
     for relative_path in relative_paths:
         full_path = dojo.path / relative_path
@@ -93,11 +97,12 @@ def listing(dojo):
     stats["active"] = sum(module_container_counts.values())
 
     description_edit_url = None
-    if dojo.description and dojo.path.exists():
+    if dojo.localized_description and dojo.path.exists():
         description_edit_url = find_description_edit_url(
             dojo, ["DESCRIPTION.md", "dojo.yml"],
             search_pattern=re.compile(r"^description:"),
-            branch=get_dojo_branch(dojo)
+            branch=get_dojo_branch(dojo),
+            language=current_language(),
         )
 
     return render_template(
@@ -155,14 +160,14 @@ def active_module():
         if not challenge:
             return {}
         return {
-            "module_name": challenge.module.name,
+            "module_name": challenge.module.localized_name,
             "module_id": challenge.module.id,
-            "dojo_name": challenge.dojo.name,
+            "dojo_name": challenge.dojo.localized_name,
             "dojo_reference_id": challenge.dojo.reference_id,
             "challenge_id": challenge.challenge_id,
-            "challenge_name": challenge.name,
+            "challenge_name": challenge.localized_name,
             "challenge_reference_id": challenge.id,
-            "description": render_markdown(challenge.description).strip() if challenge == current_challenge else None,
+            "description": render_markdown(challenge.localized_description).strip() if challenge == current_challenge else None,
         }
 
     return {
@@ -403,15 +408,17 @@ def view_module(dojo, module, scroll_to_challenge=None):
     if dojo.path.exists():
         branch = get_dojo_branch(dojo)
 
-        if module.description:
+        language = current_language()
+
+        if module.localized_description:
             module_description_edit_url = find_description_edit_url(dojo, [
                 f"{module.id}/DESCRIPTION.md",
                 f"{module.id}/module.yml",
                 "dojo.yml"
-            ], search_pattern=re.compile(r"^description:"), branch=branch)
+            ], search_pattern=re.compile(r"^description:"), branch=branch, language=language)
 
         for challenge in module.challenges:
-            if challenge.description:
+            if challenge.localized_description:
                 # Search for "- id: challenge_name" with optional quotes
                 challenge_description_edit_urls[challenge.id] = find_description_edit_url(
                     dojo, [
@@ -420,7 +427,7 @@ def view_module(dojo, module, scroll_to_challenge=None):
                         f"{module.id}/module.yml",
                         "dojo.yml"
                     ], search_pattern=re.compile(rf"^\s*-?\s*id:\s*[\"']?{re.escape(challenge.id)}[\"']?"),
-                    branch=branch
+                    branch=branch, language=language
                 )
 
         for resource in module.resources:
@@ -429,7 +436,7 @@ def view_module(dojo, module, scroll_to_challenge=None):
                 resource_description_edit_urls[resource.resource_index] = find_description_edit_url(
                     dojo, [f"{module.id}/module.yml", "dojo.yml"],
                     search_pattern=re.compile(rf"^\s*-?\s*name:\s*[\"']?{re.escape(resource.name)}[\"']?"),
-                    branch=branch
+                    branch=branch, language=language
                 )
 
     visible_challenges = set(module.visible_challenges())

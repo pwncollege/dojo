@@ -1,0 +1,25 @@
+id: i18n-import-test
+name: I18n Import Test Dojo
+
+modules:
+  - id: reimporting
+    name: Reimporting Module
+    description: An English module description, marker REIMPORT_EN.
+    resources:
+      - type: challenge
+        id: inherited
+        name: Inherited Challenge
+        import:
+          dojo: i18n-test
+          module: translated
+          challenge: translated
+      - type: challenge
+        id: renamed
+        name: Renamed Challenge
+        translations:
+          ko:
+            name: 이름을 바꾼 챌린지
+        import:
+          dojo: i18n-test
+          module: translated
+          challenge: translated
