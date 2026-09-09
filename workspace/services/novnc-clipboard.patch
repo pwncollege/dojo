@@ -1,0 +1,634 @@
+diff --git a/app/ui.js b/app/ui.js
+index 6e4af29..6278527 100644
+--- a/app/ui.js
++++ b/app/ui.js
+@@ -9,7 +9,7 @@
+ import * as Log from '../core/util/logging.js';
+ import _, { l10n } from './localization.js';
+ import { isTouchDevice, isMac, isIOS, isAndroid, isChromeOS, isSafari,
+-         hasScrollbarGutter, dragThreshold, browserAsyncClipboardSupport }
++         hasScrollbarGutter, dragThreshold }
+     from '../core/util/browser.js';
+ import { setCapture, getPointerEvent } from '../core/util/events.js';
+ import KeyTable from "../core/input/keysym.js";
+@@ -1862,28 +1862,8 @@ const UI = {
+     },
+ 
+     updateClipboard() {
+-        browserAsyncClipboardSupport()
+-            .then((support) => {
+-                if (support === 'unsupported') {
+-                    // Use fallback clipboard panel
+-                    return;
+-                }
+-                if (support === 'denied' || support === 'available') {
+-                    UI.closeClipboardPanel();
+-                    document.getElementById('noVNC_clipboard_button')
+-                        .classList.add('noVNC_hidden');
+-                    document.getElementById('noVNC_clipboard_button')
+-                        .removeEventListener('click', UI.toggleClipboardPanel);
+-                    document.getElementById('noVNC_clipboard_text')
+-                        .removeEventListener('change', UI.clipboardSend);
+-                    if (UI.rfb) {
+-                        UI.rfb.removeEventListener('clipboard', UI.clipboardReceive);
+-                    }
+-                }
+-            })
+-            .catch(() => {
+-                // Treat as unsupported
+-            });
++        // Keep manual recovery available even when automatic access is
++        // supported: individual operations can still be denied.
+     },
+ 
+     updateShowDotCursor() {
+diff --git a/core/clipboard.js b/core/clipboard.js
+index ae3cad1..e5dea2d 100644
+--- a/core/clipboard.js
++++ b/core/clipboard.js
+@@ -12,14 +12,33 @@ export default class AsyncClipboard {
+         this._target = target || null;
+ 
+         this._isAvailable = null;
++        this._permissionBased = false;
++        this._writeWithoutGesture = false;
++        this._grabbed = false;
++        this._pendingWrite = null;
++        this._pasteKey = null;
++        this._pasteTimer = null;
++        this._generation = 0;
++        this._redirectingFocus = false;
++        this._pasteTarget = document.createElement('textarea');
++        this._pasteTarget.tabIndex = -1;
++        this._pasteTarget.setAttribute('aria-label', 'Remote desktop clipboard paste');
++        this._pasteTarget.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;';
+ 
+         this._eventHandlers = {
+             'focus': this._handleFocus.bind(this),
++            'blur': this._handleBlur.bind(this),
++            'mousedown': this._handleClick.bind(this),
++            'touchend': this._handleClick.bind(this),
++            'keydown': this._handleKeyDown.bind(this),
++            'paste': this._handlePaste.bind(this),
+         };
+ 
+         // ===== EVENT HANDLERS =====
+ 
+         this.onpaste = () => {};
++        this.onpastekey = () => {};
++        this.onreleasekeys = () => {};
+     }
+ 
+     // ===== PRIVATE METHODS =====
+@@ -29,6 +48,13 @@ export default class AsyncClipboard {
+         try {
+             const status = await browserAsyncClipboardSupport();
+             this._isAvailable = (status === 'available');
++            this._permissionBased = (status !== 'unsupported');
++            if (this._permissionBased) {
++                const permission = await navigator.permissions.query({
++                    name: 'clipboard-write', allowWithoutGesture: true,
++                });
++                this._writeWithoutGesture = (permission.state === 'granted');
++            }
+         } catch {
+             this._isAvailable = false;
+         }
+@@ -36,37 +62,161 @@ export default class AsyncClipboard {
+     }
+ 
+     async _handleFocus(event) {
++        if (this._redirectingFocus) return;
++        this._cancel();
++        const generation = this._generation;
+         if (!(await this._ensureAvailable())) return;
+         try {
++            const permission = await navigator.permissions.query({ name: 'clipboard-read' });
++            // Do not interrupt desktop focus with a permission prompt.
++            // Without a persistent grant, use the browser's paste event.
++            if (permission.state !== 'granted') return;
+             const text = await navigator.clipboard.readText();
++            if (!this._grabbed || generation !== this._generation) return;
+             this.onpaste(text);
+         } catch (error) {
+             Log.Error("Clipboard read failed: ", error);
+         }
+     }
+ 
++    _handleBlur() {
++        if (!this._redirectingFocus) {
++            if (this._pasteKey) this.onreleasekeys();
++            this._cancel();
++        }
++    }
++
++    _restoreFocus() {
++        if (document.activeElement !== this._pasteTarget) return;
++        this._redirectingFocus = true;
++        this._target.focus({ preventScroll: true });
++        this._redirectingFocus = false;
++    }
++
++    _cancel() {
++        this._generation++;
++        this._pendingWrite = null;
++        this._pasteKey = null;
++        clearTimeout(this._pasteTimer);
++    }
++
++    _handleKeyDown(event) {
++        const paste = !event.altKey &&
++            ((event.code === 'KeyV' && (event.ctrlKey || event.metaKey)) ||
++             (event.code === 'Insert' && event.shiftKey));
++        if (!paste || event.isComposing) return;
++        // Let the browser generate a trusted paste event. noVNC's normal
++        // keyboard handler would preventDefault() and suppress that event.
++        event.stopImmediatePropagation();
++        this._cancel();
++        this._pasteKey = event;
++        this._redirectingFocus = true;
++        this._pasteTarget.focus({ preventScroll: true });
++        this._redirectingFocus = false;
++        // If the browser reserves the shortcut, do not paste stale remote
++        // data. The manual clipboard panel remains available.
++        this._pasteTimer = setTimeout(() => {
++            this._cancel();
++            this._restoreFocus();
++            this.onreleasekeys();
++        }, 1000);
++    }
++
++    _handlePaste(event) {
++        event.preventDefault();
++        if (!event.clipboardData ||
++            !Array.from(event.clipboardData.types).includes('text/plain')) {
++            this._cancel();
++            this._restoreFocus();
++            this.onreleasekeys();
++            return;
++        }
++        const key = this._pasteKey;
++        this._cancel();
++        this.onpaste(event.clipboardData.getData('text/plain'));
++        if (key) this.onpastekey(key);
++        this._restoreFocus();
++    }
++
++    _handleClick(event) {
++        if (event.type === 'mousedown' && event.button !== 0) return;
++        // Use mousedown: noVNC's mouse-capture overlay can consume the
++        // subsequent click in Chromium before it reaches the canvas.
++        if (this._pendingWrite === null) return;
++        // Some browser/iframe configurations reject async writes even on
++        // activation. Retain the synchronous copy-command fallback used by
++        // other remote desktop clients, without showing a clipboard textbox.
++        this._redirectingFocus = true;
++        try {
++            this._pasteTarget.value = this._pendingWrite;
++            this._pasteTarget.focus({ preventScroll: true });
++            this._pasteTarget.select();
++            if (document.execCommand('copy')) this._pendingWrite = null;
++        } catch {
++            // The manual panel is still available if both APIs are blocked.
++        } finally {
++            this._pasteTarget.value = '';
++            this._target.focus({ preventScroll: true });
++            this._redirectingFocus = false;
++        }
++        if (this._pendingWrite !== null) this._tryWrite();
++    }
++
++    _tryWrite() {
++        if (!navigator.clipboard || !navigator.clipboard.writeText) return;
++        // An idle write in fresh Chromium can open a permission prompt and
++        // steal focus. Queue it for a gesture instead of prompting remotely.
++        if (this._permissionBased && !this._writeWithoutGesture &&
++            !navigator.userActivation.isActive) return;
++        const text = this._pendingWrite;
++        const generation = this._generation;
++        // Call synchronously within the click's user activation. In
++        // particular, do not await a Permissions API query on Safari.
++        navigator.clipboard.writeText(text).then(() => {
++            if (generation === this._generation && this._pendingWrite === text) {
++                this._pendingWrite = null;
++            }
++        }).catch(() => {
++            // Retry on the next desktop click, never on a paste keydown.
++        });
++    }
++
+     // ===== PUBLIC METHODS =====
+ 
+     writeClipboard(text) {
+-        // Can lazily check cached availability
+-        if (!this._isAvailable) return false;
+-        navigator.clipboard.writeText(text)
+-            .catch(error => Log.Error("Clipboard write failed: ", error));
+-        return true;
++        if (this._grabbed && document.hasFocus() &&
++            document.activeElement === this._target) {
++            this._pendingWrite = text;
++            this._tryWrite();
++        }
++        // Always update the manual panel too: asynchronous writes can fail.
++        return false;
+     }
+ 
+     grab() {
+         if (!this._target) return;
+-        this._ensureAvailable()
+-            .then((isAvailable) => {
+-                if (isAvailable) {
+-                    this._target.addEventListener('focus', this._eventHandlers.focus);
+-                }
+-            });
++        this._grabbed = true;
++        this._target.parentNode.appendChild(this._pasteTarget);
++        this._pasteTarget.addEventListener('paste', this._eventHandlers.paste);
++        this._pasteTarget.addEventListener('blur', this._eventHandlers.blur);
++        this._ensureAvailable();
++        for (const [type, handler] of Object.entries(this._eventHandlers)) {
++            this._target.addEventListener(type, handler, true);
++        }
++        window.addEventListener('blur', this._eventHandlers.blur);
+     }
+ 
+     ungrab() {
+         if (!this._target) return;
+-        this._target.removeEventListener('focus', this._eventHandlers.focus);
++        this._grabbed = false;
++        this._cancel();
++        this._restoreFocus();
++        this._pasteTarget.removeEventListener('paste', this._eventHandlers.paste);
++        this._pasteTarget.removeEventListener('blur', this._eventHandlers.blur);
++        this._pasteTarget.remove();
++        for (const [type, handler] of Object.entries(this._eventHandlers)) {
++            this._target.removeEventListener(type, handler, true);
++        }
++        window.removeEventListener('blur', this._eventHandlers.blur);
+     }
+ }
+diff --git a/core/input/keyboard.js b/core/input/keyboard.js
+index 3cc8917..4e5a699 100644
+--- a/core/input/keyboard.js
++++ b/core/input/keyboard.js
+@@ -267,6 +267,30 @@ export default class Keyboard {
+ 
+     // ===== PUBLIC METHODS =====
+ 
++    paste(event) {
++        // The browser may deliver paste after modifier keyup, and macOS
++        // Command normally maps to remote Alt. Send an explicit paste chord,
++        // then restore any keys still physically held, using normal tracking.
++        this._interruptAltGrSequence();
++        const held = { ...this._keyDownList };
++        this._allKeysUp();
++        const insert = event.code === 'Insert';
++        if (!insert) this._sendKeyEvent(KeyTable.XK_Control_L, 'ControlLeft', true);
++        if (event.shiftKey) this._sendKeyEvent(KeyTable.XK_Shift_L, 'ShiftLeft', true);
++        const code = insert ? 'Insert' : 'KeyV';
++        const keysym = insert ? KeyTable.XK_Insert : KeyTable.XK_v;
++        this._sendKeyEvent(keysym, code, true);
++        this._sendKeyEvent(keysym, code, false);
++        this._allKeysUp();
++        for (const [heldCode, heldKeysym] of Object.entries(held)) {
++            this._sendKeyEvent(heldKeysym, heldCode, true);
++        }
++    }
++
++    releaseAll() {
++        this._allKeysUp();
++    }
++
+     grab() {
+         //Log.Debug(">> Keyboard.grab");
+ 
+diff --git a/core/rfb.js b/core/rfb.js
+index 8994317..aff34a9 100644
+--- a/core/rfb.js
++++ b/core/rfb.js
+@@ -273,6 +273,8 @@ export default class RFB extends EventTargetMixin {
+ 
+         this._keyboard = new Keyboard(this._canvas);
+         this._keyboard.onkeyevent = this._handleKeyEvent.bind(this);
++        this._asyncClipboard.onpastekey = this._keyboard.paste.bind(this._keyboard);
++        this._asyncClipboard.onreleasekeys = this._keyboard.releaseAll.bind(this._keyboard);
+         this._remoteCapsLock = null; // Null indicates unknown or irrelevant
+         this._remoteNumLock = null;
+ 
+@@ -628,6 +630,7 @@ export default class RFB extends EventTargetMixin {
+         this._canvas.removeEventListener("touchstart", this._eventHandlers.focusCanvas);
+         this._resizeObserver.disconnect();
+         this._keyboard.ungrab();
++        this._asyncClipboard.ungrab();
+         this._gestures.detach();
+         this._sock.close();
+         try {
+diff --git a/docs/API-internal.md b/docs/API-internal.md
+index 1d0a110..f1966ab 100644
+--- a/docs/API-internal.md
++++ b/docs/API-internal.md
+@@ -46,6 +46,8 @@ None
+ | ------ | ---------- | ------------
+ | grab   | ()         | Begin capturing keyboard events
+ | ungrab | ()         | Stop capturing keyboard events
++| paste | (event) | Send a paste chord after native clipboard input, translating Command+V to Control+V
++| releaseAll | () | Release all tracked keys
+ 
+ ### 2.1.3 Callbacks
+ 
+@@ -102,4 +104,6 @@ None
+ 
+ | name    | parameters | description
+ | ------- | ---------- | ------------
+-| onpaste | (text)     | Called following a target focus event and an async clipboard read
++| onpaste | (text)     | Called following a granted async read or a native text paste
++| onpastekey | (event) | Called after onpaste to forward the captured paste shortcut
++| onreleasekeys | () | Release keys when a native paste is canceled or times out
+diff --git a/tests/test.clipboard.js b/tests/test.clipboard.js
+index 1c173a8..68981c0 100644
+--- a/tests/test.clipboard.js
++++ b/tests/test.clipboard.js
+@@ -17,10 +17,17 @@ describe('Async Clipboard', function () {
+         });
+ 
+         targetMock = document.createElement("canvas");
++        targetMock.tabIndex = 0;
++        document.body.appendChild(targetMock);
++        sinon.stub(document, 'hasFocus').returns(true);
++        sinon.stub(document, 'execCommand').returns(false);
++        sinon.stub(navigator, 'userActivation').value({ isActive: true });
+         clipboard = new AsyncClipboard(targetMock);
+     });
+ 
+     afterEach(function () {
++        clipboard.ungrab();
++        targetMock.remove();
+         sinon.restore();
+         targetMock = null;
+         clipboard = null;
+@@ -33,6 +40,9 @@ describe('Async Clipboard', function () {
+         navigator.permissions.query
+             .withArgs({ name: 'clipboard-read', allowWithoutGesture: false })
+             .resolves({ state: state });
++        navigator.permissions.query
++            .withArgs({ name: 'clipboard-read' })
++            .resolves({ state: state });
+     }
+ 
+     function nextTick() {
+@@ -50,7 +60,7 @@ describe('Async Clipboard', function () {
+         expect(addListenerSpy.calledWith('focus')).to.be.true;
+     });
+ 
+-    it('grab() does not add listener if permissions denied', async function () {
++    it('grab() still adds gesture listeners if permissions denied', async function () {
+         stubClipboardPermissions('denied');
+ 
+         const addListenerSpy = sinon.spy(targetMock, 'addEventListener');
+@@ -58,7 +68,8 @@ describe('Async Clipboard', function () {
+ 
+         await nextTick();
+ 
+-        expect(addListenerSpy.calledWith('focus')).to.be.false;
++        expect(addListenerSpy.calledWith('focus')).to.be.true;
++        expect(addListenerSpy.calledWith('keydown')).to.be.true;
+     });
+ 
+     it('focus event triggers onpaste() if permissions granted', async function () {
+@@ -99,23 +110,124 @@ describe('Async Clipboard', function () {
+     it('writeClipboard() calls navigator.clipboard.writeText() if permissions granted', async function () {
+         stubClipboardPermissions('granted');
+         clipboard._isAvailable = true;
++        clipboard.grab();
++        targetMock.focus();
+ 
+         const text = 'writing to clipboard';
+         const result = clipboard.writeClipboard(text);
+ 
+         expect(navigator.clipboard.writeText.calledWith(text)).to.be.true;
+-        expect(result).to.be.true;
++        expect(result).to.be.false;
+     });
+ 
+-    it('writeClipboard() does not call navigator.clipboard.writeText() if permissions denied', async function () {
++    it('writeClipboard() attempts gesture-authorized writes without permission support', async function () {
+         stubClipboardPermissions('denied');
+         clipboard._isAvailable = false;
++        clipboard.grab();
++        targetMock.focus();
+ 
+         const text = 'should not write';
+         const result = clipboard.writeClipboard(text);
+ 
+-        expect(navigator.clipboard.writeText.called).to.be.false;
++        expect(navigator.clipboard.writeText.calledWith(text)).to.be.true;
+         expect(result).to.be.false;
+     });
+ 
++    it('retries a denied write on click and preserves manual fallback', async function () {
++        stubClipboardPermissions('denied');
++        clipboard.grab();
++        targetMock.focus();
++        navigator.clipboard.writeText.rejects(new Error('activation required'));
++        expect(clipboard.writeClipboard('remote')).to.be.false;
++        await nextTick();
++        navigator.clipboard.writeText.resolves();
++        targetMock.dispatchEvent(new MouseEvent('mousedown'));
++        await nextTick();
++        expect(navigator.clipboard.writeText.callCount).to.equal(2);
++        expect(clipboard._pendingWrite).to.equal(null);
++    });
++
++    it('cancels pending writes when focus leaves the desktop', async function () {
++        stubClipboardPermissions('denied');
++        clipboard.grab();
++        targetMock.focus();
++        navigator.clipboard.writeText.rejects(new Error('activation required'));
++        clipboard.writeClipboard('stale');
++        await nextTick();
++        targetMock.blur();
++        targetMock.dispatchEvent(new Event('blur'));
++        targetMock.focus();
++        targetMock.dispatchEvent(new MouseEvent('mousedown'));
++        expect(navigator.clipboard.writeText.callCount).to.equal(1);
++    });
++
++    it('sends pasted text before the shortcut and cancels a stale pending write', async function () {
++        stubClipboardPermissions('denied');
++        clipboard.grab();
++        targetMock.focus();
++        navigator.clipboard.writeText.rejects(new Error('activation required'));
++        clipboard.writeClipboard('stale');
++        await nextTick();
++        const calls = [];
++        clipboard.onpaste = text => calls.push(text);
++        clipboard.onpastekey = () => calls.push('shortcut');
++        const key = new KeyboardEvent('keydown', { key: 'v', code: 'KeyV', ctrlKey: true, cancelable: true });
++        targetMock.dispatchEvent(key);
++        expect(key.defaultPrevented).to.be.false;
++        expect(document.activeElement).to.equal(clipboard._pasteTarget);
++        const event = new Event('paste', { cancelable: true });
++        Object.defineProperty(event, 'clipboardData', { value: {
++            types: ['text/plain'], getData: () => 'fresh λ✓',
++        } });
++        clipboard._pasteTarget.dispatchEvent(event);
++        expect(calls).to.deep.equal(['fresh λ✓', 'shortcut']);
++        expect(clipboard._pendingWrite).to.equal(null);
++        expect(document.activeElement).to.equal(targetMock);
++    });
++
++    it('does not intercept ordinary typing, AltGr, or IME composition', function () {
++        clipboard.grab();
++        for (const options of [
++            { code: 'KeyA', key: 'a' },
++            { code: 'KeyV', key: 'v', ctrlKey: true, altKey: true },
++            { code: 'KeyV', key: 'v', ctrlKey: true, isComposing: true },
++        ]) {
++            targetMock.dispatchEvent(new KeyboardEvent('keydown', options));
++            expect(clipboard._pasteKey).to.equal(null);
++        }
++    });
++
++    it('cleans up gestures and pending state on ungrab', function () {
++        clipboard.grab();
++        clipboard.ungrab();
++        targetMock.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyV', ctrlKey: true }));
++        expect(clipboard._pasteKey).to.equal(null);
++        expect(clipboard._pasteTarget.isConnected).to.be.false;
++        clipboard.writeClipboard('disconnected');
++        expect(navigator.clipboard.writeText.called).to.be.false;
++    });
++
++    it('does not prompt for read access on focus', async function () {
++        stubClipboardPermissions('prompt');
++        clipboard.grab();
++        targetMock.focus();
++        await nextTick();
++        expect(navigator.clipboard.readText.called).to.be.false;
++    });
++
++    it('queues an idle Chromium write without opening a permission prompt', async function () {
++        stubClipboardPermissions('prompt');
++        clipboard.grab();
++        targetMock.focus();
++        await nextTick();
++        navigator.userActivation.isActive = false;
++        clipboard.writeClipboard('idle remote');
++        expect(navigator.clipboard.writeText.called).to.be.false;
++        expect(clipboard._pendingWrite).to.equal('idle remote');
++        document.execCommand.returns(true);
++        targetMock.dispatchEvent(new MouseEvent('mousedown'));
++        expect(document.execCommand.calledWith('copy')).to.be.true;
++        expect(clipboard._pendingWrite).to.equal(null);
++    });
++
+ });
+diff --git a/tests/test.keyboard.js b/tests/test.keyboard.js
+index ccc0124..4770bc5 100644
+--- a/tests/test.keyboard.js
++++ b/tests/test.keyboard.js
+@@ -19,6 +19,31 @@ describe('Key event handling', function () {
+         return e;
+     }
+ 
++    describe('Clipboard paste chords', function () {
++        it('maps a browser Command+V paste to remote Control+V', function () {
++            const kbd = new Keyboard(document);
++            kbd.onkeyevent = sinon.spy();
++            kbd.paste({ code: 'KeyV', metaKey: true, shiftKey: false });
++            expect(kbd.onkeyevent.getCalls().map(call => call.args.slice(0, 3)))
++                .to.deep.equal([
++                    [0xffe3, 'ControlLeft', true],
++                    [0x76, 'KeyV', true],
++                    [0x76, 'KeyV', false],
++                    [0xffe3, 'ControlLeft', false],
++                ]);
++            expect(kbd._keyDownList).to.deep.equal({});
++        });
++
++        it('restores physically held modifiers after a paste', function () {
++            const kbd = new Keyboard(document);
++            kbd._handleKeyDown(keyevent('keydown', { code: 'ControlLeft', key: 'Control' }));
++            kbd.paste({ code: 'KeyV', ctrlKey: true, shiftKey: true });
++            expect(kbd._keyDownList).to.deep.equal({ ControlLeft: 0xffe3 });
++            kbd.releaseAll();
++            expect(kbd._keyDownList).to.deep.equal({});
++        });
++    });
++
+     describe('Decode keyboard events', function () {
+         it('should decode keydown events', function (done) {
+             const kbd = new Keyboard(document);
+diff --git a/tests/test.rfb.js b/tests/test.rfb.js
+index 8d3a971..57390cc 100644
+--- a/tests/test.rfb.js
++++ b/tests/test.rfb.js
+@@ -3471,6 +3471,7 @@ describe('Remote Frame Buffer protocol client', function () {
+                 client._viewOnly = false;
+                 client._asyncClipboard = {
+                     writeClipboard: sinon.stub().returns(true),
++                    ungrab: sinon.stub(),
+                 };
+                 const expectedStr = 'cheese!';
+                 const data = [3, 0, 0, 0];
+@@ -3493,6 +3494,7 @@ describe('Remote Frame Buffer protocol client', function () {
+                 client._viewOnly = false;
+                 client._asyncClipboard = {
+                     writeClipboard: sinon.stub().returns(false),
++                    ungrab: sinon.stub(),
+                 };
+                 const expectedStr = 'cheese!';
+                 const data = [3, 0, 0, 0];
+@@ -3564,6 +3566,7 @@ describe('Remote Frame Buffer protocol client', function () {
+                     client._viewOnly = false;
+                     client._asyncClipboard = {
+                         writeClipboard: sinon.stub().returns(true),
++                        ungrab: sinon.stub(),
+                     };
+                     let expectedData = "Schnitzel";
+                     let data = [3, 0, 0, 0];
+@@ -3593,6 +3596,7 @@ describe('Remote Frame Buffer protocol client', function () {
+                     client._viewOnly = false;
+                     client._asyncClipboard = {
+                         writeClipboard: sinon.stub().returns(false),
++                        ungrab: sinon.stub(),
+                     };
+                     let expectedData = "Potatoes";
+                     let data = [3, 0, 0, 0];
+@@ -3623,6 +3627,7 @@ describe('Remote Frame Buffer protocol client', function () {
+                         client._viewOnly = false;
+                         client._asyncClipboard = {
+                             writeClipboard: sinon.stub().returns(false),
++                            ungrab: sinon.stub(),
+                         };
+                         let expectedData = "Aå漢字!";
+                         let data = [3, 0, 0, 0];
+@@ -3652,6 +3657,7 @@ describe('Remote Frame Buffer protocol client', function () {
+                         client._viewOnly = false;
+                         client._asyncClipboard = {
+                             writeClipboard: sinon.stub().returns(false),
++                            ungrab: sinon.stub(),
+                         };
+                         let expectedData = "Oh\nmy\n!";
+                         let data = [3, 0, 0, 0];
+@@ -3682,6 +3688,7 @@ describe('Remote Frame Buffer protocol client', function () {
+                         client._viewOnly = false;
+                         client._asyncClipboard = {
+                             writeClipboard: sinon.stub().returns(false),
++                            ungrab: sinon.stub(),
+                         };
+                         let expectedData = "hello".repeat(100000);
+                         let data = [3, 0, 0, 0];
+diff --git a/vnc.html b/vnc.html
+index bbda811..ffdb755 100644
+--- a/vnc.html
++++ b/vnc.html
+@@ -184,6 +184,7 @@
+                 <p class="noVNC_subheading">
+                     Edit clipboard content in the textbox below.
+                 </p>
++                <p>Paste directly into the desktop using your browser's paste shortcut. If a remote copy does not reach your clipboard, click inside the desktop to copy it. This textbox remains available when browser clipboard access is blocked.</p>
+                 <textarea id="noVNC_clipboard_text" rows=5></textarea>
+             </div>
+             </div>
