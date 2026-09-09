@@ -104,6 +104,46 @@ mkdir -p /data/workspacefs/bin
 mkdir -p /data/ctfd-ipython
 mkdir -p /data/coverage
 
+if [ "$WORKSPACE_NODE" -eq 0 ]; then
+    pgbouncer_ca_dir=/data/pgbouncer-ca
+    pgbouncer_tls_dir=/data/pgbouncer-tls
+    mkdir -p "$pgbouncer_ca_dir" "$pgbouncer_tls_dir"
+    if [ ! -f "$pgbouncer_ca_dir/ca.crt" ] || [ ! -f "$pgbouncer_ca_dir/ca.key" ] || \
+       [ ! -f "$pgbouncer_tls_dir/server.crt" ] || [ ! -f "$pgbouncer_tls_dir/server.key" ]; then
+        rm -f "$pgbouncer_ca_dir/ca.srl" "$pgbouncer_tls_dir/server.csr"
+        openssl req -x509 -newkey rsa:4096 -sha256 -nodes -days 3650 \
+            -keyout "$pgbouncer_ca_dir/ca.key" \
+            -out "$pgbouncer_ca_dir/ca.crt" \
+            -subj "/CN=pwncollege-pgbouncer-ca" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign,cRLSign"
+        openssl req -new -newkey rsa:2048 -sha256 -nodes \
+            -keyout "$pgbouncer_tls_dir/server.key" \
+            -out "$pgbouncer_tls_dir/server.csr" \
+            -subj "/CN=pgbouncer" \
+            -addext "subjectAltName=DNS:pgbouncer" \
+            -addext "basicConstraints=critical,CA:FALSE" \
+            -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+            -addext "extendedKeyUsage=serverAuth"
+        openssl x509 -req -sha256 -days 825 \
+            -in "$pgbouncer_tls_dir/server.csr" \
+            -CA "$pgbouncer_ca_dir/ca.crt" \
+            -CAkey "$pgbouncer_ca_dir/ca.key" \
+            -CAcreateserial \
+            -copy_extensions copy \
+            -out "$pgbouncer_tls_dir/server.crt"
+        rm "$pgbouncer_tls_dir/server.csr"
+    fi
+    chown -R 0:0 "$pgbouncer_ca_dir"
+    chmod 700 "$pgbouncer_ca_dir"
+    chmod 600 "$pgbouncer_ca_dir/ca.key"
+    chmod 644 "$pgbouncer_ca_dir/ca.crt"
+    chown -R 70:70 "$pgbouncer_tls_dir"
+    chmod 700 "$pgbouncer_tls_dir"
+    chmod 600 "$pgbouncer_tls_dir/server.key"
+    chmod 644 "$pgbouncer_tls_dir/server.crt"
+fi
+
 # Enable systemd journal forwarding to Splunk if configured
 if [ "${ENABLE_SPLUNK}" = "true" ]; then
     echo "[+] Enabling systemd journal forwarding to Splunk..."
