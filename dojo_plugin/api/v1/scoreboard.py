@@ -19,6 +19,7 @@ CREW_MODE_RANK_FIELDS = {"unique": "unique_rank", "mastery": "mastery_rank"}
 
 
 def email_symbol_asset(email):
+    email = email.lower()
     if email.endswith("@asu.edu"):
         group = "fork.png"
     elif ".edu" in email.split("@")[1]:

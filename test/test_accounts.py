@@ -143,6 +143,84 @@ def second_user():
     yield name, login(name, name, register=True)
 
 
+@pytest.fixture
+def mixed_case_email_user(random_user, admin_session):
+    name, session = random_user
+    email = f"{name.upper()}@Example.COM"
+    response = admin_session.patch(
+        f"{DOJO_URL}/api/v1/users/{get_user_id(name)}", json={"email": email, "verified": True}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["email"] == email
+    return name, session, email
+
+
+@pytest.mark.parametrize("email_case", [str.lower, str.upper])
+def test_email_login_case_insensitive(mixed_case_email_user, email_case):
+    name, _, email = mixed_case_email_user
+    session = login(email_case(email), name)
+    assert session.get(f"{DOJO_URL}/api/v1/users/me").json()["data"]["name"] == name
+
+    response = api_login(anon_session(), name=email_case(email), password=name)
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["username"] == name
+
+
+def test_email_unique_index():
+    assert db_sql(
+        "SELECT indisunique AND indisready AND indisvalid FROM pg_index "
+        "WHERE indexrelid = to_regclass('users_email_lower_key')"
+    ).strip() == "t"
+
+
+def test_email_comparison_does_not_change_credentials(mixed_case_email_user):
+    name, _, email = mixed_case_email_user
+    login(name.upper(), name, success=False)
+    login(email.lower(), name.upper(), success=False)
+    assert api_login(anon_session(), name=name.upper(), password=name).status_code == 401
+    assert api_login(anon_session(), name=email.lower(), password=name.upper()).status_code == 401
+
+
+def test_registration_rejects_email_case_duplicate(mixed_case_email_user, admin_session):
+    _, _, email = mixed_case_email_user
+    name = rand_name()
+    login(name, name, register=True, email=email.lower(), success=False)
+    assert count_users(name) == 0
+
+    response = api_register(anon_session(), **registration_payload(name, email=email.lower()))
+    assert response.status_code == 400, response.text
+    assert "That email is already registered" in response.json()["errors"]
+    assert count_users(name) == 0
+
+    response = admin_session.post(
+        f"{DOJO_URL}/api/v1/users", json=registration_payload(name, email=email.lower())
+    )
+    assert response.status_code == 400, response.text
+    assert "email" in response.json()["errors"]
+    assert count_users(name) == 0
+
+
+def test_self_email_case_edit(mixed_case_email_user):
+    name, session, email = mixed_case_email_user
+    response = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"email": email.lower()})
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["email"] == email.lower()
+    assert db_sql(f"SELECT verified FROM users WHERE name = '{name}'").strip() == "t"
+
+
+@pytest.mark.parametrize("as_admin", [False, True])
+def test_email_edit_rejects_case_duplicate(mixed_case_email_user, second_user, admin_session, as_admin):
+    _, _, email = mixed_case_email_user
+    name, session = second_user
+    endpoint = f"/api/v1/users/{get_user_id(name)}" if as_admin else "/api/v1/users/me"
+    response = (admin_session if as_admin else session).patch(
+        f"{DOJO_URL}{endpoint}", json={"email": email.lower(), "confirm": name}
+    )
+    assert response.status_code == 400, response.text
+    assert "email" in response.json()["errors"]
+    assert db_sql(f"SELECT email FROM users WHERE name = '{name}'").strip() == f"{name}@example.com"
+
+
 def test_api_register_creates_user_and_session():
     name = rand_name()
     session = anon_session()
