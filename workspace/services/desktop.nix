@@ -6,17 +6,11 @@ let
     fontDirectories = [ pkgs.dejavu_fonts ];
   };
 
-  # Revert https://github.com/novnc/noVNC/pull/1672
-  reconnectPatch = pkgs.writeText "reconnect_patch.diff" ''
-    --- a/share/webapps/novnc/app/ui.js
-    +++ b/share/webapps/novnc/app/ui.js
-    @@ -1,3 +1,3 @@
-    -        if (UI.getSetting('reconnect', false) === true && !UI.inhibitReconnect) {
-    +        else if (UI.getSetting('reconnect', false) === true && !UI.inhibitReconnect) {
-  '';
   novnc = pkgs.novnc.overrideAttrs (oldAttrs: {
-    postInstall = (oldAttrs.postInstall or "") + ''
-      patch -p1 -d $out < ${reconnectPatch}
+    postPatch = (oldAttrs.postPatch or "") + ''
+      substituteInPlace app/styles/base.css \
+        --replace-fail '#noVNC_control_bar_anchor {' \
+        '#noVNC_control_bar_anchor { display: none !important;'
     '';
   });
 

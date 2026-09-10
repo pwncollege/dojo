@@ -1,0 +1,13 @@
+# Preserve Dojo's bounded reconnect behavior (pwncollege/dojo#463).
+# Revert novnc/noVNC#1672: an unclean failure must stop automatic retries.
+--- a/app/ui.js
++++ b/app/ui.js
+@@ -1263,7 +1263,7 @@
+             }
+         }
+         // If reconnecting is allowed process it now
+-        if (UI.getSetting('reconnect', false) === true && !UI.inhibitReconnect) {
++        else if (UI.getSetting('reconnect', false) === true && !UI.inhibitReconnect) {
+             UI.updateVisualState('reconnecting');
+ 
+             const delay = parseInt(UI.getSetting('reconnect_delay'));
