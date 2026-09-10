@@ -1,0 +1,87 @@
+diff --git a/CTFd/models/__init__.py b/CTFd/models/__init__.py
+index 86538bf..7766a76 100644
+--- a/CTFd/models/__init__.py
++++ b/CTFd/models/__init__.py
+@@ -6,6 +6,8 @@ from flask_sqlalchemy import SQLAlchemy
+ from sqlalchemy.ext.compiler import compiles
+ from sqlalchemy.ext.hybrid import hybrid_property
+ from sqlalchemy.orm import column_property, validates
++from sqlalchemy.sql import operators
++from sqlalchemy.types import TypeDecorator
+
+ from CTFd.cache import cache
+
+@@ -13,6 +15,18 @@ db = SQLAlchemy()
+ ma = Marshmallow()
+
+
++class EmailAddress(TypeDecorator):
++    impl = db.String
++    python_type = str
++    cache_ok = True
++
++    class comparator_factory(db.String.Comparator):
++        def operate(self, op, other, **kwargs):
++            if op in (operators.eq, operators.ne) and other is not None:
++                return op(db.func.lower(self.expr), db.func.lower(other), **kwargs)
++            return super().operate(op, other, **kwargs)
++
++
+ def get_class_by_tablename(tablename):
+     """Return class reference mapped to table.
+     https://stackoverflow.com/a/66666783
+@@ -324,14 +338,13 @@ class Flags(db.Model):
+
+ class Users(db.Model):
+     __tablename__ = "users"
+-    __table_args__ = (db.UniqueConstraint("id", "oauth_id"), {})
+     # Core attributes
+     id = db.Column(db.Integer, primary_key=True)
+     oauth_id = db.Column(db.Integer, unique=True)
+     # User names are not constrained to be unique to allow for official/unofficial teams.
+     name = db.Column(db.String(128))
+     password = db.Column(db.String(128))
+-    email = db.Column(db.String(128), unique=True)
++    email = db.Column(EmailAddress(128), unique=True)
+     type = db.Column(db.String(80))
+     secret = db.Column(db.String(128))
+
+@@ -357,6 +370,11 @@ class Users(db.Model):
+
+     created = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
++    __table_args__ = (
++        db.UniqueConstraint("id", "oauth_id"),
++        db.Index("users_email_lower_key", db.func.lower(email), unique=True),
++    )
++
+     __mapper_args__ = {"polymorphic_identity": "user", "polymorphic_on": type}
+
+     def __init__(self, **kwargs):
+diff --git a/CTFd/schemas/users.py b/CTFd/schemas/users.py
+index a398c37..61c46d1 100644
+--- a/CTFd/schemas/users.py
++++ b/CTFd/schemas/users.py
+@@ -127,7 +127,7 @@ class UserSchema(ma.ModelSchema):
+                             "Email address has already been used", field_names=["email"]
+                         )
+         else:
+-            if email == current_user.email:
++            if current_user.email and email.lower() == current_user.email.lower():
+                 return data
+             else:
+                 confirm = data.get("confirm")
+diff --git a/migrations/versions/8369118943a1_initial_revision.py b/migrations/versions/8369118943a1_initial_revision.py
+index 649d717..444bd36 100644
+--- a/migrations/versions/8369118943a1_initial_revision.py
++++ b/migrations/versions/8369118943a1_initial_revision.py
+@@ -142,6 +142,9 @@ def upgrade():
+         sa.UniqueConstraint("id", "oauth_id"),
+         sa.UniqueConstraint("oauth_id"),
+     )
++    op.create_index(
++        "users_email_lower_key", "users", [sa.text("lower(email)")], unique=True
++    )
+     op.create_table(
+         "awards",
+         sa.Column("id", sa.Integer(), nullable=False),

@@ -440,6 +440,26 @@ def test_scoreboard_symbol_by_email_domain(sb_main):
         assert "email" not in entry, "the email used to pick the symbol must not be returned"
 
 
+def test_scoreboard_symbol_email_case_insensitive():
+    expected = {
+        "student@asu.edu": "fork.png",
+        "Student@ASU.EDU": "fork.png",
+        "student@mit.edu": "student.png",
+        "Student@MIT.EDU": "student.png",
+        "student@example.edu.au": "student.png",
+        "Student@Example.EDU.AU": "student.png",
+        "Hacker@Example.COM": "hacker.png",
+    }
+    result = json.loads(sb_flask_exec(
+        "import json\n"
+        "from flask import current_app\n"
+        "from CTFd.plugins.dojo_plugin.api.v1.scoreboard import email_symbol_asset\n"
+        "with current_app.test_request_context():\n"
+        f"    print(json.dumps({{email: email_symbol_asset(email) for email in {list(expected)!r}}}))\n"
+    ))
+    assert {email: asset_name(url) for email, url in result.items()} == expected
+
+
 def test_scoreboard_me_entry(sb_main):
     session = sb_main["sessions"][sb_main["alice"]]
     result = board(session, sb_main["dojo"])
