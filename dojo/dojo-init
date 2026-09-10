@@ -105,8 +105,8 @@ mkdir -p /data/ctfd-ipython
 mkdir -p /data/coverage
 
 if [ "$WORKSPACE_NODE" -eq 0 ]; then
-    pgbouncer_ca_dir=/data/pgbouncer-ca
-    pgbouncer_tls_dir=/data/pgbouncer-tls
+    pgbouncer_ca_dir=/data/pgbouncer/ca
+    pgbouncer_tls_dir=/data/pgbouncer/tls
     mkdir -p "$pgbouncer_ca_dir" "$pgbouncer_tls_dir"
     if [ ! -f "$pgbouncer_ca_dir/ca.crt" ] || [ ! -f "$pgbouncer_ca_dir/ca.key" ]; then
         rm -f "$pgbouncer_tls_dir/server.crt" "$pgbouncer_tls_dir/server.key" "$pgbouncer_ca_dir/ca.srl"

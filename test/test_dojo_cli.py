@@ -1193,7 +1193,7 @@ def test_init_rerun_preserves_secrets_and_host_keys(admin_session):
     before = dojo_run("cat", "/data/config.env").stdout
     fingerprint = dojo_run("ssh-keygen", "-lf", "/data/ssh_host_keys/ssh_host_ed25519_key.pub").stdout.split()[1]
     pgbouncer_certificate = dojo_run(
-        "openssl", "x509", "-in", "/data/pgbouncer-tls/server.crt", "-noout", "-fingerprint", "-sha256"
+        "openssl", "x509", "-in", "/data/pgbouncer/tls/server.crt", "-noout", "-fingerprint", "-sha256"
     ).stdout
 
     result = _rerun_dojo_init()
@@ -1204,7 +1204,7 @@ def test_init_rerun_preserves_secrets_and_host_keys(admin_session):
     assert dojo_run("ssh-keygen", "-lf", "/data/ssh_host_keys/ssh_host_ed25519_key.pub").stdout.split()[1] == \
         fingerprint, "dojo-init regenerated the ssh host keys"
     assert dojo_run(
-        "openssl", "x509", "-in", "/data/pgbouncer-tls/server.crt", "-noout", "-fingerprint", "-sha256"
+        "openssl", "x509", "-in", "/data/pgbouncer/tls/server.crt", "-noout", "-fingerprint", "-sha256"
     ).stdout == pgbouncer_certificate, "dojo-init regenerated the PgBouncer certificate"
     assert admin_session.get(f"{DOJO_URL}/dojos").status_code == 200, "an existing session broke across dojo-init"
 

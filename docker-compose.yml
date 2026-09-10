@@ -218,7 +218,7 @@ services:
       CLIENT_TLS_CERT_FILE: /etc/pgbouncer/tls/server.crt
       CLIENT_TLS_KEY_FILE: /etc/pgbouncer/tls/server.key
     volumes:
-      - /data/pgbouncer-tls:/etc/pgbouncer/tls:ro
+      - /data/pgbouncer/tls:/etc/pgbouncer/tls:ro
     depends_on:
       db:
         condition: service_started
