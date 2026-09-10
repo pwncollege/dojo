@@ -108,20 +108,14 @@ if [ "$WORKSPACE_NODE" -eq 0 ]; then
     pgbouncer_ca_dir=/data/pgbouncer-ca
     pgbouncer_tls_dir=/data/pgbouncer-tls
     mkdir -p "$pgbouncer_ca_dir" "$pgbouncer_tls_dir"
-    if [ ! -f "$pgbouncer_ca_dir/ca.crt" ] && [ ! -f "$pgbouncer_ca_dir/ca.key" ]; then
-        if [ -e "$pgbouncer_tls_dir/server.crt" ] || [ -e "$pgbouncer_tls_dir/server.key" ]; then
-            echo "[!] Missing PgBouncer CA: restore ca.crt and ca.key in $pgbouncer_ca_dir" >&2
-            exit 1
-        fi
+    if [ ! -f "$pgbouncer_ca_dir/ca.crt" ] || [ ! -f "$pgbouncer_ca_dir/ca.key" ]; then
+        rm -f "$pgbouncer_tls_dir/server.crt" "$pgbouncer_tls_dir/server.key" "$pgbouncer_ca_dir/ca.srl"
         openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -sha256 -nodes -days 7300 \
             -keyout "$pgbouncer_ca_dir/ca.key" \
             -out "$pgbouncer_ca_dir/ca.crt" \
             -subj "/CN=pwncollege-pgbouncer-ca" \
             -addext "basicConstraints=critical,CA:TRUE" \
             -addext "keyUsage=critical,keyCertSign,cRLSign" || exit 1
-    elif [ ! -f "$pgbouncer_ca_dir/ca.crt" ] || [ ! -f "$pgbouncer_ca_dir/ca.key" ]; then
-        echo "[!] Incomplete PgBouncer CA: restore ca.crt and ca.key in $pgbouncer_ca_dir" >&2
-        exit 1
     fi
     if [ ! -f "$pgbouncer_tls_dir/server.crt" ] || [ ! -f "$pgbouncer_tls_dir/server.key" ]; then
         openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-256 -sha256 -nodes \
