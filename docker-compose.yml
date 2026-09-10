@@ -217,7 +217,6 @@ services:
       CLIENT_TLS_SSLMODE: allow
       CLIENT_TLS_CERT_FILE: /etc/pgbouncer/tls/server.crt
       CLIENT_TLS_KEY_FILE: /etc/pgbouncer/tls/server.key
-      SERVER_TLS_SSLMODE: disable
     volumes:
       - /data/pgbouncer-tls:/etc/pgbouncer/tls:ro
     depends_on:
