@@ -111,21 +111,21 @@ if [ "$WORKSPACE_NODE" -eq 0 ]; then
     if [ ! -f "$pgbouncer_ca_dir/ca.crt" ] || [ ! -f "$pgbouncer_ca_dir/ca.key" ] || \
        [ ! -f "$pgbouncer_tls_dir/server.crt" ] || [ ! -f "$pgbouncer_tls_dir/server.key" ]; then
         rm -f "$pgbouncer_ca_dir/ca.srl" "$pgbouncer_tls_dir/server.csr"
-        openssl req -x509 -newkey rsa:4096 -sha256 -nodes -days 3650 \
+        openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -sha256 -nodes -days 7300 \
             -keyout "$pgbouncer_ca_dir/ca.key" \
             -out "$pgbouncer_ca_dir/ca.crt" \
             -subj "/CN=pwncollege-pgbouncer-ca" \
             -addext "basicConstraints=critical,CA:TRUE" \
             -addext "keyUsage=critical,keyCertSign,cRLSign"
-        openssl req -new -newkey rsa:2048 -sha256 -nodes \
+        openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-256 -sha256 -nodes \
             -keyout "$pgbouncer_tls_dir/server.key" \
             -out "$pgbouncer_tls_dir/server.csr" \
             -subj "/CN=pgbouncer" \
             -addext "subjectAltName=DNS:pgbouncer" \
             -addext "basicConstraints=critical,CA:FALSE" \
-            -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+            -addext "keyUsage=critical,digitalSignature" \
             -addext "extendedKeyUsage=serverAuth"
-        openssl x509 -req -sha256 -days 825 \
+        openssl x509 -req -sha256 -days 3650 \
             -in "$pgbouncer_tls_dir/server.csr" \
             -CA "$pgbouncer_ca_dir/ca.crt" \
             -CAkey "$pgbouncer_ca_dir/ca.key" \
