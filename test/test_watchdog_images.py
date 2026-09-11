@@ -7,7 +7,7 @@ import pytest
 from requests import Response
 
 
-spec = importlib.util.spec_from_file_location("image_gc", Path(__file__).with_name("docker_gc_images.py"))
+spec = importlib.util.spec_from_file_location("image_gc", Path(__file__).parents[1] / "watchdog/docker_prune_images.py")
 gc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gc)
 ID = "sha256:" + "a" * 64
@@ -49,6 +49,10 @@ def client_for(item):
     (image(), set(), {ID}),
     (image(labels={"com.docker.compose.project": "dojo"}), set(), set()),
     (image(labels={"pwn.college.gc.keep": ""}), set(), set()),
+    (image(["pwncollege/dojo:latest"]), set(), set()),
+    (image(["ubuntu:24.04"]), set(), set()),
+    (image(["alpine:3.22"]), set(), set()),
+    (image(digests=["busybox@" + DIGEST]), set(), set()),
 ])
 def test_protection(item, refs, used_ids):
     assert gc.protected(item, {gc.normalize_reference(ref) for ref in refs}, used_ids)
@@ -152,7 +156,7 @@ def test_main_uses_direct_read_only_db_connection(tmp_path, monkeypatch, nodes, 
     monkeypatch.setattr(gc.Path, "read_text", lambda _: nodes)
     connection = Mock()
     connect = Mock(return_value=connection)
-    factory = MagicMock()
+    factory = Mock(return_value=Mock())
     collect = Mock()
     monkeypatch.setattr(gc.psycopg2, "connect", connect)
     monkeypatch.setattr(gc.docker, "DockerClient", factory)
@@ -163,3 +167,4 @@ def test_main_uses_direct_read_only_db_connection(tmp_path, monkeypatch, nodes, 
     connection.close.assert_called_once()
     assert factory.call_args_list == [call(base_url=url, timeout=60) for url in urls]
     assert collect.call_count == len(urls)
+    assert factory.return_value.close.call_count == len(urls)

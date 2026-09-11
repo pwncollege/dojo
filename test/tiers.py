@@ -1,4 +1,5 @@
 TEST_FILE_TIERS = {
+    "test_watchdog_images.py": "unit",
     "test_accounts.py": "contract",
     "test_auth.py": "semantic",
     "test_authz_matrix.py": "contract",
@@ -65,6 +66,7 @@ MULTINODE_TESTS = {
     "test_dojo_cli.py::test_node_mutation_denied_on_worker",
     "test_dojo_cli.py::test_node_refresh_worker_daemon_json_idempotent",
     "test_dojo_cli.py::test_watchdog_sweeps_every_daemon_hosting_user_containers",
+    "test_dojo_cli.py::test_watchdog_prunes_unreferenced_images",
     "test_homefs_semantics.py::test_multinode_homes_are_lazy_worker_local_btrfs_volumes",
     "test_homefs_semantics.py::test_multinode_home_quota_is_enforced_on_owning_worker",
     "test_homefs_semantics.py::test_multinode_home_persists_and_snapshots_through_coordinator",
