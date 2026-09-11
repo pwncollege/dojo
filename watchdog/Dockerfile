@@ -5,7 +5,7 @@ RUN apt-get update && \
         cron && \
     rm -rf /var/lib/apt/lists/* && \
     pip install \
-        docker==7.2.0 \
+        docker \
         psycopg2-binary
 
 COPY docker_remove_containers.py /usr/local/bin/docker_remove_containers
@@ -18,4 +18,4 @@ EOF
 
 RUN crontab /etc/cron.d/watchdog-cron
 
-CMD ["sh", "-c", "umask 077; env > /etc/environment; chmod 600 /etc/environment; exec cron -f"]
+CMD ["sh", "-c", "env > /etc/environment; exec cron -f"]

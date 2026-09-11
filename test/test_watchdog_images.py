@@ -49,13 +49,17 @@ def client_for(item):
     (image(), set(), {ID}),
     (image(labels={"com.docker.compose.project": "dojo"}), set(), set()),
     (image(labels={"pwn.college.gc.keep": ""}), set(), set()),
-    (image(["pwncollege/dojo:latest"]), set(), set()),
-    (image(["ubuntu:24.04"]), set(), set()),
-    (image(["alpine:3.22"]), set(), set()),
-    (image(digests=["busybox@" + DIGEST]), set(), set()),
 ])
 def test_protection(item, refs, used_ids):
     assert gc.protected(item, {gc.normalize_reference(ref) for ref in refs}, used_ids)
+
+
+@pytest.mark.parametrize("reference", ["pwncollege/dojo:latest", "ubuntu:24.04", "alpine:3.22", "busybox@" + DIGEST])
+def test_base_images_follow_normal_reference_protection(reference):
+    item = image([reference])
+    assert not gc.protected(item, set(), set())
+    assert gc.protected(item, {gc.normalize_reference(reference)}, set())
+    assert gc.protected(item, set(), {ID})
 
 
 def test_db_references_and_default_image():

@@ -15,13 +15,6 @@ import psycopg2
 logger = logging.getLogger(__name__)
 LOCK_PATH = "/run/docker-image-prune.lock"
 LEGACY_IMAGE = "pwncollege/challenge-legacy"
-# Base and recovery images can be cached without a referencing container.
-KEEP_REPOSITORIES = {
-    "docker.io/pwncollege/dojo",
-    "docker.io/library/ubuntu",
-    "docker.io/library/alpine",
-    "docker.io/library/busybox",
-}
 
 
 def normalize_reference(reference):
@@ -73,7 +66,6 @@ def protected(image, references, used_ids):
     return (image["Id"] in used_ids
             or any(image["Id"].startswith(ref) for ref in references if ref.startswith("sha256:"))
             or bool(aliases & references)
-            or any(docker.utils.parse_repository_tag(ref.split("@", 1)[0])[0] in KEEP_REPOSITORIES for ref in aliases)
             or any(key in labels for key in ("com.docker.compose.project",
                                              "com.docker.compose.service", "pwn.college.gc.keep")))
 
