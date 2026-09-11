@@ -24,11 +24,8 @@ def normalize_reference(reference):
         return reference if reference.startswith("sha256:") else "sha256:" + reference
     name, separator, digest = reference.partition("@")
     repository, tag = docker.utils.parse_repository_tag(name)
-    first, slash, remainder = repository.partition("/")
-    if slash and ("." in first or ":" in first or first == "localhost"):
-        registry, repository = first.lower(), remainder
-    else:
-        registry = "docker.io"
+    registry, repository = docker.auth.resolve_repository_name(repository)
+    registry = registry.lower()
     if registry in {"docker.io", "index.docker.io", "registry-1.docker.io"}:
         registry = "docker.io"
         if "/" not in repository:
@@ -44,11 +41,11 @@ def challenge_references(connection):
         raise ValueError("Challenge image inventory is empty")
     references = {normalize_reference(LEGACY_IMAGE)}
     for (image,) in rows:
-        if image is not None and image != "":
-            if not isinstance(image, str):
-                raise ValueError("Invalid challenge image")
-            if not image.startswith("mac:"):
-                references.add(normalize_reference(image))
+        if image is None or image == "":
+            continue
+        if isinstance(image, str) and image.startswith("mac:"):
+            continue
+        references.add(normalize_reference(image))
     return references
 
 
