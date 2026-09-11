@@ -26,10 +26,8 @@ def normalize_reference(reference):
     repository, tag = docker.utils.parse_repository_tag(name)
     registry, repository = docker.auth.resolve_repository_name(repository)
     registry = registry.lower()
-    if registry in {"docker.io", "index.docker.io", "registry-1.docker.io"}:
-        registry = "docker.io"
-        if "/" not in repository:
-            repository = "library/" + repository
+    if registry == "docker.io" and "/" not in repository:
+        repository = "library/" + repository
     return registry + "/" + repository + ("@" + digest if separator else ":" + (tag or "latest"))
 
 

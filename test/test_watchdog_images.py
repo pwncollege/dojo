@@ -16,7 +16,7 @@ DIGEST = "sha256:" + "c" * 64
     ("example/course", "docker.io/example/course:latest"),
     ("example/course:latest", "docker.io/example/course:latest"),
     ("index.docker.io/example/course", "docker.io/example/course:latest"),
-    ("registry-1.docker.io/example/course", "docker.io/example/course:latest"),
+    ("registry-1.docker.io/example/course", "registry-1.docker.io/example/course:latest"),
     ("ubuntu", "docker.io/library/ubuntu:latest"),
     ("docker.io/ubuntu", "docker.io/library/ubuntu:latest"),
     ("registry.example:5000/course:V2", "registry.example:5000/course:V2"),
