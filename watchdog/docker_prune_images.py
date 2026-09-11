@@ -1,6 +1,7 @@
 #!/usr/local/bin/python3
 
 import json
+import fcntl
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -21,9 +22,15 @@ def prune_images(docker_client_url):
     docker_client.images.prune()
     logging.info(f"Prune docker images complete on {docker_client.api.base_url}")
 
-with ThreadPoolExecutor() as executor:
-    logging.info("Pruning images")
-    list(executor.map(prune_images, docker_client_urls))
-    logging.info("Pruned images")
+with open("/run/docker-image-prune.lock", "a") as lock:
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        logging.info("Another image cleanup is running; skipping")
+    else:
+        with ThreadPoolExecutor() as executor:
+            logging.info("Pruning images")
+            list(executor.map(prune_images, docker_client_urls))
+            logging.info("Pruned images")
 
 logging.info("Finished")
