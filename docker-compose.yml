@@ -511,6 +511,11 @@ services:
       - main
     restart: always
     build: ./watchdog
+    environment:
+      PGHOST: ${DB_HOST}
+      PGDATABASE: ${DB_NAME}
+      PGUSER: ${DB_USER}
+      PGPASSWORD: ${DB_PASS}
     volumes:
       - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro

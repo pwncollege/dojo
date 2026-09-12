@@ -1,4 +1,6 @@
 marshmallow_sqlalchemy
+docker
+psycopg2-binary
 pytest
 pytest-dependency
 pytest-order
