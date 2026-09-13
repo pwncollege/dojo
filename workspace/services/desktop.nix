@@ -72,6 +72,7 @@ let
       dconf
       dejavu_fonts
       blackbird
+      hicolor-icon-theme
     ];
   };
 
