@@ -955,6 +955,25 @@ def test_dojo_admin_impersonation_requires_an_official_student(course_workspace)
     )
 
 
+@pytest.mark.parametrize("practice", [False, True])
+def test_kata_workspace_internet_dns_and_https(privileged_dojo, random_user, practice):
+    name, session = random_user
+    user_id = get_user_id(name)
+    session.get(f"{DOJO_URL}/dojo/{privileged_dojo}/join/").raise_for_status()
+    db_sql(
+        "INSERT INTO awards (user_id, name, value, type, date) "
+        f"VALUES ({user_id}, 'INTERNET', 0, 'standard', now())"
+    )
+    start_challenge(privileged_dojo, "test", "test", practice=practice, session=session)
+    info = container_inspect(name)
+    assert info["HostConfig"]["Runtime"] == "io.containerd.run.kata.v2"
+    assert {"bridge", "workspace_net"} <= info["NetworkSettings"]["Networks"].keys()
+    workspace_output(name, "getent -s dns ahostsv4 www.iana.org")
+    assert "Internet Assigned Numbers Authority" in workspace_output(
+        name, "curl --noproxy '*' -4fsS --connect-timeout 10 --max-time 30 https://www.iana.org"
+    )
+
+
 def test_net_admin_capability_requires_the_dojo_permission(net_admin_workspace):
     without_permission = net_admin_workspace["without_permission"]
     assert not net_admin_workspace["without_capability"] & CAP_NET_ADMIN, (

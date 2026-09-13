@@ -143,6 +143,8 @@ def start_container(docker_client, user, as_user, user_mounts, dojo_challenge, p
 
     capabilities = ["SYS_PTRACE"]
     if resolved_dojo_challenge.privileged:
+        # Docker's loopback DNS resolver lives outside the Kata guest.
+        mounts.append(docker.types.Mount("/etc/resolv.conf", "/etc/resolv.conf", "bind", read_only=True))
         capabilities.append("SYS_ADMIN")
         if "workspace_net_admin" in resolved_dojo_challenge.dojo.permissions:
             capabilities.append("NET_ADMIN")
