@@ -21,14 +21,6 @@ LARGE_CONTAINER_SIZE = 16 * GiB
 LOCK_PATH = "/run/docker-container-remove.lock"
 
 
-def human_size(n):
-    for unit in ['B','KiB','MiB','GiB','TiB']:
-        if abs(n) < 1024.0:
-            return f"{n:.1f}{unit}"
-        n /= 1024.0
-    return f"{n:.1f}PiB"
-
-
 def collect_containers(client):
     node = client.api.base_url
     logger.info("Removing docker containers on %s", node)
@@ -42,8 +34,8 @@ def collect_containers(client):
             continue
         container_id = container["Id"]
         user_id = container["Labels"]["dojo.user_id"]
-        logger.info("%s: removing %s (user %s): %.1f hours, %s writable",
-                    node, container_id, user_id, age / 3600, human_size(size))
+        logger.info("%s: removing %s (user %s): %.1f hours, %.1f GiB writable",
+                    node, container_id, user_id, age / 3600, size / GiB)
         try:
             client.api.remove_container(container_id, force=True, v=False)
         except docker.errors.NotFound:

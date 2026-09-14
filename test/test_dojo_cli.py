@@ -1100,7 +1100,7 @@ def test_watchdog_cron_runs():
 
     crontab = dojo_run("docker", "exec", "watchdog", "crontab", "-l").stdout
     assert re.search(r"^\*/5 \* \* \* \* /usr/local/bin/docker_remove_containers", crontab, re.M), crontab
-    assert re.search(r"^17 \* \* \* \* /usr/local/bin/docker_prune_images --apply", crontab, re.M), crontab
+    assert re.search(r"^17 \* \* \* \* /usr/local/bin/docker_prune_images\s+>>", crontab, re.M), crontab
     assert crontab.count("/usr/local/bin/docker_prune_images") == 1, crontab
 
     if uptime < 400:
@@ -1143,17 +1143,10 @@ def test_watchdog_prunes_unreferenced_images(admin_session):
             session=admin_session,
         )
 
-        dry_run = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_prune_images")
-        output = dry_run.stdout + dry_run.stderr
-        assert f"would remove {tag}:latest " in output, output
-        assert f"would remove {referenced}:latest " not in output, output
-        assert dojo_run("docker", "image", "inspect", tag, check=False,
-                        container=target).returncode == 0, "dry run removed an image"
-
-        result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_prune_images", "--apply", check=False)
+        result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_prune_images", check=False)
         output = result.stdout + result.stderr
         assert result.returncode == 0, output[-2000:]
-        assert ": complete" in output, output[-2000:]
+        assert ": cleanup complete:" in output, output[-2000:]
 
         remaining = set(dojo_run("docker", "images", "-qf", "dangling=true", container=target).stdout.split())
         assert not created & remaining, f"dangling images survived the prune: {created & remaining}"

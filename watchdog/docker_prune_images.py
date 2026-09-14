@@ -1,14 +1,13 @@
 #!/usr/local/bin/python3
 
-import argparse
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
 import fcntl
 import json
 import logging
 import os
-from pathlib import Path
 import re
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
+from pathlib import Path
 
 import docker
 import psycopg2
@@ -68,7 +67,7 @@ def protected(image, references, used_ids):
                                              "com.docker.compose.service", "pwn.college.gc.keep")))
 
 
-def collect_images(client, read_references, *, apply=False):
+def collect_images(client, read_references):
     images = client.api.images(all=True)
     used_ids, used_references = container_references(client)
     references = read_references() | used_references
@@ -89,9 +88,6 @@ def collect_images(client, read_references, *, apply=False):
             if current["Id"] != candidate["Id"] or protected(current, references, used_ids):
                 logger.info("%s: skipping changed or protected image %s", node, target)
                 continue
-            if not apply:
-                logger.info("%s: would remove %s (%s)", node, target, current["Id"])
-                continue
             try:
                 client.api.remove_image(target, force=False, noprune=True)
             except docker.errors.NotFound:
@@ -108,21 +104,18 @@ def collect_images(client, read_references, *, apply=False):
     return failed == 0
 
 
-def collect_node(url, *, apply=False):
+def collect_node(url):
     try:
         with closing(psycopg2.connect(connect_timeout=10, options="-c default_transaction_read_only=on -c statement_timeout=10000")) as connection:
             connection.autocommit = True
             with closing(docker.DockerClient(base_url=url, timeout=3600)) as client:
-                return collect_images(client, lambda: challenge_references(connection), apply=apply)
+                return collect_images(client, lambda: challenge_references(connection))
     except Exception:
         logger.exception("%s: node cleanup failed", url)
         return False
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Collect unused images not referenced by challenges")
-    parser.add_argument("--apply", action="store_true", help="Remove images (default: dry run)")
-    args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format=f"%(asctime)s [{os.path.basename(__file__)}] [%(levelname)s] %(message)s")
     with open(LOCK_PATH, "a") as lock:
         try:
@@ -134,7 +127,7 @@ def main():
         nodes = json.loads(Path("/var/workspace_nodes.json").read_text())
         urls = [f"tcp://192.168.42.{int(node) + 1}:2375" for node in nodes] or ["unix:///var/run/docker.sock"]
         with ThreadPoolExecutor() as executor:
-            results = list(executor.map(lambda url: collect_node(url, apply=args.apply), urls))
+            results = list(executor.map(collect_node, urls))
         logger.info("Finished")
         return int(not all(results))
 

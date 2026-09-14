@@ -78,11 +78,9 @@ def test_invalid_db_inventory_aborts(rows):
 
 
 @pytest.mark.parametrize("tags", [[], ["example/old:v1"], ["example/old:v1", "example/old:v2"]])
-def test_dry_run_and_nonforce_removal(tags):
+def test_nonforce_removal(tags):
     client = client_for(image(tags))
-    prune.collect_images(client, lambda: set())
-    client.api.remove_image.assert_not_called()
-    prune.collect_images(client, lambda: set(), apply=True)
+    assert prune.collect_images(client, lambda: set())
     assert client.api.remove_image.call_args_list == [call(target, force=False, noprune=True) for target in tags or [ID]]
 
 
@@ -90,7 +88,7 @@ def test_stopped_container_preserves_image_and_configured_tag():
     client = client_for(image(["example/old:v1"]))
     client.api.images.return_value.append(image(["example/current:latest"], image_id=OTHER_ID))
     client.api.containers.return_value = [{"ImageID": ID, "Image": "example/current", "State": "exited"}]
-    prune.collect_images(client, lambda: set(), apply=True)
+    prune.collect_images(client, lambda: set())
     client.api.containers.assert_called_with(all=True)
     client.api.remove_image.assert_not_called()
 
@@ -98,28 +96,28 @@ def test_stopped_container_preserves_image_and_configured_tag():
 def test_reference_added_between_alias_removals():
     client = client_for(image(["example/old:v1", "example/old:v2"]))
     refs = Mock(side_effect=[set(), set(), {prune.normalize_reference("example/old:v2")}])
-    prune.collect_images(client, refs, apply=True)
+    prune.collect_images(client, refs)
     client.api.remove_image.assert_called_once_with("example/old:v1", force=False, noprune=True)
 
 
 def test_moved_tag_is_skipped():
     client = client_for(image(["example/old:v1"]))
     client.api.inspect_image.return_value = image(["example/old:v1"], image_id=OTHER_ID)
-    prune.collect_images(client, lambda: set(), apply=True)
+    prune.collect_images(client, lambda: set())
     client.api.remove_image.assert_not_called()
 
 
 def test_new_container_is_protected():
     client = client_for(image(["example/old:v1"]))
     client.api.containers.side_effect = [[], [{"ImageID": ID, "Image": "example/old:v1"}]]
-    prune.collect_images(client, lambda: set(), apply=True)
+    prune.collect_images(client, lambda: set())
     client.api.remove_image.assert_not_called()
 
 
 def test_failed_db_refresh_prevents_deletion():
     client = client_for(image(["example/old:v1"]))
     with pytest.raises(RuntimeError):
-        prune.collect_images(client, Mock(side_effect=[set(), RuntimeError("DB unavailable")]), apply=True)
+        prune.collect_images(client, Mock(side_effect=[set(), RuntimeError("DB unavailable")]))
     client.api.remove_image.assert_not_called()
 
 
@@ -132,7 +130,7 @@ def test_docker_errors_are_not_retried_or_forced(status):
     response.status_code = status
     error_type = docker.errors.NotFound if status == 404 else docker.errors.APIError
     client.api.remove_image.side_effect = [error_type("failed", response=response), None]
-    assert prune.collect_images(client, lambda: set(), apply=True) == (status == 404)
+    assert prune.collect_images(client, lambda: set()) == (status == 404)
     assert client.api.remove_image.call_args_list == [
         call(target, force=False, noprune=True) for target in ["example/old:v1", OTHER_ID]
     ]
@@ -144,7 +142,7 @@ def test_failed_removal_skips_remaining_aliases_and_continues(error, caplog):
     client.api.images.return_value.append(image(image_id=OTHER_ID))
     client.api.inspect_image.side_effect = client.api.images.return_value
     client.api.remove_image.side_effect = [error, None]
-    assert not prune.collect_images(client, lambda: set(), apply=True)
+    assert not prune.collect_images(client, lambda: set())
     assert client.api.remove_image.call_args_list == [
         call(target, force=False, noprune=True) for target in ["example/old:v1", OTHER_ID]
     ]
@@ -164,21 +162,20 @@ def test_inventory_or_safety_failure_stops_collection(stage):
     else:
         client.api.inspect_image.side_effect = error
     with pytest.raises(ReadTimeout):
-        prune.collect_images(client, lambda: set(), apply=True)
+        prune.collect_images(client, lambda: set())
     client.api.remove_image.assert_not_called()
 
 
 def test_missing_image_at_inspection_is_skipped():
     client = client_for(image())
     client.api.inspect_image.side_effect = docker.errors.NotFound("gone")
-    assert prune.collect_images(client, lambda: set(), apply=True)
+    assert prune.collect_images(client, lambda: set())
     client.api.remove_image.assert_not_called()
 
 
 def test_overlapping_run_does_not_connect(tmp_path, monkeypatch):
     path = tmp_path / "prune.lock"
     monkeypatch.setattr(prune, "LOCK_PATH", str(path))
-    monkeypatch.setattr(prune.argparse.ArgumentParser, "parse_args", lambda _: Mock())
     connect = Mock(side_effect=AssertionError("must not connect"))
     monkeypatch.setattr(prune.psycopg2, "connect", connect)
     with path.open("a") as lock:
@@ -193,7 +190,6 @@ def test_overlapping_run_does_not_connect(tmp_path, monkeypatch):
 ])
 def test_main_uses_direct_read_only_db_connection(tmp_path, monkeypatch, nodes, urls):
     monkeypatch.setattr(prune, "LOCK_PATH", str(tmp_path / "prune.lock"))
-    monkeypatch.setattr(prune.argparse.ArgumentParser, "parse_args", lambda _: Mock(apply=False))
     monkeypatch.setattr(prune.Path, "read_text", lambda _: nodes)
     connections = [Mock() for _ in urls]
     clients = [Mock() for _ in urls]
@@ -223,19 +219,17 @@ def test_node_reports_failures_and_closes_connections(monkeypatch, outcome):
     monkeypatch.setattr(prune.docker, "DockerClient", Mock(return_value=client))
     collect = Mock(side_effect=[outcome])
     monkeypatch.setattr(prune, "collect_images", collect)
-    assert prune.collect_node("tcp://node:2375", apply=True) == (outcome is True)
-    assert collect.call_args.kwargs == {"apply": True}
+    assert prune.collect_node("tcp://node:2375") == (outcome is True)
+    assert collect.call_count == 1
     connection.close.assert_called_once()
     client.close.assert_called_once()
 
 
 def test_nodes_run_in_parallel_and_report_partial_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(prune, "LOCK_PATH", str(tmp_path / "prune.lock"))
-    monkeypatch.setattr(prune.argparse.ArgumentParser, "parse_args", lambda _: Mock(apply=True))
     monkeypatch.setattr(prune.Path, "read_text", lambda _: '{"1": {}, "2": {}}')
     barrier = Barrier(2, timeout=5)
-    def sweep(url, *, apply):
-        assert apply is True
+    def sweep(url):
         barrier.wait()
         return url.endswith(".3:2375")
     collect = Mock(side_effect=sweep)
