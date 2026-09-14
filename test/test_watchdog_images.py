@@ -166,6 +166,6 @@ def test_main_uses_direct_read_only_db_connection(tmp_path, monkeypatch, nodes, 
     connect.assert_called_once_with(connect_timeout=10, options="-c default_transaction_read_only=on -c statement_timeout=10000")
     assert connection.autocommit is True
     connection.close.assert_called_once()
-    assert factory.call_args_list == [call(base_url=url, timeout=60) for url in urls]
+    assert factory.call_args_list == [call(base_url=url, timeout=3600) for url in urls]
     assert collect.call_count == len(urls)
     assert factory.return_value.close.call_count == len(urls)

@@ -110,7 +110,7 @@ def main():
             failed = False
             for url in urls:
                 try:
-                    with closing(docker.DockerClient(base_url=url, timeout=60)) as client:
+                    with closing(docker.DockerClient(base_url=url, timeout=3600)) as client:
                         collect_images(client, lambda: challenge_references(connection), apply=args.apply)
                 except Exception:
                     logger.exception("%s: stopping node cleanup", url)
