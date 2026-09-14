@@ -1,5 +1,6 @@
 TEST_FILE_TIERS = {
     "test_watchdog_images.py": "unit",
+    "test_watchdog_containers.py": "unit",
     "test_accounts.py": "contract",
     "test_auth.py": "semantic",
     "test_authz_matrix.py": "contract",

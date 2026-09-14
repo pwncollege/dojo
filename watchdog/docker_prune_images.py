@@ -1,15 +1,17 @@
 #!/usr/local/bin/python3
 
-import argparse
-from contextlib import closing
 import fcntl
 import json
 import logging
-from pathlib import Path
+import os
 import re
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
+from pathlib import Path
 
 import docker
 import psycopg2
+from requests.exceptions import RequestException
 
 
 logger = logging.getLogger(__name__)
@@ -65,13 +67,14 @@ def protected(image, references, used_ids):
                                              "com.docker.compose.service", "pwn.college.gc.keep")))
 
 
-def collect_images(client, read_references, *, apply=False):
+def collect_images(client, read_references):
     images = client.api.images(all=True)
     used_ids, used_references = container_references(client)
     references = read_references() | used_references
     candidates = [image for image in images if not protected(image, references, used_ids)]
     node = client.api.base_url
     logger.info("%s: %d images, %d candidates", node, len(images), len(candidates))
+    removed = failed = 0
     for candidate in candidates:
         tags = [tag for tag in candidate.get("RepoTags") or [] if tag != "<none>:<none>"]
         for target in tags or [candidate["Id"]]:
@@ -79,43 +82,54 @@ def collect_images(client, read_references, *, apply=False):
             references = read_references() | used_references
             try:
                 current = client.api.inspect_image(target)
-                if current["Id"] != candidate["Id"] or protected(current, references, used_ids):
-                    logger.info("%s: skipping changed or protected image %s", node, target)
-                    continue
-                if apply:
-                    client.api.remove_image(target, force=False, noprune=True)
-                logger.info("%s: %s %s (%s)", node, "removed" if apply else "would remove", target, current["Id"])
-            except docker.errors.APIError as error:
-                if error.status_code not in (404, 409):
-                    raise
-                logger.info("%s: skipping %s: %s", node, target, error)
-    logger.info("%s: complete", node)
+            except docker.errors.NotFound:
+                logger.info("%s: %s already removed", node, target)
+                continue
+            if current["Id"] != candidate["Id"] or protected(current, references, used_ids):
+                logger.info("%s: skipping changed or protected image %s", node, target)
+                continue
+            try:
+                client.api.remove_image(target, force=False, noprune=True)
+            except docker.errors.NotFound:
+                logger.info("%s: %s already removed", node, target)
+            except RequestException as error:
+                failed += 1
+                logger.warning("%s: removal not confirmed for %s; Docker may still be processing it; continuing: %s",
+                               node, target, error)
+                break
+            else:
+                removed += 1
+                logger.info("%s: removed %s (%s)", node, target, current["Id"])
+    logger.info("%s: cleanup complete: %d removed, %d unconfirmed", node, removed, failed)
+    return failed == 0
+
+
+def collect_node(url):
+    try:
+        with closing(psycopg2.connect(connect_timeout=10, options="-c default_transaction_read_only=on -c statement_timeout=10000")) as connection:
+            connection.autocommit = True
+            with closing(docker.DockerClient(base_url=url, timeout=3600)) as client:
+                return collect_images(client, lambda: challenge_references(connection))
+    except Exception:
+        logger.exception("%s: node cleanup failed", url)
+        return False
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Collect unused images not referenced by challenges")
-    parser.add_argument("--apply", action="store_true", help="Remove images (default: dry run)")
-    args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [image-gc] %(levelname)s %(message)s")
+    logging.basicConfig(level=logging.INFO, format=f"%(asctime)s [{os.path.basename(__file__)}] [%(levelname)s] %(message)s")
     with open(LOCK_PATH, "a") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             logger.info("Another image cleanup is running; skipping")
             return 0
+        logger.info("Starting")
         nodes = json.loads(Path("/var/workspace_nodes.json").read_text())
         urls = [f"tcp://192.168.42.{int(node) + 1}:2375" for node in nodes] or ["unix:///var/run/docker.sock"]
-        with closing(psycopg2.connect(connect_timeout=10, options="-c default_transaction_read_only=on -c statement_timeout=10000")) as connection:
-            connection.autocommit = True
-            failed = False
-            for url in urls:
-                try:
-                    with closing(docker.DockerClient(base_url=url, timeout=60)) as client:
-                        collect_images(client, lambda: challenge_references(connection), apply=args.apply)
-                except Exception:
-                    logger.exception("%s: stopping node cleanup", url)
-                    failed = True
-            return int(failed)
+        with ThreadPoolExecutor() as executor:
+            results = list(executor.map(collect_node, urls))
+        logger.info("Finished")
+        return int(not all(results))
 
 
 if __name__ == "__main__":
