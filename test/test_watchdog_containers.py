@@ -81,7 +81,7 @@ def test_node_timeout_and_connection_cleanup(client, monkeypatch, failure):
     monkeypatch.setattr(reaper.docker, "DockerClient", factory)
     if failure:
         client.api.containers.side_effect = ReadTimeout("inventory unavailable")
-    assert reaper.remove_old_containers("tcp://node:2375") == (not failure)
+    assert reaper.collect_node("tcp://node:2375") == (not failure)
     factory.assert_called_once_with(base_url="tcp://node:2375", timeout=60)
     client.close.assert_called_once()
     client.api.remove_container.assert_not_called()
@@ -95,7 +95,7 @@ def test_main_sweeps_all_nodes_even_when_one_fails(tmp_path, monkeypatch, nodes,
     monkeypatch.setattr(reaper, "LOCK_PATH", str(tmp_path / "remove.lock"))
     monkeypatch.setattr(reaper.Path, "read_text", lambda _: json.dumps(nodes))
     sweep = Mock(side_effect=lambda url: url != urls[0])
-    monkeypatch.setattr(reaper, "remove_old_containers", sweep)
+    monkeypatch.setattr(reaper, "collect_node", sweep)
     assert reaper.main() == 1
     assert sorted(sweep.call_args_list) == sorted(call(url) for url in urls)
 
@@ -106,7 +106,7 @@ def test_overlapping_run_skips_and_releases_lock(tmp_path, monkeypatch):
     inventory = Mock(return_value="{}")
     monkeypatch.setattr(reaper.Path, "read_text", inventory)
     sweep = Mock(return_value=True)
-    monkeypatch.setattr(reaper, "remove_old_containers", sweep)
+    monkeypatch.setattr(reaper, "collect_node", sweep)
     with path.open("a") as lock:
         reaper.fcntl.flock(lock, reaper.fcntl.LOCK_EX | reaper.fcntl.LOCK_NB)
         assert reaper.main() == 0
