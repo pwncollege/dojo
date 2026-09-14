@@ -2,7 +2,7 @@
 
 FROM ubuntu:24.04 AS kata-builder
 
-ENV KATA_VERSION=3.19.1
+ENV KATA_VERSION=4.1.0
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
@@ -21,6 +21,7 @@ CONFIG_SECURITY_LANDLOCK=y
 CONFIG_BPF_JIT=y
 CONFIG_BPF_SYSCALL=y
 CONFIG_BPF=y
+CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT=y
 CONFIG_DEBUG_INFO_BTF=y
 CONFIG_DYNAMIC_FTRACE=y
 CONFIG_FTRACE=y
@@ -63,6 +64,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         unzip
         wget
         wireguard
+        zstd
 EOF
 
 RUN <<EOF
@@ -76,9 +78,9 @@ RUN cp /tmp/daemon.json /etc/docker/daemon.json
 ADD https://raw.githubusercontent.com/moby/profiles/master/seccomp/default.json /etc/docker/seccomp.json
 
 RUN <<EOF
-KATA_VERSION=3.19.1
-curl -L https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.xz | tar -xJ --strip-components=2 -C /opt
-ln -s /opt/kata/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2
+KATA_VERSION=4.1.0
+curl -fL https://github.com/kata-containers/kata-containers/releases/download/${KATA_VERSION}/kata-static-${KATA_VERSION}-amd64.tar.zst | tar --zstd -x --strip-components=2 -C /opt
+ln -s /opt/kata/runtime-rs/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2
 EOF
 
 COPY --from=kata-builder /usr/share/kata-containers/vmlinux.container /opt/kata/share/kata-containers/vmlinux.container

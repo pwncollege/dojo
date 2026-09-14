@@ -80,6 +80,7 @@ MULTINODE_TESTS = {
     "test_workspace_api.py::test_starting_a_challenge_replaces_the_previous_container",
     "test_workspace_api.py::test_workspace_token_impersonates_its_owner",
     "test_workspace_api.py::test_net_admin_capability_requires_the_dojo_permission",
+    "test_workspace_api.py::test_kata_workspace_internet_dns_and_https",
     "test_workspace_runtime.py::test_workspace_profile_symlink_farm_exposes_the_toolchain",
     "test_workspace_runtime.py::test_terminal_service_contract",
     "test_workspace_runtime.py::test_workspace_proxy_signature_covers_the_container_and_port",
