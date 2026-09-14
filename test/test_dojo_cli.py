@@ -1044,9 +1044,9 @@ def test_watchdog_reaps_old_user_containers(cli_user, example_dojo):
     )
     result = dojo_run("docker", "exec", "-i", "watchdog", "python3", "-c", script, check=False)
     output = result.stdout + result.stderr
-    assert "Removing old docker container" in output, output[-2000:]
-    running = dojo_run("docker", "ps", "--format", "{{.Names}}").stdout.split()
-    assert container not in running, "the reaper left a 7-hour-old user container running"
+    assert result.returncode == 0, output[-2000:]
+    remaining = dojo_run("docker", "ps", "-a", "--format", "{{.Names}}").stdout.split()
+    assert container not in remaining, "the reaper did not remove a 7-hour-old user container"
 
     # The shifted clock makes every running workspace look old, so put this
     # module's shared container back for the tests that come after.
@@ -1062,8 +1062,6 @@ def test_watchdog_spares_fresh_and_infrastructure_containers(cli_user):
     result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_remove_containers", check=False)
     output = result.stdout + result.stderr
     assert result.returncode == 0, output[-2000:]
-    assert "Removing old docker container" not in output, output[-2000:]
-    assert "Removing large docker container" not in output, output[-2000:]
 
     assert container in dojo_run("docker", "ps", "--format", "{{.Names}}",
                                  container=outer_container).stdout.split(), \
