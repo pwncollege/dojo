@@ -2,13 +2,13 @@
 
 pkgs.rustPlatform.buildRustPackage rec {
   pname = "exec-suid";
-  version = "0.1.5";
+  version = "1.0.0";
 
   src = pkgs.fetchFromGitHub {
     owner = "pwncollege";
     repo = pname;
     rev = "v${version}";
-    sha256 = "sha256-k9d6NbgnkbJXF9Eefh/CaM4GrsMNO9UtIBMp8U5AAwM=";
+    sha256 = "sha256-1VW0YUTxbrK0scULbLJEUDGMfqJBosZ8plCRZqX37UA=";
   };
 
   cargoLock = {

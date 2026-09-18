@@ -12,9 +12,9 @@ def error(message):
 
 
 def main():
-    program = os.path.basename(sys.argv[0])
+    program = "sudo"
 
-    parser = argparse.ArgumentParser(description="execute a command as another user")
+    parser = argparse.ArgumentParser(prog=program, description="execute a command as another user")
     parser.add_argument("-u", "--user", help="run command as specified user", default="0")
     parser.add_argument("command", help="command to execute")
     parser.add_argument("args", nargs=argparse.REMAINDER, help="arguments for command")
