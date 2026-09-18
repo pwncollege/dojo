@@ -88,6 +88,15 @@ def test_module_resources_with_challenges(module_resources_dojo, admin_session, 
     assert pos_resource_e < pos_challenge_b, f"Challenge B ({pos_challenge_b}) should come after Resource E ({pos_resource_e})"
 
 
+def test_optional_challenge_styling(module_resources_dojo, admin_session):
+    response = admin_session.get(f"{DOJO_URL}/{module_resources_dojo}/test/")
+    assert response.status_code == 200
+
+    challenge_header = response.text.split('data-challenge-id="testb"', 1)[1].split("</h4>", 1)[0]
+    assert 'class="accordion-item optional-challenge"' in response.text
+    assert '<span class="optional-challenge-label">Optional</span>' in challenge_header
+
+
 def test_unified_ordering(module_resources_dojo, admin_session, example_dojo):
     """Test that resources and challenges appear in YAML order"""
     dojo_id = module_resources_dojo
