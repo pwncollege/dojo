@@ -28,6 +28,12 @@ import docker.errors
 MAC_GUEST_CONTROL_FILE = "MACOSVM=/usr/local/bin/macosvm /usr/bin/python3 ./mac-host/guest-control.py"
 MAC_TIMEOUT_SECONDS = 60 * 60 * 4
 
+# ssh hands the command string to the remote login shell, so every argument must be
+# quoted; MAC_GUEST_CONTROL_FILE is shell syntax (an env-assignment prefix) and must not be.
+def guest_control_command(*args):
+    return f"{MAC_GUEST_CONTROL_FILE} {shlex.join(args)}"
+
+
 class MacDockerClient:
     def __init__(self, hostname, username, key_path):
         self.hostname = hostname
@@ -105,7 +111,7 @@ class MacContainerCollection:
 
     def get(self, name):
         # Run 'guest-control.py list-vms' and parse the output
-        exitcode, output = self.client._ssh_exec(f'{MAC_GUEST_CONTROL_FILE} list-vms', input=b"", exception_on_fail=False, timeout_seconds=10)
+        exitcode, output = self.client._ssh_exec(guest_control_command("list-vms"), input=b"", exception_on_fail=False, timeout_seconds=10)
         if exitcode != 0:
             raise docker.errors.NotFound(f'Container {name} not found')
         output = output.decode('latin-1')
@@ -121,10 +127,10 @@ class MacContainerCollection:
         # Create a VM with the given parameters
         assert image.startswith("mac:")
         image = image.split("mac:", maxsplit=1)[-1]
-        command = f'{MAC_GUEST_CONTROL_FILE} create-vm {image}'
+        args = ["create-vm", image]
         if name:
-            command += f' --id {name}'
-        exitcode, output = self.client._ssh_exec(command, input=b"")
+            args += ["--id", name]
+        exitcode, output = self.client._ssh_exec(guest_control_command(*args), input=b"")
         output = output.decode('latin-1')
         # not sure if the following actually parses
         if 'Started' in output:
@@ -195,7 +201,7 @@ class MacContainer:
             timeout_hit = True
 
         if force or timeout_hit:
-            command = f'{MAC_GUEST_CONTROL_FILE} kill-vm {self.id}'
+            command = guest_control_command("kill-vm", self.id)
             exitcode, output = self.client._ssh_exec(command, exception_on_fail=False, input=b"", timeout_seconds=5)
 
     def wait(self, condition='removed'):
@@ -224,8 +230,8 @@ class MacContainer:
         elif user == "1000":
             # they want to run the command as hacker
             cmd = f"exec sudo su - hacker -c {shlex.quote(cmd)}"
-        tty_arg = '--tty' if use_tty else ''
-        command = f"{MAC_GUEST_CONTROL_FILE} exec {tty_arg} {self.id} {shlex.quote(cmd)}"
+        tty_args = ["--tty"] if use_tty else []
+        command = guest_control_command("exec", *tty_args, self.id, cmd)
         exitcode, output = self.client._ssh_exec(command, only_stdout=False, exception_on_fail=False, input=input, capture_output=capture_output, timeout_seconds=timeout_seconds)
         return exitcode, output
 
@@ -238,8 +244,8 @@ class MacContainer:
         elif user == "1000":
             # they want to run the command as hacker
             cmd = f"exec sudo su - hacker -c {shlex.quote(cmd)}"
-        tty_arg = '--tty' if use_tty else ''
-        command = f"{MAC_GUEST_CONTROL_FILE} exec {tty_arg} {self.id} {shlex.quote(cmd)}"
+        tty_args = ["--tty"] if use_tty else []
+        command = guest_control_command("exec", *tty_args, self.id, cmd)
         to_exec = [
             "ssh",
             "-i", self.client.key_path,
@@ -262,7 +268,7 @@ class MacContainer:
     def send_flag(self, flag):
         flag = flag.strip()
         flag = flag.decode('latin-1')
-        self.exec_run(f"echo '{flag}' | sudo tee /flag", input=b"")
+        self.exec_run(f"printf '%s\\n' {shlex.quote(flag)} | sudo tee /flag", input=b"")
 
     def attach_socket(self, params=None):
         class MySendall:
@@ -296,7 +302,7 @@ class MacImageCollection:
         if not image_name.startswith("mac:"):
             raise docker.errors.NotFound(f'Image {image_name} is not compatible')
         image_name = image_name.split("mac:", maxsplit=1)[-1]
-        command = f"{MAC_GUEST_CONTROL_FILE} images {image_name}"
+        command = guest_control_command("images", image_name)
         try:
             exitcode, output = self.client._ssh_exec(command, input=b"", timeout_seconds=10)
         except Exception as e:
