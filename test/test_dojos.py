@@ -166,6 +166,41 @@ def test_create_dojo_pulls_image(admin_session):
 def test_import(import_dojo, admin_session):
     assert admin_session.get(f"{DOJO_URL}/{import_dojo}/hello").status_code == 200
 
+
+def test_convert_imported_challenge_without_delete(admin_session, example_dojo):
+    suffix = "".join(random.choices(string.ascii_lowercase, k=8))
+    dojo_id = f"convert-import-{suffix}"
+    spec = {
+        "id": dojo_id,
+        "modules": [{
+            "id": "test",
+            "resources": [{
+                "type": "challenge",
+                "id": "test",
+                "name": "Test",
+                "import": {"dojo": example_dojo, "module": "hello", "challenge": "apple"},
+            }],
+        }],
+    }
+    dojo = create_dojo_yml(yaml.safe_dump(spec), session=admin_session)
+    source_id = get_dojo_challenge_id("example", "hello", "apple")
+    assert get_dojo_challenge_id(dojo_id, "test", "test") == source_id
+
+    del spec["modules"][0]["resources"][0]["import"]
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update", json=spec)
+    assert response.status_code == 200
+
+    converted_id = get_dojo_challenge_id(dojo_id, "test", "test")
+    assert converted_id != source_id
+    assert db_sql(f"SELECT category || ':' || name FROM challenges WHERE id = {converted_id}").strip() == f"{dojo.rsplit('~', 1)[1]}:test:test"
+    assert db_sql(f"SELECT COALESCE(data->>'path_override', '') FROM dojo_challenges WHERE challenge_id = {converted_id}").strip() == ""
+    assert int(db_sql(f"SELECT count(*) FROM flags WHERE challenge_id = {converted_id}")) == 1
+    assert get_dojo_challenge_id("example", "hello", "apple") == source_id
+
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update", json=spec)
+    assert response.status_code == 200
+    assert get_dojo_challenge_id(dojo_id, "test", "test") == converted_id
+
 # this exists despite test_import because it doesn't re-run on re-test, but we still want to make sure our public example-import dojo passes
 def test_create_import_dojo(example_import_dojo, admin_session):
     assert admin_session.get(f"{DOJO_URL}/{example_import_dojo}/").status_code == 200

@@ -418,7 +418,12 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
         for name, value in dojo_kwargs.items():
             setattr(dojo, name, value)
 
-    existing_challenges = {(challenge.module.id, challenge.id): challenge.challenge for challenge in dojo.challenges}
+    # Category/name mismatches also occur after transfers; path_override is the only persisted import marker.
+    existing_challenges = {
+        (challenge.module.id, challenge.id): challenge.challenge
+        for challenge in dojo.challenges
+        if not challenge.path_override
+    }
     def challenge(module_id, challenge_id, transfer=None):
         if (module_id, challenge_id) in existing_challenges:
             return existing_challenges[(module_id, challenge_id)]
