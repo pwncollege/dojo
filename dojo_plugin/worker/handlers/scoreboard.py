@@ -119,10 +119,8 @@ def challenge_solves_cache_key(dojo_id, module_index):
 
 
 def calculate_challenge_solves(module):
-    required_filter = DojoChallenges.required == True
     query = (
-        module.solves()
-        .filter(required_filter)
+        module.solves(include_optional_challenges=True)
         .group_by(Solves.challenge_id)
         .with_entities(Solves.challenge_id, func.count().label("count"))
     )

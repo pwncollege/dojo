@@ -65,10 +65,12 @@ def handle_challenge_solve(payload, event_timestamp):
             _update_module_scoreboard(dojo_challenge.module, user_id, challenge_id, event_timestamp)
             logger.info(f"Updating dojo stats for dojo {dojo_ref_id}")
             _update_dojo_stats(dojo_ref_id, challenge_name, event_timestamp)
-            logger.info(f"Updating challenge solves for dojo {dojo_ref_id} module {module_index}")
-            _update_challenge_solves(dojo_id, module_index, challenge_id, event_timestamp)
         else:
             logger.info(f"User {user_id} is not a member of dojo {dojo_ref_id}, skipping scoreboard/stats updates")
+
+        if is_member and counts_on_scoreboard:
+            logger.info(f"Updating challenge solves for dojo {dojo_ref_id} module {module_index}")
+            _update_challenge_solves(dojo_id, module_index, challenge_id, event_timestamp)
 
         if is_public_or_official and dojo_challenge.required:
             logger.info(f"Updating scores for dojo {dojo_ref_id}")
