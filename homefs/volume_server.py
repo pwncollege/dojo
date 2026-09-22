@@ -10,7 +10,7 @@ volume_server = Blueprint("volume", __name__)
 @volume_server.route("/<volume:volume>", methods=["GET"])
 def get_volume(volume):
     # If it active on this node, do not fetch it (infinite recursive loop)
-    if not volume.active:
+    if not volume.active and not request.headers.get("X-Homefs-Fetch"):
         active_volume = ActiveVolumes.query.filter_by(name=volume.name).first()
         if active_volume:
             volume.fetch(active_volume.host)
