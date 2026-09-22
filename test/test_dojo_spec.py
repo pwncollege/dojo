@@ -299,6 +299,66 @@ def test_dojo_level_import_inherits_source_fields(admin_session, example_dojo):
     assert get_modules(admin_session, empty) == []
 
 
+@pytest.mark.parametrize("import_scope", ["dojo", "module"])
+def test_inherited_modules_preserve_challenge_controls(admin_session, random_user, import_scope):
+    _, session = random_user
+    source_spec = {
+        "id": spec_id("controls"),
+        "type": "public",
+        "image": "pwncollege/challenge-simple",
+        "privileged": True,
+        "allow_privileged": False,
+        "survey": {"prompt": "How was the lesson?", "data": "Lesson feedback"},
+        "modules": [{"id": "lesson", "interfaces": [{"name": "Web", "port": 8080}], "challenges": [
+            {"id": "first"},
+            {"id": "second", "required": False, "privileged": False, "progression_locked": True,
+             "interfaces": [{"name": "SSH"}],
+             "survey": {"prompt": "How was the exercise?", "data": "Exercise feedback", "probability": 0.5}},
+        ]}],
+    }
+    source = make_dojo_official(create_dojo_spec(admin_session, source_spec), admin_session)
+    import_spec = {"id": spec_id("importcontrols"), "type": "public"}
+    module_id = "lesson" if import_scope == "dojo" else "renamed"
+    if import_scope == "dojo":
+        import_spec["import"] = {"dojo": source}
+    else:
+        import_spec["modules"] = [{"id": module_id, "import": {"dojo": source, "module": "lesson"}}]
+    imported = create_dojo_spec(admin_session, import_spec)
+    fields = ["image", "privileged", "allow_privileged", "progression_locked", "interfaces", "survey", "importable"]
+
+    def controls(dojo, module):
+        result = {}
+        for challenge in ("first", "second"):
+            data = challenge_data(dojo, module, challenge)
+            result[challenge] = {field: data.get(field) for field in fields}
+        return result
+
+    original = controls(source, "lesson")
+    assert controls(imported, module_id) == original
+    assert [challenge["required"] for challenge in get_module(session, imported, module_id)["challenges"]] == [True, False]
+    for challenge in ("first", "second"):
+        assert challenge_db_id(imported, module_id, challenge) == challenge_db_id(source, "lesson", challenge)
+        response = session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{imported}/{module_id}/{challenge}/surveys")
+        assert response.status_code == 200
+        survey = response.json()
+        assert survey["type"] == "user-specified"
+        assert {field: survey[field] for field in ("prompt", "data")} == {
+            field: original[challenge]["survey"][field] for field in ("prompt", "data")
+        }
+        assert survey["probability"] == original[challenge]["survey"].get("probability", 1.0)
+
+    source_spec["modules"][0]["challenges"][1]["interfaces"] = [{"name": "Code", "port": 8080}]
+    source_spec["modules"][0]["challenges"][1]["survey"]["prompt"] = "How was the revised exercise?"
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{source}/update", json=source_spec)
+    assert response.status_code == 200 and response.json()["success"], response.text
+    assert controls(imported, module_id) == original
+
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{imported}/update", json=import_spec)
+    assert response.status_code == 200 and response.json()["success"], response.text
+    assert controls(imported, module_id) == controls(source, "lesson")
+    assert controls(imported, module_id) != original
+
+
 def test_missing_import_targets_are_reported(admin_session, example_dojo):
     error = reject_dojo_spec(admin_session, {"id": spec_id("impchal"), "modules": [{"id": "m", "challenges": [
         {"id": "c", "import": {"dojo": "example", "module": "hello", "challenge": "durian"}}]}]})

@@ -1,5 +1,6 @@
 import base64
 import contextlib
+import copy
 import functools
 import os
 import string
@@ -419,14 +420,11 @@ class DojoModules(db.Model):
             for field in ["id", "name", "description"]:
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
 
-        def set_module_import(challenge):
-            challenge.data["module_import"] = True
-            return challenge
-
         kwargs["challenges"] = (
             kwargs.pop("challenges", None) or
             ([DojoChallenges(
-                default=set_module_import(challenge),
+                default=challenge,
+                data=copy.deepcopy(challenge.data or {}),
                 required=challenge.required,
                 visibility=(DojoChallengeVisibilities(start=visibility.start) if visibility else None),
             ) for challenge in default.challenges] if default else [])
@@ -626,9 +624,6 @@ class DojoChallenges(db.Model):
             # TODO: maybe we should track the entire import
             kwargs["data"]["image"] = default.data.get("image")
             kwargs["data"]["path_override"] = str(default.path)
-            # only update the unified_index for module and dojo imports, not challenge specific ones
-            if default.data.get("module_import", False):
-                kwargs["data"]["unified_index"] = default.data.get("unified_index")
 
         super().__init__(*args, **kwargs)
 

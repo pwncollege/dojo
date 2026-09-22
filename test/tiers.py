@@ -55,6 +55,7 @@ TEST_TIER_OVERRIDES = {
     "test_dojo_admin_api.py::test_solves_exports_preserve_order_identity_and_timestamps": "semantic",
     "test_dojo_spec.py::test_reordering_modules_and_resources_preserves_learner_progress": "semantic",
     "test_dojo_spec.py::test_dojo_level_import_inherits_source_fields": "semantic",
+    "test_dojo_spec.py::test_inherited_modules_preserve_challenge_controls": "semantic",
     "test_dojo_spec.py::test_transferring_a_challenge_preserves_prior_solves_across_updates": "semantic",
     "test_dojo_spec.py::test_personal_downloads_serve_the_requesting_users_file": "semantic",
     "test_workspace_proxy.py::test_workspace_proxy_preserves_application_requests_and_responses": "semantic",
