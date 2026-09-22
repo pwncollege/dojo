@@ -2,10 +2,18 @@
 
 import os
 import pathlib
+import re
 import sys
 from urllib.parse import urlparse
 
 import psycopg2
+
+
+# Each row is printed as one authorized_keys line, following this script's forced
+# command. A value containing a space would shift the key fields along that line,
+# and one containing a newline would begin a second, unrestricted entry, so only a
+# bare "<type> <base64>" pair is ever emitted.
+AUTHORIZED_KEY_RE = re.compile(r"[\x21-\x2b\x2d-\x7e]{1,64} [A-Za-z0-9+/]+={0,2}\Z")
 
 
 def error(msg):
@@ -36,6 +44,9 @@ def main():
             "WHERE NOT users.banned AND ssh_keys.value <> ''"
         )
         for user_id, key in cursor.fetchall():
+            if not AUTHORIZED_KEY_RE.match(key):
+                print(f"skipping malformed key for user {user_id}", file=sys.stderr)
+                continue
             print(f'command="{enter_path} user_{user_id}" {key}')
 
 if __name__ == "__main__":

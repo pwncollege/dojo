@@ -130,6 +130,20 @@ def security_key_line(ed25519_public_key):
     return f"sk-ssh-ed25519@openssh.com {base64.b64encode(raw).decode()}"
 
 
+def rfc4716_key(key_type, ecdsa_public_key):
+    """Re-wrap an ECDSA key in RFC 4716 form, declaring whatever key type is asked for.
+
+    RFC 4716 carries no plaintext key type beside the blob, so this is the one input
+    format where the declared type is not cross-checked against anything.
+    """
+    blob = base64.b64decode(ecdsa_public_key.split()[1])
+    body = blob[4 + len(b"ecdsa-sha2-nistp256"):]
+    raw = struct.pack(">I", len(key_type)) + key_type + body
+    return ("---- BEGIN SSH2 PUBLIC KEY ----\n"
+            + base64.b64encode(raw).decode()
+            + "\n---- END SSH2 PUBLIC KEY ----")
+
+
 def short_rsa_public_key(directory):
     def mpint(value):
         raw = value.to_bytes((value.bit_length() + 8) // 8, "big")
@@ -290,6 +304,60 @@ def test_newline_injection_cannot_add_a_second_key(dojo_user, ssh_keys):
     result = ssh_run(ssh_keys["ed25519"]["private_file"], "whoami", timeout=30)
     assert result.returncode == 255, f"the smuggled key authenticated: rc={result.returncode}"
     assert "Permission denied" in result.stderr, result.stderr
+
+
+def test_declared_key_type_cannot_extend_the_authorized_keys_line(dojo_user, ssh_keys):
+    name, session = dojo_user
+    ecdsa = ssh_keys["ecdsa"]["public"]
+
+    rejected = {
+        "newline": b"ecdsa-sha2-nistp256\nssh-ed25519 AAAAsmuggled attacker",
+        "space": b"ecdsa-sha2-nistp256 extra-field",
+        "tab": b"ecdsa-sha2-nistp256\textra-field",
+        "carriage return": b"ecdsa-sha2-nistp256\rextra-field",
+        "comma": b"ecdsa-sha2-nistp256,extra-field",
+        "control character": b"ecdsa-sha2-nistp256\x00extra-field",
+        "non-ascii": b"ecdsa-sha2-nistp256\xff\xfe",
+        "over 64 characters": b"ecdsa-sha2-" + b"n" * 64,
+    }
+
+    for description, key_type in rejected.items():
+        response = add_ssh_key(session, rfc4716_key(key_type, ecdsa))
+        assert response.status_code == 400, \
+            f"a {description} in the key type should be rejected, got {response.status_code}"
+        assert response.json()["success"] is False, f"{description}: {response.json()}"
+
+    assert key_count(name) == 0, "a rejected key type was still committed"
+    assert not any("smuggled" in line for line in authorized_keys_lines()), \
+        "a smuggled key type reached sshd's authorized_keys stream"
+
+    response = add_ssh_key(session, rfc4716_key(b"ecdsa-sha2-nistp256", ecdsa))
+    assert response.status_code == 200, \
+        f"an RFC 4716 key declaring an honest type must still be accepted: {response.text}"
+    assert stored_key_values(name) == [normalized(ecdsa)], \
+        "the RFC 4716 round trip did not canonicalize to the OpenSSH form"
+
+
+def test_auth_py_emits_only_well_formed_authorized_keys_lines(dojo_user, ssh_keys):
+    name, session = dojo_user
+    rsa = ssh_keys["rsa"]["public"]
+    assert add_ssh_key(session, rsa).status_code == 200, "failed to register the well-formed key"
+    user_id = get_user_id(name)
+
+    # A row that did not come through the API, standing in for anything that could
+    # reach the table without being canonicalized first.
+    db_sql("INSERT INTO ssh_keys (user_id, value) VALUES "
+           rf"({user_id}, E'ssh-ed25519 AAAAsmuggled\nssh-rsa AAAAattacker unrestricted')")
+    try:
+        lines = authorized_keys_lines()
+        assert all(line.startswith(f'command="{ENTER_COMMAND} ') for line in lines), \
+            f"auth.py emitted a line without the forced command: {lines}"
+        assert not any("AAAAattacker" in line for line in lines), \
+            f"a malformed stored value reached the authorized_keys stream: {lines}"
+        assert forced_command_line(user_id, rsa) in lines, \
+            "the well-formed key was dropped along with the malformed one"
+    finally:
+        db_sql(f"DELETE FROM ssh_keys WHERE user_id = {user_id} AND value LIKE '%attacker%'")
 
 
 def test_empty_key_value_rejected(dojo_user, second_user):
