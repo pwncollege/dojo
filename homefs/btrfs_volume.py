@@ -156,9 +156,7 @@ class BTRFSVolume:
             return self.snapshots_path / match["subvol"]
 
     def fetch(self, host):
-        # A fetch must never make the serving node fetch in turn: on a single node the
-        # recorded active host is this node, and the recursion pins every worker.
-        headers = {"X-Homefs-Fetch": "1"}
+        headers = {}
         if self.latest_snapshot_path:
             headers["If-None-Match"] = self.latest_snapshot_path.name
         response = requests.get(f"http://{host}:4201/volume/{self.name}", headers=headers)
