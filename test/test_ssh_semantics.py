@@ -769,6 +769,52 @@ def test_ssh_session_targets_the_current_challenge(dojo_user, ssh_keys, example_
         remove_workspace_container(name)
 
 
+def test_interactive_ssh_reconnects_when_the_challenge_is_replaced(dojo_user, ssh_keys, example_dojo, tmp_path):
+    name, session = dojo_user
+    key = ssh_keys["ed25519"]
+    assert add_ssh_key(session, key["public"]).status_code == 200
+    transcript = tmp_path / "ssh-session.log"
+    process = None
+
+    def await_output(expected):
+        deadline = time.monotonic() + 45
+        while expected not in transcript.read_text():
+            assert process.poll() is None, transcript.read_text()
+            assert time.monotonic() < deadline, transcript.read_text()
+            time.sleep(0.2)
+
+    try:
+        start_challenge(example_dojo, "hello", "apple", session=session)
+        with transcript.open("w") as output:
+            process = subprocess.Popen(
+                [
+                    "ssh", *SSH_BASE_OPTIONS, "-tt", "-i", key["private_file"],
+                    "-p", str(SSH_PORT), f"hacker@{DOJO_SSH_HOST}",
+                ],
+                stdin=subprocess.PIPE, stdout=output, stderr=subprocess.STDOUT,
+                text=True, env={**os.environ, "TERM": "xterm-256color"},
+            )
+            process.stdin.write("printf '\\nINITIAL_HOST=%s\\n' \"$(hostname)\"\n")
+            process.stdin.flush()
+            await_output("INITIAL_HOST=hello~apple")
+
+            start_challenge(example_dojo, "hello", "banana", session=session)
+            process.stdin.write("printf '\\nRECONNECTED_HOST=%s\\n' \"$(hostname)\"\n")
+            process.stdin.flush()
+            await_output("RECONNECTED_HOST=hello~banana")
+
+            process.stdin.write("exit\n")
+            process.stdin.flush()
+            assert process.wait(timeout=15) == 0, transcript.read_text()
+    finally:
+        if process is not None:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=15)
+            process.stdin.close()
+        remove_workspace_container(name)
+
+
 def test_banned_user_cannot_ssh(dojo_user, ssh_keys):
     name, session = dojo_user
     user_id = get_user_id(name)

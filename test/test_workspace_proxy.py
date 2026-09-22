@@ -1,7 +1,10 @@
 import hmac
+import json
 import random
+import shlex
 import string
 import subprocess
+import time
 from urllib.parse import urlparse, parse_qs
 
 import pytest
@@ -250,3 +253,72 @@ def test_workspace_system_mounts_are_read_only(workspace_owner):
         assert "Read-only file system" in exception.value.stderr, (
             f"Expected root to be unable to write to {path}, but got {exception.value.stderr}"
         )
+
+
+@pytest.fixture(scope="module")
+def workspace_http_application(workspace_owner):
+    name, session, _ = workspace_owner
+    script = """
+import json
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class Application(BaseHTTPRequestHandler):
+    def respond(self):
+        body = self.rfile.read(int(self.headers.get("Content-Length", "0"))).decode()
+        result = json.dumps({
+            "method": self.command,
+            "path": self.path,
+            "body": body,
+            "header": self.headers.get("X-Workspace-Test"),
+        }).encode()
+        self.send_response(201 if self.command == "POST" else 422)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(result)))
+        self.send_header("X-Application-Result", "received")
+        self.end_headers()
+        self.wfile.write(result)
+
+    do_POST = respond
+    do_PUT = respond
+
+HTTPServer(("0.0.0.0", 31337), Application).serve_forever()
+"""
+    service = "wsproxy-http/application"
+    try:
+        workspace_run(f"dojo-service start {service} /run/dojo/bin/python3 -c {shlex.quote(script)}", user=name)
+        deadline = time.monotonic() + 15
+        while True:
+            try:
+                workspace_run("curl -s -o /dev/null http://127.0.0.1:31337", user=name)
+                break
+            except subprocess.CalledProcessError:
+                assert time.monotonic() < deadline, "Workspace HTTP application did not start"
+                time.sleep(0.2)
+        response = session.get(WORKSPACE_API, params={"port": 31337})
+        assert response.status_code == 200
+        assert response.json()["success"]
+        yield response.json()["iframe_src"]
+    finally:
+        workspace_run(f"dojo-service stop {service}", user=name)
+
+
+@pytest.mark.parametrize("method,status", [("POST", 201), ("PUT", 422)])
+def test_workspace_proxy_preserves_application_requests_and_responses(workspace_http_application, method, status):
+    payload = {"answer": "hello from the workspace", "values": [1, 2, 3]}
+    response = requests.request(
+        method,
+        f"{workspace_http_application}nested/resource",
+        params=[("tag", "one"), ("tag", "two"), ("message", "hello world")],
+        json=payload,
+        headers={"X-Workspace-Test": "roundtrip"},
+        timeout=30,
+    )
+    assert response.status_code == status
+    assert response.headers["X-Application-Result"] == "received"
+    result = response.json()
+    path = urlparse(result["path"])
+    assert path.path == "/nested/resource"
+    assert parse_qs(path.query) == {"tag": ["one", "two"], "message": ["hello world"]}
+    assert result["method"] == method
+    assert json.loads(result["body"]) == payload
+    assert result["header"] == "roundtrip"

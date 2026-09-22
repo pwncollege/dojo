@@ -461,6 +461,8 @@ services:
     user: root
     ports:
       - "3000"
+    extra_hosts:
+      - "${DOJO_HOST}:host-gateway"
     environment:
       - NEXT_PUBLIC_DOJO_HOST=${DOJO_HOST}
       - NEXT_PUBLIC_DOJO_ENV=${DOJO_ENV}

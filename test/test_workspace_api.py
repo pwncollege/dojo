@@ -899,7 +899,14 @@ def test_next_challenge_at_the_end_of_a_dojo(private_workspace):
 
 def test_reset_home_restores_an_empty_writable_home(private_workspace):
     name, session = private_workspace["name"], private_workspace["session"]
-    workspace_exec(name, "touch /home/hacker/doomed-file")
+    before = session.get(DOCKER_API).json()
+    workspace_output(
+        name,
+        "mkdir -p /home/hacker/.reset-config/nested && "
+        "printf 'saved settings' > /home/hacker/.reset-config/nested/settings && "
+        "ln -s .reset-config/nested/settings /home/hacker/reset-link && "
+        "touch /home/hacker/doomed-file",
+    )
 
     response = session.post(RESET_HOME_API, json={})
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
@@ -913,6 +920,12 @@ def test_reset_home_restores_an_empty_writable_home(private_workspace):
     assert workspace_exec(name, "[ -f /home/hacker/home-backup.tar.gz ]").returncode == 0, (
         "Expected the reset to leave a backup of the old home directory"
     )
+    assert workspace_output(name, "find /home/hacker -mindepth 1 -printf '%P\\n'") == "home-backup.tar.gz"
+    assert session.get(DOCKER_API).json() == before
+    workspace_output(name, "mkdir /tmp/reset-restore && tar -xzf /home/hacker/home-backup.tar.gz -C /tmp/reset-restore")
+    assert workspace_output(name, "cat /tmp/reset-restore/home/hacker/.reset-config/nested/settings") == "saved settings"
+    assert workspace_output(name, "cat /tmp/reset-restore/home/hacker/reset-link") == "saved settings"
+    assert workspace_exec(name, "test -f /tmp/reset-restore/home/hacker/doomed-file").returncode == 0
     assert workspace_output(name, "stat -c %U:%G /home/hacker") == "hacker:hacker", (
         "Expected the reset home directory to stay owned by the hacker user"
     )

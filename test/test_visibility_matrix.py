@@ -493,3 +493,45 @@ def test_active_module_with_invisible_current_challenge(visibility_matrix_dojo, 
             "/active-module must describe whatever challenge is actually running"
     finally:
         remove_workspace_container(name)
+
+
+def test_releasing_and_closing_a_lesson_preserves_existing_progress(admin_session, random_user):
+    name, session = random_user
+    spec = {
+        "id": f"release-{rand_token()}",
+        "type": "public",
+        "image": "pwncollege/challenge-simple",
+        "modules": [{"id": "lesson", "visibility": {"start": "2099-01-01T00:00:00Z"}, "resources": [
+            {"type": "markdown", "name": "Lesson reading", "content": "Released material"},
+            {"type": "challenge", "id": "exercise", "name": "Lesson exercise"},
+        ]}],
+    }
+    dojo = create_spec_dojo(admin_session, spec)
+    base = f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}"
+
+    def modules():
+        response = session.get(f"{base}/modules")
+        assert response.status_code == 200, response.text
+        return response.json()["modules"]
+
+    def reschedule(visibility):
+        spec["modules"][0]["visibility"] = visibility
+        response = admin_session.post(f"{base}/update", json=spec)
+        assert response.status_code == 200 and response.json()["success"], response.text
+
+    assert modules() == []
+    reschedule({"start": "2000-01-01T00:00:00Z"})
+    released, = modules()
+    assert [item["name"] for item in released["unified_items"]] == ["Lesson reading", "Lesson exercise"]
+    solve_challenge_offline(dojo, "lesson", "exercise", session=session, user=name)
+    original_solves = session.get(f"{base}/solves").json()["solves"]
+    assert [(solve["module_id"], solve["challenge_id"]) for solve in original_solves] == [("lesson", "exercise")]
+
+    reschedule({"stop": "2000-01-01T00:00:00Z"})
+    assert modules() == []
+    assert session.get(f"{base}/solves").json()["solves"] == original_solves
+
+    reschedule({})
+    reopened, = modules()
+    assert reopened == released
+    assert session.get(f"{base}/solves").json()["solves"] == original_solves

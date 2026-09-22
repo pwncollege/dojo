@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from threading import Barrier
 from unittest.mock import Mock, call
 
 import docker
@@ -89,3 +90,22 @@ def test_overlapping_run_skips_and_releases_lock(tmp_path, monkeypatch):
     sweep.assert_not_called()
     assert reaper.main() == 0
     sweep.assert_called_once_with("unix:///var/run/docker.sock")
+
+
+@pytest.mark.parametrize("failed_node", [None, "tcp://192.168.42.3:2375"])
+def test_cleanup_sweeps_nodes_concurrently_and_reports_partial_failure(tmp_path, monkeypatch, failed_node):
+    monkeypatch.setattr(reaper, "LOCK_PATH", str(tmp_path / "remove.lock"))
+    monkeypatch.setattr(reaper.Path, "read_text", lambda _: '{"1": {}, "2": {}}')
+    started = Barrier(2, timeout=5)
+
+    def sweep(url):
+        started.wait()
+        return url != failed_node
+
+    collect = Mock(side_effect=sweep)
+    monkeypatch.setattr(reaper, "collect_node", collect)
+
+    assert reaper.main() == (1 if failed_node else 0)
+    assert {args.args[0] for args in collect.call_args_list} == {
+        "tcp://192.168.42.2:2375", "tcp://192.168.42.3:2375",
+    }

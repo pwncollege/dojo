@@ -203,12 +203,12 @@ case "$ACTION" in
             exit 1
         fi
 
-        if docker inspect workspace-builder >/dev/null 2>&1 \
-            && ! docker wait workspace-builder
-        then
-            docker logs --tail 100 workspace-builder
-            echo "Error: workspace-builder failed"
-            exit 1
+        if docker inspect workspace-builder >/dev/null 2>&1; then
+            if ! BUILDER_EXIT_CODE=$(docker wait workspace-builder) || [ "$BUILDER_EXIT_CODE" != "0" ]; then
+                docker logs --tail 100 workspace-builder
+                echo "Error: workspace-builder failed"
+                exit 1
+            fi
         fi
 
         if docker ps --format '{{.Names}}' | grep -q '^stats-worker$'; then

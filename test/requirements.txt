@@ -9,3 +9,5 @@ pytest-github-actions-annotate-failures
 pyyaml
 requests
 selenium
+textual
+itsdangerous

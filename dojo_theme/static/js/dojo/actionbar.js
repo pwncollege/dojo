@@ -284,13 +284,7 @@ function actionSubmitFlag(event) {
         }
         else if (response.data.status == "correct") {
             animateBanner(event, `🎉 Successfully completed ${challengeName}! 🎉`, "success");
-            if ($(".challenge-active").length) {
-                const unsolved_flag = $(".challenge-active").find("i.challenge-unsolved")
-                if (unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
-                    unsolved_flag.removeClass("far").addClass("fas");
-                }
-                unsolved_flag.removeClass("challenge-unsolved").addClass("challenge-solved");
-            }
+            solveChannel.postMessage({msg: 'challengeSolved', challenge_id});
         }
         else if (response.data.status == "already_solved") {
             animateBanner(event, `🎉 You've already solved ${challengeName}! 🎉`, "success");
@@ -464,6 +458,7 @@ function refreshWorkspace(root) {
 }
 
 const channel = new BroadcastChannel("Challenge-Sync-Channel");
+const solveChannel = new BroadcastChannel("broadcast");
 $(() => {
     loadWorkspace();
     $(".workspace-controls").each(function () {

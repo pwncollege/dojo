@@ -3,6 +3,7 @@ import random
 import string
 
 import pytest
+import requests
 import yaml
 
 from utils import (
@@ -290,6 +291,72 @@ def test_dojo_level_import_inherits_source_fields(admin_session, example_dojo):
     source_name = db_sql("SELECT name FROM dojos WHERE id = 'example' AND official").strip()
     assert db_sql(f"SELECT name FROM dojos WHERE dojo_id = {dojo_db_id(dojo)}").strip() == source_name
     assert dojo_data(dojo)["award"] == json.loads(db_sql("SELECT data->'award' FROM dojos WHERE id = 'example' AND official"))
+    assert get_modules(admin_session, dojo) == get_modules(admin_session, example_dojo)
+
+    empty = create_dojo_spec(admin_session, {
+        "id": spec_id("emptyimport"), "import": {"dojo": "example"}, "modules": [],
+    })
+    assert get_modules(admin_session, empty) == []
+
+
+@pytest.mark.parametrize("import_scope", ["dojo", "module"])
+def test_inherited_modules_preserve_challenge_controls(admin_session, random_user, import_scope):
+    _, session = random_user
+    source_spec = {
+        "id": spec_id("controls"),
+        "type": "public",
+        "image": "pwncollege/challenge-simple",
+        "privileged": True,
+        "allow_privileged": False,
+        "survey": {"prompt": "How was the lesson?", "data": "Lesson feedback"},
+        "modules": [{"id": "lesson", "interfaces": [{"name": "Web", "port": 8080}], "challenges": [
+            {"id": "first"},
+            {"id": "second", "required": False, "privileged": False, "progression_locked": True,
+             "interfaces": [{"name": "SSH"}],
+             "survey": {"prompt": "How was the exercise?", "data": "Exercise feedback", "probability": 0.5}},
+        ]}],
+    }
+    source = make_dojo_official(create_dojo_spec(admin_session, source_spec), admin_session)
+    import_spec = {"id": spec_id("importcontrols"), "type": "public"}
+    module_id = "lesson" if import_scope == "dojo" else "renamed"
+    if import_scope == "dojo":
+        import_spec["import"] = {"dojo": source}
+    else:
+        import_spec["modules"] = [{"id": module_id, "import": {"dojo": source, "module": "lesson"}}]
+    imported = create_dojo_spec(admin_session, import_spec)
+    fields = ["image", "privileged", "allow_privileged", "progression_locked", "interfaces", "survey", "importable"]
+
+    def controls(dojo, module):
+        result = {}
+        for challenge in ("first", "second"):
+            data = challenge_data(dojo, module, challenge)
+            result[challenge] = {field: data.get(field) for field in fields}
+        return result
+
+    original = controls(source, "lesson")
+    assert controls(imported, module_id) == original
+    assert [challenge["required"] for challenge in get_module(session, imported, module_id)["challenges"]] == [True, False]
+    for challenge in ("first", "second"):
+        assert challenge_db_id(imported, module_id, challenge) == challenge_db_id(source, "lesson", challenge)
+        response = session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{imported}/{module_id}/{challenge}/surveys")
+        assert response.status_code == 200
+        survey = response.json()
+        assert survey["type"] == "user-specified"
+        assert {field: survey[field] for field in ("prompt", "data")} == {
+            field: original[challenge]["survey"][field] for field in ("prompt", "data")
+        }
+        assert survey["probability"] == original[challenge]["survey"].get("probability", 1.0)
+
+    source_spec["modules"][0]["challenges"][1]["interfaces"] = [{"name": "Code", "port": 8080}]
+    source_spec["modules"][0]["challenges"][1]["survey"]["prompt"] = "How was the revised exercise?"
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{source}/update", json=source_spec)
+    assert response.status_code == 200 and response.json()["success"], response.text
+    assert controls(imported, module_id) == original
+
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{imported}/update", json=import_spec)
+    assert response.status_code == 200 and response.json()["success"], response.text
+    assert controls(imported, module_id) == controls(source, "lesson")
+    assert controls(imported, module_id) != original
 
 
 def test_missing_import_targets_are_reported(admin_session, example_dojo):
@@ -1113,6 +1180,32 @@ def test_pages_directory_serves_per_user_then_default_markdown(admin_session, sp
         "other users still get default.md"
 
 
+def test_personal_downloads_serve_the_requesting_users_file(admin_session, random_user):
+    name, session = random_user
+    user_id = get_user_id(name)
+    personal_report = "Exercise,Progress\nIntroduction,Complete\n"
+    dojo = create_dojo_spec(admin_session, {
+        "id": spec_id("download"),
+        "type": "public",
+        "pages": ["reports"],
+        "files": [
+            text_file(f"reports/{user_id}", personal_report),
+            text_file("reports/default.md", "No personal report is available"),
+        ],
+    })
+    make_dojo_official(dojo, admin_session)
+    url = f"{DOJO_URL}/{dojo}/reports"
+
+    response = session.get(url)
+    assert response.status_code == 200
+    assert response.text == personal_report
+    for viewer in (admin_session, requests):
+        fallback = viewer.get(url)
+        assert fallback.status_code == 200
+        assert "No personal report is available" in fallback.text
+        assert personal_report not in fallback.text
+
+
 def test_custom_js_requires_permission(admin_session, spec_user):
     _, session = spec_user
     dojo = create_dojo_spec(admin_session, {
@@ -1264,6 +1357,74 @@ def test_update_honours_the_challenges_key(admin_session):
     response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update", json=spec)
     assert response.status_code == 200, f"Expected 200, got {response.status_code} - {response.text[:300]}"
     assert challenge_ids(dojo) == ["m/a", "m/b"], "re-applying the creation spec must not drop the challenges"
+
+
+def test_reordering_modules_and_resources_preserves_learner_progress(admin_session, random_user):
+    name, session = random_user
+    spec = {
+        "id": spec_id("reorder"),
+        "image": "pwncollege/challenge-simple",
+        "modules": [{"id": module, "resources": [
+            {"type": "challenge", "id": "a", "name": f"{module} first"},
+            {"type": "markdown", "name": f"{module} reading", "content": f"Read {module}"},
+            {"type": "challenge", "id": "b", "name": f"{module} second"},
+        ]} for module in ("alpha", "beta")],
+    }
+    dojo = create_dojo_spec(admin_session, spec)
+    assert session.get(f"{DOJO_URL}/dojo/{dojo}/join/").status_code == 200
+    solve_challenge_offline(dojo, "alpha", "a", session=session, user=name)
+    solve_challenge_offline(dojo, "beta", "b", session=session, user=name)
+    solves_url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/solves"
+    original_solves = session.get(solves_url).json()["solves"]
+    assert [(solve["module_id"], solve["challenge_id"]) for solve in original_solves] == [("alpha", "a"), ("beta", "b")]
+
+    spec["modules"].reverse()
+    for module in spec["modules"]:
+        module["resources"].reverse()
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/update", json=spec)
+    assert response.status_code == 200 and response.json()["success"], response.text
+
+    modules = get_modules(session, dojo)
+    assert [module["id"] for module in modules] == ["beta", "alpha"]
+    for module in modules:
+        assert [challenge["id"] for challenge in module["challenges"]] == ["b", "a"]
+        assert [item["name"] for item in module["unified_items"]] == [
+            f"{module['id']} second", f"{module['id']} reading", f"{module['id']} first"]
+    assert session.get(solves_url).json()["solves"] == original_solves
+
+    solve_challenge_offline(dojo, "alpha", "b", session=session, user=name)
+    solves = session.get(solves_url).json()["solves"]
+    assert solves[:2] == original_solves
+    assert [(solve["module_id"], solve["challenge_id"]) for solve in solves[2:]] == [("alpha", "b")]
+
+
+def test_transferring_a_challenge_preserves_prior_solves_across_updates(admin_session, random_user):
+    name, session = random_user
+    spec = {
+        "id": spec_id("moveprogress"),
+        "type": "public",
+        "image": "pwncollege/challenge-simple",
+        "modules": [{"id": "original", "challenges": [{"id": "exercise"}]}],
+    }
+    dojo = create_dojo_spec(admin_session, spec)
+    solve_challenge_offline(dojo, "original", "exercise", session=session, user=name)
+    base = f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}"
+    original_solve, = session.get(f"{base}/solves").json()["solves"]
+
+    spec["modules"] = [{"id": "revised", "challenges": [{
+        "id": "renamed", "transfer": {"module": "original", "challenge": "exercise"},
+    }]}]
+    response = admin_session.post(f"{base}/update", json=spec)
+    assert response.status_code == 200 and response.json()["success"], response.text
+    expected = [original_solve | {"module_id": "revised", "challenge_id": "renamed"}]
+    assert session.get(f"{base}/solves").json()["solves"] == expected
+    assert session.get(f"{DOJO_URL}/{dojo}/original/").status_code == 404
+
+    del spec["modules"][0]["challenges"][0]["transfer"]
+    response = admin_session.post(f"{base}/update", json=spec)
+    assert response.status_code == 200 and response.json()["success"], response.text
+    solve_challenge_offline(dojo, "revised", "renamed", session=session, user=name)
+    assert session.get(f"{base}/solves").json()["solves"] == expected
 
 
 def test_challenge_import_without_id(admin_session, example_dojo):

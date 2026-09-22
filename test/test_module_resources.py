@@ -1,7 +1,10 @@
+import uuid
+
 import pytest
 import requests
+import yaml
 
-from utils import DOJO_URL, create_dojo_yml, TEST_DOJOS_LOCATION
+from utils import DOJO_URL, create_dojo_yml, solve_challenge_offline, TEST_DOJOS_LOCATION
 
 
 @pytest.fixture(scope="session")
@@ -202,3 +205,79 @@ def test_markdown_file_loading(module_resources_dojo, admin_session, example_doj
     pos_resource_e = page_content.find("Resource E")
     pos_file_resource = page_content.find("Resource from File")
     assert pos_resource_e < pos_file_resource, "File-loaded resource should appear after Resource E"
+
+
+def test_module_import_refreshes_lessons_without_losing_progress(admin_session, random_user):
+    name, session = random_user
+    source_spec = {
+        "id": f"lesson-source-{uuid.uuid4().hex[:8]}",
+        "type": "public",
+        "image": "pwncollege/challenge-simple",
+        "modules": [{"id": "lesson", "name": "Original lesson", "resources": [
+            {"type": "header", "content": "Getting started"},
+            {"type": "markdown", "name": "Reading", "content": "First revision", "expandable": False},
+            {"type": "challenge", "id": "first", "name": "First exercise", "description": "Apply the reading"},
+            {"type": "lecture", "name": "Lecture", "video": "lesson-video", "slides": "lesson-slides"},
+            {"type": "challenge", "id": "second", "name": "Second exercise", "required": False},
+        ]}],
+    }
+    source = create_dojo_yml(yaml.safe_dump(source_spec), session=admin_session)
+    import_spec = {
+        "id": f"lesson-import-{uuid.uuid4().hex[:8]}",
+        "type": "public",
+        "modules": [{"id": "renamed", "name": "Our lesson", "import": {"dojo": source, "module": "lesson"}}],
+    }
+    imported = create_dojo_yml(yaml.safe_dump(import_spec), session=admin_session)
+
+    def modules(dojo):
+        response = session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/modules")
+        assert response.status_code == 200, response.text
+        return response.json()["modules"]
+
+    def items(dojo):
+        return [(item["item_type"], item["name"], item.get("content"), item.get("description"),
+                 item.get("video"), item.get("slides"), item.get("expandable"), item.get("required"))
+                for item in modules(dojo)[0]["unified_items"]]
+
+    original_items = items(source)
+    assert items(imported) == original_items
+    assert (modules(imported)[0]["id"], modules(imported)[0]["name"]) == ("renamed", "Our lesson")
+    solve_challenge_offline(source, "lesson", "first", session=session, user=name)
+    solves_url = f"{DOJO_URL}/pwncollege_api/v1/dojos/{imported}/solves"
+    original_solves = session.get(solves_url).json()["solves"]
+    assert [(solve["module_id"], solve["challenge_id"]) for solve in original_solves] == [("renamed", "first")]
+
+    source_spec["modules"][0]["resources"][1]["content"] = "Revised reading"
+    source_spec["modules"][0]["resources"].reverse()
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{source}/update", json=source_spec)
+    assert response.status_code == 200 and response.json()["success"], response.text
+    assert items(imported) == original_items
+
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/dojos/{imported}/update", json=import_spec)
+    assert response.status_code == 200 and response.json()["success"], response.text
+    assert items(imported) == items(source)
+    assert items(imported) != original_items
+    assert session.get(solves_url).json()["solves"] == original_solves
+
+
+def test_modules_can_provide_reading_without_challenges(admin_session, random_user):
+    _, session = random_user
+    spec = {
+        "id": f"reading-{uuid.uuid4().hex[:8]}",
+        "type": "public",
+        "modules": [{"id": "reading", "resources": [
+            {"type": "header", "content": "Background material"},
+            {"type": "markdown", "name": "Explanation", "content": "Reading without an exercise"},
+            {"type": "lecture", "name": "Discussion", "video": "reading-video"},
+        ]}],
+    }
+    dojo = create_dojo_yml(yaml.safe_dump(spec), session=admin_session)
+    response = session.get(f"{DOJO_URL}/pwncollege_api/v1/dojos/{dojo}/modules")
+    assert response.status_code == 200
+    module, = response.json()["modules"]
+    assert module["id"] == "reading" and module["challenges"] == []
+    assert [item["type"] for item in module["unified_items"]] == ["header", "markdown", "lecture"]
+    page = session.get(f"{DOJO_URL}/{dojo}/reading/")
+    assert page.status_code == 200
+    assert "Reading without an exercise" in page.text
+    assert "reading-video" in page.text

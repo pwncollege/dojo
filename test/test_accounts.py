@@ -8,6 +8,7 @@ import re
 import string
 import subprocess
 import tempfile
+import textwrap
 import time
 import pytest
 import requests
@@ -16,6 +17,7 @@ from utils import (
     DOJO_URL,
     db_sql,
     dojo_run,
+    flask_exec,
     get_user_id,
     login,
     parse_csrf_token,
@@ -120,6 +122,21 @@ def mint_signed_token(payload, *, age=0):
 
 def password_hash(name):
     return db_sql(f"SELECT password FROM users WHERE name = '{name}'").strip()
+
+
+def account_case(session, code):
+    setup = (
+        "from flask import current_app\n"
+        "from unittest.mock import patch\n"
+        "from CTFd.models import db, Users, UserFields, UserFieldEntries\n"
+        "from CTFd.plugins.dojo_plugin.api.v1 import auth as auth_api\n"
+        "app = current_app._get_current_object()\n"
+        "client = app.test_client()\n"
+        f"client.set_cookie(app.config['SESSION_COOKIE_NAME'], {session.cookies.get('session')!r})\n"
+        f"client.environ_base['HTTP_CSRF_TOKEN'] = {session.headers['CSRF-Token']!r}\n"
+    )
+    output = flask_exec(setup + textwrap.dedent(code) + "\nprint('ACCOUNT-CASE-PASSED')\n")
+    assert "ACCOUNT-CASE-PASSED" in output, output
 
 
 @pytest.fixture(scope="module")
@@ -240,6 +257,183 @@ def test_api_register_creates_user_and_session():
     assert me.status_code == 200, f"registration must authenticate the session: {me.status_code}"
     assert me.json()["name"] == name, me.json()
     assert me.json()["id"] == body["data"]["user_id"], me.json()
+
+
+def test_api_registration_profile_fields_persist_and_can_be_updated():
+    name = rand_name()
+    session = anon_session()
+    profile = {"website": "https://example.com/student", "affiliation": "Example University", "country": "US"}
+    registered = api_register(session, **registration_payload(name, **profile))
+    assert registered.status_code == 200, registered.text
+
+    fresh = login(name, name)
+    initial = fresh.get(f"{DOJO_URL}/pwncollege_api/v1/users/me").json()
+    assert {key: initial[key] for key in profile} == profile
+
+    updated = {"website": "https://example.com/graduate", "affiliation": "Example Research", "country": "CA"}
+    response = fresh.patch(f"{DOJO_URL}/api/v1/users/me", json=updated)
+    assert response.status_code == 200, response.text
+    persisted = login(name, name).get(f"{DOJO_URL}/pwncollege_api/v1/users/me").json()
+    assert {key: persisted[key] for key in updated} == updated
+
+
+@pytest.mark.parametrize("invalid", [
+    {"name": ""},
+    {"email": "invalid-email"},
+    {"password": ""},
+    {"website": "invalid-url"},
+    {"country": "invalid-country"},
+    {"affiliation": "a" * 129},
+])
+def test_api_registration_invalid_fields_do_not_create_an_account(invalid):
+    name = rand_name()
+    session = anon_session()
+    payload = registration_payload(name)
+    payload.update(invalid)
+    response = api_register(session, **payload)
+    assert response.status_code == 400, response.text
+    assert response.json()["success"] is False
+    assert response.json()["errors"]
+    assert count_users(name) == 0
+    identity = session.get(
+        f"{DOJO_URL}/pwncollege_api/v1/users/me", headers={"Content-Type": "application/json"}
+    )
+    assert identity.status_code == 403
+
+
+def test_api_registration_respects_allowed_email_domains():
+    rejected_name = rand_name()
+    accepted_name = rand_name()
+    with server_config(domain_whitelist="example.edu"):
+        rejected = api_register(anon_session(), **registration_payload(rejected_name))
+        assert rejected.status_code == 400, rejected.text
+        assert rejected.json()["success"] is False
+        assert count_users(rejected_name) == 0
+
+        accepted = api_register(
+            anon_session(), **registration_payload(accepted_name, email=f"{accepted_name}@example.edu")
+        )
+        assert accepted.status_code == 200, accepted.text
+        assert login(accepted_name, accepted_name).get(
+            f"{DOJO_URL}/pwncollege_api/v1/users/me"
+        ).json()["email"] == f"{accepted_name}@example.edu"
+
+
+def test_api_registration_collects_required_and_optional_custom_fields():
+    name = rand_name()
+    payload = registration_payload(name)
+    account_case(anon_session(), f"""
+        required = UserFields(name={rand_name('required')!r}, field_type="text", required=True, public=False, editable=True)
+        optional = UserFields(name={rand_name('optional')!r}, field_type="text", required=False, public=False, editable=True)
+        db.session.add_all([required, optional])
+        db.session.commit()
+        field_ids = [required.id, optional.id]
+        try:
+            payload = {payload!r}
+            rejected = client.post("/pwncollege_api/v1/auth/register", json=payload)
+            assert rejected.status_code == 400, rejected.get_data(as_text=True)
+            assert Users.query.filter_by(name={name!r}).first() is None
+
+            payload[f"fields[{{required.id}}]"] = "  Computer science  "
+            payload[f"fields[{{optional.id}}]"] = "  Returning student  "
+            accepted = client.post("/pwncollege_api/v1/auth/register", json=payload)
+            assert accepted.status_code == 200, accepted.get_data(as_text=True)
+            user_id = accepted.get_json()["data"]["user_id"]
+            entries = {{entry.field_id: entry.value for entry in UserFieldEntries.query.filter_by(user_id=user_id)}}
+            assert entries[required.id] == "Computer science"
+            assert entries[optional.id] == "Returning student"
+            identity = client.get("/pwncollege_api/v1/users/me")
+            assert identity.status_code == 200
+            assert identity.get_json()["id"] == user_id
+        finally:
+            UserFieldEntries.query.filter(UserFieldEntries.field_id.in_(field_ids)).delete(synchronize_session=False)
+            for field in [required, optional]:
+                db.session.delete(field)
+            db.session.commit()
+    """)
+
+
+def test_api_registration_with_mail_waits_for_email_confirmation():
+    name = rand_name()
+    account_case(anon_session(), f"""
+        from CTFd.utils.security.signing import serialize
+
+        notifications = {{"verify": [], "welcome": []}}
+        get_config = auth_api.get_config
+        configured = lambda key, *args, **kwargs: True if key == "verify_emails" else get_config(key, *args, **kwargs)
+        with patch.object(auth_api, "get_config", side_effect=configured), \\
+             patch.object(auth_api, "can_send_mail", return_value=True), \\
+             patch.object(auth_api.email, "verify_email_address", side_effect=notifications["verify"].append), \\
+             patch.object(auth_api.email, "successful_registration_notification", side_effect=notifications["welcome"].append):
+            response = client.post("/pwncollege_api/v1/auth/register", json={registration_payload(name)!r})
+            assert response.status_code == 200, response.get_data(as_text=True)
+            user = Users.query.filter_by(name={name!r}).one()
+            assert user.verified is False
+            assert response.get_json()["data"]["verified"] is False
+            assert notifications["verify"] == [user.email]
+            assert notifications["welcome"] == []
+
+            confirmed = client.get(f"/pwncollege_api/v1/auth/verify/{{serialize(user.email)}}")
+            assert confirmed.status_code == 200, confirmed.get_data(as_text=True)
+            db.session.refresh(user)
+            assert user.verified is True
+            assert notifications["welcome"] == [user.email]
+            repeated = client.get(f"/pwncollege_api/v1/auth/verify/{{serialize(user.email)}}")
+            assert repeated.status_code == 200
+            assert notifications["welcome"] == [user.email]
+    """)
+
+
+def test_api_password_recovery_with_mail_preserves_oauth_accounts(random_user, second_user):
+    name, _ = random_user
+    oauth_name, _ = second_user
+    account_case(anon_session(), f"""
+        from CTFd.utils.security.signing import serialize
+
+        user = Users.query.filter_by(name={name!r}).one()
+        oauth_user = Users.query.filter_by(name={oauth_name!r}).one()
+        original_oauth_id = oauth_user.oauth_id
+        original_password = oauth_user.password
+        oauth_user.oauth_id = oauth_user.id
+        db.session.commit()
+        deliveries = []
+        alerts = []
+        try:
+            with patch.object(auth_api, "can_send_mail", return_value=True), \\
+                 patch.object(auth_api.email, "forgot_password", side_effect=deliveries.append), \\
+                 patch.object(auth_api.email, "password_change_alert", side_effect=alerts.append):
+                responses = [
+                    client.post("/pwncollege_api/v1/auth/forgot-password", json={{"email": address}})
+                    for address in [user.email, oauth_user.email, {f'{rand_name()}@example.com'!r}]
+                ]
+                assert all(response.status_code == 200 for response in responses)
+                assert all(response.get_json() == responses[0].get_json() for response in responses)
+                assert deliveries == [user.email]
+                reset = client.post(
+                    f"/pwncollege_api/v1/auth/reset-password/{{serialize(oauth_user.email)}}",
+                    json={{"password": "replacement-password"}},
+                )
+                assert reset.status_code == 400, reset.get_data(as_text=True)
+                db.session.refresh(oauth_user)
+                assert oauth_user.password == original_password
+                assert alerts == []
+
+                reset = client.post(
+                    f"/pwncollege_api/v1/auth/reset-password/{{serialize(user.email)}}",
+                    json={{"password": "replacement-password"}},
+                )
+                assert reset.status_code == 200, reset.get_data(as_text=True)
+                assert alerts == [user.email]
+                logged_in = client.post(
+                    "/pwncollege_api/v1/auth/login",
+                    json={{"name": user.name, "password": "replacement-password"}},
+                )
+                assert logged_in.status_code == 200, logged_in.get_data(as_text=True)
+                assert logged_in.get_json()["data"]["user_id"] == user.id
+        finally:
+            oauth_user.oauth_id = original_oauth_id
+            db.session.commit()
+    """)
 
 
 def test_api_register_blocked_when_registration_not_public():
