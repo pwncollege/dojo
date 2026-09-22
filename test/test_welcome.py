@@ -396,6 +396,8 @@ def test_actionbar_popout_reload(random_user_browser, interfaces_dojo):
     popout_handle = (set(random_user_browser.window_handles) - handles).pop()
     random_user_browser.switch_to.window(popout_handle)
     wait.until(lambda driver: driver.current_url.rstrip("/").endswith("/workspace/terminal"))
+    popout_controls = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".workspace-controls")))
+    wait.until(lambda _: service_button(popout_controls, "Terminal").get_attribute("aria-pressed") == "true")
     popout_page = random_user_browser.find_element(By.TAG_NAME, "body")
 
     random_user_browser.switch_to.window(module_handle)
