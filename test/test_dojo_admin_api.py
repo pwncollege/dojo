@@ -1,10 +1,14 @@
+import csv
+import datetime
 import hashlib
+import io
 import random
 import re
 import socket
 import string
 import time
 import urllib.parse
+from email.utils import parsedate_to_datetime
 
 import pytest
 import requests
@@ -12,6 +16,7 @@ import yaml
 
 from utils import (
     DOJO_URL,
+    challenge_db_id,
     create_dojo_yml,
     db_sql,
     dojo_db_id,
@@ -689,6 +694,64 @@ def test_solves_export_hidden_user_visibility(example_dojo, admin_session):
         assert user_id in exported_user_ids(), "a hidden dojo member is still exported"
     finally:
         db_sql(f"UPDATE users SET hidden = false WHERE id = {user_id}")
+
+
+def test_solves_exports_preserve_order_identity_and_timestamps(admin_session, random_user):
+    name, session = random_user
+    user_id = get_user_id(name)
+    other_name, other_session = new_user()
+    other_id = get_user_id(other_name)
+    spec = simple_spec(spec_id("export"), challenges=("a", "b", "optional"))
+    spec["modules"][0]["resources"][-1]["required"] = False
+    spec["modules"].append({"id": "second", "challenges": [{"id": "c"}]})
+    dojo = create_spec(admin_session, spec)
+    db_sql(f"UPDATE dojos SET private_key = 'export-fixture-{rand(24)}' WHERE dojo_id = {dojo_db_id(dojo)}")
+
+    submissions = [
+        (name, session, "second", "c", "2025-01-01T01:00:00+00:00"),
+        (name, session, "m", "b", "2025-01-01T02:00:00+00:00"),
+        (other_name, other_session, "m", "a", "2025-01-01T03:00:00+00:00"),
+        (name, session, "m", "a", "2025-01-01T04:00:00+00:00"),
+        (name, session, "m", "optional", "2025-01-01T05:00:00+00:00"),
+        ("admin", admin_session, "m", "a", "2025-01-01T06:00:00+00:00"),
+    ]
+    for solver, solver_session, module, challenge, timestamp in submissions:
+        solve_challenge_offline(dojo, module, challenge, session=solver_session, user=solver)
+        db_sql(f"UPDATE submissions SET date = '{timestamp}' WHERE type = 'correct' "
+               f"AND user_id = {get_user_id(solver)} AND challenge_id = {challenge_db_id(dojo, module, challenge)}")
+
+    base = f"{DOJO_URL}/dojo/{dojo}/solves/{solves_code(dojo)}"
+    response = requests.get(f"{base}/json")
+    assert response.status_code == 200, response.text
+    json_rows = response.json()
+    assert [(row["user_id"], row["user_name"], row["module"], row["challenge"]) for row in json_rows] == [
+        (other_id, other_name, "m", "a"),
+        (user_id, name, "m", "a"),
+        (user_id, name, "m", "b"),
+        (user_id, name, "second", "c"),
+    ]
+    expected_times = [submissions[index][4] for index in (2, 3, 1, 0)]
+    assert [parsedate_to_datetime(row["time"]) for row in json_rows] == [
+        datetime.datetime.fromisoformat(timestamp) for timestamp in expected_times]
+
+    response = requests.get(f"{base}/csv")
+    assert response.status_code == 200, response.text
+    csv_rows = list(csv.DictReader(io.StringIO(response.text)))
+    assert [(int(row["user_id"]), row["module"], row["challenge"], datetime.datetime.fromisoformat(row["time"]))
+            for row in csv_rows] == [
+        (row["user_id"], row["module"], row["challenge"], parsedate_to_datetime(row["time"]))
+        for row in json_rows]
+
+    filtered = requests.get(f"{base}/json", params={"user_name": name})
+    assert filtered.status_code == 200
+    assert filtered.json() == [row for row in json_rows if row["user_id"] == user_id]
+    empty = requests.get(f"{base}/json", params={"user_name": f"unknown-{rand()}"})
+    assert empty.status_code == 200 and empty.json() == []
+
+    posted = requests.post(f"{base}/json", params={"user_name": name})
+    assert posted.status_code == 200
+    assert posted.json() == filtered.json()
+
 
 def test_admin_dojos_page_authorization(random_private_dojo, admin_session, random_user_session):
     response = admin_session.get(f"{DOJO_URL}/admin/dojos")

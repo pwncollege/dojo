@@ -427,6 +427,7 @@ class DojoModules(db.Model):
             kwargs.pop("challenges", None) or
             ([DojoChallenges(
                 default=set_module_import(challenge),
+                required=challenge.required,
                 visibility=(DojoChallengeVisibilities(start=visibility.start) if visibility else None),
             ) for challenge in default.challenges] if default else [])
         )

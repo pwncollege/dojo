@@ -546,10 +546,10 @@ def dojo_from_spec(data, *, dojo_dir=None, dojo=None, platform_admin=False):
             show_scoreboard=shadow("show_scoreboard", dojo_data, module_data, default_dict=DojoModules.data_defaults),
         )
         for module_data in dojo_data["modules"]
-    ] if "modules" in dojo_data else [
+    ] if "modules" in data else [
         DojoModules(
             default=module,
-            visibility=visibility(DojoModuleVisibilities, dojo_data, module_data),
+            visibility=visibility(DojoModuleVisibilities, dojo_data),
         )
         for module in (import_dojo.modules if import_dojo else [])
     ]

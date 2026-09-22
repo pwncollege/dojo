@@ -810,6 +810,54 @@ def test_course_solves_api_without_a_roster_includes_everyone(course, admin_sess
     assert by_user[plain_id]["student_token"] is None, by_user[plain_id]
 
 
+def test_relinking_identity_reattributes_existing_coursework(course, solving_student, admin_session):
+    _, session, user_id = solving_student
+    base = f"{API}/dojos/{course.dojo}"
+    original = admin_session.get(f"{base}/course/solves", params={"student_token": course.a}).json()["solves"]
+    assert len(original) == 2
+    personal_solves = session.get(f"{base}/solves").json()["solves"]
+
+    response = patch_identity(session, course.dojo, course.b)
+    assert response.status_code == 200 and response.json()["success"], response.text
+    assert admin_session.get(f"{base}/course/solves", params={"student_token": course.a}).json()["solves"] == []
+    reassigned = admin_session.get(f"{base}/course/solves", params={"student_token": course.b}).json()["solves"]
+    assert reassigned == [solve | {"student_token": course.b} for solve in original]
+    students = admin_session.get(f"{base}/course/students").json()["students"]
+    assert students[course.a]["user_id"] is None
+    assert students[course.b]["user_id"] == user_id
+
+    response = patch_identity(session, course.dojo, course.ghost)
+    assert response.status_code == 200 and response.json()["success"], response.text
+    exported = admin_session.get(f"{base}/course/solves").json()["solves"]
+    assert all(solve["user_id"] != user_id for solve in exported)
+    assert session.get(f"{base}/solves").json()["solves"] == personal_solves
+
+    course.install(students={course.ghost: {"name": "New roster identity"}})
+    admitted = admin_session.get(f"{base}/course/solves").json()["solves"]
+    assert admitted == [solve | {"student_token": course.ghost} for solve in original]
+    student = session.get(f"{base}/course").json()["course"]["student"]
+    assert student == {"name": "New roster identity", "token": course.ghost, "user_id": user_id}
+
+
+def test_hidden_students_keep_their_coursework_in_instructor_exports(course, solving_student, admin_session):
+    _, session, user_id = solving_student
+    base = f"{API}/dojos/{course.dojo}"
+    original = admin_session.get(f"{base}/course/solves", params={"student_token": course.a}).json()["solves"]
+    personal_solves = session.get(f"{base}/solves").json()["solves"]
+    assert len(original) == 2
+
+    db_sql(f"UPDATE users SET hidden = true WHERE id = {user_id}")
+    try:
+        response = admin_session.get(f"{base}/course/solves", params={"student_token": course.a})
+        assert response.status_code == 200
+        assert response.json()["solves"] == original
+        students = admin_session.get(f"{base}/course/students").json()["students"]
+        assert students[course.a]["user_id"] == user_id
+        assert session.get(f"{base}/solves").json()["solves"] == personal_solves
+    finally:
+        db_sql(f"UPDATE users SET hidden = false WHERE id = {user_id}")
+
+
 def test_course_solves_api_authorization(course, private_course_dojo, solving_student, admin_session):
     name, session, user_id = solving_student
     url = f"{API}/dojos/{course.dojo}/course/solves"

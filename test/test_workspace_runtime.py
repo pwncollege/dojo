@@ -512,6 +512,34 @@ def test_dojo_service_kill_terminates_a_service_that_ignores_sigterm(runtime_wor
         cleanup_service(name, service, pid)
 
 
+@pytest.mark.parametrize("pid_contents", ["invalid-pid", "2147483647"])
+def test_dojo_service_recovers_stale_pid_files_and_stops_gracefully(runtime_workspace, pid_contents):
+    name, _ = runtime_workspace
+    service = "wsr-recovery/sleeper"
+    pid = None
+    try:
+        workspace_output(name, f"mkdir -p /run/dojo/var/wsr-recovery && echo {pid_contents} > /run/dojo/var/{service}.pid")
+        workspace_output(name, f"dojo-service start {service} /run/dojo/bin/sleep 3121")
+        deadline = time.monotonic() + 15
+        while True:
+            pid = service_pid(name, service)
+            if pid != pid_contents:
+                break
+            assert time.monotonic() < deadline, "Service did not replace the stale PID file"
+            time.sleep(0.2)
+        assert workspace_exec(name, f"kill -0 {pid}").returncode == 0
+
+        workspace_output(name, f"dojo-service stop {service}")
+        deadline = time.monotonic() + 10
+        while workspace_exec(name, f"kill -0 {pid}").returncode == 0:
+            assert time.monotonic() < deadline, "Stopped service is still running"
+            time.sleep(0.2)
+        assert workspace_exec(name, f"test -e /run/dojo/var/{service}.pid").returncode != 0
+        workspace_output(name, f"dojo-service stop {service}")
+    finally:
+        cleanup_service(name, service, pid if pid != pid_contents else None)
+
+
 def test_terminal_service_contract(runtime_workspace):
     name, session = runtime_workspace
 

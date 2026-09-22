@@ -2,6 +2,7 @@ import datetime
 import json
 import random
 import string
+import textwrap
 
 import pytest
 import requests
@@ -12,6 +13,7 @@ from utils import (
     db_sql,
     dojo_db_id,
     dojo_run,
+    flask_exec,
     get_user_id,
     login,
     make_dojo_official,
@@ -608,6 +610,90 @@ def test_discord_connect_unconfigured_returns_501(side_other_user):
     for path in ["/discord/connect", "/discord/redirect"]:
         response = session.get(f"{DOJO_URL}{path}", allow_redirects=False)
         assert response.status_code == 501, f"{path} returned {response.status_code}, expected 501"
+
+
+def discord_oauth_case(user, code):
+    name, session = user
+    setup = (
+        "import importlib\n"
+        "from urllib.parse import parse_qs, urlsplit\n"
+        "from unittest.mock import patch\n"
+        "from flask import current_app\n"
+        "from CTFd.models import db\n"
+        "from CTFd.plugins.dojo_plugin.models import DiscordUsers\n"
+        "discord_pages = importlib.import_module('CTFd.plugins.dojo_plugin.pages.discord')\n"
+        "app = current_app._get_current_object()\n"
+        "client = app.test_client()\n"
+        f"client.set_cookie(app.config['SESSION_COOKIE_NAME'], {session.cookies.get('session')!r})\n"
+        f"user_id = {get_user_id(name)}\n"
+    )
+    output = flask_exec(setup + textwrap.dedent(code) + "\nprint('DISCORD-OAUTH-PASSED')\n")
+    assert "DISCORD-OAUTH-PASSED" in output, output
+
+
+def test_discord_oauth_link_relink_and_provider_recovery(random_user):
+    discord_oauth_case(random_user, """
+        from CTFd.plugins.dojo_plugin.utils import awards as award_utils
+
+        accounts = {"first": 80_000_000_000 + user_id, "second": 81_000_000_000 + user_id}
+        granted_roles = set()
+        member = lambda discord_id: {"roles": []} if discord_id == accounts["second"] else None
+        with patch.object(discord_pages, "DISCORD_CLIENT_ID", "test-client"), \
+             patch.object(discord_pages, "get_discord_member", side_effect=member), \
+             patch.object(discord_pages, "add_role", side_effect=lambda discord_id, role: granted_roles.add((discord_id, role))), \
+             patch.object(award_utils, "get_discord_member", return_value=None), \
+             patch.object(award_utils, "get_discord_roles", return_value={}):
+            try:
+                connect = client.get("/discord/connect")
+                assert connect.status_code == 302
+                authorize = parse_qs(urlsplit(connect.location).query)
+                assert authorize["scope"] == ["identify"]
+                state = authorize["state"][0]
+
+                with patch.object(discord_pages, "get_discord_id", side_effect=RuntimeError("provider unavailable")):
+                    failed = client.get("/discord/redirect", query_string={"state": state, "code": "first"})
+                assert failed.status_code == 400, failed.get_data(as_text=True)
+                assert DiscordUsers.query.filter_by(user_id=user_id).first() is None
+
+                with patch.object(discord_pages, "get_discord_id", side_effect=accounts.__getitem__):
+                    for code in ["first", "second"]:
+                        connected = client.get("/discord/connect")
+                        state = parse_qs(urlsplit(connected.location).query)["state"][0]
+                        linked = client.get("/discord/redirect", query_string={"state": state, "code": code})
+                        assert linked.status_code == 302, linked.get_data(as_text=True)
+                        assert urlsplit(linked.location).path == "/settings"
+                        assert DiscordUsers.query.filter_by(user_id=user_id).one().discord_id == accounts[code]
+                assert granted_roles == {(accounts["second"], "White Belt")}
+            finally:
+                DiscordUsers.query.filter_by(user_id=user_id).delete()
+                db.session.commit()
+    """)
+
+
+def test_discord_oauth_account_conflict_preserves_both_links(random_user):
+    _, _, other_id, other_discord_id = register_side_user(82_000_000_000)
+    discord_oauth_case(random_user, f"""
+        original_discord_id = 83_000_000_000 + user_id
+        db.session.add_all([
+            DiscordUsers(user_id=user_id, discord_id=original_discord_id),
+            DiscordUsers(user_id={other_id}, discord_id={other_discord_id}),
+        ])
+        db.session.commit()
+        try:
+            with patch.object(discord_pages, "DISCORD_CLIENT_ID", "test-client"), \\
+                 patch.object(discord_pages, "get_discord_member", return_value=None), \\
+                 patch.object(discord_pages, "get_discord_id", return_value={other_discord_id}):
+                connected = client.get("/discord/connect")
+                state = parse_qs(urlsplit(connected.location).query)["state"][0]
+                response = client.get("/discord/redirect", query_string={{"state": state, "code": "other-account"}})
+                assert response.status_code == 400, response.get_data(as_text=True)
+                assert response.get_json()["success"] is False
+                assert DiscordUsers.query.filter_by(user_id=user_id).one().discord_id == original_discord_id
+                assert DiscordUsers.query.filter_by(user_id={other_id}).one().discord_id == {other_discord_id}
+        finally:
+            DiscordUsers.query.filter(DiscordUsers.user_id.in_([user_id, {other_id}])).delete(synchronize_session=False)
+            db.session.commit()
+    """)
 
 
 def test_settings_renders_with_unreachable_discord(side_user):

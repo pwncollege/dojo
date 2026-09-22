@@ -115,6 +115,7 @@ function renderSubmissionResponse(response, item) {
             survey_notification.slideDown();
         })
         unlockChallenge(next_challenge_button);
+        solveChannel.postMessage({msg: 'challengeSolved', challenge_id: parseInt(item.find('#challenge-id').val())});
         checkUserAwards()
         .then(handleAwardPopup)
         .catch(error => console.error("Award check failed:", error));
@@ -316,9 +317,9 @@ async function buildSurvey(item) {
         })
     })
     // csrf fix
-    const formData = new FormData(form[0])
     form.submit(event => {
         event.preventDefault()
+        const formData = new FormData(form[0])
         surveySubmit(JSON.stringify(Object.fromEntries(formData)), item)
         form.slideUp()
     })
@@ -341,12 +342,15 @@ function surveySubmit(data, item) {
 
 function markChallengeAsSolved(item) {
     const unsolved_flag = item.find(".challenge-unsolved");
-    if (unsolved_flag.hasClass("challenge-solved")) {
+    if (!unsolved_flag.length) {
         return;
     }
 
     unsolved_flag.removeClass("challenge-unsolved");
     unsolved_flag.addClass("challenge-solved");
+    if (unsolved_flag.hasClass("far") && unsolved_flag.hasClass("fa-flag")) {
+        unsolved_flag.removeClass("far").addClass("fas");
+    }
 
     const total_solves = item.find(".total-solves");
     total_solves.text(

@@ -1,10 +1,13 @@
 import datetime
 import json
 import os
+from pathlib import Path
 import random
 import re
+import shlex
 import string
 import subprocess
+import sys
 import time
 
 import pytest
@@ -398,6 +401,44 @@ def test_wait_times_out_when_systemd_never_becomes_available(tmp_path):
     assert "timed out waiting for pwn.college.service" in result.stderr, result.stderr
 
 
+@pytest.mark.parametrize("builder_exit,docker_exit,ready", [(0, 0, True), (17, 0, False), (0, 1, False)])
+def test_wait_reports_workspace_builder_exit_status(tmp_path, builder_exit, docker_exit, ready):
+    executable_dir = tmp_path / "bin"
+    executable_dir.mkdir()
+    for name, contents in {
+        "dojo": "#!/bin/sh\nexit 0\n",
+        "systemctl": "#!/bin/sh\nprintf 'active\\n'\n",
+        "docker": """#!/bin/sh
+case "$1 $2" in
+    "inspect workspace-builder") exit 0 ;;
+    "wait workspace-builder") printf '%s\\n' "$TEST_BUILDER_EXIT"; exit "$TEST_DOCKER_EXIT" ;;
+    "logs --tail") printf 'builder failed\\n' ;;
+    "ps --format") exit 0 ;;
+    *) exit 2 ;;
+esac
+""",
+    }.items():
+        executable = executable_dir / name
+        executable.write_text(contents)
+        executable.chmod(0o755)
+    command = tmp_path / "dojo"
+    source = (Path(__file__).resolve().parents[1] / "dojo/dojo").read_text()
+    source = source.replace("cd /opt/pwn.college", f"cd {shlex.quote(str(tmp_path))}")
+    source = source.replace("/data/config.env", str(tmp_path / "config.env"))
+    command.write_text(source)
+    environment = {
+        **os.environ,
+        "PATH": f"{executable_dir}:{os.environ['PATH']}",
+        "TEST_BUILDER_EXIT": str(builder_exit),
+        "TEST_DOCKER_EXIT": str(docker_exit),
+        "DOJO_WAIT_TIMEOUT": "1",
+    }
+
+    result = subprocess.run(["bash", str(command), "wait"], env=environment, capture_output=True, text=True, timeout=5)
+
+    assert (result.returncode == 0) is ready, result.stdout + result.stderr
+
+
 @pytest.mark.skipif(not MULTINODE, reason="requires a multinode deployment")
 def test_wait_skips_stats_gate_on_worker():
     result = dojo_run("dojo", "wait", container=WORKER_CONTAINER, check=False, timeout=45)
@@ -457,6 +498,60 @@ def test_cloud_backup_unconfigured_fails_loudly():
     output = result.stdout + result.stderr
     assert result.returncode != 0, "unconfigured `dojo cloud-backup` must not report success"
     assert "BACKUP_AES_KEY_FILE must be set" in output or "S3_BACKUP_BUCKET must be set" in output, output
+
+
+@pytest.mark.parametrize("upload_succeeds", [True, False])
+def test_cloud_backup_encrypts_recent_archives_and_reports_upload_failure(tmp_path, upload_succeeds):
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    current_backup = backup_dir / f"db-{_rand()}.dump"
+    current_backup.write_bytes(b"restorable database backup\x00\xff")
+    old_backup = backup_dir / "old.dump"
+    old_backup.write_bytes(b"old backup")
+    previous_time = time.time() - 2 * 24 * 60 * 60
+    os.utime(old_backup, (previous_time, previous_time))
+    key = tmp_path / "backup-key"
+    key.write_text("test backup encryption passphrase")
+    uploaded = tmp_path / "uploaded.enc"
+    destination = tmp_path / "destination.txt"
+    executable_dir = tmp_path / "bin"
+    executable_dir.mkdir()
+    aws = executable_dir / "aws"
+    aws.write_text(
+        f"#!{sys.executable}\n"
+        "import pathlib, shutil, sys\n"
+        f"shutil.copyfile(sys.argv[3], {str(uploaded)!r})\n"
+        f"with pathlib.Path({str(destination)!r}).open('a') as output: output.write(sys.argv[4] + '\\n')\n"
+        f"sys.exit({0 if upload_succeeds else 1})\n"
+    )
+    aws.chmod(0o755)
+    command = tmp_path / "dojo"
+    source = (Path(__file__).resolve().parents[1] / "dojo/dojo").read_text()
+    source = source.replace("cd /opt/pwn.college", f"cd {shlex.quote(str(tmp_path))}")
+    source = source.replace("/data/config.env", str(tmp_path / "config.env"))
+    source = source.replace("/data/backups", str(backup_dir))
+    source = source.replace('OUT_FILE="/tmp/$BACKUP_FILENAME"', f'OUT_FILE="{tmp_path}/$BACKUP_FILENAME"')
+    command.write_text(source)
+    environment = {
+        **os.environ,
+        "PATH": f"{executable_dir}:{os.environ['PATH']}",
+        "BACKUP_AES_KEY_FILE": str(key),
+        "S3_BACKUP_BUCKET": "test-backup-bucket",
+    }
+
+    result = subprocess.run(["bash", str(command), "cloud-backup"], env=environment, capture_output=True, text=True, timeout=15)
+
+    assert (result.returncode == 0) is upload_succeeds, result.stdout + result.stderr
+    assert destination.read_text().splitlines() == [f"s3://test-backup-bucket/{current_backup.name}.enc"]
+    assert uploaded.read_bytes() != current_backup.read_bytes()
+    decrypted = subprocess.run(
+        ["openssl", "enc", "-d", "-aes256", "-pbkdf2", "-kfile", str(key), "-in", str(uploaded)],
+        capture_output=True, check=True,
+    )
+    assert decrypted.stdout == current_backup.read_bytes()
+    assert current_backup.exists() and old_backup.read_bytes() == b"old backup"
+    if upload_succeeds:
+        assert not (tmp_path / f"{current_backup.name}.enc").exists()
 
 
 def test_sync_copies_plugin_and_theme():
@@ -945,6 +1040,41 @@ def test_homefs_put_invalid_stream_400():
             "an invalid send stream created a snapshot"
     finally:
         _destroy_probe_volume(volume)
+
+
+def test_homefs_import_round_trips_snapshot_contents(cli_user):
+    name, _ = cli_user
+    user_id = get_user_id(name)
+    suffix = _rand()
+    volume = f"homefs-import-{suffix}"
+    marker = f"import-marker-{suffix}"
+    stream_path = f"/tmp/homefs-import-{suffix}.stream"
+    try:
+        workspace_run(f"printf 'recoverable home data' > /home/hacker/{marker}", user=name)
+        snapshot = dojo_run(
+            "curl", "-fsS", "-D", "-", "-o", stream_path,
+            f"http://localhost:4201/volume/{user_id}",
+        )
+        etag = re.search(r"^ETag:\s*(\S+)", snapshot.stdout, re.M | re.I).group(1)
+        status, _ = _homefs_driver("Create", {"Name": volume})
+        assert status == 200
+
+        status, body = _curl(f"http://localhost:4201/volume/{volume}", "-XPUT", "--data-binary", f"@{stream_path}")
+
+        assert status == 201, body
+        assert dojo_run("cat", f"/data/homes/{volume}/snapshots/{etag}/{marker}").stdout == "recoverable home data"
+        assert _curl_status(
+            f"http://localhost:4201/volume/{volume}", "-H", f"If-None-Match: {etag}",
+        ) == 304
+        assert workspace_run(f"cat /home/hacker/{marker}", user=name).stdout == "recoverable home data"
+    finally:
+        try:
+            workspace_run(f"rm -f /home/hacker/{marker}", user=name)
+        finally:
+            try:
+                dojo_run("rm", "-f", stream_path, check=False)
+            finally:
+                _destroy_probe_volume(volume)
 
 
 @pytest.mark.skipif(MULTINODE, reason="home subvolumes are activated on the node that mounts them")
