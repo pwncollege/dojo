@@ -174,6 +174,7 @@ def test_frontend_search_opens_the_matching_module_from_keyboard_selection(
     browser = frontend_browser
     wait = WebDriverWait(browser, 45)
     browser.get(frontend_url)
+    wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'header a[href="/login"]')))
     wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[title="Search (Ctrl+K)"]'))).click()
     search = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[placeholder^="Search dojos"]')))
     search.send_keys(module_name)

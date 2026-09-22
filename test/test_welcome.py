@@ -270,6 +270,7 @@ def test_actionbar_service_buttons(random_user_browser, interfaces_dojo):
     random_user_browser.switch_to.window(popout_handle)
     wait.until(lambda driver: driver.current_url.rstrip("/").endswith("/workspace/terminal"))
     popout_controls = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".workspace-controls")))
+    wait.until(lambda _: service_button(popout_controls, "Terminal").get_attribute("aria-pressed") == "true")
 
     description_button = popout_controls.find_element(
         By.CSS_SELECTOR, ".workspace-description-control"
