@@ -358,6 +358,7 @@ def view_module(dojo, module, scroll_to_challenge=None):
         module.solves(
             user=user,
             include_visibility_exempt=True,
+            include_optional_challenges=True,
             include_hidden_users=True,
             include_admin_users=True,
         ) if user else []
@@ -365,7 +366,7 @@ def view_module(dojo, module, scroll_to_challenge=None):
     total_solves = get_challenge_solves(module)
     if total_solves is None:
         total_solves = dict(query_timeout(
-            module.solves().group_by(Solves.challenge_id).with_entities(Solves.challenge_id, db.func.count()).all,
+            module.solves(include_optional_challenges=True).group_by(Solves.challenge_id).with_entities(Solves.challenge_id, db.func.count()).all,
             5000,
             []
         ))

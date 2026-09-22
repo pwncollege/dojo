@@ -413,6 +413,60 @@ def test_scoreboard_excludes_non_required_challenges(sb_main):
         "only m1/apple is required, m1/banana must not count"
 
 
+def test_optional_challenge_solved_state_and_counts(admin_session):
+    dojo = make_dojo("scoreboard_api_main.yml", "sb-api-main", admin_session)
+    dojo_id = dojo_db_id(dojo)
+    cids = challenge_ids(dojo)
+    required_solver, required_session = register()
+    optional_solver, optional_session = register()
+    sessions = {required_solver: required_session, optional_solver: optional_session}
+    uids = user_ids(list(sessions))
+    cache_key = f"stats:challenge_solves:module:{dojo_id}:0"
+
+    def recalculate_module():
+        output = sb_flask_exec(
+            "from CTFd.plugins.dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update\n"
+            f"handle_scoreboard_update({{'model_type': 'module', 'model_id': [{dojo_id}, 0]}})\n"
+            "print('RECALC-OK')\n"
+        )
+        assert "RECALC-OK" in output, output
+
+    bulk_solve(dojo, [(required_solver, "m1", "apple")], sessions, uids, cids)
+    recalculate_module()
+    assert json.loads(redis_cmd("GET", cache_key)) == {str(cids[("m1", "apple")]): 1}
+    bulk_solve(dojo, [(optional_solver, "m1", "banana")], sessions, uids, cids)
+
+    expected_counts = {str(cids[("m1", challenge)]): 1 for challenge in ("apple", "banana")}
+
+    def check_module():
+        for session, solved_challenge in ((optional_session, "banana"), (required_session, "apple"), (None, None)):
+            get = session.get if session else requests.get
+            response = get(f"{DOJO_URL}/{dojo}/m1/")
+            assert response.status_code == 200, response.text[:200]
+            for challenge in ("apple", "banana"):
+                header = re.search(
+                    rf'<h4\b[^>]*data-challenge-id="{challenge}".*?'
+                    r'<span class="total-solves">\s*(\d+) solves',
+                    response.text, re.DOTALL,
+                )
+                assert header is not None
+                assert ("challenge-solved" in header.group()) == (challenge == solved_challenge)
+                assert int(header.group(1)) == 1
+
+        for module in ("_", "m1"):
+            standings = all_standings(optional_session, dojo, module)
+            assert entry_for(standings, optional_solver) is None
+            assert entry_for(standings, required_solver)["solves"] == 1
+
+    assert json.loads(redis_cmd("GET", cache_key)) == expected_counts
+    check_module()
+    recalculate_module()
+    assert json.loads(redis_cmd("GET", cache_key)) == expected_counts
+    check_module()
+    redis_cmd("DEL", cache_key, f"{cache_key}:updated")
+    check_module()
+
+
 def test_scoreboard_module_scoped(sb_main):
     session = sb_main["sessions"][sb_main["bob"]]
 
