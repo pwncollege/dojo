@@ -224,11 +224,27 @@ def get_outer_container_for(container_name):
     
     raise RuntimeError(f"container {container_name} not found on any nodes")
 
+def wait_for_workspace_start(user_id, timeout=30):
+    """Wait until no workspace start is in flight for the user.
+
+    A start triggered from inside the workspace (the dojo CLI) outlives the
+    request that asked for it; tearing the container and home down underneath
+    it makes the server retry against a home that no longer exists.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        result = dojo_run("docker", "exec", "cache", "redis-cli", "EXISTS", f"user.{user_id}.docker.lock", check=False)
+        if result.returncode == 0 and result.stdout.strip() == "0":
+            return
+        time.sleep(0.5)
+
+
 def remove_workspace_container(user):
     user_id = db_sql(f"SELECT id FROM users WHERE name = '{user}'").strip()
     if not user_id:
         # A test may have renamed or deleted the user it started a workspace for.
         return
+    wait_for_workspace_start(user_id)
     container_name = f"user_{user_id}"
     try:
         outer_container = get_outer_container_for(container_name)

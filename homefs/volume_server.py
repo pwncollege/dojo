@@ -12,7 +12,10 @@ def get_volume(volume):
     # If it active on this node, do not fetch it (infinite recursive loop)
     if not volume.active:
         active_volume = ActiveVolumes.query.filter_by(name=volume.name).first()
-        if active_volume:
+        # The requester is the recorded active host when a node re-activates its own
+        # volume, and when this node asks itself after a home was removed behind its
+        # back; fetching from the requester would recurse until every worker is stuck.
+        if active_volume and active_volume.host != request.remote_addr:
             volume.fetch(active_volume.host)
 
     snapshot_path = volume.snapshot()
