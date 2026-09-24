@@ -132,5 +132,39 @@
     {{ current_dojo_custom_js | safe }}
     </script>
     {% endif %}
+
+  <div id="future-announcement" class="announcement" style="display: none">
+    <div class="announcement-content">
+      <p>Hey! We are developing a new look for our website, currently live at <a href="https://future.pwn.college">future.pwn.college</a>.</p>
+      <div class="announcement-btn-wrap">
+        <button id="check-it-out-btn" class="announcement-btn">I'll check it out</button>
+        <button id="later-btn" class="announcement-btn">Go away</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const announcement = document.getElementById("future-announcement");
+      const checkItOutBtn = document.getElementById("check-it-out-btn");
+      const laterBtn = document.getElementById("later-btn");
+
+      if (!localStorage.getItem("announcementDismissed")) {
+        announcement.style.display = "flex";
+      }
+
+      function goToFuture() {
+        localStorage.setItem("announcementDismissed", "true");
+        window.location.href = "https://future.pwn.college";
+      }
+
+      function dismiss() {
+        announcement.style.display = "none";
+        localStorage.setItem("announcementDismissed", "true");
+      }
+
+      checkItOutBtn.onclick = goToFuture;
+      laterBtn.onclick = dismiss;
+    });
+  </script>
   </body>
 </html>
