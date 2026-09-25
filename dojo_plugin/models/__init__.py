@@ -27,6 +27,38 @@ from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, U
 from CTFd.utils.user import get_current_user, is_admin
 
 from ..config import DOJOS_DIR
+from ..i18n import current_language, language_candidates
+
+
+def merge_translations(translations, inherited):
+    # per-language, per-field: an import inherits the source's translations for every
+    # field it does not translate itself
+    merged = {language: dict(fields) for language, fields in (inherited or {}).items()}
+    for language, fields in (translations or {}).items():
+        merged.setdefault(language, {}).update(fields)
+    return merged
+
+
+class LocalizedMixin:
+    def localized(self, field, language=None):
+        translations = self.translations or {}
+        for candidate in language_candidates(language or current_language()):
+            value = translations.get(candidate, {}).get(field)
+            if value:
+                return value
+        return getattr(self, field, None)
+
+    @property
+    def localized_name(self):
+        return self.localized("name")
+
+    @property
+    def localized_description(self):
+        return self.localized("description")
+
+    @property
+    def localized_content(self):
+        return self.localized("content")
 
 
 def delete_before_insert(column, null=[]):
@@ -56,7 +88,7 @@ def columns_repr(column_names):
     return __repr__
 
 
-class Dojos(db.Model):
+class Dojos(LocalizedMixin, db.Model):
     __tablename__ = "dojos"
 
     dojo_id = db.Column(db.Integer, primary_key=True)
@@ -74,7 +106,7 @@ class Dojos(db.Model):
     password = db.Column(db.String(128))
 
     data = db.Column(JSONB)
-    data_fields = ["type", "award", "course", "permissions", "pages", "privileged", "importable", "comparator", "show_scoreboard", "custom_js"]
+    data_fields = ["type", "award", "course", "permissions", "pages", "privileged", "importable", "comparator", "show_scoreboard", "custom_js", "translations", "languages"]
     data_defaults = {
         "permissions": [],
         "pages": [],
@@ -82,6 +114,8 @@ class Dojos(db.Model):
         "importable": True,
         "show_scoreboard": True,
         "custom_js": None,
+        "translations": {},
+        "languages": [],
     }
 
     users = db.relationship("DojoUsers", back_populates="dojo")
@@ -370,7 +404,7 @@ class DojoStudents(DojoUsers):
         return self.token in (self.dojo.course or {}).get("students", [])
 
 
-class DojoModules(db.Model):
+class DojoModules(LocalizedMixin, db.Model):
     __tablename__ = "dojo_modules"
     __table_args__ = (
         db.UniqueConstraint("dojo_id", "id"),
@@ -384,11 +418,12 @@ class DojoModules(db.Model):
     description = db.Column(db.Text)
 
     data = db.Column(JSONB)
-    data_fields = ["importable", "show_scoreboard", "show_challenges"]
+    data_fields = ["importable", "show_scoreboard", "show_challenges", "translations"]
     data_defaults = {
         "importable": True,
         "show_scoreboard": True,
         "show_challenges": True,
+        "translations": {},
     }
 
     dojo = db.relationship("Dojos", back_populates="_modules")
@@ -419,6 +454,9 @@ class DojoModules(db.Model):
         if default:
             for field in ["id", "name", "description"]:
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
+            translations = merge_translations(kwargs["data"].get("translations"), default.translations)
+            if translations:
+                kwargs["data"]["translations"] = translations
 
         kwargs["challenges"] = (
             kwargs.pop("challenges", None) or
@@ -558,7 +596,7 @@ class DojoModules(db.Model):
     __repr__ = columns_repr(["dojo", "id"])
 
 
-class DojoChallenges(db.Model):
+class DojoChallenges(LocalizedMixin, db.Model):
     __tablename__ = "dojo_challenges"
     item_type = "challenge"
     __table_args__ = (
@@ -580,7 +618,7 @@ class DojoChallenges(db.Model):
     required = db.Column(db.Boolean, default=True, nullable=False)
 
     data = db.Column(JSONB)
-    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interfaces"]
+    data_fields = ["image", "privileged", "path_override", "importable", "allow_privileged", "progression_locked", "survey", "unified_index", "interfaces", "translations"]
     data_defaults = {
         "privileged": False,
         "importable": True,
@@ -592,6 +630,7 @@ class DojoChallenges(db.Model):
             dict(name="Desktop",  port=6080),
             dict(name="SSH"),
         ],
+        "translations": {},
     }
 
     dojo = db.relationship("Dojos",
@@ -622,6 +661,9 @@ class DojoChallenges(db.Model):
                 kwargs[field] = kwargs[field] if kwargs.get(field) is not None else getattr(default, field, None)
 
             # TODO: maybe we should track the entire import
+            translations = merge_translations(kwargs["data"].get("translations"), default.translations)
+            if translations:
+                kwargs["data"]["translations"] = translations
             kwargs["data"]["image"] = default.data.get("image")
             kwargs["data"]["path_override"] = str(default.path)
 
@@ -760,7 +802,7 @@ class SurveyResponses(db.Model):
 
 
 
-class DojoResources(db.Model):
+class DojoResources(LocalizedMixin, db.Model):
     __tablename__ = "dojo_resources"
     item_type = "resource"
 
@@ -778,8 +820,8 @@ class DojoResources(db.Model):
     name = db.Column(db.String(128))
 
     data = db.Column(JSONB)
-    data_fields = ["content", "video", "playlist", "slides", "expandable"]
-    data_defaults = {"expandable": True}
+    data_fields = ["content", "video", "playlist", "slides", "expandable", "translations"]
+    data_defaults = {"expandable": True, "translations": {}}
 
     dojo = db.relationship("Dojos", back_populates="resources", viewonly=True)
     module = db.relationship("DojoModules", back_populates="_resources")

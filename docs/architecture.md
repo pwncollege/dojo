@@ -124,6 +124,8 @@ You can drop into a python shell to leverage this as well by running `dojo flask
 
 The docker socket of the docker-in-docker daemon is mapped into the CTFd container, allowing CTFd to start up user challenge containers.
 
+Dojo content can be translated into other languages; see [internationalization](i18n.md).
+
 ## Challenge containers
 
 When a user launches a challenge, CTFd starts a docker container that will run alongside the infrastructure containers, and:

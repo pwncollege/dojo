@@ -1,0 +1,9 @@
+id: i18n-dojo-import-test
+name: I18n Dojo Import Test
+
+translations:
+  ko:
+    name: 국제화 도장 가져오기 시험
+
+import:
+  dojo: i18n-test

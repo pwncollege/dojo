@@ -86,7 +86,7 @@
       {% set max_rank = dojo_scores.dojo_ranks[dojo.reference_id] | length %}
       {% set solves = dojo_scores.user_solves[user.id][dojo.reference_id] %}
       <a class="text-decoration-none" href="{{ url_for('pwncollege_dojo.listing', dojo=dojo.reference_id) }}">
-        <h2>{{ dojo.name }}</h2>
+        <h2>{{ dojo.localized_name }}</h2>
         <h4>
           <i class="fas fa-flag pt-3 pr-3" title="Solves"></i>
           <td>{{ solves }} / {{ dojo.required_challenges_count }}</td>
@@ -104,7 +104,7 @@
           {% set max_rank = module_scores.module_ranks[dojo.reference_id][module.module_index] | length %}
           {% call(header) accordion_item("modules-{}".format(dojo.hex_dojo_id), loop.index) %}
             {% if header %}
-              <h4 class="accordion-item-name">{{ module.name }}</h4>
+              <h4 class="accordion-item-name">{{ module.localized_name }}</h4>
               <span class="challenge-header-right">
                 <i class="fas fa-flag pr-1" title="Solves"></i>
                 <td>{{ solves }} / {{ module.challenges | selectattr("required") | list | length }}</td>
@@ -120,7 +120,7 @@
                       <div class="challenge-info">
                       <h4>
                         <span class="d-sm-block d-md-block d-lg-block">
-                          <i class="fas fa-flag pr-3 {{ solved }}"></i>{{ challenge.name or challenge.id }}
+                          <i class="fas fa-flag pr-3 {{ solved }}"></i>{{ challenge.localized_name or challenge.id }}
                           {% if not challenge.visible() %}
                           <small><small><small>
                                 <i>hidden</i> &mdash; you can see this because you are this dojo's administrator

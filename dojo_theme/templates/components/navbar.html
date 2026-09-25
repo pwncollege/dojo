@@ -1,4 +1,6 @@
-{% from "macros/widgets.html" import navitem %}
+{# language_switcher reads context-processor variables (languages, current_language,
+   language_switch_next, Session), which an import does not carry by default #}
+{% from "macros/widgets.html" import navitem, language_switcher with context %}
 
 <nav class="navbar navbar-expand-md navbar-dark fixed-top">
   <div class="container">
@@ -24,6 +26,7 @@
       </ul>
       <hr class="d-sm-flex d-md-flex d-lg-none">
       <ul class="navbar-nav ml-md-auto d-block d-sm-flex d-md-flex">
+        {{ language_switcher() }}
         {% if authed() %}
         {% if is_admin() %}
           {{ navitem("Admin Panel", url_for("admin.view"), "fa-wrench", shrink=True) }}
