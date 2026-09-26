@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 DOJOS_DIR = pathlib.Path("/var/dojos")
 CTF_NAME = "pwn.college"
-THEME_ROOT = pathlib.Path(__file__).resolve().parents[1] / "dojo_theme"
+THEME_ROOT = pathlib.Path(__file__).resolve().parents[1] / "theme"
 THEME_STATIC = THEME_ROOT / "static"
 THEME_TEMPLATES = THEME_ROOT / "templates"
 

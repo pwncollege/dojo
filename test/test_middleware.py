@@ -26,12 +26,12 @@ FLASK_OUTPUT_MARKER = "--- middleware test output ---"
 
 
 def flask_run(code):
-    """Run python inside CTFd's app context; returns (stdout after marker, stderr)."""
+    """Run python inside the site container's app context; returns (stdout after marker, stderr)."""
     path = f"/tmp/dojo-test-middleware-{uuid.uuid4().hex}.py"
     script = f"print({FLASK_OUTPUT_MARKER!r}, flush=True)\n{code}"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {path}", input=script)
-    result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", path, check=False)
-    dojo_run("docker", "exec", "ctfd", "rm", "-f", path, check=False)
+    dojo_run("docker", "exec", "-i", "site", "sh", "-c", f"cat > {path}", input=script)
+    result = dojo_run("docker", "exec", "site", "flask", "shell", "--", path, check=False)
+    dojo_run("docker", "exec", "site", "rm", "-f", path, check=False)
     assert FLASK_OUTPUT_MARKER in result.stdout, f"flask shell produced no output: {result.stdout}\n{result.stderr}"
     return result.stdout.split(FLASK_OUTPUT_MARKER, 1)[1].lstrip("\n"), result.stderr
 
@@ -53,7 +53,7 @@ def container_logs(container, marker, *, after_context=0, since=LOG_WINDOW):
     return dojo_run("sh", "-c", command, check=False).stdout
 
 
-def wait_for_log(marker, needle, *, container="ctfd", after_context=0, timeout=60):
+def wait_for_log(marker, needle, *, container="site", after_context=0, timeout=60):
     deadline = time.time() + timeout
     while True:
         output = container_logs(container, marker, after_context=after_context)
@@ -93,7 +93,7 @@ def clear_ratelimit(endpoint):
 
 
 def cors_origin():
-    return dojo_run("docker", "exec", "ctfd", "printenv", "CORS_ORIGINS", check=False).stdout.strip()
+    return dojo_run("docker", "exec", "site", "printenv", "CORS_ORIGINS", check=False).stdout.strip()
 
 
 def uncsrfed_session():
@@ -298,8 +298,8 @@ def test_survey_post_ratelimit(surveys_dojo, random_user_session):
 def test_redirect_dojo_canonical_host():
     stdout, _ = flask_run(
         "from flask import current_app\n"
-        "from dojo_plugin.app import redirect_dojo\n"
-        "from dojo_plugin.config import DOJO_HOST\n"
+        "from dojo.app import redirect_dojo\n"
+        "from dojo.config import DOJO_HOST\n"
         "print('HOST', DOJO_HOST)\n"
         "with current_app.test_request_context('/dojos?a=b', headers={'X-Forwarded-For': '1.2.3.4', 'Host': '1.2.3.4'}):\n"
         "    r = redirect_dojo()\n"
@@ -345,12 +345,12 @@ def test_trace_id_comes_from_nginx_and_is_not_spoofable():
         assert entries, f"no nginx access log entry for {marker}: {nginx_logs}"
         request_id = entries[-1]["request_id"]
 
-        ctfd_logs = wait_for_log(marker, "logger=werkzeug")
-        line = next((line for line in ctfd_logs.splitlines() if "logger=werkzeug" in line), None)
-        assert line, f"no ctfd access log line for {marker}: {ctfd_logs}"
+        site_logs = wait_for_log(marker, "logger=werkzeug")
+        line = next((line for line in site_logs.splitlines() if "logger=werkzeug" in line), None)
+        assert line, f"no site access log line for {marker}: {site_logs}"
         trace_id = re.search(r"trace_id=(\S+)", line).group(1)
 
-        assert trace_id == request_id, f"ctfd trace_id {trace_id} != nginx request_id {request_id}"
+        assert trace_id == request_id, f"site trace_id {trace_id} != nginx request_id {request_id}"
         assert re.fullmatch(r"[0-9a-f]{32}", trace_id), trace_id
         assert trace_id != "a" * 32, "a client supplied PWN-Trace-ID must be overwritten by nginx"
 
@@ -384,12 +384,12 @@ def test_plugin_logger_names_are_rewritten(random_user_session):
     assert random_user_session.get(f"{DOJO_URL}/test_page_error", params={"marker": marker}).status_code == 500
     logs = wait_for_log(marker, "PAGE_EXCEPTION")
 
-    assert "logger=dojo_plugin.utils.request_logging" in logs, logs
+    assert "logger=dojo.utils.request_logging" in logs, logs
     assert "logger=CTFd.plugins.dojo_plugin" not in logs, logs
 
-    recent = dojo_run("sh", "-c", f"docker logs --since {LOG_WINDOW} ctfd 2>&1 | tail -n 500").stdout
+    recent = dojo_run("sh", "-c", f"docker logs --since {LOG_WINDOW} site 2>&1 | tail -n 500").stdout
     assert "logger=CTFd.plugins.dojo_plugin" not in recent, (
-        "plugin log records must be renamed to dojo_plugin.*")
+        "plugin log records must be renamed to dojo.*")
 
 
 def test_markdown_filter_registered_and_sanitizing():
@@ -421,9 +421,9 @@ def test_markdown_substitutes_ctf_name():
 def test_production_mode_request_handling():
     stdout, stderr = flask_run(
         "import uuid\n"
-        "from dojo_plugin.app import create_app\n"
-        "from dojo_plugin.config import DOJO_HOST\n"
-        "from dojo_plugin.models import Users\n"
+        "from dojo.app import create_app\n"
+        "from dojo.config import DOJO_HOST\n"
+        "from dojo.models import Users\n"
         "app = create_app()\n"
         "print('DEBUG', app.debug)\n"
         "print('HOST', DOJO_HOST)\n"
@@ -459,7 +459,7 @@ def setup_rows():
 
 
 def run_bootstrap():
-    result = dojo_run("docker", "exec", "ctfd", "sh", "-c", "cd /opt/pwn.college && python -m dojo_plugin.bootstrap",
+    result = dojo_run("docker", "exec", "site", "sh", "-c", "cd /opt/pwn.college && python -m dojo.bootstrap",
                       check=False)
     assert result.returncode == 0, f"bootstrap failed: {result.stdout}\n{result.stderr}"
 
@@ -476,7 +476,7 @@ def test_bootstrap_is_idempotent():
 
     try:
         db_sql("DELETE FROM config WHERE key='setup'")
-        flask_exec("from dojo_plugin.models import cache, _get_config\ncache.delete_memoized(_get_config, 'setup')\n")
+        flask_exec("from dojo.models import cache, _get_config\ncache.delete_memoized(_get_config, 'setup')\n")
         run_bootstrap()
         assert setup_rows() == 1, "bootstrap must reseed the setup marker when it is missing"
         assert int(db_sql("SELECT count(*) FROM users WHERE name='admin'")) == 1, (
@@ -484,7 +484,7 @@ def test_bootstrap_is_idempotent():
         assert admin_password_hash() == original_hash
     finally:
         if setup_rows() != 1:
-            flask_exec("from dojo_plugin.models import set_config\nset_config('setup', True)\n")
+            flask_exec("from dojo.models import set_config\nset_config('setup', True)\n")
 
 
 def create_api_token():
@@ -532,7 +532,7 @@ def test_token_auth_establishes_cookie_session():
 def test_domain_whitelist_wildcard():
     stdout, _ = flask_run(
         "from unittest.mock import patch\n"
-        "from dojo_plugin.utils import email as mail\n"
+        "from dojo.utils import email as mail\n"
         "with patch.object(mail, 'get_config', return_value='*.example.edu'):\n"
         "    print('SUB', mail.check_email_is_whitelisted('a@sub.example.edu'))\n"
         "    print('APEX', mail.check_email_is_whitelisted('a@example.edu'))\n"

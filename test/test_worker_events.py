@@ -41,7 +41,7 @@ def _redis_py(body):
         "r = redis.from_url('redis://cache:6379', decode_responses=True)\n"
         f"{body}\n"
     )
-    result = dojo_run("docker", "exec", "ctfd", "python3", "-c", script, check=False)
+    result = dojo_run("docker", "exec", "site", "python3", "-c", script, check=False)
     assert result.returncode == 0, f"redis helper failed:\n{result.stdout}\n{result.stderr}"
     return json.loads(result.stdout) if result.stdout.strip() else None
 
@@ -141,14 +141,14 @@ def paused(name):
         dojo_run("docker", "unpause", name, check=False)
 
 
-def run_in_ctfd(code):
+def run_in_site(code):
     script = f"print({FLASK_MARKER!r}, flush=True)\n{code}"
     path = f"/tmp/dojo-test-worker-events-{os.getpid()}.py"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {path}", input=script)
+    dojo_run("docker", "exec", "-i", "site", "sh", "-c", f"cat > {path}", input=script)
     # The marker is the snippet's first statement, so a missing marker means the app never
     # booted (the shared host occasionally cannot spare the memory) rather than a test failure.
     for attempt in range(3):
-        result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", path, check=False)
+        result = dojo_run("docker", "exec", "site", "flask", "shell", "--", path, check=False)
         output = result.stdout + result.stderr
         if FLASK_MARKER in output:
             break
@@ -442,10 +442,10 @@ def test_container_stats_track_challenge_lifecycle(random_private_dojo, random_u
 
 
 def test_worker_drains_events_published_while_offline():
-    run_in_ctfd("""
+    run_in_site("""
 import json, time
 from unittest.mock import patch
-from dojo_plugin.utils import background_stats as bs
+from dojo.utils import background_stats as bs
 stream = "test:stat:drain:" + str(int(time.time() * 1000))
 group = "test-stats-workers"
 r = bs.get_redis_client()
@@ -538,11 +538,11 @@ def test_image_pull_enqueue_dedups_and_filters_images(admin_session):
 
 
 def test_image_pull_retry_lifecycle():
-    run_in_ctfd("""
+    run_in_site("""
 import time
 import threading
 from unittest.mock import patch
-from dojo_plugin.utils import image_pulls as ip
+from dojo.utils import image_pulls as ip
 
 def drive(stream, handler, done):
     client = ip.get_redis_client()
@@ -611,10 +611,10 @@ print("RESULT:OK")
 
 
 def test_image_pull_autoclaims_orphaned_pending():
-    run_in_ctfd("""
+    run_in_site("""
 import json, time
 from unittest.mock import patch
-from dojo_plugin.utils import image_pulls as ip
+from dojo.utils import image_pulls as ip
 
 r = ip.get_redis_client()
 stream = "test:image:pull:claim:" + str(int(time.time() * 1000))

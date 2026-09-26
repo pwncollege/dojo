@@ -10,8 +10,8 @@ This document is an attempt to clarify this complexity and enable new admins or 
 
 ## High Level Overview
 
-Roughly speaking, it is a [Flask application](https://github.com/pwncollege/dojo/tree/master/dojo_plugin) of its own.
-It provides for a concept of users, challenges, and users solving those challenges by submitting flags: these live in `dojo_plugin/models/` together with the dojo's own models.
+Roughly speaking, it is a [Flask application](https://github.com/pwncollege/dojo/tree/master/site/dojo) of its own.
+It provides for a concept of users, challenges, and users solving those challenges by submitting flags: these live in `site/dojo/models/` together with the dojo's own models.
 On top of that, it provides a way for instructors to create challenges, which students may then work on solving within a browser-based workspace environment.
 
 These workspace environments are isolated from one another, and implemented as Docker containers (significantly more performant than deploying VMs).
@@ -116,8 +116,8 @@ You can launch a database client session with `dojo db`.
 
 ## The web application
 
-The front-end interface of the dojo is the [web application](https://github.com/pwncollege/dojo/tree/master/dojo_plugin).
-The application, along with its companion [theme/templates](https://github.com/pwncollege/dojo/tree/master/dojo_theme) provides all front-end functionality.
+The front-end interface of the dojo is the [web application](https://github.com/pwncollege/dojo/tree/master/site/dojo).
+The application, along with its companion [theme/templates](https://github.com/pwncollege/dojo/tree/master/site/theme) provides all front-end functionality.
 
 The web app accesses the DOJO DB using the SQLAlchemy ORM.
 You can drop into a python shell to leverage this as well by running `dojo flask`.
@@ -128,9 +128,9 @@ The docker socket of the docker-in-docker daemon is mapped into the web app's co
 
 When a user launches a challenge, the web app starts a docker container that will run alongside the infrastructure containers, and:
 
-- Copies challenge files into the container (currently [here](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L184)).
-- Mounts the Workspace tool overlay into the container (currently [here](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L116)).
-- Mounts the user's home directory into the container (currently [here](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L136)).
+- Copies challenge files into the container (currently [here](https://github.com/pwncollege/dojo/blob/master/site/dojo/api/v1/docker.py#L184)).
+- Mounts the Workspace tool overlay into the container (currently [here](https://github.com/pwncollege/dojo/blob/master/site/dojo/api/v1/docker.py#L116)).
+- Mounts the user's home directory into the container (currently [here](https://github.com/pwncollege/dojo/blob/master/site/dojo/api/v1/docker.py#L136)).
 
 This is initialized with a [different dojo-init](https://github.com/pwncollege/dojo/blob/master/workspace/core/init.nix), which does the following:
 
@@ -138,7 +138,7 @@ This is initialized with a [different dojo-init](https://github.com/pwncollege/d
 - Sets the `/flag`
 - If it is present, runs `/challenge/.init`
 
-Challenge containers are started with a [command](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L92) of `sleep 6`, so they will time out after 6 hours.
+Challenge containers are started with a [command](https://github.com/pwncollege/dojo/blob/master/site/dojo/api/v1/docker.py#L92) of `sleep 6`, so they will time out after 6 hours.
 
 ## DOJO workspace
 
@@ -160,7 +160,7 @@ Each user gets 1gb of space (TODO: where is this defined??).
 User home directories are mounted into the docker container through a clever use of docker volume plugins:
 
 - The [homefs container](https://github.com/pwncollege/dojo/tree/master/homefs) starts a service that talks over a [unix socket called "homefs"](https://github.com/pwncollege/dojo/blob/master/homefs/Dockerfile#L18) in the [plugins directory](https://github.com/pwncollege/dojo/blob/master/docker-compose.yml#L76) of the docker-in-docker daemon.
-- The home dir mount is [specified](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L136) with a type of `homefs`.
+- The home dir mount is [specified](https://github.com/pwncollege/dojo/blob/master/site/dojo/api/v1/docker.py#L136) with a type of `homefs`.
 - This causes docker to automatically talk to the homefs service to mount the subvolume.
 
 ## DOJO Workspace Access
@@ -169,8 +169,8 @@ Access to the DOJO workspace happens one of two protocols.
 
 ### HTTP
 
-HTTP access is [proxied through the web app](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/pages/workspace.py#L35).
-Services are [automatically started](https://github.com/pwncollege/dojo/tree/master/workspace/services) in the user's container when the request is received by [dojo-plugin](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/workspace.py#L73).
+HTTP access is [proxied through the web app](https://github.com/pwncollege/dojo/blob/master/site/dojo/pages/workspace.py#L35).
+Services are [automatically started](https://github.com/pwncollege/dojo/tree/master/workspace/services) in the user's container when the request is received by [the web app](https://github.com/pwncollege/dojo/blob/master/site/dojo/api/v1/workspace.py#L73).
 
 ### SSH
 
@@ -192,7 +192,7 @@ The most useful logs are:
 
 - **dojo-init:** `docker logs dojo` (e.g., logs of the outer docker)
 - **dojo:** `journalctl -b -u pwn.college.*`
-- **ctfd:** `docker logs ctfd`
+- **site:** `docker logs site`
 - **nginx:** `docker logs nginx`
 
 All of these except for the first one should be run inside the outer docker.

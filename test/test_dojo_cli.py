@@ -29,7 +29,7 @@ from utils import (
 )
 
 
-PULL_IMAGES_SCRIPT = "/opt/pwn.college/dojo_plugin/scripts/pull_images.py"
+PULL_IMAGES_SCRIPT = "/opt/pwn.college/site/dojo/scripts/pull_images.py"
 
 SPEC_TEMPLATE = """
 id: {dojo_id}
@@ -116,9 +116,9 @@ def _rerun_dojo_init():
             dojo_run("sh", "-c", "cat > /data/ssh_host_keys/ssh_known_hosts", input=known_hosts)
 
 
-def _write_spec_in_ctfd(spec):
+def _write_spec_in_site(spec):
     path = f"/tmp/cli-load-{_rand()}.yml"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {path}", input=spec)
+    dojo_run("docker", "exec", "-i", "site", "sh", "-c", f"cat > {path}", input=spec)
     return path
 
 
@@ -257,14 +257,14 @@ def test_flask_exit_code_semantics():
     assert "RuntimeError" in interactive.stdout, interactive.stdout
 
     failing_script = "/tmp/cli-flask-fail.py"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {failing_script}",
+    dojo_run("docker", "exec", "-i", "site", "sh", "-c", f"cat > {failing_script}",
              input='raise RuntimeError("cli-probe-boom")\n')
     failing = dojo_run("dojo", "flask", "--", failing_script, check=False)
     assert failing.returncode != 0, "script-mode `dojo flask` must propagate a failing script"
 
     marker = _rand()
     working_script = "/tmp/cli-flask-ok.py"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {working_script}",
+    dojo_run("docker", "exec", "-i", "site", "sh", "-c", f"cat > {working_script}",
              input=f'print("{marker}")\n')
     working = dojo_run("dojo", "flask", "--", working_script, check=False)
     assert working.returncode == 0, working.stdout + working.stderr
@@ -325,7 +325,7 @@ def test_enter_finds_container_on_worker_node(cli_user):
 def test_compose_selects_singlenode_profiles():
     services = set(dojo_run("dojo", "compose", "config", "--services").stdout.split())
     expected = {
-        "ctfd", "db", "cache", "nginx", "sshd", "stats-worker", "image-pull-worker",
+        "site", "db", "cache", "nginx", "sshd", "stats-worker", "image-pull-worker",
         "homefs", "dojofs", "watchdog", "workspace-builder",
     }
     assert expected <= services, f"missing services: {expected - services}"
@@ -344,12 +344,12 @@ def test_compose_selects_profiles_by_node_role():
     assert "nginx-workspace" in worker_services, worker_services
     assert "dojofs" in worker_services, worker_services
     assert "workspace-builder" in worker_services, worker_services
-    assert "ctfd" not in worker_services, "a workspace node must not run ctfd"
+    assert "site" not in worker_services, "a workspace node must not run the site service"
     assert "db" not in worker_services, "a workspace node must not run the database"
     assert "sshd" not in worker_services, "a workspace node must not run sshd"
 
     main_services = set(dojo_run("dojo", "compose", "config", "--services").stdout.split())
-    assert "ctfd" in main_services, main_services
+    assert "site" in main_services, main_services
     assert "dojofs" not in main_services, "the main node of a multinode dojo must not host workspaces"
     assert "workspace-builder" in main_services, main_services
 
@@ -656,7 +656,7 @@ def test_node_refresh_worker_daemon_json_idempotent():
 
 def test_load_dojo_spec_creates_usable_dojo(admin_session):
     dojo_id = f"cli-load-{_rand()}"
-    path = _write_spec_in_ctfd(SPEC_TEMPLATE.format(dojo_id=dojo_id))
+    path = _write_spec_in_site(SPEC_TEMPLATE.format(dojo_id=dojo_id))
     try:
         result = dojo_run("dojo", "load-dojo", path, check=False)
         assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
@@ -685,7 +685,7 @@ def test_load_dojo_spec_creates_usable_dojo(admin_session):
 
 def test_load_dojo_official_flag(admin_session):
     dojo_id = f"cli-load-{_rand()}"
-    path = _write_spec_in_ctfd(SPEC_TEMPLATE.format(dojo_id=dojo_id))
+    path = _write_spec_in_site(SPEC_TEMPLATE.format(dojo_id=dojo_id))
     try:
         result = dojo_run("dojo", "load-dojo", "--official", path, check=False)
         assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
@@ -716,7 +716,7 @@ def test_load_dojo_user_resolution(admin_session, random_user):
     missing = f"cli-load-{_rand()}"
     try:
         for dojo_id, user_argument in ((by_name, name), (by_id, str(user_id))):
-            path = _write_spec_in_ctfd(SPEC_TEMPLATE.format(dojo_id=dojo_id))
+            path = _write_spec_in_site(SPEC_TEMPLATE.format(dojo_id=dojo_id))
             result = dojo_run("dojo", "load-dojo", "--user", user_argument, path, check=False)
             assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
             owner = db_sql(
@@ -725,7 +725,7 @@ def test_load_dojo_user_resolution(admin_session, random_user):
             ).strip()
             assert owner == f"{user_id}|admin", f"--user {user_argument} resolved to {owner}"
 
-        path = _write_spec_in_ctfd(SPEC_TEMPLATE.format(dojo_id=missing))
+        path = _write_spec_in_site(SPEC_TEMPLATE.format(dojo_id=missing))
         result = dojo_run("dojo", "load-dojo", "--user", "no-such-user-xyz", path, check=False)
         assert result.returncode != 0, "an unresolvable --user must abort"
         assert int(db_sql(f"SELECT count(*) FROM dojos WHERE id = '{missing}';")) == 0, \
@@ -737,7 +737,7 @@ def test_load_dojo_user_resolution(admin_session, random_user):
 
 def test_load_dojo_invalid_args():
     dojo_id = f"cli-load-{_rand()}"
-    path = _write_spec_in_ctfd(SPEC_TEMPLATE.format(dojo_id=dojo_id))
+    path = _write_spec_in_site(SPEC_TEMPLATE.format(dojo_id=dojo_id))
 
     one_key = dojo_run("dojo", "load-dojo", "--public-key", "ssh-ed25519 AAAA", path, check=False)
     assert one_key.returncode == 1, one_key.stdout[-2000:]
@@ -751,7 +751,7 @@ def test_load_dojo_invalid_args():
         "an invalid load-dojo invocation created a dojo"
 
 
-def test_load_dojo_path_resolved_inside_ctfd(admin_session):
+def test_load_dojo_path_resolved_inside_site(admin_session):
     dojo_id = f"cli-load-{_rand()}"
     spec = SPEC_TEMPLATE.format(dojo_id=dojo_id)
     outer_path = f"/tmp/{dojo_id}.yml"
@@ -762,7 +762,7 @@ def test_load_dojo_path_resolved_inside_ctfd(admin_session):
         assert "Invalid repository" in outer_only.stdout + outer_only.stderr, outer_only.stdout[-2000:]
         assert int(db_sql(f"SELECT count(*) FROM dojos WHERE id = '{dojo_id}';")) == 0
 
-        inner_path = _write_spec_in_ctfd(spec)
+        inner_path = _write_spec_in_site(spec)
         loaded = dojo_run("dojo", "load-dojo", inner_path, check=False)
         assert loaded.returncode == 0, loaded.stdout[-2000:] + loaded.stderr[-2000:]
         assert int(db_sql(f"SELECT count(*) FROM dojos WHERE id = '{dojo_id}';")) == 1
@@ -786,7 +786,7 @@ def test_load_dojo_duplicate_spec_id_creates_second_row(admin_session):
     spec = SPEC_TEMPLATE.format(dojo_id=dojo_id)
     try:
         for _ in range(2):
-            path = _write_spec_in_ctfd(spec)
+            path = _write_spec_in_site(spec)
             result = dojo_run("dojo", "load-dojo", path, check=False)
             assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
 
@@ -1171,7 +1171,7 @@ def test_watchdog_spares_fresh_and_infrastructure_containers(cli_user):
     name, _ = cli_user
     container = f"user_{get_user_id(name)}"
     outer_container = get_outer_container_for(container)
-    infrastructure = {"ctfd", "db", "cache", "nginx", "homefs", "watchdog"}
+    infrastructure = {"site", "db", "cache", "nginx", "homefs", "watchdog"}
 
     result = dojo_run("docker", "exec", "watchdog", "/usr/local/bin/docker_remove_containers", check=False)
     output = result.stdout + result.stderr

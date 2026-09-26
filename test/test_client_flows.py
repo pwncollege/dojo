@@ -216,9 +216,9 @@ def test_profile_dojo_progress_survives_duplicate_dojo_ids(admin_session, exampl
     assert admin_session.get(f"{DOJO_URL}/hacker/{get_user_id(name)}").status_code == 200
 
     ranks = flask_exec(
-        "from dojo_plugin.pages.users import build_user_scores\n"
-        "from dojo_plugin.models import Dojos\n"
-        "from dojo_plugin.models import Users\n"
+        "from dojo.pages.users import build_user_scores\n"
+        "from dojo.models import Dojos\n"
+        "from dojo.models import Users\n"
         f"user = Users.query.filter_by(name={name!r}).first()\n"
         f"dojos = Dojos.query.filter_by(id={shared_id!r}).all()\n"
         "dojo_scores, _ = build_user_scores(user, dojos)\n"
@@ -238,8 +238,8 @@ def test_dojo_progress_counts_only_required_solves(flows_dojo, flows_solver):
     assert entry["modules_count"] == 1, entry
 
     counts = flask_exec(
-        "from dojo_plugin.models import Dojos, DojoChallenges\n"
-        "from dojo_plugin.models import Users\n"
+        "from dojo.models import Dojos, DojoChallenges\n"
+        "from dojo.models import Users\n"
         f"dojo = Dojos.from_id({flows_dojo!r}).first()\n"
         f"user = Users.query.filter_by(name={name!r}).first()\n"
         "solves = DojoChallenges.solves(user=user, include_visibility_exempt=True, "
@@ -307,8 +307,8 @@ def test_module_card_progress_cannot_exceed_denominator(admin_session, example_d
     )
 
     counts = flask_exec(
-        "from dojo_plugin.models import Dojos\n"
-        "from dojo_plugin.models import Users\n"
+        "from dojo.models import Dojos\n"
+        "from dojo.models import Users\n"
         f"dojo = Dojos.from_id({dojo!r}).first()\n"
         f"user = Users.query.filter_by(name={name!r}).first()\n"
         "module = dojo.modules[0]\n"

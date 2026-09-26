@@ -743,9 +743,9 @@ def test_nginx_routes_by_host_header():
     host = dojo_host()
     base = DOJO_URL.rstrip("/")
 
-    ctfd = requests.get(base, headers={"Host": host}, timeout=30)
-    assert ctfd.status_code == 200, f"Expected status code 200 for the dojo host, but got {ctfd.status_code}"
-    assert "session" in ctfd.cookies, "Expected the dojo host to be served by CTFd"
+    site = requests.get(base, headers={"Host": host}, timeout=30)
+    assert site.status_code == 200, f"Expected status code 200 for the dojo host, but got {site.status_code}"
+    assert "session" in site.cookies, "Expected the dojo host to be served by the site container"
 
     frontend = requests.get(base, headers={"Host": f"future.{host}"}, timeout=30)
     assert frontend.status_code == 200, f"Expected status code 200 for the future host, but got {frontend.status_code}"
@@ -755,7 +755,7 @@ def test_nginx_routes_by_host_header():
 
     unknown = requests.get(base, headers={"Host": "bogus.example"}, timeout=30)
     assert unknown.status_code == 200, f"Expected status code 200 for an unknown host, but got {unknown.status_code}"
-    assert "session" in unknown.cookies, "Expected an unknown host to fall through to CTFd's default server"
+    assert "session" in unknown.cookies, "Expected an unknown host to fall through to the site container"
 
     workspace = requests.get(
         f"{base}/workspace/deadbeef/badsig/8080/", headers={"Host": f"workspace.{host}"}, timeout=30

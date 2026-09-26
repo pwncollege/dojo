@@ -145,7 +145,7 @@ def setup_logging(app):
     root_logger.handlers = []
     root_logger.addHandler(handler)
 
-    # Also configure Flask's app logger. It is named `dojo_plugin`, the parent of every module
+    # Also configure Flask's app logger. It is named `dojo`, the parent of every module
     # logger, so it must stop propagating or the root handler above writes every record twice.
     app.logger.handlers = []
     app.logger.addHandler(handler)

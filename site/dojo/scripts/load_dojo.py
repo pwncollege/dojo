@@ -2,10 +2,10 @@ import argparse
 import sys
 import os
 
-import dojo_plugin.utils.user as identity
+import dojo.utils.user as identity
 
-from dojo_plugin.utils.dojo import dojo_create, generate_ssh_keypair
-from dojo_plugin.models import Users, db
+from dojo.utils.dojo import dojo_create, generate_ssh_keypair
+from dojo.models import Users, db
 
 # operate outside of a session
 assert "unbound" in repr(identity.session)

@@ -97,12 +97,12 @@ case "$ACTION" in
         dojo-node "$@"
         ;;
 
-    # HELP: flask: drop into a flask shell in the ctfd container
+    # HELP: flask: drop into a flask shell in the site container
     "flask")
-        docker exec $DOCKER_ARGS ctfd flask shell "$@"
+        docker exec $DOCKER_ARGS site flask shell "$@"
         ;;
 
-    # HELP: db: launch a mysql client session, connected to the ctfd db
+    # HELP: db: launch a mysql client session, connected to the dojo db
     "db")
         docker exec $DOCKER_ARGS db psql "$@"
         ;;
@@ -166,7 +166,7 @@ case "$ACTION" in
 
     # HELP: load-dojo: load a dojo from a git repository
     "load-dojo")
-        "$0" flask -- /opt/pwn.college/dojo_plugin/scripts/load_dojo.py -- "$@"
+        "$0" flask -- /opt/pwn.college/site/dojo/scripts/load_dojo.py -- "$@"
         exit $?
         ;;
 

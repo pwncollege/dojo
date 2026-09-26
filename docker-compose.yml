@@ -1,10 +1,10 @@
-x-ctfd-base: &ctfd-base
-  build: ./ctfd
+x-site-base: &site-base
+  build: ./site
   platform: linux/amd64
   user: root
   entrypoint: ""
 
-x-ctfd-env: &ctfd-env
+x-site-env: &site-env
   DATABASE_URL: postgresql+psycopg2://${DB_USER}:${DB_PASS}@pgbouncer:5432/${DB_NAME}
   REDIS_URL: redis://cache:6379
   DOJO_HOST: ${DOJO_HOST}
@@ -27,15 +27,15 @@ x-ctfd-env: &ctfd-env
   SECRET_KEY: ${SECRET_KEY}
   DOJO_ENV: ${DOJO_ENV}
 
-x-ctfd-volumes: &ctfd-volumes
+x-site-volumes: &site-volumes
   - /data/dojos:/var/dojos
   - /data/workspace_nodes.json:/var/workspace_nodes.json:ro
   - ./user_firewall.allowed:/var/user_firewall.allowed:ro
   - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
   - /var/run/docker.sock:/var/run/docker.sock:ro
-  - /opt/pwn.college/dojo_plugin:/opt/pwn.college/dojo_plugin:ro
+  - /opt/pwn.college/site:/opt/pwn.college/site:ro
 
-x-ctfd-depends: &ctfd-depends
+x-site-depends: &site-depends
   pgbouncer:
     condition: service_started
   cache:
@@ -111,20 +111,20 @@ services:
     ports:
       - "4201:4201"
 
-  ctfd:
-    <<: *ctfd-base
-    container_name: ctfd
+  site:
+    <<: *site-base
+    container_name: site
     profiles:
       - main
     restart: always
-    hostname: ctfd
+    hostname: site
     command: ["/opt/pwn.college/entrypoint.sh"]
     ulimits:
       nofile:
         soft: 32768
         hard: 1048576
     environment:
-      <<: *ctfd-env
+      <<: *site-env
       WORKERS: 8
       REVERSE_PROXY: "true"
       CORS_ORIGINS: ${CORS_ORIGINS:-http://future.${DOJO_HOST}}
@@ -144,8 +144,7 @@ services:
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
       - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /opt/pwn.college/dojo_plugin:/opt/pwn.college/dojo_plugin:ro
-      - /opt/pwn.college/dojo_theme:/opt/pwn.college/dojo_theme:ro
+      - /opt/pwn.college/site:/opt/pwn.college/site:ro
     healthcheck:
       test:
         - "CMD"
@@ -159,7 +158,7 @@ services:
       timeout: 10s
       retries: 3
     depends_on:
-      <<: *ctfd-depends
+      <<: *site-depends
 
   db:
     container_name: db
@@ -241,32 +240,32 @@ services:
         condition: service_started
 
   stats-worker:
-    <<: *ctfd-base
+    <<: *site-base
     container_name: stats-worker
     hostname: stats-worker
     profiles:
       - main
     restart: always
-    command: ["python", "-m", "dojo_plugin.worker"]
+    command: ["python", "-m", "dojo.worker"]
     environment:
-      <<: *ctfd-env
-    volumes: *ctfd-volumes
+      <<: *site-env
+    volumes: *site-volumes
     depends_on:
-      <<: *ctfd-depends
+      <<: *site-depends
 
   image-pull-worker:
-    <<: *ctfd-base
+    <<: *site-base
     container_name: image-pull-worker
     hostname: image-pull-worker
     profiles:
       - main
     restart: always
-    command: ["python", "-m", "dojo_plugin.worker.image_pulls"]
+    command: ["python", "-m", "dojo.worker.image_pulls"]
     environment:
-      <<: *ctfd-env
-    volumes: *ctfd-volumes
+      <<: *site-env
+    volumes: *site-volumes
     depends_on:
-      <<: *ctfd-depends
+      <<: *site-depends
 
   sshd:
     container_name: sshd

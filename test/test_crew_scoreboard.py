@@ -194,7 +194,7 @@ def test_crew_tag_xss_safe(browser_fixture, crew_dojo):
 
 
 CREW_PARSE_UNIT = r"""
-from dojo_plugin.utils.crews import parse_crew_tag, aggregate_crews
+from dojo.utils.crews import parse_crew_tag, aggregate_crews
 
 assert parse_crew_tag("Zardus [Shellphish]") == {"tag": "Shellphish", "key": "shellphish", "base_name": "Zardus"}
 assert parse_crew_tag("[Shellphish]") == {"tag": "Shellphish", "key": "shellphish", "base_name": ""}
@@ -384,8 +384,8 @@ def test_crew_scoreboard_api(crew_dojo):
     assert mastery_order.index(solo_tag.lower()) < mastery_order.index(tag.lower())
 
     flask_exec(f"""
-from dojo_plugin.models import Dojos
-from dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update
+from dojo.models import Dojos
+from dojo.worker.handlers.scoreboard import handle_scoreboard_update
 dojo = Dojos.from_id({crew_dojo!r}).first()
 handle_scoreboard_update({{"model_type": "dojo", "model_id": dojo.dojo_id}})
 print("RECALC-DONE", dojo.dojo_id)
@@ -401,7 +401,7 @@ print("RECALC-DONE", dojo.dojo_id)
     assert recalc_solo["mastery"] == 2
 
     dojo_id = flask_exec(f"""
-from dojo_plugin.models import Dojos
+from dojo.models import Dojos
 print("DOJO-ID", Dojos.from_id({crew_dojo!r}).first().dojo_id)
 """)
     dojo_id = re.search(r"DOJO-ID (-?\d+)", dojo_id).group(1)

@@ -22,7 +22,7 @@ function usage {
 	echo "	-b	build the Docker image locally (tag: same as container name)"
 	echo "	-M	run in multi-node mode (3 containers: 1 main + 2 workspace nodes)"
 	echo "	-g	use GitHub Actions group output formatting"
-	echo "	-C	run the ctfd container with code coverage. Generates an xml coverage report when paired with the -t flag"
+	echo "	-C	run the site container with code coverage. Generates an xml coverage report when paired with the -t flag"
 	exit
 }
 
@@ -83,10 +83,10 @@ function test_container {
 
 function generate_coverage_report {
 	local CONTAINER="$1"
-    docker exec "$CONTAINER" docker kill -s SIGINT ctfd
-	docker exec "$CONTAINER" docker wait ctfd
-    docker exec "$CONTAINER" docker start ctfd
-    docker exec "$CONTAINER" docker exec ctfd coverage xml -o /var/coverage/coverage.xml
+    docker exec "$CONTAINER" docker kill -s SIGINT site
+	docker exec "$CONTAINER" docker wait site
+    docker exec "$CONTAINER" docker start site
+    docker exec "$CONTAINER" docker exec site coverage xml -o /var/coverage/coverage.xml
 }
 
 ENV_ARGS=()
@@ -313,7 +313,7 @@ if [ "$START" == "yes" -a "$MULTINODE" == "yes" ]; then
 	docker exec "$DOJO_CONTAINER" dojo-node add 1 "$NODE1_KEY"
 	docker exec "$DOJO_CONTAINER" dojo-node add 2 "$NODE2_KEY"
 	sleep 5
-	docker exec "$DOJO_CONTAINER" dojo compose restart ctfd sshd stats-worker image-pull-worker watchdog
+	docker exec "$DOJO_CONTAINER" dojo compose restart site sshd stats-worker image-pull-worker watchdog
 	sleep 5
 	docker exec "$DOJO_CONTAINER" dojo compose restart nginx
 	sleep 5

@@ -85,10 +85,10 @@ def server_config(**overrides):
     deployment holding a setting the rest of the suite does not expect.
     """
     read = ("import json\n"
-            "from dojo_plugin.models import get_config\n"
+            "from dojo.models import get_config\n"
             f"print('RESULT:' + json.dumps({{key: get_config(key) for key in {list(overrides)!r}}}))\n")
     write = ("import json\n"
-             "from dojo_plugin.models import set_config\n"
+             "from dojo.models import set_config\n"
              "for key, value in {values!r}.items():\n"
              "    set_config(key, value)\n"
              "print('RESULT:' + json.dumps(True))\n")
@@ -107,7 +107,7 @@ def server_config(**overrides):
 def mint_signed_token(payload, *, age=0):
     """Mint a CTFd-compatible URLSafeTimedSerializer token, optionally backdated by `age` seconds."""
     return dojo_run(
-        "docker", "exec", "ctfd", "python3", "-c",
+        "docker", "exec", "site", "python3", "-c",
         "import os, sys, time\n"
         "from itsdangerous.url_safe import URLSafeTimedSerializer\n"
         "from itsdangerous.timed import TimestampSigner\n"
@@ -128,8 +128,8 @@ def account_case(session, code):
     setup = (
         "from flask import current_app\n"
         "from unittest.mock import patch\n"
-        "from dojo_plugin.models import db, Users\n"
-        "from dojo_plugin.api.v1 import auth as auth_api\n"
+        "from dojo.models import db, Users\n"
+        "from dojo.api.v1 import auth as auth_api\n"
         "app = current_app._get_current_object()\n"
         "client = app.test_client()\n"
         f"client.set_cookie(app.config['SESSION_COOKIE_NAME'], {session.cookies.get('session')!r})\n"
@@ -308,7 +308,7 @@ def test_api_registration_respects_allowed_email_domains():
 def test_api_registration_with_mail_waits_for_email_confirmation():
     name = rand_name()
     account_case(anon_session(), f"""
-        from dojo_plugin.utils import serialize
+        from dojo.utils import serialize
 
         notifications = {{"verify": [], "welcome": []}}
         get_config = auth_api.get_config
@@ -340,7 +340,7 @@ def test_api_password_recovery_with_mail_preserves_oauth_accounts(random_user, s
     name, _ = random_user
     oauth_name, _ = second_user
     account_case(anon_session(), f"""
-        from dojo_plugin.utils import serialize
+        from dojo.utils import serialize
 
         user = Users.query.filter_by(name={name!r}).one()
         oauth_user = Users.query.filter_by(name={oauth_name!r}).one()
@@ -393,11 +393,11 @@ def test_verified_email_gate_blocks_actions(random_user, example_dojo, admin_ses
     uid = get_user_id(name)
     solve_path = f"/pwncollege_api/v1/dojos/{example_dojo}/hello/apple/solve"
     account_case(session, f"""
-        from dojo_plugin import models
-        from dojo_plugin.models import Fails
-        from dojo_plugin.pages import auth as auth_page, settings as settings_page
-        from dojo_plugin.utils import decorators, user as user_utils
-        from dojo_plugin.utils.user import clear_user_session
+        from dojo import models
+        from dojo.models import Fails
+        from dojo.pages import auth as auth_page, settings as settings_page
+        from dojo.utils import decorators, user as user_utils
+        from dojo.utils.user import clear_user_session
 
         real_get_config = models.get_config
         configured = lambda key, *args, **kwargs: True if key == "verify_emails" else real_get_config(key, *args, **kwargs)
@@ -455,8 +455,8 @@ def test_html_register_with_mail_requires_confirmation():
         account_case(registrant, f"""
             import contextlib
             import time
-            from dojo_plugin import models
-            from dojo_plugin.pages import auth as auth_page
+            from dojo import models
+            from dojo.pages import auth as auth_page
 
             real_get_config = models.get_config
             configured = lambda key, *args, **kwargs: True if key == "verify_emails" else real_get_config(key, *args, **kwargs)
@@ -495,9 +495,9 @@ def test_notification_email_delivery_and_failure():
         import smtplib
         from unittest.mock import patch
         from flask import current_app
-        from dojo_plugin.config import CTF_NAME, DOJO_HOST
-        from dojo_plugin.models import set_config
-        from dojo_plugin.utils import email as mail, unserialize
+        from dojo.config import CTF_NAME, DOJO_HOST
+        from dojo.models import set_config
+        from dojo.utils import email as mail, unserialize
 
         sent = []
 
@@ -556,10 +556,10 @@ def test_self_email_change_resets_verified_and_enforces_whitelist(random_user, s
     admin_uid = get_user_id(second_user[0])
     admin_address = f"{rand_name('admin')}@example.com"
     account_case(session, f"""
-        from dojo_plugin import models
-        from dojo_plugin.api.v1 import user as user_api
-        from dojo_plugin.utils import email as mail_mod
-        from dojo_plugin.utils.user import clear_user_session
+        from dojo import models
+        from dojo.api.v1 import user as user_api
+        from dojo.utils import email as mail_mod
+        from dojo.utils.user import clear_user_session
 
         real_get_config = models.get_config
         configured = lambda key, *args, **kwargs: True if key == "verify_emails" else real_get_config(key, *args, **kwargs)
@@ -1108,7 +1108,7 @@ def test_self_patch_cannot_escalate_privileges(random_user):
 
 def set_banned(user_id, banned):
     db_sql(f"UPDATE users SET banned = {str(banned).lower()} WHERE id = {user_id}")
-    flask_exec(f"from dojo_plugin.utils.user import clear_user_session\nclear_user_session(user_id={user_id})\n")
+    flask_exec(f"from dojo.utils.user import clear_user_session\nclear_user_session(user_id={user_id})\n")
 
 
 def test_banned_user_locked_out(random_user):

@@ -114,8 +114,8 @@ def test_profile_name_changes_disabled(random_user):
     new_name = rand_name()
 
     account_case(session, f"""
-        from dojo_plugin import models
-        from dojo_plugin.api.v1 import user as user_api
+        from dojo import models
+        from dojo.api.v1 import user as user_api
 
         real_get_config = models.get_config
         name_changes_disabled = lambda key, *args, **kwargs: False if key == "name_changes" else real_get_config(key, *args, **kwargs)

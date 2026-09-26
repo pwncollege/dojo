@@ -14,7 +14,7 @@ logger = logging.getLogger("dojo.query_timer")
 thread_local = threading.local()
 
 SLOW_QUERY_THRESHOLD = 0.5
-DOJO_PLUGIN_PATH = Path(__file__).parent.parent.resolve()
+PACKAGE_PATH = Path(__file__).parent.parent.resolve()
 
 
 @event.listens_for(Engine, "before_cursor_execute")
@@ -41,8 +41,8 @@ def after_cursor_execute(conn, cursor, statement, parameters, context, executema
     for frame in stack:
         frame_path = Path(frame.filename).resolve()
         try:
-            if frame_path.is_relative_to(DOJO_PLUGIN_PATH) and "query_timer" not in frame.filename:
-                relative_path = frame_path.relative_to(DOJO_PLUGIN_PATH.parent)
+            if frame_path.is_relative_to(PACKAGE_PATH) and "query_timer" not in frame.filename:
+                relative_path = frame_path.relative_to(PACKAGE_PATH.parent)
                 dojo_frames.append(f"{relative_path}:{frame.lineno}:{frame.name}")
         except (ValueError, OSError):
             pass

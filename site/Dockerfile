@@ -35,8 +35,8 @@ COPY .coveragerc /opt/pwn.college/.coveragerc
 RUN chmod +x /opt/pwn.college/entrypoint.sh
 
 ENV PATH="/opt/venv/bin:$PATH" \
-    FLASK_APP=dojo_plugin \
-    PYTHONPATH=/opt/pwn.college
+    FLASK_APP=dojo \
+    PYTHONPATH=/opt/pwn.college/site
 
 EXPOSE 8000
 ENTRYPOINT ["/opt/pwn.college/entrypoint.sh"]

@@ -233,7 +233,7 @@ Session = _SessionWrapper()
 
 
 def create_app():
-    app = Flask("dojo_plugin", static_folder=None, template_folder=THEME_TEMPLATES)
+    app = Flask("dojo", static_folder=None, template_folder=THEME_TEMPLATES)
     app.config.update(build_config(os.environ))
     if app.config["REVERSE_PROXY"]:
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
@@ -258,7 +258,7 @@ def create_app():
         from .api import api as pwncollege_api
 
         init_query_timer()
-        logging.getLogger("dojo_plugin").setLevel(logging.INFO)
+        logging.getLogger("dojo").setLevel(logging.INFO)
 
         for hook in (authorize_token, banned, csrf):
             app.before_request(hook)

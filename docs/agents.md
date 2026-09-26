@@ -4,7 +4,7 @@ This file provides guidance to AI agents when working with code in this reposito
 
 ## Overview
 
-The pwn.college DOJO is a cybersecurity education platform built as a standalone Flask application (`dojo_plugin`).
+The pwn.college DOJO is a cybersecurity education platform built as a standalone Flask application that lives in `site/` (Python package `dojo` in `site/dojo/`, theme in `site/theme/`).
 It provides isolated Docker-based workspace environments for hands-on security challenges.
 The DOJO runs in a docker-in-docker setting, with the "outer" container using docker-compose to spin up "inner" containers running infrastructure components.
 
@@ -30,7 +30,7 @@ DOJO_IP=$(docker inspect "$DOJO_CONTAINER" | jq -r '.[0].NetworkSettings.Network
 curl "http://$DOJO_URL"
 
 # get web app logs
-docker exec "$DOJO_CONTAINER" docker logs ctfd
+docker exec "$DOJO_CONTAINER" docker logs site
 
 # interact with docker-compose with the correct settings
 docker exec "$DOJO_CONTAINER" dojo compose ps
@@ -53,7 +53,7 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/opt/pwn.college
 
 ### Troubleshooting
 
-Container start failures show up in the ctfd container logs.
+Container start failures show up in the site container logs.
 
 ### Testing
 
@@ -93,14 +93,14 @@ The system uses a sophisticated nested Docker setup:
 
 ### Key Components
 
-1. **Web application** (`/dojo_plugin/`)
+1. **Web application** (`/site/dojo/`, the `dojo` package; `/site/` also holds the web image's `Dockerfile`, `entrypoint.sh`, `requirements.txt` and `.coveragerc`)
    - Flask app factory, request hooks and Jinja wiring in `app.py`; first-run bootstrap in `bootstrap.py`
    - API endpoints in `api/`
    - Database models in `models/`
    - Page controllers in `pages/`
    - Helpers in `utils/` (`utils/user.py`: session and identity helpers; `utils/decorators.py`: request decorators)
 
-2. **Theme** (`/dojo_theme/`)
+2. **Theme** (`/site/theme/`)
    - Server-rendered Jinja templates and static assets; jQuery, Bootstrap, FontAwesome and highlight.js load from jsDelivr
    - Static assets in `static/`
    - Templates in `templates/`
@@ -129,7 +129,7 @@ Inside the "outer" component:
 The docker-compose.yml defines these services:
 - `db` - PostgreSQL database
 - `cache` - Redis cache
-- `ctfd` - the web application (service/container name kept for compatibility)
+- `site` - the web application (built from `site/`)
 - `nginx` - Reverse proxy with SSL
 - `sshd` - SSH access service
 - `homefs` - Home directory management
@@ -154,11 +154,11 @@ The docker-compose.yml defines these services:
 To add a new configuration entry:
 1. Add default in `dojo/dojo-init`
 2. Propagate to containers in `docker-compose.sh`
-3. Load as global in `dojo_plugin/config.py`
+3. Load as global in `site/dojo/config.py`
 4. Import where needed
 
-Runtime-mutable settings live in the `config` table via `dojo_plugin.models.get_config`/`set_config`;
-schema and seed rows are created once by `python -m dojo_plugin.bootstrap` from the container entrypoint.
+Runtime-mutable settings live in the `config` table via `dojo.models.get_config`/`set_config`;
+schema and seed rows are created once by `python -m dojo.bootstrap` from the container entrypoint.
 
 ## Testing Approach
 

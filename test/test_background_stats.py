@@ -1197,12 +1197,12 @@ import time
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from dojo_plugin.utils.background_stats import should_daily_restart, DAILY_RESTART_HOUR_UTC
+from dojo.utils.background_stats import should_daily_restart, DAILY_RESTART_HOUR_UTC
 
 one_hour_ago = time.time() - 3600
 ten_minutes_ago = time.time() - 600
 
-with patch('dojo_plugin.utils.background_stats.datetime') as mock_dt:
+with patch('dojo.utils.background_stats.datetime') as mock_dt:
     mock_now = mock_dt.now.return_value
     mock_now.hour = DAILY_RESTART_HOUR_UTC
     assert should_daily_restart(one_hour_ago) is True, "Should restart at target hour after 1+ hours"
@@ -1217,7 +1217,7 @@ print("OK")
 
 def test_get_message_timestamp():
     output = flask_exec("""
-from dojo_plugin.utils.background_stats import get_message_timestamp
+from dojo.utils.background_stats import get_message_timestamp
 
 assert get_message_timestamp("1704067200000-0") == 1704067200.0
 assert get_message_timestamp("1704067200123-5") == 1704067200.123
@@ -1229,8 +1229,8 @@ def test_is_event_stale_logic():
     output = flask_exec("""
 from unittest.mock import patch
 
-with patch('dojo_plugin.utils.background_stats.get_cache_updated_at') as mock_get_cache:
-    from dojo_plugin.utils.background_stats import is_event_stale
+with patch('dojo.utils.background_stats.get_cache_updated_at') as mock_get_cache:
+    from dojo.utils.background_stats import is_event_stale
 
     mock_get_cache.return_value = 1000.0
     assert is_event_stale("test:key", 900.0) is True, "Event before cache should be stale"
@@ -1247,7 +1247,7 @@ print("OK")
 def test_dojo_specific_scores_update_only_updates_target_dojo():
     output = flask_exec("""
 from unittest.mock import patch, MagicMock
-from dojo_plugin.worker.handlers.scores import handle_scores_update
+from dojo.worker.handlers.scores import handle_scores_update
 
 calculated_dojo_ids = []
 
@@ -1259,9 +1259,9 @@ mock_dojo1 = MagicMock()
 mock_dojo1.dojo_id = 'target-dojo-123'
 mock_dojo1.modules = []
 
-with patch('dojo_plugin.worker.handlers.scores.Dojos') as MockDojos:
-    with patch('dojo_plugin.worker.handlers.scores.calculate_dojo_scores', side_effect=mock_calculate):
-        with patch('dojo_plugin.worker.handlers.scores.set_cached_stat'):
+with patch('dojo.worker.handlers.scores.Dojos') as MockDojos:
+    with patch('dojo.worker.handlers.scores.calculate_dojo_scores', side_effect=mock_calculate):
+        with patch('dojo.worker.handlers.scores.set_cached_stat'):
             MockDojos.query.filter_by.return_value.first.return_value = mock_dojo1
 
             handle_scores_update({"dojo_id": "target-dojo-123"})
@@ -1275,7 +1275,7 @@ print("OK")
 
 def test_scores_update_deleted_dojo_skips_gracefully():
     output = flask_exec("""
-from dojo_plugin.worker.handlers.scores import handle_scores_update
+from dojo.worker.handlers.scores import handle_scores_update
 
 result = handle_scores_update({"dojo_id": 2147483647})
 print("OK" if result is None else f"FAIL: returned {result}")
@@ -1288,12 +1288,12 @@ from unittest.mock import patch, MagicMock
 
 calls = []
 
-with patch('dojo_plugin.worker.handlers.scores.Dojos') as MockDojos:
-    from dojo_plugin.models import Dojos as RealDojos
+with patch('dojo.worker.handlers.scores.Dojos') as MockDojos:
+    from dojo.models import Dojos as RealDojos
     MockDojos.official = RealDojos.official
     MockDojos.data = RealDojos.data
 
-    from dojo_plugin.worker.handlers.scores import handle_scores_update
+    from dojo.worker.handlers.scores import handle_scores_update
 
     mock_dojo1 = MagicMock()
     mock_dojo1.dojo_id = 'test-dojo-1'
@@ -1305,8 +1305,8 @@ with patch('dojo_plugin.worker.handlers.scores.Dojos') as MockDojos:
 
     MockDojos.query.filter.return_value.all.return_value = [mock_dojo1, mock_dojo2]
 
-    with patch('dojo_plugin.worker.handlers.scores.calculate_dojo_scores') as mock_calc:
-        with patch('dojo_plugin.worker.handlers.scores.set_cached_stat'):
+    with patch('dojo.worker.handlers.scores.calculate_dojo_scores') as mock_calc:
+        with patch('dojo.worker.handlers.scores.set_cached_stat'):
             mock_calc.return_value = {"ranks": [], "solves": {}}
 
             handle_scores_update({})
@@ -1324,8 +1324,8 @@ def test_publish_scores_event_with_dojo_id():
     output = flask_exec("""
 from unittest.mock import patch
 
-with patch('dojo_plugin.utils.events.publish_stat_event') as mock_publish:
-    from dojo_plugin.utils.events import publish_scores_event
+with patch('dojo.utils.events.publish_stat_event') as mock_publish:
+    from dojo.utils.events import publish_scores_event
 
     publish_scores_event('my-dojo-id')
     mock_publish.assert_called_once()
@@ -1341,8 +1341,8 @@ def test_publish_scores_event_without_dojo_id():
     output = flask_exec("""
 from unittest.mock import patch
 
-with patch('dojo_plugin.utils.events.publish_stat_event') as mock_publish:
-    from dojo_plugin.utils.events import publish_scores_event
+with patch('dojo.utils.events.publish_stat_event') as mock_publish:
+    from dojo.utils.events import publish_scores_event
 
     publish_scores_event()
     mock_publish.assert_called_once()
@@ -1356,7 +1356,7 @@ print("OK")
 
 def test_challenge_solves_uses_string_keys():
     output = flask_exec("""
-from dojo_plugin.worker.handlers.scoreboard import update_challenge_solves
+from dojo.worker.handlers.scoreboard import update_challenge_solves
 
 existing_cache = {"123": 5, "456": 10}
 updated = update_challenge_solves(existing_cache, 123)

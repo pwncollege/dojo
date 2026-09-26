@@ -9,7 +9,7 @@ import requests
 from utils import DOJO_URL
 
 
-ASSET_PATH = Path(__file__).parents[1] / "dojo_theme/static/css/custom.css"
+ASSET_PATH = Path(__file__).parents[1] / "site/theme/static/css/custom.css"
 
 
 def custom_css_url():

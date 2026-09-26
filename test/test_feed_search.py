@@ -490,7 +490,7 @@ def test_feed_page_accessible_and_respects_account_visibility(random_user_sessio
     assert random_user_session.get(FEED_PAGE_URL).status_code == 200
 
     try:
-        flask_exec("from dojo_plugin.models import set_config\nset_config('account_visibility', 'private')")
+        flask_exec("from dojo.models import set_config\nset_config('account_visibility', 'private')")
         anonymous = requests.get(FEED_PAGE_URL, allow_redirects=False)
         assert anonymous.status_code == 302, \
             f"private account visibility must redirect anonymous users, got {anonymous.status_code}"
@@ -499,7 +499,7 @@ def test_feed_page_accessible_and_respects_account_visibility(random_user_sessio
         assert random_user_session.get(FEED_PAGE_URL).status_code == 200, \
             "authenticated users must still see the feed"
     finally:
-        flask_exec("from dojo_plugin.models import set_config\nset_config('account_visibility', 'public')")
+        flask_exec("from dojo.models import set_config\nset_config('account_visibility', 'public')")
 
     assert requests.get(FEED_PAGE_URL, allow_redirects=False).status_code == 200
 

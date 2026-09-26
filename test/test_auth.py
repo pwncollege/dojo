@@ -87,9 +87,9 @@ def test_html_password_reset_flow_with_mail(random_user, second_user):
     nonce = anon.headers["CSRF-Token"]
 
     account_case(anon, IN_PROCESS_FORM_POST + f"""
-from dojo_plugin.pages import auth as auth_page
-from dojo_plugin.utils import serialize
-from dojo_plugin.models import verify_password
+from dojo.pages import auth as auth_page
+from dojo.utils import serialize
+from dojo.models import verify_password
 
 uid = {uid}
 oauth_uid = {oauth_uid}
@@ -161,12 +161,12 @@ def test_html_email_confirmation_flow(random_user):
 
     account_case(session, IN_PROCESS_FORM_POST + f"""
 import contextlib
-from dojo_plugin.models import get_config as real_get_config
-from dojo_plugin.pages import auth as auth_page
-from dojo_plugin.pages import settings as settings_page
-from dojo_plugin.utils import decorators, serialize
-from dojo_plugin.utils import user as user_utils
-from dojo_plugin.utils.user import clear_user_session
+from dojo.models import get_config as real_get_config
+from dojo.pages import auth as auth_page
+from dojo.pages import settings as settings_page
+from dojo.utils import decorators, serialize
+from dojo.utils import user as user_utils
+from dojo.utils.user import clear_user_session
 
 def configured(key, *args, **kwargs):
     return True if key == "verify_emails" else real_get_config(key, *args, **kwargs)

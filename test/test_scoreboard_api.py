@@ -40,8 +40,8 @@ SB_SCRIPT_PATH = "/tmp/dojo-test-scoreboard-api.py"
 
 def sb_flask_exec(code):
     script = f"print({SB_MARKER!r}, flush=True)\n{code}"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {SB_SCRIPT_PATH}", input=script)
-    result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", SB_SCRIPT_PATH, check=False)
+    dojo_run("docker", "exec", "-i", "site", "sh", "-c", f"cat > {SB_SCRIPT_PATH}", input=script)
+    result = dojo_run("docker", "exec", "site", "flask", "shell", "--", SB_SCRIPT_PATH, check=False)
     assert SB_MARKER in result.stdout, f"flask exec produced no output: {result.stdout}\n{result.stderr}"
     return result.stdout.split(SB_MARKER, 1)[1]
 
@@ -91,7 +91,7 @@ def user_ids(names):
 
 def derive_flags(pairs):
     args = [f"{user_id}:{challenge_id}" for user_id, challenge_id in pairs]
-    result = dojo_run("docker", "exec", "ctfd", "python3", "-c", FLAG_SCRIPT, *args)
+    result = dojo_run("docker", "exec", "site", "python3", "-c", FLAG_SCRIPT, *args)
     flags = result.stdout.strip().splitlines()
     assert len(flags) == len(pairs), f"expected {len(pairs)} flags, got {flags}"
     return flags
@@ -159,7 +159,7 @@ def redis_cmd(*args):
 
 def recalc_dojo(dojo_id):
     output = sb_flask_exec(
-        "from dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update\n"
+        "from dojo.worker.handlers.scoreboard import handle_scoreboard_update\n"
         f"handle_scoreboard_update({{'model_type': 'dojo', 'model_id': {dojo_id}}})\n"
         "print('RECALC-OK')\n"
     )
@@ -169,7 +169,7 @@ def recalc_dojo(dojo_id):
 def scores_report(dojo_id, uids, module_indices):
     output = sb_flask_exec(
         "import json\n"
-        "from dojo_plugin.utils.scores import (\n"
+        "from dojo.utils.scores import (\n"
         "    get_user_dojo_rank, get_user_dojo_solves, get_user_module_rank, get_user_module_solves)\n"
         f"report = {{}}\n"
         f"for uid in {list(uids)!r}:\n"
@@ -425,7 +425,7 @@ def test_optional_challenge_solved_state_and_counts(admin_session):
 
     def recalculate_module():
         output = sb_flask_exec(
-            "from dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update\n"
+            "from dojo.worker.handlers.scoreboard import handle_scoreboard_update\n"
             f"handle_scoreboard_update({{'model_type': 'module', 'model_id': [{dojo_id}, 0]}})\n"
             "print('RECALC-OK')\n"
         )
@@ -507,7 +507,7 @@ def test_scoreboard_symbol_email_case_insensitive():
     result = json.loads(sb_flask_exec(
         "import json\n"
         "from flask import current_app\n"
-        "from dojo_plugin.api.v1.scoreboard import email_symbol_asset\n"
+        "from dojo.api.v1.scoreboard import email_symbol_asset\n"
         "with current_app.test_request_context():\n"
         f"    print(json.dumps({{email: email_symbol_asset(email) for email in {list(expected)!r}}}))\n"
     ))
@@ -612,7 +612,7 @@ def test_scores_ranks_solves_and_module_scoping(sb_main):
 def test_hacker_page_renders_ranks(sb_main, sb_filter):
     alice_id = sb_main["uids"][sb_main["alice"]]
     output = sb_flask_exec(
-        "from dojo_plugin.utils.scores import get_dojo_scores, get_user_dojo_solves\n"
+        "from dojo.utils.scores import get_dojo_scores, get_user_dojo_solves\n"
         f"scores = get_dojo_scores({sb_main['dojo_id']})\n"
         f"print('RANKINFO', scores['ranks'].index({alice_id}) + 1, len(scores['ranks']),"
         f" get_user_dojo_solves({sb_main['dojo_id']}, {alice_id}))\n"
@@ -807,8 +807,8 @@ def test_score_endpoint_format(example_dojo):
                     flag=derive_flags([(uids[name], challenge_id)])[0])
 
     output = sb_flask_exec(
-        "from dojo_plugin.models import Challenges\n"
-        "from dojo_plugin.models import Dojos, DojoChallenges\n"
+        "from dojo.models import Challenges\n"
+        "from dojo.models import Dojos, DojoChallenges\n"
         "query = (Challenges.query.join(DojoChallenges).join(Dojos)\n"
         "         .filter(Dojos.official, DojoChallenges.visible()).distinct()\n"
         "         .with_entities(Challenges.id))\n"

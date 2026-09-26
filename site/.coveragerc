@@ -1,3 +1,3 @@
 [run]
-source = dojo_plugin
+source = dojo
 data_file = /var/coverage/.coverage

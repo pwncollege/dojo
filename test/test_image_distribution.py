@@ -45,7 +45,7 @@ def image_distribution(monkeypatch):
     sys.modules[f"{package}.utils"].all_docker_clients = lambda: nodes
     spec = importlib.util.spec_from_file_location(
         f"{package}.worker.handlers.image_pulls",
-        Path(__file__).resolve().parents[1] / "dojo_plugin/worker/handlers/image_pulls.py",
+        Path(__file__).resolve().parents[1] / "site/dojo/worker/handlers/image_pulls.py",
     )
     handler = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(handler)
