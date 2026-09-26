@@ -125,7 +125,7 @@ def run_llm_case(user, code, *, other=None, cli_token=None):
         setup += f"cli_headers = {{'Authorization': 'Bearer ' + {cli_token!r}}}\n"
     script = LLM_SERVICE + setup + "with managed_llm():\n" + textwrap.indent(textwrap.dedent(code), "    ")
     output = flask_exec(script + "\nprint('LLM-CASE-PASSED')\n")
-    assert "LLM-CASE-PASSED" in output, output
+    assert "LLM-CASE-PASSED" in output.splitlines(), output
 
 
 @pytest.fixture(scope="module")

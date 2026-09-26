@@ -260,7 +260,7 @@ def create_app():
         init_query_timer()
         logging.getLogger("dojo_plugin").setLevel(logging.INFO)
 
-        for hook in (banned, authorize_token, csrf):
+        for hook in (authorize_token, banned, csrf):
             app.before_request(hook)
 
         # before_request_handler must stay behind the hooks above

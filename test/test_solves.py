@@ -17,6 +17,7 @@ from utils import (
     login,
     parse_csrf_token,
     remove_workspace_container,
+    seed_recent_fails,
     start_challenge,
     wait_for_background_worker,
     workspace_run,
@@ -449,3 +450,54 @@ def test_solve_cli_token_is_scoped_to_the_running_container(example_dojo):
             "a rejected cli token must not record a submission"
     finally:
         remove_workspace_container(name)
+
+
+def test_ratelimit_allows_exactly_the_limit(example_dojo):
+    name, session = register_user()
+    challenge_id = challenge_db_id(example_dojo, "hello", "apple")
+    flag = challenge_flag(example_dojo, "hello", "apple", user=name)
+
+    seed_recent_fails(get_user_id(name), challenge_id, 10)
+    solved = solve_post(session, example_dojo, "hello", "apple", flag)
+    assert solved.status_code == 200, solved.text[:200]
+    assert solved.json() == {"success": True, "status": "solved"}, \
+        f"exactly the per-minute limit of recent fails must not throttle: {solved.json()}"
+    assert submission_counts(name, challenge_id) == {"incorrect": 10, "correct": 1}
+
+
+def test_rapid_wrong_flags_are_ratelimited(example_dojo, random_user):
+    name, session = random_user
+    challenge_id = challenge_db_id(example_dojo, "hello", "apple")
+    user_id = get_user_id(name)
+    flag = challenge_flag(example_dojo, "hello", "apple", user=name)
+
+    seed_recent_fails(user_id, challenge_id, 11)
+    throttled = solve_post(session, example_dojo, "hello", "apple", flag)
+    assert throttled.status_code == 429, throttled.text[:200]
+    assert throttled.json() == {"success": False, "status": "ratelimited"}, throttled.json()
+    assert submission_counts(name, challenge_id) == {"incorrect": 12}, \
+        "a throttled attempt must be recorded as a failure and must not solve, even with the correct flag"
+
+    db_sql(
+        f"UPDATE submissions SET date = timezone('utc', now()) - interval '2 minutes' "
+        f"WHERE user_id = {user_id} AND type = 'incorrect'"
+    )
+    solved = solve_post(session, example_dojo, "hello", "apple", flag)
+    assert solved.status_code == 200, solved.text[:200]
+    assert solved.json() == {"success": True, "status": "solved"}, solved.json()
+    assert submission_counts(name, challenge_id) == {"incorrect": 12, "correct": 1}
+
+
+def test_ratelimit_is_checked_before_already_solved(example_dojo):
+    name, session = register_user()
+    challenge_id = challenge_db_id(example_dojo, "hello", "apple")
+    flag = challenge_flag(example_dojo, "hello", "apple", user=name)
+
+    solved = solve_post(session, example_dojo, "hello", "apple", flag)
+    assert solved.json() == {"success": True, "status": "solved"}, solved.json()
+
+    seed_recent_fails(get_user_id(name), challenge_id, 11)
+    throttled = solve_post(session, example_dojo, "hello", "apple", flag)
+    assert throttled.status_code == 429, throttled.text[:200]
+    assert throttled.json() == {"success": False, "status": "ratelimited"}, \
+        f"the fail-rate check must run before the already-solved short-circuit: {throttled.json()}"

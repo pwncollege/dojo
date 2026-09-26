@@ -93,6 +93,27 @@ def authed_only_cli(func):
 
 
 def validate_self_patch(user, data):
+    errors = {}
+    for key, value in data.items():
+        if key not in (*SELF_FIELDS, "confirm") or value is None:
+            continue
+        if key == "hidden":
+            if not isinstance(value, (bool, int, str)) or (value not in TRUTHY and value not in FALSY):
+                errors[key] = ["Not a valid boolean."]
+        elif not isinstance(value, str):
+            errors[key] = ["Not a valid string."]
+        elif key == "name" and not 1 <= len(value) <= 128:
+            errors[key] = ["User names must not be empty"]
+        elif key == "email" and not (validate_email(value) and len(value) <= 128):
+            errors[key] = ["Emails must be a properly formatted email address"]
+        elif key == "website" and value and not validate_url(value):
+            errors[key] = ["Websites must be a proper URL starting with http or https"]
+        elif key == "country" and value.strip() and lookup_country_code(value) is None:
+            errors[key] = ["Invalid Country"]
+        elif key in ("affiliation", "password") and len(value) > 128:
+            errors[key] = ["Longer than maximum length 128."]
+    if errors:
+        return errors
     confirm = data.get("confirm")
     email = data.get("email")
     if email is not None and not (user.email and email.strip().lower() == user.email.lower()):
@@ -119,26 +140,7 @@ def validate_self_patch(user, data):
             return {"confirm": ["Please confirm your current password"]}
         if not verify_password(confirm, user.password):
             return {"confirm": ["Your previous password is incorrect"]}
-    errors = {}
-    for key, value in data.items():
-        if key not in SELF_FIELDS or value is None:
-            continue
-        if key == "hidden":
-            if not isinstance(value, (bool, int, str)) or (value not in TRUTHY and value not in FALSY):
-                errors[key] = ["Not a valid boolean."]
-        elif not isinstance(value, str):
-            errors[key] = ["Not a valid string."]
-        elif key == "name" and not 1 <= len(value) <= 128:
-            errors[key] = ["User names must not be empty"]
-        elif key == "email" and not (validate_email(value) and len(value) <= 128):
-            errors[key] = ["Emails must be a properly formatted email address"]
-        elif key == "website" and value and not validate_url(value):
-            errors[key] = ["Websites must be a proper URL starting with http or https"]
-        elif key == "country" and value.strip() and lookup_country_code(value) is None:
-            errors[key] = ["Invalid Country"]
-        elif key in ("affiliation", "password") and len(value) > 128:
-            errors[key] = ["Longer than maximum length 128."]
-    return errors
+    return {}
 
 
 @user_namespace.route("/me")

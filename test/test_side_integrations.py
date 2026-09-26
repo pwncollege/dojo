@@ -628,7 +628,7 @@ def discord_oauth_case(user, code):
         f"user_id = {get_user_id(name)}\n"
     )
     output = flask_exec(setup + textwrap.dedent(code) + "\nprint('DISCORD-OAUTH-PASSED')\n")
-    assert "DISCORD-OAUTH-PASSED" in output, output
+    assert "DISCORD-OAUTH-PASSED" in output.splitlines(), output
 
 
 def test_discord_oauth_link_relink_and_provider_recovery(random_user):
