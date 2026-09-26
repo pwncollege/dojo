@@ -24,7 +24,7 @@ def test_hidden_user_can_view_own_profile_data(admin_session, random_user, examp
             ({user_id}, 'belt', 'orange', 'Orange Belt', NOW(), 0, NULL),
             ({user_id}, 'emoji', 'CUSTOM', 'Hidden self badge', NOW(), 0, '🧪')
     """)
-    response = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"hidden": True})
+    response = session.patch(f"{DOJO_URL}/pwncollege_api/v1/users/me", json={"hidden": True})
     assert response.status_code == 200
 
     profile = session.get(f"{DOJO_URL}/hacker/")
@@ -39,9 +39,8 @@ def test_hidden_user_can_view_own_profile_data(admin_session, random_user, examp
     assert requests.get(activity_url).status_code == 404
     assert admin_session.get(activity_url).status_code == 404
 
-    awards = session.get(f"{DOJO_URL}/api/v1/users/me/awards")
+    awards = session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me/awards")
     assert awards.status_code == 200
     assert {award["name"] for award in awards.json()["data"]} >= {"orange", "CUSTOM"}
     assert session.get(f"{DOJO_URL}/hacker/{user_id}").status_code == 404
     assert session.get(f"{DOJO_URL}/hacker/{username}").status_code == 404
-    assert session.get(f"{DOJO_URL}/api/v1/users/{user_id}/awards").status_code == 404

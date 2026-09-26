@@ -1,11 +1,10 @@
 import collections
 
-from flask import Blueprint, render_template, redirect, url_for
-from CTFd.models import db
-from CTFd.utils.user import get_current_user
-from CTFd.utils.decorators import authed_only, admins_only
+from flask import Blueprint, render_template
+from ..utils.user import get_current_user
+from ..utils.decorators import authed_only
 
-from ..models import DojoChallenges, Dojos, DojoAdmins, DojoMembers
+from ..models import DojoChallenges, Dojos, DojoAdmins, DojoMembers, db
 from ..utils.dojo import generate_ssh_keypair
 from ..utils.stats import get_container_stats
 
@@ -100,15 +99,3 @@ def dojo_create():
         private_key=private_key,
         example_dojos=Dojos.viewable().where(Dojos.data["type"].astext == "example").all(),
     )
-
-
-
-
-@dojos.route("/admin/dojos")
-@admins_only
-def view_all_dojos():
-    return render_template("admin_dojos.html", dojos=Dojos.query.order_by(*Dojos.ordering()).all())
-
-
-def dojos_override():
-    return redirect(url_for("pwncollege_dojos.listing"), code=301)

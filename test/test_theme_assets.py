@@ -15,7 +15,7 @@ ASSET_PATH = Path(__file__).parents[1] / "dojo_theme/static/css/custom.css"
 def custom_css_url():
     response = requests.get(DOJO_URL)
     response.raise_for_status()
-    match = re.search(r'href="([^"]*/themes/dojo_theme/static/css/custom\.(?:dev|min)\.css\?[^"]+)"', response.text)
+    match = re.search(r'href="([^"]*/themes/dojo_theme/static/css/custom\.css\?[^"]+)"', response.text)
     assert match
     return html.unescape(match.group(1))
 

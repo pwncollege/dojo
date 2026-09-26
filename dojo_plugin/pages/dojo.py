@@ -11,11 +11,8 @@ import secrets
 from flask import Blueprint, render_template, abort, send_file, redirect, url_for, Response, stream_with_context, request, g
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import or_
-from CTFd.plugins import bypass_csrf_protection
-from CTFd.models import db, Solves, Users
-from CTFd.utils.decorators import authed_only
-from CTFd.utils.user import get_current_user, is_admin
-from CTFd.utils.helpers import get_infos
+from ..utils.decorators import bypass_csrf_protection, authed_only
+from ..utils.user import get_current_user, is_admin
 
 from ..utils import get_current_container, get_all_containers, render_markdown
 from ..utils.background_stats import invalidate_dojo_cached_stats
@@ -23,7 +20,7 @@ from ..utils.stats import get_container_stats, get_dojo_stats, get_challenge_sol
 from ..utils.dojo import dojo_route, get_current_dojo_challenge, dojo_update, dojo_admins_only
 from ..utils.image_pulls import enqueue_dojo_image_pulls
 from ..utils.query_timer import query_timeout
-from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges
+from ..models import Dojos, DojoUsers, DojoStudents, DojoModules, DojoMembers, DojoChallenges, db, Solves, Users
 
 dojo = Blueprint("pwncollege_dojo", __name__)
 #pylint:disable=redefined-outer-name
@@ -80,7 +77,7 @@ def resolve_dojo_path(dojo, *parts):
 @dojo.route("/<dojo>/")
 @dojo_route
 def listing(dojo):
-    infos = get_infos()
+    infos = []
     user = get_current_user()
     dojo_user = DojoUsers.query.filter_by(dojo=dojo, user=user).first()
     stats = get_dojo_stats(dojo)

@@ -445,7 +445,7 @@ def test_worker_drains_events_published_while_offline():
     run_in_ctfd("""
 import json, time
 from unittest.mock import patch
-from CTFd.plugins.dojo_plugin.utils import background_stats as bs
+from dojo_plugin.utils import background_stats as bs
 stream = "test:stat:drain:" + str(int(time.time() * 1000))
 group = "test-stats-workers"
 r = bs.get_redis_client()
@@ -542,7 +542,7 @@ def test_image_pull_retry_lifecycle():
 import time
 import threading
 from unittest.mock import patch
-from CTFd.plugins.dojo_plugin.utils import image_pulls as ip
+from dojo_plugin.utils import image_pulls as ip
 
 def drive(stream, handler, done):
     client = ip.get_redis_client()
@@ -614,7 +614,7 @@ def test_image_pull_autoclaims_orphaned_pending():
     run_in_ctfd("""
 import json, time
 from unittest.mock import patch
-from CTFd.plugins.dojo_plugin.utils import image_pulls as ip
+from dojo_plugin.utils import image_pulls as ip
 
 r = ip.get_redis_client()
 stream = "test:image:pull:claim:" + str(int(time.time() * 1000))

@@ -6,8 +6,8 @@ from pathlib import Path
 from sqlalchemy import event, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.engine import Engine
-from CTFd.utils.user import get_current_user
-from CTFd.models import db
+from .user import get_current_user
+from ..models import db
 
 logger = logging.getLogger("dojo.query_timer")
 

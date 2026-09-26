@@ -3,13 +3,12 @@ from datetime import datetime, date, timedelta, timezone
 
 from flask import request, Request
 from flask_restx import Namespace, Resource
-from CTFd.models import db
-from CTFd.utils.decorators import authed_only
-from CTFd.utils.user import get_current_user
+from ...utils.decorators import authed_only
+from ...utils.user import get_current_user
 from sqlalchemy import func, tuple_
 
 from ...config import DISCORD_CLIENT_SECRET
-from ...models import DiscordUsers, DiscordUserActivity
+from ...models import DiscordUsers, DiscordUserActivity, db
 from ...utils import parse_positive_int
 from ...utils.dojo import get_current_dojo_challenge, dojo_route
 

@@ -230,8 +230,8 @@ def test_subyaml_precedence_and_survey_src_from_directory():
     tag = "".join(random.choices(string.ascii_lowercase, k=8))
     output = flask_exec(f'''
 import json, pathlib, shutil
-from CTFd.models import db
-from CTFd.plugins.dojo_plugin.utils.dojo import dojo_from_dir
+from dojo_plugin.models import db
+from dojo_plugin.utils.dojo import dojo_from_dir
 
 root = pathlib.Path("/tmp/dojo-spec-test-{tag}")
 shutil.rmtree(root, ignore_errors=True)
@@ -479,7 +479,7 @@ def test_imported_challenge_path_override_prefers_official_local_files(admin_ses
     assert source_path.endswith("/hello/apple"), f"path_override should point at the source challenge, got {source_path!r}"
 
     probe = f'''
-from CTFd.plugins.dojo_plugin.models import DojoChallenges
+from dojo_plugin.models import DojoChallenges
 challenge = DojoChallenges.from_id({dojo!r}, "m", "apple").first()
 print("PATH " + str(challenge.path))
 '''

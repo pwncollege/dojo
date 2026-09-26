@@ -1,10 +1,8 @@
 from flask import request
 from flask_restx import Namespace, Resource
-from CTFd.cache import cache
-from CTFd.models import Users, db, Solves, Challenges
-from CTFd.utils.decorators import ratelimit
+from ...utils.decorators import ratelimit
 
-from ...models import Dojos, DojoChallenges
+from ...models import Dojos, DojoChallenges, Users, db, Solves, Challenges
 
 score_namespace = Namespace("score")
 

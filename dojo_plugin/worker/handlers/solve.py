@@ -1,8 +1,7 @@
 import logging
 from datetime import datetime
 
-from CTFd.models import db, Users
-from ...models import DojoChallenges, DojoUsers
+from ...models import DojoChallenges, DojoUsers, db, Users
 from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
 from .scoreboard import update_scoreboard_cache, update_challenge_solves, challenge_solves_cache_key, COMMON_DURATIONS

@@ -20,10 +20,9 @@ from schema import Schema, Optional, Regex, Or, Use, SchemaError, And
 from flask import abort, g
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import NoResultFound
-from CTFd.models import db, Challenges, Flags
-from CTFd.utils.user import get_current_user, is_admin
+from .user import get_current_user, is_admin
 
-from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities
+from ..models import DojoAdmins, Dojos, DojoModules, DojoChallenges, DojoResources, DojoChallengeVisibilities, DojoResourceVisibilities, DojoModuleVisibilities, db, Challenges, Flags
 from ..config import DOJOS_DIR
 from ..utils import get_current_container, sanitize_survey
 

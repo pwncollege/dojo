@@ -3,8 +3,8 @@ import logging
 import redis
 from flask import current_app, request
 from flask_restx import Namespace, Resource
-from CTFd.utils.decorators import authed_only
-from CTFd.utils.user import get_current_user
+from ...utils.decorators import authed_only
+from ...utils.user import get_current_user
 
 from .user import authed_only_cli
 from ...config import (

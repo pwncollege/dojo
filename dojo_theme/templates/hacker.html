@@ -41,12 +41,6 @@
         </h3>
       {% endif %}
 
-      {% for field in user.fields %}
-        <h3 class="d-block">
-          {{ field.name }}: {{ field.value }}
-        </h3>
-      {% endfor %}
-
       <div class="pt-3">
         {% if user.website %}
           <a href="{{ user.website }}" target="_blank" style="color: inherit;" rel="noopener">

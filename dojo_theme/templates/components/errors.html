@@ -1,0 +1,8 @@
+{% for kind, messages in (("info", infos), ("danger", errors)) %}
+{% for message in messages %}
+<div class="alert alert-{{ kind }} alert-dismissable text-center" role="alert">
+  <span>{{ message }}</span>
+  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">×</span></button>
+</div>
+{% endfor %}
+{% endfor %}

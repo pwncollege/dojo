@@ -2,8 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 
-from CTFd.models import db, Solves
-from ...models import Dojos, DojoChallenges
+from ...models import Dojos, DojoChallenges, db, Solves
 from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
 

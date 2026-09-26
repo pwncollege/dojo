@@ -25,43 +25,46 @@
         <div class="tab-pane fade show active" id="profile" role="tabpanel">
           {% include "components/errors.html" %}
 
-          {% with form = Forms.self.SettingsForm(country=user.country) %}
-          {% from "macros/forms.html" import render_extra_fields %}
           <form id="user-profile-form" method="post" accept-charset="utf-8" autocomplete="off" role="form"
                 class="form-horizontal">
             <div class="form-group">
-              <b>{{ form.name.label }}</b>
-              {{ form.name(class="form-control", value=user.name) }}
+              <b><label for="name">User Name</label></b>
+              <input class="form-control" id="name" name="name" type="text" value="{{ user.name }}">
             </div>
             <div class="form-group">
-              <b>{{ form.email.label }}</b>
-              {{ form.email(class="form-control", value=user.email) }}
-            </div>
-
-            <hr>
-
-            <div class="form-group">
-              <b>{{ form.confirm.label }}</b>
-              {{ form.confirm(class="form-control") }}
-            </div>
-            <div class="form-group">
-              <b>{{ form.password.label }}</b>
-              {{ form.password(class="form-control") }}
+              <b><label for="email">Email</label></b>
+              <input class="form-control" id="email" name="email" type="text" value="{{ user.email }}">
             </div>
 
             <hr>
 
             <div class="form-group">
-              <b>{{ form.affiliation.label }}</b>
-              {{ form.affiliation(class="form-control", value=user.affiliation or "") }}
+              <b><label for="confirm">Current Password</label></b>
+              <input class="form-control" id="confirm" name="confirm" type="password">
             </div>
             <div class="form-group">
-              <b>{{ form.website.label }}</b>
-              {{ form.website(class="form-control", value=user.website or "") }}
+              <b><label for="password">Password</label></b>
+              <input class="form-control" id="password" name="password" type="password">
+            </div>
+
+            <hr>
+
+            <div class="form-group">
+              <b><label for="affiliation">Affiliation</label></b>
+              <input class="form-control" id="affiliation" name="affiliation" type="text" value="{{ user.affiliation or "" }}">
             </div>
             <div class="form-group">
-              <b>{{ form.country.label }}</b>
-              {{ form.country(class="form-control custom-select", value=user.country) }}
+              <b><label for="website">Website</label></b>
+              <input class="form-control" id="website" name="website" type="url" value="{{ user.website or "" }}">
+            </div>
+            <div class="form-group">
+              <b><label for="country">Country</label></b>
+              <select class="form-control custom-select" id="country" name="country">
+                <option value=""></option>
+                {% for code, name in countries.items() %}
+                <option value="{{ code }}"{{ " selected" if code == user.country }}>{{ name }}</option>
+                {% endfor %}
+              </select>
             </div>
             <div class="form-group">
               <b><label for="hidden">Visibility</label></b>
@@ -71,16 +74,13 @@
               </select>
             </div>
 
-	    {{ render_extra_fields(form.extra) }}
-
             <div id="results" class="form-group">
             </div>
 
             <div class="form-group">
-              {{ form.submit(class="btn btn-md btn-primary float-right") }}
+              <input class="btn btn-md btn-primary float-right" id="_submit" name="_submit" type="submit" value="Submit">
             </div>
           </form>
-          {% endwith %}
         </div>
 
         <div class="tab-pane fade" id="ssh-key" role="tabpanel">
@@ -158,18 +158,16 @@
         {% endif %}
 
         <div class="tab-pane fade" id="tokens" role="tabpanel">
-          {% with form = Forms.self.TokensForm() %}
           <form method="POST" id="user-token-form">
             <div class="form-group">
-              <b>{{ form.expiration.label }}</b>
-              {{ form.expiration(class="form-control") }}
+              <b><label for="expiration">Expiration</label></b>
+              <input class="form-control" id="expiration" name="expiration" type="date">
             </div>
 
             <div class="form-group text-right">
-              {{ form.submit(class="btn btn-md btn-primary btn-outlined") }}
+              <input class="btn btn-md btn-primary btn-outlined" id="_submit" name="_submit" type="submit" value="Generate">
             </div>
           </form>
-          {% endwith %}
 
           {% if tokens %}
           <hr>
@@ -213,10 +211,28 @@
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block entrypoint %}
-<script defer src="{{ url_for('views.themes', path='js/pages/settings.js') }}"></script>
+<div class="modal fade" id="token-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">API Key Generated</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <p>Please copy your API Key, it won't be shown again!</p>
+        <div class="input-group mb-3">
+          <input type="text" id="user-token-result" class="form-control" readonly>
+          <div class="input-group-append">
+            <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard(event)"><i class="fas fa-clipboard"></i></button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-dismiss="modal">Got it!</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}

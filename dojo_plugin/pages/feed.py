@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template
-from CTFd.utils.decorators.visibility import check_account_visibility
+from ..utils.decorators import check_account_visibility
 
 from ..utils.feed import get_recent_events
 

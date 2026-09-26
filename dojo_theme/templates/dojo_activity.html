@@ -20,7 +20,7 @@
         <tbody>
             {% for active in actives %}
             <tr>
-                <td><a href="{{ generate_account_url(active.user.id, admin=True) }}">{{ active.user.name }}</a></td>
+                <td><a href="{{ url_for('pwncollege_users.view_other', user_id=active.user.id) }}">{{ active.user.name }}</a></td>
                 <td>{{ active.challenge.module.name }} - {{ active.challenge.name}}</td>
                 <td>{{ active.uptime.days }}d {{ active.uptime.seconds // 3600 }}h {{ (active.uptime.seconds // 60) % 60 }}m</td>
             </tr>

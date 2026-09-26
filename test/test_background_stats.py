@@ -2,7 +2,7 @@ import time
 import json
 import pytest
 
-from utils import DOJO_URL, DOJO_CONTAINER, login, create_dojo_yml, start_challenge, solve_challenge, dojo_run, TEST_DOJOS_LOCATION
+from utils import DOJO_URL, DOJO_CONTAINER, login, create_dojo_yml, start_challenge, solve_challenge, dojo_run, flask_exec, TEST_DOJOS_LOCATION
 
 def redis_cli(*args):
     result = dojo_run("docker", "exec", "cache", "redis-cli", *args, check=False)
@@ -1192,7 +1192,7 @@ def test_hacker_page_loads_with_activity(stats_test_dojo, stats_test_user):
     assert 'activity-tracker' in response.text, "Hacker page should contain activity tracker"
 
 def test_should_daily_restart():
-    result = dojo_run("dojo", "flask", input="""
+    output = flask_exec("""
 import time
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -1212,21 +1212,21 @@ with patch('dojo_plugin.utils.background_stats.datetime') as mock_dt:
     assert should_daily_restart(one_hour_ago) is False, "Should NOT restart outside target hour"
 
 print("OK")
-""", check=True)
-    assert "OK" in result.stdout, f"should_daily_restart test failed: {result.stdout}"
+""")
+    assert "OK" in output, f"should_daily_restart test failed: {output}"
 
 def test_get_message_timestamp():
-    result = dojo_run("dojo", "flask", input="""
+    output = flask_exec("""
 from dojo_plugin.utils.background_stats import get_message_timestamp
 
 assert get_message_timestamp("1704067200000-0") == 1704067200.0
 assert get_message_timestamp("1704067200123-5") == 1704067200.123
 print("OK")
-""", check=True)
-    assert "OK" in result.stdout, f"get_message_timestamp test failed: {result.stdout}"
+""")
+    assert "OK" in output, f"get_message_timestamp test failed: {output}"
 
 def test_is_event_stale_logic():
-    result = dojo_run("dojo", "flask", input="""
+    output = flask_exec("""
 from unittest.mock import patch
 
 with patch('dojo_plugin.utils.background_stats.get_cache_updated_at') as mock_get_cache:
@@ -1241,11 +1241,11 @@ with patch('dojo_plugin.utils.background_stats.get_cache_updated_at') as mock_ge
     assert is_event_stale("test:key", 900.0) is False, "No cache time means not stale"
 
 print("OK")
-""", check=True)
-    assert "OK" in result.stdout, f"is_event_stale test failed: {result.stdout}"
+""")
+    assert "OK" in output, f"is_event_stale test failed: {output}"
 
 def test_dojo_specific_scores_update_only_updates_target_dojo():
-    result = dojo_run("dojo", "flask", input="""
+    output = flask_exec("""
 from unittest.mock import patch, MagicMock
 from dojo_plugin.worker.handlers.scores import handle_scores_update
 
@@ -1270,26 +1270,29 @@ with patch('dojo_plugin.worker.handlers.scores.Dojos') as MockDojos:
             assert calculated_dojo_ids[0] == 'target-dojo-123', f"Expected target-dojo-123, got {calculated_dojo_ids[0]}"
 
 print("OK")
-""", check=True)
-    assert "OK" in result.stdout, f"Dojo-specific scores update test failed: {result.stdout}"
+""")
+    assert "OK" in output, f"Dojo-specific scores update test failed: {output}"
 
 def test_scores_update_deleted_dojo_skips_gracefully():
-    result = dojo_run("dojo", "flask", input="""
+    output = flask_exec("""
 from dojo_plugin.worker.handlers.scores import handle_scores_update
 
-result = handle_scores_update({"dojo_id": "nonexistent-dojo-id-12345"})
+result = handle_scores_update({"dojo_id": 2147483647})
 print("OK" if result is None else f"FAIL: returned {result}")
-""", check=True)
-    assert "OK" in result.stdout, f"Deleted dojo should be skipped gracefully: {result.stdout}"
+""")
+    assert "OK" in output, f"Deleted dojo should be skipped gracefully: {output}"
 
 def test_scores_update_empty_payload_updates_all_dojos():
-    result = dojo_run("dojo", "flask", input="""
+    output = flask_exec("""
 from unittest.mock import patch, MagicMock
-from sqlalchemy.sql import or_
 
 calls = []
 
 with patch('dojo_plugin.worker.handlers.scores.Dojos') as MockDojos:
+    from dojo_plugin.models import Dojos as RealDojos
+    MockDojos.official = RealDojos.official
+    MockDojos.data = RealDojos.data
+
     from dojo_plugin.worker.handlers.scores import handle_scores_update
 
     mock_dojo1 = MagicMock()
@@ -1314,11 +1317,11 @@ with patch('dojo_plugin.worker.handlers.scores.Dojos') as MockDojos:
             assert len(called_dojo_ids) == 2, f"Should calculate scores for exactly 2 dojos, got {len(called_dojo_ids)}"
 
 print("OK")
-""", check=True)
-    assert "OK" in result.stdout, f"Empty payload should update all dojos: {result.stdout}"
+""")
+    assert "OK" in output, f"Empty payload should update all dojos: {output}"
 
 def test_publish_scores_event_with_dojo_id():
-    result = dojo_run("dojo", "flask", input="""
+    output = flask_exec("""
 from unittest.mock import patch
 
 with patch('dojo_plugin.utils.events.publish_stat_event') as mock_publish:
@@ -1331,11 +1334,11 @@ with patch('dojo_plugin.utils.events.publish_stat_event') as mock_publish:
     assert call_args[1] == {'dojo_id': 'my-dojo-id'}, f"Expected payload with dojo_id, got {call_args[1]}"
 
 print("OK")
-""", check=True)
-    assert "OK" in result.stdout, f"publish_scores_event with dojo_id failed: {result.stdout}"
+""")
+    assert "OK" in output, f"publish_scores_event with dojo_id failed: {output}"
 
 def test_publish_scores_event_without_dojo_id():
-    result = dojo_run("dojo", "flask", input="""
+    output = flask_exec("""
 from unittest.mock import patch
 
 with patch('dojo_plugin.utils.events.publish_stat_event') as mock_publish:
@@ -1348,11 +1351,11 @@ with patch('dojo_plugin.utils.events.publish_stat_event') as mock_publish:
     assert call_args[1] == {}, f"Expected empty payload, got {call_args[1]}"
 
 print("OK")
-""", check=True)
-    assert "OK" in result.stdout, f"publish_scores_event without dojo_id failed: {result.stdout}"
+""")
+    assert "OK" in output, f"publish_scores_event without dojo_id failed: {output}"
 
 def test_challenge_solves_uses_string_keys():
-    result = dojo_run("dojo", "flask", input="""
+    output = flask_exec("""
 from dojo_plugin.worker.handlers.scoreboard import update_challenge_solves
 
 existing_cache = {"123": 5, "456": 10}
@@ -1365,5 +1368,5 @@ updated2 = update_challenge_solves(existing_cache, 789)
 assert updated2["789"] == 1, "Should add new challenge with count 1"
 
 print("OK")
-""", check=True)
-    assert "OK" in result.stdout, f"challenge_solves string keys test failed: {result.stdout}"
+""")
+    assert "OK" in output, f"challenge_solves string keys test failed: {output}"

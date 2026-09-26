@@ -273,20 +273,21 @@ function actionSubmitFlag(event) {
 
     context(event).find("#flag-input").prop("disabled", true).addClass("disabled");
     context(event).find(".input-icon").toggleClass("fa-flag fa-spinner fa-spin");
-    const challenge_id = parseInt(context(event).find("#current-challenge-id").val());
+    const challenge = context(event).find("#current-challenge-id");
+    const challenge_id = parseInt(challenge.val());
 
-    CTFd.api.post_challenge_attempt({}, {"challenge_id": challenge_id, "submission": submission})
+    Dojo.submitFlag(challenge.attr("data-dojo"), challenge.attr("data-module"), challenge.attr("data-challenge"), submission)
     .then(function (response) {
         const challengeName = context(event).find("#current-challenge-id").attr("data-challenge-name");
 
-        if (response.data.status == "incorrect") {
+        if (response.status == "incorrect") {
             animateBanner(event, "Incorrect!", "error");
         }
-        else if (response.data.status == "correct") {
+        else if (response.status == "solved") {
             animateBanner(event, `🎉 Successfully completed ${challengeName}! 🎉`, "success");
             solveChannel.postMessage({msg: 'challengeSolved', challenge_id});
         }
-        else if (response.data.status == "already_solved") {
+        else if (response.status == "already_solved") {
             animateBanner(event, `🎉 You've already solved ${challengeName}! 🎉`, "success");
         }
         else {
@@ -336,16 +337,16 @@ function actionStartChallenge(event, privileged) {
         animateBanner(event, message || "Failed to start challenge.", "error");
     }
 
-    CTFd.fetch("/pwncollege_api/v1/docker", {
+    Dojo.fetch("/pwncollege_api/v1/docker", {
         method: "GET",
         credentials: 'same-origin'
     }).then(function (response) {
         if (response.status === 403) {
             // User is not logged in or CTF is paused.
             window.location =
-                CTFd.config.urlRoot +
+                Dojo.config.urlRoot +
                 "/login?next=" +
-                CTFd.config.urlRoot +
+                Dojo.config.urlRoot +
                 window.location.pathname +
                 window.location.hash;
         }
@@ -364,7 +365,7 @@ function actionStartChallenge(event, privileged) {
             "home": result.home,
         };
 
-        return CTFd.fetch('/pwncollege_api/v1/docker', {
+        return Dojo.fetch('/pwncollege_api/v1/docker', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {

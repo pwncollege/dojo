@@ -2,8 +2,7 @@ import logging
 import datetime
 from sqlalchemy import func
 
-from CTFd.models import db, Solves, Users
-from ...models import Dojos, DojoModules, DojoChallenges
+from ...models import Dojos, DojoModules, DojoChallenges, db, Solves, Users
 from ...utils.background_stats import (
     SCOREBOARD_DURATIONS,
     get_cached_stat,

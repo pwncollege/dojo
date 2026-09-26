@@ -5,12 +5,10 @@ import re
 
 from flask import Blueprint, Response, render_template, abort, url_for
 from sqlalchemy.sql import and_, or_
-from CTFd.utils.user import get_current_user
-from CTFd.utils.decorators import authed_only
-from CTFd.models import db, Users, Challenges, Solves
-from CTFd.cache import cache
+from ..utils.user import get_current_user
+from ..utils.decorators import authed_only
 
-from ..models import Dojos, DojoModules, DojoChallenges
+from ..models import Dojos, DojoModules, DojoChallenges, db, Users
 from ..utils.scores import get_dojo_scores, get_module_scores
 from ..utils.awards import get_belts, get_viewable_emojis
 from ..worker.handlers.awards import calculate_belts, calculate_emojis

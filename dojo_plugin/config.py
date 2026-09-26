@@ -6,13 +6,13 @@ import pathlib
 import json
 import socket
 
-from sqlalchemy.exc import IntegrityError
-from CTFd.models import db, Admins, Pages
-from CTFd.utils import config, set_config
-
 logger = logging.getLogger(__name__)
 
 DOJOS_DIR = pathlib.Path("/var/dojos")
+CTF_NAME = "pwn.college"
+THEME_ROOT = pathlib.Path(__file__).resolve().parents[1] / "dojo_theme"
+THEME_STATIC = THEME_ROOT / "static"
+THEME_TEMPLATES = THEME_ROOT / "templates"
 
 FEED_EVENT_TTL = int(os.environ.get("FEED_EVENT_TTL", "86400"))
 FEED_MAX_EVENTS = int(os.environ.get("FEED_MAX_EVENTS", "1000"))
@@ -108,48 +108,3 @@ for config_option in missing_errors:
     config_value = globals()[config_option]
     if not config_value:
         raise RuntimeError(f"Configuration Error: {config_option} must be set in the environment")
-
-def bootstrap():
-    set_config("ctf_name", "pwn.college")
-    set_config("ctf_description", "pwn.college")
-    set_config("user_mode", "users")
-
-    set_config("challenge_visibility", "public")
-    set_config("registration_visibility", "public")
-    set_config("score_visibility", "public")
-    set_config("account_visibility", "public")
-
-    set_config("ctf_theme", "dojo_theme")
-
-    set_config("mail_server", MAIL_SERVER)
-    set_config("mail_port", MAIL_PORT)
-    set_config("mail_username", MAIL_USERNAME)
-    set_config("mail_password", MAIL_PASSWORD)
-    set_config("mailfrom_addr", MAIL_ADDRESS)
-    set_config("mail_useauth", bool(MAIL_USERNAME))
-    set_config("mail_tls", MAIL_PORT == "465" or MAIL_PORT == "587")
-
-    if not config.is_setup():
-        admin = Admins(
-            name="admin",
-            email="admin@example.com",
-            password="admin",
-            type="admin",
-            hidden=True,
-        )
-        try:
-            db.session.add(admin)
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-
-        page = Pages(title=None, route="index", content="", draft=False)
-        try:
-            db.session.add(page)
-            db.session.commit()
-        except IntegrityError:
-            db.session.rollback()
-
-        set_config("setup", True)
-
-    db.session.commit()

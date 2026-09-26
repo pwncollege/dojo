@@ -107,7 +107,7 @@ def test_solve_incorrect_flag_records_only_a_failed_submission(example_dojo, ran
 
     response = solve_post(session, example_dojo, "hello", "apple", "pwn.college{totallybogus}")
     assert response.status_code == 400, response.text[:200]
-    assert response.json() == {"success": False, "status": "incorrect"}, response.json()
+    assert response.json() == {"success": False, "status": "incorrect", "message": "Incorrect"}, response.json()
     assert submission_counts(name, challenge_id) == {"incorrect": 1}, \
         "a wrong flag must record one incorrect submission and no solve"
 
@@ -150,7 +150,7 @@ def test_practice_flag_is_not_a_valid_submission(example_dojo, random_user):
 
         response = solve_post(session, example_dojo, "hello", "apple", container_flag)
         assert response.status_code == 400, response.text[:200]
-        assert response.json() == {"success": False, "status": "incorrect"}, response.json()
+        assert response.json() == {"success": False, "status": "incorrect", "message": "Incorrect"}, response.json()
         assert submission_counts(name, challenge_id).get("correct", 0) == 0, \
             "the practice flag must never register a solve"
     finally:
@@ -165,7 +165,7 @@ def test_solve_rejects_another_users_flag(example_dojo):
 
     response = solve_post(session_b, example_dojo, "hello", "apple", flag_a)
     assert response.status_code == 400, response.text[:200]
-    assert response.json() == {"success": False, "status": "incorrect"}, response.json()
+    assert response.json() == {"success": False, "status": "incorrect", "message": "This flag is not yours!"}, response.json()
     assert submission_counts(name_b, challenge_id) == {"incorrect": 1}, \
         "submitting someone else's flag must not solve the challenge"
     assert submission_counts(name_a, challenge_id) == {}, \
@@ -180,7 +180,7 @@ def test_solve_rejects_a_flag_for_a_different_challenge(example_dojo, random_use
 
     response = solve_post(session, example_dojo, "hello", "banana", apple_flag)
     assert response.status_code == 400, response.text[:200]
-    assert response.json() == {"success": False, "status": "incorrect"}, response.json()
+    assert response.json() == {"success": False, "status": "incorrect", "message": "This flag is not for this challenge!"}, response.json()
     assert submission_counts(name, banana_id).get("correct", 0) == 0
     assert submission_counts(name, apple_id).get("correct", 0) == 0, \
         "a misdirected flag must not solve the challenge it was minted for either"
@@ -258,7 +258,7 @@ def test_solve_private_dojo_is_404_until_the_user_joins(random_private_dojo):
 
     response = session.post(url, json={"submission": "x"})
     assert response.status_code == 400, response.text[:200]
-    assert response.json() == {"success": False, "status": "incorrect"}, response.json()
+    assert response.json() == {"success": False, "status": "incorrect", "message": "Incorrect"}, response.json()
 
     flag = challenge_flag(random_private_dojo, "test-module", "test-challenge", user=name)
     response = session.post(url, json={"submission": flag})
@@ -285,7 +285,7 @@ def test_solve_invisible_challenge_is_404_even_for_admins(visibility_test_dojo, 
         f"{API}/dojos/{visibility_test_dojo}/module2/challenge-c/solve", json={"submission": "x"}
     )
     assert visible_response.status_code == 400, visible_response.text[:200]
-    assert visible_response.json() == {"success": False, "status": "incorrect"}, visible_response.json()
+    assert visible_response.json() == {"success": False, "status": "incorrect", "message": "Incorrect"}, visible_response.json()
 
     assert submission_counts(name, challenge_db_id(visibility_test_dojo, "module2", "challenge-b")) == {}, \
         "a 404 from an invisible challenge must not record a submission"
@@ -417,7 +417,7 @@ def test_solve_cli_token_is_scoped_to_the_running_container(example_dojo):
             json={"submission": "pwn.college{nope}"}, headers=headers,
         )
         assert wrong_flag.status_code == 400, wrong_flag.text[:200]
-        assert wrong_flag.json() == {"success": False, "status": "incorrect"}, wrong_flag.json()
+        assert wrong_flag.json() == {"success": False, "status": "incorrect", "message": "Incorrect"}, wrong_flag.json()
 
         real_flag = challenge_flag(example_dojo, "hello", "apple", user=name)
         solved = requests.post(

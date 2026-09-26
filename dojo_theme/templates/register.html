@@ -37,56 +37,49 @@
 			</div>
 
       <h2>Sign Up!</h2>
-			{% with form = Forms.auth.RegistrationForm() %}
-			{% from "macros/forms.html" import render_extra_fields %}
 			<form method="post" accept-charset="utf-8" autocomplete="off" role="form" id="registration-form">
 				<div class="form-group">
-					<b>{{ form.name.label }}</b>
-					{{ form.name(class="form-control", value=name) }}
+					<b><label for="name">User Name</label></b>
+					<input class="form-control" id="name" name="name" type="text" value="{{ name }}" autofocus required>
 					<small class="form-text text-muted">
 						Your username on the site
 					</small>
 				</div>
 				<div class="form-group">
-					<b>{{ form.email.label }}</b>
-					{{ form.email(class="form-control", value=email) }}
+					<b><label for="email">Email</label></b>
+					<input class="form-control" id="email" name="email" type="email" value="{{ email }}" required>
 					<small class="form-text text-muted">
 						Never shown to the public
 					</small>
 				</div>
 				<div class="form-group">
-					<b>{{ form.password.label }}</b>
-					{{ form.password(class="form-control", value=password) }}
+					<b><label for="password">Password</label></b>
+					<input class="form-control" id="password" name="password" type="password" required>
 					<small class="form-text text-muted">
 						Password used to log into your account
 					</small>
 				</div>
 
-				{{ form.nonce() }}
+				<input id="nonce" name="nonce" type="hidden" value="{{ Session.nonce }}">
 				
 				<input type="hidden" id="commitment-verified" name="commitment_verified" value="">
 
-				{{ render_extra_fields(form.extra) }}
+				{% if Configs.registration_code %}
+				<div class="form-group">
+					<b><label for="registration_code">Registration Code</label></b>
+					<input class="form-control" id="registration_code" name="registration_code" type="text" required>
+					<small class="form-text text-muted">
+						Registration code required to create account
+					</small>
+				</div>
+				{% endif %}
 
 				<div class="row pt-3">
 					<div class="col-md-12">
-						{{ form.submit(class="btn btn-md btn-primary btn-outlined float-right btn-disabled", id="register-submit", style="opacity: 0.5; cursor: not-allowed;") }}
+						<input class="btn btn-md btn-primary btn-outlined float-right btn-disabled" id="register-submit" name="_submit" type="submit" value="Submit" style="opacity: 0.5; cursor: not-allowed;">
 					</div>
 				</div>
-
-				{% if Configs.tos_or_privacy %}
-				<div class="row pt-3">
-					<div class="col-md-12 text-center">
-						<small class="text-muted text-center">
-							By registering, you agree to the
-							<a href="{{ Configs.privacy_link }}" rel="noopener" target="_blank">privacy policy</a>
-							and <a href="{{ Configs.tos_link }}" rel="noopener" target="_blank">terms of service</a>
-						</small>
-					</div>
-				</div>
-				{% endif %}
 			</form>
-			{% endwith %}
 		</div>
 	</div>
 </div>

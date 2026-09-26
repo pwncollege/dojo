@@ -29,7 +29,7 @@ from utils import (
 )
 
 
-PULL_IMAGES_SCRIPT = "/opt/CTFd/CTFd/plugins/dojo_plugin/scripts/pull_images.py"
+PULL_IMAGES_SCRIPT = "/opt/pwn.college/dojo_plugin/scripts/pull_images.py"
 
 SPEC_TEMPLATE = """
 id: {dojo_id}
@@ -552,22 +552,6 @@ def test_cloud_backup_encrypts_recent_archives_and_reports_upload_failure(tmp_pa
     assert current_backup.exists() and old_backup.read_bytes() == b"old backup"
     if upload_succeeds:
         assert not (tmp_path / f"{current_backup.name}.enc").exists()
-
-
-def test_sync_copies_plugin_and_theme():
-    marker = f"cli-sync-{_rand()}"
-    source = f"/opt/pwn.college/dojo_theme/{marker}.txt"
-    destination = f"/opt/CTFd/CTFd/themes/dojo_theme/{marker}.txt"
-    dojo_run("sh", "-c", f"echo {marker} > {source}")
-    try:
-        result = dojo_run("dojo", "sync", check=False)
-        assert result.returncode == 0, result.stderr[-2000:]
-        assert dojo_run("cat", destination).stdout.strip() == marker, "dojo sync did not copy the theme"
-        assert dojo_run("test", "-f", "/opt/CTFd/CTFd/plugins/dojo_plugin/__init__.py", check=False).returncode == 0, \
-            "dojo sync did not copy the plugin"
-    finally:
-        dojo_run("rm", "-f", source, check=False)
-        dojo_run("rm", "-f", destination, check=False)
 
 
 def test_node_show_reports_identity():

@@ -10,24 +10,22 @@ import tarfile
 import tempfile
 
 import bleach
+import cmarkgfm
 import docker
 import docker.errors
+from cmarkgfm.cmark import Options
 from flask import current_app, Response, Markup, abort, g
-from itsdangerous.url_safe import URLSafeSerializer
-from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
-from CTFd.models import db, Solves, Challenges, Users
-from CTFd.utils.encoding import hexencode
-from CTFd.utils.user import get_current_user
-from CTFd.utils.modes import get_model
-from CTFd.utils.config.pages import build_markdown
-from CTFd.utils.security.sanitize import sanitize_html
+from itsdangerous import Signer
+from itsdangerous.url_safe import URLSafeSerializer, URLSafeTimedSerializer
+from pybluemonday import UGCPolicy
 from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
 from bleach.css_sanitizer import CSSSanitizer
 
-from ..config import WORKSPACE_NODES, MAC_HOSTNAME, MAC_USERNAME
-from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges, WorkspaceTokens
+from ..config import CTF_NAME, WORKSPACE_NODES, MAC_HOSTNAME, MAC_USERNAME
+from ..models import db, Solves, Tokens, Users, get_config, Dojos, DojoMembers, DojoAdmins, DojoChallenges, WorkspaceTokens
 from . import mac_docker
+from .user import get_current_user
 
 ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
@@ -93,6 +91,22 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     return user_flag
 
 
+def serialize(data):
+    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"]).dumps(data)
+
+
+def unserialize(data, max_age=432000):
+    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"]).loads(data, max_age=max_age)
+
+
+def sign(data):
+    return Signer(current_app.config["SECRET_KEY"]).sign(data)
+
+
+def unsign(data):
+    return Signer(current_app.config["SECRET_KEY"]).unsign(data)
+
+
 def user_node(user):
     return list(WORKSPACE_NODES)[user.id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
 
@@ -128,6 +142,76 @@ def user_ipv4(user):
         f"{(service_id >> 8) & 0xff}",
         f"{(service_id >> 0) & 0xff}",
     ])
+
+
+def safe_format(fmt, **kwargs):
+    return re.sub(r"\{?\{([^{}]*)\}\}?", lambda m: kwargs.get(m.group(1).strip(), m.group(0)), fmt)
+
+
+def build_markdown(md, sanitize=False):
+    html = cmarkgfm.markdown_to_html_with_extensions(
+        md, extensions=["autolink", "table", "strikethrough"], options=Options.CMARK_OPT_UNSAFE)
+    html = safe_format(html, ctf_name=CTF_NAME, ctf_description=CTF_NAME)
+    if sanitize or get_config("html_sanitization"):
+        html = sanitize_html(html)
+    return html
+
+
+# Copied from lxml:
+# https://github.com/lxml/lxml/blob/e986a9cb5d54827c59aefa8803bc90954d67221e/src/lxml/html/defs.py#L38
+SAFE_ATTRS = (
+    'abbr', 'accept', 'accept-charset', 'accesskey', 'action', 'align',
+    'alt', 'axis', 'border', 'cellpadding', 'cellspacing', 'char', 'charoff',
+    'charset', 'checked', 'cite', 'class', 'clear', 'cols', 'colspan',
+    'color', 'compact', 'coords', 'datetime', 'dir', 'disabled', 'enctype',
+    'for', 'frame', 'headers', 'height', 'href', 'hreflang', 'hspace', 'id',
+    'ismap', 'label', 'lang', 'longdesc', 'maxlength', 'media', 'method',
+    'multiple', 'name', 'nohref', 'noshade', 'nowrap', 'prompt', 'readonly',
+    'rel', 'rev', 'rows', 'rowspan', 'rules', 'scope', 'selected', 'shape',
+    'size', 'span', 'src', 'start', 'summary', 'tabindex', 'target', 'title',
+    'type', 'usemap', 'valign', 'value', 'vspace', 'width'
+)
+
+ALLOWED_TAGS = {
+    "title": [],
+    "meta": ["name", "content", "property"],
+    "form": ["method", "action"],
+    "button": ["name", "type", "value", "disabled"],
+    "input": ["name", "type", "value", "placeholder"],
+    "select": ["name", "value", "placeholder"],
+    "option": ["value"],
+    "textarea": ["name", "value", "placeholder"],
+    "label": ["for"],
+    "blink": [],
+    "marquee": [],
+    "audio": ["autoplay", "controls", "crossorigin", "loop", "muted", "preload", "src"],
+    "video": ["autoplay", "buffered", "controls", "crossorigin", "loop", "muted", "playsinline", "poster", "preload",
+              "src"],
+    "source": ["src", "type"],
+    "iframe": ["width", "height", "src", "frameborder", "allow", "allowfullscreen"],
+}
+
+SANITIZER = UGCPolicy()
+for element, attrs in ALLOWED_TAGS.items():
+    SANITIZER.AllowElements(element)
+    SANITIZER.AllowAttrs(*attrs).OnElements(element)
+SANITIZER.AllowAttrs(*SAFE_ATTRS).Globally()
+SANITIZER.AllowAttrs("class", "style").Globally()
+SANITIZER.AllowStyling()
+SANITIZER.AllowStandardAttributes()
+SANITIZER.AllowStandardURLs()
+SANITIZER.AllowDataAttributes()
+SANITIZER.AllowDataURIImages()
+SANITIZER.AllowRelativeURLs(True)
+SANITIZER.RequireNoFollowOnFullyQualifiedLinks(True)
+SANITIZER.RequireNoFollowOnLinks(True)
+SANITIZER.RequireNoReferrerOnFullyQualifiedLinks(True)
+SANITIZER.RequireNoReferrerOnLinks(True)
+SANITIZER.AllowComments()
+
+
+def sanitize_html(html):
+    return SANITIZER.sanitize(html)
 
 
 def _filter_code_class(tag, name, value):
@@ -214,6 +298,33 @@ def resolved_tar(dir, *, root_dir, filter=None):
     return tar_buffer
 
 
+class UserNotFoundException(Exception):
+    pass
+
+
+class UserTokenExpiredException(Exception):
+    pass
+
+
+def generate_user_token(user, expiration=None, description=None):
+    value = "ctfd_" + os.urandom(32).hex()
+    while Tokens.query.filter_by(value=value).first():
+        value = "ctfd_" + os.urandom(32).hex()
+    token = Tokens(user_id=user.id, expiration=expiration, description=description, value=value)
+    db.session.add(token)
+    db.session.commit()
+    return token
+
+
+def lookup_user_token(token):
+    token = Tokens.query.filter_by(value=token).first()
+    if not token:
+        raise UserNotFoundException
+    if datetime.datetime.utcnow() >= token.expiration:
+        raise UserTokenExpiredException
+    return token.user
+
+
 # https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/security/auth.py#L51-L59
 def lookup_workspace_token(token):
     token = WorkspaceTokens.query.filter_by(value=token).first()
@@ -230,7 +341,7 @@ def lookup_workspace_token(token):
 def generate_workspace_token(user, expiration=None):
     temp_token = True
     while temp_token is not None:
-        value = "workspace_" + hexencode(os.urandom(32))
+        value = "workspace_" + os.urandom(32).hex()
         temp_token = WorkspaceTokens.query.filter_by(value=value).first()
 
     token = WorkspaceTokens(
@@ -241,12 +352,24 @@ def generate_workspace_token(user, expiration=None):
     return token
 
 
+def iso_utc(dt):
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt.astimezone(datetime.timezone.utc).isoformat()
+
+
 def is_challenge_locked(dojo_challenge: DojoChallenges, user: Users) -> bool:
     if all((dojo_challenge.progression_locked, dojo_challenge.challenge_index != 0, not dojo_challenge.dojo.is_admin())):
         previous_dojo_challenge = dojo_challenge.module.challenges[dojo_challenge.challenge_index - 1]
         return not (Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first() or
                 Solves.query.filter_by(user=user, challenge=previous_dojo_challenge.challenge).first())
     return False
+
+
+def registration_visible():
+    return get_config("registration_visibility", "public") == "public"
 
 
 # based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list

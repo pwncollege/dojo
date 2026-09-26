@@ -2,9 +2,8 @@ import time
 
 import requests
 from flask import url_for
-from CTFd.cache import cache
 
-from ..models import DiscordUsers
+from ..models import DiscordUsers, cache
 from ..config import DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID
 
 

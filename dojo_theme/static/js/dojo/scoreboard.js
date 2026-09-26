@@ -24,7 +24,7 @@ function fetchScoreboardPage(duration, page, crews) {
     const endpoint = crews
         ? `/pwncollege_api/v1/scoreboard/${dojo}/${module}/crews/${duration}/${page}?mode=${scoreboardState.crewMode}`
         : `/pwncollege_api/v1/scoreboard/${dojo}/${module}/${duration}/${page}`;
-    return CTFd.fetch(endpoint, {
+    return Dojo.fetch(endpoint, {
         method: "GET",
         credentials: "same-origin",
         headers: {

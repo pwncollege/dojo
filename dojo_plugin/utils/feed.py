@@ -7,7 +7,7 @@ from typing import Dict, Optional, Any
 
 import redis
 from flask import current_app
-from CTFd.models import Users
+from ..models import Users
 
 def get_redis_client() -> redis.Redis:
     redis_url = current_app.config.get("REDIS_URL", "redis://cache:6379")

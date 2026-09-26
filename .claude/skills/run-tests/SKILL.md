@@ -48,7 +48,7 @@ After tests complete, analyze `/tmp/test.log`:
 ## Debugging Workflow
 
 1. **Identify failures** - Analyze `/tmp/test.log` for FAILED/ERROR
-2. **Find root cause** - Look at tracebacks, check CTFd logs with:
+2. **Find root cause** - Look at tracebacks, check web app (`ctfd` container) logs with:
    ```bash
    docker exec $(basename "$PWD") docker logs ctfd 2>&1 | tail -100
    ```
@@ -74,7 +74,7 @@ cat /tmp/test.log
 # Search for failures
 grep -E "(FAILED|ERROR|error)" /tmp/test.log
 
-# View CTFd logs for debugging
+# View web app (`ctfd` container) logs for debugging
 docker exec $(basename "$PWD") docker logs ctfd 2>&1 | tail -200
 
 # Run DB queries for debugging

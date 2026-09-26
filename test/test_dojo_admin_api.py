@@ -753,19 +753,6 @@ def test_solves_exports_preserve_order_identity_and_timestamps(admin_session, ra
     assert posted.json() == filtered.json()
 
 
-def test_admin_dojos_page_authorization(random_private_dojo, admin_session, random_user_session):
-    response = admin_session.get(f"{DOJO_URL}/admin/dojos")
-    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
-    assert random_private_dojo in response.text, "the admin listing includes unofficial private dojos"
-
-    for session in [random_user_session, requests]:
-        response = session.get(f"{DOJO_URL}/admin/dojos", allow_redirects=False)
-        assert response.status_code in (302, 403), f"Expected 302/403, got {response.status_code}"
-        if response.status_code == 302:
-            assert "/login" in response.headers["Location"], f"Unexpected redirect {response.headers['Location']}"
-        assert random_private_dojo not in response.text
-
-
 def test_challenge_description_api(description_dojo, random_user_session):
     base = f"{DOJO_URL}/pwncollege_api/v1/dojos/{description_dojo}"
 

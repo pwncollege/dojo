@@ -1,7 +1,6 @@
 import logging
 from sqlalchemy.sql import or_
-from CTFd.models import Solves, db
-from ...models import Dojos, DojoChallenges
+from ...models import Dojos, DojoChallenges, Solves, db
 from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
 

@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from utils import DOJO_URL, dojo_run, login, create_dojo_yml, start_challenge, solve_challenge, workspace_run, wait_for_background_worker, remove_workspace_container
+from utils import DOJO_URL, dojo_run, flask_exec, login, create_dojo_yml, start_challenge, solve_challenge, workspace_run, wait_for_background_worker, remove_workspace_container
 
 
 CREW_DOJO_SPEC = """
@@ -193,15 +193,8 @@ def test_crew_tag_xss_safe(browser_fixture, crew_dojo):
     assert browser.execute_script("return $('#scoreboard .crew-member-row img:not(.scoreboard-symbol):not(.scoreboard-belt)').length") == 0
 
 
-def flask_exec(code):
-    import base64
-    encoded = base64.b64encode(code.encode()).decode()
-    result = dojo_run("dojo", "flask", input=f'import base64; exec(base64.b64decode("{encoded}").decode())\n')
-    return result.stdout
-
-
 CREW_PARSE_UNIT = r"""
-from CTFd.plugins.dojo_plugin.utils.crews import parse_crew_tag, aggregate_crews
+from dojo_plugin.utils.crews import parse_crew_tag, aggregate_crews
 
 assert parse_crew_tag("Zardus [Shellphish]") == {"tag": "Shellphish", "key": "shellphish", "base_name": "Zardus"}
 assert parse_crew_tag("[Shellphish]") == {"tag": "Shellphish", "key": "shellphish", "base_name": ""}
@@ -391,8 +384,8 @@ def test_crew_scoreboard_api(crew_dojo):
     assert mastery_order.index(solo_tag.lower()) < mastery_order.index(tag.lower())
 
     flask_exec(f"""
-from CTFd.plugins.dojo_plugin.models import Dojos
-from CTFd.plugins.dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update
+from dojo_plugin.models import Dojos
+from dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update
 dojo = Dojos.from_id({crew_dojo!r}).first()
 handle_scoreboard_update({{"model_type": "dojo", "model_id": dojo.dojo_id}})
 print("RECALC-DONE", dojo.dojo_id)
@@ -408,7 +401,7 @@ print("RECALC-DONE", dojo.dojo_id)
     assert recalc_solo["mastery"] == 2
 
     dojo_id = flask_exec(f"""
-from CTFd.plugins.dojo_plugin.models import Dojos
+from dojo_plugin.models import Dojos
 print("DOJO-ID", Dojos.from_id({crew_dojo!r}).first().dojo_id)
 """)
     dojo_id = re.search(r"DOJO-ID (-?\d+)", dojo_id).group(1)

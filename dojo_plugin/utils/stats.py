@@ -1,4 +1,4 @@
-from CTFd.models import Solves
+from ..models import Solves
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc
 

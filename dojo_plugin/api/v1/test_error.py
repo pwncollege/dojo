@@ -1,7 +1,6 @@
 from flask_restx import Namespace, Resource
-from CTFd.utils.decorators import authed_only
-from CTFd.plugins import bypass_csrf_protection
-from CTFd.models import db, Users
+from ...utils.decorators import authed_only, bypass_csrf_protection
+from ...models import db, Users
 from sqlalchemy import text, select, literal, func
 from ...utils.query_timer import query_timeout
 

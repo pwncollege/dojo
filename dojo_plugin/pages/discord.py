@@ -4,18 +4,20 @@ import requests
 from flask import request, Blueprint, url_for, redirect, abort, current_app
 from sqlalchemy.exc import IntegrityError
 from itsdangerous.url_safe import URLSafeTimedSerializer
-from CTFd.models import db
-from CTFd.utils.user import get_current_user
-from CTFd.utils.decorators import authed_only
+from ..utils.user import get_current_user
+from ..utils.decorators import authed_only
 
-from ..models import DiscordUsers
+from ..models import DiscordUsers, db
 from ..config import DISCORD_CLIENT_ID
 from ..utils.discord import OAUTH_ENDPOINT, get_discord_id, get_discord_member, add_role
 from ..utils.awards import update_awards
 
 
 discord = Blueprint("discord", __name__)
-discord_oauth_serializer = URLSafeTimedSerializer(current_app.config["SECRET_KEY"], "DISCORD_OAUTH")
+
+
+def discord_oauth_serializer():
+    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"], "DISCORD_OAUTH")
 
 
 @discord.route("/discord/connect")
@@ -24,7 +26,7 @@ def discord_connect():
     if not DISCORD_CLIENT_ID:
         abort(501)
 
-    state = discord_oauth_serializer.dumps(get_current_user().id)
+    state = discord_oauth_serializer().dumps(get_current_user().id)
     params = dict(client_id=DISCORD_CLIENT_ID,
                   redirect_uri=url_for("discord.discord_redirect", _external=True),
                   response_type="code",
@@ -48,7 +50,7 @@ def discord_redirect():
         abort(400)
 
     try:
-        redirect_user_id = discord_oauth_serializer.loads(state, max_age=300)
+        redirect_user_id = discord_oauth_serializer().loads(state, max_age=300)
         user = get_current_user()
         user_id = user.id
         assert user_id == redirect_user_id, (user_id, redirect_user_id)

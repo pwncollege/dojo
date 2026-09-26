@@ -1,18 +1,46 @@
 import datetime
 from flask import request, session
 from flask_restx import Namespace, Resource
-from CTFd.models import Users, UserFieldEntries, UserFields, db
-from CTFd.utils import validators, email, get_config
-from CTFd.utils.crypto import verify_password
-from CTFd.utils.config.visibility import registration_visible
-from CTFd.utils.validators import ValidationError
-from CTFd.utils.config import can_send_mail
-from CTFd.utils.decorators import ratelimit
-from CTFd.utils.security.signing import unserialize
+from ...models import Users, db, get_config, verify_password
+from ...utils import validators, email, registration_visible, unserialize
+from ...utils.validators import ValidationError
+from ...utils.email import can_send_mail
+from ...utils.decorators import ratelimit
 from itsdangerous.exc import BadSignature, BadTimeSignature, SignatureExpired
 import base64
 
 auth_namespace = Namespace("auth", description="Authentication endpoints")
+
+REGISTRATION_ERRORS = {
+    "name_empty": "Please provide a username",
+    "name_taken": "That username is already taken",
+    "name_is_email": "Username cannot be an email address",
+    "email_invalid": "Please enter a valid email address",
+    "email_taken": "That email is already registered",
+    "email_domain": "Email address is not from an allowed domain",
+    "password_empty": "Please provide a password",
+    "password_long": "Password is too long",
+}
+
+
+def registration_errors(name, email_address, password):
+    checks = {
+        "name_empty": len(name) == 0,
+        "name_taken": Users.query.filter_by(name=name).first(),
+        "name_is_email": validators.validate_email(name),
+        "email_invalid": not validators.validate_email(email_address),
+        "email_taken": Users.query.filter_by(email=email_address).first(),
+        "email_domain": not email.check_email_is_whitelisted(email_address),
+        "password_empty": len(password) == 0,
+        "password_long": len(password) > 128,
+    }
+    return {code for code, failed in checks.items() if failed}
+
+
+def lookup_login(name):
+    if validators.validate_email(name):
+        return Users.query.filter_by(email=name).first()
+    return Users.query.filter_by(name=name).first()
 
 
 @auth_namespace.route("/register")
@@ -47,25 +75,8 @@ class Register(Resource):
         if num_users_limit and num_users >= num_users_limit:
             return {"success": False, "errors": [f"Reached maximum users ({num_users_limit})"]}, 403
 
-        # Validation
-        if len(name) == 0:
-            errors.append("Please provide a username")
-        if Users.query.filter_by(name=name).first():
-            errors.append("That username is already taken")
-        if validators.validate_email(name):
-            errors.append("Username cannot be an email address")
-
-        if not validators.validate_email(email_address):
-            errors.append("Please enter a valid email address")
-        if Users.query.filter_by(email=email_address).first():
-            errors.append("That email is already registered")
-        if not email.check_email_is_whitelisted(email_address):
-            errors.append("Email address is not from an allowed domain")
-
-        if len(password) == 0:
-            errors.append("Please provide a password")
-        if len(password) > 128:
-            errors.append("Password is too long")
+        failed = registration_errors(name, email_address, password)
+        errors = [message for code, message in REGISTRATION_ERRORS.items() if code in failed]
 
         if website and not validators.validate_url(website):
             errors.append("Website must be a valid URL")
@@ -85,14 +96,6 @@ class Register(Resource):
             if registration_code.lower() != str(get_config("registration_code", "")).lower():
                 errors.append("Invalid registration code")
 
-        # Process custom fields
-        fields = {}
-        for field in UserFields.query.all():
-            field_value = req.get(f"fields[{field.id}]", "").strip()
-            if field.required and not field_value:
-                errors.append(f"Field '{field.name}' is required")
-            fields[field.id] = field_value
-
         if errors:
             return {"success": False, "errors": errors}, 400
 
@@ -106,16 +109,6 @@ class Register(Resource):
             user.country = country
 
         db.session.add(user)
-        db.session.commit()
-
-        # Add custom field entries
-        for field_id, value in fields.items():
-            entry = UserFieldEntries(
-                field_id=field_id,
-                value=value,
-                user_id=user.id
-            )
-            db.session.add(entry)
         db.session.commit()
 
         # Send verification email if configured
@@ -162,11 +155,7 @@ class Login(Resource):
         name = req.get("name", "").strip()
         password = req.get("password", "").strip()
 
-        # Check if email or username
-        if validators.validate_email(name):
-            user = Users.query.filter_by(email=name).first()
-        else:
-            user = Users.query.filter_by(name=name).first()
+        user = lookup_login(name)
 
         if user:
             if user.password is None:
@@ -191,7 +180,7 @@ class Login(Resource):
                         "email": user.email,
                         "type": user.type,
                         "verified": user.verified,
-                        "team_id": user.team_id
+                        "team_id": None
                     }
                 }
 

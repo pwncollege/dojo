@@ -619,9 +619,9 @@ def discord_oauth_case(user, code):
         "from urllib.parse import parse_qs, urlsplit\n"
         "from unittest.mock import patch\n"
         "from flask import current_app\n"
-        "from CTFd.models import db\n"
-        "from CTFd.plugins.dojo_plugin.models import DiscordUsers\n"
-        "discord_pages = importlib.import_module('CTFd.plugins.dojo_plugin.pages.discord')\n"
+        "from dojo_plugin.models import db\n"
+        "from dojo_plugin.models import DiscordUsers\n"
+        "discord_pages = importlib.import_module('dojo_plugin.pages.discord')\n"
         "app = current_app._get_current_object()\n"
         "client = app.test_client()\n"
         f"client.set_cookie(app.config['SESSION_COOKIE_NAME'], {session.cookies.get('session')!r})\n"
@@ -633,7 +633,7 @@ def discord_oauth_case(user, code):
 
 def test_discord_oauth_link_relink_and_provider_recovery(random_user):
     discord_oauth_case(random_user, """
-        from CTFd.plugins.dojo_plugin.utils import awards as award_utils
+        from dojo_plugin.utils import awards as award_utils
 
         accounts = {"first": 80_000_000_000 + user_id, "second": 81_000_000_000 + user_id}
         granted_roles = set()

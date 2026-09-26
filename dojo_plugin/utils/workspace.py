@@ -3,7 +3,7 @@ import logging
 
 import docker
 import requests
-from CTFd.models import Users
+from ..models import Users
 
 from . import user_docker_client
 from .request_logging import log_generator_output

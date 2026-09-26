@@ -2,8 +2,9 @@ import logging
 
 import docker
 
-from ..utils import all_docker_clients
-from ..config import DOCKER_USERNAME, DOCKER_TOKEN
+from dojo_plugin.utils import all_docker_clients
+from dojo_plugin.config import DOCKER_USERNAME, DOCKER_TOKEN
+from dojo_plugin.models import DojoChallenges, db
 
 
 logger = logging.getLogger(__name__)

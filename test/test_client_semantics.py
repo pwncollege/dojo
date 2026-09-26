@@ -167,9 +167,9 @@ document.querySelector('main').appendChild(lessonAction);
     }
     dojo = create_dojo_yml(yaml.safe_dump(spec), session=admin_session)
     output = flask_exec(
-        "from CTFd.models import db\n"
-        "from CTFd.plugins.dojo_plugin.models import Dojos\n"
-        "from CTFd.plugins.dojo_plugin.utils.dojo import dojo_from_dir\n"
+        "from dojo_plugin.models import db\n"
+        "from dojo_plugin.models import Dojos\n"
+        "from dojo_plugin.utils.dojo import dojo_from_dir\n"
         f"dojo = Dojos.from_id({dojo!r}).one()\n"
         "dojo.permissions = ['custom_js']\n"
         "dojo_from_dir(dojo.path, dojo=dojo, platform_admin=True)\n"

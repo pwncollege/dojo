@@ -24,7 +24,6 @@ from utils import (
 )
 
 API = f"{DOJO_URL}/pwncollege_api/v1"
-ATTEMPT_URL = f"{DOJO_URL}/api/v1/challenges/attempt"
 
 
 def random_id(k=8):
@@ -34,10 +33,6 @@ def random_id(k=8):
 def register_user():
     name = random_id(16)
     return name, login(name, name, register=True)
-
-
-def attempt(session, challenge_id, submission):
-    return session.post(ATTEMPT_URL, json={"challenge_id": challenge_id, "submission": submission})
 
 
 def solve_count(user_name, challenge_id):
@@ -116,17 +111,15 @@ def open_private_dojo(admin_session, example_dojo):
     return create_dojo_yml(spec, session=admin_session)
 
 
-def test_attempt_endpoint_is_the_browser_solve_path(example_dojo):
+def test_browser_solve_reaches_the_scoreboard(example_dojo):
     name, session = register_user()
     challenge_id = challenge_db_id(example_dojo, "hello", "apple")
     flag = challenge_flag(example_dojo, "hello", "apple", user=name)
 
-    response = attempt(session, challenge_id, flag)
-    assert response.status_code == 200, f"attempt returned {response.status_code}: {response.text[:200]}"
-    body = response.json()
-    assert body["success"] is True, body
-    assert body["data"]["status"] == "correct", body
-    assert solve_count(name, challenge_id) == 1, "the browser attempt path must register exactly one solve"
+    response = session.post(f"{API}/dojos/{example_dojo}/hello/apple/solve", json={"submission": flag})
+    assert response.status_code == 200, f"solve returned {response.status_code}: {response.text[:200]}"
+    assert response.json() == {"success": True, "status": "solved"}, response.json()
+    assert solve_count(name, challenge_id) == 1, "the browser solve path must register exactly one solve"
 
     deadline = time.time() + 40
     board = {}
@@ -136,7 +129,7 @@ def test_attempt_endpoint_is_the_browser_solve_path(example_dojo):
         if board.get("me"):
             break
         time.sleep(1)
-    assert board.get("me"), "a solve made through /api/v1/challenges/attempt must reach the dojo scoreboard"
+    assert board.get("me"), "a browser solve must reach the dojo scoreboard"
     assert board["me"]["name"] == name, board["me"]
 
 
@@ -223,9 +216,9 @@ def test_profile_dojo_progress_survives_duplicate_dojo_ids(admin_session, exampl
     assert admin_session.get(f"{DOJO_URL}/hacker/{get_user_id(name)}").status_code == 200
 
     ranks = flask_exec(
-        "from CTFd.plugins.dojo_plugin.pages.users import build_user_scores\n"
-        "from CTFd.plugins.dojo_plugin.models import Dojos\n"
-        "from CTFd.models import Users\n"
+        "from dojo_plugin.pages.users import build_user_scores\n"
+        "from dojo_plugin.models import Dojos\n"
+        "from dojo_plugin.models import Users\n"
         f"user = Users.query.filter_by(name={name!r}).first()\n"
         f"dojos = Dojos.query.filter_by(id={shared_id!r}).all()\n"
         "dojo_scores, _ = build_user_scores(user, dojos)\n"
@@ -245,8 +238,8 @@ def test_dojo_progress_counts_only_required_solves(flows_dojo, flows_solver):
     assert entry["modules_count"] == 1, entry
 
     counts = flask_exec(
-        "from CTFd.plugins.dojo_plugin.models import Dojos, DojoChallenges\n"
-        "from CTFd.models import Users\n"
+        "from dojo_plugin.models import Dojos, DojoChallenges\n"
+        "from dojo_plugin.models import Users\n"
         f"dojo = Dojos.from_id({flows_dojo!r}).first()\n"
         f"user = Users.query.filter_by(name={name!r}).first()\n"
         "solves = DojoChallenges.solves(user=user, include_visibility_exempt=True, "
@@ -276,7 +269,7 @@ def test_hidden_user_module_progress_is_only_shown_to_self(flows_dojo, random_us
         return float(widths[0])
 
     assert progress(session) == 100
-    response = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"hidden": True})
+    response = session.patch(f"{DOJO_URL}/pwncollege_api/v1/users/me", json={"hidden": True})
     assert response.status_code == 200, response.text
 
     assert progress(session) == 100, "hidden users must see their own module progress"
@@ -314,8 +307,8 @@ def test_module_card_progress_cannot_exceed_denominator(admin_session, example_d
     )
 
     counts = flask_exec(
-        "from CTFd.plugins.dojo_plugin.models import Dojos\n"
-        "from CTFd.models import Users\n"
+        "from dojo_plugin.models import Dojos\n"
+        "from dojo_plugin.models import Users\n"
         f"dojo = Dojos.from_id({dojo!r}).first()\n"
         f"user = Users.query.filter_by(name={name!r}).first()\n"
         "module = dojo.modules[0]\n"

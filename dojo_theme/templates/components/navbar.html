@@ -25,9 +25,6 @@
       <hr class="d-sm-flex d-md-flex d-lg-none">
       <ul class="navbar-nav ml-md-auto d-block d-sm-flex d-md-flex">
         {% if authed() %}
-        {% if is_admin() %}
-          {{ navitem("Admin Panel", url_for("admin.view"), "fa-wrench", shrink=True) }}
-        {% endif %}
         {{ navitem("Profile", url_for("pwncollege_users.view_self"), "fa-user-circle", shrink=True) }}
         {{ navitem("Settings", url_for("views.settings"), "fa-cogs", shrink=True) }}
         {{ navitem("Logout", url_for("auth.logout"), "fa-sign-out-alt", shrink=True) }}

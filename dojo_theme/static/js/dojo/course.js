@@ -27,7 +27,7 @@ function form_fetch_and_show(name, endpoint, method, success_message) {
         results.empty();
         const params = form.serializeJSON();
 
-        CTFd.fetch(endpoint, {
+        Dojo.fetch(endpoint, {
             method: method,
             credentials: "same-origin",
             headers: {

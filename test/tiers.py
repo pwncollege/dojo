@@ -49,7 +49,6 @@ TEST_FILE_TIERS = {
 TEST_TIER_OVERRIDES = {
     "test_accounts.py::test_api_registration_profile_fields_persist_and_can_be_updated": "semantic",
     "test_accounts.py::test_api_registration_respects_allowed_email_domains": "semantic",
-    "test_accounts.py::test_api_registration_collects_required_and_optional_custom_fields": "semantic",
     "test_accounts.py::test_api_registration_with_mail_waits_for_email_confirmation": "semantic",
     "test_accounts.py::test_api_password_recovery_with_mail_preserves_oauth_accounts": "semantic",
     "test_dojo_admin_api.py::test_solves_exports_preserve_order_identity_and_timestamps": "semantic",

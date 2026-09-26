@@ -26,7 +26,7 @@ from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 from flask import current_app
-from CTFd.plugins.dojo_plugin.api.v1 import llm
+from dojo_plugin.api.v1 import llm
 
 app = current_app._get_current_object()
 state = {"keys": {}, "usage": {}, "now": 0, "failure": None}

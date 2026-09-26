@@ -1,7 +1,6 @@
 import logging
 from flask import url_for
-from CTFd.models import db, Users
-from ...models import Dojos, Belts, Emojis
+from ...models import Dojos, Belts, Emojis, db, Users
 from ...utils.awards import BELT_ORDER
 from ...utils.background_stats import set_cached_stat, is_event_stale
 from . import register_handler

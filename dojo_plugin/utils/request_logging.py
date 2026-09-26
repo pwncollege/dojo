@@ -4,7 +4,7 @@ import json
 import time
 from flask import request, g, has_request_context
 from werkzeug.exceptions import HTTPException
-from CTFd.utils.user import get_current_user
+from .user import get_current_user
 
 _trace_id_storage = threading.local()
 logger = logging.getLogger(__name__)
@@ -72,7 +72,6 @@ class RequestIdFilter(logging.Filter):
         record.user_id = get_user_id()
         record.remote_addr = get_ip_address()
         record.reltime = "%.2f" % (time.time() - get_tracked_attr("start_time", time.time()))
-        record.name = record.name.replace("CTFd.plugins.dojo_plugin", "dojo_plugin")
         return True
 
 
@@ -146,17 +145,20 @@ def setup_logging(app):
     root_logger.handlers = []
     root_logger.addHandler(handler)
 
-    # Also configure Flask's app logger
+    # Also configure Flask's app logger. It is named `dojo_plugin`, the parent of every module
+    # logger, so it must stop propagating or the root handler above writes every record twice.
     app.logger.handlers = []
     app.logger.addHandler(handler)
+    app.logger.propagate = False
 
-    # Hook CTFd's loggers specifically. They must stop propagating, or every
+    # Hook the audit loggers specifically. They must stop propagating, or every
     # record they emit is also written by the root handler installed above.
-    for logger_name in ['CTFd', 'submissions', 'registrations', 'logins']:
-        ctfd_logger = logging.getLogger(logger_name)
-        ctfd_logger.handlers = []
-        ctfd_logger.addHandler(handler)
-        ctfd_logger.propagate = False
+    for logger_name in ['submissions', 'registrations', 'logins']:
+        audit_logger = logging.getLogger(logger_name)
+        audit_logger.handlers = []
+        audit_logger.addHandler(handler)
+        audit_logger.propagate = False
+        audit_logger.setLevel(logging.INFO)
 
     # inherit stuff from root
     werkzeug_logger = logging.getLogger('werkzeug')
