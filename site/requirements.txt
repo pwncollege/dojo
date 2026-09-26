@@ -32,3 +32,4 @@ itsdangerous==2.2.0
 MarkupSafe==3.0.3
 cachelib==0.9.0
 pytz==2026.3.post1
+Babel==2.18.0
