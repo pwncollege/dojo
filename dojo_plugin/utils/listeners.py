@@ -2,12 +2,10 @@ import logging
 
 from sqlalchemy import event
 from sqlalchemy.orm.session import Session
-from CTFd.cache import cache
-from CTFd.models import Users, Solves, Awards
 
 from ..models import (
     Dojos, DojoChallenges, DojoUsers, DojoMembers, DojoAdmins,
-    DojoStudents, DojoModules, DojoChallengeVisibilities, Belts, Emojis
+    DojoStudents, DojoModules, DojoChallengeVisibilities, Belts, Emojis, Users, Solves, Awards
 )
 from .events import (
     queue_stat_event,

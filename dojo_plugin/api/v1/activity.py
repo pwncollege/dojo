@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 
 from flask_restx import Namespace, Resource
-from CTFd.models import db, Solves, Users
-from CTFd.utils.user import get_current_user
+from ...models import Users
+from ...utils.user import get_current_user
 
 from ...utils.background_stats import get_cached_stat
 from ...worker.handlers.activity import calculate_activity, initialize_activity_for_user

@@ -1,9 +1,8 @@
 from urllib.parse import quote
 
 from flask import request, Blueprint, Response, render_template
-from CTFd.utils.user import get_current_user, is_admin
-from CTFd.utils.decorators import authed_only, admins_only
-from CTFd.plugins import bypass_csrf_protection
+from ..utils.user import get_current_user, is_admin
+from ..utils.decorators import authed_only, bypass_csrf_protection
 
 from ..utils.dojo import get_current_dojo_challenge
 

@@ -7,8 +7,8 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 function checkUserAwards() {
-    const endpoint = "/api/v1/users/me/awards";
-    return CTFd.fetch(endpoint, {
+    const endpoint = "/pwncollege_api/v1/users/me/awards";
+    return Dojo.fetch(endpoint, {
         method: "GET",
         credentials: "same-origin",
         headers: {"Accept": "application/json"}
@@ -62,9 +62,9 @@ function renderPopup(message, image) {
         body: message,
         image: image,
         logos: {
-            ninja: `${CTFd.config.urlRoot}/themes/dojo_theme/static/img/dojo/ninja.png`,
-            linkedin: `${CTFd.config.urlRoot}/themes/dojo_theme/static/img/dojo/linkedin_logo.svg`,
-            x: `${CTFd.config.urlRoot}/themes/dojo_theme/static/img/dojo/x_logo.svg`
+            ninja: `${Dojo.config.urlRoot}/themes/dojo_theme/static/img/dojo/ninja.png`,
+            linkedin: `${Dojo.config.urlRoot}/themes/dojo_theme/static/img/dojo/linkedin_logo.svg`,
+            x: `${Dojo.config.urlRoot}/themes/dojo_theme/static/img/dojo/x_logo.svg`
         },
         profileUrl: `${window.location.protocol}//${window.location.host}/hacker/${init.userId}`
     };

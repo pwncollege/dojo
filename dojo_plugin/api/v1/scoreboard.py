@@ -3,7 +3,7 @@ import logging
 from flask import request, url_for
 from flask_restx import Namespace, Resource
 from flask_sqlalchemy import Pagination
-from CTFd.utils.user import get_current_user
+from ...utils.user import get_current_user
 
 from ...models import Dojos, DojoModules
 from ...utils.dojo import dojo_route

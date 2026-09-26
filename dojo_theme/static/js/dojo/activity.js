@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const endpoint = `/pwncollege_api/v1/activity/${userID}`;
-    CTFd.fetch(endpoint, {
+    Dojo.fetch(endpoint, {
         method: "GET",
         credentials: "same-origin",
         headers: { "Accept": "application/json" }

@@ -5,12 +5,10 @@ import re
 
 from flask import Blueprint, Response, render_template, request, abort, stream_with_context
 from sqlalchemy import and_, cast
-from CTFd.models import db, Challenges, Solves, Users
-from CTFd.utils import get_config
-from CTFd.utils.user import get_current_user, is_admin
-from CTFd.utils.decorators import authed_only, admins_only, ratelimit
+from ..utils.user import get_current_user
+from ..utils.decorators import authed_only, ratelimit
 
-from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents, DiscordUserActivity
+from ..models import DiscordUsers, DojoChallenges, DojoUsers, DojoStudents, DojoModules, DojoStudents, DiscordUserActivity, db, Users
 from ..utils import parse_positive_int
 from ..utils.dojo import dojo_route
 from ..utils.discord import add_role, get_discord_member

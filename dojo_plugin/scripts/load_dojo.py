@@ -1,20 +1,21 @@
 import argparse
-import CTFd.utils.user
 import sys
 import os
 
-from ..utils.dojo import dojo_create, generate_ssh_keypair
-from ..models import Users, db
+import dojo_plugin.utils.user as identity
+
+from dojo_plugin.utils.dojo import dojo_create, generate_ssh_keypair
+from dojo_plugin.models import Users, db
 
 # operate outside of a session
-assert "unbound" in repr(CTFd.utils.user.session)
+assert "unbound" in repr(identity.session)
 class MockSession:
     def get(self, k, default=None):
         if k == "id":
             return 1
         return default
     __getitem__ = get
-CTFd.utils.user.session = MockSession()
+identity.session = MockSession()
 
 parser = argparse.ArgumentParser(description="Load a dojo into the DOJO.")
 parser.add_argument(

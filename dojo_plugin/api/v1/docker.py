@@ -14,14 +14,11 @@ from .user import authed_only_cli, authed_only_ssh, CLI_AUTH_PREFIX
 from flask import abort, request, current_app
 from itsdangerous.url_safe import URLSafeTimedSerializer
 from flask_restx import Namespace, Resource
-from CTFd.cache import cache
-from CTFd.models import Users, Solves
-from CTFd.utils.user import get_current_user, is_admin
-from CTFd.utils.decorators import authed_only
-from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
+from ...utils.decorators import authed_only
+from ...utils.user import get_current_user, is_admin
 
 from ...config import DOJO_HOST, HOST_DATA_PATH, INTERNET_FOR_ALL, SECCOMP, USER_FIREWALL_ALLOWED
-from ...models import DojoModules, DojoChallenges
+from ...models import DojoModules, DojoChallenges, Users, cache
 from ...utils import (
     container_name,
     lookup_workspace_token,
@@ -33,6 +30,8 @@ from ...utils import (
     user_ipv4,
     get_current_container,
     is_challenge_locked,
+    UserNotFoundException,
+    UserTokenExpiredException,
 )
 from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
 from ...utils.workspace import exec_run

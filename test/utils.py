@@ -174,6 +174,14 @@ def challenge_db_id(dojo, module, challenge):
     return _challenge_ids[key]
 
 
+def seed_recent_fails(user_id, challenge_id, count):
+    db_sql(
+        f"INSERT INTO submissions (user_id, challenge_id, ip, provided, type, date) "
+        f"SELECT {user_id}, {challenge_id}, '127.0.0.1', 'seed', 'incorrect', timezone('utc', now()) "
+        f"FROM generate_series(1, {count})"
+    )
+
+
 _flags = {}
 
 def challenge_flag(dojo, module, challenge, *, user):

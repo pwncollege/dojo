@@ -2,13 +2,11 @@ import datetime
 import functools
 import inspect
 
-from CTFd.cache import cache
-from CTFd.models import db, Users
 from flask import url_for, abort
 
 from .discord import get_discord_roles, get_discord_member, add_role, send_message
 from .background_stats import get_cached_stat
-from ..models import Dojos, Belts, Emojis, DiscordUsers
+from ..models import Dojos, Belts, Emojis, DiscordUsers, cache, db
 from .feed import publish_belt_earned, publish_emoji_earned
 
 

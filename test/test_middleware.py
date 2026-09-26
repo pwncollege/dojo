@@ -13,6 +13,7 @@ import requests
 
 from utils import (
     DOJO_URL,
+    db_sql,
     dojo_run,
     flask_exec,
     get_user_id,
@@ -190,10 +191,6 @@ def test_api_error_response_carries_no_cors_headers(random_user_session):
 def test_bad_token_authorization_is_unauthorized():
     headers = {"Authorization": f"Token garbage_{uuid.uuid4().hex}", "Content-Type": "application/json"}
 
-    ctfd_response = requests.get(f"{DOJO_URL}/api/v1/users", headers=headers)
-    assert ctfd_response.status_code == 401, (
-        f"CTFd's own API should reject a bad token with 401, got {ctfd_response.status_code}")
-
     dojo_response = requests.get(f"{DOJO_URL}/pwncollege_api/v1/dojos", headers=headers)
     assert dojo_response.status_code == 401, (
         f"the dojo API should reject a bad token with 401, got {dojo_response.status_code}")
@@ -253,9 +250,6 @@ def test_removed_ctfd_views_return_404(random_user_session, admin_session):
             response = session.get(f"{DOJO_URL}{path}", allow_redirects=False)
             assert response.status_code == 404, f"{path} should be 404, got {response.status_code}"
 
-    assert admin_session.get(f"{DOJO_URL}/api/v1/users/me").status_code == 200, (
-        "CTFd's JSON API must be unaffected by the removed HTML views")
-
 
 def test_challenges_redirects_to_dojos():
     response = requests.get(f"{DOJO_URL}/challenges", allow_redirects=False)
@@ -304,8 +298,8 @@ def test_survey_post_ratelimit(surveys_dojo, random_user_session):
 def test_redirect_dojo_canonical_host():
     stdout, _ = flask_run(
         "from flask import current_app\n"
-        "from CTFd.plugins.dojo_plugin import redirect_dojo\n"
-        "from CTFd.plugins.dojo_plugin.config import DOJO_HOST\n"
+        "from dojo_plugin.app import redirect_dojo\n"
+        "from dojo_plugin.config import DOJO_HOST\n"
         "print('HOST', DOJO_HOST)\n"
         "with current_app.test_request_context('/dojos?a=b', headers={'X-Forwarded-For': '1.2.3.4', 'Host': '1.2.3.4'}):\n"
         "    r = redirect_dojo()\n"
@@ -414,24 +408,137 @@ def test_markdown_filter_registered_and_sanitizing():
     assert lines["EMPTY"] == "''", f"the markdown filter must tolerate None: {lines['EMPTY']}"
 
 
-def assert_admin_menu_target(path, random_user_session, admin_session):
-    anonymous = requests.get(f"{DOJO_URL}{path}", allow_redirects=False)
-    assert anonymous.status_code == 302, f"anonymous {path} -> {anonymous.status_code}"
-    assert "/login" in anonymous.headers["Location"], anonymous.headers["Location"]
-
-    as_user = random_user_session.get(f"{DOJO_URL}{path}", allow_redirects=False)
-    assert as_user.status_code in (302, 403), f"non-admin {path} -> {as_user.status_code}"
-
-    as_admin = admin_session.get(f"{DOJO_URL}{path}")
-    assert as_admin.status_code == 200, f"admin {path} -> {as_admin.status_code}"
+def test_markdown_substitutes_ctf_name():
+    stdout, _ = flask_run(
+        "from flask import current_app\n"
+        "renderer = current_app.jinja_env.filters['markdown']\n"
+        "print('RENDERED', str(renderer('Welcome to {ctf_name}')).replace('\\n', ' '))\n"
+    )
+    lines = dict(line.split(" ", 1) for line in stdout.strip().splitlines() if " " in line)
+    assert "Welcome to pwn.college" in lines["RENDERED"], lines["RENDERED"]
 
 
-def test_registered_admin_menu_targets_all_resolve(random_user_session, admin_session):
-    targets = json.loads(flask_exec(
-        "import json\n"
-        "from CTFd.plugins import get_admin_plugin_menu_bar\n"
-        "print(json.dumps([entry.route for entry in get_admin_plugin_menu_bar()]))\n"
-    ))
-    assert targets, "the plugin must register at least one admin menu entry"
-    for path in targets:
-        assert_admin_menu_target(path, random_user_session, admin_session)
+def test_production_mode_request_handling():
+    stdout, stderr = flask_run(
+        "import uuid\n"
+        "from dojo_plugin.app import create_app\n"
+        "from dojo_plugin.config import DOJO_HOST\n"
+        "from dojo_plugin.models import Users\n"
+        "app = create_app()\n"
+        "print('DEBUG', app.debug)\n"
+        "print('HOST', DOJO_HOST)\n"
+        "c = app.test_client()\n"
+        "r = c.get('/dojos', headers={'X-Forwarded-For': '8.8.8.8', 'Host': 'elsewhere.example'})\n"
+        "print('REDIR', r.status_code, r.headers.get('Location'))\n"
+        "with app.app_context():\n"
+        "    admin_id = Users.query.filter_by(name='admin').one().id\n"
+        "with c.session_transaction() as sess:\n"
+        "    sess['id'] = admin_id\n"
+        "err = c.get('/test_page_error')\n"
+        "print('ERR', err.status_code, 'An Internal Server Error has occurred' in err.get_data(as_text=True))\n"
+        "nf = c.get(f'/definitely-missing-{uuid.uuid4().hex}')\n"
+        "print('NF', nf.status_code, 'File not found' in nf.get_data(as_text=True))\n"
+    )
+    lines = dict(line.split(" ", 1) for line in stdout.strip().splitlines() if " " in line)
+    assert lines.get("DEBUG") == "False", f"a freshly created app must not be in debug mode: {stdout}\n{stderr}"
+
+    status, location = lines["REDIR"].split(" ", 1)
+    assert status == "301", f"production mode must redirect proxied requests to the canonical host: {lines['REDIR']}"
+    assert lines["HOST"].strip() in location and location.endswith("/dojos"), location
+
+    assert lines["ERR"] == "500 True", f"a page exception must render the 500 error page: {lines['ERR']}\n{stderr}"
+    assert lines["NF"] == "404 True", f"an unknown path must render the 404 error page: {lines['NF']}"
+
+
+def admin_password_hash():
+    return db_sql("SELECT password FROM users WHERE name='admin'").strip()
+
+
+def setup_rows():
+    return int(db_sql("SELECT count(*) FROM config WHERE key='setup'"))
+
+
+def run_bootstrap():
+    result = dojo_run("docker", "exec", "ctfd", "sh", "-c", "cd /opt/pwn.college && python -m dojo_plugin.bootstrap",
+                      check=False)
+    assert result.returncode == 0, f"bootstrap failed: {result.stdout}\n{result.stderr}"
+
+
+def test_bootstrap_is_idempotent():
+    original_hash = admin_password_hash()
+    assert original_hash, "the bootstrap admin must exist"
+
+    for _ in range(2):
+        run_bootstrap()
+        assert int(db_sql("SELECT count(*) FROM users WHERE name='admin'")) == 1
+        assert admin_password_hash() == original_hash, "rerunning bootstrap must not reset the admin password"
+        assert setup_rows() == 1
+
+    try:
+        db_sql("DELETE FROM config WHERE key='setup'")
+        flask_exec("from dojo_plugin.models import cache, _get_config\ncache.delete_memoized(_get_config, 'setup')\n")
+        run_bootstrap()
+        assert setup_rows() == 1, "bootstrap must reseed the setup marker when it is missing"
+        assert int(db_sql("SELECT count(*) FROM users WHERE name='admin'")) == 1, (
+            "bootstrap must not create a second admin when one already exists")
+        assert admin_password_hash() == original_hash
+    finally:
+        if setup_rows() != 1:
+            flask_exec("from dojo_plugin.models import set_config\nset_config('setup', True)\n")
+
+
+def create_api_token():
+    name = "".join(random.choices(string.ascii_lowercase, k=16))
+    session = login(name, name, register=True)
+    created = session.post(f"{DOJO_URL}/pwncollege_api/v1/users/me/tokens", json={})
+    assert created.status_code == 200, created.text
+    return name, created.json()["data"]["value"]
+
+
+def test_token_requires_json_content_type():
+    name, token = create_api_token()
+    url = f"{DOJO_URL}/pwncollege_api/v1/users/me"
+
+    plain = requests.get(url, headers={"Authorization": f"Token {token}"}, allow_redirects=False)
+    assert plain.status_code == 302, f"a token without a JSON content type must be ignored, got {plain.status_code}"
+    assert "/login" in plain.headers["Location"], plain.headers["Location"]
+
+    accepting = requests.get(url, headers={"Authorization": f"Token {token}", "Accept": "application/json"},
+                             allow_redirects=False)
+    assert accepting.status_code == 302, (
+        f"an Accept header does not stand in for the JSON content type, got {accepting.status_code}")
+
+    authorized = requests.get(url, headers={"Authorization": f"Token {token}", "Content-Type": "application/json"},
+                              allow_redirects=False)
+    assert authorized.status_code == 200, authorized.text
+    assert authorized.json()["name"] == name, authorized.json()
+
+
+def test_token_auth_establishes_cookie_session():
+    name, token = create_api_token()
+    url = f"{DOJO_URL}/pwncollege_api/v1/users/me"
+    jar = requests.Session()
+
+    authorized = jar.get(url, headers={"Authorization": f"Token {token}", "Content-Type": "application/json"})
+    assert authorized.status_code == 200, authorized.text
+    assert "session" in jar.cookies, "token authentication must log the client in with a session cookie"
+
+    followup = jar.get(url, allow_redirects=False)
+    assert followup.status_code == 200, (
+        f"the token login must persist in the session cookie, got {followup.status_code}")
+    assert followup.json()["name"] == name, followup.json()
+
+
+def test_domain_whitelist_wildcard():
+    stdout, _ = flask_run(
+        "from unittest.mock import patch\n"
+        "from dojo_plugin.utils import email as mail\n"
+        "with patch.object(mail, 'get_config', return_value='*.example.edu'):\n"
+        "    print('SUB', mail.check_email_is_whitelisted('a@sub.example.edu'))\n"
+        "    print('APEX', mail.check_email_is_whitelisted('a@example.edu'))\n"
+        "    print('OTHER', mail.check_email_is_whitelisted('a@example.com'))\n"
+    )
+    lines = dict(line.split(" ", 1) for line in stdout.strip().splitlines() if " " in line)
+    assert lines["SUB"] == "True", f"a wildcard entry must admit subdomains: {lines['SUB']}"
+    assert lines["APEX"] == "False", f"a wildcard entry must not admit the apex domain: {lines['APEX']}"
+    assert lines["OTHER"] == "False", f"an unlisted domain must be rejected: {lines['OTHER']}"

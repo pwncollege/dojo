@@ -24,7 +24,6 @@ case "$ACTION" in
             echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
         fi
 
-        dojo sync
         build_args=(--build)
         if [ "${DOJO_OFFLINE}" = "true" ]; then
             build_args=(--no-build)
@@ -36,13 +35,6 @@ case "$ACTION" in
     "update")
         git pull
         dojo up "$@"
-        ;;
-
-    # HELP: sync: sync changed dojo files
-    "sync")
-        cp -rv --preserve=timestamps ctfd/* /opt/CTFd/
-        cp -rv --preserve=timestamps dojo_plugin /opt/CTFd/CTFd/plugins/
-        cp -rv --preserve=timestamps dojo_theme /opt/CTFd/CTFd/themes/
         ;;
 
     # HELP: enter [ -s ] USER_ID: enter a user's running container. -s for entering as root
@@ -174,7 +166,7 @@ case "$ACTION" in
 
     # HELP: load-dojo: load a dojo from a git repository
     "load-dojo")
-        "$0" flask -- /opt/CTFd/CTFd/plugins/dojo_plugin/scripts/load_dojo.py -- "$@"
+        "$0" flask -- /opt/pwn.college/dojo_plugin/scripts/load_dojo.py -- "$@"
         exit $?
         ;;
 

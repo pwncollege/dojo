@@ -3,9 +3,9 @@ import os
 
 from flask_restx import Namespace, Resource
 from flask import request, url_for, abort
-from CTFd.models import Users
-from CTFd.utils.user import get_current_user, is_admin
-from CTFd.utils.decorators import authed_only
+from ...models import Users
+from ...utils.user import get_current_user, is_admin
+from ...utils.decorators import authed_only
 
 from ...utils import get_current_container, container_password, parse_positive_int, user_node
 from ...utils.workspace import start_on_demand_service, reset_home

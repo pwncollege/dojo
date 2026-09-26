@@ -5,24 +5,23 @@ import sys
 import traceback
 
 import emoji as emojilib
-from CTFd.cache import cache
-from CTFd.models import Solves, Users, db
-from CTFd.plugins.challenges import get_chal_class
-from CTFd.utils.decorators import admins_only, authed_only, ratelimit
-from CTFd.utils.user import get_current_user, get_ip, is_admin
-from flask import request
+from flask import g, request
 from flask_restx import Namespace, Resource
+from itsdangerous.exc import BadSignature
 from sqlalchemy.sql import and_
 
 from .user import authed_only_cli, authed_only_ssh
 from ...models import (DojoChallenges, DojoModules, Dojos, DojoStudents,
-                       DojoUsers, Emojis, SurveyResponses)
-from ...utils import is_challenge_locked, parse_positive_int, render_markdown
+                       DojoUsers, Emojis, SurveyResponses, Fails, Solves, Users, cache, db, get_config)
+from ...utils import is_challenge_locked, parse_positive_int, render_markdown, unserialize_user_flag
+from ...utils.decorators import admins_only, authed_only, ratelimit, require_verified_emails
+from ...utils.user import audit_log, get_current_user, get_ip, is_admin
 from ...utils.dojo import dojo_admins_only, dojo_create, dojo_route, dojo_from_spec
 from ...utils.image_pulls import enqueue_dojo_image_pulls
 from ...utils.stats import get_dojo_stats
 from ...utils.events import publish_dojo_stats_event, publish_scoreboard_event
-from ...utils.awards import dojo_gives_awards, grant_award
+from ...utils.awards import dojo_gives_awards, grant_award, update_awards
+from ...utils.feed import publish_challenge_solve
 
 logger = logging.getLogger(__name__)
 
@@ -337,10 +336,58 @@ class DojoCourseSolveList(Resource):
         return {"success": True, "solves": solves}
 
 
+def submitted_flag(request):
+    return (request.form or request.get_json())["submission"].strip()
+
+
+def attempt(challenge, request):
+    if not any(flag.type == "dojo" for flag in challenge.flags):
+        return False, "Incorrect"
+    try:
+        user_id, challenge_id = unserialize_user_flag(submitted_flag(request))
+    except BadSignature:
+        return False, "Incorrect"
+    if user_id != get_current_user().id:
+        return False, "This flag is not yours!"
+    if challenge_id != challenge.id:
+        return False, "This flag is not for this challenge!"
+    return True, "Correct"
+
+
+def record(model, user, challenge, request):
+    db.session.add(model(user_id=user.id, challenge_id=challenge.id, ip=get_ip(request), provided=submitted_flag(request)))
+    db.session.commit()
+
+
+def fail(user, challenge, request):
+    record(Fails, user, challenge, request)
+
+
+def solve(user, challenge, request):
+    record(Solves, user, challenge, request)
+    update_awards(user)
+
+    # A challenge row can be shared by several dojos through imports; credit the
+    # dojo the solve was actually submitted against when the request names one.
+    solved_dojo = getattr(g, "dojo", None)
+    dojo_challenge = (
+        DojoChallenges.query.filter_by(challenge_id=challenge.id, dojo_id=solved_dojo.dojo_id).first()
+        if solved_dojo else None
+    ) or DojoChallenges.query.filter_by(challenge_id=challenge.id).first()
+    if dojo_challenge:
+        dojo = dojo_challenge.module.dojo
+        if dojo.official or dojo.data.get("type") == "public":
+            module = dojo_challenge.module
+            points = challenge.value
+            first_blood = Solves.query.filter_by(challenge_id=challenge.id).count() == 1
+            publish_challenge_solve(user, dojo_challenge, dojo, module, points, first_blood)
+
+
 @dojos_namespace.route("/<dojo>/<module>/<challenge_id>/solve")
 class DojoChallengeSolve(Resource):
     @authed_only_cli
     @authed_only
+    @require_verified_emails
     @dojo_route
     def post(self, dojo, module, challenge_id):
         user = get_current_user()
@@ -355,19 +402,27 @@ class DojoChallengeSolve(Resource):
                           .filter(DojoChallenges.visible()).first())
         if not dojo_challenge:
             return {"success": False, "error": "Challenge not found"}, 404
+        challenge = dojo_challenge.challenge
 
-        solve = Solves.query.filter_by(user=user, challenge=dojo_challenge.challenge).first()
-        if solve:
+        one_minute_ago = datetime.datetime.utcnow() - datetime.timedelta(minutes=1)
+        kpm = Fails.query.filter(Fails.user_id == user.id, Fails.date >= one_minute_ago).count()
+
+        def log(verdict):
+            audit_log("submissions", f"{user.name} submitted {submission!r} on {challenge.id} with kpm {kpm} [{verdict}]")
+
+        if kpm > int(get_config("incorrect_submissions_per_min", default=10)):
+            fail(user, challenge, request)
+            log("TOO FAST")
+            return {"success": False, "status": "ratelimited"}, 429
+        if Solves.query.filter_by(user=user, challenge=challenge).first():
+            log("ALREADY SOLVED")
             return {"success": True, "status": "already_solved"}
-
-        chal_class = get_chal_class(dojo_challenge.challenge.type)
-        status, _ = chal_class.attempt(dojo_challenge.challenge, request)
+        status, message = attempt(challenge, request)
+        (solve if status else fail)(user, challenge, request)
+        log("CORRECT" if status else "WRONG")
         if status:
-            chal_class.solve(user, None, dojo_challenge.challenge, request)
             return {"success": True, "status": "solved"}
-        else:
-            chal_class.fail(user, None, dojo_challenge.challenge, request)
-            return {"success": False, "status": "incorrect"}, 400
+        return {"success": False, "status": "incorrect", "message": message}, 400
 
 
 @dojos_namespace.route("/<dojo>/<module>/<challenge_id>/surveys")

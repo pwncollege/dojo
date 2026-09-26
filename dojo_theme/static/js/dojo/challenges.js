@@ -1,7 +1,6 @@
 function submitChallenge(event) {
     event.preventDefault();
     const item = $(event.currentTarget).closest(".accordion-item");
-    const challenge_id = parseInt(item.find('#challenge-id').val())
     const answer_input = item.find("#challenge-input");
     const submission = answer_input.val()
 
@@ -14,15 +13,15 @@ function submitChallenge(event) {
 
     if (submission == "pwn.college{practice}") {
         var message = "This is the practice flag! Find the real flag by pressing the Start button above to launch the challenge in unprivileged mode."
-        return renderSubmissionResponse({"data": {"status": "practice", "message": message}}, item);
+        return renderSubmissionResponse({"status": "practice", "message": message}, item);
     }
 
-    return CTFd.api.post_challenge_attempt({}, {"challenge_id": challenge_id, "submission": submission})
+    return Dojo.submitFlag(init.dojo, item.find("#module").val(), item.find("#challenge").val(), submission)
         .then(response => renderSubmissionResponse(response, item));
 };
 
-function renderSubmissionResponse(response, item) {
-    const result = response.data;
+function renderSubmissionResponse(result, item) {
+    const messages = {solved: "Correct", already_solved: "You already solved this", ratelimited: "You're submitting flags too fast. Slow down."};
 
     const result_message = item.find("#result-message");
     const result_notification = item.find("#result-notification");
@@ -35,13 +34,13 @@ function renderSubmissionResponse(response, item) {
     const next_challenge_button = $(`#challenges-header-button-${current_challenge_id + 1}`);
 
     result_notification.removeClass();
-    result_message.text(result.message);
+    result_message.text(result.message || messages[result.status] || result.error || "Submission failed");
 
     if (result.status === "authentication_required") {
         window.location =
-            CTFd.config.urlRoot +
+            Dojo.config.urlRoot +
             "/login?next=" +
-            CTFd.config.urlRoot +
+            Dojo.config.urlRoot +
             window.location.pathname +
             window.location.hash;
         return;
@@ -69,7 +68,7 @@ function renderSubmissionResponse(response, item) {
         setTimeout(function() {
             answer_input.removeClass("wrong");
         }, 10000);
-    } else if (result.status === "correct") {
+    } else if (result.status === "solved") {
         // Challenge Solved
         result_notification.addClass(
             "alert alert-success alert-dismissable text-center"
@@ -96,7 +95,7 @@ function renderSubmissionResponse(response, item) {
 
         const survey_notification = item.find("#survey-notification")
 
-        CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/${module_name}/${challenge_name}/surveys`, {
+        Dojo.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/${module_name}/${challenge_name}/surveys`, {
             method: 'GET',
             credentials: 'same-origin',
             headers: {
@@ -163,7 +162,7 @@ function unlockChallenge(challenge_button) {
         const challenge_id = item.find("#challenge").val();
         const description = item.find(".challenge-description");
 
-        CTFd.fetch(`/pwncollege_api/v1/dojos/${init.dojo}/${module_id}/${challenge_id}/description`)
+        Dojo.fetch(`/pwncollege_api/v1/dojos/${init.dojo}/${module_id}/${challenge_id}/description`)
             .then(response => response.json())
             .then(data => description.html(data.description));
     }
@@ -216,7 +215,7 @@ function startChallenge(event) {
         }
     }, 500);
 
-    CTFd.fetch('/pwncollege_api/v1/docker', {
+    Dojo.fetch('/pwncollege_api/v1/docker', {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -228,9 +227,9 @@ function startChallenge(event) {
         if (response.status === 403) {
             // User is not logged in or CTF is paused.
             window.location =
-                CTFd.config.urlRoot +
+                Dojo.config.urlRoot +
                 "/login?next=" +
-                CTFd.config.urlRoot +
+                Dojo.config.urlRoot +
                 window.location.pathname +
                 window.location.hash;
         }
@@ -329,7 +328,7 @@ function surveySubmit(data, item) {
     const challenge_name = item.find('#challenge').val()
     const module_name = item.find('#module').val()
     const dojo_name = init.dojo
-    return CTFd.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/${module_name}/${challenge_name}/surveys`, {
+    return Dojo.fetch(`/pwncollege_api/v1/dojos/${dojo_name}/${module_name}/${challenge_name}/surveys`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {

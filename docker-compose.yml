@@ -1,5 +1,5 @@
 x-ctfd-base: &ctfd-base
-  build: /opt/CTFd
+  build: ./ctfd
   platform: linux/amd64
   user: root
   entrypoint: ""
@@ -24,6 +24,8 @@ x-ctfd-env: &ctfd-env
   INTERNET_FOR_ALL: ${INTERNET_FOR_ALL}
   MAC_HOSTNAME: ${MAC_HOSTNAME}
   MAC_USERNAME: ${MAC_USERNAME}
+  SECRET_KEY: ${SECRET_KEY}
+  DOJO_ENV: ${DOJO_ENV}
 
 x-ctfd-volumes: &ctfd-volumes
   - /data/dojos:/var/dojos
@@ -31,7 +33,7 @@ x-ctfd-volumes: &ctfd-volumes
   - ./user_firewall.allowed:/var/user_firewall.allowed:ro
   - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
   - /var/run/docker.sock:/var/run/docker.sock:ro
-  - /opt/pwn.college/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro
+  - /opt/pwn.college/dojo_plugin:/opt/pwn.college/dojo_plugin:ro
 
 x-ctfd-depends: &ctfd-depends
   pgbouncer:
@@ -52,7 +54,7 @@ services:
       - SPLUNK_PASSWORD=DojoSplunk2024!
       - SPLUNK_HEC_TOKEN=11111111-1111-1111-1111-111111111111
     ports:
-      - "8001:8000" # Splunk Web (changed from 8000 to avoid conflict with CTFd)
+      - "8001:8000" # Splunk Web (changed from 8000 to avoid conflict with the web app)
       - "8088:8088" # HEC
       - "8089:8089" # Splunk management
     volumes:
@@ -116,34 +118,15 @@ services:
       - main
     restart: always
     hostname: ctfd
-    command:
-      - /bin/sh
-      - -c
-      - |
-        if [ "$DOJO_ENV" = "development" ]; then
-          FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
-        elif [ "$DOJO_ENV" = "coverage" ]; then
-          FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off exec coverage run --source=CTFd/plugins/dojo_plugin -m flask run --no-reload --host 0.0.0.0 --port 8000;
-        elif [ "$DOJO_ENV" = "production" ]; then
-          RUN_ID=$(openssl rand -hex 4) ./docker-entrypoint.sh;
-        else
-          echo "Failed to start ctfd - environment variable DOJO_ENV has invalid value \"$DOJO_ENV\""
-        fi
+    command: ["/opt/pwn.college/entrypoint.sh"]
     ulimits:
       nofile:
         soft: 32768
         hard: 1048576
     environment:
       <<: *ctfd-env
-      UPLOAD_FOLDER: /var/uploads
       WORKERS: 8
-      LOG_FOLDER: /var/log/CTFd
-      ACCESS_LOG: "-"
-      ERROR_LOG: "-"
       REVERSE_PROXY: "true"
-      SERVER_SENT_EVENTS: "false"
-      SECRET_KEY: ${SECRET_KEY}
-      DOJO_ENV: ${DOJO_ENV}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://future.${DOJO_HOST}}
       DOCKER_USERNAME: ${DOCKER_USERNAME}
       DOCKER_TOKEN: ${DOCKER_TOKEN}
@@ -151,8 +134,6 @@ services:
       LITELLM_USER_KEY_SECRET: ${LITELLM_USER_KEY_SECRET:-}
       LITELLM_USER_BUDGET_LIMITS: ${LITELLM_USER_BUDGET_LIMITS:-[]}
     volumes:
-      - /data/CTFd/logs:/var/log/CTFd
-      - /data/CTFd/uploads:/var/uploads
       - /data/mac:/var/mac
       - /data/homes:/var/homes:shared
       - /data/dojos:/var/dojos
@@ -163,8 +144,8 @@ services:
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
       - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /opt/pwn.college/dojo_plugin:/opt/CTFd/CTFd/plugins/dojo_plugin:ro
-      - /opt/pwn.college/dojo_theme:/opt/CTFd/CTFd/themes/dojo_theme:ro
+      - /opt/pwn.college/dojo_plugin:/opt/pwn.college/dojo_plugin:ro
+      - /opt/pwn.college/dojo_theme:/opt/pwn.college/dojo_theme:ro
     healthcheck:
       test:
         - "CMD"
@@ -266,7 +247,7 @@ services:
     profiles:
       - main
     restart: always
-    command: ["flask", "shell", "/opt/CTFd/CTFd/plugins/dojo_plugin/worker/__main__.py"]
+    command: ["python", "-m", "dojo_plugin.worker"]
     environment:
       <<: *ctfd-env
     volumes: *ctfd-volumes
@@ -280,7 +261,7 @@ services:
     profiles:
       - main
     restart: always
-    command: ["flask", "shell", "/opt/CTFd/CTFd/plugins/dojo_plugin/worker/image_pulls_main.py"]
+    command: ["python", "-m", "dojo_plugin.worker.image_pulls"]
     environment:
       <<: *ctfd-env
     volumes: *ctfd-volumes

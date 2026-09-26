@@ -1,6 +1,5 @@
-import os
-from flask import Blueprint, current_app, make_response, request
-from ...dojo_plugin import config
+from flask import Blueprint, make_response, request
+from .. import config
 from flask_restx import Api
 
 from ..utils.request_logging import log_exception
@@ -49,7 +48,7 @@ if cors_origin:
             return response
 
 
-api_v1 = Api(api, version="v1", doc=current_app.config.get("SWAGGER_UI"))
+api_v1 = Api(api, version="v1", doc=False)
 
 @api_v1.errorhandler(Exception)
 def handle_api_exception(error):

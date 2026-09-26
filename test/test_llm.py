@@ -26,7 +26,7 @@ from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 from flask import current_app
-from CTFd.plugins.dojo_plugin.api.v1 import llm
+from dojo_plugin.api.v1 import llm
 
 app = current_app._get_current_object()
 state = {"keys": {}, "usage": {}, "now": 0, "failure": None}
@@ -125,7 +125,7 @@ def run_llm_case(user, code, *, other=None, cli_token=None):
         setup += f"cli_headers = {{'Authorization': 'Bearer ' + {cli_token!r}}}\n"
     script = LLM_SERVICE + setup + "with managed_llm():\n" + textwrap.indent(textwrap.dedent(code), "    ")
     output = flask_exec(script + "\nprint('LLM-CASE-PASSED')\n")
-    assert "LLM-CASE-PASSED" in output, output
+    assert "LLM-CASE-PASSED" in output.splitlines(), output
 
 
 @pytest.fixture(scope="module")

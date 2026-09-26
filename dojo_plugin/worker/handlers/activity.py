@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from sqlalchemy import func
 
-from CTFd.models import db, Solves, Users
+from ...models import db, Solves, Users
 from ...utils.background_stats import get_cached_stat, set_cached_stat, is_event_stale
 from . import register_handler
 

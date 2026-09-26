@@ -93,7 +93,7 @@ def recompute(cache_key, event_type, payload, timeout=45):
 
 
 def set_hidden(session, hidden):
-    response = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"hidden": hidden})
+    response = session.patch(f"{DOJO_URL}/pwncollege_api/v1/users/me", json={"hidden": hidden})
     assert response.status_code == 200, f"Expected 200 setting hidden={hidden}, got {response.status_code}"
 
 
@@ -228,31 +228,6 @@ def test_hidden_profile_is_404_for_everyone_else_and_reversible(random_user, adm
     assert name in restored.text
 
 
-def test_ctfd_user_api_hides_hidden_users(random_user, admin_session):
-    name, session = random_user
-    user_id = get_user_id(name)
-    _, other_session = register_user()
-
-    def query_names(requester, **params):
-        response = requester.get(f"{DOJO_URL}/api/v1/users", params={"q": name, "field": "name", **params})
-        assert response.status_code == 200, f"Expected 200 from the user search, got {response.status_code}"
-        return [user["name"] for user in response.json()["data"]]
-
-    assert name in query_names(requests), "guard: a visible user must be findable before hiding"
-
-    set_hidden(session, True)
-
-    for label, requester in (("anonymous", requests), ("another user", other_session)):
-        response = requester.get(f"{DOJO_URL}/api/v1/users/{user_id}")
-        assert response.status_code == 404, f"{label} got {response.status_code} for a hidden user record"
-    assert admin_session.get(f"{DOJO_URL}/api/v1/users/{user_id}").status_code == 200, \
-        "site admins can still read a hidden user's record"
-
-    assert query_names(requests) == [], "a hidden user must not appear in the public user search"
-    assert name in query_names(admin_session, view="admin"), \
-        "the admin view of the user search still lists hidden users"
-
-
 def test_activity_endpoint_visibility_matrix(random_user, admin_session, example_dojo):
     name, session = random_user
     user_id = get_user_id(name)
@@ -279,7 +254,7 @@ def test_activity_endpoint_visibility_matrix(random_user, admin_session, example
     assert requests.get(f"{DOJO_URL}/pwncollege_api/v1/activity/{MISSING_USER_ID}").status_code == 404
 
 
-def test_hidden_user_public_awards_are_admin_only(random_user, admin_session):
+def test_hidden_user_still_lists_own_awards(random_user):
     name, session = random_user
     user_id = get_user_id(name)
     award_name = f"vmaward{rand_token()}"
@@ -289,25 +264,18 @@ def test_hidden_user_public_awards_are_admin_only(random_user, admin_session):
     )
 
     set_hidden(session, True)
-    public_awards = f"{DOJO_URL}/api/v1/users/{user_id}/awards"
 
-    assert session.get(public_awards).status_code == 404, \
-        "a hidden user's own public award listing is suppressed too"
-    assert requests.get(public_awards).status_code == 404, "anonymous visitors get 404"
-    assert admin_session.get(public_awards).status_code == 200, "site admins keep access to the public award listing"
-
-    own = session.get(f"{DOJO_URL}/api/v1/users/me/awards")
+    own = session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me/awards")
     assert own.status_code == 200, f"the hidden user's own awards endpoint must keep working, got {own.status_code}"
     assert award_name in {award["name"] for award in own.json()["data"]}
 
 
-def test_banned_user_keeps_a_public_profile(random_user, admin_session):
+def test_banned_user_keeps_a_public_profile(random_user):
     name, _ = random_user
     user_id = get_user_id(name)
 
     try:
-        response = admin_session.patch(f"{DOJO_URL}/api/v1/users/{user_id}", json={"banned": True})
-        assert response.status_code == 200, f"Expected the ban to apply, got {response.status_code}"
+        db_sql(f"UPDATE users SET banned = true WHERE id={user_id}")
         assert db_sql(f"SELECT banned FROM users WHERE id={user_id}").strip() == "t"
 
         profile = requests.get(f"{DOJO_URL}/hacker/{user_id}")
@@ -315,7 +283,7 @@ def test_banned_user_keeps_a_public_profile(random_user, admin_session):
             f"profile visibility keys off `hidden` only, so a banned user still renders; got {profile.status_code}"
         assert name in profile.text
     finally:
-        admin_session.patch(f"{DOJO_URL}/api/v1/users/{user_id}", json={"banned": False})
+        db_sql(f"UPDATE users SET banned = false WHERE id={user_id}")
 
 
 def test_default_admin_account_is_hidden(admin_session):

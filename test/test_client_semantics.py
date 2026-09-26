@@ -1,4 +1,5 @@
 import uuid
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 import yaml
@@ -8,7 +9,10 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from utils import DOJO_URL, challenge_flag, create_dojo_yml, db_sql, flask_exec, get_user_id, start_challenge
+from utils import (
+    DOJO_URL, challenge_db_id, challenge_flag, create_dojo_yml, db_sql, flask_exec, get_user_id, seed_recent_fails,
+    start_challenge,
+)
 
 
 @pytest.fixture(scope="module")
@@ -167,9 +171,9 @@ document.querySelector('main').appendChild(lessonAction);
     }
     dojo = create_dojo_yml(yaml.safe_dump(spec), session=admin_session)
     output = flask_exec(
-        "from CTFd.models import db\n"
-        "from CTFd.plugins.dojo_plugin.models import Dojos\n"
-        "from CTFd.plugins.dojo_plugin.utils.dojo import dojo_from_dir\n"
+        "from dojo_plugin.models import db\n"
+        "from dojo_plugin.models import Dojos\n"
+        "from dojo_plugin.utils.dojo import dojo_from_dir\n"
         f"dojo = Dojos.from_id({dojo!r}).one()\n"
         "dojo.permissions = ['custom_js']\n"
         "dojo_from_dir(dojo.path, dojo=dojo, platform_admin=True)\n"
@@ -218,3 +222,36 @@ def test_javascript_survey_form_saves_the_answer_entered_after_page_load(
         f"SELECT count(*) FROM survey_responses WHERE user_id = {user_id}"
     ).strip() == "1")
     assert db_sql(f"SELECT response FROM survey_responses WHERE user_id = {user_id}").strip() == answer
+
+
+def test_anonymous_flag_submission_redirects_to_login(browser_fixture, example_dojo):
+    browser = browser_fixture
+    site = DOJO_URL.rstrip("/")
+    browser.get(f"{site}/{example_dojo}/hello")
+    browser.find_element(By.ID, "challenges-header-button-1").click()
+    submit_flag(browser, "apple", "pwn.college{x}")
+    WebDriverWait(browser, 20).until(lambda driver: "/login" in driver.current_url)
+    login_url = urlparse(browser.current_url)
+    assert login_url.path == "/login"
+    assert parse_qs(login_url.query) == {"next": [f"/{example_dojo}/hello"]}
+
+
+def test_already_solved_and_ratelimited_result_messages(random_user_browser, random_user_name, example_dojo):
+    browser = random_user_browser
+    flag = challenge_flag(example_dojo, "hello", "apple", user=random_user_name)
+    browser.get(f"{DOJO_URL}/{example_dojo}/hello")
+    browser.find_element(By.ID, "challenges-header-button-1").click()
+    submit_flag(browser, "apple", flag)
+    wait_for_solve(browser, "apple")
+
+    def wait_for_result_message(text):
+        WebDriverWait(browser, 20).until(
+            lambda driver: text in challenge_item(driver, "apple").find_element(By.ID, "result-message").text
+        )
+
+    submit_flag(browser, "apple", flag)
+    wait_for_result_message("You already solved this")
+
+    seed_recent_fails(get_user_id(random_user_name), challenge_db_id(example_dojo, "hello", "apple"), 11)
+    submit_flag(browser, "apple", flag)
+    wait_for_result_message("You're submitting flags too fast")

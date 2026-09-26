@@ -15,18 +15,181 @@ import zlib
 import pytz
 import yaml
 from flask import current_app
+from flask_caching import Cache
+from flask_sqlalchemy import SQLAlchemy
+from passlib.hash import bcrypt_sha256
 from sqlalchemy import String, DateTime, case, cast, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import synonym
+from sqlalchemy.orm import synonym, validates
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.session import object_session
-from sqlalchemy.sql import or_, and_
+from sqlalchemy.sql import or_, and_, operators
+from sqlalchemy.types import TypeDecorator
 from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 from sqlalchemy.ext.associationproxy import association_proxy
-from CTFd.models import db, get_class_by_tablename, Challenges, Solves, Flags, Users, Admins, Awards
-from CTFd.utils.user import get_current_user, is_admin
 
 from ..config import DOJOS_DIR
+
+db = SQLAlchemy()
+cache = Cache()
+
+
+def hash_password(plaintext):
+    return bcrypt_sha256.hash(str(plaintext))
+
+
+def verify_password(plaintext, ciphertext):
+    return bcrypt_sha256.verify(plaintext, ciphertext)
+
+
+class EmailAddress(TypeDecorator):
+    impl = db.String
+    python_type = str
+    cache_ok = True
+
+    class comparator_factory(db.String.Comparator):
+        def operate(self, op, other, **kwargs):
+            if op in (operators.eq, operators.ne) and other is not None:
+                return op(db.func.lower(self.expr), db.func.lower(other), **kwargs)
+            return super().operate(op, other, **kwargs)
+
+
+class Users(db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    oauth_id = db.Column(db.Integer, unique=True)
+    name = db.Column(db.String(128))
+    password = db.Column(db.String(128))
+    email = db.Column(EmailAddress(128), unique=True)
+    type = db.Column(db.String(80), default="user")
+    website = db.Column(db.String(128))
+    affiliation = db.Column(db.String(128))
+    country = db.Column(db.String(32))
+    bracket = db.Column(db.String(32))
+    hidden = db.Column(db.Boolean, default=False)
+    banned = db.Column(db.Boolean, default=False)
+    verified = db.Column(db.Boolean, default=False)
+    created = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    __table_args__ = (db.Index("users_email_lower_key", db.func.lower(email), unique=True),)
+
+    @validates("password")
+    def validate_password(self, key, plaintext):
+        return hash_password(str(plaintext))
+
+    @property
+    def awards(self):
+        return Awards.query.filter_by(user_id=self.id).order_by(Awards.date.desc()).all()
+
+
+class Challenges(db.Model):
+    __tablename__ = "challenges"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80))
+    value = db.Column(db.Integer)
+    category = db.Column(db.String(80))
+    type = db.Column(db.String(80))
+    # NOT NULL without a server default in the CTFd-created schema, so every insert must send it
+    state = db.Column(db.String(80), nullable=False, default="visible")
+    flags = db.relationship("Flags")
+
+
+class Flags(db.Model):
+    __tablename__ = "flags"
+    id = db.Column(db.Integer, primary_key=True)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
+    type = db.Column(db.String(80))
+
+
+class Submissions(db.Model):
+    __tablename__ = "submissions"
+    id = db.Column(db.Integer, primary_key=True)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"))
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    ip = db.Column(db.String(46))
+    provided = db.Column(db.Text)
+    type = db.Column(db.String(32))
+    date = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    user = db.relationship("Users")
+    challenge = db.relationship("Challenges")
+    __mapper_args__ = {"polymorphic_on": type}
+
+
+class Solves(Submissions):
+    __mapper_args__ = {"polymorphic_identity": "correct"}
+
+
+class Fails(Submissions):
+    __mapper_args__ = {"polymorphic_identity": "incorrect"}
+
+
+class Awards(db.Model):
+    __tablename__ = "awards"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    name = db.Column(db.String(80))
+    description = db.Column(db.Text)
+    date = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    value = db.Column(db.Integer)
+    category = db.Column(db.String(80))
+    icon = db.Column(db.Text)
+    type = db.Column(db.String(80), default="standard", server_default="standard")
+    user = db.relationship("Users")
+    __mapper_args__ = {"polymorphic_identity": "standard", "polymorphic_on": type}
+
+
+class Tokens(db.Model):
+    __tablename__ = "tokens"
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(32), default="user")
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"))
+    created = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    expiration = db.Column(db.DateTime, default=lambda: datetime.datetime.utcnow() + datetime.timedelta(days=30))
+    value = db.Column(db.String(128), unique=True)
+    description = db.Column(db.Text)
+    user = db.relationship("Users")
+
+
+class Configs(db.Model):
+    __tablename__ = "config"
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.Text)
+    value = db.Column(db.Text)
+
+
+@cache.memoize()
+def _get_config(key):
+    # No ORDER BY and fetchone(): the production table has duplicate keys and heap order decides which one wins.
+    config = db.session.execute(Configs.__table__.select().where(Configs.key == key)).fetchone()
+    if config and config.value:
+        value = config.value
+        if value.isdigit():
+            return int(value)
+        if value.lower() == "true":
+            return True
+        if value.lower() == "false":
+            return False
+        return value
+    # Flask-Caching cannot round-trip None: the KeyError class is the "unset" sentinel.
+    return KeyError
+
+
+def get_config(key, default=None):
+    value = _get_config(key)
+    return default if value is KeyError else value
+
+
+def set_config(key, value):
+    stored = None if value is None else "true" if value is True else "false" if value is False else str(value)
+    config = Configs.query.filter_by(key=key).first()
+    if config is None:
+        config = Configs(key=key, value=stored)
+        db.session.add(config)
+        db.session.commit()
+    elif config.value != stored:
+        config.value = stored
+        db.session.commit()
+    cache.delete_memoized(_get_config, key)
+    return config
 
 
 def delete_before_insert(column, null=[]):
@@ -308,6 +471,7 @@ class Dojos(db.Model):
         ).count() == len([challenge for challenge in self.challenges if challenge.required])
 
     def is_admin(self, user=None):
+        from ..utils.user import get_current_user, is_admin
         if user is None:
             user = get_current_user()
         dojo_admin = DojoAdmins.query.filter_by(dojo=self, user=user).first()
@@ -986,3 +1150,11 @@ class WorkspaceTokens(db.Model):
 for deferral in deferred_definitions:
     deferral()
 del deferred_definitions
+
+
+__all__ = [
+    "db", "Users", "Challenges", "Flags", "Submissions", "Solves", "Fails", "Awards", "Tokens", "Configs",
+    "Dojos", "DojoUsers", "DojoMembers", "DojoAdmins", "DojoStudents", "DojoModules", "DojoChallenges",
+    "DojoResources", "DojoChallengeVisibilities", "DojoModuleVisibilities", "DojoResourceVisibilities",
+    "SurveyResponses", "SSHKeys", "WorkspaceTokens", "DiscordUsers", "DiscordUserActivity", "Belts", "Emojis",
+]

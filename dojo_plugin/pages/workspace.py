@@ -4,14 +4,12 @@ import hmac
 import os
 
 from flask import request, Blueprint, Response, render_template, abort
-from CTFd.models import Users
-from CTFd.utils.user import get_current_user
-from CTFd.utils.decorators import authed_only
-from CTFd.plugins import bypass_csrf_protection
+from ..utils.user import get_current_user
+from ..utils.decorators import authed_only
 from urllib.parse import urlencode
 
 from ..config import WORKSPACE_SECRET
-from ..models import Dojos
+from ..models import Dojos, Users
 from ..utils import user_ipv4, get_current_container, container_password, parse_positive_int
 from ..utils.dojo import get_current_dojo_challenge
 

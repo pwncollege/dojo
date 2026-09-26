@@ -51,7 +51,7 @@ window.addEventListener("load", async function () {
     const error = document.getElementById("workspace-launch-error");
 
     try {
-        const response = await CTFd.fetch("/pwncollege_api/v1/docker", {
+        const response = await Dojo.fetch("/pwncollege_api/v1/docker", {
             method: "POST",
             credentials: "same-origin",
             headers: {
@@ -62,7 +62,7 @@ window.addEventListener("load", async function () {
         });
 
         if (response.status === 403) {
-            window.location = CTFd.config.urlRoot + "/login?next=" +
+            window.location = Dojo.config.urlRoot + "/login?next=" +
                 encodeURIComponent(window.location.pathname + window.location.search);
             return;
         }

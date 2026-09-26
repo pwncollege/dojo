@@ -1,10 +1,9 @@
 from flask import request
 from flask_restx import Namespace, Resource
 from sqlalchemy.sql import and_, or_
-from CTFd.models import db
-from CTFd.utils.user import get_current_user, is_admin
+from ...utils.user import get_current_user, is_admin
 
-from ...models import Dojos, DojoAdmins, DojoModules, DojoChallenges
+from ...models import Dojos, DojoAdmins, DojoModules, DojoChallenges, db
 
 search_namespace = Namespace("search", description="Search across dojos, modules, and challenges")
 

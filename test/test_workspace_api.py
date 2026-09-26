@@ -142,7 +142,7 @@ def proxy_get(iframe_src, *, timeout=15):
 
 
 def solve_count(user_id):
-    return int(db_sql(f"SELECT count(*) FROM solves WHERE user_id = {user_id}").strip())
+    return int(db_sql(f"SELECT count(*) FROM submissions WHERE type = 'correct' AND user_id = {user_id}").strip())
 
 
 def submit_flag(session, dojo, module, challenge, flag):

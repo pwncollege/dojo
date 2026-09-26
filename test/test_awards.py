@@ -288,7 +288,7 @@ def test_belts_api_and_page_exclude_hidden_and_unbelted_users(belt_dojos, arena_
     assert http_get(plain_session, f"{DOJO_URL}/dojo/{arena_dojo}/join/").status_code == 200
     solve_challenge_offline(arena_dojo, "hello", "apple", session=plain_session, user=plain_name)
 
-    response = hidden_session.patch(f"{DOJO_URL}/api/v1/users/me", json={"hidden": True})
+    response = hidden_session.patch(f"{DOJO_URL}/pwncollege_api/v1/users/me", json={"hidden": True})
     assert response.status_code == 200, f"Expected 200 hiding the user, got {response.status_code}"
     recalculate_belts()
 

@@ -159,7 +159,7 @@ def redis_cmd(*args):
 
 def recalc_dojo(dojo_id):
     output = sb_flask_exec(
-        "from CTFd.plugins.dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update\n"
+        "from dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update\n"
         f"handle_scoreboard_update({{'model_type': 'dojo', 'model_id': {dojo_id}}})\n"
         "print('RECALC-OK')\n"
     )
@@ -169,7 +169,7 @@ def recalc_dojo(dojo_id):
 def scores_report(dojo_id, uids, module_indices):
     output = sb_flask_exec(
         "import json\n"
-        "from CTFd.plugins.dojo_plugin.utils.scores import (\n"
+        "from dojo_plugin.utils.scores import (\n"
         "    get_user_dojo_rank, get_user_dojo_solves, get_user_module_rank, get_user_module_solves)\n"
         f"report = {{}}\n"
         f"for uid in {list(uids)!r}:\n"
@@ -284,7 +284,7 @@ def sb_filter(admin_session, example_dojo):
     }
     uids = user_ids(list(sessions))
 
-    assert hidden_session.patch(f"{DOJO_URL}/api/v1/users/me", json={"hidden": True}).status_code == 200
+    assert hidden_session.patch(f"{DOJO_URL}/pwncollege_api/v1/users/me", json={"hidden": True}).status_code == 200
 
     join(promoted_session, dojo)
     promote = admin_session.post(
@@ -425,7 +425,7 @@ def test_optional_challenge_solved_state_and_counts(admin_session):
 
     def recalculate_module():
         output = sb_flask_exec(
-            "from CTFd.plugins.dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update\n"
+            "from dojo_plugin.worker.handlers.scoreboard import handle_scoreboard_update\n"
             f"handle_scoreboard_update({{'model_type': 'module', 'model_id': [{dojo_id}, 0]}})\n"
             "print('RECALC-OK')\n"
         )
@@ -507,7 +507,7 @@ def test_scoreboard_symbol_email_case_insensitive():
     result = json.loads(sb_flask_exec(
         "import json\n"
         "from flask import current_app\n"
-        "from CTFd.plugins.dojo_plugin.api.v1.scoreboard import email_symbol_asset\n"
+        "from dojo_plugin.api.v1.scoreboard import email_symbol_asset\n"
         "with current_app.test_request_context():\n"
         f"    print(json.dumps({{email: email_symbol_asset(email) for email in {list(expected)!r}}}))\n"
     ))
@@ -612,7 +612,7 @@ def test_scores_ranks_solves_and_module_scoping(sb_main):
 def test_hacker_page_renders_ranks(sb_main, sb_filter):
     alice_id = sb_main["uids"][sb_main["alice"]]
     output = sb_flask_exec(
-        "from CTFd.plugins.dojo_plugin.utils.scores import get_dojo_scores, get_user_dojo_solves\n"
+        "from dojo_plugin.utils.scores import get_dojo_scores, get_user_dojo_solves\n"
         f"scores = get_dojo_scores({sb_main['dojo_id']})\n"
         f"print('RANKINFO', scores['ranks'].index({alice_id}) + 1, len(scores['ranks']),"
         f" get_user_dojo_solves({sb_main['dojo_id']}, {alice_id}))\n"
@@ -807,8 +807,8 @@ def test_score_endpoint_format(example_dojo):
                     flag=derive_flags([(uids[name], challenge_id)])[0])
 
     output = sb_flask_exec(
-        "from CTFd.models import Challenges\n"
-        "from CTFd.plugins.dojo_plugin.models import Dojos, DojoChallenges\n"
+        "from dojo_plugin.models import Challenges\n"
+        "from dojo_plugin.models import Dojos, DojoChallenges\n"
         "query = (Challenges.query.join(DojoChallenges).join(Dojos)\n"
         "         .filter(Dojos.official, DojoChallenges.visible()).distinct()\n"
         "         .with_entities(Challenges.id))\n"
@@ -825,7 +825,7 @@ def test_score_endpoint_format(example_dojo):
     assert reported_max == max_again == max_score, f"expected max_score {max_score}, got {fields}"
     assert rank >= 1 and user_count >= 1, fields
 
-    assert session.patch(f"{DOJO_URL}/api/v1/users/me", json={"hidden": True}).status_code == 200
+    assert session.patch(f"{DOJO_URL}/pwncollege_api/v1/users/me", json={"hidden": True}).status_code == 200
     hidden = requests.get(f"{DOJO_URL}/pwncollege_api/v1/score", params={"username": name})
     assert hidden.status_code == 400, "a hidden user is not exposed by the score endpoint"
     assert "does not exist" in hidden.json()["error"], hidden.json()

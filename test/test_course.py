@@ -202,9 +202,9 @@ def ingestion_results():
     tag = rand()
     script = f'''
 import json, pathlib, shutil
-from CTFd.models import db
-from CTFd.plugins.dojo_plugin.models import Dojos
-from CTFd.plugins.dojo_plugin.utils.dojo import dojo_from_dir
+from dojo_plugin.models import db
+from dojo_plugin.models import Dojos
+from dojo_plugin.utils.dojo import dojo_from_dir
 
 root = pathlib.Path("/tmp/course-ingest-{tag}")
 results = dict()

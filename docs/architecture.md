@@ -10,9 +10,9 @@ This document is an attempt to clarify this complexity and enable new admins or 
 
 ## High Level Overview
 
-Roughly speaking, it is implemented as a "plugin" to the popular [CTFd](https://github.com/CTFd/CTFd) platform.
-CTFd provides for a concept of users, challenges, and users solving those challenges by submitting flags.
-The DOJO extends upon this by providing a way for instructors to create challenges, which students may then work on solving within a browser-based workspace environment.
+Roughly speaking, it is a [Flask application](https://github.com/pwncollege/dojo/tree/master/dojo_plugin) of its own.
+It provides for a concept of users, challenges, and users solving those challenges by submitting flags: these live in `dojo_plugin/models/` together with the dojo's own models.
+On top of that, it provides a way for instructors to create challenges, which students may then work on solving within a browser-based workspace environment.
 
 These workspace environments are isolated from one another, and implemented as Docker containers (significantly more performant than deploying VMs).
 The workspace starts when a student begins working on a challenge, and stops when the student is finished (or after a timeout).
@@ -114,19 +114,19 @@ The DOJO database lives in the `db` container by default.
 You can use an external database by setting `DB_HOST` in `config.env`.
 You can launch a database client session with `dojo db`.
 
-## CTFd and the dojo-plugin
+## The web application
 
-The front-end interface of the dojo is a total-conversion-style [CTFd plugin](https://github.com/pwncollege/dojo/tree/master/dojo_plugin).
-The plugin, along with its companion [theme/templates](https://github.com/pwncollege/dojo/tree/master/dojo_theme) replaces almost all front-end functionality.
+The front-end interface of the dojo is the [web application](https://github.com/pwncollege/dojo/tree/master/dojo_plugin).
+The application, along with its companion [theme/templates](https://github.com/pwncollege/dojo/tree/master/dojo_theme) provides all front-end functionality.
 
-CTFd accesses the DOJO DB using the SQLAlchemy ORM.
+The web app accesses the DOJO DB using the SQLAlchemy ORM.
 You can drop into a python shell to leverage this as well by running `dojo flask`.
 
-The docker socket of the docker-in-docker daemon is mapped into the CTFd container, allowing CTFd to start up user challenge containers.
+The docker socket of the docker-in-docker daemon is mapped into the web app's container, allowing it to start up user challenge containers.
 
 ## Challenge containers
 
-When a user launches a challenge, CTFd starts a docker container that will run alongside the infrastructure containers, and:
+When a user launches a challenge, the web app starts a docker container that will run alongside the infrastructure containers, and:
 
 - Copies challenge files into the container (currently [here](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L184)).
 - Mounts the Workspace tool overlay into the container (currently [here](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/docker.py#L116)).
@@ -169,7 +169,7 @@ Access to the DOJO workspace happens one of two protocols.
 
 ### HTTP
 
-HTTP access is [proxied through CTFd](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/pages/workspace.py#L35).
+HTTP access is [proxied through the web app](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/pages/workspace.py#L35).
 Services are [automatically started](https://github.com/pwncollege/dojo/tree/master/workspace/services) in the user's container when the request is received by [dojo-plugin](https://github.com/pwncollege/dojo/blob/master/dojo_plugin/api/v1/workspace.py#L73).
 
 ### SSH

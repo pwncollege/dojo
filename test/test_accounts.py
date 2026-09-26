@@ -85,10 +85,10 @@ def server_config(**overrides):
     deployment holding a setting the rest of the suite does not expect.
     """
     read = ("import json\n"
-            "from CTFd.utils import get_config\n"
+            "from dojo_plugin.models import get_config\n"
             f"print('RESULT:' + json.dumps({{key: get_config(key) for key in {list(overrides)!r}}}))\n")
     write = ("import json\n"
-             "from CTFd.utils import set_config\n"
+             "from dojo_plugin.models import set_config\n"
              "for key, value in {values!r}.items():\n"
              "    set_config(key, value)\n"
              "print('RESULT:' + json.dumps(True))\n")
@@ -128,15 +128,16 @@ def account_case(session, code):
     setup = (
         "from flask import current_app\n"
         "from unittest.mock import patch\n"
-        "from CTFd.models import db, Users, UserFields, UserFieldEntries\n"
-        "from CTFd.plugins.dojo_plugin.api.v1 import auth as auth_api\n"
+        "from dojo_plugin.models import db, Users\n"
+        "from dojo_plugin.api.v1 import auth as auth_api\n"
         "app = current_app._get_current_object()\n"
         "client = app.test_client()\n"
         f"client.set_cookie(app.config['SESSION_COOKIE_NAME'], {session.cookies.get('session')!r})\n"
         f"client.environ_base['HTTP_CSRF_TOKEN'] = {session.headers['CSRF-Token']!r}\n"
     )
     output = flask_exec(setup + textwrap.dedent(code) + "\nprint('ACCOUNT-CASE-PASSED')\n")
-    assert "ACCOUNT-CASE-PASSED" in output, output
+    # A failing traceback quotes nearby source, sentinel included, so only a line printed on its own counts
+    assert "ACCOUNT-CASE-PASSED" in output.splitlines(), output
 
 
 @pytest.fixture(scope="module")
@@ -161,14 +162,10 @@ def second_user():
 
 
 @pytest.fixture
-def mixed_case_email_user(random_user, admin_session):
+def mixed_case_email_user(random_user):
     name, session = random_user
     email = f"{name.upper()}@Example.COM"
-    response = admin_session.patch(
-        f"{DOJO_URL}/api/v1/users/{get_user_id(name)}", json={"email": email, "verified": True}
-    )
-    assert response.status_code == 200, response.text
-    assert response.json()["data"]["email"] == email
+    db_sql(f"UPDATE users SET email = '{email}', verified = true WHERE name = '{name}'")
     return name, session, email
 
 
@@ -176,7 +173,7 @@ def mixed_case_email_user(random_user, admin_session):
 def test_email_login_case_insensitive(mixed_case_email_user, email_case):
     name, _, email = mixed_case_email_user
     session = login(email_case(email), name)
-    assert session.get(f"{DOJO_URL}/api/v1/users/me").json()["data"]["name"] == name
+    assert session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me").json()["name"] == name
 
     response = api_login(anon_session(), name=email_case(email), password=name)
     assert response.status_code == 200, response.text
@@ -198,7 +195,7 @@ def test_email_comparison_does_not_change_credentials(mixed_case_email_user):
     assert api_login(anon_session(), name=email.lower(), password=name.upper()).status_code == 401
 
 
-def test_registration_rejects_email_case_duplicate(mixed_case_email_user, admin_session):
+def test_registration_rejects_email_case_duplicate(mixed_case_email_user):
     _, _, email = mixed_case_email_user
     name = rand_name()
     login(name, name, register=True, email=email.lower(), success=False)
@@ -209,30 +206,19 @@ def test_registration_rejects_email_case_duplicate(mixed_case_email_user, admin_
     assert "That email is already registered" in response.json()["errors"]
     assert count_users(name) == 0
 
-    response = admin_session.post(
-        f"{DOJO_URL}/api/v1/users", json=registration_payload(name, email=email.lower())
-    )
-    assert response.status_code == 400, response.text
-    assert "email" in response.json()["errors"]
-    assert count_users(name) == 0
-
 
 def test_self_email_case_edit(mixed_case_email_user):
     name, session, email = mixed_case_email_user
-    response = session.patch(f"{DOJO_URL}/api/v1/users/me", json={"email": email.lower()})
+    response = session.patch(f"{DOJO_URL}/pwncollege_api/v1/users/me", json={"email": email.lower()})
     assert response.status_code == 200, response.text
     assert response.json()["data"]["email"] == email.lower()
     assert db_sql(f"SELECT verified FROM users WHERE name = '{name}'").strip() == "t"
 
 
-@pytest.mark.parametrize("as_admin", [False, True])
-def test_email_edit_rejects_case_duplicate(mixed_case_email_user, second_user, admin_session, as_admin):
+def test_email_edit_rejects_case_duplicate(mixed_case_email_user, second_user):
     _, _, email = mixed_case_email_user
     name, session = second_user
-    endpoint = f"/api/v1/users/{get_user_id(name)}" if as_admin else "/api/v1/users/me"
-    response = (admin_session if as_admin else session).patch(
-        f"{DOJO_URL}{endpoint}", json={"email": email.lower(), "confirm": name}
-    )
+    response = session.patch(f"{DOJO_URL}/pwncollege_api/v1/users/me", json={"email": email.lower(), "confirm": name})
     assert response.status_code == 400, response.text
     assert "email" in response.json()["errors"]
     assert db_sql(f"SELECT email FROM users WHERE name = '{name}'").strip() == f"{name}@example.com"
@@ -271,7 +257,7 @@ def test_api_registration_profile_fields_persist_and_can_be_updated():
     assert {key: initial[key] for key in profile} == profile
 
     updated = {"website": "https://example.com/graduate", "affiliation": "Example Research", "country": "CA"}
-    response = fresh.patch(f"{DOJO_URL}/api/v1/users/me", json=updated)
+    response = fresh.patch(f"{DOJO_URL}/pwncollege_api/v1/users/me", json=updated)
     assert response.status_code == 200, response.text
     persisted = login(name, name).get(f"{DOJO_URL}/pwncollege_api/v1/users/me").json()
     assert {key: persisted[key] for key in updated} == updated
@@ -319,44 +305,10 @@ def test_api_registration_respects_allowed_email_domains():
         ).json()["email"] == f"{accepted_name}@example.edu"
 
 
-def test_api_registration_collects_required_and_optional_custom_fields():
-    name = rand_name()
-    payload = registration_payload(name)
-    account_case(anon_session(), f"""
-        required = UserFields(name={rand_name('required')!r}, field_type="text", required=True, public=False, editable=True)
-        optional = UserFields(name={rand_name('optional')!r}, field_type="text", required=False, public=False, editable=True)
-        db.session.add_all([required, optional])
-        db.session.commit()
-        field_ids = [required.id, optional.id]
-        try:
-            payload = {payload!r}
-            rejected = client.post("/pwncollege_api/v1/auth/register", json=payload)
-            assert rejected.status_code == 400, rejected.get_data(as_text=True)
-            assert Users.query.filter_by(name={name!r}).first() is None
-
-            payload[f"fields[{{required.id}}]"] = "  Computer science  "
-            payload[f"fields[{{optional.id}}]"] = "  Returning student  "
-            accepted = client.post("/pwncollege_api/v1/auth/register", json=payload)
-            assert accepted.status_code == 200, accepted.get_data(as_text=True)
-            user_id = accepted.get_json()["data"]["user_id"]
-            entries = {{entry.field_id: entry.value for entry in UserFieldEntries.query.filter_by(user_id=user_id)}}
-            assert entries[required.id] == "Computer science"
-            assert entries[optional.id] == "Returning student"
-            identity = client.get("/pwncollege_api/v1/users/me")
-            assert identity.status_code == 200
-            assert identity.get_json()["id"] == user_id
-        finally:
-            UserFieldEntries.query.filter(UserFieldEntries.field_id.in_(field_ids)).delete(synchronize_session=False)
-            for field in [required, optional]:
-                db.session.delete(field)
-            db.session.commit()
-    """)
-
-
 def test_api_registration_with_mail_waits_for_email_confirmation():
     name = rand_name()
     account_case(anon_session(), f"""
-        from CTFd.utils.security.signing import serialize
+        from dojo_plugin.utils import serialize
 
         notifications = {{"verify": [], "welcome": []}}
         get_config = auth_api.get_config
@@ -388,7 +340,7 @@ def test_api_password_recovery_with_mail_preserves_oauth_accounts(random_user, s
     name, _ = random_user
     oauth_name, _ = second_user
     account_case(anon_session(), f"""
-        from CTFd.utils.security.signing import serialize
+        from dojo_plugin.utils import serialize
 
         user = Users.query.filter_by(name={name!r}).one()
         oauth_user = Users.query.filter_by(name={oauth_name!r}).one()
@@ -435,6 +387,229 @@ def test_api_password_recovery_with_mail_preserves_oauth_accounts(random_user, s
             db.session.commit()
     """)
 
+
+def test_verified_email_gate_blocks_actions(random_user, example_dojo, admin_session):
+    name, session = random_user
+    uid = get_user_id(name)
+    solve_path = f"/pwncollege_api/v1/dojos/{example_dojo}/hello/apple/solve"
+    account_case(session, f"""
+        from dojo_plugin import models
+        from dojo_plugin.models import Fails
+        from dojo_plugin.pages import auth as auth_page, settings as settings_page
+        from dojo_plugin.utils import decorators, user as user_utils
+        from dojo_plugin.utils.user import clear_user_session
+
+        real_get_config = models.get_config
+        configured = lambda key, *args, **kwargs: True if key == "verify_emails" else real_get_config(key, *args, **kwargs)
+        admin = app.test_client()
+        admin.set_cookie(app.config['SESSION_COOKIE_NAME'], {admin_session.cookies.get('session')!r})
+        admin.environ_base['HTTP_CSRF_TOKEN'] = {admin_session.headers['CSRF-Token']!r}
+
+        original_verified = Users.query.get({uid}).verified
+        unverified = Users.query.get({uid})
+        unverified.verified = False
+        db.session.commit()
+        clear_user_session(user_id={uid})
+        fails_before = Fails.query.filter_by(user_id={uid}).count()
+        try:
+            with patch.object(decorators, "get_config", side_effect=configured), \\
+                 patch.object(user_utils, "get_config", side_effect=configured), \\
+                 patch.object(settings_page, "get_config", side_effect=configured), \\
+                 patch.object(auth_page, "get_config", side_effect=configured):
+                solve = client.post({solve_path!r}, json={{"submission": "x"}})
+                assert solve.status_code == 403, solve.get_data(as_text=True)
+                assert Fails.query.filter_by(user_id={uid}).count() == fails_before
+
+                token = client.post("/pwncollege_api/v1/users/me/tokens", json={{}})
+                assert token.status_code == 403, token.get_data(as_text=True)
+
+                settings = client.get("/settings")
+                assert settings.status_code == 200, settings.status_code
+                assert "Your email address isn't confirmed" in settings.get_data(as_text=True)
+
+                form_solve = client.post({solve_path!r}, data={{"submission": "x", "nonce": {session.headers['CSRF-Token']!r}}})
+                assert form_solve.status_code == 302, form_solve.status_code
+                assert form_solve.headers["Location"].endswith("/confirm"), form_solve.headers["Location"]
+
+                admin_solve = admin.post({solve_path!r}, json={{"submission": "x"}})
+                assert admin_solve.status_code != 403, admin_solve.get_data(as_text=True)
+                assert admin_solve.get_json()["status"] in ("incorrect", "already_solved"), admin_solve.get_json()
+        finally:
+            restored = Users.query.get({uid})
+            restored.verified = original_verified
+            db.session.commit()
+            clear_user_session(user_id={uid})
+    """)
+
+
+def test_html_register_with_mail_requires_confirmation():
+    def register_with_mail(verify_emails):
+        name = rand_name()
+        email = f"{name}@example.com"
+        registrant = anon_session()
+        get_config_patch = (
+            'patch.object(auth_page, "get_config", side_effect=configured)' if verify_emails else "contextlib.nullcontext()"
+        )
+        expected_location = "/confirm" if verify_emails else "/challenges"
+        expected_notifications = {"verify": [email], "welcome": []} if verify_emails else {"verify": [], "welcome": [email]}
+        account_case(registrant, f"""
+            import contextlib
+            import time
+            from dojo_plugin import models
+            from dojo_plugin.pages import auth as auth_page
+
+            real_get_config = models.get_config
+            configured = lambda key, *args, **kwargs: True if key == "verify_emails" else real_get_config(key, *args, **kwargs)
+            notifications = {{"verify": [], "welcome": []}}
+            form = {{
+                "name": {name!r},
+                "email": {email!r},
+                "password": {name!r},
+                "nonce": {registrant.headers['CSRF-Token']!r},
+                "commitment_verified": "verified",
+            }}
+            with {get_config_patch}, \\
+                 patch.object(auth_page, "can_send_mail", return_value=True), \\
+                 patch.object(auth_page.email, "verify_email_address", side_effect=notifications["verify"].append), \\
+                 patch.object(auth_page.email, "successful_registration_notification", side_effect=notifications["welcome"].append):
+                for _ in range(70):
+                    response = client.post("/register", data=form)
+                    if response.status_code != 429:
+                        break
+                    time.sleep(1)
+                assert response.status_code == 302, response.get_data(as_text=True)
+                assert response.headers["Location"].endswith({expected_location!r}), response.headers["Location"]
+                assert notifications == {expected_notifications!r}, notifications
+        """)
+        assert count_users(name) == 1
+        return name
+
+    confirming_name = register_with_mail(verify_emails=True)
+    assert db_sql(f"SELECT verified FROM users WHERE name = '{confirming_name}'").strip() == "f"
+    register_with_mail(verify_emails=False)
+
+
+def test_notification_email_delivery_and_failure():
+    output = flask_exec(textwrap.dedent("""
+        import re
+        import smtplib
+        from unittest.mock import patch
+        from flask import current_app
+        from dojo_plugin.config import CTF_NAME, DOJO_HOST
+        from dojo_plugin.models import set_config
+        from dojo_plugin.utils import email as mail, unserialize
+
+        sent = []
+
+        class RecordingSMTP:
+            def __init__(self, host, port, timeout=None):
+                pass
+            def starttls(self):
+                pass
+            def login(self, *args):
+                pass
+            def send_message(self, message):
+                sent.append(message)
+            def quit(self):
+                pass
+
+        class FailingSMTP(RecordingSMTP):
+            def send_message(self, message):
+                raise smtplib.SMTPException("boom")
+
+        def verify(address):
+            with current_app.test_request_context("/", base_url=f"http://{DOJO_HOST}/"):
+                return mail.verify_email_address(address)
+
+        with patch.object(mail, "MAIL_SERVER", "localhost"), patch.object(mail, "MAIL_PORT", "25"):
+            with patch.object(smtplib, "SMTP", RecordingSMTP):
+                delivered, _ = verify("hacker@example.com")
+                assert delivered is True
+                message = sent[-1]
+                assert message["To"] == "hacker@example.com", message["To"]
+                assert CTF_NAME in message["Subject"], message["Subject"]
+                link = re.search(r"/confirm/(\\S+)", message.get_content())
+                assert link, message.get_content()
+                assert unserialize(link.group(1)) == "hacker@example.com"
+
+                set_config("verification_email_subject", "Hi {ctf_name}")
+                try:
+                    delivered, _ = verify("hacker@example.com")
+                    assert delivered is True
+                    assert sent[-1]["Subject"] == f"Hi {CTF_NAME}", sent[-1]["Subject"]
+                finally:
+                    set_config("verification_email_subject", None)
+                assert len(sent) == 2
+
+            with patch.object(smtplib, "SMTP", FailingSMTP):
+                result = verify("hacker@example.com")
+                assert isinstance(result, tuple) and len(result) == 2 and result[0] is False, result
+                assert "boom" in result[1], result
+        print("MAIL-CASE-PASSED")
+    """))
+    assert "MAIL-CASE-PASSED" in output.splitlines(), output
+
+
+def test_self_email_change_resets_verified_and_enforces_whitelist(random_user, second_user):
+    name, session = random_user
+    uid = get_user_id(name)
+    admin_uid = get_user_id(second_user[0])
+    admin_address = f"{rand_name('admin')}@example.com"
+    account_case(session, f"""
+        from dojo_plugin import models
+        from dojo_plugin.api.v1 import user as user_api
+        from dojo_plugin.utils import email as mail_mod
+        from dojo_plugin.utils.user import clear_user_session
+
+        real_get_config = models.get_config
+        configured = lambda key, *args, **kwargs: True if key == "verify_emails" else real_get_config(key, *args, **kwargs)
+        whitelisted = lambda key, *args, **kwargs: "example.edu" if key == "domain_whitelist" else real_get_config(key, *args, **kwargs)
+
+        original_email = Users.query.get({uid}).email
+        original_verified = Users.query.get({uid}).verified
+        try:
+            admin = app.test_client()
+            with admin.session_transaction() as seeded_session:
+                seeded_session["id"] = {admin_uid}
+                seeded_session["nonce"] = "admin-nonce"
+            admin.environ_base["HTTP_CSRF_TOKEN"] = "admin-nonce"
+            for verified_uid in ({uid}, {admin_uid}):
+                Users.query.get(verified_uid).verified = True
+            Users.query.get({admin_uid}).type = "admin"
+            db.session.commit()
+            clear_user_session(user_id={uid})
+            clear_user_session(user_id={admin_uid})
+            assert Users.query.get({uid}).verified is True
+            assert Users.query.get({admin_uid}).verified is True
+
+            with patch.object(user_api, "get_config", side_effect=configured), \\
+                 patch.object(mail_mod, "get_config", side_effect=whitelisted):
+                rejected = client.patch("/pwncollege_api/v1/users/me", json={{"email": {f"{name}-x@example.com"!r}, "confirm": {name!r}}})
+                assert rejected.status_code == 400, rejected.get_data(as_text=True)
+                assert rejected.get_json()["errors"]["email"] == ["Email address is not from an allowed domain"], rejected.get_json()
+                assert Users.query.get({uid}).email == original_email
+
+                accepted = client.patch("/pwncollege_api/v1/users/me", json={{"email": {f"{name}@example.edu"!r}, "confirm": {name!r}}})
+                assert accepted.status_code == 200, accepted.get_data(as_text=True)
+                changed = Users.query.get({uid})
+                assert changed.email == {f"{name}@example.edu"!r}, changed.email
+                assert changed.verified is False
+
+                admin_change = admin.patch("/pwncollege_api/v1/users/me", json={{"email": {admin_address!r}}})
+                assert admin_change.status_code == 200, admin_change.get_data(as_text=True)
+                assert Users.query.get({admin_uid}).email == {admin_address!r}
+                assert Users.query.get({admin_uid}).verified is False
+        finally:
+            restored = Users.query.get({uid})
+            restored.email = original_email
+            restored.verified = original_verified
+            Users.query.get({admin_uid}).type = "user"
+            db.session.commit()
+            clear_user_session(user_id={uid})
+            clear_user_session(user_id={admin_uid})
+    """)
+    assert db_sql(f"SELECT email FROM users WHERE id = {uid}").strip() == f"{name}@example.com"
+    assert db_sql(f"SELECT type FROM users WHERE id = {admin_uid}").strip() == "user"
 
 def test_api_register_blocked_when_registration_not_public():
     name = rand_name()
@@ -776,32 +951,70 @@ def test_ctfd_access_token_auth():
     name = rand_name()
     session = login(name, name, register=True)
 
-    created = session.post(f"{DOJO_URL}/api/v1/tokens", json={})
+    created = session.post(f"{DOJO_URL}/pwncollege_api/v1/users/me/tokens", json={})
     assert created.status_code == 200, created.text
     value = created.json()["data"]["value"]
 
     authorized = requests.get(
-        f"{DOJO_URL}/api/v1/users/me",
+        f"{DOJO_URL}/pwncollege_api/v1/users/me",
         headers={"Authorization": f"Token {value}", "Content-Type": "application/json"},
     )
     assert authorized.status_code == 200, authorized.text
-    assert authorized.json()["data"]["name"] == name, authorized.json()
+    assert authorized.json()["name"] == name, authorized.json()
 
     bogus = requests.get(
-        f"{DOJO_URL}/api/v1/users/me",
+        f"{DOJO_URL}/pwncollege_api/v1/users/me",
         headers={"Authorization": "Token bogus", "Content-Type": "application/json"},
     )
     assert bogus.status_code == 401, bogus.text
 
     db_sql(f"UPDATE tokens SET expiration = NOW() - interval '1 day' WHERE value = '{value}'")
     expired = requests.get(
-        f"{DOJO_URL}/api/v1/users/me",
+        f"{DOJO_URL}/pwncollege_api/v1/users/me",
         headers={"Authorization": f"Token {value}", "Content-Type": "application/json"},
     )
     assert expired.status_code == 401, expired.text
     assert "expired" in expired.text.lower(), expired.text
 
     assert session.get(f"{DOJO_URL}/settings").status_code == 200
+
+
+def test_user_token_lifecycle(random_user, second_user):
+    _, owner = random_user
+    _, other = second_user
+    tokens_url = f"{DOJO_URL}/pwncollege_api/v1/users/me/tokens"
+
+    def authenticates(value):
+        return requests.get(
+            f"{DOJO_URL}/pwncollege_api/v1/users/me",
+            headers={"Authorization": f"Token {value}", "Content-Type": "application/json"},
+        ).status_code
+
+    explicit = owner.post(tokens_url, json={"expiration": "2035-01-01"})
+    assert explicit.status_code == 200, explicit.text
+    explicit = explicit.json()["data"]
+    assert explicit["expiration"].startswith("2035-01-01"), explicit
+
+    default = owner.post(tokens_url, json={})
+    assert default.status_code == 200, default.text
+    default = default.json()["data"]
+    expiration = datetime.datetime.strptime(default["expiration"][:19], "%Y-%m-%dT%H:%M:%S")
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    expiration_days = (expiration - now).total_seconds() / 86400
+    assert 29 < expiration_days < 31, f"expected a ~30 day default expiration, got {expiration_days} days"
+
+    foreign_delete = other.delete(f"{tokens_url}/{explicit['id']}", json={})
+    assert foreign_delete.status_code == 404, f"{foreign_delete.status_code} {foreign_delete.text[:200]}"
+    assert authenticates(explicit["value"]) == 200, "another user's delete must not revoke the owner's token"
+
+    for token in (explicit, default):
+        deleted = owner.delete(f"{tokens_url}/{token['id']}", json={})
+        assert deleted.status_code == 200, deleted.text
+        assert deleted.json() == {"success": True}, deleted.json()
+        assert authenticates(token["value"]) == 401, "a deleted token must no longer authenticate"
+
+    assert "Active Tokens" not in owner.get(f"{DOJO_URL}/settings").text, \
+        "the settings page must drop the token section once every token is deleted"
 
 
 def test_workspace_token_create_and_scope(random_user, second_user):
@@ -865,22 +1078,15 @@ def test_workspace_token_header_rejected_when_invalid(random_user, second_user):
     assert without_header.json() == {"success": False, "error": "Invalid dojo"}, without_header.json()
 
 
-def test_hidden_flag_round_trip(random_user, admin_session):
+def test_hidden_flag_round_trip(random_user):
     name, session = random_user
     user_id = get_user_id(name)
 
-    public = requests.get(f"{DOJO_URL}/api/v1/users/{user_id}")
-    assert public.status_code == 200, public.text
-    assert "hidden" not in public.json()["data"], "the hidden flag must not leak into the public view"
-    assert "hidden" in session.get(f"{DOJO_URL}/api/v1/users/me").json()["data"]
-
-    assert session.patch(f"{DOJO_URL}/api/v1/users/me", json={"hidden": True}).status_code == 200
+    assert session.patch(f"{DOJO_URL}/pwncollege_api/v1/users/me", json={"hidden": True}).status_code == 200
     assert requests.get(f"{DOJO_URL}/hacker/{user_id}").status_code == 404
-    assert requests.get(f"{DOJO_URL}/api/v1/users/{user_id}").status_code == 404
-    assert admin_session.get(f"{DOJO_URL}/api/v1/users/{user_id}").status_code == 200
     assert session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me").json()["hidden"] is True
 
-    assert session.patch(f"{DOJO_URL}/api/v1/users/me", json={"hidden": False}).status_code == 200
+    assert session.patch(f"{DOJO_URL}/pwncollege_api/v1/users/me", json={"hidden": False}).status_code == 200
     assert requests.get(f"{DOJO_URL}/hacker/{user_id}").status_code == 200
     assert db_sql(f"SELECT hidden FROM users WHERE id = {user_id}").strip() == "f"
     assert session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me").json()["hidden"] is False
@@ -890,36 +1096,62 @@ def test_self_patch_cannot_escalate_privileges(random_user):
     name, session = random_user
 
     response = session.patch(
-        f"{DOJO_URL}/api/v1/users/me",
+        f"{DOJO_URL}/pwncollege_api/v1/users/me",
         json={"type": "admin", "verified": True, "banned": False, "secret": "x"},
     )
     assert response.status_code in (200, 400), f"{response.status_code} {response.text}"
 
     assert db_sql(f"SELECT type FROM users WHERE name = '{name}'").strip() == "user"
     assert session.get(f"{DOJO_URL}/pwncollege_api/v1/users/me").json()["admin"] is False
-    assert session.get(f"{DOJO_URL}/admin/dojos", allow_redirects=False).status_code in (302, 403)
+    assert session.get(f"{DOJO_URL}/admin/dojos", allow_redirects=False).status_code == 404
 
 
-def test_banned_user_locked_out(random_user, admin_session):
+def set_banned(user_id, banned):
+    db_sql(f"UPDATE users SET banned = {str(banned).lower()} WHERE id = {user_id}")
+    flask_exec(f"from dojo_plugin.utils.user import clear_user_session\nclear_user_session(user_id={user_id})\n")
+
+
+def test_banned_user_locked_out(random_user):
     name, session = random_user
     user_id = get_user_id(name)
 
-    banned = admin_session.patch(f"{DOJO_URL}/api/v1/users/{user_id}", json={"banned": True})
-    assert banned.status_code == 200, banned.text
+    set_banned(user_id, True)
     try:
-        assert session.get(f"{DOJO_URL}/dojos").status_code == 403
+        banned_page = session.get(f"{DOJO_URL}/dojos")
+        assert banned_page.status_code == 403
+        assert "You have been banned from this CTF" in banned_page.text, banned_page.text[:400]
         assert session.get(
             f"{DOJO_URL}/pwncollege_api/v1/users/me", headers={"Content-Type": "application/json"}
         ).status_code == 403
+        assert session.get(f"{DOJO_URL}/themes/dojo_theme/static/css/dojo.css").status_code == 200, \
+            "a banned session must still load theme assets so the ban page renders"
 
         relogged = login(name, name)
         assert relogged.get(f"{DOJO_URL}/dojos").status_code == 403, \
             "a ban must lock out even a freshly established session"
     finally:
-        unbanned = admin_session.patch(f"{DOJO_URL}/api/v1/users/{user_id}", json={"banned": False})
-        assert unbanned.status_code == 200, unbanned.text
+        set_banned(user_id, False)
 
     assert login(name, name).get(f"{DOJO_URL}/dojos").status_code == 200
+
+
+def test_banned_user_with_api_token_is_forbidden(random_user):
+    name, session = random_user
+    user_id = get_user_id(name)
+    created = session.post(f"{DOJO_URL}/pwncollege_api/v1/users/me/tokens", json={})
+    assert created.status_code == 200, created.text
+    value = created.json()["data"]["value"]
+
+    set_banned(user_id, True)
+    try:
+        response = requests.get(
+            f"{DOJO_URL}/pwncollege_api/v1/users/me",
+            headers={"Authorization": f"Token {value}", "Content-Type": "application/json"},
+        )
+        assert response.status_code == 403, f"{response.status_code} {response.text[:400]}"
+        assert "You have been banned from this CTF" in response.text, response.text[:400]
+    finally:
+        set_banned(user_id, False)
 
 
 def test_settings_page_requires_auth_and_reflects_account_state(random_user, second_user, ssh_keypairs):
@@ -947,7 +1179,7 @@ def test_settings_page_requires_auth_and_reflects_account_state(random_user, sec
     assert other_key_body in other_settings.text
     assert owner_key_body not in other_settings.text
 
-    assert owner_session.post(f"{DOJO_URL}/api/v1/tokens", json={}).status_code == 200
+    assert owner_session.post(f"{DOJO_URL}/pwncollege_api/v1/users/me/tokens", json={}).status_code == 200
     assert "Active Tokens" in owner_session.get(f"{DOJO_URL}/settings").text, \
         "the settings page must list the caller's own access tokens"
     assert "Active Tokens" not in other_session.get(f"{DOJO_URL}/settings").text, \

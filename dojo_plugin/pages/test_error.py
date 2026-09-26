@@ -1,6 +1,5 @@
 from flask import Blueprint
-from CTFd.utils.decorators import authed_only
-from CTFd.plugins import bypass_csrf_protection
+from ..utils.decorators import authed_only, bypass_csrf_protection
 
 test_error_pages = Blueprint("test_error_pages", __name__)
 

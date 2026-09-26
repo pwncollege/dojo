@@ -28,7 +28,7 @@ function form_fetch_and_show(name, endpoint, method, success_message, confirm_ms
         const params = form.serializeJSON();
         if (confirm_msg && !confirm(confirm_msg(form, params))) return;
         results.html(loading_template);
-        CTFd.fetch(endpoint, {
+        Dojo.fetch(endpoint, {
             method: method,
             credentials: "same-origin",
             headers: {
@@ -62,7 +62,7 @@ function button_fetch_and_show(name, endpoint, method,data, success_message, abo
             return
         };
         results.html(loading_template);
-        CTFd.fetch(endpoint, {
+        Dojo.fetch(endpoint, {
             method: method,
             credentials: "same-origin",
             headers: {
@@ -121,4 +121,45 @@ $(() => {
             $(event.target).tooltip("hide");
         }, 1500);
     })
+});
+
+$(() => {
+    const profile = $("#user-profile-form");
+    const initial = profile.serializeJSON();
+    profile.submit(event => {
+        event.preventDefault();
+        const results = $("#results").empty();
+        profile.find(".is-invalid").removeClass("is-invalid");
+        const params = Object.fromEntries(Object.entries(profile.serializeJSON()).filter(([name, value]) => value !== "" || initial[name] !== ""));
+        Dojo.fetch("/pwncollege_api/v1/users/me", {method: "PATCH", body: JSON.stringify(params)}).then(response => response.json()).then(result => {
+            if (result.success) {
+                results.html(success_template).find("#message").text("Your profile has been updated");
+                return;
+            }
+            Object.entries(result.errors || {}).forEach(([name, messages]) => {
+                profile.find(`[name="${name}"]`).addClass("is-invalid");
+                $(error_template).appendTo(results).find("#message").text([].concat(messages).join(" "));
+            });
+        });
+    });
+
+    $("#user-token-form").submit(event => {
+        event.preventDefault();
+        Dojo.fetch("/pwncollege_api/v1/users/me/tokens", {method: "POST", body: JSON.stringify($(event.target).serializeJSON())}).then(response => response.json()).then(result => {
+            if (!result.success) return;
+            $("#user-token-result").val(result.data.value);
+            $("#token-modal").modal("show");
+        });
+    });
+
+    $(".delete-token").click(event => {
+        if (!confirm("Are you sure you want to delete this token?")) return;
+        const row = $(event.currentTarget).closest("tr");
+        Dojo.fetch(`/pwncollege_api/v1/users/me/tokens/${event.currentTarget.dataset.tokenId}`, {method: "DELETE"}).then(response => response.json()).then(result => {
+            if (result.success) row.remove();
+        });
+    });
+
+    $(".nav-pills a").click(event => { window.location.hash = event.currentTarget.hash; });
+    $(".nav-pills a").filter((i, link) => link.hash === window.location.hash).tab("show");
 });
