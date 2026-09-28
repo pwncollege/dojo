@@ -92,7 +92,7 @@ def desktop_workspace(browser):
     wait.until(EC.frame_to_be_available_and_switch_to_it((By.NAME, "workspace")))
     wait.until(
         lambda driver: "noVNC_connected"
-        in driver.find_element(By.TAG_NAME, "html").get_attribute("class").split()
+        in (driver.find_element(By.TAG_NAME, "html").get_attribute("class") or "").split()
     )
     desktop = wait.until(
         lambda driver: next(
