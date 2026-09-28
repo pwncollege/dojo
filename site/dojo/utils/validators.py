@@ -13,6 +13,9 @@ class ValidationError(Exception):
 
 
 def is_safe_url(target):
+    # Browsers read "\\" as "/", drop control characters and collapse "///" into a host
+    if re.search(r"[\\\x00-\x1f\x7f]", target) or target.startswith("///"):
+        return False
     ref_url = urlparse(request.host_url)
     test_url = urlparse(urljoin(request.host_url, target))
     return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc

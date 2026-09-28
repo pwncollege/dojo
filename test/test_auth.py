@@ -324,7 +324,8 @@ def test_login_follows_safe_next_only(random_user_name):
         return urlparse(response.headers["Location"])
 
     assert login_next("/settings").path.endswith("/settings")
-    for unsafe in ["https://evil.example/", "//evil.example/", "javascript:alert(1)"]:
+    for unsafe in ["https://evil.example/", "//evil.example/", "javascript:alert(1)",
+                   "/\\evil.example/", "\\\\evil.example/", "///evil.example/", "/\t/evil.example/"]:
         location = login_next(unsafe)
         assert location.path.endswith("/challenges"), (unsafe, location)
         assert location.netloc != "evil.example", (unsafe, location)
