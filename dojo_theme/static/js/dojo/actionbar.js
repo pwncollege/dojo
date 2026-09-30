@@ -23,8 +23,8 @@ function servicePort(service) {
 }
 
 function isSpecialService(service) {
-    const specialServices = ["terminal", "code", "desktop"];
-    const specialPorts = ["7681", "8080", "6080"];
+    const specialServices = ["terminal", "code", "desktop", "desktop-windows"];
+    const specialPorts = ["7681", "8080", "6080", "6082"];
     const index = specialServices.indexOf(serviceName(service));
     return index > -1 && index == specialPorts.indexOf(servicePort(service));
 }
