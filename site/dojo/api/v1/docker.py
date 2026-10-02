@@ -33,7 +33,7 @@ from ...utils import (
     UserNotFoundException,
     UserTokenExpiredException,
 )
-from ...utils.dojo import dojo_accessible, get_current_dojo_challenge
+from ...utils.dojo import dojo_accessible, get_current_dojo_challenge, challenge_access_code_error
 from ...utils.workspace import exec_run
 from ...utils.feed import publish_container_start
 from ...utils.background_stats import publish_stat_event
@@ -507,6 +507,9 @@ class RunDocker(Resource):
 
         if not dojo_challenge.visible() and not dojo.is_admin():
             return {"success": False, "error": "Invalid challenge"}
+
+        if error := challenge_access_code_error(dojo_challenge, data.get("access_code")):
+            return {"success": False, "error": error}
 
         if practice and not dojo_challenge.allow_privileged:
             return {

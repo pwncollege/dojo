@@ -237,12 +237,16 @@ function serviceClickCallback(event) {
         animateBanner(event, "Pop-up blocked — please allow pop-ups for this site.", "warn");
         return;
     }
+    const accessCode = new URLSearchParams(window.location.search).get("access_code");
     let needsNavigation = true;
     try {
-        needsNavigation = popout.location.pathname !== workspaceUrl(service);
+        needsNavigation = popout.location.pathname !== workspaceUrl(service) ||
+            new URLSearchParams(popout.location.search).get("access_code") !== accessCode;
     } catch (error) {}
     if (needsNavigation) {
-        popout.location = workspaceUrl(service);
+        const url = new URL(workspaceUrl(service), window.location.origin);
+        if (accessCode !== null) url.searchParams.set("access_code", accessCode);
+        popout.location = url.toString();
     }
     popout.focus();
 }
@@ -346,9 +350,7 @@ function actionStartChallenge(event, privileged) {
             window.location =
                 Dojo.config.urlRoot +
                 "/login?next=" +
-                Dojo.config.urlRoot +
-                window.location.pathname +
-                window.location.hash;
+                encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
         }
         return response.json();
     }).then(function (result) {
@@ -363,6 +365,7 @@ function actionStartChallenge(event, privileged) {
             "challenge": result.challenge,
             "practice": privileged,
             "home": result.home,
+            "access_code": new URLSearchParams(window.location.search).get("access_code"),
         };
 
         return Dojo.fetch('/pwncollege_api/v1/docker', {

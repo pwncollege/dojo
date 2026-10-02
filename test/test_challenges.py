@@ -1,8 +1,11 @@
 import subprocess
 import json
+import re
+import uuid
 from urllib.parse import quote, urlencode
 
 import pytest
+import yaml
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -116,6 +119,45 @@ def test_active_module_endpoint(random_user_session, example_dojo):
     assert response.json()["c_current"]["challenge_reference_id"] == "apple"
     assert response.json()["c_next"]["challenge_reference_id"] == "banana"
     assert response.json()["c_previous"] == {}
+
+
+def test_challenge_access_code(admin_session, random_user_session, example_dojo):
+    code = "exam & café/+"
+    dojo = create_dojo_yml(yaml.safe_dump({
+        "id": f"access-code-{uuid.uuid4().hex[:8]}", "type": "public", "access_code": code,
+        "modules": [{"id": "hello", "challenges": [{
+            "id": "protected", "name": "Protected challenge",
+            "import": {"dojo": example_dojo, "module": "hello", "challenge": "apple"},
+        }]}],
+    }), session=admin_session)
+    data = {"dojo": dojo, "module": "hello", "challenge": "protected"}
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session)
+
+    for supplied, error in [(None, "This challenge requires an access code"),
+                            ("wrong", "Invalid challenge access code")]:
+        module = random_user_session.get(f"{DOJO_URL}/{dojo}/hello", params={"access_code": supplied})
+        assert module.status_code == 200 and "Protected challenge" in module.text
+        workspace = random_user_session.get(f"{DOJO_URL}/workspace/terminal", params={**data, "access_code": supplied})
+        assert workspace.status_code == 403 and error in workspace.text
+        for practice in (False, True):
+            response = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker",
+                                                json={**data, "practice": practice, "access_code": supplied})
+            assert response.status_code == 200
+            assert response.json() == {"success": False, "error": error}
+        current = random_user_session.get(f"{DOJO_URL}/pwncollege_api/v1/docker").json()
+        assert current["dojo"] == example_dojo and current["challenge"] == "apple"
+
+    workspace = random_user_session.get(f"{DOJO_URL}/workspace/terminal",
+                                        params={**data, "access_code": code, "fullscreen": "true"})
+    assert workspace.status_code == 200
+    redirect = json.loads(re.search(r"window.location.replace\((.+)\);", workspace.text).group(1))
+    assert redirect == f"/workspace/terminal?{urlencode({'fullscreen': 'true', 'access_code': code})}"
+    for practice in (False, True):
+        response = random_user_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker",
+                                            json={**data, "practice": practice, "access_code": code})
+        assert response.json()["success"]
+    response = admin_session.post(f"{DOJO_URL}/pwncollege_api/v1/docker", json=data)
+    assert response.json()["success"]
 
 
 def test_workspace_auto_start_without_home_mount(

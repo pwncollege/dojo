@@ -46,6 +46,12 @@ Authors can also specify an optional initialization command that will be execute
 
 Specifically, this information is provided in the form of a [`docker` image](https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/), which may optionally specify a [`CMD`](https://docs.docker.com/reference/dockerfile/#cmd) to be run during initialization. Note that the `ENTRYPOINT` of the image is ignored.
 
+## Access Codes
+
+Set `access_code` in a dojo, module, or challenge specification to require that code when starting or restarting a challenge, including practice mode. Challenge settings override module settings, which override dojo settings; `access_code: null` removes inherited protection. The effective code is stored on each challenge. Imports use the destination specification's access code, defaulting to none. Dojo administrators can start protected challenges without a code.
+
+Pass the code in the module URL (`/my-dojo/my-module?access_code=my-code`) or a workspace launch URL (`/workspace/terminal?dojo=my-dojo&module=my-module&challenge=my-challenge&access_code=my-code`). API clients supply `access_code` in the start request's JSON body. Protection does not change visibility or grant access outside the visibility dates. Missing or incorrect codes produce an inline start error on the module page and HTTP 403 for workspace launch pages.
+
 ## Challenge Initialization
 
 The dojo handles all additional setup automatically:

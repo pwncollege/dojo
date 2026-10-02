@@ -188,6 +188,7 @@ function startChallenge(event) {
     };
 
     const urlParams = new URLSearchParams(window.location.search);
+    params["access_code"] = urlParams.get("access_code");
     let as_user = urlParams.get("as_user");
     if (as_user) {
         params["as_user"] = as_user;
@@ -229,9 +230,7 @@ function startChallenge(event) {
             window.location =
                 Dojo.config.urlRoot +
                 "/login?next=" +
-                Dojo.config.urlRoot +
-                window.location.pathname +
-                window.location.hash;
+                encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
         }
         return response.json();
     }).then(function (result) {
