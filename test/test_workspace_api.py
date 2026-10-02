@@ -31,7 +31,6 @@ NEXT_API = f"{DOJO_URL}/pwncollege_api/v1/docker/next"
 WORKSPACE_API = f"{DOJO_URL}/pwncollege_api/v1/workspace"
 RESET_HOME_API = f"{DOJO_URL}/pwncollege_api/v1/workspace/reset_home"
 BACKUP_HOME_API = f"{DOJO_URL}/pwncollege_api/v1/workspace/backup_home"
-LATEST_HOME_BACKUP_API = f"{DOJO_URL}/pwncollege_api/v1/workspace/home_backup"
 TOKENS_API = f"{DOJO_URL}/pwncollege_api/v1/workspace_tokens"
 USERS_ME_API = f"{DOJO_URL}/pwncollege_api/v1/users/me"
 
@@ -435,7 +434,6 @@ def test_docker_api_requires_a_session(example_dojo):
         ("DELETE /docker", anonymous.delete(DOCKER_API, json={})),
         ("POST /workspace/reset_home", anonymous.post(RESET_HOME_API, json={})),
         ("POST /workspace/backup_home", anonymous.post(BACKUP_HOME_API, json={})),
-        ("GET /workspace/home_backup", anonymous.get(LATEST_HOME_BACKUP_API, headers={"Content-Type": "application/json"})),
     ]:
         assert response.status_code == 403, f"Expected {name} to be rejected with 403, got {response.status_code}"
         try:
@@ -948,8 +946,6 @@ def test_reset_home_downloads_backup_and_restores_an_empty_writable_home(private
     assert int(response.headers["X-Home-Backup-Skipped-Files"]) >= 1
     assert not container_exists(name), "Expected the reset to stop and remove the workspace"
     assert session.get(DOCKER_API).json() == {"success": False, "error": "No active challenge"}
-    latest = session.get(LATEST_HOME_BACKUP_API)
-    assert latest.content == response.content, "Expected interrupted downloads to be retryable without a running challenge"
     start_challenge(private_workspace["dojo"], "solo", "only", session=session)
     assert container_inspect(name)["Id"] != before_container
     assert workspace_output(name, "find /home/hacker -mindepth 1 -printf '%P\\n'") == ".config"
@@ -1012,7 +1008,6 @@ def test_home_operations_share_a_per_user_three_per_hour_limit(random_user_sessi
     assert response.status_code == 429
     assert 0 < int(response.headers["Retry-After"]) <= 3600
     assert "three times per hour" in response.json()["error"]
-    assert random_user_session.get(LATEST_HOME_BACKUP_API).status_code == 404
 
 
 def test_settings_exposes_home_management_actions(random_user_session):

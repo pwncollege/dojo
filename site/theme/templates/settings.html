@@ -201,7 +201,7 @@
           <div class="text-center">
             <h2>Home Management</h2>
             <p>Download a backup of your home directory, or reset it and download a backup. Files larger than 10 MB are excluded from both backups. Backups are limited to 1 GiB.</p>
-            <p>You can back up or reset your home three times per hour in total. Downloads are saved to your computer.</p>
+            <p>You can back up or reset your home three times per hour in total. Keep your download; backups are not retained.</p>
             <div class="mb-4">
               <button id="backup-home-button" class="btn btn-primary">Download Backup</button>
               <p class="mt-2">Stops your current challenge and downloads a backup. Your home files are preserved.</p>
@@ -211,7 +211,6 @@
               <p class="mt-2">Stops your current challenge and deletes everything in your home, including files excluded from the backup.</p>
             </div>
             <p>Start a new challenge afterward to continue.</p>
-            <p>If a download is interrupted, <a href="/pwncollege_api/v1/workspace/home_backup">download your latest backup</a> before creating another one.</p>
           </div>
           <br>
           <div id="home-management-results" class="form-group" aria-live="polite"></div>

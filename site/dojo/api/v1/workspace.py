@@ -136,13 +136,6 @@ class BackupHome(Resource):
         return home_download("backup")
 
 
-@workspace_namespace.route("/home_backup")
-class LatestHomeBackup(Resource):
-    @authed_only
-    def get(self):
-        return home_download("latest")
-
-
 def home_download(action):
     try:
         return home_download_response(manage_home(get_current_user().id, action))

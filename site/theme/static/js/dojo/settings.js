@@ -120,7 +120,7 @@ async function home_download_and_show(action) {
         results.find("#message").text(message);
     } catch (error) {
         results.html(error_template);
-        results.find("#message").text(error.message || "Download failed. Use the latest backup link to retry.");
+        results.find("#message").text(error.message || "Download failed. Please try again.");
     } finally {
         buttons.prop("disabled", false);
     }
