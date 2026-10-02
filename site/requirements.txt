@@ -1,0 +1,35 @@
+# DOJO
+docker==6.1.2
+pyyaml==6.0.2
+schema==0.7.5
+emoji==2.15.0
+bleach==6.1.0
+bleach[css]==6.1.0
+ipython==8.16.1
+flask-shell-ipython==0.5.1
+sshpubkeys==3.3.1
+psycopg2-binary==2.9.10
+coverage==7.10.6
+setuptools==80.9.0
+
+# Framework
+Flask==2.2.5
+Werkzeug==2.3.8
+Flask-SQLAlchemy==2.5.1
+Flask-Caching==2.0.2
+SQLAlchemy==1.4.48
+passlib==1.7.4
+bcrypt==4.0.1
+requests==2.31.0
+urllib3==1.26.20
+gunicorn==22.0.0
+cmarkgfm==2022.10.27
+redis==7.1.0
+gevent==25.5.1
+flask-restx==1.1.0
+pybluemonday==0.0.14
+itsdangerous==2.2.0
+MarkupSafe==3.0.3
+cachelib==0.9.0
+pytz==2026.3.post1
+Babel==2.18.0

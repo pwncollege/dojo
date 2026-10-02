@@ -144,12 +144,12 @@ def get_user_id(user_name):
 FLASK_EXEC_MARKER = "--- dojo test output ---"
 
 def flask_exec(code):
-    """Run python inside CTFd's application context and return everything it printed."""
+    """Run python inside the site container's application context and return everything it printed."""
     path = f"/tmp/dojo-test-exec-{uuid.uuid4().hex}.py"
     script = f"print({FLASK_EXEC_MARKER!r}, flush=True)\n{code}"
-    dojo_run("docker", "exec", "-i", "ctfd", "sh", "-c", f"cat > {path}", input=script)
-    result = dojo_run("docker", "exec", "ctfd", "flask", "shell", "--", path, check=False)
-    dojo_run("docker", "exec", "ctfd", "rm", "-f", path, check=False)
+    dojo_run("docker", "exec", "-i", "site", "sh", "-c", f"cat > {path}", input=script)
+    result = dojo_run("docker", "exec", "site", "flask", "shell", "--", path, check=False)
+    dojo_run("docker", "exec", "site", "rm", "-f", path, check=False)
     assert FLASK_EXEC_MARKER in result.stdout, f"flask exec produced no output: {result.stdout}\n{result.stderr}"
     return result.stdout.split(FLASK_EXEC_MARKER, 1)[1].lstrip("\n")
 
@@ -174,18 +174,26 @@ def challenge_db_id(dojo, module, challenge):
     return _challenge_ids[key]
 
 
+def seed_recent_fails(user_id, challenge_id, count):
+    db_sql(
+        f"INSERT INTO submissions (user_id, challenge_id, ip, provided, type, date) "
+        f"SELECT {user_id}, {challenge_id}, '127.0.0.1', 'seed', 'incorrect', timezone('utc', now()) "
+        f"FROM generate_series(1, {count})"
+    )
+
+
 _flags = {}
 
 def challenge_flag(dojo, module, challenge, *, user):
     """Derive a challenge's flag the way the workspace does, without starting a container.
 
-    The derivation runs inside the ctfd container so it always uses the same
+    The derivation runs inside the site container so it always uses the same
     serializer implementation and secret key that flag submission validates against.
     """
     key = (user, dojo, module, challenge)
     if key not in _flags:
         _flags[key] = dojo_run(
-            "docker", "exec", "ctfd", "python3", "-c",
+            "docker", "exec", "site", "python3", "-c",
             "import sys, os\n"
             "from itsdangerous.url_safe import URLSafeSerializer\n"
             "data = [int(sys.argv[1]), int(sys.argv[2])]\n"

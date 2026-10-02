@@ -1,0 +1,153 @@
+import datetime
+import functools
+import inspect
+
+from flask import url_for, abort
+
+from .discord import get_discord_roles, get_discord_member, add_role, send_message
+from .background_stats import get_cached_stat
+from ..models import Dojos, Belts, Emojis, DiscordUsers, cache, db
+from .feed import publish_belt_earned, publish_emoji_earned
+
+
+BELT_ORDER = [ "orange", "yellow", "green", "purple", "blue", "brown", "red", "black" ]
+CACHE_KEY_BELTS = "stats:belts"
+CACHE_KEY_EMOJIS = "stats:emojis"
+BELT_REQUIREMENTS = {
+    "orange": "intro-to-cybersecurity",
+    "yellow": "program-security",
+    "green": "system-security",
+    "blue": "software-exploitation",
+}
+
+def get_user_emojis(user):
+    emojis = [ ]
+    for dojo in Dojos.query.all():
+        emoji = dojo.award and dojo.award.get('emoji', None)
+        if not emoji:
+            continue
+        if dojo.challenges and dojo.completed(user):
+            emojis.append((emoji, dojo.name or dojo.reference_id, dojo.hex_dojo_id))
+    return emojis
+
+def get_belts():
+    cached = get_cached_stat(CACHE_KEY_BELTS)
+    if cached:
+        result = dict(dates={}, users={}, ranks={})
+        for color in BELT_ORDER:
+            result["dates"][color] = {int(k): v for k, v in cached.get("dates", {}).get(color, {}).items()}
+            result["ranks"][color] = cached.get("ranks", {}).get(color, [])
+        result["users"] = {int(k): v for k, v in cached.get("users", {}).items()}
+        return result
+
+    result = dict(dates={}, users={}, ranks={})
+    for color in reversed(BELT_ORDER):
+        result["dates"][color] = {}
+        result["ranks"][color] = []
+    return result
+
+def get_viewable_emojis(user, emoji_data=None):
+    emoji_data = emoji_data if emoji_data is not None else get_cached_stat(CACHE_KEY_EMOJIS)
+    if emoji_data:
+        viewable_dojos = {
+            dojo.hex_dojo_id: dojo
+            for dojo in Dojos.viewable(user=user).where(Dojos.data["type"].astext != "example")
+        }
+
+        result = {}
+        for user_id_str, emoji_list in emoji_data.get("emojis", {}).items():
+            filtered = []
+            for emoji_entry in emoji_list:
+                category = emoji_entry["category"]
+                emoji = emoji_entry["emoji"]
+                if category and category not in viewable_dojos:
+                    continue
+                if not emoji:
+                    if not category:
+                        continue
+                    if not viewable_dojos[category].award or not viewable_dojos[category].award.get("emoji"):
+                        continue
+                    emoji = viewable_dojos[category].award["emoji"]
+                filtered.append({
+                    "text": emoji_entry["text"],
+                    "emoji": emoji,
+                    "count": emoji_entry["count"],
+                    "url": emoji_entry["url"],
+                    "stale": emoji_entry["stale"],
+                    "category": emoji_entry["category"]
+                })
+            if filtered:
+                result[int(user_id_str)] = filtered
+        return result
+
+    return {}
+
+def update_awards(user):
+    current_belts = [belt.name for belt in Belts.query.filter_by(user=user)]
+    for belt, dojo_id in BELT_REQUIREMENTS.items():
+        if belt in current_belts:
+            continue
+        dojo = Dojos.query.filter(Dojos.official, Dojos.id == dojo_id).first()
+        if not (dojo and dojo.completed(user)):
+            break
+        db.session.add(Belts(user=user, name=belt))
+        db.session.commit()
+        current_belts.append(belt)
+        
+        belt_display = belt.title() + " Belt"
+        publish_belt_earned(user, belt, belt_display, dojo)
+
+    discord_user = DiscordUsers.query.filter_by(user=user).first()
+    discord_member = discord_user and get_discord_member(discord_user.discord_id)
+    discord_roles = get_discord_roles()
+    for belt in BELT_REQUIREMENTS:
+        if belt not in current_belts:
+            continue
+        belt_role = belt.title() + " Belt"
+        missing_role = discord_member and discord_roles.get(belt_role) not in discord_member["roles"]
+        if not missing_role:
+            continue
+        add_role(discord_user.discord_id, belt_role)
+        send_message(f"<@{discord_user.discord_id}> earned their {belt_role}! :tada:", "belting-ceremony")
+        cache.delete_memoized(get_discord_member, discord_user.discord_id)
+
+    current_emojis = get_user_emojis(user)
+    for emoji,dojo_display_name,hex_dojo_id in current_emojis:
+        emoji_award = Emojis.query.filter(Emojis.user==user, Emojis.category==hex_dojo_id, Emojis.name=="CURRENT").first()
+        if emoji_award:
+            continue
+        
+        dojo = Dojos.query.filter_by(dojo_id=Dojos.hex_to_int(hex_dojo_id)).first()
+        if not dojo:
+            continue
+            
+        display_name = dojo.name or dojo.reference_id
+        description = f"Awarded for completing the {display_name} dojo."
+        
+        if emoji_award := Emojis.query.filter(Emojis.user==user, Emojis.category==hex_dojo_id, Emojis.name=="STALE").first():
+            emoji_award.name = "CURRENT"
+        else:
+            db.session.add(Emojis(user=user, name="CURRENT", description=description, category=hex_dojo_id, icon=None))
+        db.session.commit()
+        
+        if dojo.official or dojo.data.get("type") == "public":
+            publish_emoji_earned(user, emoji, display_name, description, 
+                               dojo_id=dojo.reference_id, dojo_name=display_name)
+
+def grant_award(user, emoji, description, category):
+    db.session.add(Emojis(user=user, name="CUSTOM", description=description, category=category, icon=emoji))
+    db.session.commit()
+
+
+def dojo_gives_awards(func):
+    signature = inspect.signature(func)
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        bound_args = signature.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+
+        dojo = bound_args.arguments["dojo"]
+        if "grant_awards" not in dojo.permissions:
+            abort(403)
+        return func(*bound_args.args, **bound_args.kwargs)
+    return wrapper

@@ -1,0 +1,3 @@
+[run]
+source = dojo
+data_file = /var/coverage/.coverage

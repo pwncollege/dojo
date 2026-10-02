@@ -5,7 +5,7 @@ This configuration adds Splunk to the DOJO infrastructure to capture logs from a
 ## Setup
 
 1. The Splunk container is configured in `docker-compose.yml` with:
-   - Web interface on port 8001 (to avoid conflict with CTFd on port 8000)
+   - Web interface on port 8001 (to avoid conflict with the web app on port 8000)
    - HEC (HTTP Event Collector) on port 8088
    - Management API on port 8089
 

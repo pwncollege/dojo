@@ -93,9 +93,6 @@ unzip aws.zip
 rm -rf aws.zip aws
 EOF
 
-ADD https://github.com/CTFd/CTFd.git#3.6.0 /opt/CTFd
-COPY ./ctfd/.coveragerc /opt/CTFd
-
 COPY <<EOF /etc/fstab
 shm /dev/shm tmpfs defaults,nosuid,nodev,noexec,size=50% 0 0
 tmpfs /run/dojo tmpfs defaults,mode=755,shared 0 0
@@ -112,16 +109,6 @@ EOF
 
 WORKDIR /opt/pwn.college
 COPY . .
-
-RUN <<EOF
-set -eu
-find /opt/pwn.college/ctfd/patches -type f -name '*.patch' -print > /tmp/ctfd-patches
-LC_ALL=C sort -o /tmp/ctfd-patches /tmp/ctfd-patches
-while IFS= read -r patch_file; do
-    patch --batch --forward -d /opt/CTFd -p1 -i "$patch_file"
-done < /tmp/ctfd-patches
-rm /tmp/ctfd-patches
-EOF
 
 RUN <<EOF
 find /opt/pwn.college/etc/systemd/system -type f -exec ln -s {} /etc/systemd/system/ \;

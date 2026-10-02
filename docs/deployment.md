@@ -48,7 +48,7 @@ docker exec dojo dojo logs
 ```
 
 Once things are set up, you should be able to access the dojo and login with username `admin` and password `admin`.
-You can change these admin credentials in the admin panel.
+You can change these admin credentials on the settings page or with `dojo flask`.
 
 ## Production Deployment
 
@@ -81,7 +81,7 @@ This will cause downtime when the dojo is rebuilding.
 
 Some changes _can_ be applied without a complete restart, however _this is not guaranteed_.
 
-If you really know what you're doing (the changes that you're pulling in are just to `ctfd`), inside the `dojo` container you can do the following:
+If you really know what you're doing (the changes that you're pulling in are just to `site/`), inside the `dojo` container you can do the following:
 
 ```sh
 dojo update
@@ -206,7 +206,7 @@ docker exec -it dojo-main bash
 NODE_ID=1     # Replace with the node id
 NODE_KEY=...  # The NODE_KEY for the workspace node
 dojo node add $NODE_ID $NODE_KEY
-dojo compose restart --no-deps ctfd
+dojo compose restart --no-deps site
 ```
 
 After a short delay, you should be able to reach the workspace node from the main node:

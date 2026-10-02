@@ -1,0 +1,273 @@
+import hmac
+from datetime import datetime, date, timedelta, timezone
+
+from flask import request, Request
+from flask_restx import Namespace, Resource
+from ...utils.decorators import authed_only
+from ...utils.user import get_current_user
+from sqlalchemy import func, tuple_
+
+from ...config import DISCORD_CLIENT_SECRET
+from ...models import DiscordUsers, DiscordUserActivity, db
+from ...utils import parse_positive_int
+from ...utils.dojo import get_current_dojo_challenge, dojo_route
+
+discord_namespace = Namespace("discord", description="Endpoint to manage discord")
+
+def auth_check(authorization):
+    # Without a configured secret there is no way to authenticate a bot caller,
+    # so every bot request must be refused rather than trivially satisfied.
+    if not DISCORD_CLIENT_SECRET:
+        return {"success": False, "error": "Unauthorized"}, 401
+
+    if not authorization or not authorization.startswith("Bearer "):
+        return {"success": False, "error": "Unauthorized"}, 401
+
+    token = authorization[len("Bearer "):].strip()
+    if not hmac.compare_digest(token, DISCORD_CLIENT_SECRET):
+        return {"success": False, "error": "Unauthorized"}, 401
+
+    return None, None
+
+
+def parse_discord_id(discord_id):
+    return parse_positive_int(discord_id, maximum=2**63 - 1)
+
+@discord_namespace.route("")
+class Discord(Resource):
+    @authed_only
+    def delete(self):
+        user = get_current_user()
+        discord_user = DiscordUsers.query.filter_by(user=user).first()
+        if discord_user:
+            db.session.delete(discord_user)
+            db.session.commit()
+        return {"success": True}
+
+
+@discord_namespace.route("/activity/<discord_id>")
+class DiscordActivity(Resource):
+    def get(self, discord_id):
+        authorization = request.headers.get("Authorization")
+        res, code = auth_check(authorization)
+        if res:
+            return res, code
+
+        discord_id = parse_discord_id(discord_id)
+        if discord_id is None:
+            return {"success": False, "error": "Invalid discord id"}, 400
+
+        discord_user = DiscordUsers.query.filter_by(discord_id=discord_id).first()
+        if not discord_user:
+            return {"success": False, "error": "Discord user not found"}, 404
+
+        dojo_challenge = get_current_dojo_challenge(discord_user.user)
+        if not dojo_challenge:
+            return {"success": True, "activity": None}
+
+        dojo_challenge = dojo_challenge.resolve()
+        activity = {
+            "challenge": {
+                "dojo": dojo_challenge.dojo.name,
+                "module": dojo_challenge.module.name,
+                "challenge": dojo_challenge.name,
+                "description": dojo_challenge.description,
+                "reference_id": dojo_challenge.reference_id,
+            }
+        }
+        return {"success": True, "activity": activity}
+
+
+def get_user_activity_prop(discord_id, activity, start=None, end=None):
+    discord_id = parse_discord_id(discord_id)
+    user = DiscordUsers.query.filter_by(discord_id=discord_id).first() if discord_id is not None else None
+    if not user:
+        count = 0
+    elif activity == "thanks":
+        count = user.thanks(start, end).with_entities(
+            func.count(func.distinct(
+                tuple_(DiscordUserActivity.message_id,
+                DiscordUserActivity.source_user_id)
+        ))).scalar()
+    elif activity == "memes":
+        count = user.memes(start, end).count()
+    return {"success": True, activity: count}
+
+def get_user_activity(discord_id, activity, request):
+    if parse_discord_id(discord_id) is None:
+        return {"success": False, "error": "Invalid discord id"}, 400
+
+    start_stamp = request.args.get("start")
+    end_stamp = request.args.get("end")
+    start = None
+    end = None
+
+    if start_stamp:
+        try:
+            start = datetime.fromisoformat(start_stamp)
+        except ValueError:
+            return {"success": False, "error": "invalid start format"}, 400
+    if end_stamp:
+        try:
+            end = datetime.fromisoformat(end_stamp)
+        except ValueError:
+            return {"success": False, "error": "invalid end format"}, 400
+
+    return get_user_activity_prop(discord_id, activity, start, end)
+
+def post_user_activity(discord_id, activity, request):
+    authorization = request.headers.get("Authorization")
+    res, code = auth_check(authorization)
+    if res:
+        return res, code
+
+    discord_id = parse_discord_id(discord_id)
+    if discord_id is None:
+        return {"success": False, "error": "Invalid discord id"}, 400
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return {"success": False, "error": "JSON body must be an object"}, 400
+
+    expected_vals = ['source_user_id',
+                     'guild_id',
+                     'channel_id',
+                     'message_id',
+                     'message_timestamp',
+                     ]
+
+    for ev in expected_vals:
+        if ev not in data:
+            return {"success": False, "error": f"Invalid JSON data - {ev} not found!"}, 400
+
+    activity_ids = {
+        name: parse_discord_id(data[name])
+        for name in ["source_user_id", "guild_id", "channel_id", "message_id"]
+    }
+    if any(value is None for value in activity_ids.values()):
+        return {"success": False, "error": "Invalid Discord activity id"}, 400
+
+    try:
+        message_timestamp = datetime.fromisoformat(data["message_timestamp"])
+    except (TypeError, ValueError):
+        return {"success": False, "error": "invalid message_timestamp format"}, 400
+
+    kwargs = {
+            'user_id' : discord_id,
+            'source_user_id': activity_ids["source_user_id"],
+            'guild_id': activity_ids["guild_id"],
+            'channel_id': activity_ids["channel_id"],
+            'message_id': activity_ids["message_id"],
+            'message_timestamp': message_timestamp,
+            'type': activity
+            }
+    entry = DiscordUserActivity(**kwargs)
+    db.session.add(entry)
+    db.session.commit()
+
+    return get_user_activity_prop(discord_id, activity), 200
+
+@discord_namespace.route("/course/<dojo>/memes", methods=["GET"])
+class CourseMemes(Resource):
+    @authed_only
+    @dojo_route
+    def get(self, dojo):
+        def bucket_from_start_then_sundays(ts, course_start):
+            start = course_start.astimezone(timezone.utc)
+            ts_utc = ts.astimezone(timezone.utc)
+
+
+            wd = start.weekday()
+            days_until_next_sunday = (6 - wd) % 7
+            if days_until_next_sunday == 0:
+                days_until_next_sunday = 7  # if start is Sunday, first boundary is a week later
+
+            first_boundary = start + timedelta(days=days_until_next_sunday)  # first Sunday 00:00 after start
+
+            if ts_utc < first_boundary:
+                return 0
+            return 1 + (ts_utc.date() - first_boundary.date()).days // 7
+
+        discord_user = DiscordUsers.query.filter_by(user_id=get_current_user().id).first()
+
+        if not discord_user:
+            return {"success": False, "error": "Discord not linked"}
+        course_start = (dojo.course or {}).get("start_date", None)
+        if course_start is None:
+            return {"success": False, "error": "No course start"}
+        course_start = datetime.fromisoformat(course_start).astimezone(timezone.utc)
+
+        memes = (
+            discord_user.memes(start=course_start, end=course_start + timedelta(weeks=17))
+            .order_by(DiscordUserActivity.message_timestamp)
+        )
+
+        valid_meme_cnt = len({
+            bucket_from_start_then_sundays(m.message_timestamp, course_start)
+            for m in memes
+        })
+
+        return {"success": True, "memes": valid_meme_cnt}
+
+@discord_namespace.route("/course/<dojo>/thanks", methods=["GET"])
+class CourseThanks(Resource):
+    @authed_only
+    @dojo_route
+    def get(self, dojo):
+        user = get_current_user()
+        discord_user = DiscordUsers.query.filter_by(user_id=user.id).first()
+        if discord_user is None:
+            return {"success": False, "error": "Discord not linked"}
+
+        course_start = (dojo.course or {}).get("start_date", None)
+        if course_start is None:
+            return {"success": False, "error": "No course start"}
+        course_start = datetime.fromisoformat(course_start)
+        request = Request.from_values(query_string={"start": course_start})
+
+        return get_user_activity(discord_user.discord_id, "thanks", request)
+
+@discord_namespace.route("/memes/user/<discord_id>", methods=["GET", "POST"])
+class DiscordMemes(Resource):
+    def get(self, discord_id):
+        authorization = request.headers.get("Authorization")
+        res, code = auth_check(authorization)
+        if res:
+            return res, code
+        return get_user_activity(discord_id, "memes", request)
+
+    def post(self, discord_id):
+        return post_user_activity(discord_id, "memes", request)
+
+@discord_namespace.route("/thanks/user/<discord_id>", methods=["GET", "POST"])
+class DiscordThanks(Resource):
+    def get(self, discord_id):
+        authorization = request.headers.get("Authorization")
+        res, code = auth_check(authorization)
+        if res:
+            return res, code
+        return get_user_activity(discord_id, "thanks", request)
+
+    def post(self, discord_id):
+        return post_user_activity(discord_id, "thanks", request)
+
+
+@discord_namespace.route("/thanks/leaderboard", methods=["GET"])
+class GetDiscordLeaderBoard(Resource):
+    def get(self):
+        try:
+            start = datetime.fromisoformat(request.args.get("start", f"{date.today().year}-01-01"))
+        except ValueError:
+            return {"success": False, "error": "Invalid start format"}, 400
+
+        score = db.func.count(db.distinct(db.func.concat(DiscordUserActivity.message_id, "-", DiscordUserActivity.source_user_id))).label("score")
+        leaderboard_query = (
+            db.session.query(DiscordUserActivity.user_id, score)
+            .filter(DiscordUserActivity.type == "thanks", DiscordUserActivity.message_timestamp >= start)
+            .group_by(DiscordUserActivity.user_id)
+            .order_by(score.desc())
+            .limit(20)
+        )
+        leaderboard = [dict(discord_id=discord_id, score=score) for discord_id, score in leaderboard_query]
+
+        return {"success": True, "leaderboard": leaderboard}, 200

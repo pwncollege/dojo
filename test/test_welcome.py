@@ -92,7 +92,7 @@ def desktop_workspace(browser):
     wait.until(EC.frame_to_be_available_and_switch_to_it((By.NAME, "workspace")))
     wait.until(
         lambda driver: "noVNC_connected"
-        in driver.find_element(By.TAG_NAME, "html").get_attribute("class").split()
+        in (driver.find_element(By.TAG_NAME, "html").get_attribute("class") or "").split()
     )
     desktop = wait.until(
         lambda driver: next(
@@ -423,7 +423,7 @@ def test_actionbar_banner_treats_challenge_name_as_text(random_user_browser, int
         const controls = arguments[0];
         const input = controls.querySelector("#flag-input");
         controls.querySelector("#current-challenge-id").setAttribute("data-challenge-name", arguments[1]);
-        CTFd.api.post_challenge_attempt = () => Promise.resolve({data: {status: "correct"}});
+        Dojo.submitFlag = () => Promise.resolve({status: "solved"});
         input.value = "test";
         actionSubmitFlag({target: input});
     """, controls, payload)

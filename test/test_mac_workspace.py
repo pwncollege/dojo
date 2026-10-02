@@ -9,7 +9,7 @@ import docker.errors
 import pytest
 
 
-@pytest.fixture(params=["dojo_plugin/utils/mac_docker.py", "sshd/mac_docker.py"])
+@pytest.fixture(params=["site/dojo/utils/mac_docker.py", "sshd/mac_docker.py"])
 def mac_backend(request):
     spec = importlib.util.spec_from_file_location(
         "mac_workspace_adapter", Path(__file__).resolve().parents[1] / request.param,

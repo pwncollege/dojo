@@ -111,8 +111,8 @@ def index_next_section(text):
     return text[start:end]
 
 
-def ctfd_direct(url, session=None, method=None):
-    """Talk to CTFd behind nginx's back, so the headers nginx consumes stay visible."""
+def site_direct(url, session=None, method=None):
+    """Talk to the site container behind nginx's back, so the headers nginx consumes stay visible."""
     args = ["docker", "exec", "nginx", "curl", "-s", "-i"]
     if session is not None:
         cookie = "; ".join(f"{name}={value}" for name, value in session.cookies.get_dict().items())
@@ -619,21 +619,21 @@ def discord_oauth_case(user, code):
         "from urllib.parse import parse_qs, urlsplit\n"
         "from unittest.mock import patch\n"
         "from flask import current_app\n"
-        "from CTFd.models import db\n"
-        "from CTFd.plugins.dojo_plugin.models import DiscordUsers\n"
-        "discord_pages = importlib.import_module('CTFd.plugins.dojo_plugin.pages.discord')\n"
+        "from dojo.models import db\n"
+        "from dojo.models import DiscordUsers\n"
+        "discord_pages = importlib.import_module('dojo.pages.discord')\n"
         "app = current_app._get_current_object()\n"
         "client = app.test_client()\n"
         f"client.set_cookie(app.config['SESSION_COOKIE_NAME'], {session.cookies.get('session')!r})\n"
         f"user_id = {get_user_id(name)}\n"
     )
     output = flask_exec(setup + textwrap.dedent(code) + "\nprint('DISCORD-OAUTH-PASSED')\n")
-    assert "DISCORD-OAUTH-PASSED" in output, output
+    assert "DISCORD-OAUTH-PASSED" in output.splitlines(), output
 
 
 def test_discord_oauth_link_relink_and_provider_recovery(random_user):
     discord_oauth_case(random_user, """
-        from CTFd.plugins.dojo_plugin.utils import awards as award_utils
+        from dojo.utils import awards as award_utils
 
         accounts = {"first": 80_000_000_000 + user_id, "second": 81_000_000_000 + user_id}
         granted_roles = set()
@@ -773,7 +773,7 @@ def test_sensai_view_tracks_active_challenge(side_other_user, example_dojo):
 def test_sensai_proxy_emits_accel_redirect_with_identity(side_other_user, admin_session):
     _, session, user_id, _ = side_other_user
 
-    status, headers, body = ctfd_direct("http://ctfd:8000/sensai/foo?bar=1", session=session)
+    status, headers, body = site_direct("http://site:8000/sensai/foo?bar=1", session=session)
     assert status == 200, f"expected 200, got {status}"
     assert headers["x-accel-redirect"] == "@sensai", headers
     assert headers["x-forwarded-prefix"] == "/sensai", headers
@@ -782,7 +782,7 @@ def test_sensai_proxy_emits_accel_redirect_with_identity(side_other_user, admin_
     assert headers["content-length"] == "0", headers
     assert body.strip() == "", f"expected an empty body, got {body[:100]!r}"
 
-    status, headers, _ = ctfd_direct("http://ctfd:8000/sensai/foo", session=admin_session)
+    status, headers, _ = site_direct("http://site:8000/sensai/foo", session=admin_session)
     assert status == 200, f"expected 200, got {status}"
     assert headers["redirect_auth"] == f"Admin {get_user_id('admin')}", headers
 
@@ -790,11 +790,11 @@ def test_sensai_proxy_emits_accel_redirect_with_identity(side_other_user, admin_
 def test_sensai_proxy_post_bypasses_csrf_and_rejects_other_methods(side_other_user):
     _, session, _, _ = side_other_user
 
-    status, headers, _ = ctfd_direct("http://ctfd:8000/sensai/chat", session=session, method="POST")
+    status, headers, _ = site_direct("http://site:8000/sensai/chat", session=session, method="POST")
     assert status == 200, f"POST without a CSRF nonce returned {status}"
     assert headers.get("x-accel-redirect") == "@sensai", headers
 
-    status, headers, _ = ctfd_direct("http://ctfd:8000/sensai/chat", session=session, method="PUT")
+    status, headers, _ = site_direct("http://site:8000/sensai/chat", session=session, method="PUT")
     assert status == 404, f"PUT should not be routed, got {status}"
     assert "x-accel-redirect" not in headers, headers
 

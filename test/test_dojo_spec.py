@@ -113,8 +113,8 @@ def request_container(session, dojo, module, challenge, practice=False):
     return response.json()
 
 
-def ctfd_path_exists(path):
-    return dojo_run("docker", "exec", "ctfd", "test", "-e", path, check=False).returncode == 0
+def site_path_exists(path):
+    return dojo_run("docker", "exec", "site", "test", "-e", path, check=False).returncode == 0
 
 
 @pytest.fixture(scope="module")
@@ -230,8 +230,8 @@ def test_subyaml_precedence_and_survey_src_from_directory():
     tag = "".join(random.choices(string.ascii_lowercase, k=8))
     output = flask_exec(f'''
 import json, pathlib, shutil
-from CTFd.models import db
-from CTFd.plugins.dojo_plugin.utils.dojo import dojo_from_dir
+from dojo.models import db
+from dojo.utils.dojo import dojo_from_dir
 
 root = pathlib.Path("/tmp/dojo-spec-test-{tag}")
 shutil.rmtree(root, ignore_errors=True)
@@ -479,7 +479,7 @@ def test_imported_challenge_path_override_prefers_official_local_files(admin_ses
     assert source_path.endswith("/hello/apple"), f"path_override should point at the source challenge, got {source_path!r}"
 
     probe = f'''
-from CTFd.plugins.dojo_plugin.models import DojoChallenges
+from dojo.models import DojoChallenges
 challenge = DojoChallenges.from_id({dojo!r}, "m", "apple").first()
 print("PATH " + str(challenge.path))
 '''
@@ -1097,12 +1097,12 @@ def test_files_outside_the_dojo_directory_are_not_written(admin_session):
     marker = "".join(random.choices(string.ascii_lowercase, k=12))
 
     post_spec(admin_session, {"id": spec_id("filepath"), "files": [text_file(f"../{marker}", "x")]})
-    assert not ctfd_path_exists(f"/var/dojos/tmp/{marker}"), \
+    assert not site_path_exists(f"/var/dojos/tmp/{marker}"), \
         "a files entry rejected by FILE_PATH_REGEX must not be written outside the dojo directory"
 
     post_spec(admin_session, {"id": spec_id("filepath"), "files": [
         text_file(f"a/../../../../../../tmp/{marker}", "x")]})
-    assert not ctfd_path_exists(f"/tmp/{marker}"), \
+    assert not site_path_exists(f"/tmp/{marker}"), \
         "a files entry must not be able to traverse out of the dojo directory"
 
 
@@ -1170,7 +1170,7 @@ def test_pages_directory_serves_per_user_then_default_markdown(admin_session, sp
     assert response.status_code == 200 and "DEFAULT_NOTES" in response.text
 
     hex_id = dojo.split("~")[1]
-    dojo_run("docker", "exec", "ctfd", "bash", "-c",
+    dojo_run("docker", "exec", "site", "bash", "-c",
              f"echo USER_NOTES > /var/dojos/{hex_id}/notes/{get_user_id(name)}.md")
 
     response = session.get(f"{DOJO_URL}/{dojo}/notes")

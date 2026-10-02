@@ -48,9 +48,9 @@ After tests complete, analyze `/tmp/test.log`:
 ## Debugging Workflow
 
 1. **Identify failures** - Analyze `/tmp/test.log` for FAILED/ERROR
-2. **Find root cause** - Look at tracebacks, check CTFd logs with:
+2. **Find root cause** - Look at tracebacks, check web app (`site` container) logs with:
    ```bash
-   docker exec $(basename "$PWD") docker logs ctfd 2>&1 | tail -100
+   docker exec $(basename "$PWD") docker logs site 2>&1 | tail -100
    ```
    You can also look at all any of the containers inside of `docker exec $(basename "$PWD")`, the whole list including names is in docker-compose.yml.
 3. **If root cause unclear** - Add logging to help understand, then rerun tests
@@ -74,8 +74,8 @@ cat /tmp/test.log
 # Search for failures
 grep -E "(FAILED|ERROR|error)" /tmp/test.log
 
-# View CTFd logs for debugging
-docker exec $(basename "$PWD") docker logs ctfd 2>&1 | tail -200
+# View web app (`site` container) logs for debugging
+docker exec $(basename "$PWD") docker logs site 2>&1 | tail -200
 
 # Run DB queries for debugging
 docker exec -i $(basename "$PWD") dojo db
