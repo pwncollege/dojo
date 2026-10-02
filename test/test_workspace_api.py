@@ -484,9 +484,9 @@ def test_container_endpoints_report_no_active_challenge_without_a_container(rand
     )
 
     reset = random_user_session.post(RESET_HOME_API, json={})
-    assert reset.status_code == 409, f"Expected status code 409, but got {reset.status_code}"
+    assert reset.status_code == 404, f"Expected status code 404, but got {reset.status_code}"
     assert reset.json()["success"] is False, f"Expected the reset to fail, but got {reset.json()}"
-    assert "No running container found" in reset.json()["error"], (
+    assert "No home directory found" in reset.json()["error"], (
         f"Expected a no-container error, but got {reset.json()}"
     )
 
@@ -901,20 +901,10 @@ def test_next_challenge_at_the_end_of_a_dojo(private_workspace):
     )
 
 
-def test_reset_home_requires_a_running_workspace(random_user_session):
-    response = random_user_session.post(RESET_HOME_API, json={})
-    assert response.status_code == 409
-    assert response.json() == {
-        "success": False,
-        "error": "No running container found. Please start a container and try again.",
-    }
-
-
 def home_archive(response):
     assert response.status_code == 200, response.text[:500]
     assert response.headers["Content-Type"] == "application/gzip"
     assert "attachment" in response.headers["Content-Disposition"]
-    assert response.headers["X-Home-Operation-Status"] == "success"
     return tarfile.open(fileobj=io.BytesIO(response.content), mode="r:gz")
 
 
@@ -936,14 +926,15 @@ def test_reset_home_downloads_backup_and_restores_an_empty_writable_home(private
         "printf 'root-owned data' > /home/hacker/.reset-root-only/private-file",
         root=True,
     )
-    response = session.post(RESET_HOME_API, json={})
+    response = session.post(BACKUP_HOME_API, json={})
     with home_archive(response) as archive:
         assert archive.extractfile("home/hacker/.reset-config/nested/settings").read() == b"saved settings"
         assert archive.getmember("home/hacker/reset-link").issym()
         assert archive.getmember("home/hacker/doomed-file").isfile()
         assert archive.extractfile("home/hacker/.reset-root-only/private-file").read() == b"root-owned data"
         assert "home/hacker/large-file" not in archive.getnames()
-    assert int(response.headers["X-Home-Backup-Skipped-Files"]) >= 1
+    reset = session.post(RESET_HOME_API, json={})
+    assert reset.status_code == 200 and reset.json()["success"]
     assert not container_exists(name), "Expected the reset to stop and remove the workspace"
     assert session.get(DOCKER_API).json() == {"success": False, "error": "No active challenge"}
     start_challenge(private_workspace["dojo"], "solo", "only", session=session)
@@ -989,9 +980,11 @@ def test_reset_home_stops_a_workspace_writing_desktop_configuration(
         assert time.monotonic() < deadline, "The workspace writer did not start"
         time.sleep(0.05)
     before_container = container_inspect(name)["Id"]
-    response = random_user_session.post(RESET_HOME_API, json={})
+    response = random_user_session.post(BACKUP_HOME_API, json={})
     with home_archive(response) as archive:
         assert archive.getmember("home/hacker/reset-original").isfile()
+    reset = random_user_session.post(RESET_HOME_API, json={})
+    assert reset.status_code == 200 and reset.json()["success"]
     assert not container_exists(name), "Expected the reset to terminate the desktop writer's workspace"
     start_challenge(example_dojo, "hello", "apple", session=random_user_session)
     assert container_inspect(name)["Id"] != before_container
@@ -1001,10 +994,23 @@ def test_reset_home_stops_a_workspace_writing_desktop_configuration(
     assert workspace_exec(name, "test ! -e /home/hacker/home-backup.tar.gz").returncode == 0
 
 
-def test_home_operations_share_a_per_user_three_per_hour_limit(random_user_session):
-    for endpoint in [BACKUP_HOME_API, RESET_HOME_API, BACKUP_HOME_API]:
-        assert random_user_session.post(endpoint, json={}).status_code == 409
-    response = random_user_session.post(RESET_HOME_API, json={})
+def test_reset_refuses_a_workspace_restarted_after_backup(random_user, example_dojo):
+    name, session = random_user
+    start_challenge(example_dojo, "hello", "apple", session=session)
+    with home_archive(session.post(BACKUP_HOME_API, json={})):
+        pass
+    start_challenge(example_dojo, "hello", "apple", session=session)
+    workspace_output(name, "printf keep > /home/hacker/new-data")
+    response = session.post(RESET_HOME_API, json={})
+    assert response.status_code == 409 and not response.json()["success"]
+    assert workspace_output(name, "cat /home/hacker/new-data") == "keep"
+
+
+@pytest.mark.parametrize("endpoint", [BACKUP_HOME_API, RESET_HOME_API])
+def test_home_endpoints_have_separate_three_per_hour_limits(random_user_session, endpoint):
+    for _ in range(3):
+        assert random_user_session.post(endpoint, json={}).status_code == 404
+    response = random_user_session.post(endpoint, json={})
     assert response.status_code == 429
     assert 0 < int(response.headers["Retry-After"]) <= 3600
     assert "three times per hour" in response.json()["error"]

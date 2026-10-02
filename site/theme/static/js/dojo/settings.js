@@ -91,14 +91,15 @@ async function home_download_and_show(action) {
     buttons.prop("disabled", true);
     results.html(loading_template);
     results.find("#message").text("Preparing your backup download...");
+    let downloaded = false;
     try {
-        const response = await Dojo.fetch(`/pwncollege_api/v1/workspace/${action}_home`, {
+        const response = await Dojo.fetch("/pwncollege_api/v1/workspace/backup_home", {
             method: "POST",
             credentials: "same-origin",
             headers: { Accept: "application/gzip", "Content-Type": "application/json" },
             body: JSON.stringify({})
         });
-        if (!(response.headers.get("Content-Type") || "").includes("application/gzip")) {
+        if (!response.ok || !(response.headers.get("Content-Type") || "").includes("application/gzip")) {
             const error = await response.json().catch(() => ({}));
             throw new Error(error.error || "Could not prepare the home backup. Please try again.");
         }
@@ -111,16 +112,23 @@ async function home_download_and_show(action) {
         link.click();
         link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 60000);
-        const completed = response.headers.get("X-Home-Operation-Status") === "success";
-        const skipped = Number(response.headers.get("X-Home-Backup-Skipped-Files"));
-        let message = response.headers.get("X-Home-Operation-Message") || "Backup download started.";
-        if (!completed) message = `Backup download started. ${message}`;
-        if (skipped > 0) message += ` ${skipped} file(s) larger than 10 MB were excluded.`;
-        results.html(completed ? success_template : error_template);
-        results.find("#message").text(message);
+        downloaded = true;
+        if (action === "reset") {
+            results.find("#message").text("Backup downloaded. Resetting your home...");
+            const response = await Dojo.fetch("/pwncollege_api/v1/workspace/reset_home", {
+                method: "POST", credentials: "same-origin",
+                headers: { "Content-Type": "application/json" }, body: JSON.stringify({})
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.error || "The reset failed. Your backup has been downloaded.");
+        }
+        results.html(success_template);
+        results.find("#message").text(action === "reset"
+            ? "Home reset and backup downloaded. Start a new challenge to continue."
+            : "Home backup downloaded. Start a new challenge to continue.");
     } catch (error) {
         results.html(error_template);
-        results.find("#message").text(error.message || "Download failed. Please try again.");
+        results.find("#message").text((downloaded ? "Backup downloaded. " : "") + (error.message || "Download failed. Please try again."));
     } finally {
         buttons.prop("disabled", false);
     }

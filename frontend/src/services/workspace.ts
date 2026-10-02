@@ -48,8 +48,8 @@ class WorkspaceService {
   }
 
   // Reset user's home directory
-  async resetHome(): Promise<Blob> {
-    return dojoApiClient.download('/workspace/reset_home')
+  async resetHome(): Promise<{ success: boolean; error?: string; message?: string }> {
+    return dojoApiClient.post('/workspace/reset_home')
   }
 
   async backupHome(): Promise<Blob> {

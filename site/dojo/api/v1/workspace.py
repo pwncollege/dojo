@@ -9,7 +9,6 @@ from ...utils.decorators import authed_only
 
 from ...utils import get_current_container, container_password, parse_positive_int, user_node
 from ...utils.workspace import start_on_demand_service, manage_home, HomeResetError
-from ...utils.home_reset import home_download_response
 from ...pages.workspace import forward_workspace, forward_port
 from ...config import WORKSPACE_SECRET
 
@@ -126,19 +125,19 @@ class view_desktop(Resource):
 class ResetHome(Resource):
     @authed_only
     def post(self):
-        return home_download("reset")
+        return home_operation("reset")
 
 
 @workspace_namespace.route("/backup_home")
 class BackupHome(Resource):
     @authed_only
     def post(self):
-        return home_download("backup")
+        return home_operation("backup")
 
 
-def home_download(action):
+def home_operation(action):
     try:
-        return home_download_response(manage_home(get_current_user().id, action))
+        return manage_home(get_current_user().id, action)
     except HomeResetError as error:
         headers = {"Retry-After": str(error.retry_after)} if error.retry_after else {}
         return {"success": False, "error": str(error)}, error.status, headers

@@ -51,7 +51,7 @@ class ApiClient {
       })
 
       const contentType = response.headers.get('content-type')
-      if (responseType === 'blob' && contentType?.includes('application/gzip')) {
+      if (response.ok && responseType === 'blob' && contentType?.includes('application/gzip')) {
         return await response.blob() as T
       }
       if (!response.ok) {

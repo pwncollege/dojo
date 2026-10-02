@@ -65,7 +65,7 @@ def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", us
 
 def manage_home(user_id, action):
     redis_client = redis.from_url(current_app.config["REDIS_URL"])
-    check_home_rate_limit(redis_client, user_id)
+    check_home_rate_limit(redis_client, user_id, action)
     docker_client = user_docker_client(Users.query.get(user_id))
     lock = redis_client.lock(f"user.{user_id}.docker.lock", timeout=HOME_RESET_LOCK_TIMEOUT,
                              blocking_timeout=0, raise_on_release_error=False)

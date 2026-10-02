@@ -163,128 +163,152 @@ def clients():
         archive.addfile(member, io.BytesIO(b"saved data"))
     payload = file.getvalue()
     container, homefs, lock = Mock(status="running"), Mock(), Mock()
-    def run(command, **kwargs):
-        return command_result(payload, size=len(payload), skipped=1) if command[-1] == "backup" else command_result()
-    homefs.exec_run.side_effect = run
+    homefs.exec_run.side_effect = lambda command, **kwargs: command_result(payload, size=len(payload)) if command[-1] == "backup" else command_result()
     client = Mock(api=SimpleNamespace(timeout=60))
     client.containers.get.side_effect = lambda name: {"user_42": container, "homefs": homefs}[name]
     lock.acquire.return_value = True
     return client, container, homefs, lock, payload
 
 
-@pytest.mark.parametrize("action", ["backup", "reset"])
-def test_operations_stop_under_lock_and_verify_the_download_before_reset(clients, monkeypatch, action):
+def without_workspace(client, homefs):
+    def get(name):
+        if name == "homefs":
+            return homefs
+        raise docker.errors.NotFound("No workspace")
+    client.containers.get.side_effect = get
+
+
+def test_backup_streams_before_completion_and_reset_takes_a_separate_lock(clients):
     client, container, homefs, lock, payload = clients
-    respond = homefs.exec_run.side_effect
-    verify = Mock(wraps=orchestration.verify_home_archive)
-    monkeypatch.setattr(orchestration, "verify_home_archive", verify)
-    def run(command, **kwargs):
-        container.stop.assert_called_once_with(timeout=10)
-        container.wait.assert_called_once_with(condition="removed", timeout=30)
-        lock.release.assert_not_called()
-        assert kwargs == {"user": "0", "stream": True, "demux": True}
-        if command[-1] == "reset":
-            verify.assert_called_once()
-        return respond(command)
-    homefs.exec_run.side_effect = run
-    result = orchestration.manage_home_directory(client, 42, lock, action=action)
-    assert result.status == "success" and result.size == len(payload) and result.skipped == 1
-    assert backup_contents(result.file) == {"home/hacker/saved-file": b"saved data"}
-    assert [call.args[0][-1] for call in homefs.exec_run.call_args_list] == (["backup", "reset"] if action == "reset" else ["backup"])
-    result.file.close()
-    container.start.assert_not_called()
-    container.pause.assert_not_called()
+    response = orchestration.manage_home_directory(client, 42, lock, action="backup")
+    container.stop.assert_called_once_with(timeout=10)
+    container.wait.assert_called_once_with(condition="removed", timeout=30)
+    lock.release.assert_not_called()
+    stream = iter(response.response)
+    assert next(stream) == payload[:19]
+    lock.release.assert_not_called()
+    assert payload[:19] + b"".join(stream) == payload
+    assert [call.args[0][-1] for call in homefs.exec_run.call_args_list] == ["backup"]
     lock.release.assert_called_once()
+    response.close()
+    without_workspace(client, homefs)
+    result = orchestration.manage_home_directory(client, 42, lock, action="reset")
+    assert result["success"] is True
+    assert lock.acquire.call_count == lock.release.call_count == 2
+    assert [call.args[0][-1] for call in homefs.exec_run.call_args_list] == ["backup", "reset"]
+    container.pause.assert_not_called()
     assert client.api.timeout == 60
 
 
-@pytest.mark.parametrize("failure, status", [("lock", 409), ("storage", 503), ("workspace", 409), ("stop", 503), ("wait", 503), ("inactive", 409)])
+@pytest.mark.parametrize("failure, status", [("lock", 409), ("redis", 503), ("storage", 503), ("workspace", 503), ("stop", 503), ("wait", 503)])
 def test_preparation_failure_does_not_archive_or_reset(clients, failure, status):
     client, container, homefs, lock, _ = clients
     if failure == "lock":
         lock.acquire.return_value = False
+    elif failure == "redis":
+        lock.acquire.side_effect = redis.exceptions.ConnectionError("redis unavailable")
     elif failure == "storage":
         client.containers.get.side_effect = docker.errors.NotFound("homefs")
     elif failure == "workspace":
-        client.containers.get.side_effect = [homefs, docker.errors.NotFound("workspace")]
-    elif failure == "inactive":
-        container.status = "paused"
+        client.containers.get.side_effect = [homefs, requests.ConnectionError("unavailable")]
     else:
         getattr(container, failure).side_effect = requests.ConnectionError("connection lost")
     with pytest.raises(orchestration.HomeResetError) as error:
-        orchestration.manage_home_directory(client, 42, lock)
+        orchestration.manage_home_directory(client, 42, lock, action="backup")
     assert error.value.status == status
     homefs.exec_run.assert_not_called()
-    assert lock.release.called is (failure != "lock")
+    assert lock.release.called is (failure not in ("lock", "redis"))
 
 
-@pytest.mark.parametrize("operation", ["stop", "wait"])
-def test_auto_removal_race_is_safe(clients, operation):
-    client, container, homefs, lock, _ = clients
-    getattr(container, operation).side_effect = docker.errors.NotFound("already removed")
-    orchestration.manage_home_directory(client, 42, lock).file.close()
+@pytest.mark.parametrize("operation", ["stop", "wait", "missing"])
+def test_backup_handles_auto_removal_and_already_stopped_workspaces(clients, operation):
+    client, container, homefs, lock, payload = clients
+    if operation == "missing":
+        without_workspace(client, homefs)
+    else:
+        getattr(container, operation).side_effect = docker.errors.NotFound("already removed")
+    response = orchestration.manage_home_directory(client, 42, lock, action="backup")
+    assert b"".join(response.response) == payload
+    response.close()
     lock.release.assert_called_once()
 
 
-@pytest.mark.parametrize("failure", ["transport", "marker", "truncated", "corrupt", "overflow"])
-def test_incomplete_or_unverified_backup_prevents_reset_and_closes_temporary_file(clients, monkeypatch, failure):
-    client, container, homefs, lock, payload = clients
-    file = io.BytesIO()
-    monkeypatch.setattr(orchestration.tempfile, "SpooledTemporaryFile", lambda **kwargs: file)
-    if failure == "transport":
-        homefs.exec_run.side_effect = requests.ConnectionError("connection lost")
-    else:
-        data = payload[:-5] if failure == "truncated" else b"bad" + payload[3:] if failure == "corrupt" else payload
-        event = "invalid" if failure == "marker" else "complete"
-        homefs.exec_run.side_effect = lambda *args, **kwargs: command_result(data, size=len(payload), event=event)
-        if failure == "overflow":
-            monkeypatch.setattr(orchestration, "MAX_ARCHIVE_SIZE", 16)
-    with pytest.raises(orchestration.HomeResetError):
-        orchestration.manage_home_directory(client, 42, lock)
-    assert [call.args[0][-1] for call in homefs.exec_run.call_args_list] == ["backup"]
-    assert lock.release.called is (failure in ["truncated", "corrupt"])
-    assert file.closed
-
-
-@pytest.mark.parametrize("uncertain", [False, True])
-def test_reset_failure_returns_the_verified_backup_without_admin_intervention(clients, uncertain):
+@pytest.mark.parametrize("state", ["running", "paused", "exited"])
+def test_reset_refuses_an_existing_workspace_instead_of_stopping_and_deleting_it(clients, state):
     client, container, homefs, lock, _ = clients
-    respond = homefs.exec_run.side_effect
-    def run(command, **kwargs):
-        if command[-1] == "reset":
-            if uncertain:
-                raise requests.ConnectionError("connection lost")
-            return command_result(event="failed", status=500, error="Input/output error")
-        return respond(command)
-    homefs.exec_run.side_effect = run
-    result = orchestration.manage_home_directory(client, 42, lock)
-    assert result.status == ("unknown" if uncertain else "failed")
-    assert "administrator" not in result.message
-    assert backup_contents(result.file) == {"home/hacker/saved-file": b"saved data"}
-    result.file.close()
-    assert lock.release.called is not uncertain
+    container.status = state
+    with pytest.raises(orchestration.HomeResetError) as error:
+        orchestration.manage_home_directory(client, 42, lock, action="reset")
+    assert error.value.status == 409 and "Download a new backup" in str(error.value)
+    homefs.exec_run.assert_not_called()
+    container.stop.assert_not_called()
+    lock.release.assert_called_once()
 
 
-@pytest.mark.parametrize("status, code", [("success", 200), ("failed", 500), ("unknown", 503)])
-def test_download_response_is_a_gzip_attachment_and_closes_the_temporary_file(clients, status, code):
+@pytest.mark.parametrize("failure", ["transport", "marker", "truncated", "overflow"])
+def test_failed_stream_aborts_without_deleting_home(clients, monkeypatch, failure):
+    client, _, homefs, lock, payload = clients
+    def chunks():
+        yield payload[:19], None
+        if failure == "transport":
+            raise requests.ConnectionError("connection lost")
+        yield payload[19:-5] if failure == "truncated" else payload[19:], None
+        yield None, json.dumps({"event": "invalid" if failure == "marker" else "complete", "size": len(payload)}).encode()
+    iterator = chunks()
+    homefs.exec_run.side_effect = lambda *args, **kwargs: (None, iterator)
+    if failure == "overflow":
+        monkeypatch.setattr(orchestration, "MAX_ARCHIVE_SIZE", 30)
+    response = orchestration.manage_home_directory(client, 42, lock, action="backup")
+    with pytest.raises(orchestration.HomeResetError):
+        b"".join(response.response)
+    response.close()
+    assert iterator.gi_frame is None
+    assert [call.args[0][-1] for call in homefs.exec_run.call_args_list] == ["backup"]
+    lock.release.assert_not_called()
+    assert client.api.timeout == 60
+
+
+def test_client_disconnect_closes_docker_stream_and_lets_lock_expire(clients):
+    client, _, homefs, lock, payload = clients
+    _, iterator = command_result(payload, size=len(payload))
+    homefs.exec_run.side_effect = lambda *args, **kwargs: (None, iterator)
+    response = orchestration.manage_home_directory(client, 42, lock, action="backup")
+    response.close()
+    assert iterator.gi_frame is None
+    assert client.api.timeout == 60
+    lock.release.assert_not_called()
+
+
+@pytest.mark.parametrize("action, status", [("backup", 413), ("reset", 500), ("backup", 404)])
+def test_known_helper_failure_releases_lock(clients, action, status):
+    client, _, homefs, lock, _ = clients
+    without_workspace(client, homefs)
+    homefs.exec_run.side_effect = lambda *args, **kwargs: command_result(event="failed", status=status, error="failed")
+    with pytest.raises(orchestration.HomeResetError) as error:
+        orchestration.manage_home_directory(client, 42, lock, action=action)
+    assert error.value.status == status
+    lock.release.assert_called_once()
+
+
+def test_http_backup_is_streamed_without_content_length_or_proxy_buffering(clients):
     client, _, _, lock, payload = clients
-    result = orchestration.manage_home_directory(client, 42, lock)
-    result.status = status
     app = Flask(__name__)
-    app.add_url_rule("/download", view_func=lambda: orchestration.home_download_response(result))
+    app.add_url_rule("/backup", view_func=lambda: orchestration.manage_home_directory(client, 42, lock, action="backup"))
     with app.test_client() as browser:
-        response = browser.get("/download")
-        assert response.status_code == code and response.data == payload
+        response = browser.get("/backup", buffered=False)
+        assert response.is_streamed and "Content-Length" not in response.headers
         assert response.headers["Content-Type"] == "application/gzip"
-        assert 'attachment; filename=home-backup.tar.gz' == response.headers["Content-Disposition"]
-        assert response.headers["Cache-Control"] == "no-store"
-        assert response.headers["X-Home-Operation-Status"] == status
+        assert response.headers["Content-Disposition"] == "attachment; filename=home-backup.tar.gz"
+        assert response.headers["Cache-Control"] == "no-store" and response.headers["X-Accel-Buffering"] == "no"
+        lock.release.assert_not_called()
+        assert response.data == payload
+        lock.release.assert_called_once()
         response.close()
-    assert result.file.closed
 
 
 @pytest.mark.parametrize("outcome", [0, 3599, "unavailable"])
-def test_per_user_rate_limit_reports_retry_after_or_service_failure(outcome):
+@pytest.mark.parametrize("action", ["backup", "reset"])
+def test_per_user_rate_limit_reports_retry_after_or_service_failure(outcome, action):
     cache = Mock()
     if outcome == "unavailable":
         cache.eval.side_effect = redis.exceptions.ConnectionError("redis unavailable")
@@ -292,12 +316,12 @@ def test_per_user_rate_limit_reports_retry_after_or_service_failure(outcome):
         cache.eval.return_value = outcome
     if outcome:
         with pytest.raises(orchestration.HomeResetError) as error:
-            orchestration.check_home_rate_limit(cache, 42)
+            orchestration.check_home_rate_limit(cache, 42, action)
         assert error.value.status == (503 if outcome == "unavailable" else 429)
         assert error.value.retry_after == (None if outcome == "unavailable" else outcome)
     else:
-        orchestration.check_home_rate_limit(cache, 42)
-    assert cache.eval.call_args.args[2] == "user.42.home.requests"
+        orchestration.check_home_rate_limit(cache, 42, action)
+    assert cache.eval.call_args.args[2] == f"user.42.home.{action}.requests"
 
 
 def test_home_management_browser_download_and_error_flows():

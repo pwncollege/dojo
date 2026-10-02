@@ -34,7 +34,7 @@ class LimitedWriter:
 def locked_home(volume_path):
     home = volume_path / "active"
     if home.is_symlink() or not home.is_dir():
-        raise FileNotFoundError("Home volume is not active")
+        raise FileNotFoundError(errno.ENOENT, "Home volume is not active", str(home))
     with (volume_path / ".active.lock").open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         yield home
@@ -82,7 +82,7 @@ def main():
         else:
             raise ValueError("Invalid home operation")
     except Exception as error:
-        status = 409 if isinstance(error, BlockingIOError) else 413 if getattr(error, "errno", None) == errno.EFBIG else 500
+        status = {errno.EAGAIN: 409, errno.ENOENT: 404, errno.EFBIG: 413}.get(getattr(error, "errno", None), 500)
         print(json.dumps({"event": "failed", "status": status, "error": str(error)}), file=sys.stderr)
         return 1
     print(json.dumps({"event": "complete", **detail}), file=sys.stderr)

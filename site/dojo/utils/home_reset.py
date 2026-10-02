@@ -1,14 +1,13 @@
-import gzip
 import json
 import logging
-import tempfile
 import uuid
 from contextlib import closing
+from itertools import chain
 
 import docker
 import redis
 import requests
-from flask import send_file
+from flask import Response
 
 
 logger = logging.getLogger(__name__)
@@ -37,18 +36,9 @@ class HomeResetError(Exception):
         self.retry_after = retry_after
 
 
-class HomeArchive:
-    def __init__(self, file, size, skipped=0):
-        self.file = file
-        self.size = size
-        self.skipped = skipped
-        self.status = "success"
-        self.message = "Home backup downloaded. Start a new challenge to continue."
-
-
-def check_home_rate_limit(redis_client, user_id):
+def check_home_rate_limit(redis_client, user_id, action):
     try:
-        retry_after = redis_client.eval(HOME_RATE_LIMIT_SCRIPT, 1, f"user.{user_id}.home.requests", uuid.uuid4().hex)
+        retry_after = redis_client.eval(HOME_RATE_LIMIT_SCRIPT, 1, f"user.{user_id}.home.{action}.requests", uuid.uuid4().hex)
     except redis.exceptions.RedisError as error:
         raise HomeResetError("Home management is temporarily unavailable. Please try again.", 503) from error
     if retry_after:
@@ -56,8 +46,8 @@ def check_home_rate_limit(redis_client, user_id):
                              429, retry_after=retry_after)
 
 
-def run_home_command(homefs, user_id, action, output=None):
-    stderr = b""
+def run_home_command(homefs, user_id, action):
+    stderr, size = b"", 0
     try:
         _, chunks = homefs.exec_run(
             ["/usr/bin/timeout", "-k", "10", str(HOME_RESET_TIMEOUT),
@@ -67,120 +57,84 @@ def run_home_command(homefs, user_id, action, output=None):
         with closing(chunks):
             for data, diagnostic in chunks:
                 stderr = (stderr + (diagnostic or b""))[-4096:]
-                if data and output is not None:
-                    if output.tell() + len(data) > MAX_ARCHIVE_SIZE:
+                if data:
+                    size += len(data)
+                    if size > MAX_ARCHIVE_SIZE:
                         raise ValueError("Home backup exceeds archive limit")
-                    output.write(data)
+                    yield data
         detail = json.loads(stderr.splitlines()[-1])
         if not isinstance(detail, dict) or detail.get("event") not in ("complete", "failed"):
             raise ValueError("Invalid home operation result")
+        if detail["event"] == "failed":
+            logger.error("Home operation failed user_id=%s action=%s detail=%s", user_id, action, detail)
+            status = detail.get("status", 500)
+            message = {409: "Home storage is busy. Please try again.",
+                       404: "No home directory found. Start a challenge and try again.",
+                       413: "The backup exceeds 1 GiB. Remove some files and try again."}
+            raise HomeResetError(message.get(status, "Could not complete the home operation. Please try again."), status)
+        if action == "backup" and not 0 < size == detail.get("size"):
+            raise ValueError("Incomplete home backup")
     except (docker.errors.DockerException, requests.RequestException, OSError, ValueError, IndexError) as error:
         logger.exception("Unable to confirm home operation user_id=%s action=%s", user_id, action)
         raise HomeResetError("Could not confirm completion. Wait 10 minutes before trying again.",
-                             503, uncertain=True) from error
-    if detail["event"] == "failed":
-        logger.error("Home operation failed user_id=%s action=%s detail=%s", user_id, action, detail)
-        status = detail.get("status", 500)
-        message = {409: "Home storage is busy. Please try again.",
-                   413: "The backup exceeds 1 GiB. Remove some files and try again."}
-        raise HomeResetError(message.get(status, "Could not complete the home operation. Please try again."), status)
-    return detail
+                             503, uncertain=True, retry_after=HOME_RESET_LOCK_TIMEOUT) from error
 
 
-def verify_home_archive(file, size):
-    if not isinstance(size, int) or not 0 < size == file.tell() <= MAX_ARCHIVE_SIZE:
-        raise ValueError("Incomplete home backup")
-    file.seek(0)
-    with gzip.GzipFile(fileobj=file, mode="rb") as compressed:
-        total = 0
-        while chunk := compressed.read(1024 * 1024):
-            total += len(chunk)
-            if total > MAX_ARCHIVE_SIZE:
-                raise ValueError("Home backup exceeds archive limit")
-    file.seek(0)
-
-
-def manage_home_directory(docker_client, user_id, lock, *, action="reset"):
-    try:
-        acquired = lock.acquire(blocking=False)
-    except redis.exceptions.RedisError as error:
-        raise HomeResetError("Workspace locking is unavailable. Please try again.", 503) from error
-    if not acquired:
-        raise HomeResetError("Another workspace operation is in progress. Please try again.", 409)
-    uncertain = False
-    archive = None
-    returned = False
-    previous_timeout = docker_client.api.timeout
-    try:
+def manage_home_directory(docker_client, user_id, lock, *, action):
+    def operation():
         try:
-            homefs = docker_client.containers.get("homefs")
-        except (docker.errors.DockerException, requests.RequestException) as error:
-            raise HomeResetError("Home storage is unavailable. Please try again.", 503) from error
+            acquired = lock.acquire(blocking=False)
+        except redis.exceptions.RedisError as error:
+            raise HomeResetError("Workspace locking is unavailable. Please try again.", 503) from error
+        if not acquired:
+            raise HomeResetError("Another workspace operation is in progress. Please try again.", 409)
+        uncertain = False
+        previous_timeout = docker_client.api.timeout
         try:
-            container = docker_client.containers.get(f"user_{user_id}")
-            if container.status != "running":
-                raise docker.errors.NotFound("Workspace is not running")
-        except docker.errors.NotFound as error:
-            raise HomeResetError("No running container found. Please start a container and try again.", 409) from error
-        except (docker.errors.DockerException, requests.RequestException) as error:
-            raise HomeResetError("Workspace is unavailable. Please try again.", 503) from error
-        try:
-            container.stop(timeout=10)
-            # Workspaces use auto_remove; wait until their mounts have been released.
-            container.wait(condition="removed", timeout=30)
-        except docker.errors.NotFound:
-            pass
-        except (docker.errors.DockerException, requests.RequestException) as error:
-            raise HomeResetError("Could not stop the workspace. Please try again.", 503) from error
-        docker_client.api.timeout = HOME_RESET_TIMEOUT + 30
-        file = tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode="w+b")
-        archive = HomeArchive(file, 0)
-        detail = run_home_command(homefs, user_id, "backup", file)
-        try:
-            verify_home_archive(file, detail.get("size", 0))
-        except (OSError, ValueError, EOFError) as error:
-            raise HomeResetError("Could not prepare a complete backup. Your home has not been reset. Please try again.", 503) from error
-        archive.size, archive.skipped = detail["size"], detail.get("skipped", 0)
-        if action == "reset":
             try:
-                run_home_command(homefs, user_id, "reset")
-                archive.message = "Home reset and backup downloaded. Start a new challenge to continue."
-            except HomeResetError as error:
-                uncertain = error.uncertain
-                archive.status = "unknown" if uncertain else "failed"
-                archive.message = str(error)
-        returned = True
-        return archive
-    except HomeResetError as error:
-        uncertain = error.uncertain
-        raise
-    finally:
-        docker_client.api.timeout = previous_timeout
-        if archive is not None and not returned:
-            archive.file.close()
-        # A lost connection can leave the homefs exec modifying files after the request ends.
-        if not uncertain:
-            try:
-                lock.release()
-            except redis.exceptions.RedisError:
-                logger.exception("Failed to release home operation lock user_id=%s", user_id)
+                homefs = docker_client.containers.get("homefs")
+                try:
+                    container = docker_client.containers.get(f"user_{user_id}")
+                except docker.errors.NotFound:
+                    container = None
+                if container is not None:
+                    if action == "reset":
+                        raise HomeResetError("A workspace is active. Download a new backup before resetting.", 409)
+                    try:
+                        container.stop(timeout=10)
+                        # Workspaces use auto_remove; wait until their mounts have been released.
+                        container.wait(condition="removed", timeout=30)
+                    except docker.errors.NotFound:
+                        pass
+            except (docker.errors.DockerException, requests.RequestException) as error:
+                raise HomeResetError("Could not prepare the workspace. Please try again.", 503) from error
+            docker_client.api.timeout = HOME_RESET_TIMEOUT + 30
+            uncertain = True
+            yield from run_home_command(homefs, user_id, action)
+            uncertain = False
+        except HomeResetError as error:
+            uncertain = error.uncertain
+            raise
+        finally:
+            docker_client.api.timeout = previous_timeout
+            # A disconnected exec can still hold the homefs lock until its timeout.
+            if not uncertain:
+                try:
+                    lock.release()
+                except redis.exceptions.RedisError:
+                    logger.exception("Failed to release home operation lock user_id=%s", user_id)
 
-
-def home_download_response(archive):
-    try:
-        response = send_file(archive.file, mimetype="application/gzip", as_attachment=True,
-                             download_name="home-backup.tar.gz", conditional=False, etag=False)
-        response.content_length = archive.size
-        response.headers["Cache-Control"] = "no-store"
-        response.headers["X-Home-Operation-Status"] = archive.status
-        response.headers["X-Home-Operation-Message"] = archive.message
-        response.headers["X-Home-Backup-Skipped-Files"] = str(archive.skipped)
-        if archive.status == "failed":
-            response.status_code = 500
-        elif archive.status == "unknown":
-            response.status_code = 503
-            response.headers["Retry-After"] = str(HOME_RESET_LOCK_TIMEOUT)
-        return response
-    except Exception:
-        archive.file.close()
-        raise
+    stream = operation()
+    if action == "reset":
+        with closing(stream):
+            for _ in stream:
+                pass
+        return {"success": True, "message": "Home reset. Start a new challenge to continue."}
+    first = next(stream)
+    response = Response(chain((first,), stream), mimetype="application/gzip", headers={
+        "Content-Disposition": "attachment; filename=home-backup.tar.gz",
+        "Cache-Control": "no-store",
+        "X-Accel-Buffering": "no",
+    })
+    response.call_on_close(stream.close)
+    return response
