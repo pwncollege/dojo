@@ -2,10 +2,13 @@ import time
 import logging
 
 import docker
+import redis
 import requests
 from ..models import Users
+from flask import current_app
 
 from . import user_docker_client
+from .home_reset import HOME_RESET_LOCK_TIMEOUT, HomeResetError, reset_home_directory
 from .request_logging import log_generator_output
 
 logger = logging.getLogger(__name__)
@@ -61,7 +64,8 @@ def exec_run(cmd, *, shell=False, assert_success=True, workspace_user="root", us
     return exit_code, output
 
 def reset_home(user_id):
-    exec_run("/bin/tar cvzf /tmp/home-backup.tar.gz /home/hacker", user_id=user_id, shell=True, workspace_user="hacker")
-    exec_run("find /home/hacker -mindepth 1 -delete", user_id=user_id, shell=True, workspace_user="root")
-    exec_run("chown hacker:hacker /home/hacker", user_id=user_id, shell=True, workspace_user="root")
-    exec_run("cp /tmp/home-backup.tar.gz /home/hacker/", user_id=user_id, shell=True, workspace_user="hacker")
+    docker_client = user_docker_client(Users.query.get(user_id))
+    redis_client = redis.from_url(current_app.config["REDIS_URL"])
+    lock = redis_client.lock(f"user.{user_id}.docker.lock", timeout=HOME_RESET_LOCK_TIMEOUT,
+                             blocking_timeout=0, raise_on_release_error=False)
+    reset_home_directory(docker_client, user_id, lock)

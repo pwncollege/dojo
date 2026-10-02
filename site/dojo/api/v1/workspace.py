@@ -8,7 +8,7 @@ from ...utils.user import get_current_user, is_admin
 from ...utils.decorators import authed_only
 
 from ...utils import get_current_container, container_password, parse_positive_int, user_node
-from ...utils.workspace import start_on_demand_service, reset_home
+from ...utils.workspace import start_on_demand_service, reset_home, HomeResetError
 from ...pages.workspace import forward_workspace, forward_port
 from ...config import WORKSPACE_SECRET
 
@@ -127,12 +127,9 @@ class ResetHome(Resource):
     def post(self):
         user = get_current_user()
 
-        if not get_current_container(user):
-            return {"success": False, "error": "No running container found. Please start a container and try again."}
-
         try:
             reset_home(user.id)
-        except AssertionError as e:
-            return {"success": False, "error": f"Reset failed with error: {e}"}
+        except HomeResetError as error:
+            return {"success": False, "error": str(error)}, error.status
 
-        return {"success": True, "message": "Home directory reset successfully"}
+        return {"success": True, "message": "Home directory reset successfully. Start a new challenge to continue."}

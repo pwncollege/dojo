@@ -897,9 +897,19 @@ def test_next_challenge_at_the_end_of_a_dojo(private_workspace):
     )
 
 
+def test_reset_home_requires_a_running_workspace(random_user_session):
+    response = random_user_session.post(RESET_HOME_API, json={})
+    assert response.status_code == 409
+    assert response.json() == {
+        "success": False,
+        "error": "No running container found. Please start a container and try again.",
+    }
+
+
 def test_reset_home_restores_an_empty_writable_home(private_workspace):
     name, session = private_workspace["name"], private_workspace["session"]
     before = session.get(DOCKER_API).json()
+    before_container = container_inspect(name)["Id"]
     workspace_output(
         name,
         "mkdir -p /home/hacker/.reset-config/nested && "
@@ -907,31 +917,75 @@ def test_reset_home_restores_an_empty_writable_home(private_workspace):
         "ln -s .reset-config/nested/settings /home/hacker/reset-link && "
         "touch /home/hacker/doomed-file",
     )
+    workspace_output(
+        name,
+        "mkdir -m 700 /home/hacker/.reset-root-only && "
+        "printf 'root-owned data' > /home/hacker/.reset-root-only/private-file",
+        root=True,
+    )
 
     response = session.post(RESET_HOME_API, json={})
     assert response.status_code == 200, f"Expected status code 200, but got {response.status_code}"
-    assert response.json() == {"success": True, "message": "Home directory reset successfully"}, (
+    assert response.json() == {
+        "success": True, "message": "Home directory reset successfully. Start a new challenge to continue."
+    }, (
         f"Unexpected reset response: {response.json()}"
     )
 
+    assert not container_exists(name), "Expected the reset to stop and remove the workspace"
+    assert session.get(DOCKER_API).json() == {"success": False, "error": "No active challenge"}
+    start_challenge(private_workspace["dojo"], "solo", "only", session=session)
+    assert container_inspect(name)["Id"] != before_container
     assert workspace_exec(name, "[ ! -e /home/hacker/doomed-file ]").returncode == 0, (
         "Expected the reset to wipe the home directory"
     )
     assert workspace_exec(name, "[ -f /home/hacker/home-backup.tar.gz ]").returncode == 0, (
         "Expected the reset to leave a backup of the old home directory"
     )
-    assert workspace_output(name, "find /home/hacker -mindepth 1 -printf '%P\\n'") == "home-backup.tar.gz"
+    assert workspace_output(name, "find /home/hacker -mindepth 1 -printf '%P\\n' | sort") == ".config\nhome-backup.tar.gz"
     assert session.get(DOCKER_API).json() == before
     workspace_output(name, "mkdir /tmp/reset-restore && tar -xzf /home/hacker/home-backup.tar.gz -C /tmp/reset-restore")
     assert workspace_output(name, "cat /tmp/reset-restore/home/hacker/.reset-config/nested/settings") == "saved settings"
     assert workspace_output(name, "cat /tmp/reset-restore/home/hacker/reset-link") == "saved settings"
     assert workspace_exec(name, "test -f /tmp/reset-restore/home/hacker/doomed-file").returncode == 0
+    assert workspace_output(name, "tar -xOf /home/hacker/home-backup.tar.gz home/hacker/.reset-root-only/private-file") == "root-owned data"
     assert workspace_output(name, "stat -c %U:%G /home/hacker") == "hacker:hacker", (
         "Expected the reset home directory to stay owned by the hacker user"
     )
     assert workspace_exec(name, "touch /home/hacker/after-reset").returncode == 0, (
         "Expected the hacker user to still be able to write to their home directory after a reset"
     )
+
+
+def test_reset_home_stops_a_workspace_writing_desktop_configuration(
+    random_user_name, random_user_session, example_dojo
+):
+    name = random_user_name
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session)
+    workspace_output(name, "touch /home/hacker/reset-original")
+    workspace_output(
+        name,
+        "sh -c 'while :; do mkdir -p /home/hacker/.config/xfce4; "
+        "printf live > /home/hacker/.config/xfce4/reset-writer; "
+        "touch /tmp/reset-home-writer-ready; sleep 0.01; done' "
+        "> /tmp/reset-home-writer.log 2>&1 & echo $! > /tmp/reset-home-writer.pid",
+    )
+    deadline = time.monotonic() + 10
+    while workspace_exec(name, "test -f /tmp/reset-home-writer-ready").returncode != 0:
+        assert time.monotonic() < deadline, "The workspace writer did not start"
+        time.sleep(0.05)
+    before_container = container_inspect(name)["Id"]
+    response = random_user_session.post(RESET_HOME_API, json={})
+    assert response.status_code == 200 and response.json()["success"], response.text
+    assert not container_exists(name), "Expected the reset to terminate the desktop writer's workspace"
+    start_challenge(example_dojo, "hello", "apple", session=random_user_session)
+    assert container_inspect(name)["Id"] != before_container
+    assert workspace_exec(name, "test ! -e /home/hacker/reset-original").returncode == 0
+    assert workspace_exec(name, "test ! -e /home/hacker/.config/xfce4/reset-writer").returncode == 0
+    assert workspace_exec(name, "test ! -e /tmp/reset-home-writer-ready").returncode == 0
+    assert workspace_exec(
+        name, "tar -tzf /home/hacker/home-backup.tar.gz home/hacker/reset-original"
+    ).returncode == 0
 
 
 def test_progression_lock_applies_to_members_but_not_dojo_admins(course_workspace):
